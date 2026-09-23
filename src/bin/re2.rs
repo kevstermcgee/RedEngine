@@ -32,6 +32,14 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
+// Movement/collision/gravity run on a fixed 60Hz timestep, decoupled from the render frame
+// rate (see `App::fixed_update` / `App::update`) — a deterministic step size regardless of
+// frame-time variance avoids the jitter a variable-dt physics step reads as under any load
+// spike, and avoids a single large clamped dt letting the player tunnel partway into a thin
+// collider before the next push-out. The render frame then interpolates between the last two
+// completed physics states instead of snapping to whichever one just finished.
+const FIXED_DT: f32 = 1.0 / 60.0;
+
 const WALK_SPEED: f32 = 3.2;
 const SPRINT_SPEED: f32 = 6.5;
 const CROUCH_SPEED_MULT: f32 = 0.5;
@@ -214,8 +222,20 @@ struct App {
     swing_hit_done: bool,
     target_index: Option<usize>,
     flash: Option<Flash>,
+    /// Fixed-timestep physics state (see [`FIXED_DT`]): the authoritative planar position after
+    /// the most recently completed physics step, and the one before it, so the actual rendered
+    /// frame can interpolate between them instead of drawing exactly on a physics step boundary.
+    physics_pos: Vec2,
+    prev_physics_pos: Vec2,
     foot_y: f32,
+    prev_foot_y: f32,
     vertical_velocity: f32,
+    /// Leftover real time not yet consumed by a fixed physics step; carried across frames.
+    accumulator: f32,
+    /// This frame's walking speed (0 when standing still), captured from the last fixed physics
+    /// step that ran so the walk-cycle animation (which runs once per rendered frame, not once
+    /// per physics step) knows how fast to play.
+    last_move_speed: f32,
     eye_height: f32,
     fov_deg: f32,
     view_mode: ViewMode,
@@ -265,8 +285,13 @@ impl App {
             swing_hit_done: false,
             target_index: None,
             flash: None,
+            physics_pos: Vec2::new(spawn.x, spawn.z),
+            prev_physics_pos: Vec2::new(spawn.x, spawn.z),
             foot_y: 0.0,
+            prev_foot_y: 0.0,
             vertical_velocity: 0.0,
+            accumulator: 0.0,
+            last_move_speed: 0.0,
             eye_height: STAND_EYE_HEIGHT,
             fov_deg: BASE_FOV_DEG,
             view_mode: ViewMode::FirstPerson,
@@ -513,12 +538,16 @@ impl App {
         };
     }
 
-    fn update(&mut self, dt: f32) {
-        if !self.grabbed {
-            return;
-        }
-        let crouching = self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight);
+    /// One fixed-size (`FIXED_DT`) physics step: movement/collision + jump/gravity, sampling
+    /// currently-held input fresh (input state doesn't change within a rendered frame between
+    /// steps). Snapshots the pre-step planar position/foot height into `prev_physics_pos`/
+    /// `prev_foot_y` first, so `update` can interpolate between them for the actual rendered
+    /// frame instead of drawing exactly on whichever physics step boundary just landed.
+    fn fixed_step_physics(&mut self) {
+        self.prev_physics_pos = self.physics_pos;
+        self.prev_foot_y = self.foot_y;
 
+        let crouching = self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight);
         let fwd = self.camera.forward_flat();
         let right = self.camera.right_flat();
         let mut dir = Vec2::ZERO;
@@ -542,9 +571,10 @@ impl App {
         // shooters), and not crouching — crouch always wins if both are held.
         let sprinting = self.sprint_held && forward_held && !back_held && !crouching;
 
-        // Tracked outside the block below so the walk-cycle animation can see how fast the
-        // player is actually moving this frame (0 when standing still).
-        let mut current_speed = 0.0;
+        // Tracked on `self` so the walk-cycle animation (which runs once per rendered frame, not
+        // once per physics step) can see how fast the player is actually moving (0 when standing
+        // still).
+        self.last_move_speed = 0.0;
         if dir.length_squared() > 1e-8 {
             dir = dir.normalize();
             let speed = if crouching {
@@ -554,33 +584,55 @@ impl App {
             } else {
                 WALK_SPEED
             };
-            current_speed = speed;
-            let mut pos2 = Vec2::new(self.camera.position.x, self.camera.position.z);
+            self.last_move_speed = speed;
+            let mut pos2 = self.physics_pos;
 
             // Resolve one movement axis at a time so sliding along a wall works instead of the
             // player sticking when their motion isn't purely into it.
-            pos2.x += dir.x * speed * dt;
+            pos2.x += dir.x * speed * FIXED_DT;
             pos2 = resolve_collision(pos2, PLAYER_RADIUS, &self.colliders);
-            pos2.y += dir.y * speed * dt;
+            pos2.y += dir.y * speed * FIXED_DT;
             pos2 = resolve_collision(pos2, PLAYER_RADIUS, &self.colliders);
 
-            self.camera.position.x = pos2.x;
-            self.camera.position.z = pos2.y;
+            self.physics_pos = pos2;
         }
 
         // Vertical: jump + gravity. `foot_y` is the player's height above the floor (y=0);
-        // grounded means last frame's physics settled it back to exactly 0 with no velocity.
+        // grounded means the last physics step settled it back to exactly 0 with no velocity.
         let grounded = self.foot_y <= 0.0 && self.vertical_velocity <= 0.0;
         if self.jump_queued && grounded {
             self.vertical_velocity = JUMP_SPEED;
         }
         self.jump_queued = false;
-        self.vertical_velocity -= GRAVITY * dt;
-        self.foot_y += self.vertical_velocity * dt;
+        self.vertical_velocity -= GRAVITY * FIXED_DT;
+        self.foot_y += self.vertical_velocity * FIXED_DT;
         if self.foot_y <= 0.0 {
             self.foot_y = 0.0;
             self.vertical_velocity = 0.0;
         }
+    }
+
+    fn update(&mut self, dt: f32) {
+        if !self.grabbed {
+            return;
+        }
+
+        // Accumulate real time and drain it in fixed-size chunks (the standard "fix your
+        // timestep" pattern) — capped so a long stall (window drag, debugger pause) resumes from
+        // where it left off instead of trying to replay minutes of physics in one frame.
+        self.accumulator = (self.accumulator + dt).min(FIXED_DT * 8.0);
+        while self.accumulator >= FIXED_DT {
+            self.fixed_step_physics();
+            self.accumulator -= FIXED_DT;
+        }
+        let alpha = (self.accumulator / FIXED_DT).clamp(0.0, 1.0);
+        let planar_pos = self.prev_physics_pos.lerp(self.physics_pos, alpha);
+        let foot_y = self.prev_foot_y + (self.foot_y - self.prev_foot_y) * alpha;
+
+        let crouching = self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight);
+        let forward_held = self.keys.contains(&KeyCode::KeyW) || self.keys.contains(&KeyCode::ArrowUp);
+        let back_held = self.keys.contains(&KeyCode::KeyS) || self.keys.contains(&KeyCode::ArrowDown);
+        let sprinting = self.sprint_held && forward_held && !back_held && !crouching;
 
         // Crouch: blend the eye height toward its target instead of snapping, so the camera
         // doesn't jump-cut when Ctrl is pressed/released.
@@ -588,16 +640,15 @@ impl App {
         let blend = (dt / CROUCH_TRANSITION_TIME).min(1.0);
         self.eye_height += (target_eye_height - self.eye_height) * blend;
 
-        // Update the player's own body (position/facing/pose) from the pre-third-person-pullback
-        // planar position, then place the camera: directly at the eye in first person, or pulled
-        // back behind/above it in third person. This order matters — the body must be placed
-        // before `self.camera.position.x/z` are potentially overwritten by the third-person
-        // pullback below.
-        let planar_pos = Vec2::new(self.camera.position.x, self.camera.position.z);
+        // Update the player's own body (position/facing/pose) from the interpolated
+        // (pre-third-person-pullback) planar position, then place the camera: directly at the
+        // eye in first person, or pulled back behind/above it in third person. This order
+        // matters — the body must be placed before `self.camera.position` is potentially
+        // overwritten by the third-person pullback below.
         let body_yaw_deg = 180.0 - self.camera.yaw.to_degrees();
-        self.update_player_body(planar_pos, body_yaw_deg, current_speed, dt);
+        self.update_player_body(planar_pos, body_yaw_deg, self.last_move_speed, dt);
 
-        let anchor = Vec3::new(planar_pos.x, self.foot_y + self.eye_height, planar_pos.y);
+        let anchor = Vec3::new(planar_pos.x, foot_y + self.eye_height, planar_pos.y);
         self.camera.position = match self.view_mode {
             ViewMode::FirstPerson => anchor,
             ViewMode::ThirdPerson => {

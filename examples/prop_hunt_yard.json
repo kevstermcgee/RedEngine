@@ -1,0 +1,122 @@
+{
+  "meta": { "fps": 30, "duration": 4.0, "resolution": [1280, 720] },
+  "background": { "sky_top": "#2b3a52", "sky_bottom": "#c9b896" },
+  "ambient": { "color": "#b8c4dd", "intensity": 0.3 },
+  "camera": { "fov": 72, "position": [0, 1.7, 6.5], "target": [0, 1.4, 0] },
+  "lights": [
+    { "id": "moon", "type": "directional", "direction": [-0.35, -1.0, -0.25],
+      "color": "#cdd8ff", "intensity": 1.6, "cast_shadows": true, "shadow_radius": 16 },
+    { "id": "yard_lamp_1", "type": "point", "position": [-8, 3.6, -5],
+      "color": "#ffd9a0", "intensity": 18, "range": 14 },
+    { "id": "yard_lamp_2", "type": "point", "position": [8, 3.6, -5],
+      "color": "#ffd9a0", "intensity": 18, "range": 14 },
+    { "id": "yard_lamp_3", "type": "point", "position": [-8, 3.6, 5],
+      "color": "#a0c8ff", "intensity": 16, "range": 14 },
+    { "id": "yard_lamp_4", "type": "point", "position": [8, 3.6, 5],
+      "color": "#a0c8ff", "intensity": 16, "range": 14 },
+    { "id": "office_lamp", "type": "point", "position": [-9, 2.8, -7],
+      "color": "#fff0d0", "intensity": 10, "range": 7 },
+    { "id": "dock_lamp", "type": "point", "position": [9.5, 2.6, 0],
+      "color": "#ffffff", "intensity": 9, "range": 8 },
+    { "id": "center_fill_lamp", "type": "point", "position": [0, 3.2, -3],
+      "color": "#ffe8c0", "intensity": 12, "range": 9 }
+  ],
+  "objects": [
+    { "id": "floor", "type": "plane", "size": [24, 18],
+      "material": { "color": "#6e6a63", "roughness": 0.9 } },
+    { "id": "ceiling", "type": "box", "size": [24, 0.2, 18], "position": [0, 4.4, 0],
+      "material": { "color": "#23262c", "roughness": 0.95 } },
+
+    { "id": "wall_north", "type": "box", "size": [24, 4.4, 0.2], "position": [0, 2.2, -9],
+      "material": { "color": "#9a8f7d", "roughness": 0.9 } },
+    { "id": "wall_south", "type": "box", "size": [24, 4.4, 0.2], "position": [0, 2.2, 9],
+      "material": { "color": "#9a8f7d", "roughness": 0.9 } },
+    { "id": "wall_east", "type": "box", "size": [0.2, 4.4, 18], "position": [12, 2.2, 0],
+      "material": { "color": "#8c8271", "roughness": 0.9 } },
+    { "id": "wall_west", "type": "box", "size": [0.2, 4.4, 18], "position": [-12, 2.2, 0],
+      "material": { "color": "#8c8271", "roughness": 0.9 } },
+
+    { "id": "divider_1", "type": "box", "size": [6, 2.4, 0.2], "position": [2, 1.2, -1],
+      "material": { "color": "#5d564a", "roughness": 0.85 } },
+    { "id": "divider_2", "type": "box", "size": [0.2, 2.4, 4], "position": [-3.2, 1.2, -6.3],
+      "material": { "color": "#5d564a", "roughness": 0.85 } },
+
+    { "id": "crate_1", "type": "prop", "prop": "crate", "position": [-8, 0, -2], "rotation": [0, 12, 0],
+      "material": { "color": "#8a6a3f", "roughness": 0.8 } },
+    { "id": "crate_2", "type": "prop", "prop": "crate", "position": [-6.7, 0, -1.6], "rotation": [0, -18, 0],
+      "material": { "color": "#8a6a3f", "roughness": 0.8 } },
+    { "id": "crate_3", "type": "prop", "prop": "crate", "position": [5.5, 0, 6.5], "rotation": [0, 30, 0],
+      "material": { "color": "#79593a", "roughness": 0.8 } },
+    { "id": "crate_4", "type": "prop", "prop": "crate", "position": [9, 0, -6], "rotation": [0, -5, 0],
+      "material": { "color": "#8a6a3f", "roughness": 0.8 } },
+
+    { "id": "barrel_1", "type": "prop", "prop": "barrel", "position": [-9.5, 0, 1], "rotation": [0, 0, 0],
+      "material": { "color": "#3f6b3a", "roughness": 0.6 } },
+    { "id": "barrel_2", "type": "prop", "prop": "barrel", "position": [-8.6, 0, 1.7], "rotation": [0, 0, 0],
+      "material": { "color": "#5a3a3a", "roughness": 0.6 } },
+    { "id": "barrel_3", "type": "prop", "prop": "barrel", "position": [3, 0, -6.5], "rotation": [0, 0, 0],
+      "material": { "color": "#3f6b3a", "roughness": 0.6 } },
+
+    { "id": "cone_1", "type": "prop", "prop": "traffic_cone", "position": [1, 0, 4], "rotation": [0, 0, 0],
+      "material": { "color": "#e0662a" } },
+    { "id": "cone_2", "type": "prop", "prop": "traffic_cone", "position": [1.6, 0, 4.4], "rotation": [0, 0, 0],
+      "material": { "color": "#e0662a" } },
+    { "id": "cone_3", "type": "prop", "prop": "traffic_cone", "position": [9.5, 0, 3], "rotation": [0, 0, 0],
+      "material": { "color": "#e0662a" } },
+
+    { "id": "box_stack_1", "type": "prop", "prop": "box_stack", "position": [-2, 0, -6.5], "rotation": [0, 20, 0],
+      "material": { "color": "#c2a06a", "roughness": 0.9 } },
+    { "id": "box_stack_2", "type": "prop", "prop": "box_stack", "position": [6.5, 0, -2], "rotation": [0, -40, 0],
+      "material": { "color": "#c2a06a", "roughness": 0.9 } },
+
+    { "id": "trash_can_1", "type": "prop", "prop": "trash_can", "position": [4, 0, 7.8], "rotation": [0, 0, 0],
+      "material": { "color": "#3a4a52", "roughness": 0.6 } },
+    { "id": "trash_can_2", "type": "prop", "prop": "trash_can", "position": [-11, 0, -3.5], "rotation": [0, 0, 0],
+      "material": { "color": "#3a4a52", "roughness": 0.6 } },
+
+    { "id": "vending_machine_1", "type": "prop", "prop": "vending_machine", "position": [-9.4, 0, -8.5], "rotation": [0, 0, 0],
+      "material": { "color": "#8f1f2a", "roughness": 0.5 } },
+
+    { "id": "bench_1", "type": "prop", "prop": "bench", "position": [-3.5, 0, 7.5], "rotation": [0, 180, 0],
+      "material": { "color": "#4a5c40", "roughness": 0.7 } },
+    { "id": "bench_2", "type": "prop", "prop": "bench", "position": [7.5, 0, 7.5], "rotation": [0, 180, 0],
+      "material": { "color": "#4a5c40", "roughness": 0.7 } },
+
+    { "id": "fire_ext_1", "type": "prop", "prop": "fire_extinguisher", "position": [-11.7, 0.55, -6], "rotation": [0, 0, 0],
+      "material": { "color": "#b5241f" } },
+    { "id": "fire_ext_2", "type": "prop", "prop": "fire_extinguisher", "position": [11.7, 0.55, 4], "rotation": [0, 180, 0],
+      "material": { "color": "#b5241f" } },
+
+    { "id": "office_desk_cabinet_1", "type": "prop", "prop": "filing_cabinet", "position": [-10.2, 0, -7.6], "rotation": [0, 20, 0],
+      "material": { "color": "#5f6672", "roughness": 0.55 } },
+    { "id": "office_cabinet_2", "type": "prop", "prop": "filing_cabinet", "position": [-6.5, 0, -8.2], "rotation": [0, 0, 0],
+      "material": { "color": "#5f6672", "roughness": 0.55 } },
+
+    { "id": "office_chair_1", "type": "prop", "prop": "chair", "position": [-8.2, 0, -6.3], "rotation": [0, 150, 0],
+      "material": { "color": "#2f3a4a", "roughness": 0.6 } },
+    { "id": "office_chair_2", "type": "prop", "prop": "chair", "position": [-4.5, 0, 5.8], "rotation": [0, -60, 0],
+      "material": { "color": "#7a2f2f", "roughness": 0.6 } },
+    { "id": "office_chair_3", "type": "prop", "prop": "chair", "position": [3.5, 0, 6.3], "rotation": [0, 100, 0],
+      "material": { "color": "#2f4a2f", "roughness": 0.6 } },
+
+    { "id": "office_plant_1", "type": "prop", "prop": "potted_plant", "position": [-6.8, 0, -6.6], "rotation": [0, 0, 0],
+      "material": { "color": "#9c7248" } },
+    { "id": "office_plant_2", "type": "prop", "prop": "potted_plant", "position": [10.3, 0, -7.6], "rotation": [0, 0, 0],
+      "material": { "color": "#b08052" } },
+
+    { "id": "office_bookshelf_1", "type": "prop", "prop": "bookshelf", "position": [-11.6, 0, -5], "rotation": [0, 90, 0],
+      "material": { "color": "#5a3c22", "roughness": 0.6 } },
+
+    { "id": "greeter", "type": "humanoid", "position": [0, 0, 2.2], "rotation": [0, 180, 0],
+      "height": 1.75, "build": 1.0,
+      "material": { "color": "#c9a888" },
+      "pose": {
+        "spine": [3, 0, 0],
+        "l_shoulder": [6, 0, -50], "r_shoulder": [-6, 0, 15],
+        "l_elbow": 12, "r_elbow": 45,
+        "l_hip": [3, 0, -2], "r_hip": [-3, 0, 2],
+        "l_knee": 5, "r_knee": 5
+      }
+    }
+  ]
+}
