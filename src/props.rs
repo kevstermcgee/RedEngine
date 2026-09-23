@@ -30,10 +30,25 @@ pub enum PropKind {
     FilingCabinet,
     PottedPlant,
     Bookshelf,
+    // House set, added for the suburban-home map — see props.rs module doc. All reusable later
+    // by the school/office/store maps, per the shared-library approach.
+    Sofa,
+    Bed,
+    DiningTable,
+    Tv,
+    KitchenCounter,
+    Refrigerator,
+    Stove,
+    Sink,
+    Toilet,
+    Bathtub,
+    WasherDryer,
+    Mailbox,
+    FenceSection,
 }
 
 impl PropKind {
-    pub const ALL: [PropKind; 12] = [
+    pub const ALL: [PropKind; 25] = [
         PropKind::Crate,
         PropKind::Barrel,
         PropKind::TrafficCone,
@@ -46,6 +61,19 @@ impl PropKind {
         PropKind::FilingCabinet,
         PropKind::PottedPlant,
         PropKind::Bookshelf,
+        PropKind::Sofa,
+        PropKind::Bed,
+        PropKind::DiningTable,
+        PropKind::Tv,
+        PropKind::KitchenCounter,
+        PropKind::Refrigerator,
+        PropKind::Stove,
+        PropKind::Sink,
+        PropKind::Toilet,
+        PropKind::Bathtub,
+        PropKind::WasherDryer,
+        PropKind::Mailbox,
+        PropKind::FenceSection,
     ];
 
     /// The `"prop"` string a scene JSON uses to name this kind.
@@ -63,6 +91,19 @@ impl PropKind {
             PropKind::FilingCabinet => "filing_cabinet",
             PropKind::PottedPlant => "potted_plant",
             PropKind::Bookshelf => "bookshelf",
+            PropKind::Sofa => "sofa",
+            PropKind::Bed => "bed",
+            PropKind::DiningTable => "dining_table",
+            PropKind::Tv => "tv",
+            PropKind::KitchenCounter => "kitchen_counter",
+            PropKind::Refrigerator => "refrigerator",
+            PropKind::Stove => "stove",
+            PropKind::Sink => "sink",
+            PropKind::Toilet => "toilet",
+            PropKind::Bathtub => "bathtub",
+            PropKind::WasherDryer => "washer_dryer",
+            PropKind::Mailbox => "mailbox",
+            PropKind::FenceSection => "fence_section",
         }
     }
 
@@ -151,6 +192,19 @@ pub fn prop_parts(kind: PropKind) -> Vec<PropPart> {
         PropKind::FilingCabinet => filing_cabinet_parts(),
         PropKind::PottedPlant => potted_plant_parts(),
         PropKind::Bookshelf => bookshelf_parts(),
+        PropKind::Sofa => sofa_parts(),
+        PropKind::Bed => bed_parts(),
+        PropKind::DiningTable => dining_table_parts(),
+        PropKind::Tv => tv_parts(),
+        PropKind::KitchenCounter => kitchen_counter_parts(),
+        PropKind::Refrigerator => refrigerator_parts(),
+        PropKind::Stove => stove_parts(),
+        PropKind::Sink => sink_parts(),
+        PropKind::Toilet => toilet_parts(),
+        PropKind::Bathtub => bathtub_parts(),
+        PropKind::WasherDryer => washer_dryer_parts(),
+        PropKind::Mailbox => mailbox_parts(),
+        PropKind::FenceSection => fence_section_parts(),
     }
 }
 
@@ -325,6 +379,201 @@ fn bookshelf_parts() -> Vec<PropPart> {
         PropPart::new(book, Vec3::new(-0.32, 0.68, 0.0)).color(Vec3::new(0.65, 0.15, 0.13)),
         PropPart::new(book, Vec3::new(-0.24, 0.68, 0.0)).color(Vec3::new(0.18, 0.55, 0.22)),
         PropPart::new(book, Vec3::new(-0.16, 0.68, 0.0)).color(Vec3::new(0.2, 0.35, 0.7)),
+    ]
+}
+
+// ---------------------------------------------------------------------------------------------
+// House set
+// ---------------------------------------------------------------------------------------------
+
+/// A 3-seat sofa: seat cushion, backrest, two armrests, four short legs.
+fn sofa_parts() -> Vec<PropPart> {
+    let leg = b(0.06, 0.12, 0.06);
+    let seat = b(1.8, 0.3, 0.8);
+    let back = b(1.8, 0.55, 0.18);
+    let arm = b(0.16, 0.4, 0.8);
+    vec![
+        PropPart::new(leg, Vec3::new(0.85, 0.06, 0.32)),
+        PropPart::new(leg, Vec3::new(-0.85, 0.06, 0.32)),
+        PropPart::new(leg, Vec3::new(0.85, 0.06, -0.32)),
+        PropPart::new(leg, Vec3::new(-0.85, 0.06, -0.32)),
+        PropPart::new(seat, Vec3::new(0.0, 0.27, 0.0)),
+        PropPart::new(back, Vec3::new(0.0, 0.695, -0.31)),
+        PropPart::new(arm, Vec3::new(0.9, 0.32, 0.0)),
+        PropPart::new(arm, Vec3::new(-0.9, 0.32, 0.0)),
+    ]
+}
+
+/// A bed: frame, mattress, headboard, and a pillow (color-overridden white regardless of the
+/// instance's material, like the potted plant's foliage — bedding reads oddly if it takes
+/// whatever color the frame is).
+fn bed_parts() -> Vec<PropPart> {
+    let frame = b(1.6, 0.25, 2.0);
+    let mattress = b(1.5, 0.22, 1.9);
+    let headboard = b(1.6, 0.6, 0.08);
+    let pillow = b(0.5, 0.12, 0.35);
+    vec![
+        PropPart::new(frame, Vec3::new(0.0, 0.125, 0.0)),
+        PropPart::new(mattress, Vec3::new(0.0, 0.36, 0.0)),
+        PropPart::new(headboard, Vec3::new(0.0, 0.3, -1.04)),
+        PropPart::new(pillow, Vec3::new(0.0, 0.53, -0.7)).color(Vec3::new(0.92, 0.92, 0.9)),
+    ]
+}
+
+/// A dining table: top + four legs — the same composition `room.json`'s original hand-authored
+/// `table` used, promoted to a reusable prop.
+fn dining_table_parts() -> Vec<PropPart> {
+    let top = b(1.6, 0.06, 0.9);
+    let leg = b(0.08, 0.72, 0.08);
+    vec![
+        PropPart::new(top, Vec3::new(0.0, 0.75, 0.0)),
+        PropPart::new(leg, Vec3::new(0.7, 0.36, -0.37)),
+        PropPart::new(leg, Vec3::new(-0.7, 0.36, -0.37)),
+        PropPart::new(leg, Vec3::new(0.7, 0.36, 0.37)),
+        PropPart::new(leg, Vec3::new(-0.7, 0.36, 0.37)),
+    ]
+}
+
+/// A flat-screen TV on a small stand. The screen is color-overridden near-black regardless of
+/// the instance's material — a TV screen doesn't take a paint color.
+fn tv_parts() -> Vec<PropPart> {
+    let base = b(0.4, 0.04, 0.25);
+    let neck = b(0.06, 0.35, 0.06);
+    let screen = b(1.1, 0.65, 0.05);
+    vec![
+        PropPart::new(base, Vec3::new(0.0, 0.02, 0.0)),
+        PropPart::new(neck, Vec3::new(0.0, 0.195, 0.0)),
+        PropPart::new(screen, Vec3::new(0.0, 0.695, 0.0)).color(Vec3::new(0.03, 0.03, 0.035)),
+    ]
+}
+
+/// A kitchen counter run: cabinet body plus a glossier overhanging countertop.
+fn kitchen_counter_parts() -> Vec<PropPart> {
+    let body = b(1.8, 0.9, 0.6);
+    let top = b(1.86, 0.05, 0.64);
+    vec![
+        PropPart::new(body, Vec3::new(0.0, 0.45, 0.0)),
+        PropPart::new(top, Vec3::new(0.0, 0.925, 0.0)).metallic(0.15).roughness(-0.25),
+    ]
+}
+
+/// A refrigerator: tall body, a darker seam between the freezer and fridge sections, and a
+/// metallic door handle.
+fn refrigerator_parts() -> Vec<PropPart> {
+    let body = b(0.75, 1.8, 0.7);
+    let seam = b(0.77, 0.03, 0.72);
+    let handle = b(0.04, 0.35, 0.04);
+    vec![
+        PropPart::new(body, Vec3::new(0.0, 0.9, 0.0)),
+        PropPart::new(seam, Vec3::new(0.0, 1.3, 0.0)).color(Vec3::new(0.05, 0.05, 0.05)),
+        PropPart::new(handle, Vec3::new(0.3, 1.1, 0.37)).metallic(0.3).roughness(-0.2),
+    ]
+}
+
+/// A stove: body, four dark burners on top, and an oven door panel.
+fn stove_parts() -> Vec<PropPart> {
+    let body = b(0.6, 0.9, 0.6);
+    let burner = cyl(0.08, 0.02);
+    let oven_door = b(0.55, 0.5, 0.03);
+    let mut parts = vec![
+        PropPart::new(body, Vec3::new(0.0, 0.45, 0.0)),
+        PropPart::new(oven_door, Vec3::new(0.0, 0.35, 0.31)).metallic(0.1),
+    ];
+    for &(x, z) in &[(0.15, 0.15), (-0.15, 0.15), (0.15, -0.15), (-0.15, -0.15)] {
+        parts.push(
+            PropPart::new(burner, Vec3::new(x, 0.91, z)).color(Vec3::new(0.05, 0.05, 0.05)).metallic(0.4).roughness(-0.2),
+        );
+    }
+    parts
+}
+
+/// A sink: cabinet base, counter slab, a light porcelain basin, and a metallic faucet.
+fn sink_parts() -> Vec<PropPart> {
+    let cabinet = b(0.6, 0.8, 0.55);
+    let counter = b(0.64, 0.04, 0.58);
+    let basin = b(0.4, 0.15, 0.35);
+    let faucet = cyl(0.02, 0.25);
+    vec![
+        PropPart::new(cabinet, Vec3::new(0.0, 0.4, 0.0)),
+        PropPart::new(counter, Vec3::new(0.0, 0.82, 0.0)),
+        PropPart::new(basin, Vec3::new(0.0, 0.84, 0.0)).color(Vec3::new(0.9, 0.9, 0.88)).roughness(-0.3),
+        PropPart::new(faucet, Vec3::new(0.0, 0.945, -0.2)).metallic(0.4).roughness(-0.2),
+    ]
+}
+
+/// A toilet: base, bowl rim, tank, and lid — all porcelain-white regardless of instance color
+/// (like the bathtub), since a toilet's color isn't something a map author should need to
+/// think about.
+fn toilet_parts() -> Vec<PropPart> {
+    let porcelain = Vec3::new(0.92, 0.92, 0.9);
+    let base = cyl(0.2, 0.4);
+    let bowl_top = cyl(0.22, 0.08);
+    let tank = b(0.42, 0.4, 0.18);
+    let lid = cyl(0.23, 0.03);
+    vec![
+        PropPart::new(base, Vec3::new(0.0, 0.2, 0.0)).color(porcelain),
+        PropPart::new(bowl_top, Vec3::new(0.0, 0.42, 0.0)).color(porcelain),
+        PropPart::new(tank, Vec3::new(0.0, 0.6, -0.25)).color(porcelain),
+        PropPart::new(lid, Vec3::new(0.0, 0.46, 0.0)).color(porcelain),
+    ]
+}
+
+/// A bathtub: porcelain-white shell, a rim lip, and a metallic faucet.
+fn bathtub_parts() -> Vec<PropPart> {
+    let porcelain = Vec3::new(0.92, 0.92, 0.9);
+    let shell = b(1.6, 0.55, 0.75);
+    let rim = b(1.7, 0.05, 0.8);
+    let faucet = cyl(0.02, 0.2);
+    vec![
+        PropPart::new(shell, Vec3::new(0.0, 0.275, 0.0)).color(porcelain),
+        PropPart::new(rim, Vec3::new(0.0, 0.575, 0.0)).color(porcelain),
+        PropPart::new(faucet, Vec3::new(0.0, 0.65, -0.32)).metallic(0.4).roughness(-0.2),
+    ]
+}
+
+/// A stacked washer/dryer unit: body, a mid seam, and two dark porthole doors (rotated so their
+/// flat face points forward along local `+Z`, the same "rotate a Y-axis cylinder 90° about X"
+/// trick the crowbar viewmodel's grip collars use).
+fn washer_dryer_parts() -> Vec<PropPart> {
+    let body = b(0.65, 1.7, 0.65);
+    let seam = b(0.67, 0.03, 0.67);
+    let door = cyl(0.22, 0.03);
+    vec![
+        PropPart::new(body, Vec3::new(0.0, 0.85, 0.0)),
+        PropPart::new(seam, Vec3::new(0.0, 0.85, 0.0)),
+        PropPart::rotated(door, Vec3::new(0.0, 1.2, 0.34), Vec3::new(90.0, 0.0, 0.0))
+            .color(Vec3::new(0.05, 0.05, 0.05))
+            .roughness(-0.2),
+        PropPart::rotated(door, Vec3::new(0.0, 0.45, 0.34), Vec3::new(90.0, 0.0, 0.0))
+            .color(Vec3::new(0.05, 0.05, 0.05))
+            .roughness(-0.2),
+    ]
+}
+
+/// A post-mounted mailbox with a small flag.
+fn mailbox_parts() -> Vec<PropPart> {
+    let post = cyl(0.04, 0.9);
+    let box_body = b(0.15, 0.18, 0.35);
+    let flag = b(0.02, 0.1, 0.03);
+    vec![
+        PropPart::new(post, Vec3::new(0.0, 0.45, 0.0)),
+        PropPart::new(box_body, Vec3::new(0.0, 0.99, 0.0)),
+        PropPart::new(flag, Vec3::new(0.09, 0.95, 0.1)).metallic(0.2),
+    ]
+}
+
+/// A tileable ~2m fence segment: two end posts and three horizontal rails, meant to be placed
+/// repeatedly along a perimeter (the same pattern the room maps already use for straight walls
+/// built from plain `box` prims, just packaged as a reusable prop).
+fn fence_section_parts() -> Vec<PropPart> {
+    let post = b(0.08, 1.8, 0.08);
+    let rail = b(2.0, 0.08, 0.03);
+    vec![
+        PropPart::new(post, Vec3::new(1.0, 0.9, 0.0)),
+        PropPart::new(post, Vec3::new(-1.0, 0.9, 0.0)),
+        PropPart::new(rail, Vec3::new(0.0, 1.5, 0.0)),
+        PropPart::new(rail, Vec3::new(0.0, 0.9, 0.0)),
+        PropPart::new(rail, Vec3::new(0.0, 0.3, 0.0)),
     ]
 }
 
