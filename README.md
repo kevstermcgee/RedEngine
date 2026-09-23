@@ -84,13 +84,33 @@ the camera's frustum and the shadow-casting light's frustum.
 `props.rs` is a small library of prop-hunt props — schema-level objects
 (`{"type": "prop", "prop": "<name>", ...}`) that expand into a handful of primitive parts the
 same way `humanoid` expands into a posed capsule rig, so a map author places one object instead
-of hand-nesting a dozen boxes. Current set: `crate`, `barrel`, `traffic_cone`, `box_stack`,
+of hand-nesting a dozen boxes. Current set (25): `crate`, `barrel`, `traffic_cone`, `box_stack`,
 `chair`, `trash_can`, `vending_machine`, `bench`, `fire_extinguisher`, `filing_cabinet`,
-`potted_plant`, `bookshelf` — see [`examples/prop_hunt_yard.json`](examples/prop_hunt_yard.json)
-for all of them placed in one map. Each takes the same one shared `material` every other object
-kind does; a few parts (a barrel's rim bands, a potted plant's foliage, ...) get a small
-built-in metallic/roughness/color nudge off that base material so the prop doesn't read as one
-flat-colored blob, computed in Rust rather than schema-configurable.
+`potted_plant`, `bookshelf`, `sofa`, `bed`, `dining_table`, `tv`, `kitchen_counter`,
+`refrigerator`, `stove`, `sink`, `toilet`, `bathtub`, `washer_dryer`, `mailbox`,
+`fence_section` — see [`examples/prop_hunt_yard.json`](examples/prop_hunt_yard.json) and
+[`examples/house.json`](examples/house.json) for them placed in maps. Each takes the same one
+shared `material` every other object kind does; a few parts (a barrel's rim bands, a potted
+plant's foliage, ...) get a small built-in metallic/roughness/color nudge off that base
+material so the prop doesn't read as one flat-colored blob, computed in Rust rather than
+schema-configurable. The whole library is meant to be shared across every map — the same
+`chair` or `potted_plant` reappearing in the house, school, office, and store maps is
+intentional, not a gap.
+
+### Multi-floor maps and `stairs`
+
+The live viewer supports more than one floor: player gravity targets a dynamic ground height
+(`viewer::ground_height_at`) instead of a hardcoded `y=0`, so a second floor (an ordinary `box`
+used as a floor slab) is walkable once the player has actually climbed near its height — which
+is exactly what a `stairs` object provides, a smooth walkable ramp under a visually stepped
+mesh. See [`examples/house.json`](examples/house.json) for a full 2-story layout, and its
+`### stairs` section in [`SPEC.md`](SPEC.md) for the schema. Two things worth knowing when
+building a multi-floor map: a staircase only "climbs" when walked from its own local `-Z`
+(bottom) end — approaching the tall end at ground level is correctly rejected as unreachable —
+so route hallways as one-way approaches to a staircase rather than a through-path past it; and
+any wall meant to block the far end of a stairwell needs to be built at the *upper* floor's
+height, not the lower one's, since wall collision is also height-band-relative to the player's
+current floor.
 
 ## Setup
 
@@ -151,10 +171,14 @@ To register it with Claude Code, add to your MCP config:
   fine through the offline pipeline.
 - [`examples/prop_hunt_yard.json`](examples/prop_hunt_yard.json) — a larger warehouse/yard
   map populated with the `prop` library below, for prop hunt map iteration.
+- [`examples/house.json`](examples/house.json) — the first real prop hunt map: a 2-story
+  suburban home (living room, kitchen/dining, two bathrooms, two bedrooms, a stairwell) with
+  a fenced backyard. First of a planned four (house, school, office, convenience store),
+  all meant to draw from the same shared `props.rs` library.
 
 Render either of the first two and open the resulting `.mp4` to see the offline engine's full
-current capability; open `room.json` or `prop_hunt_yard.json` in `re2` to walk around them
-instead.
+current capability; open `room.json`, `prop_hunt_yard.json`, or `house.json` in `re2` to walk
+around them instead.
 
 ## Project layout
 
@@ -169,8 +193,9 @@ src/
   gpu.rs        # wgpu device/pipelines/bind-group-layouts (shadow pass, background, main pass)
   render.rs     # scene -> per-frame GPU draws -> RGB pixels (2x supersampled, then downsampled)
   video.rs      # RGB frames -> ffmpeg -> mp4
-  viewer.rs     # Red Engine 2: same pipeline, drawn live into a window surface; player-driven camera + wall collision
+  viewer.rs     # Red Engine 2: same pipeline, drawn live into a window surface; player-driven camera + multi-floor collision/ground-height + stairs
   props.rs      # prop-hunt prop library: primitive-composed meshes (crate, barrel, chair, ...)
+  audio.rs      # synthesized sound effects (no imported samples) + rodio playback
   shaders/      # WGSL: scene (lit + shadow-sampled), shadow (depth-only), background (sky gradient)
   main.rs       # validate / frame / render / storyboard CLI
   bin/re2.rs    # windowing/input (winit) for the first-person viewer
@@ -189,16 +214,25 @@ cargo test
 Unit tests cover easing/keyframe math, color parsing, mesh generation (index bounds, unit
 normals, and — since the live viewer's pipelines cull backfaces — that every primitive's
 triangles are wound consistently with their own stored normals), humanoid forward-kinematics
-(symmetry, joint-bend distance checks), and that every prop builds valid parts and round-trips
-through its schema name. An integration test parses and validates every bundled example scene.
-GPU rendering itself isn't exercised by `cargo test` (no GPU in most CI runners) — use
-`frame`/`storyboard`, or launch `re2`, for a manual visual check after render-path changes.
+(symmetry, joint-bend distance checks), that every prop builds valid parts and round-trips
+through its schema name, and the multi-floor ground-height mechanism itself (`viewer::
+ground_tests` — climbing/descending a ramp smoothly, and both "unreachable" rejection cases) —
+that last one directly drives the same per-tick clamp the live viewer uses, deliberately not
+relying on simulated window input, which turned out to be too flaky in practice to trust for
+anything beyond short, simple interactions. An integration test parses and validates every
+bundled example scene. GPU rendering itself isn't exercised by `cargo test` (no GPU in most CI
+runners) — use `frame`/`storyboard`, or launch `re2`, for a manual visual check after
+render-path changes.
 
 ## Known limits (intentional)
 
-No imported meshes or textures, no per-vertex mesh deformation beyond the fixed capsule-rig
-`humanoid`, no on-screen 2D text/UI overlay (composite with the 2D engine for captions). Player
-physics (the live viewer only) is a simple fixed-timestep circle-vs-AABB model, not a general
-physics engine. At most 8 lights and 1 shadow-casting light. No online multiplayer yet — single
-local player only; that's the next thing planned on top of this fork. See "Known limits" in
+No imported meshes, textures, or audio samples (sound effects are synthesized in code — see
+`audio.rs` — same reasoning as the procedural meshes), no per-vertex mesh deformation beyond
+the fixed capsule-rig `humanoid`, no on-screen 2D text/UI overlay (composite with the 2D engine
+for captions), no sloped roofs (flat ceiling/roof slabs only — no triangular-prism mesh
+generator exists yet). Player physics (the live viewer only) is a simple fixed-timestep
+circle-vs-AABB-plus-ground-height model, not a general physics engine — walking up multiple
+floors via `stairs` works, but there's no jumping between floors, ladders, or slopes other than
+stairs. At most 8 lights and 1 shadow-casting light. No online multiplayer yet — single local
+player only; that's the next thing planned on top of this fork. See "Known limits" in
 `SPEC.md`.
