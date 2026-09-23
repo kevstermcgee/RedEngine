@@ -4,7 +4,7 @@ use crate::gpu::{
 };
 use crate::mesh::Mesh;
 use crate::props::prop_parts;
-use crate::schema::{Background, LightKind, Material, Object, ObjectKind, PrimKind, Scene};
+use crate::schema::{Background, LightKind, Material, Object, ObjectKind, PrimKind, Scene, StairsDef};
 use crate::skeleton::{pose_to_parts, BoneKind, HumanoidRig, PoseSample};
 use anyhow::Result;
 use glam::{Mat4, Quat, Vec3};
@@ -52,6 +52,25 @@ pub(crate) fn build_prim_mesh(p: &PrimKind) -> Mesh {
     }
 }
 
+/// `steps` solid stacked box treads: step `i` owns its own depth slice of the run
+/// (`[-run/2 + i*step_d, -run/2 + (i+1)*step_d]`) and spans height `[0, (i+1)*step_h]` — each
+/// box is a self-contained solid block, so the whole thing reads as a real staircase silhouette
+/// rather than floating slabs. Purely visual; `viewer::ground_height_at` uses a separate smooth
+/// ramp formula for actually walking on it (see that function's doc comment for why).
+pub(crate) fn build_stairs_parts(s: &StairsDef) -> Vec<(PrimKind, Mat4)> {
+    let step_h = s.rise / s.steps as f32;
+    let step_d = s.run / s.steps as f32;
+    (0..s.steps)
+        .map(|i| {
+            let z_start = -s.run * 0.5 + step_d * i as f32;
+            let y_height = step_h * (i + 1) as f32;
+            let shape = PrimKind::Box { size: Vec3::new(s.width, y_height, step_d) };
+            let center = Vec3::new(0.0, y_height * 0.5, z_start + step_d * 0.5);
+            (shape, Mat4::from_translation(center))
+        })
+        .collect()
+}
+
 pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
     for o in objects {
         match &o.kind {
@@ -71,6 +90,11 @@ pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
             ObjectKind::Prop(p) => {
                 for part in prop_parts(p.kind) {
                     out.push(build_prim_mesh(&part.shape));
+                }
+            }
+            ObjectKind::Stairs(s) => {
+                for (shape, _) in build_stairs_parts(s) {
+                    out.push(build_prim_mesh(&shape));
                 }
             }
         }
@@ -107,6 +131,12 @@ pub(crate) fn collect_leaf_transforms(objects: &[Object], t: f32, parent: Mat4, 
                         emissive: base.emissive,
                     };
                     out.push((world * part.local_transform, mat));
+                }
+            }
+            ObjectKind::Stairs(s) => {
+                let mat = sample_material(&s.material, t);
+                for (_, local_transform) in build_stairs_parts(s) {
+                    out.push((world * local_transform, mat));
                 }
             }
         }
@@ -440,4 +470,34 @@ fn downsample_rgba_to_rgb(raw: &[u8], targets: &FrameTargets, out_w: u32, out_h:
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::StairsDef;
+
+    #[test]
+    fn stairs_parts_are_valid_and_non_degenerate() {
+        let material = Material { color: crate::track::Track::constant(Vec3::splat(0.7)), metallic: 0.0, roughness: 0.6, emissive: Vec3::ZERO };
+        let s = StairsDef { width: 1.2, run: 4.0, rise: 3.0, steps: 16, material };
+        let parts = build_stairs_parts(&s);
+        assert_eq!(parts.len(), 16);
+        for (shape, _) in &parts {
+            let mesh = build_prim_mesh(shape);
+            assert!(!mesh.vertices.is_empty());
+            assert!(!mesh.indices.is_empty());
+        }
+        // Each step should be strictly taller than the last (a solid, climbing staircase, not
+        // flat slabs at the same height).
+        let mut last_height = 0.0f32;
+        for (shape, _) in &parts {
+            if let PrimKind::Box { size } = shape {
+                assert!(size.y > last_height, "step height did not increase: {} <= {}", size.y, last_height);
+                last_height = size.y;
+            } else {
+                panic!("stairs parts should all be boxes");
+            }
+        }
+    }
 }

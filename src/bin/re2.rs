@@ -19,8 +19,9 @@ use red_engine2::schema::{HumanoidDef, Material, Object, ObjectKind, Pose, Scene
 use red_engine2::skeleton::{pose_to_parts, HumanoidRig, PoseSample};
 use red_engine2::track::Track;
 use red_engine2::viewer::{
-    collect_box_colliders, collect_interactables, raycast_nearest, viewmodel_transform, Collider2D, FpsCamera,
-    Interactable, LiveRenderer, resolve_collision,
+    collect_box_colliders, collect_ground_candidates, collect_interactables, colliders_on_floor, ground_height_at,
+    raycast_nearest, viewmodel_transform, Collider2D, FpsCamera, GroundCandidates, Interactable, LiveRenderer,
+    resolve_collision,
 };
 use glam::{Mat4, Quat, Vec2, Vec3};
 use std::collections::HashSet;
@@ -191,6 +192,7 @@ fn object_emissive_mut(o: &mut Object) -> Option<&mut Vec3> {
         ObjectKind::Prim(_) => o.material.as_mut().map(|m| &mut m.emissive),
         ObjectKind::Humanoid(h) => Some(&mut h.material.emissive),
         ObjectKind::Prop(p) => Some(&mut p.material.emissive),
+        ObjectKind::Stairs(s) => Some(&mut s.material.emissive),
         ObjectKind::Group(_) => None,
     }
 }
@@ -209,6 +211,7 @@ struct App {
     scene: Scene,
     scene_path: PathBuf,
     colliders: Vec<Collider2D>,
+    ground: GroundCandidates,
     interactables: Vec<Interactable>,
     camera: FpsCamera,
     keys: HashSet<KeyCode>,
@@ -264,6 +267,7 @@ impl App {
         scene.objects.push(build_player_object());
 
         let colliders = collect_box_colliders(&scene);
+        let ground = collect_ground_candidates(&scene);
         // The player's own body is in `scene.objects` so the renderer can draw it, but it's not
         // something the crosshair or crowbar should ever be able to aim at (e.g. looking down at
         // your own feet), so it's filtered back out of the raycast target list right after.
@@ -281,6 +285,7 @@ impl App {
             scene,
             scene_path,
             colliders,
+            ground,
             interactables,
             camera,
             keys: HashSet::new(),
@@ -600,27 +605,35 @@ impl App {
             self.last_move_speed = speed;
             let mut pos2 = self.physics_pos;
 
+            // Only colliders actually at the player's current floor block horizontal movement
+            // (see `colliders_on_floor`'s doc comment) — computed once for both axes below,
+            // since the floor can't change mid-tick from horizontal movement alone.
+            let active = colliders_on_floor(&self.colliders, self.foot_y);
+
             // Resolve one movement axis at a time so sliding along a wall works instead of the
             // player sticking when their motion isn't purely into it.
             pos2.x += dir.x * speed * FIXED_DT;
-            pos2 = resolve_collision(pos2, PLAYER_RADIUS, &self.colliders);
+            pos2 = resolve_collision(pos2, PLAYER_RADIUS, &active);
             pos2.y += dir.y * speed * FIXED_DT;
-            pos2 = resolve_collision(pos2, PLAYER_RADIUS, &self.colliders);
+            pos2 = resolve_collision(pos2, PLAYER_RADIUS, &active);
 
             self.physics_pos = pos2;
         }
 
-        // Vertical: jump + gravity. `foot_y` is the player's height above the floor (y=0);
-        // grounded means the last physics step settled it back to exactly 0 with no velocity.
-        let grounded = self.foot_y <= 0.0 && self.vertical_velocity <= 0.0;
+        // Vertical: jump + gravity toward whatever's actually walkable under the player right
+        // now (a flat floor, a staircase ramp, or a box top — see `ground_height_at`) instead of
+        // a hardcoded `y=0`, so a second floor and the stairs connecting to it work. Grounded
+        // means the last physics step settled `foot_y` back onto that surface with no velocity.
+        let ground_now = ground_height_at(&self.ground, self.physics_pos, self.foot_y);
+        let grounded = self.foot_y <= ground_now && self.vertical_velocity <= 0.0;
         if self.jump_queued && grounded {
             self.vertical_velocity = JUMP_SPEED;
         }
         self.jump_queued = false;
         self.vertical_velocity -= GRAVITY * FIXED_DT;
         self.foot_y += self.vertical_velocity * FIXED_DT;
-        if self.foot_y <= 0.0 {
-            self.foot_y = 0.0;
+        if self.foot_y <= ground_now {
+            self.foot_y = ground_now;
             self.vertical_velocity = 0.0;
         }
     }
@@ -666,7 +679,8 @@ impl App {
             ViewMode::FirstPerson => anchor,
             ViewMode::ThirdPerson => {
                 let desired = anchor - self.camera.forward() * THIRD_PERSON_DISTANCE + Vec3::Y * THIRD_PERSON_HEIGHT_OFFSET;
-                let clamped = resolve_collision(Vec2::new(desired.x, desired.z), THIRD_PERSON_CAM_RADIUS, &self.colliders);
+                let active = colliders_on_floor(&self.colliders, foot_y);
+                let clamped = resolve_collision(Vec2::new(desired.x, desired.z), THIRD_PERSON_CAM_RADIUS, &active);
                 Vec3::new(clamped.x, desired.y, clamped.y)
             }
         };

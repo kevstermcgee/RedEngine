@@ -116,12 +116,27 @@ pub struct PropDef {
     pub material: Material,
 }
 
+/// A staircase connecting two floor heights. `position.y` is the height of its *bottom* (the
+/// floor it starts from); local `+Z` is the run axis, bottom at `-run/2`, top at `+run/2` (only
+/// yaw rotation is meaningful, matching every other upright object in the engine). See
+/// `render::build_stairs_parts` for the stepped visual mesh and `viewer::ground_height_at` for
+/// how it contributes a smooth walkable ramp despite the visually stepped treads.
+#[derive(Debug)]
+pub struct StairsDef {
+    pub width: f32,
+    pub run: f32,
+    pub rise: f32,
+    pub steps: u32,
+    pub material: Material,
+}
+
 #[derive(Debug)]
 pub enum ObjectKind {
     Prim(PrimKind),
     Group(Vec<Object>),
     Humanoid(Box<HumanoidDef>),
     Prop(Box<PropDef>),
+    Stairs(Box<StairsDef>),
 }
 
 #[derive(Debug)]
@@ -455,6 +470,14 @@ fn parse_prop(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> PropDef {
     PropDef { kind, material: parse_material(ctx, obj, path) }
 }
 
+fn parse_stairs(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> StairsDef {
+    let width = plain_f32(obj, "width", 1.2).max(0.1);
+    let run = plain_f32(obj, "run", 4.0).max(0.1);
+    let rise = plain_f32(obj, "rise", 3.0).max(0.05);
+    let steps = obj.get("steps").and_then(Value::as_u64).unwrap_or(16).clamp(1, 64) as u32;
+    StairsDef { width, run, rise, steps, material: parse_material(ctx, obj, path) }
+}
+
 const PRIM_TYPES: &[&str] = &["box", "sphere", "cylinder", "cone", "capsule", "plane"];
 
 fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
@@ -501,11 +524,12 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
         }
         Some("humanoid") => (ObjectKind::Humanoid(Box::new(parse_humanoid(ctx, obj, &id))), None),
         Some("prop") => (ObjectKind::Prop(Box::new(parse_prop(ctx, obj, &id))), None),
+        Some("stairs") => (ObjectKind::Stairs(Box::new(parse_stairs(ctx, obj, &id))), None),
         Some(other) => {
             ctx.err(
                 &format!("{id}.type"),
                 format!(
-                    "unknown type '{other}' (expected box, sphere, cylinder, cone, capsule, plane, group, humanoid, or prop)"
+                    "unknown type '{other}' (expected box, sphere, cylinder, cone, capsule, plane, group, humanoid, prop, or stairs)"
                 ),
             );
             (ObjectKind::Prim(PrimKind::Sphere { radius: 0.5 }), Some(Material::default_gray()))

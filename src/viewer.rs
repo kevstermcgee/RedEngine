@@ -184,27 +184,35 @@ pub fn build_crowbar_mesh() -> Mesh {
     m
 }
 
-/// A static (load-time) world-space axis-aligned bounding box in the XZ plane, used for simple
-/// walk-around wall/furniture collision. Rotation is ignored (conservative: the AABB of the
-/// rotated box), which is fine for the axis-aligned rooms this viewer is meant for.
+/// A static (load-time) world-space axis-aligned bounding box, used for simple walk-around
+/// wall/furniture collision. `min`/`max` are the XZ footprint (rotation ignored — conservative:
+/// the AABB of the rotated box — fine for the axis-aligned rooms this viewer targets);
+/// `min_y`/`max_y` are the world Y-range it actually occupies, kept (not resolved away at
+/// collection time) so multi-floor maps can decide per-frame whether a given collider is at the
+/// player's current floor — see [`colliders_on_floor`].
 #[derive(Clone, Copy)]
 pub struct Collider2D {
     pub min: glam::Vec2,
     pub max: glam::Vec2,
+    pub min_y: f32,
+    pub max_y: f32,
 }
 
-/// Vertical band a walking player's capsule occupies, world-space Y. A box collider is only
-/// included if it overlaps this band — otherwise a ceiling or a hanging light fixture would
-/// project onto the floor as an (invisible, room-filling) obstacle, since collision itself is
-/// XZ-only. Deliberately narrower than head-to-toe so a rug or low curb doesn't block walking.
+/// Vertical band a walking player's capsule occupies, *relative to their current foot height* —
+/// a collider only blocks movement if its Y-range overlaps `foot_y + PLAYER_BAND_MIN_Y ..
+/// foot_y + PLAYER_BAND_MAX_Y` (see [`colliders_on_floor`]). Absolute-`y=0`-relative would only
+/// be correct on a single-floor map; keeping it relative to the player's actual current height
+/// is what makes upstairs walls collide on a multi-story map without the ground floor's walls
+/// leaking up through them (or vice versa). Deliberately narrower than head-to-toe so a rug or
+/// low curb doesn't block walking, same as before.
 const PLAYER_BAND_MIN_Y: f32 = 0.05;
 const PLAYER_BAND_MAX_Y: f32 = 2.0;
 
-/// Computes the world-space AABB swept by `corners_local` (8 corners of a box centered on its
-/// own local origin) under `transform`, and pushes one XZ collider for it if it overlaps the
-/// player's vertical band — shared by a plain `box` primitive (`transform` = the object's own
-/// world transform) and a prop's overall footprint (`transform` = the object's world transform,
-/// `corners_local` built from the union of all its parts' local AABBs).
+/// Computes the world-space AABB (XZ footprint + Y-range) swept by a box of `half`-extents
+/// centered on its own local origin under `transform`, and pushes it as a collider — shared by
+/// a plain `box` primitive (`transform` = the object's own world transform) and a prop's
+/// overall footprint (`transform` = the object's world transform, half-extent built from the
+/// union of all its parts' local AABBs by the caller).
 fn push_box_collider(transform: Mat4, half: Vec3, out: &mut Vec<Collider2D>) {
     let corners = [
         Vec3::new(-half.x, -half.y, -half.z),
@@ -227,17 +235,18 @@ fn push_box_collider(transform: Mat4, half: Vec3, out: &mut Vec<Collider2D>) {
         min_y = min_y.min(wp.y);
         max_y = max_y.max(wp.y);
     }
-    if max_y >= PLAYER_BAND_MIN_Y && min_y <= PLAYER_BAND_MAX_Y {
-        out.push(Collider2D { min, max });
-    }
+    out.push(Collider2D { min, max, min_y, max_y });
 }
 
 /// Walks every `box` primitive and every `prop` in the scene (pose sampled at `t=0`, since
-/// walls/furniture/props aren't expected to animate) and returns one XZ collider per object
-/// that overlaps the player's vertical band, for [`resolve_collision`]. A prop gets a single
-/// collider sized to its overall footprint (the union of all its parts), not one per part —
-/// a barrel's thin rim bands or a crate's corner posts becoming their own tiny colliders would
-/// leave gap-riddled, unintuitive collision instead of "you can't walk through this prop".
+/// walls/furniture/props aren't expected to animate) and returns one collider per object —
+/// [`colliders_on_floor`] filters these down to whichever ones are actually at the player's
+/// current height before they're used for movement resolution. A prop gets a single collider
+/// sized to its overall footprint (the union of all its parts), not one per part — a barrel's
+/// thin rim bands or a crate's corner posts becoming their own tiny colliders would leave
+/// gap-riddled, unintuitive collision instead of "you can't walk through this prop". `stairs`
+/// contribute no collider at all here — you walk onto one, not around it (see
+/// `ground_height_at`).
 pub fn collect_box_colliders(scene: &Scene) -> Vec<Collider2D> {
     fn walk(objects: &[crate::schema::Object], parent: Mat4, out: &mut Vec<Collider2D>) {
         for o in objects {
@@ -250,6 +259,7 @@ pub fn collect_box_colliders(scene: &Scene) -> Vec<Collider2D> {
                 crate::schema::ObjectKind::Prim(_) => {}
                 crate::schema::ObjectKind::Group(children) => walk(children, world, out),
                 crate::schema::ObjectKind::Humanoid(_) => {}
+                crate::schema::ObjectKind::Stairs(_) => {}
                 crate::schema::ObjectKind::Prop(p) => {
                     let mut min = Vec3::splat(f32::INFINITY);
                     let mut max = Vec3::splat(f32::NEG_INFINITY);
@@ -267,11 +277,12 @@ pub fn collect_box_colliders(scene: &Scene) -> Vec<Collider2D> {
                             }
                         }
                     }
-                    // min/max are already world-space here, so the collider is built directly
-                    // (not via push_box_collider, which expects local half-extents + a transform).
-                    if max.y >= PLAYER_BAND_MIN_Y && min.y <= PLAYER_BAND_MAX_Y {
-                        out.push(Collider2D { min: glam::Vec2::new(min.x, min.z), max: glam::Vec2::new(max.x, max.z) });
-                    }
+                    out.push(Collider2D {
+                        min: glam::Vec2::new(min.x, min.z),
+                        max: glam::Vec2::new(max.x, max.z),
+                        min_y: min.y,
+                        max_y: max.y,
+                    });
                 }
             }
         }
@@ -279,6 +290,115 @@ pub fn collect_box_colliders(scene: &Scene) -> Vec<Collider2D> {
     let mut out = Vec::new();
     walk(&scene.objects, Mat4::IDENTITY, &mut out);
     out
+}
+
+/// Filters a full collider list down to the ones that actually block movement *at the player's
+/// current foot height* — see [`PLAYER_BAND_MIN_Y`]/[`PLAYER_BAND_MAX_Y`]'s doc comment for why
+/// this has to be dynamic (relative to `foot_y`) rather than a fixed absolute band once a map
+/// has more than one floor.
+pub fn colliders_on_floor(colliders: &[Collider2D], foot_y: f32) -> Vec<Collider2D> {
+    let lo = foot_y + PLAYER_BAND_MIN_Y;
+    let hi = foot_y + PLAYER_BAND_MAX_Y;
+    colliders.iter().copied().filter(|c| c.max_y >= lo && c.min_y <= hi).collect()
+}
+
+/// A staircase's walkable ramp, world-space. `world_to_local` maps a world XZ (any Y — a pure
+/// yaw rotation never mixes Y into X/Z, so the ramp's footprint test and height formula don't
+/// need the query point's real world Y at all) back into the stairs' own frame, where the ramp
+/// runs along local `+Z` from `-half_run` (height `base_y`) to `+half_run` (height
+/// `base_y + rise`).
+struct StairsRamp {
+    world_to_local: Mat4,
+    half_width: f32,
+    half_run: f32,
+    base_y: f32,
+    rise: f32,
+}
+
+impl StairsRamp {
+    /// The world height of the ramp at `xz`, or `None` outside its footprint.
+    fn height_at(&self, xz: glam::Vec2) -> Option<f32> {
+        let local = self.world_to_local.transform_point3(Vec3::new(xz.x, 0.0, xz.y));
+        if local.x.abs() > self.half_width || local.z.abs() > self.half_run {
+            return None;
+        }
+        let f = ((local.z + self.half_run) / (2.0 * self.half_run)).clamp(0.0, 1.0);
+        Some(self.base_y + self.rise * f)
+    }
+}
+
+/// Every standable surface in the scene, precomputed once at load (like [`Collider2D`]s):
+/// every `box` primitive's and box-shaped `Prop` part's top face (reusing [`push_box_collider`]
+/// — a `Collider2D`'s `max_y` doubles as "the height of this box's top"), plus every
+/// [`crate::schema::StairsDef`]'s ramp. See [`ground_height_at`] for how these become an actual
+/// walkable ground height.
+pub struct GroundCandidates {
+    box_tops: Vec<Collider2D>,
+    stairs: Vec<StairsRamp>,
+}
+
+pub fn collect_ground_candidates(scene: &Scene) -> GroundCandidates {
+    fn walk(objects: &[Object], parent: Mat4, box_tops: &mut Vec<Collider2D>, stairs: &mut Vec<StairsRamp>) {
+        for o in objects {
+            let local = crate::render::trs(o.position.sample(0.0), o.rotation.sample(0.0), o.scale.sample(0.0));
+            let world = parent * local;
+            match &o.kind {
+                ObjectKind::Prim(PrimKind::Box { size }) => push_box_collider(world, *size * 0.5, box_tops),
+                ObjectKind::Prim(_) => {}
+                ObjectKind::Group(children) => walk(children, world, box_tops, stairs),
+                ObjectKind::Humanoid(_) => {}
+                ObjectKind::Prop(p) => {
+                    for part in prop_parts(p.kind) {
+                        if let PrimKind::Box { size } = part.shape {
+                            push_box_collider(world * part.local_transform, size * 0.5, box_tops);
+                        }
+                    }
+                }
+                ObjectKind::Stairs(s) => stairs.push(StairsRamp {
+                    world_to_local: world.inverse(),
+                    half_width: s.width * 0.5,
+                    half_run: s.run * 0.5,
+                    base_y: world.transform_point3(Vec3::ZERO).y,
+                    rise: s.rise,
+                }),
+            }
+        }
+    }
+    let mut box_tops = Vec::new();
+    let mut stairs = Vec::new();
+    walk(&scene.objects, Mat4::IDENTITY, &mut box_tops, &mut stairs);
+    GroundCandidates { box_tops, stairs }
+}
+
+/// A small tolerance, in world units, for how far above the player's *current* foot height a
+/// candidate surface may be and still count as "reachable" — comfortably larger than the
+/// per-tick height gain from walking up a normal-slope staircase (a few centimeters at typical
+/// walk speed and the 60Hz fixed timestep), but far smaller than a floor-to-floor gap (a few
+/// meters). This is the whole mechanism that keeps a flat second-floor deck from being walkable
+/// from underneath: nothing marks it "upstairs" vs. "downstairs", it's just another box, and
+/// it's simply too far above the player's current height to be a candidate until they've
+/// climbed near it (via stairs, whose ramp height rises in exactly such small increments).
+const GROUND_SNAP_EPS: f32 = 0.35;
+
+/// The height of the highest walkable surface reachable from `current_foot_y` at `xz` — `0.0`
+/// (the base ground floor) is always a valid fallback; see [`GROUND_SNAP_EPS`] for the
+/// reachability rule layered on top of that for every other candidate.
+pub fn ground_height_at(candidates: &GroundCandidates, xz: glam::Vec2, current_foot_y: f32) -> f32 {
+    let limit = current_foot_y + GROUND_SNAP_EPS;
+    let mut best = 0.0f32;
+    for b in &candidates.box_tops {
+        if b.max_y <= limit && xz.x >= b.min.x && xz.x <= b.max.x && xz.y >= b.min.y && xz.y <= b.max.y {
+            best = best.max(b.max_y);
+        }
+    }
+    for s in &candidates.stairs {
+        if let Some(h) = s.height_at(xz) {
+            if h <= limit {
+                best = best.max(h);
+            }
+        }
+    }
+    best
 }
 
 /// Pushes a `radius`-sized circle at `pos` out of every collider it overlaps. Call once per
@@ -368,6 +488,12 @@ fn accumulate_world_bounds(o: &Object, parent: Mat4, min: &mut Vec3, max: &mut V
             for part in prop_parts(p.kind) {
                 expand(world * part.local_transform, Vec3::ZERO, prim_half_extent(&part.shape));
             }
+        }
+        // One coarse box covering the whole ramp footprint at full height — not used for
+        // movement (stairs aren't an XZ collider, see `collect_box_colliders`), only so the
+        // crosshair/melee raycast can target a staircase like any other object.
+        ObjectKind::Stairs(s) => {
+            expand(world, Vec3::new(0.0, s.rise * 0.5, 0.0), Vec3::new(s.width * 0.5, s.rise * 0.5, s.run * 0.5));
         }
     }
 }
@@ -871,5 +997,93 @@ impl LiveRenderer {
         }
 
         queue.submit(Some(encoder.finish()));
+    }
+}
+
+#[cfg(test)]
+mod ground_tests {
+    use super::*;
+
+    // Mirrors the exact per-tick clamp `App::fixed_step_physics` uses (`if foot_y <= ground_now
+    // { foot_y = ground_now }`), without gravity's small downward nudge — irrelevant here since
+    // it only ever makes `foot_y` a hair lower before the same clamp catches it right back.
+    fn walk(candidates: &GroundCandidates, xz_path: impl Iterator<Item = glam::Vec2>) -> f32 {
+        let mut foot_y = 0.0f32;
+        for xz in xz_path {
+            let ground = ground_height_at(candidates, xz, foot_y);
+            if foot_y <= ground {
+                foot_y = ground;
+            }
+        }
+        foot_y
+    }
+
+    fn straight_line(from: glam::Vec2, to: glam::Vec2, step: f32) -> impl Iterator<Item = glam::Vec2> {
+        let dist = (to - from).length();
+        let steps = (dist / step).ceil() as u32;
+        (1..=steps).map(move |i| from.lerp(to, i as f32 / steps as f32))
+    }
+
+    /// A straight run of a real `WALK_SPEED`-at-`FIXED_DT` step, walked bottom-to-top, should
+    /// climb the ramp smoothly all the way to (approximately) full rise — this is the whole
+    /// point of `GROUND_SNAP_EPS`: reachability never lags behind by more than one tick's worth
+    /// of height gain at a normal walking pace.
+    #[test]
+    fn stairs_ramp_climbs_smoothly_bottom_to_top() {
+        let ramp = StairsRamp { world_to_local: Mat4::IDENTITY, half_width: 1.0, half_run: 2.0, base_y: 0.0, rise: 3.0 };
+        let candidates = GroundCandidates { box_tops: vec![], stairs: vec![ramp] };
+        // ~WALK_SPEED (3.2 m/s) at FIXED_DT (1/60s) — the real per-tick horizontal step size.
+        let foot_y = walk(&candidates, straight_line(glam::Vec2::new(0.0, -2.0), glam::Vec2::new(0.0, 2.0), 3.2 / 60.0));
+        assert!(foot_y > 2.9, "expected to reach near the top of a rise-3.0 ramp, got {foot_y}");
+    }
+
+    /// The same ramp walked in reverse (top to bottom) should descend smoothly back to ~0,
+    /// not get stuck partway — a player should be able to walk back down a staircase.
+    #[test]
+    fn stairs_ramp_descends_smoothly_top_to_bottom() {
+        let ramp = StairsRamp { world_to_local: Mat4::IDENTITY, half_width: 1.0, half_run: 2.0, base_y: 0.0, rise: 3.0 };
+        let candidates = GroundCandidates { box_tops: vec![], stairs: vec![ramp] };
+        let mut foot_y = 3.0; // start already on top, as if having just climbed up
+        for xz in straight_line(glam::Vec2::new(0.0, 2.0), glam::Vec2::new(0.0, -2.0), 3.2 / 60.0) {
+            let ground = ground_height_at(&candidates, xz, foot_y);
+            // Gravity pulls it down between ticks in the real game; here just track the ground
+            // height directly, since a descending ramp is always "reachable" from above (you
+            // fall onto it, you don't need to climb up to it).
+            foot_y = ground;
+        }
+        assert!(foot_y < 0.1, "expected to have descended back to ~0, got {foot_y}");
+    }
+
+    /// Approaching a ramp from its *tall* end while standing at ground level must not teleport
+    /// the player straight up to full rise — only once they're close enough (within
+    /// `GROUND_SNAP_EPS`) should the ramp's height become a valid candidate at all.
+    #[test]
+    fn stairs_ramp_tall_end_is_unreachable_from_ground_level() {
+        let ramp = StairsRamp { world_to_local: Mat4::IDENTITY, half_width: 1.0, half_run: 2.0, base_y: 0.0, rise: 3.0 };
+        let candidates = GroundCandidates { box_tops: vec![], stairs: vec![ramp] };
+        // Standing right at the tall end (local z = +2, height = 3.0) with feet still at 0.
+        let ground = ground_height_at(&candidates, glam::Vec2::new(0.0, 2.0), 0.0);
+        assert_eq!(ground, 0.0, "the tall end of a ramp must be rejected as unreachable from ground level");
+    }
+
+    /// A flat elevated surface (e.g. a second-floor deck) is unreachable from ground level, but
+    /// becomes a valid candidate once the player is already close to its height — this is the
+    /// whole mechanism that keeps a deck from being "walkable" from underneath it.
+    #[test]
+    fn elevated_box_top_is_gated_by_current_height() {
+        let deck = Collider2D {
+            min: glam::Vec2::new(-5.0, -5.0),
+            max: glam::Vec2::new(5.0, 5.0),
+            min_y: 2.8,
+            max_y: 3.0,
+        };
+        let candidates = GroundCandidates { box_tops: vec![deck], stairs: vec![] };
+        let xz = glam::Vec2::new(0.0, 0.0);
+        assert_eq!(ground_height_at(&candidates, xz, 0.0), 0.0, "deck must be unreachable from ground level");
+        assert_eq!(
+            ground_height_at(&candidates, xz, 2.9),
+            3.0,
+            "deck must become reachable once already close to its height"
+        );
     }
 }
