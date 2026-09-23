@@ -25,10 +25,11 @@ engine's source to use it.
 - **A posable rig, not just primitives.** `humanoid` is a fixed capsule-and-sphere skeleton
   posed by joint rotations (forward kinematics) — the 3D analog of the 2D engine's
   `stickfigure`. `group` covers everything else you want to build once and move as a unit.
-- **Real lighting, not flat shading.** Up to 4 lights (directional/point), one shadow-casting
-  sun with a shadow map, Blinn-Phong-ish shading with metallic/roughness controls, a sky
-  gradient background, and Reinhard tone-mapping so bright/overlapping lights roll off
-  gracefully instead of blowing out to flat white.
+- **Real lighting, not flat shading.** Up to 8 lights (directional/point), one shadow-casting
+  sun with a shadow map, Blinn-Phong-ish shading (softened shininess curve + a cheap Fresnel
+  rim term) with metallic/roughness controls, a sky gradient background, and Reinhard
+  tone-mapping so bright/overlapping lights roll off gracefully instead of blowing out to flat
+  white.
 - **A lower-level, compiled core.** Rust + [`wgpu`](https://wgpu.rs) instead of a scripting
   language: real GPU rasterization (shadows, per-pixel lighting) at native speed, a type
   system that catches whole classes of scene-schema bugs at compile time, and no interpreter
@@ -50,23 +51,46 @@ player input every frame instead of a keyframe track, and frames go straight to 
 instead of an MP4.
 
 ```bash
-cargo run --release --bin re2 -- examples/room.json
+cargo run --release --bin re2 -- examples/prop_hunt_yard.json
 ```
 
 Controls: **WASD** or the **arrow keys** to walk, the **mouse** to look, **Shift** to sprint
 forward (with a subtle FOV kick), **Space** for a small jump, **Ctrl** to crouch, **E** or
 **left-click** to interact with whatever the crosshair is aimed at, **F** to toggle borderless
-fullscreen vs. maximized, click the window to capture the mouse, **Escape** to release it. The
-window launches maximized, fit to whichever monitor it opens on.
+fullscreen vs. maximized, **Q** to toggle first-/third-person, click the window to capture the
+mouse, **Escape** to release it. The window launches maximized, fit to whichever monitor it
+opens on.
 
 This is a viewer, not an editor — there's no real interaction with objects yet (picking things
 up, opening doors, etc. is future scope). What's here now: a raycast from the camera finds the
 nearest scene object within reach, the crosshair turns gold when one's in range, and E/click
 logs it to the console and gives it a brief highlight-glow pulse — a placeholder to build real
-interactions on top of. Walls and furniture built from `box` primitives block movement (a
-simple circle-vs-AABB push-out, axis-aligned); other primitive shapes and the `humanoid` rig
-don't collide yet. Any keyframed objects in the scene still animate on their own clock while
-you walk around, since only the camera is overridden.
+interactions on top of. Walls, furniture built from `box` primitives, and every `prop` (one
+collider per prop's overall footprint, not per part) block movement (a simple
+circle-vs-AABB push-out, axis-aligned); other primitive shapes and the `humanoid` rig don't
+collide yet. Any keyframed objects in the scene still animate on their own clock while you walk
+around, since only the camera is overridden.
+
+Movement/collision/gravity run on a fixed 60Hz timestep decoupled from the render frame rate,
+with the rendered frame interpolating between the last two completed physics states (see
+`App::fixed_step_physics`/`App::update` in `src/bin/re2.rs`) — frame-rate-independent and
+resistant to tunneling through thin colliders under a frame-time spike. Rendering itself uses
+4x MSAA and backface culling (every primitive mesh is a closed solid, verified by
+`mesh::tests::all_primitives_are_ccw_front_facing`), plus per-mesh frustum culling against both
+the camera's frustum and the shadow-casting light's frustum.
+
+### Props
+
+`props.rs` is a small library of prop-hunt props — schema-level objects
+(`{"type": "prop", "prop": "<name>", ...}`) that expand into a handful of primitive parts the
+same way `humanoid` expands into a posed capsule rig, so a map author places one object instead
+of hand-nesting a dozen boxes. Current set: `crate`, `barrel`, `traffic_cone`, `box_stack`,
+`chair`, `trash_can`, `vending_machine`, `bench`, `fire_extinguisher`, `filing_cabinet`,
+`potted_plant`, `bookshelf` — see [`examples/prop_hunt_yard.json`](examples/prop_hunt_yard.json)
+for all of them placed in one map. Each takes the same one shared `material` every other object
+kind does; a few parts (a barrel's rim bands, a potted plant's foliage, ...) get a small
+built-in metallic/roughness/color nudge off that base material so the prop doesn't read as one
+flat-colored blob, computed in Rust rather than schema-configurable.
 
 ## Setup
 
@@ -163,13 +187,18 @@ cargo test
 ```
 
 Unit tests cover easing/keyframe math, color parsing, mesh generation (index bounds, unit
-normals), and humanoid forward-kinematics (symmetry, joint-bend distance checks). An
-integration test parses and validates every bundled example scene. GPU rendering itself
-isn't exercised by `cargo test` (no GPU in most CI runners) — use `frame`/`storyboard` for a
-manual visual check after render-path changes.
+normals, and — since the live viewer's pipelines cull backfaces — that every primitive's
+triangles are wound consistently with their own stored normals), humanoid forward-kinematics
+(symmetry, joint-bend distance checks), and that every prop builds valid parts and round-trips
+through its schema name. An integration test parses and validates every bundled example scene.
+GPU rendering itself isn't exercised by `cargo test` (no GPU in most CI runners) — use
+`frame`/`storyboard`, or launch `re2`, for a manual visual check after render-path changes.
 
 ## Known limits (intentional)
 
-No imported meshes or textures, no physics, no per-vertex mesh deformation beyond the fixed
-capsule-rig `humanoid`, no on-screen 2D text/UI overlay (composite with the 2D engine for
-captions). At most 4 lights and 1 shadow-casting light. See "Known limits" in `SPEC.md`.
+No imported meshes or textures, no per-vertex mesh deformation beyond the fixed capsule-rig
+`humanoid`, no on-screen 2D text/UI overlay (composite with the 2D engine for captions). Player
+physics (the live viewer only) is a simple fixed-timestep circle-vs-AABB model, not a general
+physics engine. At most 8 lights and 1 shadow-casting light. No online multiplayer yet — single
+local player only; that's the next thing planned on top of this fork. See "Known limits" in
+`SPEC.md`.

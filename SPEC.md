@@ -1,8 +1,9 @@
-# forge3d scene language
+# red_engine2 scene language
 
-`forge3d` renders a single JSON **scene** file straight to an MP4. This is the complete
-reference for that JSON format. Read this, not the source, to author scenes — the engine's
-Rust internals are an implementation detail.
+`red_engine2` renders a single JSON **scene** file straight to an MP4 (`red_engine2` CLI) or
+lets you walk around it live in a window (`re2`). This is the complete reference for that JSON
+format. Read this, not the source, to author scenes — the engine's Rust internals are an
+implementation detail.
 
 ## Top-level shape
 
@@ -72,7 +73,7 @@ track around a fixed `target`, not a rotation track on the camera itself.
 
 ## Lights
 
-Up to 4 lights. Each has a `type` of `"directional"` or `"point"`.
+Up to 8 lights. Each has a `type` of `"directional"` or `"point"`.
 
 ```json
 { "id": "sun", "type": "directional", "direction": [-0.4, -1, -0.3],
@@ -164,6 +165,26 @@ A posable 3D figure built from capsules and a sphere head — the 3D analog of t
 - The whole rig moves as a unit via the object's own `position`/`rotation`/`scale` (e.g. to
   walk the character across the scene, keyframe `position`, not the pose).
 
+### `prop`
+
+A prop-hunt prop: a handful of primitive parts (built into `red_engine2` itself, not authored
+in JSON) placed as one object, the same "one keyword, prebuilt parts" idea as `humanoid`.
+
+```json
+{ "id": "crate_1", "type": "prop", "prop": "crate",
+  "position": [2, 0, -1], "rotation": [0, 15, 0],
+  "material": { "color": "#8a6a3f", "roughness": 0.8 } }
+```
+
+- `prop` (required) — one of: `crate`, `barrel`, `traffic_cone`, `box_stack`, `chair`,
+  `trash_can`, `vending_machine`, `bench`, `fire_extinguisher`, `filing_cabinet`,
+  `potted_plant`, `bookshelf`.
+- Like `humanoid`, a prop carries one `material` for its whole instance (not per-part) — a few
+  parts get a small built-in metallic/roughness/color nudge off that base material (rim bands,
+  foliage, ...) baked into the engine, not schema-configurable.
+- Props block movement in the live viewer (one collider sized to the prop's overall footprint)
+  and count as interactable (the crosshair can target one, same as any other object).
+
 ## Validation
 
 `forge3d validate scene.json` checks the file before any render time and reports errors as
@@ -174,8 +195,9 @@ type, keyframe `t` values not sorted ascending, more than one shadow-casting lig
 
 ## Known limits (intentional)
 
-No imported meshes/textures, no physics, no per-vertex mesh deformation/skinning beyond the
-fixed capsule-rig `humanoid`, no on-screen 2D text/UI overlay (that's the 2D engine's job —
-composite the two if you need captions over a 3D shot), at most 4 lights and 1 shadow-casting
-light. The goal is a small, auditable surface an AI can hold in context, not a general-purpose
-3D suite.
+No imported meshes/textures, no scene-object physics (nothing falls, bounces, or collides on
+its own — the live viewer's player is the one exception, with its own simple gravity/collision
+model, not a general physics engine), no per-vertex mesh deformation/skinning beyond the fixed
+capsule-rig `humanoid`, no on-screen 2D text/UI overlay (that's the 2D engine's job — composite
+the two if you need captions over a 3D shot), at most 8 lights and 1 shadow-casting light. The
+goal is a small, auditable surface an AI can hold in context, not a general-purpose 3D suite.
