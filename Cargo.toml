@@ -1,5 +1,5 @@
 [package]
-name = "forge3d"
+name = "red_engine2"
 version = "0.1.0"
 edition = "2021"
 
@@ -17,3 +17,8 @@ serde_json = "1.0.151"
 thiserror = "2.0.20"
 wgpu = "30.0.1"
 winit = "0.30"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3

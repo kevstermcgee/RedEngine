@@ -1,6 +1,7 @@
-//! Red Engine — a first-person, walk-around viewer for a forge3d scene.
+//! Red Engine 2 — a first-person, walk-around viewer for a red_engine2 scene, forked from
+//! the original Red Engine to be the base for an online prop hunt game.
 //!
-//! `red_engine [scene.json]` opens a window, drops you inside the scene at the camera's
+//! `re2 [scene.json]` opens a window, drops you inside the scene at the camera's
 //! default position, and lets you walk around and look at things: WASD or the arrow keys to
 //! move, the mouse to look, Shift to sprint forward, Space for a small jump, Ctrl to crouch,
 //! F to toggle borderless fullscreen / maximized, click to (re)capture the mouse, Escape to
@@ -11,12 +12,12 @@
 //! highlight flash, a placeholder for real object interaction (picking things up, opening
 //! doors, ...) to build on later.
 
-use forge3d::color::parse_hex_to_linear;
-use forge3d::easing::Ease;
-use forge3d::schema::{HumanoidDef, Material, Object, ObjectKind, Pose, Scene};
-use forge3d::skeleton::{pose_to_parts, HumanoidRig, PoseSample};
-use forge3d::track::Track;
-use forge3d::viewer::{
+use red_engine2::color::parse_hex_to_linear;
+use red_engine2::easing::Ease;
+use red_engine2::schema::{HumanoidDef, Material, Object, ObjectKind, Pose, Scene};
+use red_engine2::skeleton::{pose_to_parts, HumanoidRig, PoseSample};
+use red_engine2::track::Track;
+use red_engine2::viewer::{
     collect_box_colliders, collect_interactables, raycast_nearest, viewmodel_transform, Collider2D, FpsCamera,
     Interactable, LiveRenderer, resolve_collision,
 };
@@ -682,7 +683,7 @@ impl ApplicationHandler for App {
             return;
         }
         let attrs = Window::default_attributes()
-            .with_title(format!("Red Engine — {}", self.scene_path.display()))
+            .with_title(format!("Red Engine 2 — {}", self.scene_path.display()))
             // Maximized (not exclusive fullscreen) so it snaps to whatever monitor it opens on
             // at that monitor's native work area — centered and taskbar-aware, unlike a fixed
             // inner size that could land off-center on a different-resolution display. The
@@ -698,7 +699,7 @@ impl ApplicationHandler for App {
             compatible_surface: Some(&surface),
             ..Default::default()
         }))
-        .expect("no compatible GPU adapter found (Red Engine needs Vulkan, DX12, or Metal)");
+        .expect("no compatible GPU adapter found (Red Engine 2 needs Vulkan, DX12, or Metal)");
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("red-engine-device"),
             required_features: wgpu::Features::empty(),
@@ -812,7 +813,7 @@ impl ApplicationHandler for App {
 fn main() {
     env_logger::init();
     let scene_path = std::env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/room.json"));
-    let scene = forge3d::load_scene(&scene_path).unwrap_or_else(|errs| {
+    let scene = red_engine2::load_scene(&scene_path).unwrap_or_else(|errs| {
         eprintln!("failed to load scene {}:", scene_path.display());
         for e in &errs {
             eprintln!("  {e}");
@@ -820,7 +821,7 @@ fn main() {
         std::process::exit(1);
     });
 
-    println!("Red Engine — {}", scene_path.display());
+    println!("Red Engine 2 — {}", scene_path.display());
     println!("WASD / arrow keys to walk, mouse to look, Shift to sprint forward, Space to jump, Ctrl to crouch.");
     println!("Left-click to swing the crowbar, E to interact with whatever the crosshair is aimed at.");
     println!("Q to toggle first-/third-person view, F to toggle fullscreen / maximized.");

@@ -15,7 +15,7 @@ fn all_bundled_examples_are_valid_scenes() {
             continue;
         }
         let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path:?}: {e}"));
-        match forge3d::schema::parse_scene(&text) {
+        match red_engine2::schema::parse_scene(&text) {
             Ok(_) => checked += 1,
             Err(errs) => panic!("{path:?} failed validation:\n{}", errs.join("\n")),
         }

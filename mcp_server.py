@@ -1,8 +1,8 @@
-"""MCP server exposing forge3d to any MCP-capable AI client.
+"""MCP server exposing Red Engine 2's offline scene CLI to any MCP-capable AI client.
 
-forge3d's engine is a compiled Rust binary (for stability/speed/token-efficiency — see
+red_engine2's engine is a compiled Rust binary (for stability/speed/token-efficiency — see
 SPEC.md and README.md for why). This server is a thin wrapper: every tool call writes the
-scene JSON to a temp file, shells out to the `forge3d` binary, and reads back its output.
+scene JSON to a temp file, shells out to the `red_engine2` binary, and reads back its output.
 Build the binary once with `cargo build --release` before running this server.
 
 Run directly (stdio transport):
@@ -26,11 +26,11 @@ import tempfile
 from mcp.server.fastmcp import FastMCP, Image
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-mcp = FastMCP("forge3d")
+mcp = FastMCP("red_engine2")
 
 
 def _binary_path() -> str:
-    exe = "forge3d.exe" if os.name == "nt" else "forge3d"
+    exe = "red_engine2.exe" if os.name == "nt" else "red_engine2"
     release = os.path.join(ROOT, "target", "release", exe)
     debug = os.path.join(ROOT, "target", "debug", exe)
     if os.path.isfile(release):
@@ -38,7 +38,7 @@ def _binary_path() -> str:
     if os.path.isfile(debug):
         return debug
     raise RuntimeError(
-        "forge3d binary not found. Build it first: `cargo build --release` in " + ROOT
+        "red_engine2 binary not found. Build it first: `cargo build --release` in " + ROOT
     )
 
 
@@ -58,7 +58,7 @@ def _write_scene_tempfile(scene_json: str) -> str:
 
 @mcp.tool()
 def get_spec() -> str:
-    """Return the forge3d scene-language reference (SPEC.md). Read this before writing a scene."""
+    """Return the red_engine2 scene-language reference (SPEC.md). Read this before writing a scene."""
     with open(os.path.join(ROOT, "SPEC.md"), "r", encoding="utf-8") as f:
         return f.read()
 
