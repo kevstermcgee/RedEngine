@@ -12,6 +12,7 @@
 //! highlight flash, a placeholder for real object interaction (picking things up, opening
 //! doors, ...) to build on later.
 
+use red_engine2::audio::{synth_hit_clank, Audio};
 use red_engine2::color::parse_hex_to_linear;
 use red_engine2::easing::Ease;
 use red_engine2::schema::{HumanoidDef, Material, Object, ObjectKind, Pose, Scene};
@@ -247,6 +248,12 @@ struct App {
     /// The third-person hand-held crowbar's current world transform (see
     /// `update_player_body`), recomputed each frame from the right forearm bone.
     hand_prop_transform: Mat4,
+    /// `None` when no audio output device is available — playback is just skipped rather than
+    /// erroring, so a missing sound card doesn't take the game down with it.
+    audio: Option<Audio>,
+    /// Synthesized once at startup and replayed on every hit rather than re-synthesized each
+    /// time (cheap either way at this length, but there's no reason to redo fixed work).
+    hit_clank: Vec<f32>,
     start: Instant,
     last_frame: Instant,
 }
@@ -298,6 +305,8 @@ impl App {
             player_object_index,
             walk_phase: 0.0,
             hand_prop_transform: Mat4::from_scale(Vec3::splat(HIDDEN_SCALE)),
+            audio: Audio::new(),
+            hit_clank: synth_hit_clank(),
             start: Instant::now(),
             last_frame: Instant::now(),
         }
@@ -358,11 +367,15 @@ impl App {
     }
 
     /// Runs once per crowbar swing, at the start of the strike phase, if the melee raycast found
-    /// something within `MELEE_REACH`: logs it and starts the same highlight-flash feedback as
-    /// `interact_with`, just in a hotter color so it reads as an impact.
+    /// something within `MELEE_REACH`: logs it, plays the impact clank, and starts the same
+    /// highlight-flash feedback as `interact_with`, just in a hotter color so it reads as an
+    /// impact.
     fn hit_with(&mut self, object_index: usize) {
         let id = self.scene.objects[object_index].id.clone();
         println!("Hit '{id}' with the crowbar!");
+        if let Some(audio) = &self.audio {
+            audio.play(&self.hit_clank);
+        }
         self.flash_object(object_index, HIT_FLASH_BOOST);
     }
 

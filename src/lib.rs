@@ -1,6 +1,7 @@
 pub mod color;
 pub mod easing;
 pub mod gpu;
+pub mod audio;
 pub mod mesh;
 pub mod props;
 pub mod render;
