@@ -63,13 +63,13 @@ impl Mesh {
             -Vec3::X, &mut m,
         );
         Mesh::quad(
-            Vec3::new(h.x, -h.y, h.z), Vec3::new(-h.x, -h.y, h.z),
-            Vec3::new(-h.x, h.y, h.z), Vec3::new(h.x, h.y, h.z),
+            Vec3::new(h.x, -h.y, h.z), Vec3::new(h.x, h.y, h.z),
+            Vec3::new(-h.x, h.y, h.z), Vec3::new(-h.x, -h.y, h.z),
             Vec3::Z, &mut m,
         );
         Mesh::quad(
-            Vec3::new(-h.x, -h.y, -h.z), Vec3::new(h.x, -h.y, -h.z),
-            Vec3::new(h.x, h.y, -h.z), Vec3::new(-h.x, h.y, -h.z),
+            Vec3::new(-h.x, -h.y, -h.z), Vec3::new(-h.x, h.y, -h.z),
+            Vec3::new(h.x, h.y, -h.z), Vec3::new(h.x, -h.y, -h.z),
             -Vec3::Z, &mut m,
         );
         m
@@ -97,7 +97,7 @@ impl Mesh {
             for s in 0..segments {
                 let a = r * stride + s;
                 let b = a + stride;
-                m.indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+                m.indices.extend_from_slice(&[a, a + 1, b, a + 1, b + 1, b]);
             }
         }
         m
@@ -121,7 +121,7 @@ impl Mesh {
             let a = side_base + s * 2;
             let b = a + 2;
             // a=top(s) a+1=bot(s) b=top(s+1) b+1=bot(s+1)
-            m.indices.extend_from_slice(&[a, a + 1, b, b, a + 1, b + 1]);
+            m.indices.extend_from_slice(&[a, b, a + 1, b, b + 1, a + 1]);
         }
         // Caps (flat normals, fan from center)
         Mesh::disc_cap(&mut m, radius, hh, segments, Vec3::Y, true);
@@ -142,9 +142,9 @@ impl Mesh {
             let a = ring_base + s;
             let b = ring_base + s + 1;
             if winding_ccw_from_above {
-                m.indices.extend_from_slice(&[center_idx, a, b]);
-            } else {
                 m.indices.extend_from_slice(&[center_idx, b, a]);
+            } else {
+                m.indices.extend_from_slice(&[center_idx, a, b]);
             }
         }
     }
@@ -170,7 +170,7 @@ impl Mesh {
             m.vertices.push(Vertex { pos: apex.to_array(), normal: n_apex.to_array() });
             m.vertices.push(Vertex { pos: p0.to_array(), normal: n0.to_array() });
             m.vertices.push(Vertex { pos: p1.to_array(), normal: n1.to_array() });
-            m.indices.extend_from_slice(&[base, base + 1, base + 2]);
+            m.indices.extend_from_slice(&[base, base + 2, base + 1]);
         }
         Mesh::disc_cap(&mut m, radius, -hh, segments, -Vec3::Y, false);
         m
@@ -255,5 +255,47 @@ mod tests {
         assert_valid(&Mesh::capsule(0.3, 1.0, 16, 6));
         assert_valid(&Mesh::capsule(0.5, 0.4, 16, 6)); // height < 2*radius
         assert_valid(&Mesh::plane(4.0, 4.0));
+    }
+
+    /// The live viewer's main/shadow pipelines cull backfaces (`front_face: Ccw`), so every
+    /// triangle must be wound CCW as seen from outside the mesh — equivalently, its geometric
+    /// winding normal (`cross(v1-v0, v2-v0)`, computed purely from vertex order/position) must
+    /// point the same general direction as its stored shading normals (computed independently,
+    /// from each generator's parametric surface formula). A generator that got this backwards
+    /// would render as invisible (or inside-out) the moment culling is on, so this is checked
+    /// computationally rather than relying on a visual check catching it.
+    fn assert_ccw_front_facing(m: &Mesh, name: &str) {
+        for tri in m.indices.chunks(3) {
+            let (a, b, c) = (tri[0] as usize, tri[1] as usize, tri[2] as usize);
+            let pa = Vec3::from_array(m.vertices[a].pos);
+            let pb = Vec3::from_array(m.vertices[b].pos);
+            let pc = Vec3::from_array(m.vertices[c].pos);
+            let winding_normal = (pb - pa).cross(pc - pa);
+            // Pole rings (uv_sphere, capsule caps, cone's apex fan) legitimately produce
+            // zero-area triangles (two of the three vertices coincide at the pole/apex) — those
+            // render as nothing regardless of winding, so they're not a meaningful check.
+            if winding_normal.length_squared() < 1e-12 {
+                continue;
+            }
+            let avg_shading_normal = (Vec3::from_array(m.vertices[a].normal)
+                + Vec3::from_array(m.vertices[b].normal)
+                + Vec3::from_array(m.vertices[c].normal))
+                / 3.0;
+            assert!(
+                winding_normal.dot(avg_shading_normal) > 0.0,
+                "{name}: triangle ({a},{b},{c}) wound opposite its stored normals — backface culling would hide it"
+            );
+        }
+    }
+
+    #[test]
+    fn all_primitives_are_ccw_front_facing() {
+        assert_ccw_front_facing(&Mesh::cuboid(Vec3::new(1.0, 2.0, 0.5)), "cuboid");
+        assert_ccw_front_facing(&Mesh::uv_sphere(0.5, 12, 16), "uv_sphere");
+        assert_ccw_front_facing(&Mesh::cylinder(0.4, 1.2, 16), "cylinder");
+        assert_ccw_front_facing(&Mesh::cone(0.4, 1.0, 16), "cone");
+        assert_ccw_front_facing(&Mesh::capsule(0.3, 1.0, 16, 6), "capsule");
+        assert_ccw_front_facing(&Mesh::capsule(0.5, 0.4, 16, 6), "capsule (height < 2*radius)");
+        assert_ccw_front_facing(&Mesh::plane(4.0, 4.0), "plane");
     }
 }

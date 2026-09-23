@@ -181,6 +181,7 @@ fn object_emissive_mut(o: &mut Object) -> Option<&mut Vec3> {
     match &mut o.kind {
         ObjectKind::Prim(_) => o.material.as_mut().map(|m| &mut m.emissive),
         ObjectKind::Humanoid(h) => Some(&mut h.material.emissive),
+        ObjectKind::Prop(p) => Some(&mut p.material.emissive),
         ObjectKind::Group(_) => None,
     }
 }

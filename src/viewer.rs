@@ -1,4 +1,4 @@
-//! Real-time first-person rendering: the "Red Engine" viewer.
+//! Real-time first-person rendering: the "Red Engine 2" viewer.
 //!
 //! This reuses the offline engine's scene schema, mesh generation, and shader pipelines
 //! (see [`crate::render`] / [`crate::gpu`]) but draws directly into a window's swapchain
@@ -7,9 +7,10 @@
 
 use crate::gpu::{
     create_crosshair_pipeline, create_pipelines, make_shadow_sampler, CrosshairPipeline, CrosshairUniform,
-    GlobalUniform, GpuMesh, ObjectUniform, Pipelines, SHADOW_SIZE,
+    GlobalUniform, GpuMesh, ObjectUniform, Pipelines, MSAA_SAMPLES, SHADOW_SIZE,
 };
 use crate::mesh::{Mesh, Vertex};
+use crate::props::prop_parts;
 use crate::render::{build_globals_common, collect_leaf_meshes, collect_leaf_transforms};
 use crate::schema::{Object, ObjectKind, PrimKind, Scene};
 use glam::{Mat4, Quat, Vec3, Vec4};
@@ -199,9 +200,44 @@ pub struct Collider2D {
 const PLAYER_BAND_MIN_Y: f32 = 0.05;
 const PLAYER_BAND_MAX_Y: f32 = 2.0;
 
-/// Walks every `box` primitive in the scene (its pose sampled at `t=0`, since walls/furniture
-/// aren't expected to animate) and returns one XZ collider per box that overlaps the player's
-/// vertical band, for [`resolve_collision`].
+/// Computes the world-space AABB swept by `corners_local` (8 corners of a box centered on its
+/// own local origin) under `transform`, and pushes one XZ collider for it if it overlaps the
+/// player's vertical band — shared by a plain `box` primitive (`transform` = the object's own
+/// world transform) and a prop's overall footprint (`transform` = the object's world transform,
+/// `corners_local` built from the union of all its parts' local AABBs).
+fn push_box_collider(transform: Mat4, half: Vec3, out: &mut Vec<Collider2D>) {
+    let corners = [
+        Vec3::new(-half.x, -half.y, -half.z),
+        Vec3::new(-half.x, -half.y, half.z),
+        Vec3::new(half.x, -half.y, -half.z),
+        Vec3::new(half.x, -half.y, half.z),
+        Vec3::new(-half.x, half.y, -half.z),
+        Vec3::new(-half.x, half.y, half.z),
+        Vec3::new(half.x, half.y, -half.z),
+        Vec3::new(half.x, half.y, half.z),
+    ];
+    let mut min = glam::Vec2::splat(f32::INFINITY);
+    let mut max = glam::Vec2::splat(f32::NEG_INFINITY);
+    let mut min_y = f32::INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+    for c in corners {
+        let wp = transform.transform_point3(c);
+        min = min.min(glam::Vec2::new(wp.x, wp.z));
+        max = max.max(glam::Vec2::new(wp.x, wp.z));
+        min_y = min_y.min(wp.y);
+        max_y = max_y.max(wp.y);
+    }
+    if max_y >= PLAYER_BAND_MIN_Y && min_y <= PLAYER_BAND_MAX_Y {
+        out.push(Collider2D { min, max });
+    }
+}
+
+/// Walks every `box` primitive and every `prop` in the scene (pose sampled at `t=0`, since
+/// walls/furniture/props aren't expected to animate) and returns one XZ collider per object
+/// that overlaps the player's vertical band, for [`resolve_collision`]. A prop gets a single
+/// collider sized to its overall footprint (the union of all its parts), not one per part —
+/// a barrel's thin rim bands or a crate's corner posts becoming their own tiny colliders would
+/// leave gap-riddled, unintuitive collision instead of "you can't walk through this prop".
 pub fn collect_box_colliders(scene: &Scene) -> Vec<Collider2D> {
     fn walk(objects: &[crate::schema::Object], parent: Mat4, out: &mut Vec<Collider2D>) {
         for o in objects {
@@ -209,35 +245,34 @@ pub fn collect_box_colliders(scene: &Scene) -> Vec<Collider2D> {
             let world = parent * local;
             match &o.kind {
                 crate::schema::ObjectKind::Prim(crate::schema::PrimKind::Box { size }) => {
-                    let h = *size * 0.5;
-                    let corners = [
-                        Vec3::new(-h.x, -h.y, -h.z),
-                        Vec3::new(-h.x, -h.y, h.z),
-                        Vec3::new(h.x, -h.y, -h.z),
-                        Vec3::new(h.x, -h.y, h.z),
-                        Vec3::new(-h.x, h.y, -h.z),
-                        Vec3::new(-h.x, h.y, h.z),
-                        Vec3::new(h.x, h.y, -h.z),
-                        Vec3::new(h.x, h.y, h.z),
-                    ];
-                    let mut min = glam::Vec2::splat(f32::INFINITY);
-                    let mut max = glam::Vec2::splat(f32::NEG_INFINITY);
-                    let mut min_y = f32::INFINITY;
-                    let mut max_y = f32::NEG_INFINITY;
-                    for c in corners {
-                        let wp = world.transform_point3(c);
-                        min = min.min(glam::Vec2::new(wp.x, wp.z));
-                        max = max.max(glam::Vec2::new(wp.x, wp.z));
-                        min_y = min_y.min(wp.y);
-                        max_y = max_y.max(wp.y);
-                    }
-                    if max_y >= PLAYER_BAND_MIN_Y && min_y <= PLAYER_BAND_MAX_Y {
-                        out.push(Collider2D { min, max });
-                    }
+                    push_box_collider(world, *size * 0.5, out);
                 }
                 crate::schema::ObjectKind::Prim(_) => {}
                 crate::schema::ObjectKind::Group(children) => walk(children, world, out),
                 crate::schema::ObjectKind::Humanoid(_) => {}
+                crate::schema::ObjectKind::Prop(p) => {
+                    let mut min = Vec3::splat(f32::INFINITY);
+                    let mut max = Vec3::splat(f32::NEG_INFINITY);
+                    for part in prop_parts(p.kind) {
+                        let part_world = world * part.local_transform;
+                        let half = prim_half_extent(&part.shape);
+                        for sx in [-1.0f32, 1.0] {
+                            for sy in [-1.0f32, 1.0] {
+                                for sz in [-1.0f32, 1.0] {
+                                    let corner = Vec3::new(half.x * sx, half.y * sy, half.z * sz);
+                                    let wp = part_world.transform_point3(corner);
+                                    min = min.min(wp);
+                                    max = max.max(wp);
+                                }
+                            }
+                        }
+                    }
+                    // min/max are already world-space here, so the collider is built directly
+                    // (not via push_box_collider, which expects local half-extents + a transform).
+                    if max.y >= PLAYER_BAND_MIN_Y && min.y <= PLAYER_BAND_MAX_Y {
+                        out.push(Collider2D { min: glam::Vec2::new(min.x, min.z), max: glam::Vec2::new(max.x, max.z) });
+                    }
+                }
             }
         }
     }
@@ -304,12 +339,12 @@ fn prim_half_extent(p: &PrimKind) -> Vec3 {
 fn accumulate_world_bounds(o: &Object, parent: Mat4, min: &mut Vec3, max: &mut Vec3) {
     let local = crate::render::trs(o.position.sample(0.0), o.rotation.sample(0.0), o.scale.sample(0.0));
     let world = parent * local;
-    let mut expand = |center_local: Vec3, half: Vec3| {
+    let mut expand = |transform: Mat4, center_local: Vec3, half: Vec3| {
         for sx in [-1.0f32, 1.0] {
             for sy in [-1.0f32, 1.0] {
                 for sz in [-1.0f32, 1.0] {
                     let corner = center_local + Vec3::new(half.x * sx, half.y * sy, half.z * sz);
-                    let wp = world.transform_point3(corner);
+                    let wp = transform.transform_point3(corner);
                     *min = min.min(wp);
                     *max = max.max(wp);
                 }
@@ -317,7 +352,7 @@ fn accumulate_world_bounds(o: &Object, parent: Mat4, min: &mut Vec3, max: &mut V
         }
     };
     match &o.kind {
-        ObjectKind::Prim(p) => expand(Vec3::ZERO, prim_half_extent(p)),
+        ObjectKind::Prim(p) => expand(world, Vec3::ZERO, prim_half_extent(p)),
         ObjectKind::Group(children) => {
             for c in children {
                 accumulate_world_bounds(c, world, min, max);
@@ -325,7 +360,14 @@ fn accumulate_world_bounds(o: &Object, parent: Mat4, min: &mut Vec3, max: &mut V
         }
         ObjectKind::Humanoid(h) => {
             let half = (h.height * 0.5).max(0.1);
-            expand(Vec3::new(0.0, half, 0.0), Vec3::splat(half));
+            expand(world, Vec3::new(0.0, half, 0.0), Vec3::splat(half));
+        }
+        // Tighter than one coarse box: union of each part's own AABB, transformed through both
+        // the object's world transform and that part's own local placement.
+        ObjectKind::Prop(p) => {
+            for part in prop_parts(p.kind) {
+                expand(world * part.local_transform, Vec3::ZERO, prim_half_extent(&part.shape));
+            }
         }
     }
 }
@@ -367,23 +409,73 @@ pub fn raycast_nearest(origin: Vec3, dir: Vec3, max_dist: f32, items: &[Interact
     best.map(|(i, _)| i)
 }
 
+/// The six clip-space frustum planes of `view_proj`, each packed as `(A, B, C, D)` such that a
+/// world-space point `p` is inside that plane's half-space when `A*p.x + B*p.y + C*p.z + D >=
+/// 0`. Standard Gribb/Hartmann extraction directly from the combined view-projection matrix —
+/// works identically for the camera's perspective frustum and the shadow light's orthographic
+/// one, so both the main pass and the shadow pass can cull against it with the same code.
+fn frustum_planes(view_proj: Mat4) -> [Vec4; 6] {
+    let (c0, c1, c2, c3) = (view_proj.x_axis, view_proj.y_axis, view_proj.z_axis, view_proj.w_axis);
+    let row0 = Vec4::new(c0.x, c1.x, c2.x, c3.x);
+    let row1 = Vec4::new(c0.y, c1.y, c2.y, c3.y);
+    let row2 = Vec4::new(c0.z, c1.z, c2.z, c3.z);
+    let row3 = Vec4::new(c0.w, c1.w, c2.w, c3.w);
+    [row3 + row0, row3 - row0, row3 + row1, row3 - row1, row2, row3 - row2]
+}
+
+/// World-space AABB (center, half-extent) of a local-space box after `transform` — exact
+/// center, and a conservative half-extent computed from the transform's basis vectors (Ericson,
+/// *Real-Time Collision Detection* §4.2.6) rather than transforming and re-bounding all 8
+/// corners, since this is recomputed for every mesh every frame.
+fn world_aabb(transform: Mat4, local_min: Vec3, local_max: Vec3) -> (Vec3, Vec3) {
+    let local_center = (local_min + local_max) * 0.5;
+    let local_half = (local_max - local_min) * 0.5;
+    let world_center = transform.transform_point3(local_center);
+    let bx = transform.x_axis.truncate().abs();
+    let by = transform.y_axis.truncate().abs();
+    let bz = transform.z_axis.truncate().abs();
+    let world_half = bx * local_half.x + by * local_half.y + bz * local_half.z;
+    (world_center, world_half)
+}
+
+/// True if the AABB (`center`, `half`) is entirely outside at least one of `planes` — the
+/// standard "positive vertex" test: for each plane, the corner most in the box's favor is
+/// `center + half` projected along the plane normal's sign, so if even that corner is outside,
+/// the whole box is.
+fn aabb_outside_frustum(center: Vec3, half: Vec3, planes: &[Vec4; 6]) -> bool {
+    for p in planes {
+        let normal = Vec3::new(p.x, p.y, p.z);
+        let radius = half.x * normal.x.abs() + half.y * normal.y.abs() + half.z * normal.z.abs();
+        if normal.dot(center) + p.w + radius < 0.0 {
+            return true;
+        }
+    }
+    false
+}
+
 struct LiveTargets {
     width: u32,
     height: u32,
+    /// MSAA-resolved into the swapchain view at the end of the viewmodel pass (see
+    /// [`LiveRenderer::render`]) — the swapchain itself can't be a multisampled texture, so the
+    /// background/main/viewmodel passes all draw into this instead and only the last of them
+    /// resolves.
+    multisampled_color_view: wgpu::TextureView,
     depth_view: wgpu::TextureView,
     shadow_view: wgpu::TextureView,
     viewmodel_depth_view: wgpu::TextureView,
 }
 
 impl LiveTargets {
-    fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
+    fn new(device: &wgpu::Device, color_format: wgpu::TextureFormat, width: u32, height: u32) -> Self {
+        let extent = wgpu::Extent3d { width: width.max(1), height: height.max(1), depth_or_array_layers: 1 };
         let make_depth = |label| {
             device
                 .create_texture(&wgpu::TextureDescriptor {
                     label: Some(label),
-                    size: wgpu::Extent3d { width: width.max(1), height: height.max(1), depth_or_array_layers: 1 },
+                    size: extent,
                     mip_level_count: 1,
-                    sample_count: 1,
+                    sample_count: MSAA_SAMPLES,
                     dimension: wgpu::TextureDimension::D2,
                     format: wgpu::TextureFormat::Depth32Float,
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -391,6 +483,16 @@ impl LiveTargets {
                 })
                 .create_view(&wgpu::TextureViewDescriptor::default())
         };
+        let multisampled_color_tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("live-msaa-color-target"),
+            size: extent,
+            mip_level_count: 1,
+            sample_count: MSAA_SAMPLES,
+            dimension: wgpu::TextureDimension::D2,
+            format: color_format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
         let shadow_tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("live-shadow-map"),
             size: wgpu::Extent3d { width: SHADOW_SIZE, height: SHADOW_SIZE, depth_or_array_layers: 1 },
@@ -404,6 +506,7 @@ impl LiveTargets {
         LiveTargets {
             width,
             height,
+            multisampled_color_view: multisampled_color_tex.create_view(&wgpu::TextureViewDescriptor::default()),
             depth_view: make_depth("live-depth-target"),
             shadow_view: shadow_tex.create_view(&wgpu::TextureViewDescriptor::default()),
             // A separate depth target cleared fresh right before the viewmodel pass, so the held
@@ -416,6 +519,7 @@ impl LiveTargets {
 
 /// Everything needed to draw one scene, live, into a window surface every frame.
 pub struct LiveRenderer {
+    color_format: wgpu::TextureFormat,
     pipelines: Pipelines,
     global_buf: wgpu::Buffer,
     global_bind_group_uniform: wgpu::BindGroup,
@@ -433,9 +537,9 @@ pub struct LiveRenderer {
 
 impl LiveRenderer {
     pub fn new(device: &wgpu::Device, color_format: wgpu::TextureFormat, scene: &Scene, width: u32, height: u32) -> Self {
-        let pipelines = create_pipelines(device, color_format);
+        let pipelines = create_pipelines(device, color_format, MSAA_SAMPLES);
         let shadow_sampler = make_shadow_sampler(device);
-        let targets = LiveTargets::new(device, width, height);
+        let targets = LiveTargets::new(device, color_format, width, height);
 
         let mut raw_meshes = Vec::new();
         collect_leaf_meshes(&scene.objects, &mut raw_meshes);
@@ -504,6 +608,7 @@ impl LiveRenderer {
         });
 
         LiveRenderer {
+            color_format,
             pipelines,
             global_buf,
             global_bind_group_uniform,
@@ -524,7 +629,7 @@ impl LiveRenderer {
         if width == self.targets.width && height == self.targets.height {
             return;
         }
-        self.targets = LiveTargets::new(device, width, height);
+        self.targets = LiveTargets::new(device, self.color_format, width, height);
     }
 
     /// Renders one frame: `t` is the scene animation time (seconds, for any keyframed objects
@@ -558,6 +663,40 @@ impl LiveRenderer {
         collect_leaf_transforms(&scene.objects, t, Mat4::IDENTITY, &mut transforms);
         debug_assert_eq!(transforms.len(), self.meshes.len());
 
+        // Per-mesh frustum culling: which scene meshes are worth a draw call this frame, tested
+        // against the camera's frustum (main pass) and, when a shadow-casting light is active,
+        // the light's own ortho frustum (shadow pass) — skips both the vertex/fragment work and
+        // the draw call for anything off-screen, which starts to matter once a prop-hunt map has
+        // a few dozen props instead of a handful of room furniture.
+        let cam_planes = frustum_planes(view_proj);
+        let shadow_active = globals.counts[1] >= 0.0;
+        let light_planes =
+            shadow_active.then(|| frustum_planes(Mat4::from_cols_array_2d(&globals.light_view_proj)));
+        let mut main_visible = Vec::with_capacity(self.meshes.len());
+        let mut shadow_visible = Vec::with_capacity(self.meshes.len());
+        for (i, mesh) in self.meshes.iter().enumerate() {
+            let (center, half) = world_aabb(transforms[i].0, mesh.local_min, mesh.local_max);
+            main_visible.push(!aabb_outside_frustum(center, half, &cam_planes));
+            shadow_visible.push(match &light_planes {
+                Some(planes) => !aabb_outside_frustum(center, half, planes),
+                None => false,
+            });
+        }
+
+        // Every object's uniform data is staged into one contiguous byte buffer and uploaded
+        // with a single `write_buffer` call instead of one call per mesh — object_stride is
+        // alignment-padded past ObjectUniform's own size, so the staging buffer is built at full
+        // stride width and each uniform's bytes are copied into its slot, padding left as-is.
+        let weapon_slot = self.meshes.len() as u64;
+        let hand_prop_slot = weapon_slot + 1;
+        let total_slots = hand_prop_slot + 1;
+        let mut object_data = vec![0u8; (self.object_stride * total_slots) as usize];
+        let stage = |data: &mut [u8], slot: u64, stride: u64, uniform: &ObjectUniform| {
+            let start = (slot * stride) as usize;
+            let bytes = bytemuck::bytes_of(uniform);
+            data[start..start + bytes.len()].copy_from_slice(bytes);
+        };
+
         for (i, (world, mat)) in transforms.iter().enumerate() {
             let normal_mat = world.inverse().transpose();
             let obj_uniform = ObjectUniform {
@@ -567,11 +706,9 @@ impl LiveRenderer {
                 material: [mat.metallic, mat.roughness, 0.0, 0.0],
                 emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
             };
-            queue.write_buffer(&self.object_buf, i as u64 * self.object_stride, bytemuck::bytes_of(&obj_uniform));
+            stage(&mut object_data, i as u64, self.object_stride, &obj_uniform);
         }
 
-        let weapon_slot = self.meshes.len() as u64;
-        let hand_prop_slot = weapon_slot + 1;
         let crowbar_uniform = |world: Mat4| {
             let normal_mat = world.inverse().transpose();
             ObjectUniform {
@@ -582,12 +719,9 @@ impl LiveRenderer {
                 emissive: [0.0, 0.0, 0.0, 0.0],
             }
         };
-        queue.write_buffer(&self.object_buf, weapon_slot * self.object_stride, bytemuck::bytes_of(&crowbar_uniform(weapon_transform)));
-        queue.write_buffer(
-            &self.object_buf,
-            hand_prop_slot * self.object_stride,
-            bytemuck::bytes_of(&crowbar_uniform(hand_prop_transform)),
-        );
+        stage(&mut object_data, weapon_slot, self.object_stride, &crowbar_uniform(weapon_transform));
+        stage(&mut object_data, hand_prop_slot, self.object_stride, &crowbar_uniform(hand_prop_transform));
+        queue.write_buffer(&self.object_buf, 0, &object_data);
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("live-frame-encoder") });
 
@@ -607,6 +741,9 @@ impl LiveRenderer {
             shadow_pass.set_pipeline(&self.pipelines.shadow);
             shadow_pass.set_bind_group(0, &self.global_bind_group_uniform, &[]);
             for (i, mesh) in self.meshes.iter().enumerate() {
+                if !shadow_visible[i] {
+                    continue;
+                }
                 shadow_pass.set_bind_group(1, &self.object_bind_group, &[(i as u64 * self.object_stride) as u32]);
                 shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
                 shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
@@ -624,7 +761,7 @@ impl LiveRenderer {
             let mut bg_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("live-background-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target_view,
+                    view: &self.targets.multisampled_color_view,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
@@ -643,7 +780,7 @@ impl LiveRenderer {
             let mut main_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("live-main-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target_view,
+                    view: &self.targets.multisampled_color_view,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
@@ -660,6 +797,9 @@ impl LiveRenderer {
             main_pass.set_pipeline(&self.pipelines.main);
             main_pass.set_bind_group(0, &self.global_bind_group_full, &[]);
             for (i, mesh) in self.meshes.iter().enumerate() {
+                if !main_visible[i] {
+                    continue;
+                }
                 main_pass.set_bind_group(1, &self.object_bind_group, &[(i as u64 * self.object_stride) as u32]);
                 main_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
                 main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
@@ -677,12 +817,14 @@ impl LiveRenderer {
             // Fresh depth clear (not `self.targets.depth_view`, which still holds the world's
             // depth) so the crowbar always draws over the world, matching how a first-person
             // weapon is expected to behave rather than clipping into a wall the player is close to.
+            // This is also the last of the three multisampled passes, so it's the one that
+            // resolves into the actual (single-sampled) swapchain view.
             let mut vm_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("live-viewmodel-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target_view,
+                    view: &self.targets.multisampled_color_view,
                     depth_slice: None,
-                    resolve_target: None,
+                    resolve_target: Some(target_view),
                     ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {

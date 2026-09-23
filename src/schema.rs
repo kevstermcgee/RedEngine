@@ -1,5 +1,7 @@
 use crate::color::parse_hex_to_linear;
 use crate::easing::Ease;
+use crate::gpu::MAX_LIGHTS;
+use crate::props::PropKind;
 use crate::track::{Keyframe, Lerp, Track};
 use glam::Vec3;
 use serde_json::{Map, Value};
@@ -73,7 +75,7 @@ impl Material {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum PrimKind {
     Box { size: Vec3 },
     Sphere { radius: f32 },
@@ -105,11 +107,21 @@ pub struct HumanoidDef {
     pub pose: Pose,
 }
 
+/// A prop-hunt prop (see `crate::props`): a schema-level object kind that expands into a
+/// handful of primitive parts, the same way `Humanoid` expands into a posed capsule rig,
+/// rather than something a map author hand-nests as a `group` of boxes every time.
+#[derive(Debug)]
+pub struct PropDef {
+    pub kind: PropKind,
+    pub material: Material,
+}
+
 #[derive(Debug)]
 pub enum ObjectKind {
     Prim(PrimKind),
     Group(Vec<Object>),
     Humanoid(Box<HumanoidDef>),
+    Prop(Box<PropDef>),
 }
 
 #[derive(Debug)]
@@ -425,6 +437,24 @@ fn parse_humanoid(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Humano
     HumanoidDef { height, build, material, pose }
 }
 
+fn parse_prop(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> PropDef {
+    let kind = match obj.get("prop").and_then(Value::as_str) {
+        Some(name) => match PropKind::from_name(name) {
+            Some(k) => k,
+            None => {
+                let names: Vec<&str> = PropKind::ALL.iter().map(|k| k.name()).collect();
+                ctx.err(&format!("{path}.prop"), format!("unknown prop '{name}' (expected one of: {})", names.join(", ")));
+                PropKind::Crate
+            }
+        },
+        None => {
+            ctx.err(&format!("{path}.prop"), "missing (a prop object needs a 'prop' kind string)");
+            PropKind::Crate
+        }
+    };
+    PropDef { kind, material: parse_material(ctx, obj, path) }
+}
+
 const PRIM_TYPES: &[&str] = &["box", "sphere", "cylinder", "cone", "capsule", "plane"];
 
 fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
@@ -470,10 +500,13 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
             (ObjectKind::Group(children), None)
         }
         Some("humanoid") => (ObjectKind::Humanoid(Box::new(parse_humanoid(ctx, obj, &id))), None),
+        Some("prop") => (ObjectKind::Prop(Box::new(parse_prop(ctx, obj, &id))), None),
         Some(other) => {
             ctx.err(
                 &format!("{id}.type"),
-                format!("unknown type '{other}' (expected box, sphere, cylinder, cone, capsule, plane, group, or humanoid)"),
+                format!(
+                    "unknown type '{other}' (expected box, sphere, cylinder, cone, capsule, plane, group, humanoid, or prop)"
+                ),
             );
             (ObjectKind::Prim(PrimKind::Sphere { radius: 0.5 }), Some(Material::default_gray()))
         }
@@ -539,8 +572,8 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
 
     let mut lights = Vec::new();
     if let Some(arr) = root.get("lights").and_then(Value::as_array) {
-        if arr.len() > 4 {
-            ctx.err("lights", "at most 4 lights are allowed");
+        if arr.len() > MAX_LIGHTS {
+            ctx.err("lights", format!("at most {MAX_LIGHTS} lights are allowed"));
         }
         let mut shadow_casters = 0;
         for (i, lv) in arr.iter().enumerate() {

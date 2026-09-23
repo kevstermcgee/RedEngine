@@ -3,6 +3,7 @@ use crate::gpu::{
     MAX_LIGHTS,
 };
 use crate::mesh::Mesh;
+use crate::props::prop_parts;
 use crate::schema::{Background, LightKind, Material, Object, ObjectKind, PrimKind, Scene};
 use crate::skeleton::{pose_to_parts, BoneKind, HumanoidRig, PoseSample};
 use anyhow::Result;
@@ -67,6 +68,11 @@ pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
                     out.push(mesh);
                 }
             }
+            ObjectKind::Prop(p) => {
+                for part in prop_parts(p.kind) {
+                    out.push(build_prim_mesh(&part.shape));
+                }
+            }
         }
     }
 }
@@ -89,6 +95,18 @@ pub(crate) fn collect_leaf_transforms(objects: &[Object], t: f32, parent: Mat4, 
                 for part in &parts {
                     let bone_local = Mat4::from_rotation_translation(part.rotation, part.center);
                     out.push((world * bone_local, mat));
+                }
+            }
+            ObjectKind::Prop(p) => {
+                let base = sample_material(&p.material, t);
+                for part in prop_parts(p.kind) {
+                    let mat = SampledMaterial {
+                        color: part.color_override.unwrap_or(base.color),
+                        metallic: (base.metallic + part.metallic_delta).clamp(0.0, 1.0),
+                        roughness: (base.roughness + part.roughness_delta).clamp(0.04, 1.0),
+                        emissive: base.emissive,
+                    };
+                    out.push((world * part.local_transform, mat));
                 }
             }
         }
@@ -118,7 +136,7 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(scene: &Scene) -> Result<Self> {
         let gpu = Gpu::new()?;
-        let pipelines = create_pipelines(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb);
+        let pipelines = create_pipelines(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
         let shadow_sampler = make_shadow_sampler(&gpu.device);
         let targets = FrameTargets::new(&gpu.device, scene.width, scene.height);
 

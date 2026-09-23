@@ -2,6 +2,7 @@ pub mod color;
 pub mod easing;
 pub mod gpu;
 pub mod mesh;
+pub mod props;
 pub mod render;
 pub mod schema;
 pub mod skeleton;

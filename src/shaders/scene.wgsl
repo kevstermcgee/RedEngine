@@ -3,8 +3,8 @@ struct Globals {
     light_view_proj: mat4x4<f32>,
     camera_pos: vec4<f32>,
     ambient: vec4<f32>,
-    light_pos_or_dir: array<vec4<f32>, 4>,
-    light_color_intensity: array<vec4<f32>, 4>,
+    light_pos_or_dir: array<vec4<f32>, 8>,
+    light_color_intensity: array<vec4<f32>, 8>,
     counts: vec4<f32>,
     bg_top: vec4<f32>,
     bg_bottom: vec4<f32>,
@@ -72,13 +72,23 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
     let metallic = obj.material.x;
     let roughness = max(obj.material.y, 0.04);
-    let shininess = mix(8.0, 160.0, 1.0 - roughness);
+    // A gentler curve than a straight mix(8, 160, 1-roughness): keeps mid-roughness surfaces
+    // (most props) from jumping straight to a hard plastic-looking highlight the way a linear
+    // roughness->shininess mapping tends to.
+    let smoothness = 1.0 - roughness;
+    let shininess = mix(8.0, 160.0, smoothness * smoothness);
     let diffuse_color = obj.base_color.rgb * (1.0 - metallic);
+    // Fresnel-ish rim term: grazing angles reflect more than head-on ones on any real surface,
+    // metal or not. Cheap Schlick approximation reusing the existing view/normal vectors, no
+    // extra per-light cost since it only depends on view angle.
+    let n_dot_v = max(dot(n, v), 0.0);
+    let fresnel = pow(1.0 - n_dot_v, 5.0);
+    let rim_strength = mix(0.05, 0.35, metallic) * fresnel;
 
     let n_lights = i32(globals.counts.x);
     let shadow_idx = i32(globals.counts.y);
 
-    for (var i = 0; i < 4; i = i + 1) {
+    for (var i = 0; i < 8; i = i + 1) {
         if (i >= n_lights) {
             break;
         }
@@ -106,7 +116,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         }
         let h = normalize(l + v);
         let spec_pow = pow(max(dot(n, h), 0.0), shininess);
-        let spec = spec_pow * mix(0.15, 1.0, metallic);
+        let spec = spec_pow * mix(0.15, 1.0, metallic) + rim_strength * n_dot_l;
         color = color + (diffuse_color * n_dot_l + vec3<f32>(spec, spec, spec)) * ci.rgb * atten * shadow;
     }
 

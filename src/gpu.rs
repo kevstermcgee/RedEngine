@@ -1,11 +1,16 @@
 use crate::mesh::{Mesh, Vertex};
 use anyhow::{Context, Result};
 use bytemuck::{Pod, Zeroable};
+use glam::Vec3;
 use wgpu::util::DeviceExt;
 
 pub const SHADOW_SIZE: u32 = 2048;
-pub const MAX_LIGHTS: usize = 4;
+pub const MAX_LIGHTS: usize = 8;
 pub const SUPERSAMPLE: u32 = 2;
+/// MSAA sample count for the live viewer's color/depth targets. The offline `Renderer` gets
+/// its anti-aliasing for free from `SUPERSAMPLE` instead (see `FrameTargets`), so it always
+/// creates pipelines with a sample count of 1 regardless of this constant.
+pub const MSAA_SAMPLES: u32 = 4;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -35,6 +40,10 @@ pub struct GpuMesh {
     pub vertex_buf: wgpu::Buffer,
     pub index_buf: wgpu::Buffer,
     pub index_count: u32,
+    /// Local-space (pre-transform) AABB, used by the live viewer for per-frame frustum culling
+    /// (see `viewer::world_aabb`) — computed once here at upload time rather than every frame.
+    pub local_min: Vec3,
+    pub local_max: Vec3,
 }
 
 impl GpuMesh {
@@ -49,7 +58,14 @@ impl GpuMesh {
             contents: bytemuck::cast_slice(&mesh.indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        GpuMesh { vertex_buf, index_buf, index_count: mesh.indices.len() as u32 }
+        let mut local_min = Vec3::splat(f32::INFINITY);
+        let mut local_max = Vec3::splat(f32::NEG_INFINITY);
+        for v in &mesh.vertices {
+            let p = Vec3::from_array(v.pos);
+            local_min = local_min.min(p);
+            local_max = local_max.max(p);
+        }
+        GpuMesh { vertex_buf, index_buf, index_count: mesh.indices.len() as u32, local_min, local_max }
     }
 }
 
@@ -171,7 +187,12 @@ fn make_object_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     })
 }
 
-pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat) -> Pipelines {
+/// `sample_count` applies to the `main` and `background` pipelines, which draw into whatever
+/// color target the caller sets up (single-sampled for the offline `Renderer`, `MSAA_SAMPLES`
+/// for the live viewer). The `shadow` pipeline always stays single-sampled — it has no color
+/// attachment at all, and its depth attachment (the shadow map) is never multisampled by
+/// either caller — so it ignores this parameter.
+pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat, sample_count: u32) -> Pipelines {
     let global_uniform_bgl = make_global_uniform_layout(device);
     let global_full_bgl = make_global_full_layout(device);
     let object_bgl = make_object_layout(device);
@@ -222,7 +243,11 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
             compilation_options: Default::default(),
             targets: &[Some(color_format.into())],
         }),
-        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        primitive: wgpu::PrimitiveState {
+            cull_mode: Some(wgpu::Face::Back),
+            front_face: wgpu::FrontFace::Ccw,
+            ..Default::default()
+        },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: wgpu::TextureFormat::Depth32Float,
             depth_write_enabled: Some(true),
@@ -230,7 +255,7 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
-        multisample: wgpu::MultisampleState::default(),
+        multisample: wgpu::MultisampleState { count: sample_count, mask: !0, alpha_to_coverage_enabled: false },
         multiview_mask: None,
         cache: None,
     });
@@ -245,7 +270,10 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
             buffers: &vertex_buffers,
         },
         fragment: None,
-        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        // Every primitive mesh is a closed solid, so a backface never wins the depth test
+        // against its own front face — culling it in the shadow pass is free (no peter-panning
+        // risk here, since it only affects self-occlusion within the same closed mesh).
+        primitive: wgpu::PrimitiveState { cull_mode: Some(wgpu::Face::Back), front_face: wgpu::FrontFace::Ccw, ..Default::default() },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: wgpu::TextureFormat::Depth32Float,
             depth_write_enabled: Some(true),
@@ -253,6 +281,8 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
+        // Always single-sampled: the shadow map is a depth-only texture that's never
+        // multisampled by either caller, regardless of `sample_count`.
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
         cache: None,
@@ -275,7 +305,9 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
+        // Draws into the same (possibly multisampled) color target as `main` within one pass
+        // sequence, so its sample count has to match.
+        multisample: wgpu::MultisampleState { count: sample_count, mask: !0, alpha_to_coverage_enabled: false },
         multiview_mask: None,
         cache: None,
     });
