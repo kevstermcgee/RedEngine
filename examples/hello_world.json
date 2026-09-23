@@ -1,0 +1,60 @@
+{
+  "meta": { "fps": 30, "duration": 4.0, "resolution": [1280, 720] },
+  "background": { "sky_top": "#5a8fd6", "sky_bottom": "#eaf3ff" },
+  "ambient": { "color": "#ffffff", "intensity": 0.22 },
+  "camera": {
+    "fov": 45,
+    "position": { "keyframes": [
+      { "t": 0, "value": [0, 2.2, 7] },
+      { "t": 4, "value": [4, 2.6, 5], "ease": "inout" }
+    ] },
+    "target": [0, 0.9, 0]
+  },
+  "lights": [
+    { "id": "sun", "type": "directional", "direction": [-0.5, -1, -0.35],
+      "color": "#fff2df", "intensity": 1.9, "cast_shadows": true, "shadow_radius": 6 },
+    { "id": "fill", "type": "point", "position": [2, 3, 4],
+      "color": "#7fb2ff", "intensity": 6, "range": 14 }
+  ],
+  "objects": [
+    { "id": "ground", "type": "plane", "size": [20, 20],
+      "material": { "color": "#8fae6b", "roughness": 0.9 } },
+    { "id": "ball", "type": "sphere", "radius": 0.6,
+      "position": { "keyframes": [
+        { "t": 0, "value": [-1.6, 0.6, 0] },
+        { "t": 1.2, "value": [-1.6, 1.6, 0], "ease": "out" },
+        { "t": 2.0, "value": [-1.6, 0.6, 0], "ease": "in" },
+        { "t": 2.2, "value": [-1.6, 0.6, 0], "ease": "hold" },
+        { "t": 4.0, "value": [1.6, 0.6, 0], "ease": "inout" }
+      ] },
+      "material": { "color": "#e0483c", "metallic": 0.05, "roughness": 0.35 } },
+    { "id": "cube", "type": "box", "size": [0.9, 0.9, 0.9],
+      "position": [1.2, 0.45, -0.8],
+      "rotation": { "keyframes": [
+        { "t": 0, "value": [0, 0, 0] },
+        { "t": 4, "value": [0, 340, 0], "ease": "linear" }
+      ] },
+      "material": { "color": "#3c78e0", "metallic": 0.7, "roughness": 0.25 } },
+    { "id": "post", "type": "group", "position": [0, 0, -2],
+      "children": [
+        { "id": "post.pole", "type": "cylinder", "radius": 0.08, "height": 1.6, "position": [0, 0.8, 0],
+          "material": { "color": "#8a6240", "roughness": 0.8 } },
+        { "id": "post.cap", "type": "cone", "radius": 0.22, "height": 0.4, "position": [0, 1.8, 0],
+          "material": { "color": "#c0392b" } }
+      ] },
+    { "id": "hero", "type": "humanoid", "position": [-3.2, 0, 1.4], "rotation": [0, 35, 0],
+      "height": 1.75, "build": 1.0,
+      "material": { "color": "#e0b090" },
+      "pose": {
+        "spine": [6, 0, 0],
+        "l_shoulder": { "keyframes": [{"t":0,"value":[10,0,-70]},{"t":2,"value":[-20,0,-10],"ease":"inout"},{"t":4,"value":[10,0,-70],"ease":"inout"}] },
+        "r_shoulder": { "keyframes": [{"t":0,"value":[-20,0,10]},{"t":2,"value":[10,0,70],"ease":"inout"},{"t":4,"value":[-20,0,10],"ease":"inout"}] },
+        "l_elbow": 20, "r_elbow": 20,
+        "l_hip": { "keyframes": [{"t":0,"value":[10,0,-4]},{"t":2,"value":[-15,0,-4],"ease":"inout"},{"t":4,"value":[10,0,-4],"ease":"inout"}] },
+        "r_hip": { "keyframes": [{"t":0,"value":[-15,0,4]},{"t":2,"value":[10,0,4],"ease":"inout"},{"t":4,"value":[-15,0,4],"ease":"inout"}] },
+        "l_knee": { "keyframes": [{"t":0,"value":25},{"t":2,"value":5,"ease":"inout"},{"t":4,"value":25,"ease":"inout"}] },
+        "r_knee": { "keyframes": [{"t":0,"value":5},{"t":2,"value":25,"ease":"inout"},{"t":4,"value":5,"ease":"inout"}] }
+      }
+    }
+  ]
+}

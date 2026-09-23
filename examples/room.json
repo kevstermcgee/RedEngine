@@ -1,0 +1,65 @@
+{
+  "meta": { "fps": 30, "duration": 4.0, "resolution": [1280, 720] },
+  "background": { "color": "#10141c" },
+  "ambient": { "color": "#ffffff", "intensity": 0.18 },
+  "camera": { "fov": 70, "position": [0, 1.7, 3], "target": [0, 1.7, 0] },
+  "lights": [
+    { "id": "lamp1", "type": "point", "position": [-3, 2.6, -2.5],
+      "color": "#ffd9a0", "intensity": 14, "range": 10 },
+    { "id": "lamp2", "type": "point", "position": [3, 2.6, 2.5],
+      "color": "#a0c8ff", "intensity": 12, "range": 10 },
+    { "id": "lamp3", "type": "point", "position": [0, 2.7, -3.7],
+      "color": "#ffffff", "intensity": 10, "range": 9 }
+  ],
+  "objects": [
+    { "id": "floor", "type": "plane", "size": [10, 8],
+      "material": { "color": "#6b5d4f", "roughness": 0.85 } },
+    { "id": "ceiling", "type": "box", "size": [10, 0.2, 8], "position": [0, 3.0, 0],
+      "material": { "color": "#2a2a30", "roughness": 0.9 } },
+    { "id": "wall_north", "type": "box", "size": [10, 3, 0.2], "position": [0, 1.5, -4],
+      "material": { "color": "#c9b79c", "roughness": 0.9 } },
+    { "id": "wall_south", "type": "box", "size": [10, 3, 0.2], "position": [0, 1.5, 4],
+      "material": { "color": "#c9b79c", "roughness": 0.9 } },
+    { "id": "wall_east", "type": "box", "size": [0.2, 3, 8], "position": [5, 1.5, 0],
+      "material": { "color": "#b8a688", "roughness": 0.9 } },
+    { "id": "wall_west", "type": "box", "size": [0.2, 3, 8], "position": [-5, 1.5, 0],
+      "material": { "color": "#b8a688", "roughness": 0.9 } },
+
+    { "id": "table", "type": "group", "position": [0, 0, -1.2], "children": [
+        { "id": "table.top", "type": "box", "size": [1.6, 0.08, 0.9], "position": [0, 0.76, 0],
+          "material": { "color": "#7a5230", "roughness": 0.4, "metallic": 0.05 } },
+        { "id": "table.leg1", "type": "box", "size": [0.08, 0.76, 0.08], "position": [-0.7, 0.38, -0.37],
+          "material": { "color": "#5a3c22", "roughness": 0.5 } },
+        { "id": "table.leg2", "type": "box", "size": [0.08, 0.76, 0.08], "position": [0.7, 0.38, -0.37],
+          "material": { "color": "#5a3c22", "roughness": 0.5 } },
+        { "id": "table.leg3", "type": "box", "size": [0.08, 0.76, 0.08], "position": [-0.7, 0.38, 0.37],
+          "material": { "color": "#5a3c22", "roughness": 0.5 } },
+        { "id": "table.leg4", "type": "box", "size": [0.08, 0.76, 0.08], "position": [0.7, 0.38, 0.37],
+          "material": { "color": "#5a3c22", "roughness": 0.5 } }
+      ] },
+    { "id": "vase", "type": "sphere", "radius": 0.14, "position": [0, 0.94, -1.2],
+      "material": { "color": "#3c78e0", "metallic": 0.6, "roughness": 0.25 } },
+
+    { "id": "shelf", "type": "box", "size": [1.6, 0.06, 0.3], "position": [-4.85, 2.0, 1.5],
+      "rotation": [0, 90, 0], "material": { "color": "#5a3c22", "roughness": 0.5 } },
+    { "id": "book1", "type": "box", "size": [0.06, 0.3, 0.22], "position": [-4.85, 2.18, 1.1],
+      "rotation": [0, 90, 0], "material": { "color": "#c0392b" } },
+    { "id": "book2", "type": "box", "size": [0.06, 0.28, 0.22], "position": [-4.85, 2.17, 1.2],
+      "rotation": [0, 90, 0], "material": { "color": "#2ecc71" } },
+
+    { "id": "rug", "type": "box", "size": [3.2, 0.02, 2.2], "position": [0, 0.011, 0.6],
+      "material": { "color": "#8c3b3b", "roughness": 0.95 } },
+
+    { "id": "greeter", "type": "humanoid", "position": [2.6, 0, 1.6], "rotation": [0, -110, 0],
+      "height": 1.75, "build": 1.0,
+      "material": { "color": "#e0b090" },
+      "pose": {
+        "spine": [4, 0, 0],
+        "l_shoulder": [8, 0, -60], "r_shoulder": [-8, 0, 20],
+        "l_elbow": 15, "r_elbow": 60,
+        "l_hip": [4, 0, -3], "r_hip": [-4, 0, 3],
+        "l_knee": 6, "r_knee": 6
+      }
+    }
+  ]
+}
