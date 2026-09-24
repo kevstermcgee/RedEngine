@@ -88,14 +88,14 @@ cargo run --release --bin re2 -- examples/prop_hunt_yard.json
 ```
 
 On launch a menu asks whether to play the **Human** (an ordinary person with a bat) or **Cheddar the
-rat** (small, brownish-grey, and always as fast as a human sprint; no bat) — click a side or press
+rat** (small, brownish-grey, brisk, small enough to run under tables; no bat) — click a side or press
 `1` / `2`. `--as human|rat` (or `RE2_CHARACTER`) skips the menu.
 
 Controls: **WASD** or the **arrow keys** to walk, the **mouse** to look, **Shift** to sprint
 forward (with a subtle FOV kick), **Space** for a small jump, **Ctrl** to crouch, **left-click**
 to swing the bat, **F** to toggle borderless
 fullscreen vs. maximized, **Q** to toggle first-/third-person, click the window to capture the
-mouse, **Escape** to release it. The window launches maximized, fit to whichever monitor it
+mouse, **Escape** to release it and open the pause menu (Resume / Quit game). The window launches maximized, fit to whichever monitor it
 opens on.
 
 This is a viewer, not an editor. The seeker's primary action on objects is **hitting them with

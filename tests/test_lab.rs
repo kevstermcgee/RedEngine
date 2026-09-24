@@ -9,7 +9,7 @@ use red_engine2::physics::PropWorld;
 use red_engine2::player::{step_horizontal_r, Character};
 use red_engine2::schema::Scene;
 use red_engine2::tools::verify::{run, Options};
-use red_engine2::viewer::collect_box_colliders_except;
+use red_engine2::viewer::{collect_box_colliders_except, collect_ground_candidates_except};
 use std::path::Path;
 
 fn lab() -> Scene {
@@ -141,4 +141,43 @@ fn a_prop_on_a_table_falls_with_it_and_lifting_promotes_only_what_it_carried() {
     }
     assert!(!w.is_static(apple) && w.is_asleep(apple));
     assert!(w.prop_pose(apple).w_axis.y < 0.8, "the apple rests on the table or floor, not in the air");
+}
+
+#[test]
+fn the_rat_runs_under_tables_and_platforms_but_a_human_cannot() {
+    use red_engine2::sim::player::{step_player, PlayerInput, PlayerState};
+    let scene = lab();
+    let loose: std::collections::HashSet<usize> = red_engine2::physics::loose_props(&scene, None).iter().map(|(i, _)| *i).collect();
+    let (colliders, ground) = (collect_box_colliders_except(&scene, &loose), collect_ground_candidates_except(&scene, &loose));
+    let run = |who: Character, x: f32, z: f32, yaw_deg: f32, ticks: u32| {
+        let mut s = PlayerState::spawn(x, z, 0.0, yaw_deg, who);
+        for k in 0..ticks {
+            let yaw = s.yaw;
+            step_player(&mut s, &PlayerInput { seq: k, forward: 1, yaw, ..Default::default() }, &colliders, &ground);
+        }
+        s
+    };
+    // The dining table (table_a) spans x 5.2..6.8, z -6.45..-5.55 with a top 0.78 m up. Walk north through
+    // the middle of it, starting south of it.
+    let rat = run(Character::Rat, 6.0, -4.5, 0.0, 120);
+    assert!(rat.pos.y < -6.7, "the rat ran right under the table and out the other side: z = {}", rat.pos.y);
+    assert_eq!(rat.foot_y, 0.0, "and stayed on the floor");
+    let human = run(Character::Human, 6.0, -4.5, 0.0, 120);
+    assert!(human.pos.y > -5.3, "a person is stopped by the tabletop: z = {}", human.pos.y);
+
+    // The platform (a slab 1.8..2.0 m up over x -7.88..-4.4, z 1.4..3.2): run west underneath it from the east.
+    let rat = run(Character::Rat, -3.5, 2.3, 270.0, 100);
+    assert!(rat.pos.x < -6.5, "the rat ran under the platform: x = {}", rat.pos.x);
+    let human = run(Character::Human, -3.5, 2.3, 270.0, 100);
+    assert!(human.pos.x > -4.1, "a person cannot walk under it: x = {}", human.pos.x);
+
+    // Legs still count: aimed straight at one of the table's legs, the rat is stopped by it.
+    let leg = red_engine2::props::game_collision_boxes(red_engine2::props::PropKind::DiningTable)
+        .into_iter()
+        .filter(|(lo, _)| lo.y < 0.05)
+        .max_by(|a, b| ((a.0.z + a.1.z) / 2.0).total_cmp(&((b.0.z + b.1.z) / 2.0)))
+        .expect("a leg");
+    let (leg_x, leg_z) = (6.0 + (leg.0.x + leg.1.x) / 2.0, -6.0 + (leg.0.z + leg.1.z) / 2.0); // table_a is at (6, -6), unrotated
+    let boxed = run(Character::Rat, leg_x, leg_z + 1.5, 0.0, 120);
+    assert!(boxed.pos.y > leg_z, "a rat aimed at a table leg at ({leg_x:.2}, {leg_z:.2}) is stopped by it: z = {}", boxed.pos.y);
 }

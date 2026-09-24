@@ -253,7 +253,7 @@ pub fn paint(w: u32, h: u32, selected: Character, map: &str) -> Vec<u8> {
 
     let cards = [
         (Character::Human, wi / 4, "1  HUMAN", ["TALL AND STRONG.", "SWINGS A BAT.", "WALK, OR SPRINT WITH SHIFT.", ""]),
-        (Character::Rat, wi * 3 / 4, "2  CHEDDAR THE RAT", ["SMALL, QUICK AND HARD TO SPOT.", "ALWAYS RUNNING AT A SPRINT.", "FITS THROUGH TIGHT GAPS.", "(SHOWN ABOUT 3X LIFE SIZE)"]),
+        (Character::Rat, wi * 3 / 4, "2  CHEDDAR THE RAT", ["SMALL, QUICK AND HARD TO SPOT.", "RUNS UNDER TABLES AND PLATFORMS.", "FITS THROUGH TIGHT GAPS.", "(SHOWN ABOUT 3X LIFE SIZE)"]),
     ];
     for (who, cx, title, lines) in cards {
         let picked = who == selected;
@@ -273,9 +273,109 @@ pub fn paint(w: u32, h: u32, selected: Character, map: &str) -> Vec<u8> {
     cv.px
 }
 
+/// What a click on the pause menu asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PauseAction {
+    /// Back to the game.
+    Resume,
+    /// Close the window.
+    Quit,
+}
+
+/// Rectangles `(x0, y0, x1, y1)` of the pause menu for a `w` x `h` window.
+struct PauseLayout {
+    panel: (i32, i32, i32, i32),
+    resume: (i32, i32, i32, i32),
+    quit: (i32, i32, i32, i32),
+    scale: i32,
+}
+
+fn pause_layout(w: u32, h: u32) -> PauseLayout {
+    let (wi, hi) = (w as i32, h as i32);
+    let s = (hi / 240).max(1);
+    let pw = (190 * s).min(wi - 8);
+    let ph = 126 * s;
+    let (x0, y0) = ((wi - pw) / 2, (hi - ph) / 2);
+    let (bx0, bx1, bh) = (x0 + 14 * s, x0 + pw - 14 * s, 20 * s);
+    let resume_y = y0 + 42 * s;
+    let quit_y = resume_y + bh + 8 * s;
+    PauseLayout { panel: (x0, y0, x0 + pw, y0 + ph), resume: (bx0, resume_y, bx1, resume_y + bh), quit: (bx0, quit_y, bx1, quit_y + bh), scale: s }
+}
+
+fn inside(r: (i32, i32, i32, i32), x: f32, y: f32) -> bool {
+    x >= r.0 as f32 && x < r.2 as f32 && y >= r.1 as f32 && y < r.3 as f32
+}
+
+/// Which pause-menu button, if any, is under the cursor at `(x, y)` in a `w` x `h` window.
+pub fn pause_action_at(w: u32, h: u32, x: f32, y: f32) -> Option<PauseAction> {
+    let l = pause_layout(w, h);
+    if inside(l.resume, x, y) {
+        Some(PauseAction::Resume)
+    } else if inside(l.quit, x, y) {
+        Some(PauseAction::Quit)
+    } else {
+        None
+    }
+}
+
+/// Paints the pause menu (a dimmed screen, a small panel with RESUME and QUIT GAME) as an RGBA image the
+/// size of the window. `hover` highlights a button; `status` is an optional extra line (e.g. the online
+/// connection).
+pub fn paint_pause(w: u32, h: u32, map: &str, status: Option<&str>, hover: Option<PauseAction>) -> Vec<u8> {
+    let mut cv = Canvas::new(w, h);
+    let l = pause_layout(w, h);
+    let s = l.scale;
+    let (text, dim, gold) = ([236, 238, 245, 255], [150, 156, 176, 255], [255, 210, 74, 255]);
+    cv.rect(0, 0, w as i32, h as i32, [4, 6, 12, 120]);
+    let (x0, y0, x1, y1) = l.panel;
+    cv.rect(x0, y0, x1, y1, [14, 17, 28, 235]);
+    cv.frame(x0, y0, x1, y1, (s / 2).max(2), [90, 98, 130, 255]);
+    let cx = (x0 + x1) / 2;
+    cv.text_centered(cx, y0 + 8 * s, "PAUSED", s * 2, text);
+    let map_line = format!("MAP: {}", map.to_uppercase());
+    cv.text_centered(cx, y0 + 28 * s, &map_line, s, dim);
+    for (rect, label, action) in [(l.resume, "RESUME", PauseAction::Resume), (l.quit, "QUIT GAME", PauseAction::Quit)] {
+        let hot = hover == Some(action);
+        cv.rect(rect.0, rect.1, rect.2, rect.3, if hot { [56, 62, 92, 255] } else { [30, 34, 52, 255] });
+        cv.frame(rect.0, rect.1, rect.2, rect.3, (s / 2).max(1), if hot { gold } else { [90, 98, 130, 255] });
+        cv.text_centered((rect.0 + rect.2) / 2, rect.1 + (rect.3 - rect.1 - GLYPH_H * s * 3 / 2) / 2, label, s * 3 / 2, if hot { gold } else { text });
+    }
+    let hint_y = l.quit.3 + 7 * s;
+    cv.text_centered(cx, hint_y, "ESC RESUMES", s, dim);
+    if let Some(st) = status {
+        cv.text_centered(cx, hint_y + 10 * s, &st.to_uppercase(), s, dim);
+    }
+    cv.px
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_pause_menu_buttons_are_where_they_are_painted_and_clicks_hit_them() {
+        for (w, h) in [(640u32, 360u32), (1024, 768), (1920, 1080), (500, 640)] {
+            let l = pause_layout(w, h);
+            let mid = |r: (i32, i32, i32, i32)| (((r.0 + r.2) / 2) as f32, ((r.1 + r.3) / 2) as f32);
+            let (rx, ry) = mid(l.resume);
+            let (qx, qy) = mid(l.quit);
+            assert_eq!(pause_action_at(w, h, rx, ry), Some(PauseAction::Resume), "{w}x{h}");
+            assert_eq!(pause_action_at(w, h, qx, qy), Some(PauseAction::Quit), "{w}x{h}");
+            assert_eq!(pause_action_at(w, h, 2.0, 2.0), None, "outside the panel");
+            assert!(l.panel.0 >= 0 && l.panel.2 <= w as i32 && l.panel.3 <= h as i32, "the panel fits a {w}x{h} window");
+            assert!(l.resume.3 < l.quit.1, "buttons do not overlap");
+        }
+    }
+
+    #[test]
+    fn the_pause_menu_paints_something_and_hover_changes_it() {
+        let (w, h) = (640, 360);
+        let plain = paint_pause(w, h, "test_lab", None, None);
+        assert_eq!(plain.len(), (w * h * 4) as usize);
+        assert!(plain.chunks(4).any(|p| p[3] > 200 && p[0] > 200 && p[1] > 200), "bright text pixels");
+        assert_ne!(plain, paint_pause(w, h, "test_lab", None, Some(PauseAction::Quit)));
+        assert_ne!(paint_pause(w, h, "test_lab", None, None), paint_pause(w, h, "test_lab", Some("online: player 1"), None));
+    }
 
     #[test]
     fn scene_has_the_two_models_where_animate_expects() {

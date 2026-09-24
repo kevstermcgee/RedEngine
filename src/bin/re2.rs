@@ -20,7 +20,10 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 use red_engine2::audio::{synth_bat_hit, synth_revolver_shot, synth_weapon_click, Audio};
+use red_engine2::net::bot::ClientWorld;
+use red_engine2::net::session::NetSession;
 use red_engine2::sim::clock::TickClock;
+use red_engine2::sim::player::{step_player, PlayerInput, PlayerState};
 use red_engine2::sim::combat::{Cooldown, MeleeSwing, WeaponSwitch};
 use red_engine2::weapons::{
     Ammo, Weapon, DRY_FIRE_COOLDOWN_TICKS, MUZZLE_FLASH_TIME, RECOIL_TIME, REVOLVER_AMMO, REVOLVER_COOLDOWN_TICKS, REVOLVER_IMPULSE, REVOLVER_RANGE, SWING_RECOVER_SECS,
@@ -31,8 +34,8 @@ use red_engine2::characters::{human_object, rat_object, HUMAN_HEIGHT};
 use red_engine2::easing::Ease;
 use red_engine2::hit::{collect_hit_shapes_where, raycast_shapes, HitShape};
 use red_engine2::physics::PropWorld;
-use red_engine2::menu;
-use red_engine2::player::{step_horizontal_r, vertical_step, BodySpec, Character, CROUCH_SPEED_MULT, FIXED_DT};
+use red_engine2::menu::{self, PauseAction};
+use red_engine2::player::{BodySpec, Character, FIXED_DT};
 use red_engine2::schema::{Object, ObjectKind, Scene};
 use red_engine2::skeleton::{pose_to_parts, HumanoidRig, PoseSample};
 use red_engine2::track::Track;
@@ -42,6 +45,7 @@ use red_engine2::viewer::{
 };
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use std::collections::HashSet;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -72,11 +76,9 @@ const SPRINT_FOV_BOOST_DEG: f32 = 8.0;
 const FOV_TRANSITION_TIME: f32 = 0.15;
 
 
-// How long the impact flash on a struck object takes to fade back to its original look. Hitting
-// things with the bat is the seeker's main way to act on objects; `E` picks up / drops loose props;
-// right-click is reserved for the hider's "pick an object to replicate" (then `R`), not built yet.
-const FLASH_DURATION: f32 = 0.35;
-const HIT_FLASH_BOOST: Vec3 = Vec3::new(1.0, 0.3, 0.12);
+// Hitting things with the bat is the seeker's main way to act on objects (a struck object makes a
+// sound but does not change colour); `E` picks up / drops loose props; right-click is reserved for the
+// hider's "pick an object to replicate" (then `R`), not built yet.
 
 // Bat viewmodel: idle pose and swing animation, both expressed as a pitch (rotation about
 // the camera's local right axis, tipping the bar up/down) plus a forward lunge, in the
@@ -183,30 +185,6 @@ fn build_player_object(who: Character) -> Object {
     o
 }
 
-/// A brief emissive-color pulse on the object last struck, decaying back to whatever
-/// it originally was (not necessarily black — an object could have been authored with its own
-/// glow) over `FLASH_DURATION`.
-struct Flash {
-    object_index: usize,
-    original_emissive: Vec3,
-    /// The extra glow at the start of the flash; scaled down to zero as the timer runs out.
-    boost: Vec3,
-    timer: f32,
-}
-
-/// The single `Vec3` this object's surface color glows by, if it has one to flash — `None` for
-/// a `group`, which has no material of its own (only its children do).
-fn object_emissive_mut(o: &mut Object) -> Option<&mut Vec3> {
-    match &mut o.kind {
-        ObjectKind::Prim(_) => o.material.as_mut().map(|m| &mut m.emissive),
-        ObjectKind::Humanoid(h) => Some(&mut h.material.emissive),
-        ObjectKind::Rat(r) => Some(&mut r.material.emissive),
-        ObjectKind::Prop(p) => Some(&mut p.material.emissive),
-        ObjectKind::Stairs(s) => Some(&mut s.material.emissive),
-        ObjectKind::Group(_) => None,
-    }
-}
-
 struct GpuState {
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
@@ -263,6 +241,18 @@ struct App {
     jump_queued: bool,
     /// Left click waiting for the next simulation tick (swing or shot).
     attack_queued: bool,
+    /// The Escape menu is showing (the mouse is free; single-player is frozen).
+    paused: bool,
+    pause_hover: Option<PauseAction>,
+    cursor: (f32, f32),
+    /// `--connect`: the multiplayer session (`None` = single player).
+    net: Option<NetSession>,
+    /// Address to join, and the client's view of the map, until `start_game` uses them.
+    net_server: Option<SocketAddr>,
+    net_world: Option<ClientWorld>,
+    /// Debug: `RE2_AUTOWALK=forward|circle[:deg/s]` walks by itself (for unattended multi-window demos).
+    autowalk: Option<String>,
+    net_title_at: Instant,
     /// Scroll-wheel weapon switch (`+1`/`-1`) waiting for the next tick.
     switch_queued: Option<i32>,
     /// The weapon in hand (or being switched to). Human only.
@@ -293,7 +283,6 @@ struct App {
     /// Recomputed every frame from `swing`; only the animation reads it.
     swing_timer: Option<f32>,
     target_index: Option<usize>,
-    flash: Option<Flash>,
     /// Fixed-timestep physics state (see [`FIXED_DT`]): the authoritative planar position after
     /// the most recently completed physics step, and the one before it, so the actual rendered
     /// frame can interpolate between them instead of drawing exactly on a physics step boundary.
@@ -343,7 +332,7 @@ struct FrameStats {
 }
 
 impl App {
-    fn new(scene: Scene, scene_path: PathBuf, forced_character: Option<Character>) -> Self {
+    fn new(scene: Scene, scene_path: PathBuf, forced_character: Option<Character>, net_server: Option<SocketAddr>, net_world: Option<ClientWorld>) -> Self {
         // The player's body is added by `start_game` once the character is chosen.
         let player_object_index = scene.objects.len();
         let character = forced_character.unwrap_or(Character::Human);
@@ -383,6 +372,14 @@ impl App {
             sprint_held: false,
             jump_queued: false,
             attack_queued: false,
+            paused: false,
+            pause_hover: None,
+            cursor: (0.0, 0.0),
+            net: None,
+            net_server,
+            net_world,
+            autowalk: std::env::var("RE2_AUTOWALK").ok().filter(|v| !v.is_empty()),
+            net_title_at: Instant::now(),
             switch_queued: None,
             shot_cd: Cooldown::default(),
             swing: MeleeSwing::default(),
@@ -390,7 +387,6 @@ impl App {
             clock: TickClock::default(),
             swing_timer: None,
             target_index: None,
-            flash: None,
             physics_pos: Vec2::new(spawn.x, spawn.z),
             prev_physics_pos: Vec2::new(spawn.x, spawn.z),
             foot_y: 0.0,
@@ -423,62 +419,16 @@ impl App {
         }
     }
 
-    /// Applies (or re-applies) the current flash state's emissive value to the scene, then
-    /// steps its timer down; clears it and restores the original emissive once it's expired.
-    fn advance_flash(&mut self, dt: f32) {
-        let Some(flash) = &mut self.flash else { return };
-        flash.timer -= dt;
-        if flash.timer <= 0.0 {
-            let (object_index, original) = (flash.object_index, flash.original_emissive);
-            if let Some(e) = object_emissive_mut(&mut self.scene.objects[object_index]) {
-                *e = original;
-            }
-            self.flash = None;
-            return;
-        }
-        let frac = flash.timer / FLASH_DURATION;
-        let (object_index, original) = (flash.object_index, flash.original_emissive);
-        if let Some(e) = object_emissive_mut(&mut self.scene.objects[object_index]) {
-            *e = original + flash.boost * frac;
-        }
-    }
-
-    /// Boosts `object_index`'s emissive by `boost` and starts it decaying back over
-    /// `FLASH_DURATION` — the visual feedback for a bat hit.
-    ///
-    /// The true, un-flashed emissive to flash from and decay back to: if a flash is already
-    /// running on this same object, reuse its recorded original rather than the object's
-    /// current (still-boosted) value, so rapid re-triggers don't ratchet the glow up. A flash
-    /// running on a *different* object is restored first so it doesn't get stuck.
-    fn flash_object(&mut self, object_index: usize, boost: Vec3) {
-        let original = match self.flash.take() {
-            Some(prev) if prev.object_index == object_index => prev.original_emissive,
-            Some(prev) => {
-                if let Some(e) = object_emissive_mut(&mut self.scene.objects[prev.object_index]) {
-                    *e = prev.original_emissive;
-                }
-                object_emissive_mut(&mut self.scene.objects[object_index]).map_or(Vec3::ZERO, |e| *e)
-            }
-            None => object_emissive_mut(&mut self.scene.objects[object_index]).map_or(Vec3::ZERO, |e| *e),
-        };
-
-        if let Some(e) = object_emissive_mut(&mut self.scene.objects[object_index]) {
-            *e = original + boost;
-            self.flash = Some(Flash { object_index, original_emissive: original, boost, timer: FLASH_DURATION });
-        }
-    }
-
     /// The seeker's primary (and only) action on objects. Runs once per bat swing, at the start
     /// of the strike phase, and only when the swing's ray struck real geometry within
-    /// `MELEE_REACH` (see `red_engine2::hit`): logs it, plays the impact thunk, and flashes the
-    /// object. A swing that touches nothing never gets here, so it is silent.
+    /// `MELEE_REACH` (see `red_engine2::hit`): logs it and plays the impact thunk (the object itself
+    /// does not change colour). A swing that touches nothing never gets here, so it is silent.
     fn hit_with(&mut self, object_index: usize) {
         let id = self.scene.objects[object_index].id.clone();
         println!("Hit '{id}' with the bat!");
         if let Some(audio) = &self.audio {
             audio.play(&self.hit_sound);
         }
-        self.flash_object(object_index, HIT_FLASH_BOOST);
     }
 
     /// Blends between `idle`, `windup`, and `strike` values across the current swing's three
@@ -552,6 +502,9 @@ impl App {
 
     /// Scroll wheel: switch between the bat and the revolver (human only, not while carrying).
     fn on_scroll(&mut self, lines: f32) {
+        if self.net.is_some() {
+            return; // weapons are not networked yet
+        }
         if !self.body.has_bat || self.carrying() || self.switch.is_active() || self.switch_queued.is_some() {
             return;
         }
@@ -604,7 +557,39 @@ impl App {
                 props.strike_impulse(prop, dir, eye + dir * distance, REVOLVER_IMPULSE);
             }
             println!("Shot '{}' at {:.1} m", self.scene.objects[object_index].id, distance);
-            self.flash_object(object_index, HIT_FLASH_BOOST);
+        }
+    }
+
+    /// Escape: free the mouse and show the pause menu (Resume / Quit).
+    fn enter_pause(&mut self) {
+        self.paused = true;
+        self.pause_hover = None;
+        self.keys.clear(); // no key-release events arrive while the menu has the mouse
+        self.sprint_held = false;
+        self.set_grab(false);
+        self.repaint_pause();
+    }
+
+    /// Hides the pause menu and takes the mouse back.
+    fn leave_pause(&mut self) {
+        self.paused = false;
+        self.pause_hover = None;
+        if let Some(live) = self.gpu.as_mut().and_then(|g| g.live.as_mut()) {
+            live.overlay.hide();
+        }
+        self.set_grab(true);
+    }
+
+    /// Redraws the pause menu overlay (after it opens, the window resizes or the hover changes).
+    fn repaint_pause(&mut self) {
+        let map = self.scene_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        let status = self.net.as_ref().map(|n| n.status.clone());
+        let hover = self.pause_hover;
+        if let Some(gpu) = self.gpu.as_mut() {
+            let (w, h) = (gpu.config.width, gpu.config.height);
+            if let Some(live) = gpu.live.as_mut() {
+                live.overlay.set(&gpu.device, &gpu.queue, w, h, &menu::paint_pause(w, h, &map, status.as_deref(), hover));
+            }
         }
     }
 
@@ -793,6 +778,30 @@ impl App {
         };
     }
 
+    /// What the player is asking for this tick, from the held keys (or the `RE2_AUTOWALK` debug script).
+    fn build_input(&mut self) -> PlayerInput {
+        if let Some(mode) = self.autowalk.clone() {
+            // "circle" or "circle:DEGREES_PER_SECOND" turns while walking; anything else walks straight.
+            if let Some(rate) = mode.strip_prefix("circle") {
+                let dps = rate.trim_start_matches(':').parse::<f32>().unwrap_or(40.0);
+                self.camera.yaw += dps.to_radians() * FIXED_DT;
+            }
+            return PlayerInput { forward: 1, sprint: false, yaw: self.camera.yaw, pitch: self.camera.pitch, ..Default::default() };
+        }
+        let held = |a: KeyCode, b: KeyCode| self.keys.contains(&a) || self.keys.contains(&b);
+        let axis = |pos: bool, neg: bool| pos as i8 - neg as i8;
+        PlayerInput {
+            seq: 0,
+            forward: axis(held(KeyCode::KeyW, KeyCode::ArrowUp), held(KeyCode::KeyS, KeyCode::ArrowDown)),
+            strafe: axis(held(KeyCode::KeyD, KeyCode::ArrowRight), held(KeyCode::KeyA, KeyCode::ArrowLeft)),
+            jump: std::mem::take(&mut self.jump_queued),
+            sprint: self.sprint_held,
+            crouch: held(KeyCode::ControlLeft, KeyCode::ControlRight),
+            yaw: self.camera.yaw,
+            pitch: self.camera.pitch,
+        }
+    }
+
     /// One fixed-size (`FIXED_DT`) physics step: movement/collision + jump/gravity, sampling
     /// currently-held input fresh (input state doesn't change within a rendered frame between
     /// steps). Snapshots the pre-step planar position/foot height into `prev_physics_pos`/
@@ -802,58 +811,23 @@ impl App {
         self.prev_physics_pos = self.physics_pos;
         self.prev_foot_y = self.foot_y;
 
-        let crouching = self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight);
-        let fwd = self.camera.forward_flat();
-        let right = self.camera.right_flat();
-        let mut dir = Vec2::ZERO;
-        let forward_held = self.keys.contains(&KeyCode::KeyW) || self.keys.contains(&KeyCode::ArrowUp);
-        let back_held = self.keys.contains(&KeyCode::KeyS) || self.keys.contains(&KeyCode::ArrowDown);
-        let right_held = self.keys.contains(&KeyCode::KeyD) || self.keys.contains(&KeyCode::ArrowRight);
-        let left_held = self.keys.contains(&KeyCode::KeyA) || self.keys.contains(&KeyCode::ArrowLeft);
-        if forward_held {
-            dir += Vec2::new(fwd.x, fwd.z);
-        }
-        if back_held {
-            dir -= Vec2::new(fwd.x, fwd.z);
-        }
-        if right_held {
-            dir += Vec2::new(right.x, right.z);
-        }
-        if left_held {
-            dir -= Vec2::new(right.x, right.z);
-        }
-        // Sprinting needs Shift held, a forward component (no sprinting backward, matching most
-        // shooters), and not crouching — crouch always wins if both are held.
-        let sprinting = self.sprint_held && forward_held && !back_held && !crouching && self.body.sprint_speed > self.body.walk_speed;
-
-        // Tracked on `self` so the walk-cycle animation (which runs once per rendered frame, not
-        // once per physics step) can see how fast the player is actually moving (0 when standing
-        // still).
+        // Movement is the shared pure function `sim::player::step_player` (the single-player game, the
+        // authoritative server and a client's prediction all run it). Online, the predictor owns the state
+        // and also sends the input to the server.
+        let input = self.build_input();
+        let mut st = PlayerState { pos: self.physics_pos, foot_y: self.foot_y, vy: self.vertical_velocity, yaw: self.camera.yaw, pitch: self.camera.pitch, character: self.character };
         self.last_move_speed = 0.0;
-        if dir.length_squared() > 1e-8 {
-            dir = dir.normalize();
-            let speed = if crouching {
-                self.body.walk_speed * CROUCH_SPEED_MULT
-            } else if sprinting {
-                self.body.sprint_speed
-            } else {
-                self.body.walk_speed
-            };
-            self.last_move_speed = speed;
-            // Only colliders actually at the player's current floor block horizontal movement,
-            // resolved one axis at a time so sliding along a wall works (see
-            // `player::step_horizontal`, shared with the offline map-analysis tools).
-            self.physics_pos = step_horizontal_r(&self.colliders, self.physics_pos, self.foot_y, dir * speed * FIXED_DT, self.body.radius);
+        if let Some(net) = self.net.as_mut() {
+            if let Some(s2) = net.step_local(input, Instant::now()) {
+                st = s2;
+                self.last_move_speed = net.last_speed;
+            }
+        } else {
+            self.last_move_speed = step_player(&mut st, &input, &self.colliders, &self.ground);
         }
-
-        // Vertical: jump + gravity toward whatever's actually walkable under the player right
-        // now (a flat floor, a staircase ramp, or a box top — see `ground_height_at`) instead of
-        // a hardcoded `y=0`, so a second floor and the stairs connecting to it work. Grounded
-        // means the last physics step settled `foot_y` back onto that surface with no velocity.
-        let jump = std::mem::take(&mut self.jump_queued);
-        let (foot_y, vy) = vertical_step(&self.ground, self.physics_pos, self.foot_y, self.vertical_velocity, jump);
-        self.foot_y = foot_y;
-        self.vertical_velocity = vy;
+        self.physics_pos = st.pos;
+        self.foot_y = st.foot_y;
+        self.vertical_velocity = st.vy;
 
         // Loose props: the player's body shoves what it walks into, then the world steps.
         let d = (self.physics_pos - self.prev_physics_pos) / FIXED_DT;
@@ -875,6 +849,11 @@ impl App {
     /// Weapon logic for one tick: advance the timers (an action queued on tick T first advances on
     /// tick T+1), resolve a landing bat strike, then perform the input queued since the last tick.
     fn fixed_step_combat(&mut self) {
+        if self.net.is_some() {
+            self.attack_queued = false;
+            self.switch_queued = None;
+            return; // weapons are not networked yet
+        }
         let strike = self.swing.tick();
         self.shot_cd.tick();
         self.switch.tick();
@@ -911,6 +890,9 @@ impl App {
 
     /// E: drop what is carried (it keeps the player's momentum), else pick up the prop under the crosshair.
     fn interact(&mut self) {
+        if self.net.is_some() {
+            return; // pick-up is not networked yet
+        }
         let toss = self.camera.forward_flat() * 1.0;
         let Some(props) = self.props.as_mut() else { return };
         if props.held().is_some() {
@@ -943,8 +925,38 @@ impl App {
     }
 
     fn update(&mut self, dt: f32) {
-        if !self.grabbed {
+        // Online, the connection must be serviced even when the window is not focused (or the server
+        // would time us out), so the simulation keeps ticking; offline it pauses like before.
+        if !self.grabbed && self.net.is_none() {
             return;
+        }
+        if let Some(net) = self.net.as_mut() {
+            let now = Instant::now();
+            net.poll(now);
+            if let Some(st) = net.teleport.take() {
+                // Joined, or resumed after a reconnect: go where the server says.
+                self.physics_pos = st.pos;
+                self.prev_physics_pos = st.pos;
+                self.foot_y = st.foot_y;
+                self.prev_foot_y = st.foot_y;
+                self.vertical_velocity = 0.0;
+                self.camera.yaw = st.yaw;
+            }
+            // Reconciliation may have nudged the predicted state; carry the difference through so the
+            // interpolation below does not lurch (the visual offset is added back after it).
+            if let Some(st) = net.state() {
+                let delta = st.pos - self.physics_pos;
+                self.prev_physics_pos += delta;
+                self.physics_pos = st.pos;
+                self.foot_y = st.foot_y;
+                self.vertical_velocity = st.vy;
+            }
+            if self.net_title_at.elapsed().as_secs_f32() > 1.0 {
+                self.net_title_at = Instant::now();
+                if let Some(window) = &self.window {
+                    window.set_title(&format!("Red Engine 2 — {} — {} — {}", self.scene_path.display(), self.character.name(), net.status));
+                }
+            }
         }
 
         // Accumulate real time and drain it in fixed-size chunks (the standard "fix your
@@ -955,7 +967,10 @@ impl App {
             self.fixed_step_physics();
         }
         let alpha = self.clock.alpha();
-        let planar_pos = self.prev_physics_pos.lerp(self.physics_pos, alpha);
+        let mut planar_pos = self.prev_physics_pos.lerp(self.physics_pos, alpha);
+        if let Some(net) = &self.net {
+            planar_pos += net.visual_offset();
+        }
         let foot_y = self.prev_foot_y + (self.foot_y - self.prev_foot_y) * alpha;
 
         let crouching = self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight);
@@ -1006,7 +1021,7 @@ impl App {
         // the scene, and see what the crosshair could pick up.
         if let Some(props) = &mut self.props {
             if let Some(h) = props.held() {
-                let pose = props.hold_pose(h, anchor, self.camera.forward_flat(), self.body.radius, self.body.hold_drop, foot_y);
+                let pose = props.hold_pose(h, anchor, self.camera.forward(), self.body.radius, self.body.hold_drop, foot_y);
                 props.set_held_pose(pose);
             }
             props.sync_scene(&mut self.scene);
@@ -1028,7 +1043,10 @@ impl App {
         if let Some(t) = self.freeze_swing {
             self.swing_timer = Some(t);
         }
-        self.advance_flash(dt);
+        if let Some(net) = self.net.as_mut() {
+            // Other players and the server's props, interpolated, into the scene the renderer draws.
+            net.update_scene(&mut self.scene, Instant::now(), dt);
+        }
     }
 
     fn draw(&mut self) {
@@ -1109,16 +1127,44 @@ impl App {
         self.scene.objects.push(build_player_object(who));
         // Loose props (chairs, crates, apples...) live in the rigid-body world, not in the static
         // collider lists: they move.
-        let props = PropWorld::new(&self.scene, Some(self.player_object_index));
-        let loose = props.movable_indices();
-        println!("{} loose props (pick up with E).", loose.len());
-        self.colliders = collect_box_colliders_except(&self.scene, &loose);
-        self.ground = collect_ground_candidates_except(&self.scene, &loose);
+        let online = self.net_server.is_some();
+        let (props, loose) = if let (Some(addr), Some(world)) = (self.net_server, self.net_world.take()) {
+            // Online: the server owns the props; this client only draws them and predicts its own walking.
+            let loose: HashSet<usize> = world.prop_objects.iter().copied().collect();
+            self.colliders = world.colliders.clone();
+            self.ground = world.ground.clone();
+            let mut session = match NetSession::connect(addr, who, world, 0) {
+                Ok(s) => s,
+                Err(e) => fail_online(&format!("cannot open a network socket: {e}")),
+            };
+            session.add_avatar_pool(&mut self.scene); // before the renderer takes its meshes from the scene
+            match session.wait_connected(5.0) {
+                Ok(st) => {
+                    self.physics_pos = st.pos;
+                    self.prev_physics_pos = st.pos;
+                    self.foot_y = st.foot_y;
+                    self.prev_foot_y = st.foot_y;
+                    self.camera.yaw = st.yaw;
+                    println!("Joined {addr} as player {} at ({:.1}, {:.1}).", session.client.my_id().unwrap_or(0), st.pos.x, st.pos.y);
+                }
+                Err(e) => fail_online(&e),
+            }
+            self.net = Some(session);
+            (None, loose)
+        } else {
+            let props = PropWorld::new(&self.scene, Some(self.player_object_index));
+            let loose = props.movable_indices();
+            println!("{} loose props (pick up with E).", loose.len());
+            self.colliders = collect_box_colliders_except(&self.scene, &loose);
+            self.ground = collect_ground_candidates_except(&self.scene, &loose);
+            (Some(props), loose)
+        };
+        let _ = online;
         // The player's own body is in `scene.objects` so the renderer can draw it, but the bat must
         // never be able to hit it (e.g. looking down at your own feet), so it is skipped here.
         let player_index = self.player_object_index;
         self.hit_shapes = collect_hit_shapes_where(&self.scene, |i| i != player_index && !loose.contains(&i));
-        self.props = Some(props);
+        self.props = props;
         self.eye_height = self.body.stand_eye;
         self.camera.position.y = self.body.stand_eye;
         self.camera.near = self.body.near_plane;
@@ -1139,6 +1185,7 @@ impl App {
             window.set_title(&format!("Red Engine 2 — {} — {}", self.scene_path.display(), who.name()));
         }
         self.last_frame = Instant::now();
+        self.net_title_at = Instant::now();
         self.set_grab(true);
     }
 
@@ -1183,6 +1230,14 @@ impl ApplicationHandler for App {
             // inner size below is only the fallback if the window is ever un-maximized.
             .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
             .with_maximized(true);
+        // Debug: `RE2_WINDOW=x,y,w,h` places a plain window (to tile two clients side by side).
+        let attrs = match std::env::var("RE2_WINDOW").ok().map(|v| v.split(',').filter_map(|n| n.trim().parse::<i32>().ok()).collect::<Vec<_>>()) {
+            Some(v) if v.len() == 4 => attrs
+                .with_maximized(false)
+                .with_inner_size(winit::dpi::PhysicalSize::new(v[2].max(320) as u32, v[3].max(240) as u32))
+                .with_position(winit::dpi::PhysicalPosition::new(v[0], v[1])),
+            _ => attrs,
+        };
         let window = Arc::new(event_loop.create_window(attrs).expect("failed to create window"));
 
         let instance = wgpu::Instance::default();
@@ -1245,6 +1300,9 @@ impl ApplicationHandler for App {
                         r.resize(&gpu.device, gpu.config.width, gpu.config.height);
                     }
                 }
+                if self.paused {
+                    self.repaint_pause();
+                }
             }
             WindowEvent::KeyboardInput { event, .. } if self.phase == Phase::Menu => {
                 if let (PhysicalKey::Code(code), ElementState::Pressed) = (event.physical_key, event.state) {
@@ -1263,10 +1321,32 @@ impl ApplicationHandler for App {
                     self.start_game(who);
                 }
             }
+            WindowEvent::CursorMoved { position, .. } if self.paused => {
+                self.cursor = (position.x as f32, position.y as f32);
+                let hover = self.gpu.as_ref().and_then(|g| menu::pause_action_at(g.config.width, g.config.height, self.cursor.0, self.cursor.1));
+                if hover != self.pause_hover {
+                    self.pause_hover = hover;
+                    self.repaint_pause();
+                }
+            }
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(code) = event.physical_key {
-                    if code == KeyCode::Escape && event.state == ElementState::Pressed {
-                        self.set_grab(false);
+                    if event.state == ElementState::Pressed && !event.repeat {
+                        if code == KeyCode::Escape {
+                            if self.paused {
+                                self.leave_pause();
+                            } else {
+                                self.enter_pause();
+                            }
+                            return;
+                        }
+                        if self.paused && matches!(code, KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space) {
+                            self.leave_pause();
+                            return;
+                        }
+                    }
+                    if self.paused {
+                        return; // the menu owns the keyboard
                     }
                     if matches!(code, KeyCode::ShiftLeft | KeyCode::ShiftRight) {
                         self.sprint_held = event.state == ElementState::Pressed;
@@ -1294,7 +1374,14 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } => {
-                if !self.grabbed {
+                if self.paused {
+                    let hit = self.gpu.as_ref().and_then(|g| menu::pause_action_at(g.config.width, g.config.height, self.cursor.0, self.cursor.1));
+                    match hit {
+                        Some(PauseAction::Resume) => self.leave_pause(),
+                        Some(PauseAction::Quit) => event_loop.exit(),
+                        None => {}
+                    }
+                } else if !self.grabbed {
                     self.set_grab(true);
                 } else {
                     // Acted on by the next simulation tick (`fixed_step_combat`).
@@ -1308,7 +1395,12 @@ impl ApplicationHandler for App {
                 };
                 self.on_scroll(lines);
             }
-            WindowEvent::Focused(false) => self.set_grab(false),
+            WindowEvent::Focused(false) => {
+                // No key-release events arrive while unfocused: forget held keys so we do not walk on alone.
+                self.keys.clear();
+                self.sprint_held = false;
+                self.set_grab(false);
+            }
             WindowEvent::RedrawRequested => {
                 let now = Instant::now();
                 let raw_dt = (now - self.last_frame).as_secs_f32();
@@ -1396,11 +1488,19 @@ mod win {
     }
 }
 
-/// Command line: `re2 [scene.json] [--as human|rat]` (the character can also come from
-/// `RE2_CHARACTER`); without one the launch menu asks.
-fn parse_args() -> (PathBuf, Option<Character>) {
+/// What the command line asked for.
+struct Args {
+    scene: PathBuf,
+    who: Option<Character>,
+    connect: Option<SocketAddr>,
+}
+
+/// Command line: `re2 [scene.json] [--as human|rat] [--connect HOST:PORT]` (the character can also come
+/// from `RE2_CHARACTER`, the server from `RE2_CONNECT`); without a character the launch menu asks.
+fn parse_args() -> Args {
     let mut scene = None;
     let mut who = std::env::var("RE2_CHARACTER").ok().and_then(|v| Character::parse(&v));
+    let mut connect: Option<String> = std::env::var("RE2_CONNECT").ok().filter(|v| !v.is_empty());
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         if a == "--as" || a == "--character" {
@@ -1408,19 +1508,44 @@ fn parse_args() -> (PathBuf, Option<Character>) {
                 Some(c) => who = Some(c),
                 None => eprintln!("--as expects `human` or `rat`; showing the menu instead"),
             }
+        } else if a == "--connect" {
+            connect = args.next();
         } else if scene.is_none() {
             scene = Some(PathBuf::from(a));
         }
     }
-    (scene.unwrap_or_else(|| PathBuf::from("examples/room.json")), who)
+    let connect = connect.map(|c| {
+        let c = if c.contains(':') { c } else { format!("{c}:{}", red_engine2::net::DEFAULT_PORT) };
+        c.to_socket_addrs().ok().and_then(|mut i| i.next()).unwrap_or_else(|| fail_online(&format!("'{c}' is not a valid HOST:PORT")))
+    });
+    Args { scene: scene.unwrap_or_else(|| PathBuf::from("examples/room.json")), who, connect }
+}
+
+/// Reports a fatal online-mode problem (message box when there is no console) and exits.
+fn fail_online(msg: &str) -> ! {
+    eprintln!("multiplayer: {msg}");
+    #[cfg(windows)]
+    win::message_box("Red Engine 2", &format!("Could not join the game:\n{msg}"));
+    std::process::exit(2);
 }
 
 fn main() {
     #[cfg(windows)]
     let has_console = win::attach_console();
     env_logger::init();
-    let (scene_path, forced_character) = parse_args();
-    let scene = red_engine2::load_scene(&scene_path).unwrap_or_else(|errs| {
+    let Args { scene: scene_path, who: forced_character, connect } = parse_args();
+    // Online, the client's map is loaded together with its hash and static collision (what the server has).
+    let mut net_world = None;
+    let loaded = if connect.is_some() {
+        ClientWorld::load(&scene_path).map(|(scene, world)| {
+            net_world = Some(world);
+            scene
+        })
+        .map_err(|e| vec![e])
+    } else {
+        red_engine2::load_scene(&scene_path)
+    };
+    let scene = loaded.unwrap_or_else(|errs| {
         eprintln!("failed to load scene {}:", scene_path.display());
         for e in &errs {
             eprintln!("  {e}");
@@ -1442,6 +1567,9 @@ fn main() {
 
     let event_loop = EventLoop::new().expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Poll);
-    let mut app = App::new(scene, scene_path, forced_character);
+    if let Some(addr) = connect {
+        println!("Online: will join {addr} once you pick a character. Weapons and pick-up are not networked yet.");
+    }
+    let mut app = App::new(scene, scene_path, forced_character, connect, net_world);
     event_loop.run_app(&mut app).expect("event loop error");
 }

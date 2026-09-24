@@ -5,7 +5,7 @@
 //! actually walk from A to B?" by running the *same* collision/ground-height code the game runs
 //! every physics tick, so a map that passes `lint` is playable, not just plausible.
 
-use crate::viewer::{colliders_on_floor, ground_height_at, resolve_collision, Collider2D, GroundCandidates};
+use crate::viewer::{colliders_on_floor_h, ground_height_at, resolve_collision, Collider2D, GroundCandidates, PLAYER_BAND_MAX_Y};
 use glam::Vec2;
 
 /// Movement/collision/gravity run at this fixed timestep (`sim::clock::TICK_DT`, 60 Hz) in the live viewer.
@@ -51,7 +51,13 @@ pub fn step_horizontal(colliders: &[Collider2D], pos: Vec2, foot_y: f32, delta: 
 /// [`step_horizontal`] for a body with a different collision `radius` (Cheddar the rat is far
 /// narrower than a human, so he fits through gaps a person cannot).
 pub fn step_horizontal_r(colliders: &[Collider2D], pos: Vec2, foot_y: f32, delta: Vec2, radius: f32) -> Vec2 {
-    let active = colliders_on_floor(colliders, foot_y);
+    step_horizontal_band(colliders, pos, foot_y, delta, radius, PLAYER_BAND_MAX_Y)
+}
+
+/// [`step_horizontal_r`] for a body whose top is `band_top` m above its feet: only colliders reaching
+/// below that height block, so a rat (0.25 m) runs under a table whose top is 0.78 m up.
+pub fn step_horizontal_band(colliders: &[Collider2D], pos: Vec2, foot_y: f32, delta: Vec2, radius: f32, band_top: f32) -> Vec2 {
+    let active = colliders_on_floor_h(colliders, foot_y, band_top);
     let mut p = pos;
     p.x += delta.x;
     p = resolve_collision(p, radius, &active);
@@ -93,6 +99,9 @@ pub struct BodySpec {
     pub has_bat: bool,
     /// Height of the body's collision cylinder (what shoves loose props), m.
     pub body_height: f32,
+    /// How far above its feet the body blocks against overhead geometry, m: anything whose underside
+    /// is higher than this can be walked under (a person 2.0, Cheddar 0.25).
+    pub band_top: f32,
     /// How far away the character can pick a prop up, m.
     pub pickup_reach: f32,
     /// What the character can lift (see `crate::physics`).
@@ -119,22 +128,24 @@ impl Character {
                 near_plane: 0.05,
                 has_bat: true,
                 body_height: 1.75,
+                band_top: PLAYER_BAND_MAX_Y,
                 pickup_reach: 2.3,
                 carry: crate::physics::HUMAN_CARRY,
                 hold_drop: 0.55,
             },
-            // Cheddar's ordinary pace *is* a human's sprint: 6.5 m/s, and Shift adds nothing.
+            // Cheddar has one pace, `RAT_SPEED`, and Shift adds nothing.
             Character::Rat => BodySpec {
                 radius: RAT_RADIUS,
                 stand_eye: 0.15,
                 crouch_eye: 0.11,
-                walk_speed: SPRINT_SPEED,
-                sprint_speed: SPRINT_SPEED,
+                walk_speed: RAT_SPEED,
+                sprint_speed: RAT_SPEED,
                 third_person_distance: 1.1,
                 third_person_lift: 0.22,
                 near_plane: 0.02,
                 has_bat: false,
                 body_height: 0.17,
+                band_top: RAT_BAND_TOP,
                 pickup_reach: 0.9,
                 carry: crate::physics::RAT_CARRY,
                 hold_drop: 0.05,
@@ -159,6 +170,12 @@ impl Character {
         }
     }
 }
+
+/// Cheddar's one running pace, m/s: brisk next to a person's walk (3.2), well under a person's sprint (6.5).
+pub const RAT_SPEED: f32 = 4.0;
+/// How far above the floor Cheddar's body reaches, m: a tabletop, a platform or any overhead geometry
+/// whose underside is higher than this can be run under.
+pub const RAT_BAND_TOP: f32 = 0.25;
 
 /// Radius of Cheddar's collision circle, m: half a body length is 0.2 but he is narrow, and the
 /// circle only has to keep him out of walls, so it hugs his width and he can squeeze through

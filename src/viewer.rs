@@ -13,7 +13,7 @@ use crate::gpu::{
 use crate::mesh::{Mesh, Vertex};
 use crate::overlay::Overlay;
 use crate::player::PLAYER_RADIUS;
-use crate::props::{collision, collision_box, prop_parts, Collision};
+use crate::props::{collision, game_collision_boxes, prop_parts, Collision};
 use crate::render::{build_globals_common, collect_leaf_meshes, collect_leaf_transforms};
 use crate::schema::{Object, ObjectKind, PrimKind, Scene, StairsDef};
 use crate::weapons::Weapon;
@@ -312,7 +312,8 @@ pub struct Collider2D {
 /// while the ground snap refused to lift them onto it, so no staircase could ever be climbed
 /// onto a floor.
 const PLAYER_BAND_MIN_Y: f32 = GROUND_SNAP_EPS;
-const PLAYER_BAND_MAX_Y: f32 = 2.0;
+/// Top of a person's body band relative to their feet, m (see `player::BodySpec::band_top`).
+pub const PLAYER_BAND_MAX_Y: f32 = 2.0;
 
 /// Computes the world-space AABB (XZ footprint + Y-range) swept by a box of `half`-extents
 /// centered on its own local origin under `transform`, and pushes it as a collider — shared by
@@ -413,7 +414,8 @@ pub fn collect_box_colliders_except(scene: &Scene, skip: &std::collections::Hash
                     // One collider per prop (see `crate::props::collision`): normally the union
                     // of every part, but a tree only blocks at its trunk and flowers/rugs don't
                     // block at all.
-                    if let Some((lmin, lmax)) = collision_box(p.kind) {
+                    // (Furniture on legs blocks part by part, so a rat can run under it: `game_collision_boxes`.)
+                    for (lmin, lmax) in game_collision_boxes(p.kind) {
                         push_box_collider(world * Mat4::from_translation((lmin + lmax) * 0.5), (lmax - lmin) * 0.5, out);
                     }
                 }
@@ -434,14 +436,25 @@ pub fn collect_box_colliders_except(scene: &Scene, skip: &std::collections::Hash
 /// this has to be dynamic (relative to `foot_y`) rather than a fixed absolute band once a map
 /// has more than one floor.
 pub fn colliders_on_floor(colliders: &[Collider2D], foot_y: f32) -> Vec<Collider2D> {
-    colliders.iter().copied().filter(|c| collider_blocks_at(c, foot_y)).collect()
+    colliders_on_floor_h(colliders, foot_y, PLAYER_BAND_MAX_Y)
+}
+
+/// [`colliders_on_floor`] for a body whose top is `band_top` metres above its feet (a rat is far shorter
+/// than a person, so a tabletop overhead does not block it).
+pub fn colliders_on_floor_h(colliders: &[Collider2D], foot_y: f32, band_top: f32) -> Vec<Collider2D> {
+    colliders.iter().copied().filter(|c| collider_blocks_at_h(c, foot_y, band_top)).collect()
 }
 
 /// Whether `c` blocks a player whose feet are at `foot_y` (its Y-range overlaps the player's
 /// body band). The per-collider form of [`colliders_on_floor`], for callers that test one
 /// position at a time and don't want to allocate a filtered list.
 pub fn collider_blocks_at(c: &Collider2D, foot_y: f32) -> bool {
-    c.max_y > foot_y + PLAYER_BAND_MIN_Y && c.min_y <= foot_y + PLAYER_BAND_MAX_Y
+    collider_blocks_at_h(c, foot_y, PLAYER_BAND_MAX_Y)
+}
+
+/// [`collider_blocks_at`] for a body `band_top` metres tall.
+pub fn collider_blocks_at_h(c: &Collider2D, foot_y: f32, band_top: f32) -> bool {
+    c.max_y > foot_y + PLAYER_BAND_MIN_Y && c.min_y <= foot_y + band_top
 }
 
 /// A staircase's walkable ramp, world-space. `world_to_local` maps a world XZ (any Y — a pure
@@ -449,6 +462,7 @@ pub fn collider_blocks_at(c: &Collider2D, foot_y: f32) -> bool {
 /// need the query point's real world Y at all) back into the stairs' own frame, where the ramp
 /// runs along local `+Z` from `-half_run` (height `base_y`) to `+half_run` (height
 /// `base_y + rise`).
+#[derive(Clone)]
 struct StairsRamp {
     world_to_local: Mat4,
     half_width: f32,
@@ -474,7 +488,7 @@ impl StairsRamp {
 /// — a `Collider2D`'s `max_y` doubles as "the height of this box's top"), plus every
 /// [`crate::schema::StairsDef`]'s ramp. See [`ground_height_at`] for how these become an actual
 /// walkable ground height.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct GroundCandidates {
     box_tops: Vec<Collider2D>,
     stairs: Vec<StairsRamp>,

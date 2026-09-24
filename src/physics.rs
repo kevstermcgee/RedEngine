@@ -24,7 +24,7 @@
 //! *those* collider lists (see [`PropWorld::movable_indices`]) and handled here instead.
 
 use crate::hit::object_leaves;
-use crate::props::collision_box;
+use crate::props::game_collision_boxes;
 use crate::render::{build_stairs_parts, trs};
 use crate::schema::{Object, ObjectKind, PrimKind, Scene};
 use crate::sim::change::{ChangeCursor, GenClock};
@@ -152,6 +152,17 @@ struct Held {
     pose: Mat4,
 }
 
+/// One player's kinematic cylinder.
+struct PlayerBody {
+    body: RigidBodyHandle,
+    collider: Option<ColliderHandle>,
+    dims: (f32, f32),
+}
+
+/// `user_data` of a player's collider: it is neither a prop (0 = map geometry, `id + 1` = a prop) nor
+/// something a ray or an AABB query for props should return.
+const PLAYER_TAG: u128 = u128::MAX;
+
 /// The rigid-body world for a map's loose props (see the module docs).
 ///
 /// Prop ids (`usize`) index [`props`](Self::props); every prop collider carries `id + 1` in its
@@ -170,9 +181,8 @@ pub struct PropWorld {
     clock: GenClock,
     /// What `sync_scene` (the renderer) has already written to the scene.
     render_cursor: ChangeCursor,
-    player: RigidBodyHandle,
-    player_collider: Option<ColliderHandle>,
-    player_dims: (f32, f32),
+    /// Kinematic bodies of the players (slot = player id); slot 0 always exists (single-player).
+    players: Vec<Option<PlayerBody>>,
     held: Option<Held>,
     scratch: PropScratch,
 }
@@ -196,7 +206,26 @@ struct PropScratch {
 
 /// The prop id a collider's `user_data` names, if it belongs to a prop.
 fn prop_of(user_data: u128) -> Option<usize> {
+    if user_data == PLAYER_TAG {
+        return None;
+    }
     user_data.checked_sub(1).map(|p| p as usize)
+}
+
+fn not_a_player(_: ColliderHandle, c: &rapier3d::prelude::Collider) -> bool {
+    c.user_data != PLAYER_TAG
+}
+
+/// The scene's loose props in the order [`PropWorld`] numbers them: `(object index, shape)`. A
+/// networked client uses this to map the prop ids in a snapshot to its own scene objects without
+/// building a physics world.
+pub fn loose_props(scene: &Scene, skip: Option<usize>) -> Vec<(usize, PropShape)> {
+    scene.objects.iter().enumerate().filter(|(i, _)| Some(*i) != skip).filter_map(|(i, o)| classify(o).map(|s| (i, s))).collect()
+}
+
+/// Writes a world pose into an object's (constant) position and rotation tracks.
+pub fn set_object_pose(o: &mut Object, position: Vec3, rotation: Quat) {
+    write_pose(o, Mat4::from_rotation_translation(rotation, position));
 }
 
 fn transform_of(m: Mat4) -> Transform {
@@ -264,8 +293,7 @@ impl PropWorld {
         // A floor under everything, so nothing can ever fall out of the map.
         world.insert_collider(ColliderBuilder::cuboid(500.0, 0.5, 500.0).position(Pose::from_translation(Vec3::new(0.0, -0.5, 0.0))).friction(0.8), None);
 
-        let loose: Vec<(usize, PropShape)> =
-            scene.objects.iter().enumerate().filter(|(i, _)| Some(*i) != skip).filter_map(|(i, o)| classify(o).map(|s| (i, s))).collect();
+        let loose = loose_props(scene, skip);
         let loose_set: HashSet<usize> = loose.iter().map(|(i, _)| *i).collect();
 
         for (i, o) in scene.objects.iter().enumerate() {
@@ -303,9 +331,7 @@ impl PropWorld {
             entity_prop: Vec::new(),
             clock: GenClock::default(),
             render_cursor: ChangeCursor::default(),
-            player,
-            player_collider: None,
-            player_dims: (0.0, 0.0),
+            players: vec![Some(PlayerBody { body: player, collider: None, dims: (0.0, 0.0) })],
             held: None,
             scratch: PropScratch::default(),
         }
@@ -352,7 +378,12 @@ impl PropWorld {
         self.dynamic.len()
     }
 
-    /// Number of rigid bodies in the physics world (the player's plus one per promoted prop).
+    /// The prop id of the entity in tracked-transform slot `slot` (the reverse of [`entity_of`](Self::entity_of)).
+    pub fn prop_of_entity(&self, slot: usize) -> usize {
+        self.entity_prop[slot]
+    }
+
+    /// Number of rigid bodies in the physics world (one per player plus one per promoted prop).
     pub fn body_count(&self) -> usize {
         self.world.bodies.len()
     }
@@ -397,17 +428,44 @@ impl PropWorld {
         self.dynamic.iter().filter(|&&p| !self.is_asleep(p)).count()
     }
 
-    /// Places the player's kinematic cylinder (feet at `foot`), which shoves whatever it touches.
+    /// Places the (single-player) player's kinematic cylinder (feet at `foot`), which shoves whatever it
+    /// touches. Same as [`set_player_slot`](Self::set_player_slot) with slot 0.
     pub fn set_player(&mut self, foot: Vec3, radius: f32, height: f32) {
-        if self.player_dims != (radius, height) {
-            if let Some(c) = self.player_collider.take() {
+        self.set_player_slot(0, foot, radius, height);
+    }
+
+    /// Places player `slot`'s kinematic cylinder (creating its body the first time), which shoves
+    /// whatever it touches. Players do not collide with each other here.
+    pub fn set_player_slot(&mut self, slot: usize, foot: Vec3, radius: f32, height: f32) {
+        if self.players.len() <= slot {
+            self.players.resize_with(slot + 1, || None);
+        }
+        if self.players[slot].is_none() {
+            let body = self.world.insert_body(RigidBodyBuilder::kinematic_position_based().pose(Pose::from_translation(foot)));
+            self.players[slot] = Some(PlayerBody { body, collider: None, dims: (0.0, 0.0) });
+        }
+        let pb = self.players[slot].as_mut().expect("just created");
+        if pb.dims != (radius, height) {
+            if let Some(c) = pb.collider.take() {
                 self.world.remove_collider(c);
             }
-            self.player_collider = Some(self.world.insert_collider(ColliderBuilder::cylinder(height * 0.5, radius).friction(0.3), Some(self.player)));
-            self.player_dims = (radius, height);
+            pb.collider = Some(self.world.insert_collider(ColliderBuilder::cylinder(height * 0.5, radius).friction(0.3).user_data(PLAYER_TAG), Some(pb.body)));
+            pb.dims = (radius, height);
         }
         let center = foot + Vec3::new(0.0, height * 0.5, 0.0);
-        self.world.bodies[self.player].set_next_kinematic_position(Pose::from_translation(center));
+        self.world.bodies[pb.body].set_next_kinematic_position(Pose::from_translation(center));
+    }
+
+    /// Removes player `slot`'s body (a player left). Slot numbers are not reused by this call.
+    pub fn remove_player_slot(&mut self, slot: usize) {
+        if let Some(pb) = self.players.get_mut(slot).and_then(Option::take) {
+            self.world.remove_body(pb.body);
+        }
+    }
+
+    /// How many player bodies exist.
+    pub fn player_count(&self) -> usize {
+        self.players.iter().flatten().count()
     }
 
     /// Advances the simulation one fixed step ([`crate::player::FIXED_DT`]). Only promoted props are
@@ -535,7 +593,7 @@ impl PropWorld {
 
     /// Appends (without duplicates) the static props whose colliders may intersect `aabb` to `out`.
     fn props_in(&self, aabb: Aabb, out: &mut Vec<usize>) {
-        for (_, c) in self.world.intersect_aabb_conservative(aabb, QueryFilter::default().exclude_rigid_body(self.player)) {
+        for (_, c) in self.world.intersect_aabb_conservative(aabb, QueryFilter::default().predicate(&not_a_player)) {
             if let Some(p) = prop_of(c.user_data) {
                 if self.is_static(p) && !out.contains(&p) {
                     out.push(p);
@@ -548,8 +606,10 @@ impl PropWorld {
     fn wake_disturbed(&mut self) {
         let mut hit = self.scratch.hit.take();
         let mut moving = self.scratch.moving.take();
-        if let Some(c) = self.player_collider {
-            self.props_in(loosen(self.world.colliders[c].compute_aabb(), 0.03), &mut hit);
+        for pb in self.players.iter().flatten() {
+            if let Some(c) = pb.collider {
+                self.props_in(loosen(self.world.colliders[c].compute_aabb(), 0.03), &mut hit);
+            }
         }
         for &i in &self.dynamic {
             if let PropState::Dynamic(d) = self.props[i].state {
@@ -596,7 +656,7 @@ impl PropWorld {
     /// `Some(prop)` only if that thing is a loose prop.
     fn first_prop_hit(&self, origin: Vec3, dir: Vec3, reach: f32) -> Option<(usize, f32)> {
         let ray = Ray::new(origin, dir.normalize_or_zero());
-        let filter = QueryFilter::default().exclude_rigid_body(self.player);
+        let filter = QueryFilter::default().predicate(&not_a_player);
         let (col, toi) = self.world.cast_ray(&ray, reach, true, filter)?;
         prop_of(self.world.colliders[col].user_data).map(|p| (p, toi))
     }
@@ -617,7 +677,7 @@ impl PropWorld {
         let ray = Ray::new(origin, dir.normalize_or_zero());
         // Static instances have no body, so filter by "is a prop collider", not by body type.
         let is_prop = |_: ColliderHandle, c: &rapier3d::prelude::Collider| prop_of(c.user_data).is_some();
-        let filter = QueryFilter::default().exclude_rigid_body(self.player).predicate(&is_prop);
+        let filter = QueryFilter::default().predicate(&is_prop);
         let (col, toi) = self.world.cast_ray(&ray, reach, true, filter)?;
         prop_of(self.world.colliders[col].user_data).map(|p| (p, toi))
     }
@@ -691,20 +751,29 @@ impl PropWorld {
         self.world.cast_ray(&ray, max, true, QueryFilter::only_fixed()).map_or(max, |(_, t)| t)
     }
 
-    /// Where to hold `prop` so it sits in front of a player at `eye` facing `forward` (horizontal),
-    /// upright, `drop` metres below eye level, pulled in if a wall is close. Returns the object's
-    /// origin-frame transform. `radius` is the player's collision radius, `floor_y` their feet.
-    pub fn hold_pose(&self, prop: usize, eye: Vec3, forward: Vec3, radius: f32, drop: f32, floor_y: f32) -> Mat4 {
+    /// Where to hold `prop` so it sits in front of a player at `eye` looking along `look`: upright,
+    /// pulled in if a wall is close. Looking **up** lifts it (overhead when looking straight up, kept
+    /// under any ceiling); looking down lowers it toward the floor. At level gaze it sits `drop` metres
+    /// below eye level, like a carried box. Returns the object's origin-frame transform. `radius` is the
+    /// player's collision radius, `floor_y` their feet.
+    pub fn hold_pose(&self, prop: usize, eye: Vec3, look: Vec3, radius: f32, drop: f32, floor_y: f32) -> Mat4 {
         let s = self.props[prop].shape;
-        let fwd = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
-        let fwd = if fwd == Vec3::ZERO { Vec3::Z } else { fwd };
+        let look = look.normalize_or_zero();
+        let flat = Vec3::new(look.x, 0.0, look.z).normalize_or_zero();
+        let flat = if flat == Vec3::ZERO { Vec3::Z } else { flat };
+        let (sin_p, cos_p) = (look.y.clamp(-1.0, 1.0), (1.0 - look.y * look.y).max(0.0).sqrt());
         let reach_r = 0.5 * s.extents.x.max(s.extents.z);
         let wanted = radius + reach_r + 0.12;
-        let clear = self.wall_distance(eye, fwd, wanted + reach_r + 0.05);
+        let clear = self.wall_distance(eye, flat, wanted + reach_r + 0.05);
         let dist = wanted.min((clear - reach_r - 0.03).max(reach_r * 0.5));
-        let mut c = eye + fwd * dist - Vec3::Y * drop;
+        // Horizontal reach shrinks as the gaze rises (overhead is right above you); the vertical part
+        // follows the pitch, and the level-gaze `drop` fades out as you look up.
+        let mut c = eye + flat * dist * cos_p.max(0.2) + Vec3::Y * (wanted * sin_p) - Vec3::Y * drop * (1.0 - sin_p.max(0.0));
+        // Never through a ceiling; never below the floor (the floor wins).
+        let up_room = self.wall_distance(eye, Vec3::Y, 3.0);
+        c.y = c.y.min(eye.y + up_room - s.extents.y * 0.5 - 0.03);
         c.y = c.y.max(floor_y + s.extents.y * 0.5 + 0.02);
-        let rot = Quat::from_rotation_y(fwd.x.atan2(fwd.z));
+        let rot = Quat::from_rotation_y(flat.x.atan2(flat.z));
         Mat4::from_rotation_translation(rot, c - rot * s.center)
     }
 }
@@ -752,7 +821,7 @@ fn add_static(world: &mut PhysicsWorld, o: &Object, parent: Mat4) {
             }
         }
         ObjectKind::Prop(p) => {
-            if let Some((lo, hi)) = collision_box(p.kind) {
+            for (lo, hi) in game_collision_boxes(p.kind) {
                 add_box(world, m * Mat4::from_translation((lo + hi) * 0.5), hi - lo);
             }
         }
@@ -1054,5 +1123,42 @@ mod tests {
             w.step();
         }
         assert!(!w.entities().transforms.changed_since(cursor.last()), "a sleeping prop generates no changes");
+    }
+
+    // ---- carrying: where you look decides how high the held prop rides ----------------------------
+
+    #[test]
+    fn looking_up_lifts_a_carried_prop_and_looking_down_lowers_it() {
+        let s = scene(r##"{"id":"crate","type":"prop","prop":"crate","position":[0,0,0],"material":{"color":"#a07040"}}"##);
+        let w = PropWorld::new(&s, None);
+        let eye = Vec3::new(0.0, 1.7, 3.0);
+        let base_y = |look: Vec3| w.hold_pose(0, eye, look, 0.35, 0.55, 0.0).w_axis.y;
+        let level = base_y(Vec3::new(0.0, 0.0, -1.0));
+        let up45 = base_y(Vec3::new(0.0, 1.0, -1.0));
+        let overhead = base_y(Vec3::Y);
+        let down = base_y(Vec3::new(0.0, -1.0, -0.4));
+        assert!((level - (1.7 - 0.55 - w.props()[0].shape.extents.y * 0.5)).abs() < 0.05, "level gaze keeps the old carry height: {level}");
+        assert!(up45 > level + 0.3, "looking up 45 degrees lifts it: {level} -> {up45}");
+        assert!(overhead > up45, "straight up is higher still: {overhead}");
+        assert!(overhead > 2.0, "high enough to hold well over your head: {overhead}");
+        assert!(down < level, "looking down lowers it");
+        // Looking straight up puts it over the player, not out in front.
+        let over = w.hold_pose(0, eye, Vec3::Y, 0.35, 0.55, 0.0).w_axis;
+        assert!((over.z - eye.z).abs() < 0.3, "overhead, not out in front: z {}", over.z);
+    }
+
+    #[test]
+    fn a_ceiling_stops_a_lifted_prop_and_the_floor_stops_a_lowered_one() {
+        let s = scene(
+            r##"{"id":"crate","type":"prop","prop":"crate","position":[0,0,0],"material":{"color":"#a07040"}},
+                {"id":"ceil","type":"box","position":[0,2.7,3],"size":[8,0.2,8],"material":{"color":"#888888"}}"##,
+        );
+        let w = PropWorld::new(&s, None);
+        let ext = w.props()[0].shape.extents.y;
+        let eye = Vec3::new(0.0, 1.7, 3.0);
+        let top = w.hold_pose(0, eye, Vec3::Y, 0.35, 0.55, 0.0).w_axis.y + ext;
+        assert!(top <= 2.6, "the ceiling is at 2.6 m; the crate's top is at {top}");
+        let low = w.hold_pose(0, eye, Vec3::new(0.0, -1.0, -0.1), 0.35, 0.55, 0.0).w_axis.y;
+        assert!(low >= -0.001, "never below the floor: {low}");
     }
 }

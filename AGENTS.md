@@ -20,6 +20,21 @@ record any deliberate incompatibility in ADR 0015. Before pushing: `scripts/ci.s
 benches compile — the same as `.github/workflows/ci.yml`). Performance: `cargo bench --bench sim` then
 `python benches/check.py` (`benches/README.md`); allocation/body-count guards are ordinary tests.
 
+## Multiplayer (ADR 0016)
+
+```bash
+cargo build --release --bin re2 --bin red_server --bin red_bot
+target/release/red_server --map examples/test_lab.json --spawn-group duel   # headless authoritative server, UDP 27015
+target/release/re2 --connect 127.0.0.1:27015 examples/test_lab.json          # graphical client (run two)
+target/release/red_bot --server 127.0.0.1:27015 --behavior forward:0        # headless scripted client (JSON output)
+powershell -File scripts/play_multiplayer.ps1        # server + two tiled windows      (Windows)
+powershell -File scripts/multiplayer_demo.ps1        # the same, scripted, with screenshots and kill/restart checks
+```
+Code: `src/sim/match_sim.rs` (the authoritative world), `src/sim/player.rs` (`step_player`, shared by single-player,
+server and prediction), `src/net/` (`protocol`, `server`, `client`, `interp`, `predict`, `bot`, `session`). Tests:
+`tests/net_e2e.rs` (real UDP, lossy-link proxy), `tests/net_processes.rs` (separate processes). Online, weapons and
+pick-up are disabled (not networked yet). Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`.
+
 ## Start here (you should never need to read Rust)
 
 The engine describes itself. In this order, cheapest first:
@@ -245,6 +260,7 @@ Lessons from building them (all bit at least once):
 src/schema.rs     JSON -> Scene (validation, macro expansion hook, `post`, `zones` ignored here)
 src/macros.rs     `wall` / `fence` expand to groups of boxes at parse time (add new sugar here)
 src/props.rs      prop library: parts, `collision()` policy, `lifted()` for origin-at-base
+src/net/          UDP multiplayer: protocol, server, client, interpolation, prediction, headless bot (ADR 0016)
 src/sim/          headless sim core: fixed 60 Hz clock, tick-based weapon timing (ADR 0014); no wgpu/winit allowed here
 src/viewer.rs     live renderer + colliders + ground height (stairs ramp, box tops) + stairs rails
 src/player.rs     player constants + `step_horizontal` / `vertical_step` (shared by re2 and tools)
@@ -296,7 +312,7 @@ Every task should be doable from `describe`/`search`/`src show`, not by reading 
 
 `re2 [map.json] [--as human|rat]` — without `--as` (or `RE2_CHARACTER`) a menu asks; keys `1`/`2`, click, or
 arrows + Enter. The human swings the bat; **Cheddar the rat** (`type:"rat"` in a scene too) is tiny, has no
-bat, always moves at 6.5 m/s (a human sprint) and fits through 0.25 m gaps. Body numbers live in
+bat, has one pace of 4.0 m/s (`player::RAT_SPEED`; a human walks 3.2 and sprints 6.5), fits through 0.25 m gaps and runs under anything with a 0.25 m clearance (tables, platforms: `RAT_BAND_TOP`, `props::has_clearance`). Body numbers live in
 `player::Character::body()`; models in `src/characters.rs` (`human_parts`, `rat_parts`; `frame` renders
 them offline — put a `humanoid`/`rat` in a scene to look at them). Swings use `hit::raycast_shapes` (real
 shapes, not bounding boxes): no hit -> no thunk. `tests/melee_hits.rs` guards it. Debug: `RE2_VIEW=third`
@@ -311,6 +327,11 @@ their `weapon` (and `muzzle_flash`/`emissive`); `FrameOptions.weapon/muzzle_flas
 `RE2_WEAPON=revolver`, `RE2_FREEZE_SHOT=<s since shot>` (0.02 = flash + kick) for screenshots. ADR 0013.
 
 ## Loose props (pick up / drop / knock over) — `src/physics.rs`
+
+A carried prop follows where you look (`PropWorld::hold_pose`): lowered when looking down, chest height ahead, held
+overhead when looking straight up, never through a ceiling or floor. Struck or shot objects make a sound but do not
+change colour. `Esc` frees the mouse and opens a small pause menu (Resume / Quit game: `menu::paint_pause`,
+`re2.rs::enter_pause`); Esc or Enter resumes.
 
 In `re2`, `E` picks up the (green-crosshair) prop in front of you and drops it again; dropped props fall,
 tumble and knock things over. `physics::classify` decides what is loose (lift-able prop or floor-mounted

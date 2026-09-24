@@ -10,7 +10,7 @@ object — a ray through a doorway, or the air over an L-shaped counter, is insi
 ## Decision
 - **Characters are numbers + parts.** `player::Character` / `BodySpec` hold everything that differs
   (collision radius, eye height, speeds, camera distance, whether there is a bat). Cheddar's ordinary
-  speed *is* a human sprint (6.5 m/s) and Shift adds nothing. Gravity, stepping and floors are shared,
+  speed is one pace (originally a human sprint, 6.5 m/s; now `RAT_SPEED` = 4.0 m/s) and Shift adds nothing; the body also has a height (`band_top` 0.25 m) so overhead geometry above that is run under. Gravity, stepping and floors are shared,
   so the analysis tools still use the same `step_horizontal` (with a radius parameter).
 - **Models are `characters::human_parts` / `rat_parts`**: lists of coloured primitives placed from a
   few pose numbers, built once per mesh and re-placed per frame (like props). `humanoid` (redesigned as

@@ -36,12 +36,12 @@ Test Lab room and a test before any real map uses it.
 |---|---|---|
 | 1 | CI green | **done**: `.github/workflows/ci.yml` (ubuntu + windows), `scripts/ci.sh` runs the same steps locally (clippy `-D warnings`, `cargo test`, benches compile). Only Windows was run; the Linux job is unverified. |
 | 2 | Strong rendering-free simulation | **started** (ADR 0014): `src/sim/` = tick clock, tick-based weapons, scratch buffers, change tracking, entities, static/dynamic props, snapshot encoding. **Not yet**: player movement, hit resolution and the weapon state still live in `App` in `re2.rs`; the headless `Sim` that owns them is the next extraction. |
-| 3 | Authoritative headless prop physics + interactions | props are headless (`PropWorld`); pick-up/drop/strike are still *driven* from `App` |
-| 4 | Real low-latency transport | not started |
-| 5 | Server + two clients in the Test Lab | not started |
-| 6 | Deterministic replay + state checksums | not started; blockers listed in ADR 0014 (live input in the tick, libm trig, cascade order) |
-| 7 | Rooms/portals/spatial data in the map format | Test Lab carries a **draft** (`spawns`, `portals`, `interest`); the engine ignores it today, a test keeps it consistent; parser not written |
-| 8 | Performance/network instrumentation and budgets | `benches/` + `check.py`, `tests/alloc_budget.rs`; no network metrics (no network) |
+| 3 | Authoritative headless prop physics + interactions | **movement and prop pushing are authoritative** (`sim::match_sim::MatchSim`, ADR 0016); pick-up/drop/strike/weapons are still single-player only |
+| 4 | Real low-latency transport | **done for movement + props**: UDP, delta snapshots, prediction, interpolation, reconnect (ADR 0016) |
+| 5 | Server + two clients in the Test Lab | **proved**: `tests/net_e2e.rs`, `tests/net_processes.rs` (separate OS processes), `scripts/multiplayer_demo.ps1` (two real windows) |
+| 6 | Deterministic replay + state checksums | `MatchSim::checksum()` exists and is tested; replay/desync detection not built; blockers in ADR 0014 |
+| 7 | Rooms/portals/spatial data in the map format | `spawns` (with `group`) is now **parsed and used** (`sim::spawns`); `portals`/`interest` are still a draft the engine ignores |
+| 8 | Performance/network instrumentation and budgets | `benches/` + `check.py`, `tests/alloc_budget.rs`; the server prints tick time, bandwidth, promoted props and bad packets (`--stats-secs`); clients expose RTT / snapshots missed; no network budgets asserted yet |
 | 9 | AI-friendly | keep `describe`/`search`/`src` current; every module has `//!`; each decision an ADR |
 
 **4. Engine gaps the Test Lab exposed** (none fixed yet): no true ramps (only flat box tops and stairs);
@@ -55,4 +55,4 @@ None yet.
 
 ## Consequences
 - Engine work is judged by CI + the Test Lab + benches, not by how a legacy map looks.
-- Roadmap items 4-6 need the headless `Sim` extraction first (ADR 0010 step 1), so that is the next slice.
+- Items 4-5 are done without the full ADR 0010 crate split: `MatchSim` is renderer-free, but the server binary still links wgpu/alsa. Next: weapons and pick-up on the server, interest management, replay.

@@ -35,6 +35,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0013-revolver-second-weapon-hitscan-infinite-ammo.md", include_str!("../../docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md")),
     ("0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", include_str!("../../docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md")),
     ("0015-engine-first-refocus-test-lab-and-legacy-maps.md", include_str!("../../docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md")),
+    ("0016-authoritative-udp-multiplayer.md", include_str!("../../docs/adr/0016-authoritative-udp-multiplayer.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.

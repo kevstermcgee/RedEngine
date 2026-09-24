@@ -99,7 +99,7 @@ without asking.
   (`--as human|rat` / `RE2_CHARACTER` skips it). Each has a `BodySpec` (radius, eye height, speeds,
   third-person camera, whether it carries the bat) and a model.
 - **Cheddar** — the rat: small (0.43 m + tail, ~0.17 m tall), brownish-grey, pink ears/paws/tail. His
-  ordinary speed equals a human's sprint (6.5 m/s); no bat; collides as a 0.12 m circle. `type:"rat"`.
+  one pace of 4.0 m/s (`RAT_SPEED`), body reaches 0.25 m up so tables and platforms can be run under; no bat; collides as a 0.12 m circle. `type:"rat"`.
 - **human** — the redesigned `humanoid`: T-shirt (`material.color`), skin, hair, jeans, shoes, face.
   Built by `characters::human_parts`; part 3 is the left forearm the third-person bat is welded to.
 - **melee hit / hit shape** — a swing connects only if its ray meets real geometry (`hit::raycast_shapes`),
@@ -121,6 +121,18 @@ without asking.
   (`weapons::*_TICKS`).
 - **queued input** — a click/scroll/jump event is stored by the window code and consumed by the *next* tick
   (`attack_queued`, `switch_queued`, `jump_queued`); actions started on tick T first advance on T+1.
+
+## Multiplayer (ADR 0016)
+
+- **authoritative server** — `red_server` / `net::server`: the only place players and props are simulated online.
+  Clients send *inputs* (never positions) and draw what the server says.
+- **snapshot / delta** — the server's 30 Hz world state per client: every player + only the props changed since that client
+  last *acknowledged* (per-client change cursors).
+- **interpolation** — other players and props are drawn ~100 ms in the past, blended between two snapshots.
+- **prediction / reconciliation** — the local player applies its own input at once (`sim::player::step_player`, the same
+  function the server runs) and replays unacknowledged inputs on top of each server state (`net::predict`).
+- **resume token** — secret from `Welcome`; a `Hello` carrying it after a disconnect gets the same player id and place back.
+- **bot** — `red_bot` / `net::bot`: a headless scripted client, how multiplayer is verified without a window.
 
 ## Loose props and physics
 

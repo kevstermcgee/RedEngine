@@ -340,6 +340,38 @@ pub fn local_bounds(kind: PropKind) -> (Vec3, Vec3) {
     (min, max)
 }
 
+/// Furniture that stands on legs: a small character (Cheddar the rat) can run *under* it.
+pub fn has_clearance(kind: PropKind) -> bool {
+    matches!(kind, PropKind::DiningTable | PropKind::Desk | PropKind::CoffeeTable | PropKind::Bench | PropKind::PicnicTable)
+}
+
+fn part_bounds(part: &PropPart) -> (Vec3, Vec3) {
+    let half = part.shape.half_extent();
+    let (mut min, mut max) = (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY));
+    for sx in [-1.0f32, 1.0] {
+        for sy in [-1.0f32, 1.0] {
+            for sz in [-1.0f32, 1.0] {
+                let p = part.local_transform.transform_point3(Vec3::new(half.x * sx, half.y * sy, half.z * sz));
+                min = min.min(p);
+                max = max.max(p);
+            }
+        }
+    }
+    (min, max)
+}
+
+/// The local-space boxes that block *at game time* (walking players and props): normally the single
+/// [`collision_box`], but furniture with clearance ([`has_clearance`]) blocks part by part — the
+/// tabletop and every leg separately — so a body shorter than the gap underneath passes below it while
+/// a person, whose body reaches the tabletop, is still stopped by it.
+pub fn game_collision_boxes(kind: PropKind) -> Vec<(Vec3, Vec3)> {
+    if has_clearance(kind) {
+        prop_parts(kind).iter().map(part_bounds).collect()
+    } else {
+        collision_box(kind).into_iter().collect()
+    }
+}
+
 /// Local-space box that actually blocks the player for this prop, or `None` if it doesn't
 /// block at all. See [`Collision`].
 pub fn collision_box(kind: PropKind) -> Option<(Vec3, Vec3)> {
@@ -949,6 +981,20 @@ mod tests {
         assert!(collision_box(PropKind::FlowerPatch).is_none(), "flowers must be walk-through");
         let (min, max) = collision_box(PropKind::TreeOak).unwrap();
         assert!(max.x - min.x < 0.6, "only a tree's trunk should block, not its canopy");
+    }
+
+    #[test]
+    fn tables_leave_room_underneath_for_a_small_body_but_are_solid_for_a_tall_one() {
+        for kind in [PropKind::DiningTable, PropKind::Desk, PropKind::CoffeeTable, PropKind::Bench, PropKind::PicnicTable] {
+            let boxes = game_collision_boxes(kind);
+            assert!(boxes.len() > 1, "{kind:?} blocks part by part");
+            // Something reaches the floor (a leg) and something is a raised top with clear space below it.
+            assert!(boxes.iter().any(|(lo, _)| lo.y < 0.05), "{kind:?} has legs");
+            let lowest_top = boxes.iter().filter(|(lo, _)| lo.y > 0.05).map(|(lo, _)| lo.y).fold(f32::INFINITY, f32::min);
+            assert!(lowest_top > 0.26, "{kind:?}: the underside is {lowest_top} m up, room for a 0.25 m rat");
+        }
+        assert_eq!(game_collision_boxes(PropKind::Crate).len(), 1);
+        assert!(game_collision_boxes(PropKind::Rug).is_empty());
     }
 
     #[test]

@@ -8,6 +8,9 @@
 //!   ([`components::Transform`], [`components::Health`]).
 //! - [`entities`] + [`statics`]: dynamic entities, and props as cheap static instances until promoted.
 //! - [`snapshot`]: entities to bytes, full or delta (a placeholder layout, not a protocol).
+//! - [`player`]: one player's movement for one tick as a pure function (single-player, server and client
+//!   prediction all run it); [`spawns`]: multiplayer spawn points from the map.
+//! - [`match_sim`]: the authoritative match world (players + props), ticked with queued inputs.
 //! - [`scratch`]: reusable per-tick buffers ([`scratch::ScratchVec`]) — reset, never freed.
 //!
 //! The rule for anything added here: a rendering rate must never be able to change what the
@@ -19,7 +22,10 @@ pub mod clock;
 pub mod combat;
 pub mod components;
 pub mod entities;
+pub mod match_sim;
+pub mod player;
 pub mod scratch;
+pub mod spawns;
 pub mod snapshot;
 pub mod statics;
 

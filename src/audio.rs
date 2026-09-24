@@ -88,10 +88,13 @@ pub fn synth_revolver_shot() -> Vec<f32> {
         lp_tail += 0.04 * (white - lp_tail);
         let tail = lp_tail * (-t * 4.5).exp() * (1.0 - (-t * 60.0).exp());
         let sample = crack * 0.75 + boom * 0.9 + body * 1.1 + tail * 2.2;
-        out.push((sample * 1.1).tanh() * 0.95);
+        out.push((sample * 1.1).tanh() * REVOLVER_LEVEL);
     }
     out
 }
+
+/// Overall level of a revolver shot, 0..1 (the raw synth peaks near 0.95; this is about a third lower, roughly 4 dB).
+const REVOLVER_LEVEL: f32 = 0.6;
 
 /// A dry metallic click: the hammer falling on an empty chamber, or drawing the revolver.
 pub fn synth_weapon_click() -> Vec<f32> {
@@ -116,7 +119,7 @@ mod tests {
         let clip = synth_revolver_shot();
         assert!(clip.len() > synth_bat_hit().len() * 2, "a shot rings out longer than a thunk");
         let peak = clip.iter().fold(0.0f32, |m, s| m.max(s.abs()));
-        assert!(peak > 0.6 && peak <= 1.0, "peak {peak}");
+        assert!(peak > 0.4 && peak < 0.7, "a shot is clearly audible but not overpowering: peak {peak}");
         let tail = clip[clip.len() - 300..].iter().fold(0.0f32, |m, s| m.max(s.abs()));
         assert!(tail < 0.02, "should have decayed: {tail}");
         assert!(synth_weapon_click().len() < 3000);
