@@ -1,0 +1,695 @@
+{
+ "recipe": {
+  "title": "Two rooms joined by a door",
+  "summary": "The smallest complete walkable map: closed shell, per-room floors, ceiling, lights, zones, furniture with prefabs placed on table/counter surfaces, and a `checks` block.",
+  "teaches": [
+   "wall macro with door + window openings",
+   "one floor plane per room tiled centerline-to-centerline",
+   "placing prefabs on surfaces (y = the surface height)",
+   "zones + checks for `verify`"
+  ],
+  "tips": [
+   "Table top is y=0.78, counter top y=0.95: give small items that y.",
+   "Chairs face +Z; rotate 180 to face -Z toward a table.",
+   "Keep 0.9 m clear each side of the door."
+  ]
+ },
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "background": {
+  "sky_top": "#8fc7ff",
+  "sky_bottom": "#eef6ff"
+ },
+ "ambient": {
+  "color": "#ffffff",
+  "intensity": 0.3
+ },
+ "camera": {
+  "fov": 70,
+  "position": [
+   -3.9,
+   1.7,
+   -0.6
+  ],
+  "target": [
+   0,
+   1.4,
+   0.5
+  ]
+ },
+ "post": {
+  "ao": 0.9,
+  "outline": 0.55
+ },
+ "lights": [
+  {
+   "id": "lamp_living",
+   "type": "point",
+   "position": [
+    -2.5,
+    2.4,
+    0
+   ],
+   "color": "#ffdca0",
+   "intensity": 11,
+   "range": 8
+  },
+  {
+   "id": "lamp_kitchen",
+   "type": "point",
+   "position": [
+    2.5,
+    2.4,
+    0
+   ],
+   "color": "#fff0d0",
+   "intensity": 11,
+   "range": 8
+  }
+ ],
+ "zones": [
+  {
+   "id": "living",
+   "rect": [
+    -4.88,
+    -2.88,
+    -0.08,
+    2.88
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "kitchen",
+   "rect": [
+    0.08,
+    -2.88,
+    4.88,
+    2.88
+   ],
+   "y": 0,
+   "kind": "room"
+  }
+ ],
+ "objects": [
+  {
+   "id": "wall_n",
+   "type": "wall",
+   "from": [
+    -5,
+    -3
+   ],
+   "to": [
+    5,
+    -3
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 2.5,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    },
+    {
+     "kind": "window",
+     "at": 7.5,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "wall_s",
+   "type": "wall",
+   "from": [
+    -5,
+    3
+   ],
+   "to": [
+    5,
+    3
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 2.5,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    },
+    {
+     "kind": "window",
+     "at": 7.5,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "wall_w",
+   "type": "wall",
+   "from": [
+    -5,
+    -3
+   ],
+   "to": [
+    -5,
+    3
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "wall_e",
+   "type": "wall",
+   "from": [
+    5,
+    -3
+   ],
+   "to": [
+    5,
+    3
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "wall_mid",
+   "type": "wall",
+   "from": [
+    0,
+    -3
+   ],
+   "to": [
+    0,
+    3
+   ],
+   "height": 2.8,
+   "thickness": 0.15,
+   "openings": [
+    {
+     "kind": "door",
+     "at": 3.0,
+     "width": 1.0
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "floor_living",
+   "type": "plane",
+   "size": [
+    5,
+    6
+   ],
+   "position": [
+    -2.5,
+    0.01,
+    0
+   ],
+   "material": {
+    "color": "#a07850",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "floor_kitchen",
+   "type": "plane",
+   "size": [
+    5,
+    6
+   ],
+   "position": [
+    2.5,
+    0.01,
+    0
+   ],
+   "material": {
+    "color": "#c8c0a8",
+    "roughness": 0.5
+   }
+  },
+  {
+   "id": "ceiling",
+   "type": "box",
+   "size": [
+    10.24,
+    0.2,
+    6.24
+   ],
+   "position": [
+    0,
+    2.9,
+    0
+   ],
+   "material": {
+    "color": "#f4f0e8",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "sofa_1",
+   "type": "prop",
+   "prop": "sofa",
+   "position": [
+    -2.5,
+    0,
+    -2.4
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "material": {
+    "color": "#5a6f8a"
+   }
+  },
+  {
+   "id": "coffee_table_1",
+   "type": "prop",
+   "prop": "coffee_table",
+   "position": [
+    -2.5,
+    0,
+    -1.2
+   ]
+  },
+  {
+   "id": "rug_1",
+   "type": "prop",
+   "prop": "rug",
+   "position": [
+    -2.5,
+    0.01,
+    -1.0
+   ],
+   "material": {
+    "color": "#8a4a4a"
+   }
+  },
+  {
+   "id": "tv_1",
+   "type": "prop",
+   "prop": "tv",
+   "position": [
+    -2.5,
+    0,
+    2.7
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ]
+  },
+  {
+   "id": "bookshelf_1",
+   "type": "prop",
+   "prop": "bookshelf",
+   "position": [
+    -4.7,
+    0,
+    0.8
+   ],
+   "rotation": [
+    0,
+    90,
+    0
+   ]
+  },
+  {
+   "id": "plant_1",
+   "type": "prop",
+   "prop": "potted_plant",
+   "position": [
+    -4.4,
+    0,
+    -2.4
+   ]
+  },
+  {
+   "id": "lamp_1",
+   "type": "prefab",
+   "prefab": "lamp_floor",
+   "position": [
+    -4.3,
+    0,
+    2.3
+   ]
+  },
+  {
+   "id": "picture_1",
+   "type": "prefab",
+   "prefab": "picture_frame",
+   "position": [
+    -2.5,
+    1.7,
+    -2.88
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "params": {
+    "w": 0.7,
+    "h": 0.5
+   }
+  },
+  {
+   "id": "mug_1",
+   "type": "prefab",
+   "prefab": "mug_coffee",
+   "position": [
+    -2.3,
+    0.45,
+    -1.2
+   ],
+   "rotation": [
+    0,
+    40,
+    0
+   ]
+  },
+  {
+   "id": "book_1",
+   "type": "prefab",
+   "prefab": "book_stack",
+   "position": [
+    -2.8,
+    0.45,
+    -1.2
+   ],
+   "rotation": [
+    0,
+    20,
+    0
+   ]
+  },
+  {
+   "id": "counter_1",
+   "type": "prop",
+   "prop": "kitchen_counter",
+   "position": [
+    2.9,
+    0,
+    -2.55
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "fridge_1",
+   "type": "prop",
+   "prop": "refrigerator",
+   "position": [
+    4.3,
+    0,
+    -2.5
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "toaster_1",
+   "type": "prefab",
+   "prefab": "toaster",
+   "position": [
+    2.4,
+    0.95,
+    -2.55
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "coffee_maker_1",
+   "type": "prefab",
+   "prefab": "coffee_maker",
+   "position": [
+    3.4,
+    0.95,
+    -2.6
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "table_1",
+   "type": "prop",
+   "prop": "dining_table",
+   "position": [
+    3.0,
+    0,
+    1.0
+   ]
+  },
+  {
+   "id": "chair_n1",
+   "type": "prefab",
+   "prefab": "chair_wooden_1",
+   "position": [
+    2.6,
+    0,
+    0.05
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "chair_n2",
+   "type": "prefab",
+   "prefab": "chair_wooden_1",
+   "position": [
+    3.4,
+    0,
+    0.05
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "chair_s1",
+   "type": "prefab",
+   "prefab": "chair_wooden_2",
+   "position": [
+    2.6,
+    0,
+    1.95
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ]
+  },
+  {
+   "id": "chair_s2",
+   "type": "prefab",
+   "prefab": "chair_wooden_2",
+   "position": [
+    3.4,
+    0,
+    1.95
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ]
+  },
+  {
+   "id": "fruit_bowl_1",
+   "type": "prefab",
+   "prefab": "fruit_bowl",
+   "position": [
+    3.0,
+    0.78,
+    1.0
+   ]
+  },
+  {
+   "id": "plate_1",
+   "type": "prefab",
+   "prefab": "plate",
+   "position": [
+    2.5,
+    0.78,
+    1.3
+   ]
+  },
+  {
+   "id": "plate_2",
+   "type": "prefab",
+   "prefab": "plate",
+   "position": [
+    3.5,
+    0.78,
+    1.3
+   ]
+  },
+  {
+   "id": "soda_1",
+   "type": "prefab",
+   "prefab": "soda_can",
+   "position": [
+    3.65,
+    0.78,
+    0.75
+   ],
+   "params": {
+    "color": "#2a8ad9"
+   }
+  },
+  {
+   "id": "trash_1",
+   "type": "prop",
+   "prop": "trash_can",
+   "position": [
+    4.6,
+    0,
+    2.4
+   ]
+  },
+  {
+   "id": "clock_1",
+   "type": "prefab",
+   "prefab": "wall_clock",
+   "position": [
+    4.88,
+    2.0,
+    0.0
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ]
+  }
+ ],
+ "checks": {
+  "lint": {
+   "max_errors": 0
+  },
+  "reach": [
+   {
+    "to": [
+     3.0,
+     -1.5
+    ],
+    "why": "the kitchen is reachable"
+   }
+  ],
+  "walk": [
+   {
+    "name": "living to kitchen through the door",
+    "path": "-3.9,-0.6; -1.5,0; 1.5,0; 3.6,-1.4",
+    "ends_near": [
+     3.6,
+     -1.4
+    ],
+    "tol": 0.3,
+    "floor_y": 0
+   }
+  ],
+  "objects": {
+   "exist": [
+    "sofa_1",
+    "table_1",
+    "fruit_bowl_1"
+   ],
+   "min_count": 30
+  },
+  "views": [
+   {
+    "name": "living",
+    "eye": [
+     -4.4,
+     1.7,
+     2.4
+    ],
+    "at": [
+     -2.4,
+     0.7,
+     -1.8
+    ],
+    "fov": 75
+   },
+   {
+    "name": "kitchen",
+    "eye": [
+     0.6,
+     1.7,
+     2.3
+    ],
+    "at": [
+     3.4,
+     1.0,
+     -1.5
+    ],
+    "fov": 75
+   }
+  ]
+ }
+}

@@ -1,0 +1,1880 @@
+{
+  "meta": { "fps": 30, "duration": 4.0, "resolution": [1280, 720] },
+  "background": { "sky_top": "#5b8fd4", "sky_bottom": "#dce8f5" },
+  "ambient": { "color": "#cfd8e8", "intensity": 0.3 },
+  "camera": { "fov": 90, "position": [0, 1.7, 43], "target": [-1, 1.8, 14] },
+  "lights": [
+    {
+      "id": "sun",
+      "type": "directional",
+      "direction": [-0.4, -0.75, 0.55],
+      "color": "#fff2df",
+      "intensity": 2.3,
+      "cast_shadows": true,
+      "shadow_radius": 40,
+      "shadow_center": [0, 0, 18]
+    },
+    { "id": "l_sales1", "type": "point", "position": [-6, 2.7, 4], "color": "#f6fbff", "intensity": 12, "range": 8 },
+    { "id": "l_sales2", "type": "point", "position": [-1, 2.7, 9], "color": "#f6fbff", "intensity": 12, "range": 9 },
+    { "id": "l_sales3", "type": "point", "position": [-6, 2.7, 10.5], "color": "#f6fbff", "intensity": 10, "range": 8 },
+    { "id": "l_stock", "type": "point", "position": [7, 2.7, 4], "color": "#f0f4f8", "intensity": 10, "range": 7 },
+    { "id": "l_cooler", "type": "point", "position": [5.7, 2.7, 11], "color": "#cfe8ff", "intensity": 9, "range": 5.5 },
+    { "id": "l_office", "type": "point", "position": [8.8, 2.7, 11], "color": "#fff0d0", "intensity": 8, "range": 4.5 },
+    { "id": "l_wc", "type": "point", "position": [-8.5, 2.7, 2], "color": "#f4f8ff", "intensity": 8, "range": 4.5 },
+    { "id": "l_pump1", "type": "point", "position": [-4, 4.3, 26], "color": "#fff8e0", "intensity": 30, "range": 12 },
+    { "id": "l_pump2", "type": "point", "position": [4, 4.3, 26], "color": "#fff8e0", "intensity": 30, "range": 12 }
+  ],
+  "zones": [
+    { "id": "sales_floor", "rect": [-9.85, 0.15, 3.85, 13.85], "y": 0, "kind": "room" },
+    { "id": "restroom", "rect": [-9.85, 0.15, -7.15, 3.85], "y": 0, "kind": "room" },
+    { "id": "stockroom", "rect": [4.15, 0.15, 9.85, 7.85], "y": 0, "kind": "room" },
+    { "id": "walk_in_cooler", "rect": [4.15, 8.15, 7.35, 13.85], "y": 0, "kind": "room" },
+    { "id": "back_office", "rect": [7.65, 8.15, 9.85, 13.85], "y": 0, "kind": "room" },
+    { "id": "forecourt", "rect": [-23.8, 14.5, 23.8, 45.8], "y": 0, "kind": "outdoor" },
+    { "id": "back_lot", "rect": [10.5, -7.8, 23.8, 14.1], "y": 0, "kind": "outdoor" }
+  ],
+  "objects": [
+    { "id": "ground_far", "type": "plane", "size": [180, 180], "position": [0, 0, 20], "material": { "color": "#6b8f55", "roughness": 0.95 } },
+    {
+      "id": "wall_north",
+      "type": "wall",
+      "from": [-10, 0],
+      "to": [10, 0],
+      "height": 3.0,
+      "thickness": 0.24,
+      "material": { "color": "#b9714f", "roughness": 0.85 },
+      "openings": [{ "kind": "window", "at": 3.5, "width": 2.0, "sill": 1.3, "height": 1.0 }],
+      "trim": "#f2ede0"
+    },
+    {
+      "id": "wall_west",
+      "type": "wall",
+      "from": [-10, 0],
+      "to": [-10, 14],
+      "height": 3.0,
+      "thickness": 0.24,
+      "material": { "color": "#b9714f", "roughness": 0.85 },
+      "openings": [
+        { "kind": "window", "at": 6.0, "width": 1.4, "sill": 2.0, "height": 0.7 },
+        { "kind": "window", "at": 10.5, "width": 1.4, "sill": 2.0, "height": 0.7 }
+      ],
+      "trim": "#f2ede0"
+    },
+    {
+      "id": "wall_east",
+      "type": "wall",
+      "from": [10, 0],
+      "to": [10, 14],
+      "height": 3.0,
+      "thickness": 0.24,
+      "material": { "color": "#b9714f", "roughness": 0.85 },
+      "openings": [{ "kind": "door", "at": 3.0, "width": 1.3 }, { "kind": "window", "at": 11.0, "width": 1.2, "sill": 1.0, "height": 0.8 }],
+      "trim": "#f2ede0"
+    },
+    {
+      "id": "wall_south",
+      "type": "wall",
+      "from": [-10, 14],
+      "to": [10, 14],
+      "height": 3.0,
+      "thickness": 0.24,
+      "material": { "color": "#b9714f", "roughness": 0.85 },
+      "openings": [
+        { "kind": "window", "at": 4.0, "width": 4.6, "sill": 0.3, "height": 2.3 },
+        { "kind": "door", "at": 9.0, "width": 2.2, "height": 2.3 },
+        { "kind": "window", "at": 12.0, "width": 1.9, "sill": 0.3, "height": 2.3 }
+      ],
+      "trim": "#f2ede0"
+    },
+    { "id": "roof", "type": "box", "size": [20.24, 0.2, 14.24], "position": [0.0, 3.1, 7.0], "material": { "color": "#d6d4ce", "roughness": 0.9 } },
+    {
+      "id": "parapet_n",
+      "type": "box",
+      "size": [20.24, 0.45, 0.24],
+      "position": [0.0, 3.425, 0.0],
+      "material": { "color": "#8f887c", "roughness": 0.8 }
+    },
+    {
+      "id": "parapet_s",
+      "type": "box",
+      "size": [20.24, 0.45, 0.24],
+      "position": [0.0, 3.425, 14.0],
+      "material": { "color": "#8f887c", "roughness": 0.8 }
+    },
+    {
+      "id": "parapet_w",
+      "type": "box",
+      "size": [0.24, 0.45, 13.76],
+      "position": [-10.0, 3.425, 7.0],
+      "material": { "color": "#8f887c", "roughness": 0.8 }
+    },
+    {
+      "id": "parapet_e",
+      "type": "box",
+      "size": [0.24, 0.45, 13.76],
+      "position": [10.0, 3.425, 7.0],
+      "material": { "color": "#8f887c", "roughness": 0.8 }
+    },
+    {
+      "id": "hvac_a",
+      "type": "box",
+      "size": [1.8, 0.9, 1.4],
+      "position": [-5.1, 3.65, 3.7],
+      "material": { "color": "#b8bcc2", "roughness": 0.5, "metallic": 0.4 }
+    },
+    {
+      "id": "hvac_b",
+      "type": "box",
+      "size": [1.8, 0.9, 1.4],
+      "position": [5.9, 3.65, 10.2],
+      "material": { "color": "#b8bcc2", "roughness": 0.5, "metallic": 0.4 }
+    },
+    {
+      "id": "fascia",
+      "type": "box",
+      "size": [13.4, 0.35, 0.08],
+      "position": [-3.1, 2.825, 14.16],
+      "material": { "color": "#c8202a", "roughness": 0.5 }
+    },
+    {
+      "id": "fascia_stripe",
+      "type": "box",
+      "size": [13.4, 0.08, 0.02],
+      "position": [-3.1, 2.82, 14.21],
+      "material": { "color": "#f2f2ee", "roughness": 0.5 }
+    },
+    {
+      "id": "fascia_stripe2",
+      "type": "box",
+      "size": [13.4, 0.04, 0.02],
+      "position": [-3.1, 2.92, 14.21],
+      "material": { "color": "#f0c24a", "roughness": 0.5 }
+    },
+    {
+      "id": "wall_stock",
+      "type": "wall",
+      "from": [4, 0],
+      "to": [4, 14],
+      "height": 3.0,
+      "thickness": 0.15,
+      "material": { "color": "#dcd8cc", "roughness": 0.85 },
+      "openings": [{ "kind": "door", "at": 6.0, "width": 1.0 }],
+      "trim": "#f2ede0"
+    },
+    {
+      "id": "wall_cooler_n",
+      "type": "wall",
+      "from": [4, 8],
+      "to": [10, 8],
+      "height": 3.0,
+      "thickness": 0.15,
+      "material": { "color": "#dcd8cc", "roughness": 0.85 },
+      "openings": [{ "kind": "door", "at": 1.7, "width": 1.0 }, { "kind": "door", "at": 4.8, "width": 0.95 }],
+      "trim": "#f2ede0"
+    },
+    {
+      "id": "wall_office_w",
+      "type": "wall",
+      "from": [7.5, 8],
+      "to": [7.5, 14],
+      "height": 3.0,
+      "thickness": 0.15,
+      "material": { "color": "#dcd8cc", "roughness": 0.85 },
+      "trim": "#f2ede0"
+    },
+    {
+      "id": "wall_wc_s",
+      "type": "wall",
+      "from": [-10, 4],
+      "to": [-7, 4],
+      "height": 3.0,
+      "thickness": 0.15,
+      "material": { "color": "#dfe8ec", "roughness": 0.85 },
+      "openings": [{ "kind": "door", "at": 1.5, "width": 1.0 }],
+      "trim": "#f2ede0",
+      "baseboard": "#cfd8dc"
+    },
+    {
+      "id": "wall_wc_e",
+      "type": "wall",
+      "from": [-7, 0],
+      "to": [-7, 4],
+      "height": 3.0,
+      "thickness": 0.15,
+      "material": { "color": "#dfe8ec", "roughness": 0.85 },
+      "trim": "#f2ede0",
+      "baseboard": "#cfd8dc"
+    },
+    { "id": "f_sales_a", "type": "plane", "size": [11, 4], "position": [-1.5, 0.01, 2.0], "material": { "color": "#e6e3da", "roughness": 0.25 } },
+    { "id": "f_sales_b", "type": "plane", "size": [14, 10], "position": [-3.0, 0.01, 9.0], "material": { "color": "#e6e3da", "roughness": 0.25 } },
+    { "id": "f_wc", "type": "plane", "size": [3, 4], "position": [-8.5, 0.01, 2.0], "material": { "color": "#c9d3d8", "roughness": 0.35 } },
+    { "id": "f_stock", "type": "plane", "size": [6, 8], "position": [7.0, 0.01, 4.0], "material": { "color": "#a8a49a", "roughness": 0.6 } },
+    { "id": "f_cooler", "type": "plane", "size": [3.5, 6], "position": [5.75, 0.01, 11.0], "material": { "color": "#b8c8d0", "roughness": 0.3 } },
+    { "id": "f_office", "type": "plane", "size": [2.5, 6], "position": [8.75, 0.01, 11.0], "material": { "color": "#8a7a62", "roughness": 0.6 } },
+    { "id": "tile_0_0", "type": "plane", "size": [1.0, 1.3], "position": [-9.3, 0.02, 5.25], "material": { "color": "#c9c5b8", "roughness": 0.3 } },
+    { "id": "tile_1_1", "type": "plane", "size": [1.0, 1.3], "position": [-8.3, 0.02, 6.55], "material": { "color": "#c9c5b8", "roughness": 0.3 } },
+    { "id": "tile_2_0", "type": "plane", "size": [1.0, 1.3], "position": [-9.3, 0.02, 7.85], "material": { "color": "#c9c5b8", "roughness": 0.3 } },
+    { "id": "tile_3_1", "type": "plane", "size": [1.0, 1.3], "position": [-8.3, 0.02, 9.15], "material": { "color": "#c9c5b8", "roughness": 0.3 } },
+    { "id": "tile_4_0", "type": "plane", "size": [1.0, 1.3], "position": [-9.3, 0.02, 10.45], "material": { "color": "#c9c5b8", "roughness": 0.3 } },
+    { "id": "tile_5_1", "type": "plane", "size": [1.0, 1.3], "position": [-8.3, 0.02, 11.75], "material": { "color": "#c9c5b8", "roughness": 0.3 } },
+    { "id": "tile_6_0", "type": "plane", "size": [1.0, 1.3], "position": [-9.3, 0.02, 13.05], "material": { "color": "#c9c5b8", "roughness": 0.3 } },
+    {
+      "id": "shelf_0_0",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-6.6, 0, 3.4],
+      "params": { "a": "#d9532a", "b": "#e0c22a", "c": "#4ab84a" }
+    },
+    {
+      "id": "shelf_0_1",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-5.35, 0, 3.4],
+      "params": { "a": "#2f7fc0", "b": "#e8e4dc", "c": "#c8202a" }
+    },
+    {
+      "id": "shelf_0_2",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-4.1, 0, 3.4],
+      "params": { "a": "#e0873a", "b": "#5a2a7a", "c": "#efe6d0" }
+    },
+    {
+      "id": "shelf_0_3",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-2.85, 0, 3.4],
+      "params": { "a": "#4aa06a", "b": "#d9532a", "c": "#2f5fa0" }
+    },
+    {
+      "id": "shelf_1_0",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-6.6, 0, 6.2],
+      "params": { "a": "#2f7fc0", "b": "#e8e4dc", "c": "#c8202a" }
+    },
+    {
+      "id": "shelf_1_1",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-5.35, 0, 6.2],
+      "params": { "a": "#e0873a", "b": "#5a2a7a", "c": "#efe6d0" }
+    },
+    {
+      "id": "shelf_1_2",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-4.1, 0, 6.2],
+      "params": { "a": "#4aa06a", "b": "#d9532a", "c": "#2f5fa0" }
+    },
+    {
+      "id": "shelf_1_3",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-2.85, 0, 6.2],
+      "params": { "a": "#d9532a", "b": "#e0c22a", "c": "#4ab84a" }
+    },
+    {
+      "id": "shelf_2_0",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-6.6, 0, 9.0],
+      "params": { "a": "#e0873a", "b": "#5a2a7a", "c": "#efe6d0" }
+    },
+    {
+      "id": "shelf_2_1",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-5.35, 0, 9.0],
+      "params": { "a": "#4aa06a", "b": "#d9532a", "c": "#2f5fa0" }
+    },
+    {
+      "id": "shelf_2_2",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-4.1, 0, 9.0],
+      "params": { "a": "#d9532a", "b": "#e0c22a", "c": "#4ab84a" }
+    },
+    {
+      "id": "shelf_2_3",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [-2.85, 0, 9.0],
+      "params": { "a": "#2f7fc0", "b": "#e8e4dc", "c": "#c8202a" }
+    },
+    { "id": "cooler_0", "type": "prefab", "prefab": "drink_cooler", "position": [-9.45, 0, 5.0], "rotation": [0, 90, 0] },
+    { "id": "cooler_1", "type": "prefab", "prefab": "drink_cooler", "position": [-9.45, 0, 5.86], "rotation": [0, 90, 0] },
+    { "id": "cooler_2", "type": "prefab", "prefab": "drink_cooler", "position": [-9.45, 0, 6.72], "rotation": [0, 90, 0] },
+    { "id": "cooler_3", "type": "prefab", "prefab": "drink_cooler", "position": [-9.45, 0, 7.58], "rotation": [0, 90, 0] },
+    { "id": "cooler_4", "type": "prefab", "prefab": "drink_cooler", "position": [-9.45, 0, 8.44], "rotation": [0, 90, 0] },
+    { "id": "cooler_5", "type": "prefab", "prefab": "drink_cooler", "position": [-9.45, 0, 9.3], "rotation": [0, 90, 0] },
+    { "id": "freezer_0", "type": "prefab", "prefab": "chest_freezer", "position": [-2.6, 0, 0.65] },
+    { "id": "freezer_1", "type": "prefab", "prefab": "chest_freezer", "position": [-1.1, 0, 0.65] },
+    { "id": "freezer_2", "type": "prefab", "prefab": "chest_freezer", "position": [0.4, 0, 0.65] },
+    { "id": "freezer_3", "type": "prefab", "prefab": "chest_freezer", "position": [1.9, 0, 0.65] },
+    {
+      "id": "vend_1",
+      "type": "prop",
+      "prop": "vending_machine",
+      "position": [3.5, 0, 1.6],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#2f5fa0" }
+    },
+    {
+      "id": "vend_2",
+      "type": "prop",
+      "prop": "vending_machine",
+      "position": [3.5, 0, 2.9],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#2f5fa0" }
+    },
+    {
+      "id": "coffee_counter",
+      "type": "prop",
+      "prop": "kitchen_counter",
+      "position": [3.55, 0, 9.6],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#b0b8c0" }
+    },
+    { "id": "coffee_1", "type": "prefab", "prefab": "coffee_machine", "position": [3.55, 0.95, 9.0], "rotation": [0, -90, 0] },
+    { "id": "coffee_2", "type": "prefab", "prefab": "coffee_machine", "position": [3.55, 0.95, 10.1], "rotation": [0, -90, 0] },
+    { "id": "coffee_mugs", "type": "prefab", "prefab": "mug_coffee", "position": [3.55, 0.95, 10.2], "rotation": [0, -90, 0] },
+    { "id": "trash_coffee", "type": "prop", "prop": "trash_can", "position": [3.5, 0, 11.6], "material": { "color": "#4a5a66" } },
+    { "id": "counter_1", "type": "prefab", "prefab": "checkout_counter", "position": [0.9, 0, 11.4] },
+    { "id": "register_1", "type": "prefab", "prefab": "cash_register", "position": [0.9, 0.99, 11.35] },
+    {
+      "id": "chips_1",
+      "type": "prefab",
+      "prefab": "chip_bag",
+      "position": [1.5, 0.99, 11.6],
+      "rotation": [0, 10, 0],
+      "params": { "color": "#e0a02a" }
+    },
+    { "id": "snacks_1", "type": "prefab", "prefab": "snack_box", "position": [0.3, 0.99, 11.7], "rotation": [0, 15, 0] },
+    { "id": "magazines_1", "type": "prefab", "prefab": "magazine_rack", "position": [2.9, 0, 12.6], "rotation": [0, -90, 0] },
+    { "id": "clock_sales", "type": "prefab", "prefab": "wall_clock", "position": [-4.0, 2.4, 0.135] },
+    { "id": "poster_sales1", "type": "prefab", "prefab": "poster_movie", "position": [1.7, 1.5, 0.135] },
+    { "id": "basket_1", "type": "prefab", "prefab": "shopping_basket", "position": [-3.0, 0, 13.4], "rotation": [0, 20, 0] },
+    { "id": "basket_2", "type": "prefab", "prefab": "shopping_basket", "position": [-3.0, 0.3, 13.4], "rotation": [0, 200, 0] },
+    { "id": "basket_3", "type": "prefab", "prefab": "shopping_basket", "position": [-2.5, 0, 13.5], "rotation": [0, -10, 0] },
+    { "id": "trash_door", "type": "prop", "prop": "trash_can", "position": [3.3, 0, 13.4], "material": { "color": "#4a5a66" } },
+    {
+      "id": "atm_body",
+      "type": "box",
+      "size": [0.7, 1.5, 0.7],
+      "position": [-9.05, 0.75, 12.35],
+      "material": { "color": "#3a4a5a", "roughness": 0.4 }
+    },
+    {
+      "id": "atm_face",
+      "type": "box",
+      "size": [0.05, 0.35, 0.6],
+      "position": [-8.725, 1.225, 12.35],
+      "material": { "color": "#111820", "roughness": 0.2 }
+    },
+    { "id": "wc_toilet", "type": "prop", "prop": "toilet", "position": [-8.5, 0, 0.55], "material": { "color": "#f0f0ee" } },
+    { "id": "wc_sink", "type": "prop", "prop": "sink", "position": [-9.5, 0, 2.2], "rotation": [0, 90, 0], "material": { "color": "#d8dcdf" } },
+    { "id": "wc_mirror", "type": "prefab", "prefab": "wall_mirror", "position": [-9.88, 1.55, 2.2], "rotation": [0, 90, 0] },
+    { "id": "wc_trash", "type": "prop", "prop": "trash_can", "position": [-7.6, 0, 3.4], "material": { "color": "#4a5a66" } },
+    { "id": "wc_clock", "type": "prefab", "prefab": "wall_clock", "position": [-8.5, 2.3, 0.135] },
+    { "id": "rack_0_0", "type": "prop", "prop": "bookshelf", "position": [4.8, 0, 1.0], "material": { "color": "#8a8f96" } },
+    { "id": "rack_0_1", "type": "prop", "prop": "bookshelf", "position": [5.75, 0, 1.0], "material": { "color": "#8a8f96" } },
+    { "id": "rack_0_2", "type": "prop", "prop": "bookshelf", "position": [6.7, 0, 1.0], "material": { "color": "#8a8f96" } },
+    { "id": "rack_1_0", "type": "prop", "prop": "bookshelf", "position": [4.8, 0, 3.0], "rotation": [0, 180, 0], "material": { "color": "#8a8f96" } },
+    { "id": "rack_1_1", "type": "prop", "prop": "bookshelf", "position": [5.75, 0, 3.0], "rotation": [0, 180, 0], "material": { "color": "#8a8f96" } },
+    { "id": "rack_1_2", "type": "prop", "prop": "bookshelf", "position": [6.7, 0, 3.0], "rotation": [0, 180, 0], "material": { "color": "#8a8f96" } },
+    { "id": "rack_w1", "type": "prop", "prop": "bookshelf", "position": [9.4, 0, 1.4], "rotation": [0, -90, 0], "material": { "color": "#8a8f96" } },
+    {
+      "id": "stock_box_0",
+      "type": "prop",
+      "prop": "box_stack",
+      "position": [7.2, 0, 7.35],
+      "rotation": [0, 79, 0],
+      "material": { "color": "#b08a5a" }
+    },
+    {
+      "id": "stock_box_1",
+      "type": "prop",
+      "prop": "box_stack",
+      "position": [4.7, 0, 5.0],
+      "rotation": [0, 32, 0],
+      "material": { "color": "#b08a5a" }
+    },
+    {
+      "id": "stock_box_2",
+      "type": "prop",
+      "prop": "box_stack",
+      "position": [9.5, 0, 7.3],
+      "rotation": [0, 45, 0],
+      "material": { "color": "#b08a5a" }
+    },
+    { "id": "stock_crate1", "type": "prop", "prop": "crate", "position": [9.5, 0, 5.4], "material": { "color": "#8a6a3f" } },
+    { "id": "stock_barrel1", "type": "prop", "prop": "barrel", "position": [4.5, 0, 4.4], "material": { "color": "#3a5a7a" } },
+    { "id": "stock_trash", "type": "prop", "prop": "trash_can", "position": [9.55, 0, 4.2], "material": { "color": "#4a5a66" } },
+    { "id": "stock_cone", "type": "prop", "prop": "traffic_cone", "position": [6.6, 0, 5.2], "material": { "color": "#e8692a" } },
+    {
+      "id": "stock_ext",
+      "type": "prop",
+      "prop": "fire_extinguisher",
+      "position": [4.3, 0, 7.6],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#c8202a" }
+    },
+    { "id": "stock_clock", "type": "prefab", "prefab": "wall_clock", "position": [7.0, 2.3, 0.135] },
+    {
+      "id": "cool_shelf1",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [6.5, 0, 13.4],
+      "params": { "a": "#2f7fc0", "b": "#e8e4dc", "c": "#c8202a" }
+    },
+    {
+      "id": "cool_shelf2",
+      "type": "prefab",
+      "prefab": "shelf_gondola",
+      "position": [4.75, 0, 12.2],
+      "rotation": [0, 90, 0],
+      "params": { "a": "#efe6d0", "b": "#2f7fc0", "c": "#e0a02a" }
+    },
+    { "id": "cool_crates1", "type": "prop", "prop": "crate", "position": [6.8, 0, 9.0], "material": { "color": "#e0e4e8" } },
+    {
+      "id": "cool_crates2",
+      "type": "prop",
+      "prop": "crate",
+      "position": [6.8, 0.56, 9.0],
+      "rotation": [0, 15, 0],
+      "material": { "color": "#e0e4e8" }
+    },
+    { "id": "cool_stack", "type": "prop", "prop": "box_stack", "position": [6.9, 0, 11.4], "material": { "color": "#b08a5a" } },
+    { "id": "cool_milk1", "type": "prefab", "prefab": "milk_carton", "position": [6.75, 1.12, 9.0] },
+    { "id": "cool_soda1", "type": "prefab", "prefab": "soda_can", "position": [6.85, 1.12, 9.05], "rotation": [0, 30, 0] },
+    { "id": "off_desk", "type": "prop", "prop": "desk", "position": [8.75, 0, 13.3], "rotation": [0, 180, 0], "material": { "color": "#6e4b2b" } },
+    { "id": "off_chair", "type": "prefab", "prefab": "chair_office", "position": [8.75, 0, 12.45], "rotation": [0, 180, 0] },
+    { "id": "off_monitor", "type": "prefab", "prefab": "monitor", "position": [8.75, 0.77, 13.4], "rotation": [0, 180, 0] },
+    { "id": "off_phone", "type": "prefab", "prefab": "desk_phone", "position": [9.35, 0.77, 13.3], "rotation": [0, 200, 0] },
+    { "id": "off_papers", "type": "prefab", "prefab": "paper_stack", "position": [8.15, 0.77, 13.3], "rotation": [0, 10, 0] },
+    {
+      "id": "off_safe",
+      "type": "box",
+      "size": [0.65, 0.75, 0.7],
+      "position": [7.975, 0.375, 10.95],
+      "material": { "color": "#3a3d42", "roughness": 0.4, "metallic": 0.5 }
+    },
+    {
+      "id": "off_cab",
+      "type": "prop",
+      "prop": "filing_cabinet",
+      "position": [9.6, 0, 10.9],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#5f6672" }
+    },
+    { "id": "off_cctv", "type": "prefab", "prefab": "monitor", "position": [8.0, 0.75, 10.95], "rotation": [0, 90, 0] },
+    {
+      "id": "promo_1",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [-3.9, 2.25, 0.135],
+      "params": { "color": "#c8202a", "stripe": "#f0c24a" }
+    },
+    {
+      "id": "menu_board",
+      "type": "box",
+      "size": [0.05, 1.0, 2.2],
+      "position": [3.875, 2.2, 9.7],
+      "material": { "color": "#15171c", "roughness": 0.4 }
+    },
+    {
+      "id": "menu_line_0",
+      "type": "box",
+      "size": [0.03, 0.1, 1.5],
+      "position": [3.835, 1.9, 9.55],
+      "material": { "color": "#f0c24a", "roughness": 0.5 }
+    },
+    {
+      "id": "menu_line_1",
+      "type": "box",
+      "size": [0.03, 0.1, 1.3],
+      "position": [3.835, 2.07, 9.65],
+      "material": { "color": "#f2f2ee", "roughness": 0.5 }
+    },
+    {
+      "id": "menu_line_2",
+      "type": "box",
+      "size": [0.03, 0.1, 1.5],
+      "position": [3.835, 2.24, 9.55],
+      "material": { "color": "#c8202a", "roughness": 0.5 }
+    },
+    {
+      "id": "menu_line_3",
+      "type": "box",
+      "size": [0.03, 0.1, 1.3],
+      "position": [3.835, 2.41, 9.65],
+      "material": { "color": "#f2f2ee", "roughness": 0.5 }
+    },
+    {
+      "id": "menu_line_4",
+      "type": "box",
+      "size": [0.03, 0.1, 1.5],
+      "position": [3.835, 2.58, 9.55],
+      "material": { "color": "#4aa06a", "roughness": 0.5 }
+    },
+    {
+      "id": "mag_rack2",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [-9.6, 0, 11.6],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#2f4f7f" }
+    },
+    {
+      "id": "stock_box_e1",
+      "type": "prop",
+      "prop": "box_stack",
+      "position": [8.7, 0, 0.75],
+      "rotation": [0, 20, 0],
+      "material": { "color": "#b08a5a" }
+    },
+    {
+      "id": "stock_box_e2",
+      "type": "prop",
+      "prop": "box_stack",
+      "position": [9.4, 0, 0.75],
+      "rotation": [0, -10, 0],
+      "material": { "color": "#b08a5a" }
+    },
+    { "id": "stock_crate3", "type": "prop", "prop": "crate", "position": [8.6, 0, 1.6], "rotation": [0, 30, 0], "material": { "color": "#8a6a3f" } },
+    { "id": "stock_crate4", "type": "prop", "prop": "crate", "position": [8.6, 0.56, 1.6], "material": { "color": "#8a6a3f" } },
+    { "id": "asphalt", "type": "plane", "size": [48, 31.7], "position": [0.0, 0.01, 30.15], "material": { "color": "#4b4f56", "roughness": 0.95 } },
+    {
+      "id": "apron_side",
+      "type": "plane",
+      "size": [13.7, 22.3],
+      "position": [17.15, 0.01, 3.15],
+      "material": { "color": "#4b4f56", "roughness": 0.95 }
+    },
+    { "id": "sidewalk", "type": "plane", "size": [20.4, 2.0], "position": [0.0, 0.03, 15.2], "material": { "color": "#c9c5b8", "roughness": 0.8 } },
+    { "id": "curb_ext", "type": "plane", "size": [48, 1.5], "position": [0.0, 0.03, 45.25], "material": { "color": "#c9c5b8", "roughness": 0.8 } },
+    {
+      "id": "lot_line_0",
+      "type": "plane",
+      "size": [0.1, 5.5],
+      "position": [-21.95, 0.02, 38.75],
+      "material": { "color": "#efeadf", "roughness": 0.7 }
+    },
+    {
+      "id": "lot_line_1",
+      "type": "plane",
+      "size": [0.1, 5.5],
+      "position": [-17.45, 0.02, 38.75],
+      "material": { "color": "#efeadf", "roughness": 0.7 }
+    },
+    {
+      "id": "lot_line_2",
+      "type": "plane",
+      "size": [0.1, 5.5],
+      "position": [-12.95, 0.02, 38.75],
+      "material": { "color": "#efeadf", "roughness": 0.7 }
+    },
+    {
+      "id": "lot_line_3",
+      "type": "plane",
+      "size": [0.1, 5.5],
+      "position": [-8.45, 0.02, 38.75],
+      "material": { "color": "#efeadf", "roughness": 0.7 }
+    },
+    {
+      "id": "lot_line_4",
+      "type": "plane",
+      "size": [0.1, 5.5],
+      "position": [-3.95, 0.02, 38.75],
+      "material": { "color": "#efeadf", "roughness": 0.7 }
+    },
+    { "id": "lot_line_5", "type": "plane", "size": [0.1, 5.5], "position": [0.55, 0.02, 38.75], "material": { "color": "#efeadf", "roughness": 0.7 } },
+    { "id": "lot_line_6", "type": "plane", "size": [0.1, 5.5], "position": [5.05, 0.02, 38.75], "material": { "color": "#efeadf", "roughness": 0.7 } },
+    { "id": "lot_line_7", "type": "plane", "size": [0.1, 5.5], "position": [9.55, 0.02, 38.75], "material": { "color": "#efeadf", "roughness": 0.7 } },
+    {
+      "id": "lot_line_8",
+      "type": "plane",
+      "size": [0.1, 5.5],
+      "position": [14.05, 0.02, 38.75],
+      "material": { "color": "#efeadf", "roughness": 0.7 }
+    },
+    {
+      "id": "lot_line_9",
+      "type": "plane",
+      "size": [0.1, 5.5],
+      "position": [18.55, 0.02, 38.75],
+      "material": { "color": "#efeadf", "roughness": 0.7 }
+    },
+    { "id": "lot_edge", "type": "plane", "size": [48, 0.1], "position": [0.0, 0.02, 35.95], "material": { "color": "#e8c020", "roughness": 0.7 } },
+    {
+      "id": "canopy_roof",
+      "type": "box",
+      "size": [21.0, 0.35, 12.0],
+      "position": [0.0, 5.075, 26.0],
+      "material": { "color": "#efeae0", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_stripe",
+      "type": "box",
+      "size": [21.04, 0.1, 12.04],
+      "position": [0.0, 4.95, 26.0],
+      "material": { "color": "#c8202a", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_stripe2",
+      "type": "box",
+      "size": [21.04, 0.07, 12.04],
+      "position": [0.0, 5.085, 26.0],
+      "material": { "color": "#f0c24a", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_0",
+      "type": "box",
+      "size": [0.44, 4.9, 0.44],
+      "position": [-9.5, 2.45, 21.0],
+      "material": { "color": "#dfe3e6", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_base_0",
+      "type": "box",
+      "size": [0.6, 0.5, 0.6],
+      "position": [-9.5, 0.25, 21.0],
+      "material": { "color": "#c8202a", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_1",
+      "type": "box",
+      "size": [0.44, 4.9, 0.44],
+      "position": [9.5, 2.45, 21.0],
+      "material": { "color": "#dfe3e6", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_base_1",
+      "type": "box",
+      "size": [0.6, 0.5, 0.6],
+      "position": [9.5, 0.25, 21.0],
+      "material": { "color": "#c8202a", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_2",
+      "type": "box",
+      "size": [0.44, 4.9, 0.44],
+      "position": [-9.5, 2.45, 31.0],
+      "material": { "color": "#dfe3e6", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_base_2",
+      "type": "box",
+      "size": [0.6, 0.5, 0.6],
+      "position": [-9.5, 0.25, 31.0],
+      "material": { "color": "#c8202a", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_3",
+      "type": "box",
+      "size": [0.44, 4.9, 0.44],
+      "position": [9.5, 2.45, 31.0],
+      "material": { "color": "#dfe3e6", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_base_3",
+      "type": "box",
+      "size": [0.6, 0.5, 0.6],
+      "position": [9.5, 0.25, 31.0],
+      "material": { "color": "#c8202a", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_4",
+      "type": "box",
+      "size": [0.44, 4.9, 0.44],
+      "position": [0.0, 2.45, 21.0],
+      "material": { "color": "#dfe3e6", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_base_4",
+      "type": "box",
+      "size": [0.6, 0.5, 0.6],
+      "position": [0.0, 0.25, 21.0],
+      "material": { "color": "#c8202a", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_5",
+      "type": "box",
+      "size": [0.44, 4.9, 0.44],
+      "position": [0.0, 2.45, 31.0],
+      "material": { "color": "#dfe3e6", "roughness": 0.5 }
+    },
+    {
+      "id": "canopy_col_base_5",
+      "type": "box",
+      "size": [0.6, 0.5, 0.6],
+      "position": [0.0, 0.25, 31.0],
+      "material": { "color": "#c8202a", "roughness": 0.5 }
+    },
+    {
+      "id": "pump_0",
+      "type": "prefab",
+      "prefab": "fuel_pump",
+      "position": [-4.0, 0.0, 23.6],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#c8202a" }
+    },
+    {
+      "id": "pump_1",
+      "type": "prefab",
+      "prefab": "fuel_pump",
+      "position": [-4.0, 0.0, 27.4],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#2f7fc0" }
+    },
+    {
+      "id": "pump_2",
+      "type": "prefab",
+      "prefab": "fuel_pump",
+      "position": [4.0, 0.0, 23.6],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#c8202a" }
+    },
+    {
+      "id": "pump_3",
+      "type": "prefab",
+      "prefab": "fuel_pump",
+      "position": [4.0, 0.0, 27.4],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#2f7fc0" }
+    },
+    { "id": "pump_trash1", "type": "prop", "prop": "trash_can", "position": [-4.0, 0, 25.5], "material": { "color": "#4a5a66" } },
+    { "id": "pump_trash2", "type": "prop", "prop": "trash_can", "position": [4.0, 0, 25.5], "material": { "color": "#4a5a66" } },
+    {
+      "id": "car_p1",
+      "type": "group",
+      "position": [-6.8, 0, 25.5],
+      "rotation": [0, 90, 0],
+      "children": [
+        {
+          "id": "car_p1.body",
+          "type": "box",
+          "size": [4.4, 0.7, 1.8],
+          "position": [0, 0.62, 0],
+          "material": { "color": "#c8202a", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p1.cabin",
+          "type": "box",
+          "size": [2.2, 0.65, 1.6],
+          "position": [-0.1, 1.3, 0],
+          "material": { "color": "#c8202a", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p1.win_s",
+          "type": "box",
+          "size": [2.0, 0.45, 1.62],
+          "position": [-0.1, 1.32, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p1.win_f",
+          "type": "box",
+          "size": [0.05, 0.42, 1.5],
+          "position": [0.98, 1.3, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p1.light_l",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, -0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p1.light_r",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, 0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p1.bump_f",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p1.bump_b",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [-2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p1.w0",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p1.w1",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p1.w2",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p1.w3",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        }
+      ]
+    },
+    {
+      "id": "car_p2",
+      "type": "group",
+      "position": [6.8, 0, 27.0],
+      "rotation": [0, -90, 0],
+      "children": [
+        {
+          "id": "car_p2.body",
+          "type": "box",
+          "size": [4.4, 0.7, 1.8],
+          "position": [0, 0.62, 0],
+          "material": { "color": "#2f5fa0", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p2.cabin",
+          "type": "box",
+          "size": [2.2, 0.65, 1.6],
+          "position": [-0.1, 1.3, 0],
+          "material": { "color": "#2f5fa0", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p2.win_s",
+          "type": "box",
+          "size": [2.0, 0.45, 1.62],
+          "position": [-0.1, 1.32, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p2.win_f",
+          "type": "box",
+          "size": [0.05, 0.42, 1.5],
+          "position": [0.98, 1.3, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p2.light_l",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, -0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p2.light_r",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, 0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p2.bump_f",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p2.bump_b",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [-2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p2.w0",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p2.w1",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p2.w2",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p2.w3",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        }
+      ]
+    },
+    {
+      "id": "car_p3",
+      "type": "group",
+      "position": [-14, 0, 40],
+      "rotation": [0, 0, 0],
+      "children": [
+        {
+          "id": "car_p3.body",
+          "type": "box",
+          "size": [4.4, 0.7, 1.8],
+          "position": [0, 0.62, 0],
+          "material": { "color": "#dfe3e6", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p3.cabin",
+          "type": "box",
+          "size": [2.2, 0.65, 1.6],
+          "position": [-0.1, 1.3, 0],
+          "material": { "color": "#dfe3e6", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p3.win_s",
+          "type": "box",
+          "size": [2.0, 0.45, 1.62],
+          "position": [-0.1, 1.32, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p3.win_f",
+          "type": "box",
+          "size": [0.05, 0.42, 1.5],
+          "position": [0.98, 1.3, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p3.light_l",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, -0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p3.light_r",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, 0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p3.bump_f",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p3.bump_b",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [-2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p3.w0",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p3.w1",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p3.w2",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p3.w3",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        }
+      ]
+    },
+    {
+      "id": "car_p4",
+      "type": "group",
+      "position": [-5.5, 0, 40],
+      "rotation": [0, 0, 0],
+      "children": [
+        {
+          "id": "car_p4.body",
+          "type": "box",
+          "size": [4.4, 0.7, 1.8],
+          "position": [0, 0.62, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p4.cabin",
+          "type": "box",
+          "size": [2.2, 0.65, 1.6],
+          "position": [-0.1, 1.3, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p4.win_s",
+          "type": "box",
+          "size": [2.0, 0.45, 1.62],
+          "position": [-0.1, 1.32, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p4.win_f",
+          "type": "box",
+          "size": [0.05, 0.42, 1.5],
+          "position": [0.98, 1.3, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p4.light_l",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, -0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p4.light_r",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, 0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p4.bump_f",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p4.bump_b",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [-2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p4.w0",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p4.w1",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p4.w2",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p4.w3",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        }
+      ]
+    },
+    {
+      "id": "car_p5",
+      "type": "group",
+      "position": [12.5, 0, 40],
+      "rotation": [0, 0, 0],
+      "children": [
+        {
+          "id": "car_p5.body",
+          "type": "box",
+          "size": [4.4, 0.7, 1.8],
+          "position": [0, 0.62, 0],
+          "material": { "color": "#e0b820", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p5.cabin",
+          "type": "box",
+          "size": [2.2, 0.65, 1.6],
+          "position": [-0.1, 1.3, 0],
+          "material": { "color": "#e0b820", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p5.win_s",
+          "type": "box",
+          "size": [2.0, 0.45, 1.62],
+          "position": [-0.1, 1.32, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p5.win_f",
+          "type": "box",
+          "size": [0.05, 0.42, 1.5],
+          "position": [0.98, 1.3, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p5.light_l",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, -0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p5.light_r",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, 0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p5.bump_f",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p5.bump_b",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [-2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p5.w0",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p5.w1",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p5.w2",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p5.w3",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        }
+      ]
+    },
+    {
+      "id": "car_p6",
+      "type": "group",
+      "position": [18.5, 0, 5],
+      "rotation": [0, 90, 0],
+      "children": [
+        {
+          "id": "car_p6.body",
+          "type": "box",
+          "size": [4.4, 0.7, 1.8],
+          "position": [0, 0.62, 0],
+          "material": { "color": "#4aa06a", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p6.cabin",
+          "type": "box",
+          "size": [2.2, 0.65, 1.6],
+          "position": [-0.1, 1.3, 0],
+          "material": { "color": "#4aa06a", "roughness": 0.35, "metallic": 0.4 }
+        },
+        {
+          "id": "car_p6.win_s",
+          "type": "box",
+          "size": [2.0, 0.45, 1.62],
+          "position": [-0.1, 1.32, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p6.win_f",
+          "type": "box",
+          "size": [0.05, 0.42, 1.5],
+          "position": [0.98, 1.3, 0],
+          "material": { "color": "#7fa8c8", "roughness": 0.1 }
+        },
+        {
+          "id": "car_p6.light_l",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, -0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p6.light_r",
+          "type": "box",
+          "size": [0.05, 0.14, 0.3],
+          "position": [2.2, 0.7, 0.6],
+          "material": { "color": "#f2ecd0", "roughness": 0.2 }
+        },
+        {
+          "id": "car_p6.bump_f",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p6.bump_b",
+          "type": "box",
+          "size": [0.12, 0.2, 1.78],
+          "position": [-2.2, 0.36, 0],
+          "material": { "color": "#2a2c31", "roughness": 0.6 }
+        },
+        {
+          "id": "car_p6.w0",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p6.w1",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [-1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p6.w2",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, 0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        },
+        {
+          "id": "car_p6.w3",
+          "type": "cylinder",
+          "radius": 0.34,
+          "height": 0.24,
+          "position": [1.4, 0.34, -0.92],
+          "rotation": [90, 0, 0],
+          "material": { "color": "#1a1a1a", "roughness": 0.9 }
+        }
+      ]
+    },
+    {
+      "id": "sign_pole",
+      "type": "box",
+      "size": [0.3, 7.0, 0.3],
+      "position": [15.15, 3.5, 20.15],
+      "material": { "color": "#3a3d42", "roughness": 0.5, "metallic": 0.4 }
+    },
+    {
+      "id": "sign_panel",
+      "type": "box",
+      "size": [3.1, 1.8, 0.5],
+      "position": [15.15, 6.5, 20.15],
+      "material": { "color": "#efeae0", "roughness": 0.4 }
+    },
+    {
+      "id": "sign_head",
+      "type": "box",
+      "size": [3.1, 0.8, 0.6],
+      "position": [15.15, 7.0, 20.15],
+      "material": { "color": "#c8202a", "roughness": 0.4 }
+    },
+    {
+      "id": "sign_price_0",
+      "type": "box",
+      "size": [2.5, 0.2, 0.02],
+      "position": [15.15, 5.8, 20.41],
+      "material": { "color": "#111820", "roughness": 0.3 }
+    },
+    {
+      "id": "sign_price_1",
+      "type": "box",
+      "size": [2.5, 0.2, 0.02],
+      "position": [15.15, 6.08, 20.41],
+      "material": { "color": "#111820", "roughness": 0.3 }
+    },
+    {
+      "id": "sign_price_2",
+      "type": "box",
+      "size": [2.5, 0.2, 0.02],
+      "position": [15.15, 6.36, 20.41],
+      "material": { "color": "#111820", "roughness": 0.3 }
+    },
+    { "id": "out_bench", "type": "prop", "prop": "bench", "position": [-8.2, 0, 15.6], "rotation": [0, 180, 0], "material": { "color": "#4a5c40" } },
+    { "id": "out_trash", "type": "prop", "prop": "trash_can", "position": [-9.4, 0, 15.6], "material": { "color": "#4a5a66" } },
+    { "id": "out_ice", "type": "prefab", "prefab": "chest_freezer", "position": [6.0, 0, 15.5], "rotation": [0, 180, 0] },
+    { "id": "out_cooler", "type": "prefab", "prefab": "drink_cooler", "position": [7.5, 0, 15.3], "rotation": [0, 180, 0] },
+    {
+      "id": "out_vend",
+      "type": "prop",
+      "prop": "vending_machine",
+      "position": [9.0, 0, 15.4],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#c8202a" }
+    },
+    { "id": "out_cone1", "type": "prop", "prop": "traffic_cone", "position": [1.2, 0, 17.0], "material": { "color": "#e8692a" } },
+    {
+      "id": "out_propane",
+      "type": "box",
+      "size": [2.0, 1.6, 1.4],
+      "position": [12.2, 0.8, 15.7],
+      "material": { "color": "#8a8f96", "roughness": 0.5, "metallic": 0.5 }
+    },
+    {
+      "id": "propane_0",
+      "type": "cylinder",
+      "radius": 0.17,
+      "height": 0.8,
+      "position": [11.5, 0.4, 15.7],
+      "material": { "color": "#efeae0", "roughness": 0.4 }
+    },
+    {
+      "id": "propane_1",
+      "type": "cylinder",
+      "radius": 0.17,
+      "height": 0.8,
+      "position": [11.9, 0.4, 15.7],
+      "material": { "color": "#efeae0", "roughness": 0.4 }
+    },
+    {
+      "id": "propane_2",
+      "type": "cylinder",
+      "radius": 0.17,
+      "height": 0.8,
+      "position": [12.3, 0.4, 15.7],
+      "material": { "color": "#efeae0", "roughness": 0.4 }
+    },
+    {
+      "id": "propane_3",
+      "type": "cylinder",
+      "radius": 0.17,
+      "height": 0.8,
+      "position": [12.7, 0.4, 15.7],
+      "material": { "color": "#efeae0", "roughness": 0.4 }
+    },
+    {
+      "id": "propane_4",
+      "type": "cylinder",
+      "radius": 0.17,
+      "height": 0.8,
+      "position": [13.1, 0.4, 15.7],
+      "material": { "color": "#efeae0", "roughness": 0.4 }
+    },
+    { "id": "out_mail", "type": "prop", "prop": "mailbox", "position": [3.2, 0, 15.6], "rotation": [0, 180, 0], "material": { "color": "#2f4f7f" } },
+    { "id": "dumpster", "type": "box", "size": [2.2, 1.3, 3.0], "position": [13.1, 0.65, 3.5], "material": { "color": "#2f5a3a", "roughness": 0.6 } },
+    {
+      "id": "dumpster_lid",
+      "type": "box",
+      "size": [2.4, 0.1, 3.2],
+      "position": [13.1, 1.35, 3.5],
+      "material": { "color": "#1f3a26", "roughness": 0.6 }
+    },
+    { "id": "back_barrels", "type": "prop", "prop": "barrel", "position": [11.6, 0, 8.5], "material": { "color": "#7a3a2a" } },
+    { "id": "back_crates", "type": "prop", "prop": "crate", "position": [12.5, 0, 8.6], "material": { "color": "#8a6a3f" } },
+    { "id": "back_pallet", "type": "prop", "prop": "box_stack", "position": [11.2, 0, 10.4], "material": { "color": "#b08a5a" } },
+    { "id": "tree_0", "type": "prop", "prop": "tree_pine", "position": [-17, 0, 3], "rotation": [0, 333, 0], "material": { "color": "#1e512f" } },
+    { "id": "tree_1", "type": "prop", "prop": "tree_pine", "position": [-17, 0, 12], "rotation": [0, 14, 0], "material": { "color": "#185437" } },
+    { "id": "tree_2", "type": "prop", "prop": "tree_oak", "position": [-15, 0, 22], "rotation": [0, 127, 0], "material": { "color": "#386427" } },
+    { "id": "tree_3", "type": "prop", "prop": "tree_pine", "position": [17, 0, 34], "rotation": [0, 26, 0], "material": { "color": "#144b31" } },
+    { "id": "tree_4", "type": "prop", "prop": "tree_oak", "position": [-20, 0, 30], "rotation": [0, 57, 0], "material": { "color": "#35672a" } },
+    { "id": "tree_5", "type": "prop", "prop": "tree_oak", "position": [20, 0, 12], "rotation": [0, 240, 0], "material": { "color": "#336332" } },
+    { "id": "tree_6", "type": "prop", "prop": "tree_oak", "position": [19, 0, 22], "rotation": [0, 194, 0], "material": { "color": "#386d2c" } },
+    {
+      "id": "tree_ring_0",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-29.21, 0, -14.44],
+      "rotation": [0, 208, 0],
+      "material": { "color": "#174a34" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_1",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [28.09, 0, 43.25],
+      "rotation": [0, 81, 0],
+      "material": { "color": "#33682a" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_2",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [7.05, 0, -11.83],
+      "rotation": [0, 67, 0],
+      "material": { "color": "#144c2e" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_3",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-29.68, 0, -16.83],
+      "rotation": [0, 84, 0],
+      "material": { "color": "#204e36" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_4",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [27.69, 0, 50.74],
+      "rotation": [0, 93, 0],
+      "material": { "color": "#18532f" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_5",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [23.62, 0, 54.8],
+      "rotation": [0, 11, 0],
+      "material": { "color": "#306930" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_6",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [29.49, 0, 47.76],
+      "rotation": [0, 33, 0],
+      "material": { "color": "#336629" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_7",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [28.81, 0, 25.81],
+      "rotation": [0, 305, 0],
+      "material": { "color": "#15532e" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_8",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [27.4, 0, 9.45],
+      "rotation": [0, 246, 0],
+      "material": { "color": "#30632b" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_9",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [28.11, 0, 17.19],
+      "rotation": [0, 29, 0],
+      "material": { "color": "#165136" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_10",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [32.85, 0, -12.49],
+      "rotation": [0, 206, 0],
+      "material": { "color": "#366531" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_11",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-4.87, 0, -14.29],
+      "rotation": [0, 296, 0],
+      "material": { "color": "#396727" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_12",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [12.47, 0, -13.72],
+      "rotation": [0, 60, 0],
+      "material": { "color": "#195435" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_13",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [26.52, 0, 54.58],
+      "rotation": [0, 262, 0],
+      "material": { "color": "#36662c" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_14",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [32.36, 0, 2.56],
+      "rotation": [0, 55, 0],
+      "material": { "color": "#356b2b" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_15",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [32.16, 0, -11.58],
+      "rotation": [0, 106, 0],
+      "material": { "color": "#184b31" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_16",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [30.08, 0, 9.93],
+      "rotation": [0, 174, 0],
+      "material": { "color": "#1f4835" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_17",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [32.55, 0, 21.98],
+      "rotation": [0, 351, 0],
+      "material": { "color": "#386627" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_18",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [28.84, 0, 38.72],
+      "rotation": [0, 352, 0],
+      "material": { "color": "#184f35" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_19",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [32.98, 0, -3.34],
+      "rotation": [0, 41, 0],
+      "material": { "color": "#194835" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_20",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-27.19, 0, 34.88],
+      "rotation": [0, 128, 0],
+      "material": { "color": "#316528" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_21",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-30.91, 0, -4.39],
+      "rotation": [0, 252, 0],
+      "material": { "color": "#1c482f" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_22",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [32.03, 0, -5.38],
+      "rotation": [0, 322, 0],
+      "material": { "color": "#164b36" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_23",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-27.64, 0, 14.68],
+      "rotation": [0, 30, 0],
+      "material": { "color": "#205133" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_24",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-28.77, 0, 15.91],
+      "rotation": [0, 267, 0],
+      "material": { "color": "#165330" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_25",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-32.76, 0, 31.46],
+      "rotation": [0, 245, 0],
+      "material": { "color": "#326f26" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_26",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [28.75, 0, 12.65],
+      "rotation": [0, 57, 0],
+      "material": { "color": "#1c5036" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_27",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-31.93, 0, 21.1],
+      "rotation": [0, 321, 0],
+      "material": { "color": "#195332" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_28",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-32.21, 0, -2.11],
+      "rotation": [0, 139, 0],
+      "material": { "color": "#306d28" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_29",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [27.38, 0, 38.48],
+      "rotation": [0, 355, 0],
+      "material": { "color": "#306e2c" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_30",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-8.19, 0, -15.56],
+      "rotation": [0, 248, 0],
+      "material": { "color": "#316d2c" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_31",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [31.62, 0, 31.6],
+      "rotation": [0, 174, 0],
+      "material": { "color": "#346d27" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_32",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-29.31, 0, 52.48],
+      "rotation": [0, 166, 0],
+      "material": { "color": "#3a6830" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_33",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [29.78, 0, 39.9],
+      "rotation": [0, 178, 0],
+      "material": { "color": "#3c6d30" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "fence_perimeter",
+      "type": "fence",
+      "points": [[-24, -8], [24, -8], [24, 46], [-24, 46]],
+      "closed": true,
+      "height": 1.9,
+      "style": "panel",
+      "material": { "color": "#a9adb5", "roughness": 0.7 },
+      "post_color": "#6b6f78"
+    }
+  ],
+  "checks": {
+    "lint": { "max_errors": 0 },
+    "walk": [
+      { "name": "forecourt to the checkout", "path": "-1,44; -1,34; -1,16; -1,12.6", "ends_near": [-1, 12.6], "tol": 0.4, "floor_y": 0 },
+      {
+        "name": "counter to the stockroom and the cooler",
+        "from": [-1, 12.6],
+        "path": "-1,12.6; 2.4,10; 3.0,6.2; 4.8,6.2; 5.7,7.0; 5.7,9.6",
+        "ends_near": [5.7, 9.6],
+        "tol": 0.4,
+        "floor_y": 0
+      },
+      {
+        "name": "stockroom out the back door",
+        "from": [5.0, 6.2],
+        "path": "5.0,6.2; 8.0,4.6; 9.2,3.4; 11.5,3.0",
+        "ends_near": [11.5, 3.0],
+        "tol": 0.4,
+        "floor_y": 0
+      },
+      {
+        "name": "stockroom to the back office",
+        "from": [5.0, 6.2],
+        "path": "5.0,6.2; 8.8,6.6; 8.8,9.4; 8.8,11.2",
+        "ends_near": [8.8, 11.2],
+        "tol": 0.4,
+        "floor_y": 0
+      }
+    ],
+    "objects": { "exist": ["counter_1", "cooler_0", "fascia"], "min_count": 150 },
+    "views": [
+      { "name": "forecourt", "eye": [0, 1.7, 44], "at": [0, 2.0, 16], "fov": 72 },
+      { "name": "aisles", "eye": [-1.0, 1.7, 13.4], "at": [-6, 1.2, 4], "fov": 85 },
+      { "name": "backroom", "eye": [4.6, 1.7, 7.2], "at": [8, 1.2, 2], "fov": 85 }
+    ]
+  },
+  "prefabs": {
+    "fuel_pump": {
+      "tags": ["outdoor", "vehicle"],
+      "desc": "A fuel pump (two-sided, hose on each side).",
+      "params": { "color": { "default": "#c8202a", "desc": "body color" } },
+      "objects": [
+        { "id": "base", "type": "box", "size": [0.6, 0.15, 0.5], "position": [0, 0.075, 0], "material": { "color": "#3a3d42", "roughness": 0.6 } },
+        { "id": "body", "type": "box", "size": [0.5, 1.35, 0.4], "position": [0, 0.825, 0], "material": { "color": "$color", "roughness": 0.4 } },
+        { "id": "top", "type": "box", "size": [0.56, 0.16, 0.46], "position": [0, 1.58, 0], "material": { "color": "#efeae0", "roughness": 0.5 } },
+        {
+          "id": "screen_f",
+          "type": "box",
+          "size": [0.3, 0.22, 0.02],
+          "position": [0, 1.2, 0.205],
+          "material": { "color": "#152030", "roughness": 0.2 }
+        },
+        {
+          "id": "screen_b",
+          "type": "box",
+          "size": [0.3, 0.22, 0.02],
+          "position": [0, 1.2, -0.205],
+          "material": { "color": "#152030", "roughness": 0.2 }
+        },
+        {
+          "id": "holster_f",
+          "type": "box",
+          "size": [0.12, 0.3, 0.08],
+          "position": [0.22, 0.85, 0.24],
+          "material": { "color": "#111111", "roughness": 0.6 }
+        },
+        {
+          "id": "holster_b",
+          "type": "box",
+          "size": [0.12, 0.3, 0.08],
+          "position": [-0.22, 0.85, -0.24],
+          "material": { "color": "#111111", "roughness": 0.6 }
+        },
+        {
+          "id": "hose_f",
+          "type": "cylinder",
+          "radius": 0.02,
+          "height": 0.9,
+          "position": [0.32, 0.7, 0.16],
+          "material": { "color": "#111111", "roughness": 0.7 }
+        },
+        {
+          "id": "hose_b",
+          "type": "cylinder",
+          "radius": 0.02,
+          "height": 0.9,
+          "position": [-0.32, 0.7, -0.16],
+          "material": { "color": "#111111", "roughness": 0.7 }
+        },
+        { "id": "stripe", "type": "box", "size": [0.51, 0.1, 0.41], "position": [0, 0.45, 0], "material": { "color": "#f2f2ee", "roughness": 0.5 } }
+      ]
+    }
+  }
+}

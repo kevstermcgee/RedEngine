@@ -1,0 +1,11348 @@
+[
+ {
+  "name": "painting_landscape",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "painting"
+  ],
+  "desc": "A framed landscape painting (sun, hills, clouds); origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "frame": {
+    "default": "#5a3a1e",
+    "desc": "frame color"
+   },
+   "sky": {
+    "default": "#8fc1e8",
+    "desc": "sky color"
+   },
+   "hill": {
+    "default": "#4f8a4a",
+    "desc": "near hills"
+   },
+   "hill2": {
+    "default": "#3b6b3a",
+    "desc": "far hills"
+   }
+  },
+  "objects": [
+   {
+    "id": "back",
+    "type": "box",
+    "size": [
+     1.0,
+     0.7,
+     0.02
+    ],
+    "position": [
+     0,
+     0,
+     0.01
+    ],
+    "material": {
+     "color": "#2b2320",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "f_top",
+    "type": "box",
+    "size": [
+     1.0,
+     0.05,
+     0.032
+    ],
+    "position": [
+     0,
+     0.325,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_bot",
+    "type": "box",
+    "size": [
+     1.0,
+     0.05,
+     0.032
+    ],
+    "position": [
+     0,
+     -0.325,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_l",
+    "type": "box",
+    "size": [
+     0.05,
+     0.6,
+     0.032
+    ],
+    "position": [
+     -0.475,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_r",
+    "type": "box",
+    "size": [
+     0.05,
+     0.6,
+     0.032
+    ],
+    "position": [
+     0.475,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "sky",
+    "type": "box",
+    "size": [
+     0.9,
+     0.6,
+     0.003
+    ],
+    "position": [
+     0,
+     0,
+     0.0215
+    ],
+    "material": {
+     "color": "$sky",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "sun",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.003,
+    "position": [
+     0.24,
+     0.13,
+     0.0245
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#f6d14a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "hill_far",
+    "type": "box",
+    "size": [
+     0.9,
+     0.22,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.19,
+     0.0245
+    ],
+    "material": {
+     "color": "$hill2",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "hill_near",
+    "type": "box",
+    "size": [
+     0.62,
+     0.15,
+     0.003
+    ],
+    "position": [
+     -0.14,
+     -0.225,
+     0.0275
+    ],
+    "material": {
+     "color": "$hill",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "hill_near2",
+    "type": "box",
+    "size": [
+     0.36,
+     0.1,
+     0.003
+    ],
+    "position": [
+     0.27,
+     -0.25,
+     0.0305
+    ],
+    "material": {
+     "color": "$hill",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "cloud",
+    "type": "box",
+    "size": [
+     0.2,
+     0.04,
+     0.003
+    ],
+    "position": [
+     -0.2,
+     0.18,
+     0.0245
+    ],
+    "material": {
+     "color": "#f4f7fa",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "cloud2",
+    "type": "box",
+    "size": [
+     0.12,
+     0.03,
+     0.003
+    ],
+    "position": [
+     -0.13,
+     0.215,
+     0.0275
+    ],
+    "material": {
+     "color": "#f4f7fa",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "painting_seascape",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "painting"
+  ],
+  "desc": "A wide framed seascape with a sailboat; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "frame": {
+    "default": "#3d4a52",
+    "desc": "frame color"
+   },
+   "sea": {
+    "default": "#3f86a8",
+    "desc": "sea color"
+   }
+  },
+  "objects": [
+   {
+    "id": "back",
+    "type": "box",
+    "size": [
+     1.39,
+     0.64,
+     0.02
+    ],
+    "position": [
+     0,
+     0,
+     0.01
+    ],
+    "material": {
+     "color": "#1d2a33",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "f_top",
+    "type": "box",
+    "size": [
+     1.39,
+     0.045,
+     0.032
+    ],
+    "position": [
+     0,
+     0.2975,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_bot",
+    "type": "box",
+    "size": [
+     1.39,
+     0.045,
+     0.032
+    ],
+    "position": [
+     0,
+     -0.2975,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_l",
+    "type": "box",
+    "size": [
+     0.045,
+     0.55,
+     0.032
+    ],
+    "position": [
+     -0.6725,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_r",
+    "type": "box",
+    "size": [
+     0.045,
+     0.55,
+     0.032
+    ],
+    "position": [
+     0.6725,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "sky",
+    "type": "box",
+    "size": [
+     1.3,
+     0.55,
+     0.003
+    ],
+    "position": [
+     0,
+     0,
+     0.0215
+    ],
+    "material": {
+     "color": "#d9e6ef",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "sea",
+    "type": "box",
+    "size": [
+     1.3,
+     0.3,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.125,
+     0.0245
+    ],
+    "material": {
+     "color": "$sea",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "wave1",
+    "type": "box",
+    "size": [
+     1.3,
+     0.05,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.06,
+     0.0275
+    ],
+    "material": {
+     "color": "#5f97b0",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "wave2",
+    "type": "box",
+    "size": [
+     0.6,
+     0.035,
+     0.003
+    ],
+    "position": [
+     -0.3,
+     -0.16,
+     0.0275
+    ],
+    "material": {
+     "color": "#7fb0c6",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "wave3",
+    "type": "box",
+    "size": [
+     0.45,
+     0.03,
+     0.003
+    ],
+    "position": [
+     0.3,
+     -0.21,
+     0.0275
+    ],
+    "material": {
+     "color": "#3f6f86",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "sun",
+    "type": "cylinder",
+    "radius": 0.06,
+    "height": 0.003,
+    "position": [
+     -0.35,
+     0.09,
+     0.0245
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#f4b56a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "boat_hull",
+    "type": "box",
+    "size": [
+     0.16,
+     0.035,
+     0.003
+    ],
+    "position": [
+     0.3,
+     -0.03,
+     0.0305
+    ],
+    "material": {
+     "color": "#7a2f2a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "boat_mast",
+    "type": "box",
+    "size": [
+     0.01,
+     0.15,
+     0.003
+    ],
+    "position": [
+     0.3,
+     0.05,
+     0.0335
+    ],
+    "material": {
+     "color": "#4a3320",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "boat_sail",
+    "type": "box",
+    "size": [
+     0.08,
+     0.11,
+     0.003
+    ],
+    "position": [
+     0.34,
+     0.05,
+     0.0365
+    ],
+    "material": {
+     "color": "#f3efe6",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "painting_abstract",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "painting"
+  ],
+  "desc": "A framed abstract painting of color blocks (portrait); origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "frame": {
+    "default": "#1f1f1f",
+    "desc": "frame color"
+   },
+   "bg": {
+    "default": "#e9dfcf",
+    "desc": "background"
+   },
+   "c1": {
+    "default": "#c8452f",
+    "desc": "block 1"
+   },
+   "c2": {
+    "default": "#2f5f9a",
+    "desc": "block 2"
+   },
+   "c3": {
+    "default": "#e4b93a",
+    "desc": "block 3"
+   }
+  },
+  "objects": [
+   {
+    "id": "back",
+    "type": "box",
+    "size": [
+     0.78,
+     0.98,
+     0.02
+    ],
+    "position": [
+     0,
+     0,
+     0.01
+    ],
+    "material": {
+     "color": "#111111",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "f_top",
+    "type": "box",
+    "size": [
+     0.78,
+     0.04,
+     0.032
+    ],
+    "position": [
+     0,
+     0.47,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_bot",
+    "type": "box",
+    "size": [
+     0.78,
+     0.04,
+     0.032
+    ],
+    "position": [
+     0,
+     -0.47,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_l",
+    "type": "box",
+    "size": [
+     0.04,
+     0.9,
+     0.032
+    ],
+    "position": [
+     -0.37,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_r",
+    "type": "box",
+    "size": [
+     0.04,
+     0.9,
+     0.032
+    ],
+    "position": [
+     0.37,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "bg",
+    "type": "box",
+    "size": [
+     0.7,
+     0.9,
+     0.003
+    ],
+    "position": [
+     0,
+     0,
+     0.0215
+    ],
+    "material": {
+     "color": "$bg",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "b1",
+    "type": "box",
+    "size": [
+     0.36,
+     0.3,
+     0.003
+    ],
+    "position": [
+     -0.1,
+     0.2,
+     0.0245
+    ],
+    "material": {
+     "color": "$c1",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "b2",
+    "type": "box",
+    "size": [
+     0.22,
+     0.5,
+     0.003
+    ],
+    "position": [
+     0.17,
+     -0.1,
+     0.0245
+    ],
+    "material": {
+     "color": "$c2",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "b3",
+    "type": "box",
+    "size": [
+     0.3,
+     0.14,
+     0.003
+    ],
+    "position": [
+     -0.14,
+     -0.25,
+     0.0245
+    ],
+    "material": {
+     "color": "$c3",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "d1",
+    "type": "cylinder",
+    "radius": 0.08,
+    "height": 0.003,
+    "position": [
+     0.15,
+     0.3,
+     0.0275
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "line1",
+    "type": "box",
+    "size": [
+     0.5,
+     0.02,
+     0.003
+    ],
+    "position": [
+     -0.02,
+     0.02,
+     0.0275
+    ],
+    "material": {
+     "color": "#1a1a1a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "line2",
+    "type": "box",
+    "size": [
+     0.02,
+     0.6,
+     0.003
+    ],
+    "position": [
+     -0.27,
+     -0.1,
+     0.0275
+    ],
+    "material": {
+     "color": "#1a1a1a",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "painting_portrait_oval",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "painting"
+  ],
+  "desc": "An old-fashioned oval portrait in a gilt frame; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "coat": {
+    "default": "#2f3f5a",
+    "desc": "coat color"
+   },
+   "skin": {
+    "default": "#d9a98a",
+    "desc": "skin tone"
+   },
+   "hair": {
+    "default": "#5a3a26",
+    "desc": "hair color"
+   }
+  },
+  "objects": [
+   {
+    "id": "back",
+    "type": "box",
+    "size": [
+     0.7,
+     0.85,
+     0.012
+    ],
+    "position": [
+     0,
+     0,
+     0.006
+    ],
+    "material": {
+     "color": "#2b2320",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "rim",
+    "type": "cylinder",
+    "radius": 0.5,
+    "height": 0.034,
+    "position": [
+     0,
+     0,
+     0.017
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "scale": [
+     0.6,
+     1,
+     0.75
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.7
+    }
+   },
+   {
+    "id": "canvas",
+    "type": "cylinder",
+    "radius": 0.5,
+    "height": 0.004,
+    "position": [
+     0,
+     0,
+     0.036
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "scale": [
+     0.5,
+     1,
+     0.65
+    ],
+    "material": {
+     "color": "#3a2a22",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "shoulders",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     -0.2,
+     0.041
+    ],
+    "scale": [
+     0.42,
+     0.24,
+     0.012
+    ],
+    "material": {
+     "color": "$coat",
+     "roughness": 0.85
+    }
+   },
+   {
+    "id": "neck",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     -0.06,
+     0.043
+    ],
+    "scale": [
+     0.09,
+     0.16,
+     0.012
+    ],
+    "material": {
+     "color": "$skin",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "head",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.05,
+     0.046
+    ],
+    "scale": [
+     0.2,
+     0.26,
+     0.02
+    ],
+    "material": {
+     "color": "$skin",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "hair",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.105,
+     0.05
+    ],
+    "scale": [
+     0.22,
+     0.14,
+     0.014
+    ],
+    "material": {
+     "color": "$hair",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "collar",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     -0.1,
+     0.048
+    ],
+    "scale": [
+     0.14,
+     0.05,
+     0.01
+    ],
+    "material": {
+     "color": "#efe9dc",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "painting_still_life",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "painting"
+  ],
+  "desc": "A dark still-life painting of fruit and a vase; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "objects": [
+   {
+    "id": "back",
+    "type": "box",
+    "size": [
+     0.7,
+     0.6,
+     0.02
+    ],
+    "position": [
+     0,
+     0,
+     0.01
+    ],
+    "material": {
+     "color": "#1a120c",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "f_top",
+    "type": "box",
+    "size": [
+     0.7,
+     0.05,
+     0.032
+    ],
+    "position": [
+     0,
+     0.275,
+     0.016
+    ],
+    "material": {
+     "color": "#7a5a2c",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_bot",
+    "type": "box",
+    "size": [
+     0.7,
+     0.05,
+     0.032
+    ],
+    "position": [
+     0,
+     -0.275,
+     0.016
+    ],
+    "material": {
+     "color": "#7a5a2c",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_l",
+    "type": "box",
+    "size": [
+     0.05,
+     0.5,
+     0.032
+    ],
+    "position": [
+     -0.325,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "#7a5a2c",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_r",
+    "type": "box",
+    "size": [
+     0.05,
+     0.5,
+     0.032
+    ],
+    "position": [
+     0.325,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "#7a5a2c",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "bg",
+    "type": "box",
+    "size": [
+     0.6,
+     0.5,
+     0.003
+    ],
+    "position": [
+     0,
+     0,
+     0.0215
+    ],
+    "material": {
+     "color": "#4a3a30",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "table",
+    "type": "box",
+    "size": [
+     0.6,
+     0.16,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.17,
+     0.0245
+    ],
+    "material": {
+     "color": "#6d4a2c",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "cloth",
+    "type": "box",
+    "size": [
+     0.4,
+     0.05,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.09,
+     0.0275
+    ],
+    "material": {
+     "color": "#b64a3a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "apple1",
+    "type": "cylinder",
+    "radius": 0.06,
+    "height": 0.003,
+    "position": [
+     -0.06,
+     -0.03,
+     0.0305
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#c73a2c",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "apple2",
+    "type": "cylinder",
+    "radius": 0.05,
+    "height": 0.003,
+    "position": [
+     0.04,
+     -0.045,
+     0.0305
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#e0b83a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "pear",
+    "type": "cylinder",
+    "radius": 0.045,
+    "height": 0.003,
+    "position": [
+     0.14,
+     -0.04,
+     0.0305
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#8fae3a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "vase",
+    "type": "box",
+    "size": [
+     0.1,
+     0.2,
+     0.003
+    ],
+    "position": [
+     -0.2,
+     0.0,
+     0.0275
+    ],
+    "material": {
+     "color": "#3f7ea8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "vase_neck",
+    "type": "box",
+    "size": [
+     0.05,
+     0.07,
+     0.003
+    ],
+    "position": [
+     -0.2,
+     0.135,
+     0.0275
+    ],
+    "material": {
+     "color": "#3f7ea8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "bloom1",
+    "type": "cylinder",
+    "radius": 0.035,
+    "height": 0.003,
+    "position": [
+     -0.2,
+     0.19,
+     0.0305
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#e86a8a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "bloom2",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.003,
+    "position": [
+     -0.14,
+     0.16,
+     0.0305
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#f2d24a",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "poster_movie",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "poster"
+  ],
+  "desc": "An unframed movie poster (moon, silhouette, title bar); origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "bg": {
+    "default": "#1f2a52",
+    "desc": "poster background"
+   },
+   "accent": {
+    "default": "#f0c24a",
+    "desc": "moon / accent"
+   }
+  },
+  "objects": [
+   {
+    "id": "paper",
+    "type": "box",
+    "size": [
+     0.6,
+     0.9,
+     0.005
+    ],
+    "position": [
+     0,
+     0,
+     0.0025
+    ],
+    "material": {
+     "color": "$bg",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "moon",
+    "type": "cylinder",
+    "radius": 0.17,
+    "height": 0.003,
+    "position": [
+     0,
+     0.16,
+     0.0065
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$accent",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "hill",
+    "type": "box",
+    "size": [
+     0.6,
+     0.3,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.3,
+     0.0095
+    ],
+    "material": {
+     "color": "#101018",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "figure_head",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.08,
+     -0.09,
+     0.0125
+    ],
+    "scale": [
+     0.05,
+     0.05,
+     0.004
+    ],
+    "material": {
+     "color": "#101018",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "figure_body",
+    "type": "box",
+    "size": [
+     0.06,
+     0.16,
+     0.003
+    ],
+    "position": [
+     0.08,
+     -0.2,
+     0.014
+    ],
+    "material": {
+     "color": "#101018",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "title",
+    "type": "box",
+    "size": [
+     0.44,
+     0.07,
+     0.003
+    ],
+    "position": [
+     0,
+     0.33,
+     0.0125
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "credit",
+    "type": "box",
+    "size": [
+     0.36,
+     0.02,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.4,
+     0.0125
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "tag",
+    "type": "box",
+    "size": [
+     0.28,
+     0.015,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.365,
+     0.0125
+    ],
+    "material": {
+     "color": "$accent",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "poster_world_map",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "poster",
+   "school"
+  ],
+  "desc": "A wall map of the world (flat continents on blue); origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "objects": [
+   {
+    "id": "paper",
+    "type": "box",
+    "size": [
+     1.2,
+     0.72,
+     0.005
+    ],
+    "position": [
+     0,
+     0,
+     0.0025
+    ],
+    "material": {
+     "color": "#3f86a8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "land_na",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.34,
+     0.1,
+     0.0075
+    ],
+    "scale": [
+     0.26,
+     0.24,
+     0.005
+    ],
+    "material": {
+     "color": "#7fae5a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "land_sa",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.24,
+     -0.18,
+     0.0085
+    ],
+    "scale": [
+     0.13,
+     0.22,
+     0.005
+    ],
+    "material": {
+     "color": "#a3bd63",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "land_eu",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.0,
+     0.16,
+     0.0095
+    ],
+    "scale": [
+     0.16,
+     0.13,
+     0.005
+    ],
+    "material": {
+     "color": "#7fae5a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "land_af",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.02,
+     -0.06,
+     0.0105
+    ],
+    "scale": [
+     0.17,
+     0.24,
+     0.005
+    ],
+    "material": {
+     "color": "#a3bd63",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "land_as",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.3,
+     0.13,
+     0.0115
+    ],
+    "scale": [
+     0.32,
+     0.2,
+     0.005
+    ],
+    "material": {
+     "color": "#7fae5a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "land_au",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.38,
+     -0.2,
+     0.0125
+    ],
+    "scale": [
+     0.15,
+     0.1,
+     0.005
+    ],
+    "material": {
+     "color": "#a3bd63",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "land_gl",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.26,
+     0.28,
+     0.0135
+    ],
+    "scale": [
+     0.1,
+     0.08,
+     0.005
+    ],
+    "material": {
+     "color": "#7fae5a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "border_t",
+    "type": "box",
+    "size": [
+     1.2,
+     0.02,
+     0.003
+    ],
+    "position": [
+     0,
+     0.35,
+     0.0065
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "border_b",
+    "type": "box",
+    "size": [
+     1.2,
+     0.02,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.35,
+     0.0065
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "poster_motivational",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "poster",
+   "office"
+  ],
+  "desc": "A framed office 'motivational' poster: mountains and a caption bar; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "sky": {
+    "default": "#5a86b8",
+    "desc": "sky color"
+   }
+  },
+  "objects": [
+   {
+    "id": "back",
+    "type": "box",
+    "size": [
+     0.86,
+     0.62,
+     0.02
+    ],
+    "position": [
+     0,
+     0,
+     0.01
+    ],
+    "material": {
+     "color": "#000000",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "f_top",
+    "type": "box",
+    "size": [
+     0.86,
+     0.03,
+     0.032
+    ],
+    "position": [
+     0,
+     0.295,
+     0.016
+    ],
+    "material": {
+     "color": "#1b1b1f",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_bot",
+    "type": "box",
+    "size": [
+     0.86,
+     0.03,
+     0.032
+    ],
+    "position": [
+     0,
+     -0.295,
+     0.016
+    ],
+    "material": {
+     "color": "#1b1b1f",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_l",
+    "type": "box",
+    "size": [
+     0.03,
+     0.56,
+     0.032
+    ],
+    "position": [
+     -0.415,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "#1b1b1f",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_r",
+    "type": "box",
+    "size": [
+     0.03,
+     0.56,
+     0.032
+    ],
+    "position": [
+     0.415,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "#1b1b1f",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "bg",
+    "type": "box",
+    "size": [
+     0.8,
+     0.56,
+     0.003
+    ],
+    "position": [
+     0,
+     0,
+     0.0215
+    ],
+    "material": {
+     "color": "#141a26",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "photo",
+    "type": "box",
+    "size": [
+     0.74,
+     0.3808,
+     0.003
+    ],
+    "position": [
+     0,
+     0.07,
+     0.0245
+    ],
+    "material": {
+     "color": "$sky",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "ground",
+    "type": "box",
+    "size": [
+     0.74,
+     0.07,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.155,
+     0.0275
+    ],
+    "material": {
+     "color": "#2b3a44",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "word",
+    "type": "box",
+    "size": [
+     0.36,
+     0.045,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.225,
+     0.0275
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "sub",
+    "type": "box",
+    "size": [
+     0.5,
+     0.012,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.262,
+     0.0275
+    ],
+    "material": {
+     "color": "#8a95a3",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "peak1",
+    "type": "box",
+    "size": [
+     0.26,
+     0.26,
+     0.003
+    ],
+    "position": [
+     -0.12,
+     0.07,
+     0.0275
+    ],
+    "rotation": [
+     0,
+     0,
+     45
+    ],
+    "material": {
+     "color": "#dfe6ee",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "peak2",
+    "type": "box",
+    "size": [
+     0.2,
+     0.2,
+     0.003
+    ],
+    "position": [
+     0.15,
+     0.03,
+     0.0305
+    ],
+    "rotation": [
+     0,
+     0,
+     45
+    ],
+    "material": {
+     "color": "#c3ced9",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "corkboard",
+  "tags": [
+   "decor",
+   "wall",
+   "office",
+   "school",
+   "board"
+  ],
+  "desc": "A framed cork bulletin board with pinned notes; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "objects": [
+   {
+    "id": "back",
+    "type": "box",
+    "size": [
+     0.97,
+     0.67,
+     0.02
+    ],
+    "position": [
+     0,
+     0,
+     0.01
+    ],
+    "material": {
+     "color": "#8a6a45",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "f_top",
+    "type": "box",
+    "size": [
+     0.97,
+     0.035,
+     0.032
+    ],
+    "position": [
+     0,
+     0.3175,
+     0.016
+    ],
+    "material": {
+     "color": "#6b4a2a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_bot",
+    "type": "box",
+    "size": [
+     0.97,
+     0.035,
+     0.032
+    ],
+    "position": [
+     0,
+     -0.3175,
+     0.016
+    ],
+    "material": {
+     "color": "#6b4a2a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_l",
+    "type": "box",
+    "size": [
+     0.035,
+     0.6,
+     0.032
+    ],
+    "position": [
+     -0.4675,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "#6b4a2a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_r",
+    "type": "box",
+    "size": [
+     0.035,
+     0.6,
+     0.032
+    ],
+    "position": [
+     0.4675,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "#6b4a2a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "cork",
+    "type": "box",
+    "size": [
+     0.9,
+     0.6,
+     0.003
+    ],
+    "position": [
+     0,
+     0,
+     0.0215
+    ],
+    "material": {
+     "color": "#b98d5a",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "n1",
+    "type": "box",
+    "size": [
+     0.14,
+     0.14,
+     0.003
+    ],
+    "position": [
+     -0.28,
+     0.14,
+     0.0245
+    ],
+    "rotation": [
+     0,
+     0,
+     -6
+    ],
+    "material": {
+     "color": "#f4e46a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "pin0",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     -0.28,
+     0.19,
+     0.028
+    ],
+    "material": {
+     "color": "#d23a3a",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "n2",
+    "type": "box",
+    "size": [
+     0.12,
+     0.1,
+     0.003
+    ],
+    "position": [
+     -0.08,
+     0.16,
+     0.025
+    ],
+    "rotation": [
+     0,
+     0,
+     5
+    ],
+    "material": {
+     "color": "#8fd0a5",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "pin1",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     -0.08,
+     0.19,
+     0.0285
+    ],
+    "material": {
+     "color": "#2f6fd0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "n3",
+    "type": "box",
+    "size": [
+     0.16,
+     0.12,
+     0.003
+    ],
+    "position": [
+     0.14,
+     0.12,
+     0.0255
+    ],
+    "rotation": [
+     0,
+     0,
+     3
+    ],
+    "material": {
+     "color": "#f2f2ea",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "pin2",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     0.14,
+     0.16,
+     0.029
+    ],
+    "material": {
+     "color": "#2fa05a",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "n4",
+    "type": "box",
+    "size": [
+     0.1,
+     0.1,
+     0.003
+    ],
+    "position": [
+     0.32,
+     0.17,
+     0.026
+    ],
+    "rotation": [
+     0,
+     0,
+     1
+    ],
+    "material": {
+     "color": "#f39aa8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "pin3",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     0.32,
+     0.2,
+     0.0295
+    ],
+    "material": {
+     "color": "#e0a020",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "n5",
+    "type": "box",
+    "size": [
+     0.16,
+     0.12,
+     0.003
+    ],
+    "position": [
+     -0.3,
+     -0.08,
+     0.0265
+    ],
+    "rotation": [
+     0,
+     0,
+     -1
+    ],
+    "material": {
+     "color": "#8ec5f0",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "pin4",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     -0.3,
+     -0.04,
+     0.03
+    ],
+    "material": {
+     "color": "#d23a3a",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "n6",
+    "type": "box",
+    "size": [
+     0.18,
+     0.16,
+     0.003
+    ],
+    "position": [
+     -0.05,
+     -0.1,
+     0.027
+    ],
+    "rotation": [
+     0,
+     0,
+     -3
+    ],
+    "material": {
+     "color": "#f2f2ea",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "pin5",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     -0.05,
+     -0.04,
+     0.0305
+    ],
+    "material": {
+     "color": "#2f6fd0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "n7",
+    "type": "box",
+    "size": [
+     0.14,
+     0.14,
+     0.003
+    ],
+    "position": [
+     0.22,
+     -0.1,
+     0.0275
+    ],
+    "rotation": [
+     0,
+     0,
+     -5
+    ],
+    "material": {
+     "color": "#f4e46a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "pin6",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     0.22,
+     -0.05,
+     0.031
+    ],
+    "material": {
+     "color": "#2fa05a",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "n8",
+    "type": "box",
+    "size": [
+     0.1,
+     0.09,
+     0.003
+    ],
+    "position": [
+     0.36,
+     -0.18,
+     0.028
+    ],
+    "rotation": [
+     0,
+     0,
+     6
+    ],
+    "material": {
+     "color": "#f39aa8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "pin7",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     0.36,
+     -0.155,
+     0.0315
+    ],
+    "material": {
+     "color": "#e0a020",
+     "roughness": 0.4
+    }
+   }
+  ]
+ },
+ {
+  "name": "wall_calendar",
+  "tags": [
+   "decor",
+   "wall",
+   "office",
+   "school",
+   "small"
+  ],
+  "desc": "A paper wall calendar with one date circled; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "accent": {
+    "default": "#2f6fb0",
+    "desc": "header color"
+   }
+  },
+  "objects": [
+   {
+    "id": "paper",
+    "type": "box",
+    "size": [
+     0.32,
+     0.44,
+     0.006
+    ],
+    "position": [
+     0,
+     0,
+     0.003
+    ],
+    "material": {
+     "color": "#f4f1e8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "head",
+    "type": "box",
+    "size": [
+     0.32,
+     0.14,
+     0.008
+    ],
+    "position": [
+     0,
+     0.15,
+     0.004
+    ],
+    "material": {
+     "color": "$accent",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "hang",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     0,
+     0.23,
+     0.006
+    ],
+    "material": {
+     "color": "#b0b0b0",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "d0",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.128,
+     0.03,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d1",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0853,
+     0.03,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d2",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0426,
+     0.03,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d3",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0001,
+     0.03,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d4",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0428,
+     0.03,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d5",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0855,
+     0.03,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d6",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.1282,
+     0.03,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d7",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.128,
+     -0.032,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d8",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0853,
+     -0.032,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d9",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0426,
+     -0.032,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d10",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0001,
+     -0.032,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d11",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0428,
+     -0.032,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d12",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0855,
+     -0.032,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d13",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.1282,
+     -0.032,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d14",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.128,
+     -0.094,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d15",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0853,
+     -0.094,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d16",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0426,
+     -0.094,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d17",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0001,
+     -0.094,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d18",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0428,
+     -0.094,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d19",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0855,
+     -0.094,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d20",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.1282,
+     -0.094,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d21",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.128,
+     -0.156,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d22",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0853,
+     -0.156,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d23",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0426,
+     -0.156,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d24",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0001,
+     -0.156,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d25",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0428,
+     -0.156,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d26",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.0855,
+     -0.156,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d27",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     0.1282,
+     -0.156,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d28",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.128,
+     -0.218,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d29",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0853,
+     -0.218,
+     0.0067
+    ],
+    "material": {
+     "color": "#e2ddd0",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "d30",
+    "type": "box",
+    "size": [
+     0.03,
+     0.045,
+     0.0015
+    ],
+    "position": [
+     -0.0426,
+     -0.218,
+     0.0067
+    ],
+    "material": {
+     "color": "#ebe7dc",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "mark",
+    "type": "box",
+    "size": [
+     0.033,
+     0.048,
+     0.0015
+    ],
+    "position": [
+     0.0001,
+     -0.094,
+     0.008
+    ],
+    "material": {
+     "color": "#d23a3a",
+     "roughness": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "dartboard",
+  "tags": [
+   "decor",
+   "wall",
+   "game"
+  ],
+  "desc": "A dartboard in a wooden cabinet; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "objects": [
+   {
+    "id": "cabinet",
+    "type": "box",
+    "size": [
+     0.6,
+     0.6,
+     0.03
+    ],
+    "position": [
+     0,
+     0,
+     0.015
+    ],
+    "material": {
+     "color": "#4a3320",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "ring0",
+    "type": "cylinder",
+    "radius": 0.27,
+    "height": 0.01,
+    "position": [
+     0,
+     0,
+     0.035
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#111111",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ring1",
+    "type": "cylinder",
+    "radius": 0.235,
+    "height": 0.004,
+    "position": [
+     0,
+     0,
+     0.041
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#efe6c8",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ring2",
+    "type": "cylinder",
+    "radius": 0.19,
+    "height": 0.004,
+    "position": [
+     0,
+     0,
+     0.043
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#1a1a1a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ring3",
+    "type": "cylinder",
+    "radius": 0.17,
+    "height": 0.004,
+    "position": [
+     0,
+     0,
+     0.045
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#d23a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ring4",
+    "type": "cylinder",
+    "radius": 0.1,
+    "height": 0.004,
+    "position": [
+     0,
+     0,
+     0.047
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#efe6c8",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ring5",
+    "type": "cylinder",
+    "radius": 0.085,
+    "height": 0.004,
+    "position": [
+     0,
+     0,
+     0.049
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#2fa05a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ring6",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.004,
+    "position": [
+     0,
+     0,
+     0.051
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#d23a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "bull",
+    "type": "cylinder",
+    "radius": 0.012,
+    "height": 0.004,
+    "position": [
+     0,
+     0,
+     0.053
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#111111",
+     "roughness": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "wall_mirror_round",
+  "tags": [
+   "decor",
+   "wall",
+   "bathroom",
+   "mirror"
+  ],
+  "desc": "A round mirror with a metal rim; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "d": {
+    "default": 0.8,
+    "desc": "diameter"
+   },
+   "rim": {
+    "default": "#c9a24a",
+    "desc": "rim color"
+   }
+  },
+  "objects": [
+   {
+    "id": "rim",
+    "type": "cylinder",
+    "radius": 0.5,
+    "height": 0.04,
+    "position": [
+     0,
+     0,
+     0.02
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "scale": [
+     "=$d",
+     1,
+     "=$d"
+    ],
+    "material": {
+     "color": "$rim",
+     "roughness": 0.35,
+     "metallic": 0.7
+    }
+   },
+   {
+    "id": "glass",
+    "type": "cylinder",
+    "radius": 0.5,
+    "height": 0.004,
+    "position": [
+     0,
+     0,
+     0.043
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "scale": [
+     "=$d-0.08",
+     1,
+     "=$d-0.08"
+    ],
+    "material": {
+     "color": "#c4d4dc",
+     "roughness": 0.05,
+     "metallic": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "certificate_frame",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "office",
+   "school",
+   "small"
+  ],
+  "desc": "A small framed certificate with a red seal; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "objects": [
+   {
+    "id": "back",
+    "type": "box",
+    "size": [
+     0.35,
+     0.27,
+     0.02
+    ],
+    "position": [
+     0,
+     0,
+     0.01
+    ],
+    "material": {
+     "color": "#000000",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "f_top",
+    "type": "box",
+    "size": [
+     0.35,
+     0.025,
+     0.032
+    ],
+    "position": [
+     0,
+     0.1225,
+     0.016
+    ],
+    "material": {
+     "color": "#2a2a2a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_bot",
+    "type": "box",
+    "size": [
+     0.35,
+     0.025,
+     0.032
+    ],
+    "position": [
+     0,
+     -0.1225,
+     0.016
+    ],
+    "material": {
+     "color": "#2a2a2a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_l",
+    "type": "box",
+    "size": [
+     0.025,
+     0.22,
+     0.032
+    ],
+    "position": [
+     -0.1625,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "#2a2a2a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "f_r",
+    "type": "box",
+    "size": [
+     0.025,
+     0.22,
+     0.032
+    ],
+    "position": [
+     0.1625,
+     0,
+     0.016
+    ],
+    "material": {
+     "color": "#2a2a2a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "paper",
+    "type": "box",
+    "size": [
+     0.3,
+     0.22,
+     0.003
+    ],
+    "position": [
+     0,
+     0,
+     0.0215
+    ],
+    "material": {
+     "color": "#f6f1e0",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "title",
+    "type": "box",
+    "size": [
+     0.16,
+     0.018,
+     0.003
+    ],
+    "position": [
+     0,
+     0.06,
+     0.0245
+    ],
+    "material": {
+     "color": "#5a4a3a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "l1",
+    "type": "box",
+    "size": [
+     0.22,
+     0.008,
+     0.003
+    ],
+    "position": [
+     0,
+     0.02,
+     0.0245
+    ],
+    "material": {
+     "color": "#9a9080",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "l2",
+    "type": "box",
+    "size": [
+     0.2,
+     0.008,
+     0.003
+    ],
+    "position": [
+     0,
+     0.0,
+     0.0245
+    ],
+    "material": {
+     "color": "#9a9080",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "l3",
+    "type": "box",
+    "size": [
+     0.22,
+     0.008,
+     0.003
+    ],
+    "position": [
+     0,
+     -0.02,
+     0.0245
+    ],
+    "material": {
+     "color": "#9a9080",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "seal",
+    "type": "cylinder",
+    "radius": 0.022,
+    "height": 0.003,
+    "position": [
+     0.09,
+     -0.065,
+     0.0245
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#b8292f",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "sig",
+    "type": "box",
+    "size": [
+     0.09,
+     0.006,
+     0.003
+    ],
+    "position": [
+     -0.06,
+     -0.07,
+     0.0245
+    ],
+    "material": {
+     "color": "#3a3a55",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "wall_banner",
+  "tags": [
+   "decor",
+   "wall",
+   "school",
+   "sports"
+  ],
+  "desc": "A hanging cloth banner (school-spirit style) on a rod; origin at the wall face, at the rod's height.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "color": {
+    "default": "#2f4f9a",
+    "desc": "cloth color"
+   },
+   "stripe": {
+    "default": "#f0c24a",
+    "desc": "stripe / emblem color"
+   }
+  },
+  "objects": [
+   {
+    "id": "rod",
+    "type": "cylinder",
+    "radius": 0.012,
+    "height": 0.6,
+    "position": [
+     0,
+     0.62,
+     0.03
+    ],
+    "rotation": [
+     0,
+     0,
+     90
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "knob_l",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     -0.3,
+     0.62,
+     0.03
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "knob_r",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0.3,
+     0.62,
+     0.03
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "cloth",
+    "type": "box",
+    "size": [
+     0.52,
+     1.1,
+     0.012
+    ],
+    "position": [
+     0,
+     0.06,
+     0.03
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "tail_l",
+    "type": "cone",
+    "radius": 0.5,
+    "height": 1.0,
+    "position": [
+     -0.13,
+     -0.54,
+     0.03
+    ],
+    "rotation": [
+     180,
+     0,
+     0
+    ],
+    "scale": [
+     0.26,
+     0.16,
+     0.012
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "tail_r",
+    "type": "cone",
+    "radius": 0.5,
+    "height": 1.0,
+    "position": [
+     0.13,
+     -0.54,
+     0.03
+    ],
+    "rotation": [
+     180,
+     0,
+     0
+    ],
+    "scale": [
+     0.26,
+     0.16,
+     0.012
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "stripe_t",
+    "type": "box",
+    "size": [
+     0.52,
+     0.06,
+     0.004
+    ],
+    "position": [
+     0,
+     0.4,
+     0.038
+    ],
+    "material": {
+     "color": "$stripe",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "stripe_b",
+    "type": "box",
+    "size": [
+     0.52,
+     0.06,
+     0.004
+    ],
+    "position": [
+     0,
+     -0.2,
+     0.038
+    ],
+    "material": {
+     "color": "$stripe",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "emblem",
+    "type": "cylinder",
+    "radius": 0.11,
+    "height": 0.004,
+    "position": [
+     0,
+     0.1,
+     0.038
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$stripe",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "emblem_in",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.004,
+    "position": [
+     0,
+     0.1,
+     0.041
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "cord_l",
+    "type": "cylinder",
+    "radius": 0.004,
+    "height": 0.16,
+    "position": [
+     -0.13,
+     0.7,
+     0.03
+    ],
+    "rotation": [
+     0,
+     0,
+     20
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "cord_r",
+    "type": "cylinder",
+    "radius": 0.004,
+    "height": 0.16,
+    "position": [
+     0.13,
+     0.7,
+     0.03
+    ],
+    "rotation": [
+     0,
+     0,
+     -20
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.6
+    }
+   }
+  ]
+ },
+ {
+  "name": "trophy_deer_head",
+  "tags": [
+   "decor",
+   "wall",
+   "trophy",
+   "animal"
+  ],
+  "desc": "A mounted deer head with antlers on a wooden plaque; origin at the wall face, at the plaque's center.",
+  "mount": "wall",
+  "collide": false,
+  "objects": [
+   {
+    "id": "plaque",
+    "type": "cylinder",
+    "radius": 0.2,
+    "height": 0.03,
+    "position": [
+     0,
+     0,
+     0.015
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1.4
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "neck",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.24,
+    "position": [
+     0,
+     -0.06,
+     0.1
+    ],
+    "rotation": [
+     -50,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#8a6a45",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "head",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.07,
+     0.19
+    ],
+    "scale": [
+     0.15,
+     0.17,
+     0.2
+    ],
+    "material": {
+     "color": "#8a6a45",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "snout",
+    "type": "cylinder",
+    "radius": 0.045,
+    "height": 0.14,
+    "position": [
+     0,
+     0.03,
+     0.31
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#7a5a38",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "nose",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0,
+     0.03,
+     0.385
+    ],
+    "material": {
+     "color": "#151515",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "ear_l",
+    "type": "cone",
+    "radius": 0.03,
+    "height": 0.12,
+    "position": [
+     -0.11,
+     0.16,
+     0.17
+    ],
+    "rotation": [
+     0,
+     0,
+     60
+    ],
+    "material": {
+     "color": "#8a6a45",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "ear_r",
+    "type": "cone",
+    "radius": 0.03,
+    "height": 0.12,
+    "position": [
+     0.11,
+     0.16,
+     0.17
+    ],
+    "rotation": [
+     0,
+     0,
+     -60
+    ],
+    "material": {
+     "color": "#8a6a45",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "eye_l",
+    "type": "sphere",
+    "radius": 0.015,
+    "position": [
+     -0.07,
+     0.11,
+     0.27
+    ],
+    "material": {
+     "color": "#151515",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "eye_r",
+    "type": "sphere",
+    "radius": 0.015,
+    "position": [
+     0.07,
+     0.11,
+     0.27
+    ],
+    "material": {
+     "color": "#151515",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "ant_l0",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.1166,
+    "position": [
+     -0.08,
+     0.25,
+     0.18
+    ],
+    "rotation": [
+     0,
+     0,
+     30.96
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "ant_l1",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.1082,
+    "position": [
+     -0.14,
+     0.345,
+     0.17
+    ],
+    "rotation": [
+     0,
+     0,
+     33.69
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "ant_l2",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.114,
+    "position": [
+     -0.185,
+     0.445,
+     0.16
+    ],
+    "rotation": [
+     0,
+     0,
+     15.26
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "tine_l0",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.1044,
+    "position": [
+     -0.145,
+     0.38,
+     0.165
+    ],
+    "rotation": [
+     0,
+     0,
+     16.7
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "tine_l1",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.1044,
+    "position": [
+     -0.205,
+     0.47,
+     0.165
+    ],
+    "rotation": [
+     0,
+     0,
+     16.7
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "ant_r0",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.1166,
+    "position": [
+     0.08,
+     0.25,
+     0.18
+    ],
+    "rotation": [
+     0,
+     0,
+     -30.96
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "ant_r1",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.1082,
+    "position": [
+     0.14,
+     0.345,
+     0.17
+    ],
+    "rotation": [
+     0,
+     0,
+     -33.69
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "ant_r2",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.114,
+    "position": [
+     0.185,
+     0.445,
+     0.16
+    ],
+    "rotation": [
+     0,
+     0,
+     -15.26
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "tine_r0",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.1044,
+    "position": [
+     0.145,
+     0.38,
+     0.165
+    ],
+    "rotation": [
+     0,
+     0,
+     -16.7
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "tine_r1",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.1044,
+    "position": [
+     0.205,
+     0.47,
+     0.165
+    ],
+    "rotation": [
+     0,
+     0,
+     -16.7
+    ],
+    "material": {
+     "color": "#e4d8bd",
+     "roughness": 0.7
+    }
+   }
+  ]
+ },
+ {
+  "name": "gallery_trio",
+  "tags": [
+   "decor",
+   "art",
+   "wall",
+   "painting"
+  ],
+  "desc": "A ready-made trio of paintings (landscape flanked by an abstract and a still life), 2.5 m wide; origin at the wall face, center.",
+  "mount": "wall",
+  "collide": false,
+  "objects": [
+   {
+    "id": "big",
+    "type": "prefab",
+    "prefab": "painting_landscape",
+    "position": [
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "left",
+    "type": "prefab",
+    "prefab": "painting_abstract",
+    "position": [
+     -0.85,
+     -0.05,
+     0
+    ],
+    "scale": 0.8,
+    "params": {
+     "bg": "#d9e6ef",
+     "c1": "#3f86a8",
+     "c2": "#e4b93a",
+     "c3": "#c8452f"
+    }
+   },
+   {
+    "id": "right",
+    "type": "prefab",
+    "prefab": "painting_still_life",
+    "position": [
+     0.95,
+     0.0,
+     0
+    ],
+    "scale": 0.85
+   }
+  ]
+ },
+ {
+  "name": "pedestal",
+  "tags": [
+   "decor",
+   "sculpture",
+   "display",
+   "furniture"
+  ],
+  "desc": "A museum display plinth (1 m by default); stand a small sculpture on it at y = height.",
+  "params": {
+   "plinth": {
+    "default": "#ece8df",
+    "desc": "plinth color"
+   }
+  },
+  "objects": [
+   {
+    "id": "plinth_base",
+    "type": "box",
+    "size": [
+     0.48,
+     0.06,
+     0.48
+    ],
+    "position": [
+     0,
+     0.03,
+     0
+    ],
+    "material": {
+     "color": "$plinth",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth",
+    "type": "box",
+    "size": [
+     0.4,
+     0.88,
+     0.4
+    ],
+    "position": [
+     0,
+     0.5,
+     0
+    ],
+    "material": {
+     "color": "$plinth",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth_cap",
+    "type": "box",
+    "size": [
+     0.48,
+     0.06,
+     0.48
+    ],
+    "position": [
+     0,
+     0.97,
+     0
+    ],
+    "material": {
+     "color": "$plinth",
+     "roughness": 0.5
+    }
+   }
+  ]
+ },
+ {
+  "name": "pedestal_low",
+  "tags": [
+   "decor",
+   "sculpture",
+   "display",
+   "furniture"
+  ],
+  "desc": "A short (0.6 m) display plinth.",
+  "params": {
+   "plinth": {
+    "default": "#e2ddd2",
+    "desc": "plinth color"
+   }
+  },
+  "objects": [
+   {
+    "id": "plinth_base",
+    "type": "box",
+    "size": [
+     0.58,
+     0.06,
+     0.58
+    ],
+    "position": [
+     0,
+     0.03,
+     0
+    ],
+    "material": {
+     "color": "$plinth",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth",
+    "type": "box",
+    "size": [
+     0.5,
+     0.48,
+     0.5
+    ],
+    "position": [
+     0,
+     0.3,
+     0
+    ],
+    "material": {
+     "color": "$plinth",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth_cap",
+    "type": "box",
+    "size": [
+     0.58,
+     0.06,
+     0.58
+    ],
+    "position": [
+     0,
+     0.57,
+     0
+    ],
+    "material": {
+     "color": "$plinth",
+     "roughness": 0.5
+    }
+   }
+  ]
+ },
+ {
+  "name": "sculpture_stack",
+  "tags": [
+   "decor",
+   "sculpture",
+   "small"
+  ],
+  "desc": "A tabletop abstract sculpture: cube, sphere and spike stacked on a black base (0.6 m).",
+  "params": {
+   "c1": {
+    "default": "#c9a24a",
+    "desc": "cube"
+   },
+   "c2": {
+    "default": "#e8e4dc",
+    "desc": "sphere"
+   },
+   "c3": {
+    "default": "#b8292f",
+    "desc": "spike"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.14,
+    "height": 0.03,
+    "position": [
+     0,
+     0.015,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "cube",
+    "type": "box",
+    "size": [
+     0.16,
+     0.16,
+     0.16
+    ],
+    "position": [
+     0,
+     0.11,
+     0
+    ],
+    "rotation": [
+     0,
+     35,
+     0
+    ],
+    "material": {
+     "color": "$c1",
+     "roughness": 0.35,
+     "metallic": 0.3
+    }
+   },
+   {
+    "id": "ball",
+    "type": "sphere",
+    "radius": 0.09,
+    "position": [
+     0.0,
+     0.29,
+     0
+    ],
+    "material": {
+     "color": "$c2",
+     "roughness": 0.25,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "spike",
+    "type": "cone",
+    "radius": 0.07,
+    "height": 0.22,
+    "position": [
+     0.0,
+     0.5,
+     0
+    ],
+    "material": {
+     "color": "$c3",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   }
+  ]
+ },
+ {
+  "name": "sculpture_spiral",
+  "tags": [
+   "decor",
+   "sculpture",
+   "small"
+  ],
+  "desc": "A tabletop spiral of beads climbing a steel rod (0.6 m).",
+  "params": {
+   "color": {
+    "default": "#c9743a",
+    "desc": "bead color"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.13,
+    "height": 0.03,
+    "position": [
+     0,
+     0.015,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "rod",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.52,
+    "position": [
+     0,
+     0.29,
+     0
+    ],
+    "material": {
+     "color": "#8a8f96",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "bead0",
+    "type": "sphere",
+    "radius": 0.026,
+    "position": [
+     0.09,
+     0.07,
+     0.0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead1",
+    "type": "sphere",
+    "radius": 0.0254,
+    "position": [
+     0.0711,
+     0.1,
+     0.0475
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead2",
+    "type": "sphere",
+    "radius": 0.0248,
+    "position": [
+     0.031,
+     0.13,
+     0.0748
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead3",
+    "type": "sphere",
+    "radius": 0.0242,
+    "position": [
+     -0.0149,
+     0.16,
+     0.075
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead4",
+    "type": "sphere",
+    "radius": 0.0236,
+    "position": [
+     -0.0509,
+     0.19,
+     0.0509
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead5",
+    "type": "sphere",
+    "radius": 0.023,
+    "position": [
+     -0.0662,
+     0.22,
+     0.0132
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead6",
+    "type": "sphere",
+    "radius": 0.0224,
+    "position": [
+     -0.0582,
+     0.25,
+     -0.0241
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead7",
+    "type": "sphere",
+    "radius": 0.0218,
+    "position": [
+     -0.0325,
+     0.28,
+     -0.0486
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead8",
+    "type": "sphere",
+    "radius": 0.0212,
+    "position": [
+     -0.0,
+     0.31,
+     -0.054
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead9",
+    "type": "sphere",
+    "radius": 0.0206,
+    "position": [
+     0.0275,
+     0.34,
+     -0.0412
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead10",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0.0416,
+     0.37,
+     -0.0172
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead11",
+    "type": "sphere",
+    "radius": 0.0194,
+    "position": [
+     0.0397,
+     0.4,
+     0.0079
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead12",
+    "type": "sphere",
+    "radius": 0.018799999999999997,
+    "position": [
+     0.0255,
+     0.43,
+     0.0255
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead13",
+    "type": "sphere",
+    "radius": 0.0182,
+    "position": [
+     0.0061,
+     0.46,
+     0.0309
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead14",
+    "type": "sphere",
+    "radius": 0.017599999999999998,
+    "position": [
+     -0.0103,
+     0.49,
+     0.0249
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "bead15",
+    "type": "sphere",
+    "radius": 0.017,
+    "position": [
+     -0.0187,
+     0.52,
+     0.0125
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.5
+    }
+   }
+  ]
+ },
+ {
+  "name": "sculpture_bust",
+  "tags": [
+   "decor",
+   "sculpture",
+   "statue",
+   "furniture"
+  ],
+  "desc": "A marble bust on a plinth (1.5 m tall in total).",
+  "params": {
+   "stone": {
+    "default": "#e6e2d8",
+    "desc": "marble color"
+   }
+  },
+  "objects": [
+   {
+    "id": "plinth_base",
+    "type": "box",
+    "size": [
+     0.42,
+     0.06,
+     0.42
+    ],
+    "position": [
+     0,
+     0.03,
+     0
+    ],
+    "material": {
+     "color": "#ece8df",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth",
+    "type": "box",
+    "size": [
+     0.34,
+     0.83,
+     0.34
+    ],
+    "position": [
+     0,
+     0.475,
+     0
+    ],
+    "material": {
+     "color": "#ece8df",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth_cap",
+    "type": "box",
+    "size": [
+     0.42,
+     0.06,
+     0.42
+    ],
+    "position": [
+     0,
+     0.92,
+     0
+    ],
+    "material": {
+     "color": "#ece8df",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "chest",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     1.07,
+     0
+    ],
+    "scale": [
+     0.5,
+     0.26,
+     0.26
+    ],
+    "material": {
+     "color": "$stone",
+     "roughness": 0.55
+    }
+   },
+   {
+    "id": "neck",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.2,
+    "position": [
+     0,
+     1.23,
+     0.0
+    ],
+    "material": {
+     "color": "$stone",
+     "roughness": 0.55
+    }
+   },
+   {
+    "id": "head",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     1.43,
+     0.0
+    ],
+    "scale": [
+     0.24,
+     0.32,
+     0.27
+    ],
+    "material": {
+     "color": "$stone",
+     "roughness": 0.55
+    }
+   },
+   {
+    "id": "nose",
+    "type": "cone",
+    "radius": 0.03,
+    "height": 0.08,
+    "position": [
+     0,
+     1.42,
+     0.15
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$stone",
+     "roughness": 0.55
+    }
+   },
+   {
+    "id": "brow",
+    "type": "box",
+    "size": [
+     0.15,
+     0.025,
+     0.04
+    ],
+    "position": [
+     0,
+     1.49,
+     0.115
+    ],
+    "material": {
+     "color": "$stone",
+     "roughness": 0.55
+    }
+   },
+   {
+    "id": "hair",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     1.55,
+     -0.02
+    ],
+    "scale": [
+     0.25,
+     0.12,
+     0.26
+    ],
+    "material": {
+     "color": "$stone",
+     "roughness": 0.6
+    }
+   }
+  ]
+ },
+ {
+  "name": "statue_figure",
+  "tags": [
+   "decor",
+   "sculpture",
+   "statue",
+   "furniture"
+  ],
+  "desc": "A bronze-style figure with raised arms on a low plinth (1.5 m tall).",
+  "params": {
+   "metal": {
+    "default": "#8c6a3a",
+    "desc": "bronze color"
+   }
+  },
+  "objects": [
+   {
+    "id": "plinth_base",
+    "type": "box",
+    "size": [
+     0.68,
+     0.06,
+     0.68
+    ],
+    "position": [
+     0,
+     0.03,
+     0
+    ],
+    "material": {
+     "color": "#8a8f96",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth",
+    "type": "box",
+    "size": [
+     0.6,
+     0.33,
+     0.6
+    ],
+    "position": [
+     0,
+     0.225,
+     0
+    ],
+    "material": {
+     "color": "#8a8f96",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth_cap",
+    "type": "box",
+    "size": [
+     0.68,
+     0.06,
+     0.68
+    ],
+    "position": [
+     0,
+     0.42,
+     0
+    ],
+    "material": {
+     "color": "#8a8f96",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "leg_l",
+    "type": "capsule",
+    "radius": 0.05,
+    "height": 0.42,
+    "position": [
+     -0.07,
+     0.69,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     2
+    ],
+    "material": {
+     "color": "$metal",
+     "roughness": 0.4,
+     "metallic": 0.7
+    }
+   },
+   {
+    "id": "leg_r",
+    "type": "capsule",
+    "radius": 0.05,
+    "height": 0.42,
+    "position": [
+     0.07,
+     0.69,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -2
+    ],
+    "material": {
+     "color": "$metal",
+     "roughness": 0.4,
+     "metallic": 0.7
+    }
+   },
+   {
+    "id": "torso",
+    "type": "capsule",
+    "radius": 0.11,
+    "height": 0.42,
+    "position": [
+     0,
+     1.07,
+     0
+    ],
+    "material": {
+     "color": "$metal",
+     "roughness": 0.4,
+     "metallic": 0.7
+    }
+   },
+   {
+    "id": "head",
+    "type": "sphere",
+    "radius": 0.075,
+    "position": [
+     0,
+     1.37,
+     0
+    ],
+    "material": {
+     "color": "$metal",
+     "roughness": 0.4,
+     "metallic": 0.7
+    }
+   },
+   {
+    "id": "arm_l",
+    "type": "capsule",
+    "radius": 0.035,
+    "height": 0.3830495168499706,
+    "position": [
+     -0.23,
+     1.29,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     26.57
+    ],
+    "material": {
+     "color": "$metal",
+     "roughness": 0.4,
+     "metallic": 0.7
+    }
+   },
+   {
+    "id": "arm_r",
+    "type": "capsule",
+    "radius": 0.035,
+    "height": 0.401058907144937,
+    "position": [
+     0.23,
+     1.3,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -25.02
+    ],
+    "material": {
+     "color": "$metal",
+     "roughness": 0.4,
+     "metallic": 0.7
+    }
+   }
+  ]
+ },
+ {
+  "name": "sculpture_cat",
+  "tags": [
+   "decor",
+   "sculpture",
+   "animal",
+   "small"
+  ],
+  "desc": "A glazed ceramic cat sitting upright (0.4 m).",
+  "params": {
+   "color": {
+    "default": "#e8e4dc",
+    "desc": "glaze"
+   },
+   "accent": {
+    "default": "#3a4a6a",
+    "desc": "stripe color"
+   }
+  },
+  "objects": [
+   {
+    "id": "body",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.13,
+     0
+    ],
+    "scale": [
+     0.2,
+     0.26,
+     0.17
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "haunch",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.09,
+     -0.02
+    ],
+    "scale": [
+     0.24,
+     0.18,
+     0.2
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "head",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.3,
+     0.02
+    ],
+    "scale": [
+     0.15,
+     0.13,
+     0.13
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "ear_l",
+    "type": "cone",
+    "radius": 0.035,
+    "height": 0.07,
+    "position": [
+     -0.048,
+     0.385,
+     0.02
+    ],
+    "rotation": [
+     0,
+     0,
+     8
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "ear_r",
+    "type": "cone",
+    "radius": 0.035,
+    "height": 0.07,
+    "position": [
+     0.048,
+     0.385,
+     0.02
+    ],
+    "rotation": [
+     0,
+     0,
+     -8
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "tail",
+    "type": "capsule",
+    "radius": 0.02,
+    "height": 0.20155494421403514,
+    "position": [
+     0.12,
+     0.125,
+     -0.08
+    ],
+    "rotation": [
+     0,
+     0,
+     -21.8
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "eye_l",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     -0.035,
+     0.31,
+     0.085
+    ],
+    "material": {
+     "color": "#1a3a2a",
+     "roughness": 0.2
+    }
+   },
+   {
+    "id": "eye_r",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     0.035,
+     0.31,
+     0.085
+    ],
+    "material": {
+     "color": "#1a3a2a",
+     "roughness": 0.2
+    }
+   },
+   {
+    "id": "nose",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     0,
+     0.29,
+     0.088
+    ],
+    "material": {
+     "color": "#c95a6a",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "collar",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.245,
+     0.02
+    ],
+    "scale": [
+     0.13,
+     0.035,
+     0.12
+    ],
+    "material": {
+     "color": "$accent",
+     "roughness": 0.3
+    }
+   }
+  ]
+ },
+ {
+  "name": "sculpture_bird",
+  "tags": [
+   "decor",
+   "sculpture",
+   "animal",
+   "small"
+  ],
+  "desc": "A glossy bird figurine on a little stand (0.35 m).",
+  "params": {
+   "color": {
+    "default": "#2f6fb0",
+    "desc": "body"
+   },
+   "wing": {
+    "default": "#1d4a80",
+    "desc": "wings"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.08,
+    "height": 0.02,
+    "position": [
+     0,
+     0.01,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "stand",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.12,
+    "position": [
+     0,
+     0.08,
+     0
+    ],
+    "material": {
+     "color": "#8a8f96",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "body",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.22,
+     0
+    ],
+    "rotation": [
+     -20,
+     0,
+     0
+    ],
+    "scale": [
+     0.11,
+     0.1,
+     0.24
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "head",
+    "type": "sphere",
+    "radius": 0.06,
+    "position": [
+     0,
+     0.29,
+     0.1
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "beak",
+    "type": "cone",
+    "radius": 0.02,
+    "height": 0.07,
+    "position": [
+     0,
+     0.285,
+     0.18
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#e0a020",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wing_l",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.075,
+     0.23,
+     -0.01
+    ],
+    "rotation": [
+     -20,
+     0,
+     25
+    ],
+    "scale": [
+     0.018,
+     0.1,
+     0.2
+    ],
+    "material": {
+     "color": "$wing",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "wing_r",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.075,
+     0.23,
+     -0.01
+    ],
+    "rotation": [
+     -20,
+     0,
+     -25
+    ],
+    "scale": [
+     0.018,
+     0.1,
+     0.2
+    ],
+    "material": {
+     "color": "$wing",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "tail",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.19,
+     -0.14
+    ],
+    "rotation": [
+     -40,
+     0,
+     0
+    ],
+    "scale": [
+     0.06,
+     0.02,
+     0.14
+    ],
+    "material": {
+     "color": "$wing",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "eye_l",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     -0.035,
+     0.31,
+     0.12
+    ],
+    "material": {
+     "color": "#111111",
+     "roughness": 0.2
+    }
+   },
+   {
+    "id": "eye_r",
+    "type": "sphere",
+    "radius": 0.008,
+    "position": [
+     0.035,
+     0.31,
+     0.12
+    ],
+    "material": {
+     "color": "#111111",
+     "roughness": 0.2
+    }
+   }
+  ]
+ },
+ {
+  "name": "sculpture_armillary",
+  "tags": [
+   "decor",
+   "sculpture",
+   "small"
+  ],
+  "desc": "A brass armillary sphere (three bead rings around a core) on a stand (0.5 m).",
+  "params": {
+   "core": {
+    "default": "#3f86a8",
+    "desc": "core color"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.14,
+    "height": 0.03,
+    "position": [
+     0,
+     0.015,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "foot",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.14,
+    "position": [
+     0,
+     0.1,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "core",
+    "type": "sphere",
+    "radius": 0.04,
+    "position": [
+     0,
+     0.3,
+     0
+    ],
+    "material": {
+     "color": "$core",
+     "roughness": 0.3,
+     "metallic": 0.3
+    }
+   },
+   {
+    "id": "ra0",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.17,
+     0.3,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb0",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.3,
+     0.17
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc0",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.1666,
+     0.3,
+     0.0
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra1",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.1617,
+     0.3525,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb1",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.3525,
+     0.1617
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc1",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.1584,
+     0.3,
+     0.0515
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra2",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.1375,
+     0.3999,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb2",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.3999,
+     0.1375
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc2",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.1348,
+     0.3,
+     0.0979
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra3",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0999,
+     0.4375,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb3",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.4375,
+     0.0999
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc3",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0979,
+     0.3,
+     0.1348
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra4",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0525,
+     0.4617,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb4",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.4617,
+     0.0525
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc4",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0515,
+     0.3,
+     0.1584
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra5",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0,
+     0.47,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb5",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.47,
+     0.0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc5",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0,
+     0.3,
+     0.1666
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra6",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0525,
+     0.4617,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb6",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.4617,
+     -0.0525
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc6",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0515,
+     0.3,
+     0.1584
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra7",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0999,
+     0.4375,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb7",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.4375,
+     -0.0999
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc7",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0979,
+     0.3,
+     0.1348
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra8",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.1375,
+     0.3999,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb8",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.3999,
+     -0.1375
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc8",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.1348,
+     0.3,
+     0.0979
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra9",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.1617,
+     0.3525,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb9",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.3525,
+     -0.1617
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc9",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.1584,
+     0.3,
+     0.0515
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra10",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.17,
+     0.3,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb10",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.3,
+     -0.17
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc10",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.1666,
+     0.3,
+     0.0
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra11",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.1617,
+     0.2475,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb11",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.2475,
+     -0.1617
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc11",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.1584,
+     0.3,
+     -0.0515
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra12",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.1375,
+     0.2001,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb12",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.2001,
+     -0.1375
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc12",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.1348,
+     0.3,
+     -0.0979
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra13",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0999,
+     0.1625,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb13",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.1625,
+     -0.0999
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc13",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0979,
+     0.3,
+     -0.1348
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra14",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0525,
+     0.1383,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb14",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.1383,
+     -0.0525
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc14",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0515,
+     0.3,
+     -0.1584
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra15",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0,
+     0.13,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb15",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.13,
+     -0.0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc15",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     -0.0,
+     0.3,
+     -0.1666
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra16",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0525,
+     0.1383,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb16",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.1383,
+     0.0525
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc16",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0515,
+     0.3,
+     -0.1584
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra17",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0999,
+     0.1625,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb17",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.1625,
+     0.0999
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc17",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.0979,
+     0.3,
+     -0.1348
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra18",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.1375,
+     0.2001,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb18",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.2001,
+     0.1375
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc18",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.1348,
+     0.3,
+     -0.0979
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "ra19",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.1617,
+     0.2475,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rb19",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0,
+     0.2475,
+     0.1617
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "rc19",
+    "type": "sphere",
+    "radius": 0.01,
+    "position": [
+     0.1584,
+     0.3,
+     -0.0515
+    ],
+    "material": {
+     "color": "#b58a3a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "sculpture_twist_tower",
+  "tags": [
+   "decor",
+   "sculpture",
+   "furniture"
+  ],
+  "desc": "A tapering, twisting tower of stacked blocks on a black plinth (1.65 m).",
+  "params": {
+   "color": {
+    "default": "#c9743a",
+    "desc": "block color"
+   }
+  },
+  "objects": [
+   {
+    "id": "plinth_base",
+    "type": "box",
+    "size": [
+     0.58,
+     0.06,
+     0.58
+    ],
+    "position": [
+     0,
+     0.03,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth",
+    "type": "box",
+    "size": [
+     0.5,
+     0.38,
+     0.5
+    ],
+    "position": [
+     0,
+     0.25,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "plinth_cap",
+    "type": "box",
+    "size": [
+     0.58,
+     0.06,
+     0.58
+    ],
+    "position": [
+     0,
+     0.47,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "blk0",
+    "type": "box",
+    "size": [
+     0.34,
+     0.11,
+     0.34
+    ],
+    "position": [
+     0,
+     0.555,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "blk1",
+    "type": "box",
+    "size": [
+     0.32,
+     0.11,
+     0.32
+    ],
+    "position": [
+     0,
+     0.665,
+     0
+    ],
+    "rotation": [
+     0,
+     14,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "blk2",
+    "type": "box",
+    "size": [
+     0.3,
+     0.11,
+     0.3
+    ],
+    "position": [
+     0,
+     0.775,
+     0
+    ],
+    "rotation": [
+     0,
+     28,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "blk3",
+    "type": "box",
+    "size": [
+     0.28,
+     0.11,
+     0.28
+    ],
+    "position": [
+     0,
+     0.885,
+     0
+    ],
+    "rotation": [
+     0,
+     42,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "blk4",
+    "type": "box",
+    "size": [
+     0.26,
+     0.11,
+     0.26
+    ],
+    "position": [
+     0,
+     0.995,
+     0
+    ],
+    "rotation": [
+     0,
+     56,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "blk5",
+    "type": "box",
+    "size": [
+     0.24,
+     0.11,
+     0.24
+    ],
+    "position": [
+     0,
+     1.105,
+     0
+    ],
+    "rotation": [
+     0,
+     70,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "blk6",
+    "type": "box",
+    "size": [
+     0.22,
+     0.11,
+     0.22
+    ],
+    "position": [
+     0,
+     1.215,
+     0
+    ],
+    "rotation": [
+     0,
+     84,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "blk7",
+    "type": "box",
+    "size": [
+     0.2,
+     0.11,
+     0.2
+    ],
+    "position": [
+     0,
+     1.325,
+     0
+    ],
+    "rotation": [
+     0,
+     98,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "blk8",
+    "type": "box",
+    "size": [
+     0.18,
+     0.11,
+     0.18
+    ],
+    "position": [
+     0,
+     1.435,
+     0
+    ],
+    "rotation": [
+     0,
+     112,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   },
+   {
+    "id": "blk9",
+    "type": "box",
+    "size": [
+     0.16,
+     0.11,
+     0.16
+    ],
+    "position": [
+     0,
+     1.545,
+     0
+    ],
+    "rotation": [
+     0,
+     126,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.3,
+     "metallic": 0.4
+    }
+   }
+  ]
+ },
+ {
+  "name": "sculpture_monolith",
+  "tags": [
+   "decor",
+   "sculpture",
+   "furniture"
+  ],
+  "desc": "A tall dark monolith with a brass band (1.7 m).",
+  "params": {
+   "color": {
+    "default": "#1c1f26",
+    "desc": "stone color"
+   }
+  },
+  "objects": [
+   {
+    "id": "slab",
+    "type": "box",
+    "size": [
+     0.5,
+     1.7,
+     0.16
+    ],
+    "position": [
+     0,
+     0.85,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.25,
+     "metallic": 0.3
+    }
+   },
+   {
+    "id": "band",
+    "type": "box",
+    "size": [
+     0.512,
+     0.05,
+     0.172
+    ],
+    "position": [
+     0,
+     1.1,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "foot",
+    "type": "box",
+    "size": [
+     0.62,
+     0.05,
+     0.28
+    ],
+    "position": [
+     0,
+     0.025,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.5
+    }
+   }
+  ]
+ },
+ {
+  "name": "trophy_cup",
+  "tags": [
+   "decor",
+   "trophy",
+   "small",
+   "sports"
+  ],
+  "desc": "A gold trophy cup on a wooden base (0.36 m).",
+  "objects": [
+   {
+    "id": "base",
+    "type": "box",
+    "size": [
+     0.16,
+     0.05,
+     0.16
+    ],
+    "position": [
+     0,
+     0.025,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "stem",
+    "type": "cylinder",
+    "radius": 0.02,
+    "height": 0.12,
+    "position": [
+     0,
+     0.11,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.25,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "knob",
+    "type": "cylinder",
+    "radius": 0.035,
+    "height": 0.03,
+    "position": [
+     0,
+     0.13,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.25,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "bowl",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.27,
+     0
+    ],
+    "scale": [
+     0.16,
+     0.16,
+     0.16
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.25,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "rim",
+    "type": "cylinder",
+    "radius": 0.085,
+    "height": 0.015,
+    "position": [
+     0,
+     0.35,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.25,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "h_l",
+    "type": "capsule",
+    "radius": 0.01,
+    "height": 0.10902246907382429,
+    "position": [
+     -0.1075,
+     0.285,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     141.84
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.25,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "h_r",
+    "type": "capsule",
+    "radius": 0.01,
+    "height": 0.10902246907382429,
+    "position": [
+     0.1075,
+     0.285,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -141.84
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.25,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "plate",
+    "type": "box",
+    "size": [
+     0.11,
+     0.035,
+     0.005
+    ],
+    "position": [
+     0,
+     0.03,
+     0.083
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.25,
+     "metallic": 0.85
+    }
+   }
+  ]
+ },
+ {
+  "name": "bonsai",
+  "tags": [
+   "decor",
+   "plant",
+   "small"
+  ],
+  "desc": "A bonsai tree in a blue pot (0.34 m).",
+  "params": {
+   "leaf": {
+    "default": "#3f7a3a",
+    "desc": "foliage"
+   }
+  },
+  "objects": [
+   {
+    "id": "pot",
+    "type": "box",
+    "size": [
+     0.26,
+     0.06,
+     0.18
+    ],
+    "position": [
+     0,
+     0.03,
+     0
+    ],
+    "material": {
+     "color": "#3a4a5a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "soil",
+    "type": "box",
+    "size": [
+     0.23,
+     0.01,
+     0.15
+    ],
+    "position": [
+     0,
+     0.065,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "trunk1",
+    "type": "capsule",
+    "radius": 0.018,
+    "height": 0.1437032961426901,
+    "position": [
+     0.0,
+     0.11,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -21.8
+    ],
+    "material": {
+     "color": "#5a3a26",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "trunk2",
+    "type": "capsule",
+    "radius": 0.014,
+    "height": 0.12233981132056602,
+    "position": [
+     -0.005,
+     0.2,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     32.01
+    ],
+    "material": {
+     "color": "#5a3a26",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "branch",
+    "type": "capsule",
+    "radius": 0.01,
+    "height": 0.10602325267042625,
+    "position": [
+     0.055,
+     0.185,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -54.46
+    ],
+    "material": {
+     "color": "#5a3a26",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "leaf1",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.04,
+     0.29,
+     0
+    ],
+    "scale": [
+     0.17,
+     0.09,
+     0.15
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "leaf2",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.1,
+     0.24,
+     0
+    ],
+    "scale": [
+     0.12,
+     0.07,
+     0.11
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "leaf3",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.11,
+     0.22,
+     0.02
+    ],
+    "scale": [
+     0.09,
+     0.06,
+     0.09
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "plant_snake",
+  "tags": [
+   "decor",
+   "plant"
+  ],
+  "desc": "A snake plant (tall, upright blade leaves) in a round pot (1.3 m).",
+  "params": {
+   "pot": {
+    "default": "#b6b0a4",
+    "desc": "pot color"
+   },
+   "leaf": {
+    "default": "#2f6a3a",
+    "desc": "leaf"
+   },
+   "leaf2": {
+    "default": "#4a8a4a",
+    "desc": "leaf variation"
+   }
+  },
+  "objects": [
+   {
+    "id": "pot",
+    "type": "cylinder",
+    "radius": 0.17,
+    "height": 0.32,
+    "position": [
+     0,
+     0.16,
+     0
+    ],
+    "material": {
+     "color": "$pot",
+     "roughness": 0.55
+    }
+   },
+   {
+    "id": "rim",
+    "type": "cylinder",
+    "radius": 0.185,
+    "height": 0.03,
+    "position": [
+     0,
+     0.335,
+     0
+    ],
+    "material": {
+     "color": "$pot",
+     "roughness": 0.55
+    }
+   },
+   {
+    "id": "soil",
+    "type": "cylinder",
+    "radius": 0.16,
+    "height": 0.01,
+    "position": [
+     0,
+     0.345,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "blade0",
+    "type": "box",
+    "size": [
+     0.07,
+     0.6103,
+     0.02
+    ],
+    "position": [
+     0.05,
+     0.6452,
+     0.0
+    ],
+    "rotation": [
+     -0.0,
+     90.0,
+     -2.818675762669402
+    ],
+    "material": {
+     "color": "$leaf2",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "blade1",
+    "type": "box",
+    "size": [
+     0.07,
+     0.579,
+     0.02
+    ],
+    "position": [
+     0.0383,
+     0.6295,
+     0.0321
+    ],
+    "rotation": [
+     1.55230094631336,
+     50.0,
+     1.8499602295563387
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "blade2",
+    "type": "box",
+    "size": [
+     0.07,
+     0.6963,
+     0.02
+    ],
+    "position": [
+     0.0087,
+     0.6881,
+     0.0492
+    ],
+    "rotation": [
+     0.5653900165575193,
+     10.0,
+     0.09969351454229644
+    ],
+    "material": {
+     "color": "$leaf2",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "blade3",
+    "type": "box",
+    "size": [
+     0.07,
+     0.753,
+     0.02
+    ],
+    "position": [
+     -0.025,
+     0.7165,
+     0.0433
+    ],
+    "rotation": [
+     -6.12454655432225,
+     -29.999999999999986,
+     3.5360086018023438
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "blade4",
+    "type": "box",
+    "size": [
+     0.07,
+     0.7235,
+     0.02
+    ],
+    "position": [
+     -0.047,
+     0.7017,
+     0.0171
+    ],
+    "rotation": [
+     -2.530972819014663,
+     -70.0,
+     6.953790669496194
+    ],
+    "material": {
+     "color": "$leaf2",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "blade5",
+    "type": "box",
+    "size": [
+     0.07,
+     0.5863,
+     0.02
+    ],
+    "position": [
+     -0.047,
+     0.6331,
+     -0.0171
+    ],
+    "rotation": [
+     2.353889754876286,
+     -110.0,
+     6.467258949408173
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "blade6",
+    "type": "box",
+    "size": [
+     0.07,
+     0.8807,
+     0.02
+    ],
+    "position": [
+     -0.025,
+     0.7804,
+     -0.0433
+    ],
+    "rotation": [
+     1.0458927952132988,
+     -149.99999999999997,
+     0.6038464868598888
+    ],
+    "material": {
+     "color": "$leaf2",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "blade7",
+    "type": "box",
+    "size": [
+     0.07,
+     0.6393,
+     0.02
+    ],
+    "position": [
+     0.0087,
+     0.6596,
+     -0.0492
+    ],
+    "rotation": [
+     5.92772392524507,
+     -190.0,
+     -1.0452176622117915
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "blade8",
+    "type": "box",
+    "size": [
+     0.07,
+     0.9291,
+     0.02
+    ],
+    "position": [
+     0.0383,
+     0.8045,
+     -0.0321
+    ],
+    "rotation": [
+     -1.3105999427958708,
+     -230.0,
+     1.561912190280744
+    ],
+    "material": {
+     "color": "$leaf2",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "core",
+    "type": "box",
+    "size": [
+     0.2,
+     0.42,
+     0.2
+    ],
+    "position": [
+     0,
+     0.21,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "plant_monstera",
+  "tags": [
+   "decor",
+   "plant"
+  ],
+  "desc": "A monstera with big flat leaves in a pot (1.1 m).",
+  "params": {
+   "pot": {
+    "default": "#c98a5a",
+    "desc": "pot color"
+   },
+   "leaf": {
+    "default": "#3a8a48",
+    "desc": "leaf"
+   }
+  },
+  "objects": [
+   {
+    "id": "pot",
+    "type": "cylinder",
+    "radius": 0.2,
+    "height": 0.34,
+    "position": [
+     0,
+     0.17,
+     0
+    ],
+    "material": {
+     "color": "$pot",
+     "roughness": 0.55
+    }
+   },
+   {
+    "id": "soil",
+    "type": "cylinder",
+    "radius": 0.19,
+    "height": 0.01,
+    "position": [
+     0,
+     0.345,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "stem0",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.3,
+    "position": [
+     0.0602,
+     0.49,
+     0.0186
+    ],
+    "rotation": [
+     3.5462424799360743,
+     0,
+     -11.464037869507273
+    ],
+    "material": {
+     "color": "#3a6a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "leaf0",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.1337,
+     0.6,
+     0.0414
+    ],
+    "rotation": [
+     -19.10672978251212,
+     0,
+     5.910404133226791
+    ],
+    "scale": [
+     0.3,
+     0.03,
+     0.22
+    ],
+    "material": {
+     "color": "#2f7a44",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "stem1",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.52,
+    "position": [
+     0.0488,
+     0.6,
+     0.0756
+    ],
+    "rotation": [
+     10.08552084520404,
+     0,
+     -6.5024817785946
+    ],
+    "material": {
+     "color": "#3a6a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "leaf1",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.1084,
+     0.82,
+     0.1681
+    ],
+    "rotation": [
+     -10.837469630990999,
+     0,
+     16.8092014086734
+    ],
+    "scale": [
+     0.3,
+     0.03,
+     0.22
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "stem2",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.74,
+    "position": [
+     -0.0146,
+     0.71,
+     0.1161
+    ],
+    "rotation": [
+     11.905671918922273,
+     0,
+     1.501657803557669
+    ],
+    "material": {
+     "color": "#3a6a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "leaf2",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.0325,
+     1.04,
+     0.258
+    ],
+    "rotation": [
+     2.502763005929449,
+     0,
+     19.842786531537122
+    ],
+    "scale": [
+     0.3,
+     0.03,
+     0.22
+    ],
+    "material": {
+     "color": "#2f7a44",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "stem3",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.3,
+    "position": [
+     -0.0462,
+     0.49,
+     0.0428
+    ],
+    "rotation": [
+     8.155026784972097,
+     0,
+     8.8031550103578
+    ],
+    "material": {
+     "color": "#3a6a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "leaf3",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.1027,
+     0.6,
+     0.0951
+    ],
+    "rotation": [
+     14.671925017263002,
+     0,
+     13.591711308286829
+    ],
+    "scale": [
+     0.3,
+     0.03,
+     0.22
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "stem4",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.52,
+    "position": [
+     -0.0899,
+     0.6,
+     0.0044
+    ],
+    "rotation": [
+     0.588553985306326,
+     0,
+     11.985558151641502
+    ],
+    "material": {
+     "color": "#3a6a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "leaf4",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.1998,
+     0.82,
+     0.0098
+    ],
+    "rotation": [
+     19.975930252735836,
+     0,
+     0.9809233088438765
+    ],
+    "scale": [
+     0.3,
+     0.03,
+     0.22
+    ],
+    "material": {
+     "color": "#2f7a44",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "stem5",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.74,
+    "position": [
+     -0.0932,
+     0.71,
+     -0.0707
+    ],
+    "rotation": [
+     -7.253309765133218,
+     0,
+     9.55978542913088
+    ],
+    "material": {
+     "color": "#3a6a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "leaf5",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.2071,
+     1.04,
+     -0.1572
+    ],
+    "rotation": [
+     15.932975715218134,
+     0,
+     -12.088849608555364
+    ],
+    "scale": [
+     0.3,
+     0.03,
+     0.22
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "stem6",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.3,
+    "position": [
+     -0.014,
+     0.49,
+     -0.0614
+    ],
+    "rotation": [
+     -11.701269264908166,
+     0,
+     2.660882859149475
+    ],
+    "material": {
+     "color": "#3a6a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "leaf6",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     -0.031,
+     0.6,
+     -0.1365
+    ],
+    "rotation": [
+     4.434804765249125,
+     0,
+     -19.502115441513613
+    ],
+    "scale": [
+     0.3,
+     0.03,
+     0.22
+    ],
+    "material": {
+     "color": "#2f7a44",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "stem7",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.52,
+    "position": [
+     0.0411,
+     0.6,
+     -0.0801
+    ],
+    "rotation": [
+     -10.674074830510365,
+     0,
+     -5.483076373046897
+    ],
+    "material": {
+     "color": "#3a6a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "leaf7",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.0914,
+     0.82,
+     -0.1779
+    ],
+    "rotation": [
+     -9.138460621744828,
+     0,
+     -17.790124717517276
+    ],
+    "scale": [
+     0.3,
+     0.03,
+     0.22
+    ],
+    "material": {
+     "color": "$leaf",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "stem8",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.74,
+    "position": [
+     0.1078,
+     0.71,
+     -0.0454
+    ],
+    "rotation": [
+     -4.652362153789058,
+     0,
+     -11.061443232688546
+    ],
+    "material": {
+     "color": "#3a6a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "leaf8",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.2397,
+     1.04,
+     -0.1008
+    ],
+    "rotation": [
+     -18.435738721147576,
+     0,
+     -7.753936922981763
+    ],
+    "scale": [
+     0.3,
+     0.03,
+     0.22
+    ],
+    "material": {
+     "color": "#2f7a44",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "core",
+    "type": "box",
+    "size": [
+     0.24,
+     0.42,
+     0.24
+    ],
+    "position": [
+     0,
+     0.21,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "plant_cactus",
+  "tags": [
+   "decor",
+   "plant",
+   "small"
+  ],
+  "desc": "A small cactus with two arms and a pink flower in a pot (0.5 m).",
+  "params": {
+   "pot": {
+    "default": "#c98a5a",
+    "desc": "pot color"
+   }
+  },
+  "objects": [
+   {
+    "id": "pot",
+    "type": "cylinder",
+    "radius": 0.1,
+    "height": 0.13,
+    "position": [
+     0,
+     0.065,
+     0
+    ],
+    "material": {
+     "color": "$pot",
+     "roughness": 0.55
+    }
+   },
+   {
+    "id": "soil",
+    "type": "cylinder",
+    "radius": 0.09,
+    "height": 0.01,
+    "position": [
+     0,
+     0.135,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.95
+    }
+   },
+   {
+    "id": "body",
+    "type": "cylinder",
+    "radius": 0.05,
+    "height": 0.3,
+    "position": [
+     0,
+     0.29,
+     0
+    ],
+    "material": {
+     "color": "#3f8a4a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "top",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0,
+     0.44,
+     0
+    ],
+    "material": {
+     "color": "#3f8a4a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "arm_l1",
+    "type": "capsule",
+    "radius": 0.028,
+    "height": 0.13599999999999998,
+    "position": [
+     -0.08,
+     0.26,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     90.0
+    ],
+    "material": {
+     "color": "#3f8a4a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "arm_l2",
+    "type": "capsule",
+    "radius": 0.028,
+    "height": 0.176,
+    "position": [
+     -0.12,
+     0.32,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -0.0
+    ],
+    "material": {
+     "color": "#3f8a4a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "arm_r1",
+    "type": "capsule",
+    "radius": 0.025,
+    "height": 0.12000000000000001,
+    "position": [
+     0.075,
+     0.32,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -90.0
+    ],
+    "material": {
+     "color": "#3f8a4a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "arm_r2",
+    "type": "capsule",
+    "radius": 0.025,
+    "height": 0.14999999999999997,
+    "position": [
+     0.11,
+     0.37,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -0.0
+    ],
+    "material": {
+     "color": "#3f8a4a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "flower",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0,
+     0.5,
+     0
+    ],
+    "material": {
+     "color": "#e86a8a",
+     "roughness": 0.5
+    }
+   }
+  ]
+ },
+ {
+  "name": "books_row",
+  "tags": [
+   "decor",
+   "books",
+   "small"
+  ],
+  "desc": "A row of eight upright books; origin at the middle of the base of the row.",
+  "objects": [
+   {
+    "id": "bk0",
+    "type": "box",
+    "size": [
+     0.0263,
+     0.2435,
+     0.16
+    ],
+    "position": [
+     -0.1169,
+     0.1218,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#b8292f",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "bk1",
+    "type": "box",
+    "size": [
+     0.0287,
+     0.2483,
+     0.16
+    ],
+    "position": [
+     -0.0874,
+     0.1242,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#2f5f9a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "bk2",
+    "type": "box",
+    "size": [
+     0.0333,
+     0.2052,
+     0.16
+    ],
+    "position": [
+     -0.0544,
+     0.1026,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#e4b93a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "bk3",
+    "type": "box",
+    "size": [
+     0.0222,
+     0.267,
+     0.16
+    ],
+    "position": [
+     -0.0247,
+     0.1335,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#2f7a55",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "bk4",
+    "type": "box",
+    "size": [
+     0.0267,
+     0.2187,
+     0.16
+    ],
+    "position": [
+     0.0018,
+     0.1094,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#6a3f8a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "bk5",
+    "type": "box",
+    "size": [
+     0.0399,
+     0.2376,
+     0.16
+    ],
+    "position": [
+     0.0371,
+     0.1188,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#d9d2c0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "bk6",
+    "type": "box",
+    "size": [
+     0.0371,
+     0.2381,
+     0.16
+    ],
+    "position": [
+     0.0776,
+     0.1191,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#c8742a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "bk7",
+    "type": "box",
+    "size": [
+     0.0335,
+     0.212,
+     0.16
+    ],
+    "position": [
+     0.1148,
+     0.106,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a4a",
+     "roughness": 0.7
+    }
+   }
+  ]
+ },
+ {
+  "name": "picture_stand",
+  "tags": [
+   "decor",
+   "art",
+   "small"
+  ],
+  "desc": "A small standing photo frame for desks and shelves (0.28 m).",
+  "params": {
+   "frame": {
+    "default": "#4a3320",
+    "desc": "frame"
+   },
+   "photo": {
+    "default": "#7fa8c8",
+    "desc": "photo color"
+   }
+  },
+  "objects": [
+   {
+    "id": "frame",
+    "type": "box",
+    "size": [
+     0.2,
+     0.26,
+     0.015
+    ],
+    "position": [
+     0,
+     0.14,
+     0
+    ],
+    "rotation": [
+     -12,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "photo",
+    "type": "box",
+    "size": [
+     0.16,
+     0.22,
+     0.004
+    ],
+    "position": [
+     0,
+     0.14,
+     0.0085
+    ],
+    "rotation": [
+     -12,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$photo",
+     "roughness": 0.85
+    }
+   },
+   {
+    "id": "leg",
+    "type": "box",
+    "size": [
+     0.05,
+     0.22,
+     0.01
+    ],
+    "position": [
+     0,
+     0.11,
+     -0.06
+    ],
+    "rotation": [
+     -32,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$frame",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "sun",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0.04,
+     0.19,
+     0.012
+    ],
+    "rotation": [
+     -12,
+     0,
+     0
+    ],
+    "scale": [
+     0.04,
+     0.04,
+     0.003
+    ],
+    "material": {
+     "color": "#f4d24a",
+     "roughness": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "hourglass",
+  "tags": [
+   "decor",
+   "small"
+  ],
+  "desc": "A wood-framed hourglass (0.21 m).",
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.06,
+    "height": 0.015,
+    "position": [
+     0,
+     0.0075,
+     0
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "top",
+    "type": "cylinder",
+    "radius": 0.06,
+    "height": 0.015,
+    "position": [
+     0,
+     0.2,
+     0
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "lower",
+    "type": "cone",
+    "radius": 0.045,
+    "height": 0.085,
+    "position": [
+     0,
+     0.0575,
+     0
+    ],
+    "material": {
+     "color": "#d9e6ef",
+     "roughness": 0.15
+    }
+   },
+   {
+    "id": "upper",
+    "type": "cone",
+    "radius": 0.045,
+    "height": 0.085,
+    "position": [
+     0,
+     0.1575,
+     0
+    ],
+    "rotation": [
+     180,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#d9e6ef",
+     "roughness": 0.15
+    }
+   },
+   {
+    "id": "sand_l",
+    "type": "cone",
+    "radius": 0.03,
+    "height": 0.05,
+    "position": [
+     0,
+     0.04,
+     0
+    ],
+    "material": {
+     "color": "#e0c060",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "sand_u",
+    "type": "cone",
+    "radius": 0.02,
+    "height": 0.03,
+    "position": [
+     0,
+     0.16,
+     0
+    ],
+    "rotation": [
+     180,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#e0c060",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "post0",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.19,
+    "position": [
+     0.04,
+     0.105,
+     0.04
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "post1",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.19,
+    "position": [
+     -0.04,
+     0.105,
+     0.04
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "post2",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.19,
+    "position": [
+     0.04,
+     0.105,
+     -0.04
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "post3",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.19,
+    "position": [
+     -0.04,
+     0.105,
+     -0.04
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.5
+    }
+   }
+  ]
+ },
+ {
+  "name": "radio_retro",
+  "tags": [
+   "decor",
+   "electronics",
+   "small"
+  ],
+  "desc": "A retro tabletop radio (0.36 m).",
+  "params": {
+   "color": {
+    "default": "#3f6a8a",
+    "desc": "case color"
+   }
+  },
+  "objects": [
+   {
+    "id": "body",
+    "type": "box",
+    "size": [
+     0.34,
+     0.2,
+     0.13
+    ],
+    "position": [
+     0,
+     0.1,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "dial_panel",
+    "type": "box",
+    "size": [
+     0.2,
+     0.12,
+     0.004
+    ],
+    "position": [
+     -0.05,
+     0.1,
+     0.067
+    ],
+    "material": {
+     "color": "#d8d0b0",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "needle",
+    "type": "box",
+    "size": [
+     0.004,
+     0.1,
+     0.004
+    ],
+    "position": [
+     -0.08,
+     0.1,
+     0.071
+    ],
+    "material": {
+     "color": "#b8292f",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "knob1",
+    "type": "cylinder",
+    "radius": 0.022,
+    "height": 0.02,
+    "position": [
+     0.1,
+     0.13,
+     0.075
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#e8e4dc",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "knob2",
+    "type": "cylinder",
+    "radius": 0.022,
+    "height": 0.02,
+    "position": [
+     0.1,
+     0.07,
+     0.075
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#e8e4dc",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "antenna",
+    "type": "cylinder",
+    "radius": 0.004,
+    "height": 0.1789,
+    "position": [
+     0.16,
+     0.28,
+     -0.04
+    ],
+    "rotation": [
+     0,
+     0,
+     -26.57
+    ],
+    "material": {
+     "color": "#8a8f96",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "grille",
+    "type": "box",
+    "size": [
+     0.05,
+     0.03,
+     0.004
+    ],
+    "position": [
+     0.1,
+     0.04,
+     0.067
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "newtons_cradle",
+  "tags": [
+   "decor",
+   "office",
+   "small",
+   "toy"
+  ],
+  "desc": "A desk Newton's cradle (0.24 m).",
+  "objects": [
+   {
+    "id": "base",
+    "type": "box",
+    "size": [
+     0.22,
+     0.02,
+     0.12
+    ],
+    "position": [
+     0,
+     0.01,
+     0
+    ],
+    "material": {
+     "color": "#5a3a1e",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "post_-1_-1",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.2,
+    "position": [
+     -0.1,
+     0.12,
+     -0.05
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.2,
+     "metallic": 0.9
+    }
+   },
+   {
+    "id": "post_-1_1",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.2,
+    "position": [
+     -0.1,
+     0.12,
+     0.05
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.2,
+     "metallic": 0.9
+    }
+   },
+   {
+    "id": "post_1_-1",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.2,
+    "position": [
+     0.1,
+     0.12,
+     -0.05
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.2,
+     "metallic": 0.9
+    }
+   },
+   {
+    "id": "post_1_1",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.2,
+    "position": [
+     0.1,
+     0.12,
+     0.05
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.2,
+     "metallic": 0.9
+    }
+   },
+   {
+    "id": "bar_f",
+    "type": "cylinder",
+    "radius": 0.005,
+    "height": 0.2,
+    "position": [
+     0,
+     0.22,
+     0.05
+    ],
+    "rotation": [
+     0,
+     0,
+     90
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.2,
+     "metallic": 0.9
+    }
+   },
+   {
+    "id": "bar_b",
+    "type": "cylinder",
+    "radius": 0.005,
+    "height": 0.2,
+    "position": [
+     0,
+     0.22,
+     -0.05
+    ],
+    "rotation": [
+     0,
+     0,
+     90
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.2,
+     "metallic": 0.9
+    }
+   },
+   {
+    "id": "ball0",
+    "type": "sphere",
+    "radius": 0.015,
+    "position": [
+     -0.06,
+     0.06,
+     0
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.15,
+     "metallic": 0.95
+    }
+   },
+   {
+    "id": "str_f0",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     -0.06,
+     0.14,
+     0.025
+    ],
+    "rotation": [
+     -9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "str_b0",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     -0.06,
+     0.14,
+     -0.025
+    ],
+    "rotation": [
+     9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ball1",
+    "type": "sphere",
+    "radius": 0.015,
+    "position": [
+     -0.03,
+     0.06,
+     0
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.15,
+     "metallic": 0.95
+    }
+   },
+   {
+    "id": "str_f1",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     -0.03,
+     0.14,
+     0.025
+    ],
+    "rotation": [
+     -9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "str_b1",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     -0.03,
+     0.14,
+     -0.025
+    ],
+    "rotation": [
+     9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ball2",
+    "type": "sphere",
+    "radius": 0.015,
+    "position": [
+     0.0,
+     0.06,
+     0
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.15,
+     "metallic": 0.95
+    }
+   },
+   {
+    "id": "str_f2",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     0.0,
+     0.14,
+     0.025
+    ],
+    "rotation": [
+     -9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "str_b2",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     0.0,
+     0.14,
+     -0.025
+    ],
+    "rotation": [
+     9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ball3",
+    "type": "sphere",
+    "radius": 0.015,
+    "position": [
+     0.03,
+     0.06,
+     0
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.15,
+     "metallic": 0.95
+    }
+   },
+   {
+    "id": "str_f3",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     0.03,
+     0.14,
+     0.025
+    ],
+    "rotation": [
+     -9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "str_b3",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     0.03,
+     0.14,
+     -0.025
+    ],
+    "rotation": [
+     9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "ball4",
+    "type": "sphere",
+    "radius": 0.015,
+    "position": [
+     0.06,
+     0.06,
+     0
+    ],
+    "material": {
+     "color": "#c0c4c8",
+     "roughness": 0.15,
+     "metallic": 0.95
+    }
+   },
+   {
+    "id": "str_f4",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     0.06,
+     0.14,
+     0.025
+    ],
+    "rotation": [
+     -9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "str_b4",
+    "type": "cylinder",
+    "radius": 0.001,
+    "height": 0.16,
+    "position": [
+     0.06,
+     0.14,
+     -0.025
+    ],
+    "rotation": [
+     9,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#3a3a3a",
+     "roughness": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "chess_set",
+  "tags": [
+   "decor",
+   "game",
+   "small"
+  ],
+  "desc": "A chess board set up mid-game (a reduced set of pieces; 0.44 m square).",
+  "objects": [
+   {
+    "id": "board",
+    "type": "box",
+    "size": [
+     0.44,
+     0.03,
+     0.44
+    ],
+    "position": [
+     0,
+     0.015,
+     0
+    ],
+    "material": {
+     "color": "#4a3320",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "sq00",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.1925,
+     0.032,
+     -0.1925
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq02",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.1925,
+     0.032,
+     -0.0825
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq04",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.1925,
+     0.032,
+     0.0275
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq06",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.1925,
+     0.032,
+     0.1375
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq11",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.1375,
+     0.032,
+     -0.1375
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq13",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.1375,
+     0.032,
+     -0.0275
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq15",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.1375,
+     0.032,
+     0.0825
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq17",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.1375,
+     0.032,
+     0.1925
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq20",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.0825,
+     0.032,
+     -0.1925
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq22",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.0825,
+     0.032,
+     -0.0825
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq24",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.0825,
+     0.032,
+     0.0275
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq26",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.0825,
+     0.032,
+     0.1375
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq31",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.0275,
+     0.032,
+     -0.1375
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq33",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.0275,
+     0.032,
+     -0.0275
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq35",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.0275,
+     0.032,
+     0.0825
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq37",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     -0.0275,
+     0.032,
+     0.1925
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq40",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.0275,
+     0.032,
+     -0.1925
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq42",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.0275,
+     0.032,
+     -0.0825
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq44",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.0275,
+     0.032,
+     0.0275
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq46",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.0275,
+     0.032,
+     0.1375
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq51",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.0825,
+     0.032,
+     -0.1375
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq53",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.0825,
+     0.032,
+     -0.0275
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq55",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.0825,
+     0.032,
+     0.0825
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq57",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.0825,
+     0.032,
+     0.1925
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq60",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.1375,
+     0.032,
+     -0.1925
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq62",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.1375,
+     0.032,
+     -0.0825
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq64",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.1375,
+     0.032,
+     0.0275
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq66",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.1375,
+     0.032,
+     0.1375
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq71",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.1925,
+     0.032,
+     -0.1375
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq73",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.1925,
+     0.032,
+     -0.0275
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq75",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.1925,
+     0.032,
+     0.0825
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "sq77",
+    "type": "box",
+    "size": [
+     0.05,
+     0.004,
+     0.05
+    ],
+    "position": [
+     0.1925,
+     0.032,
+     0.1925
+    ],
+    "material": {
+     "color": "#e8d8b0",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "wp0b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     -0.1375,
+     0.036,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp0s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     -0.1375,
+     0.055,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp0h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     -0.1375,
+     0.076,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp0b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     -0.1375,
+     0.036,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp0s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     -0.1375,
+     0.055,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp0h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     -0.1375,
+     0.076,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp1b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     -0.0825,
+     0.036,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp1s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     -0.0825,
+     0.055,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp1h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     -0.0825,
+     0.076,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp1b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     -0.0825,
+     0.036,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp1s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     -0.0825,
+     0.055,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp1h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     -0.0825,
+     0.076,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp2b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     -0.0275,
+     0.036,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp2s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     -0.0275,
+     0.055,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp2h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     -0.0275,
+     0.076,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp2b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     -0.0275,
+     0.036,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp2s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     -0.0275,
+     0.055,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp2h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     -0.0275,
+     0.076,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp3b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     0.0275,
+     0.036,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp3s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     0.0275,
+     0.055,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp3h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     0.0275,
+     0.076,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp3b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     0.0275,
+     0.036,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp3s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     0.0275,
+     0.055,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp3h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     0.0275,
+     0.076,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp4b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     0.0825,
+     0.036,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp4s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     0.0825,
+     0.055,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp4h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     0.0825,
+     0.076,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp4b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     0.0825,
+     0.036,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp4s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     0.0825,
+     0.055,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp4h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     0.0825,
+     0.076,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp5b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     0.1375,
+     0.036,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp5s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     0.1375,
+     0.055,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wp5h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     0.1375,
+     0.076,
+     0.1375
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp5b",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.008,
+    "position": [
+     0.1375,
+     0.036,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp5s",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.03,
+    "position": [
+     0.1375,
+     0.055,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bp5h",
+    "type": "sphere",
+    "radius": 0.012,
+    "position": [
+     0.1375,
+     0.076,
+     -0.1375
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wr0",
+    "type": "box",
+    "size": [
+     0.026,
+     0.06,
+     0.026
+    ],
+    "position": [
+     -0.1925,
+     0.062,
+     0.1925
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wr1",
+    "type": "box",
+    "size": [
+     0.026,
+     0.06,
+     0.026
+    ],
+    "position": [
+     0.1925,
+     0.062,
+     0.1925
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "br0",
+    "type": "box",
+    "size": [
+     0.026,
+     0.06,
+     0.026
+    ],
+    "position": [
+     -0.1925,
+     0.062,
+     -0.1925
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "br1",
+    "type": "box",
+    "size": [
+     0.026,
+     0.06,
+     0.026
+    ],
+    "position": [
+     0.1925,
+     0.062,
+     -0.1925
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wk",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.08,
+    "position": [
+     -0.0275,
+     0.072,
+     0.1925
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "wkc",
+    "type": "sphere",
+    "radius": 0.014,
+    "position": [
+     -0.0275,
+     0.12,
+     0.1925
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bk",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.08,
+    "position": [
+     0.0275,
+     0.072,
+     -0.1925
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "bkc",
+    "type": "sphere",
+    "radius": 0.014,
+    "position": [
+     0.0275,
+     0.12,
+     -0.1925
+    ],
+    "material": {
+     "color": "#2a2320",
+     "roughness": 0.4
+    }
+   }
+  ]
+ },
+ {
+  "name": "grandfather_clock",
+  "tags": [
+   "decor",
+   "furniture",
+   "clock"
+  ],
+  "desc": "A tall wooden grandfather clock with a pendulum (1.9 m).",
+  "params": {
+   "wood": {
+    "default": "#5a3a26",
+    "desc": "wood color"
+   }
+  },
+  "objects": [
+   {
+    "id": "foot",
+    "type": "box",
+    "size": [
+     0.5,
+     0.12,
+     0.3
+    ],
+    "position": [
+     0,
+     0.06,
+     0
+    ],
+    "material": {
+     "color": "$wood",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "trunk",
+    "type": "box",
+    "size": [
+     0.4,
+     1.2,
+     0.26
+    ],
+    "position": [
+     0,
+     0.72,
+     0
+    ],
+    "material": {
+     "color": "$wood",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "window",
+    "type": "box",
+    "size": [
+     0.22,
+     0.72,
+     0.006
+    ],
+    "position": [
+     0,
+     0.66,
+     0.133
+    ],
+    "material": {
+     "color": "#20160f",
+     "roughness": 0.4
+    }
+   },
+   {
+    "id": "pendulum",
+    "type": "cylinder",
+    "radius": 0.004,
+    "height": 0.55,
+    "position": [
+     0,
+     0.68,
+     0.14
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "bob",
+    "type": "cylinder",
+    "radius": 0.05,
+    "height": 0.01,
+    "position": [
+     0,
+     0.42,
+     0.14
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "hood",
+    "type": "box",
+    "size": [
+     0.46,
+     0.4,
+     0.29
+    ],
+    "position": [
+     0,
+     1.52,
+     0
+    ],
+    "material": {
+     "color": "$wood",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "face",
+    "type": "cylinder",
+    "radius": 0.17,
+    "height": 0.008,
+    "position": [
+     0,
+     1.5,
+     0.148
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#efe6d0",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "hand_h",
+    "type": "box",
+    "size": [
+     0.014,
+     0.09,
+     0.004
+    ],
+    "position": [
+     0,
+     1.535,
+     0.156
+    ],
+    "material": {
+     "color": "#1a1a1a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "hand_m",
+    "type": "box",
+    "size": [
+     0.1,
+     0.012,
+     0.004
+    ],
+    "position": [
+     0.04,
+     1.5,
+     0.16
+    ],
+    "material": {
+     "color": "#1a1a1a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "crown",
+    "type": "box",
+    "size": [
+     0.34,
+     0.06,
+     0.24
+    ],
+    "position": [
+     0,
+     1.75,
+     0
+    ],
+    "material": {
+     "color": "$wood",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "finial",
+    "type": "cone",
+    "radius": 0.06,
+    "height": 0.12,
+    "position": [
+     0,
+     1.84,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "easel_canvas",
+  "tags": [
+   "decor",
+   "art",
+   "furniture"
+  ],
+  "desc": "A wooden painter's easel holding an unfinished landscape (1.7 m).",
+  "objects": [
+   {
+    "id": "leg_l",
+    "type": "box",
+    "size": [
+     0.04,
+     1.7,
+     0.04
+    ],
+    "position": [
+     -0.3,
+     0.85,
+     0.12
+    ],
+    "rotation": [
+     -6,
+     0,
+     -6
+    ],
+    "material": {
+     "color": "#a8804a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "leg_r",
+    "type": "box",
+    "size": [
+     0.04,
+     1.7,
+     0.04
+    ],
+    "position": [
+     0.3,
+     0.85,
+     0.12
+    ],
+    "rotation": [
+     -6,
+     0,
+     6
+    ],
+    "material": {
+     "color": "#a8804a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "leg_b",
+    "type": "box",
+    "size": [
+     0.04,
+     1.7,
+     0.04
+    ],
+    "position": [
+     0,
+     0.85,
+     -0.3
+    ],
+    "rotation": [
+     10,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#a8804a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "ledge",
+    "type": "box",
+    "size": [
+     0.9,
+     0.04,
+     0.08
+    ],
+    "position": [
+     0,
+     0.5,
+     0.06
+    ],
+    "material": {
+     "color": "#a8804a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "canvas",
+    "type": "box",
+    "size": [
+     0.7,
+     0.9,
+     0.03
+    ],
+    "position": [
+     0,
+     1.0,
+     0.09
+    ],
+    "material": {
+     "color": "#f4f1e8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "paint_sky",
+    "type": "box",
+    "size": [
+     0.66,
+     0.5,
+     0.004
+    ],
+    "position": [
+     0,
+     1.23,
+     0.1075
+    ],
+    "material": {
+     "color": "#8fc1e8",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "paint_hill",
+    "type": "box",
+    "size": [
+     0.66,
+     0.22,
+     0.004
+    ],
+    "position": [
+     0,
+     0.89,
+     0.1085
+    ],
+    "material": {
+     "color": "#4f8a4a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "paint_sun",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.004,
+    "position": [
+     0.2,
+     1.3,
+     0.1115
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#f6d14a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "paint_house",
+    "type": "box",
+    "size": [
+     0.16,
+     0.12,
+     0.004
+    ],
+    "position": [
+     -0.12,
+     0.98,
+     0.1115
+    ],
+    "material": {
+     "color": "#c8452f",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "paint_roof",
+    "type": "cone",
+    "radius": 0.13,
+    "height": 0.08,
+    "position": [
+     -0.12,
+     1.08,
+     0.1135
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     0.02,
+     1
+    ],
+    "material": {
+     "color": "#5a3a26",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "palette",
+    "type": "box",
+    "size": [
+     0.22,
+     0.01,
+     0.16
+    ],
+    "position": [
+     0.35,
+     0.53,
+     0.14
+    ],
+    "rotation": [
+     0,
+     30,
+     0
+    ],
+    "material": {
+     "color": "#c9a06a",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "blob1",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0.3,
+     0.545,
+     0.16
+    ],
+    "material": {
+     "color": "#c8452f",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "blob2",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0.36,
+     0.545,
+     0.12
+    ],
+    "material": {
+     "color": "#2f5f9a",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "blob3",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0.4,
+     0.545,
+     0.17
+    ],
+    "material": {
+     "color": "#e4b93a",
+     "roughness": 0.5
+    }
+   }
+  ]
+ },
+ {
+  "name": "vase_tall_branches",
+  "tags": [
+   "decor",
+   "plant"
+  ],
+  "desc": "A tall floor vase with blossom branches (1.8 m).",
+  "params": {
+   "vase": {
+    "default": "#2f5f7a",
+    "desc": "vase glaze"
+   },
+   "bloom": {
+    "default": "#f2b6c6",
+    "desc": "blossom color"
+   }
+  },
+  "objects": [
+   {
+    "id": "vase",
+    "type": "cylinder",
+    "radius": 0.11,
+    "height": 0.6,
+    "position": [
+     0,
+     0.3,
+     0
+    ],
+    "material": {
+     "color": "$vase",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "neck",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.15,
+    "position": [
+     0,
+     0.675,
+     0
+    ],
+    "material": {
+     "color": "$vase",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "lip",
+    "type": "cylinder",
+    "radius": 0.08,
+    "height": 0.02,
+    "position": [
+     0,
+     0.76,
+     0
+    ],
+    "material": {
+     "color": "$vase",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "twig0",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.9,
+    "position": [
+     0.0,
+     1.2,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#4a3320",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "blossom0",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0.0,
+     1.605,
+     0.0
+    ],
+    "material": {
+     "color": "$bloom",
+     "roughness": 0.85
+    }
+   },
+   {
+    "id": "twig1",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.8200000000000001,
+    "position": [
+     0.0585,
+     1.16,
+     0.02
+    ],
+    "rotation": [
+     -10,
+     0,
+     -18
+    ],
+    "material": {
+     "color": "#4a3320",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "blossom1",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0.1667,
+     1.529,
+     -0.0512
+    ],
+    "material": {
+     "color": "$bloom",
+     "roughness": 0.85
+    }
+   },
+   {
+    "id": "twig2",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.74,
+    "position": [
+     -0.0725,
+     1.12,
+     0.02
+    ],
+    "rotation": [
+     -8,
+     0,
+     22
+    ],
+    "material": {
+     "color": "#4a3320",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "blossom2",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     -0.1886,
+     1.453,
+     -0.0315
+    ],
+    "material": {
+     "color": "$bloom",
+     "roughness": 0.85
+    }
+   },
+   {
+    "id": "twig3",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.66,
+    "position": [
+     0.0284,
+     1.08,
+     -0.05
+    ],
+    "rotation": [
+     14,
+     0,
+     -8
+    ],
+    "material": {
+     "color": "#4a3320",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "blossom3",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0.0659,
+     1.377,
+     0.0298
+    ],
+    "material": {
+     "color": "$bloom",
+     "roughness": 0.85
+    }
+   },
+   {
+    "id": "twig4",
+    "type": "cylinder",
+    "radius": 0.006,
+    "height": 0.5800000000000001,
+    "position": [
+     -0.0252,
+     1.04,
+     0.05
+    ],
+    "rotation": [
+     -20,
+     0,
+     5
+    ],
+    "material": {
+     "color": "#4a3320",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "blossom4",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     -0.0453,
+     1.301,
+     -0.0492
+    ],
+    "material": {
+     "color": "$bloom",
+     "roughness": 0.85
+    }
+   },
+   {
+    "id": "core",
+    "type": "box",
+    "size": [
+     0.12,
+     0.6,
+     0.12
+    ],
+    "position": [
+     0,
+     0.3,
+     0
+    ],
+    "material": {
+     "color": "#888888",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "candelabra",
+  "tags": [
+   "decor",
+   "small"
+  ],
+  "desc": "A brass three-candle candelabra with unlit candles (0.45 m).",
+  "objects": [
+   {
+    "id": "foot",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.02,
+    "position": [
+     0,
+     0.01,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "stem",
+    "type": "cylinder",
+    "radius": 0.012,
+    "height": 0.26,
+    "position": [
+     0,
+     0.15,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "knob",
+    "type": "sphere",
+    "radius": 0.022,
+    "position": [
+     0,
+     0.16,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arm_l",
+    "type": "capsule",
+    "radius": 0.008,
+    "height": 0.15016407864998738,
+    "position": [
+     -0.06,
+     0.27,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     63.43
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arm_r",
+    "type": "capsule",
+    "radius": 0.008,
+    "height": 0.15016407864998738,
+    "position": [
+     0.06,
+     0.27,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -63.43
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "cup0",
+    "type": "cylinder",
+    "radius": 0.018,
+    "height": 0.02,
+    "position": [
+     -0.12,
+     0.3,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "candle0",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.11,
+    "position": [
+     -0.12,
+     0.365,
+     0
+    ],
+    "material": {
+     "color": "#f2ead8",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "wick0",
+    "type": "sphere",
+    "radius": 0.006,
+    "position": [
+     -0.12,
+     0.43,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "cup1",
+    "type": "cylinder",
+    "radius": 0.018,
+    "height": 0.02,
+    "position": [
+     0,
+     0.28,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "candle1",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.11,
+    "position": [
+     0,
+     0.345,
+     0
+    ],
+    "material": {
+     "color": "#f2ead8",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "wick1",
+    "type": "sphere",
+    "radius": 0.006,
+    "position": [
+     0,
+     0.41,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "cup2",
+    "type": "cylinder",
+    "radius": 0.018,
+    "height": 0.02,
+    "position": [
+     0.12,
+     0.3,
+     0
+    ],
+    "material": {
+     "color": "#d8b13a",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "candle2",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.11,
+    "position": [
+     0.12,
+     0.365,
+     0
+    ],
+    "material": {
+     "color": "#f2ead8",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "wick2",
+    "type": "sphere",
+    "radius": 0.006,
+    "position": [
+     0.12,
+     0.43,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.9
+    }
+   }
+  ]
+ }
+]

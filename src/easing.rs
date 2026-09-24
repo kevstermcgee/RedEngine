@@ -1,3 +1,5 @@
+//! Easing curves (linear/in/out/inout/hold/back/bounce/elastic) used by every keyframe `Track`.
+
 use std::f32::consts::PI;
 
 /// Easing curves shared by every keyframe track. Each function maps a clip-local `x` in
@@ -17,6 +19,7 @@ pub enum Ease {
 }
 
 impl Ease {
+    /// Parses an easing name from a scene (`"linear"`, `"in"`, `"out"`, `"inout"`, `"hold"`, `"back"`, `"bounce"`, `"elastic"`).
     pub fn parse(name: &str) -> Result<Ease, String> {
         match name {
             "linear" => Ok(Ease::Linear),
@@ -33,6 +36,7 @@ impl Ease {
         }
     }
 
+    /// Maps normalized time `x` in 0..=1 through the curve.
     pub fn apply(self, x: f32) -> f32 {
         let x = x.clamp(0.0, 1.0);
         match self {

@@ -1,0 +1,168 @@
+[
+  {
+    "name": "picture_frame",
+    "tags": ["decor", "wall"],
+    "desc": "A framed picture; origin at the wall face, center.",
+    "mount": "wall",
+    "params": {"w": {"default": 0.5, "desc": "picture width"}, "h": {"default": 0.4, "desc": "picture height"}, "frame": {"default": "#4a3320", "desc": "frame color"}, "art": {"default": "#5a8ab0", "desc": "artwork color"}},
+    "objects": [
+      {"id": "frame", "type": "box", "size": ["=$w+0.06", "=$h+0.06", 0.03], "position": [0, 0, 0.015], "material": {"color": "$frame", "roughness": 0.6}},
+      {"id": "mat", "type": "box", "size": ["$w", "$h", 0.006], "position": [0, 0, 0.03], "material": {"color": "#f2efe8", "roughness": 0.9}},
+      {"id": "art", "type": "box", "size": ["=$w*0.7", "=$h*0.7", 0.006], "position": [0, 0, 0.034], "material": {"color": "$art", "roughness": 0.9}},
+      {"id": "sun", "type": "box", "size": ["=$w*0.18", "=$w*0.18", 0.006], "position": ["=$w*0.15", "=$h*0.15", 0.038], "material": {"color": "#f5d24a", "roughness": 0.9}}
+    ]
+  },
+  {
+    "name": "wall_mirror",
+    "tags": ["decor", "wall", "bathroom"],
+    "desc": "A framed wall mirror; origin at the wall face, center.",
+    "mount": "wall",
+    "params": {"w": {"default": 0.6, "desc": "mirror width"}, "h": {"default": 0.9, "desc": "mirror height"}},
+    "objects": [
+      {"id": "frame", "type": "box", "size": ["=$w+0.08", "=$h+0.08", 0.03], "position": [0, 0, 0.015], "material": {"color": "#c9a45a", "roughness": 0.4, "metallic": 0.7}},
+      {"id": "glass", "type": "box", "size": ["$w", "$h", 0.008], "position": [0, 0, 0.03], "material": {"color": "#dfeaf2", "roughness": 0.05, "metallic": 0.9}}
+    ]
+  },
+  {
+    "name": "vase",
+    "tags": ["decor", "small"],
+    "desc": "A ceramic vase.",
+    "collide": false,
+    "params": {"color": {"default": "#3a6ea5", "desc": "glaze color"}},
+    "objects": [
+      {"id": "base", "type": "cylinder", "radius": 0.05, "height": 0.02, "position": [0, 0.01, 0], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "belly", "type": "cylinder", "radius": 0.075, "height": 0.14, "position": [0, 0.09, 0], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "neck", "type": "cylinder", "radius": 0.035, "height": 0.1, "position": [0, 0.21, 0], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "lip", "type": "cylinder", "radius": 0.045, "height": 0.02, "position": [0, 0.27, 0], "material": {"color": "$color", "roughness": 0.3}}
+    ]
+  },
+  {
+    "name": "flower_vase",
+    "tags": ["decor", "plant", "small"],
+    "desc": "A vase of flowers.",
+    "collide": false,
+    "params": {"vase": {"default": "#f2efe8", "desc": "vase color"}, "bloom": {"default": "#e0587a", "desc": "flower color"}},
+    "objects": [
+      {"id": "vase", "type": "prefab", "prefab": "vase", "position": [0, 0, 0], "params": {"color": "$vase"}},
+      {"id": "stem1", "type": "cylinder", "radius": 0.004, "height": 0.3, "position": [-0.02, 0.4, 0], "rotation": [0, 0, 8], "material": {"color": "#3d7a2a", "roughness": 0.6}},
+      {"id": "stem2", "type": "cylinder", "radius": 0.004, "height": 0.32, "position": [0.02, 0.4, 0.01], "rotation": [0, 0, -8], "material": {"color": "#3d7a2a", "roughness": 0.6}},
+      {"id": "stem3", "type": "cylinder", "radius": 0.004, "height": 0.28, "position": [0, 0.38, -0.02], "material": {"color": "#3d7a2a", "roughness": 0.6}},
+      {"id": "bloom1", "type": "sphere", "radius": 0.04, "position": [-0.05, 0.56, 0], "scale": [1, 0.7, 1], "material": {"color": "$bloom", "roughness": 0.6}},
+      {"id": "bloom2", "type": "sphere", "radius": 0.04, "position": [0.05, 0.57, 0.01], "scale": [1, 0.7, 1], "material": {"color": "$bloom", "roughness": 0.6}},
+      {"id": "bloom3", "type": "sphere", "radius": 0.04, "position": [0, 0.52, -0.03], "scale": [1, 0.7, 1], "material": {"color": "$bloom", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "candle",
+    "tags": ["decor", "light", "small"],
+    "desc": "A pillar candle with a flame.",
+    "collide": false,
+    "objects": [
+      {"id": "wax", "type": "cylinder", "radius": 0.03, "height": 0.12, "position": [0, 0.06, 0], "material": {"color": "#f2ead6", "roughness": 0.7}},
+      {"id": "wick", "type": "cylinder", "radius": 0.002, "height": 0.015, "position": [0, 0.127, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "flame", "type": "sphere", "radius": 0.012, "position": [0, 0.145, 0], "scale": [0.7, 1.4, 0.7], "material": {"color": "#ffd27a", "roughness": 0.6, "emissive": "#ffb03a"}}
+    ]
+  },
+  {
+    "name": "teddy_bear",
+    "tags": ["decor", "toy", "small"],
+    "desc": "A stuffed teddy bear, sitting, facing +Z.",
+    "collide": false,
+    "params": {"color": {"default": "#b9783a", "desc": "fur color"}},
+    "objects": [
+      {"id": "body", "type": "sphere", "radius": 0.09, "position": [0, 0.1, 0], "scale": [1, 1.05, 0.9], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "head", "type": "sphere", "radius": 0.07, "position": [0, 0.235, 0.005], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "ear_l", "type": "sphere", "radius": 0.025, "position": [-0.055, 0.29, 0], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "ear_r", "type": "sphere", "radius": 0.025, "position": [0.055, 0.29, 0], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "snout", "type": "sphere", "radius": 0.032, "position": [0, 0.22, 0.06], "material": {"color": "#e6c9a0", "roughness": 0.98}},
+      {"id": "nose", "type": "sphere", "radius": 0.01, "position": [0, 0.225, 0.088], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "arm_l", "type": "sphere", "radius": 0.035, "position": [-0.095, 0.13, 0.03], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "arm_r", "type": "sphere", "radius": 0.035, "position": [0.095, 0.13, 0.03], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "leg_l", "type": "sphere", "radius": 0.04, "position": [-0.05, 0.04, 0.07], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "leg_r", "type": "sphere", "radius": 0.04, "position": [0.05, 0.04, 0.07], "material": {"color": "$color", "roughness": 0.98}}
+    ]
+  },
+  {
+    "name": "ball_soccer",
+    "tags": ["toy", "sports", "small"],
+    "desc": "A soccer ball.",
+    "collide": false,
+    "objects": [
+      {"id": "ball", "type": "sphere", "radius": 0.11, "position": [0, 0.11, 0], "material": {"color": "#f6f6f2", "roughness": 0.5}},
+      {"id": "p1", "type": "sphere", "radius": 0.04, "position": [0, 0.215, 0], "scale": [1, 0.25, 1], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "p2", "type": "sphere", "radius": 0.04, "position": [0.1, 0.11, 0.02], "scale": [0.25, 1, 1], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "p3", "type": "sphere", "radius": 0.04, "position": [-0.1, 0.11, -0.02], "scale": [0.25, 1, 1], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "p4", "type": "sphere", "radius": 0.04, "position": [0.02, 0.11, 0.1], "scale": [1, 1, 0.25], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "pillow",
+    "tags": ["decor", "bedroom", "soft"],
+    "desc": "A square throw pillow.",
+    "params": {"color": {"default": "#d9c9a3", "desc": "fabric color"}, "trim": {"default": "#c9b58a", "desc": "inner panel color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.45, 0.13, 0.45], "position": [0, 0.065, 0], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "stitch", "type": "box", "size": [0.4, 0.132, 0.4], "position": [0, 0.065, 0], "material": {"color": "$trim", "roughness": 0.98}}
+    ]
+  },
+  {
+    "name": "toy_block",
+    "tags": ["toy", "small"],
+    "desc": "A wooden toy block.",
+    "collide": false,
+    "params": {"color": {"default": "#d9432a", "desc": "block color"}},
+    "objects": [
+      {"id": "block", "type": "box", "size": [0.05, 0.05, 0.05], "position": [0, 0.025, 0], "material": {"color": "$color", "roughness": 0.7}},
+      {"id": "face", "type": "box", "size": [0.03, 0.03, 0.004], "position": [0, 0.025, 0.026], "material": {"color": "#f6f6f2", "roughness": 0.7}}
+    ]
+  },
+  {
+    "name": "rubber_duck",
+    "tags": ["toy", "bathroom", "small"],
+    "desc": "A rubber duck facing +Z.",
+    "collide": false,
+    "params": {"color": {"default": "#f5d24a", "desc": "duck color"}},
+    "objects": [
+      {"id": "body", "type": "sphere", "radius": 0.04, "position": [0, 0.03, 0], "scale": [1, 0.8, 1.2], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "head", "type": "sphere", "radius": 0.026, "position": [0, 0.075, 0.03], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "beak", "type": "box", "size": [0.024, 0.008, 0.02], "position": [0, 0.07, 0.06], "material": {"color": "#f08a1c", "roughness": 0.4}},
+      {"id": "tail", "type": "sphere", "radius": 0.018, "position": [0, 0.05, -0.05], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "eye_l", "type": "sphere", "radius": 0.005, "position": [-0.014, 0.082, 0.05], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "eye_r", "type": "sphere", "radius": 0.005, "position": [0.014, 0.082, 0.05], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "succulent",
+    "tags": ["decor", "plant", "small"],
+    "desc": "A small succulent in a pot.",
+    "collide": false,
+    "objects": [
+      {"id": "pot", "type": "cylinder", "radius": 0.05, "height": 0.07, "position": [0, 0.035, 0], "material": {"color": "#c9743a", "roughness": 0.9}},
+      {"id": "leaf1", "type": "sphere", "radius": 0.04, "position": [0, 0.1, 0], "scale": [1, 0.8, 1], "material": {"color": "#5aa050", "roughness": 0.6}},
+      {"id": "leaf2", "type": "sphere", "radius": 0.03, "position": [0.035, 0.09, 0], "scale": [1, 0.8, 1], "material": {"color": "#4a9040", "roughness": 0.6}},
+      {"id": "leaf3", "type": "sphere", "radius": 0.03, "position": [-0.03, 0.09, 0.02], "scale": [1, 0.8, 1], "material": {"color": "#4a9040", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "rug_round",
+    "tags": ["decor", "floor", "soft"],
+    "desc": "A round floor rug (walk-through, 1.6 m).",
+    "params": {"d": {"default": 1.6, "desc": "diameter"}, "color": {"default": "#7a4a4a", "desc": "outer color"}, "inner": {"default": "#d9c9a3", "desc": "inner color"}},
+    "objects": [
+      {"id": "rug", "type": "cylinder", "radius": "=$d/2", "height": 0.015, "position": [0, 0.0075, 0], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "inner", "type": "cylinder", "radius": "=$d/2*0.7", "height": 0.017, "position": [0, 0.0085, 0], "material": {"color": "$inner", "roughness": 0.98}}
+    ]
+  },
+  {
+    "name": "curtain_pair",
+    "tags": ["decor", "window", "soft", "wall"],
+    "desc": "A pair of curtains on a rod; origin at the wall face, center of the rod.",
+    "mount": "wall",
+    "params": {"w": {"default": 1.8, "desc": "rod width"}, "h": {"default": 1.9, "desc": "curtain drop"}, "color": {"default": "#b0523a", "desc": "fabric color"}},
+    "objects": [
+      {"id": "rod", "type": "cylinder", "radius": 0.012, "height": "$w", "position": [0, 0, 0.06], "rotation": [0, 0, 90], "material": {"color": "#2a2c31", "roughness": 0.6, "metallic": 0.6}},
+      {"id": "left", "type": "box", "size": ["=$w*0.28", "$h", 0.05], "position": ["=-$w*0.36", "=-$h/2-0.02", 0.06], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "right", "type": "box", "size": ["=$w*0.28", "$h", 0.05], "position": ["=$w*0.36", "=-$h/2-0.02", 0.06], "material": {"color": "$color", "roughness": 0.98}}
+    ]
+  }
+]

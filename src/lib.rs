@@ -1,24 +1,39 @@
+//! Library root: module list plus the scene-loading and offline render entry points (`render_frame_png`, `render_video`).
+
+pub mod characters;
 pub mod color;
 pub mod easing;
 pub mod gpu;
+pub mod hit;
+pub mod macros;
+pub mod menu;
 pub mod audio;
 pub mod mesh;
+pub mod overlay;
+pub mod physics;
+pub mod player;
+pub mod prefabs;
 pub mod props;
 pub mod render;
+pub mod revolver;
 pub mod schema;
 pub mod skeleton;
+pub mod tools;
 pub mod track;
 pub mod video;
+pub mod weapons;
 pub mod viewer;
 
 use anyhow::{Context, Result};
 use std::path::Path;
 
+/// Reads and fully validates a scene file (macros and prefabs expanded); `Err` is a list of `object.field: message` strings.
 pub fn load_scene(path: &Path) -> Result<schema::Scene, Vec<String>> {
     let text = std::fs::read_to_string(path).map_err(|e| vec![format!("io: {e}")])?;
     schema::parse_scene(&text)
 }
 
+/// Validates a scene file without rendering (`red_engine2 validate`).
 pub fn validate_scene_file(path: &Path) -> Result<(), Vec<String>> {
     load_scene(path).map(|_| ())
 }
@@ -36,6 +51,7 @@ fn load_scene_or_bail(scene_path: &Path) -> Result<schema::Scene> {
     load_scene(scene_path).map_err(|errs| anyhow::anyhow!(errs.join("\n")))
 }
 
+/// Renders one frame of a scene at time `t` seconds to a PNG.
 pub fn render_frame_png(scene_path: &Path, out_png: &Path, t: f32) -> Result<()> {
     let scene = load_scene_or_bail(scene_path)?;
     let mut renderer = render::Renderer::new(&scene)?;
@@ -46,6 +62,7 @@ pub fn render_frame_png(scene_path: &Path, out_png: &Path, t: f32) -> Result<()>
     Ok(())
 }
 
+/// Renders the whole scene to an MP4 via ffmpeg, reporting `(frame, total)` progress.
 pub fn render_video(
     scene_path: &Path,
     out_path: &Path,
@@ -65,6 +82,7 @@ pub fn render_video(
     Ok(())
 }
 
+/// Renders `num_frames` evenly spaced frames into one contact-sheet PNG.
 pub fn render_storyboard_png(scene_path: &Path, out_png: &Path, num_frames: u32) -> Result<()> {
     let scene = load_scene_or_bail(scene_path)?;
     let mut renderer = render::Renderer::new(&scene)?;

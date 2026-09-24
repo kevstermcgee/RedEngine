@@ -1,0 +1,174 @@
+[
+  {
+    "name": "shelf_gondola",
+    "tags": ["store", "shelf", "storage"],
+    "desc": "A double-sided store shelf unit with product blocks; 1.2 m wide, 0.6 deep.",
+    "params": {"color": {"default": "#c9ced6", "desc": "shelf color"}, "a": {"default": "#d9532a", "desc": "product color A"}, "b": {"default": "#2a8ad9", "desc": "product color B"}, "c": {"default": "#e0c22a", "desc": "product color C"}},
+    "objects": [
+      {"id": "post_a", "type": "box", "size": [0.04, 1.5, 0.6], "position": [-0.58, 0.75, 0], "material": {"color": "#5a5f68", "roughness": 0.6, "metallic": 0.4}},
+      {"id": "post_b", "type": "box", "size": [0.04, 1.5, 0.6], "position": [0.58, 0.75, 0], "material": {"color": "#5a5f68", "roughness": 0.6, "metallic": 0.4}},
+      {"id": "center", "type": "box", "size": [1.16, 1.4, 0.03], "position": [0, 0.72, 0], "material": {"color": "#5a5f68", "roughness": 0.6, "metallic": 0.4}},
+      {"id": "board0", "type": "box", "size": [1.16, 0.03, 0.56], "position": [0, 0.12, 0], "material": {"color": "$color", "roughness": 0.5, "metallic": 0.4}},
+      {"id": "board1", "type": "box", "size": [1.16, 0.03, 0.56], "position": [0, 0.5, 0], "material": {"color": "$color", "roughness": 0.5, "metallic": 0.4}},
+      {"id": "board2", "type": "box", "size": [1.16, 0.03, 0.56], "position": [0, 0.88, 0], "material": {"color": "$color", "roughness": 0.5, "metallic": 0.4}},
+      {"id": "board3", "type": "box", "size": [1.16, 0.03, 0.56], "position": [0, 1.26, 0], "material": {"color": "$color", "roughness": 0.5, "metallic": 0.4}},
+      {"id": "p1", "type": "box", "size": [0.3, 0.3, 0.2], "position": [-0.35, 0.29, 0.2], "material": {"color": "$a", "roughness": 0.6}},
+      {"id": "p2", "type": "box", "size": [0.3, 0.3, 0.2], "position": [0.05, 0.29, 0.2], "material": {"color": "$b", "roughness": 0.6}},
+      {"id": "p3", "type": "box", "size": [0.3, 0.3, 0.2], "position": [0.42, 0.29, 0.2], "material": {"color": "$c", "roughness": 0.6}},
+      {"id": "p4", "type": "box", "size": [0.3, 0.3, 0.2], "position": [-0.35, 0.67, 0.2], "material": {"color": "$b", "roughness": 0.6}},
+      {"id": "p5", "type": "box", "size": [0.3, 0.3, 0.2], "position": [0.05, 0.67, 0.2], "material": {"color": "$c", "roughness": 0.6}},
+      {"id": "p6", "type": "box", "size": [0.3, 0.3, 0.2], "position": [0.42, 0.67, 0.2], "material": {"color": "$a", "roughness": 0.6}},
+      {"id": "p7", "type": "box", "size": [0.3, 0.3, 0.2], "position": [-0.35, 1.05, 0.2], "material": {"color": "$c", "roughness": 0.6}},
+      {"id": "p8", "type": "box", "size": [0.3, 0.3, 0.2], "position": [0.05, 1.05, 0.2], "material": {"color": "$a", "roughness": 0.6}},
+      {"id": "p9", "type": "box", "size": [0.3, 0.3, 0.2], "position": [0.42, 1.05, 0.2], "material": {"color": "$b", "roughness": 0.6}},
+      {"id": "q1", "type": "box", "size": [0.3, 0.3, 0.2], "position": [-0.35, 0.29, -0.2], "material": {"color": "$b", "roughness": 0.6}},
+      {"id": "q2", "type": "box", "size": [0.3, 0.3, 0.2], "position": [0.05, 0.29, -0.2], "material": {"color": "$a", "roughness": 0.6}},
+      {"id": "q3", "type": "box", "size": [0.3, 0.3, 0.2], "position": [0.42, 0.67, -0.2], "material": {"color": "$c", "roughness": 0.6}},
+      {"id": "q4", "type": "box", "size": [0.3, 0.3, 0.2], "position": [-0.35, 1.05, -0.2], "material": {"color": "$a", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "cash_register",
+    "tags": ["store", "electronics", "small"],
+    "desc": "A cash register; screen and keys face +Z.",
+    "collide": false,
+    "params": {"color": {"default": "#d8d8dc", "desc": "body color"}},
+    "objects": [
+      {"id": "base", "type": "box", "size": [0.4, 0.14, 0.4], "position": [0, 0.07, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "drawer", "type": "box", "size": [0.36, 0.04, 0.02], "position": [0, 0.06, 0.205], "material": {"color": "#9aa0a8", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "keys", "type": "box", "size": [0.3, 0.02, 0.16], "position": [0, 0.155, 0.08], "rotation": [-12, 0, 0], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "display_post", "type": "box", "size": [0.04, 0.16, 0.04], "position": [0, 0.22, -0.12], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "display", "type": "box", "size": [0.22, 0.12, 0.02], "position": [0, 0.34, -0.12], "rotation": [-15, 0, 0], "material": {"color": "#14181d", "roughness": 0.6}},
+      {"id": "display_screen", "type": "box", "size": [0.19, 0.09, 0.004], "position": [0, 0.34, -0.108], "rotation": [-15, 0, 0], "material": {"color": "#7fd6a0", "roughness": 0.6, "emissive": "#2a6a4a"}}
+    ]
+  },
+  {
+    "name": "checkout_counter",
+    "tags": ["store", "counter", "furniture"],
+    "desc": "A checkout counter with a conveyor belt; cashier side toward +Z.",
+    "params": {"color": {"default": "#3a6ea5", "desc": "front panel color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [1.6, 0.95, 0.6], "position": [0, 0.475, 0], "material": {"color": "$color", "roughness": 0.6}},
+      {"id": "top", "type": "box", "size": [1.66, 0.04, 0.66], "position": [0, 0.97, 0], "material": {"color": "#e6e8ec", "roughness": 0.4}},
+      {"id": "belt", "type": "box", "size": [0.9, 0.012, 0.3], "position": [-0.3, 0.996, -0.05], "material": {"color": "#2a2c31", "roughness": 0.9}},
+      {"id": "divider", "type": "box", "size": [0.02, 0.1, 0.4], "position": [0.18, 1.04, 0], "material": {"color": "#9aa0a8", "roughness": 0.6}},
+      {"id": "kick", "type": "box", "size": [1.5, 0.08, 0.5], "position": [0, 0.04, 0], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "shopping_basket",
+    "tags": ["store", "small"],
+    "desc": "A hand shopping basket.",
+    "collide": false,
+    "params": {"color": {"default": "#d9432a", "desc": "plastic color"}},
+    "objects": [
+      {"id": "floor", "type": "box", "size": [0.4, 0.015, 0.28], "position": [0, 0.03, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "front", "type": "box", "size": [0.4, 0.2, 0.015], "position": [0, 0.13, 0.135], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "back", "type": "box", "size": [0.4, 0.2, 0.015], "position": [0, 0.13, -0.135], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "left", "type": "box", "size": [0.015, 0.2, 0.28], "position": [-0.195, 0.13, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "right", "type": "box", "size": [0.015, 0.2, 0.28], "position": [0.195, 0.13, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "handle", "type": "box", "size": [0.3, 0.015, 0.02], "position": [0, 0.32, 0], "rotation": [0, 0, 0], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "hpost_l", "type": "box", "size": [0.015, 0.2, 0.02], "position": [-0.15, 0.22, 0], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "hpost_r", "type": "box", "size": [0.015, 0.2, 0.02], "position": [0.15, 0.22, 0], "material": {"color": "#2a2c31", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "shopping_cart",
+    "tags": ["store", "cart", "metal"],
+    "desc": "A wire shopping cart, handle at -Z.",
+    "params": {"color": {"default": "#d9432a", "desc": "handle color"}},
+    "objects": [
+      {"id": "basket_floor", "type": "box", "size": [0.5, 0.02, 0.8], "position": [0, 0.4, 0.05], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "basket_l", "type": "box", "size": [0.02, 0.28, 0.8], "position": [-0.25, 0.54, 0.05], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "basket_r", "type": "box", "size": [0.02, 0.28, 0.8], "position": [0.25, 0.54, 0.05], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "basket_f", "type": "box", "size": [0.5, 0.28, 0.02], "position": [0, 0.54, 0.45], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "basket_b", "type": "box", "size": [0.5, 0.28, 0.02], "position": [0, 0.54, -0.35], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "handle", "type": "box", "size": [0.5, 0.03, 0.03], "position": [0, 0.98, -0.42], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "hpost_l", "type": "box", "size": [0.03, 0.55, 0.03], "position": [-0.24, 0.72, -0.4], "rotation": [-15, 0, 0], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "hpost_r", "type": "box", "size": [0.03, 0.55, 0.03], "position": [0.24, 0.72, -0.4], "rotation": [-15, 0, 0], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "frame_l", "type": "box", "size": [0.03, 0.03, 0.8], "position": [-0.2, 0.12, 0.05], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "frame_r", "type": "box", "size": [0.03, 0.03, 0.8], "position": [0.2, 0.12, 0.05], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "wheel_fl", "type": "cylinder", "radius": 0.05, "height": 0.03, "position": [-0.2, 0.05, 0.4], "rotation": [0, 0, 90], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "wheel_fr", "type": "cylinder", "radius": 0.05, "height": 0.03, "position": [0.2, 0.05, 0.4], "rotation": [0, 0, 90], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "wheel_bl", "type": "cylinder", "radius": 0.05, "height": 0.03, "position": [-0.2, 0.05, -0.3], "rotation": [0, 0, 90], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "wheel_br", "type": "cylinder", "radius": 0.05, "height": 0.03, "position": [0.2, 0.05, -0.3], "rotation": [0, 0, 90], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "chip_bag",
+    "tags": ["store", "food", "packaged", "small"],
+    "desc": "A bag of chips standing upright.",
+    "collide": false,
+    "params": {"color": {"default": "#c62828", "desc": "bag color"}},
+    "objects": [
+      {"id": "bag", "type": "box", "size": [0.2, 0.28, 0.05], "position": [0, 0.14, 0], "material": {"color": "$color", "roughness": 0.3, "metallic": 0.3}},
+      {"id": "crimp_top", "type": "box", "size": [0.2, 0.015, 0.06], "position": [0, 0.28, 0], "material": {"color": "$color", "roughness": 0.3, "metallic": 0.3}},
+      {"id": "crimp_bot", "type": "box", "size": [0.2, 0.015, 0.06], "position": [0, 0.008, 0], "material": {"color": "$color", "roughness": 0.3, "metallic": 0.3}},
+      {"id": "label", "type": "box", "size": [0.14, 0.1, 0.004], "position": [0, 0.15, 0.026], "material": {"color": "#f5e17a", "roughness": 0.5}}
+    ]
+  },
+  {
+    "name": "snack_box",
+    "tags": ["store", "food", "packaged", "small"],
+    "desc": "A box of snacks/candy.",
+    "collide": false,
+    "params": {"color": {"default": "#7a2a8a", "desc": "box color"}},
+    "objects": [
+      {"id": "box", "type": "box", "size": [0.18, 0.1, 0.06], "position": [0, 0.05, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "band", "type": "box", "size": [0.182, 0.03, 0.062], "position": [0, 0.05, 0], "material": {"color": "#f6f6f2", "roughness": 0.5}}
+    ]
+  },
+  {
+    "name": "drink_cooler",
+    "tags": ["store", "appliance", "refrigerator"],
+    "desc": "A glass-door drink cooler stocked with bottles; door faces +Z.",
+    "params": {"color": {"default": "#d9532a", "desc": "header sign color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.8, 1.9, 0.7], "position": [0, 0.95, 0], "material": {"color": "#2a2c31", "roughness": 0.5}},
+      {"id": "glass", "type": "box", "size": [0.7, 1.7, 0.01], "position": [0, 0.98, 0.355], "material": {"color": "#bfe0f2", "roughness": 0.1, "emissive": "#1a2a34"}},
+      {"id": "shelf1", "type": "box", "size": [0.66, 0.015, 0.5], "position": [0, 0.55, 0.05], "material": {"color": "#b9bec6", "roughness": 0.6, "metallic": 0.6}},
+      {"id": "shelf2", "type": "box", "size": [0.66, 0.015, 0.5], "position": [0, 1.0, 0.05], "material": {"color": "#b9bec6", "roughness": 0.6, "metallic": 0.6}},
+      {"id": "shelf3", "type": "box", "size": [0.66, 0.015, 0.5], "position": [0, 1.45, 0.05], "material": {"color": "#b9bec6", "roughness": 0.6, "metallic": 0.6}},
+      {"id": "b1", "type": "cylinder", "radius": 0.04, "height": 0.24, "position": [-0.22, 0.68, 0.2], "material": {"color": "#d94a2a", "roughness": 0.6}},
+      {"id": "b2", "type": "cylinder", "radius": 0.04, "height": 0.24, "position": [-0.07, 0.68, 0.2], "material": {"color": "#2a8ad9", "roughness": 0.6}},
+      {"id": "b3", "type": "cylinder", "radius": 0.04, "height": 0.24, "position": [0.08, 0.68, 0.2], "material": {"color": "#4ab84a", "roughness": 0.6}},
+      {"id": "b4", "type": "cylinder", "radius": 0.04, "height": 0.24, "position": [0.23, 0.68, 0.2], "material": {"color": "#e0c22a", "roughness": 0.6}},
+      {"id": "b5", "type": "cylinder", "radius": 0.04, "height": 0.24, "position": [-0.22, 1.13, 0.2], "material": {"color": "#2a8ad9", "roughness": 0.6}},
+      {"id": "b6", "type": "cylinder", "radius": 0.04, "height": 0.24, "position": [-0.07, 1.13, 0.2], "material": {"color": "#d94a2a", "roughness": 0.6}},
+      {"id": "b7", "type": "cylinder", "radius": 0.04, "height": 0.24, "position": [0.08, 1.13, 0.2], "material": {"color": "#e0c22a", "roughness": 0.6}},
+      {"id": "b8", "type": "cylinder", "radius": 0.04, "height": 0.24, "position": [0.23, 1.13, 0.2], "material": {"color": "#4ab84a", "roughness": 0.6}},
+      {"id": "sign", "type": "box", "size": [0.7, 0.14, 0.02], "position": [0, 1.83, 0.34], "material": {"color": "$color", "roughness": 0.6, "emissive": "#402010"}}
+    ]
+  },
+  {
+    "name": "magazine_rack",
+    "tags": ["store", "furniture", "books"],
+    "desc": "A freestanding magazine rack with magazines.",
+    "objects": [
+      {"id": "back", "type": "box", "size": [0.7, 1.1, 0.03], "position": [0, 0.65, -0.1], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "base", "type": "box", "size": [0.7, 0.08, 0.3], "position": [0, 0.04, 0], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "ledge1", "type": "box", "size": [0.7, 0.03, 0.06], "position": [0, 0.25, 0.08], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "ledge2", "type": "box", "size": [0.7, 0.03, 0.06], "position": [0, 0.6, 0.08], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "ledge3", "type": "box", "size": [0.7, 0.03, 0.06], "position": [0, 0.95, 0.08], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "m1", "type": "box", "size": [0.16, 0.24, 0.006], "position": [-0.24, 0.39, -0.06], "rotation": [-8, 0, 0], "material": {"color": "#d9432a", "roughness": 0.6}},
+      {"id": "m2", "type": "box", "size": [0.16, 0.24, 0.006], "position": [0.0, 0.39, -0.06], "rotation": [-8, 0, 0], "material": {"color": "#2a8ad9", "roughness": 0.6}},
+      {"id": "m3", "type": "box", "size": [0.16, 0.24, 0.006], "position": [0.24, 0.39, -0.06], "rotation": [-8, 0, 0], "material": {"color": "#e0c22a", "roughness": 0.6}},
+      {"id": "m4", "type": "box", "size": [0.16, 0.24, 0.006], "position": [-0.12, 0.74, -0.06], "rotation": [-8, 0, 0], "material": {"color": "#4ab84a", "roughness": 0.6}},
+      {"id": "m5", "type": "box", "size": [0.16, 0.24, 0.006], "position": [0.12, 0.74, -0.06], "rotation": [-8, 0, 0], "material": {"color": "#a02ad9", "roughness": 0.6}},
+      {"id": "m6", "type": "box", "size": [0.16, 0.24, 0.006], "position": [-0.24, 1.09, -0.06], "rotation": [-8, 0, 0], "material": {"color": "#2a8ad9", "roughness": 0.6}},
+      {"id": "m7", "type": "box", "size": [0.16, 0.24, 0.006], "position": [0.0, 1.09, -0.06], "rotation": [-8, 0, 0], "material": {"color": "#d9532a", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "chest_freezer",
+    "tags": ["store", "appliance", "refrigerator"],
+    "desc": "A low chest freezer with sliding glass lids.",
+    "params": {"color": {"default": "#2a8ad9", "desc": "stripe color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [1.4, 0.8, 0.7], "position": [0, 0.4, 0], "material": {"color": "#e6e8ec", "roughness": 0.4}},
+      {"id": "glass", "type": "box", "size": [1.32, 0.02, 0.62], "position": [0, 0.81, 0], "material": {"color": "#bfe0f2", "roughness": 0.1, "emissive": "#152a34"}},
+      {"id": "rim", "type": "box", "size": [1.42, 0.04, 0.72], "position": [0, 0.78, 0], "material": {"color": "#9aa0a8", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "stripe", "type": "box", "size": [1.4, 0.08, 0.702], "position": [0, 0.35, 0], "material": {"color": "$color", "roughness": 0.6}}
+    ]
+  }
+]

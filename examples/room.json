@@ -2,7 +2,7 @@
   "meta": { "fps": 30, "duration": 4.0, "resolution": [1280, 720] },
   "background": { "color": "#10141c" },
   "ambient": { "color": "#ffffff", "intensity": 0.18 },
-  "camera": { "fov": 70, "position": [0, 1.7, 3], "target": [0, 1.7, 0] },
+  "camera": { "fov": 90, "position": [0, 1.7, 3], "target": [0, 1.7, 0] },
   "lights": [
     { "id": "lamp1", "type": "point", "position": [-3, 2.6, -2.5],
       "color": "#ffd9a0", "intensity": 14, "range": 10 },

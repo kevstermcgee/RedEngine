@@ -1,3 +1,5 @@
+//! Scene schema: JSON -> `Scene` with `path: message` errors; runs prefab + wall/fence macro expansion first.
+
 use crate::color::parse_hex_to_linear;
 use crate::easing::Ease;
 use crate::gpu::MAX_LIGHTS;
@@ -10,6 +12,27 @@ use serde_json::{Map, Value};
 // Compiled scene (what the renderer actually walks)
 // ---------------------------------------------------------------------------------------------
 
+/// Scene-level tuning for the "clarity" post pass (contact ambient occlusion + silhouette
+/// outlines, see `shaders/postfx.wgsl`). JSON: `"post": {"ao": 0.8, "outline": 0.5,
+/// "ao_radius": 0.55, "enabled": true}` — all optional.
+#[derive(Debug, Clone, Copy)]
+pub struct PostSettings {
+    pub enabled: bool,
+    /// Contact-AO strength, 0 (off) .. ~1.5.
+    pub ao: f32,
+    /// Silhouette outline darkness, 0 (off) .. 1.
+    pub outline: f32,
+    /// World-space reach of the AO in meters.
+    pub ao_radius: f32,
+}
+
+impl Default for PostSettings {
+    fn default() -> Self {
+        PostSettings { enabled: true, ao: 0.9, outline: 0.65, ao_radius: 0.6 }
+    }
+}
+
+/// A parsed scene: meta, camera, lights, background, post settings and the (macro-expanded) object tree.
 #[derive(Debug)]
 pub struct Scene {
     pub fps: u32,
@@ -20,16 +43,19 @@ pub struct Scene {
     pub ambient_color: Vec3,
     pub ambient_intensity: f32,
     pub camera: Camera,
+    pub post: PostSettings,
     pub lights: Vec<Light>,
     pub objects: Vec<Object>,
 }
 
+/// Sky: a flat color or a vertical gradient.
 #[derive(Debug)]
 pub enum Background {
     Flat(Vec3),
     Gradient { top: Vec3, bottom: Vec3 },
 }
 
+/// The scene camera (also the player's spawn in `re2`): position, target, fov as tracks.
 #[derive(Debug)]
 pub struct Camera {
     pub fov: Track<f32>,
@@ -40,12 +66,14 @@ pub struct Camera {
     pub roll: Track<f32>,
 }
 
+/// Point light or the single directional sun.
 #[derive(Debug)]
 pub enum LightKind {
     Directional { direction: Track<Vec3> },
     Point { position: Track<Vec3>, range: f32 },
 }
 
+/// A light in the scene (see `LightKind`).
 #[derive(Debug)]
 pub struct Light {
     pub id: String,
@@ -54,8 +82,12 @@ pub struct Light {
     pub intensity: Track<f32>,
     pub cast_shadows: bool,
     pub shadow_radius: f32,
+    /// World point the shadow map is centered on (default: the origin). Move it onto the middle
+    /// of a map that isn't centered at 0,0,0 so the whole thing falls inside the shadow frustum.
+    pub shadow_center: Vec3,
 }
 
+/// Surface material: base color, metallic, roughness, emissive.
 #[derive(Clone, Debug)]
 pub struct Material {
     pub color: Track<Vec3>,
@@ -75,6 +107,7 @@ impl Material {
     }
 }
 
+/// The six primitive shapes; only `Box` collides.
 #[derive(Debug, Clone, Copy)]
 pub enum PrimKind {
     Box { size: Vec3 },
@@ -85,6 +118,22 @@ pub enum PrimKind {
     Plane { size: (f32, f32) },
 }
 
+impl PrimKind {
+    /// Conservative local-space half-extent (the mesh always fits inside it) — used for
+    /// bounding boxes, not for rendering.
+    pub fn half_extent(&self) -> Vec3 {
+        match self {
+            PrimKind::Box { size } => *size * 0.5,
+            PrimKind::Sphere { radius } => Vec3::splat(*radius),
+            PrimKind::Cylinder { radius, height } | PrimKind::Cone { radius, height } | PrimKind::Capsule { radius, height } => {
+                Vec3::new(*radius, height * 0.5, *radius)
+            }
+            PrimKind::Plane { size } => Vec3::new(size.0 * 0.5, 0.02, size.1 * 0.5),
+        }
+    }
+}
+
+/// Joint rotations (as tracks) that pose a `humanoid`.
 #[derive(Debug)]
 pub struct Pose {
     pub spine: Track<Vec3>,
@@ -99,12 +148,30 @@ pub struct Pose {
     pub r_knee: Track<f32>,
 }
 
+/// A humanoid figure: height, build, material and pose.
 #[derive(Debug)]
 pub struct HumanoidDef {
     pub height: f32,
     pub build: f32,
+    /// The shirt colour (and finish); skin, hair, trousers and shoes are in `look`.
     pub material: Material,
+    /// Non-shirt colours (JSON: optional `skin`, `hair`, `pants`, `shoes` hex strings).
+    pub look: crate::characters::HumanLook,
     pub pose: Pose,
+}
+
+/// Cheddar-style lab rat (see `crate::characters::rat_parts`): fur `material`, and a gait
+/// animated by tracks. Origin at the paws, nose toward local +Z.
+#[derive(Debug)]
+pub struct RatDef {
+    /// Fur colour and finish.
+    pub material: Material,
+    /// Gait phase in radians.
+    pub gait: Track<f32>,
+    /// Gait amplitude, 0 (standing) .. 1 (full scurry).
+    pub stride: Track<f32>,
+    /// Tail/head idle phase in radians.
+    pub sway: Track<f32>,
 }
 
 /// A prop-hunt prop (see `crate::props`): a schema-level object kind that expands into a
@@ -130,15 +197,18 @@ pub struct StairsDef {
     pub material: Material,
 }
 
+/// What an object is: a primitive, `Group`, `Humanoid`, `Rat`, `Prop`, `Stairs` (macros and prefabs are already expanded away).
 #[derive(Debug)]
 pub enum ObjectKind {
     Prim(PrimKind),
     Group(Vec<Object>),
     Humanoid(Box<HumanoidDef>),
+    Rat(Box<RatDef>),
     Prop(Box<PropDef>),
     Stairs(Box<StairsDef>),
 }
 
+/// One scene object: unique id, position/rotation/scale tracks, and its `ObjectKind`.
 #[derive(Debug)]
 pub struct Object {
     pub id: String,
@@ -146,7 +216,24 @@ pub struct Object {
     pub rotation: Track<Vec3>,
     pub scale: Track<Vec3>,
     pub material: Option<Material>,
+    /// `"collide": false` makes the object (and, for a group, everything inside it) walk-through:
+    /// no player collider, not standable, no solid volume for the lint tools. Default true.
+    pub collide: bool,
+    /// Set on the group a prefab instance expands into: which prefab it came from (see [`PrefabTag`]).
+    pub prefab: Option<PrefabTag>,
+    /// `"movable": true|false` — force this object to be (or not be) a loose, pick-up-able,
+    /// physics-driven prop. `None` = decide from what it is (see `crate::physics::classify`).
+    pub movable: Option<bool>,
     pub kind: ObjectKind,
+}
+
+/// Where a prefab-expanded group came from.
+#[derive(Debug, Clone)]
+pub struct PrefabTag {
+    /// The prefab's catalogue name.
+    pub name: String,
+    /// `floor`, `wall` or `ceiling` (what it is mounted on); only `floor` things can be loose props.
+    pub mount: String,
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -336,7 +423,7 @@ fn parse_material(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Materi
 
 fn default_camera() -> Camera {
     Camera {
-        fov: Track::constant(50.0),
+        fov: Track::constant(90.0),
         near: 0.1,
         far: 200.0,
         position: Track::constant(Vec3::new(0.0, 2.0, 8.0)),
@@ -347,7 +434,7 @@ fn default_camera() -> Camera {
 
 fn parse_camera(ctx: &mut Ctx, obj: &Map<String, Value>) -> Camera {
     Camera {
-        fov: float_field(ctx, obj, "fov", "camera", 50.0),
+        fov: float_field(ctx, obj, "fov", "camera", 90.0),
         near: plain_f32(obj, "near", 0.1).max(0.001),
         far: plain_f32(obj, "far", 200.0),
         position: vec3_field(ctx, obj, "position", "camera", Vec3::new(0.0, 2.0, 8.0)),
@@ -360,6 +447,13 @@ fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
     let id = obj.get("id").and_then(Value::as_str).unwrap_or("light").to_string();
     let cast_shadows = obj.get("cast_shadows").and_then(Value::as_bool).unwrap_or(false);
     let shadow_radius = plain_f32(obj, "shadow_radius", 15.0);
+    let shadow_center = match obj.get("shadow_center") {
+        None => Vec3::ZERO,
+        Some(v) => as_vec3(v).unwrap_or_else(|e| {
+            ctx.err(&format!("{path}.shadow_center"), e);
+            Vec3::ZERO
+        }),
+    };
     let color = color_field(ctx, obj, "color", path, Vec3::ONE);
     let kind_name = obj.get("type").and_then(Value::as_str);
     let kind = match kind_name {
@@ -393,6 +487,7 @@ fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
         intensity: float_field(ctx, obj, "intensity", path, intensity_default),
         cast_shadows,
         shadow_radius,
+        shadow_center,
     }
 }
 
@@ -449,7 +544,26 @@ fn parse_humanoid(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Humano
         l_knee: parse_pose_track_f32(ctx, &pose_obj, "l_knee", &ppath),
         r_knee: parse_pose_track_f32(ctx, &pose_obj, "r_knee", &ppath),
     };
-    HumanoidDef { height, build, material, pose }
+    let mut look = crate::characters::HumanLook::default();
+    for (key, slot) in [("skin", &mut look.skin), ("hair", &mut look.hair), ("pants", &mut look.pants), ("shoes", &mut look.shoes)] {
+        *slot = plain_hex(ctx, obj, key, path, *slot);
+    }
+    HumanoidDef { height, build, material, look, pose }
+}
+
+fn parse_rat(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> RatDef {
+    let mut material = parse_material(ctx, obj, path);
+    if obj.get("material").and_then(|m| m.get("color")).is_none() {
+        material.color = Track::constant(crate::color::parse_hex_to_linear(crate::characters::RAT_FUR_HEX).unwrap_or(Vec3::splat(0.3)));
+    }
+    let pose_obj = obj.get("pose").and_then(Value::as_object).cloned().unwrap_or_default();
+    let ppath = format!("{path}.pose");
+    RatDef {
+        material,
+        gait: parse_pose_track_f32(ctx, &pose_obj, "gait", &ppath),
+        stride: parse_pose_track_f32(ctx, &pose_obj, "stride", &ppath),
+        sway: parse_pose_track_f32(ctx, &pose_obj, "sway", &ppath),
+    }
 }
 
 fn parse_prop(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> PropDef {
@@ -489,6 +603,9 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
             rotation: Track::constant(Vec3::ZERO),
             scale: Track::constant(Vec3::ONE),
             material: Some(Material::default_gray()),
+            collide: true,
+            prefab: None,
+            movable: None,
             kind: ObjectKind::Prim(PrimKind::Sphere { radius: 0.5 }),
         };
     };
@@ -500,6 +617,29 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
         }
     };
     let ty = obj.get("type").and_then(Value::as_str);
+
+    // Macro types (`wall`, `fence`) expand into an ordinary group of boxes before parsing, so
+    // everything downstream only ever sees primitives. See `crate::macros`.
+    if let Some(t) = ty.filter(|t| crate::macros::MACRO_TYPES.contains(t)) {
+        return match crate::macros::expand(t, obj, &id) {
+            Ok(group) => parse_object(ctx, &group, path),
+            Err(errs) => {
+                ctx.errors.extend(errs);
+                Object {
+                    id,
+                    position: Track::constant(Vec3::ZERO),
+                    rotation: Track::constant(Vec3::ZERO),
+                    scale: Track::constant(Vec3::ONE),
+                    material: None,
+                    collide: true,
+                    prefab: None,
+                    movable: None,
+                    kind: ObjectKind::Group(Vec::new()),
+                }
+            }
+        };
+    }
+
     let position = vec3_field(ctx, obj, "position", &id, Vec3::ZERO);
     let rotation = vec3_field(ctx, obj, "rotation", &id, Vec3::ZERO);
     let scale = scale_field(ctx, obj, "scale", &id, Vec3::ONE);
@@ -523,13 +663,14 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
             (ObjectKind::Group(children), None)
         }
         Some("humanoid") => (ObjectKind::Humanoid(Box::new(parse_humanoid(ctx, obj, &id))), None),
+        Some("rat") => (ObjectKind::Rat(Box::new(parse_rat(ctx, obj, &id))), None),
         Some("prop") => (ObjectKind::Prop(Box::new(parse_prop(ctx, obj, &id))), None),
         Some("stairs") => (ObjectKind::Stairs(Box::new(parse_stairs(ctx, obj, &id))), None),
         Some(other) => {
             ctx.err(
                 &format!("{id}.type"),
                 format!(
-                    "unknown type '{other}' (expected box, sphere, cylinder, cone, capsule, plane, group, humanoid, prop, or stairs)"
+                    "unknown type '{other}' (expected box, sphere, cylinder, cone, capsule, plane, group, humanoid, rat, prop, stairs, wall, fence, or prefab)"
                 ),
             );
             (ObjectKind::Prim(PrimKind::Sphere { radius: 0.5 }), Some(Material::default_gray()))
@@ -540,11 +681,20 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
         }
     };
 
-    Object { id, position, rotation, scale, material, kind }
+    let collide = obj.get("collide").and_then(Value::as_bool).unwrap_or(true);
+    let prefab = obj.get("prefab_name").and_then(Value::as_str).map(|name| PrefabTag {
+        name: name.to_string(),
+        mount: obj.get("mount").and_then(Value::as_str).unwrap_or("floor").to_string(),
+    });
+    let movable = obj.get("movable").and_then(Value::as_bool);
+    Object { id, position, rotation, scale, material, collide, prefab, movable, kind }
 }
 
+/// Parses scene JSON text into a `Scene`, expanding prefabs and macros first; `Err` lists every `path: message` problem found.
 pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
-    let value: Value = serde_json::from_str(text).map_err(|e| vec![format!("json: {e}")])?;
+    let mut value: Value = serde_json::from_str(text).map_err(|e| vec![format!("json: {e}")])?;
+    // Prefab instances (`"type": "prefab"`) expand into plain groups before anything else sees them.
+    crate::prefabs::expand_scene(&mut value)?;
     let mut ctx = Ctx::default();
     let Some(root) = value.as_object() else {
         return Err(vec!["root: scene must be a JSON object".to_string()]);
@@ -585,6 +735,25 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         None => Vec3::ONE,
     };
     let ambient_intensity = ambient.map(|a| plain_f32(a, "intensity", 0.25)).unwrap_or(0.25);
+
+    let post = match root.get("post") {
+        None => PostSettings::default(),
+        Some(v) => match v.as_object() {
+            None => {
+                ctx.err("post", "must be an object like {\"ao\": 0.9, \"outline\": 0.55}");
+                PostSettings::default()
+            }
+            Some(p) => {
+                let d = PostSettings::default();
+                PostSettings {
+                    enabled: p.get("enabled").and_then(Value::as_bool).unwrap_or(d.enabled),
+                    ao: plain_f32(p, "ao", d.ao).clamp(0.0, 3.0),
+                    outline: plain_f32(p, "outline", d.outline).clamp(0.0, 1.0),
+                    ao_radius: plain_f32(p, "ao_radius", d.ao_radius).clamp(0.05, 3.0),
+                }
+            }
+        },
+    };
 
     let camera = match root.get("camera").and_then(Value::as_object) {
         None => {
@@ -641,6 +810,7 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         ambient_color,
         ambient_intensity,
         camera,
+        post,
         lights,
         objects,
     })

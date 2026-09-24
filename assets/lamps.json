@@ -1,0 +1,1814 @@
+[
+ {
+  "name": "lamp_floor_arc",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "floor"
+  ],
+  "desc": "An arching floor lamp with a marble base (unlit prop; ~2.6 m tall, reaches 0.7 m sideways).",
+  "params": {
+   "shade": {
+    "default": "#e8e4dc",
+    "desc": "shade color"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "box",
+    "size": [
+     0.34,
+     0.06,
+     0.24
+    ],
+    "position": [
+     0,
+     0.03,
+     0
+    ],
+    "material": {
+     "color": "#e8e4dc",
+     "roughness": 0.3,
+     "metallic": 0.1
+    }
+   },
+   {
+    "id": "pole",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 2.1,
+    "position": [
+     0,
+     1.1,
+     0
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arc0",
+    "type": "cylinder",
+    "radius": 0.013,
+    "height": 0.0552,
+    "position": [
+     0.0066,
+     2.1768,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -13.91
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arc1",
+    "type": "cylinder",
+    "radius": 0.013,
+    "height": 0.0646,
+    "position": [
+     0.0329,
+     2.2292,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -37.42
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arc2",
+    "type": "cylinder",
+    "radius": 0.013,
+    "height": 0.0789,
+    "position": [
+     0.0843,
+     2.2783,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -53.62
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arc3",
+    "type": "cylinder",
+    "radius": 0.013,
+    "height": 0.0942,
+    "position": [
+     0.1586,
+     2.3218,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -64.65
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arc4",
+    "type": "cylinder",
+    "radius": 0.013,
+    "height": 0.1079,
+    "position": [
+     0.2526,
+     2.358,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -72.7
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arc5",
+    "type": "cylinder",
+    "radius": 0.013,
+    "height": 0.1187,
+    "position": [
+     0.3624,
+     2.3853,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -79.07
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arc6",
+    "type": "cylinder",
+    "radius": 0.013,
+    "height": 0.1256,
+    "position": [
+     0.4832,
+     2.4026,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -84.54
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arc7",
+    "type": "cylinder",
+    "radius": 0.013,
+    "height": 0.1283,
+    "position": [
+     0.6099,
+     2.409,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -89.61
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "shade",
+    "type": "cone",
+    "radius": 0.18,
+    "height": 0.2,
+    "position": [
+     0.674,
+     2.3494,
+     0
+    ],
+    "rotation": [
+     180,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$shade",
+     "roughness": 0.7
+    }
+   },
+   {
+    "id": "cap",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0.674,
+     2.4594,
+     0
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_floor_torchiere",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "floor"
+  ],
+  "desc": "A torchiere floor lamp with an upward-facing bowl (unlit prop; 1.8 m).",
+  "params": {
+   "shade": {
+    "default": "#efe6d0",
+    "desc": "bowl color"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.16,
+    "height": 0.03,
+    "position": [
+     0,
+     0.015,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "pole",
+    "type": "cylinder",
+    "radius": 0.013,
+    "height": 1.55,
+    "position": [
+     0,
+     0.8,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "collar",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.04,
+    "position": [
+     0,
+     1.52,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "bowl",
+    "type": "cone",
+    "radius": 0.18,
+    "height": 0.2,
+    "position": [
+     0,
+     1.65,
+     0
+    ],
+    "rotation": [
+     180,
+     0,
+     0
+    ],
+    "material": {
+     "color": "$shade",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "lip",
+    "type": "cylinder",
+    "radius": 0.18,
+    "height": 0.02,
+    "position": [
+     0,
+     1.75,
+     0
+    ],
+    "material": {
+     "color": "$shade",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "core",
+    "type": "box",
+    "size": [
+     0.016,
+     1.5,
+     0.016
+    ],
+    "position": [
+     0,
+     0.8,
+     0
+    ],
+    "material": {
+     "color": "#888888",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_floor_tripod",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "floor"
+  ],
+  "desc": "A wooden tripod floor lamp with a drum shade (unlit prop; 2.2 m).",
+  "params": {
+   "wood": {
+    "default": "#a8804a",
+    "desc": "wood color"
+   },
+   "shade": {
+    "default": "#efe6d0",
+    "desc": "shade color"
+   }
+  },
+  "objects": [
+   {
+    "id": "leg0",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 1.22,
+    "position": [
+     0.0965,
+     0.6,
+     0.0527
+    ],
+    "rotation": [
+     -5.27,
+     0,
+     9.65
+    ],
+    "material": {
+     "color": "$wood",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "leg1",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 1.22,
+    "position": [
+     -0.0939,
+     0.6,
+     0.0572
+    ],
+    "rotation": [
+     -5.72,
+     0,
+     -9.39
+    ],
+    "material": {
+     "color": "$wood",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "leg2",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 1.22,
+    "position": [
+     -0.0026,
+     0.6,
+     -0.11
+    ],
+    "rotation": [
+     11.0,
+     0,
+     -0.26
+    ],
+    "material": {
+     "color": "$wood",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "hub",
+    "type": "cylinder",
+    "radius": 0.05,
+    "height": 0.06,
+    "position": [
+     0,
+     1.15,
+     0
+    ],
+    "material": {
+     "color": "$wood",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "stem",
+    "type": "cylinder",
+    "radius": 0.012,
+    "height": 0.3,
+    "position": [
+     0,
+     1.3,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "shade",
+    "type": "cylinder",
+    "radius": 0.2,
+    "height": 0.3,
+    "position": [
+     0,
+     1.5,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ],
+    "material": {
+     "color": "$shade",
+     "roughness": 0.85
+    }
+   },
+   {
+    "id": "shade_top",
+    "type": "cylinder",
+    "radius": 0.202,
+    "height": 0.012,
+    "position": [
+     0,
+     1.656,
+     0
+    ],
+    "material": {
+     "color": "#d8d0bc",
+     "roughness": 0.8
+    }
+   },
+   {
+    "id": "core",
+    "type": "box",
+    "size": [
+     0.06,
+     0.06,
+     0.06
+    ],
+    "position": [
+     0,
+     1.15,
+     0
+    ],
+    "material": {
+     "color": "#888888",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_floor_reading",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "floor"
+  ],
+  "desc": "A slim reading floor lamp with a bent neck and cone head (unlit prop; 1.65 m).",
+  "params": {
+   "shade": {
+    "default": "#c9b458",
+    "desc": "head color"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.15,
+    "height": 0.03,
+    "position": [
+     0,
+     0.015,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "pole",
+    "type": "cylinder",
+    "radius": 0.012,
+    "height": 1.7,
+    "position": [
+     0,
+     0.88,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "neck0",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.3373,
+    "position": [
+     0.035,
+     1.885,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -11.98
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "neck1",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.286,
+    "position": [
+     0.155,
+     2.165,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -36.47
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "neck2",
+    "type": "cylinder",
+    "radius": 0.011,
+    "height": 0.18,
+    "position": [
+     0.33,
+     2.28,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -90.0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "head",
+    "type": "cone",
+    "radius": 0.09,
+    "height": 0.16,
+    "position": [
+     0.46,
+     2.23,
+     0
+    ],
+    "rotation": [
+     180,
+     0,
+     25
+    ],
+    "material": {
+     "color": "$shade",
+     "roughness": 0.5,
+     "metallic": 0.3
+    }
+   },
+   {
+    "id": "joint",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0,
+     1.72,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "core",
+    "type": "box",
+    "size": [
+     0.016,
+     1.7,
+     0.016
+    ],
+    "position": [
+     0,
+     0.88,
+     0
+    ],
+    "material": {
+     "color": "#888888",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_floor_paper",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "floor"
+  ],
+  "desc": "A tall paper-lantern floor lamp (unlit prop; 1.3 m).",
+  "params": {
+   "paper": {
+    "default": "#f2ead8",
+    "desc": "paper color"
+   }
+  },
+  "objects": [
+   {
+    "id": "foot",
+    "type": "cylinder",
+    "radius": 0.11,
+    "height": 0.03,
+    "position": [
+     0,
+     0.015,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "body",
+    "type": "cylinder",
+    "radius": 0.16,
+    "height": 1.2,
+    "position": [
+     0,
+     0.63,
+     0
+    ],
+    "material": {
+     "color": "$paper",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "top",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     1.23,
+     0
+    ],
+    "scale": [
+     0.32,
+     0.12,
+     0.32
+    ],
+    "material": {
+     "color": "$paper",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "rib0",
+    "type": "cylinder",
+    "radius": 0.163,
+    "height": 0.016,
+    "position": [
+     0,
+     0.25,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "rib1",
+    "type": "cylinder",
+    "radius": 0.163,
+    "height": 0.016,
+    "position": [
+     0,
+     0.55,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "rib2",
+    "type": "cylinder",
+    "radius": 0.163,
+    "height": 0.016,
+    "position": [
+     0,
+     0.85,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "rib3",
+    "type": "cylinder",
+    "radius": 0.163,
+    "height": 0.016,
+    "position": [
+     0,
+     1.15,
+     0
+    ],
+    "material": {
+     "color": "#3a2a1a",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "core",
+    "type": "box",
+    "size": [
+     0.2,
+     1.2,
+     0.2
+    ],
+    "position": [
+     0,
+     0.63,
+     0
+    ],
+    "material": {
+     "color": "#888888",
+     "roughness": 0.9
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_desk_articulated",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "desk",
+   "small"
+  ],
+  "desc": "An architect-style desk lamp with a jointed steel arm (unlit prop; 0.5 m).",
+  "params": {
+   "shade": {
+    "default": "#d8d2c0",
+    "desc": "head color"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.09,
+    "height": 0.025,
+    "position": [
+     0,
+     0.0125,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "post",
+    "type": "cylinder",
+    "radius": 0.014,
+    "height": 0.1,
+    "position": [
+     0,
+     0.07,
+     0
+    ],
+    "material": {
+     "color": "#2a2c31",
+     "roughness": 0.4,
+     "metallic": 0.6
+    }
+   },
+   {
+    "id": "j0",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0,
+     0.12,
+     0
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arm1",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.2729,
+    "position": [
+     -0.065,
+     0.24,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     28.44
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "j1",
+    "type": "sphere",
+    "radius": 0.017,
+    "position": [
+     -0.13,
+     0.36,
+     0
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "arm2",
+    "type": "cylinder",
+    "radius": 0.008,
+    "height": 0.2062,
+    "position": [
+     -0.035,
+     0.4,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -67.17
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "j2",
+    "type": "sphere",
+    "radius": 0.017,
+    "position": [
+     0.06,
+     0.44,
+     0
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "head",
+    "type": "cone",
+    "radius": 0.06,
+    "height": 0.13,
+    "position": [
+     0.1,
+     0.4,
+     0
+    ],
+    "rotation": [
+     180,
+     0,
+     55
+    ],
+    "material": {
+     "color": "$shade",
+     "roughness": 0.35,
+     "metallic": 0.4
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_desk_banker",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "desk",
+   "small"
+  ],
+  "desc": "A classic banker's desk lamp: brass stem and a long green shade (unlit prop; 0.44 m).",
+  "params": {
+   "shade": {
+    "default": "#1f6a44",
+    "desc": "shade color"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.08,
+    "height": 0.02,
+    "position": [
+     0,
+     0.01,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "stem",
+    "type": "cylinder",
+    "radius": 0.012,
+    "height": 0.3,
+    "position": [
+     0,
+     0.17,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "shade",
+    "type": "cylinder",
+    "radius": 0.065,
+    "height": 0.32,
+    "position": [
+     0,
+     0.36,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     90
+    ],
+    "scale": [
+     1,
+     1,
+     0.65
+    ],
+    "material": {
+     "color": "$shade",
+     "roughness": 0.15,
+     "metallic": 0.1
+    }
+   },
+   {
+    "id": "cap_l",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.01,
+    "position": [
+     -0.165,
+     0.36,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     90
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "cap_r",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.01,
+    "position": [
+     0.165,
+     0.36,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     90
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_desk_gooseneck",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "desk",
+   "small"
+  ],
+  "desc": "A gooseneck desk lamp curving over to a cone head (unlit prop; 0.42 m).",
+  "params": {
+   "color": {
+    "default": "#b8292f",
+    "desc": "lamp color"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.08,
+    "height": 0.02,
+    "position": [
+     0,
+     0.01,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "gn0",
+    "type": "cylinder",
+    "radius": 0.007,
+    "height": 0.14,
+    "position": [
+     0.0,
+     0.09,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -0.0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "gn1",
+    "type": "cylinder",
+    "radius": 0.007,
+    "height": 0.1237,
+    "position": [
+     0.015,
+     0.22,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -14.04
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "gn2",
+    "type": "cylinder",
+    "radius": 0.007,
+    "height": 0.1063,
+    "position": [
+     0.065,
+     0.32,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -41.19
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "gn3",
+    "type": "cylinder",
+    "radius": 0.007,
+    "height": 0.0922,
+    "position": [
+     0.145,
+     0.37,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -77.47
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "gn4",
+    "type": "cylinder",
+    "radius": 0.007,
+    "height": 0.0781,
+    "position": [
+     0.22,
+     0.355,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -129.81
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   },
+   {
+    "id": "head",
+    "type": "cone",
+    "radius": 0.055,
+    "height": 0.1,
+    "position": [
+     0.27,
+     0.29,
+     0
+    ],
+    "rotation": [
+     180,
+     0,
+     15
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.4,
+     "metallic": 0.5
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_table_ceramic",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "small"
+  ],
+  "desc": "A ceramic-bodied table lamp with a drum shade (unlit prop; 0.53 m).",
+  "params": {
+   "body": {
+    "default": "#3f86a8",
+    "desc": "ceramic color"
+   },
+   "shade": {
+    "default": "#efe6d0",
+    "desc": "shade color"
+   }
+  },
+  "objects": [
+   {
+    "id": "foot",
+    "type": "cylinder",
+    "radius": 0.06,
+    "height": 0.015,
+    "position": [
+     0,
+     0.0075,
+     0
+    ],
+    "material": {
+     "color": "$body",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "body",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.13,
+     0
+    ],
+    "scale": [
+     0.17,
+     0.22,
+     0.17
+    ],
+    "material": {
+     "color": "$body",
+     "roughness": 0.25
+    }
+   },
+   {
+    "id": "neck",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.09,
+    "position": [
+     0,
+     0.27,
+     0
+    ],
+    "material": {
+     "color": "$body",
+     "roughness": 0.25
+    }
+   },
+   {
+    "id": "shade",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.19,
+    "position": [
+     0,
+     0.42,
+     0
+    ],
+    "material": {
+     "color": "$shade",
+     "roughness": 0.9
+    }
+   },
+   {
+    "id": "shade_top",
+    "type": "cylinder",
+    "radius": 0.137,
+    "height": 0.008,
+    "position": [
+     0,
+     0.52,
+     0
+    ],
+    "material": {
+     "color": "#d8d0bc",
+     "roughness": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_table_globe",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "small"
+  ],
+  "desc": "A frosted-glass globe table lamp (unlit prop; 0.32 m).",
+  "params": {
+   "color": {
+    "default": "#efece4",
+    "desc": "glass color"
+   }
+  },
+  "objects": [
+   {
+    "id": "foot",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.02,
+    "position": [
+     0,
+     0.01,
+     0
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "stem",
+    "type": "cylinder",
+    "radius": 0.012,
+    "height": 0.1,
+    "position": [
+     0,
+     0.07,
+     0
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   },
+   {
+    "id": "globe",
+    "type": "sphere",
+    "radius": 0.11,
+    "position": [
+     0,
+     0.21,
+     0
+    ],
+    "material": {
+     "color": "$color",
+     "roughness": 0.2
+    }
+   },
+   {
+    "id": "collar",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.02,
+    "position": [
+     0,
+     0.13,
+     0
+    ],
+    "material": {
+     "color": "#b8bcc2",
+     "roughness": 0.3,
+     "metallic": 0.85
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_bedside_mushroom",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "small",
+   "bedroom"
+  ],
+  "desc": "A whimsical mushroom bedside lamp (unlit prop; 0.27 m).",
+  "params": {
+   "cap": {
+    "default": "#c8452f",
+    "desc": "cap color"
+   },
+   "stem": {
+    "default": "#efe6d0",
+    "desc": "stem color"
+   }
+  },
+  "objects": [
+   {
+    "id": "stem",
+    "type": "cylinder",
+    "radius": 0.045,
+    "height": 0.14,
+    "position": [
+     0,
+     0.07,
+     0
+    ],
+    "material": {
+     "color": "$stem",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "cap",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.18,
+     0
+    ],
+    "scale": [
+     0.26,
+     0.17,
+     0.26
+    ],
+    "material": {
+     "color": "$cap",
+     "roughness": 0.5
+    }
+   },
+   {
+    "id": "dot0",
+    "type": "sphere",
+    "radius": 0.014,
+    "position": [
+     0.06,
+     0.2351,
+     0.05
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "dot1",
+    "type": "sphere",
+    "radius": 0.014,
+    "position": [
+     -0.07,
+     0.2351,
+     0.04
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "dot2",
+    "type": "sphere",
+    "radius": 0.014,
+    "position": [
+     0.0,
+     0.2369,
+     -0.09
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.6
+    }
+   },
+   {
+    "id": "dot3",
+    "type": "sphere",
+    "radius": 0.014,
+    "position": [
+     0.08,
+     0.2333,
+     -0.05
+    ],
+    "material": {
+     "color": "#f2efe8",
+     "roughness": 0.6
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_wall_sconce",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "wall"
+  ],
+  "desc": "A brass wall sconce with a small shade (unlit prop); origin at the wall face.",
+  "mount": "wall",
+  "collide": false,
+  "params": {
+   "shade": {
+    "default": "#efe6d0",
+    "desc": "shade color"
+   }
+  },
+  "objects": [
+   {
+    "id": "plate",
+    "type": "box",
+    "size": [
+     0.08,
+     0.16,
+     0.012
+    ],
+    "position": [
+     0,
+     0,
+     0.006
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "arm",
+    "type": "cylinder",
+    "radius": 0.01,
+    "height": 0.12,
+    "position": [
+     0,
+     0.0,
+     0.07
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "cup",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.03,
+    "position": [
+     0,
+     0.02,
+     0.13
+    ],
+    "material": {
+     "color": "#c9a24a",
+     "roughness": 0.35,
+     "metallic": 0.8
+    }
+   },
+   {
+    "id": "shade",
+    "type": "cylinder",
+    "radius": 0.075,
+    "height": 0.16,
+    "position": [
+     0,
+     0.11,
+     0.13
+    ],
+    "material": {
+     "color": "$shade",
+     "roughness": 0.85
+    }
+   },
+   {
+    "id": "shade_top",
+    "type": "cylinder",
+    "radius": 0.077,
+    "height": 0.008,
+    "position": [
+     0,
+     0.19,
+     0.13
+    ],
+    "material": {
+     "color": "#d8d0bc",
+     "roughness": 0.8
+    }
+   }
+  ]
+ },
+ {
+  "name": "lamp_lava",
+  "tags": [
+   "furniture",
+   "lamp",
+   "decor",
+   "small",
+   "toy"
+  ],
+  "desc": "A retro lava lamp with wax blobs (unlit prop; 0.42 m).",
+  "params": {
+   "goo": {
+    "default": "#7a3f9a",
+    "desc": "liquid color"
+   },
+   "blob": {
+    "default": "#f0a0d0",
+    "desc": "blob color"
+   },
+   "metal": {
+    "default": "#c0c4c8",
+    "desc": "cap/base metal"
+   }
+  },
+  "objects": [
+   {
+    "id": "base",
+    "type": "cylinder",
+    "radius": 0.06,
+    "height": 0.09,
+    "position": [
+     0,
+     0.045,
+     0
+    ],
+    "material": {
+     "color": "$metal",
+     "roughness": 0.3,
+     "metallic": 0.7
+    }
+   },
+   {
+    "id": "glass",
+    "type": "cylinder",
+    "radius": 0.048,
+    "height": 0.26,
+    "position": [
+     0,
+     0.22,
+     0
+    ],
+    "material": {
+     "color": "$goo",
+     "roughness": 0.2
+    }
+   },
+   {
+    "id": "blob1",
+    "type": "sphere",
+    "radius": 0.028,
+    "position": [
+     0,
+     0.16,
+     0
+    ],
+    "material": {
+     "color": "$blob",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "blob2",
+    "type": "sphere",
+    "radius": 0.02,
+    "position": [
+     0.008,
+     0.26,
+     0
+    ],
+    "material": {
+     "color": "$blob",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "blob3",
+    "type": "sphere",
+    "radius": 0.014,
+    "position": [
+     -0.01,
+     0.31,
+     0
+    ],
+    "material": {
+     "color": "$blob",
+     "roughness": 0.3
+    }
+   },
+   {
+    "id": "cap",
+    "type": "sphere",
+    "radius": 0.5,
+    "position": [
+     0,
+     0.36,
+     0
+    ],
+    "scale": [
+     0.08,
+     0.06,
+     0.08
+    ],
+    "material": {
+     "color": "$metal",
+     "roughness": 0.3,
+     "metallic": 0.7
+    }
+   }
+  ]
+ }
+]

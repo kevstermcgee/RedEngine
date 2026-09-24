@@ -1,180 +1,2190 @@
 {
   "meta": { "fps": 30, "duration": 4.0, "resolution": [1280, 720] },
   "background": { "sky_top": "#5b8fd4", "sky_bottom": "#dce8f5" },
-  "ambient": { "color": "#cfd8e8", "intensity": 0.26 },
-  "camera": { "fov": 72, "position": [0, 1.7, -4], "target": [0, 1.4, 2] },
+  "ambient": { "color": "#cfd8e8", "intensity": 0.3 },
+  "camera": { "fov": 90, "position": [0, 1.7, -8], "target": [0, 1.5, 6] },
   "lights": [
-    { "id": "sun", "type": "directional", "direction": [-0.35, -1.0, -0.3],
-      "color": "#fff2df", "intensity": 2.0, "cast_shadows": true, "shadow_radius": 20 },
-    { "id": "living_room_lamp", "type": "point", "position": [-4, 2.4, 3],
-      "color": "#ffdca0", "intensity": 12, "range": 8 },
-    { "id": "kitchen_lamp", "type": "point", "position": [4.5, 2.4, 5],
-      "color": "#ffffff", "intensity": 11, "range": 8 },
-    { "id": "upstairs_hall_lamp", "type": "point", "position": [0, 5.2, 2.5],
-      "color": "#ffe8c0", "intensity": 9, "range": 6 },
-    { "id": "bedroom1_lamp", "type": "point", "position": [-4, 5.2, 2.5],
-      "color": "#ffd9a0", "intensity": 10, "range": 7 },
-    { "id": "bedroom2_lamp", "type": "point", "position": [4, 5.2, 5],
-      "color": "#ffd9a0", "intensity": 10, "range": 7 },
-    { "id": "upstairs_bathroom_lamp", "type": "point", "position": [-4, 5.2, 7.5],
-      "color": "#ffffff", "intensity": 9, "range": 6 },
-    { "id": "backyard_lamp", "type": "point", "position": [0, 3.4, 13],
-      "color": "#fff0d0", "intensity": 12, "range": 9 }
+    {
+      "id": "sun",
+      "type": "directional",
+      "direction": [-0.5, -0.72, 0.65],
+      "color": "#fff2df",
+      "intensity": 2.3,
+      "cast_shadows": true,
+      "shadow_radius": 26,
+      "shadow_center": [0, 0, 8]
+    },
+    { "id": "living_lamp", "type": "point", "position": [-4.2, 2.4, 3.3], "color": "#ffdca0", "intensity": 11, "range": 7.5 },
+    { "id": "study_lamp", "type": "point", "position": [-4.2, 2.4, 9.5], "color": "#ffd9a0", "intensity": 10, "range": 6.5 },
+    { "id": "kitchen_lamp", "type": "point", "position": [4.2, 2.4, 2.8], "color": "#ffffff", "intensity": 11, "range": 7 },
+    { "id": "dining_lamp", "type": "point", "position": [4.0, 2.4, 8.0], "color": "#ffe6bd", "intensity": 11, "range": 7 },
+    { "id": "powder_lamp", "type": "point", "position": [5.7, 2.4, 10.6], "color": "#ffffff", "intensity": 8, "range": 4.5 },
+    { "id": "hall_lamp_n", "type": "point", "position": [0.3, 2.4, 2.2], "color": "#ffe8c0", "intensity": 9, "range": 5.5 },
+    { "id": "hall_lamp_s", "type": "point", "position": [0.3, 2.4, 9.5], "color": "#ffe8c0", "intensity": 9, "range": 5.5 },
+    { "id": "master_lamp", "type": "point", "position": [-4.2, 5.4, 3.5], "color": "#ffd9a0", "intensity": 11, "range": 7.5 },
+    { "id": "bedroom3_lamp", "type": "point", "position": [-4.2, 5.4, 9.5], "color": "#ffd9a0", "intensity": 10, "range": 6.5 },
+    { "id": "bedroom2_lamp", "type": "point", "position": [4.2, 5.4, 3.2], "color": "#ffd9a0", "intensity": 11, "range": 7 },
+    { "id": "bathroom_lamp", "type": "point", "position": [4.2, 5.4, 9.2], "color": "#ffffff", "intensity": 10, "range": 6.5 },
+    { "id": "hall_up_lamp_n", "type": "point", "position": [0.4, 5.4, 1.4], "color": "#ffe8c0", "intensity": 8, "range": 5 },
+    { "id": "hall_up_lamp_s", "type": "point", "position": [0.2, 5.4, 9.3], "color": "#ffe8c0", "intensity": 8, "range": 5 },
+    { "id": "patio_lamp", "type": "point", "position": [0, 3.4, 14.6], "color": "#fff0d0", "intensity": 10, "range": 8.5 }
+  ],
+  "zones": [
+    { "id": "living", "rect": [-6.85, 0.15, -1.6, 6.9], "y": 0 },
+    { "id": "study", "rect": [-6.85, 7.1, -1.6, 11.85], "y": 0 },
+    { "id": "kitchen", "rect": [1.6, 0.15, 6.85, 5.9], "y": 0 },
+    { "id": "powder", "rect": [4.6, 9.7, 6.85, 11.85], "y": 0 },
+    { "id": "dining", "rect": [1.6, 6.1, 6.85, 9.5], "y": 0 },
+    { "id": "dining_sw", "rect": [1.6, 9.7, 4.45, 11.85], "y": 0 },
+    { "id": "hall", "rect": [-1.4, 0.15, 1.4, 11.85], "y": 0 },
+    { "id": "master", "rect": [-6.85, 0.15, -1.6, 6.9], "y": 3.0 },
+    { "id": "bedroom3", "rect": [-6.85, 7.1, -1.6, 11.85], "y": 3.0 },
+    { "id": "bedroom2", "rect": [1.6, 0.15, 6.85, 6.4], "y": 3.0 },
+    { "id": "bathroom_up", "rect": [1.6, 6.6, 6.85, 11.85], "y": 3.0 },
+    { "id": "hall_up", "rect": [-0.1, 0.15, 1.4, 11.85], "y": 3.0 },
+    { "id": "landing_w", "rect": [-1.4, 7.1, -0.1, 11.85], "y": 3.0 },
+    { "id": "landing_n", "rect": [-1.4, 0.15, -0.1, 2.4], "y": 3.0 },
+    { "id": "front_yard", "rect": [-11.8, -9.8, 11.8, -0.4], "y": 0, "kind": "outdoor" },
+    { "id": "west_yard", "rect": [-11.8, 0.2, -7.4, 11.9], "y": 0, "kind": "outdoor" },
+    { "id": "east_yard", "rect": [7.4, 0.2, 11.8, 11.9], "y": 0, "kind": "outdoor" },
+    { "id": "back_yard", "rect": [-11.8, 12.3, 11.8, 25.8], "y": 0, "kind": "outdoor" },
+    { "id": "shed", "rect": [7.65, 19.65, 10.35, 22.35], "y": 0, "kind": "outdoor" }
   ],
   "objects": [
-    { "id": "yard_ground", "type": "plane", "size": [16, 30], "position": [0, 0, 9],
-      "material": { "color": "#4a7c3f", "roughness": 0.9 } },
-    { "id": "house_floor", "type": "plane", "size": [14, 10], "position": [0, 0.01, 5],
-      "material": { "color": "#8a6a4a", "roughness": 0.6 } },
-
-    { "id": "mailbox_1", "type": "prop", "prop": "mailbox", "position": [5, 0, -3],
-      "material": { "color": "#3a4a6a", "roughness": 0.6 } },
-
-    { "id": "wall_front_left", "type": "box", "size": [6, 2.7, 0.2], "position": [-4, 1.35, 0],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall_front_right", "type": "box", "size": [6, 2.7, 0.2], "position": [4, 1.35, 0],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall_back_left", "type": "box", "size": [6, 2.7, 0.2], "position": [-4, 1.35, 10],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall_back_center", "type": "box", "size": [2.4, 2.7, 0.2], "position": [0, 1.35, 10],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall_back_right_a", "type": "box", "size": [3.5, 2.7, 0.2], "position": [2.75, 1.35, 10],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall_back_right_b", "type": "box", "size": [1.0, 2.7, 0.2], "position": [6.5, 1.35, 10],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall_ext_left", "type": "box", "size": [0.2, 2.7, 10], "position": [-7, 1.35, 5],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall_ext_right", "type": "box", "size": [0.2, 2.7, 10], "position": [7, 1.35, 5],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-
-    { "id": "bath1_wall_interior", "type": "box", "size": [0.15, 2.7, 4], "position": [-1.2, 1.35, 8],
-      "material": { "color": "#eae3d3", "roughness": 0.9 } },
-    { "id": "bath1_wall_door_a", "type": "box", "size": [2.3, 2.7, 0.15], "position": [-5.85, 1.35, 6],
-      "material": { "color": "#eae3d3", "roughness": 0.9 } },
-    { "id": "bath1_wall_door_b", "type": "box", "size": [2.3, 2.7, 0.15], "position": [-2.35, 1.35, 6],
-      "material": { "color": "#eae3d3", "roughness": 0.9 } },
-
-    { "id": "stairs_1", "type": "stairs", "position": [0, 0, 7.5], "rotation": [0, 0, 0],
-      "width": 1.4, "run": 5.0, "rise": 2.9, "steps": 16,
-      "material": { "color": "#7a5230", "roughness": 0.6 } },
-
-    { "id": "second_floor_deck_left", "type": "box", "size": [5.8, 0.2, 10], "position": [-4.1, 2.8, 5],
-      "material": { "color": "#9a9488", "roughness": 0.8 } },
-    { "id": "second_floor_deck_right", "type": "box", "size": [5.8, 0.2, 10], "position": [4.1, 2.8, 5],
-      "material": { "color": "#9a9488", "roughness": 0.8 } },
-    { "id": "second_floor_deck_front", "type": "box", "size": [2.4, 0.2, 5], "position": [0, 2.8, 2.5],
-      "material": { "color": "#9a9488", "roughness": 0.8 } },
-    { "id": "roof", "type": "box", "size": [14, 0.2, 10], "position": [0, 5.7, 5],
-      "material": { "color": "#5a5048", "roughness": 0.9 } },
-
-    { "id": "wall2_front_left", "type": "box", "size": [5.8, 2.6, 0.2], "position": [-4.1, 4.2, 0],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall2_front_right", "type": "box", "size": [5.8, 2.6, 0.2], "position": [4.1, 4.2, 0],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall2_back_left", "type": "box", "size": [5.8, 2.6, 0.2], "position": [-4.1, 4.2, 10],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall2_back_right", "type": "box", "size": [5.8, 2.6, 0.2], "position": [4.1, 4.2, 10],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall2_back_center", "type": "box", "size": [2.4, 2.6, 0.2], "position": [0, 4.2, 10],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall2_ext_left", "type": "box", "size": [0.2, 2.6, 10], "position": [-7, 4.2, 5],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-    { "id": "wall2_ext_right", "type": "box", "size": [0.2, 2.6, 10], "position": [7, 4.2, 5],
-      "material": { "color": "#d8cdb8", "roughness": 0.85 } },
-
-    { "id": "bath2_wall_interior", "type": "box", "size": [0.15, 2.6, 5], "position": [-1.2, 4.2, 7.5],
-      "material": { "color": "#eae3d3", "roughness": 0.9 } },
-    { "id": "bath2_wall_door_a", "type": "box", "size": [2.3, 2.6, 0.15], "position": [-5.85, 4.2, 5],
-      "material": { "color": "#eae3d3", "roughness": 0.9 } },
-    { "id": "bath2_wall_door_b", "type": "box", "size": [2.3, 2.6, 0.15], "position": [-2.35, 4.2, 5],
-      "material": { "color": "#eae3d3", "roughness": 0.9 } },
-
-    { "id": "sofa_1", "type": "prop", "prop": "sofa", "position": [-6, 0, 3], "rotation": [0, 90, 0],
-      "material": { "color": "#5c7a8a", "roughness": 0.75 } },
-    { "id": "tv_1", "type": "prop", "prop": "tv", "position": [-2, 0, 3], "rotation": [0, -90, 0],
-      "material": { "color": "#2a2a2e", "roughness": 0.5 } },
-    { "id": "bookshelf_living", "type": "prop", "prop": "bookshelf", "position": [-6, 0, 0.35], "rotation": [0, 0, 0],
-      "material": { "color": "#5a3c22", "roughness": 0.6 } },
-    { "id": "plant_living", "type": "prop", "prop": "potted_plant", "position": [-6.5, 0, 5.5], "rotation": [0, 0, 0],
-      "material": { "color": "#9c7248" } },
-
-    { "id": "kitchen_counter_1", "type": "prop", "prop": "kitchen_counter", "position": [6.5, 0, 1.2], "rotation": [0, -90, 0],
-      "material": { "color": "#c8bfa8", "roughness": 0.6 } },
-    { "id": "stove_1", "type": "prop", "prop": "stove", "position": [6.5, 0, 2.6], "rotation": [0, -90, 0],
-      "material": { "color": "#e8e8e8", "roughness": 0.4 } },
-    { "id": "refrigerator_1", "type": "prop", "prop": "refrigerator", "position": [6.5, 0, 4.1], "rotation": [0, -90, 0],
-      "material": { "color": "#dcdcdc", "roughness": 0.35 } },
-    { "id": "sink_kitchen", "type": "prop", "prop": "sink", "position": [6.5, 0, 5.5], "rotation": [0, -90, 0],
-      "material": { "color": "#c8bfa8", "roughness": 0.6 } },
-    { "id": "dining_table_1", "type": "prop", "prop": "dining_table", "position": [3, 0, 7], "rotation": [0, 0, 0],
-      "material": { "color": "#7a5230", "roughness": 0.5 } },
-    { "id": "dining_chair_1", "type": "prop", "prop": "chair", "position": [3, 0, 7.6], "rotation": [0, 180, 0],
-      "material": { "color": "#5a3c22", "roughness": 0.6 } },
-    { "id": "dining_chair_2", "type": "prop", "prop": "chair", "position": [3, 0, 6.4], "rotation": [0, 0, 0],
-      "material": { "color": "#5a3c22", "roughness": 0.6 } },
-    { "id": "dining_chair_3", "type": "prop", "prop": "chair", "position": [3.9, 0, 7], "rotation": [0, -90, 0],
-      "material": { "color": "#5a3c22", "roughness": 0.6 } },
-    { "id": "dining_chair_4", "type": "prop", "prop": "chair", "position": [2.1, 0, 7], "rotation": [0, 90, 0],
-      "material": { "color": "#5a3c22", "roughness": 0.6 } },
-
-    { "id": "toilet_1", "type": "prop", "prop": "toilet", "position": [-6.3, 0, 9.3], "rotation": [0, 180, 0],
-      "material": { "color": "#f0f0ee" } },
-    { "id": "sink_bath1", "type": "prop", "prop": "sink", "position": [-1.9, 0, 7], "rotation": [0, -90, 0],
-      "material": { "color": "#c8bfa8", "roughness": 0.6 } },
-
-    { "id": "bed_master", "type": "prop", "prop": "bed", "position": [-4, 2.9, 1.5], "rotation": [0, 0, 0],
-      "material": { "color": "#6a5a8a", "roughness": 0.7 } },
-    { "id": "dresser_master", "type": "prop", "prop": "filing_cabinet", "position": [-6.5, 2.9, 4.5], "rotation": [0, 90, 0],
-      "material": { "color": "#5f6672", "roughness": 0.55 } },
-    { "id": "plant_master", "type": "prop", "prop": "potted_plant", "position": [-1.8, 2.9, 0.5], "rotation": [0, 0, 0],
-      "material": { "color": "#9c7248" } },
-
-    { "id": "bed_2", "type": "prop", "prop": "bed", "position": [4, 2.9, 1.5], "rotation": [0, 0, 0],
-      "material": { "color": "#7a4a4a", "roughness": 0.7 } },
-    { "id": "dresser_2", "type": "prop", "prop": "filing_cabinet", "position": [6.5, 2.9, 4.5], "rotation": [0, -90, 0],
-      "material": { "color": "#5f6672", "roughness": 0.55 } },
-    { "id": "plant_2", "type": "prop", "prop": "potted_plant", "position": [1.8, 2.9, 8.5], "rotation": [0, 0, 0],
-      "material": { "color": "#b08052" } },
-
-    { "id": "toilet_2", "type": "prop", "prop": "toilet", "position": [-6.3, 2.9, 9.3], "rotation": [0, 180, 0],
-      "material": { "color": "#f0f0ee" } },
-    { "id": "sink_bath2", "type": "prop", "prop": "sink", "position": [-1.9, 2.9, 7], "rotation": [0, -90, 0],
-      "material": { "color": "#c8bfa8", "roughness": 0.6 } },
-    { "id": "bathtub_2", "type": "prop", "prop": "bathtub", "position": [-4, 2.9, 9.3], "rotation": [0, 180, 0],
-      "material": { "color": "#f0f0ee" } },
-
-    { "id": "patio_bench", "type": "prop", "prop": "bench", "position": [-2, 0, 12], "rotation": [0, 0, 0],
-      "material": { "color": "#4a5c40", "roughness": 0.7 } },
-    { "id": "patio_plant_1", "type": "prop", "prop": "potted_plant", "position": [2, 0, 11.5], "rotation": [0, 0, 0],
-      "material": { "color": "#9c7248" } },
-    { "id": "patio_trash_can", "type": "prop", "prop": "trash_can", "position": [3, 0, 13], "rotation": [0, 0, 0],
-      "material": { "color": "#3a4a52", "roughness": 0.6 } },
-    { "id": "washer_dryer_1", "type": "prop", "prop": "washer_dryer", "position": [-6.5, 0, 1.2], "rotation": [0, 90, 0],
-      "material": { "color": "#e0e0e0", "roughness": 0.4 } },
-
-    { "id": "fence_back_1", "type": "prop", "prop": "fence_section", "position": [-7, 0, 24], "rotation": [0, 0, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_back_2", "type": "prop", "prop": "fence_section", "position": [-5, 0, 24], "rotation": [0, 0, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_back_3", "type": "prop", "prop": "fence_section", "position": [-3, 0, 24], "rotation": [0, 0, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_back_4", "type": "prop", "prop": "fence_section", "position": [-1, 0, 24], "rotation": [0, 0, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_back_5", "type": "prop", "prop": "fence_section", "position": [1, 0, 24], "rotation": [0, 0, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_back_6", "type": "prop", "prop": "fence_section", "position": [3, 0, 24], "rotation": [0, 0, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_back_7", "type": "prop", "prop": "fence_section", "position": [5, 0, 24], "rotation": [0, 0, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_back_8", "type": "prop", "prop": "fence_section", "position": [7, 0, 24], "rotation": [0, 0, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-
-    { "id": "fence_left_1", "type": "prop", "prop": "fence_section", "position": [-8, 0, 11], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_left_2", "type": "prop", "prop": "fence_section", "position": [-8, 0, 13], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_left_3", "type": "prop", "prop": "fence_section", "position": [-8, 0, 15], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_left_4", "type": "prop", "prop": "fence_section", "position": [-8, 0, 17], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_left_5", "type": "prop", "prop": "fence_section", "position": [-8, 0, 19], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_left_6", "type": "prop", "prop": "fence_section", "position": [-8, 0, 21], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_left_7", "type": "prop", "prop": "fence_section", "position": [-8, 0, 23], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-
-    { "id": "fence_right_1", "type": "prop", "prop": "fence_section", "position": [8, 0, 11], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_right_2", "type": "prop", "prop": "fence_section", "position": [8, 0, 13], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_right_3", "type": "prop", "prop": "fence_section", "position": [8, 0, 15], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_right_4", "type": "prop", "prop": "fence_section", "position": [8, 0, 17], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_right_5", "type": "prop", "prop": "fence_section", "position": [8, 0, 19], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_right_6", "type": "prop", "prop": "fence_section", "position": [8, 0, 21], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } },
-    { "id": "fence_right_7", "type": "prop", "prop": "fence_section", "position": [8, 0, 23], "rotation": [0, 90, 0], "material": { "color": "#b8a888", "roughness": 0.8 } }
+    { "id": "ground_far", "type": "plane", "size": [140, 140], "position": [0, 0, 8], "material": { "color": "#5f8a4c", "roughness": 0.95 } },
+    { "id": "lawn", "type": "plane", "size": [24, 36], "position": [0, 0.005, 8], "material": { "color": "#78a85a", "roughness": 0.95 } },
+    { "id": "front_walk", "type": "plane", "size": [1.6, 9.6], "position": [0, 0.012, -5.1], "material": { "color": "#b9b4a8", "roughness": 0.9 } },
+    { "id": "porch", "type": "plane", "size": [3.4, 1.7], "position": [0, 0.018, -0.95], "material": { "color": "#a7a196", "roughness": 0.85 } },
+    { "id": "patio", "type": "plane", "size": [8.4, 4.4], "position": [0, 0.012, 14.3], "material": { "color": "#b4ad9f", "roughness": 0.9 } },
+    { "id": "shed_path", "type": "plane", "size": [1.2, 3.5], "position": [9.0, 0.012, 17.4], "material": { "color": "#b9b4a8", "roughness": 0.9 } },
+    { "id": "floor_hall", "type": "plane", "size": [3, 12], "position": [0, 0.01, 6], "material": { "color": "#8b5e3c", "roughness": 0.55 } },
+    { "id": "floor_living", "type": "plane", "size": [5.5, 7], "position": [-4.25, 0.01, 3.5], "material": { "color": "#7b5233", "roughness": 0.55 } },
+    { "id": "floor_study", "type": "plane", "size": [5.5, 5], "position": [-4.25, 0.01, 9.5], "material": { "color": "#6a4a30", "roughness": 0.55 } },
+    { "id": "floor_kitchen", "type": "plane", "size": [5.5, 6], "position": [4.25, 0.01, 3], "material": { "color": "#6f7d8a", "roughness": 0.5 } },
+    {
+      "id": "floor_dining",
+      "type": "plane",
+      "size": [5.5, 3.6],
+      "position": [4.25, 0.01, 7.8],
+      "material": { "color": "#7b5233", "roughness": 0.55 }
+    },
+    {
+      "id": "floor_dining_sw",
+      "type": "plane",
+      "size": [3, 2.4],
+      "position": [3.0, 0.01, 10.8],
+      "material": { "color": "#7b5233", "roughness": 0.55 }
+    },
+    {
+      "id": "floor_powder",
+      "type": "plane",
+      "size": [2.5, 2.4],
+      "position": [5.75, 0.01, 10.8],
+      "material": { "color": "#7d8f9a", "roughness": 0.4 }
+    },
+    {
+      "id": "wall_front",
+      "type": "wall",
+      "from": [-7, 0],
+      "to": [7, 0],
+      "height": 2.8,
+      "thickness": 0.24,
+      "material": { "color": "#d9ccb0", "roughness": 0.85 },
+      "openings": [
+        { "at": 2.75, "width": 2.0, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 7.0, "width": 1.2, "height": 2.2, "kind": "door" },
+        { "at": 11.25, "width": 2.0, "kind": "window", "sill": 0.9, "height": 1.2 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_back",
+      "type": "wall",
+      "from": [-7, 12],
+      "to": [7, 12],
+      "height": 2.8,
+      "thickness": 0.24,
+      "material": { "color": "#d9ccb0", "roughness": 0.85 },
+      "openings": [
+        { "at": 2.75, "width": 1.8, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 7.0, "width": 1.2, "height": 2.2, "kind": "door" },
+        { "at": 10.0, "width": 1.8, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 12.75, "width": 0.8, "kind": "window", "sill": 1.3, "height": 0.6 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_left",
+      "type": "wall",
+      "from": [-7, 0],
+      "to": [-7, 12],
+      "height": 2.8,
+      "thickness": 0.24,
+      "material": { "color": "#d9ccb0", "roughness": 0.85 },
+      "openings": [{ "at": 3.5, "width": 2.4, "kind": "window", "sill": 0.9, "height": 1.2 }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_right",
+      "type": "wall",
+      "from": [7, 0],
+      "to": [7, 12],
+      "height": 2.8,
+      "thickness": 0.24,
+      "material": { "color": "#d9ccb0", "roughness": 0.85 },
+      "openings": [
+        { "at": 3.0, "width": 1.8, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 8.0, "width": 1.8, "kind": "window", "sill": 0.9, "height": 1.2 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_hall_w",
+      "type": "wall",
+      "from": [-1.5, 0],
+      "to": [-1.5, 12],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "openings": [{ "at": 1.25, "width": 1.0, "height": 2.1, "kind": "door" }, { "at": 9.5, "width": 1.0, "height": 2.1, "kind": "door" }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_hall_e",
+      "type": "wall",
+      "from": [1.5, 0],
+      "to": [1.5, 12],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "openings": [{ "at": 3.0, "width": 1.0, "height": 2.1, "kind": "door" }, { "at": 9.0, "width": 1.0, "height": 2.1, "kind": "door" }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_living_study",
+      "type": "wall",
+      "from": [-7, 7],
+      "to": [-1.5, 7],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_kitchen_dining",
+      "type": "wall",
+      "from": [1.5, 6],
+      "to": [7, 6],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "openings": [{ "at": 2.75, "width": 2.0, "kind": "arch" }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_powder_n",
+      "type": "wall",
+      "from": [4.5, 9.6],
+      "to": [7, 9.6],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "openings": [{ "at": 1.25, "width": 0.9, "height": 2.1, "kind": "door" }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_powder_w",
+      "type": "wall",
+      "from": [4.5, 9.6],
+      "to": [4.5, 12],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "slab_west",
+      "type": "box",
+      "size": [5.72, 0.2, 12.24],
+      "position": [-4.26, 2.9, 6.0],
+      "material": { "color": "#efe9dd", "roughness": 0.9 }
+    },
+    {
+      "id": "slab_east",
+      "type": "box",
+      "size": [7.32, 0.2, 12.24],
+      "position": [3.46, 2.9, 6.0],
+      "material": { "color": "#efe9dd", "roughness": 0.9 }
+    },
+    {
+      "id": "slab_hall_north",
+      "type": "box",
+      "size": [1.2, 0.2, 2.62],
+      "position": [-0.8, 2.9, 1.19],
+      "material": { "color": "#efe9dd", "roughness": 0.9 }
+    },
+    {
+      "id": "slab_hall_south",
+      "type": "box",
+      "size": [1.2, 0.2, 5.12],
+      "position": [-0.8, 2.9, 9.56],
+      "material": { "color": "#efe9dd", "roughness": 0.9 }
+    },
+    {
+      "id": "stairs_main",
+      "type": "stairs",
+      "position": [-0.8, 0, 4.75],
+      "width": 1.2,
+      "run": 4.5,
+      "rise": 3.0,
+      "steps": 16,
+      "material": { "color": "#8a5a34", "roughness": 0.6 }
+    },
+    { "id": "floor_master", "type": "plane", "size": [5.5, 7], "position": [-4.25, 3.01, 3.5], "material": { "color": "#8f7a9a", "roughness": 0.9 } },
+    { "id": "floor_bed3", "type": "plane", "size": [5.5, 5], "position": [-4.25, 3.01, 9.5], "material": { "color": "#7d8f8a", "roughness": 0.9 } },
+    { "id": "floor_bed2", "type": "plane", "size": [5.5, 6.5], "position": [4.25, 3.01, 3.25], "material": { "color": "#8a9a7a", "roughness": 0.9 } },
+    {
+      "id": "floor_bath_up",
+      "type": "plane",
+      "size": [5.5, 5.5],
+      "position": [4.25, 3.01, 9.25],
+      "material": { "color": "#7d8f9a", "roughness": 0.4 }
+    },
+    { "id": "floor_hall_up_n", "type": "plane", "size": [3, 2.5], "position": [0, 3.01, 1.25], "material": { "color": "#8b5e3c", "roughness": 0.55 } },
+    {
+      "id": "floor_hall_up_lane",
+      "type": "plane",
+      "size": [1.7, 4.5],
+      "position": [0.65, 3.01, 4.75],
+      "material": { "color": "#8b5e3c", "roughness": 0.55 }
+    },
+    { "id": "floor_hall_up_s", "type": "plane", "size": [3, 5], "position": [0, 3.01, 9.5], "material": { "color": "#8b5e3c", "roughness": 0.55 } },
+    {
+      "id": "wall2_front",
+      "type": "wall",
+      "from": [-7, 0],
+      "to": [7, 0],
+      "height": 2.8,
+      "thickness": 0.24,
+      "material": { "color": "#d9ccb0", "roughness": 0.85 },
+      "y": 3.0,
+      "openings": [
+        { "at": 2.75, "width": 2.0, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 7.0, "width": 1.2, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 11.25, "width": 2.0, "kind": "window", "sill": 0.9, "height": 1.2 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall2_back",
+      "type": "wall",
+      "from": [-7, 12],
+      "to": [7, 12],
+      "height": 2.8,
+      "thickness": 0.24,
+      "material": { "color": "#d9ccb0", "roughness": 0.85 },
+      "y": 3.0,
+      "openings": [
+        { "at": 2.75, "width": 1.8, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 7.0, "width": 1.0, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 11.25, "width": 1.0, "kind": "window", "sill": 1.2, "height": 0.9 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall2_left",
+      "type": "wall",
+      "from": [-7, 0],
+      "to": [-7, 12],
+      "height": 2.8,
+      "thickness": 0.24,
+      "material": { "color": "#d9ccb0", "roughness": 0.85 },
+      "y": 3.0,
+      "openings": [
+        { "at": 3.5, "width": 2.4, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 9.5, "width": 1.4, "kind": "window", "sill": 0.9, "height": 1.2 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall2_right",
+      "type": "wall",
+      "from": [7, 0],
+      "to": [7, 12],
+      "height": 2.8,
+      "thickness": 0.24,
+      "material": { "color": "#d9ccb0", "roughness": 0.85 },
+      "y": 3.0,
+      "openings": [
+        { "at": 3.0, "width": 1.8, "kind": "window", "sill": 0.9, "height": 1.2 },
+        { "at": 9.0, "width": 1.0, "kind": "window", "sill": 1.2, "height": 0.9 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall2_hall_w",
+      "type": "wall",
+      "from": [-1.5, 0],
+      "to": [-1.5, 12],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "y": 3.0,
+      "openings": [{ "at": 1.25, "width": 1.0, "height": 2.1, "kind": "door" }, { "at": 9.5, "width": 1.0, "height": 2.1, "kind": "door" }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall2_hall_e",
+      "type": "wall",
+      "from": [1.5, 0],
+      "to": [1.5, 12],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "y": 3.0,
+      "openings": [{ "at": 4.0, "width": 1.0, "height": 2.1, "kind": "door" }, { "at": 9.5, "width": 1.0, "height": 2.1, "kind": "door" }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall2_master_bed3",
+      "type": "wall",
+      "from": [-7, 7],
+      "to": [-1.5, 7],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "y": 3.0,
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall2_bed2_bath",
+      "type": "wall",
+      "from": [1.5, 6.5],
+      "to": [7, 6.5],
+      "height": 2.8,
+      "thickness": 0.15,
+      "material": { "color": "#e6dece", "roughness": 0.85 },
+      "y": 3.0,
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "rail_stairwell_e",
+      "type": "wall",
+      "from": [-0.2, 2.5],
+      "to": [-0.2, 7.0],
+      "height": 1.05,
+      "thickness": 0.08,
+      "material": { "color": "#7a5230", "roughness": 0.6 },
+      "y": 3.0
+    },
+    {
+      "id": "rail_stairwell_n",
+      "type": "wall",
+      "from": [-1.4, 2.5],
+      "to": [-0.2, 2.5],
+      "height": 1.05,
+      "thickness": 0.08,
+      "material": { "color": "#7a5230", "roughness": 0.6 },
+      "y": 3.0
+    },
+    { "id": "roof", "type": "box", "size": [14.8, 0.2, 12.8], "position": [0, 5.9, 6.0], "material": { "color": "#4a443e", "roughness": 0.9 } },
+    { "id": "awning", "type": "box", "size": [2.6, 0.1, 1.3], "position": [0, 2.6, -0.75], "material": { "color": "#5b4a3a", "roughness": 0.8 } },
+    {
+      "id": "sofa_living",
+      "type": "prop",
+      "prop": "sofa",
+      "position": [-2.03, 0, 4.2],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#3f6f8f", "roughness": 0.85 }
+    },
+    {
+      "id": "tv_living",
+      "type": "prop",
+      "prop": "tv",
+      "position": [-6.72, 0, 4.2],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#1f2024", "roughness": 0.5 }
+    },
+    {
+      "id": "rug_living",
+      "type": "prop",
+      "prop": "rug",
+      "position": [-4.3, 0, 4.2],
+      "rotation": [0, 90, 0],
+      "scale": 1.5,
+      "material": { "color": "#a24b3f", "roughness": 0.95 }
+    },
+    {
+      "id": "coffee_table_living",
+      "type": "prop",
+      "prop": "coffee_table",
+      "position": [-4.3, 0, 4.2],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#6e4b2b", "roughness": 0.5 }
+    },
+    {
+      "id": "bookshelf_living",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [-6.2, 0, 0.32],
+      "material": { "color": "#5a3c22", "roughness": 0.6 }
+    },
+    {
+      "id": "armchair_living",
+      "type": "prop",
+      "prop": "armchair",
+      "position": [-6.05, 0, 6.05],
+      "rotation": [0, 135, 0],
+      "material": { "color": "#c8702c", "roughness": 0.85 }
+    },
+    { "id": "plant_living_door", "type": "prop", "prop": "potted_plant", "position": [-2.05, 0, 0.5], "material": { "color": "#9c7248" } },
+    { "id": "plant_living_corner", "type": "prop", "prop": "potted_plant", "position": [-6.5, 0, 1.15], "material": { "color": "#9c7248" } },
+    {
+      "id": "desk_study",
+      "type": "prop",
+      "prop": "desk",
+      "position": [-4.25, 0, 11.5],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#6e4b2b", "roughness": 0.5 }
+    },
+    { "id": "chair_study", "type": "prop", "prop": "chair", "position": [-4.25, 0, 10.6], "material": { "color": "#2f5d50", "roughness": 0.7 } },
+    {
+      "id": "bookshelf_study_1",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [-6.71, 0, 8.3],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#5a3c22", "roughness": 0.6 }
+    },
+    {
+      "id": "bookshelf_study_2",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [-6.71, 0, 9.3],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#5a3c22", "roughness": 0.6 }
+    },
+    {
+      "id": "cabinet_study",
+      "type": "prop",
+      "prop": "filing_cabinet",
+      "position": [-6.55, 0, 10.4],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#5f6672", "roughness": 0.55 }
+    },
+    { "id": "plant_study", "type": "prop", "prop": "potted_plant", "position": [-2.0, 0, 11.5], "material": { "color": "#9c7248" } },
+    {
+      "id": "boxes_study",
+      "type": "prop",
+      "prop": "box_stack",
+      "position": [-2.2, 0, 7.6],
+      "rotation": [0, 20, 0],
+      "material": { "color": "#b08a5a", "roughness": 0.9 }
+    },
+    {
+      "id": "fridge_kitchen",
+      "type": "prop",
+      "prop": "refrigerator",
+      "position": [1.98, 0, 0.5],
+      "material": { "color": "#7b8590", "roughness": 0.3, "metallic": 0.3 }
+    },
+    {
+      "id": "counter_kitchen_1",
+      "type": "prop",
+      "prop": "kitchen_counter",
+      "position": [3.305, 0, 0.46],
+      "material": { "color": "#b98c5a", "roughness": 0.6 }
+    },
+    { "id": "stove_kitchen", "type": "prop", "prop": "stove", "position": [4.555, 0, 0.45], "material": { "color": "#2f3339", "roughness": 0.4 } },
+    { "id": "sink_kitchen", "type": "prop", "prop": "sink", "position": [5.2, 0, 0.45], "material": { "color": "#b98c5a", "roughness": 0.6 } },
+    {
+      "id": "counter_kitchen_2",
+      "type": "prop",
+      "prop": "kitchen_counter",
+      "position": [6.2, 0, 0.46],
+      "scale": [0.7, 1, 1],
+      "material": { "color": "#b98c5a", "roughness": 0.6 }
+    },
+    {
+      "id": "island_kitchen",
+      "type": "prop",
+      "prop": "kitchen_counter",
+      "position": [4.0, 0, 3.0],
+      "material": { "color": "#35507a", "roughness": 0.6 }
+    },
+    {
+      "id": "stool_kitchen_1",
+      "type": "prop",
+      "prop": "chair",
+      "position": [3.55, 0, 3.75],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#c9482f", "roughness": 0.7 }
+    },
+    {
+      "id": "stool_kitchen_2",
+      "type": "prop",
+      "prop": "chair",
+      "position": [4.45, 0, 3.75],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#c9482f", "roughness": 0.7 }
+    },
+    { "id": "trash_kitchen", "type": "prop", "prop": "trash_can", "position": [6.6, 0, 1.7], "material": { "color": "#4a5a66", "roughness": 0.6 } },
+    { "id": "plant_kitchen", "type": "prop", "prop": "potted_plant", "position": [2.0, 0, 5.5], "material": { "color": "#9c7248" } },
+    {
+      "id": "rug_dining",
+      "type": "prop",
+      "prop": "rug",
+      "position": [4.4, 0, 7.6],
+      "scale": [1.3, 1, 1.5],
+      "material": { "color": "#c9b37c", "roughness": 0.95 }
+    },
+    { "id": "table_dining", "type": "prop", "prop": "dining_table", "position": [4.4, 0, 7.6], "material": { "color": "#7a5230", "roughness": 0.5 } },
+    {
+      "id": "chair_dining_1",
+      "type": "prop",
+      "prop": "chair",
+      "position": [3.35, 0, 7.6],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#2f5d50", "roughness": 0.7 }
+    },
+    {
+      "id": "chair_dining_2",
+      "type": "prop",
+      "prop": "chair",
+      "position": [5.45, 0, 7.6],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#2f5d50", "roughness": 0.7 }
+    },
+    {
+      "id": "chair_dining_3",
+      "type": "prop",
+      "prop": "chair",
+      "position": [4.0, 0, 8.25],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#2f5d50", "roughness": 0.7 }
+    },
+    {
+      "id": "chair_dining_4",
+      "type": "prop",
+      "prop": "chair",
+      "position": [4.8, 0, 8.25],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#2f5d50", "roughness": 0.7 }
+    },
+    {
+      "id": "cabinet_dining",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [2.6, 0, 11.7],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22", "roughness": 0.6 }
+    },
+    { "id": "plant_dining", "type": "prop", "prop": "potted_plant", "position": [4.0, 0, 11.5], "material": { "color": "#9c7248" } },
+    {
+      "id": "toilet_powder",
+      "type": "prop",
+      "prop": "toilet",
+      "position": [6.2, 0, 11.5],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#f0f0ee", "roughness": 0.3 }
+    },
+    {
+      "id": "sink_powder",
+      "type": "prop",
+      "prop": "sink",
+      "position": [6.57, 0, 10.5],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#b98c5a", "roughness": 0.6 }
+    },
+    {
+      "id": "washer_dryer",
+      "type": "prop",
+      "prop": "washer_dryer",
+      "position": [4.92, 0, 10.9],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#7f8b99", "roughness": 0.4 }
+    },
+    {
+      "id": "bench_hall",
+      "type": "prop",
+      "prop": "bench",
+      "position": [1.2, 0, 7.7],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#4a5c40", "roughness": 0.7 }
+    },
+    { "id": "plant_hall", "type": "prop", "prop": "potted_plant", "position": [1.05, 0, 0.55], "material": { "color": "#9c7248" } },
+    {
+      "id": "rug_master",
+      "type": "prop",
+      "prop": "rug",
+      "position": [-4.4, 3.0, 5.0],
+      "scale": [1.2, 1, 1.5],
+      "material": { "color": "#d4c7a0", "roughness": 0.95 }
+    },
+    {
+      "id": "bed_master",
+      "type": "prop",
+      "prop": "bed",
+      "position": [-4.4, 3.0, 5.8],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#6a4a8a", "roughness": 0.7 }
+    },
+    {
+      "id": "nightstand_master_1",
+      "type": "prop",
+      "prop": "nightstand",
+      "position": [-5.5, 3.0, 6.65],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#6e4b2b", "roughness": 0.6 }
+    },
+    {
+      "id": "nightstand_master_2",
+      "type": "prop",
+      "prop": "nightstand",
+      "position": [-3.3, 3.0, 6.65],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#6e4b2b", "roughness": 0.6 }
+    },
+    {
+      "id": "wardrobe_master",
+      "type": "prop",
+      "prop": "wardrobe",
+      "position": [-6.0, 3.0, 0.44],
+      "material": { "color": "#7a5230", "roughness": 0.6 }
+    },
+    {
+      "id": "dresser_master",
+      "type": "prop",
+      "prop": "filing_cabinet",
+      "position": [-6.56, 3.0, 1.5],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#5f6672", "roughness": 0.55 }
+    },
+    {
+      "id": "armchair_master",
+      "type": "prop",
+      "prop": "armchair",
+      "position": [-2.1, 3.0, 3.5],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#c8702c", "roughness": 0.85 }
+    },
+    { "id": "plant_master", "type": "prop", "prop": "potted_plant", "position": [-6.5, 3.0, 5.6], "material": { "color": "#9c7248" } },
+    {
+      "id": "bed_2",
+      "type": "prop",
+      "prop": "bed",
+      "position": [5.4, 3.0, 5.32],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#2f7f7a", "roughness": 0.7 }
+    },
+    {
+      "id": "nightstand_2_1",
+      "type": "prop",
+      "prop": "nightstand",
+      "position": [4.3, 3.0, 6.2],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#6e4b2b", "roughness": 0.6 }
+    },
+    {
+      "id": "nightstand_2_2",
+      "type": "prop",
+      "prop": "nightstand",
+      "position": [6.5, 3.0, 6.2],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#6e4b2b", "roughness": 0.6 }
+    },
+    {
+      "id": "desk_2",
+      "type": "prop",
+      "prop": "desk",
+      "position": [1.95, 3.0, 1.5],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#6e4b2b", "roughness": 0.5 }
+    },
+    {
+      "id": "chair_desk_2",
+      "type": "prop",
+      "prop": "chair",
+      "position": [2.8, 3.0, 1.5],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#b0552f", "roughness": 0.7 }
+    },
+    {
+      "id": "wardrobe_2",
+      "type": "prop",
+      "prop": "wardrobe",
+      "position": [2.5, 3.0, 6.1],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#7a5230", "roughness": 0.6 }
+    },
+    {
+      "id": "bookshelf_2",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [6.71, 3.0, 1.0],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#5a3c22", "roughness": 0.6 }
+    },
+    { "id": "plant_2", "type": "prop", "prop": "potted_plant", "position": [6.5, 3.0, 4.5], "material": { "color": "#9c7248" } },
+    {
+      "id": "bed_3",
+      "type": "prop",
+      "prop": "bed",
+      "position": [-5.9, 3.0, 10.78],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#b5651d", "roughness": 0.7 }
+    },
+    {
+      "id": "nightstand_3",
+      "type": "prop",
+      "prop": "nightstand",
+      "position": [-4.75, 3.0, 11.66],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#6e4b2b", "roughness": 0.6 }
+    },
+    { "id": "desk_3", "type": "prop", "prop": "desk", "position": [-3.5, 3.0, 7.45], "material": { "color": "#6e4b2b", "roughness": 0.5 } },
+    {
+      "id": "chair_desk_3",
+      "type": "prop",
+      "prop": "chair",
+      "position": [-3.5, 3.0, 8.4],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#2f5d50", "roughness": 0.7 }
+    },
+    {
+      "id": "bookshelf_3",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [-2.5, 3.0, 11.7],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22", "roughness": 0.6 }
+    },
+    { "id": "plant_3", "type": "prop", "prop": "potted_plant", "position": [-2.05, 3.0, 8.0], "material": { "color": "#9c7248" } },
+    {
+      "id": "bathtub_up",
+      "type": "prop",
+      "prop": "bathtub",
+      "position": [6.0, 3.0, 11.45],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#f0f0ee", "roughness": 0.3 }
+    },
+    {
+      "id": "toilet_up",
+      "type": "prop",
+      "prop": "toilet",
+      "position": [6.5, 3.0, 7.6],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#f0f0ee", "roughness": 0.3 }
+    },
+    { "id": "sink_up_1", "type": "prop", "prop": "sink", "position": [3.3, 3.0, 6.89], "material": { "color": "#b98c5a", "roughness": 0.6 } },
+    { "id": "sink_up_2", "type": "prop", "prop": "sink", "position": [4.3, 3.0, 6.89], "material": { "color": "#b98c5a", "roughness": 0.6 } },
+    { "id": "trash_bath_up", "type": "prop", "prop": "trash_can", "position": [2.0, 3.0, 11.4], "material": { "color": "#4a5a66", "roughness": 0.6 } },
+    { "id": "plant_bath_up", "type": "prop", "prop": "potted_plant", "position": [2.0, 3.0, 7.2], "material": { "color": "#9c7248" } },
+    {
+      "id": "bookshelf_hall_up",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [1.25, 3.0, 7.8],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#5a3c22", "roughness": 0.6 }
+    },
+    { "id": "plant_hall_up_n", "type": "prop", "prop": "potted_plant", "position": [1.05, 3.0, 0.55], "material": { "color": "#9c7248" } },
+    { "id": "plant_hall_up_s", "type": "prop", "prop": "potted_plant", "position": [-1.05, 3.0, 11.4], "material": { "color": "#9c7248" } },
+    { "id": "mailbox", "type": "prop", "prop": "mailbox", "position": [5.0, 0, -9.2], "material": { "color": "#2f4f7f", "roughness": 0.5 } },
+    { "id": "bench_patio", "type": "prop", "prop": "bench", "position": [-2.1, 0, 12.35], "material": { "color": "#4a5c40", "roughness": 0.7 } },
+    { "id": "picnic_table", "type": "prop", "prop": "picnic_table", "position": [3.6, 0, 14.8], "material": { "color": "#8a5a34", "roughness": 0.7 } },
+    { "id": "grill", "type": "prop", "prop": "grill", "position": [-3.4, 0, 14.4], "material": { "color": "#2b2b2b", "roughness": 0.5 } },
+    { "id": "trash_patio", "type": "prop", "prop": "trash_can", "position": [3.2, 0, 12.6], "material": { "color": "#3a4a52", "roughness": 0.6 } },
+    { "id": "plant_patio_1", "type": "prop", "prop": "potted_plant", "position": [2.2, 0, 12.55], "material": { "color": "#c86a3c" } },
+    { "id": "plant_patio_2", "type": "prop", "prop": "potted_plant", "position": [-3.7, 0, 12.55], "material": { "color": "#c86a3c" } },
+    { "id": "floor_shed", "type": "plane", "size": [3.0, 3.0], "position": [9.0, 0.01, 21.0], "material": { "color": "#8a7a62", "roughness": 0.9 } },
+    {
+      "id": "shed_n",
+      "type": "wall",
+      "from": [7.5, 19.5],
+      "to": [10.5, 19.5],
+      "height": 2.4,
+      "thickness": 0.15,
+      "material": { "color": "#8a6f4a", "roughness": 0.85 },
+      "openings": [{ "at": 1.5, "width": 1.0, "height": 2.1, "kind": "door" }],
+      "trim": "#e8e2d0"
+    },
+    {
+      "id": "shed_s",
+      "type": "wall",
+      "from": [7.5, 22.5],
+      "to": [10.5, 22.5],
+      "height": 2.4,
+      "thickness": 0.15,
+      "material": { "color": "#8a6f4a", "roughness": 0.85 }
+    },
+    {
+      "id": "shed_w",
+      "type": "wall",
+      "from": [7.5, 19.5],
+      "to": [7.5, 22.5],
+      "height": 2.4,
+      "thickness": 0.15,
+      "material": { "color": "#8a6f4a", "roughness": 0.85 }
+    },
+    {
+      "id": "shed_e",
+      "type": "wall",
+      "from": [10.5, 19.5],
+      "to": [10.5, 22.5],
+      "height": 2.4,
+      "thickness": 0.15,
+      "material": { "color": "#8a6f4a", "roughness": 0.85 },
+      "openings": [{ "at": 1.5, "width": 0.9, "kind": "window", "sill": 1.0, "height": 0.7 }],
+      "trim": "#e8e2d0"
+    },
+    {
+      "id": "shed_roof",
+      "type": "box",
+      "size": [3.6, 0.12, 3.6],
+      "position": [9.0, 2.46, 21.0],
+      "material": { "color": "#4a3a2a", "roughness": 0.9 }
+    },
+    {
+      "id": "shed_crate_1",
+      "type": "prop",
+      "prop": "crate",
+      "position": [8.2, 0, 21.9],
+      "rotation": [0, 15, 0],
+      "material": { "color": "#8a6a3f", "roughness": 0.8 }
+    },
+    {
+      "id": "shed_crate_2",
+      "type": "prop",
+      "prop": "crate",
+      "position": [8.85, 0, 21.9],
+      "rotation": [0, -8, 0],
+      "material": { "color": "#8a6a3f", "roughness": 0.8 }
+    },
+    { "id": "shed_barrel", "type": "prop", "prop": "barrel", "position": [10.0, 0, 21.9], "material": { "color": "#3a5a7a", "roughness": 0.5 } },
+    {
+      "id": "shed_boxes",
+      "type": "prop",
+      "prop": "box_stack",
+      "position": [10.0, 0, 20.4],
+      "rotation": [0, 30, 0],
+      "material": { "color": "#b08a5a", "roughness": 0.9 }
+    },
+    { "id": "shed_mower_bin", "type": "prop", "prop": "trash_can", "position": [8.1, 0, 20.4], "material": { "color": "#3a4a52", "roughness": 0.6 } },
+    {
+      "id": "boulder_1",
+      "type": "prop",
+      "prop": "boulder",
+      "position": [-10.4, 0, 17.0],
+      "rotation": [0, 20, 0],
+      "scale": 1.3,
+      "material": { "color": "#8c8c86", "roughness": 0.9 }
+    },
+    {
+      "id": "boulder_2",
+      "type": "prop",
+      "prop": "boulder",
+      "position": [10.8, 0, 12.5],
+      "rotation": [0, -35, 0],
+      "scale": 1.1,
+      "material": { "color": "#8c8c86", "roughness": 0.9 }
+    },
+    {
+      "id": "boulder_3",
+      "type": "prop",
+      "prop": "boulder",
+      "position": [-9.2, 0, -7.4],
+      "rotation": [0, 70, 0],
+      "scale": 0.9,
+      "material": { "color": "#8c8c86", "roughness": 0.9 }
+    },
+    {
+      "id": "boulder_4",
+      "type": "prop",
+      "prop": "boulder",
+      "position": [4.9, 0, 24.0],
+      "rotation": [0, 10, 0],
+      "scale": 1.0,
+      "material": { "color": "#8c8c86", "roughness": 0.9 }
+    },
+    {
+      "id": "fence_perimeter",
+      "type": "fence",
+      "points": [[-12, -10], [12, -10], [12, 26], [-12, 26]],
+      "closed": true,
+      "height": 2.0,
+      "style": "panel",
+      "material": { "color": "#b8a07a", "roughness": 0.85 },
+      "post_color": "#7d6a4b"
+    },
+    {
+      "id": "bed_west_a_1",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-6.2, 0, -0.9],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_west_a_2",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-5.4, 0, -0.9],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_west_a_3",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-4.6, 0, -0.9],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_west_a_4",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-3.8, 0, -0.9],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_west_b_1",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-5.8667, 0, -1.55],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#f2c230", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_west_b_2",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-5, 0, -1.55],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#f2c230", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_west_b_3",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-4.1333, 0, -1.55],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#f2c230", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_east_a_1",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [3.8, 0, -0.9],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_east_a_2",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [4.6, 0, -0.9],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_east_a_3",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [5.4, 0, -0.9],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_east_a_4",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [6.2, 0, -0.9],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_east_b_1",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [4.1333, 0, -1.55],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#ff8a3d", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_east_b_2",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [5, 0, -1.55],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#ff8a3d", "roughness": 0.85 }
+    },
+    {
+      "id": "bed_east_b_3",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [5.8667, 0, -1.55],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#ff8a3d", "roughness": 0.85 }
+    },
+    {
+      "id": "bush_porch_w",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-2.3, 0, -0.95],
+      "scale": 1.15,
+      "material": { "color": "#3d7d3a", "roughness": 0.85 }
+    },
+    {
+      "id": "bush_porch_e",
+      "type": "prop",
+      "prop": "bush",
+      "position": [2.3, 0, -0.95],
+      "scale": 1.15,
+      "material": { "color": "#43843e", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_w_1",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [-10.14, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#2b612c", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_w_2",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [-8.42, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#327033", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_w_3",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [-6.7, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#2f6b30", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_w_4",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [-4.98, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#2e692f", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_w_5",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [-3.26, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#2d652e", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_e_1",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [3.26, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#2b612c", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_e_2",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [4.98, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#327033", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_e_3",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [6.7, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#2f6b30", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_e_4",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [8.42, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#2e692f", "roughness": 0.85 }
+    },
+    {
+      "id": "hedge_front_e_5",
+      "type": "prop",
+      "prop": "hedge",
+      "position": [10.14, 0, -8.4],
+      "rotation": [0, 0, 0],
+      "material": { "color": "#2d652e", "roughness": 0.85 }
+    },
+    {
+      "id": "tree_front_1",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [9.1738, 0, -5.184],
+      "rotation": [0, 256.2791, 0],
+      "material": { "color": "#3e7933", "roughness": 0.85 },
+      "scale": 1.2095
+    },
+    {
+      "id": "tree_front_2",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [5.1303, 0, -2.2904],
+      "rotation": [0, 62.289, 0],
+      "material": { "color": "#407d35", "roughness": 0.85 },
+      "scale": 1.0312
+    },
+    {
+      "id": "tree_front_3",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-4.3104, 0, -4.4132],
+      "rotation": [0, 196.17, 0],
+      "material": { "color": "#386e2e", "roughness": 0.85 },
+      "scale": 1.0052
+    },
+    {
+      "id": "bush_front_1",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-2.0369, 0, -5.3663],
+      "rotation": [0, 277.0266, 0],
+      "material": { "color": "#448b40", "roughness": 0.85 },
+      "scale": 1.0527
+    },
+    {
+      "id": "bush_front_2",
+      "type": "prop",
+      "prop": "bush",
+      "position": [4.1995, 0, -5.0053],
+      "rotation": [0, 0.6057, 0],
+      "material": { "color": "#367034", "roughness": 0.85 },
+      "scale": 1.1162
+    },
+    {
+      "id": "bush_front_3",
+      "type": "prop",
+      "prop": "bush",
+      "position": [2.0909, 0, -5.725],
+      "rotation": [0, 85.5177, 0],
+      "material": { "color": "#356c32", "roughness": 0.85 },
+      "scale": 0.967
+    },
+    {
+      "id": "bush_front_4",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-9.1329, 0, -4.465],
+      "rotation": [0, 352.1261, 0],
+      "material": { "color": "#3e813b", "roughness": 0.85 },
+      "scale": 1.0629
+    },
+    {
+      "id": "bush_front_5",
+      "type": "prop",
+      "prop": "bush",
+      "position": [7.266, 0, -3.6072],
+      "rotation": [0, 83.3252, 0],
+      "material": { "color": "#41853e", "roughness": 0.85 },
+      "scale": 1.0888
+    },
+    {
+      "id": "bush_front_6",
+      "type": "prop",
+      "prop": "bush",
+      "position": [8.7835, 0, -1.2338],
+      "rotation": [0, 190.0743, 0],
+      "material": { "color": "#356c32", "roughness": 0.85 },
+      "scale": 1.0402
+    },
+    {
+      "id": "bush_front_7",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-6.2909, 0, -5.972],
+      "rotation": [0, 349.6526, 0],
+      "material": { "color": "#3c7b39", "roughness": 0.85 },
+      "scale": 1.1641
+    },
+    {
+      "id": "flowers_front_1",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-8.7884, 0, -1.3517],
+      "rotation": [0, 123.2028, 0],
+      "material": { "color": "#ff8a3d", "roughness": 0.85 },
+      "scale": 1.1945
+    },
+    {
+      "id": "flowers_front_2",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-5.1436, 0, -3.0382],
+      "rotation": [0, 181.0684, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 },
+      "scale": 1.0314
+    },
+    {
+      "id": "flowers_front_3",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [10.8366, 0, -3.4488],
+      "rotation": [0, 27.6903, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 },
+      "scale": 1.2258
+    },
+    {
+      "id": "flowers_front_4",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [3.7113, 0, -2.7328],
+      "rotation": [0, 254.136, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 },
+      "scale": 1.2461
+    },
+    {
+      "id": "flowers_front_5",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-7.0351, 0, -3.8137],
+      "rotation": [0, 179.884, 0],
+      "material": { "color": "#f4f0e8", "roughness": 0.85 },
+      "scale": 1.1702
+    },
+    {
+      "id": "flowers_front_6",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [2.4318, 0, -3.231],
+      "rotation": [0, 211.975, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 },
+      "scale": 1.1499
+    },
+    {
+      "id": "flowers_front_7",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-8.661, 0, -2.5097],
+      "rotation": [0, 350.8303, 0],
+      "material": { "color": "#f4f0e8", "roughness": 0.85 },
+      "scale": 0.9846
+    },
+    {
+      "id": "flowers_front_8",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-4.2646, 0, -3.0167],
+      "rotation": [0, 199.504, 0],
+      "material": { "color": "#f2c230", "roughness": 0.85 },
+      "scale": 0.9033
+    },
+    {
+      "id": "flowers_front_9",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [10.7223, 0, -4.4391],
+      "rotation": [0, 349.7267, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 },
+      "scale": 1.1291
+    },
+    {
+      "id": "flowers_front_10",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-9.7378, 0, -2.3047],
+      "rotation": [0, 13.2831, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 },
+      "scale": 1.1062
+    },
+    {
+      "id": "flowers_front_11",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [7.5064, 0, -6.8689],
+      "rotation": [0, 0.0533, 0],
+      "material": { "color": "#f2c230", "roughness": 0.85 },
+      "scale": 0.9285
+    },
+    {
+      "id": "flowers_front_12",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [10.0941, 0, -6.6179],
+      "rotation": [0, 164.0541, 0],
+      "material": { "color": "#f4f0e8", "roughness": 0.85 }
+    },
+    {
+      "id": "tree_west_1",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-9.0428, 0, 0.9841],
+      "rotation": [0, 325.9166, 0],
+      "material": { "color": "#205d3b", "roughness": 0.85 },
+      "scale": 1.0739
+    },
+    {
+      "id": "tree_west_2",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-8.5981, 0, 7.4818],
+      "rotation": [0, 201.85, 0],
+      "material": { "color": "#448338", "roughness": 0.85 },
+      "scale": 1.1223
+    },
+    {
+      "id": "tree_west_3",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-9.8312, 0, 11.6297],
+      "rotation": [0, 9.5205, 0],
+      "material": { "color": "#1e5838", "roughness": 0.85 },
+      "scale": 1.0995
+    },
+    {
+      "id": "tree_west_4",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-10.4749, 0, 4.9769],
+      "rotation": [0, 94.9769, 0],
+      "material": { "color": "#1d5637", "roughness": 0.85 },
+      "scale": 1.0715
+    },
+    {
+      "id": "bush_west_1",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-9.0154, 0, 3.6116],
+      "rotation": [0, 261.3169, 0],
+      "material": { "color": "#3b7938", "roughness": 0.85 },
+      "scale": 1.0398
+    },
+    {
+      "id": "bush_west_2",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-8.9248, 0, 9.6404],
+      "rotation": [0, 130.0718, 0],
+      "material": { "color": "#3e813b", "roughness": 0.85 },
+      "scale": 1.248
+    },
+    {
+      "id": "bush_west_3",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-10.3913, 0, 7.1847],
+      "rotation": [0, 105.7984, 0],
+      "material": { "color": "#3c7a39", "roughness": 0.85 },
+      "scale": 0.9254
+    },
+    {
+      "id": "flowers_west_1",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-10.6209, 0, 0.3019],
+      "rotation": [0, 121.0854, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 },
+      "scale": 0.9724
+    },
+    {
+      "id": "flowers_west_2",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-8.1892, 0, 5.8673],
+      "rotation": [0, 318.3237, 0],
+      "material": { "color": "#f2c230", "roughness": 0.85 }
+    },
+    {
+      "id": "flowers_west_3",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-10.6204, 0, 1.2521],
+      "rotation": [0, 251.379, 0],
+      "material": { "color": "#f4f0e8", "roughness": 0.85 },
+      "scale": 0.8759
+    },
+    {
+      "id": "flowers_west_4",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-10.9445, 0, 2.8987],
+      "rotation": [0, 181.8566, 0],
+      "material": { "color": "#f4f0e8", "roughness": 0.85 },
+      "scale": 0.9022
+    },
+    {
+      "id": "flowers_west_5",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-10.8031, 0, 3.6829],
+      "rotation": [0, 16.5374, 0],
+      "material": { "color": "#f4f0e8", "roughness": 0.85 },
+      "scale": 0.93
+    },
+    {
+      "id": "tree_east_1",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [9.7099, 0, 7.8176],
+      "rotation": [0, 305.0723, 0],
+      "material": { "color": "#376b2d", "roughness": 0.85 },
+      "scale": 1.1825
+    },
+    {
+      "id": "tree_east_2",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [9.98, 0, 3.6247],
+      "rotation": [0, 57.0801, 0],
+      "material": { "color": "#3e7933", "roughness": 0.85 },
+      "scale": 1.0773
+    },
+    {
+      "id": "tree_east_3",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [9.1187, 0, 1.3188],
+      "rotation": [0, 356.7658, 0],
+      "material": { "color": "#1a4e32", "roughness": 0.85 },
+      "scale": 1.0678
+    },
+    {
+      "id": "tree_east_4",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [8.6479, 0, 10.9142],
+      "rotation": [0, 77.072, 0],
+      "material": { "color": "#438337", "roughness": 0.85 },
+      "scale": 1.051
+    },
+    {
+      "id": "bush_east_1",
+      "type": "prop",
+      "prop": "bush",
+      "position": [8.8051, 0, 6.0969],
+      "rotation": [0, 21.7523, 0],
+      "material": { "color": "#356e33", "roughness": 0.85 },
+      "scale": 0.91
+    },
+    {
+      "id": "flowers_east_1",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [10.3032, 0, 2.2346],
+      "rotation": [0, 343.6873, 0],
+      "material": { "color": "#ff8a3d", "roughness": 0.85 },
+      "scale": 0.9592
+    },
+    {
+      "id": "flowers_east_2",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [8.5731, 0, 9.1435],
+      "rotation": [0, 108.6818, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 },
+      "scale": 0.9832
+    },
+    {
+      "id": "flowers_east_3",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [10.3609, 0, 10.3229],
+      "rotation": [0, 220.9089, 0],
+      "material": { "color": "#ff8a3d", "roughness": 0.85 },
+      "scale": 1.1024
+    },
+    {
+      "id": "flowers_east_4",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [10.6462, 0, 9.2468],
+      "rotation": [0, 48.7372, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 },
+      "scale": 0.9199
+    },
+    {
+      "id": "flowers_east_5",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [10.8298, 0, 5.5689],
+      "rotation": [0, 211.5514, 0],
+      "material": { "color": "#f4f0e8", "roughness": 0.85 },
+      "scale": 0.991
+    },
+    {
+      "id": "flowers_east_6",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [8.5469, 0, 3.6922],
+      "rotation": [0, 53.7376, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 },
+      "scale": 1.2161
+    },
+    {
+      "id": "tree_back_1",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [0.1145, 0, 19.5977],
+      "rotation": [0, 141.7476, 0],
+      "material": { "color": "#1f5c3b", "roughness": 0.85 },
+      "scale": 1.1312
+    },
+    {
+      "id": "tree_back_2",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-8.4759, 0, 22.7295],
+      "rotation": [0, 187.7236, 0],
+      "material": { "color": "#36692c", "roughness": 0.85 },
+      "scale": 1.1359
+    },
+    {
+      "id": "tree_back_3",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [4.1232, 0, 20.63],
+      "rotation": [0, 267.2904, 0],
+      "material": { "color": "#3d7732", "roughness": 0.85 },
+      "scale": 1.1502
+    },
+    {
+      "id": "tree_back_4",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [0.2148, 0, 22.2129],
+      "rotation": [0, 6.1301, 0],
+      "material": { "color": "#1f5b3b", "roughness": 0.85 }
+    },
+    {
+      "id": "tree_back_5",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-3.6419, 0, 17.9512],
+      "rotation": [0, 322.6861, 0],
+      "material": { "color": "#205d3c", "roughness": 0.85 },
+      "scale": 1.3762
+    },
+    {
+      "id": "tree_back_6",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-6.1452, 0, 20.0928],
+      "rotation": [0, 164.6427, 0],
+      "material": { "color": "#478a3a", "roughness": 0.85 },
+      "scale": 1.2456
+    },
+    {
+      "id": "bush_back_1",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-2.3155, 0, 20.8409],
+      "rotation": [0, 220.7036, 0],
+      "material": { "color": "#3a7837", "roughness": 0.85 },
+      "scale": 0.936
+    },
+    {
+      "id": "bush_back_2",
+      "type": "prop",
+      "prop": "bush",
+      "position": [3.3877, 0, 18.2002],
+      "rotation": [0, 315.7488, 0],
+      "material": { "color": "#356d33", "roughness": 0.85 },
+      "scale": 1.2467
+    },
+    {
+      "id": "bush_back_3",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-5.9387, 0, 16.3258],
+      "rotation": [0, 34.7545, 0],
+      "material": { "color": "#42873e", "roughness": 0.85 },
+      "scale": 1.1695
+    },
+    {
+      "id": "bush_back_4",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-1.1632, 0, 17.1293],
+      "rotation": [0, 305.8325, 0],
+      "material": { "color": "#356e33", "roughness": 0.85 },
+      "scale": 1.2167
+    },
+    {
+      "id": "bush_back_5",
+      "type": "prop",
+      "prop": "bush",
+      "position": [6.6547, 0, 14.5069],
+      "rotation": [0, 142.6113, 0],
+      "material": { "color": "#366e33", "roughness": 0.85 },
+      "scale": 1.0821
+    },
+    {
+      "id": "bush_back_6",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-9.3467, 0, 20.4141],
+      "rotation": [0, 281.9729, 0],
+      "material": { "color": "#387335", "roughness": 0.85 },
+      "scale": 1.036
+    },
+    {
+      "id": "bush_back_7",
+      "type": "prop",
+      "prop": "bush",
+      "position": [0.0794, 0, 24.4021],
+      "rotation": [0, 206.7942, 0],
+      "material": { "color": "#3b7938", "roughness": 0.85 },
+      "scale": 0.921
+    },
+    {
+      "id": "bush_back_8",
+      "type": "prop",
+      "prop": "bush",
+      "position": [9.8022, 0, 24.126],
+      "rotation": [0, 32.4226, 0],
+      "material": { "color": "#3a7737", "roughness": 0.85 },
+      "scale": 0.9822
+    },
+    {
+      "id": "bush_back_9",
+      "type": "prop",
+      "prop": "bush",
+      "position": [-2.949, 0, 22.8966],
+      "rotation": [0, 96.9036, 0],
+      "material": { "color": "#3a7737", "roughness": 0.85 }
+    },
+    {
+      "id": "flowers_back_1",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [4.5303, 0, 22.1236],
+      "rotation": [0, 193.913, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 },
+      "scale": 0.9135
+    },
+    {
+      "id": "flowers_back_2",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-6.0425, 0, 22.7401],
+      "rotation": [0, 273.6687, 0],
+      "material": { "color": "#f2c230", "roughness": 0.85 },
+      "scale": 0.922
+    },
+    {
+      "id": "flowers_back_3",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-7.5727, 0, 18.8341],
+      "rotation": [0, 325.4224, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 },
+      "scale": 1.1477
+    },
+    {
+      "id": "flowers_back_4",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [1.7316, 0, 22.1598],
+      "rotation": [0, 335.4879, 0],
+      "material": { "color": "#ff8a3d", "roughness": 0.85 },
+      "scale": 1.1381
+    },
+    {
+      "id": "flowers_back_5",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [2.5883, 0, 21.4642],
+      "rotation": [0, 143.5288, 0],
+      "material": { "color": "#ff8a3d", "roughness": 0.85 },
+      "scale": 1.0714
+    },
+    {
+      "id": "flowers_back_6",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-5.3797, 0, 21.4105],
+      "rotation": [0, 154.6058, 0],
+      "material": { "color": "#f2c230", "roughness": 0.85 },
+      "scale": 1.2045
+    },
+    {
+      "id": "flowers_back_7",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-8.714, 0, 14.7529],
+      "rotation": [0, 241.7917, 0],
+      "material": { "color": "#ff8a3d", "roughness": 0.85 },
+      "scale": 1.1553
+    },
+    {
+      "id": "flowers_back_8",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-5.1449, 0, 13.4729],
+      "rotation": [0, 218.7213, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 },
+      "scale": 1.2002
+    },
+    {
+      "id": "flowers_back_9",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [5.9658, 0, 22.2175],
+      "rotation": [0, 160.8855, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 },
+      "scale": 1.2036
+    },
+    {
+      "id": "flowers_back_10",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-10.6287, 0, 23.7781],
+      "rotation": [0, 39.1945, 0],
+      "material": { "color": "#e0587a", "roughness": 0.85 },
+      "scale": 0.9794
+    },
+    {
+      "id": "flowers_back_11",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-8.2982, 0, 18.2338],
+      "rotation": [0, 135.3077, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 },
+      "scale": 0.9801
+    },
+    {
+      "id": "flowers_back_12",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-4.7842, 0, 20.5287],
+      "rotation": [0, 73.6808, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 },
+      "scale": 1.0484
+    },
+    {
+      "id": "flowers_back_13",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-10.069, 0, 14.8117],
+      "rotation": [0, 32.6343, 0],
+      "material": { "color": "#f2c230", "roughness": 0.85 },
+      "scale": 1.2447
+    },
+    {
+      "id": "flowers_back_14",
+      "type": "prop",
+      "prop": "flower_patch",
+      "position": [-9.1163, 0, 13.7806],
+      "rotation": [0, 205.8201, 0],
+      "material": { "color": "#9b6be0", "roughness": 0.85 },
+      "scale": 0.8659
+    },
+    {
+      "id": "ring_n_1",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-13.3317, 0, -13.7755],
+      "rotation": [0, 287.6386, 0],
+      "material": { "color": "#386d2e", "roughness": 0.85 },
+      "scale": 1.9122,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_n_2",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [7.4998, 0, -16.4861],
+      "rotation": [0, 111.7424, 0],
+      "material": { "color": "#205f3d", "roughness": 0.85 },
+      "scale": 1.8936,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_n_3",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [2.1845, 0, -15.7394],
+      "rotation": [0, 217.313, 0],
+      "material": { "color": "#448538", "roughness": 0.85 },
+      "scale": 1.6944,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_n_4",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-7.4285, 0, -11.8957],
+      "rotation": [0, 255.7632, 0],
+      "material": { "color": "#3f7a34", "roughness": 0.85 },
+      "scale": 1.8471,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_n_5",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [12.4588, 0, -13.3599],
+      "rotation": [0, 38.2484, 0],
+      "material": { "color": "#1e5939", "roughness": 0.85 },
+      "scale": 1.7052,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_n_6",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-2.8429, 0, -14.9492],
+      "rotation": [0, 34.8158, 0],
+      "material": { "color": "#448438", "roughness": 0.85 },
+      "scale": 1.6527,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_n_7",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-8.8903, 0, -16.1265],
+      "rotation": [0, 166.4612, 0],
+      "material": { "color": "#226440", "roughness": 0.85 },
+      "scale": 1.6821,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_n_8",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [16.1653, 0, -12.3391],
+      "rotation": [0, 349.9416, 0],
+      "material": { "color": "#1c5234", "roughness": 0.85 },
+      "scale": 1.9311,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_n_9",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [5.2527, 0, -12.1012],
+      "rotation": [0, 138.581, 0],
+      "material": { "color": "#468739", "roughness": 0.85 },
+      "scale": 1.598,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_s_1",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-7.5276, 0, 29.2456],
+      "rotation": [0, 78.6259, 0],
+      "material": { "color": "#21613e", "roughness": 0.85 },
+      "scale": 2.0209,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_s_2",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [4.0284, 0, 28.6606],
+      "rotation": [0, 187.2048, 0],
+      "material": { "color": "#205e3c", "roughness": 0.85 },
+      "scale": 1.808,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_s_3",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-13.4785, 0, 29.8811],
+      "rotation": [0, 344.6371, 0],
+      "material": { "color": "#376b2d", "roughness": 0.85 },
+      "scale": 1.9134,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_s_4",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [15.0255, 0, 30.7155],
+      "rotation": [0, 232.9541, 0],
+      "material": { "color": "#438338", "roughness": 0.85 },
+      "scale": 2.0043,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_s_5",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [10.7714, 0, 28.2157],
+      "rotation": [0, 178.7081, 0],
+      "material": { "color": "#1a4d32", "roughness": 0.85 },
+      "scale": 1.6906,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_s_6",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [7.6858, 0, 31.3704],
+      "rotation": [0, 164.2281, 0],
+      "material": { "color": "#1c5134", "roughness": 0.85 },
+      "scale": 1.9543,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_s_7",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [0.2999, 0, 31.0097],
+      "rotation": [0, 64.7344, 0],
+      "material": { "color": "#226541", "roughness": 0.85 },
+      "scale": 2.0827,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_s_8",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-4.3964, 0, 31.7327],
+      "rotation": [0, 185.4325, 0],
+      "material": { "color": "#205d3c", "roughness": 0.85 },
+      "scale": 1.8594,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_s_9",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-3.9515, 0, 27.9671],
+      "rotation": [0, 96.0954, 0],
+      "material": { "color": "#226340", "roughness": 0.85 },
+      "scale": 1.5802,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_1",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-15.6634, 0, 20.8921],
+      "rotation": [0, 115.6624, 0],
+      "material": { "color": "#458739", "roughness": 0.85 },
+      "scale": 1.5583,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_2",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-16.1207, 0, 1.3841],
+      "rotation": [0, 81.4478, 0],
+      "material": { "color": "#47893a", "roughness": 0.85 },
+      "scale": 1.5228,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_3",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-14.7629, 0, 26.0003],
+      "rotation": [0, 329.5298, 0],
+      "material": { "color": "#1c5235", "roughness": 0.85 },
+      "scale": 1.885,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_4",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-15.1326, 0, 12.4648],
+      "rotation": [0, 354.6364, 0],
+      "material": { "color": "#3e7833", "roughness": 0.85 },
+      "scale": 2.0348,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_5",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-16.1742, 0, 5.6088],
+      "rotation": [0, 87.041, 0],
+      "material": { "color": "#226440", "roughness": 0.85 },
+      "scale": 1.5585,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_6",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-17.5906, 0, -7.189],
+      "rotation": [0, 353.1605, 0],
+      "material": { "color": "#205d3c", "roughness": 0.85 },
+      "scale": 1.6498,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_7",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-13.6032, 0, 16.9062],
+      "rotation": [0, 269.5016, 0],
+      "material": { "color": "#1e5939", "roughness": 0.85 },
+      "scale": 1.542,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_8",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-14.4942, 0, -9.6328],
+      "rotation": [0, 66.6306, 0],
+      "material": { "color": "#1d5637", "roughness": 0.85 },
+      "scale": 1.9217,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_9",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-13.362, 0, -3.9209],
+      "rotation": [0, 317.0437, 0],
+      "material": { "color": "#458739", "roughness": 0.85 },
+      "scale": 1.5949,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_w_10",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-17.9784, 0, -2.6553],
+      "rotation": [0, 341.5509, 0],
+      "material": { "color": "#205e3d", "roughness": 0.85 },
+      "scale": 1.8232,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_1",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [14.7006, 0, 18.9706],
+      "rotation": [0, 321.9615, 0],
+      "material": { "color": "#21603e", "roughness": 0.85 },
+      "scale": 1.7583,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_2",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [17.9831, 0, 5.7048],
+      "rotation": [0, 357.4268, 0],
+      "material": { "color": "#1c5235", "roughness": 0.85 },
+      "scale": 1.8035,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_3",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [17.6569, 0, -10.6411],
+      "rotation": [0, 110.6259, 0],
+      "material": { "color": "#1d5536", "roughness": 0.85 },
+      "scale": 1.5836,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_4",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [17.5442, 0, 0.4269],
+      "rotation": [0, 15.0919, 0],
+      "material": { "color": "#1a4e32", "roughness": 0.85 },
+      "scale": 1.5327,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_5",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [13.3387, 0, -0.0427],
+      "rotation": [0, 158.9878, 0],
+      "material": { "color": "#3b7230", "roughness": 0.85 },
+      "scale": 1.9275,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_6",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [13.9247, 0, 12.8299],
+      "rotation": [0, 281.2719, 0],
+      "material": { "color": "#205d3c", "roughness": 0.85 },
+      "scale": 1.6412,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_7",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [13.2313, 0, 23.0622],
+      "rotation": [0, 327.1446, 0],
+      "material": { "color": "#1f5c3b", "roughness": 0.85 },
+      "scale": 1.9129,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_8",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [17.3666, 0, 24.622],
+      "rotation": [0, 168.0994, 0],
+      "material": { "color": "#226541", "roughness": 0.85 },
+      "scale": 1.9108,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_9",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [17.7205, 0, 12.8481],
+      "rotation": [0, 218.3792, 0],
+      "material": { "color": "#386d2e", "roughness": 0.85 },
+      "scale": 1.5117,
+      "lint_ignore": ["unreachable"]
+    },
+    {
+      "id": "ring_e_10",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [15.9747, 0, -4.5875],
+      "rotation": [0, 129.9682, 0],
+      "material": { "color": "#1c5134", "roughness": 0.85 },
+      "scale": 1.8286,
+      "lint_ignore": ["unreachable"]
+    },
+    { "id": "ceiling_up", "type": "box", "size": [13.9, 0.1, 11.9], "position": [0, 5.75, 6.0], "material": { "color": "#efe9dd", "roughness": 0.9 } }
   ]
 }

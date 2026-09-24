@@ -8,10 +8,11 @@ describe a scenario as one compact JSON scene file — primitives, props, a posa
 rig, lights, materials, camera moves, keyframed motion — and it renders with real shading and
 shadows, either offline to an MP4 or live in a walk-around window.
 
-**Start here if you're an AI being pointed at this tool: read [`SPEC.md`](SPEC.md).** It's
-the complete scene-language reference (coordinates, object types, keyframes, the humanoid
-rig) and is written to be read once and then used directly — you shouldn't need to read the
-engine's source to use it.
+**Start here if you're an AI being pointed at this project: read [`AGENTS.md`](AGENTS.md)** (the
+workflow: how to inspect, edit, lint and visually review a map with the built-in tools), then
+[`SPEC.md`](SPEC.md), the complete scene-language reference (coordinates, object types, walls,
+stairs, props, keyframes, the humanoid rig). Both are written to be read once and used directly —
+you shouldn't need to read the engine's source to build or change a map.
 
 ## Why this design
 
@@ -25,7 +26,7 @@ engine's source to use it.
 - **A posable rig, not just primitives.** `humanoid` is a fixed capsule-and-sphere skeleton
   posed by joint rotations (forward kinematics) — the 3D analog of the 2D engine's
   `stickfigure`. `group` covers everything else you want to build once and move as a unit.
-- **Real lighting, not flat shading.** Up to 8 lights (directional/point), one shadow-casting
+- **Real lighting, not flat shading.** Up to 16 lights (directional/point), one shadow-casting
   sun with a shadow map, Blinn-Phong-ish shading (softened shininess curve + a cheap Fresnel
   rim term) with metallic/roughness controls, a sky gradient background, and Reinhard
   tone-mapping so bright/overlapping lights roll off gracefully instead of blowing out to flat
@@ -41,6 +42,38 @@ engine's source to use it.
   timestamp; `storyboard` renders a multi-frame contact sheet — both far cheaper than a full
   render while iterating on layout, pose, or lighting.
 
+## Map-authoring tools
+
+The `red_engine2` CLI doubles as a toolkit for building and reviewing walkable maps — all of it
+runs on the *same* collision/ground code as the game, so its answers are what the player will
+actually experience. Full reference and workflow in [`AGENTS.md`](AGENTS.md).
+
+```bash
+red_engine2 lint  examples/house.json          # overlaps, floating props, stairs that lead nowhere,
+                                               # unreachable rooms, missing railings, perimeter leaks, ...
+red_engine2 plan  examples/house.json --all-floors   # labelled top-down plan PNG per floor (or --ascii)
+red_engine2 tour  examples/house.json out/tour.png   # rendered views of every room + cutaway per floor
+red_engine2 walk  examples/house.json --path "0,-8; 0,1; -0.8,2; -0.8,7.6"   # replay a route with real physics
+red_engine2 reach examples/house.json          # floors/rooms reached, doorways between rooms, drops, leaks
+red_engine2 ls | info | props                  # inspect objects, one object, the prop library
+red_engine2 set | move | add | rm | clone | array | rename | fmt    # safe edits (re-validated, atomic)
+red_engine2 scatter | line                     # seeded planting: trees, bushes, flowers, hedge rows
+red_engine2 frame scene.json out.png --eye x,y,z --at x,y,z --hide roof --cut-above 5.7   # free camera / cutaways
+```
+
+The scene language gained matching sugar: a **`wall`** object with `openings` (doors, windows,
+arches, with trim and baseboards) and a **`fence`** object along a polyline both expand to plain
+boxes at parse time, so nobody hand-computes wall pieces around a doorway again; optional `zones`
+name the rooms so every tool can talk about them; and `lint_ignore` marks intentional oddities.
+The MCP server (`mcp_server.py`) exposes the same tools to MCP clients.
+
+## Rendering clarity
+
+Lighting is tuned so objects never melt into the wall behind them: a depth-based **post pass**
+adds contact ambient occlusion (soft shadows where things meet surfaces) and silhouette outlines,
+ambient light is hemispherical, and `wall` gives every doorway a trim frame and every wall a
+baseboard. Tunable per scene through the optional `post` block (see `SPEC.md`).
+
 ## Red Engine 2 — first-person viewer
 
 `re2` is a real-time, walk-around viewer for a scene: it opens a window, drops you in
@@ -54,18 +87,37 @@ instead of an MP4.
 cargo run --release --bin re2 -- examples/prop_hunt_yard.json
 ```
 
+On launch a menu asks whether to play the **Human** (an ordinary person with a bat) or **Cheddar the
+rat** (small, brownish-grey, and always as fast as a human sprint; no bat) — click a side or press
+`1` / `2`. `--as human|rat` (or `RE2_CHARACTER`) skips the menu.
+
 Controls: **WASD** or the **arrow keys** to walk, the **mouse** to look, **Shift** to sprint
-forward (with a subtle FOV kick), **Space** for a small jump, **Ctrl** to crouch, **E** or
-**left-click** to interact with whatever the crosshair is aimed at, **F** to toggle borderless
+forward (with a subtle FOV kick), **Space** for a small jump, **Ctrl** to crouch, **left-click**
+to swing the bat, **F** to toggle borderless
 fullscreen vs. maximized, **Q** to toggle first-/third-person, click the window to capture the
 mouse, **Escape** to release it. The window launches maximized, fit to whichever monitor it
 opens on.
 
-This is a viewer, not an editor — there's no real interaction with objects yet (picking things
-up, opening doors, etc. is future scope). What's here now: a raycast from the camera finds the
-nearest scene object within reach, the crosshair turns gold when one's in range, and E/click
-logs it to the console and gives it a brief highlight-glow pulse — a placeholder to build real
-interactions on top of. Walls, furniture built from `box` primitives, and every `prop` (one
+This is a viewer, not an editor. The seeker's primary action on objects is **hitting them with
+the bat**: a raycast from the player's eye against the objects' *real shapes* finds what is
+within bat reach, the crosshair turns gold when something is in range, and only a swing that
+actually connects plays a thunk and flashes the object (a swing through air is silent).
+
+**The revolver (mouse wheel).** The human's primary weapon is the bat; **scroll the mouse wheel** to
+draw the silver revolver (scroll again to go back). **Left-click fires**: a hitscan shot along the
+crosshair (80 m), with a muzzle flash, recoil kick, a gunshot, a hit flash on whatever it strikes and a
+punch for loose props. Ammo is **infinite for now** (`weapons::REVOLVER_AMMO`; the limited-ammo variant is
+already written). Cheddar has no weapons.
+
+**Loose props (E).** Both characters can pick up a small prop with **E** (the crosshair turns
+green when you are looking at one you can lift), carry it in front of them, and drop it with **E**
+again; a dropped prop keeps your momentum and falls, bounces, tumbles and knocks smaller things
+over. A person carries chairs, crates, barrels, plants, TVs and everything smaller; Cheddar carries
+things about the size of his head (apples, mugs, books) but can shove or bat-knock anything loose.
+Walking into a small prop pushes it; a bat hit sends light props flying. While carrying, the human
+cannot swing the bat. Physics is [rapier](https://rapier.rs) (see ADR 0012); props sit exactly where
+the map put them until something disturbs them. (Right-click is still reserved for the hider's
+"choose an object to replicate", then **R** — not built yet.) Walls, furniture built from `box` primitives, and every `prop` (one
 collider per prop's overall footprint, not per part) block movement (a simple
 circle-vs-AABB push-out, axis-aligned); other primitive shapes and the `humanoid` rig don't
 collide yet. Any keyframed objects in the scene still animate on their own clock while you walk
@@ -84,11 +136,12 @@ the camera's frustum and the shadow-casting light's frustum.
 `props.rs` is a small library of prop-hunt props — schema-level objects
 (`{"type": "prop", "prop": "<name>", ...}`) that expand into a handful of primitive parts the
 same way `humanoid` expands into a posed capsule rig, so a map author places one object instead
-of hand-nesting a dozen boxes. Current set (25): `crate`, `barrel`, `traffic_cone`, `box_stack`,
-`chair`, `trash_can`, `vending_machine`, `bench`, `fire_extinguisher`, `filing_cabinet`,
-`potted_plant`, `bookshelf`, `sofa`, `bed`, `dining_table`, `tv`, `kitchen_counter`,
-`refrigerator`, `stove`, `sink`, `toilet`, `bathtub`, `washer_dryer`, `mailbox`,
-`fence_section` — see [`examples/prop_hunt_yard.json`](examples/prop_hunt_yard.json) and
+of hand-nesting a dozen boxes. Current set (39 — `red_engine2 props` lists them with sizes and
+collision): crates/barrels/cones/boxes, chairs/armchairs/sofa/beds/desks/tables/wardrobe/
+nightstand/shelves/rug/tv, kitchen and bathroom fixtures, `mailbox`, `grill`, `picnic_table`,
+`fence_section`, and landscaping — `tree_oak`, `tree_pine`, `bush`, `flower_patch`, `hedge`,
+`boulder`, `potted_plant`. Every prop's origin is the middle of its base, and only a tree's trunk
+blocks the player (flowers and rugs are walk-through). See [`examples/prop_hunt_yard.json`](examples/prop_hunt_yard.json) and
 [`examples/house.json`](examples/house.json) for them placed in maps. Each takes the same one
 shared `material` every other object kind does; a few parts (a barrel's rim bands, a potted
 plant's foliage, ...) get a small built-in metallic/roughness/color nudge off that base
@@ -154,7 +207,7 @@ To register it with Claude Code, add to your MCP config:
   "mcpServers": {
     "red_engine2": {
       "command": "python",
-      "args": ["C:\\Users\\TheNa\\ClaudePlayground\\red-engine-2\\mcp_server.py"]
+      "args": ["C:\\path\\to\\red-engine-2\\mcp_server.py"]
     }
   }
 }
@@ -172,9 +225,12 @@ To register it with Claude Code, add to your MCP config:
 - [`examples/prop_hunt_yard.json`](examples/prop_hunt_yard.json) — a larger warehouse/yard
   map populated with the `prop` library below, for prop hunt map iteration.
 - [`examples/house.json`](examples/house.json) — the first real prop hunt map: a 2-story
-  suburban home (living room, kitchen/dining, two bathrooms, two bedrooms, a stairwell) with
-  a fenced backyard. First of a planned four (house, school, office, convenience store),
-  all meant to draw from the same shared `props.rs` library.
+  suburban home (living room, study, kitchen, dining room, powder room, three bedrooms, two
+  bathrooms, a straight staircase with a railed opening) on a fully fenced lot with front/side/back
+  yards, patio, garden shed and landscaping (trees, hedges, shrubs, flower beds, a tree line
+  outside the fence). Lint-clean, with a real-physics walk test through every room
+  (`tests/house_walk.rs`) and a good worked example of every tool. First of a planned four (house,
+  school, office, convenience store), all drawing from the same shared `props.rs` library.
 
 Render either of the first two and open the resulting `.mp4` to see the offline engine's full
 current capability; open `room.json`, `prop_hunt_yard.json`, or `house.json` in `re2` to walk
@@ -194,12 +250,16 @@ src/
   render.rs     # scene -> per-frame GPU draws -> RGB pixels (2x supersampled, then downsampled)
   video.rs      # RGB frames -> ffmpeg -> mp4
   viewer.rs     # Red Engine 2: same pipeline, drawn live into a window surface; player-driven camera + multi-floor collision/ground-height + stairs
-  props.rs      # prop-hunt prop library: primitive-composed meshes (crate, barrel, chair, ...)
+  props.rs      # prop library: primitive-composed meshes + per-prop collision policy
+  macros.rs     # `wall` / `fence` sugar: expands to plain boxes at parse time
+  player.rs     # player constants + the movement step shared by re2 and the analysis tools
+  tools/        # map tools behind the CLI: world, reach, lint, plan, walk, edit, gen, inspect, shots, font
   audio.rs      # synthesized sound effects (no imported samples) + rodio playback
-  shaders/      # WGSL: scene (lit + shadow-sampled), shadow (depth-only), background (sky gradient)
+  shaders/      # WGSL: scene (lit + shadow-sampled), shadow (depth-only), background (sky), postfx (clarity)
   main.rs       # validate / frame / render / storyboard CLI
   bin/re2.rs    # windowing/input (winit) for the first-person viewer
-mcp_server.py   # MCP tool wrapper around the compiled binary
+mcp_server.py   # MCP tool wrapper around the compiled binary (render + lint/plan/reach/walk/tour/edit tools)
+AGENTS.md       # START HERE (AI agents): the map-editing workflow, tool reference, conventions
 SPEC.md         # the scene-language reference (read this, not the source, to use the tool)
 examples/       # runnable example scenes
 tests/          # schema/math unit tests (in src/) + an examples-validate integration test
@@ -211,7 +271,7 @@ tests/          # schema/math unit tests (in src/) + an examples-validate integr
 cargo test
 ```
 
-Unit tests cover easing/keyframe math, color parsing, mesh generation (index bounds, unit
+Unit tests (60+) cover easing/keyframe math, color parsing, mesh generation (index bounds, unit
 normals, and — since the live viewer's pipelines cull backfaces — that every primitive's
 triangles are wound consistently with their own stored normals), humanoid forward-kinematics
 (symmetry, joint-bend distance checks), that every prop builds valid parts and round-trips
@@ -220,7 +280,11 @@ ground_tests` — climbing/descending a ramp smoothly, and both "unreachable" re
 that last one directly drives the same per-tick clamp the live viewer uses, deliberately not
 relying on simulated window input, which turned out to be too flaky in practice to trust for
 anything beyond short, simple interactions. An integration test parses and validates every
-bundled example scene. GPU rendering itself isn't exercised by `cargo test` (no GPU in most CI
+bundled example scene, and `tests/house_walk.rs` walks real routes through every room of
+`examples/house.json` — front door, each ground-floor room, up the stairs into every bedroom,
+out to the shed — using the game's per-tick physics, so a layout edit that seals a door or breaks
+the staircase fails `cargo test` instead of reaching a player. The map tools have their own unit
+tests (lint checks, reachability, wall/fence expansion, edit round-trips, scatter determinism). GPU rendering itself isn't exercised by `cargo test` (no GPU in most CI
 runners) — use `frame`/`storyboard`, or launch `re2`, for a manual visual check after
 render-path changes.
 
@@ -233,6 +297,17 @@ for captions), no sloped roofs (flat ceiling/roof slabs only — no triangular-p
 generator exists yet). Player physics (the live viewer only) is a simple fixed-timestep
 circle-vs-AABB-plus-ground-height model, not a general physics engine — walking up multiple
 floors via `stairs` works, but there's no jumping between floors, ladders, or slopes other than
-stairs. At most 8 lights and 1 shadow-casting light. No online multiplayer yet — single local
+stairs. At most 16 lights and 1 shadow-casting light (point lights don't cast shadows). No online multiplayer yet — single local
 player only; that's the next thing planned on top of this fork. See "Known limits" in
 `SPEC.md`.
+
+## For AI agents: tools that keep engine source out of context
+
+`red_engine2` describes itself and ships the tooling to build maps accurately without reading Rust:
+`describe` (self-description), `search` (docs + assets + lint codes + recipes + Rust symbols),
+`catalog` (39 props + ~155 JSON prefabs with tags, sizes, params; `--sheet` renders a labelled contact
+sheet), `recipe` (four known-good complete maps: house, school wing, convenience store, two rooms),
+`verify` (a scene's own `checks`: lint budget, reachability, real-physics walks, object assertions,
+golden-image views with diff images), `diff` (semantic scene diff), and `src map|find|show|refs|deps`
+(navigate the Rust without reading files). New furniture/food/decor is added as JSON prefabs in
+`assets/`, no Rust needed. See `AGENTS.md`.

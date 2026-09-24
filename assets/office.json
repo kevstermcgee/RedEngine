@@ -1,0 +1,179 @@
+[
+  {
+    "name": "monitor",
+    "tags": ["office", "electronics", "computer"],
+    "desc": "A desktop monitor with a lit screen; faces +Z.",
+    "params": {"screen": {"default": "#2a5a8a", "desc": "screen color"}, "glow": {"default": "#1c3a5a", "desc": "screen glow"}},
+    "objects": [
+      {"id": "base", "type": "box", "size": [0.24, 0.02, 0.17], "position": [0, 0.01, 0.02], "material": {"color": "#1d1f23", "roughness": 0.4, "metallic": 0.4}},
+      {"id": "neck", "type": "box", "size": [0.04, 0.2, 0.03], "position": [0, 0.12, -0.02], "material": {"color": "#1d1f23", "roughness": 0.4, "metallic": 0.4}},
+      {"id": "frame", "type": "box", "size": [0.6, 0.36, 0.03], "position": [0, 0.42, 0], "material": {"color": "#15171c", "roughness": 0.4}},
+      {"id": "screen", "type": "box", "size": [0.56, 0.32, 0.004], "position": [0, 0.42, 0.017], "material": {"color": "$screen", "roughness": 0.2, "emissive": "$glow"}}
+    ]
+  },
+  {
+    "name": "keyboard",
+    "tags": ["office", "electronics", "computer", "small"],
+    "desc": "A computer keyboard, keys toward +Z.",
+    "collide": false,
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.44, 0.02, 0.14], "position": [0, 0.01, 0], "material": {"color": "#c9ced6", "roughness": 0.5}},
+      {"id": "keys", "type": "box", "size": [0.4, 0.008, 0.1], "position": [0, 0.023, 0], "material": {"color": "#e6e8ec", "roughness": 0.5}},
+      {"id": "row", "type": "box", "size": [0.4, 0.002, 0.004], "position": [0, 0.028, -0.02], "material": {"color": "#9aa0a8", "roughness": 0.6}},
+      {"id": "row2", "type": "box", "size": [0.4, 0.002, 0.004], "position": [0, 0.028, 0.01], "material": {"color": "#9aa0a8", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "mouse_computer",
+    "tags": ["office", "electronics", "computer", "small"],
+    "desc": "A computer mouse.",
+    "collide": false,
+    "objects": [
+      {"id": "body", "type": "sphere", "radius": 0.03, "position": [0, 0.014, 0], "scale": [0.9, 0.5, 1.5], "material": {"color": "#2a2c31", "roughness": 0.4}},
+      {"id": "button", "type": "box", "size": [0.004, 0.004, 0.03], "position": [0, 0.026, -0.018], "material": {"color": "#4a4d55", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "laptop",
+    "tags": ["office", "electronics", "computer", "small"],
+    "desc": "A laptop, open; screen faces +Z.",
+    "collide": false,
+    "params": {"color": {"default": "#b9bec6", "desc": "shell color"}},
+    "objects": [
+      {"id": "base", "type": "box", "size": [0.34, 0.02, 0.24], "position": [0, 0.01, 0.02], "material": {"color": "$color", "roughness": 0.35, "metallic": 0.6}},
+      {"id": "keys", "type": "box", "size": [0.3, 0.004, 0.1], "position": [0, 0.022, 0.05], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "lid", "type": "box", "size": [0.34, 0.22, 0.012], "position": [0, 0.13, -0.09], "rotation": [-15, 0, 0], "material": {"color": "$color", "roughness": 0.35, "metallic": 0.6}},
+      {"id": "screen", "type": "box", "size": [0.3, 0.18, 0.004], "position": [0, 0.13, -0.083], "rotation": [-15, 0, 0], "material": {"color": "#2a5a8a", "roughness": 0.2, "emissive": "#1c3a5a"}}
+    ]
+  },
+  {
+    "name": "desk_phone",
+    "tags": ["office", "electronics", "small"],
+    "desc": "An office desk phone with handset.",
+    "collide": false,
+    "objects": [
+      {"id": "base", "type": "box", "size": [0.2, 0.05, 0.22], "position": [0, 0.025, 0], "material": {"color": "#2a2c31", "roughness": 0.4}},
+      {"id": "keypad", "type": "box", "size": [0.1, 0.006, 0.1], "position": [0, 0.052, 0.04], "material": {"color": "#4a4d55", "roughness": 0.6}},
+      {"id": "cradle_l", "type": "box", "size": [0.03, 0.03, 0.2], "position": [-0.075, 0.065, 0], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "handset", "type": "box", "size": [0.05, 0.03, 0.22], "position": [0, 0.085, -0.02], "material": {"color": "#2a2c31", "roughness": 0.4}}
+    ]
+  },
+  {
+    "name": "stapler",
+    "tags": ["office", "stationery", "small"],
+    "desc": "A desktop stapler.",
+    "collide": false,
+    "params": {"color": {"default": "#c62828", "desc": "arm color"}},
+    "objects": [
+      {"id": "base", "type": "box", "size": [0.04, 0.02, 0.15], "position": [0, 0.01, 0], "material": {"color": "#2a2c31", "roughness": 0.4}},
+      {"id": "arm", "type": "box", "size": [0.035, 0.025, 0.15], "position": [0, 0.032, 0], "material": {"color": "$color", "roughness": 0.4}}
+    ]
+  },
+  {
+    "name": "paper_stack",
+    "tags": ["office", "stationery", "small"],
+    "desc": "A neat stack of paper.",
+    "collide": false,
+    "params": {"height": {"default": 0.05, "desc": "stack height (m)"}},
+    "objects": [
+      {"id": "stack", "type": "box", "size": [0.21, "$height", 0.297], "position": [0, "=$height/2", 0], "material": {"color": "#f6f6f2", "roughness": 0.95}}
+    ]
+  },
+  {
+    "name": "book",
+    "tags": ["office", "school", "books", "small"],
+    "desc": "A hardback book lying flat, spine toward -X.",
+    "collide": false,
+    "params": {"w": {"default": 0.16, "desc": "width"}, "l": {"default": 0.23, "desc": "length"}, "t": {"default": 0.03, "desc": "thickness"}, "color": {"default": "#8a2b2b", "desc": "cover color"}},
+    "objects": [
+      {"id": "cover", "type": "box", "size": ["$w", "$t", "$l"], "position": [0, "=$t/2", 0], "material": {"color": "$color", "roughness": 0.7}},
+      {"id": "pages", "type": "box", "size": ["$w", "=$t-0.008", "=$l-0.012"], "position": [0.006, "=$t/2", 0], "material": {"color": "#f1ead6", "roughness": 0.95}}
+    ]
+  },
+  {
+    "name": "book_stack",
+    "tags": ["office", "school", "books", "small"],
+    "desc": "Three books stacked askew.",
+    "collide": false,
+    "objects": [
+      {"id": "b1", "type": "prefab", "prefab": "book", "position": [0, 0, 0], "params": {"color": "#2b4f8a", "t": 0.04}},
+      {"id": "b2", "type": "prefab", "prefab": "book", "position": [0.01, 0.04, 0.005], "rotation": [0, 12, 0], "params": {"color": "#8a2b2b", "t": 0.03, "w": 0.15}},
+      {"id": "b3", "type": "prefab", "prefab": "book", "position": [-0.005, 0.07, -0.01], "rotation": [0, -8, 0], "params": {"color": "#2b6a3a", "t": 0.025, "w": 0.14, "l": 0.2}}
+    ]
+  },
+  {
+    "name": "clipboard",
+    "tags": ["office", "stationery", "small"],
+    "desc": "A clipboard with a sheet of paper, lying flat.",
+    "collide": false,
+    "objects": [
+      {"id": "board", "type": "box", "size": [0.23, 0.012, 0.32], "position": [0, 0.006, 0], "material": {"color": "#8a5a2b", "roughness": 0.8}},
+      {"id": "paper", "type": "box", "size": [0.2, 0.002, 0.27], "position": [0, 0.013, 0.015], "material": {"color": "#f6f6f2", "roughness": 0.95}},
+      {"id": "clip", "type": "box", "size": [0.08, 0.016, 0.03], "position": [0, 0.016, -0.14], "material": {"color": "#c9ced6", "roughness": 0.3, "metallic": 0.8}}
+    ]
+  },
+  {
+    "name": "printer",
+    "tags": ["office", "electronics", "appliance"],
+    "desc": "An office printer with a paper tray; faces +Z.",
+    "params": {"color": {"default": "#d8d8dc", "desc": "body color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.48, 0.24, 0.4], "position": [0, 0.12, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "top", "type": "box", "size": [0.44, 0.02, 0.36], "position": [0, 0.25, 0], "material": {"color": "#c9ced6", "roughness": 0.4}},
+      {"id": "tray", "type": "box", "size": [0.34, 0.012, 0.16], "position": [0, 0.07, 0.25], "material": {"color": "#e6e8ec", "roughness": 0.6}},
+      {"id": "paper", "type": "box", "size": [0.21, 0.01, 0.15], "position": [0, 0.084, 0.25], "material": {"color": "#f6f6f2", "roughness": 0.95}},
+      {"id": "panel", "type": "box", "size": [0.14, 0.02, 0.06], "position": [0.14, 0.235, 0.16], "material": {"color": "#23272e", "roughness": 0.6, "emissive": "#12303f"}}
+    ]
+  },
+  {
+    "name": "water_cooler",
+    "tags": ["office", "appliance", "drink"],
+    "desc": "A water cooler with a jug on top; faces +Z.",
+    "params": {"color": {"default": "#e6e8ec", "desc": "body color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.34, 0.95, 0.34], "position": [0, 0.475, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "jug", "type": "cylinder", "radius": 0.14, "height": 0.4, "position": [0, 1.17, 0], "material": {"color": "#7fb6e0", "roughness": 0.1, "metallic": 0.05}},
+      {"id": "neck", "type": "cylinder", "radius": 0.05, "height": 0.06, "position": [0, 0.98, 0], "material": {"color": "#dfe6ea", "roughness": 0.6}},
+      {"id": "tap_c", "type": "box", "size": [0.04, 0.03, 0.04], "position": [-0.06, 0.88, 0.18], "material": {"color": "#2a6fb0", "roughness": 0.6}},
+      {"id": "tap_h", "type": "box", "size": [0.04, 0.03, 0.04], "position": [0.06, 0.88, 0.18], "material": {"color": "#c23b2a", "roughness": 0.6}},
+      {"id": "tray", "type": "box", "size": [0.2, 0.02, 0.1], "position": [0, 0.7, 0.2], "material": {"color": "#9aa0a8", "roughness": 0.6, "metallic": 0.6}}
+    ]
+  },
+  {
+    "name": "coffee_machine",
+    "tags": ["office", "kitchen", "appliance"],
+    "desc": "A big office coffee machine on a counter.",
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.36, 0.45, 0.4], "position": [0, 0.225, 0], "material": {"color": "#2a2c31", "roughness": 0.4}},
+      {"id": "front", "type": "box", "size": [0.3, 0.18, 0.004], "position": [0, 0.3, 0.202], "material": {"color": "#14181d", "roughness": 0.6, "emissive": "#0d1c26"}},
+      {"id": "nozzle", "type": "box", "size": [0.08, 0.03, 0.06], "position": [0, 0.2, 0.17], "material": {"color": "#9aa0a8", "roughness": 0.6, "metallic": 0.7}},
+      {"id": "tray", "type": "box", "size": [0.3, 0.02, 0.14], "position": [0, 0.03, 0.2], "material": {"color": "#9aa0a8", "roughness": 0.6, "metallic": 0.7}},
+      {"id": "cup", "type": "cylinder", "radius": 0.03, "height": 0.07, "position": [0, 0.075, 0.2], "material": {"color": "#f4f2ee", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "cubicle_panel",
+    "tags": ["office", "partition"],
+    "desc": "A 1.4 m tall fabric cubicle panel, 1.6 m wide.",
+    "params": {"width": {"default": 1.6, "desc": "panel width (m)"}, "color": {"default": "#6f7d8c", "desc": "fabric color"}},
+    "objects": [
+      {"id": "panel", "type": "box", "size": ["$width", 1.4, 0.06], "position": [0, 0.72, 0], "material": {"color": "$color", "roughness": 0.98}},
+      {"id": "trim", "type": "box", "size": ["$width", 0.03, 0.07], "position": [0, 1.415, 0], "material": {"color": "#5a5f68", "roughness": 0.6}},
+      {"id": "foot_l", "type": "box", "size": [0.05, 0.03, 0.4], "position": ["=-$width/2+0.1", 0.015, 0], "material": {"color": "#5a5f68", "roughness": 0.6}},
+      {"id": "foot_r", "type": "box", "size": [0.05, 0.03, 0.4], "position": ["=$width/2-0.1", 0.015, 0], "material": {"color": "#5a5f68", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "whiteboard",
+    "tags": ["office", "school", "wall"],
+    "desc": "A wall whiteboard with a marker tray; origin at the wall face, center of the board.",
+    "mount": "wall",
+    "params": {"w": {"default": 1.6, "desc": "board width"}, "h": {"default": 1.0, "desc": "board height"}},
+    "objects": [
+      {"id": "frame", "type": "box", "size": ["=$w+0.06", "=$h+0.06", 0.03], "position": [0, 0, 0.015], "material": {"color": "#9aa0a8", "roughness": 0.4, "metallic": 0.6}},
+      {"id": "board", "type": "box", "size": ["$w", "$h", 0.008], "position": [0, 0, 0.03], "material": {"color": "#f8f8f6", "roughness": 0.2}},
+      {"id": "tray", "type": "box", "size": ["=$w*0.6", 0.03, 0.06], "position": [0, "=-$h/2-0.05", 0.05], "material": {"color": "#9aa0a8", "roughness": 0.6, "metallic": 0.6}},
+      {"id": "marker", "type": "box", "size": [0.12, 0.012, 0.012], "position": [0.2, "=-$h/2-0.03", 0.06], "material": {"color": "#2a6fb0", "roughness": 0.6}}
+    ]
+  }
+]

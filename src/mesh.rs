@@ -1,7 +1,10 @@
+//! Procedural mesh generators (cuboid, sphere, cylinder, cone, capsule, plane); winding is unit-tested.
+
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
 use std::f32::consts::PI;
 
+/// One mesh vertex: position and normal.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Vertex {
@@ -10,9 +13,11 @@ pub struct Vertex {
 }
 
 impl Vertex {
+    /// Vertex attribute layout matching `Vertex` (location 0 position, 1 normal).
     pub const ATTRS: [wgpu::VertexAttribute; 2] =
         wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
 
+    /// The wgpu vertex-buffer layout for `Vertex`.
     pub fn layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
@@ -22,6 +27,7 @@ impl Vertex {
     }
 }
 
+/// CPU-side triangle mesh (CCW front faces; winding is unit-tested).
 #[derive(Default, Clone)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,

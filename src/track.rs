@@ -1,3 +1,5 @@
+//! `Track<T>`: a constant or keyframed value sampled at time t (position, rotation, colors, fov, ...).
+
 use crate::easing::Ease;
 use glam::Vec3;
 
@@ -18,6 +20,7 @@ impl Lerp for Vec3 {
     }
 }
 
+/// One keyframe: time, value and the easing into it.
 #[derive(Clone, Copy, Debug)]
 pub struct Keyframe<T: Lerp> {
     pub t: f32,
@@ -35,10 +38,12 @@ pub enum Track<T: Lerp> {
 }
 
 impl<T: Lerp> Track<T> {
+    /// A track that always returns `value`.
     pub fn constant(value: T) -> Self {
         Track::Constant(value)
     }
 
+    /// The value at time `t` (constant tracks ignore it; keyframed ones ease between frames).
     pub fn sample(&self, t: f32) -> T {
         match self {
             Track::Constant(v) => *v,

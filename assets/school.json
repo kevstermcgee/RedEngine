@@ -1,0 +1,132 @@
+[
+  {
+    "name": "school_desk",
+    "tags": ["school", "desk", "furniture"],
+    "desc": "A student desk with a book shelf underneath; front toward +Z.",
+    "params": {"color": {"default": "#c9a575", "desc": "desktop color"}},
+    "objects": [
+      {"id": "top", "type": "box", "size": [0.6, 0.03, 0.45], "position": [0, 0.72, 0], "material": {"color": "$color", "roughness": 0.6}},
+      {"id": "shelf", "type": "box", "size": [0.5, 0.02, 0.36], "position": [0, 0.4, 0], "material": {"color": "#9aa0a8", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "leg1", "type": "box", "size": [0.03, 0.72, 0.03], "position": [-0.27, 0.36, -0.19], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
+      {"id": "leg2", "type": "box", "size": [0.03, 0.72, 0.03], "position": [0.27, 0.36, -0.19], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
+      {"id": "leg3", "type": "box", "size": [0.03, 0.72, 0.03], "position": [-0.27, 0.36, 0.19], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
+      {"id": "leg4", "type": "box", "size": [0.03, 0.72, 0.03], "position": [0.27, 0.36, 0.19], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}}
+    ]
+  },
+  {
+    "name": "student_chair",
+    "tags": ["school", "chair", "seating"],
+    "desc": "A molded plastic student chair; faces +Z.",
+    "params": {"color": {"default": "#e0873a", "desc": "plastic color"}},
+    "objects": [
+      {"id": "leg1", "type": "box", "size": [0.025, 0.44, 0.025], "position": [-0.17, 0.22, -0.16], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
+      {"id": "leg2", "type": "box", "size": [0.025, 0.44, 0.025], "position": [0.17, 0.22, -0.16], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
+      {"id": "leg3", "type": "box", "size": [0.025, 0.44, 0.025], "position": [-0.17, 0.22, 0.16], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
+      {"id": "leg4", "type": "box", "size": [0.025, 0.44, 0.025], "position": [0.17, 0.22, 0.16], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
+      {"id": "seat", "type": "box", "size": [0.4, 0.03, 0.38], "position": [0, 0.45, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "back", "type": "box", "size": [0.38, 0.2, 0.03], "position": [0, 0.72, -0.18], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "backpost1", "type": "box", "size": [0.025, 0.3, 0.025], "position": [-0.15, 0.6, -0.17], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
+      {"id": "backpost2", "type": "box", "size": [0.025, 0.3, 0.025], "position": [0.15, 0.6, -0.17], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}}
+    ]
+  },
+  {
+    "name": "blackboard",
+    "tags": ["school", "wall"],
+    "desc": "A classroom blackboard with chalk tray; origin at the wall face, board center.",
+    "mount": "wall",
+    "params": {"w": {"default": 3.0, "desc": "board width"}, "h": {"default": 1.1, "desc": "board height"}},
+    "objects": [
+      {"id": "frame", "type": "box", "size": ["=$w+0.1", "=$h+0.1", 0.04], "position": [0, 0, 0.02], "material": {"color": "#6a4526", "roughness": 0.7}},
+      {"id": "board", "type": "box", "size": ["$w", "$h", 0.01], "position": [0, 0, 0.042], "material": {"color": "#1f3a2e", "roughness": 0.95}},
+      {"id": "tray", "type": "box", "size": ["$w", 0.03, 0.08], "position": [0, "=-$h/2-0.06", 0.06], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "chalk", "type": "box", "size": [0.08, 0.012, 0.012], "position": [-0.3, "=-$h/2-0.035", 0.07], "material": {"color": "#f6f6f2", "roughness": 0.6}},
+      {"id": "scribble", "type": "box", "size": [0.6, 0.006, 0.002], "position": ["=-$w/4", "=$h/6", 0.048], "material": {"color": "#e9e9e0", "roughness": 0.95}},
+      {"id": "scribble2", "type": "box", "size": [0.4, 0.006, 0.002], "position": ["=-$w/4", "=$h/6-0.12", 0.048], "material": {"color": "#e9e9e0", "roughness": 0.95}}
+    ]
+  },
+  {
+    "name": "globe",
+    "tags": ["school", "decor", "small"],
+    "desc": "A desktop globe on a stand.",
+    "collide": false,
+    "objects": [
+      {"id": "base", "type": "cylinder", "radius": 0.09, "height": 0.02, "position": [0, 0.01, 0], "material": {"color": "#2a2c31", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "stem", "type": "cylinder", "radius": 0.012, "height": 0.16, "position": [0, 0.1, 0], "material": {"color": "#c9a45a", "roughness": 0.6, "metallic": 0.7}},
+      {"id": "earth", "type": "sphere", "radius": 0.14, "position": [0, 0.32, 0], "rotation": [0, 0, 23], "material": {"color": "#2a6fb0", "roughness": 0.4}},
+      {"id": "land1", "type": "sphere", "radius": 0.14, "position": [0.008, 0.325, 0.008], "rotation": [0, 0, 23], "scale": [1.0, 0.55, 1.0], "material": {"color": "#4d8a3a", "roughness": 0.6}},
+      {"id": "ring", "type": "box", "size": [0.34, 0.006, 0.006], "position": [0, 0.32, 0.145], "rotation": [0, 0, 23], "material": {"color": "#c9a45a", "roughness": 0.6, "metallic": 0.7}}
+    ]
+  },
+  {
+    "name": "backpack",
+    "tags": ["school", "bag", "small"],
+    "desc": "A student backpack standing on the floor; straps toward -Z.",
+    "collide": false,
+    "params": {"color": {"default": "#2b4f8a", "desc": "main color"}, "accent": {"default": "#c62828", "desc": "trim color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.3, 0.42, 0.16], "position": [0, 0.21, 0], "material": {"color": "$color", "roughness": 0.9}},
+      {"id": "pocket", "type": "box", "size": [0.24, 0.2, 0.05], "position": [0, 0.14, 0.1], "material": {"color": "$accent", "roughness": 0.9}},
+      {"id": "flap", "type": "box", "size": [0.28, 0.04, 0.17], "position": [0, 0.42, 0], "material": {"color": "$accent", "roughness": 0.9}},
+      {"id": "strap_l", "type": "box", "size": [0.04, 0.34, 0.02], "position": [-0.1, 0.22, -0.09], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "strap_r", "type": "box", "size": [0.04, 0.34, 0.02], "position": [0.1, 0.22, -0.09], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "handle", "type": "box", "size": [0.08, 0.015, 0.02], "position": [0, 0.45, 0], "material": {"color": "#2a2c31", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "locker",
+    "tags": ["school", "storage", "metal"],
+    "desc": "A tall metal locker; door faces +Z.",
+    "params": {"color": {"default": "#3a6ea5", "desc": "paint color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.32, 1.8, 0.36], "position": [0, 0.9, 0], "material": {"color": "$color", "roughness": 0.5, "metallic": 0.4}},
+      {"id": "door", "type": "box", "size": [0.3, 1.74, 0.01], "position": [0, 0.9, 0.184], "material": {"color": "$color", "roughness": 0.45, "metallic": 0.4}},
+      {"id": "vent1", "type": "box", "size": [0.2, 0.012, 0.004], "position": [0, 1.6, 0.19], "material": {"color": "#23272e", "roughness": 0.6}},
+      {"id": "vent2", "type": "box", "size": [0.2, 0.012, 0.004], "position": [0, 1.65, 0.19], "material": {"color": "#23272e", "roughness": 0.6}},
+      {"id": "vent3", "type": "box", "size": [0.2, 0.012, 0.004], "position": [0, 1.7, 0.19], "material": {"color": "#23272e", "roughness": 0.6}},
+      {"id": "handle", "type": "box", "size": [0.03, 0.12, 0.02], "position": [0.1, 1.0, 0.2], "material": {"color": "#c9ced6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "number", "type": "box", "size": [0.06, 0.03, 0.004], "position": [0, 1.45, 0.19], "material": {"color": "#e6e8ec", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "wall_clock",
+    "tags": ["school", "office", "decor", "wall"],
+    "desc": "A round analogue wall clock; origin at the wall face, center.",
+    "mount": "wall",
+    "params": {"color": {"default": "#2a2c31", "desc": "frame color"}},
+    "objects": [
+      {"id": "body", "type": "cylinder", "radius": 0.16, "height": 0.04, "position": [0, 0, 0.02], "rotation": [90, 0, 0], "material": {"color": "$color", "roughness": 0.4}},
+      {"id": "face", "type": "cylinder", "radius": 0.14, "height": 0.004, "position": [0, 0, 0.042], "rotation": [90, 0, 0], "material": {"color": "#f6f6f2", "roughness": 0.5}},
+      {"id": "hand_h", "type": "box", "size": [0.012, 0.08, 0.004], "position": [0, 0.03, 0.046], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "hand_m", "type": "box", "size": [0.008, 0.12, 0.004], "position": [0.04, 0.02, 0.049], "rotation": [0, 0, -60], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "tick12", "type": "box", "size": [0.01, 0.02, 0.004], "position": [0, 0.12, 0.045], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "tick6", "type": "box", "size": [0.01, 0.02, 0.004], "position": [0, -0.12, 0.045], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "tick3", "type": "box", "size": [0.02, 0.01, 0.004], "position": [0.12, 0, 0.045], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "tick9", "type": "box", "size": [0.02, 0.01, 0.004], "position": [-0.12, 0, 0.045], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "flag_pole",
+    "tags": ["school", "outdoor", "decor"],
+    "desc": "A floor-standing flag on a pole.",
+    "params": {"color": {"default": "#b3202a", "desc": "flag color"}},
+    "objects": [
+      {"id": "base", "type": "cylinder", "radius": 0.14, "height": 0.04, "position": [0, 0.02, 0], "material": {"color": "#2a2c31", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "pole", "type": "cylinder", "radius": 0.018, "height": 2.4, "position": [0, 1.24, 0], "material": {"color": "#c9ced6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "finial", "type": "sphere", "radius": 0.03, "position": [0, 2.46, 0], "material": {"color": "#c9a45a", "roughness": 0.6, "metallic": 0.8}},
+      {"id": "cloth", "type": "box", "size": [0.6, 0.38, 0.01], "position": [0.32, 2.15, 0], "material": {"color": "$color", "roughness": 0.9}},
+      {"id": "stripe", "type": "box", "size": [0.6, 0.06, 0.012], "position": [0.32, 2.15, 0], "material": {"color": "#f6f6f2", "roughness": 0.9}}
+    ]
+  },
+  {
+    "name": "ball_basketball",
+    "tags": ["school", "sports", "toy", "small"],
+    "desc": "A basketball.",
+    "collide": false,
+    "params": {"color": {"default": "#d9762a", "desc": "ball color"}},
+    "objects": [
+      {"id": "ball", "type": "sphere", "radius": 0.12, "position": [0, 0.12, 0], "material": {"color": "$color", "roughness": 0.8}},
+      {"id": "line_h", "type": "box", "size": [0.245, 0.006, 0.006], "position": [0, 0.12, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "line_v", "type": "box", "size": [0.006, 0.245, 0.006], "position": [0, 0.12, 0], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  }
+]

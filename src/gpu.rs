@@ -1,17 +1,23 @@
+//! wgpu plumbing: device setup, GPU uniform structs (mirrored in `shaders/*.wgsl`), pipelines, shadow map, post-fx targets.
+
 use crate::mesh::{Mesh, Vertex};
 use anyhow::{Context, Result};
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
 use wgpu::util::DeviceExt;
 
+/// Shadow-map resolution in texels (square).
 pub const SHADOW_SIZE: u32 = 2048;
-pub const MAX_LIGHTS: usize = 8;
+/// Maximum point lights per scene. The three WGSL `Globals` copies must agree with this (see AGENTS.md).
+pub const MAX_LIGHTS: usize = 16;
+/// Offline-render supersampling factor per axis (the live viewer uses MSAA instead).
 pub const SUPERSAMPLE: u32 = 2;
 /// MSAA sample count for the live viewer's color/depth targets. The offline `Renderer` gets
 /// its anti-aliasing for free from `SUPERSAMPLE` instead (see `FrameTargets`), so it always
 /// creates pipelines with a sample count of 1 regardless of this constant.
 pub const MSAA_SAMPLES: u32 = 4;
 
+/// Per-frame uniform block (camera, lights, sun, background); mirrored by `Globals` in `shaders/*.wgsl`.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct GlobalUniform {
@@ -26,6 +32,7 @@ pub struct GlobalUniform {
     pub bg_bottom: [f32; 4],
 }
 
+/// Per-object uniform block (transform and material); one slot per mesh.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct ObjectUniform {
@@ -36,6 +43,19 @@ pub struct ObjectUniform {
     pub emissive: [f32; 4],
 }
 
+/// Uniform for the clarity post pass (see `shaders/postfx.wgsl`).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct PostUniform {
+    /// near, far, projection x-scale, projection y-scale
+    pub cam: [f32; 4],
+    /// ao strength, outline strength, ao world radius (m), outline width (px)
+    pub params: [f32; 4],
+    /// target width px, target height px, outline threshold, unused
+    pub params2: [f32; 4],
+}
+
+/// A mesh uploaded to the GPU (vertex + index buffers).
 pub struct GpuMesh {
     pub vertex_buf: wgpu::Buffer,
     pub index_buf: wgpu::Buffer,
@@ -47,6 +67,7 @@ pub struct GpuMesh {
 }
 
 impl GpuMesh {
+    /// Uploads `mesh` into GPU buffers.
     pub fn upload(device: &wgpu::Device, mesh: &Mesh) -> Self {
         let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("mesh-vertices"),
@@ -69,12 +90,14 @@ impl GpuMesh {
     }
 }
 
+/// The wgpu device and queue, created headless (no window) for offline rendering and tools.
 pub struct Gpu {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
 }
 
 impl Gpu {
+    /// Requests an adapter and device; errors if no GPU backend is available.
     pub fn new() -> Result<Self> {
         pollster::block_on(Self::new_async())
     }
@@ -103,12 +126,14 @@ impl Gpu {
     }
 }
 
+/// Bind-group layouts shared by every pipeline.
 pub struct BindLayouts {
     pub global_uniform: wgpu::BindGroupLayout,
     pub global_full: wgpu::BindGroupLayout,
     pub object: wgpu::BindGroupLayout,
 }
 
+/// The render pipelines (shadow, background, main, ...) plus their bind layouts.
 pub struct Pipelines {
     pub layouts: BindLayouts,
     pub shadow: wgpu::RenderPipeline,
@@ -320,6 +345,7 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
     }
 }
 
+/// Offscreen color/depth targets an offline frame renders into, at a given output size.
 pub struct FrameTargets {
     pub width: u32,
     pub height: u32,
@@ -337,6 +363,7 @@ fn align_up(value: u32, alignment: u32) -> u32 {
 }
 
 impl FrameTargets {
+    /// Creates targets for an `out_width` x `out_height` frame.
     pub fn new(device: &wgpu::Device, out_width: u32, out_height: u32) -> Self {
         let width = out_width * SUPERSAMPLE;
         let height = out_height * SUPERSAMPLE;
@@ -358,7 +385,8 @@ impl FrameTargets {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            // TEXTURE_BINDING: the clarity post pass samples the world depth.
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
         let shadow_tex = device.create_texture(&wgpu::TextureDescriptor {
@@ -395,6 +423,7 @@ impl FrameTargets {
     }
 }
 
+/// Uniform for the crosshair overlay pass.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct CrosshairUniform {
@@ -402,6 +431,7 @@ pub struct CrosshairUniform {
     pub to_ndc: [f32; 4],
 }
 
+/// The 2-D crosshair draw pass, the only overlay the game has.
 pub struct CrosshairPipeline {
     pub pipeline: wgpu::RenderPipeline,
     pub bind_group_layout: wgpu::BindGroupLayout,
@@ -457,6 +487,7 @@ pub fn create_crosshair_pipeline(device: &wgpu::Device, color_format: wgpu::Text
     CrosshairPipeline { pipeline, bind_group_layout }
 }
 
+/// A comparison sampler for reading the shadow map.
 pub fn make_shadow_sampler(device: &wgpu::Device) -> wgpu::Sampler {
     device.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("shadow-sampler"),
@@ -468,4 +499,139 @@ pub fn make_shadow_sampler(device: &wgpu::Device) -> wgpu::Sampler {
         compare: Some(wgpu::CompareFunction::LessEqual),
         ..Default::default()
     })
+}
+
+/// The clarity post pass: reads the world's depth buffer and multiplies contact-AO and silhouette
+/// outlines into the lit color (see `shaders/postfx.wgsl`). One pipeline per (color format,
+/// sample count); the depth texture it samples must have been created with `TEXTURE_BINDING`.
+pub struct PostFx {
+    pub pipeline: wgpu::RenderPipeline,
+    pub bind_group_layout: wgpu::BindGroupLayout,
+    pub uniform_buf: wgpu::Buffer,
+}
+
+/// Builds the depth-based clarity post pass (contact AO + silhouette outline; `shaders/postfx.wgsl`) for a target with `sample_count` samples.
+pub fn create_post_pipeline(device: &wgpu::Device, color_format: wgpu::TextureFormat, sample_count: u32) -> PostFx {
+    let multisampled = sample_count > 1;
+    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("post-bgl"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<PostUniform>() as u64),
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled,
+                    sample_type: wgpu::TextureSampleType::Depth,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                },
+                count: None,
+            },
+        ],
+    });
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("post-pipeline-layout"),
+        bind_group_layouts: &[Some(&bind_group_layout)],
+        immediate_size: 0,
+    });
+    let depth_ty = if multisampled { "texture_depth_multisampled_2d" } else { "texture_depth_2d" };
+    let source = include_str!("shaders/postfx.wgsl").replace("DEPTH_TEXTURE_TYPE", depth_ty);
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("post-shader"),
+        source: wgpu::ShaderSource::Wgsl(source.into()),
+    });
+    // dst_color * src_color: the pass writes a per-pixel brightness multiplier (1 = untouched).
+    let multiply = wgpu::BlendState {
+        color: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::Zero,
+            dst_factor: wgpu::BlendFactor::Src,
+            operation: wgpu::BlendOperation::Add,
+        },
+        alpha: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::Zero,
+            dst_factor: wgpu::BlendFactor::One,
+            operation: wgpu::BlendOperation::Add,
+        },
+    };
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("post-pipeline"),
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_post"),
+            compilation_options: Default::default(),
+            buffers: &[],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_post"),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: color_format,
+                blend: Some(multiply),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState { count: sample_count, mask: !0, alpha_to_coverage_enabled: false },
+        multiview_mask: None,
+        cache: None,
+    });
+    let uniform_buf = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("post-uniform"),
+        size: std::mem::size_of::<PostUniform>() as u64,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    PostFx { pipeline, bind_group_layout, uniform_buf }
+}
+
+impl PostFx {
+    /// Binds the uniform and the world depth view; rebuild whenever the depth texture is recreated.
+    pub fn bind(&self, device: &wgpu::Device, depth_view: &wgpu::TextureView) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("post-bind-group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: self.uniform_buf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(depth_view) },
+            ],
+        })
+    }
+}
+
+/// Builds the post pass uniform for a target of `width` x `height` pixels seen through a
+/// perspective camera (`fov_deg` vertical), from a scene's `post` settings. `edge_width_px`
+/// is the outline thickness in *target* pixels (scale it with resolution/supersampling).
+pub fn post_uniform(
+    settings: &crate::schema::PostSettings,
+    near: f32,
+    far: f32,
+    fov_deg: f32,
+    width: u32,
+    height: u32,
+    edge_width_px: f32,
+) -> PostUniform {
+    let tan_half = (fov_deg.to_radians() * 0.5).tan().max(1e-4);
+    let aspect = width as f32 / height.max(1) as f32;
+    PostUniform {
+        cam: [near, far, 1.0 / (aspect * tan_half), 1.0 / tan_half],
+        params: [
+            if settings.enabled { settings.ao } else { 0.0 },
+            if settings.enabled { settings.outline } else { 0.0 },
+            settings.ao_radius,
+            edge_width_px,
+        ],
+        params2: [width as f32, height as f32, 0.035, 0.0],
+    }
 }

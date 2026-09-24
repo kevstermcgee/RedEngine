@@ -1,3 +1,5 @@
+//! MP4 encoding by piping RGB frames to ffmpeg (ffmpeg-sidecar).
+
 use anyhow::{Context, Result};
 use ffmpeg_sidecar::command::FfmpegCommand;
 use ffmpeg_sidecar::event::{FfmpegEvent, LogLevel};
@@ -11,6 +13,7 @@ pub fn ensure_ffmpeg() -> Result<()> {
     ffmpeg_sidecar::download::auto_download().map_err(|e| anyhow::anyhow!("failed to set up ffmpeg: {e}"))
 }
 
+/// Pipes RGB frames to an ffmpeg process to write an MP4.
 pub struct VideoEncoder {
     stdin: std::process::ChildStdin,
     event_thread: JoinHandle<()>,
@@ -50,6 +53,7 @@ impl VideoEncoder {
         Ok(VideoEncoder { stdin, event_thread })
     }
 
+    /// Writes one RGB8 frame.
     pub fn write_frame(&mut self, rgb: &[u8]) -> Result<()> {
         self.stdin.write_all(rgb).context("failed to write a frame to ffmpeg")
     }

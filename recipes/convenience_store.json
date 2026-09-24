@@ -1,0 +1,835 @@
+{
+ "recipe": {
+  "title": "Convenience store with a fenced lot",
+  "summary": "The seed for the convenience-store map: glass-front shop, shelf aisles, drink coolers, checkout, and a parking lot with a perimeter fence.",
+  "teaches": [
+   "shelf_gondola rows with recolored products",
+   "coolers along a wall",
+   "big glass windows via wall openings",
+   "outdoor lot + closed fence around an exterior door",
+   "props on a counter top (y=0.99)"
+  ],
+  "tips": [
+   "Aisles need >= 0.9 m; these are 1.9 m.",
+   "Add products with `add ... prefab chip_bag` at shelf heights 0.29/0.67/1.05."
+  ]
+ },
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "background": {
+  "sky_top": "#8fc7ff",
+  "sky_bottom": "#eef6ff"
+ },
+ "ambient": {
+  "color": "#ffffff",
+  "intensity": 0.3
+ },
+ "camera": {
+  "fov": 72,
+  "position": [
+   0,
+   1.7,
+   9.5
+  ],
+  "target": [
+   0,
+   1.4,
+   0
+  ]
+ },
+ "post": {
+  "ao": 0.9,
+  "outline": 0.55
+ },
+ "lights": [
+  {
+   "id": "sun",
+   "type": "directional",
+   "direction": [
+    -0.5,
+    -0.72,
+    0.65
+   ],
+   "color": "#fff2df",
+   "intensity": 2.3,
+   "cast_shadows": true,
+   "shadow_radius": 26,
+   "shadow_center": [
+    0,
+    0,
+    2
+   ]
+  },
+  {
+   "id": "lamp_0",
+   "type": "point",
+   "position": [
+    -3,
+    2.7,
+    -1.5
+   ],
+   "color": "#fff4e0",
+   "intensity": 11,
+   "range": 7.5
+  },
+  {
+   "id": "lamp_1",
+   "type": "point",
+   "position": [
+    3,
+    2.7,
+    -1.5
+   ],
+   "color": "#fff4e0",
+   "intensity": 11,
+   "range": 7.5
+  },
+  {
+   "id": "lamp_2",
+   "type": "point",
+   "position": [
+    -3,
+    2.7,
+    1.5
+   ],
+   "color": "#fff4e0",
+   "intensity": 11,
+   "range": 7.5
+  },
+  {
+   "id": "lamp_3",
+   "type": "point",
+   "position": [
+    3,
+    2.7,
+    1.5
+   ],
+   "color": "#fff4e0",
+   "intensity": 11,
+   "range": 7.5
+  }
+ ],
+ "zones": [
+  {
+   "id": "store",
+   "rect": [
+    -5.88,
+    -3.88,
+    5.88,
+    3.88
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "lot",
+   "rect": [
+    -13.9,
+    -7.9,
+    13.9,
+    12.9
+   ],
+   "y": 0,
+   "kind": "outdoor"
+  }
+ ],
+ "objects": [
+  {
+   "id": "asphalt",
+   "type": "plane",
+   "size": [
+    70,
+    70
+   ],
+   "position": [
+    0,
+    0,
+    0
+   ],
+   "material": {
+    "color": "#5b5f66",
+    "roughness": 0.95
+   }
+  },
+  {
+   "id": "fence_lot",
+   "type": "fence",
+   "points": [
+    [
+     -14,
+     -8
+    ],
+    [
+     14,
+     -8
+    ],
+    [
+     14,
+     13
+    ],
+    [
+     -14,
+     13
+    ]
+   ],
+   "closed": true,
+   "height": 1.8,
+   "style": "panel",
+   "material": {
+    "color": "#a9adb5",
+    "roughness": 0.7
+   }
+  },
+  {
+   "id": "wall_n",
+   "type": "wall",
+   "from": [
+    -6,
+    -4
+   ],
+   "to": [
+    6,
+    -4
+   ],
+   "height": 3.0,
+   "thickness": 0.24,
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#d9d4c8",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "wall_s",
+   "type": "wall",
+   "from": [
+    -6,
+    4
+   ],
+   "to": [
+    6,
+    4
+   ],
+   "height": 3.0,
+   "thickness": 0.24,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 2.4,
+     "width": 2.6,
+     "height": 1.8,
+     "sill": 0.4
+    },
+    {
+     "kind": "door",
+     "at": 6.0,
+     "width": 1.8
+    },
+    {
+     "kind": "window",
+     "at": 9.6,
+     "width": 2.6,
+     "height": 1.8,
+     "sill": 0.4
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#d9d4c8",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "wall_w",
+   "type": "wall",
+   "from": [
+    -6,
+    -4
+   ],
+   "to": [
+    -6,
+    4
+   ],
+   "height": 3.0,
+   "thickness": 0.24,
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#d9d4c8",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "wall_e",
+   "type": "wall",
+   "from": [
+    6,
+    -4
+   ],
+   "to": [
+    6,
+    4
+   ],
+   "height": 3.0,
+   "thickness": 0.24,
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#d9d4c8",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "floor_store",
+   "type": "plane",
+   "size": [
+    12,
+    8
+   ],
+   "position": [
+    0,
+    0.01,
+    0
+   ],
+   "material": {
+    "color": "#d8d8d2",
+    "roughness": 0.35
+   }
+  },
+  {
+   "id": "ceiling",
+   "type": "box",
+   "size": [
+    12.24,
+    0.2,
+    8.24
+   ],
+   "position": [
+    0,
+    3.1,
+    0
+   ],
+   "material": {
+    "color": "#f0f0ec",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "shelf_00",
+   "type": "prefab",
+   "prefab": "shelf_gondola",
+   "position": [
+    -3.6,
+    0,
+    -1.3
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "params": {
+    "a": "#d9532a",
+    "b": "#e0c22a",
+    "c": "#4ab84a"
+   }
+  },
+  {
+   "id": "shelf_01",
+   "type": "prefab",
+   "prefab": "shelf_gondola",
+   "position": [
+    -2.4,
+    0,
+    -1.3
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "params": {
+    "a": "#d9532a",
+    "b": "#e0c22a",
+    "c": "#4ab84a"
+   }
+  },
+  {
+   "id": "shelf_02",
+   "type": "prefab",
+   "prefab": "shelf_gondola",
+   "position": [
+    -1.2,
+    0,
+    -1.3
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "params": {
+    "a": "#d9532a",
+    "b": "#e0c22a",
+    "c": "#4ab84a"
+   }
+  },
+  {
+   "id": "shelf_10",
+   "type": "prefab",
+   "prefab": "shelf_gondola",
+   "position": [
+    -3.6,
+    0,
+    1.0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "params": {
+    "a": "#2a8ad9",
+    "b": "#e0c22a",
+    "c": "#a02ad9"
+   }
+  },
+  {
+   "id": "shelf_11",
+   "type": "prefab",
+   "prefab": "shelf_gondola",
+   "position": [
+    -2.4,
+    0,
+    1.0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "params": {
+    "a": "#2a8ad9",
+    "b": "#e0c22a",
+    "c": "#a02ad9"
+   }
+  },
+  {
+   "id": "shelf_12",
+   "type": "prefab",
+   "prefab": "shelf_gondola",
+   "position": [
+    -1.2,
+    0,
+    1.0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "params": {
+    "a": "#2a8ad9",
+    "b": "#e0c22a",
+    "c": "#a02ad9"
+   }
+  },
+  {
+   "id": "cooler_0",
+   "type": "prefab",
+   "prefab": "drink_cooler",
+   "position": [
+    -4.6,
+    0,
+    -3.5
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "cooler_1",
+   "type": "prefab",
+   "prefab": "drink_cooler",
+   "position": [
+    -3.7,
+    0,
+    -3.5
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "cooler_2",
+   "type": "prefab",
+   "prefab": "drink_cooler",
+   "position": [
+    -2.8,
+    0,
+    -3.5
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "cooler_3",
+   "type": "prefab",
+   "prefab": "drink_cooler",
+   "position": [
+    -1.9,
+    0,
+    -3.5
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "freezer_1",
+   "type": "prefab",
+   "prefab": "chest_freezer",
+   "position": [
+    4.4,
+    0,
+    -3.4
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "counter_1",
+   "type": "prefab",
+   "prefab": "checkout_counter",
+   "position": [
+    3.6,
+    0,
+    2.2
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ]
+  },
+  {
+   "id": "register_1",
+   "type": "prefab",
+   "prefab": "cash_register",
+   "position": [
+    3.6,
+    0.99,
+    2.2
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ]
+  },
+  {
+   "id": "magazines_1",
+   "type": "prefab",
+   "prefab": "magazine_rack",
+   "position": [
+    5.4,
+    0,
+    -0.6
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ]
+  },
+  {
+   "id": "basket_1",
+   "type": "prefab",
+   "prefab": "shopping_basket",
+   "position": [
+    -1.6,
+    0,
+    3.2
+   ],
+   "rotation": [
+    0,
+    20,
+    0
+   ]
+  },
+  {
+   "id": "basket_2",
+   "type": "prefab",
+   "prefab": "shopping_basket",
+   "position": [
+    -1.1,
+    0,
+    3.4
+   ],
+   "rotation": [
+    0,
+    -10,
+    0
+   ],
+   "params": {
+    "color": "#2a8ad9"
+   }
+  },
+  {
+   "id": "chips_1",
+   "type": "prefab",
+   "prefab": "chip_bag",
+   "position": [
+    3.2,
+    0.99,
+    2.6
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "params": {
+    "color": "#e0a02a"
+   }
+  },
+  {
+   "id": "chips_2",
+   "type": "prefab",
+   "prefab": "chip_bag",
+   "position": [
+    3.5,
+    0.99,
+    2.9
+   ],
+   "rotation": [
+    0,
+    30,
+    0
+   ],
+   "params": {
+    "color": "#c62828"
+   }
+  },
+  {
+   "id": "snacks_1",
+   "type": "prefab",
+   "prefab": "snack_box",
+   "position": [
+    3.9,
+    0.99,
+    2.7
+   ],
+   "rotation": [
+    0,
+    15,
+    0
+   ]
+  },
+  {
+   "id": "bench_1",
+   "type": "prop",
+   "prop": "bench",
+   "position": [
+    -4.0,
+    0,
+    5.4
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ]
+  },
+  {
+   "id": "vending_1",
+   "type": "prop",
+   "prop": "vending_machine",
+   "position": [
+    5.0,
+    0,
+    4.9
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "trash_1",
+   "type": "prop",
+   "prop": "trash_can",
+   "position": [
+    -6.8,
+    0,
+    3.0
+   ],
+   "rotation": [
+    0,
+    90,
+    0
+   ]
+  },
+  {
+   "id": "cone_1",
+   "type": "prop",
+   "prop": "traffic_cone",
+   "position": [
+    -9.0,
+    0,
+    8.0
+   ]
+  },
+  {
+   "id": "cone_2",
+   "type": "prop",
+   "prop": "traffic_cone",
+   "position": [
+    -7.5,
+    0,
+    9.0
+   ]
+  },
+  {
+   "id": "tree_1",
+   "type": "prop",
+   "prop": "tree_oak",
+   "position": [
+    -17,
+    0,
+    0
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  },
+  {
+   "id": "tree_2",
+   "type": "prop",
+   "prop": "tree_pine",
+   "position": [
+    17,
+    0,
+    -4
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  },
+  {
+   "id": "tree_3",
+   "type": "prop",
+   "prop": "tree_oak",
+   "position": [
+    -17,
+    0,
+    10
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  },
+  {
+   "id": "tree_4",
+   "type": "prop",
+   "prop": "tree_pine",
+   "position": [
+    17,
+    0,
+    9
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  },
+  {
+   "id": "tree_5",
+   "type": "prop",
+   "prop": "tree_oak",
+   "position": [
+    0,
+    0,
+    -12
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  }
+ ],
+ "checks": {
+  "lint": {
+   "max_errors": 0
+  },
+  "walk": [
+   {
+    "name": "parking lot to the checkout",
+    "path": "0,9.5; 0,5.0; 0,3.2; 1.5,2.9; 2.4,2.2",
+    "ends_near": [
+     2.4,
+     2.2
+    ],
+    "tol": 0.35,
+    "floor_y": 0
+   }
+  ],
+  "objects": {
+   "exist": [
+    "shelf_00",
+    "cooler_0",
+    "counter_1"
+   ],
+   "min_count": 25
+  },
+  "views": [
+   {
+    "name": "outside",
+    "eye": [
+     0,
+     1.7,
+     9.5
+    ],
+    "at": [
+     0,
+     1.4,
+     0
+    ],
+    "fov": 72
+   },
+   {
+    "name": "inside",
+    "eye": [
+     0,
+     1.7,
+     3.2
+    ],
+    "at": [
+     -1,
+     1.2,
+     -2
+    ],
+    "fov": 80
+   }
+  ]
+ }
+}

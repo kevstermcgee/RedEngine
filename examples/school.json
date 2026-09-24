@@ -1,0 +1,2384 @@
+{
+  "meta": { "fps": 30, "duration": 4.0, "resolution": [1280, 720] },
+  "background": { "sky_top": "#5b8fd4", "sky_bottom": "#dce8f5" },
+  "ambient": { "color": "#cfd8e8", "intensity": 0.3 },
+  "camera": { "fov": 90, "position": [0, 1.7, 41], "target": [0, 1.7, 20] },
+  "lights": [
+    {
+      "id": "sun",
+      "type": "directional",
+      "direction": [-0.5, -0.72, 0.65],
+      "color": "#fff2df",
+      "intensity": 2.3,
+      "cast_shadows": true,
+      "shadow_radius": 42,
+      "shadow_center": [0, 0, 15]
+    },
+    { "id": "l_c101", "type": "point", "position": [-18, 2.8, 5], "color": "#fff4e0", "intensity": 12, "range": 9 },
+    { "id": "l_c102", "type": "point", "position": [-6, 2.8, 5], "color": "#eaf2ff", "intensity": 12, "range": 9 },
+    { "id": "l_c103", "type": "point", "position": [6, 2.8, 5], "color": "#fff4e0", "intensity": 12, "range": 9 },
+    { "id": "l_c104", "type": "point", "position": [18, 2.8, 5], "color": "#fff0d0", "intensity": 12, "range": 9 },
+    { "id": "l_corr0", "type": "point", "position": [-16, 2.8, 12], "color": "#eaf2ff", "intensity": 10, "range": 8 },
+    { "id": "l_corr1", "type": "point", "position": [0, 2.8, 12], "color": "#eaf2ff", "intensity": 10, "range": 8 },
+    { "id": "l_corr2", "type": "point", "position": [16, 2.8, 12], "color": "#eaf2ff", "intensity": 10, "range": 8 },
+    { "id": "l_gym1", "type": "point", "position": [-18, 6.5, 22], "color": "#fffbe8", "intensity": 40, "range": 16 },
+    { "id": "l_gym2", "type": "point", "position": [-11, 6.5, 22], "color": "#fffbe8", "intensity": 40, "range": 16 },
+    { "id": "l_lobby", "type": "point", "position": [0, 2.8, 22], "color": "#ffe8c0", "intensity": 12, "range": 9 },
+    { "id": "l_cafe1", "type": "point", "position": [11, 2.8, 20], "color": "#fff4e0", "intensity": 14, "range": 10 },
+    { "id": "l_cafe2", "type": "point", "position": [19, 2.8, 19], "color": "#fff4e0", "intensity": 14, "range": 10 },
+    { "id": "l_kitchen", "type": "point", "position": [19, 2.8, 28], "color": "#eaf2ff", "intensity": 10, "range": 7 }
+  ],
+  "zones": [
+    { "id": "c101", "rect": [-23.85, 0.15, -12.15, 9.85], "y": 0, "kind": "room" },
+    { "id": "c102", "rect": [-11.85, 0.15, -0.15, 9.85], "y": 0, "kind": "room" },
+    { "id": "art_room", "rect": [0.15, 0.15, 11.85, 9.85], "y": 0, "kind": "room" },
+    { "id": "library", "rect": [12.15, 0.15, 23.85, 9.85], "y": 0, "kind": "room" },
+    { "id": "corridor", "rect": [-23.85, 10.15, 23.85, 13.85], "y": 0, "kind": "room" },
+    { "id": "gym", "rect": [-23.8, 14.2, -5.2, 29.8], "y": 0, "kind": "room" },
+    { "id": "lobby", "rect": [-4.85, 14.2, 4.85, 29.85], "y": 0, "kind": "room" },
+    { "id": "cafeteria", "rect": [5.2, 14.2, 23.85, 25.8], "y": 0, "kind": "room" },
+    { "id": "kitchen", "rect": [14.2, 26.2, 23.85, 29.85], "y": 0, "kind": "room" },
+    { "id": "front_plaza", "rect": [-8.85, 30.3, 8.85, 45.8], "y": 0, "kind": "outdoor" },
+    { "id": "field", "rect": [-33.8, -14.8, 33.8, -2.7], "y": 0, "kind": "outdoor" },
+    { "id": "patio", "rect": [24.4, 14.7, 34.8, 29.3], "y": 0, "kind": "outdoor" }
+  ],
+  "objects": [
+    { "id": "ground_far", "type": "plane", "size": [160, 160], "position": [0, 0, 15], "material": { "color": "#5f8a4c", "roughness": 0.95 } },
+    {
+      "id": "wall_north",
+      "type": "wall",
+      "from": [-24, 0],
+      "to": [24, 0],
+      "height": 3.2,
+      "thickness": 0.24,
+      "material": { "color": "#d8c7a8", "roughness": 0.85 },
+      "openings": [
+        { "kind": "window", "at": 2, "width": 1.6 },
+        { "kind": "window", "at": 9.5, "width": 1.6 },
+        { "kind": "window", "at": 13.5, "width": 1.6 },
+        { "kind": "window", "at": 22.5, "width": 1.6 },
+        { "kind": "window", "at": 27, "width": 2.0 },
+        { "kind": "window", "at": 30, "width": 2.0 },
+        { "kind": "window", "at": 33, "width": 2.0 },
+        { "kind": "window", "at": 39, "width": 2.0 },
+        { "kind": "window", "at": 45, "width": 2.0 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_east",
+      "type": "wall",
+      "from": [24, 0],
+      "to": [24, 30],
+      "height": 3.2,
+      "thickness": 0.24,
+      "material": { "color": "#d8c7a8", "roughness": 0.85 },
+      "openings": [
+        { "kind": "window", "at": 3, "width": 1.8 },
+        { "kind": "window", "at": 7, "width": 1.8 },
+        { "kind": "door", "at": 12, "width": 1.6 },
+        { "kind": "window", "at": 17, "width": 1.6 },
+        { "kind": "door", "at": 20, "width": 1.6 },
+        { "kind": "window", "at": 23, "width": 1.6 },
+        { "kind": "window", "at": 28, "width": 1.2 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_west_a",
+      "type": "wall",
+      "from": [-24, 0],
+      "to": [-24, 14],
+      "height": 3.2,
+      "thickness": 0.24,
+      "material": { "color": "#d8c7a8", "roughness": 0.85 },
+      "openings": [{ "kind": "window", "at": 2.5, "width": 1.6 }, { "kind": "window", "at": 7.5, "width": 1.6 }, { "kind": "door", "at": 12, "width": 1.6 }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_west_gym",
+      "type": "wall",
+      "from": [-24, 14],
+      "to": [-24, 30],
+      "height": 7.0,
+      "thickness": 0.24,
+      "material": { "color": "#d8c7a8", "roughness": 0.85 },
+      "openings": [
+        { "kind": "window", "at": 3, "width": 2.0, "sill": 3.9, "height": 2.2 },
+        { "kind": "door", "at": 8, "width": 1.8 },
+        { "kind": "window", "at": 13, "width": 2.0, "sill": 3.9, "height": 2.2 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_south_gym",
+      "type": "wall",
+      "from": [-24, 30],
+      "to": [-5, 30],
+      "height": 7.0,
+      "thickness": 0.24,
+      "material": { "color": "#d8c7a8", "roughness": 0.85 },
+      "openings": [
+        { "kind": "window", "at": 4, "width": 2.0, "sill": 3.9, "height": 2.2 },
+        { "kind": "window", "at": 9.5, "width": 2.0, "sill": 3.9, "height": 2.2 },
+        { "kind": "window", "at": 15, "width": 2.0, "sill": 3.9, "height": 2.2 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_south_lobby",
+      "type": "wall",
+      "from": [-5, 30],
+      "to": [5, 30],
+      "height": 3.2,
+      "thickness": 0.24,
+      "material": { "color": "#d8c7a8", "roughness": 0.85 },
+      "openings": [
+        { "kind": "door", "at": 5, "width": 2.4, "height": 2.3 },
+        { "kind": "window", "at": 1.6, "width": 1.2 },
+        { "kind": "window", "at": 8.4, "width": 1.2 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_south_cafe",
+      "type": "wall",
+      "from": [5, 30],
+      "to": [24, 30],
+      "height": 3.2,
+      "thickness": 0.24,
+      "material": { "color": "#d8c7a8", "roughness": 0.85 },
+      "openings": [
+        { "kind": "window", "at": 3.5, "width": 1.8 },
+        { "kind": "window", "at": 7, "width": 1.8 },
+        { "kind": "window", "at": 12.5, "width": 1.4 },
+        { "kind": "window", "at": 16, "width": 1.4 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "roof_north",
+      "type": "box",
+      "size": [48.24, 0.2, 14.12],
+      "position": [0.0, 3.3, 6.94],
+      "material": { "color": "#d3cdc1", "roughness": 0.85 }
+    },
+    {
+      "id": "roof_south",
+      "type": "box",
+      "size": [29.12, 0.2, 16.12],
+      "position": [9.56, 3.3, 22.06],
+      "material": { "color": "#d3cdc1", "roughness": 0.85 }
+    },
+    {
+      "id": "roof_gym",
+      "type": "box",
+      "size": [19.12, 0.2, 16.12],
+      "position": [-14.56, 7.1, 22.06],
+      "material": { "color": "#d3cdc1", "roughness": 0.85 }
+    },
+    {
+      "id": "wall_corr_n",
+      "type": "wall",
+      "from": [-24, 10],
+      "to": [24, 10],
+      "height": 3.2,
+      "thickness": 0.15,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "openings": [
+        { "kind": "door", "at": 6, "width": 1.2 },
+        { "kind": "door", "at": 18, "width": 1.2 },
+        { "kind": "door", "at": 30, "width": 1.2 },
+        { "kind": "door", "at": 42, "width": 1.2 }
+      ],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_room_1",
+      "type": "wall",
+      "from": [-12, 0],
+      "to": [-12, 10],
+      "height": 3.2,
+      "thickness": 0.15,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_room_2",
+      "type": "wall",
+      "from": [0, 0],
+      "to": [0, 10],
+      "height": 3.2,
+      "thickness": 0.15,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_room_3",
+      "type": "wall",
+      "from": [12, 0],
+      "to": [12, 10],
+      "height": 3.2,
+      "thickness": 0.15,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "openings": [{ "kind": "door", "at": 3, "width": 1.2 }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_corr_s_gym",
+      "type": "wall",
+      "from": [-24, 14],
+      "to": [-5, 14],
+      "height": 7.0,
+      "thickness": 0.2,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "openings": [{ "kind": "door", "at": 15, "width": 1.8 }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_corr_s_east",
+      "type": "wall",
+      "from": [-5, 14],
+      "to": [24, 14],
+      "height": 3.2,
+      "thickness": 0.15,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "openings": [{ "kind": "arch", "at": 5, "width": 3.0 }, { "kind": "door", "at": 14, "width": 1.8 }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_gym_lobby",
+      "type": "wall",
+      "from": [-5, 14],
+      "to": [-5, 30],
+      "height": 7.0,
+      "thickness": 0.2,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "openings": [{ "kind": "door", "at": 8, "width": 1.8 }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_lobby_cafe",
+      "type": "wall",
+      "from": [5, 14],
+      "to": [5, 30],
+      "height": 3.2,
+      "thickness": 0.15,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "openings": [{ "kind": "arch", "at": 8, "width": 2.6 }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_kitchen_n",
+      "type": "wall",
+      "from": [14, 26],
+      "to": [24, 26],
+      "height": 3.2,
+      "thickness": 0.15,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "openings": [{ "kind": "window", "at": 4.5, "width": 5.0, "sill": 0.95, "height": 0.85, "glass": false }, { "kind": "door", "at": 8.9, "width": 1.0 }],
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    {
+      "id": "wall_kitchen_w",
+      "type": "wall",
+      "from": [14, 26],
+      "to": [14, 30],
+      "height": 3.2,
+      "thickness": 0.15,
+      "material": { "color": "#e6dfcf", "roughness": 0.85 },
+      "trim": "#f4f1ea",
+      "baseboard": "#efeae0"
+    },
+    { "id": "floor_c101", "type": "plane", "size": [12, 10], "position": [-18.0, 0.01, 5.0], "material": { "color": "#c9b58a", "roughness": 0.55 } },
+    { "id": "floor_c102", "type": "plane", "size": [12, 10], "position": [-6.0, 0.01, 5.0], "material": { "color": "#b7c2ad", "roughness": 0.55 } },
+    { "id": "floor_c103", "type": "plane", "size": [12, 10], "position": [6.0, 0.01, 5.0], "material": { "color": "#d8cfbd", "roughness": 0.55 } },
+    { "id": "floor_c104", "type": "plane", "size": [12, 10], "position": [18.0, 0.01, 5.0], "material": { "color": "#8b7a5f", "roughness": 0.55 } },
+    { "id": "floor_corridor", "type": "plane", "size": [48, 4], "position": [0.0, 0.01, 12.0], "material": { "color": "#a8b4bc", "roughness": 0.4 } },
+    { "id": "floor_gym", "type": "plane", "size": [19, 16], "position": [-14.5, 0.01, 22.0], "material": { "color": "#c99a5a", "roughness": 0.35 } },
+    { "id": "floor_lobby", "type": "plane", "size": [10, 16], "position": [0.0, 0.01, 22.0], "material": { "color": "#d8d0c0", "roughness": 0.4 } },
+    { "id": "floor_cafe_a", "type": "plane", "size": [19, 12], "position": [14.5, 0.01, 20.0], "material": { "color": "#d9d4c0", "roughness": 0.5 } },
+    { "id": "floor_cafe_b", "type": "plane", "size": [9, 4], "position": [9.5, 0.01, 28.0], "material": { "color": "#d9d4c0", "roughness": 0.5 } },
+    { "id": "floor_kitchen", "type": "plane", "size": [10, 4], "position": [19.0, 0.01, 28.0], "material": { "color": "#9aa4aa", "roughness": 0.4 } },
+    { "id": "board_101", "type": "prefab", "prefab": "blackboard", "position": [-18, 1.5, 0.12] },
+    { "id": "clock_101", "type": "prefab", "prefab": "wall_clock", "position": [-13.9, 2.5, 0.12] },
+    { "id": "map_101", "type": "prefab", "prefab": "poster_world_map", "position": [-23.88, 1.7, 5], "rotation": [0, 90, 0] },
+    { "id": "cork_101", "type": "prefab", "prefab": "corkboard", "position": [-23.88, 1.6, 8.6], "rotation": [0, 90, 0] },
+    { "id": "cert_101", "type": "prefab", "prefab": "certificate_frame", "position": [-12.2, 1.7, 8.2], "rotation": [0, -90, 0] },
+    {
+      "id": "s101_chair_1",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-21.6, 0, 4.2],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#c8452f" }
+    },
+    { "id": "s101_desk_1", "type": "prefab", "prefab": "school_desk", "position": [-21.6, 0, 3.6], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_2",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-19.6, 0, 4.2],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "s101_desk_2", "type": "prefab", "prefab": "school_desk", "position": [-19.6, 0, 3.6], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_3",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-17.6, 0, 4.2],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#c8452f" }
+    },
+    { "id": "s101_desk_3", "type": "prefab", "prefab": "school_desk", "position": [-17.6, 0, 3.6], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_4",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-15.6, 0, 4.2],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#c8452f" }
+    },
+    { "id": "s101_desk_4", "type": "prefab", "prefab": "school_desk", "position": [-15.6, 0, 3.6], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_5",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-13.6, 0, 4.2],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "s101_desk_5", "type": "prefab", "prefab": "school_desk", "position": [-13.6, 0, 3.6], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_6",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-21.6, 0, 5.6],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "s101_desk_6", "type": "prefab", "prefab": "school_desk", "position": [-21.6, 0, 5.0], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_7",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-19.6, 0, 5.6],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#3a6ea5" }
+    },
+    { "id": "s101_desk_7", "type": "prefab", "prefab": "school_desk", "position": [-19.6, 0, 5.0], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_8",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-17.6, 0, 5.6],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#3a6ea5" }
+    },
+    { "id": "s101_desk_8", "type": "prefab", "prefab": "school_desk", "position": [-17.6, 0, 5.0], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_9",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-15.6, 0, 5.6],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "s101_desk_9", "type": "prefab", "prefab": "school_desk", "position": [-15.6, 0, 5.0], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_10",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-13.6, 0, 5.6],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#c8452f" }
+    },
+    { "id": "s101_desk_10", "type": "prefab", "prefab": "school_desk", "position": [-13.6, 0, 5.0], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_11",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-21.6, 0, 7.0],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#e0b83a" }
+    },
+    { "id": "s101_desk_11", "type": "prefab", "prefab": "school_desk", "position": [-21.6, 0, 6.4], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_12",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-19.6, 0, 7.0],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "s101_desk_12", "type": "prefab", "prefab": "school_desk", "position": [-19.6, 0, 6.4], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_13",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-17.6, 0, 7.0],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#3a6ea5" }
+    },
+    { "id": "s101_desk_13", "type": "prefab", "prefab": "school_desk", "position": [-17.6, 0, 6.4], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_14",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-15.6, 0, 7.0],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#e0873a" }
+    },
+    { "id": "s101_desk_14", "type": "prefab", "prefab": "school_desk", "position": [-15.6, 0, 6.4], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_15",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-13.6, 0, 7.0],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#c8452f" }
+    },
+    { "id": "s101_desk_15", "type": "prefab", "prefab": "school_desk", "position": [-13.6, 0, 6.4], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_16",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-21.6, 0, 8.4],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#4aa06a" }
+    },
+    { "id": "s101_desk_16", "type": "prefab", "prefab": "school_desk", "position": [-21.6, 0, 7.8], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_17",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-19.6, 0, 8.4],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#3a6ea5" }
+    },
+    { "id": "s101_desk_17", "type": "prefab", "prefab": "school_desk", "position": [-19.6, 0, 7.8], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_18",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-17.6, 0, 8.4],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#e0873a" }
+    },
+    { "id": "s101_desk_18", "type": "prefab", "prefab": "school_desk", "position": [-17.6, 0, 7.8], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_19",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-15.6, 0, 8.4],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "s101_desk_19", "type": "prefab", "prefab": "school_desk", "position": [-15.6, 0, 7.8], "rotation": [0, 180, 0] },
+    {
+      "id": "s101_chair_20",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-13.6, 0, 8.4],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#e0b83a" }
+    },
+    { "id": "s101_desk_20", "type": "prefab", "prefab": "school_desk", "position": [-13.6, 0, 7.8], "rotation": [0, 180, 0] },
+    { "id": "desk_teacher_101", "type": "prop", "prop": "desk", "position": [-13.4, 0, 1.6], "material": { "color": "#6e4b2b" } },
+    { "id": "chair_teacher_101", "type": "prefab", "prefab": "chair_office", "position": [-13.4, 0, 0.75] },
+    { "id": "globe_101", "type": "prefab", "prefab": "globe", "position": [-13.9, 0.77, 1.5] },
+    { "id": "books_101", "type": "prefab", "prefab": "book_stack", "position": [-12.9, 0.77, 1.5], "rotation": [0, 20, 0] },
+    { "id": "monitor_101", "type": "prefab", "prefab": "monitor", "position": [-13.4, 0.77, 1.45] },
+    {
+      "id": "shelf_101",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [-23.4, 0, 9.55],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    {
+      "id": "shelf_101b",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [-22.4, 0, 9.55],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "plant_101", "type": "prop", "prop": "potted_plant", "position": [-12.7, 0, 9.3], "material": { "color": "#9c7248" } },
+    { "id": "trash_101", "type": "prop", "prop": "trash_can", "position": [-23.5, 0, 0.6], "material": { "color": "#4a5a66" } },
+    { "id": "flag_101", "type": "prefab", "prefab": "flag_pole", "position": [-23.4, 0, 1.5] },
+    { "id": "pack_101a", "type": "prefab", "prefab": "backpack", "position": [-22.9, 0, 3.4], "rotation": [0, 30, 0] },
+    { "id": "pack_101b", "type": "prefab", "prefab": "backpack", "position": [-16.2, 0, 8.7], "rotation": [0, -40, 0] },
+    { "id": "board_102", "type": "prefab", "prefab": "whiteboard", "position": [-6, 1.6, 0.12] },
+    { "id": "clock_102", "type": "prefab", "prefab": "wall_clock", "position": [-2.2, 2.5, 0.12] },
+    { "id": "map_102", "type": "prefab", "prefab": "painting_landscape", "position": [-0.08, 1.7, 3.0], "rotation": [0, -90, 0] },
+    {
+      "id": "banner_102",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [-11.92, 2.2, 6.5],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#b8292f" }
+    },
+    {
+      "id": "p102_0_chair_1",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-10.5, 0, 3.05],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#e0b83a" }
+    },
+    { "id": "p102_0_desk_1", "type": "prefab", "prefab": "school_desk", "position": [-9.9, 0, 3.05], "rotation": [0, 90, 0] },
+    {
+      "id": "p102_0_chair_2",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-7.5, 0, 3.05],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#e0873a" }
+    },
+    { "id": "p102_0_desk_2", "type": "prefab", "prefab": "school_desk", "position": [-8.1, 0, 3.05], "rotation": [0, -90, 0] },
+    {
+      "id": "p102_0_chair_3",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-10.5, 0, 4.15],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "p102_0_desk_3", "type": "prefab", "prefab": "school_desk", "position": [-9.9, 0, 4.15], "rotation": [0, 90, 0] },
+    {
+      "id": "p102_0_chair_4",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-7.5, 0, 4.15],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#c8452f" }
+    },
+    { "id": "p102_0_desk_4", "type": "prefab", "prefab": "school_desk", "position": [-8.1, 0, 4.15], "rotation": [0, -90, 0] },
+    {
+      "id": "p102_1_chair_1",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-4.5, 0, 3.05],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#c8452f" }
+    },
+    { "id": "p102_1_desk_1", "type": "prefab", "prefab": "school_desk", "position": [-3.9, 0, 3.05], "rotation": [0, 90, 0] },
+    {
+      "id": "p102_1_chair_2",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-1.5, 0, 3.05],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#e0b83a" }
+    },
+    { "id": "p102_1_desk_2", "type": "prefab", "prefab": "school_desk", "position": [-2.1, 0, 3.05], "rotation": [0, -90, 0] },
+    {
+      "id": "p102_1_chair_3",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-4.5, 0, 4.15],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#e0b83a" }
+    },
+    { "id": "p102_1_desk_3", "type": "prefab", "prefab": "school_desk", "position": [-3.9, 0, 4.15], "rotation": [0, 90, 0] },
+    {
+      "id": "p102_1_chair_4",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-1.5, 0, 4.15],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "p102_1_desk_4", "type": "prefab", "prefab": "school_desk", "position": [-2.1, 0, 4.15], "rotation": [0, -90, 0] },
+    {
+      "id": "p102_2_chair_1",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-10.5, 0, 6.65],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#e0b83a" }
+    },
+    { "id": "p102_2_desk_1", "type": "prefab", "prefab": "school_desk", "position": [-9.9, 0, 6.65], "rotation": [0, 90, 0] },
+    {
+      "id": "p102_2_chair_2",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-7.5, 0, 6.65],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#3a6ea5" }
+    },
+    { "id": "p102_2_desk_2", "type": "prefab", "prefab": "school_desk", "position": [-8.1, 0, 6.65], "rotation": [0, -90, 0] },
+    {
+      "id": "p102_2_chair_3",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-10.5, 0, 7.75],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "p102_2_desk_3", "type": "prefab", "prefab": "school_desk", "position": [-9.9, 0, 7.75], "rotation": [0, 90, 0] },
+    {
+      "id": "p102_2_chair_4",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-7.5, 0, 7.75],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#e0873a" }
+    },
+    { "id": "p102_2_desk_4", "type": "prefab", "prefab": "school_desk", "position": [-8.1, 0, 7.75], "rotation": [0, -90, 0] },
+    {
+      "id": "p102_3_chair_1",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-4.5, 0, 6.65],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#8a5aa8" }
+    },
+    { "id": "p102_3_desk_1", "type": "prefab", "prefab": "school_desk", "position": [-3.9, 0, 6.65], "rotation": [0, 90, 0] },
+    {
+      "id": "p102_3_chair_2",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-1.5, 0, 6.65],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#e0873a" }
+    },
+    { "id": "p102_3_desk_2", "type": "prefab", "prefab": "school_desk", "position": [-2.1, 0, 6.65], "rotation": [0, -90, 0] },
+    {
+      "id": "p102_3_chair_3",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-4.5, 0, 7.75],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#e0873a" }
+    },
+    { "id": "p102_3_desk_3", "type": "prefab", "prefab": "school_desk", "position": [-3.9, 0, 7.75], "rotation": [0, 90, 0] },
+    {
+      "id": "p102_3_chair_4",
+      "type": "prefab",
+      "prefab": "student_chair",
+      "position": [-1.5, 0, 7.75],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#e0873a" }
+    },
+    { "id": "p102_3_desk_4", "type": "prefab", "prefab": "school_desk", "position": [-2.1, 0, 7.75], "rotation": [0, -90, 0] },
+    {
+      "id": "desk_teacher_102",
+      "type": "prop",
+      "prop": "desk",
+      "position": [-1.7, 0, 1.4],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#6e4b2b" }
+    },
+    { "id": "chair_teacher_102", "type": "prefab", "prefab": "chair_office", "position": [-1.7, 0, 2.15], "rotation": [0, 180, 0] },
+    { "id": "laptop_102", "type": "prefab", "prefab": "laptop", "position": [-1.7, 0.77, 1.4], "rotation": [0, 180, 0] },
+    { "id": "rug_102", "type": "prefab", "prefab": "rug_round", "position": [-10.2, 0.011, 8.5], "params": { "d": 2.0, "color": "#3a6ea5" } },
+    {
+      "id": "bean_102a",
+      "type": "prefab",
+      "prefab": "beanbag",
+      "position": [-10.9, 0, 8.6],
+      "rotation": [0, 30, 0],
+      "params": { "color": "#e0873a" }
+    },
+    {
+      "id": "bean_102b",
+      "type": "prefab",
+      "prefab": "beanbag",
+      "position": [-9.5, 0, 8.9],
+      "rotation": [0, -20, 0],
+      "params": { "color": "#4aa06a" }
+    },
+    { "id": "bookcase_102", "type": "prefab", "prefab": "bookcase_small", "position": [-11.6, 0, 6.6], "rotation": [0, 90, 0] },
+    { "id": "lamp_102", "type": "prefab", "prefab": "lamp_floor_reading", "position": [-11.2, 0, 9.5] },
+    { "id": "plant_102", "type": "prop", "prop": "potted_plant", "position": [-0.7, 0, 9.3], "material": { "color": "#9c7248" } },
+    { "id": "pack_102", "type": "prefab", "prefab": "backpack", "position": [-4.4, 0, 5.4], "rotation": [0, 10, 0] },
+    { "id": "easel_0", "type": "prefab", "prefab": "easel_canvas", "position": [2.6, 0, 1.7] },
+    { "id": "easel_1", "type": "prefab", "prefab": "easel_canvas", "position": [4.7, 0, 1.7] },
+    { "id": "easel_2", "type": "prefab", "prefab": "easel_canvas", "position": [7.3, 0, 1.7] },
+    { "id": "easel_3", "type": "prefab", "prefab": "easel_canvas", "position": [9.4, 0, 1.7] },
+    { "id": "artdesk_0", "type": "prop", "prop": "desk", "position": [2.6, 0, 5.4], "material": { "color": "#6e4b2b" } },
+    { "id": "stool_a0", "type": "prefab", "prefab": "stool_bar", "position": [2.15, 0, 6.3] },
+    { "id": "stool_b0", "type": "prefab", "prefab": "stool_bar", "position": [3.05, 0, 6.3] },
+    { "id": "stool_c0", "type": "prefab", "prefab": "stool_bar", "position": [2.6, 0, 4.5], "rotation": [0, 180, 0] },
+    { "id": "artdesk_1", "type": "prop", "prop": "desk", "position": [6.0, 0, 5.4], "material": { "color": "#6e4b2b" } },
+    { "id": "stool_a1", "type": "prefab", "prefab": "stool_bar", "position": [5.55, 0, 6.3] },
+    { "id": "stool_b1", "type": "prefab", "prefab": "stool_bar", "position": [6.45, 0, 6.3] },
+    { "id": "stool_c1", "type": "prefab", "prefab": "stool_bar", "position": [6.0, 0, 4.5], "rotation": [0, 180, 0] },
+    { "id": "artdesk_2", "type": "prop", "prop": "desk", "position": [9.4, 0, 5.4], "material": { "color": "#6e4b2b" } },
+    { "id": "stool_a2", "type": "prefab", "prefab": "stool_bar", "position": [8.95, 0, 6.3] },
+    { "id": "stool_b2", "type": "prefab", "prefab": "stool_bar", "position": [9.85, 0, 6.3] },
+    { "id": "stool_c2", "type": "prefab", "prefab": "stool_bar", "position": [9.4, 0, 4.5], "rotation": [0, 180, 0] },
+    { "id": "vase_art1", "type": "prefab", "prefab": "vase", "position": [2.6, 0.77, 5.4], "params": { "color": "#c8452f" } },
+    { "id": "succ_art", "type": "prefab", "prefab": "succulent", "position": [6.0, 0.77, 5.4] },
+    { "id": "plant_art", "type": "prefab", "prefab": "flowerpot_terracotta", "position": [9.4, 0.77, 5.4] },
+    { "id": "book_art", "type": "prefab", "prefab": "book", "position": [6.5, 0.77, 5.55], "rotation": [0, 25, 0] },
+    { "id": "ped_a", "type": "prefab", "prefab": "pedestal", "position": [1.0, 0, 8.8] },
+    { "id": "cat_art", "type": "prefab", "prefab": "sculpture_cat", "position": [1.0, 1.0, 8.8] },
+    { "id": "ped_b", "type": "prefab", "prefab": "pedestal_low", "position": [3.0, 0, 8.9] },
+    { "id": "stack_art", "type": "prefab", "prefab": "sculpture_stack", "position": [3.0, 0.6, 8.9] },
+    { "id": "bust_art", "type": "prefab", "prefab": "sculpture_bust", "position": [10.9, 0, 8.8] },
+    { "id": "tower_art", "type": "prefab", "prefab": "sculpture_twist_tower", "position": [9.2, 0, 8.9], "rotation": [0, 20, 0] },
+    { "id": "ped_c", "type": "prefab", "prefab": "pedestal", "position": [10.9, 0, 6.9] },
+    { "id": "bird_art", "type": "prefab", "prefab": "sculpture_bird", "position": [10.9, 1.0, 6.9] },
+    {
+      "id": "shelf_art",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [8.0, 0, 9.55],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "gal_art", "type": "prefab", "prefab": "gallery_trio", "position": [0.075, 1.6, 4.4], "rotation": [0, 90, 0] },
+    { "id": "sea_art", "type": "prefab", "prefab": "painting_seascape", "position": [11.92, 1.7, 5.2], "rotation": [0, -90, 0] },
+    { "id": "clock_art", "type": "prefab", "prefab": "wall_clock", "position": [11.92, 2.5, 8.6], "rotation": [0, -90, 0] },
+    { "id": "trash_art", "type": "prop", "prop": "trash_can", "position": [11.5, 0, 0.6], "material": { "color": "#4a5a66" } },
+    {
+      "id": "cab_art",
+      "type": "prop",
+      "prop": "filing_cabinet",
+      "position": [5.0, 0, 9.5],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5f6672" }
+    },
+    {
+      "id": "lib_shelf_0_0a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [14.05, 0, 2.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_0_0b", "type": "prop", "prop": "bookshelf", "position": [14.05, 0, 3.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_0_1a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [14.95, 0, 2.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_0_1b", "type": "prop", "prop": "bookshelf", "position": [14.95, 0, 3.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_0_2a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [15.85, 0, 2.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_0_2b", "type": "prop", "prop": "bookshelf", "position": [15.85, 0, 3.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_0_3a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [16.75, 0, 2.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_0_3b", "type": "prop", "prop": "bookshelf", "position": [16.75, 0, 3.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_0_4a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [17.65, 0, 2.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_0_4b", "type": "prop", "prop": "bookshelf", "position": [17.65, 0, 3.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_0_5a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [18.55, 0, 2.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_0_5b", "type": "prop", "prop": "bookshelf", "position": [18.55, 0, 3.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_0_6a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [19.45, 0, 2.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_0_6b", "type": "prop", "prop": "bookshelf", "position": [19.45, 0, 3.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_0_7a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [20.35, 0, 2.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_0_7b", "type": "prop", "prop": "bookshelf", "position": [20.35, 0, 3.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_1_0a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [14.05, 0, 5.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_1_0b", "type": "prop", "prop": "bookshelf", "position": [14.05, 0, 6.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_1_1a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [14.95, 0, 5.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_1_1b", "type": "prop", "prop": "bookshelf", "position": [14.95, 0, 6.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_1_2a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [15.85, 0, 5.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_1_2b", "type": "prop", "prop": "bookshelf", "position": [15.85, 0, 6.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_1_3a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [16.75, 0, 5.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_1_3b", "type": "prop", "prop": "bookshelf", "position": [16.75, 0, 6.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_1_4a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [17.65, 0, 5.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_1_4b", "type": "prop", "prop": "bookshelf", "position": [17.65, 0, 6.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_1_5a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [18.55, 0, 5.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_1_5b", "type": "prop", "prop": "bookshelf", "position": [18.55, 0, 6.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_1_6a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [19.45, 0, 5.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_1_6b", "type": "prop", "prop": "bookshelf", "position": [19.45, 0, 6.15], "material": { "color": "#5a3c22" } },
+    {
+      "id": "lib_shelf_1_7a",
+      "type": "prop",
+      "prop": "bookshelf",
+      "position": [20.35, 0, 5.85],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5a3c22" }
+    },
+    { "id": "lib_shelf_1_7b", "type": "prop", "prop": "bookshelf", "position": [20.35, 0, 6.15], "material": { "color": "#5a3c22" } },
+    { "id": "lib_table_0", "type": "prop", "prop": "dining_table", "position": [15.2, 0, 8.0], "material": { "color": "#7a5230" } },
+    {
+      "id": "lib_chair_0a",
+      "type": "prop",
+      "prop": "chair",
+      "position": [14.7, 0, 8.75],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#8a6a3f" }
+    },
+    { "id": "lib_chair_0b", "type": "prop", "prop": "chair", "position": [15.7, 0, 7.25], "material": { "color": "#8a6a3f" } },
+    { "id": "lib_lap_0", "type": "prefab", "prefab": "laptop", "position": [15.0, 0.78, 8.0] },
+    { "id": "lib_books_0", "type": "prefab", "prefab": "book_stack", "position": [15.55, 0.78, 8.05] },
+    { "id": "lib_table_1", "type": "prop", "prop": "dining_table", "position": [19.2, 0, 8.0], "material": { "color": "#7a5230" } },
+    {
+      "id": "lib_chair_1a",
+      "type": "prop",
+      "prop": "chair",
+      "position": [18.7, 0, 8.75],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#8a6a3f" }
+    },
+    { "id": "lib_chair_1b", "type": "prop", "prop": "chair", "position": [19.7, 0, 7.25], "material": { "color": "#8a6a3f" } },
+    { "id": "lib_lap_1", "type": "prefab", "prefab": "laptop", "position": [19.0, 0.78, 8.0] },
+    { "id": "lib_books_1", "type": "prefab", "prefab": "book_stack", "position": [19.55, 0.78, 8.05], "rotation": [0, 40, 0] },
+    { "id": "lib_desk", "type": "prop", "prop": "desk", "position": [22.0, 0, 8.7], "material": { "color": "#6e4b2b" } },
+    { "id": "lib_chair", "type": "prefab", "prefab": "chair_office", "position": [22.0, 0, 8.0] },
+    { "id": "lib_monitor", "type": "prefab", "prefab": "monitor", "position": [22.0, 0.77, 8.75] },
+    { "id": "lib_phone", "type": "prefab", "prefab": "desk_phone", "position": [22.5, 0.77, 8.6], "rotation": [0, -20, 0] },
+    { "id": "lib_lamp_d", "type": "prefab", "prefab": "lamp_desk_banker", "position": [21.5, 0.77, 8.85] },
+    {
+      "id": "nook_rug",
+      "type": "prefab",
+      "prefab": "rug_round",
+      "position": [21.5, 0.011, 2.4],
+      "params": { "d": 2.4, "color": "#5a3a4a", "inner": "#d9c9a3" }
+    },
+    { "id": "nook_arm1", "type": "prop", "prop": "armchair", "position": [20.8, 0, 2.2], "rotation": [0, 90, 0], "material": { "color": "#c8702c" } },
+    { "id": "nook_arm2", "type": "prop", "prop": "armchair", "position": [22.4, 0, 2.6], "rotation": [0, -90, 0], "material": { "color": "#c8702c" } },
+    { "id": "nook_side", "type": "prefab", "prefab": "side_table", "position": [21.6, 0, 3.6] },
+    { "id": "nook_lamp", "type": "prefab", "prefab": "lamp_floor_arc", "position": [23.3, 0, 1.0] },
+    { "id": "globe_lib", "type": "prefab", "prefab": "globe", "position": [21.6, 0.55, 3.6] },
+    { "id": "clock_lib", "type": "prefab", "prefab": "wall_clock", "position": [17.0, 2.5, 0.12] },
+    { "id": "poster_lib", "type": "prefab", "prefab": "poster_motivational", "position": [12.08, 1.7, 8.0], "rotation": [0, 90, 0] },
+    { "id": "plant_lib1", "type": "prop", "prop": "potted_plant", "position": [23.3, 0, 9.3], "material": { "color": "#9c7248" } },
+    { "id": "plant_lib2", "type": "prop", "prop": "potted_plant", "position": [12.8, 0, 9.3], "material": { "color": "#9c7248" } },
+    {
+      "id": "cab_lib",
+      "type": "prop",
+      "prop": "filing_cabinet",
+      "position": [14.6, 0, 9.55],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#5f6672" }
+    },
+    { "id": "locker_0", "type": "prefab", "prefab": "locker", "position": [-23.34, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_1", "type": "prefab", "prefab": "locker", "position": [-23.0, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_2", "type": "prefab", "prefab": "locker", "position": [-22.66, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_3", "type": "prefab", "prefab": "locker", "position": [-22.32, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_4", "type": "prefab", "prefab": "locker", "position": [-21.98, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_5", "type": "prefab", "prefab": "locker", "position": [-21.64, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_6", "type": "prefab", "prefab": "locker", "position": [-21.3, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_7", "type": "prefab", "prefab": "locker", "position": [-20.96, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_8", "type": "prefab", "prefab": "locker", "position": [-20.62, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_9", "type": "prefab", "prefab": "locker", "position": [-20.28, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_10", "type": "prefab", "prefab": "locker", "position": [-19.94, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_11", "type": "prefab", "prefab": "locker", "position": [-16.24, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_12", "type": "prefab", "prefab": "locker", "position": [-15.9, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_13", "type": "prefab", "prefab": "locker", "position": [-15.56, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_14", "type": "prefab", "prefab": "locker", "position": [-15.22, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_15", "type": "prefab", "prefab": "locker", "position": [-14.88, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_16", "type": "prefab", "prefab": "locker", "position": [-14.54, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_17", "type": "prefab", "prefab": "locker", "position": [-14.2, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_18", "type": "prefab", "prefab": "locker", "position": [-13.86, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_19", "type": "prefab", "prefab": "locker", "position": [-13.52, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_20", "type": "prefab", "prefab": "locker", "position": [-13.18, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_21", "type": "prefab", "prefab": "locker", "position": [-12.84, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_22", "type": "prefab", "prefab": "locker", "position": [-12.5, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_23", "type": "prefab", "prefab": "locker", "position": [-12.16, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_24", "type": "prefab", "prefab": "locker", "position": [-11.82, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_25", "type": "prefab", "prefab": "locker", "position": [-11.48, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_26", "type": "prefab", "prefab": "locker", "position": [-11.14, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_27", "type": "prefab", "prefab": "locker", "position": [-10.8, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_28", "type": "prefab", "prefab": "locker", "position": [-10.46, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_29", "type": "prefab", "prefab": "locker", "position": [-10.12, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_30", "type": "prefab", "prefab": "locker", "position": [-9.78, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_31", "type": "prefab", "prefab": "locker", "position": [-9.44, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_32", "type": "prefab", "prefab": "locker", "position": [-9.1, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_33", "type": "prefab", "prefab": "locker", "position": [-8.76, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_34", "type": "prefab", "prefab": "locker", "position": [-8.42, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_35", "type": "prefab", "prefab": "locker", "position": [-8.08, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_36", "type": "prefab", "prefab": "locker", "position": [-4.24, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_37", "type": "prefab", "prefab": "locker", "position": [-3.9, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_38", "type": "prefab", "prefab": "locker", "position": [-3.56, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_39", "type": "prefab", "prefab": "locker", "position": [-3.22, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_40", "type": "prefab", "prefab": "locker", "position": [-2.88, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_41", "type": "prefab", "prefab": "locker", "position": [-2.54, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_42", "type": "prefab", "prefab": "locker", "position": [-2.2, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_43", "type": "prefab", "prefab": "locker", "position": [-1.86, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_44", "type": "prefab", "prefab": "locker", "position": [-1.52, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_45", "type": "prefab", "prefab": "locker", "position": [-1.18, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_46", "type": "prefab", "prefab": "locker", "position": [-0.84, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_47", "type": "prefab", "prefab": "locker", "position": [-0.5, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_48", "type": "prefab", "prefab": "locker", "position": [-0.16, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_49", "type": "prefab", "prefab": "locker", "position": [0.18, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_50", "type": "prefab", "prefab": "locker", "position": [0.52, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_51", "type": "prefab", "prefab": "locker", "position": [0.86, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_52", "type": "prefab", "prefab": "locker", "position": [1.2, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_53", "type": "prefab", "prefab": "locker", "position": [1.54, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_54", "type": "prefab", "prefab": "locker", "position": [1.88, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_55", "type": "prefab", "prefab": "locker", "position": [2.22, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_56", "type": "prefab", "prefab": "locker", "position": [2.56, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_57", "type": "prefab", "prefab": "locker", "position": [2.9, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_58", "type": "prefab", "prefab": "locker", "position": [3.24, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_59", "type": "prefab", "prefab": "locker", "position": [3.58, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_60", "type": "prefab", "prefab": "locker", "position": [3.92, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_61", "type": "prefab", "prefab": "locker", "position": [7.76, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_62", "type": "prefab", "prefab": "locker", "position": [8.1, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_63", "type": "prefab", "prefab": "locker", "position": [8.44, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_64", "type": "prefab", "prefab": "locker", "position": [8.78, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_65", "type": "prefab", "prefab": "locker", "position": [9.12, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_66", "type": "prefab", "prefab": "locker", "position": [9.46, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_67", "type": "prefab", "prefab": "locker", "position": [9.8, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_68", "type": "prefab", "prefab": "locker", "position": [10.14, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_69", "type": "prefab", "prefab": "locker", "position": [10.48, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_70", "type": "prefab", "prefab": "locker", "position": [10.82, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_71", "type": "prefab", "prefab": "locker", "position": [11.16, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_72", "type": "prefab", "prefab": "locker", "position": [11.5, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_73", "type": "prefab", "prefab": "locker", "position": [11.84, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_74", "type": "prefab", "prefab": "locker", "position": [12.18, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_75", "type": "prefab", "prefab": "locker", "position": [12.52, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    { "id": "locker_76", "type": "prefab", "prefab": "locker", "position": [12.86, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_77", "type": "prefab", "prefab": "locker", "position": [13.2, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_78", "type": "prefab", "prefab": "locker", "position": [13.54, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_79", "type": "prefab", "prefab": "locker", "position": [13.88, 0, 10.28], "params": { "color": "#c8452f" } },
+    { "id": "locker_80", "type": "prefab", "prefab": "locker", "position": [14.22, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_81", "type": "prefab", "prefab": "locker", "position": [14.56, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_82", "type": "prefab", "prefab": "locker", "position": [14.9, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_83", "type": "prefab", "prefab": "locker", "position": [15.24, 0, 10.28], "params": { "color": "#4aa06a" } },
+    { "id": "locker_84", "type": "prefab", "prefab": "locker", "position": [15.58, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_85", "type": "prefab", "prefab": "locker", "position": [15.92, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_86", "type": "prefab", "prefab": "locker", "position": [19.76, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_87", "type": "prefab", "prefab": "locker", "position": [20.1, 0, 10.28], "params": { "color": "#e0873a" } },
+    { "id": "locker_88", "type": "prefab", "prefab": "locker", "position": [20.44, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_89", "type": "prefab", "prefab": "locker", "position": [20.78, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_90", "type": "prefab", "prefab": "locker", "position": [21.12, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_91", "type": "prefab", "prefab": "locker", "position": [21.46, 0, 10.28], "params": { "color": "#8a5aa8" } },
+    { "id": "locker_92", "type": "prefab", "prefab": "locker", "position": [21.8, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_93", "type": "prefab", "prefab": "locker", "position": [22.14, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_94", "type": "prefab", "prefab": "locker", "position": [22.48, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_95", "type": "prefab", "prefab": "locker", "position": [22.82, 0, 10.28], "params": { "color": "#3a7a8a" } },
+    { "id": "locker_96", "type": "prefab", "prefab": "locker", "position": [23.16, 0, 10.28], "params": { "color": "#3a6ea5" } },
+    {
+      "id": "bench_corr_0",
+      "type": "prop",
+      "prop": "bench",
+      "position": [-21, 0, 13.55],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#4a5c40" }
+    },
+    {
+      "id": "bench_corr_1",
+      "type": "prop",
+      "prop": "bench",
+      "position": [-14, 0, 13.55],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#4a5c40" }
+    },
+    {
+      "id": "bench_corr_2",
+      "type": "prop",
+      "prop": "bench",
+      "position": [15.5, 0, 13.55],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#4a5c40" }
+    },
+    { "id": "bench_corr_3", "type": "prop", "prop": "bench", "position": [21, 0, 13.55], "rotation": [0, 180, 0], "material": { "color": "#4a5c40" } },
+    { "id": "cork_corr", "type": "prefab", "prefab": "corkboard", "position": [-8.0, 1.7, 13.92], "rotation": [0, 180, 0] },
+    { "id": "poster_corr1", "type": "prefab", "prefab": "poster_motivational", "position": [-14.5, 1.7, 13.92], "rotation": [0, 180, 0] },
+    { "id": "poster_corr2", "type": "prefab", "prefab": "poster_movie", "position": [14.5, 1.6, 13.92], "rotation": [0, 180, 0] },
+    {
+      "id": "banner_corr1",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [-3.2, 2.2, 13.92],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#2f4f9a" }
+    },
+    {
+      "id": "banner_corr2",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [3.2, 2.2, 13.92],
+      "rotation": [0, 180, 0],
+      "params": { "color": "#b8292f" }
+    },
+    { "id": "clock_corr", "type": "prefab", "prefab": "wall_clock", "position": [16.6, 2.5, 13.92], "rotation": [0, 180, 0] },
+    {
+      "id": "ext_corr_0",
+      "type": "prop",
+      "prop": "fire_extinguisher",
+      "position": [-23.4, 0, 13.6],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#c8202a" }
+    },
+    {
+      "id": "ext_corr_1",
+      "type": "prop",
+      "prop": "fire_extinguisher",
+      "position": [23.4, 0, 13.6],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#c8202a" }
+    },
+    { "id": "trash_corr1", "type": "prop", "prop": "trash_can", "position": [-11.5, 0, 13.55], "material": { "color": "#4a5a66" } },
+    { "id": "trash_corr2", "type": "prop", "prop": "trash_can", "position": [11.5, 0, 13.55], "material": { "color": "#4a5a66" } },
+    { "id": "plant_corr1", "type": "prop", "prop": "potted_plant", "position": [-23.3, 0, 10.7], "material": { "color": "#9c7248" } },
+    { "id": "plant_corr2", "type": "prop", "prop": "potted_plant", "position": [23.2, 0, 10.7], "material": { "color": "#9c7248" } },
+    { "id": "cone_corr", "type": "prop", "prop": "traffic_cone", "position": [-3.0, 0, 12.0], "material": { "color": "#e8692a" } },
+    { "id": "pack_corr0", "type": "prefab", "prefab": "backpack", "position": [-19.4, 0, 12.6] },
+    { "id": "pack_corr1", "type": "prefab", "prefab": "backpack", "position": [14.0, 0, 11.4], "rotation": [0, 25, 0] },
+    {
+      "id": "rug_lobby",
+      "type": "prefab",
+      "prefab": "rug_round",
+      "position": [0, 0.011, 20.5],
+      "params": { "d": 3.2, "color": "#2f4f9a", "inner": "#efe6d0" }
+    },
+    { "id": "ped_lobby", "type": "prefab", "prefab": "pedestal", "position": [0, 0, 20.5] },
+    { "id": "trophy_lobby", "type": "prefab", "prefab": "trophy_cup", "position": [0, 1.0, 20.5] },
+    {
+      "id": "bench_lobby1",
+      "type": "prop",
+      "prop": "bench",
+      "position": [-3.4, 0, 28.9],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#4a5c40" }
+    },
+    { "id": "bench_lobby2", "type": "prop", "prop": "bench", "position": [3.4, 0, 28.9], "rotation": [0, 180, 0], "material": { "color": "#4a5c40" } },
+    { "id": "plant_lobby1", "type": "prefab", "prefab": "plant_monstera", "position": [-4.2, 0, 26.6] },
+    { "id": "plant_lobby2", "type": "prefab", "prefab": "plant_snake", "position": [4.2, 0, 26.6] },
+    { "id": "desk_recept", "type": "prefab", "prefab": "checkout_counter", "position": [3.7, 0, 17.6], "rotation": [0, -90, 0] },
+    { "id": "monitor_recept", "type": "prefab", "prefab": "monitor", "position": [3.7, 0.99, 17.2], "rotation": [0, -90, 0] },
+    { "id": "bell_recept", "type": "prefab", "prefab": "desk_phone", "position": [3.7, 0.99, 18.2], "rotation": [0, -90, 0] },
+    { "id": "chair_recept", "type": "prefab", "prefab": "chair_office", "position": [4.5, 0, 17.6], "rotation": [0, -90, 0] },
+    {
+      "id": "banner_lobby",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [-4.925, 2.2, 18.0],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#2f4f9a", "stripe": "#f0c24a" }
+    },
+    {
+      "id": "banner_lobby2",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [-4.925, 2.2, 26.0],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#b8292f", "stripe": "#f0c24a" }
+    },
+    { "id": "clock_lobby", "type": "prefab", "prefab": "wall_clock", "position": [-4.925, 2.6, 22.0], "rotation": [0, 90, 0] },
+    { "id": "cert_lobby", "type": "prefab", "prefab": "certificate_frame", "position": [4.925, 1.7, 26.4], "rotation": [0, -90, 0] },
+    { "id": "flag_lobby", "type": "prefab", "prefab": "flag_pole", "position": [-4.2, 0, 15.1] },
+    { "id": "trash_lobby", "type": "prop", "prop": "trash_can", "position": [4.4, 0, 28.9], "material": { "color": "#4a5a66" } },
+    { "id": "court_n", "type": "plane", "size": [15.0, 0.08], "position": [-15.0, 0.02, 17.0], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    { "id": "court_s", "type": "plane", "size": [15.0, 0.08], "position": [-15.0, 0.02, 27.0], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    { "id": "court_w", "type": "plane", "size": [0.08, 10.0], "position": [-22.5, 0.02, 22.0], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    { "id": "court_e", "type": "plane", "size": [0.08, 10.0], "position": [-7.5, 0.02, 22.0], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    {
+      "id": "court_mid",
+      "type": "plane",
+      "size": [0.08, 10.0],
+      "position": [-15.0, 0.02, 22.0],
+      "material": { "color": "#f4f1e8", "roughness": 0.4 }
+    },
+    {
+      "id": "court_circle",
+      "type": "cylinder",
+      "radius": 1.8,
+      "height": 0.006,
+      "position": [-15, 0.0135, 22],
+      "material": { "color": "#f4f1e8", "roughness": 0.4 }
+    },
+    {
+      "id": "court_circle_in",
+      "type": "cylinder",
+      "radius": 1.72,
+      "height": 0.006,
+      "position": [-15, 0.0155, 22],
+      "material": { "color": "#c99a5a", "roughness": 0.35 }
+    },
+    { "id": "key_w", "type": "plane", "size": [5.8, 4.5], "position": [-19.6, 0.02, 22.0], "material": { "color": "#b5533c", "roughness": 0.4 } },
+    { "id": "key_w_ft", "type": "plane", "size": [0.08, 4.5], "position": [-16.7, 0.02, 22.0], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    { "id": "key_w_t", "type": "plane", "size": [5.8, 0.08], "position": [-19.6, 0.02, 19.75], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    { "id": "key_w_b", "type": "plane", "size": [5.8, 0.08], "position": [-19.6, 0.02, 24.25], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    { "id": "key_e", "type": "plane", "size": [5.8, 4.5], "position": [-10.4, 0.02, 22.0], "material": { "color": "#b5533c", "roughness": 0.4 } },
+    { "id": "key_e_ft", "type": "plane", "size": [0.08, 4.5], "position": [-13.3, 0.02, 22.0], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    { "id": "key_e_t", "type": "plane", "size": [5.8, 0.08], "position": [-10.4, 0.02, 19.75], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    { "id": "key_e_b", "type": "plane", "size": [5.8, 0.08], "position": [-10.4, 0.02, 24.25], "material": { "color": "#f4f1e8", "roughness": 0.4 } },
+    { "id": "bb_w", "type": "box", "size": [0.1, 1.05, 1.8], "position": [-23.81, 3.475, 22.0], "material": { "color": "#f2f2ee", "roughness": 0.4 } },
+    {
+      "id": "bb_w_sq",
+      "type": "box",
+      "size": [0.015, 0.5, 0.4],
+      "position": [-23.7525, 3.45, 22.0],
+      "material": { "color": "#b8292f", "roughness": 0.5 }
+    },
+    {
+      "id": "bb_w_arm",
+      "type": "box",
+      "size": [0.26, 0.06, 0.08],
+      "position": [-23.63, 3.05, 22.0],
+      "material": { "color": "#d9761f", "roughness": 0.4 }
+    },
+    { "id": "rim_w_0", "type": "sphere", "radius": 0.022, "position": [-23.03, 3.05, 22.0], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_1", "type": "sphere", "radius": 0.022, "position": [-23.053, 3.05, 22.1], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_2", "type": "sphere", "radius": 0.022, "position": [-23.117, 3.05, 22.18], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_3", "type": "sphere", "radius": 0.022, "position": [-23.209, 3.05, 22.224], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_4", "type": "sphere", "radius": 0.022, "position": [-23.311, 3.05, 22.224], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_5", "type": "sphere", "radius": 0.022, "position": [-23.403, 3.05, 22.18], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_6", "type": "sphere", "radius": 0.022, "position": [-23.467, 3.05, 22.1], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_7", "type": "sphere", "radius": 0.022, "position": [-23.49, 3.05, 22.0], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_8", "type": "sphere", "radius": 0.022, "position": [-23.467, 3.05, 21.9], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_9", "type": "sphere", "radius": 0.022, "position": [-23.403, 3.05, 21.82], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_10", "type": "sphere", "radius": 0.022, "position": [-23.311, 3.05, 21.776], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_11", "type": "sphere", "radius": 0.022, "position": [-23.209, 3.05, 21.776], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_12", "type": "sphere", "radius": 0.022, "position": [-23.117, 3.05, 21.82], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_w_13", "type": "sphere", "radius": 0.022, "position": [-23.053, 3.05, 21.9], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    {
+      "id": "gym_banner_w",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [-23.88, 4.6, 26.0],
+      "rotation": [0, 90, 0],
+      "params": { "color": "#2f4f9a" }
+    },
+    { "id": "bb_e", "type": "box", "size": [0.1, 1.05, 1.8], "position": [-5.17, 3.475, 22.0], "material": { "color": "#f2f2ee", "roughness": 0.4 } },
+    {
+      "id": "bb_e_sq",
+      "type": "box",
+      "size": [0.015, 0.5, 0.4],
+      "position": [-5.2275, 3.45, 22.0],
+      "material": { "color": "#b8292f", "roughness": 0.5 }
+    },
+    {
+      "id": "bb_e_arm",
+      "type": "box",
+      "size": [0.26, 0.06, 0.08],
+      "position": [-5.35, 3.05, 22.0],
+      "material": { "color": "#d9761f", "roughness": 0.4 }
+    },
+    { "id": "rim_e_0", "type": "sphere", "radius": 0.022, "position": [-5.49, 3.05, 22.0], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_1", "type": "sphere", "radius": 0.022, "position": [-5.513, 3.05, 22.1], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_2", "type": "sphere", "radius": 0.022, "position": [-5.577, 3.05, 22.18], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_3", "type": "sphere", "radius": 0.022, "position": [-5.669, 3.05, 22.224], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_4", "type": "sphere", "radius": 0.022, "position": [-5.771, 3.05, 22.224], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_5", "type": "sphere", "radius": 0.022, "position": [-5.863, 3.05, 22.18], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_6", "type": "sphere", "radius": 0.022, "position": [-5.927, 3.05, 22.1], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_7", "type": "sphere", "radius": 0.022, "position": [-5.95, 3.05, 22.0], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_8", "type": "sphere", "radius": 0.022, "position": [-5.927, 3.05, 21.9], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_9", "type": "sphere", "radius": 0.022, "position": [-5.863, 3.05, 21.82], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_10", "type": "sphere", "radius": 0.022, "position": [-5.771, 3.05, 21.776], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_11", "type": "sphere", "radius": 0.022, "position": [-5.669, 3.05, 21.776], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_12", "type": "sphere", "radius": 0.022, "position": [-5.577, 3.05, 21.82], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    { "id": "rim_e_13", "type": "sphere", "radius": 0.022, "position": [-5.513, 3.05, 21.9], "material": { "color": "#d9761f", "roughness": 0.4 } },
+    {
+      "id": "gym_banner_e",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [-5.1, 4.6, 18.0],
+      "rotation": [0, -90, 0],
+      "params": { "color": "#2f4f9a" }
+    },
+    {
+      "id": "bleach_0",
+      "type": "box",
+      "size": [9.0, 0.9, 0.7],
+      "position": [-15.5, 0.45, 14.45],
+      "material": { "color": "#b8b0a0", "roughness": 0.7 }
+    },
+    {
+      "id": "bleach_1",
+      "type": "box",
+      "size": [9.0, 0.6, 0.7],
+      "position": [-15.5, 0.3, 15.15],
+      "material": { "color": "#b8b0a0", "roughness": 0.7 }
+    },
+    {
+      "id": "bleach_2",
+      "type": "box",
+      "size": [9.0, 0.3, 0.7],
+      "position": [-15.5, 0.15, 15.85],
+      "material": { "color": "#b8b0a0", "roughness": 0.7 }
+    },
+    {
+      "id": "bleach_rail_w",
+      "type": "box",
+      "size": [0.07, 1.6, 2.1],
+      "position": [-20.035, 0.8, 15.15],
+      "material": { "color": "#8a8f96", "roughness": 0.5, "metallic": 0.5 }
+    },
+    {
+      "id": "bleach_rail_e",
+      "type": "box",
+      "size": [0.07, 1.6, 2.1],
+      "position": [-10.965, 0.8, 15.15],
+      "material": { "color": "#8a8f96", "roughness": 0.5, "metallic": 0.5 }
+    },
+    {
+      "id": "score_board",
+      "type": "box",
+      "size": [0.04, 1.1, 2.8],
+      "position": [-5.12, 5.15, 25.6],
+      "material": { "color": "#15171c", "roughness": 0.4 }
+    },
+    {
+      "id": "score_home",
+      "type": "box",
+      "size": [0.01, 0.6, 0.8],
+      "position": [-5.145, 5.2, 24.9],
+      "material": { "color": "#c8452f", "roughness": 0.3 }
+    },
+    {
+      "id": "score_away",
+      "type": "box",
+      "size": [0.01, 0.6, 0.8],
+      "position": [-5.145, 5.2, 26.3],
+      "material": { "color": "#c8452f", "roughness": 0.3 }
+    },
+    { "id": "gym_bench_0", "type": "prop", "prop": "bench", "position": [-19, 0, 28.9], "rotation": [0, 180, 0], "material": { "color": "#4a5c40" } },
+    { "id": "gym_bench_1", "type": "prop", "prop": "bench", "position": [-15, 0, 28.9], "rotation": [0, 180, 0], "material": { "color": "#4a5c40" } },
+    { "id": "gym_bench_2", "type": "prop", "prop": "bench", "position": [-11, 0, 28.9], "rotation": [0, 180, 0], "material": { "color": "#4a5c40" } },
+    { "id": "ball_0", "type": "prefab", "prefab": "ball_basketball", "position": [-21, 0.0, 18.4] },
+    { "id": "ball_1", "type": "prefab", "prefab": "ball_basketball", "position": [-17, 0.0, 25.6] },
+    { "id": "ball_2", "type": "prefab", "prefab": "ball_basketball", "position": [-12.5, 0.0, 19.5] },
+    { "id": "ball_3", "type": "prefab", "prefab": "ball_basketball", "position": [-9, 0.0, 24.7] },
+    { "id": "ball_4", "type": "prefab", "prefab": "ball_basketball", "position": [-15, 0.0, 22.2] },
+    { "id": "ball_5", "type": "prefab", "prefab": "ball_basketball", "position": [-19.5, 0.0, 27.8] },
+    { "id": "cooler_gym", "type": "prefab", "prefab": "water_cooler", "position": [-6.0, 0, 15.0], "rotation": [0, 90, 0] },
+    {
+      "id": "ext_gym",
+      "type": "prop",
+      "prop": "fire_extinguisher",
+      "position": [-5.4, 0, 28.6],
+      "rotation": [0, -90, 0],
+      "material": { "color": "#c8202a" }
+    },
+    { "id": "trash_gym1", "type": "prop", "prop": "trash_can", "position": [-23.3, 0, 29.2], "material": { "color": "#4a5a66" } },
+    { "id": "trash_gym2", "type": "prop", "prop": "trash_can", "position": [-6.0, 0, 29.2], "material": { "color": "#4a5a66" } },
+    { "id": "crates_gym1", "type": "prop", "prop": "crate", "position": [-23.3, 0, 14.6], "material": { "color": "#8a6a3f" } },
+    { "id": "crates_gym2", "type": "prop", "prop": "crate", "position": [-22.65, 0, 14.6], "material": { "color": "#8a6a3f" } },
+    { "id": "boxes_gym", "type": "prop", "prop": "box_stack", "position": [-23.35, 0, 15.5], "material": { "color": "#b08a5a" } },
+    { "id": "gym_cone_0", "type": "prop", "prop": "traffic_cone", "position": [-10.4, 0, 15.3], "material": { "color": "#e8692a" } },
+    { "id": "gym_cone_1", "type": "prop", "prop": "traffic_cone", "position": [-9.8, 0, 15.3], "material": { "color": "#e8692a" } },
+    { "id": "gym_cone_2", "type": "prop", "prop": "traffic_cone", "position": [-9.2, 0, 15.3], "material": { "color": "#e8692a" } },
+    { "id": "cafe_table_0_0", "type": "prop", "prop": "picnic_table", "position": [8.2, 0, 18.0], "material": { "color": "#a8804a" } },
+    { "id": "tray_0_0", "type": "prefab", "prefab": "plate", "position": [7.8, 0.79, 17.7] },
+    { "id": "cup_0_0", "type": "prefab", "prefab": "soda_can", "position": [8.5, 0.79, 18.2] },
+    { "id": "apple_0_0", "type": "prefab", "prefab": "apple_red", "position": [8.3, 0.79, 17.8] },
+    { "id": "cafe_table_0_1", "type": "prop", "prop": "picnic_table", "position": [11.4, 0, 18.0], "material": { "color": "#b0b6bc" } },
+    { "id": "cafe_table_0_2", "type": "prop", "prop": "picnic_table", "position": [14.6, 0, 18.0], "material": { "color": "#a8804a" } },
+    { "id": "tray_0_2", "type": "prefab", "prefab": "plate", "position": [14.2, 0.79, 17.7] },
+    { "id": "cup_0_2", "type": "prefab", "prefab": "soda_can", "position": [14.9, 0.79, 18.2] },
+    { "id": "apple_0_2", "type": "prefab", "prefab": "apple_red", "position": [14.7, 0.79, 17.8] },
+    { "id": "cafe_table_0_3", "type": "prop", "prop": "picnic_table", "position": [17.8, 0, 18.0], "material": { "color": "#b0b6bc" } },
+    { "id": "cafe_table_0_4", "type": "prop", "prop": "picnic_table", "position": [21.0, 0, 18.0], "material": { "color": "#a8804a" } },
+    { "id": "tray_0_4", "type": "prefab", "prefab": "plate", "position": [20.6, 0.79, 17.7] },
+    { "id": "cup_0_4", "type": "prefab", "prefab": "soda_can", "position": [21.3, 0.79, 18.2] },
+    { "id": "apple_0_4", "type": "prefab", "prefab": "apple_red", "position": [21.1, 0.79, 17.8] },
+    { "id": "cafe_table_1_0", "type": "prop", "prop": "picnic_table", "position": [8.2, 0, 21.4], "material": { "color": "#b0b6bc" } },
+    { "id": "cafe_table_1_1", "type": "prop", "prop": "picnic_table", "position": [11.4, 0, 21.4], "material": { "color": "#a8804a" } },
+    { "id": "tray_1_1", "type": "prefab", "prefab": "plate", "position": [11.0, 0.79, 21.1] },
+    { "id": "cup_1_1", "type": "prefab", "prefab": "soda_can", "position": [11.7, 0.79, 21.6] },
+    { "id": "apple_1_1", "type": "prefab", "prefab": "apple_red", "position": [11.5, 0.79, 21.2] },
+    { "id": "cafe_table_1_2", "type": "prop", "prop": "picnic_table", "position": [14.6, 0, 21.4], "material": { "color": "#b0b6bc" } },
+    { "id": "cafe_table_1_3", "type": "prop", "prop": "picnic_table", "position": [17.8, 0, 21.4], "material": { "color": "#a8804a" } },
+    { "id": "tray_1_3", "type": "prefab", "prefab": "plate", "position": [17.4, 0.79, 21.1] },
+    { "id": "cup_1_3", "type": "prefab", "prefab": "soda_can", "position": [18.1, 0.79, 21.6] },
+    { "id": "apple_1_3", "type": "prefab", "prefab": "apple_red", "position": [17.9, 0.79, 21.2] },
+    { "id": "cafe_table_1_4", "type": "prop", "prop": "picnic_table", "position": [21.0, 0, 21.4], "material": { "color": "#b0b6bc" } },
+    {
+      "id": "serve_0",
+      "type": "prop",
+      "prop": "kitchen_counter",
+      "position": [15.35, 0, 25.5],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#b0b8c0" }
+    },
+    {
+      "id": "serve_1",
+      "type": "prop",
+      "prop": "kitchen_counter",
+      "position": [17.25, 0, 25.5],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#b0b8c0" }
+    },
+    {
+      "id": "serve_2",
+      "type": "prop",
+      "prop": "kitchen_counter",
+      "position": [19.15, 0, 25.5],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#b0b8c0" }
+    },
+    {
+      "id": "serve_3",
+      "type": "prop",
+      "prop": "kitchen_counter",
+      "position": [21.05, 0, 25.5],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#b0b8c0" }
+    },
+    { "id": "serve_food_0", "type": "prefab", "prefab": "bread_loaf", "position": [15.35, 0.95, 25.5] },
+    { "id": "serve_plate_0", "type": "prefab", "prefab": "plate", "position": [14.75, 0.95, 25.6] },
+    { "id": "serve_food_1", "type": "prefab", "prefab": "fruit_bowl", "position": [17.25, 0.95, 25.5] },
+    { "id": "serve_plate_1", "type": "prefab", "prefab": "plate", "position": [16.65, 0.95, 25.6] },
+    { "id": "serve_food_2", "type": "prefab", "prefab": "pizza_box", "position": [19.15, 0.95, 25.5] },
+    { "id": "serve_plate_2", "type": "prefab", "prefab": "plate", "position": [18.55, 0.95, 25.6] },
+    { "id": "serve_food_3", "type": "prefab", "prefab": "cake", "position": [21.05, 0.95, 25.5] },
+    { "id": "serve_plate_3", "type": "prefab", "prefab": "plate", "position": [20.45, 0.95, 25.6] },
+    {
+      "id": "vend_0",
+      "type": "prop",
+      "prop": "vending_machine",
+      "position": [5.55, 0, 26.4],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#2f5fa0" }
+    },
+    {
+      "id": "vend_1",
+      "type": "prop",
+      "prop": "vending_machine",
+      "position": [5.55, 0, 27.7],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#2f5fa0" }
+    },
+    {
+      "id": "vend_2",
+      "type": "prop",
+      "prop": "vending_machine",
+      "position": [5.55, 0, 29.0],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#2f5fa0" }
+    },
+    { "id": "cooler_cafe", "type": "prefab", "prefab": "drink_cooler", "position": [8.0, 0, 29.4], "rotation": [0, 180, 0] },
+    { "id": "water_cafe", "type": "prefab", "prefab": "water_cooler", "position": [10.5, 0, 29.4], "rotation": [0, 180, 0] },
+    { "id": "trash_cafe2", "type": "prop", "prop": "trash_can", "position": [23.4, 0, 14.6], "material": { "color": "#4a5a66" } },
+    { "id": "clock_cafe", "type": "prefab", "prefab": "wall_clock", "position": [14.0, 2.5, 14.075] },
+    {
+      "id": "banner_cafe1",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [7.4, 2.2, 14.075],
+      "params": { "color": "#4aa06a", "stripe": "#efe6d0" }
+    },
+    {
+      "id": "banner_cafe2",
+      "type": "prefab",
+      "prefab": "wall_banner",
+      "position": [20.0, 2.2, 14.075],
+      "params": { "color": "#e0873a", "stripe": "#efe6d0" }
+    },
+    { "id": "poster_cafe", "type": "prefab", "prefab": "poster_motivational", "position": [12.2, 1.6, 14.075] },
+    { "id": "k_stove1", "type": "prop", "prop": "stove", "position": [15.0, 0, 29.6], "rotation": [0, 180, 0], "material": { "color": "#2f3339" } },
+    { "id": "k_stove2", "type": "prop", "prop": "stove", "position": [16.0, 0, 29.6], "rotation": [0, 180, 0], "material": { "color": "#2f3339" } },
+    {
+      "id": "k_fridge1",
+      "type": "prop",
+      "prop": "refrigerator",
+      "position": [17.2, 0, 29.55],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#dfe3e6" }
+    },
+    {
+      "id": "k_fridge2",
+      "type": "prop",
+      "prop": "refrigerator",
+      "position": [18.1, 0, 29.55],
+      "rotation": [0, 180, 0],
+      "material": { "color": "#dfe3e6" }
+    },
+    { "id": "k_sink1", "type": "prop", "prop": "sink", "position": [20.0, 0, 29.6], "rotation": [0, 180, 0], "material": { "color": "#d8dcdf" } },
+    { "id": "k_sink2", "type": "prop", "prop": "sink", "position": [21.0, 0, 29.6], "rotation": [0, 180, 0], "material": { "color": "#d8dcdf" } },
+    { "id": "k_prep1", "type": "prop", "prop": "kitchen_counter", "position": [19.0, 0, 27.4], "material": { "color": "#b0b8c0" } },
+    { "id": "k_prep2", "type": "prop", "prop": "kitchen_counter", "position": [21.2, 0, 27.4], "material": { "color": "#b0b8c0" } },
+    { "id": "k_pot", "type": "prefab", "prefab": "pot", "position": [15.0, 0.92, 29.6] },
+    { "id": "k_pan", "type": "prefab", "prefab": "frying_pan", "position": [16.0, 0.92, 29.5] },
+    { "id": "k_board", "type": "prefab", "prefab": "cutting_board", "position": [19.0, 0.95, 27.4] },
+    { "id": "k_knife", "type": "prefab", "prefab": "knife_block", "position": [19.7, 0.95, 27.5] },
+    { "id": "k_cbm", "type": "prefab", "prefab": "coffee_maker", "position": [21.7, 0.95, 27.3] },
+    { "id": "k_trash", "type": "prop", "prop": "trash_can", "position": [23.3, 0, 29.3], "material": { "color": "#4a5a66" } },
+    { "id": "k_crate", "type": "prop", "prop": "crate", "position": [23.4, 0, 26.7], "material": { "color": "#8a6a3f" } },
+    { "id": "plaza", "type": "plane", "size": [18, 16.85], "position": [0.0, 0.01, 38.575], "material": { "color": "#c9c5b8", "roughness": 0.8 } },
+    {
+      "id": "walk_west",
+      "type": "plane",
+      "size": [5.85, 3.0],
+      "position": [-27.075, 0.01, 22.0],
+      "material": { "color": "#c9c5b8", "roughness": 0.8 }
+    },
+    { "id": "patio", "type": "plane", "size": [10.85, 15.0], "position": [29.575, 0.01, 22.0], "material": { "color": "#cdbfa5", "roughness": 0.8 } },
+    {
+      "id": "walk_corr_e",
+      "type": "plane",
+      "size": [5.85, 1.6],
+      "position": [27.075, 0.01, 12.0],
+      "material": { "color": "#c9c5b8", "roughness": 0.8 }
+    },
+    {
+      "id": "walk_corr_w",
+      "type": "plane",
+      "size": [5.85, 1.6],
+      "position": [-27.075, 0.01, 12.0],
+      "material": { "color": "#c9c5b8", "roughness": 0.8 }
+    },
+    { "id": "asphalt", "type": "plane", "size": [26.0, 4.5], "position": [-22.5, 0.01, 43.25], "material": { "color": "#5b5f66", "roughness": 0.95 } },
+    {
+      "id": "park_line_0",
+      "type": "plane",
+      "size": [0.1, 3.9],
+      "position": [-33.95, 0.02, 43.25],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "park_line_1",
+      "type": "plane",
+      "size": [0.1, 3.9],
+      "position": [-31.05, 0.02, 43.25],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "park_line_2",
+      "type": "plane",
+      "size": [0.1, 3.9],
+      "position": [-28.15, 0.02, 43.25],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "park_line_3",
+      "type": "plane",
+      "size": [0.1, 3.9],
+      "position": [-25.25, 0.02, 43.25],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "park_line_4",
+      "type": "plane",
+      "size": [0.1, 3.9],
+      "position": [-22.35, 0.02, 43.25],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "park_line_5",
+      "type": "plane",
+      "size": [0.1, 3.9],
+      "position": [-19.45, 0.02, 43.25],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "park_line_6",
+      "type": "plane",
+      "size": [0.1, 3.9],
+      "position": [-16.55, 0.02, 43.25],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "park_line_7",
+      "type": "plane",
+      "size": [0.1, 3.9],
+      "position": [-13.65, 0.02, 43.25],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "park_line_8",
+      "type": "plane",
+      "size": [0.1, 3.9],
+      "position": [-10.75, 0.02, 43.25],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    { "id": "field", "type": "plane", "size": [68, 12.5], "position": [0.0, 0.008, -8.75], "material": { "color": "#6ea355", "roughness": 0.95 } },
+    {
+      "id": "field_line_0",
+      "type": "plane",
+      "size": [60, 0.1],
+      "position": [0.0, 0.02, -12.45],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    { "id": "field_line_1", "type": "plane", "size": [60, 0.1], "position": [0.0, 0.02, -4.55], "material": { "color": "#f4f1e8", "roughness": 0.6 } },
+    {
+      "id": "field_line_2",
+      "type": "plane",
+      "size": [0.1, 8.0],
+      "position": [-29.95, 0.02, -8.5],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "field_line_3",
+      "type": "plane",
+      "size": [0.1, 8.0],
+      "position": [29.95, 0.02, -8.5],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    { "id": "field_line_4", "type": "plane", "size": [0.1, 8.0], "position": [0.0, 0.02, -8.5], "material": { "color": "#f4f1e8", "roughness": 0.6 } },
+    {
+      "id": "field_circle",
+      "type": "cylinder",
+      "radius": 2.6,
+      "height": 0.006,
+      "position": [0, 0.0115, -8.5],
+      "material": { "color": "#f4f1e8", "roughness": 0.6 }
+    },
+    {
+      "id": "field_circle_in",
+      "type": "cylinder",
+      "radius": 2.52,
+      "height": 0.006,
+      "position": [0, 0.0135, -8.5],
+      "material": { "color": "#6ea355", "roughness": 0.95 }
+    },
+    {
+      "id": "goal_w_l",
+      "type": "box",
+      "size": [0.12, 2.3, 0.15],
+      "position": [-30.2, 1.15, -10.625],
+      "material": { "color": "#f2f2ee", "roughness": 0.4 }
+    },
+    {
+      "id": "goal_w_r",
+      "type": "box",
+      "size": [0.12, 2.3, 0.15],
+      "position": [-30.2, 1.15, -6.375],
+      "material": { "color": "#f2f2ee", "roughness": 0.4 }
+    },
+    {
+      "id": "goal_w_bar",
+      "type": "box",
+      "size": [0.12, 0.12, 4.4],
+      "position": [-30.2, 2.36, -8.5],
+      "material": { "color": "#f2f2ee", "roughness": 0.4 }
+    },
+    {
+      "id": "goal_e_l",
+      "type": "box",
+      "size": [0.12, 2.3, 0.15],
+      "position": [30.2, 1.15, -10.625],
+      "material": { "color": "#f2f2ee", "roughness": 0.4 }
+    },
+    {
+      "id": "goal_e_r",
+      "type": "box",
+      "size": [0.12, 2.3, 0.15],
+      "position": [30.2, 1.15, -6.375],
+      "material": { "color": "#f2f2ee", "roughness": 0.4 }
+    },
+    {
+      "id": "goal_e_bar",
+      "type": "box",
+      "size": [0.12, 0.12, 4.4],
+      "position": [30.2, 2.36, -8.5],
+      "material": { "color": "#f2f2ee", "roughness": 0.4 }
+    },
+    { "id": "soccer_0", "type": "prefab", "prefab": "ball_soccer", "position": [-4, 0.008, -8] },
+    { "id": "soccer_1", "type": "prefab", "prefab": "ball_soccer", "position": [3, 0.008, -7] },
+    { "id": "soccer_2", "type": "prefab", "prefab": "ball_soccer", "position": [12, 0.008, -10] },
+    { "id": "soccer_3", "type": "prefab", "prefab": "ball_soccer", "position": [-15, 0.008, -6] },
+    {
+      "id": "portico_roof",
+      "type": "box",
+      "size": [7.2, 0.2, 3.88],
+      "position": [0.0, 3.45, 32.06],
+      "material": { "color": "#d3cdc1", "roughness": 0.85 }
+    },
+    {
+      "id": "portico_col_l",
+      "type": "box",
+      "size": [0.35, 3.35, 0.35],
+      "position": [-3.225, 1.675, 33.775],
+      "material": { "color": "#efe9dd", "roughness": 0.7 }
+    },
+    {
+      "id": "portico_col_r",
+      "type": "box",
+      "size": [0.35, 3.35, 0.35],
+      "position": [3.225, 1.675, 33.775],
+      "material": { "color": "#efe9dd", "roughness": 0.7 }
+    },
+    { "id": "flag_out", "type": "prefab", "prefab": "flag_pole", "position": [-7.0, 0, 33.5] },
+    {
+      "id": "sign_post_l",
+      "type": "box",
+      "size": [0.15, 1.6, 0.15],
+      "position": [6.975, 0.8, 33.275],
+      "material": { "color": "#5a3a26", "roughness": 0.7 }
+    },
+    {
+      "id": "sign_post_r",
+      "type": "box",
+      "size": [0.15, 1.6, 0.15],
+      "position": [11.075, 0.8, 33.275],
+      "material": { "color": "#5a3a26", "roughness": 0.7 }
+    },
+    {
+      "id": "sign_board",
+      "type": "box",
+      "size": [4.25, 0.85, 0.15],
+      "position": [9.025, 1.325, 33.375],
+      "material": { "color": "#2f4f9a", "roughness": 0.6 }
+    },
+    {
+      "id": "sign_stripe",
+      "type": "box",
+      "size": [4.05, 0.1, 0.02],
+      "position": [9.025, 1.35, 33.46],
+      "material": { "color": "#f0c24a", "roughness": 0.6 }
+    },
+    { "id": "bike_0", "type": "prefab", "prefab": "bicycle", "position": [-19.5, 0, 33.0], "rotation": [0, 90, 0] },
+    { "id": "bike_1", "type": "prefab", "prefab": "bicycle", "position": [-18.4, 0, 33.0], "rotation": [0, 90, 0] },
+    { "id": "bike_2", "type": "prefab", "prefab": "bicycle", "position": [-17.3, 0, 33.0], "rotation": [0, 90, 0] },
+    { "id": "bike_3", "type": "prefab", "prefab": "bicycle", "position": [-16.2, 0, 33.0], "rotation": [0, 90, 0] },
+    { "id": "out_bench1", "type": "prop", "prop": "bench", "position": [-5.5, 0, 31.4], "rotation": [0, 180, 0], "material": { "color": "#4a5c40" } },
+    { "id": "out_bench2", "type": "prop", "prop": "bench", "position": [5.5, 0, 31.4], "rotation": [0, 180, 0], "material": { "color": "#4a5c40" } },
+    { "id": "out_trash1", "type": "prop", "prop": "trash_can", "position": [-7.0, 0, 31.4], "material": { "color": "#4a5a66" } },
+    { "id": "out_trash2", "type": "prop", "prop": "trash_can", "position": [7.0, 0, 31.4], "material": { "color": "#4a5a66" } },
+    { "id": "hedge_w_0", "type": "prop", "prop": "hedge", "position": [-22.5, 0, 31.3], "material": { "color": "#2e672c" } },
+    { "id": "hedge_w_1", "type": "prop", "prop": "hedge", "position": [-20.7, 0, 31.3], "material": { "color": "#2a652b" } },
+    { "id": "hedge_w_2", "type": "prop", "prop": "hedge", "position": [-18.9, 0, 31.3], "material": { "color": "#316129" } },
+    { "id": "hedge_w_3", "type": "prop", "prop": "hedge", "position": [-17.1, 0, 31.3], "material": { "color": "#2c5f2a" } },
+    { "id": "hedge_w_4", "type": "prop", "prop": "hedge", "position": [-15.3, 0, 31.3], "material": { "color": "#2c5f2e" } },
+    { "id": "hedge_w_5", "type": "prop", "prop": "hedge", "position": [-13.5, 0, 31.3], "material": { "color": "#316b2f" } },
+    { "id": "hedge_w_6", "type": "prop", "prop": "hedge", "position": [-11.7, 0, 31.3], "material": { "color": "#2e6529" } },
+    { "id": "hedge_w_7", "type": "prop", "prop": "hedge", "position": [-9.9, 0, 31.3], "material": { "color": "#286033" } },
+    { "id": "hedge_w_8", "type": "prop", "prop": "hedge", "position": [-8.1, 0, 31.3], "material": { "color": "#2b6b2f" } },
+    { "id": "hedge_e_0", "type": "prop", "prop": "hedge", "position": [8.7, 0, 31.3], "material": { "color": "#32612c" } },
+    { "id": "hedge_e_1", "type": "prop", "prop": "hedge", "position": [10.5, 0, 31.3], "material": { "color": "#2a6628" } },
+    { "id": "hedge_e_2", "type": "prop", "prop": "hedge", "position": [12.3, 0, 31.3], "material": { "color": "#2d5f30" } },
+    { "id": "hedge_e_3", "type": "prop", "prop": "hedge", "position": [14.1, 0, 31.3], "material": { "color": "#326530" } },
+    { "id": "hedge_e_4", "type": "prop", "prop": "hedge", "position": [15.9, 0, 31.3], "material": { "color": "#2c6131" } },
+    { "id": "hedge_e_5", "type": "prop", "prop": "hedge", "position": [17.7, 0, 31.3], "material": { "color": "#2f612c" } },
+    { "id": "hedge_e_6", "type": "prop", "prop": "hedge", "position": [19.5, 0, 31.3], "material": { "color": "#325f2d" } },
+    { "id": "hedge_e_7", "type": "prop", "prop": "hedge", "position": [21.3, 0, 31.3], "material": { "color": "#2b6631" } },
+    { "id": "hedge_e_8", "type": "prop", "prop": "hedge", "position": [23.1, 0, 31.3], "material": { "color": "#296530" } },
+    { "id": "tree_yard_0", "type": "prop", "prop": "tree_oak", "position": [-16, 0, 36], "rotation": [0, 123, 0], "material": { "color": "#3c6f32" } },
+    { "id": "tree_yard_1", "type": "prop", "prop": "tree_pine", "position": [17, 0, 37], "rotation": [0, 15, 0], "material": { "color": "#1e5233" } },
+    { "id": "tree_yard_2", "type": "prop", "prop": "tree_oak", "position": [-27, 0, 30], "rotation": [0, 167, 0], "material": { "color": "#366332" } },
+    { "id": "tree_yard_3", "type": "prop", "prop": "tree_oak", "position": [28, 0, 36], "rotation": [0, 302, 0], "material": { "color": "#306b2e" } },
+    { "id": "tree_yard_4", "type": "prop", "prop": "tree_oak", "position": [-29, 0, 8], "rotation": [0, 265, 0], "material": { "color": "#31682e" } },
+    { "id": "tree_yard_5", "type": "prop", "prop": "tree_oak", "position": [30, 0, 4], "rotation": [0, 327, 0], "material": { "color": "#3b6c32" } },
+    { "id": "tree_yard_6", "type": "prop", "prop": "tree_oak", "position": [-14, 0, -1], "rotation": [0, 255, 0], "material": { "color": "#326328" } },
+    { "id": "tree_yard_7", "type": "prop", "prop": "tree_oak", "position": [22, 0, -1], "rotation": [0, 339, 0], "material": { "color": "#36642f" } },
+    { "id": "bush_yard_0", "type": "prop", "prop": "bush", "position": [30, 0, 17], "rotation": [0, 43, 0], "material": { "color": "#2f7132" } },
+    { "id": "bush_yard_1", "type": "prop", "prop": "bush", "position": [30, 0, 25], "rotation": [0, 234, 0], "material": { "color": "#316d37" } },
+    { "id": "bush_yard_2", "type": "prop", "prop": "bush", "position": [-26, 0, 4], "rotation": [0, 335, 0], "material": { "color": "#376e30" } },
+    { "id": "bush_yard_3", "type": "prop", "prop": "bush", "position": [26, 0, 2], "rotation": [0, 142, 0], "material": { "color": "#367034" } },
+    { "id": "bush_yard_4", "type": "prop", "prop": "bush", "position": [-26, 0, 26], "rotation": [0, 208, 0], "material": { "color": "#336731" } },
+    { "id": "bush_yard_5", "type": "prop", "prop": "bush", "position": [-27, 0, 31.6], "rotation": [0, 282, 0], "material": { "color": "#316836" } },
+    { "id": "patio_table_0", "type": "prop", "prop": "picnic_table", "position": [28.5, 0, 18.5], "material": { "color": "#8a5a34" } },
+    { "id": "patio_table_1", "type": "prop", "prop": "picnic_table", "position": [28.5, 0, 23.5], "material": { "color": "#8a5a34" } },
+    {
+      "id": "patio_table_2",
+      "type": "prop",
+      "prop": "picnic_table",
+      "position": [32.2, 0, 21.0],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#8a5a34" }
+    },
+    { "id": "patio_trash", "type": "prop", "prop": "trash_can", "position": [33.6, 0, 16.0], "material": { "color": "#4a5a66" } },
+    { "id": "patio_grill", "type": "prop", "prop": "grill", "position": [33.4, 0, 27.6], "rotation": [0, 90, 0], "material": { "color": "#2b2b2b" } },
+    { "id": "patio_tree", "type": "prop", "prop": "tree_oak", "position": [30.0, 0, 27.6], "material": { "color": "#38642d" } },
+    { "id": "gym_side_0", "type": "prop", "prop": "bench", "position": [-29.5, 0, 21.9], "rotation": [0, 90, 0], "material": { "color": "#4a5c40" } },
+    { "id": "gym_side_1", "type": "prop", "prop": "flower_patch", "position": [-27, 0, 14], "material": { "color": "#de5877" } },
+    { "id": "gym_side_2", "type": "prop", "prop": "flower_patch", "position": [-27, 0, 28], "material": { "color": "#e45478" } },
+    {
+      "id": "bus_body",
+      "type": "box",
+      "size": [9.0, 1.95, 2.3],
+      "position": [-22.0, 1.525, 43.2],
+      "material": { "color": "#e8b820", "roughness": 0.5 }
+    },
+    {
+      "id": "bus_hood",
+      "type": "box",
+      "size": [1.5, 1.15, 2.0],
+      "position": [-16.75, 1.125, 43.2],
+      "material": { "color": "#e8b820", "roughness": 0.5 }
+    },
+    {
+      "id": "bus_stripe",
+      "type": "box",
+      "size": [10.54, 0.15, 2.34],
+      "position": [-21.25, 1.125, 43.2],
+      "material": { "color": "#15171c", "roughness": 0.5 }
+    },
+    {
+      "id": "bus_roof_stripe",
+      "type": "box",
+      "size": [9.0, 0.06, 2.3],
+      "position": [-22.0, 2.53, 43.2],
+      "material": { "color": "#c89a10", "roughness": 0.5 }
+    },
+    {
+      "id": "bus_win_s0",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-25.5, 1.9, 44.36],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_n0",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-25.5, 1.9, 42.04],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_s1",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-24.1, 1.9, 44.36],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_n1",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-24.1, 1.9, 42.04],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_s2",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-22.7, 1.9, 44.36],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_n2",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-22.7, 1.9, 42.04],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_s3",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-21.3, 1.9, 44.36],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_n3",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-21.3, 1.9, 42.04],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_s4",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-19.9, 1.9, 44.36],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_n4",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-19.9, 1.9, 42.04],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_s5",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-18.5, 1.9, 44.36],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_win_n5",
+      "type": "box",
+      "size": [1.0, 0.7, 0.04],
+      "position": [-18.5, 1.9, 42.04],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_windshield",
+      "type": "box",
+      "size": [0.04, 0.85, 1.9],
+      "position": [-17.47, 1.925, 43.2],
+      "material": { "color": "#7fa8c8", "roughness": 0.15 }
+    },
+    {
+      "id": "bus_wheel_0",
+      "type": "cylinder",
+      "radius": 0.5,
+      "height": 0.3,
+      "position": [-24.7, 0.5, 44.36],
+      "material": { "color": "#1a1a1a", "roughness": 0.9 },
+      "rotation": [90, 0, 0]
+    },
+    {
+      "id": "bus_wheel_1",
+      "type": "cylinder",
+      "radius": 0.5,
+      "height": 0.3,
+      "position": [-24.7, 0.5, 42.040000000000006],
+      "material": { "color": "#1a1a1a", "roughness": 0.9 },
+      "rotation": [90, 0, 0]
+    },
+    {
+      "id": "bus_wheel_2",
+      "type": "cylinder",
+      "radius": 0.5,
+      "height": 0.3,
+      "position": [-17.4, 0.5, 44.2],
+      "material": { "color": "#1a1a1a", "roughness": 0.9 },
+      "rotation": [90, 0, 0]
+    },
+    {
+      "id": "bus_wheel_3",
+      "type": "cylinder",
+      "radius": 0.5,
+      "height": 0.3,
+      "position": [-17.4, 0.5, 42.2],
+      "material": { "color": "#1a1a1a", "roughness": 0.9 },
+      "rotation": [90, 0, 0]
+    },
+    {
+      "id": "bus_bumper",
+      "type": "box",
+      "size": [0.12, 0.35, 2.1],
+      "position": [-15.94, 0.575, 43.2],
+      "material": { "color": "#2a2c31", "roughness": 0.5 }
+    },
+    {
+      "id": "tree_ring_0",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-15.52, 0, -23.25],
+      "rotation": [0, 262, 0],
+      "material": { "color": "#174a34" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_1",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [39.18, 0, 19.67],
+      "rotation": [0, 205, 0],
+      "material": { "color": "#174d30" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_2",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-9.53, 0, -24.08],
+      "rotation": [0, 350, 0],
+      "material": { "color": "#144c2e" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_3",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [35.87, 0, -20.28],
+      "rotation": [0, 240, 0],
+      "material": { "color": "#204e36" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_4",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-44.88, 0, 7.41],
+      "rotation": [0, 289, 0],
+      "material": { "color": "#18532f" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_5",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-19.34, 0, 53.67],
+      "rotation": [0, 159, 0],
+      "material": { "color": "#144e36" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_6",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [39.09, 0, 8.34],
+      "rotation": [0, 68, 0],
+      "material": { "color": "#174b2f" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_7",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-41.08, 0, 53.24],
+      "rotation": [0, 249, 0],
+      "material": { "color": "#316e28" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_8",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-26.18, 0, 53.09],
+      "rotation": [0, 67, 0],
+      "material": { "color": "#144831" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_9",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-42.86, 0, -13.38],
+      "rotation": [0, 108, 0],
+      "material": { "color": "#326c30" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_10",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [39.56, 0, -20.62],
+      "rotation": [0, 10, 0],
+      "material": { "color": "#366531" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_11",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [41.65, 0, 50.12],
+      "rotation": [0, 21, 0],
+      "material": { "color": "#1d4c2d" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_12",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-20.3, 0, 50.28],
+      "rotation": [0, 151, 0],
+      "material": { "color": "#356f2f" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_13",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-39.44, 0, -15.33],
+      "rotation": [0, 7, 0],
+      "material": { "color": "#1a4b32" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_14",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [41.23, 0, 11.54],
+      "rotation": [0, 294, 0],
+      "material": { "color": "#356b2b" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_15",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-26.64, 0, 54.2],
+      "rotation": [0, 159, 0],
+      "material": { "color": "#184b31" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_16",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-21.04, 0, 53.91],
+      "rotation": [0, 81, 0],
+      "material": { "color": "#1f4835" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_17",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-9.39, 0, 53.12],
+      "rotation": [0, 309, 0],
+      "material": { "color": "#386627" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_18",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-33.28, 0, -21.53],
+      "rotation": [0, 262, 0],
+      "material": { "color": "#184f35" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_19",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [40.43, 0, 30.14],
+      "rotation": [0, 215, 0],
+      "material": { "color": "#35632f" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_20",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-40.76, 0, -9.02],
+      "rotation": [0, 64, 0],
+      "material": { "color": "#154a2e" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_21",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [12.89, 0, 51.88],
+      "rotation": [0, 143, 0],
+      "material": { "color": "#1c482f" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_22",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-24.87, 0, 54.5],
+      "rotation": [0, 35, 0],
+      "material": { "color": "#164b36" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_23",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [41.47, 0, -3.57],
+      "rotation": [0, 90, 0],
+      "material": { "color": "#205133" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_24",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [41.21, 0, 20.34],
+      "rotation": [0, 47, 0],
+      "material": { "color": "#165330" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_25",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [39.83, 0, 11.33],
+      "rotation": [0, 336, 0],
+      "material": { "color": "#326f26" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_26",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [35.58, 0, 52.54],
+      "rotation": [0, 183, 0],
+      "material": { "color": "#386b30" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_27",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [44.78, 0, -20.43],
+      "rotation": [0, 246, 0],
+      "material": { "color": "#195332" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_28",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-15.21, 0, -23.38],
+      "rotation": [0, 38, 0],
+      "material": { "color": "#14522e" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_29",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-42.28, 0, 32.54],
+      "rotation": [0, 174, 0],
+      "material": { "color": "#145332" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_30",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [39.51, 0, 13.02],
+      "rotation": [0, 213, 0],
+      "material": { "color": "#155232" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_31",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [6.12, 0, -24.18],
+      "rotation": [0, 194, 0],
+      "material": { "color": "#346d27" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_32",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-35.26, 0, -22.65],
+      "rotation": [0, 131, 0],
+      "material": { "color": "#1e4d36" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_33",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-43.37, 0, 6.74],
+      "rotation": [0, 225, 0],
+      "material": { "color": "#3c6d30" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_34",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-44.03, 0, -15.8],
+      "rotation": [0, 158, 0],
+      "material": { "color": "#1c512c" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_35",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-22.66, 0, -21.89],
+      "rotation": [0, 254, 0],
+      "material": { "color": "#1e4938" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_36",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-40.53, 0, -21.16],
+      "rotation": [0, 73, 0],
+      "material": { "color": "#316a32" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_37",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [21.32, 0, 52.11],
+      "rotation": [0, 337, 0],
+      "material": { "color": "#366d29" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_38",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-41.99, 0, -4.13],
+      "rotation": [0, 340, 0],
+      "material": { "color": "#306329" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_39",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [40.19, 0, 9.89],
+      "rotation": [0, 109, 0],
+      "material": { "color": "#1a4e32" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_40",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-40.32, 0, 46.14],
+      "rotation": [0, 69, 0],
+      "material": { "color": "#174e34" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_41",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [28.32, 0, 51.98],
+      "rotation": [0, 32, 0],
+      "material": { "color": "#1d5337" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_42",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [43.93, 0, -13.65],
+      "rotation": [0, 140, 0],
+      "material": { "color": "#316c29" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_43",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [-9.87, 0, 53.99],
+      "rotation": [0, 344, 0],
+      "material": { "color": "#306630" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_44",
+      "type": "prop",
+      "prop": "tree_oak",
+      "position": [43.3, 0, 40.3],
+      "rotation": [0, 164, 0],
+      "material": { "color": "#396f2c" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "tree_ring_45",
+      "type": "prop",
+      "prop": "tree_pine",
+      "position": [-18.64, 0, -23.97],
+      "rotation": [0, 347, 0],
+      "material": { "color": "#175333" },
+      "lint_ignore": ["unreachable", "overlap"]
+    },
+    {
+      "id": "fence_perimeter",
+      "type": "fence",
+      "points": [[-36, -16], [36, -16], [36, 46], [-36, 46]],
+      "closed": true,
+      "height": 2.0,
+      "style": "panel",
+      "material": { "color": "#a9adb5", "roughness": 0.7 },
+      "post_color": "#6b6f78"
+    }
+  ],
+  "checks": {
+    "lint": { "max_errors": 0 },
+    "walk": [
+      {
+        "name": "front door to the lobby and the library",
+        "path": "0,40; 0,32; 0,27; 1.0,24; 1.0,15; 1.0,12; 6,11.8; 6,9.6; 6,7.8",
+        "ends_near": [6, 7.8],
+        "tol": 0.4,
+        "floor_y": 0
+      },
+      { "name": "lobby to the gym", "path": "0,22; -3,22; -6,22; -9,20", "ends_near": [-9, 20], "tol": 0.4, "floor_y": 0 },
+      { "name": "lobby to the cafeteria", "path": "0,22; 3,22; 6.5,22; 9,20.4", "ends_near": [9, 20.4], "tol": 0.4, "floor_y": 0 }
+    ],
+    "objects": { "exist": ["board_101", "floor_gym", "serve_0", "bb_w"], "min_count": 300 },
+    "views": [
+      { "name": "front", "eye": [0, 1.7, 44], "at": [0, 2.0, 30], "fov": 70 },
+      { "name": "hall", "eye": [-22, 1.7, 12], "at": [20, 1.6, 12], "fov": 75 },
+      { "name": "gym", "eye": [-6, 1.7, 15.5], "at": [-20, 1.5, 25], "fov": 80 }
+    ]
+  }
+}

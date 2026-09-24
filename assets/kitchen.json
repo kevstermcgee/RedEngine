@@ -1,0 +1,149 @@
+[
+  {
+    "name": "mug_coffee",
+    "tags": ["kitchen", "drink", "small"],
+    "desc": "A ceramic mug with a handle on +X.",
+    "collide": false,
+    "params": {"color": {"default": "#e8e4da", "desc": "mug color"}},
+    "objects": [
+      {"id": "body", "type": "cylinder", "radius": 0.04, "height": 0.09, "position": [0, 0.045, 0], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "coffee", "type": "cylinder", "radius": 0.035, "height": 0.004, "position": [0, 0.086, 0], "material": {"color": "#3a2416", "roughness": 0.2}},
+      {"id": "handle_top", "type": "box", "size": [0.03, 0.01, 0.01], "position": [0.055, 0.07, 0], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "handle_bot", "type": "box", "size": [0.03, 0.01, 0.01], "position": [0.055, 0.03, 0], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "handle_out", "type": "box", "size": [0.01, 0.05, 0.01], "position": [0.07, 0.05, 0], "material": {"color": "$color", "roughness": 0.3}}
+    ]
+  },
+  {
+    "name": "plate",
+    "tags": ["kitchen", "tableware", "small"],
+    "desc": "A dinner plate.",
+    "collide": false,
+    "params": {"color": {"default": "#f4f2ee", "desc": "plate color"}},
+    "objects": [
+      {"id": "dish", "type": "cylinder", "radius": 0.13, "height": 0.014, "position": [0, 0.007, 0], "material": {"color": "$color", "roughness": 0.25}},
+      {"id": "well", "type": "cylinder", "radius": 0.09, "height": 0.004, "position": [0, 0.016, 0], "material": {"color": "$color", "roughness": 0.25}}
+    ]
+  },
+  {
+    "name": "bowl",
+    "tags": ["kitchen", "tableware", "small"],
+    "desc": "A deep bowl.",
+    "collide": false,
+    "params": {"color": {"default": "#dfe6ea", "desc": "bowl color"}},
+    "objects": [
+      {"id": "foot", "type": "cylinder", "radius": 0.04, "height": 0.015, "position": [0, 0.0075, 0], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "lower", "type": "cylinder", "radius": 0.07, "height": 0.04, "position": [0, 0.035, 0], "material": {"color": "$color", "roughness": 0.3}},
+      {"id": "upper", "type": "cylinder", "radius": 0.1, "height": 0.04, "position": [0, 0.075, 0], "material": {"color": "$color", "roughness": 0.3}}
+    ]
+  },
+  {
+    "name": "pot",
+    "tags": ["kitchen", "cookware", "small"],
+    "desc": "A cooking pot with a lid and side handles.",
+    "collide": false,
+    "objects": [
+      {"id": "body", "type": "cylinder", "radius": 0.11, "height": 0.13, "position": [0, 0.065, 0], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "lid", "type": "cylinder", "radius": 0.115, "height": 0.012, "position": [0, 0.136, 0], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.8}},
+      {"id": "knob", "type": "sphere", "radius": 0.014, "position": [0, 0.16, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "handle_l", "type": "box", "size": [0.05, 0.015, 0.03], "position": [-0.135, 0.1, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "handle_r", "type": "box", "size": [0.05, 0.015, 0.03], "position": [0.135, 0.1, 0], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "frying_pan",
+    "tags": ["kitchen", "cookware", "small"],
+    "desc": "A frying pan; handle points +Z.",
+    "collide": false,
+    "objects": [
+      {"id": "pan", "type": "cylinder", "radius": 0.13, "height": 0.04, "position": [0, 0.02, 0], "material": {"color": "#2a2b30", "roughness": 0.4, "metallic": 0.5}},
+      {"id": "handle", "type": "box", "size": [0.03, 0.02, 0.2], "position": [0, 0.04, 0.2], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "kettle",
+    "tags": ["kitchen", "cookware", "small"],
+    "desc": "A stovetop kettle with the spout toward +Z.",
+    "collide": false,
+    "params": {"color": {"default": "#c9ced6", "desc": "kettle color"}},
+    "objects": [
+      {"id": "body", "type": "cylinder", "radius": 0.09, "height": 0.14, "position": [0, 0.07, 0], "material": {"color": "$color", "roughness": 0.3, "metallic": 0.7}},
+      {"id": "top", "type": "cylinder", "radius": 0.05, "height": 0.03, "position": [0, 0.155, 0], "material": {"color": "$color", "roughness": 0.3, "metallic": 0.7}},
+      {"id": "knob", "type": "sphere", "radius": 0.014, "position": [0, 0.185, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "spout", "type": "cylinder", "radius": 0.014, "height": 0.1, "position": [0, 0.13, 0.11], "rotation": [50, 0, 0], "material": {"color": "$color", "roughness": 0.3, "metallic": 0.7}},
+      {"id": "handle", "type": "box", "size": [0.012, 0.09, 0.06], "position": [0, 0.17, -0.09], "rotation": [-25, 0, 0], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "toaster",
+    "tags": ["kitchen", "appliance", "small"],
+    "desc": "A two-slot toaster.",
+    "collide": false,
+    "params": {"color": {"default": "#c4c8cf", "desc": "body color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.3, 0.18, 0.16], "position": [0, 0.09, 0], "material": {"color": "$color", "roughness": 0.3, "metallic": 0.6}},
+      {"id": "slot1", "type": "box", "size": [0.11, 0.004, 0.02], "position": [-0.06, 0.181, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "slot2", "type": "box", "size": [0.11, 0.004, 0.02], "position": [0.06, 0.181, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "lever", "type": "box", "size": [0.02, 0.03, 0.02], "position": [0.17, 0.12, 0], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "microwave",
+    "tags": ["kitchen", "appliance"],
+    "desc": "A countertop microwave; door faces +Z.",
+    "params": {"color": {"default": "#d8d8dc", "desc": "body color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.5, 0.3, 0.38], "position": [0, 0.15, 0], "material": {"color": "$color", "roughness": 0.4, "metallic": 0.3}},
+      {"id": "window", "type": "box", "size": [0.3, 0.2, 0.004], "position": [-0.06, 0.15, 0.191], "material": {"color": "#14181d", "roughness": 0.1}},
+      {"id": "panel", "type": "box", "size": [0.1, 0.24, 0.004], "position": [0.18, 0.15, 0.191], "material": {"color": "#23272e", "roughness": 0.4}},
+      {"id": "button", "type": "box", "size": [0.05, 0.02, 0.006], "position": [0.18, 0.2, 0.192], "material": {"color": "#7fd6ff", "roughness": 0.6, "emissive": "#2a6a8a"}}
+    ]
+  },
+  {
+    "name": "coffee_maker",
+    "tags": ["kitchen", "appliance", "small"],
+    "desc": "A drip coffee maker with a glass pot.",
+    "collide": false,
+    "objects": [
+      {"id": "base", "type": "box", "size": [0.2, 0.02, 0.24], "position": [0, 0.01, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "column", "type": "box", "size": [0.16, 0.3, 0.06], "position": [0, 0.17, -0.09], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "head", "type": "box", "size": [0.2, 0.06, 0.2], "position": [0, 0.34, -0.03], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "pot", "type": "cylinder", "radius": 0.075, "height": 0.15, "position": [0, 0.095, 0.04], "material": {"color": "#cfe6f2", "roughness": 0.1}},
+      {"id": "coffee", "type": "cylinder", "radius": 0.07, "height": 0.07, "position": [0, 0.06, 0.04], "material": {"color": "#3a2416", "roughness": 0.2}},
+      {"id": "light", "type": "box", "size": [0.02, 0.01, 0.004], "position": [0.06, 0.2, -0.058], "material": {"color": "#ff5a3a", "roughness": 0.6, "emissive": "#a02a1a"}}
+    ]
+  },
+  {
+    "name": "cutting_board",
+    "tags": ["kitchen", "small"],
+    "desc": "A wooden cutting board.",
+    "collide": false,
+    "params": {"color": {"default": "#b98955", "desc": "wood tone"}},
+    "objects": [
+      {"id": "board", "type": "box", "size": [0.4, 0.02, 0.28], "position": [0, 0.01, 0], "material": {"color": "$color", "roughness": 0.8}},
+      {"id": "hole", "type": "box", "size": [0.05, 0.022, 0.012], "position": [0.16, 0.01, 0], "material": {"color": "#3b2a1e", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "knife_block",
+    "tags": ["kitchen", "small"],
+    "desc": "A wooden knife block with handles.",
+    "collide": false,
+    "objects": [
+      {"id": "block", "type": "box", "size": [0.12, 0.22, 0.09], "position": [0, 0.118, 0], "rotation": [-8, 0, 0], "material": {"color": "#6a4526", "roughness": 0.7}},
+      {"id": "h1", "type": "box", "size": [0.012, 0.03, 0.02], "position": [-0.03, 0.235, -0.02], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "h2", "type": "box", "size": [0.012, 0.03, 0.02], "position": [0.0, 0.235, -0.02], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "h3", "type": "box", "size": [0.012, 0.03, 0.02], "position": [0.03, 0.235, -0.02], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "paper_towel_roll",
+    "tags": ["kitchen", "small"],
+    "desc": "A paper towel roll on a stand.",
+    "collide": false,
+    "objects": [
+      {"id": "base", "type": "cylinder", "radius": 0.08, "height": 0.012, "position": [0, 0.006, 0], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.6}},
+      {"id": "pole", "type": "cylinder", "radius": 0.008, "height": 0.3, "position": [0, 0.15, 0], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.6}},
+      {"id": "roll", "type": "cylinder", "radius": 0.06, "height": 0.24, "position": [0, 0.13, 0], "material": {"color": "#f6f4ee", "roughness": 0.9}}
+    ]
+  }
+]

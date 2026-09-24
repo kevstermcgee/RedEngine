@@ -1,3 +1,5 @@
+//! Hex color parsing (`#rrggbb[aa]` -> linear RGB) shared by the scene parser and the tools.
+
 use glam::Vec3;
 
 /// Parses a `#rrggbb` or `#rrggbbaa` hex color into linear-space RGB (alpha, if present, is

@@ -1,3 +1,5 @@
+//! Humanoid rig: bone lengths from height/build and forward-kinematic posing into capsule parts.
+
 use glam::{Quat, Vec3};
 
 /// Fixed bone lengths/radii derived once from a humanoid's `height`/`build`. Pose only changes
@@ -23,26 +25,30 @@ pub struct HumanoidRig {
 }
 
 impl HumanoidRig {
+    /// Builds the rig for a figure of `height` metres and `build` (0..1 slim..stocky).
     pub fn new(height: f32, build: f32) -> Self {
         let h = height;
+        // Ordinary adult proportions (head ~1/7.5 of height, legs ~ half of it, arms reaching
+        // mid-thigh): `hip_y` + torso put the shoulder line at 0.82h, the ankles sit 0.04h off the
+        // floor so a shoe capsule rests on it, and the hands hang to ~0.45h.
         HumanoidRig {
-            hip_y: 0.50 * h,
-            torso_len: 0.30 * h,
-            torso_radius: 0.09 * h * build,
-            neck_len: -0.02 * h,
-            head_radius: 0.075 * h * build.sqrt(),
-            shoulder_half: 0.10 * h,
-            hip_half: 0.075 * h,
-            upper_arm_len: 0.19 * h,
-            upper_arm_radius: 0.045 * h * build,
-            forearm_len: 0.16 * h,
-            forearm_radius: 0.038 * h * build,
-            upper_leg_len: 0.27 * h,
-            upper_leg_radius: 0.062 * h * build,
-            lower_leg_len: 0.23 * h,
-            lower_leg_radius: 0.05 * h * build,
-            foot_len: 0.12 * h,
-            foot_radius: 0.045 * h * build,
+            hip_y: 0.53 * h,
+            torso_len: 0.29 * h,
+            torso_radius: 0.078 * h * build,
+            neck_len: 0.043 * h,
+            head_radius: 0.064 * h * build.sqrt(),
+            shoulder_half: 0.122 * h,
+            hip_half: 0.052 * h,
+            upper_arm_len: 0.172 * h,
+            upper_arm_radius: 0.028 * h * build,
+            forearm_len: 0.150 * h,
+            forearm_radius: 0.022 * h * build,
+            upper_leg_len: 0.245 * h,
+            upper_leg_radius: 0.046 * h * build,
+            lower_leg_len: 0.245 * h,
+            lower_leg_radius: 0.034 * h * build,
+            foot_len: 0.115 * h,
+            foot_radius: 0.033 * h * build,
         }
     }
 }
@@ -62,6 +68,7 @@ pub struct PoseSample {
     pub r_knee: f32,
 }
 
+/// Shape of a bone's visual: a capsule limb or a sphere joint/head.
 pub enum BoneKind {
     Capsule,
     Sphere,

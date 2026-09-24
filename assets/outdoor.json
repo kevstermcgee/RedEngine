@@ -1,0 +1,152 @@
+[
+  {
+    "name": "garden_gnome",
+    "tags": ["outdoor", "decor", "garden", "small"],
+    "desc": "A garden gnome with a red hat, facing +Z.",
+    "collide": false,
+    "params": {"coat": {"default": "#3a6ea5", "desc": "coat color"}, "hat": {"default": "#c62828", "desc": "hat color"}},
+    "objects": [
+      {"id": "body", "type": "cylinder", "radius": 0.07, "height": 0.16, "position": [0, 0.11, 0], "material": {"color": "$coat", "roughness": 0.8}},
+      {"id": "head", "type": "sphere", "radius": 0.05, "position": [0, 0.235, 0], "material": {"color": "#e6c9a0", "roughness": 0.8}},
+      {"id": "beard", "type": "box", "size": [0.09, 0.09, 0.04], "position": [0, 0.17, 0.05], "material": {"color": "#f6f6f2", "roughness": 0.98}},
+      {"id": "hat", "type": "cone", "radius": 0.06, "height": 0.16, "position": [0, 0.35, 0], "material": {"color": "$hat", "roughness": 0.8}},
+      {"id": "nose", "type": "sphere", "radius": 0.014, "position": [0, 0.235, 0.05], "material": {"color": "#d9926a", "roughness": 0.6}},
+      {"id": "boot_l", "type": "cylinder", "radius": 0.03, "height": 0.04, "position": [-0.03, 0.02, 0.02], "material": {"color": "#3b2a1e", "roughness": 0.6}},
+      {"id": "boot_r", "type": "cylinder", "radius": 0.03, "height": 0.04, "position": [0.03, 0.02, 0.02], "material": {"color": "#3b2a1e", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "flowerpot_terracotta",
+    "tags": ["outdoor", "plant", "garden", "small"],
+    "desc": "A terracotta pot with a flowering plant.",
+    "collide": false,
+    "params": {"bloom": {"default": "#e0587a", "desc": "flower color"}},
+    "objects": [
+      {"id": "pot", "type": "cylinder", "radius": 0.11, "height": 0.2, "position": [0, 0.1, 0], "material": {"color": "#c9743a", "roughness": 0.9}},
+      {"id": "rim", "type": "cylinder", "radius": 0.125, "height": 0.03, "position": [0, 0.215, 0], "material": {"color": "#c9743a", "roughness": 0.9}},
+      {"id": "soil", "type": "cylinder", "radius": 0.11, "height": 0.01, "position": [0, 0.225, 0], "material": {"color": "#3a2a1e", "roughness": 0.98}},
+      {"id": "leaves", "type": "sphere", "radius": 0.14, "position": [0, 0.33, 0], "scale": [1, 0.7, 1], "material": {"color": "#4a8a3a", "roughness": 0.9}},
+      {"id": "f1", "type": "sphere", "radius": 0.03, "position": [-0.06, 0.4, 0.03], "material": {"color": "$bloom", "roughness": 0.7}},
+      {"id": "f2", "type": "sphere", "radius": 0.03, "position": [0.05, 0.42, -0.02], "material": {"color": "$bloom", "roughness": 0.7}},
+      {"id": "f3", "type": "sphere", "radius": 0.03, "position": [0.0, 0.44, 0.05], "material": {"color": "$bloom", "roughness": 0.7}}
+    ]
+  },
+  {
+    "name": "watering_can",
+    "tags": ["outdoor", "garden", "metal", "small"],
+    "desc": "A watering can, spout toward +Z.",
+    "collide": false,
+    "params": {"color": {"default": "#3a8a5a", "desc": "paint color"}},
+    "objects": [
+      {"id": "body", "type": "cylinder", "radius": 0.1, "height": 0.22, "position": [0, 0.11, 0], "material": {"color": "$color", "roughness": 0.4, "metallic": 0.6}},
+      {"id": "spout", "type": "cylinder", "radius": 0.018, "height": 0.3, "position": [0, 0.21, 0.2], "rotation": [55, 0, 0], "material": {"color": "$color", "roughness": 0.4, "metallic": 0.6}},
+      {"id": "rose", "type": "cylinder", "radius": 0.04, "height": 0.02, "position": [0, 0.33, 0.33], "rotation": [55, 0, 0], "material": {"color": "$color", "roughness": 0.4, "metallic": 0.6}},
+      {"id": "handle", "type": "box", "size": [0.02, 0.2, 0.02], "position": [0, 0.26, -0.11], "rotation": [20, 0, 0], "material": {"color": "$color", "roughness": 0.4, "metallic": 0.6}}
+    ]
+  },
+  {
+    "name": "wheelbarrow",
+    "tags": ["outdoor", "garden", "tool"],
+    "desc": "A wheelbarrow, wheel toward +Z.",
+    "params": {"color": {"default": "#3a6ea5", "desc": "tub color"}},
+    "objects": [
+      {"id": "tub", "type": "box", "size": [0.6, 0.28, 0.7], "position": [0, 0.42, -0.05], "rotation": [0, 0, 0], "material": {"color": "$color", "roughness": 0.5, "metallic": 0.4}},
+      {"id": "wheel", "type": "cylinder", "radius": 0.18, "height": 0.06, "position": [0, 0.18, 0.5], "rotation": [0, 0, 90], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "handle_l", "type": "box", "size": [0.04, 0.04, 0.7], "position": [-0.26, 0.4, -0.55], "rotation": [-12, 0, 0], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "handle_r", "type": "box", "size": [0.04, 0.04, 0.7], "position": [0.26, 0.4, -0.55], "rotation": [-12, 0, 0], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "leg_l", "type": "box", "size": [0.04, 0.3, 0.04], "position": [-0.26, 0.15, -0.35], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "leg_r", "type": "box", "size": [0.04, 0.3, 0.04], "position": [0.26, 0.15, -0.35], "material": {"color": "#6a4526", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "birdhouse",
+    "tags": ["outdoor", "decor", "garden"],
+    "desc": "A birdhouse on a post; entrance faces +Z.",
+    "params": {"color": {"default": "#c98a4a", "desc": "house color"}},
+    "objects": [
+      {"id": "post", "type": "cylinder", "radius": 0.03, "height": 1.4, "position": [0, 0.7, 0], "material": {"color": "#6a4526", "roughness": 0.9}},
+      {"id": "house", "type": "box", "size": [0.28, 0.24, 0.26], "position": [0, 1.52, 0], "material": {"color": "$color", "roughness": 0.8}},
+      {"id": "roof_l", "type": "box", "size": [0.2, 0.02, 0.34], "position": [-0.09, 1.7, 0], "rotation": [0, 0, 28], "material": {"color": "#6a2a1e", "roughness": 0.6}},
+      {"id": "roof_r", "type": "box", "size": [0.2, 0.02, 0.34], "position": [0.09, 1.7, 0], "rotation": [0, 0, -28], "material": {"color": "#6a2a1e", "roughness": 0.6}},
+      {"id": "hole", "type": "cylinder", "radius": 0.04, "height": 0.01, "position": [0, 1.54, 0.13], "rotation": [90, 0, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "perch", "type": "box", "size": [0.02, 0.02, 0.06], "position": [0, 1.44, 0.16], "material": {"color": "#6a4526", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "garden_lantern",
+    "tags": ["outdoor", "light", "decor", "garden"],
+    "desc": "A ground-standing lantern with a glowing lamp.",
+    "objects": [
+      {"id": "base", "type": "cylinder", "radius": 0.1, "height": 0.04, "position": [0, 0.02, 0], "material": {"color": "#2a2c31", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "cage", "type": "box", "size": [0.14, 0.24, 0.14], "position": [0, 0.16, 0], "material": {"color": "#f0e3c0", "roughness": 0.4, "emissive": "#5a4a28"}},
+      {"id": "roof", "type": "cone", "radius": 0.13, "height": 0.1, "position": [0, 0.33, 0], "material": {"color": "#2a2c31", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "ring", "type": "sphere", "radius": 0.02, "position": [0, 0.4, 0], "material": {"color": "#2a2c31", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "bicycle",
+    "tags": ["outdoor", "vehicle", "sports"],
+    "desc": "A bicycle, front wheel toward +Z, leaning on nothing (stands on its wheels).",
+    "params": {"color": {"default": "#c62828", "desc": "frame color"}},
+    "objects": [
+      {"id": "wheel_f", "type": "cylinder", "radius": 0.33, "height": 0.03, "position": [0, 0.33, 0.5], "rotation": [0, 0, 90], "material": {"color": "#1d1f23", "roughness": 0.9}},
+      {"id": "wheel_b", "type": "cylinder", "radius": 0.33, "height": 0.03, "position": [0, 0.33, -0.5], "rotation": [0, 0, 90], "material": {"color": "#1d1f23", "roughness": 0.9}},
+      {"id": "hub_f", "type": "cylinder", "radius": 0.05, "height": 0.05, "position": [0, 0.33, 0.5], "rotation": [0, 0, 90], "material": {"color": "#b9bec6", "roughness": 0.6, "metallic": 0.8}},
+      {"id": "hub_b", "type": "cylinder", "radius": 0.05, "height": 0.05, "position": [0, 0.33, -0.5], "rotation": [0, 0, 90], "material": {"color": "#b9bec6", "roughness": 0.6, "metallic": 0.8}},
+      {"id": "tube_top", "type": "cylinder", "radius": 0.015, "height": 0.62, "position": [0, 0.66, 0.0], "rotation": [90, 0, 0], "material": {"color": "$color", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "tube_down", "type": "cylinder", "radius": 0.015, "height": 0.62, "position": [0, 0.5, 0.2], "rotation": [45, 0, 0], "material": {"color": "$color", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "tube_seat", "type": "cylinder", "radius": 0.015, "height": 0.45, "position": [0, 0.55, -0.22], "rotation": [-15, 0, 0], "material": {"color": "$color", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "fork", "type": "cylinder", "radius": 0.015, "height": 0.42, "position": [0, 0.52, 0.5], "rotation": [-15, 0, 0], "material": {"color": "$color", "roughness": 0.6, "metallic": 0.5}},
+      {"id": "stem", "type": "cylinder", "radius": 0.015, "height": 0.12, "position": [0, 0.82, 0.32], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "bars", "type": "box", "size": [0.5, 0.025, 0.025], "position": [0, 0.88, 0.32], "material": {"color": "#2a2c31", "roughness": 0.6}},
+      {"id": "seat", "type": "box", "size": [0.12, 0.04, 0.26], "position": [0, 0.82, -0.28], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "pedal_l", "type": "box", "size": [0.1, 0.02, 0.06], "position": [-0.1, 0.24, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
+      {"id": "pedal_r", "type": "box", "size": [0.1, 0.02, 0.06], "position": [0.1, 0.24, 0.02], "material": {"color": "#1d1f23", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "lawn_chair",
+    "tags": ["outdoor", "chair", "seating"],
+    "desc": "A reclined lawn chair; faces +Z.",
+    "params": {"color": {"default": "#3a8a5a", "desc": "fabric color"}},
+    "objects": [
+      {"id": "leg_fl", "type": "box", "size": [0.03, 0.3, 0.03], "position": [-0.25, 0.15, 0.3], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}},
+      {"id": "leg_fr", "type": "box", "size": [0.03, 0.3, 0.03], "position": [0.25, 0.15, 0.3], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}},
+      {"id": "leg_bl", "type": "box", "size": [0.03, 0.3, 0.03], "position": [-0.25, 0.15, -0.2], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}},
+      {"id": "leg_br", "type": "box", "size": [0.03, 0.3, 0.03], "position": [0.25, 0.15, -0.2], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}},
+      {"id": "seat", "type": "box", "size": [0.55, 0.03, 0.55], "position": [0, 0.32, 0.05], "material": {"color": "$color", "roughness": 0.9}},
+      {"id": "back", "type": "box", "size": [0.55, 0.6, 0.03], "position": [0, 0.59, -0.35], "rotation": [-25, 0, 0], "material": {"color": "$color", "roughness": 0.9}},
+      {"id": "arm_l", "type": "box", "size": [0.04, 0.03, 0.45], "position": [-0.3, 0.55, 0.05], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}},
+      {"id": "arm_r", "type": "box", "size": [0.04, 0.03, 0.45], "position": [0.3, 0.55, 0.05], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}}
+    ]
+  },
+  {
+    "name": "sun_umbrella",
+    "tags": ["outdoor", "furniture", "garden"],
+    "desc": "A patio umbrella on a pole and base.",
+    "params": {"color": {"default": "#d9532a", "desc": "canopy color"}},
+    "objects": [
+      {"id": "base", "type": "cylinder", "radius": 0.25, "height": 0.06, "position": [0, 0.03, 0], "material": {"color": "#8a8f98", "roughness": 0.8}},
+      {"id": "pole", "type": "cylinder", "radius": 0.025, "height": 2.2, "position": [0, 1.13, 0], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}},
+      {"id": "canopy", "type": "cone", "radius": 1.1, "height": 0.32, "position": [0, 2.36, 0], "material": {"color": "$color", "roughness": 0.9}},
+      {"id": "tip", "type": "sphere", "radius": 0.03, "position": [0, 2.54, 0], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}}
+    ]
+  },
+  {
+    "name": "doghouse",
+    "tags": ["outdoor", "pet", "wood"],
+    "desc": "A doghouse; entrance faces +Z.",
+    "params": {"color": {"default": "#b9783a", "desc": "wall color"}},
+    "objects": [
+      {"id": "back", "type": "box", "size": [0.8, 0.6, 0.03], "position": [0, 0.35, -0.45], "material": {"color": "$color", "roughness": 0.6}},
+      {"id": "side_l", "type": "box", "size": [0.03, 0.6, 0.9], "position": [-0.385, 0.35, 0], "material": {"color": "$color", "roughness": 0.6}},
+      {"id": "side_r", "type": "box", "size": [0.03, 0.6, 0.9], "position": [0.385, 0.35, 0], "material": {"color": "$color", "roughness": 0.6}},
+      {"id": "front_l", "type": "box", "size": [0.24, 0.6, 0.03], "position": [-0.28, 0.35, 0.45], "material": {"color": "$color", "roughness": 0.6}},
+      {"id": "front_r", "type": "box", "size": [0.24, 0.6, 0.03], "position": [0.28, 0.35, 0.45], "material": {"color": "$color", "roughness": 0.6}},
+      {"id": "front_top", "type": "box", "size": [0.32, 0.2, 0.03], "position": [0, 0.55, 0.45], "material": {"color": "$color", "roughness": 0.6}},
+      {"id": "floor", "type": "box", "size": [0.8, 0.05, 0.9], "position": [0, 0.025, 0], "material": {"color": "#6a4526", "roughness": 0.6}},
+      {"id": "roof_l", "type": "box", "size": [0.55, 0.03, 1.0], "position": [-0.24, 0.8, 0], "rotation": [0, 0, 22], "material": {"color": "#6a2a1e", "roughness": 0.6}},
+      {"id": "roof_r", "type": "box", "size": [0.55, 0.03, 1.0], "position": [0.24, 0.8, 0], "rotation": [0, 0, -22], "material": {"color": "#6a2a1e", "roughness": 0.6}}
+    ]
+  }
+]

@@ -3,8 +3,8 @@ struct Globals {
     light_view_proj: mat4x4<f32>,
     camera_pos: vec4<f32>,
     ambient: vec4<f32>,
-    light_pos_or_dir: array<vec4<f32>, 8>,
-    light_color_intensity: array<vec4<f32>, 8>,
+    light_pos_or_dir: array<vec4<f32>, 16>,
+    light_color_intensity: array<vec4<f32>, 16>,
     counts: vec4<f32>,
     bg_top: vec4<f32>,
     bg_bottom: vec4<f32>,
@@ -64,11 +64,33 @@ fn shadow_factor(world_pos: vec3<f32>, n_dot_l: f32) -> f32 {
     return shadow / 9.0;
 }
 
+// ---- Lighting model constants (one place, so every map reads the same) ------------------------
+// Maps author point lights hot (intensity ~10-40) because inverse-square falloff eats most of it;
+// summed with a white ambient and a bright cream wall that blew every interior out to flat white.
+// POINT_GAIN brings authored lamps into a range the tone-mapper can separate, AMBIENT_FLOOR is a
+// small uniform fill so no corner/ceiling ever crushes to black, and LAMP_SOFT_RADIUS flattens the
+// hot spot right under a lamp (light stops climbing inside that distance).
+const POINT_GAIN: f32 = 0.36;
+const AMBIENT_FLOOR: f32 = 0.10;
+const LAMP_SOFT_RADIUS: f32 = 1.6;
+const LAMP_WRAP: f32 = 0.35;
+const EXPOSURE: f32 = 0.56;
+
+// ACES filmic curve (Narkowicz fit): keeps mid-tones contrasty and rolls highlights off gently,
+// instead of Reinhard's grey haze on anything bright.
+fn aces(x: vec3<f32>) -> vec3<f32> {
+    return clamp((x * (2.51 * x + vec3<f32>(0.03))) / (x * (2.43 * x + vec3<f32>(0.59)) + vec3<f32>(0.14)), vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let n = normalize(in.world_normal);
     let v = normalize(globals.camera_pos.xyz - in.world_pos);
-    var color = globals.ambient.rgb * obj.base_color.rgb;
+    // Hemisphere ambient: surfaces facing up catch more sky light than ones facing down (a
+    // ceiling reads darker than a floor), which separates the planes of a room even where no
+    // light reaches them directly.
+    let hemi = mix(0.80, 1.10, n.y * 0.5 + 0.5);
+    var color = (globals.ambient.rgb + vec3<f32>(AMBIENT_FLOOR)) * obj.base_color.rgb * hemi;
 
     let metallic = obj.material.x;
     let roughness = max(obj.material.y, 0.04);
@@ -88,7 +110,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let n_lights = i32(globals.counts.x);
     let shadow_idx = i32(globals.counts.y);
 
-    for (var i = 0; i < 8; i = i + 1) {
+    for (var i = 0; i < 16; i = i + 1) {
         if (i >= n_lights) {
             break;
         }
@@ -104,9 +126,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             l = to_light / max(dist, 1e-4);
             let range = max(ci.w, 0.01);
             let falloff = clamp(1.0 - dist / range, 0.0, 1.0);
-            atten = falloff * falloff;
+            let soft = dist / LAMP_SOFT_RADIUS;
+            atten = falloff * falloff * POINT_GAIN / (1.0 + soft * soft * 0.5);
         }
-        let n_dot_l = max(dot(n, l), 0.0);
+        // Point lights "wrap" a little past the terminator so ceilings and walls seen at a grazing
+        // angle from a lamp still pick up light (a flat Lambert term left ceilings pitch dark
+        // next to a bright lamp band). Sun-style directional light keeps the sharp terminator.
+        var n_dot_l = max(dot(n, l), 0.0);
+        if (pod.w >= 0.5) {
+            n_dot_l = clamp((dot(n, l) + LAMP_WRAP) / (1.0 + LAMP_WRAP), 0.0, 1.0);
+        }
         if (n_dot_l <= 0.0) {
             continue;
         }
@@ -121,11 +150,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     }
 
     color = color + obj.emissive.rgb;
-    // Exposure + Reinhard tone-mapping: gracefully rolls off strong/overlapping lights toward
-    // white instead of hard-clipping, so an author's light intensities don't need to be
-    // perfectly balanced to avoid flat-white blowout. The exposure factor keeps typical
-    // mid-tones from reading as too dark once Reinhard compresses the range.
-    color = color * 1.3;
-    color = color / (color + vec3<f32>(1.0));
+    // Exposure + filmic tone-mapping: rolls strong/overlapping lights off toward white instead of
+    // hard-clipping, so an author's light intensities don't need to be perfectly balanced.
+    color = aces(color * EXPOSURE);
     return vec4<f32>(color, 1.0);
 }

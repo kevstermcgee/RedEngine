@@ -13,10 +13,15 @@ implementation detail.
   "background": { "sky_top": "#8fc7ff", "sky_bottom": "#eef6ff" },
   "ambient": { "color": "#ffffff", "intensity": 0.25 },
   "camera": { "fov": 50, "position": [0, 2, 8], "target": [0, 1, 0] },
+  "post": { "ao": 0.9, "outline": 0.65 },
   "lights": [ ... ],
+  "zones": [ ... ],
   "objects": [ ... ]
 }
 ```
+
+`post` and `zones` are optional (see [Clarity post-pass](#clarity-post-pass-post) and
+[Zones](#zones)). Unknown top-level keys are ignored, so a scene can carry its own notes.
 
 - `meta.fps` — integer, frames per second. `meta.duration` — seconds (float). `meta.resolution`
   — `[width, height]` in pixels; both are rounded up to even numbers for H.264 compatibility.
@@ -67,13 +72,13 @@ never need to keyframe X, Y, Z separately.
 }
 ```
 
-`fov` is vertical field of view in degrees. `position`/`target`/`fov`/`roll` are all tracks.
+`fov` is vertical field of view in degrees (default 90, also the live viewer's base FOV). `position`/`target`/`fov`/`roll` are all tracks.
 `target` is the world-space point the camera looks at — orbiting a subject is a `position`
 track around a fixed `target`, not a rotation track on the camera itself.
 
 ## Lights
 
-Up to 8 lights. Each has a `type` of `"directional"` or `"point"`.
+Up to 16 lights. Each has a `type` of `"directional"` or `"point"`.
 
 ```json
 { "id": "sun", "type": "directional", "direction": [-0.4, -1, -0.3],
@@ -90,8 +95,18 @@ Up to 8 lights. Each has a `type` of `"directional"` or `"point"`.
   10–40 typical).
 - Exactly one light may set `"cast_shadows": true` (must be `"directional"`). It renders a
   shadow map; `shadow_radius` (world units, default 15) is the half-size of the orthographic
-  shadow frustum centered on the origin — widen it if shadows clip on a large scene.
+  shadow frustum, centered on `shadow_center` (`[x, y, z]`, default the origin) — widen the radius
+  if shadows clip on a large scene, and move `shadow_center` onto the middle of a map that isn't
+  centered at the origin.
+- Point lights do not cast shadows: a lamp lights every surface facing it within `range`, even
+  through a wall. Keep a room's lamp away from walls shared with rooms whose props face it.
 - With zero lights, the scene is lit by `ambient` only (flat, cartoon-ish look).
+- **The lighting model scales for you.** Point-light `intensity` is authored "hot" and the shader
+  scales it down (`POINT_GAIN`), softens the hot spot under a lamp, wraps light slightly past the
+  terminator and adds a small ambient floor (`AMBIENT_FLOOR`), then tone-maps with an ACES filmic
+  curve at a fixed exposure. So the same numbers read the same in every map, interiors don't blow
+  out to white, and ceilings/corners stay readable. Keep authoring ~10-14 per room lamp; light-coloured
+  ceilings (`#d0d0c8`-ish) read better than dark roofs seen from below.
 
 ## Objects
 
@@ -107,6 +122,17 @@ Every object shares these base fields:
 0–1 (unset defaults: `metallic=0`, `roughness=0.6`). `emissive` is a hex color added on top,
 unaffected by lighting (glow); default `#000000` (none).
 
+Two more base fields work on every object: `"collide": false` makes it (and, for a group, everything
+inside) walk-through — no player collider, not standable, no solid volume for `lint` — and
+`"lint_ignore": ["code", ...]` silences specific lint codes on it.
+
+A third, `"movable": true|false`, only matters in the live game (`re2`): by default a `prop` or a
+floor-mounted prefab that a person could lift (longest side <= 1.25 m, bounding-box volume <=
+0.45 m^3, and not a fixture like a toilet, tree, rug, sofa or fridge) is a **loose prop** — pick it
+up with **E**, drop it, knock it over, shove it. `false` pins an object in place (a chair that is
+part of the set); `true` frees something the rules left fixed. Keyframed objects are never loose.
+`lint`, `reach`, `walk` and `plan` still treat loose props as solid furniture where you put them.
+
 ### Primitives
 
 | `type`     | extra fields                                  |
@@ -117,6 +143,82 @@ unaffected by lighting (glow); default `#000000` (none).
 | `cone`     | `radius`, `height` (defaults `0.5`, `1`)         |
 | `capsule`  | `radius`, `height` (defaults `0.3`, `1`)         |
 | `plane`    | `size: [w,d]` (default `[10,10]`), always faces `+Y` |
+
+### `wall` (macro)
+
+A straight wall with doors/windows, authored as one object. It expands at parse time into a
+`group` of plain `box` pieces (so collision, rendering and every tool just see boxes) — the
+arithmetic of splitting a wall around an opening is done for you, correctly.
+
+```json
+{ "id": "wall_front", "type": "wall", "from": [-7, 0], "to": [7, 0],
+  "y": 0, "height": 2.8, "thickness": 0.24,
+  "material": { "color": "#d9ccb0", "roughness": 0.85 },
+  "trim": "#f4f1ea", "baseboard": "#efeae0",
+  "openings": [
+    { "at": 2.75, "width": 2.0, "kind": "window" },
+    { "at": 7.0,  "width": 1.2, "kind": "door" },
+    { "at": 11.25, "width": 2.0, "kind": "arch" }
+  ] }
+```
+
+- `from`/`to` — the wall's **centerline** endpoints as `[x, z]`. `y` — the floor height it stands
+  on (default 0); `height` (default 2.7); `thickness` (default 0.2).
+- `extend` (default `true`) — grow each end by half the thickness so walls meeting at a corner
+  overlap into a clean, flush corner instead of leaving a notch.
+- Each opening's `at` is the distance **along the wall from `from`** to the opening's *center*.
+  `kind` is `door` (default; height 2.2, sill 0), `window` (height 1.2, sill 0.9, gets a glass
+  pane unless `"glass": false`), or `arch` (a wide doorless opening, ~85% of wall height).
+  Override `width`, `height`, `sill` per opening. A `door` must be at least **2.05 m** tall — the
+  player's body band is 2.0 m, so a lower header blocks the doorway (validation refuses it).
+- `trim` (hex) frames every opening; `baseboard` (hex, or `{"color","height"}`) runs a low strip
+  along the wall base. Both give rooms visible edges — a real clarity aid.
+- Errors are reported as `wall_id.openings[i].field: message` (opening outside the wall,
+  overlapping openings, sill+height above the wall top, ...).
+- To close the wall around a stairwell or make a knee-high railing, use a low `height` (e.g.
+  `1.05`) and small `thickness` (`0.08`): it blocks the player at the floor it stands on.
+
+Wall pieces are addressed by the wall's own id in every tool (`ls`, `move`, `rm`, ...);
+individual pieces are `wall_id.seg0`, `wall_id.head1`, ... and show up in `ls --all`.
+
+### `fence` (macro)
+
+A run of fence along a polyline, expanded to posts + panels/rails.
+
+```json
+{ "id": "fence_perimeter", "type": "fence", "closed": true,
+  "points": [[-12, -10], [12, -10], [12, 26], [-12, 26]],
+  "height": 2.0, "style": "panel", "post_spacing": 2.0,
+  "material": { "color": "#b8a07a" }, "post_color": "#7d6a4b",
+  "gaps": [ { "at": [0, -10], "width": 2.4 } ] }
+```
+
+- `points` — `[x, z]` vertices; `closed: true` joins the last back to the first.
+- `style`: `panel` (solid boards between posts, default) or `rail` (open post-and-rail).
+- `gaps` — cut a gate: a gap of `width` centered at the world point `at` on whichever segment
+  passes nearest. Leaving a gap in a perimeter lets the player walk out of the map (`lint` flags
+  it as a `leak`).
+
+### `stairs`
+
+```json
+{ "id": "stairs_main", "type": "stairs", "position": [-0.8, 0, 4.75],
+  "width": 1.2, "run": 4.5, "rise": 3.0, "steps": 16,
+  "material": { "color": "#8a5a34" } }
+```
+
+`position` is the **center of the footprint at the height of the bottom step**; local `+Z` is the
+run axis (rotate about Y to point it elsewhere): the bottom is at local `-run/2`, the top (height
+`rise`) at `+run/2`. It is a solid block of steps you climb from the *bottom end only*: the engine
+adds solid side rails and a barrier across the tall end, so the player can't walk into the stair
+volume from the side or the top. Rules for a working staircase (all checked by `lint`):
+
+- the top end must land on a floor slab whose top is exactly `position.y + rise`, starting where
+  the stairs end — and the slab must have a **hole** over the stairs, or you hit your head;
+- keep clear floor beyond the bottom end and beyond the top end (a wall there = "leads nowhere");
+- the opening left in the upper floor needs a railing (`wall` with `height: 1.05`) on its open
+  sides, or the player can walk off it (`drop` warning);
+- aim for step rise <= 0.20 and tread >= 0.26, `width` >= 1.1.
 
 ### `group`
 
@@ -137,8 +239,9 @@ material of their own — they're pure transform containers).
 
 ### `humanoid`
 
-A posable 3D figure built from capsules and a sphere head — the 3D analog of the 2D engine's
-`stickfigure`. Pose is forward-kinematic: each joint is a rotation *relative to its parent*.
+A posable, ordinary-looking person built from capsules and squashed spheres — T-shirt (the object's
+`material.color`), bare forearms and hands, jeans, shoes, neck, hair, eyes, brows, nose, mouth and
+ears. Pose is forward-kinematic: each joint is a rotation *relative to its parent*.
 
 ```json
 { "id": "hero", "type": "humanoid",
@@ -156,6 +259,8 @@ A posable 3D figure built from capsules and a sphere head — the 3D analog of t
 
 - `height` is total standing height in world units (default `1.8`). `build` scales limb/torso
   thickness (default `1.0`).
+- Optional `skin`, `hair`, `pants`, `shoes` hex colours recolour the rest of the figure (the shirt
+  is `material.color`).
 - `spine` and `head` are `[x,y,z]` degree tracks (bend/twist/tilt relative to their parent).
 - `l_shoulder`/`r_shoulder`/`l_hip`/`r_hip` are `[x,y,z]` degree tracks (ball joints).
 - `l_elbow`/`r_elbow`/`l_knee`/`r_knee` are single-number degree tracks (hinge joints — flexion
@@ -164,6 +269,26 @@ A posable 3D figure built from capsules and a sphere head — the 3D analog of t
   `l_knee`/`r_knee` out of phase while `spine` stays constant.
 - The whole rig moves as a unit via the object's own `position`/`rotation`/`scale` (e.g. to
   walk the character across the scene, keyframe `position`, not the pose).
+
+### `rat`
+
+Cheddar, a small brownish-grey lab rat: pear-shaped body, pointed head with big round pink-lined
+ears and whiskers, four scurrying legs with pink paws and a long tapering tail. Built into
+`red_engine2` (see `src/characters.rs`), like `humanoid`. It is the rat player's body in `re2`;
+in a scene it is decoration (or a cinematic extra).
+
+```json
+{ "id": "cheddar", "type": "rat", "position": [2,0,3], "rotation": [0,90,0],
+  "material": { "color": "#7b6a5d" },
+  "pose": { "gait": 0.7, "stride": 0.5, "sway": 1.0 } }
+```
+
+- Origin at the paws, nose toward local `+Z`; about 0.43 m nose-to-rump plus a 0.27 m tail and
+  0.17 m tall at the back — knee-high to a chair. Use the object's `scale` to change size.
+- `material.color` is the fur (default `#7b6a5d`); ears, nose, paws and tail keep their own pinks.
+- `pose.gait` (radians) is the leg-cycle phase, `pose.stride` the amplitude from 0 (standing) to 1
+  (flat-out scurry), `pose.sway` the idle phase of the tail/head. Each is a number or a track.
+- It has no collider (decoration; the rat *player* collides as a circle of radius 0.12 m).
 
 ### `prop`
 
@@ -176,28 +301,152 @@ in JSON) placed as one object, the same "one keyword, prebuilt parts" idea as `h
   "material": { "color": "#8a6a3f", "roughness": 0.8 } }
 ```
 
-- `prop` (required) — one of: `crate`, `barrel`, `traffic_cone`, `box_stack`, `chair`,
-  `trash_can`, `vending_machine`, `bench`, `fire_extinguisher`, `filing_cabinet`,
-  `potted_plant`, `bookshelf`.
+- `prop` (required) — one of the 39 kinds listed by `red_engine2 props` (with sizes):
+  furniture (`sofa`, `bed`, `chair`, `armchair`, `dining_table`, `coffee_table`, `desk`,
+  `nightstand`, `wardrobe`, `bookshelf`, `filing_cabinet`, `bench`, `rug`, `tv`), kitchen/bath
+  (`kitchen_counter`, `refrigerator`, `stove`, `sink`, `toilet`, `bathtub`, `washer_dryer`),
+  utility (`crate`, `barrel`, `box_stack`, `trash_can`, `traffic_cone`, `fire_extinguisher`,
+  `vending_machine`, `mailbox`, `grill`, `picnic_table`, `fence_section`), and landscaping
+  (`tree_oak`, `tree_pine`, `bush`, `flower_patch`, `hedge`, `boulder`, `potted_plant`).
+- **Origin & facing.** A prop's origin is the middle of its **base**: `position.y` is simply the
+  height of the surface it stands on. Props with a front (sofa, bed, tv, stove, sink, toilet,
+  desk, wardrobe, chair, ...) face local `+Z`; `rotation: [0, 180, 0]` turns one to face `-Z`,
+  `[0, 90, 0]` faces `+X`, `[0, -90, 0]` faces `-X`. `scale` (number or `[x,y,z]`) works too.
+- **Color.** The instance `material.color` tints the body. Plants invert that: for `tree_*`,
+  `bush`, `hedge`, `flower_patch` it *is* the foliage/bloom color (trunks, stems, soil are fixed).
+- **Collision.** Normally one collider around the prop. Trees block only at the trunk; `bush`
+  uses a tight box; `flower_patch` and `rug` don't block at all (walk-through).
 - Like `humanoid`, a prop carries one `material` for its whole instance (not per-part) — a few
   parts get a small built-in metallic/roughness/color nudge off that base material (rim bands,
   foliage, ...) baked into the engine, not schema-configurable.
 - Props block movement in the live viewer (one collider sized to the prop's overall footprint)
   and count as interactable (the crosshair can target one, same as any other object).
 
+### `prefab`
+
+A reusable, parametric object group authored in **JSON** — the way to add new furniture, food,
+props-on-a-table and decor without writing Rust. `red_engine2 catalog` lists the ~155 built-in
+prefabs (food, kitchen, furniture, office, school, store, decor, outdoor, art, lamps); `catalog <name>` shows one's
+params and a paste-ready snippet.
+
+```json
+{ "id": "snack_1", "type": "prefab", "prefab": "apple_red",
+  "position": [2, 0.78, 3], "rotation": [0, 30, 0], "params": { "color": "#8cc63f" } }
+```
+
+- An instance **expands at parse time into a plain `group`** (children ids become `snack_1.body`, ...),
+  so every tool sees ordinary primitives. `position`/`rotation`/`scale` work like any object.
+- `params` overrides the prefab's declared params (unknown names are errors with a "did you mean").
+- **Origin & facing** follow `prop`s: origin = middle of the base (`position.y` = the surface it
+  stands on; put an apple on a 0.78 m table at `y: 0.78`), front = local `+Z`. Prefabs with
+  `"mount": "wall"` (pictures, clocks, blackboards, shelves) have their origin at the middle of the
+  back face: put it on the wall's face and rotate so `+Z` points into the room.
+- **Collision:** each `box` part blocks the player; spheres/cylinders/cones/capsules never do.
+  Small prefabs (tag `small`) default to `"collide": false` (walk-through); override per instance.
+  `lint` checks a floor-mounted prefab rests on something (`floating`/`sunk`) exactly like a `prop`.
+- **Defining your own** (top-level `"prefabs"`, an object `{name: def}` or an array of defs with `name`;
+  a scene-local def shadows a built-in of the same name):
+
+```json
+"prefabs": { "crate_stack": {
+    "tags": ["storage"], "desc": "two crates",
+    "params": { "gap": { "default": 0.02, "desc": "space between crates" }, "color": "#8a6a3f" },
+    "objects": [
+      { "id": "a", "type": "prop", "prop": "crate", "position": [0, 0, 0], "material": { "color": "$color" } },
+      { "id": "b", "type": "prop", "prop": "crate", "position": [0, "=0.56+$gap", 0], "material": { "color": "$color" } } ] } }
+```
+
+  A string that is exactly `"$name"` is replaced by that param (any JSON type); a string starting
+  `"="` is an arithmetic expression (`+ - * /`, parentheses, `min() max() abs()`, params as `$name`).
+  `"extends": "other"` makes a variant that inherits objects/params/tags and overrides defaults
+  (`apple_green` is `apple_red` with a different color). Prefabs may nest other prefabs.
+- Built-in catalogue files live in `assets/*.json` (embedded in the binary); every entry is
+  test-enforced to expand, have tags + a description, and rest on its mount surface.
+
+## Zones
+
+Optional named regions that let the tools talk about rooms by name:
+
+```json
+"zones": [
+  { "id": "kitchen", "rect": [1.6, 0.15, 6.85, 5.9], "y": 0 },
+  { "id": "master",  "rect": [-6.85, 0.15, -1.6, 6.9], "y": 3.0 },
+  { "id": "front_yard", "rect": [-11.8, -9.8, 11.8, -0.4], "y": 0, "kind": "outdoor" }
+]
+```
+
+`rect` is `[x0, z0, x1, z1]`; `y` is the floor height (default 0). Zones don't affect rendering
+or physics. `lint`/`reach` report whether each is reachable, `plan` labels them, `tour` renders a
+view of each, and `scatter --zone <id>` plants inside one. Define one per room and per outdoor
+area whenever you build a map.
+
+## Clarity post-pass (`post`)
+
+Every render (live and offline) ends with a depth-based pass that multiplies **contact ambient
+occlusion** (soft shadow where objects meet walls/floors) and **silhouette outlines** (a dark
+border on the near side of any depth jump) into the lit image, so a prop never melts into the wall
+behind it. Tune per scene, all optional:
+
+```json
+"post": { "enabled": true, "ao": 0.9, "outline": 0.65, "ao_radius": 0.6 }
+```
+
+`ao` 0..3 (contact-shadow strength), `outline` 0..1 (border darkness), `ao_radius` meters.
+Ambient light is also hemispherical (up-facing surfaces catch a little more than down-facing).
+Map-color tip: keep props and the surface behind them at different *lightness* (a white fridge on
+a cream wall is the hard case) — the post-pass helps but contrast is still the best fix.
+
+## Physics rules a map author must know
+
+The live viewer's player is a 0.35 m-radius circle, 2.0 m tall, that walks at 3.2 m/s:
+
+- **Walls block** anything whose top is more than **0.35 m above the player's feet** and whose
+  bottom is below head height; anything lower is *stepped onto* (that is how stairs meet a slab).
+- **Doorways** must be >= 0.9 m wide (0.7 m is the bare minimum) and **>= 2.05 m tall**.
+- **Upper floors**: a floor slab is an ordinary `box` (0.2 thick works). Walls on an upper floor
+  need their own objects at that floor's `y` — they don't inherit from walls below.
+- The player can jump ~0.4 m (onto low props), can't crouch under things, and falls off any edge.
+- Point lights don't cast shadows; only one directional light does.
+
+`red_engine2 lint`, `reach`, `walk` and `plan` check all of this — see `AGENTS.md`.
+
+## Checks (`verify`)
+
+A scene can carry its own expectations in a top-level `"checks"` block; `red_engine2 verify scene.json`
+runs them all with the real engine code and prints PASS/FAIL with evidence (exit 1 on any failure):
+
+```json
+"checks": {
+  "lint":    { "max_errors": 0, "max_warnings": 3, "forbid": ["leak"] },
+  "reach":   [ { "to": [3, -1.5], "why": "kitchen reachable" } ],
+  "walk":    [ { "name": "front door to bedroom", "path": "0,8; 1.5,4; -3.25,-2.9; -3.25,2.9",
+                 "ends_near": [0.5, -0.5], "tol": 0.35, "floor_y": 3.0 } ],
+  "objects": { "exist": ["sofa_1"], "absent": ["debug_cube"], "min_count": 30,
+               "count": [ { "kind": "prefab:chair_wooden_1", "min": 2 } ] },
+  "views":   [ { "name": "living", "eye": [-4.4, 1.7, 2.4], "at": [-2.4, 0.7, -1.8], "fov": 75, "max_diff": 0.01 } ]
+}
+```
+
+`walk` replays the route with the per-tick player physics (see [Physics rules](#physics-rules-a-map-author-must-know));
+`views` are golden-image regression tests (`golden/<scene>/<name>.png` beside the scene; recorded on
+first run or with `--bless`; on failure a `golden | now | diff` image is written under `out/verify/`).
+`verify --no-views` skips rendering (no GPU), `--only walk` runs a subset, `--json` is machine-readable.
+
 ## Validation
 
-`forge3d validate scene.json` checks the file before any render time and reports errors as
+`red_engine2 validate scene.json` checks the file before any render time and reports errors as
 `object_id.field: message` (or `camera.field` / `lights[i].field`) — same precise-pointer
 convention as the 2D engine. Common failures: unknown `type`, missing required field for that
 type, keyframe `t` values not sorted ascending, more than one shadow-casting light, unknown
-`ease` name, malformed hex color.
+`ease` name, malformed hex color, an opening outside its `wall`, a `door` shorter than 2.05 m.
+Beyond schema validation, `red_engine2 lint scene.json` checks a *walkable map* for layout
+problems (stairs that lead nowhere, unreachable rooms, overlaps, ...).
 
 ## Known limits (intentional)
 
-No imported meshes/textures, no scene-object physics (nothing falls, bounces, or collides on
-its own — the live viewer's player is the one exception, with its own simple gravity/collision
-model, not a general physics engine), no per-vertex mesh deformation/skinning beyond the fixed
+No imported meshes/textures, no scene-object physics in the *offline* tools (nothing falls, bounces,
+or collides on its own there; in the live viewer the player has its own simple gravity/collision
+model, and small props are rigid bodies you can pick up, drop and knock over — see `movable` above), no per-vertex mesh deformation/skinning beyond the fixed
 capsule-rig `humanoid`, no on-screen 2D text/UI overlay (that's the 2D engine's job — composite
-the two if you need captions over a 3D shot), at most 8 lights and 1 shadow-casting light. The
+the two if you need captions over a 3D shot), at most 16 lights and 1 shadow-casting light. The
 goal is a small, auditable surface an AI can hold in context, not a general-purpose 3D suite.

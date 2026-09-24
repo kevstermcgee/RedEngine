@@ -1,0 +1,203 @@
+[
+  {
+    "name": "apple_red",
+    "tags": ["food", "fruit", "small"],
+    "desc": "A red apple with a stem.",
+    "collide": false,
+    "params": {"color": {"default": "#c42b1f", "desc": "skin color"}},
+    "objects": [
+      {"id": "body", "type": "sphere", "radius": 0.04, "position": [0, 0.036, 0], "scale": [1, 0.92, 1], "material": {"color": "$color", "roughness": 0.35}},
+      {"id": "stem", "type": "cylinder", "radius": 0.004, "height": 0.02, "position": [0, 0.076, 0], "material": {"color": "#5a3b1f", "roughness": 0.6}},
+      {"id": "leaf", "type": "box", "size": [0.025, 0.002, 0.012], "position": [0.014, 0.082, 0], "rotation": [0, 0, 15], "material": {"color": "#4d8a2e", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "apple_green",
+    "extends": "apple_red",
+    "tags": [],
+    "desc": "A green apple.",
+    "params": {"color": "#8cc63f"}
+  },
+  {
+    "name": "apple_gold",
+    "extends": "apple_red",
+    "tags": [],
+    "desc": "A golden apple.",
+    "params": {"color": "#e3b23c"}
+  },
+  {
+    "name": "orange",
+    "tags": ["food", "fruit", "small"],
+    "desc": "An orange.",
+    "collide": false,
+    "params": {"color": {"default": "#f08a1c", "desc": "peel color"}},
+    "objects": [
+      {"id": "body", "type": "sphere", "radius": 0.038, "position": [0, 0.036, 0], "scale": [1, 0.93, 1], "material": {"color": "$color", "roughness": 0.8}},
+      {"id": "nub", "type": "sphere", "radius": 0.008, "position": [0, 0.07, 0], "material": {"color": "#3f7a2a", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "lemon",
+    "tags": ["food", "fruit", "small"],
+    "desc": "A lemon.",
+    "collide": false,
+    "objects": [
+      {"id": "body", "type": "sphere", "radius": 0.032, "position": [0, 0.03, 0], "scale": [1.25, 0.95, 1], "material": {"color": "#f0d94a", "roughness": 0.7}},
+      {"id": "tip_l", "type": "sphere", "radius": 0.007, "position": [-0.04, 0.03, 0], "material": {"color": "#e4c93a", "roughness": 0.6}},
+      {"id": "tip_r", "type": "sphere", "radius": 0.007, "position": [0.04, 0.03, 0], "material": {"color": "#e4c93a", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "banana",
+    "tags": ["food", "fruit", "small"],
+    "desc": "A banana, curved, lying on its side (length along X).",
+    "collide": false,
+    "params": {"color": {"default": "#f2d43a", "desc": "peel color"}},
+    "objects": [
+      {"id": "mid", "type": "capsule", "radius": 0.018, "height": 0.1, "position": [0, 0.018, 0], "rotation": [0, 0, 90], "material": {"color": "$color", "roughness": 0.7}},
+      {"id": "left", "type": "capsule", "radius": 0.016, "height": 0.07, "position": [-0.075, 0.024, 0.01], "rotation": [0, 0, 90], "material": {"color": "$color", "roughness": 0.7}},
+      {"id": "right", "type": "capsule", "radius": 0.016, "height": 0.07, "position": [0.075, 0.024, 0.01], "rotation": [0, 0, 90], "material": {"color": "$color", "roughness": 0.7}},
+      {"id": "tip", "type": "box", "size": [0.01, 0.01, 0.01], "position": [-0.118, 0.026, 0.012], "material": {"color": "#5a4a25", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "tomato",
+    "tags": ["food", "vegetable", "small"],
+    "desc": "A ripe tomato.",
+    "collide": false,
+    "objects": [
+      {"id": "body", "type": "sphere", "radius": 0.04, "position": [0, 0.032, 0], "scale": [1.05, 0.85, 1.05], "material": {"color": "#d1301f", "roughness": 0.4}},
+      {"id": "cap", "type": "cone", "radius": 0.02, "height": 0.012, "position": [0, 0.066, 0], "rotation": [180, 0, 0], "material": {"color": "#3d7a2a", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "bread_loaf",
+    "tags": ["food", "bakery", "small"],
+    "desc": "A loaf of bread on its base.",
+    "collide": false,
+    "params": {"color": {"default": "#b9783a", "desc": "crust color"}},
+    "objects": [
+      {"id": "base", "type": "box", "size": [0.26, 0.05, 0.12], "position": [0, 0.025, 0], "material": {"color": "$color", "roughness": 0.9}},
+      {"id": "crown", "type": "capsule", "radius": 0.06, "height": 0.26, "position": [0, 0.062, 0], "rotation": [0, 0, 90], "scale": [1, 1, 0.95], "material": {"color": "$color", "roughness": 0.9}},
+      {"id": "score1", "type": "box", "size": [0.02, 0.004, 0.09], "position": [-0.06, 0.1, 0], "material": {"color": "#d9a866", "roughness": 0.9}},
+      {"id": "score2", "type": "box", "size": [0.02, 0.004, 0.09], "position": [0.0, 0.106, 0], "material": {"color": "#d9a866", "roughness": 0.9}},
+      {"id": "score3", "type": "box", "size": [0.02, 0.004, 0.09], "position": [0.06, 0.1, 0], "material": {"color": "#d9a866", "roughness": 0.9}}
+    ]
+  },
+  {
+    "name": "cereal_box",
+    "tags": ["food", "packaged", "small"],
+    "desc": "A cereal box; recolor for a different brand.",
+    "collide": false,
+    "params": {"color": {"default": "#e0632a", "desc": "box color"}, "accent": {"default": "#f5d24a", "desc": "front label color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.2, 0.3, 0.07], "position": [0, 0.15, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "window", "type": "box", "size": [0.14, 0.12, 0.004], "position": [0, 0.17, 0.036], "material": {"color": "$accent", "roughness": 0.4}},
+      {"id": "band", "type": "box", "size": [0.2, 0.05, 0.072], "position": [0, 0.03, 0], "material": {"color": "#f2f0ea", "roughness": 0.5}}
+    ]
+  },
+  {
+    "name": "milk_carton",
+    "tags": ["food", "drink", "small"],
+    "desc": "A gable-top milk carton.",
+    "collide": false,
+    "params": {"color": {"default": "#3a78c8", "desc": "label band color"}},
+    "objects": [
+      {"id": "body", "type": "box", "size": [0.07, 0.15, 0.07], "position": [0, 0.075, 0], "material": {"color": "#f4f4f6", "roughness": 0.5}},
+      {"id": "band", "type": "box", "size": [0.072, 0.05, 0.072], "position": [0, 0.07, 0], "material": {"color": "$color", "roughness": 0.5}},
+      {"id": "top_l", "type": "box", "size": [0.035, 0.05, 0.07], "position": [-0.0175, 0.175, 0], "rotation": [0, 0, 35], "material": {"color": "#f4f4f6", "roughness": 0.5}},
+      {"id": "top_r", "type": "box", "size": [0.035, 0.05, 0.07], "position": [0.0175, 0.175, 0], "rotation": [0, 0, -35], "material": {"color": "#f4f4f6", "roughness": 0.5}}
+    ]
+  },
+  {
+    "name": "soda_can",
+    "tags": ["food", "drink", "small"],
+    "desc": "An aluminium soda can.",
+    "collide": false,
+    "params": {"color": {"default": "#c62828", "desc": "can color"}},
+    "objects": [
+      {"id": "body", "type": "cylinder", "radius": 0.033, "height": 0.11, "position": [0, 0.055, 0], "material": {"color": "$color", "roughness": 0.3, "metallic": 0.6}},
+      {"id": "lid", "type": "cylinder", "radius": 0.029, "height": 0.006, "position": [0, 0.113, 0], "material": {"color": "#b9bec6", "roughness": 0.3, "metallic": 0.9}},
+      {"id": "band", "type": "cylinder", "radius": 0.0335, "height": 0.03, "position": [0, 0.055, 0], "material": {"color": "#f2f0ea", "roughness": 0.4, "metallic": 0.3}}
+    ]
+  },
+  {
+    "name": "wine_bottle",
+    "tags": ["food", "drink", "small"],
+    "desc": "A wine bottle.",
+    "collide": false,
+    "params": {"color": {"default": "#1f4d2b", "desc": "glass color"}},
+    "objects": [
+      {"id": "body", "type": "cylinder", "radius": 0.038, "height": 0.2, "position": [0, 0.1, 0], "material": {"color": "$color", "roughness": 0.15, "metallic": 0.2}},
+      {"id": "shoulder", "type": "cylinder", "radius": 0.026, "height": 0.03, "position": [0, 0.215, 0], "material": {"color": "$color", "roughness": 0.15, "metallic": 0.2}},
+      {"id": "neck", "type": "cylinder", "radius": 0.014, "height": 0.1, "position": [0, 0.28, 0], "material": {"color": "$color", "roughness": 0.15, "metallic": 0.2}},
+      {"id": "cork", "type": "cylinder", "radius": 0.013, "height": 0.014, "position": [0, 0.337, 0], "material": {"color": "#c9a46a", "roughness": 0.9}},
+      {"id": "label", "type": "cylinder", "radius": 0.0385, "height": 0.08, "position": [0, 0.1, 0], "material": {"color": "#efe6cf", "roughness": 0.7}}
+    ]
+  },
+  {
+    "name": "water_bottle",
+    "tags": ["food", "drink", "small"],
+    "desc": "A plastic water bottle.",
+    "collide": false,
+    "params": {"cap": {"default": "#2a6fb0", "desc": "cap color"}},
+    "objects": [
+      {"id": "body", "type": "cylinder", "radius": 0.033, "height": 0.17, "position": [0, 0.085, 0], "material": {"color": "#cfe6f2", "roughness": 0.1, "metallic": 0.1}},
+      {"id": "shoulder", "type": "cylinder", "radius": 0.02, "height": 0.03, "position": [0, 0.185, 0], "material": {"color": "#cfe6f2", "roughness": 0.1, "metallic": 0.1}},
+      {"id": "cap", "type": "cylinder", "radius": 0.014, "height": 0.02, "position": [0, 0.212, 0], "material": {"color": "$cap", "roughness": 0.5}},
+      {"id": "label", "type": "cylinder", "radius": 0.034, "height": 0.06, "position": [0, 0.09, 0], "material": {"color": "#2a6fb0", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "cookie_jar",
+    "tags": ["food", "kitchen", "small"],
+    "desc": "A lidded jar.",
+    "collide": false,
+    "params": {"color": {"default": "#cfe0e6", "desc": "glass tint"}},
+    "objects": [
+      {"id": "jar", "type": "cylinder", "radius": 0.09, "height": 0.2, "position": [0, 0.1, 0], "material": {"color": "$color", "roughness": 0.15, "metallic": 0.1}},
+      {"id": "lid", "type": "cylinder", "radius": 0.095, "height": 0.03, "position": [0, 0.215, 0], "material": {"color": "#b0703a", "roughness": 0.6}},
+      {"id": "knob", "type": "sphere", "radius": 0.016, "position": [0, 0.245, 0], "material": {"color": "#8a5228", "roughness": 0.6}},
+      {"id": "cookie1", "type": "sphere", "radius": 0.03, "position": [-0.02, 0.06, 0.04], "scale": [1, 0.4, 1], "material": {"color": "#a5692f", "roughness": 0.6}},
+      {"id": "cookie2", "type": "sphere", "radius": 0.03, "position": [0.03, 0.11, -0.02], "scale": [1, 0.4, 1], "material": {"color": "#a5692f", "roughness": 0.6}}
+    ]
+  },
+  {
+    "name": "fruit_bowl",
+    "tags": ["food", "fruit", "kitchen"],
+    "desc": "A bowl of apples; recolor the fruit.",
+    "params": {"bowl": {"default": "#d8cfc0", "desc": "bowl color"}, "fruit": {"default": "#c42b1f", "desc": "fruit color"}},
+    "objects": [
+      {"id": "foot", "type": "cylinder", "radius": 0.06, "height": 0.02, "position": [0, 0.01, 0], "material": {"color": "$bowl", "roughness": 0.4}},
+      {"id": "bowl_lower", "type": "cylinder", "radius": 0.1, "height": 0.05, "position": [0, 0.045, 0], "material": {"color": "$bowl", "roughness": 0.4}},
+      {"id": "bowl_upper", "type": "cylinder", "radius": 0.15, "height": 0.05, "position": [0, 0.095, 0], "material": {"color": "$bowl", "roughness": 0.4}},
+      {"id": "f1", "type": "prefab", "prefab": "apple_red", "position": [-0.05, 0.1, 0.02], "params": {"color": "$fruit"}},
+      {"id": "f2", "type": "prefab", "prefab": "apple_red", "position": [0.06, 0.1, -0.02], "params": {"color": "$fruit"}},
+      {"id": "f3", "type": "prefab", "prefab": "apple_red", "position": [0.0, 0.1, -0.07], "params": {"color": "$fruit"}},
+      {"id": "f4", "type": "prefab", "prefab": "apple_red", "position": [0.0, 0.16, 0.02], "params": {"color": "$fruit"}}
+    ]
+  },
+  {
+    "name": "pizza_box",
+    "tags": ["food", "packaged", "small"],
+    "desc": "A flat takeaway pizza box.",
+    "collide": false,
+    "objects": [
+      {"id": "box", "type": "box", "size": [0.4, 0.04, 0.4], "position": [0, 0.02, 0], "material": {"color": "#d9c9a3", "roughness": 0.9}},
+      {"id": "logo", "type": "box", "size": [0.16, 0.002, 0.16], "position": [0, 0.041, 0], "material": {"color": "#c23b2a", "roughness": 0.9}}
+    ]
+  },
+  {
+    "name": "cake",
+    "tags": ["food", "bakery", "small"],
+    "desc": "A two-layer frosted cake on a plate.",
+    "collide": false,
+    "params": {"color": {"default": "#f3d6dc", "desc": "frosting color"}},
+    "objects": [
+      {"id": "plate", "type": "cylinder", "radius": 0.15, "height": 0.012, "position": [0, 0.006, 0], "material": {"color": "#f2f0ea", "roughness": 0.3}},
+      {"id": "layer1", "type": "cylinder", "radius": 0.11, "height": 0.06, "position": [0, 0.042, 0], "material": {"color": "$color", "roughness": 0.8}},
+      {"id": "layer2", "type": "cylinder", "radius": 0.085, "height": 0.05, "position": [0, 0.097, 0], "material": {"color": "$color", "roughness": 0.8}},
+      {"id": "cherry", "type": "sphere", "radius": 0.014, "position": [0, 0.13, 0], "material": {"color": "#b3122b", "roughness": 0.2}}
+    ]
+  }
+]

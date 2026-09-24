@@ -1,11 +1,14 @@
+//! Offline renderer: builds GPU meshes from a `Scene`, renders frames headlessly (used by frame/tour/catalog/verify).
+
 use crate::gpu::{
-    create_pipelines, make_shadow_sampler, FrameTargets, Gpu, GlobalUniform, GpuMesh, ObjectUniform, Pipelines,
-    MAX_LIGHTS,
+    create_pipelines, create_post_pipeline, make_shadow_sampler, post_uniform, FrameTargets, Gpu, GlobalUniform, GpuMesh,
+    ObjectUniform, Pipelines, PostFx, MAX_LIGHTS,
 };
 use crate::mesh::Mesh;
 use crate::props::prop_parts;
 use crate::schema::{Background, LightKind, Material, Object, ObjectKind, PrimKind, Scene, StairsDef};
-use crate::skeleton::{pose_to_parts, BoneKind, HumanoidRig, PoseSample};
+use crate::characters::{human_parts, rat_parts, RatPose};
+use crate::skeleton::{HumanoidRig, PoseSample};
 use anyhow::Result;
 use glam::{Mat4, Quat, Vec3};
 
@@ -71,6 +74,16 @@ pub(crate) fn build_stairs_parts(s: &StairsDef) -> Vec<(PrimKind, Mat4)> {
         .collect()
 }
 
+/// A character part's final material: its own colour if it has one, else the object's.
+fn char_material(base: &SampledMaterial, part: &crate::characters::CharPart) -> SampledMaterial {
+    SampledMaterial {
+        color: part.color.unwrap_or(base.color),
+        metallic: part.metallic,
+        roughness: part.roughness,
+        emissive: base.emissive,
+    }
+}
+
 pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
     for o in objects {
         match &o.kind {
@@ -78,13 +91,13 @@ pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
             ObjectKind::Group(children) => collect_leaf_meshes(children, out),
             ObjectKind::Humanoid(h) => {
                 let rig = HumanoidRig::new(h.height, h.build);
-                let parts = pose_to_parts(&rig, &PoseSample::default());
-                for part in &parts {
-                    let mesh = match part.kind {
-                        BoneKind::Sphere => Mesh::uv_sphere(part.radius, 16, 20),
-                        BoneKind::Capsule => Mesh::capsule(part.radius, part.length, 14, 6),
-                    };
-                    out.push(mesh);
+                for part in human_parts(&rig, &PoseSample::default(), &h.look) {
+                    out.push(build_prim_mesh(&part.shape));
+                }
+            }
+            ObjectKind::Rat(_) => {
+                for part in rat_parts(&RatPose::default()) {
+                    out.push(build_prim_mesh(&part.shape));
                 }
             }
             ObjectKind::Prop(p) => {
@@ -114,11 +127,16 @@ pub(crate) fn collect_leaf_transforms(objects: &[Object], t: f32, parent: Mat4, 
             ObjectKind::Humanoid(h) => {
                 let rig = HumanoidRig::new(h.height, h.build);
                 let pose = sample_pose(&h.pose, t);
-                let parts = pose_to_parts(&rig, &pose);
-                let mat = sample_material(&h.material, t);
-                for part in &parts {
-                    let bone_local = Mat4::from_rotation_translation(part.rotation, part.center);
-                    out.push((world * bone_local, mat));
+                let base = sample_material(&h.material, t);
+                for part in human_parts(&rig, &pose, &h.look) {
+                    out.push((world * part.local, char_material(&base, &part)));
+                }
+            }
+            ObjectKind::Rat(r) => {
+                let base = sample_material(&r.material, t);
+                let pose = RatPose { gait: r.gait.sample(t), stride: r.stride.sample(t), sway: r.sway.sample(t) };
+                for part in rat_parts(&pose) {
+                    out.push((world * part.local, char_material(&base, &part)));
                 }
             }
             ObjectKind::Prop(p) => {
@@ -158,17 +176,22 @@ pub struct Renderer {
     object_stride: u64,
     object_bind_group: wgpu::BindGroup,
     targets: FrameTargets,
+    post: PostFx,
+    post_bind_group: wgpu::BindGroup,
     meshes: Vec<GpuMesh>,
     out_width: u32,
     out_height: u32,
 }
 
 impl Renderer {
+    /// Builds the offline renderer (device, pipelines, meshes) for `scene`.
     pub fn new(scene: &Scene) -> Result<Self> {
         let gpu = Gpu::new()?;
         let pipelines = create_pipelines(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
         let shadow_sampler = make_shadow_sampler(&gpu.device);
         let targets = FrameTargets::new(&gpu.device, scene.width, scene.height);
+        let post = create_post_pipeline(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
+        let post_bind_group = post.bind(&gpu.device, &targets.depth_view);
 
         let mut raw_meshes = Vec::new();
         collect_leaf_meshes(&scene.objects, &mut raw_meshes);
@@ -228,6 +251,8 @@ impl Renderer {
             object_stride,
             object_bind_group,
             targets,
+            post,
+            post_bind_group,
             meshes,
             out_width: scene.width,
             out_height: scene.height,
@@ -351,6 +376,31 @@ impl Renderer {
             }
         }
 
+        // Clarity pass (contact AO + outlines) over the finished world, before readback.
+        {
+            let fov = scene.camera.fov.sample(t).max(1.0);
+            // ~2 px of outline at 1080p, scaled with the (supersampled) target height.
+            let edge_px = (2.0 * self.targets.height as f32 / 1080.0).max(1.0);
+            let uniform = post_uniform(&scene.post, scene.camera.near, scene.camera.far, fov, self.targets.width, self.targets.height, edge_px);
+            self.gpu.queue.write_buffer(&self.post.uniform_buf, 0, bytemuck::bytes_of(&uniform));
+            let mut post_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("post-pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.targets.color_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            post_pass.set_pipeline(&self.post.pipeline);
+            post_pass.set_bind_group(0, &self.post_bind_group, &[]);
+            post_pass.draw(0..3, 0..1);
+        }
+
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.targets.color_tex,
@@ -409,9 +459,10 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
                 if light.cast_shadows {
                     shadow_idx = i as i32;
                     let r = light.shadow_radius.max(0.5);
-                    let light_pos = -d * (r * 1.6);
+                    let center = light.shadow_center;
+                    let light_pos = center - d * (r * 1.6);
                     let up = if d.y.abs() > 0.98 { Vec3::Z } else { Vec3::Y };
-                    let view_l = glam::camera::rh::view::look_at_mat4(light_pos, Vec3::ZERO, up);
+                    let view_l = glam::camera::rh::view::look_at_mat4(light_pos, center, up);
                     let proj_l = glam::camera::rh::proj::directx::orthographic(-r, r, -r, r, 0.05, r * 3.5);
                     light_view_proj = proj_l * view_l;
                 }

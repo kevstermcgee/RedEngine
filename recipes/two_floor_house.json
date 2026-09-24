@@ -1,0 +1,996 @@
+{
+ "recipe": {
+  "title": "Two-floor house on a fenced lot",
+  "summary": "Ground floor + upstairs joined by a straight staircase, on a closed fenced lot with trees outside. The reference for stairs, slabs-with-a-hole, railings and exterior doors.",
+  "teaches": [
+   "stairs: bottom needs ~1 m clear floor, top lands on a slab",
+   "upper floor slab is split around the stairwell hole",
+   "railing walls (height 1.05) on the open sides of the hole",
+   "upper-floor walls are separate objects at y=3.0",
+   "a closed fence keeps `lint leak` clean for an exterior door"
+  ],
+  "tips": [
+   "Stairs climb toward +Z (bottom at local -Z). Enter from the bottom end only.",
+   "Slab top y=3.0 = stairs rise; wall height 2.8 + slab 0.2 = 3.0."
+  ]
+ },
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "background": {
+  "sky_top": "#8fc7ff",
+  "sky_bottom": "#eef6ff"
+ },
+ "ambient": {
+  "color": "#ffffff",
+  "intensity": 0.3
+ },
+ "camera": {
+  "fov": 72,
+  "position": [
+   0,
+   1.7,
+   7.5
+  ],
+  "target": [
+   0,
+   1.5,
+   0
+  ]
+ },
+ "post": {
+  "ao": 0.9,
+  "outline": 0.55
+ },
+ "lights": [
+  {
+   "id": "sun",
+   "type": "directional",
+   "direction": [
+    -0.5,
+    -0.72,
+    0.65
+   ],
+   "color": "#fff2df",
+   "intensity": 2.3,
+   "cast_shadows": true,
+   "shadow_radius": 22,
+   "shadow_center": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "lamp_g",
+   "type": "point",
+   "position": [
+    0,
+    2.4,
+    0
+   ],
+   "color": "#ffdca0",
+   "intensity": 12,
+   "range": 8
+  },
+  {
+   "id": "lamp_u",
+   "type": "point",
+   "position": [
+    0,
+    5.4,
+    0
+   ],
+   "color": "#ffdca0",
+   "intensity": 12,
+   "range": 8
+  }
+ ],
+ "zones": [
+  {
+   "id": "ground_floor",
+   "rect": [
+    -3.88,
+    -3.38,
+    3.88,
+    3.38
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "upstairs",
+   "rect": [
+    -3.88,
+    -3.38,
+    3.88,
+    3.38
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "yard",
+   "rect": [
+    -9.9,
+    -8.9,
+    9.9,
+    9.9
+   ],
+   "y": 0,
+   "kind": "outdoor"
+  }
+ ],
+ "objects": [
+  {
+   "id": "grass",
+   "type": "plane",
+   "size": [
+    60,
+    60
+   ],
+   "position": [
+    0,
+    0,
+    0
+   ],
+   "material": {
+    "color": "#6f9a4f",
+    "roughness": 0.95
+   }
+  },
+  {
+   "id": "fence_lot",
+   "type": "fence",
+   "points": [
+    [
+     -10,
+     -9
+    ],
+    [
+     10,
+     -9
+    ],
+    [
+     10,
+     10
+    ],
+    [
+     -10,
+     10
+    ]
+   ],
+   "closed": true,
+   "height": 1.6,
+   "material": {
+    "color": "#c9b892",
+    "roughness": 0.8
+   }
+  },
+  {
+   "id": "g_n",
+   "type": "wall",
+   "from": [
+    -4,
+    -3.5
+   ],
+   "to": [
+    4,
+    -3.5
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 2.0,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    },
+    {
+     "kind": "window",
+     "at": 6.0,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "g_s",
+   "type": "wall",
+   "from": [
+    -4,
+    3.5
+   ],
+   "to": [
+    4,
+    3.5
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 2.0,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    },
+    {
+     "kind": "door",
+     "at": 5.5,
+     "width": 1.0
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "g_w",
+   "type": "wall",
+   "from": [
+    -4,
+    -3.5
+   ],
+   "to": [
+    -4,
+    3.5
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 3.5,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "g_e",
+   "type": "wall",
+   "from": [
+    4,
+    -3.5
+   ],
+   "to": [
+    4,
+    3.5
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 3.5,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "u_n",
+   "type": "wall",
+   "from": [
+    -4,
+    -3.5
+   ],
+   "to": [
+    4,
+    -3.5
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "y": 3.0,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 2.0,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    },
+    {
+     "kind": "window",
+     "at": 6.0,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "u_s",
+   "type": "wall",
+   "from": [
+    -4,
+    3.5
+   ],
+   "to": [
+    4,
+    3.5
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "y": 3.0,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 2.0,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    },
+    {
+     "kind": "window",
+     "at": 6.0,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "u_w",
+   "type": "wall",
+   "from": [
+    -4,
+    -3.5
+   ],
+   "to": [
+    -4,
+    3.5
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "y": 3.0,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 3.5,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "u_e",
+   "type": "wall",
+   "from": [
+    4,
+    -3.5
+   ],
+   "to": [
+    4,
+    3.5
+   ],
+   "height": 2.8,
+   "thickness": 0.24,
+   "y": 3.0,
+   "openings": [
+    {
+     "kind": "window",
+     "at": 3.5,
+     "width": 1.4,
+     "height": 1.2,
+     "sill": 0.9
+    }
+   ],
+   "trim": "#f2efe8",
+   "baseboard": "#f2efe8",
+   "material": {
+    "color": "#e8e0d0",
+    "roughness": 0.85
+   }
+  },
+  {
+   "id": "floor_g",
+   "type": "plane",
+   "size": [
+    8,
+    7
+   ],
+   "position": [
+    0,
+    0.01,
+    0
+   ],
+   "material": {
+    "color": "#b08a5a",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "floor_u",
+   "type": "plane",
+   "size": [
+    8,
+    7
+   ],
+   "position": [
+    0,
+    3.01,
+    0
+   ],
+   "material": {
+    "color": "#c8b898",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "slab_w",
+   "type": "box",
+   "size": [
+    0.27,
+    0.2,
+    7.24
+   ],
+   "position": [
+    -3.985,
+    2.9,
+    0
+   ],
+   "material": {
+    "color": "#efe9dd",
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": "slab_e",
+   "type": "box",
+   "size": [
+    6.77,
+    0.2,
+    7.24
+   ],
+   "position": [
+    0.735,
+    2.9,
+    0
+   ],
+   "material": {
+    "color": "#efe9dd",
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": "slab_n",
+   "type": "box",
+   "size": [
+    1.2,
+    0.2,
+    1.22
+   ],
+   "position": [
+    -3.25,
+    2.9,
+    -3.01
+   ],
+   "material": {
+    "color": "#efe9dd",
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": "slab_s",
+   "type": "box",
+   "size": [
+    1.2,
+    0.2,
+    1.52
+   ],
+   "position": [
+    -3.25,
+    2.9,
+    2.86
+   ],
+   "material": {
+    "color": "#efe9dd",
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": "stairs_main",
+   "type": "stairs",
+   "position": [
+    -3.25,
+    0,
+    -0.15
+   ],
+   "width": 1.2,
+   "run": 4.5,
+   "rise": 3.0,
+   "steps": 16,
+   "material": {
+    "color": "#8a5a34",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "rail_e",
+   "type": "wall",
+   "from": [
+    -2.65,
+    -2.4
+   ],
+   "to": [
+    -2.65,
+    2.1
+   ],
+   "height": 1.05,
+   "thickness": 0.08,
+   "y": 3.0,
+   "material": {
+    "color": "#7a5230",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "rail_n",
+   "type": "wall",
+   "from": [
+    -3.85,
+    -2.4
+   ],
+   "to": [
+    -2.65,
+    -2.4
+   ],
+   "height": 1.05,
+   "thickness": 0.08,
+   "y": 3.0,
+   "material": {
+    "color": "#7a5230",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "roof",
+   "type": "box",
+   "size": [
+    8.6,
+    0.2,
+    7.6
+   ],
+   "position": [
+    0,
+    5.9,
+    0
+   ],
+   "material": {
+    "color": "#4a443e",
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": "sofa_1",
+   "type": "prop",
+   "prop": "sofa",
+   "position": [
+    0.6,
+    0,
+    -2.95
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "material": {
+    "color": "#6a7a5a"
+   }
+  },
+  {
+   "id": "coffee_table_1",
+   "type": "prop",
+   "prop": "coffee_table",
+   "position": [
+    0.6,
+    0,
+    -1.7
+   ]
+  },
+  {
+   "id": "tv_1",
+   "type": "prop",
+   "prop": "tv",
+   "position": [
+    3.7,
+    0,
+    -1.6
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ]
+  },
+  {
+   "id": "table_1",
+   "type": "prop",
+   "prop": "dining_table",
+   "position": [
+    2.8,
+    0,
+    0.5
+   ]
+  },
+  {
+   "id": "chair_1",
+   "type": "prefab",
+   "prefab": "chair_wooden_1",
+   "position": [
+    2.4,
+    0,
+    -0.45
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "chair_2",
+   "type": "prefab",
+   "prefab": "chair_wooden_1",
+   "position": [
+    3.2,
+    0,
+    -0.45
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "chair_3",
+   "type": "prefab",
+   "prefab": "chair_wooden_1",
+   "position": [
+    2.4,
+    0,
+    1.45
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ]
+  },
+  {
+   "id": "chair_4",
+   "type": "prefab",
+   "prefab": "chair_wooden_1",
+   "position": [
+    3.2,
+    0,
+    1.45
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ]
+  },
+  {
+   "id": "bowl_1",
+   "type": "prefab",
+   "prefab": "fruit_bowl",
+   "position": [
+    2.8,
+    0.78,
+    0.5
+   ],
+   "params": {
+    "fruit": "#8cc63f"
+   }
+  },
+  {
+   "id": "coat_rack_1",
+   "type": "prefab",
+   "prefab": "coat_rack",
+   "position": [
+    -1.4,
+    0,
+    3.0
+   ]
+  },
+  {
+   "id": "bed_1",
+   "type": "prop",
+   "prop": "bed",
+   "position": [
+    2.7,
+    3.0,
+    -2.3
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "nightstand_1",
+   "type": "prop",
+   "prop": "nightstand",
+   "position": [
+    1.4,
+    3.0,
+    -3.1
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "wardrobe_1",
+   "type": "prop",
+   "prop": "wardrobe",
+   "position": [
+    3.55,
+    3.0,
+    1.5
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ]
+  },
+  {
+   "id": "desk_1",
+   "type": "prop",
+   "prop": "desk",
+   "position": [
+    -0.4,
+    3.0,
+    -3.0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "monitor_1",
+   "type": "prefab",
+   "prefab": "monitor",
+   "position": [
+    -0.4,
+    3.77,
+    -3.05
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "chair_office_1",
+   "type": "prefab",
+   "prefab": "chair_office",
+   "position": [
+    -0.4,
+    3.0,
+    -2.0
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ]
+  },
+  {
+   "id": "teddy_1",
+   "type": "prefab",
+   "prefab": "teddy_bear",
+   "position": [
+    2.7,
+    3.6,
+    -1.6
+   ],
+   "rotation": [
+    0,
+    200,
+    0
+   ]
+  },
+  {
+   "id": "tree_1",
+   "type": "prop",
+   "prop": "tree_oak",
+   "position": [
+    -13,
+    0,
+    -6
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  },
+  {
+   "id": "tree_2",
+   "type": "prop",
+   "prop": "tree_pine",
+   "position": [
+    13,
+    0,
+    4
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  },
+  {
+   "id": "tree_3",
+   "type": "prop",
+   "prop": "tree_oak",
+   "position": [
+    -13,
+    0,
+    8
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  },
+  {
+   "id": "tree_4",
+   "type": "prop",
+   "prop": "tree_pine",
+   "position": [
+    12,
+    0,
+    -8
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  },
+  {
+   "id": "tree_5",
+   "type": "prop",
+   "prop": "tree_oak",
+   "position": [
+    0,
+    0,
+    -13
+   ],
+   "lint_ignore": [
+    "unreachable"
+   ]
+  },
+  {
+   "id": "bush_1",
+   "type": "prop",
+   "prop": "bush",
+   "position": [
+    -3.5,
+    0,
+    4.4
+   ]
+  },
+  {
+   "id": "bush_2",
+   "type": "prop",
+   "prop": "bush",
+   "position": [
+    -6.5,
+    0,
+    6.5
+   ]
+  },
+  {
+   "id": "flowers_1",
+   "type": "prop",
+   "prop": "flower_patch",
+   "position": [
+    0.6,
+    0,
+    5.5
+   ],
+   "material": {
+    "color": "#e0587a"
+   }
+  }
+ ],
+ "checks": {
+  "lint": {
+   "max_errors": 0
+  },
+  "walk": [
+   {
+    "name": "front door up the stairs to the bedroom",
+    "path": "0,7.5; 1.5,4.6; 1.5,2.4; 0,0; -3.25,-2.9; -3.25,1.4; -3.25,2.9; -1.5,2.6; 0.5,-0.5",
+    "ends_near": [
+     0.5,
+     -0.5
+    ],
+    "tol": 0.35,
+    "floor_y": 3.0
+   }
+  ],
+  "objects": {
+   "exist": [
+    "stairs_main",
+    "bed_1"
+   ],
+   "min_count": 30
+  },
+  "views": [
+   {
+    "name": "front",
+    "eye": [
+     0,
+     1.7,
+     7.5
+    ],
+    "at": [
+     0,
+     1.5,
+     0
+    ],
+    "fov": 72
+   }
+  ]
+ }
+}
