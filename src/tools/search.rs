@@ -33,6 +33,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0011-two-characters-and-exact-melee-hits.md", include_str!("../../docs/adr/0011-two-characters-and-exact-melee-hits.md")),
     ("0012-rapier-prop-physics-dormant-until-disturbed.md", include_str!("../../docs/adr/0012-rapier-prop-physics-dormant-until-disturbed.md")),
     ("0013-revolver-second-weapon-hitscan-infinite-ammo.md", include_str!("../../docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md")),
+    ("0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", include_str!("../../docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
@@ -346,8 +347,10 @@ mod tests {
 
     #[test]
     fn finds_decisions_and_glossary_terms() {
-        let t = top("why fixed timestep interpolation", "adr");
-        assert!(t.contains("Fixed 1/60"), "{t}");
+        // ADR 0014 also discusses the fixed timestep, so 0005 must be among the top hits, not necessarily first.
+        let docs = corpus(&cmds());
+        let hits = search(&docs, "why fixed timestep interpolation", Some("adr"), 3);
+        assert!(hits.iter().any(|h| h.doc.title.contains("Fixed 1/60")), "{:?}", hits.iter().map(|h| &h.doc.title).collect::<Vec<_>>());
         let t = top("headless server multiplayer physics extract", "adr");
         assert!(t.contains("Headless"), "{t}");
         let t = top("body band ground snap", "glossary").to_lowercase();

@@ -34,7 +34,8 @@ impl Weapon {
     }
 }
 
-/// Seconds between revolver shots (a deliberate, hammer-back rhythm rather than a machine gun).
+/// Target seconds between revolver shots (a deliberate, hammer-back rhythm rather than a machine gun).
+/// The simulation uses [`REVOLVER_COOLDOWN_TICKS`] (this rounded to a whole tick).
 pub const REVOLVER_COOLDOWN: f32 = 0.42;
 /// Furthest a bullet travels, m.
 pub const REVOLVER_RANGE: f32 = 80.0;
@@ -100,6 +101,37 @@ impl Ammo {
     }
 }
 
+// ---- Timing in simulation ticks -----------------------------------------------------------------
+// Ticks are the source of truth (`sim::clock`, 60 Hz): the design seconds below are rounded to the
+// nearest whole tick, and the *_SECS constants the animation uses are derived back from the ticks,
+// so the swing you see is exactly the swing the simulation runs.
+
+use crate::sim::clock::{secs_to_ticks, ticks_to_secs};
+
+/// Bat swing windup (the hit lands when it ends), ticks. Design: 0.09 s.
+pub const SWING_WINDUP_TICKS: u32 = secs_to_ticks(0.09);
+/// Bat swing strike phase, ticks. Design: 0.11 s.
+pub const SWING_STRIKE_TICKS: u32 = secs_to_ticks(0.11);
+/// Bat swing recovery, ticks. Design: 0.16 s.
+pub const SWING_RECOVER_TICKS: u32 = secs_to_ticks(0.16);
+/// Whole bat swing, ticks.
+pub const SWING_TOTAL_TICKS: u32 = SWING_WINDUP_TICKS + SWING_STRIKE_TICKS + SWING_RECOVER_TICKS;
+/// Weapon switch (lower + raise), ticks. Design: 0.34 s.
+pub const SWITCH_TICKS: u32 = secs_to_ticks(0.34);
+/// Revolver shot-to-shot delay, ticks.
+pub const REVOLVER_COOLDOWN_TICKS: u32 = secs_to_ticks(REVOLVER_COOLDOWN);
+/// Delay after a dry-fire click on an empty cylinder, ticks. Design: 0.3 s.
+pub const DRY_FIRE_COOLDOWN_TICKS: u32 = secs_to_ticks(0.3);
+
+/// [`SWING_WINDUP_TICKS`] in seconds (animation).
+pub const SWING_WINDUP_SECS: f32 = ticks_to_secs(SWING_WINDUP_TICKS);
+/// [`SWING_STRIKE_TICKS`] in seconds (animation).
+pub const SWING_STRIKE_SECS: f32 = ticks_to_secs(SWING_STRIKE_TICKS);
+/// [`SWING_RECOVER_TICKS`] in seconds (animation).
+pub const SWING_RECOVER_SECS: f32 = ticks_to_secs(SWING_RECOVER_TICKS);
+/// [`SWITCH_TICKS`] in seconds (animation).
+pub const SWITCH_SECS: f32 = ticks_to_secs(SWITCH_TICKS);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,5 +160,28 @@ mod tests {
         assert_eq!(a.reload(), 6);
         assert_eq!(a, Ammo::Limited { loaded: 6, capacity: 6, reserve: 4 });
         assert_eq!(a.reload(), 0, "already full");
+    }
+
+    /// The chosen tick rate must keep every weapon phase meaningful: at least 3 ticks long and
+    /// within half a tick of its design duration (the rounding error the player could ever feel).
+    #[test]
+    fn timings_survive_the_tick_rate() {
+        use crate::sim::clock::{ticks_to_secs, TICK_DT};
+        let phases = [
+            ("swing windup", SWING_WINDUP_TICKS, 0.09),
+            ("swing strike", SWING_STRIKE_TICKS, 0.11),
+            ("swing recover", SWING_RECOVER_TICKS, 0.16),
+            ("weapon switch", SWITCH_TICKS, 0.34),
+            ("revolver cooldown", REVOLVER_COOLDOWN_TICKS, REVOLVER_COOLDOWN),
+            ("dry fire", DRY_FIRE_COOLDOWN_TICKS, 0.3),
+        ];
+        for (name, ticks, design) in phases {
+            assert!(ticks >= 3, "{name} is only {ticks} ticks long");
+            let err = (ticks_to_secs(ticks) - design).abs();
+            assert!(err <= TICK_DT * 0.5 + 1e-6, "{name}: {ticks} ticks = {:.1} ms vs design {:.1} ms", ticks_to_secs(ticks) * 1e3, design * 1e3);
+        }
+        // Click-to-hit latency: one tick of input quantisation plus the windup, well inside 50 ms x2.
+        let click_to_hit_ms = (SWING_WINDUP_TICKS + 1) as f32 * TICK_DT * 1e3;
+        assert!(click_to_hit_ms < 110.0, "{click_to_hit_ms}");
     }
 }

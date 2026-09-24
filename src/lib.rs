@@ -17,6 +17,7 @@ pub mod props;
 pub mod render;
 pub mod revolver;
 pub mod schema;
+pub mod sim;
 pub mod skeleton;
 pub mod tools;
 pub mod track;

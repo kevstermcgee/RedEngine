@@ -114,6 +114,14 @@ without asking.
 - **hitscan / muzzle flash** — a shot is an instant ray from the eye; the flash is an emissive held part shown
   for 0.06 s (`HeldPart::muzzle_flash`).
 
+## The simulation core (`src/sim/`, ADR 0014)
+
+- **tick** — one fixed 1/60 s simulation step (`sim::clock`). Everything that decides a hit or moves a body
+  runs per tick; frames only render (and interpolate with `alpha`). Weapon phases are whole ticks
+  (`weapons::*_TICKS`).
+- **queued input** — a click/scroll/jump event is stored by the window code and consumed by the *next* tick
+  (`attack_queued`, `switch_queued`, `jump_queued`); actions started on tick T first advance on T+1.
+
 ## Loose props and physics
 
 - **loose prop** — a top-level `prop` or floor-mounted prefab a person could lift and that is not a

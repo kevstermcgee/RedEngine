@@ -20,7 +20,12 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 use red_engine2::audio::{synth_bat_hit, synth_revolver_shot, synth_weapon_click, Audio};
-use red_engine2::weapons::{Ammo, Weapon, MUZZLE_FLASH_TIME, RECOIL_TIME, REVOLVER_AMMO, REVOLVER_COOLDOWN, REVOLVER_IMPULSE, REVOLVER_RANGE};
+use red_engine2::sim::clock::TickClock;
+use red_engine2::sim::combat::{Cooldown, MeleeSwing, WeaponSwitch};
+use red_engine2::weapons::{
+    Ammo, Weapon, DRY_FIRE_COOLDOWN_TICKS, MUZZLE_FLASH_TIME, RECOIL_TIME, REVOLVER_AMMO, REVOLVER_COOLDOWN_TICKS, REVOLVER_IMPULSE, REVOLVER_RANGE, SWING_RECOVER_SECS,
+    SWING_STRIKE_SECS, SWING_WINDUP_SECS, SWITCH_SECS,
+};
 use red_engine2::viewer::{IDLE_PITCH_DEG, IDLE_ROLL_DEG};
 use red_engine2::characters::{human_object, rat_object, HUMAN_HEIGHT};
 use red_engine2::easing::Ease;
@@ -87,10 +92,11 @@ const STRIKE_LUNGE: f32 = 0.16;
 
 // Swing phase durations (seconds) and the melee reach used for the hit-detection raycast fired
 // once per swing, at the start of the strike phase.
-const SWING_WINDUP: f32 = 0.09;
-const SWING_STRIKE: f32 = 0.11;
-const SWING_RECOVER: f32 = 0.16;
-const SWING_TOTAL: f32 = SWING_WINDUP + SWING_STRIKE + SWING_RECOVER;
+// Derived from the simulation's whole-tick timings (`weapons::SWING_*_TICKS`): the animation
+// plays exactly the swing the simulation runs.
+const SWING_WINDUP: f32 = SWING_WINDUP_SECS;
+const SWING_STRIKE: f32 = SWING_STRIKE_SECS;
+const SWING_RECOVER: f32 = SWING_RECOVER_SECS;
 const MELEE_REACH: f32 = 2.2;
 
 // Player body model ("skin"): a default humanoid rig standing in for the player, matched to
@@ -137,8 +143,9 @@ const ARM_STRIKE_SHOULDER_X: f32 = -95.0;
 const ARM_IDLE_ELBOW_DEG: f32 = 8.0;
 const ARM_WINDUP_ELBOW_DEG: f32 = 60.0;
 const ARM_STRIKE_ELBOW_DEG: f32 = 12.0;
-/// Seconds the lower-and-raise animation takes when scrolling between the bat and the revolver.
-const SWITCH_TIME: f32 = 0.34;
+/// Seconds the lower-and-raise animation takes when scrolling between the bat and the revolver
+/// (whole ticks in the simulation, `weapons::SWITCH_TICKS`).
+const SWITCH_TIME: f32 = SWITCH_SECS;
 /// Scroll lines needed to change weapon (a notch of a wheel is one line; touchpads send fractions).
 const SCROLL_LINES_PER_SWITCH: f32 = 1.0;
 /// Revolver viewmodel rest pose in the camera's frame (right, down, forward), and its recoil kick.
@@ -254,6 +261,10 @@ struct App {
     grabbed_at: Instant,
     sprint_held: bool,
     jump_queued: bool,
+    /// Left click waiting for the next simulation tick (swing or shot).
+    attack_queued: bool,
+    /// Scroll-wheel weapon switch (`+1`/`-1`) waiting for the next tick.
+    switch_queued: Option<i32>,
     /// The weapon in hand (or being switched to). Human only.
     weapon: Weapon,
     /// Lower-and-raise animation between weapons: `(from, elapsed seconds)`.
@@ -262,8 +273,14 @@ struct App {
     scroll_accum: f32,
     /// The revolver's ammunition (infinite for now, see `weapons::REVOLVER_AMMO`).
     ammo: Ammo,
-    /// Seconds until the revolver can fire again.
-    shot_cooldown: f32,
+    /// Shot-to-shot delay, in ticks.
+    shot_cd: Cooldown,
+    /// The bat swing (simulation state, in ticks). `swing_timer` below is its render-side mirror.
+    swing: MeleeSwing,
+    /// The weapon switch (simulation state). `switching` below is its render-side mirror.
+    switch: WeaponSwitch,
+    /// The fixed 60 Hz clock: frames push real time in, ticks come out.
+    clock: TickClock,
     /// Seconds since the last shot (drives the recoil kick); starts settled.
     since_shot: f32,
     /// Seconds of muzzle flash left.
@@ -272,11 +289,9 @@ struct App {
     eye: Vec3,
     shot_sound: Vec<f32>,
     click_sound: Vec<f32>,
-    /// Seconds elapsed since the current bat swing started, or `None` when idle/holding.
+    /// Seconds into the current bat swing (incl. the fraction of the next tick), or `None` when idle/holding.
+    /// Recomputed every frame from `swing`; only the animation reads it.
     swing_timer: Option<f32>,
-    /// Whether this swing's melee raycast has already fired (once per swing, at the start of
-    /// the strike phase).
-    swing_hit_done: bool,
     target_index: Option<usize>,
     flash: Option<Flash>,
     /// Fixed-timestep physics state (see [`FIXED_DT`]): the authoritative planar position after
@@ -287,8 +302,6 @@ struct App {
     foot_y: f32,
     prev_foot_y: f32,
     vertical_velocity: f32,
-    /// Leftover real time not yet consumed by a fixed physics step; carried across frames.
-    accumulator: f32,
     /// This frame's walking speed (0 when standing still), captured from the last fixed physics
     /// step that ran so the walk-cycle animation (which runs once per rendered frame, not once
     /// per physics step) knows how fast to play.
@@ -369,8 +382,13 @@ impl App {
             grabbed_at: Instant::now(),
             sprint_held: false,
             jump_queued: false,
+            attack_queued: false,
+            switch_queued: None,
+            shot_cd: Cooldown::default(),
+            swing: MeleeSwing::default(),
+            switch: WeaponSwitch::default(),
+            clock: TickClock::default(),
             swing_timer: None,
-            swing_hit_done: false,
             target_index: None,
             flash: None,
             physics_pos: Vec2::new(spawn.x, spawn.z),
@@ -378,7 +396,6 @@ impl App {
             foot_y: 0.0,
             prev_foot_y: 0.0,
             vertical_velocity: 0.0,
-            accumulator: 0.0,
             last_move_speed: 0.0,
             eye_height: body.stand_eye,
             fov_deg: BASE_FOV_DEG,
@@ -392,7 +409,6 @@ impl App {
             switching: None,
             scroll_accum: 0.0,
             ammo: REVOLVER_AMMO,
-            shot_cooldown: 0.0,
             since_shot: RECOIL_TIME,
             flash_left: 0.0,
             eye: Vec3::ZERO,
@@ -536,48 +552,56 @@ impl App {
 
     /// Scroll wheel: switch between the bat and the revolver (human only, not while carrying).
     fn on_scroll(&mut self, lines: f32) {
-        if !self.body.has_bat || self.carrying() || self.switching.is_some() {
+        if !self.body.has_bat || self.carrying() || self.switch.is_active() || self.switch_queued.is_some() {
             return;
         }
         self.scroll_accum += lines;
         if self.scroll_accum.abs() >= SCROLL_LINES_PER_SWITCH {
-            let dir = if self.scroll_accum > 0.0 { 1 } else { -1 };
+            self.switch_queued = Some(if self.scroll_accum > 0.0 { 1 } else { -1 });
             self.scroll_accum = 0.0;
-            let to = self.weapon.cycle(dir);
-            self.switching = Some((self.weapon, 0.0));
-            self.weapon = to;
-            self.swing_timer = None;
-            println!("Weapon: {}", to.name());
-            if to == Weapon::Revolver {
-                if let Some(audio) = &self.audio {
-                    audio.play(&self.click_sound);
-                }
+        }
+    }
+
+    /// Simulation tick: performs the queued weapon switch.
+    fn begin_switch(&mut self, dir: i32) {
+        if !self.body.has_bat || self.carrying() || self.switch.is_active() {
+            return;
+        }
+        let to = self.weapon.cycle(dir);
+        self.switch.start(self.weapon);
+        self.weapon = to;
+        self.swing.cancel();
+        println!("Weapon: {}", to.name());
+        if to == Weapon::Revolver {
+            if let Some(audio) = &self.audio {
+                audio.play(&self.click_sound);
             }
         }
     }
 
-    /// Left click with the revolver: one shot at the crosshair (hitscan). Infinite ammo for now.
+    /// Simulation tick: one revolver shot at the crosshair (hitscan) from the tick's eye. Infinite ammo for now.
     fn fire_revolver(&mut self) {
-        if self.shot_cooldown > 0.0 || self.switching.is_some() || self.carrying() {
+        if !self.shot_cd.ready() || self.switch.is_active() || self.carrying() {
             return;
         }
         if !self.ammo.try_fire() {
-            self.shot_cooldown = 0.3;
+            self.shot_cd.start(DRY_FIRE_COOLDOWN_TICKS);
             if let Some(audio) = &self.audio {
                 audio.play(&self.click_sound);
             }
             return;
         }
-        self.shot_cooldown = REVOLVER_COOLDOWN;
+        self.shot_cd.start(REVOLVER_COOLDOWN_TICKS);
         self.since_shot = 0.0;
         self.flash_left = MUZZLE_FLASH_TIME;
         if let Some(audio) = &self.audio {
             audio.play(&self.shot_sound);
         }
         let dir = self.camera.forward();
-        if let Some((object_index, distance, loose)) = self.probe(self.eye, REVOLVER_RANGE) {
+        let eye = self.tick_eye();
+        if let Some((object_index, distance, loose)) = self.probe(eye, REVOLVER_RANGE) {
             if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
-                props.strike_impulse(prop, dir, self.eye + dir * distance, REVOLVER_IMPULSE);
+                props.strike_impulse(prop, dir, eye + dir * distance, REVOLVER_IMPULSE);
             }
             println!("Shot '{}' at {:.1} m", self.scene.objects[object_index].id, distance);
             self.flash_object(object_index, HIT_FLASH_BOOST);
@@ -838,6 +862,46 @@ impl App {
             props.set_player(Vec3::new(self.physics_pos.x, self.foot_y, self.physics_pos.y), self.body.radius, self.body.body_height);
             props.step();
         }
+
+        self.fixed_step_combat();
+    }
+
+    /// The player's eye at the latest completed tick (the origin of this tick's swings and shots).
+    /// Unlike `self.eye` it does not depend on the render frame.
+    fn tick_eye(&self) -> Vec3 {
+        Vec3::new(self.physics_pos.x, self.foot_y + self.eye_height, self.physics_pos.y)
+    }
+
+    /// Weapon logic for one tick: advance the timers (an action queued on tick T first advances on
+    /// tick T+1), resolve a landing bat strike, then perform the input queued since the last tick.
+    fn fixed_step_combat(&mut self) {
+        let strike = self.swing.tick();
+        self.shot_cd.tick();
+        self.switch.tick();
+
+        if strike {
+            let eye = self.tick_eye();
+            if let Some((object_index, distance, loose)) = self.melee_probe(eye) {
+                // A loose prop gets knocked, too: light things fly, heavy ones shuffle.
+                if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
+                    let dir = self.camera.forward();
+                    props.strike(prop, dir, eye + dir * distance);
+                }
+                self.hit_with(object_index);
+            }
+        }
+
+        if let Some(dir) = self.switch_queued.take() {
+            self.begin_switch(dir);
+        }
+        if std::mem::take(&mut self.attack_queued) && self.body.has_bat && !self.carrying() && !self.switch.is_active() {
+            match self.weapon {
+                Weapon::Bat => {
+                    self.swing.start();
+                }
+                Weapon::Revolver => self.fire_revolver(),
+            }
+        }
     }
 
     /// True while carrying a prop.
@@ -853,6 +917,7 @@ impl App {
             props.drop_held(self.player_vel + toss);
         } else if let Some(p) = self.pickup_target {
             props.pick_up(p);
+            self.swing.cancel();
             self.swing_timer = None;
         }
     }
@@ -885,12 +950,11 @@ impl App {
         // Accumulate real time and drain it in fixed-size chunks (the standard "fix your
         // timestep" pattern) — capped so a long stall (window drag, debugger pause) resumes from
         // where it left off instead of trying to replay minutes of physics in one frame.
-        self.accumulator = (self.accumulator + dt).min(FIXED_DT * 8.0);
-        while self.accumulator >= FIXED_DT {
+        self.clock.push_time(dt);
+        while self.clock.next_tick().is_some() {
             self.fixed_step_physics();
-            self.accumulator -= FIXED_DT;
         }
-        let alpha = (self.accumulator / FIXED_DT).clamp(0.0, 1.0);
+        let alpha = self.clock.alpha();
         let planar_pos = self.prev_physics_pos.lerp(self.physics_pos, alpha);
         let foot_y = self.prev_foot_y + (self.foot_y - self.prev_foot_y) * alpha;
 
@@ -915,13 +979,12 @@ impl App {
 
         let anchor = Vec3::new(planar_pos.x, foot_y + self.eye_height, planar_pos.y);
         self.eye = anchor;
-        self.shot_cooldown = (self.shot_cooldown - dt).max(0.0);
+        // Cosmetic timers run on render time; everything that decides a hit is in `fixed_step_combat`.
         self.since_shot += dt;
         self.flash_left = (self.flash_left - dt).max(0.0);
-        if let Some((from, t)) = self.switching {
-            let t = t + dt;
-            self.switching = if t >= SWITCH_TIME { None } else { Some((from, t)) };
-        }
+        // The animation reads mirrors of the tick-based swing/switch state, smoothed by `alpha`.
+        self.swing_timer = self.swing.elapsed_secs(alpha);
+        self.switching = self.switch.elapsed_secs(alpha);
         self.camera.position = match self.view_mode {
             ViewMode::FirstPerson => anchor,
             ViewMode::ThirdPerson => {
@@ -958,32 +1021,12 @@ impl App {
         let reach = if self.shown_weapon() == Weapon::Revolver { REVOLVER_RANGE } else { MELEE_REACH };
         self.target_index = if self.body.has_bat && !self.carrying() { self.probe(anchor, reach).map(|(o, _, _)| o) } else { None };
 
-        // Bat swing: advance the timer, and fire one melee raycast/hit check at the start
-        // of the strike phase — gated by `swing_hit_done` so a single click can't hit twice
-        // while its animation plays out.
-        if let Some(elapsed) = self.swing_timer {
-            let elapsed = elapsed + dt;
-            if elapsed >= SWING_WINDUP && !self.swing_hit_done {
-                self.swing_hit_done = true;
-                if let Some((object_index, distance, loose)) = self.melee_probe(anchor) {
-                    // A loose prop gets knocked, too: light things fly, heavy ones shuffle.
-                    if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
-                        let dir = self.camera.forward();
-                        props.strike(prop, dir, anchor + dir * distance);
-                    }
-                    self.hit_with(object_index);
-                }
-            }
-            self.swing_timer = if elapsed >= SWING_TOTAL { None } else { Some(elapsed) };
-        }
-
         if let Some(t) = self.freeze_shot {
             self.since_shot = t;
             self.flash_left = if t < MUZZLE_FLASH_TIME { MUZZLE_FLASH_TIME * 0.9 } else { 0.0 };
         }
         if let Some(t) = self.freeze_swing {
             self.swing_timer = Some(t);
-            self.swing_hit_done = true;
         }
         self.advance_flash(dt);
     }
@@ -1253,15 +1296,9 @@ impl ApplicationHandler for App {
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } => {
                 if !self.grabbed {
                     self.set_grab(true);
-                } else if self.body.has_bat && !self.carrying() && self.switching.is_none() {
-                    match self.weapon {
-                        Weapon::Bat if self.swing_timer.is_none() => {
-                            self.swing_timer = Some(0.0);
-                            self.swing_hit_done = false;
-                        }
-                        Weapon::Revolver => self.fire_revolver(),
-                        Weapon::Bat => {}
-                    }
+                } else {
+                    // Acted on by the next simulation tick (`fixed_step_combat`).
+                    self.attack_queued = true;
                 }
             }
             WindowEvent::MouseWheel { delta, .. } if self.phase == Phase::Playing && self.grabbed => {

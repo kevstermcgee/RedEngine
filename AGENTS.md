@@ -234,6 +234,7 @@ Lessons from building them (all bit at least once):
 src/schema.rs     JSON -> Scene (validation, macro expansion hook, `post`, `zones` ignored here)
 src/macros.rs     `wall` / `fence` expand to groups of boxes at parse time (add new sugar here)
 src/props.rs      prop library: parts, `collision()` policy, `lifted()` for origin-at-base
+src/sim/          headless sim core: fixed 60 Hz clock, tick-based weapon timing (ADR 0014); no wgpu/winit allowed here
 src/viewer.rs     live renderer + colliders + ground height (stairs ramp, box tops) + stairs rails
 src/player.rs     player constants + `step_horizontal` / `vertical_step` (shared by re2 and tools)
 src/render.rs     offline renderer; gpu.rs pipelines (incl. the clarity `PostFx`); shaders/*.wgsl

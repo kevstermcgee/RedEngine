@@ -8,8 +8,8 @@
 use crate::viewer::{colliders_on_floor, ground_height_at, resolve_collision, Collider2D, GroundCandidates};
 use glam::Vec2;
 
-/// Movement/collision/gravity run at this fixed timestep in the live viewer.
-pub const FIXED_DT: f32 = 1.0 / 60.0;
+/// Movement/collision/gravity run at this fixed timestep (`sim::clock::TICK_DT`, 60 Hz) in the live viewer.
+pub const FIXED_DT: f32 = crate::sim::clock::TICK_DT;
 
 /// Walking speed, m/s.
 pub const WALK_SPEED: f32 = 3.2;
