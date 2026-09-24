@@ -24,4 +24,6 @@ Map: `SPEC.md` scene language · `AGENTS.md` workflow + tool reference · `src/`
 
 When you change Rust: `//!` on new modules, `///` on pub items (`$R src coverage`), simulation logic as pure
 functions (not in `App`), decisions as ADRs — see AGENTS.md "Keeping the codebase cheap for the next AI".
-Multiplayer / a headless server is **not built** (ADR 0010).
+Multiplayer / a headless server is **not built** (ADR 0010). **Current direction (ADR 0015):** engine first — the
+headless sim in `src/sim/` (ADR 0014), `examples/test_lab.json` as the dev map (the four game maps are legacy),
+`scripts/ci.sh` before pushing, `benches/` for performance.

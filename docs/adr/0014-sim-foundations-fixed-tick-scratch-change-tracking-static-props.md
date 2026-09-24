@@ -32,12 +32,47 @@ A fixed step does not make the sim deterministic. Found, most serious first:
 4. **Order-dependent cascade:** `PropWorld::activate` walks a LIFO queue capped at 40 bodies, fed by
    `wake_disturbed`/`props_in`, whose order is rapier's broad-phase query order. A cluster of >40 touching
    props promotes a history-dependent subset.
-5. **`HashSet`/`HashMap` with random state** in `physics.rs` (`by_body`, `movable_indices()`) and `re2.rs`
+5. **`HashSet` with random state** in `physics.rs` (`movable_indices()`, a load-time set) and `re2.rs`
    (`keys`): only ever used for lookup/`contains` today, so not a bug, but any future iteration would be
-   nondeterministic run to run. Use `BTreeMap`/`Vec` if they ever get iterated.
+   nondeterministic run to run. Use `BTreeSet`/`Vec` if they ever get iterated. (`by_body` no longer exists:
+   step 4 maps colliders to props through `user_data`.)
 6. **Wall-clock catch-up cap:** dropping time beyond 8 ticks is correct for a client but a server must
    instead tick from a schedule, or two runs diverge.
 No unseeded RNG exists anywhere in the tick path (the only RNG is the seeded `scatter` map tool).
+
+## Decision — 2. Tick-scoped scratch buffers
+`sim::scratch::ScratchVec` (`take`/`give_back`, reset not freed, counts growth). `PropWorld`'s per-tick lists
+(wake queue, promotion order, moving bodies, changed slots) use it. Measured with a counting global allocator
+(`tests/alloc_budget.rs`, asserts budgets): **idle map 5.03 -> 0.03 heap allocations per tick** (the win was
+a real bug: `step` took `&mut` on every prop body each tick, making rapier re-process and allocate for all of
+them); a tick with awake props 39 -> ~16-21 (all inside rapier's CCD solver and EPA contact code, only while
+props are awake; not poolable without patching rapier; a speed-gated CCD experiment did not reduce it and was
+reverted). Collision contacts: the engine never collects them (rapier keeps its own); **network delta events**
+have no consumer yet, but `snapshot::encode_delta` appends into a caller-owned buffer.
+
+## Decision — 3. Change tracking
+`sim::change`: `Generation`, `GenClock`, `ChangeCursor`, `Tracked<T>`, `TrackedColumn<T>` over
+`sim::components::{Transform, Health}`. `changed_since(gen)` is O(1) for a column (it remembers its newest
+change) and for a slot. `ChangeCursor::catch_up` records `now` *and closes the generation*: without that a write
+stamped in the same generation as a read is invisible next time (found and fixed before use). Its first real
+consumers are the render sync and `snapshot`; nothing is wired to a network (none exists).
+
+## Decision — 4. Static-prop promotion
+`sim::statics`, `sim::entities`, `PropWorld`. A loose prop is a **static instance**: fixed colliders at its
+authored pose (solid, ray-hittable), no rigid body, no entity, nothing to replicate. It is **promoted** the first
+time it is touched (player, bat, bullet, moving prop, pick-up; plus what rests on it, capped at 40): a dynamic
+body takes over its colliders and it gets a tracked-`Transform` entity. Colliders carry `prop id + 1` in
+`user_data` (this also removed the `HashMap<RigidBodyHandle, usize>` hazard). Promotion is one-way.
+Measured (`benches/history/2026-09-24-static-promotion.md`), 4000 props: untouched tick **8.7 -> 0.43 us**, per-frame
+scene sync **36.6 us -> 8 ns**, world build **-37%**, rigid bodies 4001 -> 1; the price is promotion itself,
+**~3.4-4.3x slower** (0.7-0.9 -> 2.4-3.8 us), paid only by touched props. Known limitation: a ray query in the
+same tick a prop is promoted cannot see it until the next `step` (rapier's query BVH refreshes on step).
+
+## Decision — 5. Benchmarks
+`benches/sim.rs` (criterion), `benches/check.py` (PASS/FAIL against `benches/baseline.json`, 35% tolerance,
+`--bless`), `benches/README.md`. Deterministic guards (allocation counts, body/entity counts) are tests; wall-clock
+numbers are machine-specific and not gated in CI. `sim::snapshot` is a **placeholder layout, not a protocol**: a
+4096-entity full snapshot encodes in 34.7 us, a 10% delta in 4.2 us, a quiet world in 4 ns.
 
 ## Consequences
 - Hit timing is identical at any render rate; tests: `sim::clock`, `sim::combat`, `weapons`.

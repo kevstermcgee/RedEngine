@@ -24,3 +24,34 @@ winit = "0.30"
 lto = true
 codegen-units = 1
 opt-level = 3
+
+# Plain `cargo test` runs rapier and 900-tick physics tests: unoptimized they are ~20x slower and the
+# per-step timing assertions get flaky. Light optimization everywhere, more for dependencies.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[dev-dependencies]
+criterion = "0.8.2"
+
+# Benches only need to be *comparable run to run*, not maximally fast: thin LTO keeps `cargo bench`
+# builds to about a minute instead of the several a full-LTO release build takes.
+[profile.bench]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+
+[[bench]]
+name = "sim"
+harness = false
+
+# CI runs `cargo clippy --all-targets -- -D warnings`. These are style-only lints the existing code
+# predates (index loops over parallel arrays, wide renderer entry points); allowed on purpose so CI can be
+# strict about everything else. Prefer fixing over adding to this list.
+[lints.clippy]
+needless_range_loop = "allow"
+field_reassign_with_default = "allow"
+too_many_arguments = "allow"
+doc_lazy_continuation = "allow"

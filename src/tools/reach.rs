@@ -345,7 +345,7 @@ impl Reach {
     /// Which zone (if any) contains `p` at foot height `y`. Points a hair outside every zone (the
     /// cells inside a doorway, where the wall's thickness separates two rooms' rects) count as
     /// belonging to the nearest zone within `WALL_TOLERANCE`, so doorways connect zones.
-    pub fn zone_of<'a>(zones: &'a [Zone], p: Vec2, y: f32) -> Option<&'a Zone> {
+    pub fn zone_of(zones: &[Zone], p: Vec2, y: f32) -> Option<&Zone> {
         const WALL_TOLERANCE: f32 = 0.2;
         let on_floor = |z: &&Zone| (z.y - y).abs() <= 0.6;
         zones

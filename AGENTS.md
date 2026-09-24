@@ -9,6 +9,17 @@ to change a map: read [`SPEC.md`](SPEC.md) for the scene language, then use the 
 > layout you haven't *looked at* (`plan` / `tour`). The tools use the game's real collision code, so
 > "lint is clean and the walk test passes" means the level is playable.
 
+## Current direction (ADR 0015): engine first, Test Lab as the dev map
+
+Engine quality, the shared headless simulation (`src/sim/`), testing and extensibility come before map work.
+`examples/test_lab.json` (the **Red Test Lab**) is the primary development map: basic visuals, one room per
+system under test (spawns, clearance gaps, stairs/ledges, static + dynamic props and stacks, hitscan lane,
+character sizes). `tests/test_lab.rs` + its own `checks` guard it. `house`/`school`/`office`/`store` are
+**legacy reference content**: keep them working when cheap, never let them block a better engine design, and
+record any deliberate incompatibility in ADR 0015. Before pushing: `scripts/ci.sh` (clippy `-D warnings`, `cargo test`,
+benches compile — the same as `.github/workflows/ci.yml`). Performance: `cargo bench --bench sim` then
+`python benches/check.py` (`benches/README.md`); allocation/body-count guards are ordinary tests.
+
 ## Start here (you should never need to read Rust)
 
 The engine describes itself. In this order, cheapest first:
@@ -304,14 +315,15 @@ their `weapon` (and `muzzle_flash`/`emissive`); `FrameOptions.weapon/muzzle_flas
 In `re2`, `E` picks up the (green-crosshair) prop in front of you and drops it again; dropped props fall,
 tumble and knock things over. `physics::classify` decides what is loose (lift-able prop or floor-mounted
 prefab, not a fixture; override with `"movable": true|false` on the object); the rest is a fixed collider.
-`PropWorld` is a headless rapier world — loose props start **dormant** (fixed at their authored pose, so an
-idle map costs nothing and never shuffles) and turn dynamic when disturbed. The player's own walking is
+`PropWorld` is a headless rapier world — loose props start as **static instances** (fixed colliders at their
+authored pose, no rigid body, no entity, so an idle map costs nothing and never shuffles) and are **promoted** to
+dynamic entities when disturbed (ADR 0014, `src/sim/statics.rs`). The player's own walking is
 *not* rapier (ADR 0003): loose props are removed from `collect_box_colliders_except` /
 `collect_ground_candidates_except` and the player is a kinematic cylinder that shoves them. The tools
 (`lint`, `reach`, `walk`, `plan`) still see loose props as solid furniture at their authored spot. Tests:
 `physics::tests` (pick/drop/knock/push), `tests/prop_physics.rs` (all four maps stay put when idle; lifting a
 table drops what was on it). Gotchas learned: rapier's broad phase needs one `step()` before ray queries;
-sleeping bodies get re-woken by `set_position`, hence *dormant = fixed* instead of "asleep"; props on a
+sleeping bodies get re-woken by `set_position`, hence *static until promoted* instead of "asleep"; props on a
 non-box static (a pedestal) fall through unless round primitives are solid to props (they are, here).
 
 ## Viewer debugging helpers (`re2`)

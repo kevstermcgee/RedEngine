@@ -1,0 +1,20 @@
+{
+  "about": "median ns/iter before static-prop promotion (all props were fixed rapier bodies, dormant until disturbed; step-2 alloc fix already applied)",
+  "results": {
+    "build/world/100": 570108.25,
+    "build/world/1000": 6477659.72,
+    "build/world/4000": 28720066.67,
+    "frame/sync_scene/100": 774.63,
+    "frame/sync_scene/1000": 7699.34,
+    "frame/sync_scene/4000": 36561.42,
+    "promote/one/100": 702.91,
+    "promote/one/1000": 727.65,
+    "promote/one/4000": 879.98,
+    "tick/16_awake/100": 124074.84,
+    "tick/16_awake/1000": 146161.49,
+    "tick/16_awake/4000": 243244.89,
+    "tick/untouched/100": 735.87,
+    "tick/untouched/1000": 1961.22,
+    "tick/untouched/4000": 8699.16
+  }
+}

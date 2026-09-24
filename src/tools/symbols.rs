@@ -542,7 +542,7 @@ pub fn render_deps(ix: &Index, module: Option<&str>) -> Result<String, String> {
 /// gaps, and the undocumented items themselves (up to `limit`). `///` docs are what `src find/show`
 /// and `search` show instead of source, so a public item without one is invisible to an AI.
 pub fn coverage(ix: &Index, file: Option<&str>, limit: usize) -> String {
-    let items: Vec<&Symbol> = ix.symbols.iter().filter(|s| s.public && !s.in_tests && !matches!(s.kind, "impl" | "mod") && file.map_or(true, |f| s.file.contains(f))).collect();
+    let items: Vec<&Symbol> = ix.symbols.iter().filter(|s| s.public && !s.in_tests && !matches!(s.kind, "impl" | "mod") && file.is_none_or(|f| s.file.contains(f))).collect();
     let missing: Vec<&Symbol> = items.iter().copied().filter(|s| s.doc.trim().is_empty()).collect();
     let pct = if items.is_empty() { 100.0 } else { 100.0 * (items.len() - missing.len()) as f32 / items.len() as f32 };
     let mut out = format!("{} of {} public items documented ({pct:.0}%).\n", items.len() - missing.len(), items.len());

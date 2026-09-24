@@ -1,0 +1,31 @@
+{
+  "about": "median ns/iter from `cargo bench --bench sim` (bench profile). Machine-specific: re-bless on a new machine.",
+  "blessed": "2026-09-24",
+  "machine": "Windows-11-10.0.26200-SP0 / AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+  "results": {
+    "build/world/100": 542554.66,
+    "build/world/1000": 4003421.25,
+    "build/world/4000": 18163877.5,
+    "frame/sync_scene/100": 7.37,
+    "frame/sync_scene/1000": 7.39,
+    "frame/sync_scene/4000": 7.51,
+    "promote/one/100": 2367.82,
+    "promote/one/1000": 2488.3,
+    "promote/one/4000": 3809.43,
+    "snapshot/delta_10pct/16": 27.79,
+    "snapshot/delta_10pct/256": 270.17,
+    "snapshot/delta_10pct/4096": 4137.9,
+    "snapshot/delta_quiet/16": 4.04,
+    "snapshot/delta_quiet/256": 4.04,
+    "snapshot/delta_quiet/4096": 4.04,
+    "snapshot/full/16": 141.18,
+    "snapshot/full/256": 2145.8,
+    "snapshot/full/4096": 33968.88,
+    "tick/16_awake/100": 85505.04,
+    "tick/16_awake/1000": 116910.18,
+    "tick/16_awake/4000": 216316.17,
+    "tick/untouched/100": 701.85,
+    "tick/untouched/1000": 434.99,
+    "tick/untouched/4000": 433.19
+  }
+}

@@ -147,7 +147,7 @@ impl HeldPart {
 /// meshes and draw their insides, so each weapon's parts are pre-flipped by this to cancel the mirror.
 pub fn flip_winding_for_viewmodel(parts: &mut [HeldPart]) {
     for part in parts {
-        for tri in part.mesh.indices.chunks_exact_mut(3) {
+        for tri in part.mesh.indices.as_chunks_mut::<3>().0 {
             tri.swap(1, 2);
         }
     }

@@ -4,13 +4,24 @@
 //!
 //! - [`clock`]: the fixed 60 Hz tick ([`clock::TickClock`]) and tick/second conversion.
 //! - [`combat`]: weapon timing in whole ticks (melee swing, shot cooldown, weapon switch).
+//! - [`change`] + [`components`]: generational change tracking (`changed_since(gen)`) on plain components
+//!   ([`components::Transform`], [`components::Health`]).
+//! - [`entities`] + [`statics`]: dynamic entities, and props as cheap static instances until promoted.
+//! - [`snapshot`]: entities to bytes, full or delta (a placeholder layout, not a protocol).
+//! - [`scratch`]: reusable per-tick buffers ([`scratch::ScratchVec`]) — reset, never freed.
 //!
 //! The rule for anything added here: a rendering rate must never be able to change what the
 //! simulation does. Render code reads the sim (and may interpolate between ticks); it never
 //! feeds it a variable `dt`.
 
+pub mod change;
 pub mod clock;
 pub mod combat;
+pub mod components;
+pub mod entities;
+pub mod scratch;
+pub mod snapshot;
+pub mod statics;
 
 #[cfg(test)]
 mod tests {

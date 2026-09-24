@@ -296,14 +296,14 @@ fn check_support(world: &MapWorld, out: &mut Vec<Finding>) {
                     it.top_id, gap, on, base, best.0, center.x, center.y
                 ),
                 Some(Vec3::new(center.x, base, center.y)),
-                &[&it.top_id],
+                &[it.top_id],
             ));
         }
         if it.ignores("sunk") {
             continue;
         }
         if base < -0.08 {
-            out.push(finding(Severity::Warn, "sunk", format!("'{}' is sunk {:.2} m into the ground (base at y={:.2})", it.top_id, -base, base), Some(Vec3::new(center.x, base, center.y)), &[&it.top_id]));
+            out.push(finding(Severity::Warn, "sunk", format!("'{}' is sunk {:.2} m into the ground (base at y={:.2})", it.top_id, -base, base), Some(Vec3::new(center.x, base, center.y)), &[it.top_id]));
             continue;
         }
         for s in &surfaces {
@@ -320,7 +320,7 @@ fn check_support(world: &MapWorld, out: &mut Vec<Finding>) {
                     "sunk",
                     format!("'{}' is buried {:.2} m in '{}' (its base y={:.2} is below that slab's top y={:.2})", it.top_id, s.top - base, s.owner.id, base, s.top),
                     Some(Vec3::new(center.x, base, center.y)),
-                    &[&it.top_id],
+                    &[it.top_id],
                 ));
                 break;
             }
@@ -334,7 +334,7 @@ fn check_headroom(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
     let mut worst: HashMap<String, (f32, Vec3)> = HashMap::new();
     let stride = ((0.4 / reach.cell).round() as usize).max(1);
     for (i, levels) in reach.levels.iter().enumerate() {
-        if levels.is_empty() || (i % reach.nx) % stride != 0 || (i / reach.nx) % stride != 0 {
+        if levels.is_empty() || !(i % reach.nx).is_multiple_of(stride) || !(i / reach.nx).is_multiple_of(stride) {
             continue;
         }
         let p = reach.cell_center(i);

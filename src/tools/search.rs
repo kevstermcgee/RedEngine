@@ -34,6 +34,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0012-rapier-prop-physics-dormant-until-disturbed.md", include_str!("../../docs/adr/0012-rapier-prop-physics-dormant-until-disturbed.md")),
     ("0013-revolver-second-weapon-hitscan-infinite-ammo.md", include_str!("../../docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md")),
     ("0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", include_str!("../../docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md")),
+    ("0015-engine-first-refocus-test-lab-and-legacy-maps.md", include_str!("../../docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
@@ -118,7 +119,7 @@ fn chunk_markdown(file: &str, kind: &'static str, text: &str, out: &mut Vec<Doc>
     let mut start = 0usize;
     let mut sec: Vec<&str> = Vec::new();
     let flush = |heading: &str, start: usize, sec: &mut Vec<&str>, out: &mut Vec<Doc>| {
-        let body: Vec<&str> = sec.drain(..).collect();
+        let body: Vec<&str> = std::mem::take(sec);
         if body.iter().all(|l| l.trim().is_empty()) {
             return;
         }

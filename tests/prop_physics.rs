@@ -88,3 +88,65 @@ fn lifting_a_side_table_drops_the_globe_that_was_on_it_and_everything_comes_to_r
     assert_eq!(w.awake_count(), 0, "everything is asleep again after a few seconds");
     assert!(worst_ms < 8.0, "worst step {worst_ms:.2} ms");
 }
+
+/// Hammer the promotion machinery on every real map with a deterministic pseudo-random sequence of
+/// strikes, pick-ups, drops and player teleports, checking the bookkeeping invariants after every tick:
+/// one body per promoted prop (+ the player), one entity per promoted prop, static props never move,
+/// and nothing goes non-finite.
+#[test]
+fn promotion_bookkeeping_survives_abuse_on_every_map() {
+    let mut rng = 0x9E37_79B9_7F4A_7C15u64;
+    let mut next = move |n: usize| {
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        (rng % n as u64) as usize
+    };
+    for name in ["house.json", "school.json", "office.json", "store.json"] {
+        let mut scene = load(name);
+        let mut w = PropWorld::new(&scene, None);
+        let n = w.props().len();
+        let authored: Vec<glam::Mat4> = (0..n).map(|i| w.prop_pose(i)).collect();
+        w.set_player(Vec3::new(500.0, 0.0, 500.0), 0.35, 1.75);
+        for tick in 0..900 {
+            match next(40) {
+                0 => {
+                    let p = next(n);
+                    let at = w.prop_pose(p).w_axis.truncate();
+                    w.strike_impulse(p, Vec3::new(1.0, 0.3, 0.2), at, 5.0);
+                }
+                1 if w.held().is_none() => {
+                    let p = next(n);
+                    w.pick_up(p);
+                    let at = w.prop_pose(p).w_axis.truncate() + Vec3::new(0.0, 1.0, 0.0);
+                    w.set_held_pose(glam::Mat4::from_translation(at));
+                }
+                2 if w.held().is_some() => {
+                    w.drop_held(Vec3::new(1.0, 0.0, 0.0));
+                }
+                3 => {
+                    let p = next(n);
+                    let at = w.prop_pose(p).w_axis.truncate();
+                    w.set_player(Vec3::new(at.x, 0.0, at.z), 0.35, 1.75);
+                }
+                _ => {}
+            }
+            w.step();
+            if tick % 7 == 0 {
+                w.sync_scene(&mut scene);
+            }
+            assert_eq!(w.body_count(), w.dynamic_count() + 1, "{name} tick {tick}: one body per promoted prop plus the player");
+            assert_eq!(w.entities().len(), w.dynamic_count(), "{name} tick {tick}: one entity per promoted prop");
+            for i in 0..n {
+                let p = w.prop_pose(i).w_axis;
+                assert!(p.is_finite() && p.y > -1.0, "{name} tick {tick}: prop {i} at {p:?}");
+                assert_eq!(w.is_static(i), w.entity_of(i).is_none(), "{name}: prop {i} static <-> no entity");
+                if w.is_static(i) {
+                    assert_eq!(w.prop_pose(i), authored[i], "{name}: a static prop moved");
+                }
+            }
+        }
+        eprintln!("{name}: {} of {n} props promoted by the abuse run", w.dynamic_count());
+        assert!(w.dynamic_count() > 0 && w.dynamic_count() < n, "{name}: the run should promote some props but not all");
+    }
+}

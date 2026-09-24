@@ -19,6 +19,7 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0012](0012-rapier-prop-physics-dormant-until-disturbed.md) | Loose props run on rapier and stay dormant until disturbed | accepted |
 | [0013](0013-revolver-second-weapon-hitscan-infinite-ammo.md) | Silver revolver: mouse-wheel second weapon, hitscan, infinite ammo for now | accepted |
 | [0014](0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md) | Sim foundations: 60 Hz tick + tick-based weapons, scratch buffers, change tracking, static props | accepted |
+| [0015](0015-engine-first-refocus-test-lab-and-legacy-maps.md) | Engine-first refocus: the Red Test Lab is the dev map, the four maps are legacy, roadmap | accepted |
 
 ## Writing one
 

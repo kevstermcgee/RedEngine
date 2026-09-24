@@ -124,6 +124,12 @@ without asking.
 
 ## Loose props and physics
 
+- **static instance / promotion** — a loose prop nobody has touched is just fixed colliders at its authored pose:
+  no rigid body, no entity, nothing to replicate. The first interaction *promotes* it to a dynamic entity
+  (body + tracked transform). ADR 0014, `src/sim/statics.rs`, `PropWorld::activate`.
+- **Red Test Lab** — `examples/test_lab.json`, the deliberately basic map used to develop and test engine
+  systems; the four game maps are legacy reference content (ADR 0015).
+
 - **loose prop** — a top-level `prop` or floor-mounted prefab a person could lift and that is not a
   fixture; decided by `physics::classify`, overridable with `"movable": true|false`. Everything else
   is a fixed collider. Rats can *carry* only the smaller subset (`RAT_CARRY`) but can shove any of them.

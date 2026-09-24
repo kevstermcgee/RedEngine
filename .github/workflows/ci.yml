@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: ""
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux system libraries (audio backend for rodio)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
+      - name: clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: tests
+        run: cargo test
+      - name: benches compile
+        run: cargo bench --no-run
+      # Wall-clock bench regressions are NOT gated here: shared runners are too noisy. Run
+      # `cargo bench --bench sim && python benches/check.py` locally (benches/README.md). The
+      # deterministic performance guards (tests/alloc_budget.rs, body/entity counts) run in `cargo test`.
