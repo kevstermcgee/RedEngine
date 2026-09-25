@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# scripts/dev — one entry point for building, testing and running Red Engine 2 from ANY shell, ANY cwd, ANY OS.
+#
+# It hides the environment: finds cargo (sourcing ~/.local/toolchain/env.sh or ~/.cargo/env if present), always
+# runs from the repo root, never prints colour codes, puts a timeout on everything, and prints how long each step took.
+#
+#   scripts/dev doctor                 what toolchain / binaries / git state does this machine have?
+#   scripts/dev fast                   unit tests only (seconds): `cargo test --lib`
+#   scripts/dev test [filter]          the whole suite (or tests whose name matches filter)
+#   scripts/dev build [--headless]     debug build of the CLI, server, bot (and the game unless --headless)
+#   scripts/dev red <args...>          run the red_engine2 CLI (builds it first): `scripts/dev red lint maps/x.json`
+#   scripts/dev verify <scene> [...]   `red_engine2 verify` (extra args pass through: --only walk[1], --no-views)
+#   scripts/dev walk <scene> [...]     `red_engine2 walk` (--auto --from X,Z --to X,Z, --explain out.png)
+#   scripts/dev server <scene> [...]   the headless authoritative server (UDP 27015)
+#   scripts/dev ci                     what CI runs (fmt, clippy -D warnings, tests, headless build)
+#   scripts/dev status [...]           `red_engine2 status` (handoff: what is done / in flight / next)
+#
+# Env: RED_TIMEOUT=seconds per command (default 900), RED_PROFILE=debug|release (default debug; the dev profile is
+# already opt-level 1 so it is fast enough for maps and tests).
+set -u
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
+cd "$ROOT" || exit 2
+
+for f in "$HOME/.local/toolchain/env.sh" "$HOME/.cargo/env"; do
+  [ -f "$f" ] && . "$f"
+done
+case ":$PATH:" in *":$HOME/.cargo/bin:"*) ;; *) PATH="$HOME/.cargo/bin:$PATH" ;; esac
+export PATH CARGO_TERM_COLOR=never RUST_BACKTRACE="${RUST_BACKTRACE:-1}"
+
+PROFILE="${RED_PROFILE:-debug}"
+PFLAG=""; [ "$PROFILE" = "release" ] && PFLAG="--release"
+TMO="${RED_TIMEOUT:-900}"
+
+run() { # run <label> <cmd...>: timeout + elapsed
+  local label="$1"; shift
+  local t0=$SECONDS rc
+  if command -v timeout >/dev/null 2>&1; then timeout "$TMO" "$@"; else "$@"; fi
+  rc=$?
+  if [ $rc -eq 124 ]; then echo "dev: $label TIMED OUT after ${TMO}s (raise RED_TIMEOUT)" >&2; fi
+  echo "dev: $label finished in $((SECONDS - t0))s (exit $rc)" >&2
+  return $rc
+}
+
+need_cargo() {
+  command -v cargo >/dev/null 2>&1 || {
+    echo "dev: cargo not found. Install Rust (https://rustup.rs) or point ~/.local/toolchain/env.sh at it." >&2
+    exit 127
+  }
+}
+
+cli() { # path of the CLI binary, building it if needed
+  need_cargo
+  run "build red_engine2" cargo build $PFLAG --bin red_engine2 --quiet || exit $?
+  local exe="$ROOT/target/$PROFILE/red_engine2"
+  [ -x "$exe" ] || exe="$exe.exe"
+  echo "$exe"
+}
+
+cmd="${1:-help}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  doctor)
+    echo "repo      $ROOT"
+    echo "os        $(uname -sm 2>/dev/null || echo unknown)"
+    if command -v cargo >/dev/null 2>&1; then echo "cargo     $(cargo --version)"; echo "rustc     $(rustc --version)"; else echo "cargo     NOT FOUND (install Rust: https://rustup.rs)"; fi
+    for b in red_engine2 red_server red_bot re2; do
+      p="$ROOT/target/$PROFILE/$b"; { [ -f "$p" ] || [ -f "$p.exe" ]; } && echo "built     $b ($PROFILE)" || echo "not built $b"
+    done
+    command -v git >/dev/null 2>&1 && echo "git       $(git rev-parse --abbrev-ref HEAD 2>/dev/null) @ $(git rev-parse --short HEAD 2>/dev/null), $(git status --short 2>/dev/null | wc -l | tr -d ' ') changed file(s)"
+    command -v python3 >/dev/null 2>&1 && echo "python3   $(python3 --version 2>&1)" || echo "python3   not found (only needed for benches/check.py and mcp_server.py)"
+    [ -f STATUS.md ] && echo "status    STATUS.md exists: run 'scripts/dev status'" || echo "status    no STATUS.md yet: 'scripts/dev status --init'"
+    ;;
+  fast)   need_cargo; run "unit tests" cargo test $PFLAG --lib "$@" ;;
+  test)   need_cargo; run "tests" cargo test $PFLAG "$@" ;;
+  build)
+    need_cargo
+    if [ "${1:-}" = "--headless" ]; then
+      run "headless build" cargo build $PFLAG --no-default-features --bin red_engine2 --bin red_server --bin red_bot
+    else
+      run "build" cargo build $PFLAG --bin red_engine2 --bin red_server --bin red_bot --bin re2
+    fi ;;
+  red)    exe="$(cli)" || exit $?; exec "$exe" "$@" ;;
+  verify) exe="$(cli)" || exit $?; run "verify" "$exe" verify "$@" ;;
+  walk)   exe="$(cli)" || exit $?; run "walk" "$exe" walk "$@" ;;
+  status) exe="$(cli)" || exit $?; exec "$exe" status "$@" ;;
+  server)
+    need_cargo
+    run "build red_server" cargo build $PFLAG --no-default-features --bin red_server --quiet || exit $?
+    exe="$ROOT/target/$PROFILE/red_server"; [ -x "$exe" ] || exe="$exe.exe"
+    exec "$exe" --map "$@" ;;
+  ci)     need_cargo; run "ci" bash scripts/ci.sh ;;
+  help|-h|--help) sed -n '2,25p' "$0" ;;
+  *) echo "dev: unknown command '$cmd' (try: scripts/dev help)" >&2; exit 2 ;;
+esac

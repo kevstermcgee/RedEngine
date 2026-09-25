@@ -183,7 +183,7 @@ pub(crate) fn run_plan(
         }
     }
     for h in heights {
-        let opts = PlanOptions { y: h, scale, bounds, labels, show_reach: !no_reach, show_findings: !no_lint };
+        let opts = PlanOptions { y: h, scale, bounds, labels, show_reach: !no_reach, show_findings: !no_lint, overlays: Vec::new() };
         if ascii {
             print!("{}", plan::render_ascii(&world, Some(&r), &findings, &opts, ascii_cell));
             continue;
@@ -214,20 +214,112 @@ pub(crate) fn run_plan(
     Ok(())
 }
 
-pub(crate) fn run_walk(scene: &Path, path: &str, from: Option<&str>) -> Result<(), String> {
+/// `x,z` or `x,z,y` -> (position, optional floor height).
+fn v2y(s: &str) -> Result<(Vec2, Option<f32>), String> {
+    let v = floats(s)?;
+    match v.len() {
+        2 => Ok((Vec2::new(v[0] as f32, v[1] as f32), None)),
+        3 => Ok((Vec2::new(v[0] as f32, v[1] as f32), Some(v[2] as f32))),
+        _ => Err(format!("expected x,z or x,z,y but got '{s}'")),
+    }
+}
+
+pub(crate) fn run_walk(scene: &Path, path: Option<&str>, from: Option<&str>, auto: bool, to: Option<&str>, cell: f32, explain: Option<&Path>) -> Result<(), String> {
+    use red_engine2::tools::pathing;
     let world = load_or_report(scene)?;
+    let (start, start_y) = from.map(v2y).transpose()?.unwrap_or((world.spawn, None));
+    let json = envelope::capturing();
+    let write_explain = |wps: &[Vec2], steps: &[red_engine2::tools::walk::WalkStep], diag: Option<&pathing::Diagnosis>| -> Result<(), String> {
+        if let Some(out) = explain {
+            let img = pathing::explain_image(&world, start, wps, steps, diag);
+            if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
+                std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+            }
+            img.save(out).map_err(|e| format!("{}: {e}", out.display()))?;
+            eprintln!("wrote {} (yellow = route, red = where it stopped, red boxes = what is in the way)", out.display());
+        }
+        Ok(())
+    };
+
+    if auto || (path.is_none() && to.is_some()) {
+        let to_s = to.ok_or("--auto needs --to X,Z[,Y]")?;
+        let (dest, to_y) = v2y(to_s)?;
+        let opts = pathing::RouteOptions { cell, to_y, from_y: start_y };
+        return match pathing::plan_route(&world, start, dest, &opts) {
+            Ok(route) => {
+                let ticks: u32 = route.steps.iter().map(|s| s.ticks).sum();
+                let end = route.steps.last().map(|s| (s.pos, s.foot_y)).unwrap_or((start, 0.0));
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::json!({"ok": true, "auto": true, "path": route.path_string(),
+                            "waypoints": route.waypoints.iter().map(|p| [p.x, p.y]).collect::<Vec<_>>(),
+                            "length_m": (route.length * 10.0).round() / 10.0, "margin_m": route.margin, "ticks": ticks,
+                            "ends_at": [end.0.x, end.0.y], "floor_y": (end.1 * 100.0).round() / 100.0,
+                            "check": {"name": "auto route", "from": [start.x, start.y], "path": route.path_string(), "ends_near": [dest.x, dest.y]}})
+                    );
+                } else {
+                    println!(
+                        "route OK: {} waypoint(s), {:.1} m, {} ticks (~{:.1} s walking), planned with {:.2} m extra body margin",
+                        route.waypoints.len(),
+                        route.length,
+                        ticks,
+                        ticks as f32 / 60.0,
+                        route.margin
+                    );
+                    println!("  --path \"{}\"", route.path_string());
+                    println!("  ends ({:.2}, {:.2}) at y={:.2}", end.0.x, end.0.y, end.1);
+                    println!(
+                        "  as a scene check: {{\"name\": \"...\", \"from\": [{:.2}, {:.2}], \"path\": \"{}\", \"ends_near\": [{:.2}, {:.2}]}}",
+                        start.x,
+                        start.y,
+                        route.path_string(),
+                        dest.x,
+                        dest.y
+                    );
+                    println!(
+                        "  or let verify plan it every run: {{\"name\": \"...\", \"from\": [{:.2}, {:.2}], \"to\": [{:.2}, {:.2}], \"auto\": true}}",
+                        start.x, start.y, dest.x, dest.y
+                    );
+                }
+                write_explain(&route.waypoints, &route.steps, None)?;
+                Ok(())
+            }
+            Err(e) => {
+                // Say why: walk the straight line and diagnose where it stops.
+                let steps = red_engine2::tools::walk::walk_from(&world, start, start_y.unwrap_or(0.0), &[dest]);
+                let diag = steps.last().filter(|s| !s.reached).map(|s| pathing::diagnose(&world, s.pos, s.foot_y, dest));
+                if json {
+                    println!("{}", serde_json::json!({"ok": false, "auto": true, "error": e, "diagnosis": diag.as_ref().map(|d| d.to_json())}));
+                } else if let Some(d) = &diag {
+                    print!("{}", d.render());
+                }
+                write_explain(&[dest], &steps, diag.as_ref())?;
+                Err(format!("no route: {e}"))
+            }
+        };
+    }
+
+    let path = path.ok_or("give --path \"x,z; x,z\" to replay a route, or --auto --to X,Z to plan one")?;
     let wps: Vec<Vec2> = path.split(';').filter(|p| !p.trim().is_empty()).map(v2).collect::<Result<_, _>>()?;
     if wps.is_empty() {
         return Err("--path needs at least one waypoint".to_string());
     }
-    let start = from.map(v2).transpose()?.unwrap_or(world.spawn);
-    let steps = red_engine2::tools::walk::walk(&world, start, &wps);
-    if envelope::capturing() {
-        println!("{}", red_engine2::tools::walk::to_json(&steps, wps.len()));
+    let steps = red_engine2::tools::walk::walk_from(&world, start, start_y.unwrap_or(0.0), &wps);
+    let failed = steps.len() < wps.len() || steps.last().is_some_and(|l| !l.reached);
+    let diag = steps.last().filter(|s| !s.reached).map(|s| pathing::diagnose(&world, s.pos, s.foot_y, s.target));
+    if json {
+        let mut v = red_engine2::tools::walk::to_json(&steps, wps.len());
+        v["diagnosis"] = diag.as_ref().map(|d| d.to_json()).unwrap_or(Value::Null);
+        println!("{v}");
     } else {
         print!("{}", red_engine2::tools::walk::format_walk(&steps, wps.len()));
+        if let Some(d) = &diag {
+            print!("{}", d.render());
+        }
     }
-    if steps.len() < wps.len() || steps.last().is_some_and(|l| !l.reached) {
+    write_explain(&wps, &steps, diag.as_ref())?;
+    if failed {
         return Err(String::new());
     }
     Ok(())

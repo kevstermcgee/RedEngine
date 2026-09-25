@@ -50,7 +50,7 @@ pub struct Reach {
 }
 
 /// Uniform-grid index over colliders so a position test only looks at nearby ones.
-struct ColliderGrid<'a> {
+pub(super) struct ColliderGrid<'a> {
     colliders: &'a [Collider2D],
     min: Vec2,
     bin: f32,
@@ -60,14 +60,20 @@ struct ColliderGrid<'a> {
 }
 
 impl<'a> ColliderGrid<'a> {
-    fn new(colliders: &'a [Collider2D], min: Vec2, max: Vec2) -> Self {
+    pub(super) fn new(colliders: &'a [Collider2D], min: Vec2, max: Vec2) -> Self {
+        Self::with_margin(colliders, min, max, 0.0)
+    }
+
+    /// A grid that can answer [`Self::blocked_r`] for bodies up to `PLAYER_RADIUS + margin` wide (route planning uses a
+    /// fatter body than the real one so planned routes keep clear of corners).
+    pub(super) fn with_margin(colliders: &'a [Collider2D], min: Vec2, max: Vec2, margin: f32) -> Self {
         let bin = 1.0;
         let nx = (((max.x - min.x) / bin).ceil() as usize + 1).max(1);
         let nz = (((max.y - min.y) / bin).ceil() as usize + 1).max(1);
         let mut bins = vec![Vec::new(); nx * nz];
         for (i, c) in colliders.iter().enumerate() {
-            let lo = c.min - Vec2::splat(PLAYER_RADIUS);
-            let hi = c.max + Vec2::splat(PLAYER_RADIUS);
+            let lo = c.min - Vec2::splat(PLAYER_RADIUS + margin);
+            let hi = c.max + Vec2::splat(PLAYER_RADIUS + margin);
             let (x0, x1) = (((lo.x - min.x) / bin).floor().max(0.0) as usize, ((hi.x - min.x) / bin).floor().max(0.0) as usize);
             let (z0, z1) = (((lo.y - min.y) / bin).floor().max(0.0) as usize, ((hi.y - min.y) / bin).floor().max(0.0) as usize);
             for z in z0..=z1.min(nz - 1) {
@@ -80,13 +86,18 @@ impl<'a> ColliderGrid<'a> {
     }
 
     /// Would a player circle centered at `p` with feet at `foot_y` overlap a blocking collider?
-    fn blocked(&self, p: Vec2, foot_y: f32) -> bool {
+    pub(super) fn blocked(&self, p: Vec2, foot_y: f32) -> bool {
+        self.blocked_r(p, foot_y, PLAYER_RADIUS)
+    }
+
+    /// [`Self::blocked`] for a circle of `radius` (must not exceed the grid's `PLAYER_RADIUS + margin`).
+    pub(super) fn blocked_r(&self, p: Vec2, foot_y: f32, radius: f32) -> bool {
         let x = ((p.x - self.min.x) / self.bin).floor();
         let z = ((p.y - self.min.y) / self.bin).floor();
         if x < 0.0 || z < 0.0 || x as usize >= self.nx || z as usize >= self.nz {
             return false;
         }
-        let r2 = PLAYER_RADIUS * PLAYER_RADIUS - 1e-5;
+        let r2 = radius * radius - 1e-5;
         for &i in &self.bins[z as usize * self.nx + x as usize] {
             let c = &self.colliders[i as usize];
             if !collider_blocks_at(c, foot_y) {

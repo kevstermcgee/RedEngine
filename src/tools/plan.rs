@@ -23,6 +23,19 @@ pub enum Labels {
     None,
 }
 
+/// Something extra drawn over a plan (routes, stop points, obstacles): how `walk --explain` shows its answer.
+#[derive(Debug, Clone)]
+pub enum Overlay {
+    /// A polyline with numbered waypoints.
+    Path { pts: Vec<Vec2>, color: [u8; 3] },
+    /// A labelled cross.
+    Marker { at: Vec2, label: String, color: [u8; 3] },
+    /// A circle of `radius` metres (e.g. the player's body where it stopped).
+    Ring { at: Vec2, radius: f32, color: [u8; 3] },
+    /// A labelled world-space rectangle outline `(min, max)`.
+    Rect { min: Vec2, max: Vec2, label: String, color: [u8; 3] },
+}
+
 /// Options for a plan render: floor height, scale, world window and labels.
 pub struct PlanOptions {
     /// Floor height to draw (the foot height of the player on that level).
@@ -34,11 +47,13 @@ pub struct PlanOptions {
     pub labels: Labels,
     pub show_reach: bool,
     pub show_findings: bool,
+    /// Extra drawings on top (see [`Overlay`]).
+    pub overlays: Vec<Overlay>,
 }
 
 impl Default for PlanOptions {
     fn default() -> Self {
-        PlanOptions { y: 0.0, scale: 40.0, bounds: None, labels: Labels::Auto, show_reach: true, show_findings: true }
+        PlanOptions { y: 0.0, scale: 40.0, bounds: None, labels: Labels::Auto, show_reach: true, show_findings: true, overlays: Vec::new() }
     }
 }
 
@@ -345,6 +360,49 @@ pub fn render_png(world: &MapWorld, reach: Option<&Reach>, findings: &[Finding],
                 }
             }
             draw_text(&mut img, x as i32 + 12, y as i32 - 4, &format!("{}:{}", n + 1, f.code), 1, col, Some(Rgb([10, 5, 5])));
+        }
+    }
+
+    // Overlays (routes, stop points, obstacles).
+    for o in &opts.overlays {
+        match o {
+            Overlay::Path { pts, color } => {
+                let c = Rgb(*color);
+                for w in pts.windows(2) {
+                    line(&mut img, view.px(w[0]), view.px(w[1]), c, 3);
+                }
+                for (i, p) in pts.iter().enumerate() {
+                    let (x, y) = view.px(*p);
+                    fill_rect(&mut img, x - 3.0, y - 3.0, x + 3.0, y + 3.0, c, 1.0);
+                    draw_text(&mut img, x as i32 + 5, y as i32 - 10, &(i + 1).to_string(), 1, Rgb([255, 255, 255]), Some(Rgb([15, 15, 15])));
+                }
+            }
+            Overlay::Marker { at, label, color } => {
+                let (x, y) = view.px(*at);
+                let c = Rgb(*color);
+                line(&mut img, (x - 8.0, y), (x + 8.0, y), c, 3);
+                line(&mut img, (x, y - 8.0), (x, y + 8.0), c, 3);
+                draw_text(&mut img, x as i32 + 10, y as i32 + 6, label, 1, c, Some(Rgb([10, 10, 14])));
+            }
+            Overlay::Ring { at, radius, color } => {
+                let (x, y) = view.px(*at);
+                let r = radius * scale;
+                for a in 0..96 {
+                    let ang = a as f32 / 96.0 * std::f32::consts::TAU;
+                    for k in [0.0f32, 1.0] {
+                        blend(&mut img, (x + ang.cos() * (r + k)) as i32, (y + ang.sin() * (r + k)) as i32, Rgb(*color), 1.0);
+                    }
+                }
+            }
+            Overlay::Rect { min, max, label, color } => {
+                let (a, b) = (view.px(*min), view.px(*max));
+                let c = Rgb(*color);
+                fill_rect(&mut img, a.0, a.1, b.0, b.1, c, 0.28);
+                for (p, q) in [((a.0, a.1), (b.0, a.1)), ((b.0, a.1), (b.0, b.1)), ((b.0, b.1), (a.0, b.1)), ((a.0, b.1), (a.0, a.1))] {
+                    line(&mut img, p, q, c, 2);
+                }
+                draw_text(&mut img, a.0 as i32, (a.1 as i32 - 10).max(2), label, 1, c, Some(Rgb([10, 10, 14])));
+            }
         }
     }
 

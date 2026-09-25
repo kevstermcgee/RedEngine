@@ -141,15 +141,29 @@ pub(crate) enum Command {
         cell: f32,
     },
     /// Replay a walking route with the game's real per-tick physics: `walk scene.json --path "0,-8; 0,1; -0.8,2; -0.8,7.6"`.
-    /// Prints where the player actually ends up (position + floor height) at each waypoint, or where they get stuck.
+    /// Prints where the player ends up at each waypoint, or where they get stuck AND which object stopped them (id, gap,
+    /// passage width vs body). `--auto --to X,Z[,Y]` plans the route for you (A* on the reach grid, validated with the real
+    /// physics) and prints waypoints to paste; `--explain out.png` draws the route, the stop point and the blocker.
     Walk {
         scene: PathBuf,
-        /// Waypoints "x,z; x,z; ..." (semicolon separated).
+        /// Waypoints "x,z; x,z; ..." (semicolon separated). Not needed with --auto.
         #[arg(long, allow_hyphen_values = true)]
-        path: String,
-        /// Start "x,z" (default: the scene camera / spawn).
+        path: Option<String>,
+        /// Start "x,z" or "x,z,y" (default: the scene camera / spawn). `y` = a foot height on an upper floor.
         #[arg(long, allow_hyphen_values = true)]
         from: Option<String>,
+        /// Plan the route from --from to --to instead of replaying --path.
+        #[arg(long)]
+        auto: bool,
+        /// Destination "x,z" or "x,z,y" for --auto (`y` = wanted floor height).
+        #[arg(long, allow_hyphen_values = true)]
+        to: Option<String>,
+        /// Grid resolution for --auto, metres.
+        #[arg(long, default_value_t = 0.1)]
+        cell: f32,
+        /// Write a plan image of the walk (route, stop point, blockers). Default file: out/walk.png.
+        #[arg(long, num_args = 0..=1, default_missing_value = "out/walk.png")]
+        explain: Option<PathBuf>,
     },
     /// Top-down floor plan (PNG, or --ascii to stdout): walls, props with ids, stairs, walkable area, findings.
     Plan {
@@ -271,8 +285,8 @@ pub(crate) enum Command {
         #[arg(long)]
         print: bool,
     },
-    /// Run the scene's own `checks` (lint budget, reachability, real-physics walks, object assertions,
-    /// golden-image views) and PASS/FAIL each. Exit 1 on any failure. `--bless` records new goldens.
+    /// Run the scene's own `checks` (lint budget, reachability, real-physics walks incl. auto-planned routes, object assertions,
+    /// golden-image views, sim scenarios) and PASS/FAIL each with timings. Exit 1 on any failure. `--bless` records new goldens.
     Verify {
         scene: PathBuf,
         /// Record the current render of every view as its golden image.
@@ -281,7 +295,8 @@ pub(crate) enum Command {
         /// Skip rendered view checks (no GPU needed).
         #[arg(long)]
         no_views: bool,
-        /// Only checks whose name contains this (lint, reach, walk, objects, view).
+        /// Run a subset: a group (`lint`, `reach`, `walk`, `objects`, `views`, `sim`), one entry (`walk[2]`), or any text from a
+        /// check's name (`"front door"`). Failing walks print the blocking object and write out/verify/*_explain.png.
         #[arg(long)]
         only: Option<String>,
         /// Where diff images are written (default out/verify).

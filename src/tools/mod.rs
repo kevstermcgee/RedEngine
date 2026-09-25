@@ -15,6 +15,7 @@ pub mod font;
 pub mod gen;
 pub mod inspect;
 pub mod lint;
+pub mod pathing;
 pub mod plan;
 pub mod reach;
 pub mod recipes;

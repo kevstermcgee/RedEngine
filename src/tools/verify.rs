@@ -8,7 +8,8 @@
 //!   "lint":    { "max_errors": 0, "max_warnings": 3, "forbid": ["leak"] },
 //!   "reach":   [ { "to": [3, -1.5], "why": "kitchen reachable" } ],
 //!   "walk":    [ { "name": "front door to bedroom", "path": "0,8; 1.5,4; ...",
-//!                  "ends_near": [0.5, -0.5], "tol": 0.35, "floor_y": 3.0 } ],
+//!                  "ends_near": [0.5, -0.5], "tol": 0.35, "floor_y": 3.0 },
+//!                { "name": "kitchen to stairs", "from": [3,2], "to": [-1,5], "auto": true } ],   // route planned each run
 //!   "objects": { "exist": ["sofa_1"], "absent": ["debug_cube"], "min_count": 30,
 //!                "count": [ { "kind": "prefab:chair_wooden_1", "min": 2 } ] },
 //!   "views":   [ { "name": "living", "eye": [x,y,z], "at": [x,y,z], "fov": 70, "max_diff": 0.01 } ]
@@ -54,6 +55,8 @@ pub struct CheckResult {
     pub ok: bool,
     pub detail: String,
     pub artifact: Option<PathBuf>,
+    /// Wall-clock time the check took, milliseconds (so a slow check is obvious).
+    pub ms: u64,
 }
 
 /// All results of a `verify` run for one scene.
@@ -72,12 +75,15 @@ impl Report {
     pub fn render(&self) -> String {
         let mut s = String::new();
         for r in &self.results {
-            s.push_str(&format!("{} {}  {}\n", if r.ok { "PASS" } else { "FAIL" }, r.name, r.detail));
+            // Only slow checks get a timing suffix, so the common case stays terse.
+            let took = if r.ms >= 250 { format!("  [{:.1}s]", r.ms as f32 / 1000.0) } else { String::new() };
+            s.push_str(&format!("{} {}  {}{took}\n", if r.ok { "PASS" } else { "FAIL" }, r.name, r.detail));
             if let Some(a) = &r.artifact {
                 s.push_str(&format!("     see {}\n", a.display()));
             }
         }
-        s.push_str(&format!("{}: {} check(s), {} failed\n", self.scene.display(), self.results.len(), self.failed()));
+        let total: u64 = self.results.iter().map(|r| r.ms).sum();
+        s.push_str(&format!("{}: {} check(s), {} failed, {:.1}s\n", self.scene.display(), self.results.len(), self.failed(), total as f32 / 1000.0));
         s
     }
 
@@ -86,16 +92,16 @@ impl Report {
         json!({
             "scene": self.scene.display().to_string(),
             "failed": self.failed(),
-            "checks": self.results.iter().map(|r| json!({"name": r.name, "ok": r.ok, "detail": r.detail, "artifact": r.artifact.as_ref().map(|p| p.display().to_string())})).collect::<Vec<_>>(),
+            "checks": self.results.iter().map(|r| json!({"name": r.name, "ok": r.ok, "detail": r.detail, "ms": r.ms, "artifact": r.artifact.as_ref().map(|p| p.display().to_string())})).collect::<Vec<_>>(),
         })
     }
 }
 
 fn pass(name: impl Into<String>, detail: impl Into<String>) -> CheckResult {
-    CheckResult { name: name.into(), ok: true, detail: detail.into(), artifact: None }
+    CheckResult { name: name.into(), ok: true, detail: detail.into(), artifact: None, ms: 0 }
 }
 fn fail(name: impl Into<String>, detail: impl Into<String>) -> CheckResult {
-    CheckResult { name: name.into(), ok: false, detail: detail.into(), artifact: None }
+    CheckResult { name: name.into(), ok: false, detail: detail.into(), artifact: None, ms: 0 }
 }
 
 fn f32s(v: &Value) -> Option<Vec<f32>> {
@@ -120,8 +126,35 @@ fn parse_path(s: &str) -> Result<Vec<Vec2>, String> {
         .collect()
 }
 
-fn selected(opts: &Options, name: &str) -> bool {
-    opts.only.as_deref().is_none_or(|o| name.contains(o))
+/// Check groups `--only` may name (a group name, or `group[N]`, or any text from one check's name).
+const GROUPS: [&str; 6] = ["lint", "reach", "walk", "objects", "views", "sim"];
+
+/// The `--only` text minus a trailing `[N]`: `walk[2]` -> `walk`.
+fn only_base(o: &str) -> &str {
+    o.split('[').next().unwrap_or(o)
+}
+
+/// Whether a whole group runs under `--only`. `--only walk`, `--only walk[2]` and `--only view` name a group; any other
+/// text (say `--only "front door"`) is matched against individual check names instead, so every group is entered.
+fn selected(opts: &Options, group: &str) -> bool {
+    let Some(o) = opts.only.as_deref() else { return true };
+    let base = only_base(o);
+    if GROUPS.iter().any(|g| g.contains(base) || base.contains(g)) {
+        group.contains(base) || base.contains(group)
+    } else {
+        true
+    }
+}
+
+/// Whether one check of a group runs under `--only` (`walk[1]` = just that entry; free text = name substring).
+fn item_selected(opts: &Options, name: &str) -> bool {
+    let Some(o) = opts.only.as_deref() else { return true };
+    let base = only_base(o);
+    if GROUPS.iter().any(|g| g.contains(base) || base.contains(g)) {
+        !o.contains('[') || name.starts_with(o)
+    } else {
+        name.contains(o)
+    }
 }
 
 /// Unknown keys anywhere in a `checks` block, as `checks.path.key: unknown field ...` messages.
@@ -141,7 +174,7 @@ fn unknown_check_keys(checks: &Value) -> Vec<String> {
         check_keys(&mut errs, "checks.lint", l, &["max_errors", "max_warnings", "forbid"]);
     }
     each(&mut errs, "reach", &["to", "from", "why"]);
-    each(&mut errs, "walk", &["name", "path", "from", "ends_near", "tol", "floor_y"]);
+    each(&mut errs, "walk", &["name", "path", "from", "from_y", "to", "to_y", "auto", "ends_near", "tol", "floor_y"]);
     each(&mut errs, "views", &["name", "eye", "at", "fov", "max_diff"]);
     if let Some(o) = root.get("objects").and_then(Value::as_object) {
         check_keys(&mut errs, "checks.objects", o, &["exist", "absent", "min_count", "max_count", "count"]);
@@ -187,12 +220,15 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
                 detail.push_str(&format!("\n     [{}] {}", f.code, f.message));
             }
         }
-        results.push(CheckResult { name: "lint".into(), ok, detail, artifact: None });
+        results.push(CheckResult { name: "lint".into(), ok, detail, artifact: None, ms: 0 });
     }
 
     if let Some(arr) = checks.get("reach").and_then(Value::as_array).filter(|_| selected(opts, "reach")) {
         for (i, c) in arr.iter().enumerate() {
             let name = format!("reach[{i}]{}", c.get("why").and_then(Value::as_str).map(|w| format!(" {w}")).unwrap_or_default());
+            if !item_selected(opts, &name) {
+                continue;
+            }
             let Some(to) = c.get("to").and_then(f32s).filter(|t| t.len() == 2 || t.len() == 3) else {
                 results.push(fail(name, "needs \"to\": [x,z] or [x,z,y]"));
                 continue;
@@ -212,60 +248,17 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
     }
 
     if let Some(arr) = checks.get("walk").and_then(Value::as_array).filter(|_| selected(opts, "walk")) {
+        let out_dir = opts.out_dir.clone().unwrap_or_else(|| PathBuf::from("out/verify"));
+        let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "scene".into());
         for (i, c) in arr.iter().enumerate() {
             let name = format!("walk[{i}] {}", c.get("name").and_then(Value::as_str).unwrap_or(""));
-            let Some(path_s) = c.get("path").and_then(Value::as_str) else {
-                results.push(fail(name, "needs \"path\": \"x,z; x,z; ...\""));
-                continue;
-            };
-            let wps = match parse_path(path_s) {
-                Ok(w) if !w.is_empty() => w,
-                Ok(_) => {
-                    results.push(fail(name, "empty path"));
-                    continue;
-                }
-                Err(e) => {
-                    results.push(fail(name, e));
-                    continue;
-                }
-            };
-            let start = c.get("from").and_then(v2).unwrap_or(world.spawn);
-            let steps = super::walk::walk(&world, start, &wps);
-            if steps.len() < wps.len() || steps.last().is_some_and(|l| !l.reached) {
-                let last = steps.last();
-                results.push(fail(
-                    name,
-                    match last {
-                        Some(l) => format!(
-                            "stuck on leg {} toward ({:.1}, {:.1}); stopped at ({:.2}, {:.2}) y={:.2}",
-                            steps.len(),
-                            l.target.x,
-                            l.target.y,
-                            l.pos.x,
-                            l.pos.y,
-                            l.foot_y
-                        ),
-                        None => "could not start".to_string(),
-                    },
-                ));
+            if !item_selected(opts, &name) {
                 continue;
             }
-            let end = steps.last().unwrap();
-            let want = c.get("ends_near").and_then(v2).unwrap_or(*wps.last().unwrap());
-            let tol = c.get("tol").and_then(Value::as_f64).unwrap_or(0.35) as f32;
-            let dist = (end.pos - want).length();
-            let floor_ok = c.get("floor_y").and_then(Value::as_f64).is_none_or(|fy| (end.foot_y - fy as f32).abs() <= 0.2);
-            let ok = dist <= tol && floor_ok;
-            let detail = format!(
-                "ended ({:.2}, {:.2}) y={:.2}; wanted within {tol} of ({:.1}, {:.1}){}",
-                end.pos.x,
-                end.pos.y,
-                end.foot_y,
-                want.x,
-                want.y,
-                c.get("floor_y").and_then(Value::as_f64).map(|f| format!(" at y={f}")).unwrap_or_default()
-            );
-            results.push(if ok { pass(name, detail) } else { fail(name, detail) });
+            let t0 = std::time::Instant::now();
+            let mut r = check_walk(&world, c, name, &out_dir.join(format!("{stem}_walk{i}_explain.png")));
+            r.ms = t0.elapsed().as_millis() as u64;
+            results.push(r);
         }
     }
 
@@ -284,10 +277,88 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
         results.extend(check_views(path, arr, opts)?);
     }
 
+    // Free text after --only ("front door") selects individual checks by name across every group.
+    if let Some(o) = opts.only.as_deref().filter(|o| !GROUPS.iter().any(|g| g.contains(only_base(o)) || only_base(o).contains(g))) {
+        results.retain(|r| r.name == "checks" || r.name.contains(o));
+    }
+
     if results.is_empty() {
         results.push(fail("checks", "no check ran (unknown keys or --only matched nothing). Known: lint, reach, walk, objects, views, sim"));
     }
     Ok(Report { scene: path.to_path_buf(), results })
+}
+
+/// One `checks.walk` entry: replay `path` (or plan a route with `auto`), and on failure say which object stopped it.
+fn check_walk(world: &MapWorld, c: &Value, name: String, explain_out: &Path) -> CheckResult {
+    use super::pathing;
+    let start = c.get("from").and_then(v2).unwrap_or(world.spawn);
+    let from_y = c.get("from_y").and_then(Value::as_f64).map(|f| f as f32);
+    let auto = c.get("auto").and_then(Value::as_bool).unwrap_or(false) || (c.get("path").is_none() && c.get("to").is_some());
+    let mut route_note = String::new();
+    let wps = if auto {
+        let Some(to) = c.get("to").and_then(v2) else {
+            return fail(name, "\"auto\": true needs \"to\": [x,z]");
+        };
+        let opts = pathing::RouteOptions { to_y: c.get("to_y").and_then(Value::as_f64).map(|f| f as f32), from_y, ..Default::default() };
+        match pathing::plan_route(world, start, to, &opts) {
+            Ok(route) => {
+                route_note = format!("; route {}", route.path_string());
+                route.waypoints
+            }
+            Err(e) => {
+                let steps = super::walk::walk_from(world, start, from_y.unwrap_or(0.0), &[to]);
+                let why = steps.last().filter(|s| !s.reached).map(|s| format!(" ({})", pathing::diagnose(world, s.pos, s.foot_y, to).one_line())).unwrap_or_default();
+                return fail(name, format!("no route to ({:.1}, {:.1}): {e}{why}", to.x, to.y));
+            }
+        }
+    } else {
+        let Some(path_s) = c.get("path").and_then(Value::as_str) else {
+            return fail(name, "needs \"path\": \"x,z; x,z; ...\" (or \"to\": [x,z] with \"auto\": true)");
+        };
+        match parse_path(path_s) {
+            Ok(w) if !w.is_empty() => w,
+            Ok(_) => return fail(name, "empty path"),
+            Err(e) => return fail(name, e),
+        }
+    };
+    let steps = super::walk::walk_from(world, start, from_y.unwrap_or(0.0), &wps);
+    if steps.len() < wps.len() || steps.last().is_some_and(|l| !l.reached) {
+        let Some(l) = steps.last() else { return fail(name, "could not start") };
+        let diag = pathing::diagnose(world, l.pos, l.foot_y, l.target);
+        // Full diagnosis under the headline (indented like lint findings), plus a picture of the stop.
+        let mut detail = format!("stuck on leg {} toward ({:.1}, {:.1}); stopped at ({:.2}, {:.2}) y={:.2}", steps.len(), l.target.x, l.target.y, l.pos.x, l.pos.y, l.foot_y);
+        for line in diag.render().lines().skip(1) {
+            detail.push_str("\n     ");
+            detail.push_str(line.trim_start());
+        }
+        let mut r = fail(name, detail);
+        if let Some(dir) = explain_out.parent() {
+            if std::fs::create_dir_all(dir).is_ok() && pathing::explain_image(world, start, &wps, &steps, Some(&diag)).save(explain_out).is_ok() {
+                r.artifact = Some(explain_out.to_path_buf());
+            }
+        }
+        return r;
+    }
+    let end = steps.last().unwrap();
+    let want = c.get("ends_near").and_then(v2).or_else(|| c.get("to").and_then(v2)).unwrap_or(*wps.last().unwrap());
+    let tol = c.get("tol").and_then(Value::as_f64).unwrap_or(0.35) as f32;
+    let dist = (end.pos - want).length();
+    let floor_ok = c.get("floor_y").and_then(Value::as_f64).is_none_or(|fy| (end.foot_y - fy as f32).abs() <= 0.2);
+    let ok = dist <= tol && floor_ok;
+    let detail = format!(
+        "ended ({:.2}, {:.2}) y={:.2}; wanted within {tol} of ({:.1}, {:.1}){}{route_note}",
+        end.pos.x,
+        end.pos.y,
+        end.foot_y,
+        want.x,
+        want.y,
+        c.get("floor_y").and_then(Value::as_f64).map(|f| format!(" at y={f}")).unwrap_or_default()
+    );
+    if ok {
+        pass(name, detail)
+    } else {
+        fail(name, detail)
+    }
 }
 
 fn kind_of(o: &Value) -> String {
@@ -467,6 +538,48 @@ mod tests {
     fn a_walk_that_ends_away_from_where_it_should_fails() {
         let r = run_text(r#"{"walk":[{"name":"x","path":"0,0; 3,-3","ends_near":[-3,3],"tol":0.3}]}"#);
         assert_eq!(r.failed(), 1, "{}", r.render());
+    }
+
+    #[test]
+    fn a_stuck_walk_names_the_blocking_object_and_writes_a_picture() {
+        // crate_1 sits at (2, 2): walking straight through it must stop there and say so.
+        let dir = std::env::temp_dir().join("re2_verify_tests_stuck");
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("stuck.json");
+        std::fs::write(&p, scene(r#"{"walk":[{"name":"through the crate","from":[2,-2],"path":"2,3"}]}"#)).unwrap();
+        let r = run(&p, &Options { skip_views: true, out_dir: Some(dir.clone()), ..Default::default() }).unwrap();
+        assert_eq!(r.failed(), 1, "{}", r.render());
+        let text = r.render();
+        assert!(text.contains("BLOCKED BY 'crate_1'"), "the failing walk must say which object stopped it:
+{text}");
+        let art = r.results[0].artifact.clone().expect("explain image");
+        assert!(art.exists(), "{}", art.display());
+    }
+
+    #[test]
+    fn auto_walk_checks_plan_their_own_route() {
+        // Straight through the crate would fail; auto goes around it.
+        let r = run_text(r#"{"walk":[{"name":"around the crate","from":[2,-2],"to":[2,3],"auto":true}]}"#);
+        assert_eq!(r.failed(), 0, "{}", r.render());
+        assert!(r.render().contains("route "), "the found route is printed so it can be pinned:
+{}", r.render());
+        // `auto` without a destination is a readable failure, not a panic.
+        let r = run_text(r#"{"walk":[{"name":"x","auto":true}]}"#);
+        assert_eq!(r.failed(), 1);
+    }
+
+    #[test]
+    fn only_selects_one_walk_entry_by_index_or_name() {
+        let dir = std::env::temp_dir().join("re2_verify_tests_only");
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("only.json");
+        std::fs::write(&p, scene(r#"{"lint":{"max_errors":99},"walk":[{"name":"first","path":"0,0; 3,-3"},{"name":"second one","path":"0,0; -3,-3"}]}"#)).unwrap();
+        let go = |only: &str| run(&p, &Options { skip_views: true, only: Some(only.into()), ..Default::default() }).unwrap();
+        assert_eq!(go("walk[1]").results.len(), 1, "{}", go("walk[1]").render());
+        assert!(go("walk[1]").results[0].name.contains("second one"));
+        assert_eq!(go("walk").results.len(), 2);
+        assert_eq!(go("second one").results.len(), 1);
+        assert_eq!(go("lint").results.len(), 1);
     }
 
     #[test]

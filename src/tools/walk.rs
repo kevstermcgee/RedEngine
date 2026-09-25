@@ -47,8 +47,14 @@ const MAX_LEG_TICKS: u32 = 60 * 60;
 /// Walks from `start` (feet on the floor at the spawn's ground height) through each waypoint.
 /// Stops at the first leg that fails.
 pub fn walk(world: &MapWorld, start: Vec2, path: &[Vec2]) -> Vec<WalkStep> {
+    walk_from(world, start, 0.0, path)
+}
+
+/// [`walk`] for a route that begins on an upper floor: `start_y` is a foot height near the wanted floor (the ground under
+/// `start` is the highest surface reachable from it, so `0.0` means the ground floor).
+pub fn walk_from(world: &MapWorld, start: Vec2, start_y: f32, path: &[Vec2]) -> Vec<WalkStep> {
     let mut pos = start;
-    let mut foot_y = crate::collide::ground_height_at(&world.ground, start, 0.0);
+    let mut foot_y = crate::collide::ground_height_at(&world.ground, start, start_y);
     let mut vy = 0.0f32;
     let mut out = Vec::new();
     for &target in path {

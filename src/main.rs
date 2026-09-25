@@ -90,7 +90,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
         Command::Lint { scene, strict, cell } => run_lint(&scene, envelope::capturing(), strict, cell),
         Command::Reach { scene, from, to, cell } => run_reach(&scene, from.as_deref(), to.as_deref(), cell, envelope::capturing()),
-        Command::Walk { scene, path, from } => run_walk(&scene, &path, from.as_deref()),
+        Command::Walk { scene, path, from, auto, to, cell, explain } => run_walk(&scene, path.as_deref(), from.as_deref(), auto, to.as_deref(), cell, explain.as_deref()),
         Command::Plan { scene, out, y, all_floors, ascii, ascii_cell, scale, bounds, labels, no_reach, no_lint } => {
             run_plan(&scene, out, y, all_floors, ascii, ascii_cell, scale, bounds.as_deref(), &labels, no_reach, no_lint)
         }
