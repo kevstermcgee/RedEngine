@@ -189,6 +189,11 @@ fn an_input_flood_is_rate_limited_and_hostile_values_cannot_move_a_player_off_th
         let yaw = wild[(rng.next() % wild.len() as u64) as usize];
         let seq = if k % 7 == 0 { rng.next() as u32 } else { k + 1 };
         sock.send_to(&input_packet(seq, 100, yaw), rig.addr).unwrap();
+        // Drain in batches: a real server reads as packets arrive, and Linux's loopback receive buffer (about 200 KB, counted in
+        // per-packet overhead) silently drops a 2000-packet burst nobody has read yet, which would make the count below meaningless.
+        if k % 100 == 99 {
+            rig.pump();
+        }
     }
     rig.pump();
     rig.pump();

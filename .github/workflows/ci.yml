@@ -37,7 +37,7 @@ jobs:
       - name: clippy
         run: cargo clippy --locked --all-targets -- -D warnings
       - name: tests
-        run: cargo test --locked
+        run: cargo test --locked --no-fail-fast
       - name: benches compile
         run: cargo bench --locked --no-run
       # Wall-clock bench regressions are NOT gated here: shared runners are too noisy. Run
@@ -65,7 +65,7 @@ jobs:
       - name: clippy (headless)
         run: cargo clippy --locked --no-default-features --all-targets -- -D warnings
       - name: tests (headless, incl. real-UDP server tests)
-        run: cargo test --locked --no-default-features
+        run: cargo test --locked --no-default-features --no-fail-fast
 
   # The container image people deploy: builds headless, starts, listens on UDP 27015 and exits cleanly.
   docker:

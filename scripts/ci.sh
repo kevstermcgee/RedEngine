@@ -11,7 +11,7 @@ echo "== clippy (warnings are errors) =="
 cargo clippy --locked --all-targets -- -D warnings
 
 echo "== tests (lib, integration, doctests) =="
-cargo test --locked
+cargo test --locked --no-fail-fast
 
 echo "== benches compile =="
 cargo bench --locked --no-run
@@ -24,6 +24,6 @@ fi
 echo "== headless server builds, lints and passes its tests without the gfx feature =="
 cargo build --locked --release --no-default-features --bin red_server --bin red_bot
 cargo clippy --locked --no-default-features --all-targets -- -D warnings
-cargo test --locked --no-default-features
+cargo test --locked --no-default-features --no-fail-fast
 
 echo "CI OK"
