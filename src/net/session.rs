@@ -364,9 +364,10 @@ mod tests {
             visible.iter().map(|o| &o.id).collect::<Vec<_>>()
         );
 
-        // The other player leaves: the avatar is hidden again.
+        // The other player leaves: the avatar is hidden again. Normally at once (the Bye); if the Bye is lost (or the bot had just timed out and
+        // has no session key to sign it with) the server's 3 s timeout is the fallback, so allow for that under a loaded machine.
         bot.client.disconnect();
-        let end = Instant::now() + Duration::from_millis(1500);
+        let end = Instant::now() + Duration::from_millis(6000);
         while Instant::now() < end && !visible_avatars(&scene).is_empty() {
             let now = Instant::now();
             session.poll(now);
