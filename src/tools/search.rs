@@ -48,6 +48,11 @@ const ADRS: &[(&str, &str)] = &[
         "0022-authoritative-interactions-per-prop-acks-and-interest.md",
         include_str!("../../docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md"),
     ),
+    ("0023-walk-failures-name-their-blocker-routes-are-planned.md", include_str!("../../docs/adr/0023-walk-failures-name-their-blocker-routes-are-planned.md")),
+    ("0024-the-framework-layer-blueprints-and-game-projects.md", include_str!("../../docs/adr/0024-the-framework-layer-blueprints-and-game-projects.md")),
+    ("0025-handoff-status-and-derived-doc-facts.md", include_str!("../../docs/adr/0025-handoff-status-and-derived-doc-facts.md")),
+    ("0026-a-headless-audited-ui-kit.md", include_str!("../../docs/adr/0026-a-headless-audited-ui-kit.md")),
+    ("0027-runs-anywhere-doctor-env-config-container-lf.md", include_str!("../../docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.

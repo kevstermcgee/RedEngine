@@ -27,6 +27,11 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0020](0020-game-rules-as-data-and-headless-scenarios.md) | Game rules as data (`vars`/`rules`), proven by headless scenarios (`sim`, `checks.sim`) | accepted |
 | [0021](0021-deterministic-traces-replay-and-checksums.md) | Deterministic traces, replay, and split checksums: the first divergent tick | accepted |
 | [0022](0022-authoritative-interactions-per-prop-acks-and-interest.md) | Authoritative pick-up/combat, per-prop acknowledgement, rooms-and-portals interest management | accepted |
+| [0023](0023-walk-failures-name-their-blocker-routes-are-planned.md) | Walk failures name their blocker (id, gap, passage width); routes are planned (`walk --auto`), not guessed | accepted |
+| [0024](0024-the-framework-layer-blueprints-and-game-projects.md) | The framework layer: blueprints compile to complete self-checking maps; games are projects that pin the engine, not forks | accepted |
+| [0025](0025-handoff-status-and-derived-doc-facts.md) | Handoff (`status`, STATUS.md) and doc facts derived from the repo, checked by a test | accepted |
+| [0026](0026-a-headless-audited-ui-kit.md) | A headless, audited UI kit: one layout drives painting, clicks and the audit; `ui-shot`, `ui-check` | accepted |
+| [0027](0027-runs-anywhere-doctor-env-config-container-lf.md) | Runs anywhere: `doctor`, env-var server config, container image, software GPU fallback, LF | accepted |
 
 ## Writing one
 

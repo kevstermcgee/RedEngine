@@ -4,9 +4,9 @@
 # It hides the environment: finds cargo (sourcing ~/.local/toolchain/env.sh or ~/.cargo/env if present), always
 # runs from the repo root, never prints colour codes, puts a timeout on everything, and prints how long each step took.
 #
-#   scripts/dev doctor                 what toolchain / binaries / git state does this machine have?
+#   scripts/dev doctor                 what toolchain / binaries / git state does this machine have? (`doctor-full`: the engine's own probe)
 #   scripts/dev fast                   unit tests only (seconds): `cargo test --lib`
-#   scripts/dev test [filter]          the whole suite (or tests whose name matches filter)
+#   scripts/dev test [filter]          the whole suite (or tests whose name matches filter); prints a summary, full log in out/logs/
 #   scripts/dev build [--headless]     debug build of the CLI, server, bot (and the game unless --headless)
 #   scripts/dev red <args...>          run the red_engine2 CLI (builds it first): `scripts/dev red lint maps/x.json`
 #   scripts/dev verify <scene> [...]   `red_engine2 verify` (extra args pass through: --only walk[1], --no-views)
@@ -42,6 +42,25 @@ run() { # run <label> <cmd...>: timeout + elapsed
   return $rc
 }
 
+logged() { # logged <name> <cmd...>: full output to out/logs/<name>.log, print only a summary (a whole suite is thousands of lines)
+  local name="$1"; shift
+  mkdir -p out/logs
+  local log="out/logs/$name.log"
+  run "$name" "$@" > "$log" 2>&1
+  local rc=$?
+  local tally
+  tally="$(grep -E '^test result' "$log" | awk '{p+=$4; f+=$6; i+=$8} END {print p+0 " passed, " f+0 " failed, " i+0 " ignored"}')"
+  case "$tally" in "0 passed, 0 failed, 0 ignored") ;; *) echo "$name: $tally" ;; esac
+  if [ $rc -ne 0 ]; then
+    grep -E '^(test .* FAILED|error(\[|:)|.*panicked at|failures:$)' "$log" | head -40
+    tail -n 5 "$log" | sed 's/^/  | /'
+  else
+    [ -n "$tally" ] || tail -n 3 "$log"
+  fi
+  echo "$name: full log in $log (exit $rc)"
+  return $rc
+}
+
 need_cargo() {
   command -v cargo >/dev/null 2>&1 || {
     echo "dev: cargo not found. Install Rust (https://rustup.rs) or point ~/.local/toolchain/env.sh at it." >&2
@@ -70,8 +89,8 @@ case "$cmd" in
     command -v python3 >/dev/null 2>&1 && echo "python3   $(python3 --version 2>&1)" || echo "python3   not found (only needed for benches/check.py and mcp_server.py)"
     [ -f STATUS.md ] && echo "status    STATUS.md exists: run 'scripts/dev status'" || echo "status    no STATUS.md yet: 'scripts/dev status --init'"
     ;;
-  fast)   need_cargo; run "unit tests" cargo test $PFLAG --lib "$@" ;;
-  test)   need_cargo; run "tests" cargo test $PFLAG "$@" ;;
+  fast)   need_cargo; logged unit-tests cargo test $PFLAG --lib "$@" ;;
+  test)   need_cargo; logged tests cargo test $PFLAG --no-fail-fast "$@" ;;
   build)
     need_cargo
     if [ "${1:-}" = "--headless" ]; then
@@ -88,7 +107,8 @@ case "$cmd" in
     run "build red_server" cargo build $PFLAG --no-default-features --bin red_server --quiet || exit $?
     exe="$ROOT/target/$PROFILE/red_server"; [ -x "$exe" ] || exe="$exe.exe"
     exec "$exe" --map "$@" ;;
-  ci)     need_cargo; run "ci" bash scripts/ci.sh ;;
+  ci)     need_cargo; logged ci bash scripts/ci.sh ;;
+  doctor-full) exe="$(cli)" || exit $?; "$exe" doctor ;;
   help|-h|--help) sed -n '2,25p' "$0" ;;
   *) echo "dev: unknown command '$cmd' (try: scripts/dev help)" >&2; exit 2 ;;
 esac

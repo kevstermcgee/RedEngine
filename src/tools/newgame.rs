@@ -189,7 +189,11 @@ pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBu
     let mut out = Vec::new();
     let engine_json = match (&engine.path, &engine.git) {
         (Some(p), _) => format!("{{ \"path\": \"{}\" }}", p.replace('\\', "/")),
-        (None, g) => format!("{{ \"git\": \"{}\", \"ref\": \"{}\" }}", g.clone().unwrap_or_else(|| "https://github.com/kevstermcgee/red-engine-2.git".into()), engine.git_ref.clone().unwrap_or_else(|| "master".into())),
+        (None, g) => format!(
+            "{{ \"git\": \"{}\", \"ref\": \"{}\" }}",
+            g.clone().unwrap_or_else(|| "https://github.com/kevstermcgee/red-engine-2.git".into()),
+            engine.git_ref.clone().unwrap_or_else(|| "master".into())
+        ),
     };
     write(
         dir,

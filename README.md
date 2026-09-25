@@ -14,6 +14,11 @@ workflow: how to inspect, edit, lint and visually review a map with the built-in
 stairs, props, keyframes, the humanoid rig). Both are written to be read once and used directly —
 you shouldn't need to read the engine's source to build or change a map.
 
+**Building a game on Red?** Do not fork this repository. Run `red_engine2 new-game ../mygame --name mygame --engine-path ../red-engine-2`
+(a project that pins the engine, with a blueprint, a map, `scripts/red`, `STATUS.md` and CI; ADR 0024), read [`CLAUDE.md`](CLAUDE.md) (4 KB) and
+`red_engine2 describe --brief` (1 KB) first, and host it with [`docs/HOSTING.md`](docs/HOSTING.md). Why the tooling looks the way it does:
+[`docs/analysis/2026-09-24-cheddar-feedback.md`](docs/analysis/2026-09-24-cheddar-feedback.md).
+
 ## Why this design
 
 - **JSON in, MP4 out.** The scene format is the entire interface — a data file, cheap to

@@ -499,18 +499,48 @@ runs them all with the real engine code and prints PASS/FAIL with evidence (exit
   "lint":    { "max_errors": 0, "max_warnings": 3, "forbid": ["leak"] },
   "reach":   [ { "to": [3, -1.5], "why": "kitchen reachable" } ],
   "walk":    [ { "name": "front door to bedroom", "path": "0,8; 1.5,4; -3.25,-2.9; -3.25,2.9",
-                 "ends_near": [0.5, -0.5], "tol": 0.35, "floor_y": 3.0 } ],
+                 "ends_near": [0.5, -0.5], "tol": 0.35, "floor_y": 3.0 },
+                { "name": "kitchen to the stairs", "from": [3, 2], "to": [-1, 5], "auto": true } ],
   "objects": { "exist": ["sofa_1"], "absent": ["debug_cube"], "min_count": 30,
                "count": [ { "kind": "prefab:chair_wooden_1", "min": 2 } ] },
   "views":   [ { "name": "living", "eye": [-4.4, 1.7, 2.4], "at": [-2.4, 0.7, -1.8], "fov": 75, "max_diff": 0.01 } ]
 }
 ```
 
-`walk` replays the route with the per-tick player physics (see [Physics rules](#physics-rules-a-map-author-must-know));
+`walk` replays the route with the per-tick player physics (see [Physics rules](#physics-rules-a-map-author-must-know)). An entry with
+`"to": [x, z]` and `"auto": true` (no `path`) plans its own route on every run and prints it (`from_y` / `to_y` pick floors); a failing entry
+names the object that blocked it and writes `out/verify/<scene>_walk<N>_explain.png`;
 `views` are golden-image regression tests (`golden/<scene>/<name>.png` beside the scene; recorded on
 first run or with `--bless`; on failure a `golden | now | diff` image is written under `out/verify/`).
-`verify --no-views` skips rendering (no GPU), `--only walk` runs a subset; add the global `--json` for the machine-readable envelope.
+`verify --no-views` skips rendering (no GPU), `--only walk` / `--only walk[2]` / `--only "front door"` runs a subset (every check is timed); add the global `--json` for the machine-readable envelope.
 `checks.sim` holds headless gameplay scenarios (see [Game rules as data](#game-rules-as-data-vars-rules)).
+
+## Blueprints (`red_engine2 build`)
+
+A blueprint is the short way to make a whole map: rooms, doors, spawns and prop fill in about twenty lines, compiled into a complete scene
+whose `checks` already pass (`red_engine2 build --example` prints a working one; `describe` lists the command). It is a separate JSON
+document with `"blueprint": 1`; unknown keys are errors with a did-you-mean. Coordinates are metres, `[x0, z0, x1, z1]` rectangles, +Y up.
+
+| Key | Meaning |
+|---|---|
+| `blueprint` | Format version, `1`. |
+| `name` | Map name (used in the summary and the `x-blueprint` note). |
+| `height` | Wall height, default `2.8` (2.3 to 8). |
+| `ceiling` | `true` adds a slab over every room (default `false`: open top, lit by the sun and lamps). |
+| `rooms` | List of rooms; each has an `id` (letters, digits, `_`, `-`), a `rect` (`[x0, z0, x1, z1]`), an optional `floor` colour (hex) and an optional `lamp` (`false` skips the room's lights; at most 15 lamps in total). Rects may touch along an edge but not overlap. |
+| `doors` | List of openings; each names the two rooms it joins in `between` (`["hall", "store"]`, they must share a wall), and may set `width` (default 1.4, at least 0.9), `at` (offset from the middle of the shared wall) and `kind` (`door` or `arch`). Doors also become `portals` (interest management for the server). |
+| `spawns` | List of spawn requests; each has a `room`, an optional `group` (`red_server --spawn-group`), a `count` of points spread around the room facing its centre (a lone spawn faces the first door) and an optional `id` prefix. |
+| `fill` | List of prop fills; each has a `room`, a `kind` (a prop name or a list; see `props`), a `count`, a `seed`, a `scale` range (`[0.9, 1.15]`), `colors`, `min_gap`, `clearance` and an `id` prefix. Placed by `scatter` while keeping door pads, aisles between doors, spawn pads and `keep_clear` free. |
+| `keep_clear` | Extra `[x0, z0, x1, z1]` rectangles fill must leave empty. |
+| `extra` | Raw scene objects appended verbatim (prefabs, stairs, anything the blueprint cannot say). |
+| `prefab_files` | Paths (relative to the blueprint) of prefab libraries in the `assets/*.json` format, merged into the built scene's `prefabs`. A game ships its own props this way without touching the engine (place instances with `extra`); the map stays self-contained for the server. |
+| `scene` | Raw top-level scene keys merged into the result (`vars`, `rules`, `weapons`, `checks.sim`, ...); a `checks` object merges into the generated one. |
+
+What comes out: a `floor_<room>` plane per room; `wall_ext_N` (0.24 thick) around free edges and `part_N` (0.15) on shared ones, with the
+door openings; a `sun` and one lamp per 8 x 8 m of room; `zones`, `spawns`, `portals` and `interest`; a camera at the first spawn; and `checks`:
+lint (0 errors, the warnings found at build time), one `reach` per room, one `auto` walk from the first spawn to every other room, an object
+count. The output is deterministic, so `red_engine2 build bp.json --check` fails (exit 1) when the committed map differs from what the blueprint
+builds. A game project (`red_engine2 new-game`, `game check`) wires blueprints, maps and the server together; see ADR 0024.
 
 ## Validation
 

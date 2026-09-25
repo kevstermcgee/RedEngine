@@ -10,6 +10,10 @@
 //! snapshots over UDP to whoever joins (`re2 --connect HOST:PORT`, or `red_bot`). No window, no GPU
 //! is used. The first output line is `LISTENING <addr>` so scripts can find the port (`--port 0`
 //! picks a free one).
+//!
+//! Every setting can also come from the environment (a flag wins over a variable), which is what containers and
+//! process managers want: `RED_MAP`, `RED_PORT`, `RED_BIND`, `RED_SPAWN_GROUP`, `RED_SNAPSHOT_EVERY`, `RED_TIMEOUT_MS`,
+//! `RED_STATS_SECS`, `RED_RUN_FOR`. SIGTERM (`docker stop`, systemd) and Ctrl-C both stop it cleanly.
 
 use red_engine2::net::server::{raise_timer_resolution, Server, ServerConfig};
 use red_engine2::net::{map_hash, DEFAULT_PORT};
@@ -29,10 +33,29 @@ fn usage() -> ! {
     std::process::exit(2);
 }
 
+/// A setting from the environment, parsed; a set-but-malformed value is an error rather than silently ignored.
+fn env<T: std::str::FromStr>(name: &str) -> Option<T> {
+    let raw = std::env::var(name).ok().filter(|v| !v.is_empty())?;
+    match raw.parse() {
+        Ok(v) => Some(v),
+        Err(_) => {
+            eprintln!("{name}='{raw}' is not a valid value");
+            std::process::exit(2);
+        }
+    }
+}
+
 fn main() {
-    let mut map = PathBuf::from("examples/test_lab.json");
-    let (mut port, mut bind): (u16, IpAddr) = (DEFAULT_PORT, "0.0.0.0".parse().unwrap());
-    let (mut group, mut kick, mut every, mut timeout_ms, mut stats_secs, mut run_for) = (String::new(), None::<String>, 2u8, 3000u64, 5u64, None::<f64>);
+    let mut map = env::<PathBuf>("RED_MAP").unwrap_or_else(|| PathBuf::from("examples/test_lab.json"));
+    let (mut port, mut bind): (u16, IpAddr) = (env("RED_PORT").unwrap_or(DEFAULT_PORT), env("RED_BIND").unwrap_or_else(|| "0.0.0.0".parse().unwrap()));
+    let (mut group, mut kick, mut every, mut timeout_ms, mut stats_secs, mut run_for) = (
+        env::<String>("RED_SPAWN_GROUP").unwrap_or_default(),
+        None::<String>,
+        env("RED_SNAPSHOT_EVERY").unwrap_or(2u8),
+        env("RED_TIMEOUT_MS").unwrap_or(3000u64),
+        env("RED_STATS_SECS").unwrap_or(5u64),
+        env::<f64>("RED_RUN_FOR"),
+    );
     let (mut record, mut record_every, mut no_interest) = (None::<PathBuf>, 6u32, false);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -142,7 +165,7 @@ fn main() {
         });
     }
     {
-        // Ctrl-C stops the server cleanly (clients get a Bye, a --record trace is written).
+        // Ctrl-C and SIGTERM (docker stop, systemd) stop the server cleanly: clients get a Bye, a --record trace is written.
         let s = stop.clone();
         if let Err(e) = ctrlc::set_handler(move || s.store(true, Ordering::Relaxed)) {
             eprintln!("note: Ctrl-C will not stop the server gracefully ({e})");

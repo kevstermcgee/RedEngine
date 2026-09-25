@@ -203,10 +203,17 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
     for msg in unknown_check_keys(&checks) {
         results.push(fail("checks", msg));
     }
-    let r = reach::compute(&world, &ReachParams::default());
-    let findings = lint::lint(&world, &r);
+    // The reachability grid is the expensive part (seconds on a big map): compute it once, and only when a selected check needs it.
+    let wants_lint = checks.get("lint").is_some() && selected(opts, "lint");
+    let wants_reach = checks.get("reach").is_some() && selected(opts, "reach");
+    let t_base = std::time::Instant::now();
+    let base = (wants_lint || wants_reach).then(|| reach::compute(&world, &ReachParams::default()));
+    let mut pending_ms = t_base.elapsed().as_millis() as u64; // charged to the first check that uses it
+    let mut from_cache: Vec<(Vec2, reach::Reach)> = Vec::new();
 
-    if let Some(l) = checks.get("lint").filter(|_| selected(opts, "lint")) {
+    if let Some(l) = checks.get("lint").filter(|_| wants_lint) {
+        let t0 = std::time::Instant::now();
+        let findings = base.as_ref().map(|r| lint::lint(&world, r)).unwrap_or_default();
         let max_e = l.get("max_errors").and_then(Value::as_u64).unwrap_or(0) as usize;
         let max_w = l.get("max_warnings").and_then(Value::as_u64);
         let forbid: Vec<&str> = l.get("forbid").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
@@ -220,10 +227,10 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
                 detail.push_str(&format!("\n     [{}] {}", f.code, f.message));
             }
         }
-        results.push(CheckResult { name: "lint".into(), ok, detail, artifact: None, ms: 0 });
+        results.push(CheckResult { name: "lint".into(), ok, detail, artifact: None, ms: t0.elapsed().as_millis() as u64 + std::mem::take(&mut pending_ms) });
     }
 
-    if let Some(arr) = checks.get("reach").and_then(Value::as_array).filter(|_| selected(opts, "reach")) {
+    if let Some(arr) = checks.get("reach").and_then(Value::as_array).filter(|_| wants_reach) {
         for (i, c) in arr.iter().enumerate() {
             let name = format!("reach[{i}]{}", c.get("why").and_then(Value::as_str).map(|w| format!(" {w}")).unwrap_or_default());
             if !item_selected(opts, &name) {
@@ -233,17 +240,33 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
                 results.push(fail(name, "needs \"to\": [x,z] or [x,z,y]"));
                 continue;
             };
-            let rr = match c.get("from").and_then(v2) {
-                Some(s) => reach::compute(&world, &ReachParams { start: Some(s), ..Default::default() }),
-                None => reach::compute(&world, &ReachParams::default()),
+            let t0 = std::time::Instant::now();
+            // Entries without `from` share the base grid; each distinct `from` is computed once.
+            let rr: &reach::Reach = match c.get("from").and_then(v2) {
+                Some(start) => {
+                    let idx = match from_cache.iter().position(|(p, _)| *p == start) {
+                        Some(i) => i,
+                        None => {
+                            from_cache.push((start, reach::compute(&world, &ReachParams { start: Some(start), ..Default::default() })));
+                            from_cache.len() - 1
+                        }
+                    };
+                    &from_cache[idx].1
+                }
+                None => match base.as_ref() {
+                    Some(b) => b,
+                    None => continue,
+                },
             };
             let p = Vec2::new(to[0], to[1]);
             let ok = if to.len() == 3 { rr.reachable(p, to[2], 0.3) } else { !rr.levels_at(p).is_empty() };
-            results.push(if ok {
+            let mut r = if ok {
                 pass(name, format!("({:.1}, {:.1}) reachable", p.x, p.y))
             } else {
                 fail(name, format!("({:.1}, {:.1}) is NOT reachable from the start", p.x, p.y))
-            });
+            };
+            r.ms = t0.elapsed().as_millis() as u64 + std::mem::take(&mut pending_ms);
+            results.push(r);
         }
     }
 
@@ -263,18 +286,27 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
     }
 
     if let Some(o) = checks.get("objects").filter(|_| selected(opts, "objects")) {
+        let t0 = std::time::Instant::now();
+        let first = results.len();
         results.extend(check_objects(&world, o));
+        stamp(&mut results[first..], t0);
     }
 
     if checks.get("sim").is_some() && selected(opts, "sim") {
+        let t0 = std::time::Instant::now();
+        let first = results.len();
         match super::simrun::verify_checks(path, None) {
             Ok(rows) => results.extend(rows.into_iter().map(|(name, ok, detail)| if ok { pass(name, detail) } else { fail(name, detail) })),
             Err(e) => results.push(fail("sim", e)),
         }
+        stamp(&mut results[first..], t0);
     }
 
     if let Some(arr) = checks.get("views").and_then(Value::as_array).filter(|_| selected(opts, "view") && !opts.skip_views) {
+        let t0 = std::time::Instant::now();
+        let first = results.len();
         results.extend(check_views(path, arr, opts)?);
+        stamp(&mut results[first..], t0);
     }
 
     // Free text after --only ("front door") selects individual checks by name across every group.
@@ -307,7 +339,8 @@ fn check_walk(world: &MapWorld, c: &Value, name: String, explain_out: &Path) -> 
             }
             Err(e) => {
                 let steps = super::walk::walk_from(world, start, from_y.unwrap_or(0.0), &[to]);
-                let why = steps.last().filter(|s| !s.reached).map(|s| format!(" ({})", pathing::diagnose(world, s.pos, s.foot_y, to).one_line())).unwrap_or_default();
+                let why =
+                    steps.last().filter(|s| !s.reached).map(|s| format!(" ({})", pathing::diagnose(world, s.pos, s.foot_y, to).one_line())).unwrap_or_default();
                 return fail(name, format!("no route to ({:.1}, {:.1}): {e}{why}", to.x, to.y));
             }
         }
@@ -324,16 +357,26 @@ fn check_walk(world: &MapWorld, c: &Value, name: String, explain_out: &Path) -> 
     let steps = super::walk::walk_from(world, start, from_y.unwrap_or(0.0), &wps);
     if steps.len() < wps.len() || steps.last().is_some_and(|l| !l.reached) {
         let Some(l) = steps.last() else { return fail(name, "could not start") };
-        let diag = pathing::diagnose(world, l.pos, l.foot_y, l.target);
+        // One flood from the stop point serves both the diagnosis and the picture (it is the slow part on a big map).
+        let rr = super::reach::compute(world, &super::reach::ReachParams { start: Some(l.pos), ..Default::default() });
+        let diag = pathing::diagnose_with(world, l.pos, l.foot_y, l.target, &rr);
         // Full diagnosis under the headline (indented like lint findings), plus a picture of the stop.
-        let mut detail = format!("stuck on leg {} toward ({:.1}, {:.1}); stopped at ({:.2}, {:.2}) y={:.2}", steps.len(), l.target.x, l.target.y, l.pos.x, l.pos.y, l.foot_y);
+        let mut detail = format!(
+            "stuck on leg {} toward ({:.1}, {:.1}); stopped at ({:.2}, {:.2}) y={:.2}",
+            steps.len(),
+            l.target.x,
+            l.target.y,
+            l.pos.x,
+            l.pos.y,
+            l.foot_y
+        );
         for line in diag.render().lines().skip(1) {
             detail.push_str("\n     ");
             detail.push_str(line.trim_start());
         }
         let mut r = fail(name, detail);
         if let Some(dir) = explain_out.parent() {
-            if std::fs::create_dir_all(dir).is_ok() && pathing::explain_image(world, start, &wps, &steps, Some(&diag)).save(explain_out).is_ok() {
+            if std::fs::create_dir_all(dir).is_ok() && pathing::explain_image(world, start, &wps, &steps, Some(&diag), Some(&rr)).save(explain_out).is_ok() {
                 r.artifact = Some(explain_out.to_path_buf());
             }
         }
@@ -358,6 +401,17 @@ fn check_walk(world: &MapWorld, c: &Value, name: String, explain_out: &Path) -> 
         pass(name, detail)
     } else {
         fail(name, detail)
+    }
+}
+
+/// Splits the time since `t0` evenly across the results a group produced (one number per check, so a slow group is visible).
+fn stamp(group: &mut [CheckResult], t0: std::time::Instant) {
+    if group.is_empty() {
+        return;
+    }
+    let each = t0.elapsed().as_millis() as u64 / group.len() as u64;
+    for r in group {
+        r.ms = each;
     }
 }
 
@@ -550,8 +604,11 @@ mod tests {
         let r = run(&p, &Options { skip_views: true, out_dir: Some(dir.clone()), ..Default::default() }).unwrap();
         assert_eq!(r.failed(), 1, "{}", r.render());
         let text = r.render();
-        assert!(text.contains("BLOCKED BY 'crate_1'"), "the failing walk must say which object stopped it:
-{text}");
+        assert!(
+            text.contains("BLOCKED BY 'crate_1'"),
+            "the failing walk must say which object stopped it:
+{text}"
+        );
         let art = r.results[0].artifact.clone().expect("explain image");
         assert!(art.exists(), "{}", art.display());
     }
@@ -561,8 +618,12 @@ mod tests {
         // Straight through the crate would fail; auto goes around it.
         let r = run_text(r#"{"walk":[{"name":"around the crate","from":[2,-2],"to":[2,3],"auto":true}]}"#);
         assert_eq!(r.failed(), 0, "{}", r.render());
-        assert!(r.render().contains("route "), "the found route is printed so it can be pinned:
-{}", r.render());
+        assert!(
+            r.render().contains("route "),
+            "the found route is printed so it can be pinned:
+{}",
+            r.render()
+        );
         // `auto` without a destination is a readable failure, not a panic.
         let r = run_text(r#"{"walk":[{"name":"x","auto":true}]}"#);
         assert_eq!(r.failed(), 1);
@@ -573,7 +634,8 @@ mod tests {
         let dir = std::env::temp_dir().join("re2_verify_tests_only");
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.join("only.json");
-        std::fs::write(&p, scene(r#"{"lint":{"max_errors":99},"walk":[{"name":"first","path":"0,0; 3,-3"},{"name":"second one","path":"0,0; -3,-3"}]}"#)).unwrap();
+        std::fs::write(&p, scene(r#"{"lint":{"max_errors":99},"walk":[{"name":"first","path":"0,0; 3,-3"},{"name":"second one","path":"0,0; -3,-3"}]}"#))
+            .unwrap();
         let go = |only: &str| run(&p, &Options { skip_views: true, only: Some(only.into()), ..Default::default() }).unwrap();
         assert_eq!(go("walk[1]").results.len(), 1, "{}", go("walk[1]").render());
         assert!(go("walk[1]").results[0].name.contains("second one"));

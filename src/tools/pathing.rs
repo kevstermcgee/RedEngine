@@ -189,8 +189,15 @@ fn passage_width(colliders: &[Collider2D], foot_y: f32, at: Vec2, heading: Vec2)
     Some(l + r)
 }
 
-/// Explains where and why a walk leg stopped at `pos` (feet at `foot_y`) heading for `target`.
+/// Explains where and why a walk leg stopped at `pos` (feet at `foot_y`) heading for `target`. Computes the reachability
+/// grid itself; use [`diagnose_with`] to share one you already have (it is the slow part on a big map).
 pub fn diagnose(world: &MapWorld, pos: Vec2, foot_y: f32, target: Vec2) -> Diagnosis {
+    let rr = super::reach::compute(world, &super::reach::ReachParams { start: Some(pos), ..Default::default() });
+    diagnose_with(world, pos, foot_y, target, &rr)
+}
+
+/// [`diagnose`] with a reachability grid flooded from `pos` supplied by the caller.
+pub fn diagnose_with(world: &MapWorld, pos: Vec2, foot_y: f32, target: Vec2, rr: &super::reach::Reach) -> Diagnosis {
     let heading = (target - pos).normalize_or_zero();
     let mut blockers: Vec<Blocker> = Vec::new();
     for c in world.colliders.iter().filter(|c| collider_blocks_at(c, foot_y)) {
@@ -214,7 +221,6 @@ pub fn diagnose(world: &MapWorld, pos: Vec2, foot_y: f32, target: Vec2) -> Diagn
         .fold(None, |m: Option<f32>, w| Some(m.map_or(w, |m| m.min(w))))
         .map(|width| Clearance { width, needed });
 
-    let rr = super::reach::compute(world, &super::reach::ReachParams { start: Some(pos), ..Default::default() });
     let reachable = !rr.levels_at(target).is_empty();
 
     let mut summary = String::new();
@@ -229,8 +235,14 @@ pub fn diagnose(world: &MapWorld, pos: Vec2, foot_y: f32, target: Vec2) -> Diagn
     }
     if reachable {
         summary.push_str("`reach` agrees the target is reachable from here, so the straight leg is what is obstructed: `red_engine2 walk <scene> --auto --from X,Z --to X,Z` plans a route around it.");
+    } else if let Some(b) = blockers.iter().find(|b| b.ahead) {
+        summary.push_str(&format!(
+            "Even a flood fill cannot reach the target from here, and '{}' is what seals the way: remove or move it, or open another route.",
+            b.id
+        ));
     } else {
-        summary.push_str("Even a flood fill cannot reach the target from here: a wall/door/stairs/slab is sealing it (see `red_engine2 lint`, `plan --bounds`).");
+        summary
+            .push_str("Even a flood fill cannot reach the target from here: a wall/door/stairs/slab is sealing it (see `red_engine2 lint`, `plan --bounds`).");
     }
     Diagnosis { pos, foot_y, target, blockers, clearance, reachable, summary }
 }
@@ -273,6 +285,8 @@ impl Route {
 }
 
 type Key = (u32, u32, i32);
+/// An open-set entry, smallest first: `(f cost mm, ix, iz, y bucket, g cost mm)`.
+type OpenNode = Reverse<(u32, u32, u32, i32, u32)>;
 
 fn round2(v: Vec2) -> Vec2 {
     Vec2::new((v.x * 100.0).round() / 100.0, (v.y * 100.0).round() / 100.0)
@@ -320,7 +334,7 @@ fn astar(world: &MapWorld, from: Vec2, from_y: f32, to: Vec2, opts: &RouteOption
 
     let goal_ok = |p: Vec2, y: f32| (p - to).length() <= cell * 1.5 && opts.to_y.is_none_or(|ty| (y - ty).abs() <= 0.3);
     let h = |p: Vec2| (p - to).length();
-    let mut open: BinaryHeap<Reverse<(u32, u32, u32, i32, u32)>> = BinaryHeap::new(); // (f_mm, ix, iz, y_bucket, g_mm)
+    let mut open: BinaryHeap<OpenNode> = BinaryHeap::new();
     let mut best_g: HashMap<Key, f32> = HashMap::new();
     let mut parent: HashMap<Key, Key> = HashMap::new();
     let mut ys: HashMap<Key, f32> = HashMap::new();
@@ -452,10 +466,14 @@ pub fn plan_route(world: &MapWorld, from: Vec2, to: Vec2, opts: &RouteOptions) -
         let length: f32 = cells.windows(2).map(|w| (w[1].0 - w[0].0).length()).sum();
         // Candidate waypoint sets, most economical first: physics-simplified, then a dense fallback every ~0.6 m.
         let simplified: Vec<Vec2> = simplify(world, &cells).into_iter().map(round2).collect();
-        let dense: Vec<Vec2> = cells.iter().skip(1).step_by(((0.6 / opts.cell).round() as usize).max(1)).map(|c| round2(c.0)).chain(std::iter::once(round2(to))).collect();
+        let dense: Vec<Vec2> =
+            cells.iter().skip(1).step_by(((0.6 / opts.cell).round() as usize).max(1)).map(|c| round2(c.0)).chain(std::iter::once(round2(to))).collect();
         for wps in [simplified, dense] {
             let steps = walk_from(world, from, from_y, &wps);
-            if steps.len() == wps.len() && steps.iter().all(|s| s.reached) && opts.to_y.is_none_or(|ty| steps.last().is_some_and(|s| (s.foot_y - ty).abs() <= 0.3)) {
+            if steps.len() == wps.len()
+                && steps.iter().all(|s| s.reached)
+                && opts.to_y.is_none_or(|ty| steps.last().is_some_and(|s| (s.foot_y - ty).abs() <= 0.3))
+            {
                 return Ok(Route { waypoints: wps, steps, margin, length });
             }
             last_err = match steps.last() {
@@ -469,7 +487,14 @@ pub fn plan_route(world: &MapWorld, from: Vec2, to: Vec2, opts: &RouteOptions) -
 
 /// A plan image of a walk: the route (yellow numbered path), where it stopped (red ring at the real body radius), the
 /// objects touching the player (red boxes with ids) and the walkable area, zoomed to the action. `walk --explain out.png`.
-pub fn explain_image(world: &MapWorld, start: Vec2, waypoints: &[Vec2], steps: &[WalkStep], diag: Option<&Diagnosis>) -> image::RgbImage {
+pub fn explain_image(
+    world: &MapWorld,
+    start: Vec2,
+    waypoints: &[Vec2],
+    steps: &[WalkStep],
+    diag: Option<&Diagnosis>,
+    reach: Option<&super::reach::Reach>,
+) -> image::RgbImage {
     use super::plan::{render_png, Overlay, PlanOptions};
     let mut pts = vec![start];
     pts.extend(waypoints.iter().copied());
@@ -500,8 +525,15 @@ pub fn explain_image(world: &MapWorld, start: Vec2, waypoints: &[Vec2], steps: &
     overlays.push(Overlay::Marker { at: start, label: "START".into(), color: [120, 170, 255] });
     let pad = Vec2::splat(if ok { 3.0 } else { 2.5 });
     let opts = PlanOptions { y, scale: 60.0, bounds: Some((lo - pad, hi + pad)), overlays, ..Default::default() };
-    let reach = super::reach::compute(world, &super::reach::ReachParams { start: Some(start), ..Default::default() });
-    render_png(world, Some(&reach), &[], &opts)
+    let computed;
+    let reach = match reach {
+        Some(r) => r,
+        None => {
+            computed = super::reach::compute(world, &super::reach::ReachParams { start: Some(start), ..Default::default() });
+            &computed
+        }
+    };
+    render_png(world, Some(reach), &[], &opts)
 }
 
 #[cfg(test)]
@@ -523,8 +555,10 @@ mod tests {
 
     #[test]
     fn diagnosis_names_the_object_in_the_way() {
-        let w = world(r##"{"camera":{"position":[0,1.7,-3]},"objects":[
-            {"id":"crate_a","type":"prop","prop":"crate","position":[0,0,0],"material":{"color":"#aa8844"}}]}"##);
+        let w = world(
+            r##"{"camera":{"position":[0,1.7,-3]},"objects":[
+            {"id":"crate_a","type":"prop","prop":"crate","position":[0,0,0],"material":{"color":"#aa8844"}}]}"##,
+        );
         // Walk straight at the crate and stop against it.
         let steps = walk_from(&w, Vec2::new(0.0, -3.0), 0.0, &[Vec2::new(0.0, 3.0)]);
         let last = steps.last().unwrap();
@@ -540,9 +574,11 @@ mod tests {
     #[test]
     fn diagnosis_reports_a_passage_narrower_than_the_body() {
         // Two blocks 0.5 m apart (the body needs 0.6 m).
-        let w = world(r##"{"camera":{"position":[0,1.7,-3]},"objects":[
+        let w = world(
+            r##"{"camera":{"position":[0,1.7,-3]},"objects":[
             {"id":"left","type":"box","size":[2,2.5,0.4],"position":[-1.25,1.25,0]},
-            {"id":"right","type":"box","size":[2,2.5,0.4],"position":[1.25,1.25,0]}]}"##);
+            {"id":"right","type":"box","size":[2,2.5,0.4],"position":[1.25,1.25,0]}]}"##,
+        );
         let steps = walk_from(&w, Vec2::new(0.0, -3.0), 0.0, &[Vec2::new(0.0, 3.0)]);
         let last = steps.last().unwrap();
         assert!(!last.reached, "a 0.5 m gap must stop a 0.6 m body");
@@ -599,9 +635,11 @@ mod tests {
 
     #[test]
     fn auto_route_reports_a_sealed_target() {
-        let w = world(r##"{"camera":{"position":[0,1.7,-3]},"objects":[
+        let w = world(
+            r##"{"camera":{"position":[0,1.7,-3]},"objects":[
             {"id":"n","type":"wall","from":[-2,2],"to":[2,2]},{"id":"e","type":"wall","from":[2,2],"to":[2,6]},
-            {"id":"s","type":"wall","from":[2,6],"to":[-2,6]},{"id":"w","type":"wall","from":[-2,6],"to":[-2,2]}]}"##);
+            {"id":"s","type":"wall","from":[2,6],"to":[-2,6]},{"id":"w","type":"wall","from":[-2,6],"to":[-2,2]}]}"##,
+        );
         assert!(plan_route(&w, Vec2::new(0.0, -3.0), Vec2::new(0.0, 4.0), &RouteOptions::default()).is_err());
     }
 }

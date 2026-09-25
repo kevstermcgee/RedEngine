@@ -122,7 +122,8 @@ pub fn parse(dir: &Path, text: &str) -> Result<GameConfig, Vec<String>> {
 /// Loads `<dir>/game.json`.
 pub fn load(dir: &Path) -> Result<GameConfig, Vec<String>> {
     let p = dir.join("game.json");
-    let text = std::fs::read_to_string(&p).map_err(|e| vec![format!("{}: {e} (run this in a game project, or `red_engine2 new-game <dir>` to make one)", p.display())])?;
+    let text = std::fs::read_to_string(&p)
+        .map_err(|e| vec![format!("{}: {e} (run this in a game project, or `red_engine2 new-game <dir>` to make one)", p.display())])?;
     parse(dir, &text)
 }
 
@@ -187,7 +188,8 @@ pub fn build_all(cfg: &GameConfig) -> Vec<Line> {
                 continue;
             }
         };
-        let compiled = serde_json::from_str::<Value>(&text).map_err(|e| vec![format!("not valid JSON: {e}")]).and_then(|v| blueprint::compile(&v));
+        let compiled =
+            serde_json::from_str::<Value>(&text).map_err(|e| vec![format!("not valid JSON: {e}")]).and_then(|v| blueprint::compile_in(&v, path.parent()));
         match compiled {
             Ok(b) => {
                 let dest = map_for(cfg, bp);
@@ -195,7 +197,14 @@ pub fn build_all(cfg: &GameConfig) -> Vec<Line> {
                     let _ = std::fs::create_dir_all(parent);
                 }
                 match std::fs::write(&dest, &b.scene_text) {
-                    Ok(()) => out.push(Line { failed: b.errors() > 0, text: format!("{bp} -> {} ({})", dest.strip_prefix(&cfg.dir).unwrap_or(&dest).display(), b.summary.first().cloned().unwrap_or_default()) }),
+                    Ok(()) => out.push(Line {
+                        failed: b.errors() > 0,
+                        text: format!(
+                            "{bp} -> {} ({})",
+                            dest.strip_prefix(&cfg.dir).unwrap_or(&dest).display(),
+                            b.summary.first().cloned().unwrap_or_default()
+                        ),
+                    }),
                     Err(e) => out.push(Line { failed: true, text: format!("{}: {e}", dest.display()) }),
                 }
             }
@@ -210,7 +219,10 @@ pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
     let mut lines = Vec::new();
     for bp in &cfg.blueprints {
         let path = cfg.dir.join(bp);
-        let compiled = std::fs::read_to_string(&path).map_err(|e| vec![e.to_string()]).and_then(|t| serde_json::from_str::<Value>(&t).map_err(|e| vec![format!("not valid JSON: {e}")])).and_then(|v| blueprint::compile(&v));
+        let compiled = std::fs::read_to_string(&path)
+            .map_err(|e| vec![e.to_string()])
+            .and_then(|t| serde_json::from_str::<Value>(&t).map_err(|e| vec![format!("not valid JSON: {e}")]))
+            .and_then(|v| blueprint::compile_in(&v, path.parent()));
         match compiled {
             Err(errs) => lines.push(Line { failed: true, text: format!("blueprint {bp}: {}", errs.join("\n     ")) }),
             Ok(b) => {
@@ -281,7 +293,12 @@ pub fn info(cfg: &GameConfig) -> String {
         }
     ));
     s.push_str(&format!("blueprints  {}\nmaps        {}\n", cfg.blueprints.join(", "), cfg.maps.join(", ")));
-    s.push_str(&format!("server   udp {} on {}{}\n", cfg.server.port, cfg.server.map, if cfg.server.spawn_group.is_empty() { String::new() } else { format!(" (spawn group {})", cfg.server.spawn_group) }));
+    s.push_str(&format!(
+        "server   udp {} on {}{}\n",
+        cfg.server.port,
+        cfg.server.map,
+        if cfg.server.spawn_group.is_empty() { String::new() } else { format!(" (spawn group {})", cfg.server.spawn_group) }
+    ));
     s.push_str("commands scripts/red check | build-all | serve | play [HOST:PORT] | <any red_engine2 command>\n");
     s
 }

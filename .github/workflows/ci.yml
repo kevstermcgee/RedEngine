@@ -66,3 +66,16 @@ jobs:
         run: cargo clippy --locked --no-default-features --all-targets -- -D warnings
       - name: tests (headless, incl. real-UDP server tests)
         run: cargo test --locked --no-default-features
+
+  # The container image people deploy: builds headless, starts, listens on UDP 27015 and exits cleanly.
+  docker:
+    name: container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t red-server .
+      - name: starts, listens, stops cleanly
+        run: |
+          docker run --rm red-server --run-for 3 --stats-secs 0 | tee out.txt
+          grep -q '^LISTENING 0.0.0.0:27015' out.txt
+          grep -q '^stopped:' out.txt

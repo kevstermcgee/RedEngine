@@ -40,11 +40,16 @@ const MIN_DOOR: f32 = 0.9;
 const MAX_LAMPS: usize = 15;
 const FLOOR_COLORS: [&str; 6] = ["#8f9aa8", "#a89f8f", "#8fa895", "#a88f9d", "#9fa8b8", "#b0a688"];
 
-const TOP_KEYS: &[&str] = &["blueprint", "name", "height", "ceiling", "rooms", "doors", "spawns", "fill", "keep_clear", "extra", "scene"];
-const ROOM_KEYS: &[&str] = &["id", "rect", "floor", "lamp"];
-const DOOR_KEYS: &[&str] = &["between", "width", "at", "kind"];
-const SPAWN_KEYS: &[&str] = &["room", "group", "count", "id"];
-const FILL_KEYS: &[&str] = &["room", "kind", "count", "seed", "scale", "colors", "min_gap", "clearance", "id"];
+/// The keys this level of a blueprint accepts (a test checks each is documented in SPEC.md).
+pub const TOP_KEYS: &[&str] = &["blueprint", "name", "height", "ceiling", "rooms", "doors", "spawns", "fill", "keep_clear", "extra", "prefab_files", "scene"];
+/// The keys this level of a blueprint accepts (a test checks each is documented in SPEC.md).
+pub const ROOM_KEYS: &[&str] = &["id", "rect", "floor", "lamp"];
+/// The keys this level of a blueprint accepts (a test checks each is documented in SPEC.md).
+pub const DOOR_KEYS: &[&str] = &["between", "width", "at", "kind"];
+/// The keys this level of a blueprint accepts (a test checks each is documented in SPEC.md).
+pub const SPAWN_KEYS: &[&str] = &["room", "group", "count", "id"];
+/// The keys this level of a blueprint accepts (a test checks each is documented in SPEC.md).
+pub const FILL_KEYS: &[&str] = &["room", "kind", "count", "seed", "scale", "colors", "min_gap", "clearance", "id"];
 
 /// What a compile produced: the scene text plus a report of what was made and how it linted.
 #[derive(Debug)]
@@ -144,6 +149,9 @@ fn rooms_overlap(a: &Room, b: &Room) -> bool {
     a.min.x < b.max.x - EPS && b.min.x < a.max.x - EPS && a.min.y < b.max.y - EPS && b.min.y < a.max.y - EPS
 }
 
+/// Room-edge intervals on one wall line, keyed by `(vertical, coordinate in mm)`: `(lo, hi, belongs to the room's max side)`.
+type EdgeLines = std::collections::BTreeMap<(bool, i64), Vec<(f32, f32, bool)>>;
+
 /// One straight wall run derived from the room edges.
 struct Run {
     vertical: bool,
@@ -156,7 +164,7 @@ struct Run {
 /// Splits every room edge into partition (shared) and exterior runs, merged where contiguous.
 fn wall_runs(rooms: &[Room]) -> Vec<Run> {
     // (vertical, coord in mm) -> intervals with the side of the room they belong to (true = the room's max side).
-    let mut lines: std::collections::BTreeMap<(bool, i64), Vec<(f32, f32, bool)>> = Default::default();
+    let mut lines = EdgeLines::new();
     let key = |c: f32| (c * 1000.0).round() as i64;
     for r in rooms {
         lines.entry((true, key(r.min.x))).or_default().push((r.min.y, r.max.y, false));
@@ -234,7 +242,13 @@ fn keep_clear_rects(rooms: &[Room], doors: &[Door], spawn_pts: &[(usize, Vec2)],
 }
 
 /// Compiles a blueprint (parsed JSON) into a scene. Errors are `path: message` lines with a fix where one is known.
+/// `prefab_files` need the blueprint's location: use [`compile_in`] for those.
 pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
+    compile_in(bp, None)
+}
+
+/// [`compile`] for a blueprint stored in `base` (a directory): `prefab_files` are read relative to it.
+pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>> {
     let mut errs = Vec::new();
     let Some(root) = obj(bp, "", TOP_KEYS, &mut errs) else { return Err(errs) };
     match root.get("blueprint").and_then(Value::as_u64) {
@@ -351,7 +365,8 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
             let ang = std::f32::consts::TAU * k as f32 / count as f32 + std::f32::consts::PI;
             let p = if count == 1 { r.center() } else { r.center() + Vec2::new(ang.cos(), ang.sin()) * radius };
             // Face the room's centre (a lone spawn faces the first door, else north).
-            let face = if count == 1 { doors.iter().find(|d| d.a == ri || d.b == ri).map(|d| d.center).unwrap_or(p + Vec2::new(0.0, -1.0)) } else { r.center() };
+            let face =
+                if count == 1 { doors.iter().find(|d| d.a == ri || d.b == ri).map(|d| d.center).unwrap_or(p + Vec2::new(0.0, -1.0)) } else { r.center() };
             let d = face - p;
             let yaw = (d.x).atan2(-d.y).to_degrees();
             let yaw = if yaw < 0.0 { yaw + 360.0 } else { yaw };
@@ -405,7 +420,11 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
             colors: o.get("colors").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default(),
             min_gap: o.get("min_gap").and_then(Value::as_f64).unwrap_or(0.9) as f32,
             clearance: o.get("clearance").and_then(Value::as_f64).unwrap_or(0.7) as f32,
-            id: o.get("id").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| format!("{}_{}", rooms[ri].id, names.first().cloned().unwrap_or_else(|| "fill".into()))),
+            id: o
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("{}_{}", rooms[ri].id, names.first().cloned().unwrap_or_else(|| "fill".into()))),
         });
     }
     let extra_clear: Vec<(Vec2, Vec2)> = root
@@ -417,6 +436,55 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
         .collect();
     let extra_objects: Vec<Value> = root.get("extra").and_then(Value::as_array).cloned().unwrap_or_default();
     let scene_merge: Map<String, Value> = root.get("scene").and_then(Value::as_object).cloned().unwrap_or_default();
+    // A game's own prefab libraries (same format as `assets/*.json`) are merged into the scene's `prefabs`, so the built map is
+    // self-contained: the server and clients need only the map, and the engine never has to be modified for a game's props.
+    let mut prefab_defs: Vec<Value> = Vec::new();
+    for (i, f) in root.get("prefab_files").and_then(Value::as_array).into_iter().flatten().enumerate() {
+        let path = format!("prefab_files[{i}]");
+        let Some(rel) = f.as_str() else {
+            errs.push(format!("{path}: expected a file path"));
+            continue;
+        };
+        let Some(base) = base else {
+            errs.push(format!("{path}: prefab files are read relative to the blueprint; compile it with `build FILE` (or `compile_in`)"));
+            continue;
+        };
+        let text = match std::fs::read_to_string(base.join(rel)) {
+            Ok(t) => t,
+            Err(e) => {
+                errs.push(format!("{path}: {}: {e}", base.join(rel).display()));
+                continue;
+            }
+        };
+        let defs: Vec<Value> = match serde_json::from_str::<Value>(&text) {
+            Ok(Value::Array(a)) => a,
+            Ok(Value::Object(o)) => o
+                .into_iter()
+                .map(|(name, mut d)| {
+                    d["name"] = Value::String(name);
+                    d
+                })
+                .collect(),
+            Ok(_) => {
+                errs.push(format!("{path}: {rel} must be a JSON array of prefab definitions (each with a \"name\") or an object {{name: definition}}"));
+                continue;
+            }
+            Err(e) => {
+                errs.push(format!("{path}: {rel} is not valid JSON: {e}"));
+                continue;
+            }
+        };
+        for d in defs {
+            let name = d.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+            if name.is_empty() {
+                errs.push(format!("{path}: a prefab in {rel} has no \"name\""));
+            } else if prefab_defs.iter().any(|p| p.get("name").and_then(Value::as_str) == Some(name.as_str())) {
+                errs.push(format!("{path}: prefab '{name}' is defined twice across prefab_files"));
+            } else {
+                prefab_defs.push(d);
+            }
+        }
+    }
     if !errs.is_empty() {
         return Err(errs);
     }
@@ -429,7 +497,11 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
     }
     let (mut n_ext, mut n_part) = (0, 0);
     for run in wall_runs(&rooms) {
-        let (from, to) = if run.vertical { (Vec2::new(run.coord, run.lo), Vec2::new(run.coord, run.hi)) } else { (Vec2::new(run.lo, run.coord), Vec2::new(run.hi, run.coord)) };
+        let (from, to) = if run.vertical {
+            (Vec2::new(run.coord, run.lo), Vec2::new(run.coord, run.hi))
+        } else {
+            (Vec2::new(run.lo, run.coord), Vec2::new(run.hi, run.coord))
+        };
         let (id, thickness, color) = if run.partition {
             n_part += 1;
             (format!("part_{}", n_part - 1), WALL_PART, "#cfcfd6")
@@ -488,11 +560,12 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
     let spawn_pts: Vec<(usize, Vec2)> = spawns.iter().map(|s| (s.4, Vec2::new(s.2[0], s.2[2]))).collect();
     let clear = keep_clear_rects(&rooms, &doors, &spawn_pts, &extra_clear);
     let base_doc = |objects: &[Value], lights: &[Value]| -> String {
-        json!({"camera": {"position": [0, 1.7, 0], "target": [0, 1.5, 5]}, "lights": lights, "objects": objects}).to_string()
+        json!({"camera": {"position": [0, 1.7, 0], "target": [0, 1.5, 5]}, "lights": lights, "prefabs": prefab_defs, "objects": objects}).to_string()
     };
     let mut placed_total = 0usize;
     for f in &fills {
-        let world = MapWorld::from_text(&base_doc(&objects, &lights), Path::new("blueprint.json")).map_err(|e| e.into_iter().map(|m| format!("internal: {m}")).collect::<Vec<_>>())?;
+        let world = MapWorld::from_text(&base_doc(&objects, &lights), Path::new("blueprint.json"))
+            .map_err(|e| e.into_iter().map(|m| format!("internal: {m}")).collect::<Vec<_>>())?;
         let r = &rooms[f.room];
         let inset = Vec2::splat(0.7);
         let params = ScatterParams {
@@ -512,7 +585,12 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
         };
         let placed = scatter(&world, &params).map_err(|e| vec![format!("fill in '{}': {e}", r.id)])?;
         if placed.len() < f.count {
-            notes.push(format!("fill '{}' placed {} of {} (the room is too crowded with the doors/spawns kept clear: use a bigger room or fewer items)", f.id, placed.len(), f.count));
+            notes.push(format!(
+                "fill '{}' placed {} of {} (the room is too crowded with the doors/spawns kept clear: use a bigger room or fewer items)",
+                f.id,
+                placed.len(),
+                f.count
+            ));
         }
         placed_total += placed.len();
         objects.extend(placed);
@@ -531,7 +609,12 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
     scene.insert("lights".into(), Value::Array(lights));
     scene.insert(
         "zones".into(),
-        Value::Array(rooms.iter().map(|r| json!({"id": r.id, "rect": [r3(r.min.x + 0.12), r3(r.min.y + 0.12), r3(r.max.x - 0.12), r3(r.max.y - 0.12)], "y": 0, "kind": "room"})).collect()),
+        Value::Array(
+            rooms
+                .iter()
+                .map(|r| json!({"id": r.id, "rect": [r3(r.min.x + 0.12), r3(r.min.y + 0.12), r3(r.max.x - 0.12), r3(r.max.y - 0.12)], "y": 0, "kind": "room"}))
+                .collect(),
+        ),
     );
     if !spawns.is_empty() {
         scene.insert(
@@ -552,6 +635,9 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
         );
         scene.insert("interest".into(), json!({"cell_size": 8.0}));
     }
+    if !prefab_defs.is_empty() {
+        scene.insert("prefabs".into(), Value::Array(prefab_defs.clone()));
+    }
     scene.insert("objects".into(), Value::Array(objects));
     for (k, v) in &scene_merge {
         if k != "checks" {
@@ -561,8 +647,11 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
 
     // ---- self-check: build the world, find real anchors, lint, and write checks that pass today
     let text0 = serde_json::to_string(&Value::Object(scene.clone())).map_err(|e| vec![e.to_string()])?;
-    let world = MapWorld::from_text(&text0, Path::new("blueprint.json"))
-        .map_err(|e| e.into_iter().map(|m| format!("the compiled scene did not validate (this is a compiler bug or a `scene`/`extra` block problem): {m}")).collect::<Vec<_>>())?;
+    let world = MapWorld::from_text(&text0, Path::new("blueprint.json")).map_err(|e| {
+        e.into_iter()
+            .map(|m| format!("the compiled scene did not validate (this is a compiler bug or a `scene`/`extra` block problem): {m}"))
+            .collect::<Vec<_>>()
+    })?;
     let rr = reach::compute(&world, &ReachParams { start: Some(first), ..Default::default() });
     let grid = ColliderGrid::new(&world.colliders, rr.min, rr.min + Vec2::new(rr.nx as f32, rr.nz as f32) * rr.cell);
     let mut anchors: Vec<Option<Vec2>> = Vec::new();
@@ -575,7 +664,13 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
             for ix in x0..=x1 {
                 let p = rr.cell_center(iz * rr.nx + ix);
                 // Stay comfortably inside the room and off anything solid (a prop's collider may be near the centre).
-                if p.x < r.min.x + 0.8 || p.x > r.max.x - 0.8 || p.y < r.min.y + 0.8 || p.y > r.max.y - 0.8 || grid.blocked_r(p, 0.0, 0.7) || rr.levels_at(p).is_empty() {
+                if p.x < r.min.x + 0.8
+                    || p.x > r.max.x - 0.8
+                    || p.y < r.min.y + 0.8
+                    || p.y > r.max.y - 0.8
+                    || grid.blocked_r(p, 0.0, 0.7)
+                    || rr.levels_at(p).is_empty()
+                {
                     continue;
                 }
                 let d = (p - c).length();
@@ -588,7 +683,8 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
     }
     let findings_raw = lint::lint(&world, &rr);
     let warnings = findings_raw.iter().filter(|f| f.sev == Severity::Warn).count();
-    let findings: Vec<(Severity, &'static str, String)> = findings_raw.iter().filter(|f| f.sev >= Severity::Warn).map(|f| (f.sev, f.code, f.message.clone())).collect();
+    let findings: Vec<(Severity, &'static str, String)> =
+        findings_raw.iter().filter(|f| f.sev >= Severity::Warn).map(|f| (f.sev, f.code, f.message.clone())).collect();
 
     let mut checks = Map::new();
     checks.insert("lint".into(), json!({"max_errors": 0, "max_warnings": warnings}));
@@ -631,7 +727,16 @@ pub fn compile(bp: &Value) -> Result<Built, Vec<String>> {
         rooms.len(),
         doors.len(),
         spawns.len(),
-        if spawns.is_empty() { String::new() } else { format!(" in group(s) {}", { let mut g: Vec<&str> = spawns.iter().map(|s| s.1.as_str()).collect(); g.sort(); g.dedup(); g.join(", ") }) },
+        if spawns.is_empty() {
+            String::new()
+        } else {
+            format!(" in group(s) {}", {
+                let mut g: Vec<&str> = spawns.iter().map(|s| s.1.as_str()).collect();
+                g.sort();
+                g.dedup();
+                g.join(", ")
+            })
+        },
         1 + scene["checks"]["reach"].as_array().map(Vec::len).unwrap_or(0) + scene["checks"]["walk"].as_array().map(Vec::len).unwrap_or(0),
     )];
     summary.extend(notes);
@@ -749,11 +854,37 @@ mod tests {
         assert!(e.iter().any(|m| m.contains("overlap")), "{e:?}");
         let e = build(r##"{"blueprint":1,"rooms":[{"id":"a","rect":[0,0,6,6],"colour":"red"}]}"##).unwrap_err();
         assert!(e.iter().any(|m| m.contains("unknown field")), "{e:?}");
-        let e = build(r##"{"blueprint":1,"rooms":[{"id":"a","rect":[0,0,6,6]},{"id":"b","rect":[6,0,12,6]}],"doors":[{"between":["a","b"],"width":0.6}]}"##).unwrap_err();
+        let e = build(r##"{"blueprint":1,"rooms":[{"id":"a","rect":[0,0,6,6]},{"id":"b","rect":[6,0,12,6]}],"doors":[{"between":["a","b"],"width":0.6}]}"##)
+            .unwrap_err();
         assert!(e.iter().any(|m| m.contains("narrower")), "{e:?}");
         let e = build(r##"{"blueprint":1,"rooms":[{"id":"a","rect":[0,0,6,6]}],"fill":[{"room":"a","kind":"couchh"}]}"##).unwrap_err();
         assert!(e.iter().any(|m| m.contains("not a prop")), "{e:?}");
         assert!(build(r##"{"rooms":[]}"##).is_err());
+    }
+
+    #[test]
+    fn a_games_own_prefab_library_is_merged_into_the_map_without_touching_the_engine() {
+        let dir = std::env::temp_dir().join(format!("re2_blueprint_prefabs_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("shelf.json"),
+            r##"[{"name":"my_shelf","tags":["store"],"desc":"a game-specific shelf","params":{"color":"#8a6a3f"},
+                "objects":[{"id":"body","type":"box","size":[1.2,1.8,0.4],"position":[0,0.9,0],"material":{"color":"$color"}}]}]"##,
+        )
+        .unwrap();
+        let bp: Value = serde_json::from_str(
+            r##"{"blueprint":1,"prefab_files":["shelf.json"],"rooms":[{"id":"a","rect":[-8,-6,8,6]}],
+                "extra":[{"id":"shelf_1","type":"prefab","prefab":"my_shelf","position":[5,0,4]}]}"##,
+        )
+        .unwrap();
+        let b = compile_in(&bp, Some(&dir)).unwrap();
+        assert_eq!(b.errors(), 0, "{:?}", b.findings);
+        assert_eq!(b.scene["prefabs"][0]["name"], "my_shelf");
+        // Without a location the blueprint says what is missing; an unknown file is an error naming the path.
+        assert!(compile(&bp).unwrap_err().iter().any(|m| m.contains("relative to the blueprint")));
+        let missing: Value = serde_json::from_str(r##"{"blueprint":1,"prefab_files":["nope.json"],"rooms":[{"id":"a","rect":[0,0,6,6]}]}"##).unwrap();
+        let e = compile_in(&missing, Some(&dir)).unwrap_err();
+        assert!(e.iter().any(|m| m.contains("prefab_files[0]") && m.contains("nope.json")), "{e:?}");
     }
 
     #[test]

@@ -41,6 +41,13 @@ Game rules, headless play, replay, structured output (the MCP layer is a thin pa
     sim_map(scene_json, scenario_json="")   -> play scripted players through the real simulation (the scene's checks.sim, or one scenario)
     replay_trace(trace_path, scene_path="") -> re-run a recorded match; first divergent tick + state diff
     run_json(args)                          -> any subcommand with the global --json: {schema, command, ok, exit, data, diagnostics, stderr}
+
+Framework layer and environment (ADR 0023-0027):
+    build_blueprint(blueprint_json, out_path="") -> compile a ~20-line blueprint (rooms/doors/spawns/fill) into a complete, self-checking map
+    walk_auto(scene_json, start, to)        -> plan a walking route with the real physics (no guessing waypoints); prints waypoints
+    ray_map(scene_json, start, to)          -> line of sight: clear, or the first object in the way
+    engine_doctor()                         -> what this machine can do (GPU/software rendering, UDP, ffmpeg, output dir)
+    project_status()                        -> resume: derived facts, git, STATUS.md
 """
 from __future__ import annotations
 import json
@@ -383,6 +390,67 @@ def source_lookup(action: str, query: str = "") -> str:
     if action not in ("map", "find", "outline", "show", "refs", "deps"):
         return "action must be one of: map, find, outline, show, refs, deps"
     return _text(_run("src", action, *query.split()))
+
+
+@mcp.tool()
+def walk_auto(scene_json: str, start: str, to: str) -> str:
+    """Plan a walking route from `start` ("x,z" or "x,z,y") to `to` ("x,z" or "x,z,y" = wanted floor
+    height) with the game's real physics: grid A* on the reachability model, string-pulled and
+    validated end to end. Prints the waypoints (paste them into a walk check or `walk_route`) or,
+    when there is no route, the object that blocks the way and the passage width vs the body."""
+    return _text(_run_on_scene(scene_json, "walk", "{scene}", "--auto", f"--from={start}", f"--to={to}"))
+
+
+@mcp.tool()
+def ray_map(scene_json: str, start: str, to: str, skip: str = "") -> str:
+    """Line of sight between two 3-D points "x,y,z" against the map's real shapes: 'clear', or the
+    first object in the way (id, kind, distance, point). `skip` = comma-separated object ids to ignore."""
+    args = ["ray", "{scene}", f"--from={start}", f"--to={to}"]
+    for sid in [x.strip() for x in skip.split(",") if x.strip()]:
+        args += ["--skip", sid]
+    return _text(_run_on_scene(scene_json, *args))
+
+
+@mcp.tool()
+def build_blueprint(blueprint_json: str, out_path: str = "") -> str:
+    """Compile a blueprint (rooms as [x0,z0,x1,z1] rectangles, doors between rooms, spawn groups, prop
+    fill; get a working one from run_map_tool(["build", "--example"])) into a complete scene: walls and
+    doors, floors, lamps, zones, spawns, portals for multiplayer, fill that never seals a door, and a
+    `checks` block that already passes. Returns the summary and lint findings; with out_path (relative to
+    the project root) the scene is written there, otherwise it is appended to the answer."""
+    fd, bp = tempfile.mkstemp(suffix=".blueprint.json", prefix="red_bp_")
+    os.close(fd)
+    out = out_path or bp.replace(".blueprint.json", ".built.json")
+    try:
+        json.loads(blueprint_json)
+        with open(bp, "w", encoding="utf-8") as f:
+            f.write(blueprint_json)
+        result = _run("build", bp, "--out", out)
+        text = _text(result)
+        if not out_path and os.path.exists(out):
+            with open(out, encoding="utf-8") as f:
+                text += "\n\n" + f.read()
+        return text
+    finally:
+        for path in (bp, out if not out_path else ""):
+            if path and os.path.exists(path):
+                os.remove(path)
+
+
+@mcp.tool()
+def engine_doctor() -> str:
+    """What can this machine do? Probes GPU adapter (hardware or software), audio, ffmpeg, UDP
+    loopback and the default server port, a writable output directory and git, then lists which
+    commands will work here."""
+    return _text(_run("doctor"))
+
+
+@mcp.tool()
+def project_status() -> str:
+    """Resume in one screen: facts derived from the repo, git branch/commits/uncommitted files and the
+    STATUS.md handoff (done / in flight / next). Record progress with
+    run_map_tool(["status", "--note", "...", "--section", "next"])."""
+    return _text(_run("status"))
 
 
 @mcp.tool()

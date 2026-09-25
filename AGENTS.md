@@ -78,12 +78,31 @@ views) makes "did I break anything?" one command; `diff a.json b.json` / `diff s
 shows what changed by object id. For the 4-map plan start from `recipe two_floor_house`
 (house), `classroom_wing` (school), `convenience_store`, `rooms_and_door` (any small interior).
 
+## Making a game: blueprints and game projects (ADR 0024)
+
+A game is its own directory that **uses** the engine; do not fork this repo. `red_engine2 new-game ../mygame --name mygame --engine-path ../red-engine-2`
+creates `game.json` (pins the engine), `blueprints/main.blueprint.json`, the built `maps/main.json`, `CLAUDE.md`, `STATUS.md`, `scripts/red` (finds/builds
+the pinned engine) and a CI workflow; it is green from the first commit (`scripts/red check`). The loop: edit the blueprint, `scripts/red build-all`,
+`scripts/red check`, `scripts/red plan maps/main.json` (look), `scripts/red serve`. A **blueprint** (`build --example`, SPEC "Blueprints") is rooms as
+rectangles, doors between them, spawn groups and prop fill; it compiles to walls, floors, lamps, zones, spawns, `portals` + `interest`, fill that never
+seals a door, and a `checks` block that already passes (lint, reach per room, auto-planned walks). Game logic goes in the blueprint's `scene` block as
+data (`vars`/`rules`, `describe rules`) and is proven with `checks.sim`. `build --check` and `game check` fail when a committed map no longer equals what
+its blueprint builds. Put custom Rust in a crate that depends on `red_engine2` as a library, never a copy of it.
+
+## When a walk or a route fails (ADR 0023)
+
+`verify` and `walk` print the object that stopped the player (`BLOCKED BY 'crate_a' [prop:crate] gap 0.00 m ...`), the passage width against the 0.7 m body,
+whether `reach` agrees the target is reachable, and write an image (`out/verify/<scene>_walk<N>_explain.png`; `walk --explain out.png` for a manual run).
+A straight leg that is obstructed while `reach` passes is the normal case: `walk --auto --from X,Z --to X,Z[,Y]` plans a route with the same physics,
+prints waypoints and a paste-ready `checks.walk` entry (or put `{"from": [..], "to": [..], "auto": true}` in `checks.walk` and it plans every run).
+`ray --from x,y,z --to x,y,z` answers line-of-sight questions (can the seeker see the hiding spot?).
+
 ## Setup
 
 ```bash
-cargo build --release          # once; then use target/release/red_engine2(.exe) and re2(.exe)
+cargo build --release          # once; then use target/release/red_engine2(.exe) and re2(.exe)   (or just `scripts/dev red <command>`, any OS, any directory)
 alias re='./target/release/red_engine2'      # the examples below write it as `red_engine2`
-cargo test --release           # 95+ unit tests: catalogue, recipes (lint + walks), verify, search, docs-vs-code checks, house walk
+scripts/dev test               # the whole suite (catalogue, recipes, verify, search, docs-vs-code checks, netcode, sim replay...): a summary, full log in out/logs/
 ```
 
 Play a map: `cargo run --release --bin re2 -- examples/house.json` (`RE2_STATS=1` prints FPS).
@@ -111,7 +130,16 @@ Every editing command re-validates the whole scene and **refuses to write an inv
 | `lint <scene>` | Find layout bugs (list below) | `--json`, `--strict` (warnings fail), `--cell 0.05` (finer walkability grid) |
 | `reach <scene>` | Floors reached, per-zone coverage, doorways between zones, stairs, drops, perimeter leaks | `--to x,z[,y]` asks "can the player get there?"; `--from x,z` sets the start |
 | `walk <scene> --path "x,z; x,z"` | Replay a route with the game's per-tick physics | prints where you actually end up (and at what floor height), or where you get stuck |
+| `walk <scene> --auto --from X,Z --to X,Z[,Y]` | Plan a route (A* + real physics) instead of guessing waypoints | prints `--path` and a `checks.walk` entry; `--explain out.png` draws route, stop ring and blockers; a failed `--path` names the blocking object |
+| `ray <scene> --from x,y,z --to x,y,z` | Line of sight against the real shapes | `clear`, or the first object in the way (id, kind, distance, point); `--skip id` |
+| `patch <scene> '<json>'` / `--file` | Many edits (add/set/move/rm/clone/rename) as one atomic, validated call | any failing op aborts the whole patch and is named (`ops[3] (move): ...`) |
+| `build <blueprint> [--out f] [--check]` | Compile a blueprint into a complete, lint-clean, self-checking map | `--example` prints a starter; `--check` = stale-map detector |
+| `new-game <dir>` / `game check\|build-all\|info\|serve\|play` | Scaffold and run a game project that pins the engine | `scripts/red` wraps these |
+| `status` | Resume in one screen: derived facts, git, STATUS.md | `--init`, `--note "..." --section next`, `--sync-docs CLAUDE.md` |
+| `doctor` | What this machine can do (GPU/software rendering, audio, ffmpeg, UDP, output dir, git) | exit 1 only if UDP or the output dir is broken |
+| `ui-shot <screen> out.png` / `ui-check` | Render and audit the 2-D screens (`menu`, `pause`) with no window | `--size WxH --hover resume --message "..."`; `ui-check` audits 9 sizes |
 | `plan <scene> [out.png]` | Labelled top-down plan: walls, props (ids), stairs (arrow + height), walkable area (cyan), lights, spawn, findings | `--y 3.0` picks a floor, `--all-floors`, `--ascii` (text, cheap), `--bounds=x0,z0,x1,z1` to zoom, `--scale`, `--labels all` |
+| `render <scene> out.mp4` / `storyboard <scene> out.png` | Full MP4 of an animated scene (needs ffmpeg) / a multi-frame contact sheet | offline renderer; `--frames N` for the sheet |
 | `frame <scene> out.png` | One rendered frame | `--eye x,y,z --at x,y,z --fov 70` free camera, `--hide 'roof' --hide 'wall2_*'`, `--cut-above 5.7` (peel off roof/upper floors) |
 | `tour <scene> out.png` | Contact sheet: exterior, cutaway per floor, 2 views per zone | `--only kitchen`, `--cols 3`, custom `--view "name:ex,ey,ez:tx,ty,tz"` |
 | `ls <scene>` | Objects + world bounds | `--filter sofa`, `--kind prop\|box\|stairs\|wall\|<prop name>`, `--all` (pieces), `--json` |
@@ -120,7 +148,7 @@ Every editing command re-validates the whole scene and **refuses to write an inv
 | `search <words>` | Best fragments across docs/assets/lint/recipes/commands/Rust symbols | `--kind doc\|adr\|glossary\|asset\|lint\|rule\|type\|recipe\|command\|src`, `--limit` |
 | `catalog [words\|name]` | Asset catalogue (props + prefabs) with tags, real sizes, params, snippets | `--tag`, `--category`, `--kind`, `--long`, `--sheet out.png --cols 5` |
 | `recipe [name]` | Known-good example maps; `--new out.json` copies one, `--print` dumps it | each is lint-clean and passes its own `verify` (test-enforced) |
-| `verify <scene>` | Run the scene's `checks` block (lint, reach, walk, objects, views, **sim**); PASS/FAIL with evidence; exit 1 on failure | `--bless` (record golden views), `--no-views`, `--only walk` |
+| `verify <scene>` | Run the scene's `checks` block (lint, reach, walk incl. auto routes, objects, views, **sim**); PASS/FAIL with evidence and timings; exit 1 on failure | `--bless` (record golden views), `--no-views`, `--only walk[1]` / `--only "name text"` |
 | `sim <scene>` | Play scripted players through the real simulation, headless: the scene's `checks.sim` or `--scenario file.json` | `--only name`, `--trace out.json` (record), `--dump-every 1` |
 | `replay <trace>` | Re-run a recorded match with no renderer/socket; first divergent tick + state diff | `--scene map.json`, `--against other.json` |
 | `diff a b` / `diff a --git` | Semantic diff by object id (added/removed/changed fields) | ignores formatting + float noise |
@@ -299,7 +327,9 @@ src/viewer.rs     live renderer (feature `gfx`): camera, held models, frustum cu
 src/player.rs     player constants + `step_horizontal` / `vertical_step` (shared by re2 and tools)
 src/render.rs     offline renderer; gpu.rs pipelines (incl. the clarity `PostFx`); shaders/*.wgsl
 src/prefabs.rs    JSON prefab templates: params, `$x` / `=expr` substitution, `extends`, parse-time expansion
-src/tools/        world (MapWorld) reach lint plan font edit gen inspect shots walk (analysis/edit)
+src/tools/        world (MapWorld) reach lint plan font edit gen inspect shots walk pathing sight patch (analysis/edit)
+                  blueprint game newgame status doctor (the framework layer, handoff, environment probe)
+src/ui/           headless pixel-UI kit: `Layout` of widgets drives painting, hit-testing and the audit; `screens.rs` = launch + pause menus
                   catalog describe search symbols recipes verify diff simrun envelope (AI-facing: self-description, feedback, `--json`)
 assets/*.json     the built-in prefab catalogue (embedded); recipes/*.json + recipes/golden/ the example maps
 docs/GLOSSARY.md  vocabulary; docs/adr/NNNN-*.md  architecture decision records (both embedded + searchable)

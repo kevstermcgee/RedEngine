@@ -1,0 +1,7 @@
+target
+out
+.git
+.red
+*.png
+*.ico
+scripts/*.ps1

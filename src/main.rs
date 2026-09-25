@@ -90,11 +90,28 @@ fn run(command: Command) -> Result<(), String> {
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
         Command::Lint { scene, strict, cell } => run_lint(&scene, envelope::capturing(), strict, cell),
         Command::Reach { scene, from, to, cell } => run_reach(&scene, from.as_deref(), to.as_deref(), cell, envelope::capturing()),
+        Command::Doctor { out_dir } => run_doctor(&out_dir),
+        Command::Ray { scene, from, to, skip } => run_ray(&scene, &from, &to, &skip),
+        Command::Patch { scene, json, file, flags } => {
+            let text = match (json.as_deref(), file.as_deref()) {
+                (Some(j), None) => j.to_string(),
+                (None, Some(p)) => std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?,
+                _ => return Err("give the patch as JSON text or with --file".to_string()),
+            };
+            let v: Value = serde_json::from_str(&text).map_err(|e| format!("the patch is not valid JSON: {e}"))?;
+            edit(&scene, &flags, |f| red_engine2::tools::patch::apply(f, &v))
+        }
+        Command::UiShot { screen, out, size, hover, message, selected, map } => {
+            run_ui_shot(&screen, &out, &size, hover.as_deref(), message, selected.as_deref(), &map)
+        }
+        Command::UiCheck { screen, size } => run_ui_check(screen.as_deref(), size.as_deref()),
         Command::NewGame { dir, name, engine_path, engine_git, engine_ref } => run_new_game(&dir, name.as_deref(), engine_path, engine_git, engine_ref),
         Command::Game { cmd, dir } => run_game(&dir, cmd),
         Command::Build { blueprint, out, check, example } => run_build(blueprint.as_deref(), out.as_deref(), check, example),
         Command::Status { root, init, note, section, facts, sync_docs } => run_status(&root, init, note.as_deref(), &section, facts, &sync_docs),
-        Command::Walk { scene, path, from, auto, to, cell, explain } => run_walk(&scene, path.as_deref(), from.as_deref(), auto, to.as_deref(), cell, explain.as_deref()),
+        Command::Walk { scene, path, from, auto, to, cell, explain } => {
+            run_walk(&scene, path.as_deref(), from.as_deref(), auto, to.as_deref(), cell, explain.as_deref())
+        }
         Command::Plan { scene, out, y, all_floors, ascii, ascii_cell, scale, bounds, labels, no_reach, no_lint } => {
             run_plan(&scene, out, y, all_floors, ascii, ascii_cell, scale, bounds.as_deref(), &labels, no_reach, no_lint)
         }

@@ -1,34 +1,53 @@
 # Red Engine 2
 
-JSON-scene 3D engine (Rust + wgpu) for a prop-hunt game. **Goal: you never read engine source.** The
-engine describes itself and ships the tools to build/verify maps. Read @AGENTS.md for the workflow.
+JSON-scene 3D engine (Rust; wgpu for graphics) with authoritative UDP multiplayer, a headless server, game rules as data and a
+self-describing CLI. **You never read engine source, and you never guess:** the engine describes itself, checks your work and
+explains its failures. Workflow and tool reference: @AGENTS.md.
 
+## First 60 seconds
 ```bash
-cargo build --release                      # once
-R=./target/release/red_engine2
-$R describe --brief                        # ~1 KB first read: binaries, workflow, commands, topics
-$R describe                                # overview + every command + topics
-$R search "how do stairs connect floors"   # best doc/asset/lint/source fragments
-$R catalog apple                           # assets (props + JSON prefabs); `--sheet out.png` to SEE them
-$R recipe                                  # known-good maps; `recipe two_floor_house --new my.json`
-$R lint  my.json && $R plan my.json && $R tour my.json out/tour.png   # check, then LOOK
-$R verify my.json                          # the scene's own `checks` (lint/reach/walk/objects/sim/golden views)
-$R sim my.json                             # headless scripted play-throughs of the game rules (checks.sim); `replay trace.json` re-runs a match
-$R --json <any command>                    # one stable envelope {schema, command, ok, exit, data, diagnostics, stderr}
-$R src find <words>                        # only if you must touch Rust: find/show/refs/deps, no file reads
-$R describe glossary                       # vocabulary (prop vs prefab, zone, body band, "tire iron"...)
-$R describe decisions                      # why it is built this way: docs/adr/ (search --kind adr)
-cargo test --release                       # 95+ tests incl. every recipe, the catalogue, docs-vs-code checks
+scripts/dev doctor               # toolchain, binaries, git (Windows: powershell -File scripts\dev.ps1 doctor)
+R="scripts/dev red"              # builds the CLI on first use, then runs it from any directory
+$R doctor                        # what THIS machine can do: GPU or software rendering, UDP, ffmpeg, output dir
+$R status                        # resume: facts + git + STATUS.md (what is done / in flight / next)
+$R describe --brief              # ~1 KB manual: binaries, workflow, commands, topics; then $R search "<question>"
 ```
 
-Map: `SPEC.md` scene language · `AGENTS.md` workflow + tool reference · `src/` engine (`$R src map`) ·
-`assets/*.json` prefab catalogue · `recipes/` example maps · `examples/` demo scenes · `mcp_server.py` MCP wrapper ·
-`docs/` glossary + ADRs · `tests/ai_tasks.rs` budgets the context canonical AI tasks may use.
+## Making a game (the fast path)
+```bash
+$R new-game ../mygame --name mygame --engine-path ../red-engine-2   # a project that USES the engine: blueprint + map + scripts/red + CI
+cd ../mygame && scripts/red check                                   # green from the first commit
+# edit blueprints/main.blueprint.json (rooms, doors, spawns, fill, rules under "scene"), then:
+scripts/red build-all && scripts/red check && scripts/red plan maps/main.json   # build, verify, LOOK
+scripts/red serve                                                   # headless multiplayer server; `scripts/red play HOST:PORT` joins
+```
+Do not fork this repository to make a game (the fork's docs and engine fixes drift; ADR 0024). `$R describe rules` covers game logic as data.
 
-When you change Rust: `//!` on new modules, `///` on pub items (`$R src coverage`), simulation logic as pure
-functions (not in `App`), decisions as ADRs — see AGENTS.md "Keeping the codebase cheap for the next AI".
-Multiplayer is real: `red_server` (headless authoritative UDP: movement, props, pick-up, weapons, rules, interest management),
-`re2 --connect`, `red_bot` (ADR 0016, 0022); the server builds **without graphics** (`--no-default-features`, ADR 0017). Game rules are
-scene data (`vars`/`rules`, ADR 0020); matches record and replay deterministically (ADR 0021); unknown scene fields are errors (ADR 0019). **Current direction (ADR 0015):** engine first — the
-headless sim in `src/sim/` (ADR 0014), `examples/test_lab.json` as the dev map (the four game maps are legacy),
-`scripts/ci.sh` before pushing, `benches/` for performance.
+## Working on maps
+```bash
+$R recipe                        # known-good maps; `recipe two_floor_house --new my.json`     $R catalog apple [--sheet out.png]
+$R build --example               # a working blueprint (rooms/doors/spawns/fill -> complete self-checking map)
+$R lint  my.json && $R plan my.json && $R tour my.json out/tour.png   # check, then LOOK
+$R verify my.json [--only walk[1]]   # the scene's own `checks`; a failing walk names the object that blocked it + writes an image
+$R walk my.json --auto --from X,Z --to X,Z [--explain out.png]       # plan a route (never guess waypoints); `--path` replays one
+$R ray my.json --from x,y,z --to x,y,z                              # line of sight: clear, or the first thing in the way
+$R patch my.json '[{"op":"move","id":"lamp","by":[0,-0.2,0]}]'      # many edits, one atomic validated call
+$R sim my.json                   # headless scripted play-throughs of the rules; `replay trace.json` re-runs a recorded match
+$R ui-shot pause out/p.png --size 1280x720 ; $R ui-check           # see and audit the 2-D screens without a window
+$R --json <any command>          # one stable envelope {schema, command, ok, exit, data, diagnostics, stderr}
+$R src find <words>              # only if you must touch Rust: find/show/refs/deps, no file reads
+scripts/dev fast | test          # unit tests | everything; prints a summary, the full log is in out/logs/
+```
+
+Map: `SPEC.md` scene + blueprint language · `AGENTS.md` workflow · `src/` engine (`$R src map`) · `assets/*.json` prefabs · `recipes/`, `examples/` ·
+`docs/` glossary, ADRs (`$R describe decisions`), `HOSTING.md` · `mcp_server.py` MCP wrapper · `Dockerfile`, `deploy/` hosting.
+
+When you change Rust: `//!` on new modules, `///` on pub items (`$R src coverage`), simulation logic as pure functions (not in `App`), decisions as
+ADRs, then `scripts/dev test`. Before pushing: `scripts/ci.sh`. Record progress at every checkpoint: `$R status --note "..." --section done|now|next`.
+
+## Facts (derived from the repo: `red_engine2 status --sync-docs CLAUDE.md` rewrites this block; a test fails if it is stale)
+<!-- facts:begin -->
+- Crate `red_engine2`; binaries: `re2`, `red_bot`, `red_engine2`, `red_server`.
+- Cargo features: `default`, `gfx`.
+- 21 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 27 ADRs (latest: 0027 runs anywhere doctor env config container lf). Test *counts* are not stated here: run `scripts/dev test`.
+<!-- facts:end -->

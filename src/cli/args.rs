@@ -340,6 +340,72 @@ pub(crate) enum Command {
         #[arg(long)]
         example: bool,
     },
+    /// What can this machine do? Probes for real: GPU adapter (hardware or software), audio, ffmpeg, UDP loopback and the default server
+    /// port, a writable output dir, git. Ends with a plain "what works here" list. Exit 1 only if UDP or the output dir is broken.
+    Doctor {
+        /// Output directory to probe (default `out`).
+        #[arg(long, default_value = "out")]
+        out_dir: PathBuf,
+    },
+    /// Line of sight between two points against the map's real shapes: `ray scene.json --from 0,1.6,-5 --to 4,1.0,6`.
+    /// Answers "clear" or the first object in the way (id, kind, distance, point). For hide-and-seek design: can the seeker see the spot?
+    Ray {
+        scene: PathBuf,
+        /// Start "x,y,z" (an eye position: y about 1.6).
+        #[arg(long, allow_hyphen_values = true)]
+        from: String,
+        /// End "x,y,z".
+        #[arg(long, allow_hyphen_values = true)]
+        to: String,
+        /// Object ids to ignore (repeatable), e.g. the floor plane or the prop the target is hiding in.
+        #[arg(long)]
+        skip: Vec<String>,
+    },
+    /// Apply many edits atomically (add/set/move/rm/clone/rename) from a JSON list, validated once: it lands completely or not at all.
+    /// `patch scene.json --file ops.json` or `patch scene.json '[{"op":"move","id":"lamp_a","by":[0,-0.2,0]}]'`.
+    Patch {
+        scene: PathBuf,
+        /// The patch as JSON text.
+        json: Option<String>,
+        /// Read the patch from a file instead.
+        #[arg(long)]
+        file: Option<PathBuf>,
+        #[command(flatten)]
+        flags: EditFlags,
+    },
+    /// Render one of the 2-D screens (`menu`, `pause`) to a PNG with no window or GPU, so UI work is never blind:
+    /// `ui-shot pause out/pause.png --size 1280x720 --hover resume --message "long text wraps"`.
+    UiShot {
+        /// Screen name (see `ui-check`'s output or `describe ui`): menu | pause.
+        screen: String,
+        /// Output PNG.
+        out: PathBuf,
+        /// Window size "WxH".
+        #[arg(long, default_value = "1280x720")]
+        size: String,
+        /// Pause menu: highlight `resume` or `quit`.
+        #[arg(long)]
+        hover: Option<String>,
+        /// Pause menu status line (long text wraps).
+        #[arg(long)]
+        message: Option<String>,
+        /// Launch menu selection: `human` or `rat`.
+        #[arg(long)]
+        selected: Option<String>,
+        /// Map name shown on the screens.
+        #[arg(long, default_value = "test_lab")]
+        map: String,
+    },
+    /// Audit every 2-D screen at 9 window sizes (small, common, portrait, 1440p): everything on screen, inside its container, text not
+    /// wider than its panel, no overlaps. Exit 1 on any violation. The same audit runs in `cargo test`.
+    UiCheck {
+        /// Only this screen.
+        #[arg(long)]
+        screen: Option<String>,
+        /// Only this window size "WxH" (default: all standard sizes).
+        #[arg(long)]
+        size: Option<String>,
+    },
     /// Scaffold a game project that USES the engine (pinned in game.json) instead of forking it: a starter blueprint and the map it builds,
     /// CLAUDE.md, STATUS.md, `scripts/red` (finds/builds the pinned engine) and a CI workflow. The result already passes `game check`.
     NewGame {

@@ -21,6 +21,8 @@ pub mod overlay;
 pub mod physics;
 pub mod player;
 pub mod prefabs;
+#[cfg(feature = "gfx")]
+pub mod probe;
 pub mod props;
 #[cfg(feature = "gfx")]
 pub mod render;
@@ -32,6 +34,7 @@ pub mod skeleton;
 pub mod strict;
 pub mod tools;
 pub mod track;
+pub mod ui;
 #[cfg(feature = "gfx")]
 pub mod video;
 #[cfg(feature = "gfx")]

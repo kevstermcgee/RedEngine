@@ -77,7 +77,12 @@ fn count_files(dir: &Path, ext: &str) -> usize {
 /// `(count, latest "NNNN title")` of the ADRs in `docs/adr/`.
 fn adrs(root: &Path) -> (usize, String) {
     let mut names: Vec<String> = std::fs::read_dir(root.join("docs/adr"))
-        .map(|rd| rd.flatten().map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| n.len() > 5 && n[..4].chars().all(|c| c.is_ascii_digit()) && n.ends_with(".md")).collect())
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .filter(|n| n.len() > 5 && n[..4].chars().all(|c| c.is_ascii_digit()) && n.ends_with(".md"))
+                .collect()
+        })
         .unwrap_or_default();
     names.sort();
     let latest = names.last().map(|n| n.trim_end_matches(".md").replacen('-', " ", 1).replace('-', " ")).unwrap_or_default();
@@ -90,7 +95,11 @@ pub fn facts_block(root: &Path) -> String {
     let bins = binaries(root);
     let (n_adr, latest_adr) = adrs(root);
     let mut s = String::new();
-    s.push_str(&format!("- Crate `{}`; binaries: {}.\n", if name.is_empty() { "?" } else { &name }, if bins.is_empty() { "none".to_string() } else { bins.iter().map(|b| format!("`{b}`")).collect::<Vec<_>>().join(", ") }));
+    s.push_str(&format!(
+        "- Crate `{}`; binaries: {}.\n",
+        if name.is_empty() { "?" } else { &name },
+        if bins.is_empty() { "none".to_string() } else { bins.iter().map(|b| format!("`{b}`")).collect::<Vec<_>>().join(", ") }
+    ));
     if !features.is_empty() {
         s.push_str(&format!("- Cargo features: {}.\n", features.iter().map(|f| format!("`{f}`")).collect::<Vec<_>>().join(", ")));
     }
@@ -202,7 +211,11 @@ pub fn render(root: &Path) -> String {
         let head = git(root, &["rev-parse", "--short", "HEAD"]).unwrap_or_default();
         let dirty = git(root, &["status", "--short"]).unwrap_or_default();
         let files: Vec<&str> = dirty.lines().collect();
-        s.push_str(&format!("\n== git ==\nbranch {branch} @ {head}, {} uncommitted file(s){}\n", files.len(), if files.is_empty() { "" } else { " (commit or note them before you stop)" }));
+        s.push_str(&format!(
+            "\n== git ==\nbranch {branch} @ {head}, {} uncommitted file(s){}\n",
+            files.len(),
+            if files.is_empty() { "" } else { " (commit or note them before you stop)" }
+        ));
         for f in files.iter().take(12) {
             s.push_str(&format!("  {f}\n"));
         }
@@ -234,7 +247,11 @@ mod tests {
         std::fs::create_dir_all(d.join("src/bin")).unwrap();
         std::fs::create_dir_all(d.join("docs/adr")).unwrap();
         std::fs::create_dir_all(d.join("tests")).unwrap();
-        std::fs::write(d.join("Cargo.toml"), "[package]\nname = \"demo\"\n\n[features]\ndefault = [\"gfx\"]\ngfx = []\n\n[[bin]]\nname = \"gamebin\"\npath = \"src/bin/g.rs\"\n").unwrap();
+        std::fs::write(
+            d.join("Cargo.toml"),
+            "[package]\nname = \"demo\"\n\n[features]\ndefault = [\"gfx\"]\ngfx = []\n\n[[bin]]\nname = \"gamebin\"\npath = \"src/bin/g.rs\"\n",
+        )
+        .unwrap();
         std::fs::write(d.join("src/main.rs"), "fn main(){}").unwrap();
         std::fs::write(d.join("src/bin/server.rs"), "fn main(){}").unwrap();
         std::fs::write(d.join("docs/adr/0001-first-thing.md"), "# x").unwrap();

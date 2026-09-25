@@ -1,0 +1,15 @@
+# One command for a dedicated server on any machine with Docker:   docker compose up --build
+# Put your map at ./maps/main.json (e.g. from a game project's `red build-all`) and it is served; otherwise the built-in Test Lab.
+services:
+  red-server:
+    build: .
+    image: red-server
+    restart: unless-stopped
+    ports:
+      - "27015:27015/udp"
+    volumes:
+      - ./maps:/maps:ro
+    environment:
+      RED_MAP: ${RED_MAP:-/opt/red/test_lab.json}
+      RED_SPAWN_GROUP: ${RED_SPAWN_GROUP:-}
+      RED_STATS_SECS: "30"

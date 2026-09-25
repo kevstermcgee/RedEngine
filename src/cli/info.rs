@@ -169,7 +169,8 @@ pub(crate) fn run_build(blueprint: Option<&Path>, out: Option<&Path>, check: boo
     let bp_path = blueprint.ok_or("give a blueprint file, or `build --example` to print a starter")?;
     let text = std::fs::read_to_string(bp_path).map_err(|e| format!("{}: {e}", bp_path.display()))?;
     let value: Value = serde_json::from_str(&text).map_err(|e| format!("{}: not valid JSON: {e}", bp_path.display()))?;
-    let built = blueprint::compile(&value).map_err(|errs| format!("{}: the blueprint has {} problem(s):\n  {}", bp_path.display(), errs.len(), errs.join("\n  ")))?;
+    let built = blueprint::compile_in(&value, bp_path.parent())
+        .map_err(|errs| format!("{}: the blueprint has {} problem(s):\n  {}", bp_path.display(), errs.len(), errs.join("\n  ")))?;
     let dest = out.map(Path::to_path_buf).unwrap_or_else(|| red_engine2::tools::game::blueprint_out(bp_path));
     for line in &built.summary {
         println!("{line}");
@@ -178,9 +179,15 @@ pub(crate) fn run_build(blueprint: Option<&Path>, out: Option<&Path>, check: boo
         println!("  lint {} [{code}] {msg}", if *sev == Severity::Error { "ERROR" } else { "warn " });
     }
     if check {
-        let existing = std::fs::read_to_string(&dest).map_err(|e| format!("{}: {e} (run `red_engine2 build {}` to create it)", dest.display(), bp_path.display()))?;
+        let existing =
+            std::fs::read_to_string(&dest).map_err(|e| format!("{}: {e} (run `red_engine2 build {}` to create it)", dest.display(), bp_path.display()))?;
         if existing.replace("\r\n", "\n") != built.scene_text.replace("\r\n", "\n") {
-            return Err(format!("STALE: {} differs from what {} builds. Run `red_engine2 build {}` (or, if you meant to hand-edit the map, delete the blueprint).", dest.display(), bp_path.display(), bp_path.display()));
+            return Err(format!(
+                "STALE: {} differs from what {} builds. Run `red_engine2 build {}` (or, if you meant to hand-edit the map, delete the blueprint).",
+                dest.display(),
+                bp_path.display(),
+                bp_path.display()
+            ));
         }
         println!("{} is up to date with {}", dest.display(), bp_path.display());
         return Ok(());
@@ -197,11 +204,21 @@ pub(crate) fn run_build(blueprint: Option<&Path>, out: Option<&Path>, check: boo
     Ok(())
 }
 
-pub(crate) fn run_new_game(dir: &Path, name: Option<&str>, engine_path: Option<String>, engine_git: Option<String>, engine_ref: Option<String>) -> Result<(), String> {
+pub(crate) fn run_new_game(
+    dir: &Path,
+    name: Option<&str>,
+    engine_path: Option<String>,
+    engine_git: Option<String>,
+    engine_ref: Option<String>,
+) -> Result<(), String> {
     use red_engine2::tools::{game::EngineRef, newgame};
     let name = match name {
         Some(n) => n.to_string(),
-        None => std::fs::canonicalize(dir).ok().or_else(|| Some(dir.to_path_buf())).and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string())).unwrap_or_else(|| "game".into()),
+        None => std::fs::canonicalize(dir)
+            .ok()
+            .or_else(|| Some(dir.to_path_buf()))
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+            .unwrap_or_else(|| "game".into()),
     };
     let engine = EngineRef { git: engine_git, git_ref: engine_ref, path: engine_path };
     let files = newgame::scaffold(dir, &name, &engine)?;
@@ -215,8 +232,12 @@ pub(crate) fn run_new_game(dir: &Path, name: Option<&str>, engine_path: Option<S
 
 pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
     use red_engine2::tools::game;
-    let cfg = game::load(dir).map_err(|e| e.join("
-"))?;
+    let cfg = game::load(dir).map_err(|e| {
+        e.join(
+            "
+",
+        )
+    })?;
     match cmd {
         GameCmd::Info => {
             print!("{}", game::info(&cfg));
@@ -241,13 +262,15 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             Ok(())
         }
         GameCmd::Serve { extra } => {
-            let exe = game::sibling_exe("red_server").ok_or("red_server is not built next to red_engine2 (cargo build --bin red_server, or use `scripts/red serve`)")?;
+            let exe = game::sibling_exe("red_server")
+                .ok_or("red_server is not built next to red_engine2 (cargo build --bin red_server, or use `scripts/red serve`)")?;
             let mut args = game::server_args(&cfg);
             args.extend(extra);
             launch(&exe, &args)
         }
         GameCmd::Play { addr } => {
-            let exe = game::sibling_exe("re2").ok_or("re2 (the game client) is not built next to red_engine2 (cargo build --bin re2, or use `scripts/red play`)")?;
+            let exe =
+                game::sibling_exe("re2").ok_or("re2 (the game client) is not built next to red_engine2 (cargo build --bin re2, or use `scripts/red play`)")?;
             let addr = addr.unwrap_or_else(|| format!("127.0.0.1:{}", cfg.server.port));
             launch(&exe, &["--connect".to_string(), addr, cfg.dir.join(&cfg.server.map).display().to_string()])
         }
@@ -258,6 +281,131 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
 fn launch(exe: &Path, args: &[String]) -> Result<(), String> {
     let status = std::process::Command::new(exe).args(args).status().map_err(|e| format!("{}: {e}", exe.display()))?;
     if status.success() {
+        Ok(())
+    } else {
+        Err(String::new())
+    }
+}
+
+fn parse_wh(s: &str) -> Result<(u32, u32), String> {
+    let (w, h) = s.split_once(['x', 'X']).ok_or_else(|| format!("size must look like 1280x720, got '{s}'"))?;
+    let (w, h) = (w.trim().parse::<u32>().map_err(|_| format!("bad width in '{s}'"))?, h.trim().parse::<u32>().map_err(|_| format!("bad height in '{s}'"))?);
+    if !(64..=8192).contains(&w) || !(64..=8192).contains(&h) {
+        return Err(format!("size {w}x{h} is outside 64..8192"));
+    }
+    Ok((w, h))
+}
+
+pub(crate) fn run_ui_shot(
+    screen: &str,
+    out: &Path,
+    size: &str,
+    hover: Option<&str>,
+    message: Option<String>,
+    selected: Option<&str>,
+    map: &str,
+) -> Result<(), String> {
+    use red_engine2::player::Character;
+    use red_engine2::ui::screens::{self, PauseAction, ScreenOpts};
+    let (w, h) = parse_wh(size)?;
+    let hover = match hover {
+        None => None,
+        Some("resume") => Some(PauseAction::Resume),
+        Some("quit") => Some(PauseAction::Quit),
+        Some(o) => return Err(format!("--hover must be resume or quit, got '{o}'")),
+    };
+    let selected = match selected {
+        None => None,
+        Some("human") => Some(Character::Human),
+        Some("rat") => Some(Character::Rat),
+        Some(o) => return Err(format!("--selected must be human or rat, got '{o}'")),
+    };
+    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, selected })
+        .ok_or_else(|| format!("unknown screen '{screen}' (screens: {})", screens::all().join(", ")))?;
+    if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    layout.paint().to_image_over([16, 20, 28], [40, 52, 74]).save(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let problems = layout.check();
+    println!("wrote {} ({w}x{h}, {} widgets)", out.display(), layout.widgets.len());
+    for v in &problems {
+        println!("  layout [{}] {}: {}", v.code, v.widget, v.message);
+    }
+    if !problems.is_empty() {
+        return Err(format!("{} layout problem(s) on this screen at this size", problems.len()));
+    }
+    Ok(())
+}
+
+pub(crate) fn run_ui_check(screen: Option<&str>, size: Option<&str>) -> Result<(), String> {
+    use red_engine2::ui::screens;
+    let problems = if screen.is_none() && size.is_none() {
+        screens::audit_all()
+    } else {
+        let names: Vec<&str> = screen.map(|s| vec![s]).unwrap_or_else(|| screens::all().to_vec());
+        let sizes = match size {
+            Some(s) => vec![parse_wh(s)?],
+            None => screens::CHECK_SIZES.to_vec(),
+        };
+        let mut out = Vec::new();
+        for n in names {
+            for &(w, h) in &sizes {
+                let opts = screens::ScreenOpts { map: "test_lab".into(), ..Default::default() };
+                let l = screens::build(n, w, h, &opts).ok_or_else(|| format!("unknown screen '{n}' (screens: {})", screens::all().join(", ")))?;
+                out.extend(l.check().into_iter().map(|v| (n.to_string(), (w, h), format!("[{}] {}: {}", v.code, v.widget, v.message))));
+            }
+        }
+        out
+    };
+    for (s, (w, h), m) in &problems {
+        println!("{s} {w}x{h}: {m}");
+    }
+    if problems.is_empty() {
+        println!("ui-check: every screen passes at every size");
+        Ok(())
+    } else {
+        Err(format!("{} layout problem(s)", problems.len()))
+    }
+}
+
+pub(crate) fn run_doctor(out_dir: &Path) -> Result<(), String> {
+    use red_engine2::tools::doctor;
+    let checks = doctor::run(out_dir);
+    if envelope::capturing() {
+        let items: Vec<Value> =
+            checks.iter().map(|c| serde_json::json!({"name": c.name, "status": format!("{:?}", c.status).to_lowercase(), "detail": c.detail})).collect();
+        println!("{}", serde_json::json!({"checks": items}));
+    } else {
+        print!("{}", doctor::render(&checks));
+    }
+    if doctor::has_failure(&checks) {
+        return Err(String::new());
+    }
+    Ok(())
+}
+
+pub(crate) fn run_ray(scene: &Path, from: &str, to: &str, skip: &[String]) -> Result<(), String> {
+    use red_engine2::tools::sight;
+    let p = |s: &str| -> Result<Vec3, String> {
+        let v = floats(s)?;
+        if v.len() != 3 {
+            return Err(format!("expected x,y,z but got '{s}'"));
+        }
+        Ok(Vec3::new(v[0] as f32, v[1] as f32, v[2] as f32))
+    };
+    let (a, b) = (p(from)?, p(to)?);
+    let world = load_or_report(scene)?;
+    let s = sight::cast(&world, a, b, skip);
+    if envelope::capturing() {
+        println!(
+            "{}",
+            serde_json::json!({"clear": s.clear(), "length_m": s.length,
+                "blocker": s.blocker.as_ref().map(|(id, kind, d, pt)| serde_json::json!({"id": id, "kind": kind, "distance": d, "point": [pt.x, pt.y, pt.z]}))})
+        );
+    } else {
+        println!("{}", s.render(a, b));
+    }
+    if s.clear() {
         Ok(())
     } else {
         Err(String::new())

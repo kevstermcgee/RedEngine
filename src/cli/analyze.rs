@@ -224,22 +224,31 @@ fn v2y(s: &str) -> Result<(Vec2, Option<f32>), String> {
     }
 }
 
-pub(crate) fn run_walk(scene: &Path, path: Option<&str>, from: Option<&str>, auto: bool, to: Option<&str>, cell: f32, explain: Option<&Path>) -> Result<(), String> {
+pub(crate) fn run_walk(
+    scene: &Path,
+    path: Option<&str>,
+    from: Option<&str>,
+    auto: bool,
+    to: Option<&str>,
+    cell: f32,
+    explain: Option<&Path>,
+) -> Result<(), String> {
     use red_engine2::tools::pathing;
     let world = load_or_report(scene)?;
     let (start, start_y) = from.map(v2y).transpose()?.unwrap_or((world.spawn, None));
     let json = envelope::capturing();
-    let write_explain = |wps: &[Vec2], steps: &[red_engine2::tools::walk::WalkStep], diag: Option<&pathing::Diagnosis>| -> Result<(), String> {
-        if let Some(out) = explain {
-            let img = pathing::explain_image(&world, start, wps, steps, diag);
-            if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
-                std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    let write_explain =
+        |wps: &[Vec2], steps: &[red_engine2::tools::walk::WalkStep], diag: Option<&pathing::Diagnosis>, rr: Option<&reach::Reach>| -> Result<(), String> {
+            if let Some(out) = explain {
+                let img = pathing::explain_image(&world, start, wps, steps, diag, rr);
+                if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
+                    std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+                }
+                img.save(out).map_err(|e| format!("{}: {e}", out.display()))?;
+                eprintln!("wrote {} (yellow = route, red = where it stopped, red boxes = what is in the way)", out.display());
             }
-            img.save(out).map_err(|e| format!("{}: {e}", out.display()))?;
-            eprintln!("wrote {} (yellow = route, red = where it stopped, red boxes = what is in the way)", out.display());
-        }
-        Ok(())
-    };
+            Ok(())
+        };
 
     if auto || (path.is_none() && to.is_some()) {
         let to_s = to.ok_or("--auto needs --to X,Z[,Y]")?;
@@ -282,19 +291,21 @@ pub(crate) fn run_walk(scene: &Path, path: Option<&str>, from: Option<&str>, aut
                         start.x, start.y, dest.x, dest.y
                     );
                 }
-                write_explain(&route.waypoints, &route.steps, None)?;
+                write_explain(&route.waypoints, &route.steps, None, None)?;
                 Ok(())
             }
             Err(e) => {
                 // Say why: walk the straight line and diagnose where it stops.
                 let steps = red_engine2::tools::walk::walk_from(&world, start, start_y.unwrap_or(0.0), &[dest]);
-                let diag = steps.last().filter(|s| !s.reached).map(|s| pathing::diagnose(&world, s.pos, s.foot_y, dest));
+                // One flood from the stop point serves the diagnosis and the picture.
+                let rr = steps.last().filter(|s| !s.reached).map(|s| reach::compute(&world, &ReachParams { start: Some(s.pos), ..Default::default() }));
+                let diag = steps.last().filter(|s| !s.reached).zip(rr.as_ref()).map(|(s, r)| pathing::diagnose_with(&world, s.pos, s.foot_y, dest, r));
                 if json {
                     println!("{}", serde_json::json!({"ok": false, "auto": true, "error": e, "diagnosis": diag.as_ref().map(|d| d.to_json())}));
                 } else if let Some(d) = &diag {
                     print!("{}", d.render());
                 }
-                write_explain(&[dest], &steps, diag.as_ref())?;
+                write_explain(&[dest], &steps, diag.as_ref(), rr.as_ref())?;
                 Err(format!("no route: {e}"))
             }
         };
@@ -307,7 +318,8 @@ pub(crate) fn run_walk(scene: &Path, path: Option<&str>, from: Option<&str>, aut
     }
     let steps = red_engine2::tools::walk::walk_from(&world, start, start_y.unwrap_or(0.0), &wps);
     let failed = steps.len() < wps.len() || steps.last().is_some_and(|l| !l.reached);
-    let diag = steps.last().filter(|s| !s.reached).map(|s| pathing::diagnose(&world, s.pos, s.foot_y, s.target));
+    let rr = steps.last().filter(|s| !s.reached).map(|s| reach::compute(&world, &ReachParams { start: Some(s.pos), ..Default::default() }));
+    let diag = steps.last().filter(|s| !s.reached).zip(rr.as_ref()).map(|(s, r)| pathing::diagnose_with(&world, s.pos, s.foot_y, s.target, r));
     if json {
         let mut v = red_engine2::tools::walk::to_json(&steps, wps.len());
         v["diagnosis"] = diag.as_ref().map(|d| d.to_json()).unwrap_or(Value::Null);
@@ -318,7 +330,7 @@ pub(crate) fn run_walk(scene: &Path, path: Option<&str>, from: Option<&str>, aut
             print!("{}", d.render());
         }
     }
-    write_explain(&wps, &steps, diag.as_ref())?;
+    write_explain(&wps, &steps, diag.as_ref(), rr.as_ref())?;
     if failed {
         return Err(String::new());
     }

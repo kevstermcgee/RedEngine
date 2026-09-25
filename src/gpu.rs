@@ -103,10 +103,17 @@ impl Gpu {
 
     async fn new_async() -> Result<Self> {
         let instance = wgpu::Instance::default();
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, ..Default::default() })
-            .await
-            .context("no compatible GPU adapter found (forge3d needs Vulkan, DX12, or Metal)")?;
+        // Prefer real hardware; on a machine with none (CI runner, container) accept a software adapter (Mesa lavapipe,
+        // Windows WARP): slower, but the offline `frame`/`tour`/`verify` renders still work.
+        let hardware =
+            instance.request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, ..Default::default() }).await;
+        let adapter = match hardware {
+            Ok(a) => a,
+            Err(_) => instance
+                .request_adapter(&wgpu::RequestAdapterOptions { force_fallback_adapter: true, ..Default::default() })
+                .await
+                .context("no compatible GPU adapter found, not even a software one (needs Vulkan, DX12 or Metal; on Linux install mesa-vulkan-drivers; `red_engine2 doctor` explains)")?,
+        };
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("forge3d-device"),

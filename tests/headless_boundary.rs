@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 
 /// Modules gated behind `#[cfg(feature = "gfx")]` in `src/lib.rs`, plus the windowed binary.
-const GFX_ONLY: &[&str] = &["audio.rs", "gpu.rs", "menu.rs", "mesh.rs", "overlay.rs", "render.rs", "revolver.rs", "video.rs", "viewer.rs"];
+const GFX_ONLY: &[&str] = &["audio.rs", "gpu.rs", "menu.rs", "mesh.rs", "overlay.rs", "probe.rs", "render.rs", "revolver.rs", "video.rs", "viewer.rs"];
 /// Directories that are entirely windowed code (`re2` is a directory binary: main.rs, weapons.rs, avatar.rs, window.rs, win.rs).
 const GFX_ONLY_DIRS: &[&str] = &["bin/re2/"];
 const BANNED: &[&str] = &["wgpu::", "winit::", "rodio::", "ffmpeg_sidecar", "pollster::"];
@@ -48,7 +48,7 @@ fn headless_modules_name_no_graphics_or_audio_crates() {
 
 #[test]
 fn every_gfx_only_module_is_gated_in_lib_rs() {
-    let lib = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs")).unwrap();
+    let lib = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs")).unwrap().replace("\r\n", "\n");
     for m in GFX_ONLY.iter().filter(|m| !m.contains('/')) {
         let name = m.trim_end_matches(".rs");
         let gated = lib.contains(&format!("#[cfg(feature = \"gfx\")]\npub mod {name};"));

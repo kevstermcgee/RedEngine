@@ -1,0 +1,27 @@
+[Unit]
+Description=Red Engine dedicated game server (UDP)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=red
+WorkingDirectory=/opt/red
+# RED_MAP, RED_PORT, RED_BIND, RED_SPAWN_GROUP, ... (see deploy/server.env.example); a missing file is fine (defaults apply)
+EnvironmentFile=-/etc/red/server.env
+ExecStart=/usr/local/bin/red_server
+Restart=on-failure
+RestartSec=3
+# SIGTERM is handled: clients are told, a --record trace is written
+KillSignal=SIGTERM
+TimeoutStopSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/red
+MemoryMax=512M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target
