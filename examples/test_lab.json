@@ -345,6 +345,14 @@
   "note": "rooms are the interest cells; a client hears about its room and rooms one portal away"
  },
  "checks": {
+  "perf": {
+   "players": 4,
+   "secs": 1,
+   "sim_tick_p95_us": 3000,
+   "server_tick_p95_us": 4000,
+   "bytes_per_client_sec": 20000,
+   "promoted_props_max": 40
+  },
   "lint": {
    "max_errors": 0,
    "max_warnings": 2

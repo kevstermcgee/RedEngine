@@ -17,16 +17,20 @@
 // as a `let ... else` / `?` with a message, not an `unwrap`.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
 
+pub mod auth;
 pub mod bot;
 pub mod client;
 pub mod interp;
 pub mod limits;
+pub mod netsim;
 pub mod predict;
 pub mod protocol;
 pub mod server;
 pub mod session;
 mod sessions;
 mod snapshots;
+pub mod testkit;
+pub mod upnp;
 
 /// The default UDP port of a Red server.
 pub const DEFAULT_PORT: u16 = 27015;

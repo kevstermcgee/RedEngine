@@ -333,6 +333,39 @@ def replay_trace(trace_path: str, scene_path: str = "") -> str:
 
 
 @mcp.tool()
+def perf_map(scene_json: str, players: int = 4, secs: float = 1.5) -> str:
+    """Performance as a contract: `players` real walking players in an in-process server; reports microseconds
+    per sim tick and per whole server tick (p50/p95/p99/worst, best of several windows), bytes per client per
+    second, the largest datagram and how many props physics promoted, judged against the scene's own
+    `checks.perf` budget (or generous defaults), with advice when one is blown."""
+    return _text(_run_on_scene(scene_json, "perf", "{scene}", f"--players={players}", f"--secs={secs}"))
+
+
+@mcp.tool()
+def net_test_map(scene_json: str, profile: str = "bad", players: int = 2, secs: float = 5.0) -> str:
+    """How does the game feel on a bad connection? A real server and real clients run behind a seeded,
+    bursty-lossy, laggy UDP proxy (profile: lan | wifi | 4g | bad | awful | all) and are judged on what a
+    player would notice: disconnects, prediction ending on the server's position, other players gliding
+    instead of teleporting, corrections, bandwidth."""
+    return _text(_run_on_scene(scene_json, "net-test", "{scene}", f"--profile={profile}", f"--players={players}", f"--secs={secs}"))
+
+
+@mcp.tool()
+def impact_of_changes(files: list[str]) -> str:
+    """Which tests and docs does changing these files affect? Names the features that own the files, the
+    features built on those, and the exact `cargo test` / verification commands to run. Pass paths from the
+    repository root; an empty list uses `git diff` plus untracked files."""
+    return _text(_run("impact", *files) if files else _run("impact", "--git"))
+
+
+@mcp.tool()
+def feature_index(query: str = "") -> str:
+    """The engine's feature index (docs/features.json): with no query the list of features; with a name its
+    files, tests, verification commands and docs; with words a search."""
+    return _text(_run("features", *([query] if query else [])))
+
+
+@mcp.tool()
 def run_json(args: list[str]) -> str:
     """Run any red_engine2 subcommand with the global --json flag and return the stable envelope:
     {schema, command, ok, exit, data, diagnostics:[{code, path, message, fix?}], stderr}. Use this

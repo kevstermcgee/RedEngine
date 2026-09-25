@@ -58,6 +58,7 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 mod avatar;
 mod events;
 mod frame;
+mod online;
 mod weapons;
 mod window;
 use window::acquire_frame;
@@ -212,6 +213,8 @@ struct GpuState {
 enum Phase {
     /// Choosing a character.
     Menu,
+    /// Typing a server address (the online connect form).
+    Connect,
     /// In the map.
     Playing,
 }
@@ -242,6 +245,7 @@ struct App {
     /// What the menu overlay currently shows `(width, height, selected)`, to repaint only on change.
     menu_painted: Option<(u32, u32, Character)>,
     cursor_x: f32,
+    cursor_y: f32,
     keys: HashSet<KeyCode>,
     grabbed: bool,
     /// When the mouse was last captured. Capturing recenters the cursor, which delivers one big
@@ -264,6 +268,14 @@ struct App {
     /// Address to join, and the client's view of the map, until `start_game` uses them.
     net_server: Option<SocketAddr>,
     net_world: Option<ClientWorld>,
+    /// The online screens' state (connect form text, hover, what the overlay shows).
+    online: online::OnlineUi,
+    /// A session connected from the connect form, waiting for `start_game` to use it.
+    pending_net: Option<NetSession>,
+    /// `--key` / `RE2_KEY`: the server's join key.
+    join_key: Option<String>,
+    /// `--name` / `RE2_NAME`: the name shown in the lobby.
+    player_name: String,
     /// Debug: `RE2_AUTOWALK=forward|circle[:deg/s]` walks by itself (for unattended multi-window demos).
     autowalk: Option<String>,
     net_title_at: Instant,
@@ -381,6 +393,7 @@ impl App {
             menu_scene: menu::menu_scene(),
             menu_painted: None,
             cursor_x: 0.0,
+            cursor_y: 0.0,
             keys: HashSet::new(),
             grabbed: false,
             grabbed_at: Instant::now(),
@@ -394,6 +407,10 @@ impl App {
             net: None,
             net_server,
             net_world,
+            online: online::OnlineUi::new("127.0.0.1", "", &std::env::var("RE2_NAME").unwrap_or_default()),
+            pending_net: None,
+            join_key: std::env::var("RE2_KEY").ok().filter(|k| !k.is_empty()),
+            player_name: std::env::var("RE2_NAME").unwrap_or_default(),
             autowalk: std::env::var("RE2_AUTOWALK").ok().filter(|v| !v.is_empty()),
             net_title_at: Instant::now(),
             switch_queued: None,
@@ -441,14 +458,18 @@ struct Args {
     scene: PathBuf,
     who: Option<Character>,
     connect: Option<SocketAddr>,
+    key: Option<String>,
+    name: Option<String>,
 }
 
-/// Command line: `re2 [scene.json] [--as human|rat] [--connect HOST:PORT]` (the character can also come
-/// from `RE2_CHARACTER`, the server from `RE2_CONNECT`); without a character the launch menu asks.
+/// Command line: `re2 [scene.json] [--as human|rat] [--connect HOST:PORT] [--key JOIN_KEY] [--name NAME]` (the character can also
+/// come from `RE2_CHARACTER`, the server from `RE2_CONNECT`, the key from `RE2_KEY`, the name from `RE2_NAME`); without a character the
+/// launch menu asks, and its PLAY ONLINE button (or the O key) opens a form for the server, key and name.
 fn parse_args() -> Args {
     let mut scene = None;
     let mut who = std::env::var("RE2_CHARACTER").ok().and_then(|v| Character::parse(&v));
     let mut connect: Option<String> = std::env::var("RE2_CONNECT").ok().filter(|v| !v.is_empty());
+    let (mut key, mut name) = (None::<String>, None::<String>);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         if a == "--as" || a == "--character" {
@@ -458,6 +479,10 @@ fn parse_args() -> Args {
             }
         } else if a == "--connect" {
             connect = args.next();
+        } else if a == "--key" {
+            key = args.next();
+        } else if a == "--name" {
+            name = args.next();
         } else if scene.is_none() {
             scene = Some(PathBuf::from(a));
         }
@@ -466,7 +491,7 @@ fn parse_args() -> Args {
         let c = if c.contains(':') { c } else { format!("{c}:{}", red_engine2::net::DEFAULT_PORT) };
         c.to_socket_addrs().ok().and_then(|mut i| i.next()).unwrap_or_else(|| fail_online(&format!("'{c}' is not a valid HOST:PORT")))
     });
-    Args { scene: scene.unwrap_or_else(|| PathBuf::from("examples/room.json")), who, connect }
+    Args { scene: scene.unwrap_or_else(|| PathBuf::from("examples/room.json")), who, connect, key, name }
 }
 
 /// Reports a fatal online-mode problem (message box when there is no console) and exits.
@@ -481,7 +506,7 @@ fn main() {
     #[cfg(windows)]
     let has_console = win::attach_console();
     env_logger::init();
-    let Args { scene: scene_path, who: forced_character, connect } = parse_args();
+    let Args { scene: scene_path, who: forced_character, connect, key, name } = parse_args();
     // Online, the client's map is loaded together with its hash and static collision (what the server has).
     let mut net_world = None;
     let loaded = if connect.is_some() {
@@ -520,5 +545,12 @@ fn main() {
         println!("Online: will join {addr} once you pick a character. Weapons and pick-up are not networked yet.");
     }
     let mut app = App::new(scene, scene_path, forced_character, connect, net_world);
+    if key.is_some() {
+        app.join_key = key;
+    }
+    if let Some(n) = name {
+        app.online.form.name = n.clone();
+        app.player_name = n;
+    }
     event_loop.run_app(&mut app).expect("event loop error");
 }

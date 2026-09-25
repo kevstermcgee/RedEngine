@@ -557,6 +557,5 @@ problems (stairs that lead nowhere, unreachable rooms, overlaps, ...).
 No imported meshes/textures, no scene-object physics in the *offline* tools (nothing falls, bounces,
 or collides on its own there; in the live viewer the player has its own simple gravity/collision
 model, and small props are rigid bodies you can pick up, drop and knock over — see `movable` above), no per-vertex mesh deformation/skinning beyond the fixed
-capsule-rig `humanoid`, no on-screen 2D text/UI overlay (that's the 2D engine's job — composite
-the two if you need captions over a 3D shot), at most 16 lights and 1 shadow-casting light. The
+capsule-rig `humanoid`, no 2-D text in the *offline* renderer (composite with the 2D engine for captions; the live game's menus, lobby and HUD use the `src/ui` kit), at most 16 lights and 1 shadow-casting light. The
 goal is a small, auditable surface an AI can hold in context, not a general-purpose 3D suite.

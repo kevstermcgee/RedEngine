@@ -8,14 +8,15 @@
 use red_engine2::net::map_hash;
 use red_engine2::net::protocol::{
     snapshot_bytes, ClientMsg, Hello, InputPacket, PlayerSnap, PropSnap, ServerMsg, Snapshot, MAX_PACKET, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROPS_PER_SNAPSHOT,
-    NO_PROP, PROTOCOL_VERSION,
+    NO_PROP,
 };
 use red_engine2::net::server::{Server, ServerConfig};
+use red_engine2::net::testkit::RawClient;
 use red_engine2::sim::interest::InterestMap;
 use red_engine2::sim::match_sim::{MatchSim, MAX_PLAYERS};
 use red_engine2::sim::player::PlayerInput;
 use red_engine2::sim::spawns::parse_spawns;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -60,16 +61,21 @@ fn the_worst_case_snapshot_and_the_bandwidth_it_implies_are_within_budget() {
     assert!(worst_rate <= WORST_BYTES_PER_SEC_PER_CLIENT, "worst-case bandwidth {worst_rate:.0} B/s per client (budget {WORST_BYTES_PER_SEC_PER_CLIENT})");
     // The client -> server direction: one 4-input packet per tick at 60 Hz.
     let mut inp = Vec::new();
-    ClientMsg::Input(InputPacket { snapshot_ack: 1, client_time_ms: 1, inputs: vec![PlayerInput::default(); 4] }).encode(&mut inp);
-    assert!(inp.len() as f64 * 60.0 <= 8_000.0, "upstream {} B/s", inp.len() as f64 * 60.0);
-    ClientMsg::Hello(Hello { version: PROTOCOL_VERSION, map_hash: 0, character: 0, resume_token: 0 }).encode(&mut inp);
+    ClientMsg::Input(InputPacket { snapshot_ack: 1, client_time_ms: 1, inputs: vec![PlayerInput::default(); 4], ..Default::default() }).encode(&mut inp);
+    let tag = red_engine2::net::auth::TAG_LEN;
+    assert!((inp.len() + tag) as f64 * 60.0 <= 8_000.0, "upstream {} B/s (with the authentication tag)", (inp.len() + tag) as f64 * 60.0);
+    // Authentication costs 8 bytes a packet: the worst snapshot must still fit a datagram with its tag.
+    assert!(buf.len() + tag <= MAX_PACKET, "a full snapshot plus its tag is {} bytes", buf.len() + tag);
+    // The join packets are small and happen once.
+    let mut hello = Vec::new();
+    ClientMsg::Hello(Hello { name: "x".repeat(16), ..Default::default() }).encode(&mut hello);
+    assert!(hello.len() < 100, "a Hello is {} bytes", hello.len());
 }
 
 /// A server on loopback whose clock the test drives, with `n` synthetic clients that join and send one input per tick.
 struct Session {
     server: Server,
-    socks: Vec<UdpSocket>,
-    addr: SocketAddr,
+    socks: Vec<RawClient>,
     now: Instant,
     seq: u32,
 }
@@ -84,13 +90,15 @@ impl Session {
             server.set_interest(InterestMap::parse(&text).unwrap());
         }
         let addr = SocketAddr::new("127.0.0.1".parse().unwrap(), server.local_addr().unwrap().port());
-        let socks: Vec<UdpSocket> = (0..n).map(|_| UdpSocket::bind("127.0.0.1:0").unwrap()).collect();
-        let mut s = Session { server, socks, addr, now: Instant::now(), seq: 0 };
-        let hello = encode(&ClientMsg::Hello(Hello { version: PROTOCOL_VERSION, map_hash: map_hash(&text), character: 0, resume_token: 0 }));
-        for sock in &s.socks {
-            sock.send_to(&hello, s.addr).unwrap();
-            std::thread::sleep(Duration::from_millis(5));
-            s.server.pump(s.now);
+        let socks: Vec<RawClient> = (0..n).map(|k| RawClient::new(addr, map_hash(&text), None, 100 + k as u64).unwrap()).collect();
+        let mut s = Session { server, socks, now: Instant::now(), seq: 0 };
+        for c in s.socks.iter_mut() {
+            let (server, now) = (&mut s.server, s.now);
+            c.handshake(|| {
+                std::thread::sleep(Duration::from_millis(5));
+                server.pump(now);
+            })
+            .unwrap();
         }
         assert_eq!(s.server.client_count(), n.min(MAX_PLAYERS));
         s
@@ -101,24 +109,17 @@ impl Session {
         for _ in 0..(secs * 60.0) as u32 {
             self.now += Duration::from_micros(16_667);
             self.seq += 1;
-            let p = encode(&ClientMsg::Input(InputPacket {
-                snapshot_ack: 0,
-                client_time_ms: 0,
+            let msg = ClientMsg::Input(InputPacket {
                 inputs: vec![PlayerInput { seq: self.seq, forward: walk as i8, yaw: 0.3, ..Default::default() }],
-            }));
-            for s in &self.socks {
-                let _ = s.send_to(&p, self.addr);
+                ..Default::default()
+            });
+            for c in &self.socks {
+                c.send(&msg);
             }
             self.server.pump(self.now);
             self.server.tick(self.now);
         }
     }
-}
-
-fn encode(m: &ClientMsg) -> Vec<u8> {
-    let mut b = Vec::new();
-    m.encode(&mut b);
-    b
 }
 
 #[test]

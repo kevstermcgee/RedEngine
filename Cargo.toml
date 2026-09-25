@@ -2,6 +2,9 @@
 name = "red_engine2"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/kevstermcgee/RedEngine"
+description = "AI-first Rust game engine: JSON scenes, self-verifying maps, authoritative multiplayer, headless tooling"
 
 # `gfx` (default) = everything that draws or plays sound: wgpu, winit, rodio, ffmpeg. The dedicated server, the bot and the
 # map-analysis CLI build without it (`cargo build --no-default-features --bin red_server`); CI enforces that on Linux.
@@ -13,7 +16,10 @@ gfx = ["dep:wgpu", "dep:winit", "dep:rodio", "dep:pollster", "dep:ffmpeg-sidecar
 anyhow = "1.0.104"
 bytemuck = { version = "1.25.2", features = ["derive"] }
 clap = { version = "4.6.7", features = ["derive"] }
+# `flate2` + `crc32fast`: already in the tree for PNG; `red_engine2 package` uses them to write a deterministic zip.
+crc32fast = "1.5"
 env_logger = "0.11.11"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 ffmpeg-sidecar = { version = "2.5.2", optional = true }
 # `libm`: glam uses the pure-Rust libm for sin/cos/atan2 instead of the platform C library, so simulation maths is
 # bit-identical on Windows and Linux (replay checksums, ADR 0019).

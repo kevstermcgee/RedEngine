@@ -6,12 +6,17 @@
 //! red_bot --server 127.0.0.1:27015 [--map examples/test_lab.json] [--as human|rat]
 //!         [--behavior idle | forward:YAW | circle:DEG_PER_SEC | route:x,z;x,z;...] [--sprint]
 //!         [--duration 5] [--report-every 0.5] [--token N] [--leave-after SECS] [--rejoin-after SECS]
+//!         [--key JOIN_KEY] [--name NAME] [--ready]
 //! ```
+//!
+//! `--key` is the server's join key (or set `RED_KEY`); `--name` is the name shown in the lobby; `--ready` makes the bot press Ready
+//! whenever the match is in the lobby or showing results, so it takes part in a lobby / round / rematch flow.
 //!
 //! Output (stdout), one JSON object per line: `{"event":...}` for connects and disconnects,
 //! `{"report":...}` periodically, and a final `{"summary":...}`.
 
 use red_engine2::net::bot::{Behavior, Bot, BotFrame, ClientWorld};
+use red_engine2::net::client::{ClientConfig, NetClient};
 use red_engine2::player::Character;
 use serde_json::json;
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -19,7 +24,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 fn usage() -> ! {
-    eprintln!("usage: red_bot --server HOST:PORT [--map FILE] [--as human|rat] [--behavior idle|forward:YAW|circle:DPS|route:x,z;x,z] [--sprint] [--duration S] [--report-every S] [--token N] [--leave-after S] [--rejoin-after S]");
+    eprintln!("usage: red_bot --server HOST:PORT [--map FILE] [--as human|rat] [--behavior idle|forward:YAW|circle:DPS|route:x,z;x,z] [--sprint] [--duration S] [--report-every S] [--token N] [--leave-after S] [--rejoin-after S] [--key K] [--name N] [--ready]");
     std::process::exit(2);
 }
 
@@ -57,6 +62,7 @@ fn main() {
     let (mut server, mut map, mut who, mut spec, mut sprint) =
         (None::<SocketAddr>, PathBuf::from("examples/test_lab.json"), Character::Human, "idle".to_string(), false);
     let (mut duration, mut every, mut token, mut leave_after, mut rejoin_after) = (5.0f64, 0.5f64, 0u64, None::<f64>, None::<f64>);
+    let (mut key, mut name, mut ready) = (std::env::var("RED_KEY").ok().filter(|k| !k.is_empty()), String::new(), false);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut val = || args.next().unwrap_or_else(|| usage());
@@ -71,6 +77,9 @@ fn main() {
             "--token" => token = val().parse().unwrap_or_else(|_| usage()),
             "--leave-after" => leave_after = Some(val().parse().unwrap_or_else(|_| usage())),
             "--rejoin-after" => rejoin_after = Some(val().parse().unwrap_or_else(|_| usage())),
+            "--key" => key = Some(val()),
+            "--name" => name = val(),
+            "--ready" => ready = true,
             _ => usage(),
         }
     }
@@ -80,10 +89,19 @@ fn main() {
             eprintln!("{e}");
             std::process::exit(1);
         });
-        Bot::new(server, who, world, behavior(&spec, sprint), token).unwrap_or_else(|e| {
+        let mut cfg = ClientConfig::new(server, if who == Character::Rat { 1 } else { 0 }, world.map_hash, token);
+        cfg.join_key = key.clone();
+        cfg.name = name.clone();
+        let client = NetClient::connect_with(cfg).unwrap_or_else(|e| {
             eprintln!("cannot open a socket: {e}");
             std::process::exit(1);
-        })
+        });
+        let mut bot = Bot::with_client(client, who, world, behavior(&spec, sprint)).unwrap_or_else(|e| {
+            eprintln!("cannot start the bot: {e}");
+            std::process::exit(1);
+        });
+        bot.auto_ready = ready;
+        bot
     };
     let mut bot = mk(token);
     let started = Instant::now();

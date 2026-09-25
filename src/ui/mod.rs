@@ -13,6 +13,7 @@
 //! * `red_engine2 ui-shot <screen> out.png --size 1280x720 --hover resume --message "..."` renders a screen to a PNG.
 //! * `red_engine2 ui-check` audits every screen at many window sizes (also a test, `ui::screens::tests`).
 
+pub mod online;
 pub mod screens;
 
 use crate::tools::font::{glyph, GLYPH_H, GLYPH_W};

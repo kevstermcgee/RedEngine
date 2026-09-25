@@ -1,6 +1,6 @@
 //! Abuse limits for a public UDP port: a token bucket, and the numbers the server applies with it.
 //!
-//! A real client sends one input packet per 60 Hz tick and one Hello per 250 ms while joining, so the
+//! A real client sends one input packet per 60 Hz tick and two Hellos (challenge, then proof) per 250 ms while joining, so the
 //! limits sit far above honest traffic and only bite on a flood. Packets over a limit are dropped
 //! before they reach the sim (no queued input, no reply, no session) and counted in `ServerStats`.
 
@@ -10,6 +10,10 @@ use std::time::Instant;
 pub const INPUT_PACKETS_PER_SEC: f32 = 180.0;
 /// Burst allowance for a session's input packets (catching up after a stall).
 pub const INPUT_BURST: f32 = 90.0;
+/// Lobby packets per second one session may send (an honest client sends about 5, plus one per button press).
+pub const LOBBY_PACKETS_PER_SEC: f32 = 30.0;
+/// Burst allowance for a session's lobby packets.
+pub const LOBBY_BURST: f32 = 30.0;
 /// Hellos per second the server answers in total, across every source address (an honest joiner sends 4).
 pub const HELLOS_PER_SEC: f32 = 60.0;
 /// Burst allowance for Hellos.

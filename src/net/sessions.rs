@@ -1,7 +1,8 @@
 //! Who is connected: the per-client session record, the parked (recently dropped) players a returning
 //! client can resume, and where resume tokens come from. Plain data, no sockets — `server.rs` drives it.
 
-use super::limits::{TokenBucket, INPUT_BURST, INPUT_PACKETS_PER_SEC};
+use super::auth::SessionKey;
+use super::limits::{TokenBucket, INPUT_BURST, INPUT_PACKETS_PER_SEC, LOBBY_BURST, LOBBY_PACKETS_PER_SEC};
 use crate::sim::change::Generation;
 use crate::sim::player::PlayerState;
 use std::collections::hash_map::RandomState;
@@ -21,10 +22,28 @@ pub(super) struct SentSnap {
 /// One connected client.
 pub(super) struct Session {
     pub addr: SocketAddr,
+    /// The player id: stable from the lobby through every round and across a reconnect.
     pub slot: usize,
     pub token: u64,
+    /// Authenticates every datagram of this session (see `net::auth`).
+    pub key: SessionKey,
+    /// The nonce and cookie this session's key was derived from (a retransmitted Hello carries the same pair).
+    pub client_nonce: u64,
+    pub cookie: u64,
+    pub name: String,
+    /// `0` human, `1` rat: what the player asked for (used at the next spawn).
+    pub character: u8,
+    pub ready: bool,
+    /// Whether the player has a body in the running world.
+    pub in_round: bool,
+    /// The newest round whose `Welcome` the client has applied.
+    pub round_ack: u16,
+    /// The client's own reported round-trip time, ms (cosmetic).
+    pub rtt_ms: u16,
     pub last_heard: Instant,
     pub snapshot_seq: u32,
+    /// Sequence of the next `Status`.
+    pub status_seq: u16,
     /// Per moving prop (by entity slot): the generation of the pose the client has acknowledged.
     pub known: Vec<Generation>,
     pub sent: [SentSnap; 64],
@@ -32,21 +51,44 @@ pub(super) struct Session {
     pub last_client_packet_at: Instant,
     /// Input-packet budget (see [`super::limits`]).
     pub input_bucket: TokenBucket,
+    /// Lobby-packet budget.
+    pub lobby_bucket: TokenBucket,
 }
 
 impl Session {
-    pub fn new(addr: SocketAddr, slot: usize, token: u64, now: Instant) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(addr: SocketAddr, slot: usize, token: u64, key: SessionKey, client_nonce: u64, cookie: u64, name: String, character: u8, now: Instant) -> Self {
         Session {
             addr,
             slot,
             token,
+            key,
+            client_nonce,
+            cookie,
+            name,
+            character,
+            ready: false,
+            in_round: false,
+            round_ack: 0,
+            rtt_ms: 0,
             last_heard: now,
             snapshot_seq: 0,
+            status_seq: 0,
             known: Vec::new(),
             sent: std::array::from_fn(|_| SentSnap::default()),
             last_client_time_ms: 0,
             last_client_packet_at: now,
             input_bucket: TokenBucket::new(INPUT_PACKETS_PER_SEC, INPUT_BURST, now),
+            lobby_bucket: TokenBucket::new(LOBBY_PACKETS_PER_SEC, LOBBY_BURST, now),
+        }
+    }
+
+    /// Forgets which prop poses the client has confirmed (the world was rebuilt: every generation restarted).
+    pub fn forget_world(&mut self) {
+        self.known.clear();
+        for s in self.sent.iter_mut() {
+            s.seq = 0;
+            s.props.clear();
         }
     }
 }
@@ -54,13 +96,19 @@ impl Session {
 /// A dropped player waiting for its owner to come back with the token.
 pub(super) struct Parked {
     pub token: u64,
-    pub state: PlayerState,
+    pub slot: usize,
+    /// Where the player stood (`None` if they had no body: they were in the lobby).
+    pub state: Option<PlayerState>,
+    /// The round `state` belongs to: resuming into a different round spawns fresh.
+    pub round: u16,
+    pub name: String,
+    pub character: u8,
     pub expires: Instant,
 }
 
 /// Resume-token generator. Each process gets random SipHash keys from the OS (`RandomState`), so a token is
 /// not guessable from the join order or the clock — knowing one player's token says nothing about another's.
-/// (Real authentication/encryption is a transport layer that can wrap this later; ADR 0016.)
+/// (Datagram authentication is separate: `net::auth`, ADR 0028.)
 pub(super) struct TokenSource {
     keys: RandomState,
     counter: u64,

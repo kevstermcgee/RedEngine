@@ -199,8 +199,13 @@ fn net_codec(c: &mut Criterion) {
     let mut encoded = Vec::new();
     msg.encode(&mut encoded);
     let mut input = Vec::new();
-    ClientMsg::Input(InputPacket { snapshot_ack: 9, client_time_ms: 1, inputs: vec![PlayerInput { seq: 1, forward: 1, ..Default::default() }; 4] })
-        .encode(&mut input);
+    ClientMsg::Input(InputPacket {
+        snapshot_ack: 9,
+        client_time_ms: 1,
+        inputs: vec![PlayerInput { seq: 1, forward: 1, ..Default::default() }; 4],
+        ..Default::default()
+    })
+    .encode(&mut input);
     let mut g = c.benchmark_group("net");
     g.bench_function("encode_worst_snapshot", |b| {
         b.iter(|| {
@@ -210,6 +215,19 @@ fn net_codec(c: &mut Criterion) {
     });
     g.bench_function("decode_worst_snapshot", |b| b.iter(|| ServerMsg::decode(black_box(&encoded))));
     g.bench_function("decode_input_packet", |b| b.iter(|| ClientMsg::decode(black_box(&input))));
+    // Authentication (ADR 0028): the tag on the worst snapshot the server sends to every client at 30 Hz, and the check on an input packet
+    // the server receives from every client at 60 Hz.
+    let key = red_engine2::net::auth::SessionKey::derive(b"bench-key", 1, 2);
+    let mut signed_in = input.clone();
+    key.sign(red_engine2::net::auth::Direction::ToServer, &mut signed_in);
+    g.bench_function("sign_worst_snapshot", |b| {
+        b.iter(|| {
+            buf.clear();
+            buf.extend_from_slice(black_box(&encoded));
+            key.sign(red_engine2::net::auth::Direction::ToClient, &mut buf);
+        })
+    });
+    g.bench_function("verify_input_packet", |b| b.iter(|| key.verify(red_engine2::net::auth::Direction::ToServer, black_box(&signed_in))));
     g.finish();
 }
 

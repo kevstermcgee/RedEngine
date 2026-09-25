@@ -12,6 +12,7 @@ use crate::net::protocol::PlayerSnap;
 use crate::physics::loose_props;
 use crate::player::Character;
 use crate::schema::Scene;
+use crate::sim::flow::Phase;
 use crate::sim::player::{PlayerInput, PlayerState};
 use glam::Vec2;
 use std::net::SocketAddr;
@@ -116,13 +117,19 @@ pub struct Bot {
     pub buttons: u8,
     /// Look pitch the bot sends, radians (negative = down): tests aim at low props with it.
     pub pitch: f32,
+    /// Press Ready whenever the match is in the lobby or showing results (how a bot takes part in a match flow and asks for a rematch).
+    pub auto_ready: bool,
 }
 
 impl Bot {
     /// Starts joining `server` as `character` on the map in `world`. `resume_token` is `0` for a fresh join.
     pub fn new(server: SocketAddr, character: Character, world: ClientWorld, behavior: Behavior, resume_token: u64) -> std::io::Result<Bot> {
         let code = if character == Character::Rat { 1 } else { 0 };
-        let client = NetClient::connect(server, code, world.map_hash, resume_token)?;
+        Self::with_client(NetClient::connect(server, code, world.map_hash, resume_token)?, character, world, behavior)
+    }
+
+    /// Like [`Bot::new`] with a client the caller configured (a join key, a name).
+    pub fn with_client(client: NetClient, character: Character, world: ClientWorld, behavior: Behavior) -> std::io::Result<Bot> {
         let now = Instant::now();
         Ok(Bot {
             client,
@@ -137,6 +144,7 @@ impl Bot {
             events: Vec::new(),
             buttons: 0,
             pitch: 0.0,
+            auto_ready: false,
         })
     }
 
@@ -172,6 +180,9 @@ impl Bot {
         for ev in self.client.poll(now) {
             let t = now.duration_since(self.started).as_secs_f64();
             match ev {
+                NetEvent::Connected(w) if !w.in_round => {
+                    self.events.push((t, format!("connected as player {} (watching: not in a round)", w.player_id)));
+                }
                 NetEvent::Connected(w) => {
                     let st = PlayerState {
                         pos: Vec2::new(w.spawn[0], w.spawn[2]),
@@ -188,8 +199,10 @@ impl Bot {
                     self.yaw = w.spawn[3];
                     self.character = st.character;
                     self.next_tick = now;
+                    self.waypoint = 0;
                     self.events.push((t, format!("connected as player {} at ({:.2}, {:.2})", w.player_id, w.spawn[0], w.spawn[2])));
                 }
+                NetEvent::PhaseChanged { phase, round } => self.events.push((t, format!("phase {} round {round}", phase.name()))),
                 NetEvent::Snapshot { own: Some(own), ack_input_seq } => {
                     let server_state = self.own_state(&own);
                     if let Some(p) = &mut self.predictor {
@@ -202,7 +215,14 @@ impl Bot {
                 NetEvent::ServerBye => self.events.push((t, "server said bye".into())),
             }
         }
-        if self.client.state() != ConnState::Connected {
+        if self.auto_ready
+            && self.client.state() == ConnState::Connected
+            && !self.client.is_ready()
+            && matches!(self.client.phase(), Phase::Waiting | Phase::Results)
+        {
+            self.client.set_ready(true, now);
+        }
+        if self.client.state() != ConnState::Connected || !self.client.in_round() {
             self.next_tick = now;
             return;
         }

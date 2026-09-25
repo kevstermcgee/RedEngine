@@ -26,6 +26,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("diagnostics", "the `--json` envelope every command can return, and every stable diagnostic code with its fix"),
     ("rules", "game logic as data: `vars` + `rules` (when / who / if / once / do), volumes, actions, expressions; run headless"),
     ("sim", "headless play-throughs (`sim`, scenarios in `checks.sim`) and match traces (`replay`, checksums, first divergent tick)"),
+    ("multiplayer", "hosting and playing online: keys, lobby and rounds, UPnP, net-test, perf, package"),
     ("all", "everything above as one JSON document (use with --json)"),
 ];
 
@@ -194,8 +195,9 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("vars", "{name: number|bool} game variables rules read and write (`describe rules`); built-ins: time, tick, players"),
     ("rules", "[{id, when, who, if, once, cooldown, do}] game logic as data: triggers, conditions, actions (`describe rules`)"),
     ("weapons", "{bat: {damage}, revolver: {damage, ammo: \"infinite\" | {loaded, capacity, reserve}}} the demo weapons' numbers; limited ammo is a scene edit"),
+    ("match", "{min_players, countdown_secs, round_secs, results_secs, score_to_win, join_in_progress, ready_check} turns on the server's lobby -> countdown -> round -> results -> rematch flow (`describe multiplayer`); absent = open play"),
     ("prefabs", "scene-local prefab definitions {name: {params, objects, tags, desc, extends, collide, mount}} — shadow built-ins"),
-    ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views} — see `describe checks` / SPEC"),
+    ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views, sim, perf} — see SPEC; `perf` = budgets for tick time, bandwidth, promoted props (`red_engine2 perf`)"),
     ("objects", "the scene graph: array of objects (see `describe objects`)"),
     ("x-*, _*, notes, $comment", "the extension namespace: always allowed, never interpreted — put notes and tool data here. ANY OTHER unknown key is an error with a did-you-mean"),
 ];
@@ -355,6 +357,31 @@ fn rules_text() -> String {
     out
 }
 
+fn multiplayer_text() -> String {
+    String::from(
+        "HOST     red_server --map maps/main.json [--port 27015] [--key SECRET|auto] [--lobby] [--upnp] [--record trace.json]\n\
+         \x20 --key     joining needs the key: clients PROVE they know it (HMAC challenge/response), it is never sent, and every datagram after the\n\
+         \x20           handshake carries an authentication tag, so forged / replayed / injected packets are dropped (ADR 0028). `auto` makes 128 random\n\
+         \x20           bits and prints them. NOT encrypted: traffic is readable; use a long random key, not a short word.\n\
+         \x20 --lobby   the lobby flow with defaults; a scene `\"match\": {min_players, countdown_secs, round_secs, results_secs, score_to_win,\n\
+         \x20           join_in_progress, ready_check}` turns it on with the map's own settings; `--min-players --countdown-secs --round-secs\n\
+         \x20           --results-secs --score-to-win` override either. Without any of these: open play (join = play).\n\
+         \x20 --upnp    open the UDP port on a home router (UPnP), renew it, remove it on exit. `red_engine2 portmap status|enable|remove|keep`.\n\
+         \x20 Every setting is also an env var (RED_KEY, RED_LOBBY, RED_UPNP, RED_ROUND_SECS, ...); docs/HOSTING.md has Docker and systemd.\n\
+         PLAY     re2 --connect HOST:PORT [--key K] [--name N] map.json      (or `re2 map.json`, then PLAY ONLINE / the O key opens the connect form)\n\
+         \x20 The lobby shows the roster (names, character, ping, ready); R ready, C character, Esc leave. Countdown -> round (HUD: ping, timer,\n\
+         \x20 scoreboard) -> results -> everyone pressing Ready again is a rematch. Late joiners play at once or watch until the next round.\n\
+         BOT      red_bot --server HOST:PORT [--key K] [--name N] [--ready]   (a scripted headless client that also readies up)\n\
+         PROVE IT\n\
+         \x20 red_engine2 net-test scene.json --profile bad|all   real server + clients behind a seeded bursty-lossy laggy proxy; judged on what a\n\
+         \x20                                                    player notices (disconnects, prediction, remote players gliding, bandwidth)\n\
+         \x20 red_engine2 perf scene.json                          sim/server tick percentiles, bytes per client, promoted props vs `checks.perf`\n\
+         \x20 red_engine2 sim scene.json                           scripted headless play-throughs of the rules;  replay trace.json = first divergent tick\n\
+         SHIP     red_engine2 package out.zip / package --verify out.zip   reproducible zip + SHA-256 manifest; headless binaries proven graphics-free\n\
+         NOT DONE lag compensation for hitscan, payload encryption, spectator camera, teams, kick/ban.\n",
+    )
+}
+
 fn sim_text() -> String {
     String::from(
         "red_engine2 sim <scene> [--scenario file.json] [--only name] [--trace out.json] [--checkpoint-every 1] [--dump-every 60]\n\
@@ -456,6 +483,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
                 "example": serde_json::from_str::<Value>(RULES_EXAMPLE).unwrap_or(Value::Null),
             }),
             "sim" => json!({"text": sim_text()}),
+            "multiplayer" => json!({"text": multiplayer_text()}),
             "diagnostics" => {
                 json!({"envelope_schema": crate::tools::envelope::ENVELOPE_SCHEMA, "codes": crate::tools::envelope::CODES.iter().map(|(c, d, f)| json!({"code": c, "about": d, "fix": f})).collect::<Vec<_>>()})
             }
@@ -478,6 +506,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "diagnostics" => out.push_str(&diagnostics_text()),
         "rules" => out.push_str(&rules_text()),
         "sim" => out.push_str(&sim_text()),
+        "multiplayer" => out.push_str(&multiplayer_text()),
         "overview" => {
             let (props, prefabs) = (crate::props::PropKind::ALL.len(), crate::prefabs::builtin().0.defs.len());
             out.push_str("Red Engine 2: maps are JSON scenes. `re2 <map>` plays one; `red_engine2` validates, analyzes, edits and renders them.\n");

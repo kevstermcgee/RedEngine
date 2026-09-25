@@ -17,10 +17,11 @@ impl App {
     pub(crate) fn leave_pause(&mut self) {
         self.paused = false;
         self.pause_hover = None;
+        self.online.painted = None; // the online overlay (if any) is redrawn next frame
         if let Some(live) = self.gpu.as_mut().and_then(|g| g.live.as_mut()) {
             live.overlay.hide();
         }
-        self.set_grab(true);
+        self.set_grab(!self.online.takeover);
     }
 
     /// Redraws the pause menu overlay (after it opens, the window resizes or the hover changes).

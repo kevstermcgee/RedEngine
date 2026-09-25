@@ -32,6 +32,13 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0025](0025-handoff-status-and-derived-doc-facts.md) | Handoff (`status`, STATUS.md) and doc facts derived from the repo, checked by a test | accepted |
 | [0026](0026-a-headless-audited-ui-kit.md) | A headless, audited UI kit: one layout drives painting, clicks and the audit; `ui-shot`, `ui-check` | accepted |
 | [0027](0027-runs-anywhere-doctor-env-config-container-lf.md) | Runs anywhere: `doctor`, env-var server config, container image, software GPU fallback, LF | accepted |
+| [0028](0028-authenticated-datagrams-and-join-keys.md) | Authenticated datagrams and join keys: challenge/response, HMAC tags (protocol v3) | accepted |
+| [0029](0029-match-flow-lobby-rounds-rematch.md) | The match flow: lobby, ready-up, countdown, rounds, results, rematch; the online screens | accepted |
+| [0030](0030-performance-is-a-contract.md) | Performance is a contract: `perf` and `checks.perf` | accepted |
+| [0031](0031-home-hosting-with-upnp.md) | Home hosting with UPnP: `portmap` and `red_server --upnp` | accepted |
+| [0032](0032-provable-releases.md) | Provable releases: `package` and `package --verify` | accepted |
+| [0033](0033-feature-index-and-impact.md) | A feature index that cannot rot, and `impact` | accepted |
+| [0034](0034-net-test-and-bad-network-resilience.md) | `net-test` and bad-network resilience (bursty loss, bounded extrapolation) | accepted |
 
 ## Writing one
 

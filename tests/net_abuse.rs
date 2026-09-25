@@ -4,8 +4,9 @@
 //! memory bounded, and still serve an honest client afterwards.
 
 use red_engine2::net::map_hash;
-use red_engine2::net::protocol::{ClientMsg, Hello, InputPacket, ServerMsg, MAX_PACKET, PROTOCOL_VERSION};
+use red_engine2::net::protocol::{ClientMsg, InputPacket, MAX_PACKET};
 use red_engine2::net::server::{Server, ServerConfig};
+use red_engine2::net::testkit::RawClient;
 use red_engine2::sim::match_sim::{MatchSim, MAX_PLAYERS};
 use red_engine2::sim::player::PlayerInput;
 use red_engine2::sim::spawns::parse_spawns;
@@ -18,6 +19,7 @@ struct Rig {
     addr: SocketAddr,
     hash: u32,
     now: Instant,
+    nonce: u64,
 }
 
 impl Rig {
@@ -32,7 +34,7 @@ impl Rig {
         server.set_logger(|_| {});
         let addr = SocketAddr::new("127.0.0.1".parse().unwrap(), server.local_addr().unwrap().port());
         let t0 = Instant::now();
-        Rig { server, addr, hash, now: t0 }
+        Rig { server, addr, hash, now: t0, nonce: 1000 }
     }
 
     /// Lets the server read what has arrived, at the rig's clock.
@@ -51,19 +53,27 @@ impl Rig {
         }
     }
 
-    fn hello(&self, token: u64) -> Vec<u8> {
-        encode(&ClientMsg::Hello(Hello { version: PROTOCOL_VERSION, map_hash: self.hash, character: 0, resume_token: token }))
+    fn client(&mut self) -> RawClient {
+        self.nonce += 1;
+        RawClient::new(self.addr, self.hash, None, self.nonce).unwrap()
+    }
+
+    /// A client that has completed the real handshake.
+    fn join(&mut self) -> (RawClient, red_engine2::net::protocol::Welcome) {
+        let mut c = self.client();
+        let (server, now) = (&mut self.server, self.now);
+        let w = c
+            .handshake(|| {
+                std::thread::sleep(Duration::from_millis(30));
+                server.pump(now);
+            })
+            .expect("an honest handshake");
+        (c, w)
     }
 }
 
-fn encode(m: &ClientMsg) -> Vec<u8> {
-    let mut b = Vec::new();
-    m.encode(&mut b);
-    b
-}
-
-fn input_packet(seq: u32, forward: i8, yaw: f32) -> Vec<u8> {
-    encode(&ClientMsg::Input(InputPacket { snapshot_ack: 0, client_time_ms: 0, inputs: vec![PlayerInput { seq, forward, yaw, ..Default::default() }] }))
+fn input_packet(seq: u32, forward: i8, yaw: f32) -> ClientMsg {
+    ClientMsg::Input(InputPacket { inputs: vec![PlayerInput { seq, forward, yaw, ..Default::default() }], ..Default::default() })
 }
 
 struct Xorshift(u64);
@@ -76,31 +86,29 @@ impl Xorshift {
     }
 }
 
-/// Receives one server message on `sock` (or `None`).
-fn recv(sock: &UdpSocket) -> Option<ServerMsg> {
-    let mut buf = [0u8; 2048];
-    sock.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
-    let (n, _) = sock.recv_from(&mut buf).ok()?;
-    ServerMsg::decode(&buf[..n]).ok()
-}
-
 /// An honest client can still join and be welcomed.
 fn assert_an_honest_client_can_join(rig: &mut Rig) {
-    let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
-    sock.send_to(&rig.hello(0), rig.addr).unwrap();
-    rig.pump();
-    match recv(&sock) {
-        Some(ServerMsg::Welcome(w)) => assert_ne!(w.token, 0),
-        other => panic!("an honest Hello after the attack should be welcomed, got {other:?}"),
-    }
+    let (_c, w) = rig.join();
+    assert_ne!(w.token, 0);
 }
 
 #[test]
 fn garbage_and_mutated_packets_never_panic_and_the_server_keeps_serving() {
     let mut rig = Rig::new();
+    let (joined, _) = rig.join();
     let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
     let mut rng = Xorshift(0x9e37_79b9_7f4a_7c15);
-    let seeds = [rig.hello(0), rig.hello(u64::MAX), input_packet(1, 1, 0.0), encode(&ClientMsg::Bye)];
+    // Seeds: a Hello, an untagged Input, a genuinely tagged Input (sent from the joined client's own socket so it reaches the tag check).
+    let seeds = [
+        joined.hello_bytes(),
+        {
+            let mut b = Vec::new();
+            input_packet(1, 1, 0.0).encode(&mut b);
+            b
+        },
+        joined.signed_bytes(&input_packet(2, 1, 0.0)),
+        joined.signed_bytes(&ClientMsg::Lobby(Default::default())),
+    ];
     let mut sent = 0u64;
     for round in 0..40 {
         for _ in 0..300 {
@@ -121,7 +129,12 @@ fn garbage_and_mutated_packets_never_panic_and_the_server_keeps_serving() {
                 }
             };
             p.truncate(MAX_PACKET + 300);
-            let _ = sock.send_to(&p, rig.addr);
+            // Mutations of the tagged packets go out from the joined client's address so they meet the tag check, the rest from a stranger.
+            if rng.next().is_multiple_of(2) {
+                joined.send_raw(&p);
+            } else {
+                let _ = sock.send_to(&p, rig.addr);
+            }
             sent += 1;
         }
         rig.pump();
@@ -130,6 +143,7 @@ fn garbage_and_mutated_packets_never_panic_and_the_server_keeps_serving() {
     assert!(sent >= 12_000);
     let s = rig.server.stats().clone();
     assert!(s.bad_packets > 1000, "most noise is refused: {}", s.bad_packets);
+    assert!(s.bad_tags > 100, "tampered packets from a known session fail the tag check: {}", s.bad_tags);
     assert!(rig.server.client_count() <= MAX_PLAYERS, "sessions stay bounded: {}", rig.server.client_count());
     rig.advance(4.0); // everything the flood created times out
     assert_eq!(rig.server.client_count(), 0, "ghost sessions expire");
@@ -139,19 +153,19 @@ fn garbage_and_mutated_packets_never_panic_and_the_server_keeps_serving() {
 #[test]
 fn a_join_flood_from_many_sources_is_throttled_and_cannot_hold_the_match_hostage() {
     let mut rig = Rig::new();
-    // 300 distinct source addresses all say Hello in the same instant.
-    let socks: Vec<UdpSocket> = (0..300).map(|_| UdpSocket::bind("127.0.0.1:0").unwrap()).collect();
-    for s in &socks {
-        s.send_to(&rig.hello(0), rig.addr).unwrap();
+    // 300 distinct source addresses all say Hello in the same instant. None of them can finish the handshake (a spoofed source never
+    // sees the Challenge), so no session is created at all, and the replies stay within the join budget.
+    let clients: Vec<RawClient> = (0..300).map(|_| rig.client()).collect();
+    for c in &clients {
+        c.send_hello();
     }
     rig.pump();
     rig.pump();
     let s = rig.server.stats().clone();
     assert!(s.hellos_throttled > 100, "the join budget cut the flood off: {} throttled", s.hellos_throttled);
-    assert!(rig.server.client_count() <= MAX_PLAYERS);
-    // The ghosts never talk again: they time out, and an honest client gets in.
-    rig.advance(4.0);
-    assert_eq!(rig.server.client_count(), 0);
+    assert!(s.challenges <= 130, "no more challenges than the budget allows: {}", s.challenges);
+    assert_eq!(rig.server.client_count(), 0, "a Hello alone never creates a session: state is only kept for a proven address");
+    rig.advance(4.0); // the join budget refills
     assert_an_honest_client_can_join(&mut rig);
 }
 
@@ -160,9 +174,13 @@ fn resume_memory_is_bounded_however_many_players_come_and_go() {
     let mut rig = Rig::new();
     // 8 joiners at a time, over and over; every one that times out is parked for resume (30 s).
     for wave in 0..20 {
-        let socks: Vec<UdpSocket> = (0..MAX_PLAYERS).map(|_| UdpSocket::bind("127.0.0.1:0").unwrap()).collect();
-        for s in &socks {
-            s.send_to(&rig.hello(0), rig.addr).unwrap();
+        let mut clients: Vec<RawClient> = (0..MAX_PLAYERS).map(|_| rig.client()).collect();
+        for c in &clients {
+            c.send_hello();
+        }
+        rig.pump();
+        for c in clients.iter_mut() {
+            c.poll(); // reads the Challenge and sends the second Hello
         }
         rig.pump();
         assert!(rig.server.client_count() >= 1, "wave {wave} joined");
@@ -177,10 +195,7 @@ fn resume_memory_is_bounded_however_many_players_come_and_go() {
 #[test]
 fn an_input_flood_is_rate_limited_and_hostile_values_cannot_move_a_player_off_the_map_or_into_nan() {
     let mut rig = Rig::new();
-    let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
-    sock.send_to(&rig.hello(0), rig.addr).unwrap();
-    rig.pump();
-    let Some(ServerMsg::Welcome(w)) = recv(&sock) else { panic!("no welcome") };
+    let (c, w) = rig.join();
     let start = w.spawn;
     // 2000 input packets in one instant: NaN, infinities, absurd yaw, out-of-range strafe/forward, wild seq jumps.
     let wild = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 1e30, -1e30, 0.0, 1.5];
@@ -188,7 +203,7 @@ fn an_input_flood_is_rate_limited_and_hostile_values_cannot_move_a_player_off_th
     for k in 0..2000u32 {
         let yaw = wild[(rng.next() % wild.len() as u64) as usize];
         let seq = if k % 7 == 0 { rng.next() as u32 } else { k + 1 };
-        sock.send_to(&input_packet(seq, 100, yaw), rig.addr).unwrap();
+        c.send(&input_packet(seq, 100, yaw));
         // Drain in batches: a real server reads as packets arrive, and Linux's loopback receive buffer (about 200 KB, counted in
         // per-packet overhead) silently drops a 2000-packet burst nobody has read yet, which would make the count below meaningless.
         if k % 100 == 99 {
@@ -209,16 +224,16 @@ fn an_input_flood_is_rate_limited_and_hostile_values_cannot_move_a_player_off_th
 #[test]
 fn a_spoofed_resume_token_does_not_steal_a_player() {
     let mut rig = Rig::new();
-    let victim = UdpSocket::bind("127.0.0.1:0").unwrap();
-    victim.send_to(&rig.hello(0), rig.addr).unwrap();
-    rig.pump();
-    let Some(ServerMsg::Welcome(w)) = recv(&victim) else { panic!("no welcome") };
+    let (_victim, w) = rig.join();
     // An attacker guesses tokens (never the right one): every guess is a fresh join, not a takeover.
-    let attacker = UdpSocket::bind("127.0.0.1:0").unwrap();
     for guess in 1..=50u64 {
-        attacker.send_to(&rig.hello(guess.wrapping_mul(0x9e37_79b9)), rig.addr).unwrap();
+        let mut attacker = rig.client();
+        attacker.resume_token = guess.wrapping_mul(0x9e37_79b9);
+        attacker.send_hello();
+        rig.pump();
+        attacker.poll();
+        rig.pump();
     }
-    rig.pump();
     assert!(rig.server.sim().player(w.player_id as usize).is_some(), "the victim's player still exists");
     assert_eq!(rig.server.stats().resumes, 0, "no wrong token was accepted as a resume");
 }

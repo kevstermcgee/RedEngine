@@ -5,6 +5,7 @@ pub mod audio;
 pub mod characters;
 pub mod collide;
 pub mod color;
+pub mod crypto;
 pub mod easing;
 pub mod geometry;
 #[cfg(feature = "gfx")]

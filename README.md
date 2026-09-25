@@ -1,7 +1,7 @@
 # Red Engine 2 (red_engine2)
 
-A fork of [`forge3d`](../forge3d), made to become the base for an online prop hunt game:
-same AI-authorable JSON-scene core, purpose-built from here on for the real-time
+An AI-first game engine in Rust for online first-person games (it grew out of a JSON-scene 3D renderer and began as the base for a
+prop hunt game). The same AI-authorable JSON-scene core, purpose-built for the real-time
 first-person viewer (**Red Engine 2** — see below) rather than the offline MP4 renderer,
 which is kept around only as a fast way to eyeball scenes/props while authoring them. You
 describe a scenario as one compact JSON scene file — primitives, props, a posable humanoid
@@ -301,14 +301,28 @@ render-path changes.
 
 No imported meshes, textures, or audio samples (sound effects are synthesized in code — see
 `audio.rs` — same reasoning as the procedural meshes), no per-vertex mesh deformation beyond
-the fixed capsule-rig `humanoid`, no on-screen 2D text/UI overlay (composite with the 2D engine
-for captions), no sloped roofs (flat ceiling/roof slabs only — no triangular-prism mesh
-generator exists yet). Player physics (the live viewer only) is a simple fixed-timestep
-circle-vs-AABB-plus-ground-height model, not a general physics engine — walking up multiple
-floors via `stairs` works, but there's no jumping between floors, ladders, or slopes other than
-stairs. At most 16 lights and 1 shadow-casting light (point lights don't cast shadows). No online multiplayer yet — single local
-player only; that's the next thing planned on top of this fork. See "Known limits" in
-`SPEC.md`.
+the fixed capsule-rig `humanoid`, no sloped roofs (flat ceiling/roof slabs only). The offline
+renderer draws no 2-D text; the live game's menus, lobby and HUD come from the headless-audited
+UI kit (`src/ui`, ADR 0026). Player physics is a simple fixed-timestep circle-vs-AABB-plus-ground-height
+model, not a general physics engine — walking up multiple floors via `stairs` works, but there is no
+jumping between floors, ladders, or slopes other than stairs. At most 16 lights and 1 shadow-casting
+light (point lights don't cast shadows).
+
+Multiplayer exists (ADR 0016, 0022, 0028): an authoritative headless UDP server (`red_server`), a
+graphical client (`re2 --connect`), a scripted bot (`red_bot`), client prediction, interpolation, per-client
+acknowledged deltas and spatial interest management. What it does **not** have: lag compensation for
+hitscan, and payload confidentiality (join keys are proven by challenge-response and every datagram is
+authenticated, but not encrypted). See "Known limits" in `SPEC.md` and `docs/HOSTING.md`.
+
+## Hosting, testing and shipping a multiplayer game
+
+`red_server` is one small headless binary (no graphics crates). `--key auto` makes joining need a key that clients prove without sending it,
+and every datagram is authenticated (ADR 0028: authenticated, **not** encrypted). `--lobby` (or a scene `"match"` block) adds a lobby, ready-up,
+countdown, timed rounds, results and rematch, which the `re2` client shows as a connect form, lobby, HUD and results screen (ADR 0029).
+`--upnp` opens the port on a home router (ADR 0031). Before you ship: `red_engine2 net-test map.json --profile bad` (does it play on a bad
+connection?), `red_engine2 perf map.json` (does it hold N players inside its `checks.perf` budget?), `red_engine2 impact --git` (which
+tests does this change touch?), then `red_engine2 package out.zip` and `package --verify out.zip` for a reproducible, checkable release.
+See [`docs/HOSTING.md`](docs/HOSTING.md); `red_engine2 describe multiplayer` is the one-screen version.
 
 ## For AI agents: tools that keep engine source out of context
 

@@ -8,7 +8,7 @@
 
 use crate::characters::{human_object, rat_object};
 use crate::net::bot::ClientWorld;
-use crate::net::client::{ConnState, NetClient, NetEvent};
+use crate::net::client::{ClientConfig, ConnState, NetClient, NetEvent};
 use crate::net::interp::PlayerPose;
 use crate::net::predict::Predictor;
 use crate::net::protocol::character_from_wire;
@@ -59,6 +59,8 @@ pub struct NetSession {
     pub last_speed: f32,
     /// The server's latest word about the local player (weapon in hand, hit points, what they carry).
     pub own: Option<PlayerSnap>,
+    /// Whether a `Welcome` has arrived (also true in a lobby, where there is no body to place yet).
+    pub joined: bool,
 }
 
 impl NetSession {
@@ -66,7 +68,12 @@ impl NetSession {
     /// [`wait_connected`](Self::wait_connected).
     pub fn connect(server: SocketAddr, character: Character, world: ClientWorld, resume_token: u64) -> std::io::Result<NetSession> {
         let code = if character == Character::Rat { 1 } else { 0 };
-        let client = NetClient::connect(server, code, world.map_hash, resume_token)?;
+        Self::connect_with(ClientConfig::new(server, code, world.map_hash, resume_token), world)
+    }
+
+    /// Like [`NetSession::connect`] with a join key and a name (`cfg.map_hash` should be `world.map_hash`).
+    pub fn connect_with(cfg: ClientConfig, world: ClientWorld) -> std::io::Result<NetSession> {
+        let client = NetClient::connect_with(cfg)?;
         Ok(NetSession {
             client,
             predictor: None,
@@ -77,6 +84,7 @@ impl NetSession {
             status: "connecting...".into(),
             last_speed: 0.0,
             own: None,
+            joined: false,
         })
     }
 
@@ -96,18 +104,22 @@ impl NetSession {
         }
     }
 
-    /// Polls until welcomed (or refused / `timeout_secs` passes). Returns the spawn state or a message.
-    pub fn wait_connected(&mut self, timeout_secs: f64) -> Result<PlayerState, String> {
+    /// Polls until welcomed (or refused / `timeout_secs` passes). Returns the spawn state, or `None` when the server put us in a lobby
+    /// (no body yet: the first round's `Welcome` will place us), or a message saying what went wrong and what to do.
+    pub fn wait_connected(&mut self, timeout_secs: f64) -> Result<Option<PlayerState>, String> {
         let end = Instant::now() + std::time::Duration::from_secs_f64(timeout_secs);
         while Instant::now() < end {
             self.poll(Instant::now());
             match self.client.state() {
                 ConnState::Connected => {
                     if let Some(st) = self.teleport.take() {
-                        return Ok(st);
+                        return Ok(Some(st));
+                    }
+                    if self.joined {
+                        return Ok(None);
                     }
                 }
-                ConnState::Rejected(r) => return Err(format!("the server refused us: {r:?} (is it the same map file?)")),
+                ConnState::Rejected(r) => return Err(format!("the server refused us: {}", r.explain())),
                 _ => {}
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
@@ -129,7 +141,9 @@ impl NetSession {
     pub fn poll(&mut self, now: Instant) {
         for ev in self.client.poll(now) {
             match ev {
+                NetEvent::Connected(w) if !w.in_round => self.joined = true,
                 NetEvent::Connected(w) => {
+                    self.joined = true;
                     let st = PlayerState {
                         pos: Vec2::new(w.spawn[0], w.spawn[2]),
                         foot_y: w.spawn[1],
@@ -168,8 +182,8 @@ impl NetSession {
     /// One simulation tick of the local player: predict it immediately and send it to the server.
     /// Returns the new predicted state, or `None` while not connected.
     pub fn step_local(&mut self, mut input: PlayerInput, now: Instant) -> Option<PlayerState> {
-        if self.client.state() != ConnState::Connected {
-            return None;
+        if self.client.state() != ConnState::Connected || !self.client.in_round() {
+            return None; // in a lobby, a countdown or the results, or watching: the local body does not move
         }
         let p = self.predictor.as_mut()?;
         input.seq = p.next_seq();

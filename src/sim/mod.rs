@@ -31,6 +31,7 @@ pub mod clock;
 pub mod combat;
 pub mod components;
 pub mod entities;
+pub mod flow;
 pub mod interact;
 pub mod interest;
 pub mod match_sim;

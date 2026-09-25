@@ -150,7 +150,7 @@ pub fn animate(scene: &mut Scene, aspect: f32, time: f32, selected: Character) {
 // sizes by `red_engine2 ui-check`); they are re-exported here so callers keep using `menu::paint` & co.
 // ---------------------------------------------------------------------------------------------
 
-pub use crate::ui::screens::{character_at, paint, paint_pause, pause_action_at, PauseAction};
+pub use crate::ui::screens::{character_at, menu_layout, paint, paint_pause, pause_action_at, PauseAction};
 
 #[cfg(test)]
 mod tests {

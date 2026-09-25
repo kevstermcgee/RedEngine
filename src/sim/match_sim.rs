@@ -136,9 +136,28 @@ impl MatchSim {
         self.add_player_with(PlayerState::spawn(s.position[0], s.position[2], s.position[1], s.yaw_deg, character))
     }
 
-    /// Adds a player in exactly `state` (a reconnecting player resuming where they were).
+    /// Adds a player in exactly `state` (a reconnecting player resuming where they were), in the first free slot.
     pub fn add_player_with(&mut self, state: PlayerState) -> Option<usize> {
         let slot = self.players.iter().position(Option::is_none)?;
+        self.add_player_at(slot, state).then_some(slot)
+    }
+
+    /// Adds a player at the next spawn point (round robin) in a chosen `slot`: how a lobby keeps every player's id the same from the
+    /// lobby into the round. `false` when the slot is taken or out of range.
+    pub fn add_player_in_slot(&mut self, slot: usize, character: Character) -> bool {
+        if self.players.get(slot).is_none_or(Option::is_some) {
+            return false;
+        }
+        let s = self.spawns[self.next_spawn % self.spawns.len()].clone();
+        self.next_spawn += 1;
+        self.add_player_at(slot, PlayerState::spawn(s.position[0], s.position[2], s.position[1], s.yaw_deg, character))
+    }
+
+    /// Adds a player in exactly `state` in exactly `slot`. `false` when the slot is taken or out of range.
+    pub fn add_player_at(&mut self, slot: usize, state: PlayerState) -> bool {
+        if self.players.get(slot).is_none_or(Option::is_some) {
+            return false;
+        }
         self.players[slot] = Some(ServerPlayer {
             state,
             speed: 0.0,
@@ -155,7 +174,7 @@ impl MatchSim {
             let state = [state.pos.x, state.pos.y, state.foot_y, state.vy, state.yaw, state.pitch].map(f32::to_bits);
             r.entries.push(Entry::Join { tick: self.tick, slot, character, state });
         }
-        Some(slot)
+        true
     }
 
     /// Removes a player, returning their last state.

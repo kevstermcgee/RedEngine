@@ -75,7 +75,12 @@ impl ApplicationHandler for App {
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                if let Some(net) = self.net.as_mut() {
+                    net.client.disconnect(); // tell the server now instead of making it wait for the timeout
+                }
+                event_loop.exit();
+            }
             WindowEvent::Resized(size) => {
                 if let Some(gpu) = self.gpu.as_mut() {
                     gpu.config.width = size.width.max(1);
@@ -88,6 +93,22 @@ impl ApplicationHandler for App {
                 if self.paused {
                     self.repaint_pause();
                 }
+                self.online.painted = None;
+            }
+            // The connect form (typing) and the lobby / results screens (clicks): each owns the keyboard and the mouse while it shows.
+            WindowEvent::KeyboardInput { event, .. } if self.phase == Phase::Connect => self.connect_key(&event, event_loop),
+            WindowEvent::CursorMoved { position, .. } if self.phase == Phase::Connect => self.connect_hover(position.x as f32, position.y as f32),
+            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.phase == Phase::Connect => self.connect_click(),
+            WindowEvent::KeyboardInput { event, .. } if self.online.takeover && !self.paused => {
+                if let (PhysicalKey::Code(code), ElementState::Pressed) = (event.physical_key, event.state) {
+                    if !event.repeat {
+                        self.online_key(code, event_loop);
+                    }
+                }
+            }
+            WindowEvent::CursorMoved { position, .. } if self.online.takeover && !self.paused => self.online_hover(position.x as f32, position.y as f32),
+            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.online.takeover && !self.paused => {
+                self.online_click(event_loop)
             }
             WindowEvent::KeyboardInput { event, .. } if self.phase == Phase::Menu => {
                 if let (PhysicalKey::Code(code), ElementState::Pressed) = (event.physical_key, event.state) {
@@ -96,14 +117,21 @@ impl ApplicationHandler for App {
             }
             WindowEvent::CursorMoved { position, .. } if self.phase == Phase::Menu => {
                 self.cursor_x = position.x as f32;
+                self.cursor_y = position.y as f32;
                 if let Some(gpu) = &self.gpu {
                     self.character = menu::character_at(gpu.config.width, self.cursor_x);
                 }
             }
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.phase == Phase::Menu => {
                 if let Some(gpu) = &self.gpu {
-                    let who = menu::character_at(gpu.config.width, self.cursor_x);
-                    self.start_game(who);
+                    let (w, h) = (gpu.config.width, gpu.config.height);
+                    // The PLAY ONLINE button sits over the launch screen; anything else picks the character under the cursor.
+                    let on_button = menu::menu_layout(w, h, self.character, "").button_at(self.cursor_x, self.cursor_y) == Some("online");
+                    if on_button {
+                        self.open_connect();
+                    } else {
+                        self.start_game(menu::character_at(w, self.cursor_x));
+                    }
                 }
             }
             WindowEvent::CursorMoved { position, .. } if self.paused => {
@@ -217,6 +245,7 @@ impl ApplicationHandler for App {
                 }
                 match self.phase {
                     Phase::Menu => self.menu_frame(),
+                    Phase::Connect => self.connect_frame(),
                     Phase::Playing => {
                         self.update(dt);
                         self.draw();
@@ -248,6 +277,7 @@ impl App {
             KeyCode::ArrowLeft | KeyCode::KeyA => self.character = Character::Human,
             KeyCode::ArrowRight | KeyCode::KeyD => self.character = Character::Rat,
             KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space => self.start_game(self.character),
+            KeyCode::KeyO => self.open_connect(),
             KeyCode::Escape => event_loop.exit(),
             _ => {}
         }

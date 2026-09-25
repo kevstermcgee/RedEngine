@@ -379,6 +379,222 @@ pub(crate) fn run_verify(scene: &Path, bless: bool, no_views: bool, only: Option
     Ok(())
 }
 
+pub(crate) fn run_features(query: &[String], check: bool) -> Result<(), String> {
+    use red_engine2::tools::features;
+    let all = features::load()?;
+    if check {
+        let root = std::env::current_dir().map_err(|e| e.to_string())?;
+        let problems = features::check(&all, &root);
+        if envelope::capturing() {
+            println!("{}", serde_json::json!({"ok": problems.is_empty(), "features": all.len(), "problems": problems}));
+        } else if problems.is_empty() {
+            println!("docs/features.json is true: {} features, every listed file, suite and doc exists, every source file has an owner", all.len());
+        } else {
+            for p in &problems {
+                println!("  {p}");
+            }
+            println!("{} problem(s) in docs/features.json", problems.len());
+        }
+        return if problems.is_empty() { Ok(()) } else { Err(String::new()) };
+    }
+    let text = query.join(" ");
+    if text.is_empty() {
+        if envelope::capturing() {
+            println!("{}", serde_json::json!(all.iter().map(|f| serde_json::json!({"name": f.name, "summary": f.summary, "files": f.files, "tests": f.tests, "commands": f.commands, "docs": f.docs, "depends_on": f.depends_on})).collect::<Vec<_>>()));
+        } else {
+            print!("{}", features::render_list(&all));
+        }
+        return Ok(());
+    }
+    if let Some(f) = all.iter().find(|f| f.name == text) {
+        print!("{}", features::render_one(f));
+        return Ok(());
+    }
+    let hits = features::find(&all, &text);
+    if hits.is_empty() {
+        return Err(format!("no feature matches '{text}' (run `features` for the list)"));
+    }
+    for f in hits {
+        print!("{}\n", features::render_one(f));
+    }
+    Ok(())
+}
+
+pub(crate) fn run_impact(files: &[String], git: Option<&str>) -> Result<(), String> {
+    use red_engine2::tools::features;
+    let all = features::load()?;
+    let changed: Vec<String> = match git {
+        Some(base) => features::changed_files(&std::env::current_dir().map_err(|e| e.to_string())?, base)?,
+        None => files.to_vec(),
+    };
+    if changed.is_empty() {
+        return Err("no changed files: name some, or use --git in a repository with changes".to_string());
+    }
+    let i = features::impact(&all, &changed);
+    if envelope::capturing() {
+        println!("{}", features::impact_json(&i, &changed));
+    } else {
+        print!("{}", features::render_impact(&i, changed.len()));
+    }
+    Ok(())
+}
+
+pub(crate) fn run_package(zip: &Path, verify: bool, allow_dirty: bool, no_build: bool) -> Result<(), String> {
+    use red_engine2::tools::package;
+    if verify {
+        let bytes = std::fs::read(zip).map_err(|e| format!("{}: {e}", zip.display()))?;
+        let (manifest, problems) = package::verify(&bytes)?;
+        let hard = package::failures(&problems);
+        if envelope::capturing() {
+            println!(
+                "{}",
+                serde_json::json!({"ok": hard.is_empty(), "commit": manifest["commit"], "dirty": manifest["dirty"], "files": manifest["files"].as_object().map_or(0, |f| f.len()), "problems": problems})
+            );
+        } else {
+            println!(
+                "{}: commit {}{}, {} file(s)",
+                zip.display(),
+                manifest["commit"].as_str().unwrap_or("?"),
+                if manifest["dirty"] == true { " (dirty tree)" } else { "" },
+                manifest["files"].as_object().map_or(0, |f| f.len())
+            );
+            for p in &problems {
+                println!("  {p}");
+            }
+            println!(
+                "{}",
+                if hard.is_empty() { "VERIFIED: every file matches the manifest and the headless binaries are clean" } else { "FAILED verification" }
+            );
+        }
+        return if hard.is_empty() { Ok(()) } else { Err(String::new()) };
+    }
+    if zip.exists() {
+        return Err(format!("{} already exists; a package never overwrites (choose a new name)", zip.display()));
+    }
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    package::preflight(&root, allow_dirty)?; // refuse a dirty tree now, not after minutes of release builds
+    let (binaries, notes) = if no_build {
+        let exe = if cfg!(windows) { ".exe" } else { "" };
+        let mut bins = Vec::new();
+        for (dir, names) in [("package-gui", ["re2", "red_engine2"]), ("package-headless", ["red_server", "red_bot"])] {
+            for n in names {
+                bins.push(package::Binary { name: format!("{n}{exe}"), path: root.join("target").join(dir).join("release").join(format!("{n}{exe}")) });
+            }
+        }
+        (bins, Default::default())
+    } else {
+        package::build_binaries(&root)?
+    };
+    let built = package::build(&package::Options { root, files: None, binaries, allow_dirty, git: None, notes })?;
+    if let Some(parent) = zip.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    std::fs::write(zip, &built.zip).map_err(|e| format!("{}: {e}", zip.display()))?;
+    if envelope::capturing() {
+        println!(
+            "{}",
+            serde_json::json!({"ok": true, "package": zip.display().to_string(), "files": built.files, "bytes": built.zip.len(), "sha256": built.sha256, "commit": built.manifest["commit"], "dirty": built.manifest["dirty"]})
+        );
+    } else {
+        println!(
+            "wrote {} ({} files, {:.1} MB)\nsha256 {}\ncommit {}{}",
+            zip.display(),
+            built.files,
+            built.zip.len() as f64 / 1e6,
+            built.sha256,
+            built.manifest["commit"].as_str().unwrap_or("?"),
+            if built.manifest["dirty"] == true { " (DIRTY TREE, listed in the manifest)" } else { "" }
+        );
+        println!("check it any time with: red_engine2 package --verify {}", zip.display());
+    }
+    Ok(())
+}
+
+pub(crate) fn run_portmap(action: &str, port: u16, lease: u32, router: Option<std::net::IpAddr>, allow_permanent: bool) -> Result<(), String> {
+    use red_engine2::tools::portmap::{self, Options};
+    let opts = Options { port, lease, router, allow_permanent };
+    let out = match action {
+        "status" => portmap::status(&opts),
+        "enable" => portmap::enable(&opts),
+        "remove" => portmap::remove(&opts),
+        "keep" => {
+            let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let s = stop.clone();
+            ctrlc::set_handler(move || s.store(true, std::sync::atomic::Ordering::Relaxed)).map_err(|e| format!("cannot install Ctrl-C handler: {e}"))?;
+            portmap::keep(&opts, &stop)
+        }
+        other => return Err(format!("unknown portmap action '{other}' (status | enable | remove | keep)")),
+    };
+    match out {
+        Ok(text) => {
+            print!("{text}");
+            Ok(())
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+pub(crate) fn run_perf(scene: &Path, players: Option<usize>, secs: Option<f64>, windows: Option<usize>, budget_file: Option<&Path>) -> Result<(), String> {
+    use red_engine2::tools::perf;
+    // The budget: a file, else the scene's own `checks.perf`, else the defaults.
+    let block = match budget_file {
+        Some(p) => Some(
+            serde_json::from_str::<Value>(&std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?)
+                .map_err(|e| format!("{}: {e}", p.display()))?,
+        ),
+        None => {
+            let text = std::fs::read_to_string(scene).map_err(|e| format!("{}: {e}", scene.display()))?;
+            serde_json::from_str::<Value>(&text).ok().and_then(|v| v.get("checks").and_then(|c| c.get("perf")).cloned())
+        }
+    };
+    let (budget, block_players, block_secs, block_windows) = match &block {
+        Some(b) => perf::parse_budget(b)?,
+        None => (perf::Budget::default(), 4, 1.0, 2),
+    };
+    let has_block = block.is_some();
+    let players = players.unwrap_or(block_players);
+    let secs = secs.unwrap_or(if has_block { block_secs.max(1.0) } else { 3.0 });
+    let windows = windows.unwrap_or(if has_block { block_windows.max(3) } else { 3 });
+    let m = perf::measure(scene, players, secs, windows)?;
+    let verdicts = perf::evaluate(&m, &budget);
+    if envelope::capturing() {
+        println!("{}", perf::to_json(&m, &verdicts));
+    } else {
+        print!("{}", perf::render(&m, &verdicts));
+    }
+    if verdicts.iter().all(|v| v.ok) {
+        Ok(())
+    } else {
+        Err(String::new())
+    }
+}
+
+pub(crate) fn run_net_test(scene: &Path, profile: &[String], players: usize, secs: f64, seed: u64) -> Result<(), String> {
+    use red_engine2::net::netsim::{self, LinkProfile};
+    use red_engine2::tools::nettest;
+    let mut profiles: Vec<LinkProfile> = Vec::new();
+    for name in profile {
+        if name == "all" {
+            profiles.extend(netsim::PROFILES.iter().copied());
+        } else {
+            profiles.push(netsim::profile(name).ok_or_else(|| {
+                format!("unknown link profile '{name}' (profiles: {}, all)", netsim::PROFILES.iter().map(|p| p.name).collect::<Vec<_>>().join(", "))
+            })?);
+        }
+    }
+    let reports = nettest::run(scene, &nettest::Options { profiles, players, secs, seed })?;
+    if envelope::capturing() {
+        println!("{}", nettest::to_json(&reports));
+    } else {
+        print!("{}", nettest::render(&reports));
+    }
+    if reports.iter().all(nettest::ProfileReport::ok) {
+        Ok(())
+    } else {
+        Err(String::new())
+    }
+}
+
 pub(crate) fn run_sim(
     scene: &Path,
     scenario: Option<&Path>,

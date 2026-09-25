@@ -127,7 +127,7 @@ fn parse_path(s: &str) -> Result<Vec<Vec2>, String> {
 }
 
 /// Check groups `--only` may name (a group name, or `group[N]`, or any text from one check's name).
-const GROUPS: [&str; 6] = ["lint", "reach", "walk", "objects", "views", "sim"];
+const GROUPS: [&str; 7] = ["lint", "reach", "walk", "objects", "views", "sim", "perf"];
 
 /// The `--only` text minus a trailing `[N]`: `walk[2]` -> `walk`.
 fn only_base(o: &str) -> &str {
@@ -162,7 +162,10 @@ fn unknown_check_keys(checks: &Value) -> Vec<String> {
     use crate::strict::check_keys;
     let mut errs = Vec::new();
     let Some(root) = checks.as_object() else { return errs };
-    check_keys(&mut errs, "checks", root, &["lint", "reach", "walk", "objects", "views", "sim"]);
+    check_keys(&mut errs, "checks", root, &["lint", "reach", "walk", "objects", "views", "sim", "perf"]);
+    if let Some(p) = root.get("perf").and_then(Value::as_object) {
+        check_keys(&mut errs, "checks.perf", p, super::perf::PERF_KEYS);
+    }
     let each = |errs: &mut Vec<String>, name: &str, allowed: &[&str]| {
         for (i, item) in root.get(name).and_then(Value::as_array).into_iter().flatten().enumerate() {
             if let Some(o) = item.as_object() {
@@ -302,6 +305,16 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
         stamp(&mut results[first..], t0);
     }
 
+    if let Some(block) = checks.get("perf").filter(|_| selected(opts, "perf")) {
+        let t0 = std::time::Instant::now();
+        let first = results.len();
+        match super::perf::verify_checks(path, block) {
+            Ok(rows) => results.extend(rows.into_iter().map(|(name, ok, detail)| if ok { pass(name, detail) } else { fail(name, detail) })),
+            Err(e) => results.push(fail("perf", e)),
+        }
+        stamp(&mut results[first..], t0);
+    }
+
     if let Some(arr) = checks.get("views").and_then(Value::as_array).filter(|_| selected(opts, "view") && !opts.skip_views) {
         let t0 = std::time::Instant::now();
         let first = results.len();
@@ -315,7 +328,7 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
     }
 
     if results.is_empty() {
-        results.push(fail("checks", "no check ran (unknown keys or --only matched nothing). Known: lint, reach, walk, objects, views, sim"));
+        results.push(fail("checks", "no check ran (unknown keys or --only matched nothing). Known: lint, reach, walk, objects, views, sim, perf"));
     }
     Ok(Report { scene: path.to_path_buf(), results })
 }

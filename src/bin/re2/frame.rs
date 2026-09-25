@@ -40,6 +40,10 @@ impl App {
     pub(crate) fn fixed_step_physics(&mut self) {
         self.prev_physics_pos = self.physics_pos;
         self.prev_foot_y = self.foot_y;
+        if self.online_frozen() {
+            self.last_move_speed = 0.0; // a lobby, a countdown or the results: the body stands still and nothing is sent
+            return;
+        }
 
         // Movement is the shared pure function `sim::player::step_player` (the single-player game, the
         // authoritative server and a client's prediction all run it). Online, the predictor owns the state
@@ -121,6 +125,8 @@ impl App {
                 }
             }
         }
+
+        self.sync_online_ui();
 
         // Online, the weapon in hand is whatever the server says (it owns weapons, health and pick-ups).
         if let Some(w) = server_weapon {
@@ -290,25 +296,41 @@ impl App {
         // Loose props (chairs, crates, apples...) live in the rigid-body world, not in the static
         // collider lists: they move.
         let online = self.net_server.is_some();
-        let (props, loose) = if let (Some(addr), Some(world)) = (self.net_server, self.net_world.take()) {
-            // Online: the server owns the props; this client only draws them and predicts its own walking.
-            let loose: HashSet<usize> = world.prop_objects.iter().copied().collect();
-            self.colliders = world.colliders.clone();
-            self.ground = world.ground.clone();
-            let mut session = match NetSession::connect(addr, who, world, 0) {
-                Ok(s) => s,
-                Err(e) => fail_online(&format!("cannot open a network socket: {e}")),
+        let (props, loose) = if self.pending_net.is_some() || (self.net_server.is_some() && self.net_world.is_some()) {
+            // Online: the server owns the props; this client only draws them and predicts its own walking. The session comes from the
+            // connect form (already joined) or is made here from `--connect` (with `--key` and `--name`).
+            let (mut session, joined) = match self.pending_net.take() {
+                Some(mut s) => {
+                    let spawn = s.teleport.take();
+                    (s, Ok(spawn))
+                }
+                None => {
+                    let (Some(addr), Some(world)) = (self.net_server, self.net_world.take()) else { fail_online("no server to join") };
+                    let mut cfg = red_engine2::net::client::ClientConfig::new(addr, if who == Character::Rat { 1 } else { 0 }, world.map_hash, 0);
+                    cfg.join_key = self.join_key.clone();
+                    cfg.name = self.player_name.clone();
+                    let mut s = match NetSession::connect_with(cfg, world) {
+                        Ok(s) => s,
+                        Err(e) => fail_online(&format!("cannot open a network socket: {e}")),
+                    };
+                    let joined = s.wait_connected(5.0);
+                    (s, joined)
+                }
             };
+            let loose: HashSet<usize> = session.world.prop_objects.iter().copied().collect();
+            self.colliders = session.world.colliders.clone();
+            self.ground = session.world.ground.clone();
             session.add_avatar_pool(&mut self.scene); // before the renderer takes its meshes from the scene
-            match session.wait_connected(5.0) {
-                Ok(st) => {
+            match joined {
+                Ok(Some(st)) => {
                     self.physics_pos = st.pos;
                     self.prev_physics_pos = st.pos;
                     self.foot_y = st.foot_y;
                     self.prev_foot_y = st.foot_y;
                     self.camera.yaw = st.yaw;
-                    println!("Joined {addr} as player {} at ({:.1}, {:.1}).", session.client.my_id().unwrap_or(0), st.pos.x, st.pos.y);
+                    println!("Joined as player {} at ({:.1}, {:.1}).", session.client.my_id().unwrap_or(0), st.pos.x, st.pos.y);
                 }
+                Ok(None) => println!("Joined as player {}: in the lobby (the round places you when it starts).", session.client.my_id().unwrap_or(0)),
                 Err(e) => fail_online(&e),
             }
             self.net = Some(session);

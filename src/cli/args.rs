@@ -373,17 +373,17 @@ pub(crate) enum Command {
         #[command(flatten)]
         flags: EditFlags,
     },
-    /// Render one of the 2-D screens (`menu`, `pause`) to a PNG with no window or GPU, so UI work is never blind:
+    /// Render a 2-D screen (menu, pause, connect, lobby, countdown, hud, results) to a PNG with no window or GPU. UI work is never blind:
     /// `ui-shot pause out/pause.png --size 1280x720 --hover resume --message "long text wraps"`.
     UiShot {
-        /// Screen name (see `ui-check`'s output or `describe ui`): menu | pause.
+        /// Screen name (see `ui-check`'s output or `describe ui`): menu | pause | connect | lobby | countdown | hud | results.
         screen: String,
         /// Output PNG.
         out: PathBuf,
         /// Window size "WxH".
         #[arg(long, default_value = "1280x720")]
         size: String,
-        /// Pause menu: highlight `resume` or `quit`.
+        /// Highlight a button: `resume` / `quit` on the pause menu, or an online-screen button id (`ready`, `character`, `leave`, `connect`, `back`, `field_key`).
         #[arg(long)]
         hover: Option<String>,
         /// Pause menu status line (long text wraps).
@@ -474,6 +474,100 @@ pub(crate) enum Command {
         /// State-dump interval for `--trace`, in ticks (the readable diff a divergence prints).
         #[arg(long, default_value_t = 60)]
         dump_every: u32,
+    },
+    /// The feature index: what exists and who owns which file. `docs/features.json` is compiled in: `features` lists them, `features NAME` shows
+    /// one, `features WORDS` searches, `features --check` fails when the index names something that does not exist or a source file belongs
+    /// to no feature (also a test).
+    Features {
+        /// A feature name, or words to search for.
+        query: Vec<String>,
+        /// Validate the index against the repository (files, test suites, docs, ownership of every source file). Exit 1 on any problem.
+        #[arg(long)]
+        check: bool,
+    },
+    /// What must pass when files change. Names the features they belong to, the features built on those, the exact `cargo test` and
+    /// verification commands and the docs to keep true. `impact src/net/server.rs`, or `impact --git` for the working tree (add a ref to compare with).
+    Impact {
+        /// Changed files (paths from the repository root).
+        files: Vec<String>,
+        /// Use `git diff --name-only REF` (default HEAD) plus untracked files instead of listing files.
+        #[arg(long, num_args = 0..=1, default_missing_value = "HEAD")]
+        git: Option<String>,
+    },
+    /// A release you can prove. Builds the client + CLI (default features) and the dedicated server + bot (`--no-default-features`, its own
+    /// target directory so no graphics stack can leak in), and writes one reproducible zip of the tracked source and the binaries with a
+    /// `PACKAGE-MANIFEST.json` (SHA-256 of every file, commit, dirty files, Cargo.lock hash, toolchain). Refuses a dirty tree unless
+    /// `--allow-dirty`. `package --verify X.zip` re-checks every hash and that the headless binaries hold no graphics code.
+    Package {
+        /// The zip to write (or, with --verify, to check).
+        zip: PathBuf,
+        /// Check an existing package instead of making one.
+        #[arg(long)]
+        verify: bool,
+        /// Package a tree with uncommitted changes (they are recorded in the manifest).
+        #[arg(long)]
+        allow_dirty: bool,
+        /// Do not build: use the binaries a previous `package` left in target/package-gui and target/package-headless.
+        #[arg(long)]
+        no_build: bool,
+    },
+    /// Host from a home PC: open the game's UDP port on your router with UPnP. No router password, no manual port forwarding. `portmap status`
+    /// finds the router by SSDP and says what is possible from here (and warns about carrier-grade NAT, which no mapping can fix); `enable`
+    /// maps the port with a lease and prints the address a friend joins; `remove` deletes only the mapping this tool made; `keep` renews it
+    /// until Ctrl-C and then removes it. It never overwrites or deletes a mapping that is not its own and refuses permanent leases unless allowed.
+    Portmap {
+        /// status | enable | remove | keep
+        action: String,
+        /// The UDP port (default: the server's default).
+        #[arg(long, default_value_t = red_engine2::net::DEFAULT_PORT)]
+        port: u16,
+        /// Lease in seconds; the router forgets an unrenewed mapping after this.
+        #[arg(long, default_value_t = red_engine2::net::upnp::DEFAULT_LEASE_SECS)]
+        lease: u32,
+        /// Ask this gateway address instead of searching the network.
+        #[arg(long)]
+        router: Option<std::net::IpAddr>,
+        /// Accept a router that only creates permanent mappings (then remove it yourself when done).
+        #[arg(long)]
+        allow_permanent: bool,
+    },
+    /// Performance as a contract. `N` real players walk the scene in an in-process server and the result is judged against a budget.
+    /// Reports microseconds per sim tick and per whole server tick (mean, p50, p95, p99, worst; best of several windows, because noise only
+    /// ever adds time), bytes per client per second, the largest datagram and how many props physics promoted. Budgets come from
+    /// the scene's `checks.perf` (also run by `verify`) or `--budget file.json` (a `{"sim_tick_p95_us": ...}` block). Exit 1 if one is blown.
+    Perf {
+        scene: PathBuf,
+        /// Players walking (1..8). Default: the scene's `checks.perf.players`, else 4.
+        #[arg(long)]
+        players: Option<usize>,
+        /// Seconds per measurement window. Default: the scene's `checks.perf.secs`, else 3.
+        #[arg(long)]
+        secs: Option<f64>,
+        /// Windows measured; each figure is the best of them. Default: 3.
+        #[arg(long)]
+        windows: Option<usize>,
+        /// A JSON file holding a perf budget block (overrides the scene's).
+        #[arg(long)]
+        budget: Option<PathBuf>,
+    },
+    /// Test the game on a bad connection. A real server and real clients (prediction, interpolation, reconnect) run in-process
+    /// behind a seeded, bursty-lossy, laggy UDP proxy and are judged on what a player would notice: disconnects, prediction ending on the
+    /// server's position, other players gliding instead of teleporting, corrections, bandwidth. `net-test scene.json --profile bad` or
+    /// `--profile all`. Exit 1 on any failed check.
+    NetTest {
+        scene: PathBuf,
+        /// Link profile(s): lan | wifi | 4g | bad | awful | all (repeatable, or comma separated). Default: bad (5% bursty loss, 100 ms round trip).
+        #[arg(long, value_delimiter = ',', default_value = "bad")]
+        profile: Vec<String>,
+        /// Players, each behind its own proxy (1..8).
+        #[arg(long, default_value_t = 2)]
+        players: usize,
+        /// Seconds of play per profile.
+        #[arg(long, default_value_t = 6.0)]
+        secs: f64,
+        /// Seed for the simulated losses.
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
     },
     /// Replay a recorded match trace with no renderer or socket and report the first tick where it stops
     /// agreeing with the recording (or `--against` another trace). Exit 1 on divergence.

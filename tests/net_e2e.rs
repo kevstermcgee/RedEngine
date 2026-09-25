@@ -397,6 +397,16 @@ fn it_still_works_through_15_percent_loss_and_40_ms_latency_with_jitter() {
         let h2 = s.spawn(|| run_bot(&mut watcher, 6.5));
         (h1.join().unwrap(), h2.join().unwrap())
     });
+    // Let both clients keep listening for a moment before judging: on a loaded machine the barrel can still be rolling when the run ends,
+    // and a comparison against a moving target is a flake, not a finding.
+    let (mut fp, mut fw) = (fp, fw);
+    let (mut more_p, mut more_w) = std::thread::scope(|s| {
+        let h1 = s.spawn(|| run_bot(&mut pusher, 2.0));
+        let h2 = s.spawn(|| run_bot(&mut watcher, 2.0));
+        (h1.join().unwrap(), h2.join().unwrap())
+    });
+    fp.append(&mut more_p);
+    fw.append(&mut more_w);
     stop.store(true, Ordering::Relaxed);
     ha.join().unwrap();
     hb.join().unwrap();

@@ -5,8 +5,10 @@
 //! the same widget rectangles, so they cannot disagree. Add a screen here (or in a game project, following the same
 //! shape), register it in [`build`], and `ui-check` will cover it at every size in [`CHECK_SIZES`].
 
+use super::online::{connect_layout, hud_layout, lobby_layout, results_layout, ConnectForm, OnlineView};
 use super::{fit_scale, text_height, wrap, Layout};
 use crate::player::Character;
+use crate::sim::flow::Phase;
 
 const TEXT: [u8; 4] = [236, 238, 245, 255];
 const DIM: [u8; 4] = [150, 156, 176, 255];
@@ -15,7 +17,7 @@ const SHADE: [u8; 4] = [6, 8, 14, 0];
 
 /// Screens `ui-shot` / `ui-check` know, in display order.
 pub fn all() -> &'static [&'static str] {
-    &["menu", "pause"]
+    &["menu", "pause", "connect", "lobby", "countdown", "hud", "results"]
 }
 
 /// Window sizes `ui-check` audits every screen at: small, common, portrait and large.
@@ -32,6 +34,8 @@ pub struct ScreenOpts {
     pub hover: Option<PauseAction>,
     /// Launch menu selection.
     pub selected: Option<Character>,
+    /// Which button of the online screens is hovered (`ready`, `character`, `leave`, `connect`, `back`, `field_key`, ...).
+    pub hover_id: Option<String>,
 }
 
 /// Builds the named screen for a `w` x `h` window, or `None` for an unknown name.
@@ -39,8 +43,27 @@ pub fn build(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Option<Layout> {
     match name {
         "menu" => Some(menu_layout(w, h, opts.selected.unwrap_or(Character::Human), &opts.map)),
         "pause" => Some(pause_layout(w, h, &opts.map, opts.message.as_deref(), opts.hover)),
+        "connect" => {
+            let mut f = ConnectForm::new("play.example-game-server.net:27015", "correct-horse-battery", "Ada");
+            f.message = opts.message.clone();
+            Some(connect_layout(w, h, &f, opts.hover_id.as_deref()))
+        }
+        "lobby" => Some(lobby_layout(w, h, &demo(Phase::Waiting, opts), opts.hover_id.as_deref())),
+        "countdown" => Some(hud_layout(w, h, &demo(Phase::Countdown, opts))),
+        "hud" => Some(hud_layout(w, h, &demo(Phase::Playing, opts))),
+        "results" => Some(results_layout(w, h, &demo(Phase::Results, opts), opts.hover_id.as_deref())),
         _ => None,
     }
+}
+
+/// The sample match the online screens show in `ui-shot` / `ui-check` (eight players, one with a very long name).
+fn demo(phase: Phase, opts: &ScreenOpts) -> OnlineView {
+    let mut v = OnlineView::demo(phase);
+    if !opts.map.is_empty() {
+        v.map = opts.map.clone();
+    }
+    v.message = opts.message.clone();
+    v
 }
 
 /// Audits every screen at every [`CHECK_SIZES`] size (and with a long message on the pause screen).
@@ -49,7 +72,13 @@ pub fn audit_all() -> Vec<(String, (u32, u32), String)> {
     let long = "CANNOT FIND THAT ADDRESS - CHECK IT AND YOUR INTERNET CONNECTION, THEN TRY AGAIN".to_string();
     let variants = [
         ScreenOpts { map: "test_lab".into(), ..Default::default() },
-        ScreenOpts { map: "a_rather_long_map_name_for_the_title".into(), message: Some(long), hover: Some(PauseAction::Quit), selected: Some(Character::Rat) },
+        ScreenOpts {
+            map: "a_rather_long_map_name_for_the_title".into(),
+            message: Some(long),
+            hover: Some(PauseAction::Quit),
+            selected: Some(Character::Rat),
+            hover_id: Some("ready".into()),
+        },
     ];
     let mut out = Vec::new();
     for name in all() {
@@ -92,12 +121,24 @@ pub fn menu_layout(w: u32, h: u32, selected: Character, map: &str) -> Layout {
     l.panel("band_bottom", (0, bottom_y, wi, hi), None, Some(shade(170)), None);
 
     let max_w = wi - 8;
+    // PLAY ONLINE: a button in the top-right corner of the top band (the O key does the same).
+    let (bw, bh, m) = ((98 * s).min(wi / 3), 12 * s, 3 * s);
+    l.button(
+        "online",
+        (wi - bw - m, m, wi - m, m + bh),
+        Some(top),
+        "PLAY ONLINE (O)",
+        fit_scale("PLAY ONLINE (O)", bw - 4 * s, s),
+        [30, 34, 52, 255],
+        (GOLD, (s / 2).max(1)),
+        GOLD,
+    );
     l.label_fit("brand", Some(top), wi / 2, hi * 4 / 100, "RED ENGINE 2", s, max_w, DIM);
     l.label_fit("heading", Some(top), wi / 2, hi * 9 / 100, "CHOOSE YOUR CHARACTER", s * 2, max_w, TEXT);
     l.label_fit("map", Some(top), wi / 2, hi * 16 / 100, &format!("MAP: {}", map.to_uppercase()), s, max_w, DIM);
 
     // The hint sits on the bottom edge; the card text above it must end before it starts.
-    let hint = "CLICK A CHARACTER OR PRESS 1 / 2 TO PLAY  (ARROWS + ENTER WORK TOO)";
+    let hint = "CLICK A CHARACTER OR PRESS 1 / 2 TO PLAY  (ARROWS + ENTER WORK TOO)  -  O = PLAY ONLINE";
     let hint_scale = fit_scale(hint, max_w, s);
     let hint_y = hi - text_height(hint_scale) - 3 * hint_scale;
 

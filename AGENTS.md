@@ -25,7 +25,7 @@ the same as `.github/workflows/ci.yml`, whose `headless-linux` job installs no g
 `cargo bench --bench sim` then `python benches/check.py` (`benches/README.md`); allocation, bandwidth and packet-size budgets are
 ordinary tests (`tests/alloc_budget.rs`, `tests/net_budget.rs`), and `tests/ai_tasks.rs` budgets the *context* canonical AI tasks may use.
 
-## Multiplayer (ADR 0016, 0017, 0021, 0022)
+## Multiplayer (ADR 0016, 0017, 0021, 0022, 0028, 0029, 0031, 0034)
 
 ```bash
 cargo build --release --bin re2 --bin red_server --bin red_bot        # everything (default features)
@@ -47,6 +47,21 @@ changed while you were away is delivered when you walk into range. Code: `src/si
 Tests: `net_e2e` (real UDP, lossy proxy), `net_processes` (separate processes), `net_interactions`, `net_interest`, `net_budget`, `sim_replay`.
 Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`. Limits: `re2` single-player still runs its own
 weapon logic (the online path uses the server's); rule state (variables, hidden objects) is not replicated to clients yet.
+
+**Joining and the lobby (protocol v3).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
+response, the key is never sent) and every datagram after the handshake is authenticated, so forged, replayed or injected packets are dropped
+(ADR 0028; authentication, **not** encryption; use `--key auto`, not a short word). `--lobby` (or a scene `"match"` block, see `describe
+scene`) turns on the flow lobby -> ready-up -> countdown -> timed round -> results -> rematch (`sim::flow`, ADR 0029; `--min-players
+--countdown-secs --round-secs --results-secs --score-to-win` override). The graphical client shows the connect form (`re2`, then the O key or
+PLAY ONLINE), the lobby, the HUD and the results (`src/ui/online.rs`, audited by `ui-check`); `re2 --connect HOST:PORT --key K --name N`
+skips the form. `red_bot --key K --name N --ready` takes part headlessly. `scripts/lobby_demo.ps1` drives a real window through the whole loop.
+
+**Prove and ship it.** `red_engine2 net-test scene.json --profile bad|all` puts a real server and real clients behind a seeded bursty-lossy laggy
+proxy and judges what a player would notice (it found the freeze-then-snap of remote players after lost snapshots; ADR 0034). `red_engine2
+perf scene.json` and `checks.perf` make tick time, bandwidth and promoted props a budget (ADR 0030). `red_server --upnp` /
+`red_engine2 portmap` open a home router's UDP port (ADR 0031; tested against a fake router, not a real one). `red_engine2 package out.zip` /
+`package --verify` make a reproducible release with a SHA-256 manifest and headless binaries proven graphics-free (ADR 0032). `red_engine2
+impact --git` says which tests and docs a change touches; `features --check` keeps that index true (ADR 0033).
 
 ## Game rules, headless play, replay (ADR 0020, 0021)
 
@@ -137,19 +152,25 @@ Every editing command re-validates the whole scene and **refuses to write an inv
 | `new-game <dir>` / `game check\|build-all\|info\|serve\|play` | Scaffold and run a game project that pins the engine | `scripts/red` wraps these |
 | `status` | Resume in one screen: derived facts, git, STATUS.md | `--init`, `--note "..." --section next`, `--sync-docs CLAUDE.md` |
 | `doctor` | What this machine can do (GPU/software rendering, audio, ffmpeg, UDP, output dir, git) | exit 1 only if UDP or the output dir is broken |
-| `ui-shot <screen> out.png` / `ui-check` | Render and audit the 2-D screens (`menu`, `pause`) with no window | `--size WxH --hover resume --message "..."`; `ui-check` audits 9 sizes |
+| `ui-shot <screen> out.png` / `ui-check` | Render and audit the 2-D screens (`menu`, `pause`, `connect`, `lobby`, `countdown`, `hud`, `results`) with no window | `--size WxH --hover resume\|ready\|leave\|connect --message "..."`; `ui-check` audits 9 sizes |
 | `plan <scene> [out.png]` | Labelled top-down plan: walls, props (ids), stairs (arrow + height), walkable area (cyan), lights, spawn, findings | `--y 3.0` picks a floor, `--all-floors`, `--ascii` (text, cheap), `--bounds=x0,z0,x1,z1` to zoom, `--scale`, `--labels all` |
 | `render <scene> out.mp4` / `storyboard <scene> out.png` | Full MP4 of an animated scene (needs ffmpeg) / a multi-frame contact sheet | offline renderer; `--frames N` for the sheet |
 | `frame <scene> out.png` | One rendered frame | `--eye x,y,z --at x,y,z --fov 70` free camera, `--hide 'roof' --hide 'wall2_*'`, `--cut-above 5.7` (peel off roof/upper floors) |
 | `tour <scene> out.png` | Contact sheet: exterior, cutaway per floor, 2 views per zone | `--only kitchen`, `--cols 3`, custom `--view "name:ex,ey,ez:tx,ty,tz"` |
 | `ls <scene>` | Objects + world bounds | `--filter sofa`, `--kind prop\|box\|stairs\|wall\|<prop name>`, `--all` (pieces), `--json` |
 | `info <scene> <id>` | Everything about one object | includes nearby solids and lint findings |
-| `describe [topic]` | The engine describing itself (commands come from the real CLI definition) | `--brief`; topics: brief overview commands objects scene lint physics conventions glossary decisions diagnostics rules sim all |
+| `describe [topic]` | The engine describing itself (commands come from the real CLI definition) | `--brief`; topics: brief overview commands objects scene lint physics conventions glossary decisions diagnostics rules sim multiplayer all |
 | `search <words>` | Best fragments across docs/assets/lint/recipes/commands/Rust symbols | `--kind doc\|adr\|glossary\|asset\|lint\|rule\|type\|recipe\|command\|src`, `--limit` |
 | `catalog [words\|name]` | Asset catalogue (props + prefabs) with tags, real sizes, params, snippets | `--tag`, `--category`, `--kind`, `--long`, `--sheet out.png --cols 5` |
 | `recipe [name]` | Known-good example maps; `--new out.json` copies one, `--print` dumps it | each is lint-clean and passes its own `verify` (test-enforced) |
-| `verify <scene>` | Run the scene's `checks` block (lint, reach, walk incl. auto routes, objects, views, **sim**); PASS/FAIL with evidence and timings; exit 1 on failure | `--bless` (record golden views), `--no-views`, `--only walk[1]` / `--only "name text"` |
+| `verify <scene>` | Run the scene's `checks` block (lint, reach, walk incl. auto routes, objects, views, **sim**, **perf**); PASS/FAIL with evidence and timings; exit 1 on failure | `--bless` (record golden views), `--no-views`, `--only walk[1]` / `--only "name text"` |
 | `sim <scene>` | Play scripted players through the real simulation, headless: the scene's `checks.sim` or `--scenario file.json` | `--only name`, `--trace out.json` (record), `--dump-every 1` |
+| `perf <scene>` | Real players walk the scene in an in-process server: tick p50/p95/p99/worst, bytes per client, largest datagram, promoted props, judged against `checks.perf` (or `--budget file`) | `--players N --secs S --windows N`; best-of windows because noise only adds time; failing output gives advice |
+| `net-test <scene>` | Real server + clients behind a seeded bursty-lossy laggy UDP proxy, judged on what a player notices | `--profile lan\|wifi\|4g\|bad\|awful\|all --players N --secs S --seed N`; exit 1 on a failed check |
+| `portmap status\|enable\|remove\|keep` | Open the game's UDP port on a home router via UPnP (SSDP discovery, safe ownership rules, lease renewal) | `--port --lease --router IP --allow-permanent`; also `red_server --upnp` |
+| `package <out.zip>` / `package --verify <zip>` | Reproducible release zip with SHA-256 manifest, commit, dirty files; headless binaries proven graphics-free | `--allow-dirty`, `--no-build`; never overwrites |
+| `features [name\|words]` / `features --check` | The feature index (`docs/features.json`): what exists, who owns which file; `--check` fails if it drifted | also a test |
+| `impact <files>` / `impact --git [ref]` | What must pass when files change: features, dependents, exact `cargo test` and verification commands, docs to update | `--json` |
 | `replay <trace>` | Re-run a recorded match with no renderer/socket; first divergent tick + state diff | `--scene map.json`, `--against other.json` |
 | `diff a b` / `diff a --git` | Semantic diff by object id (added/removed/changed fields) | ignores formatting + float noise |
 | `src map\|find\|outline\|show\|refs\|deps\|coverage` | Navigate the engine's Rust without reading files | scans on demand (never stale); `show` prints one item, bounded; `coverage` lists pub items missing a `///` doc |

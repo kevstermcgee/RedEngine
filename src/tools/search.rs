@@ -53,6 +53,13 @@ const ADRS: &[(&str, &str)] = &[
     ("0025-handoff-status-and-derived-doc-facts.md", include_str!("../../docs/adr/0025-handoff-status-and-derived-doc-facts.md")),
     ("0026-a-headless-audited-ui-kit.md", include_str!("../../docs/adr/0026-a-headless-audited-ui-kit.md")),
     ("0027-runs-anywhere-doctor-env-config-container-lf.md", include_str!("../../docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md")),
+    ("0028-authenticated-datagrams-and-join-keys.md", include_str!("../../docs/adr/0028-authenticated-datagrams-and-join-keys.md")),
+    ("0029-match-flow-lobby-rounds-rematch.md", include_str!("../../docs/adr/0029-match-flow-lobby-rounds-rematch.md")),
+    ("0030-performance-is-a-contract.md", include_str!("../../docs/adr/0030-performance-is-a-contract.md")),
+    ("0031-home-hosting-with-upnp.md", include_str!("../../docs/adr/0031-home-hosting-with-upnp.md")),
+    ("0032-provable-releases.md", include_str!("../../docs/adr/0032-provable-releases.md")),
+    ("0033-feature-index-and-impact.md", include_str!("../../docs/adr/0033-feature-index-and-impact.md")),
+    ("0034-net-test-and-bad-network-resilience.md", include_str!("../../docs/adr/0034-net-test-and-bad-network-resilience.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.

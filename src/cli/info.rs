@@ -308,11 +308,13 @@ pub(crate) fn run_ui_shot(
     use red_engine2::player::Character;
     use red_engine2::ui::screens::{self, PauseAction, ScreenOpts};
     let (w, h) = parse_wh(size)?;
-    let hover = match hover {
-        None => None,
-        Some("resume") => Some(PauseAction::Resume),
-        Some("quit") => Some(PauseAction::Quit),
-        Some(o) => return Err(format!("--hover must be resume or quit, got '{o}'")),
+    // `--hover` names a pause button (`resume`, `quit`) or any button id of an online screen (`ready`, `character`, `leave`,
+    // `connect`, `back`, `field_key`, ...).
+    let (hover, hover_id) = match hover {
+        None => (None, None),
+        Some("resume") => (Some(PauseAction::Resume), None),
+        Some("quit") => (Some(PauseAction::Quit), None),
+        Some(o) => (None, Some(o.to_string())),
     };
     let selected = match selected {
         None => None,
@@ -320,7 +322,7 @@ pub(crate) fn run_ui_shot(
         Some("rat") => Some(Character::Rat),
         Some(o) => return Err(format!("--selected must be human or rat, got '{o}'")),
     };
-    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, selected })
+    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, selected, hover_id })
         .ok_or_else(|| format!("unknown screen '{screen}' (screens: {})", screens::all().join(", ")))?;
     if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;

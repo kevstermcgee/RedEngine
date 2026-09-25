@@ -131,6 +131,12 @@ fn run(command: Command) -> Result<(), String> {
             run_sim(&scene, scenario.as_deref(), only.as_deref(), trace.as_deref(), checkpoint_every, dump_every)
         }
         Command::Replay { trace, scene, against } => run_replay(&trace, scene.as_deref(), against.as_deref()),
+        Command::NetTest { scene, profile, players, secs, seed } => run_net_test(&scene, &profile, players, secs, seed),
+        Command::Features { query, check } => run_features(&query, check),
+        Command::Impact { files, git } => run_impact(&files, git.as_deref()),
+        Command::Package { zip, verify, allow_dirty, no_build } => run_package(&zip, verify, allow_dirty, no_build),
+        Command::Portmap { action, port, lease, router, allow_permanent } => run_portmap(&action, port, lease, router, allow_permanent),
+        Command::Perf { scene, players, secs, windows, budget } => run_perf(&scene, players, secs, windows, budget.as_deref()),
         Command::Catalog { query, tag, category, kind, long, sheet, cols } => {
             let json = envelope::capturing();
             run_catalog(&query, tag.as_deref(), category.as_deref(), kind.as_deref(), long, json, sheet.as_deref(), cols)

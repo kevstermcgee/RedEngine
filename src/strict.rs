@@ -31,6 +31,7 @@ pub const ROOT_KEYS: &[&str] = &[
     "vars",
     "rules",
     "weapons",
+    "match",
     "objects",
 ];
 /// `meta` keys.
@@ -154,6 +155,11 @@ pub fn check_sections(errs: &mut Vec<String>, root: &Map<String, Value>) {
     }
     if let Some(i) = root.get("interest").and_then(Value::as_object) {
         check_keys(errs, "interest", i, INTEREST_KEYS);
+    }
+    if let Some(m) = root.get("match") {
+        if let Err(e) = crate::sim::flow::MatchSettings::from_json(m) {
+            errs.push(e);
+        }
     }
     for (section, allowed) in [("zones", ZONE_KEYS), ("spawns", SPAWN_KEYS), ("portals", PORTAL_KEYS)] {
         let Some(list) = root.get(section) else { continue };
