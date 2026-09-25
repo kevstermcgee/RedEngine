@@ -34,14 +34,14 @@ Test Lab room and a test before any real map uses it.
 
 | # | item | status |
 |---|---|---|
-| 1 | CI green | **done**: `.github/workflows/ci.yml` (ubuntu + windows), `scripts/ci.sh` runs the same steps locally (clippy `-D warnings`, `cargo test`, benches compile). Only Windows was run; the Linux job is unverified. |
-| 2 | Strong rendering-free simulation | **started** (ADR 0014): `src/sim/` = tick clock, tick-based weapons, scratch buffers, change tracking, entities, static/dynamic props, snapshot encoding. **Not yet**: player movement, hit resolution and the weapon state still live in `App` in `re2.rs`; the headless `Sim` that owns them is the next extraction. |
-| 3 | Authoritative headless prop physics + interactions | **movement and prop pushing are authoritative** (`sim::match_sim::MatchSim`, ADR 0016); pick-up/drop/strike/weapons are still single-player only |
+| 1 | CI green | **done**: `.github/workflows/ci.yml` (rustfmt, ubuntu + windows full build, and a bare-Linux `headless-linux` job for the graphics-free server; all `--locked`), `scripts/ci.sh` runs the same steps locally. Only Windows was run (the Linux target was cross-checked with `cargo check --target x86_64-unknown-linux-gnu`); the Linux jobs are unverified. |
+| 2 | Strong rendering-free simulation | **done for the server** (ADR 0014, 0017, 0020, 0022): `src/sim/` has movement, props, interactions/combat, rules, interest, scenarios, traces; no graphics crates. **Not yet**: single-player `re2` still runs its own weapon logic instead of a local `MatchSim`. |
+| 3 | Authoritative headless prop physics + interactions | **done** (ADR 0016, 0022): movement, props, pick-up/drop with contention, bat, revolver, damage, death/respawn, rules |
 | 4 | Real low-latency transport | **done for movement + props**: UDP, delta snapshots, prediction, interpolation, reconnect (ADR 0016) |
 | 5 | Server + two clients in the Test Lab | **proved**: `tests/net_e2e.rs`, `tests/net_processes.rs` (separate OS processes), `scripts/multiplayer_demo.ps1` (two real windows) |
-| 6 | Deterministic replay + state checksums | `MatchSim::checksum()` exists and is tested; replay/desync detection not built; blockers in ADR 0014 |
-| 7 | Rooms/portals/spatial data in the map format | `spawns` (with `group`) is now **parsed and used** (`sim::spawns`); `portals`/`interest` are still a draft the engine ignores |
-| 8 | Performance/network instrumentation and budgets | `benches/` + `check.py`, `tests/alloc_budget.rs`; the server prints tick time, bandwidth, promoted props and bad packets (`--stats-secs`); clients expose RTT / snapshots missed; no network budgets asserted yet |
+| 6 | Deterministic replay + state checksums | **done** (ADR 0021): traces, `red_engine2 replay`, first divergent tick with a state diff, split exact/coarse checksums, `libm` maths; a fixture replays in CI |
+| 7 | Rooms/portals/spatial data in the map format | **done** (ADR 0022): `spawns`, `zones`, `portals`, `interest` are validated scene data and drive interest management; versioned by `schema_version` |
+| 8 | Performance/network instrumentation and budgets | `benches/` + `check.py` (incl. `match/tick`, `net/*`), `tests/alloc_budget.rs` (incl. the match tick), `tests/net_budget.rs` (snapshot size, per-client bandwidth, tick ceiling); the server prints tick time, bandwidth, promoted props and bad packets |
 | 9 | AI-friendly | keep `describe`/`search`/`src` current; every module has `//!`; each decision an ADR |
 
 **4. Engine gaps the Test Lab exposed** (none fixed yet): no true ramps (only flat box tops and stairs);

@@ -1,31 +1,44 @@
 //! Library root: module list plus the scene-loading and offline render entry points (`render_frame_png`, `render_video`).
 
+#[cfg(feature = "gfx")]
+pub mod audio;
 pub mod characters;
+pub mod collide;
 pub mod color;
 pub mod easing;
+pub mod geometry;
+#[cfg(feature = "gfx")]
 pub mod gpu;
 pub mod hit;
 pub mod macros;
+#[cfg(feature = "gfx")]
 pub mod menu;
-pub mod audio;
+#[cfg(feature = "gfx")]
 pub mod mesh;
 pub mod net;
+#[cfg(feature = "gfx")]
 pub mod overlay;
 pub mod physics;
 pub mod player;
 pub mod prefabs;
 pub mod props;
+#[cfg(feature = "gfx")]
 pub mod render;
+#[cfg(feature = "gfx")]
 pub mod revolver;
 pub mod schema;
 pub mod sim;
 pub mod skeleton;
+pub mod strict;
 pub mod tools;
 pub mod track;
+#[cfg(feature = "gfx")]
 pub mod video;
-pub mod weapons;
+#[cfg(feature = "gfx")]
 pub mod viewer;
+pub mod weapons;
 
+#[cfg(feature = "gfx")]
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -40,6 +53,7 @@ pub fn validate_scene_file(path: &Path) -> Result<(), Vec<String>> {
     load_scene(path).map(|_| ())
 }
 
+#[cfg(feature = "gfx")]
 fn ensure_parent_dir(path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
@@ -49,27 +63,25 @@ fn ensure_parent_dir(path: &Path) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "gfx")]
 fn load_scene_or_bail(scene_path: &Path) -> Result<schema::Scene> {
     load_scene(scene_path).map_err(|errs| anyhow::anyhow!(errs.join("\n")))
 }
 
 /// Renders one frame of a scene at time `t` seconds to a PNG.
+#[cfg(feature = "gfx")]
 pub fn render_frame_png(scene_path: &Path, out_png: &Path, t: f32) -> Result<()> {
     let scene = load_scene_or_bail(scene_path)?;
     let mut renderer = render::Renderer::new(&scene)?;
     let rgb = renderer.render_frame(&scene, t);
     ensure_parent_dir(out_png)?;
-    image::save_buffer(out_png, &rgb, scene.width, scene.height, image::ColorType::Rgb8)
-        .context("failed to write PNG")?;
+    image::save_buffer(out_png, &rgb, scene.width, scene.height, image::ColorType::Rgb8).context("failed to write PNG")?;
     Ok(())
 }
 
 /// Renders the whole scene to an MP4 via ffmpeg, reporting `(frame, total)` progress.
-pub fn render_video(
-    scene_path: &Path,
-    out_path: &Path,
-    mut on_progress: impl FnMut(u32, u32),
-) -> Result<()> {
+#[cfg(feature = "gfx")]
+pub fn render_video(scene_path: &Path, out_path: &Path, mut on_progress: impl FnMut(u32, u32)) -> Result<()> {
     let scene = load_scene_or_bail(scene_path)?;
     let mut renderer = render::Renderer::new(&scene)?;
     let num_frames = ((scene.duration * scene.fps as f32).round() as u32).max(1);
@@ -85,6 +97,7 @@ pub fn render_video(
 }
 
 /// Renders `num_frames` evenly spaced frames into one contact-sheet PNG.
+#[cfg(feature = "gfx")]
 pub fn render_storyboard_png(scene_path: &Path, out_png: &Path, num_frames: u32) -> Result<()> {
     let scene = load_scene_or_bail(scene_path)?;
     let mut renderer = render::Renderer::new(&scene)?;

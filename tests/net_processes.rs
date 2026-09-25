@@ -67,7 +67,8 @@ fn a_server_process_and_two_client_processes_play_together_and_one_reconnects() 
     let a = spawn_bot(&addr, &["--as", "human", "--behavior", "route:1.0,2.8", "--duration", "8", "--report-every", "0.5"]);
     std::thread::sleep(Duration::from_millis(1200));
     // Client B: joins second as Cheddar, stands still, leaves after 3 s and rejoins (with its token) at 5 s.
-    let b = spawn_bot(&addr, &["--as", "rat", "--behavior", "idle", "--duration", "8", "--report-every", "0.5", "--leave-after", "3.0", "--rejoin-after", "5.0"]);
+    let b =
+        spawn_bot(&addr, &["--as", "rat", "--behavior", "idle", "--duration", "8", "--report-every", "0.5", "--leave-after", "3.0", "--rejoin-after", "5.0"]);
 
     let (la, lb) = (lines(a), lines(b));
     let _ = server.wait();
@@ -103,7 +104,10 @@ fn a_server_process_and_two_client_processes_play_together_and_one_reconnects() 
     let mut compared = 0;
     for pa in props_a {
         if let Some(pb) = props_b.iter().find(|p| p["id"] == pa["id"]) {
-            let d = ((pa["x"].as_f64().unwrap() - pb["x"].as_f64().unwrap()).powi(2) + (pa["y"].as_f64().unwrap() - pb["y"].as_f64().unwrap()).powi(2) + (pa["z"].as_f64().unwrap() - pb["z"].as_f64().unwrap()).powi(2)).sqrt();
+            let d = ((pa["x"].as_f64().unwrap() - pb["x"].as_f64().unwrap()).powi(2)
+                + (pa["y"].as_f64().unwrap() - pb["y"].as_f64().unwrap()).powi(2)
+                + (pa["z"].as_f64().unwrap() - pb["z"].as_f64().unwrap()).powi(2))
+            .sqrt();
             assert!(d < 0.05, "prop {} differs between the two client processes by {d} m", pa["id"]);
             compared += 1;
         }

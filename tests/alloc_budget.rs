@@ -77,4 +77,62 @@ fn per_tick_allocations() {
     println!("one prop knocked, 60 ticks: {busy} allocations ({:.2}/tick), awake now: {}", busy as f64 / 60.0, w.awake_count());
     assert_eq!(w.scratch_grows(), grows_before, "our scratch buffers must not grow in steady state");
     assert!(busy as f64 / 60.0 <= 40.0, "awake-prop ticks regressed: {:.1} allocations/tick (was ~21, all inside rapier)", busy as f64 / 60.0);
+
+    // ---- the authoritative match tick (the multiplayer server's whole per-tick simulation) --------------------------------
+    // Eight players in the Test Lab walking in circles, inputs pushed every tick, like eight connected clients.
+    {
+        use red_engine2::player::Character;
+        use red_engine2::sim::match_sim::MatchSim;
+        use red_engine2::sim::player::PlayerInput;
+        use red_engine2::sim::spawns::parse_spawns;
+        let path = Path::new("examples/test_lab.json");
+        let scene = red_engine2::load_scene(path).expect("lab");
+        let mut sim = MatchSim::new(&scene, parse_spawns(&std::fs::read_to_string(path).unwrap()).unwrap());
+        for _ in 0..8 {
+            sim.add_player(Character::Human).expect("room");
+        }
+        let mut seq = 0u32;
+        let mut step = |sim: &mut MatchSim, n: u32| {
+            for _ in 0..n {
+                seq += 1;
+                for slot in 0..8 {
+                    sim.push_input(slot, PlayerInput { seq, forward: 1, yaw: seq as f32 * 0.02 + slot as f32, ..Default::default() });
+                }
+                sim.tick_once();
+            }
+        };
+        step(&mut sim, 60); // warm-up: queues and rapier buffers grow once
+        let (walking, _) = allocs(|| step(&mut sim, 120));
+        println!("match tick, 8 players walking, 120 ticks: {walking} allocations ({:.2}/tick)", walking as f64 / 120.0);
+        assert!(
+            walking as f64 / 120.0 <= MATCH_TICK_WALKING_ALLOC_BUDGET,
+            "the authoritative tick regressed: {:.1} allocations/tick with 8 players walking (budget {MATCH_TICK_WALKING_ALLOC_BUDGET})",
+            walking as f64 / 120.0
+        );
+        // Eight players standing still (the common state of a hiding match) in a fresh match, nothing awake: the tick must
+        // not allocate (measured 1.0/tick: one buffer inside rapier's step).
+        let mut sim = MatchSim::new(&scene, parse_spawns(&std::fs::read_to_string(path).unwrap()).unwrap());
+        for _ in 0..8 {
+            sim.add_player(Character::Human).expect("room");
+        }
+        let mut idle = |sim: &mut MatchSim, n: u32| {
+            for _ in 0..n {
+                seq += 1;
+                for slot in 0..8 {
+                    sim.push_input(slot, PlayerInput { seq, yaw: 0.5, ..Default::default() });
+                }
+                sim.tick_once();
+            }
+        };
+        idle(&mut sim, 90);
+        let (still, _) = allocs(|| idle(&mut sim, 120));
+        println!("match tick, 8 players standing still, 120 ticks: {still} allocations ({:.2}/tick)", still as f64 / 120.0);
+        assert!(still as f64 / 120.0 <= MATCH_TICK_IDLE_ALLOC_BUDGET, "idle players allocate per tick: {still} allocations in 120 ticks");
+    }
 }
+
+/// Heap allocations per authoritative match tick with 8 players walking: nearly all inside rapier (each moving kinematic body
+/// is re-processed every tick, ~9 each when measured). A regression that adds allocations of our own shows up here.
+const MATCH_TICK_WALKING_ALLOC_BUDGET: f64 = 90.0;
+/// The same with everyone standing still: our own code must add none.
+const MATCH_TICK_IDLE_ALLOC_BUDGET: f64 = 2.0;

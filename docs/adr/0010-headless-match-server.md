@@ -1,12 +1,16 @@
-# 0010. Headless multiplayer match server (NOT BUILT)
-Status: proposed
+# 0010. Headless multiplayer match server (historical: built as ADR 0016, split by ADR 0017)
+Status: superseded by 0016 (the server, protocol and prediction) and 0017 (the graphics-free build)
+
+> **This record is history.** It described the constraints before any networking existed. Everything it proposes
+> now exists: `sim::match_sim::MatchSim` + `net::server` (0016), the collision/geometry extraction and the
+> `--no-default-features` server build (0017). Read those for current reality; read below for why.
 
 ## Context
-The goal is an online prop-hunt game with a lightweight server running headless. **No networking, match
-server, orchestrator or lockstep code exists yet** — only this record of the constraints found while
+The goal is an online prop-hunt game with a lightweight server running headless. **At the time of writing, no networking, match
+server, orchestrator or lockstep code existed** — only this record of the constraints found while
 building the single-player engine, so the eventual design starts from facts.
 
-## What is true today
+## What was true then (all of it since changed)
 - Simulation and rendering are entangled in one crate. The authoritative-looking physics
   (`ground_height_at`, `colliders_on_floor`, `resolve_collision`, collider/ground collection from a
   `Scene`) lives in `src/viewer.rs`, next to wgpu code; `player.rs` imports it. `winit`/`wgpu`/`rodio`
@@ -15,7 +19,7 @@ building the single-player engine, so the eventual design starts from facts.
   `walk` tool replays it with no window — proof that physics can run without a GPU.
 - Scene loading (`schema::parse`, macros, prefabs) and `MapWorld` are already headless.
 
-## Decision (proposed — open, not yet decided)
+## Decision (proposed then; implemented by 0016/0017)
 1. Extract the headless core — colliders, ground candidates, `player` step functions, scene→world
    collection — into a module (or workspace crate) with **no** wgpu/winit/rodio dependency; the viewer
    and tools depend on it, the server depends on only it. Do this refactor first; it changes no behaviour

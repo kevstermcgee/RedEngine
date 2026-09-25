@@ -8,8 +8,8 @@
 
 use super::edit::num;
 use super::world::MapWorld;
+use crate::collide::collider_blocks_at;
 use crate::props::{collision_box, local_bounds, PropKind};
-use crate::viewer::collider_blocks_at;
 use glam::Vec2;
 use serde_json::{json, Value};
 
@@ -227,11 +227,7 @@ mod tests {
     use std::path::Path;
 
     fn world() -> MapWorld {
-        MapWorld::from_text(
-            r##"{"camera":{},"objects":[{"id":"wall","type":"box","size":[10,2,0.4],"position":[0,1,0]}]}"##,
-            Path::new("t.json"),
-        )
-        .unwrap()
+        MapWorld::from_text(r##"{"camera":{},"objects":[{"id":"wall","type":"box","size":[10,2,0.4],"position":[0,1,0]}]}"##, Path::new("t.json")).unwrap()
     }
 
     fn params(seed: u64) -> ScatterParams {
@@ -270,7 +266,18 @@ mod tests {
 
     #[test]
     fn line_places_evenly_and_faces_along_the_line() {
-        let objs = line(&LineParams { kind: PropKind::Hedge, from: Vec2::new(0.0, 0.0), to: Vec2::new(0.0, 5.4), spacing: 1.8, id_prefix: "h".into(), color: None, y: 0.0, scale: 1.0, lint_ignore: vec![] }).unwrap();
+        let objs = line(&LineParams {
+            kind: PropKind::Hedge,
+            from: Vec2::new(0.0, 0.0),
+            to: Vec2::new(0.0, 5.4),
+            spacing: 1.8,
+            id_prefix: "h".into(),
+            color: None,
+            y: 0.0,
+            scale: 1.0,
+            lint_ignore: vec![],
+        })
+        .unwrap();
         assert_eq!(objs.len(), 3);
         // Running along +Z means the prop's local +X must map to +Z: yaw -90.
         assert!((objs[0]["rotation"][1].as_f64().unwrap() - -90.0).abs() < 1e-3);

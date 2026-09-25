@@ -22,11 +22,17 @@
 
 use super::lint::{self, Severity};
 use super::reach::{self, ReachParams};
+#[cfg(feature = "gfx")]
 use super::shots::{self, FrameOpts};
 use super::world::{load_or_report, MapWorld};
+#[cfg(feature = "gfx")]
 use crate::render::Renderer;
-use glam::{Vec2, Vec3};
-use image::{Rgb, RgbImage};
+use glam::Vec2;
+#[cfg(feature = "gfx")]
+use glam::Vec3;
+#[cfg(any(test, feature = "gfx"))]
+use image::Rgb;
+use image::RgbImage;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -118,14 +124,51 @@ fn selected(opts: &Options, name: &str) -> bool {
     opts.only.as_deref().is_none_or(|o| name.contains(o))
 }
 
+/// Unknown keys anywhere in a `checks` block, as `checks.path.key: unknown field ...` messages.
+fn unknown_check_keys(checks: &Value) -> Vec<String> {
+    use crate::strict::check_keys;
+    let mut errs = Vec::new();
+    let Some(root) = checks.as_object() else { return errs };
+    check_keys(&mut errs, "checks", root, &["lint", "reach", "walk", "objects", "views", "sim"]);
+    let each = |errs: &mut Vec<String>, name: &str, allowed: &[&str]| {
+        for (i, item) in root.get(name).and_then(Value::as_array).into_iter().flatten().enumerate() {
+            if let Some(o) = item.as_object() {
+                check_keys(errs, &format!("checks.{name}[{i}]"), o, allowed);
+            }
+        }
+    };
+    if let Some(l) = root.get("lint").and_then(Value::as_object) {
+        check_keys(&mut errs, "checks.lint", l, &["max_errors", "max_warnings", "forbid"]);
+    }
+    each(&mut errs, "reach", &["to", "from", "why"]);
+    each(&mut errs, "walk", &["name", "path", "from", "ends_near", "tol", "floor_y"]);
+    each(&mut errs, "views", &["name", "eye", "at", "fov", "max_diff"]);
+    if let Some(o) = root.get("objects").and_then(Value::as_object) {
+        check_keys(&mut errs, "checks.objects", o, &["exist", "absent", "min_count", "max_count", "count"]);
+        for (i, item) in o.get("count").and_then(Value::as_array).into_iter().flatten().enumerate() {
+            if let Some(c) = item.as_object() {
+                check_keys(&mut errs, &format!("checks.objects.count[{i}]"), c, &["kind", "min", "max"]);
+            }
+        }
+    }
+    errs
+}
+
 /// Runs every check in the scene's `checks` block.
 pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
     let world = load_or_report(path)?;
     let checks = world.raw.get("checks").cloned().unwrap_or(Value::Null);
     let mut results = Vec::new();
     if checks.is_null() {
-        results.push(fail("checks", "the scene has no top-level \"checks\" block (see `red_engine2 describe scene`); at minimum add {\"lint\": {\"max_errors\": 0}}"));
+        results.push(fail(
+            "checks",
+            "the scene has no top-level \"checks\" block (see `red_engine2 describe scene`); at minimum add {\"lint\": {\"max_errors\": 0}}",
+        ));
         return Ok(Report { scene: path.to_path_buf(), results });
+    }
+    // A misspelled group or field would mean a check silently never runs: report each as a failed check.
+    for msg in unknown_check_keys(&checks) {
+        results.push(fail("checks", msg));
     }
     let r = reach::compute(&world, &ReachParams::default());
     let findings = lint::lint(&world, &r);
@@ -160,7 +203,11 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
             };
             let p = Vec2::new(to[0], to[1]);
             let ok = if to.len() == 3 { rr.reachable(p, to[2], 0.3) } else { !rr.levels_at(p).is_empty() };
-            results.push(if ok { pass(name, format!("({:.1}, {:.1}) reachable", p.x, p.y)) } else { fail(name, format!("({:.1}, {:.1}) is NOT reachable from the start", p.x, p.y)) });
+            results.push(if ok {
+                pass(name, format!("({:.1}, {:.1}) reachable", p.x, p.y))
+            } else {
+                fail(name, format!("({:.1}, {:.1}) is NOT reachable from the start", p.x, p.y))
+            });
         }
     }
 
@@ -186,10 +233,21 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
             let steps = super::walk::walk(&world, start, &wps);
             if steps.len() < wps.len() || steps.last().is_some_and(|l| !l.reached) {
                 let last = steps.last();
-                results.push(fail(name, match last {
-                    Some(l) => format!("stuck on leg {} toward ({:.1}, {:.1}); stopped at ({:.2}, {:.2}) y={:.2}", steps.len(), l.target.x, l.target.y, l.pos.x, l.pos.y, l.foot_y),
-                    None => "could not start".to_string(),
-                }));
+                results.push(fail(
+                    name,
+                    match last {
+                        Some(l) => format!(
+                            "stuck on leg {} toward ({:.1}, {:.1}); stopped at ({:.2}, {:.2}) y={:.2}",
+                            steps.len(),
+                            l.target.x,
+                            l.target.y,
+                            l.pos.x,
+                            l.pos.y,
+                            l.foot_y
+                        ),
+                        None => "could not start".to_string(),
+                    },
+                ));
                 continue;
             }
             let end = steps.last().unwrap();
@@ -198,7 +256,15 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
             let dist = (end.pos - want).length();
             let floor_ok = c.get("floor_y").and_then(Value::as_f64).is_none_or(|fy| (end.foot_y - fy as f32).abs() <= 0.2);
             let ok = dist <= tol && floor_ok;
-            let detail = format!("ended ({:.2}, {:.2}) y={:.2}; wanted within {tol} of ({:.1}, {:.1}){}", end.pos.x, end.pos.y, end.foot_y, want.x, want.y, c.get("floor_y").and_then(Value::as_f64).map(|f| format!(" at y={f}")).unwrap_or_default());
+            let detail = format!(
+                "ended ({:.2}, {:.2}) y={:.2}; wanted within {tol} of ({:.1}, {:.1}){}",
+                end.pos.x,
+                end.pos.y,
+                end.foot_y,
+                want.x,
+                want.y,
+                c.get("floor_y").and_then(Value::as_f64).map(|f| format!(" at y={f}")).unwrap_or_default()
+            );
             results.push(if ok { pass(name, detail) } else { fail(name, detail) });
         }
     }
@@ -207,12 +273,19 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
         results.extend(check_objects(&world, o));
     }
 
+    if checks.get("sim").is_some() && selected(opts, "sim") {
+        match super::simrun::verify_checks(path, None) {
+            Ok(rows) => results.extend(rows.into_iter().map(|(name, ok, detail)| if ok { pass(name, detail) } else { fail(name, detail) })),
+            Err(e) => results.push(fail("sim", e)),
+        }
+    }
+
     if let Some(arr) = checks.get("views").and_then(Value::as_array).filter(|_| selected(opts, "view") && !opts.skip_views) {
         results.extend(check_views(path, arr, opts)?);
     }
 
     if results.is_empty() {
-        results.push(fail("checks", "no check ran (unknown keys or --only matched nothing). Known: lint, reach, walk, objects, views"));
+        results.push(fail("checks", "no check ran (unknown keys or --only matched nothing). Known: lint, reach, walk, objects, views, sim"));
     }
     Ok(Report { scene: path.to_path_buf(), results })
 }
@@ -233,18 +306,34 @@ fn check_objects(world: &MapWorld, o: &Value) -> Vec<CheckResult> {
     let strs = |k: &str| -> Vec<&str> { o.get(k).and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default() };
     let missing: Vec<&str> = strs("exist").into_iter().filter(|e| !ids.contains(e)).collect();
     if o.get("exist").is_some() {
-        out.push(if missing.is_empty() { pass("objects.exist", format!("{} required object(s) present", strs("exist").len())) } else { fail("objects.exist", format!("missing: {}", missing.join(", "))) });
+        out.push(if missing.is_empty() {
+            pass("objects.exist", format!("{} required object(s) present", strs("exist").len()))
+        } else {
+            fail("objects.exist", format!("missing: {}", missing.join(", ")))
+        });
     }
     let present: Vec<&str> = strs("absent").into_iter().filter(|e| ids.contains(e)).collect();
     if o.get("absent").is_some() {
-        out.push(if present.is_empty() { pass("objects.absent", "none of the forbidden objects exist") } else { fail("objects.absent", format!("should not exist: {}", present.join(", "))) });
+        out.push(if present.is_empty() {
+            pass("objects.absent", "none of the forbidden objects exist")
+        } else {
+            fail("objects.absent", format!("should not exist: {}", present.join(", ")))
+        });
     }
     let n = objs.len();
     if let Some(min) = o.get("min_count").and_then(Value::as_u64) {
-        out.push(if n as u64 >= min { pass("objects.min_count", format!("{n} top-level objects (>= {min})")) } else { fail("objects.min_count", format!("only {n} top-level objects, expected >= {min}")) });
+        out.push(if n as u64 >= min {
+            pass("objects.min_count", format!("{n} top-level objects (>= {min})"))
+        } else {
+            fail("objects.min_count", format!("only {n} top-level objects, expected >= {min}"))
+        });
     }
     if let Some(max) = o.get("max_count").and_then(Value::as_u64) {
-        out.push(if n as u64 <= max { pass("objects.max_count", format!("{n} top-level objects (<= {max})")) } else { fail("objects.max_count", format!("{n} top-level objects, expected <= {max}")) });
+        out.push(if n as u64 <= max {
+            pass("objects.max_count", format!("{n} top-level objects (<= {max})"))
+        } else {
+            fail("objects.max_count", format!("{n} top-level objects, expected <= {max}"))
+        });
     }
     for (i, c) in o.get("count").and_then(Value::as_array).into_iter().flatten().enumerate() {
         let kind = c.get("kind").and_then(Value::as_str).unwrap_or("");
@@ -268,6 +357,7 @@ pub fn diff_fraction(a: &RgbImage, b: &RgbImage, thresh: u8) -> f32 {
     bad as f32 / (a.width() * a.height()) as f32
 }
 
+#[cfg(feature = "gfx")]
 fn triptych(golden: &RgbImage, now: &RgbImage) -> RgbImage {
     let (w, h) = now.dimensions();
     let mut out = RgbImage::from_pixel(w * 3, h, Rgb([12, 14, 18]));
@@ -285,6 +375,7 @@ fn triptych(golden: &RgbImage, now: &RgbImage) -> RgbImage {
     out
 }
 
+#[cfg(feature = "gfx")]
 fn check_views(path: &Path, arr: &[Value], opts: &Options) -> Result<Vec<CheckResult>, String> {
     let mut out = Vec::new();
     let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "scene".into());
@@ -320,12 +411,19 @@ fn check_views(path: &Path, arr: &[Value], opts: &Options) -> Result<Vec<CheckRe
             std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
             let dpath = out_dir.join(format!("{stem}_{name}_diff.png"));
             triptych(&golden, &now).save(&dpath).map_err(|e| e.to_string())?;
-            let mut r = fail(label, format!("{:.2}% of pixels changed (max {:.1}%). If the change is intended: `verify --bless`", frac * 100.0, max_diff * 100.0));
+            let mut r =
+                fail(label, format!("{:.2}% of pixels changed (max {:.1}%). If the change is intended: `verify --bless`", frac * 100.0, max_diff * 100.0));
             r.artifact = Some(dpath);
             out.push(r);
         }
     }
     Ok(out)
+}
+
+/// Without a renderer the golden-view checks cannot run; say so instead of failing the whole report.
+#[cfg(not(feature = "gfx"))]
+fn check_views(_path: &Path, arr: &[Value], _opts: &Options) -> Result<Vec<CheckResult>, String> {
+    Ok(vec![pass("views", format!("SKIPPED {} golden view(s): this build has no renderer (feature `gfx`)", arr.len()))])
 }
 
 #[cfg(test)]
@@ -356,7 +454,9 @@ mod tests {
 
     #[test]
     fn passing_checks_pass_and_failing_ones_fail_with_evidence() {
-        let r = run_text(r#"{"walk":[{"name":"cross","path":"0,0; 3,-3"}],"objects":{"exist":["crate_1"],"min_count":5,"count":[{"kind":"prop:crate","min":1,"max":1}]},"reach":[{"to":[2,-2]}]}"#);
+        let r = run_text(
+            r#"{"walk":[{"name":"cross","path":"0,0; 3,-3"}],"objects":{"exist":["crate_1"],"min_count":5,"count":[{"kind":"prop:crate","min":1,"max":1}]},"reach":[{"to":[2,-2]}]}"#,
+        );
         assert_eq!(r.failed(), 0, "{}", r.render());
         let r = run_text(r#"{"objects":{"exist":["nope"],"absent":["crate_1"]},"reach":[{"to":[40,40]}]}"#);
         assert_eq!(r.failed(), 3, "{}", r.render());

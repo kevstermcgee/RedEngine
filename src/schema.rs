@@ -2,11 +2,18 @@
 
 use crate::color::parse_hex_to_linear;
 use crate::easing::Ease;
-use crate::gpu::MAX_LIGHTS;
 use crate::props::PropKind;
+use crate::strict::{self, check_keys};
 use crate::track::{Keyframe, Lerp, Track};
 use glam::Vec3;
 use serde_json::{Map, Value};
+
+/// The scene-format version this engine writes and reads. A scene may say `"schema_version": 1` (omitting it means 1);
+/// a newer number is refused with a message instead of half-working. Migration rules: `SPEC.md`, "Versioning".
+pub const SCHEMA_VERSION: u32 = 1;
+
+/// Maximum point lights per scene (`lights` beyond this are a validation error). The WGSL `Globals` block must agree.
+pub const MAX_LIGHTS: usize = 16;
 
 // ---------------------------------------------------------------------------------------------
 // Compiled scene (what the renderer actually walks)
@@ -46,6 +53,10 @@ pub struct Scene {
     pub post: PostSettings,
     pub lights: Vec<Light>,
     pub objects: Vec<Object>,
+    /// The scene's game rules (`vars` + `rules`), validated at parse time; empty when the scene declares none.
+    pub rules: crate::sim::rules::RuleSet,
+    /// The demo weapons' numbers (`weapons` block): damage and the revolver's ammo.
+    pub weapons: crate::weapons::WeaponConfig,
 }
 
 /// Sky: a flat color or a vertical gradient.
@@ -98,12 +109,7 @@ pub struct Material {
 
 impl Material {
     fn default_gray() -> Self {
-        Material {
-            color: Track::constant(Vec3::splat(0.7)),
-            metallic: 0.0,
-            roughness: 0.6,
-            emissive: Vec3::ZERO,
-        }
+        Material { color: Track::constant(Vec3::splat(0.7)), metallic: 0.0, roughness: 0.6, emissive: Vec3::ZERO }
     }
 }
 
@@ -186,7 +192,7 @@ pub struct PropDef {
 /// A staircase connecting two floor heights. `position.y` is the height of its *bottom* (the
 /// floor it starts from); local `+Z` is the run axis, bottom at `-run/2`, top at `+run/2` (only
 /// yaw rotation is meaningful, matching every other upright object in the engine). See
-/// `render::build_stairs_parts` for the stepped visual mesh and `viewer::ground_height_at` for
+/// `geometry::build_stairs_parts` for the stepped visual mesh and `collide::ground_height_at` for
 /// how it contributes a smooth walkable ramp despite the visually stepped treads.
 #[derive(Debug)]
 pub struct StairsDef {
@@ -280,13 +286,7 @@ fn as_color_vec3(v: &Value) -> Result<Vec3, String> {
 
 /// Shared engine for every track field: accepts either a bare leaf value or
 /// `{"keyframes": [{"t":..,"value":..,"ease":..}, ...]}`.
-fn build_track<T: Lerp + Copy>(
-    ctx: &mut Ctx,
-    raw: &Value,
-    path: &str,
-    default: T,
-    parse_leaf: impl Fn(&Value) -> Result<T, String>,
-) -> Track<T> {
+fn build_track<T: Lerp + Copy>(ctx: &mut Ctx, raw: &Value, path: &str, default: T, parse_leaf: impl Fn(&Value) -> Result<T, String>) -> Track<T> {
     if let Some(obj) = raw.as_object() {
         if let Some(kfs_raw) = obj.get("keyframes") {
             let Some(arr) = kfs_raw.as_array() else {
@@ -362,9 +362,7 @@ fn build_track<T: Lerp + Copy>(
 fn float_field(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path: &str, default: f32) -> Track<f32> {
     match obj.get(key) {
         None => Track::constant(default),
-        Some(v) => build_track(ctx, v, &format!("{path}.{key}"), default, |leaf| {
-            as_f32(leaf).ok_or_else(|| "must be a number".to_string())
-        }),
+        Some(v) => build_track(ctx, v, &format!("{path}.{key}"), default, |leaf| as_f32(leaf).ok_or_else(|| "must be a number".to_string())),
     }
 }
 
@@ -389,8 +387,25 @@ fn color_field(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path: &str, d
     }
 }
 
-fn plain_f32(obj: &Map<String, Value>, key: &str, default: f32) -> f32 {
-    obj.get(key).and_then(as_f32).unwrap_or(default)
+/// A plain (non-animated) number field: absent = `default`; present but not a number is an error, not a silent default.
+fn plain_f32(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path: &str, default: f32) -> f32 {
+    match obj.get(key) {
+        None => default,
+        Some(v) => as_f32(v).unwrap_or_else(|| {
+            ctx.err(&format!("{path}.{key}"), format!("must be a number (got {})", short_json(v)));
+            default
+        }),
+    }
+}
+
+/// A value rendered for an error message, cut to a readable length.
+fn short_json(v: &Value) -> String {
+    let s = v.to_string();
+    if s.chars().count() > 40 {
+        format!("{}…", s.chars().take(40).collect::<String>())
+    } else {
+        s
+    }
 }
 
 fn plain_hex(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path: &str, default: Vec3) -> Vec3 {
@@ -411,10 +426,11 @@ fn parse_material(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Materi
         None => Material::default_gray(),
         Some(m) => {
             let mpath = format!("{path}.material");
+            check_keys(&mut ctx.errors, &mpath, m, strict::MATERIAL_KEYS);
             Material {
                 color: color_field(ctx, m, "color", &mpath, Vec3::splat(0.7)),
-                metallic: plain_f32(m, "metallic", 0.0).clamp(0.0, 1.0),
-                roughness: plain_f32(m, "roughness", 0.6).clamp(0.04, 1.0),
+                metallic: plain_f32(ctx, m, "metallic", &mpath, 0.0).clamp(0.0, 1.0),
+                roughness: plain_f32(ctx, m, "roughness", &mpath, 0.6).clamp(0.04, 1.0),
                 emissive: plain_hex(ctx, m, "emissive", &mpath, Vec3::ZERO),
             }
         }
@@ -433,10 +449,11 @@ fn default_camera() -> Camera {
 }
 
 fn parse_camera(ctx: &mut Ctx, obj: &Map<String, Value>) -> Camera {
+    check_keys(&mut ctx.errors, "camera", obj, strict::CAMERA_KEYS);
     Camera {
         fov: float_field(ctx, obj, "fov", "camera", 90.0),
-        near: plain_f32(obj, "near", 0.1).max(0.001),
-        far: plain_f32(obj, "far", 200.0),
+        near: plain_f32(ctx, obj, "near", "camera", 0.1).max(0.001),
+        far: plain_f32(ctx, obj, "far", "camera", 200.0),
         position: vec3_field(ctx, obj, "position", "camera", Vec3::new(0.0, 2.0, 8.0)),
         target: vec3_field(ctx, obj, "target", "camera", Vec3::new(0.0, 1.0, 0.0)),
         roll: float_field(ctx, obj, "roll", "camera", 0.0),
@@ -446,7 +463,7 @@ fn parse_camera(ctx: &mut Ctx, obj: &Map<String, Value>) -> Camera {
 fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
     let id = obj.get("id").and_then(Value::as_str).unwrap_or("light").to_string();
     let cast_shadows = obj.get("cast_shadows").and_then(Value::as_bool).unwrap_or(false);
-    let shadow_radius = plain_f32(obj, "shadow_radius", 15.0);
+    let shadow_radius = plain_f32(ctx, obj, "shadow_radius", path, 15.0);
     let shadow_center = match obj.get("shadow_center") {
         None => Vec3::ZERO,
         Some(v) => as_vec3(v).unwrap_or_else(|e| {
@@ -456,13 +473,16 @@ fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
     };
     let color = color_field(ctx, obj, "color", path, Vec3::ONE);
     let kind_name = obj.get("type").and_then(Value::as_str);
+    match kind_name {
+        Some("directional") => check_keys(&mut ctx.errors, path, obj, strict::DIRECTIONAL_LIGHT_KEYS),
+        Some("point") => check_keys(&mut ctx.errors, path, obj, strict::POINT_LIGHT_KEYS),
+        _ => {}
+    }
     let kind = match kind_name {
-        Some("directional") => LightKind::Directional {
-            direction: vec3_field(ctx, obj, "direction", path, Vec3::new(-0.4, -1.0, -0.3)),
-        },
+        Some("directional") => LightKind::Directional { direction: vec3_field(ctx, obj, "direction", path, Vec3::new(-0.4, -1.0, -0.3)) },
         Some("point") => LightKind::Point {
             position: vec3_field(ctx, obj, "position", path, Vec3::new(0.0, 3.0, 0.0)),
-            range: plain_f32(obj, "range", 20.0).max(0.01),
+            range: plain_f32(ctx, obj, "range", path, 20.0).max(0.01),
         },
         Some(other) => {
             ctx.err(&format!("{path}.type"), format!("unknown light type '{other}' (expected 'directional' or 'point')"));
@@ -480,15 +500,7 @@ fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
         LightKind::Directional { .. } => 2.0,
         LightKind::Point { .. } => 12.0,
     };
-    Light {
-        id,
-        kind,
-        color,
-        intensity: float_field(ctx, obj, "intensity", path, intensity_default),
-        cast_shadows,
-        shadow_radius,
-        shadow_center,
-    }
+    Light { id, kind, color, intensity: float_field(ctx, obj, "intensity", path, intensity_default), cast_shadows, shadow_radius, shadow_center }
 }
 
 fn parse_prim(ctx: &mut Ctx, ty: &str, obj: &Map<String, Value>, path: &str) -> PrimKind {
@@ -503,10 +515,10 @@ fn parse_prim(ctx: &mut Ctx, ty: &str, obj: &Map<String, Value>, path: &str) -> 
             };
             PrimKind::Box { size }
         }
-        "sphere" => PrimKind::Sphere { radius: plain_f32(obj, "radius", 0.5) },
-        "cylinder" => PrimKind::Cylinder { radius: plain_f32(obj, "radius", 0.5), height: plain_f32(obj, "height", 1.0) },
-        "cone" => PrimKind::Cone { radius: plain_f32(obj, "radius", 0.5), height: plain_f32(obj, "height", 1.0) },
-        "capsule" => PrimKind::Capsule { radius: plain_f32(obj, "radius", 0.3), height: plain_f32(obj, "height", 1.0) },
+        "sphere" => PrimKind::Sphere { radius: plain_f32(ctx, obj, "radius", path, 0.5) },
+        "cylinder" => PrimKind::Cylinder { radius: plain_f32(ctx, obj, "radius", path, 0.5), height: plain_f32(ctx, obj, "height", path, 1.0) },
+        "cone" => PrimKind::Cone { radius: plain_f32(ctx, obj, "radius", path, 0.5), height: plain_f32(ctx, obj, "height", path, 1.0) },
+        "capsule" => PrimKind::Capsule { radius: plain_f32(ctx, obj, "radius", path, 0.3), height: plain_f32(ctx, obj, "height", path, 1.0) },
         "plane" => {
             let (w, d) = match obj.get("size").and_then(Value::as_array) {
                 Some(a) if a.len() == 2 => (as_f32(&a[0]).unwrap_or(10.0), as_f32(&a[1]).unwrap_or(10.0)),
@@ -527,11 +539,12 @@ fn parse_pose_track_f32(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path
 }
 
 fn parse_humanoid(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> HumanoidDef {
-    let height = plain_f32(obj, "height", 1.8).max(0.1);
-    let build = plain_f32(obj, "build", 1.0).max(0.05);
+    let height = plain_f32(ctx, obj, "height", path, 1.8).max(0.1);
+    let build = plain_f32(ctx, obj, "build", path, 1.0).max(0.05);
     let material = parse_material(ctx, obj, path);
     let pose_obj = obj.get("pose").and_then(Value::as_object).cloned().unwrap_or_default();
     let ppath = format!("{path}.pose");
+    check_keys(&mut ctx.errors, &ppath, &pose_obj, strict::HUMANOID_POSE_KEYS);
     let pose = Pose {
         spine: parse_pose_track_vec3(ctx, &pose_obj, "spine", &ppath),
         head: parse_pose_track_vec3(ctx, &pose_obj, "head", &ppath),
@@ -558,6 +571,7 @@ fn parse_rat(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> RatDef {
     }
     let pose_obj = obj.get("pose").and_then(Value::as_object).cloned().unwrap_or_default();
     let ppath = format!("{path}.pose");
+    check_keys(&mut ctx.errors, &ppath, &pose_obj, strict::RAT_POSE_KEYS);
     RatDef {
         material,
         gait: parse_pose_track_f32(ctx, &pose_obj, "gait", &ppath),
@@ -585,9 +599,9 @@ fn parse_prop(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> PropDef {
 }
 
 fn parse_stairs(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> StairsDef {
-    let width = plain_f32(obj, "width", 1.2).max(0.1);
-    let run = plain_f32(obj, "run", 4.0).max(0.1);
-    let rise = plain_f32(obj, "rise", 3.0).max(0.05);
+    let width = plain_f32(ctx, obj, "width", path, 1.2).max(0.1);
+    let run = plain_f32(ctx, obj, "run", path, 4.0).max(0.1);
+    let rise = plain_f32(ctx, obj, "rise", path, 3.0).max(0.05);
     let steps = obj.get("steps").and_then(Value::as_u64).unwrap_or(16).clamp(1, 64) as u32;
     StairsDef { width, run, rise, steps, material: parse_material(ctx, obj, path) }
 }
@@ -617,6 +631,9 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
         }
     };
     let ty = obj.get("type").and_then(Value::as_str);
+    if let Some(allowed) = ty.and_then(strict::object_keys) {
+        check_keys(&mut ctx.errors, &id, obj, &allowed);
+    }
 
     // Macro types (`wall`, `fence`) expand into an ordinary group of boxes before parsing, so
     // everything downstream only ever sees primitives. See `crate::macros`.
@@ -645,16 +662,10 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
     let scale = scale_field(ctx, obj, "scale", &id, Vec3::ONE);
 
     let (kind, material) = match ty {
-        Some(t) if PRIM_TYPES.contains(&t) => {
-            (ObjectKind::Prim(parse_prim(ctx, t, obj, &id)), Some(parse_material(ctx, obj, &id)))
-        }
+        Some(t) if PRIM_TYPES.contains(&t) => (ObjectKind::Prim(parse_prim(ctx, t, obj, &id)), Some(parse_material(ctx, obj, &id))),
         Some("group") => {
             let children = match obj.get("children").and_then(Value::as_array) {
-                Some(arr) => arr
-                    .iter()
-                    .enumerate()
-                    .map(|(i, c)| parse_object(ctx, c, &format!("{id}.children[{i}]")))
-                    .collect(),
+                Some(arr) => arr.iter().enumerate().map(|(i, c)| parse_object(ctx, c, &format!("{id}.children[{i}]"))).collect(),
                 None => {
                     ctx.err(&format!("{id}.children"), "missing (a group needs a 'children' array)");
                     Vec::new()
@@ -682,10 +693,10 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
     };
 
     let collide = obj.get("collide").and_then(Value::as_bool).unwrap_or(true);
-    let prefab = obj.get("prefab_name").and_then(Value::as_str).map(|name| PrefabTag {
-        name: name.to_string(),
-        mount: obj.get("mount").and_then(Value::as_str).unwrap_or("floor").to_string(),
-    });
+    let prefab = obj
+        .get("prefab_name")
+        .and_then(Value::as_str)
+        .map(|name| PrefabTag { name: name.to_string(), mount: obj.get("mount").and_then(Value::as_str).unwrap_or("floor").to_string() });
     let movable = obj.get("movable").and_then(Value::as_bool);
     Object { id, position, rotation, scale, material, collide, prefab, movable, kind }
 }
@@ -700,7 +711,20 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         return Err(vec!["root: scene must be a JSON object".to_string()]);
     };
 
+    check_keys(&mut ctx.errors, "", root, strict::ROOT_KEYS);
+    strict::check_sections(&mut ctx.errors, root);
+    ctx.errors.extend(crate::sim::interest::validate_sections(root));
+    if let Some(v) = root.get("schema_version") {
+        match v.as_u64() {
+            Some(n) if n as u32 <= SCHEMA_VERSION => {}
+            Some(n) => ctx.err("schema_version", format!("{n} is newer than this engine understands (it supports up to {SCHEMA_VERSION}); update red_engine2")),
+            None => ctx.err("schema_version", format!("must be a whole number (current: {SCHEMA_VERSION}); omit it to mean {SCHEMA_VERSION}")),
+        }
+    }
     let meta = root.get("meta").and_then(Value::as_object);
+    if let Some(m) = meta {
+        check_keys(&mut ctx.errors, "meta", m, strict::META_KEYS);
+    }
     let fps = meta.and_then(|m| m.get("fps")).and_then(Value::as_u64).unwrap_or(30).max(1) as u32;
     let duration = meta.and_then(|m| m.get("duration")).and_then(as_f32).unwrap_or(4.0);
     if duration <= 0.0 {
@@ -718,6 +742,7 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
     let background = match root.get("background").and_then(Value::as_object) {
         None => Background::Gradient { top: default_sky_top, bottom: default_sky_bottom },
         Some(bg) => {
+            check_keys(&mut ctx.errors, "background", bg, strict::BACKGROUND_KEYS);
             if bg.contains_key("color") {
                 Background::Flat(plain_hex(&mut ctx, bg, "color", "background", Vec3::splat(0.05)))
             } else {
@@ -730,11 +755,17 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
     };
 
     let ambient = root.get("ambient").and_then(Value::as_object);
+    if let Some(a) = ambient {
+        check_keys(&mut ctx.errors, "ambient", a, strict::AMBIENT_KEYS);
+    }
     let ambient_color = match ambient {
         Some(a) => plain_hex(&mut ctx, a, "color", "ambient", Vec3::ONE),
         None => Vec3::ONE,
     };
-    let ambient_intensity = ambient.map(|a| plain_f32(a, "intensity", 0.25)).unwrap_or(0.25);
+    let ambient_intensity = match ambient {
+        Some(a) => plain_f32(&mut ctx, a, "intensity", "ambient", 0.25),
+        None => 0.25,
+    };
 
     let post = match root.get("post") {
         None => PostSettings::default(),
@@ -744,12 +775,13 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
                 PostSettings::default()
             }
             Some(p) => {
+                check_keys(&mut ctx.errors, "post", p, strict::POST_KEYS);
                 let d = PostSettings::default();
                 PostSettings {
                     enabled: p.get("enabled").and_then(Value::as_bool).unwrap_or(d.enabled),
-                    ao: plain_f32(p, "ao", d.ao).clamp(0.0, 3.0),
-                    outline: plain_f32(p, "outline", d.outline).clamp(0.0, 1.0),
-                    ao_radius: plain_f32(p, "ao_radius", d.ao_radius).clamp(0.05, 3.0),
+                    ao: plain_f32(&mut ctx, p, "ao", "post", d.ao).clamp(0.0, 3.0),
+                    outline: plain_f32(&mut ctx, p, "outline", "post", d.outline).clamp(0.0, 1.0),
+                    ao_radius: plain_f32(&mut ctx, p, "ao_radius", "post", d.ao_radius).clamp(0.05, 3.0),
                 }
             }
         },
@@ -797,6 +829,23 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         None => ctx.err("objects", "missing (must be an array, may be empty)"),
     }
 
+    // Game rules: validated against the objects, zones and spawn points just parsed.
+    let rules = match crate::sim::rules::parse_rules(root, &rule_refs(root, &objects)) {
+        Ok(r) => r,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            crate::sim::rules::RuleSet::default()
+        }
+    };
+
+    let weapons = match crate::weapons::parse_weapons(root) {
+        Ok(w) => w,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            Default::default()
+        }
+    };
+
     if !ctx.errors.is_empty() {
         return Err(ctx.errors);
     }
@@ -813,12 +862,93 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         post,
         lights,
         objects,
+        rules,
+        weapons,
     })
+}
+
+/// Everything a rule may refer to: object ids (any depth), top-level object bounds, zones and spawn ids.
+fn rule_refs(root: &Map<String, Value>, objects: &[Object]) -> crate::sim::rules::Refs {
+    fn ids(o: &Object, out: &mut std::collections::HashSet<String>) {
+        out.insert(o.id.clone());
+        if let ObjectKind::Group(kids) = &o.kind {
+            kids.iter().for_each(|k| ids(k, out));
+        }
+    }
+    let mut refs = crate::sim::rules::Refs::default();
+    objects.iter().for_each(|o| ids(o, &mut refs.object_ids));
+    for it in crate::collide::interactables_of(objects) {
+        refs.bounds.insert(it.id, (it.min, it.max));
+    }
+    for z in root.get("zones").and_then(Value::as_array).into_iter().flatten() {
+        let (Some(id), Some(r)) = (z.get("id").and_then(Value::as_str), z.get("rect").and_then(Value::as_array).filter(|r| r.len() == 4)) else { continue };
+        let n: Vec<f32> = r.iter().filter_map(|v| v.as_f64()).map(|v| v as f32).collect();
+        if n.len() == 4 {
+            let y = z.get("y").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+            refs.zones.insert(id.to_string(), (Vec3::new(n[0].min(n[2]), y, n[1].min(n[3])), Vec3::new(n[0].max(n[2]), y, n[1].max(n[3]))));
+        }
+    }
+    for s in root.get("spawns").and_then(Value::as_array).into_iter().flatten() {
+        if let Some(id) = s.get("id").and_then(Value::as_str) {
+            refs.spawn_ids.insert(id.to_string());
+        }
+    }
+    refs
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn errors_of(json: &str) -> Vec<String> {
+        parse_scene(json).err().unwrap_or_default()
+    }
+
+    #[test]
+    fn a_misspelled_object_field_is_an_error_with_the_fix_not_a_silent_default() {
+        let e = errors_of(r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"objects":[{"id":"b","type":"box","size":[1,1,1],"pos":[0,3,0]}]}"#);
+        assert_eq!(e, vec!["b.pos: unknown field — did you mean `position`?"]);
+        let e = errors_of(r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"objects":[{"id":"s","type":"sphere","color":"red"}]}"#);
+        assert!(e[0].starts_with("s.color: unknown field") && e[0].contains("material"), "{e:?}");
+    }
+
+    #[test]
+    fn root_section_and_light_typos_are_caught_too() {
+        let e = errors_of(r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"light":[],"objects":[]}"#);
+        assert!(e.iter().any(|m| m.starts_with("light: unknown field") && m.contains("`lights`")), "{e:?}");
+        let e = errors_of(r#"{"camera":{"position":[0,2,8],"target":[0,0,0],"fovv":60},"lights":[{"id":"l","type":"point","rnge":9}],"objects":[]}"#);
+        assert!(e.iter().any(|m| m.starts_with("camera.fovv:") && m.contains("`fov`")), "{e:?}");
+        assert!(e.iter().any(|m| m.starts_with("lights[0].rnge:") && m.contains("`range`")), "{e:?}");
+        let e = errors_of(r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"zones":[{"id":"z","rectt":[0,0,1,1]}],"objects":[]}"#);
+        assert!(e.iter().any(|m| m.contains("zones[0] (z).rectt") && m.contains("`rect`")), "{e:?}");
+    }
+
+    #[test]
+    fn the_extension_namespace_lets_notes_through() {
+        let json = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"x-tool":{"any":"thing"},"_todo":"later","objects":[{"id":"b","type":"box","notes":"hi","x-owner":"ai"}]}"#;
+        assert!(parse_scene(json).is_ok(), "{:?}", errors_of(json));
+    }
+
+    #[test]
+    fn a_number_field_holding_a_string_is_an_error() {
+        let e = errors_of(r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"objects":[{"id":"s","type":"sphere","radius":"big"}]}"#);
+        assert_eq!(e, vec!["s.radius: must be a number (got \"big\")"]);
+    }
+
+    #[test]
+    fn a_scene_from_the_future_is_refused_with_a_message() {
+        let e = errors_of(r#"{"schema_version":99,"camera":{"position":[0,2,8],"target":[0,0,0]},"objects":[]}"#);
+        assert!(e[0].starts_with("schema_version: 99 is newer"), "{e:?}");
+        assert!(parse_scene(r#"{"schema_version":1,"camera":{"position":[0,2,8],"target":[0,0,0]},"objects":[]}"#).is_ok());
+    }
+
+    #[test]
+    fn prefab_instance_typos_are_caught() {
+        let e = errors_of(
+            r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"objects":[{"id":"a","type":"prefab","prefab":"apple_red","position":[0,0,0],"color":"red"}]}"#,
+        );
+        assert!(e.iter().any(|m| m.starts_with("a.color: unknown field")), "{e:?}");
+    }
 
     #[test]
     fn minimal_scene_parses() {

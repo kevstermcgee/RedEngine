@@ -37,14 +37,19 @@ fn every_map_has_loose_props_and_an_idle_map_stays_put() {
         let t = Instant::now();
         for k in 0..180 {
             w.step();
-            if k < 3 { eprintln!("{name}: awake after step {k}: {}", w.awake_count()); }
+            if k < 3 {
+                eprintln!("{name}: awake after step {k}: {}", w.awake_count());
+            }
         }
         let ms = t.elapsed().as_secs_f32() * 1000.0 / 180.0;
         w.sync_scene(&mut scene);
         for i in 0..n {
             let d = (w.prop_pose(i).w_axis.truncate() - before[i]).length();
             let ok = d < 0.02;
-            if !ok { let g = scene.objects[w.props()[i].object_index].id.clone(); eprintln!("drifted: {g} {d} shape {:?}", w.props()[i].shape); }
+            if !ok {
+                let g = scene.objects[w.props()[i].object_index].id.clone();
+                eprintln!("drifted: {g} {d} shape {:?}", w.props()[i].shape);
+            }
             assert!(d < 0.02, "{name}: prop {} ({}) drifted {d} m by itself", i, scene.objects[w.props()[i].object_index].id);
         }
         let awake: Vec<&str> = (0..n).filter(|&i| !w.is_asleep(i)).map(|i| scene.objects[w.props()[i].object_index].id.as_str()).collect();

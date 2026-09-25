@@ -11,13 +11,19 @@
 //! [`PropWorld`]), and the props are simulated here, so a prop moved by one player is seen moved by
 //! every other.
 
+use crate::collide::{collect_box_colliders_except, collect_ground_candidates_except, Collider2D, GroundCandidates};
+use crate::hit::{collect_hit_shapes_where, HitShape};
 use crate::physics::PropWorld;
 use crate::player::Character;
 use crate::schema::Scene;
+use crate::sim::interact::Combat;
 use crate::sim::player::{step_player, PlayerInput, PlayerState};
+use crate::sim::rules::Target;
+use crate::sim::rules_run::{Effect, GameEvent, RulePlayer, RulesEngine};
 use crate::sim::spawns::Spawn;
-use crate::viewer::{collect_box_colliders_except, collect_ground_candidates_except, Collider2D, GroundCandidates};
-use std::collections::VecDeque;
+use crate::sim::trace::{Entry, Header, Trace};
+use glam::{Vec2, Vec3};
+use std::collections::{HashMap, VecDeque};
 
 /// Most players in one match.
 pub const MAX_PLAYERS: usize = 8;
@@ -37,36 +43,65 @@ pub struct ServerPlayer {
     pub crouching: bool,
     /// Sequence number of the newest input processed (`0` = none yet).
     pub last_processed_seq: u32,
+    /// Weapon, timers, ammo, health and score (see `sim::interact`).
+    pub combat: Combat,
     newest_received_seq: u32,
     queue: VecDeque<PlayerInput>,
 }
 
 /// The authoritative world. See the module docs.
 pub struct MatchSim {
-    props: PropWorld,
+    pub(super) props: PropWorld,
     colliders: Vec<Collider2D>,
     ground: GroundCandidates,
-    spawns: Vec<Spawn>,
-    next_spawn: usize,
-    players: Vec<Option<ServerPlayer>>,
-    tick: u64,
+    /// Exact shapes of the fixed world, for bat swings and bullets.
+    pub(super) hit_shapes: Vec<HitShape>,
+    /// The scene's weapon numbers.
+    pub(super) weapons: crate::weapons::WeaponConfig,
+    pub(super) spawns: Vec<Spawn>,
+    pub(super) next_spawn: usize,
+    pub(super) players: Vec<Option<ServerPlayer>>,
+    pub(super) tick: u64,
+    /// The scene's game rules, running (see `sim::rules`).
+    pub(super) rules: RulesEngine,
+    /// Top-level object id to index, to find the prop an `impulse` rule names.
+    object_index: HashMap<String, usize>,
+    recorder: Option<Trace>,
+    events_out: Vec<GameEvent>,
 }
 
 impl MatchSim {
     /// Builds the world for `scene`. `spawns` must not be empty (see `sim::spawns::parse_spawns`).
+    #[allow(clippy::panic)] // for tests and benches with known-good maps; a server calls `try_new`
     pub fn new(scene: &Scene, spawns: Vec<Spawn>) -> Self {
-        assert!(!spawns.is_empty(), "a match needs at least one spawn point");
+        match Self::try_new(scene, spawns) {
+            Ok(sim) => sim,
+            Err(e) => panic!("{e}"),
+        }
+    }
+
+    /// Like [`MatchSim::new`] but a map with no spawn points is an `Err` naming the fix, not a panic (what a server binary calls).
+    pub fn try_new(scene: &Scene, spawns: Vec<Spawn>) -> Result<Self, String> {
+        if spawns.is_empty() {
+            return Err("a match needs at least one spawn point: add a top-level \"spawns\" array to the scene, e.g. \"spawns\": [{\"id\":\"spawn_a\",\"position\":[0,0,0],\"yaw_deg\":0}]".to_string());
+        }
         let props = PropWorld::new(scene, None);
         let loose = props.movable_indices();
-        MatchSim {
+        Ok(MatchSim {
             colliders: collect_box_colliders_except(scene, &loose),
             ground: collect_ground_candidates_except(scene, &loose),
+            hit_shapes: collect_hit_shapes_where(scene, |i| !loose.contains(&i)),
+            weapons: scene.weapons,
             props,
             spawns,
             next_spawn: 0,
             players: (0..MAX_PLAYERS).map(|_| None).collect(),
             tick: 0,
-        }
+            rules: RulesEngine::new(scene.rules.clone()),
+            object_index: scene.objects.iter().enumerate().map(|(i, o)| (o.id.clone(), i)).collect(),
+            recorder: None,
+            events_out: Vec::new(),
+        })
     }
 
     /// Ticks run so far.
@@ -104,9 +139,22 @@ impl MatchSim {
     /// Adds a player in exactly `state` (a reconnecting player resuming where they were).
     pub fn add_player_with(&mut self, state: PlayerState) -> Option<usize> {
         let slot = self.players.iter().position(Option::is_none)?;
-        self.players[slot] = Some(ServerPlayer { state, speed: 0.0, crouching: false, last_processed_seq: 0, newest_received_seq: 0, queue: VecDeque::new() });
+        self.players[slot] = Some(ServerPlayer {
+            state,
+            speed: 0.0,
+            crouching: false,
+            last_processed_seq: 0,
+            combat: Combat::new(&self.weapons),
+            newest_received_seq: 0,
+            queue: VecDeque::new(),
+        });
         let body = state.character.body();
         self.props.set_player_slot(slot, glam::Vec3::new(state.pos.x, state.foot_y, state.pos.y), body.radius, body.body_height);
+        if let Some(r) = &mut self.recorder {
+            let character = crate::net::protocol::character_to_wire(state.character);
+            let state = [state.pos.x, state.pos.y, state.foot_y, state.vy, state.yaw, state.pitch].map(f32::to_bits);
+            r.entries.push(Entry::Join { tick: self.tick, slot, character, state });
+        }
         Some(slot)
     }
 
@@ -114,6 +162,9 @@ impl MatchSim {
     pub fn remove_player(&mut self, slot: usize) -> Option<PlayerState> {
         let p = self.players.get_mut(slot)?.take()?;
         self.props.remove_player_slot(slot);
+        if let Some(r) = &mut self.recorder {
+            r.entries.push(Entry::Leave { tick: self.tick, slot });
+        }
         Some(p.state)
     }
 
@@ -125,7 +176,11 @@ impl MatchSim {
             return false;
         }
         p.newest_received_seq = input.seq;
-        p.queue.push_back(input.sanitized());
+        let input = input.sanitized();
+        if let Some(r) = &mut self.recorder {
+            r.entries.push(Entry::Input { tick: self.tick, slot, input });
+        }
+        p.queue.push_back(input);
         while p.queue.len() > INPUT_QUEUE_CAP {
             p.queue.pop_front();
         }
@@ -148,48 +203,152 @@ impl MatchSim {
     }
 
     /// Advances the whole match one tick: process queued inputs, move the player bodies through the
-    /// props, step the physics.
+    /// props, step the physics, run the scene's rules (which may teleport players or shove props).
     pub fn tick_once(&mut self) {
         for slot in 0..self.players.len() {
+            self.combat_tick(slot);
             let Some(p) = self.players[slot].as_mut() else { continue };
+            let dead = p.combat.is_dead();
             let budget = if p.queue.len() > INPUT_QUEUE_TARGET { 2 } else { 1 };
-            for _ in 0..budget {
-                let Some(input) = p.queue.pop_front() else { break };
-                p.speed = step_player(&mut p.state, &input, &self.colliders, &self.ground);
-                p.crouching = input.crouch;
-                p.last_processed_seq = input.seq;
+            let mut inputs = [None; 2];
+            for slot_in in inputs.iter_mut().take(budget) {
+                *slot_in = p.queue.pop_front();
             }
+            for input in inputs.into_iter().flatten() {
+                let Some(p) = self.players[slot].as_mut() else { break };
+                if !dead {
+                    p.speed = step_player(&mut p.state, &input, &self.colliders, &self.ground);
+                    p.crouching = input.crouch;
+                }
+                p.last_processed_seq = input.seq;
+                self.handle_actions(slot, &input);
+            }
+            self.update_held(slot);
+            let Some(p) = self.players[slot].as_ref() else { continue };
             let body = p.state.character.body();
             self.props.set_player_slot(slot, glam::Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y), body.radius, body.body_height);
         }
         self.props.step();
         self.tick += 1;
+        self.run_rules();
+        self.record_checkpoint();
     }
 
-    /// A 64-bit checksum of the simulation state (players and promoted props' poses, bit-exact).
-    /// Two runs that were fed the same inputs on the same platform must agree; a mismatch means they
-    /// diverged. Used by tests now, and the basis for desync detection later.
-    pub fn checksum(&self) -> u64 {
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        let mut mix = |v: u32| {
-            h ^= v as u64;
-            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    fn run_rules(&mut self) {
+        if !self.rules.has_rules() {
+            return;
+        }
+        let views: Vec<RulePlayer> = self
+            .players()
+            .map(|(slot, p)| {
+                let body = p.state.character.body();
+                RulePlayer {
+                    slot,
+                    pos: Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y),
+                    radius: body.radius,
+                    height: body.body_height,
+                    character: p.state.character,
+                }
+            })
+            .collect();
+        for effect in self.rules.step(self.tick, &views) {
+            match effect {
+                Effect::Teleport { slot, target } => self.teleport(slot, &target),
+                Effect::Impulse { object, dir, speed } => {
+                    let Some(prop) = self.object_index.get(&object).and_then(|i| self.props.prop_of_object(*i)) else { continue };
+                    let at = self.props.prop_pose(prop).w_axis.truncate();
+                    let impulse = self.props.mass(prop) * speed;
+                    self.apply_impulse(prop, dir.normalize_or_zero(), at, impulse);
+                }
+            }
+        }
+        let new = self.rules.take_new_events();
+        if let Some(r) = &mut self.recorder {
+            r.events.extend(new.iter().map(|e| crate::sim::trace::TraceEvent { tick: e.tick, rule: e.rule.clone(), name: e.name.clone(), slot: e.slot }));
+        }
+        if self.events_out.len() < 256 {
+            self.events_out.extend(new);
+        }
+    }
+
+    fn teleport(&mut self, slot: usize, target: &Target) {
+        let to = match target {
+            Target::Point(p) => *p,
+            Target::Spawn(id) => match self.spawns.iter().find(|s| &s.id == id) {
+                Some(s) => Vec3::from(s.position),
+                None => return,
+            },
         };
+        let Some(Some(p)) = self.players.get_mut(slot) else { return };
+        p.state.pos = Vec2::new(to.x, to.z);
+        p.state.foot_y = to.y;
+        p.state.vy = 0.0;
+        let body = p.state.character.body();
+        self.props.set_player_slot(slot, to, body.radius, body.body_height);
+    }
+
+    /// Shoves prop `prop` along `dir` at `point` with impulse `magnitude` (N·s). Every server-side push goes through
+    /// here so a recording captures it and a replay reproduces it.
+    pub fn apply_impulse(&mut self, prop: usize, dir: Vec3, point: Vec3, magnitude: f32) {
+        if let Some(r) = &mut self.recorder {
+            r.entries.push(Entry::Impulse {
+                tick: self.tick,
+                prop,
+                dir: dir.to_array().map(f32::to_bits),
+                at: point.to_array().map(f32::to_bits),
+                impulse: magnitude.to_bits(),
+            });
+        }
+        self.props.strike_impulse(prop, dir, point, magnitude);
+    }
+
+    /// The scene's rules state (variables, hidden objects, outcome, event history).
+    pub fn rules(&self) -> &RulesEngine {
+        &self.rules
+    }
+
+    /// Game events since the last call (a server logs them).
+    pub fn take_events(&mut self) -> Vec<GameEvent> {
+        std::mem::take(&mut self.events_out)
+    }
+
+    /// Starts recording a [`Trace`]; only possible before the first tick. Players already present are recorded as joins.
+    pub fn start_recording(&mut self, header: Header) -> Result<(), String> {
+        if self.tick != 0 {
+            return Err("recording must start before the first tick".to_string());
+        }
+        let mut trace = Trace::new(header);
         for (slot, p) in self.players() {
-            mix(slot as u32);
-            for f in [p.state.pos.x, p.state.pos.y, p.state.foot_y, p.state.vy, p.state.yaw, p.state.pitch] {
-                mix(f.to_bits());
-            }
+            let s = &p.state;
+            trace.entries.push(Entry::Join {
+                tick: 0,
+                slot,
+                character: crate::net::protocol::character_to_wire(s.character),
+                state: [s.pos.x, s.pos.y, s.foot_y, s.vy, s.yaw, s.pitch].map(f32::to_bits),
+            });
         }
-        let e = self.props.entities();
-        for slot in 0..e.len() {
-            let t = e.transforms.get(slot);
-            mix(self.props.prop_of_entity(slot) as u32);
-            for f in t.position.to_array().into_iter().chain(t.rotation.to_array()) {
-                mix(f.to_bits());
-            }
+        self.recorder = Some(trace);
+        Ok(())
+    }
+
+    /// Finishes recording and returns the trace (`None` if it never started).
+    pub fn take_trace(&mut self) -> Option<Trace> {
+        let mut trace = self.recorder.take()?;
+        trace.final_tick = self.tick;
+        if trace.dumps.last().is_none_or(|d| d.tick != self.tick) {
+            trace.dumps.push(self.dump());
         }
-        h
+        Some(trace)
+    }
+
+    fn record_checkpoint(&mut self) {
+        let Some(every) = self.recorder.as_ref().map(|r| (r.header.checkpoint_every as u64, r.header.dump_every as u64)) else { return };
+        let checkpoint = self.tick.is_multiple_of(every.0).then(|| self.checkpoint());
+        let dump = (every.1 > 0 && self.tick.is_multiple_of(every.1)).then(|| self.dump());
+        if let Some(r) = &mut self.recorder {
+            r.checkpoints.extend(checkpoint);
+            r.dumps.extend(dump);
+        }
     }
 }
 
@@ -271,7 +430,10 @@ mod tests {
         let a = sim.add_player(Character::Human).unwrap();
         let start = sim.player(a).unwrap().state.pos;
         for k in 1..=60 {
-            sim.push_input(a, PlayerInput { seq: k, forward: 100, strafe: -100, sprint: false, yaw: std::f32::consts::FRAC_PI_2, pitch: f32::NAN, ..Default::default() });
+            sim.push_input(
+                a,
+                PlayerInput { seq: k, forward: 100, strafe: -100, sprint: false, yaw: std::f32::consts::FRAC_PI_2, pitch: f32::NAN, ..Default::default() },
+            );
             sim.tick_once();
         }
         assert!((sim.player(a).unwrap().state.pos - start).length() <= 3.3);

@@ -7,12 +7,12 @@ mod common;
 use common::synthetic_scene;
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use glam::Vec3;
-use std::hint::black_box;
 use red_engine2::physics::PropWorld;
 use red_engine2::sim::change::{ChangeCursor, GenClock};
 use red_engine2::sim::components::Transform;
 use red_engine2::sim::entities::Entities;
 use red_engine2::sim::snapshot::{encode_delta, encode_full};
+use std::hint::black_box;
 use std::time::{Duration, Instant};
 
 const SIZES: [usize; 3] = [100, 1000, 4000];
@@ -145,9 +145,77 @@ fn snapshot(c: &mut Criterion) {
     g.finish();
 }
 
+/// The authoritative match tick: N players walking around the Test Lab (movement, physics, rules and combat), one tick per iteration,
+/// with fresh inputs pushed every tick like N connected clients. This is the server's whole per-tick simulation cost.
+fn match_tick(c: &mut Criterion) {
+    use red_engine2::player::Character;
+    use red_engine2::sim::match_sim::MatchSim;
+    use red_engine2::sim::player::PlayerInput;
+    use red_engine2::sim::spawns::parse_spawns;
+    let path = std::path::Path::new("examples/test_lab.json");
+    let scene = red_engine2::load_scene(path).expect("lab");
+    let spawns = parse_spawns(&std::fs::read_to_string(path).expect("lab text")).expect("spawns");
+    let mut g = c.benchmark_group("match/tick");
+    for n in [2usize, 8] {
+        let mut sim = MatchSim::new(&scene, spawns.clone());
+        for _ in 0..n {
+            sim.add_player(Character::Human).expect("room");
+        }
+        let mut seq = 0u32;
+        g.bench_function(BenchmarkId::from_parameter(n), |b| {
+            b.iter(|| {
+                seq += 1;
+                for slot in 0..n {
+                    sim.push_input(slot, PlayerInput { seq, forward: 1, yaw: seq as f32 * 0.02 + slot as f32, ..Default::default() });
+                }
+                sim.tick_once();
+            })
+        });
+    }
+    g.finish();
+}
+
+/// Per-client network cost: encoding one worst-case snapshot (8 players + 30 props), decoding one input packet, and the
+/// authoritative-state checksum (what a trace records every tick).
+fn net_codec(c: &mut Criterion) {
+    use red_engine2::net::protocol::{
+        ClientMsg, InputPacket, PlayerSnap, PropSnap, ServerMsg, Snapshot, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROPS_PER_SNAPSHOT, NO_PROP,
+    };
+    use red_engine2::sim::player::PlayerInput;
+    let snap = Snapshot {
+        seq: 1,
+        server_tick: 1,
+        ack_input_seq: 1,
+        echo_time_ms: 1,
+        echo_hold_ms: 0,
+        players: vec![
+            PlayerSnap { id: 0, character: 0, flags: 0, pos: [1.0; 3], yaw: 0.1, pitch: 0.1, speed: 3.0, vy: 0.0, weapon: 0, held: NO_PROP, hp: 100 };
+            MAX_PLAYERS_PER_SNAPSHOT
+        ],
+        props: vec![PropSnap { id: 0, pos: [1.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }; MAX_PROPS_PER_SNAPSHOT],
+    };
+    let msg = ServerMsg::Snapshot(snap);
+    let mut buf = Vec::with_capacity(1400);
+    let mut encoded = Vec::new();
+    msg.encode(&mut encoded);
+    let mut input = Vec::new();
+    ClientMsg::Input(InputPacket { snapshot_ack: 9, client_time_ms: 1, inputs: vec![PlayerInput { seq: 1, forward: 1, ..Default::default() }; 4] })
+        .encode(&mut input);
+    let mut g = c.benchmark_group("net");
+    g.bench_function("encode_worst_snapshot", |b| {
+        b.iter(|| {
+            buf.clear();
+            black_box(&msg).encode(&mut buf);
+        })
+    });
+    g.bench_function("decode_worst_snapshot", |b| b.iter(|| ServerMsg::decode(black_box(&encoded))));
+    g.bench_function("decode_input_packet", |b| b.iter(|| ClientMsg::decode(black_box(&input))));
+    g.finish();
+}
+
 fn config() -> Criterion {
     Criterion::default().warm_up_time(Duration::from_millis(500)).measurement_time(Duration::from_secs(2)).sample_size(30)
 }
 
-criterion_group! { name = benches; config = config(); targets = tick_untouched, tick_active, frame_sync, promotion, build_world, snapshot }
+criterion_group! { name = benches; config = config(); targets = tick_untouched, tick_active, frame_sync, promotion, build_world, snapshot, match_tick, net_codec }
 criterion_main!(benches);

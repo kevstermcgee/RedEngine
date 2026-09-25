@@ -12,7 +12,7 @@ use crate::sim::clock::TICK_DT;
 use crate::sim::player::PlayerInput;
 use std::collections::VecDeque;
 use std::io::{self, ErrorKind};
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 use std::time::{Duration, Instant};
 
 /// Where the connection is.
@@ -94,7 +94,7 @@ impl NetClient {
     /// Opens a socket and starts joining `server`. `resume_token` is `0` for a fresh join, or a token
     /// from an earlier session to get that player back.
     pub fn connect(server: SocketAddr, character: u8, map_hash: u32, resume_token: u64) -> io::Result<NetClient> {
-        let bind: SocketAddr = if server.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" }.parse().expect("literal");
+        let bind = SocketAddr::new(if server.is_ipv4() { Ipv4Addr::UNSPECIFIED.into() } else { Ipv6Addr::UNSPECIFIED.into() }, 0);
         let socket = UdpSocket::bind(bind)?;
         socket.set_nonblocking(true)?;
         let now = Instant::now();
@@ -182,7 +182,11 @@ impl NetClient {
         while self.recent_inputs.len() > MAX_INPUTS_PER_PACKET {
             self.recent_inputs.pop_front();
         }
-        let p = InputPacket { snapshot_ack: self.latest_snapshot_seq, client_time_ms: now.duration_since(self.started).as_millis() as u32, inputs: self.recent_inputs.iter().copied().collect() };
+        let p = InputPacket {
+            snapshot_ack: self.latest_snapshot_seq,
+            client_time_ms: now.duration_since(self.started).as_millis() as u32,
+            inputs: self.recent_inputs.iter().copied().collect(),
+        };
         self.send(&ClientMsg::Input(p));
     }
 

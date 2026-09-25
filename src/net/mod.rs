@@ -2,8 +2,9 @@
 //! ([`client`]) that the graphical game and the headless bot both use.
 //!
 //! - [`protocol`]: the wire format (fuzz-tested, bounded).
-//! - [`server`]: `Server` = sockets + sessions around [`crate::sim::match_sim::MatchSim`], a fixed 60 Hz
-//!   tick, 30 Hz snapshots with per-client delta acknowledgement, timeouts, reconnect-with-token.
+//! - [`server`]: `Server` = the socket and the tick loop around [`crate::sim::match_sim::MatchSim`]: a fixed 60 Hz
+//!   tick, 30 Hz snapshots with per-client delta acknowledgement, timeouts, reconnect-with-token. Its parts:
+//!   `sessions` (who is connected, resume tokens), `snapshots` (what each client is sent), [`limits`] (packet budgets).
 //! - [`client`]: `NetClient` = handshake, redundant input sending, snapshot receiving, reconnect.
 //! - [`interp`]: smooth rendering of remote players and props from snapshots.
 //! - [`bot`]: a headless scripted client (how multiplayer is proved without a window).
@@ -12,13 +13,20 @@
 //!
 //! Design and limits: ADR 0016. Nothing here touches a window, GPU or audio device.
 
+// Nothing reachable from a UDP packet may panic the process. Test code is exempt; a genuine invariant is written
+// as a `let ... else` / `?` with a message, not an `unwrap`.
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
+
 pub mod bot;
 pub mod client;
 pub mod interp;
+pub mod limits;
 pub mod predict;
 pub mod protocol;
 pub mod server;
 pub mod session;
+mod sessions;
+mod snapshots;
 
 /// The default UDP port of a Red server.
 pub const DEFAULT_PORT: u16 = 27015;

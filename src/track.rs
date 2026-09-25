@@ -86,10 +86,7 @@ mod tests {
 
     #[test]
     fn keyframed_track_interpolates_linearly() {
-        let tr = Track::Keyframed(vec![
-            Keyframe { t: 0.0, value: 0.0f32, ease: Ease::Linear },
-            Keyframe { t: 2.0, value: 10.0, ease: Ease::Linear },
-        ]);
+        let tr = Track::Keyframed(vec![Keyframe { t: 0.0, value: 0.0f32, ease: Ease::Linear }, Keyframe { t: 2.0, value: 10.0, ease: Ease::Linear }]);
         assert_eq!(tr.sample(-1.0), 0.0);
         assert_eq!(tr.sample(1.0), 5.0);
         assert_eq!(tr.sample(3.0), 10.0);
@@ -97,10 +94,7 @@ mod tests {
 
     #[test]
     fn keyframed_track_holds_before_first_and_after_last() {
-        let tr = Track::Keyframed(vec![
-            Keyframe { t: 1.0, value: 1.0f32, ease: Ease::Linear },
-            Keyframe { t: 2.0, value: 2.0, ease: Ease::Linear },
-        ]);
+        let tr = Track::Keyframed(vec![Keyframe { t: 1.0, value: 1.0f32, ease: Ease::Linear }, Keyframe { t: 2.0, value: 2.0, ease: Ease::Linear }]);
         assert_eq!(tr.sample(0.0), 1.0);
         assert_eq!(tr.sample(5.0), 2.0);
     }

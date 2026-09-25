@@ -107,13 +107,7 @@ pub fn pose_to_parts(rig: &HumanoidRig, pose: &PoseSample) -> Vec<BonePart> {
 
     let r_head = r_spine * euler_deg(pose.head);
     let head_center = shoulder + (r_head * Vec3::Y) * (rig.neck_len + rig.head_radius);
-    parts.push(BonePart {
-        center: head_center,
-        rotation: r_head,
-        length: rig.head_radius * 2.0,
-        radius: rig.head_radius,
-        kind: BoneKind::Sphere,
-    });
+    parts.push(BonePart { center: head_center, rotation: r_head, length: rig.head_radius * 2.0, radius: rig.head_radius, kind: BoneKind::Sphere });
 
     let sl = shoulder + r_spine * Vec3::new(-rig.shoulder_half, 0.0, 0.0);
     let sr = shoulder + r_spine * Vec3::new(rig.shoulder_half, 0.0, 0.0);
@@ -164,7 +158,7 @@ mod tests {
         let pose = PoseSample::default();
         let parts = pose_to_parts(&rig, &pose);
         assert_eq!(parts.len(), 12); // torso, head, 2x(upper arm, forearm), 2x(upper leg, lower leg, foot)
-        // torso (part 0) should run straight up
+                                     // torso (part 0) should run straight up
         assert!(parts[0].center.x.abs() < 1e-4);
         // left/right upper arms (parts 2, 4) should mirror in x
         assert!((parts[2].center.x + parts[4].center.x).abs() < 1e-4);

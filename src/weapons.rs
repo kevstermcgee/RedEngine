@@ -1,10 +1,11 @@
-//! The human's weapons: the baseball bat (primary) and the silver revolver (mouse scroll switches).
+//! The demo game's weapons as **data**: the baseball bat (melee) and the silver revolver (hitscan).
 //!
-//! Pure data and rules, no window/GPU types (ADR 0010): which weapons exist, the revolver's numbers
-//! (fire rate, range, knock-back) and its [`Ammo`] — **infinite for now**; the limited variant is
-//! already here so the day the revolver gets a cap it is a one-line change (`REVOLVER_AMMO`).
-//! The models live in `viewer::build_held_parts` (bat) and `revolver::build_revolver_parts`; the
-//! synthesized sounds in `audio`; the wiring in `bin/re2.rs`.
+//! Pure data and rules, no window/GPU types: which weapons exist, their numbers (reach, range, damage, fire rate,
+//! knock-back) and the revolver's [`Ammo`]. A scene tunes them with its top-level `weapons` block
+//! ([`WeaponConfig`]: damage for each, and the revolver's ammo: `"infinite"` or `{loaded, capacity, reserve}`), so the
+//! limited-ammo game is a scene edit, not a code change. The authoritative rules that *use* them live in
+//! `sim::interact` (server and scenarios); the models live in `viewer::build_held_parts` (bat) and
+//! `revolver::build_revolver_parts`; the synthesized sounds in `audio`; the single-player wiring in `bin/re2.rs`.
 
 /// A weapon the human can hold.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +24,16 @@ impl Weapon {
     pub fn cycle(self, direction: i32) -> Weapon {
         let i = Weapon::ALL.iter().position(|w| *w == self).unwrap_or(0) as i32;
         Weapon::ALL[(i + direction.signum()).rem_euclid(Weapon::ALL.len() as i32) as usize]
+    }
+
+    /// The weapon's number on the wire (its index in [`Weapon::ALL`]).
+    pub fn wire(self) -> u8 {
+        Weapon::ALL.iter().position(|w| *w == self).unwrap_or(0) as u8
+    }
+
+    /// The inverse of [`wire`](Self::wire); an unknown number is the bat.
+    pub fn from_wire(v: u8) -> Weapon {
+        Weapon::ALL.get(v as usize).copied().unwrap_or(Weapon::Bat)
     }
 
     /// Display name.
@@ -48,8 +59,91 @@ pub const RECOIL_TIME: f32 = 0.30;
 /// Chambers in the cylinder (used once ammo is limited).
 pub const REVOLVER_CYLINDER: u32 = 6;
 
+/// How far the bat reaches, m.
+pub const BAT_REACH: f32 = 2.2;
+/// Hit points a player starts (and respawns) with.
+pub const PLAYER_MAX_HP: u32 = 100;
+/// Damage of one bat hit on a player, by default.
+pub const BAT_DAMAGE: u32 = 20;
+/// Damage of one revolver hit on a player, by default.
+pub const REVOLVER_DAMAGE: u32 = 25;
+/// How long a dead player waits before respawning, ticks (3 s).
+pub const RESPAWN_TICKS: u64 = crate::sim::clock::secs_to_ticks(3.0) as u64;
+
+/// The per-scene weapon numbers (`weapons` in the scene; defaults are the numbers above).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WeaponConfig {
+    /// Damage of a bat hit on a player.
+    pub bat_damage: u32,
+    /// Damage of a revolver hit on a player.
+    pub revolver_damage: u32,
+    /// What the revolver starts with.
+    pub revolver_ammo: Ammo,
+}
+
+impl Default for WeaponConfig {
+    fn default() -> Self {
+        WeaponConfig { bat_damage: BAT_DAMAGE, revolver_damage: REVOLVER_DAMAGE, revolver_ammo: REVOLVER_AMMO }
+    }
+}
+
+const WEAPONS_KEYS: &[&str] = &["bat", "revolver"];
+const BAT_KEYS: &[&str] = &["damage"];
+const REVOLVER_KEYS: &[&str] = &["damage", "ammo"];
+const AMMO_KEYS: &[&str] = &["loaded", "capacity", "reserve"];
+
+type JsonMap = serde_json::Map<String, serde_json::Value>;
+
+fn whole(o: &JsonMap, key: &str, path: &str, max: u64, default: u32, errs: &mut Vec<String>) -> u32 {
+    match o.get(key) {
+        None => default,
+        Some(v) => v.as_u64().filter(|d| *d <= max).map(|d| d as u32).unwrap_or_else(|| {
+            errs.push(format!("{path}.{key}: must be a whole number from 0 to {max}"));
+            default
+        }),
+    }
+}
+
+/// Parses a scene's optional `weapons` block; every problem is `weapons.path: message` with a did-you-mean.
+pub fn parse_weapons(root: &JsonMap) -> Result<WeaponConfig, Vec<String>> {
+    use crate::strict::check_keys;
+    use serde_json::Value;
+    let mut cfg = WeaponConfig::default();
+    let Some(w) = root.get("weapons") else { return Ok(cfg) };
+    let Some(w) = w.as_object() else {
+        return Err(vec!["weapons: must be an object like {\"revolver\": {\"ammo\": {\"loaded\": 6, \"reserve\": 24}}}".to_string()]);
+    };
+    let mut errs = Vec::new();
+    check_keys(&mut errs, "weapons", w, WEAPONS_KEYS);
+    if let Some(b) = w.get("bat").and_then(Value::as_object) {
+        check_keys(&mut errs, "weapons.bat", b, BAT_KEYS);
+        cfg.bat_damage = whole(b, "damage", "weapons.bat", 10_000, BAT_DAMAGE, &mut errs);
+    }
+    if let Some(r) = w.get("revolver").and_then(Value::as_object) {
+        check_keys(&mut errs, "weapons.revolver", r, REVOLVER_KEYS);
+        cfg.revolver_damage = whole(r, "damage", "weapons.revolver", 10_000, REVOLVER_DAMAGE, &mut errs);
+        match r.get("ammo") {
+            None => {}
+            Some(Value::String(s)) if s == "infinite" => cfg.revolver_ammo = Ammo::Infinite,
+            Some(Value::Object(a)) => {
+                check_keys(&mut errs, "weapons.revolver.ammo", a, AMMO_KEYS);
+                let path = "weapons.revolver.ammo";
+                let capacity = whole(a, "capacity", path, 1000, REVOLVER_CYLINDER, &mut errs).max(1);
+                let loaded = whole(a, "loaded", path, 1000, capacity, &mut errs).min(capacity);
+                cfg.revolver_ammo = Ammo::Limited { loaded, capacity, reserve: whole(a, "reserve", path, 1000, 24, &mut errs) };
+            }
+            Some(_) => errs.push("weapons.revolver.ammo: must be \"infinite\" or {\"loaded\": 6, \"capacity\": 6, \"reserve\": 24}".to_string()),
+        }
+    }
+    if errs.is_empty() {
+        Ok(cfg)
+    } else {
+        Err(errs)
+    }
+}
+
 /// What the revolver carries. `Infinite` never runs out; `Limited` counts rounds in the cylinder and
-/// a reserve to reload from (not used yet — flip [`REVOLVER_AMMO`] to switch it on).
+/// a reserve to reload from (a scene switches it on with `weapons.revolver.ammo`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ammo {
     /// Never runs out.
@@ -65,8 +159,8 @@ pub enum Ammo {
     },
 }
 
-/// The revolver's ammunition when a game starts. Infinite for now; later, e.g.
-/// `Ammo::Limited { loaded: 6, capacity: REVOLVER_CYLINDER, reserve: 24 }`.
+/// The revolver's ammunition when a scene does not say otherwise: infinite. A scene sets
+/// `"weapons": {"revolver": {"ammo": {"loaded": 6, "reserve": 24}}}` for the limited game.
 pub const REVOLVER_AMMO: Ammo = Ammo::Infinite;
 
 impl Ammo {
@@ -142,6 +236,19 @@ mod tests {
         assert_eq!(Weapon::Revolver.cycle(1), Weapon::Bat);
         assert_eq!(Weapon::Bat.cycle(-1), Weapon::Revolver);
         assert_eq!(Weapon::Revolver.cycle(-3), Weapon::Bat, "only the direction matters");
+    }
+
+    #[test]
+    fn a_scene_switches_the_revolver_to_limited_ammo_and_typos_are_caught() {
+        let root = |s: &str| serde_json::from_str::<serde_json::Value>(s).unwrap().as_object().unwrap().clone();
+        assert_eq!(parse_weapons(&root("{}")).unwrap(), WeaponConfig::default());
+        let cfg = parse_weapons(&root(r#"{"weapons":{"bat":{"damage":50},"revolver":{"damage":10,"ammo":{"loaded":2,"reserve":5}}}}"#)).unwrap();
+        assert_eq!((cfg.bat_damage, cfg.revolver_damage), (50, 10));
+        assert_eq!(cfg.revolver_ammo, Ammo::Limited { loaded: 2, capacity: 6, reserve: 5 });
+        assert_eq!(parse_weapons(&root(r#"{"weapons":{"revolver":{"ammo":"infinite"}}}"#)).unwrap().revolver_ammo, Ammo::Infinite);
+        let e = parse_weapons(&root(r#"{"weapons":{"revolvr":{},"bat":{"dmg":1},"revolver":{"ammo":7}}}"#)).unwrap_err().join("\n");
+        assert!(e.contains("weapons.revolvr: unknown field") && e.contains("weapons.bat.dmg: unknown field") && e.contains("ammo: must be"), "{e}");
+        assert_eq!(Weapon::from_wire(Weapon::Revolver.wire()), Weapon::Revolver);
     }
 
     #[test]

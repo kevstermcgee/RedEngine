@@ -192,7 +192,11 @@ impl SceneFile {
         copy["id"] = Value::String(new_id.to_string());
         translate_value(&mut copy, delta)?;
         if rot_y_add != 0.0 {
-            let cur = copy.get("rotation").and_then(Value::as_array).map(|a| a.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect::<Vec<_>>()).unwrap_or_else(|| vec![0.0, 0.0, 0.0]);
+            let cur = copy
+                .get("rotation")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect::<Vec<_>>())
+                .unwrap_or_else(|| vec![0.0, 0.0, 0.0]);
             if cur.len() == 3 {
                 copy["rotation"] = num_array(&[cur[0], cur[1] + rot_y_add, cur[2]]);
             }

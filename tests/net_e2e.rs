@@ -168,7 +168,7 @@ fn a_client_can_disconnect_and_reconnect_gracefully_and_by_timing_out() {
             b.client.disconnect();
             drop(b);
             std::thread::sleep(Duration::from_millis(1200)); // gone for a while: A must see the player vanish
-            // Reconnect with the token: same player, same place.
+                                                             // Reconnect with the token: same player, same place.
             let mut b2 = bot(addr, Character::Human, Behavior::Idle, token);
             let f2 = run_bot(&mut b2, 1.2);
             let resumed = b2.predictor.as_ref().unwrap().state.pos;
@@ -249,7 +249,11 @@ fn a_prop_pushed_by_one_player_moves_authoritatively_and_the_other_sees_the_same
     assert!(distinct > 10, "it was seen *moving* ({distinct} distinct steps), not teleporting");
     // ... and both clients end up agreeing with the authoritative pose.
     for (who, frames) in [("pusher", &fp), ("watcher", &fw)] {
-        let last = frames.iter().rev().find_map(|f| f.props.iter().find(|(i, _)| *i == domino0).map(|(_, p)| p.pos)).unwrap_or_else(|| panic!("{who} never saw the barrel"));
+        let last = frames
+            .iter()
+            .rev()
+            .find_map(|f| f.props.iter().find(|(i, _)| *i == domino0).map(|(_, p)| p.pos))
+            .unwrap_or_else(|| panic!("{who} never saw the barrel"));
         assert!(last.distance(truth.truncate()) < 0.03, "{who} sees the barrel at {last:?}, server says {:?}", truth.truncate());
     }
     // Every promoted prop agrees, not just the one we watched.
@@ -402,7 +406,8 @@ fn it_still_works_through_15_percent_loss_and_40_ms_latency_with_jitter() {
     assert!((truth - authored).length() > 0.3, "the barrel was pushed");
 
     // Loss and lag cost RTT and an occasional resend, but not correctness.
-    let last_seen = |frames: &[BotFrame]| frames.iter().rev().find_map(|f| f.props.iter().find(|(i, _)| *i == domino0).map(|(_, p)| p.pos)).expect("never saw the barrel");
+    let last_seen =
+        |frames: &[BotFrame]| frames.iter().rev().find_map(|f| f.props.iter().find(|(i, _)| *i == domino0).map(|(_, p)| p.pos)).expect("never saw the barrel");
     assert!(last_seen(&fw).distance(truth) < 0.05, "watcher {:?} vs server {truth:?}", last_seen(&fw));
     assert!(last_seen(&fp).distance(truth) < 0.05, "pusher {:?} vs server {truth:?}", last_seen(&fp));
     for (who, b) in [("pusher", &pusher), ("watcher", &watcher)] {
@@ -416,7 +421,8 @@ fn it_still_works_through_15_percent_loss_and_40_ms_latency_with_jitter() {
     let pred = pusher.predictor.as_ref().unwrap();
     assert!(pred.state.pos.distance(truth_p) < 0.1, "prediction {:?} vs server {truth_p:?}", pred.state.pos);
     // And the watcher still saw the other player (the pusher) move without teleporting.
-    let path: Vec<Vec2> = fw.iter().filter_map(|f| f.remote.iter().find(|(i, _)| Some(*i) == pusher.client.my_id()).map(|(_, p)| Vec2::new(p.pos.x, p.pos.z))).collect();
+    let path: Vec<Vec2> =
+        fw.iter().filter_map(|f| f.remote.iter().find(|(i, _)| Some(*i) == pusher.client.my_id()).map(|(_, p)| Vec2::new(p.pos.x, p.pos.z))).collect();
     let worst = path.windows(2).map(|w| w[0].distance(w[1])).fold(0.0f32, f32::max);
     assert!(path.len() > 100 && worst < 0.25, "watcher saw the pusher in {} frames, worst step {worst}", path.len());
 }

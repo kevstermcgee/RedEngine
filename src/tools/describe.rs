@@ -13,6 +13,7 @@ use serde_json::{json, Value};
 
 /// Topic names and one-line descriptions for `describe`; a test renders every one.
 pub const TOPICS: &[(&str, &str)] = &[
+    ("brief", "a ~1 KB summary: binaries, workflow, commands, where to look next (the cheapest first read)"),
     ("overview", "what the engine is + the topics below"),
     ("commands", "every CLI command and its flags (generated from the real CLI)"),
     ("objects", "every object `type` with its fields and a working example"),
@@ -22,6 +23,9 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("conventions", "coordinates, origins, facing, naming — the things that cause silent mistakes"),
     ("glossary", "project vocabulary: props vs prefabs, zones, body band, the four maps, the tire-iron naming trap, ..."),
     ("decisions", "the architecture decision records (docs/adr): why the engine is built this way, one line each"),
+    ("diagnostics", "the `--json` envelope every command can return, and every stable diagnostic code with its fix"),
+    ("rules", "game logic as data: `vars` + `rules` (when / who / if / once / do), volumes, actions, expressions; run headless"),
+    ("sim", "headless play-throughs (`sim`, scenarios in `checks.sim`) and match traces (`replay`, checksums, first divergent tick)"),
     ("all", "everything above as one JSON document (use with --json)"),
 ];
 
@@ -126,7 +130,11 @@ pub const TYPES: &[TypeInfo] = &[
             ("y", "number = 0", "floor height it stands on (upper-floor walls need their own y)"),
             ("height", "number = 2.7", ""),
             ("thickness", "number = 0.2", "exterior 0.24, partitions 0.15"),
-            ("openings", "[{kind,at,width,height,sill,trim,glass}]", "kind door|window|arch; `at` = distance along the wall from `from` to the opening's center; doors must be >= 2.05 tall and >= 0.9 wide"),
+            (
+                "openings",
+                "[{kind,at,width,height,sill,trim,glass}]",
+                "kind door|window|arch; `at` = distance along the wall from `from` to the opening's center; doors must be >= 2.05 tall and >= 0.9 wide",
+            ),
             ("trim", "#hex", "frame color for every opening"),
             ("baseboard", "#hex or {color,height}", ""),
             ("extend", "bool = true", "grow the ends by half the thickness so corners close"),
@@ -171,6 +179,8 @@ pub const TYPES: &[TypeInfo] = &[
 
 /// Top-level scene keys and what each does.
 pub const SCENE_KEYS: &[(&str, &str)] = &[
+    ("schema_version", "optional whole number, currently 1 (omitted = 1); a newer number is refused with a message"),
+    ("recipe", "{title, summary, teaches, tips} — what a known-good example map is for (`recipe` lists them)"),
     ("meta", "{fps, duration, resolution:[w,h]} — video/frame settings; resolution also sets `frame`/`tour` size"),
     ("background", "{sky_top, sky_bottom} gradient, or {color} flat"),
     ("ambient", "{color, intensity} flat fill light (0.1-0.4 typical)"),
@@ -178,10 +188,16 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("post", "{ao, outline, ao_radius, enabled} clarity pass: contact shadows + silhouette outlines"),
     ("lights", "<= 16; {id, type: directional|point, color, intensity, direction|position, range, cast_shadows, shadow_radius, shadow_center}; one directional may cast shadows"),
     ("zones", "[{id, rect:[x0,z0,x1,z1], y, kind}] named rooms; give lint/reach/tour/plan names to talk about"),
+    ("spawns", "[{id, position:[x,y,z], yaw_deg, group}] multiplayer spawn points (`red_server --spawn-group`); none = the camera position"),
+    ("portals", "[{id, between:[zoneA,zoneB], center:[x,z], width, height, open}] doorway connectivity between zones (network interest, roadmap)"),
+    ("interest", "{cell_size, note} network-interest settings (roadmap; rooms are the cells)"),
+    ("vars", "{name: number|bool} game variables rules read and write (`describe rules`); built-ins: time, tick, players"),
+    ("rules", "[{id, when, who, if, once, cooldown, do}] game logic as data: triggers, conditions, actions (`describe rules`)"),
+    ("weapons", "{bat: {damage}, revolver: {damage, ammo: \"infinite\" | {loaded, capacity, reserve}}} the demo weapons' numbers; limited ammo is a scene edit"),
     ("prefabs", "scene-local prefab definitions {name: {params, objects, tags, desc, extends, collide, mount}} — shadow built-ins"),
     ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views} — see `describe checks` / SPEC"),
     ("objects", "the scene graph: array of objects (see `describe objects`)"),
-    ("<anything else>", "ignored — scenes may carry their own notes"),
+    ("x-*, _*, notes, $comment", "the extension namespace: always allowed, never interpreted — put notes and tool data here. ANY OTHER unknown key is an error with a did-you-mean"),
 ];
 
 /// Every lint code with severity and fix; a test fails if `lint.rs` can emit a code not listed here.
@@ -212,13 +228,21 @@ fn physics() -> Vec<(&'static str, String, &'static str)> {
     vec![
         ("player_radius_m", format!("{}", player::PLAYER_RADIUS), "collision circle; a doorway needs >= 2x this"),
         ("comfortable_door_width_m", format!("{}", player::MIN_COMFORTABLE_DOOR_WIDTH), "lint warns below this"),
-        ("body_headroom_m", format!("{}", player::PLAYER_HEADROOM), "anything lower than this above the floor blocks walking (door headers, beams); doors must be at least this tall"),
+        (
+            "body_headroom_m",
+            format!("{}", player::PLAYER_HEADROOM),
+            "anything lower than this above the floor blocks walking (door headers, beams); doors must be at least this tall",
+        ),
         ("walk_speed_mps", format!("{}", player::WALK_SPEED), ""),
         ("sprint_speed_mps", format!("{}", player::SPRINT_SPEED), ""),
         ("eye_height_m", format!("{}", player::STAND_EYE_HEIGHT), "camera height when standing (crouch: 1.05)"),
         ("jump_height_m", format!("{:.2}", player::JUMP_HEIGHT), "can hop onto low props"),
         ("step_up_m", "0.35".to_string(), "colliders whose top is <= 0.35 above the feet are stepped ONTO (slab edges, low props); taller ones block"),
-        ("floors", "ground_height_at".to_string(), "a surface is walkable only if within ~0.35 of the current foot height — a second-floor slab is unreachable except via stairs"),
+        (
+            "floors",
+            "ground_height_at".to_string(),
+            "a surface is walkable only if within ~0.35 of the current foot height — a second-floor slab is unreachable except via stairs",
+        ),
     ]
 }
 
@@ -250,6 +274,121 @@ fn types_json() -> Value {
             })
             .collect(),
     )
+}
+
+/// The binaries the crate builds and what each is for (`describe brief`).
+pub const BINARIES: &[(&str, &str)] = &[
+    ("red_engine2", "analyze / edit / render maps (this CLI); builds without graphics for lint/reach/walk/verify"),
+    ("re2", "play a map in a window (first person); `--connect HOST:PORT` joins a server"),
+    ("red_server", "headless authoritative UDP multiplayer server (no window, GPU or audio: `--no-default-features`)"),
+    ("red_bot", "headless scripted client: proves multiplayer without a window (JSON output)"),
+];
+
+/// The ~1 KB entry summary as JSON: what an AI should read before anything else.
+pub fn brief_json(commands: &Value) -> Value {
+    let names: Vec<&str> = commands.as_array().into_iter().flatten().filter_map(|c| c["name"].as_str()).collect();
+    json!({
+        "engine": "Red Engine 2: maps are JSON scenes; you never need to read Rust",
+        "binaries": BINARIES.iter().map(|(n, d)| json!({"name": n, "about": d})).collect::<Vec<_>>(),
+        "workflow": "recipe/catalog -> add/set/move (validated) -> lint -> plan/tour (look) -> verify",
+        "commands": names,
+        "global_flags": [{"flag": "--json", "about": "wrap any command's result in the stable envelope {schema, command, ok, exit, data, diagnostics, stderr}"}],
+        "errors": "`path: message` with a stable code and, where possible, a did-you-mean fix (describe diagnostics)",
+        "topics": TOPICS.iter().map(|(n, _)| *n).collect::<Vec<_>>(),
+        "next": ["describe <topic>", "search \"<question>\"", "catalog <word>", "recipe", "SPEC.md (scene language)", "AGENTS.md (workflow)"],
+    })
+}
+
+fn brief_text(commands: &Value) -> String {
+    let b = brief_json(commands);
+    let list = |k: &str| b[k].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>().join(" ");
+    let mut out = format!("{}.\n", b["engine"].as_str().unwrap_or(""));
+    out.push_str("Binaries:\n");
+    for (n, d) in BINARIES {
+        out.push_str(&format!("  {n:<12} {d}\n"));
+    }
+    out.push_str(&format!("Workflow: {}\n", b["workflow"].as_str().unwrap_or("")));
+    out.push_str(&format!("Commands: {}\n", list("commands")));
+    out.push_str("Every command takes --json: one stable envelope {schema, command, ok, exit, data, diagnostics, stderr}.\n");
+    out.push_str("Errors are `path: message` with a stable code and a did-you-mean fix (`describe diagnostics`).\n");
+    out.push_str(&format!("Topics (describe <topic>): {}\n", list("topics")));
+    out.push_str("Next: search \"<question>\" | catalog <word> | recipe | SPEC.md (scene language) | AGENTS.md (workflow)\n");
+    out
+}
+
+/// A complete `vars` + `rules` + `checks.sim` example (parsed by a test, so `describe rules` cannot drift from the parser).
+pub const RULES_EXAMPLE: &str = r##"{"camera":{"position":[0,1.7,-6],"target":[0,1,0]},
+ "zones":[{"id":"goal","rect":[4,-2,6,2],"y":0}],
+ "spawns":[{"id":"start","position":[-6,0,0],"yaw_deg":90}],
+ "vars":{"score":0},
+ "rules":[
+  {"id":"take_coin","when":{"enter":{"object":"coin","pad":0.4}},"once":true,"do":[{"add":["score",1]},{"hide":"coin"},{"emit":"coin"}]},
+  {"id":"win","when":{"enter":{"zone":"goal"}},"if":"score >= 1","do":[{"emit":"victory"},{"end":"victory"}]}],
+ "checks":{"sim":[{"name":"coin then goal","players":[{"id":"p1","spawn":"start"}],
+   "script":[{"player":"p1","walk":"0,0; 5,0"}],
+   "expect":[{"event":"coin","count":1},{"ended":"victory"},{"var":"score","eq":1}]}]},
+ "objects":[{"id":"floor","type":"plane","size":[20,10],"position":[0,0.01,0]},
+            {"id":"coin","type":"cylinder","radius":0.25,"height":0.08,"position":[0,0.45,0],"collide":false}]}"##;
+
+fn rules_text() -> String {
+    let mut out = String::from(
+        "Game rules are data in the scene: `vars` (numbers/bools) and `rules`. Everything a rule names is validated when the scene loads.\n\n\
+         rule = { id, when, who?, if?, once?, cooldown?, do }\n\
+         \x20 when      exactly one of: {enter: VOLUME} {exit: VOLUME} {event: name} {every: secs} {after: secs} {start: true}\n\
+         \x20 who       any (default) | human | rat\n\
+         \x20 if        expression over the vars (and built-ins time, tick, players): `score >= 3 && !has_key`\n\
+         \x20 once      fire at most once per match;  cooldown: minimum seconds between firings\n\
+         \x20 do        actions, in order:\n",
+    );
+    for (name, help) in crate::sim::rules::ACTIONS {
+        out.push_str(&format!("      {name:<9} {help}\n"));
+    }
+    out.push_str(
+        "VOLUME = {zone: id [, height]} | {object: top-level id [, pad]} | {box: [x0,y0,z0,x1,y1,z1]}   (pad grows it, metres)\n\
+         Expressions: numbers, true/false, variables, + - * / %, < <= > >= == !=, && || !, parentheses. x/0 = 0 (never NaN).\n\
+         An unknown variable/zone/object/spawn/event is a validate error with a did-you-mean.\n\
+         Rules run in the authoritative simulation (server, `sim`), deterministically; state (vars, hidden objects, outcome) is\n\
+         part of the match checksum. Prove a rule with `checks.sim` (see `describe sim`).\n\nExample scene:\n",
+    );
+    out.push_str(RULES_EXAMPLE);
+    out.push('\n');
+    out
+}
+
+fn sim_text() -> String {
+    String::from(
+        "red_engine2 sim <scene> [--scenario file.json] [--only name] [--trace out.json] [--checkpoint-every 1] [--dump-every 60]\n\
+         \x20 Plays scripted players through the real authoritative simulation (no window, no GPU, no socket) and checks what happened.\n\
+         \x20 Scenarios live in the scene's `checks.sim` (so `verify` runs them) or in a file. Exit 1 if any fails.\n\n\
+         scenario = { name, players, script, expect, spawn_group?, max_seconds? (30), settle_seconds? (0.5) }\n\
+         \x20 players  [{id, character: human|rat, spawn?: spawn id}]\n\
+         \x20 script   [{player, walk: \"x,z; x,z\" | wait: secs | hold: {forward, strafe, sprint, crouch, jump, yaw_deg, seconds}, until_event?: name}]\n\
+         \x20          each player's steps run in order; players run in parallel; a walk that gets stuck fails the scenario\n\
+         \x20 expect   [{event: name, count|min|max} {no_event: name} {var: name, eq|ne|gt|gte|lt|lte: n} {ended: outcome} {not_ended: true}\n\
+         \x20           {hidden|shown: object id} {player: id, near: [x,z], tol?, y?}]\n\
+         The run ends when a rule `end`s the match, when every script is done (+ settle), or at max_seconds.\n\n\
+         red_engine2 replay <trace.json> [--scene map.json] [--against other.json]\n\
+         \x20 A trace records a match: header (engine, tick rate, map hash, seed, platform), every join/leave/input/impulse in order, game events,\n\
+         \x20 a checksum of players / props / rules after every N ticks, and periodic state dumps. `replay` re-runs it with no renderer or\n\
+         \x20 socket and reports the FIRST tick where players, props or rules differ, with a compact state diff. Exact (bit) checksums are\n\
+         \x20 compared on the same platform; across platforms a millimetre-quantised `coarse` checksum separates float noise from a real desync.\n\
+         \x20 Record one with `sim --trace`, or from a live match: `red_server --record out.json` (Ctrl-C to finish). `--dump-every 1` gives an\n\
+         \x20 exact state diff at the divergent tick.\n",
+    )
+}
+
+fn diagnostics_text() -> String {
+    let mut out = String::from(
+        "Every command accepts the global `--json` flag and then prints exactly one JSON document:\n\
+         {\"schema\": 1, \"command\": \"lint\", \"ok\": false, \"exit\": 1,\n \
+         \"data\": <what the command printed: parsed JSON, or {\"text\": ...}>,\n \
+         \"diagnostics\": [{\"code\", \"path\", \"message\", \"fix\"?}], \"stderr\": \"...\"}\n\
+         `ok` is exit == 0; a failing command can still carry `data` (lint lists its findings).\n\nDiagnostic codes:\n",
+    );
+    for (c, d, f) in crate::tools::envelope::CODES {
+        out.push_str(&format!("  {c:<14} {d}\n{:<17}fix: {f}\n", ""));
+    }
+    out
 }
 
 /// The full machine-readable self-description. `commands` comes from the CLI's clap definition.
@@ -286,7 +425,13 @@ fn commands_text(commands: &Value, brief: bool) -> String {
                 let n = a["name"].as_str().unwrap_or("?");
                 let opt = a["required"].as_bool() != Some(true);
                 match (a["positional"].as_bool(), a["flag"].as_bool()) {
-                    (Some(true), _) => if opt { format!("[{n}]") } else { format!("<{n}>") },
+                    (Some(true), _) => {
+                        if opt {
+                            format!("[{n}]")
+                        } else {
+                            format!("<{n}>")
+                        }
+                    }
                     (_, Some(true)) => format!("[--{n}]"),
                     _ => format!("[--{n} <v>]"),
                 }
@@ -302,6 +447,18 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
     if json_out || topic == "all" {
         let all = all_json(commands);
         let v = match topic {
+            "brief" => brief_json(commands),
+            "rules" => json!({
+                "actions": crate::sim::rules::ACTIONS.iter().map(|(n, h)| json!({"action": n, "help": h})).collect::<Vec<_>>(),
+                "when": ["enter", "exit", "event", "every", "after", "start"],
+                "volumes": ["zone", "object", "box"],
+                "builtin_vars": crate::sim::rules::BUILTIN_VARS,
+                "example": serde_json::from_str::<Value>(RULES_EXAMPLE).unwrap_or(Value::Null),
+            }),
+            "sim" => json!({"text": sim_text()}),
+            "diagnostics" => {
+                json!({"envelope_schema": crate::tools::envelope::ENVELOPE_SCHEMA, "codes": crate::tools::envelope::CODES.iter().map(|(c, d, f)| json!({"code": c, "about": d, "fix": f})).collect::<Vec<_>>()})
+            }
             "overview" | "all" => all,
             "commands" => all["commands"].clone(),
             "objects" => json!({"common_fields": all["common_fields"], "objects": all["objects"]}),
@@ -317,11 +474,17 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
     }
     let mut out = String::new();
     match topic {
+        "brief" => out.push_str(&brief_text(commands)),
+        "diagnostics" => out.push_str(&diagnostics_text()),
+        "rules" => out.push_str(&rules_text()),
+        "sim" => out.push_str(&sim_text()),
         "overview" => {
             let (props, prefabs) = (crate::props::PropKind::ALL.len(), crate::prefabs::builtin().0.defs.len());
             out.push_str("Red Engine 2: maps are JSON scenes. `re2 <map>` plays one; `red_engine2` validates, analyzes, edits and renders them.\n");
             out.push_str("You should never need to read Rust: everything is reachable through these commands.\n\n");
-            out.push_str(&format!("Building blocks: {props} props (Rust-made, real collision) + {prefabs} prefabs (JSON, parametric) + primitives + wall/fence/stairs macros.\n"));
+            out.push_str(&format!(
+                "Building blocks: {props} props (Rust-made, real collision) + {prefabs} prefabs (JSON, parametric) + primitives + wall/fence/stairs macros.\n"
+            ));
             out.push_str(&format!("Known-good starting points: {} recipes (`red_engine2 recipe`).\n\n", crate::tools::recipes::all().len()));
             out.push_str("Workflow:  recipe/catalog -> add/set/move (auto-validated) -> lint -> plan/tour/frame (LOOK) -> verify\n\n");
             out.push_str("Commands:\n");
@@ -330,7 +493,9 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             for (n, d) in TOPICS {
                 out.push_str(&format!("  {n:<12} {d}\n"));
             }
-            out.push_str("\nAlso: `red_engine2 search <words>` finds docs/assets/symbols; `red_engine2 src find|show|refs` explores the Rust without reading it.\n");
+            out.push_str(
+                "\nAlso: `red_engine2 search <words>` finds docs/assets/symbols; `red_engine2 src find|show|refs` explores the Rust without reading it.\n",
+            );
         }
         "commands" => out.push_str(&commands_text(commands, false)),
         "objects" => {
@@ -379,11 +544,26 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
 
 fn unknown(t: &str) -> String {
     let hint = crate::prefabs::suggest(t, TOPICS.iter().map(|(n, _)| *n));
-    format!("unknown topic '{t}'{} — topics: {}", if hint.is_empty() { String::new() } else { format!(" (did you mean {}?)", hint[0]) }, TOPICS.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", "))
+    format!(
+        "unknown topic '{t}'{} — topics: {}",
+        if hint.is_empty() { String::new() } else { format!(" (did you mean {}?)", hint[0]) },
+        TOPICS.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", ")
+    )
 }
 
 #[cfg(test)]
 mod tests {
+    /// Every key the strict parser accepts at the scene root is described (and vice versa), so the doc cannot drift.
+    #[test]
+    fn describe_scene_lists_exactly_the_strict_root_keys() {
+        for k in crate::strict::ROOT_KEYS {
+            assert!(SCENE_KEYS.iter().any(|(d, _)| d == k), "`describe scene` does not mention the root key `{k}` (add it to SCENE_KEYS)");
+        }
+        for (d, _) in SCENE_KEYS.iter().filter(|(d, _)| !d.contains('*')) {
+            assert!(crate::strict::ROOT_KEYS.contains(d), "`describe scene` lists `{d}` but the parser would reject it");
+        }
+    }
+
     use super::*;
 
     fn scene_with(obj: &str) -> String {
@@ -428,6 +608,26 @@ mod tests {
         }
         missing.dedup();
         assert!(missing.is_empty(), "lint codes not described in describe::LINT_CODES: {missing:?}");
+    }
+
+    /// `describe rules` shows a scene that must load, and its scenario must pass: the docs are executable.
+    #[test]
+    fn the_rules_example_is_a_valid_scene_whose_scenario_passes() {
+        assert!(crate::schema::parse_scene(RULES_EXAMPLE).is_ok(), "{:?}", crate::schema::parse_scene(RULES_EXAMPLE).err());
+        let dir = std::env::temp_dir().join("re2_describe_rules");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rules_example.json");
+        std::fs::write(&path, RULES_EXAMPLE).unwrap();
+        let (report, _) = crate::tools::simrun::run(&path, None, None, None).unwrap();
+        assert!(report.all_passed(), "{}", report.render());
+    }
+
+    #[test]
+    fn every_action_is_documented_in_the_topic() {
+        let text = rules_text();
+        for (name, _) in crate::sim::rules::ACTIONS {
+            assert!(text.contains(name), "`describe rules` does not mention the `{name}` action");
+        }
     }
 
     #[test]

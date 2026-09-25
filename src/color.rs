@@ -12,9 +12,7 @@ pub fn parse_hex_to_linear(s: &str) -> Result<Vec3, String> {
         return Err(format!("color '{s}' must be '#rrggbb' or '#rrggbbaa'"));
     }
     let byte = |i: usize| -> Result<f32, String> {
-        u8::from_str_radix(&hex[i..i + 2], 16)
-            .map(|b| b as f32 / 255.0)
-            .map_err(|_| format!("color '{s}' has invalid hex digits"))
+        u8::from_str_radix(&hex[i..i + 2], 16).map(|b| b as f32 / 255.0).map_err(|_| format!("color '{s}' has invalid hex digits"))
     };
     let r = srgb_to_linear(byte(0)?);
     let g = srgb_to_linear(byte(2)?);

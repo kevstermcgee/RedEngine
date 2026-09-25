@@ -5,9 +5,11 @@ glossary` prints the lot). Terms are grouped; each line says what it *is* and wh
 
 ## The two programs
 
-- **`re2`** — the real-time first-person game/viewer (`src/bin/re2.rs`). Plays one map. Windowing,
-  input, held item, audio. Never analyses maps.
-- **`red_engine2`** — the offline CLI (`src/main.rs`). Validates, renders, lints, plans, edits and
+- **`re2`** — the real-time first-person game/viewer (`src/bin/re2/`). Plays one map, or joins a server with
+  `--connect`. Windowing, input, held item, audio. Never analyses maps.
+- **`red_server` / `red_bot`** — the headless authoritative UDP server and scripted client (build without the `gfx`
+  feature: no window, GPU or audio crates; ADR 0016, 0017).
+- **`red_engine2`** — the offline CLI (`src/main.rs`, `src/cli/`). Validates, renders, lints, plans, edits and
   searches maps; no window. Also the engine's self-description (`describe`, `search`, `src`).
 - **the tools** — everything under `src/tools/`. They call the *same* collision/physics functions as
   `re2` (see ADR 0003), so "the tools say it's walkable" means it is.
@@ -109,8 +111,8 @@ without asking.
 ## Weapons
 
 - **Weapon** — `weapons::Weapon`: `Bat` (primary) or `Revolver`; the mouse wheel cycles (human only).
-- **revolver** — the silver six-shooter: hitscan, 0.42 s between shots, 80 m, infinite ammo (`Ammo::Infinite`,
-  flip `REVOLVER_AMMO` to `Limited` to cap it). Model in `revolver.rs`. ADR 0013.
+- **revolver** — the silver six-shooter: hitscan, 0.42 s between shots, 80 m, infinite ammo by default; a scene's
+  `weapons.revolver.ammo` caps it (`Ammo::Limited`, `R` reloads). Model in `revolver.rs`. ADR 0013.
 - **hitscan / muzzle flash** — a shot is an instant ray from the eye; the flash is an emissive held part shown
   for 0.06 s (`HeldPart::muzzle_flash`).
 
@@ -126,13 +128,23 @@ without asking.
 
 - **authoritative server** — `red_server` / `net::server`: the only place players and props are simulated online.
   Clients send *inputs* (never positions) and draw what the server says.
-- **snapshot / delta** — the server's 30 Hz world state per client: every player + only the props changed since that client
-  last *acknowledged* (per-client change cursors).
+- **snapshot / delta** — the server's 30 Hz world state per client: the players it can see + the moving props whose pose the
+  client has not yet *acknowledged* (per-prop, per-client), oldest first, at most 30.
+- **interest management / room / portal** — zones are rooms and `portals` connect them; a client hears about its own room and
+  rooms `interest.hops` (default 1) open portals away, nothing else (`sim::interest`, ADR 0022). Things in no zone are always relevant.
+- **engine event** — `pickup`, `drop`, `shot`, `hit`, `kill`, `respawn`: raised by the server's interaction rules; a scene rule reacts
+  with `when: {event: "kill"}`.
 - **interpolation** — other players and props are drawn ~100 ms in the past, blended between two snapshots.
 - **prediction / reconciliation** — the local player applies its own input at once (`sim::player::step_player`, the same
   function the server runs) and replays unacknowledged inputs on top of each server state (`net::predict`).
 - **resume token** — secret from `Welcome`; a `Hello` carrying it after a disconnect gets the same player id and place back.
 - **bot** — `red_bot` / `net::bot`: a headless scripted client, how multiplayer is verified without a window.
+- **rules / vars** — game logic as scene data: `when` / `who` / `if` / `once` / `cooldown` / `do` (ADR 0020, `describe rules`).
+- **scenario** — a scripted headless play-through with assertions (`checks.sim`, `red_engine2 sim`, `describe sim`).
+- **trace / replay / checkpoint / divergence** — a recording of a match (joins, inputs, impulses, events, per-tick checksums);
+  `red_engine2 replay` re-runs it and names the first divergent tick (ADR 0021). *Coarse* checksums quantise floats to mm.
+- **envelope / diagnostic** — the `--json` wrapper every command can return, and its coded `path: message` problems (ADR 0019).
+- **`gfx`** — the Cargo feature (default) for everything that draws or plays sound; off = headless build (ADR 0017).
 
 ## Loose props and physics
 
@@ -148,17 +160,17 @@ without asking.
 - **dormant / dynamic** — a loose prop is *dormant* (a fixed rapier body exactly where authored) until
   disturbed by the player, a bat, a moving prop or being picked up; then it is *dynamic* (and drags
   along whatever rests on it), and rapier puts it back to sleep at rest. ADR 0012.
-- **PropWorld** — `physics.rs`: the rapier world (fixed map colliders, loose-prop bodies, the player as
+- **PropWorld** — `physics/`: the rapier world (fixed map colliders, loose-prop bodies, the player as
   a kinematic cylinder). Headless, no GPU types.
-- **carry / hold pose** — a carried prop's body is disabled and the object follows the player
-  (`PropWorld::hold_pose`, upright, in front, pulled in by walls); E drops it with the player's momentum.
+- **carry / hold pose** — a carried prop's body is disabled and the object follows its holder (`PropWorld::hold_pose`, upright, in
+  front, pulled in by walls); E drops it with momentum. Each player can hold one prop and nobody can take a held one (online: the
+  server decides contention).
 
-## Prop-hunt game terms (not built yet)
+## Prop-hunt game terms (the game itself is not built; the engine parts it needs are)
 
 - **hider / prop** — a player disguised as a map prop. **seeker** — the player who finds and strikes
   them. (Game-mode logic — rounds, disguises, scoring — does not exist yet.) Design intent: the
   seeker's primary action on objects is **hitting them with the bat** (built); the hider will use
   right-click to pick an object, then **R** to replicate it (not built). (**E** now picks up and
   drops loose props — see "Loose props" below.)
-- **match server / orchestrator / lockstep** — the planned multiplayer architecture. **Not built.**
-  Status and open questions: ADR 0010.
+- **match server** — built: `red_server` (ADR 0016). ADR 0010 is the historical proposal it replaced.

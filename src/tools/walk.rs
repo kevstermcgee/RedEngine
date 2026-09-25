@@ -22,6 +22,23 @@ pub struct WalkStep {
     pub ticks: u32,
 }
 
+/// A finished route as JSON: `{ok, legs:[{target, reached, pos, foot_y, ticks}], stuck_on_leg?}`.
+pub fn to_json(steps: &[WalkStep], waypoints: usize) -> serde_json::Value {
+    let round = |v: f32| (v * 100.0).round() / 100.0;
+    let ok = steps.len() == waypoints && steps.iter().all(|s| s.reached);
+    let mut v = serde_json::json!({
+        "ok": ok,
+        "legs": steps.iter().map(|s| serde_json::json!({
+            "target": [round(s.target.x), round(s.target.y)], "reached": s.reached,
+            "pos": [round(s.pos.x), round(s.pos.y)], "foot_y": round(s.foot_y), "ticks": s.ticks,
+        })).collect::<Vec<_>>(),
+    });
+    if let Some(i) = steps.iter().position(|s| !s.reached) {
+        v["stuck_on_leg"] = serde_json::json!(i + 1);
+    }
+    v
+}
+
 const REACHED_DIST: f32 = 0.2;
 /// A leg is abandoned after this long without getting meaningfully closer.
 const STUCK_TICKS: u32 = 120;
@@ -31,7 +48,7 @@ const MAX_LEG_TICKS: u32 = 60 * 60;
 /// Stops at the first leg that fails.
 pub fn walk(world: &MapWorld, start: Vec2, path: &[Vec2]) -> Vec<WalkStep> {
     let mut pos = start;
-    let mut foot_y = crate::viewer::ground_height_at(&world.ground, start, 0.0);
+    let mut foot_y = crate::collide::ground_height_at(&world.ground, start, 0.0);
     let mut vy = 0.0f32;
     let mut out = Vec::new();
     for &target in path {

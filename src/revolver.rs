@@ -42,7 +42,7 @@ pub fn build_revolver_parts() -> Vec<HeldPart> {
     boxed(&mut steel, v(0.004, 0.011, 0.008), v(0.0, axis_y + 0.0225, MUZZLE_Z - 0.008), 0.0); // front sight
     boxed(&mut steel, v(0.014, 0.008, 0.010), v(0.0, 0.062, -0.012), 0.0); // rear sight
     boxed(&mut steel, v(0.008, 0.022, 0.013), v(0.0, 0.066, -0.026), -28.0); // hammer, cocked back
-    // Trigger guard: front post, floor and the trigger inside it.
+                                                                             // Trigger guard: front post, floor and the trigger inside it.
     boxed(&mut steel, v(0.006, 0.032, 0.007), v(0.0, -0.012, 0.062), 0.0);
     boxed(&mut steel, v(0.006, 0.006, 0.058), v(0.0, -0.028, 0.034), 0.0);
     boxed(&mut steel, v(0.005, 0.020, 0.007), v(0.0, -0.006, 0.030), 12.0);
@@ -78,7 +78,11 @@ pub fn build_revolver_parts() -> Vec<HeldPart> {
 
     // ---- Muzzle flash: a hot cone and a bright ball at the barrel tip ---------------------------
     let mut flash = Mesh::default();
-    append_transformed(&mut flash, &Mesh::cone(0.022, 0.14, 14), Mat4::from_translation(v(0.0, axis_y, MUZZLE_Z + 0.07)) * Mat4::from_rotation_x(90f32.to_radians()));
+    append_transformed(
+        &mut flash,
+        &Mesh::cone(0.022, 0.14, 14),
+        Mat4::from_translation(v(0.0, axis_y, MUZZLE_Z + 0.07)) * Mat4::from_rotation_x(90f32.to_radians()),
+    );
     append_transformed(&mut flash, &Mesh::uv_sphere(0.024, 8, 12), Mat4::from_translation(v(0.0, axis_y, MUZZLE_Z + 0.005)));
     // Two thin cross flares so it reads as a burst, not a candle.
     append_transformed(&mut flash, &Mesh::cuboid(v(0.09, 0.004, 0.03)), Mat4::from_translation(v(0.0, axis_y, MUZZLE_Z + 0.02)));

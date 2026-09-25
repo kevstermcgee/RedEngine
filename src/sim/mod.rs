@@ -11,23 +11,40 @@
 //! - [`player`]: one player's movement for one tick as a pure function (single-player, server and client
 //!   prediction all run it); [`spawns`]: multiplayer spawn points from the map.
 //! - [`match_sim`]: the authoritative match world (players + props), ticked with queued inputs.
+//! - [`rules`] + [`rules_expr`] + [`rules_run`]: game rules as data (`vars`, `rules`): triggers, conditions and actions
+//!   parsed and validated with the scene, run deterministically every tick (`describe rules`).
+//! - [`trace`] + [`replay`] + [`checksum`]: record a match (joins, inputs, events, checksums), replay it without a renderer or
+//!   socket, and find the first tick where two runs disagree (`red_engine2 replay`).
 //! - [`scratch`]: reusable per-tick buffers ([`scratch::ScratchVec`]) — reset, never freed.
 //!
 //! The rule for anything added here: a rendering rate must never be able to change what the
 //! simulation does. Render code reads the sim (and may interpolate between ticks); it never
 //! feeds it a variable `dt`.
 
+// Nothing reachable from a UDP packet may panic the process. Test code is exempt; a genuine invariant is written
+// as a `let ... else` / `?` with a message, not an `unwrap`.
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
+
 pub mod change;
+pub mod checksum;
 pub mod clock;
 pub mod combat;
 pub mod components;
 pub mod entities;
+pub mod interact;
+pub mod interest;
 pub mod match_sim;
 pub mod player;
+pub mod replay;
+pub mod rules;
+pub mod rules_expr;
+pub mod rules_run;
+pub mod scenario;
 pub mod scratch;
-pub mod spawns;
 pub mod snapshot;
+pub mod spawns;
 pub mod statics;
+pub mod trace;
 
 #[cfg(test)]
 mod tests {

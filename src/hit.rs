@@ -10,8 +10,8 @@
 //! Pure functions, no GPU or window types — a future headless server can call them too.
 
 use crate::characters::{human_parts, rat_parts, RatPose};
+use crate::geometry::{build_stairs_parts, trs};
 use crate::props::prop_parts;
-use crate::render::{build_stairs_parts, trs};
 use crate::schema::{Object, ObjectKind, PrimKind, Scene};
 use crate::skeleton::{HumanoidRig, PoseSample};
 use glam::{Mat4, Vec3};

@@ -5,7 +5,7 @@
 //! actually walk from A to B?" by running the *same* collision/ground-height code the game runs
 //! every physics tick, so a map that passes `lint` is playable, not just plausible.
 
-use crate::viewer::{colliders_on_floor_h, ground_height_at, resolve_collision, Collider2D, GroundCandidates, PLAYER_BAND_MAX_Y};
+use crate::collide::{colliders_on_floor_h, ground_height_at, resolve_collision, Collider2D, GroundCandidates, PLAYER_BAND_MAX_Y};
 use glam::Vec2;
 
 /// Movement/collision/gravity run at this fixed timestep (`sim::clock::TICK_DT`, 60 Hz) in the live viewer.
@@ -37,7 +37,7 @@ pub const JUMP_SPEED: f32 = 3.8;
 pub const JUMP_HEIGHT: f32 = JUMP_SPEED * JUMP_SPEED / (2.0 * GRAVITY);
 
 /// Headroom a player needs above their feet. The collision body band is 2.0 m tall
-/// (`viewer::PLAYER_BAND_MAX_Y`), so anything whose underside is *within* 2.0 m of the floor —
+/// (`collide::PLAYER_BAND_MAX_Y`), so anything whose underside is *within* 2.0 m of the floor —
 /// a door header, a low beam — blocks walking. Ceilings/headers lower than this above walkable
 /// floor are flagged by `lint`, and `wall` refuses door openings shorter than it.
 pub const PLAYER_HEADROOM: f32 = 2.05;
@@ -186,7 +186,13 @@ pub const RAT_RADIUS: f32 = 0.12;
 /// gravity, and settling onto whatever walkable surface is under `pos` (see
 /// [`ground_height_at`]). Returns the new `(foot_y, vertical_velocity)`.
 pub fn vertical_step(ground: &GroundCandidates, pos: Vec2, foot_y: f32, vertical_velocity: f32, jump: bool) -> (f32, f32) {
-    let ground_now = ground_height_at(ground, pos, foot_y);
+    vertical_step_on(ground, None, pos, foot_y, vertical_velocity, jump)
+}
+
+/// [`vertical_step`] with an optional extra floor under the feet (the top of a loose prop the player stands on, found by
+/// `PropWorld::floor_under`): the higher of it and the static ground is what they stand on, and they can jump off it.
+pub fn vertical_step_on(ground: &GroundCandidates, extra_floor: Option<f32>, pos: Vec2, foot_y: f32, vertical_velocity: f32, jump: bool) -> (f32, f32) {
+    let ground_now = ground_height_at(ground, pos, foot_y).max(extra_floor.unwrap_or(f32::NEG_INFINITY));
     let grounded = foot_y <= ground_now && vertical_velocity <= 0.0;
     let mut vy = vertical_velocity;
     if jump && grounded {

@@ -6,11 +6,14 @@
 //! `render`/`frame` produce.
 
 use super::edit::glob;
+#[cfg(feature = "gfx")]
 use super::font::draw_text;
 use super::world::{ItemKind, MapWorld};
+#[cfg(feature = "gfx")]
 use crate::render::Renderer;
 use crate::track::Track;
 use glam::{Vec2, Vec3};
+#[cfg(feature = "gfx")]
 use image::{Rgb, RgbImage};
 use std::collections::HashSet;
 use std::path::Path;
@@ -42,9 +45,7 @@ pub fn prepare(world: MapWorld, opts: &FrameOpts) -> crate::schema::Scene {
         let hidden: HashSet<String> = scene
             .objects
             .iter()
-            .filter(|o| {
-                opts.hide.iter().any(|p| glob(p, &o.id)) || opts.cut_above.is_some_and(|c| lowest.get(o.id.as_str()).is_some_and(|y| *y >= c))
-            })
+            .filter(|o| opts.hide.iter().any(|p| glob(p, &o.id)) || opts.cut_above.is_some_and(|c| lowest.get(o.id.as_str()).is_some_and(|y| *y >= c)))
             .map(|o| o.id.clone())
             .collect();
         scene.objects.retain(|o| !hidden.contains(&o.id));
@@ -66,6 +67,7 @@ pub fn prepare(world: MapWorld, opts: &FrameOpts) -> crate::schema::Scene {
 }
 
 /// Renders one frame of a scene with the given options to `out`.
+#[cfg(feature = "gfx")]
 pub fn render_frame(path: &Path, out: &Path, opts: &FrameOpts) -> Result<(), String> {
     let world = super::world::load_or_report(path)?;
     let scene = prepare(world, opts);
@@ -94,12 +96,7 @@ fn ceiling_above(world: &MapWorld, h: f32) -> Option<f32> {
     world
         .items
         .iter()
-        .filter(|i| {
-            matches!(i.kind, ItemKind::Box)
-                && (i.max.y - i.min.y) <= 0.6
-                && i.min.y >= h + 2.0
-                && (i.max.x - i.min.x) * (i.max.z - i.min.z) >= 9.0
-        })
+        .filter(|i| matches!(i.kind, ItemKind::Box) && (i.max.y - i.min.y) <= 0.6 && i.min.y >= h + 2.0 && (i.max.x - i.min.x) * (i.max.z - i.min.z) >= 9.0)
         .map(|i| i.min.y)
         .fold(None, |a, y| Some(a.map_or(y, |m: f32| m.min(y))))
 }
@@ -182,6 +179,7 @@ pub fn auto_views_with(world: &MapWorld, reach: &super::reach::Reach) -> Vec<Vie
     views
 }
 
+#[cfg(feature = "gfx")]
 fn downsample2(img: &RgbImage) -> RgbImage {
     let (w, h) = (img.width() / 2, img.height() / 2);
     RgbImage::from_fn(w, h, |x, y| {
@@ -198,6 +196,7 @@ fn downsample2(img: &RgbImage) -> RgbImage {
 
 /// Renders every view and lays them out in a labelled grid (`cols` columns), each tile at
 /// half the scene's resolution.
+#[cfg(feature = "gfx")]
 pub fn tour(path: &Path, out: &Path, views: Option<Vec<View>>, cols: u32, only: Option<&str>) -> Result<Vec<String>, String> {
     let base = super::world::load_or_report(path)?;
     let mut views = views.unwrap_or_else(|| auto_views(&base));
@@ -266,4 +265,16 @@ pub fn tour(path: &Path, out: &Path, views: Option<Vec<View>>, cols: u32, only: 
     }
     sheet.save(out).map_err(|e| e.to_string())?;
     Ok(views.iter().map(|v| v.label.clone()).collect())
+}
+
+/// This build has no renderer (`--no-default-features`): `frame`/`tour`/`render`/golden views are unavailable.
+#[cfg(not(feature = "gfx"))]
+pub fn render_frame(_path: &Path, _out: &Path, _opts: &FrameOpts) -> Result<(), String> {
+    Err(super::NO_GFX.to_string())
+}
+
+/// See [`render_frame`]: unavailable without the `gfx` feature.
+#[cfg(not(feature = "gfx"))]
+pub fn tour(_path: &Path, _out: &Path, _views: Option<Vec<View>>, _cols: u32, _only: Option<&str>) -> Result<Vec<String>, String> {
+    Err(super::NO_GFX.to_string())
 }

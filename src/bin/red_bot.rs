@@ -54,7 +54,8 @@ fn report(f: &BotFrame) -> serde_json::Value {
 }
 
 fn main() {
-    let (mut server, mut map, mut who, mut spec, mut sprint) = (None::<SocketAddr>, PathBuf::from("examples/test_lab.json"), Character::Human, "idle".to_string(), false);
+    let (mut server, mut map, mut who, mut spec, mut sprint) =
+        (None::<SocketAddr>, PathBuf::from("examples/test_lab.json"), Character::Human, "idle".to_string(), false);
     let (mut duration, mut every, mut token, mut leave_after, mut rejoin_after) = (5.0f64, 0.5f64, 0u64, None::<f64>, None::<f64>);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {

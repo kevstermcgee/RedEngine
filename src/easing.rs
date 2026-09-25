@@ -30,9 +30,7 @@ impl Ease {
             "back" => Ok(Ease::Back),
             "bounce" => Ok(Ease::Bounce),
             "elastic" => Ok(Ease::Elastic),
-            other => Err(format!(
-                "unknown ease '{other}' (expected one of: linear, in, out, inout, hold, back, bounce, elastic)"
-            )),
+            other => Err(format!("unknown ease '{other}' (expected one of: linear, in, out, inout, hold, back, bounce, elastic)")),
         }
     }
 
@@ -93,15 +91,7 @@ mod tests {
 
     #[test]
     fn endpoints_are_stable() {
-        for ease in [
-            Ease::Linear,
-            Ease::In,
-            Ease::Out,
-            Ease::InOut,
-            Ease::Back,
-            Ease::Bounce,
-            Ease::Elastic,
-        ] {
+        for ease in [Ease::Linear, Ease::In, Ease::Out, Ease::InOut, Ease::Back, Ease::Bounce, Ease::Elastic] {
             assert!((ease.apply(0.0)).abs() < 1e-4, "{ease:?} at 0");
             assert!((ease.apply(1.0) - 1.0).abs() < 1e-4, "{ease:?} at 1");
         }

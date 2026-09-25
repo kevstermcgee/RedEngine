@@ -93,6 +93,8 @@ pub fn menu_scene() -> Scene {
             roll: Track::constant(0.0),
         },
         post: PostSettings::default(),
+        rules: Default::default(),
+        weapons: Default::default(),
         lights: vec![
             point_light("key", Vec3::new(-2.5, 3.2, 3.0), "#ffe6c4", 26.0, 14.0),
             point_light("rim", Vec3::new(2.8, 2.6, -1.5), "#9cc0ff", 20.0, 12.0),
@@ -129,7 +131,7 @@ pub fn animate(scene: &mut Scene, aspect: f32, time: f32, selected: Character) {
         let picked = which == selected;
         let sway = (time * if picked { 0.9 } else { 0.5 }).sin() * if picked { 38.0 } else { 16.0 };
         scene.objects[ped].position = Track::constant(Vec3::new(x, y * 0.5, 0.0));
-                let m = &mut scene.objects[model];
+        let m = &mut scene.objects[model];
         m.position = Track::constant(Vec3::new(x, y, 0.0));
         m.rotation = Track::constant(Vec3::new(0.0, sway, 0.0));
         m.scale = Track::constant(Vec3::splat(scale));
@@ -196,7 +198,11 @@ impl Canvas {
 
     fn text_width(text: &str, scale: i32) -> i32 {
         let n = text.chars().count() as i32;
-        if n == 0 { 0 } else { n * (GLYPH_W + 1) * scale - scale }
+        if n == 0 {
+            0
+        } else {
+            n * (GLYPH_W + 1) * scale - scale
+        }
     }
 
     fn ink(&mut self, x: i32, y: i32, text: &str, scale: i32, c: [u8; 4]) {
@@ -226,7 +232,11 @@ impl Canvas {
 /// Which character is under a cursor at `(x, y)` in a `w`-wide window: the left half is the
 /// human, the right half the rat.
 pub fn character_at(w: u32, x: f32) -> Character {
-    if x < w as f32 * 0.5 { Character::Human } else { Character::Rat }
+    if x < w as f32 * 0.5 {
+        Character::Human
+    } else {
+        Character::Rat
+    }
 }
 
 /// Paints the menu's text and panels for a `w` x `h` window. `map` is the scene's file stem.
@@ -253,7 +263,12 @@ pub fn paint(w: u32, h: u32, selected: Character, map: &str) -> Vec<u8> {
 
     let cards = [
         (Character::Human, wi / 4, "1  HUMAN", ["TALL AND STRONG.", "SWINGS A BAT.", "WALK, OR SPRINT WITH SHIFT.", ""]),
-        (Character::Rat, wi * 3 / 4, "2  CHEDDAR THE RAT", ["SMALL, QUICK AND HARD TO SPOT.", "RUNS UNDER TABLES AND PLATFORMS.", "FITS THROUGH TIGHT GAPS.", "(SHOWN ABOUT 3X LIFE SIZE)"]),
+        (
+            Character::Rat,
+            wi * 3 / 4,
+            "2  CHEDDAR THE RAT",
+            ["SMALL, QUICK AND HARD TO SPOT.", "RUNS UNDER TABLES AND PLATFORMS.", "FITS THROUGH TIGHT GAPS.", "(SHOWN ABOUT 3X LIFE SIZE)"],
+        ),
     ];
     for (who, cx, title, lines) in cards {
         let picked = who == selected;
@@ -403,7 +418,14 @@ mod tests {
         assert!(human.chunks(4).any(|p| p[3] > 200 && p[0] > 200 && p[1] > 200), "some bright opaque text pixels");
         assert_ne!(human, rat, "the selection changes what is painted");
         // Gold frame pixels appear only on the selected side.
-        let gold_left = |img: &[u8]| (0..h).any(|y| (0..w / 2).any(|x| { let p = &img[((y * w + x) * 4) as usize..][..4]; p[0] > 240 && p[1] > 190 && p[2] < 100 && p[3] > 240 }));
+        let gold_left = |img: &[u8]| {
+            (0..h).any(|y| {
+                (0..w / 2).any(|x| {
+                    let p = &img[((y * w + x) * 4) as usize..][..4];
+                    p[0] > 240 && p[1] > 190 && p[2] < 100 && p[3] > 240
+                })
+            })
+        };
         assert!(gold_left(&human) && !gold_left(&rat));
     }
 }

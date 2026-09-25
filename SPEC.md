@@ -21,7 +21,24 @@ implementation detail.
 ```
 
 `post` and `zones` are optional (see [Clarity post-pass](#clarity-post-pass-post) and
-[Zones](#zones)). Unknown top-level keys are ignored, so a scene can carry its own notes.
+[Zones](#zones)). Other optional top-level keys: `schema_version`, `recipe`, `spawns`, `portals`, `interest`,
+`prefabs`, `checks` (`red_engine2 describe scene` lists them all).
+
+### Strict fields and versioning
+
+**An unknown key is an error, never silently ignored** — a typo like `"pos"` or `"raduis"`, or `"color"` written
+on an object instead of inside `material`, would otherwise do nothing and look like an engine bug. The error names
+the path and the fix: `crate_1.pos: unknown field — did you mean `position`?`. The same applies to the camera, lights,
+`material`, `post`, `zones`, `spawns`, `portals`, wall `openings`, prefab instances and every `checks` group (a
+misspelled check group would otherwise mean the check never runs). A number field holding a string
+(`"radius": "big"`) is an error too.
+
+To keep a note or tool data in a scene, use the **extension namespace**: any key starting with `_`, `x-` or `x_`,
+plus `notes` and `$comment`, is always allowed and never interpreted, at any level.
+
+`"schema_version": 1` (optional; omitted means 1) pins the format. A scene that names a newer version than the
+engine knows is refused with a message asking to update the engine. When the format changes incompatibly the version
+is bumped and this section lists the migration (rename X to Y, wrap Z in W); until then there is nothing to migrate.
 
 - `meta.fps` — integer, frames per second. `meta.duration` — seconds (float). `meta.resolution`
   — `[width, height]` in pixels; both are rounded up to even numbers for H.264 compatibility.
@@ -396,6 +413,68 @@ Ambient light is also hemispherical (up-facing surfaces catch a little more than
 Map-color tip: keep props and the surface behind them at different *lightness* (a white fridge on
 a cream wall is the hard case) — the post-pass helps but contrast is still the best fix.
 
+## Game rules as data (`vars`, `rules`)
+
+Gameplay is declared in the scene, not written in Rust. A rule fires **when** something happens, for **who**, **if** a
+condition holds, and then **does** its actions:
+
+```json
+"vars": { "score": 0, "has_key": false },
+"rules": [
+  { "id": "take_coin_1", "when": { "enter": { "object": "coin_1", "pad": 0.3 } }, "once": true,
+    "do": [ { "add": ["score", 1] }, { "hide": "coin_1" }, { "emit": "coin" } ] },
+  { "id": "exit_opens", "when": { "enter": { "zone": "exit" } }, "if": "score >= 3 && !has_key",
+    "do": [ { "emit": "victory" }, { "end": "victory" } ] },
+  { "id": "trap", "when": { "enter": { "zone": "trap" } }, "who": "human", "cooldown": 2,
+    "do": [ { "emit": "ouch" }, { "teleport": "spawn_a" } ] }
+]
+```
+
+- **`when`** (exactly one): `{enter: VOLUME}`, `{exit: VOLUME}` (a player crosses the boundary), `{event: "name"}` (another
+  rule `emit`ted it; chains are bounded to 4 per tick), `{every: secs}`, `{after: secs}`, `{start: true}`.
+- **VOLUME** (exactly one): `{zone: id [, height]}` (a `zones` rect from its floor `y` up 3 m, or `height`),
+  `{object: id [, pad]}` (a top-level object's world box, grown by `pad` m — how a coin becomes a trigger), or
+  `{box: [x0,y0,z0,x1,y1,z1]}`. A player is *inside* when its body circle overlaps the volume in x/z and its body height overlaps in y.
+- **`who`**: `any` (default), `human`, `rat`. **`once`**: at most once per match. **`cooldown`**: seconds between firings.
+- **`if`**: an expression over the `vars` and the built-ins `time` (s), `tick`, `players`: numbers, `true`/`false`,
+  `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`.
+- **`do`** (in order): `{set: [var, value]}`, `{add: [var, n]}` (value/n is a number, bool or expression string), `{emit: name}`,
+  `{hide: id}` / `{show: id}` (state a renderer or client acts on), `{teleport: [x,y,z] | spawn_id}` (the triggering player),
+  `{end: outcome}` (the match ends; rules stop), `{impulse: {object, dir: [x,y,z], speed}}` (shove a loose prop).
+
+Everything a rule names — variables, objects, zones, spawn points, events — is checked when the scene loads, with a
+did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mean `score`?`). Rules run inside the
+authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state is part of the
+match checksum. `red_engine2 describe rules` prints this with a runnable example; `recipe coin_run` is a complete game.
+
+### Proving gameplay headless (`checks.sim`, `sim`)
+
+`red_engine2 sim scene.json` plays **scenarios** — scripted players walking through the real simulation at 60 Hz — and
+checks the outcome. They live in `checks.sim` (so `verify` runs them) or a file (`--scenario`):
+
+```json
+"checks": { "sim": [ { "name": "collect all three coins, then win",
+  "players": [ { "id": "p1", "character": "human", "spawn": "spawn_a" } ],
+  "script": [ { "player": "p1", "walk": "-5,-3; 0,3; 5,-2; 8.8,0" } ],
+  "expect": [ { "event": "coin", "count": 3 }, { "var": "score", "eq": 3 }, { "ended": "victory" },
+              { "hidden": "coin_1" }, { "no_event": "ouch" }, { "player": "p1", "near": [8.8, 0], "tol": 0.8 } ] } ] }
+```
+
+Script steps per player run in order (players in parallel): `walk "x,z; x,z"` (steered with the real movement; a walk that gets stuck
+fails the scenario), `wait secs`, `hold {forward, strafe, sprint, crouch, jump, yaw_deg, seconds}`, each with optional
+`until_event: name`. The run ends when a rule ends the match, when all scripts finish (plus `settle_seconds`, default 0.5), or at
+`max_seconds` (default 30). No window, GPU or socket is involved.
+
+### Traces and replay (`sim --trace`, `replay`, `red_server --record`)
+
+A **trace** is a recording of a match: header (engine version, tick rate, map hash, seed, platform), every join / leave / input /
+server impulse in order, the game events, a checksum of *players*, *props* and *rules* every N ticks, and periodic state dumps.
+`red_engine2 replay trace.json` re-runs it with no renderer or socket and reports the **first divergent tick**, which
+component differs, and a compact state diff (`--dump-every 1` when recording gives it at the exact tick); `--against other.json`
+compares two traces of the same match (a desync between two machines). Exact checksums are bit-for-bit on the same platform;
+the simulation's maths uses `libm`, so Windows and Linux are expected to agree, and a millimetre-quantised `coarse` checksum tells
+float noise from a real divergence when they do not. See ADR 0021.
+
 ## Physics rules a map author must know
 
 The live viewer's player is a 0.35 m-radius circle, 2.0 m tall, that walks at 3.2 m/s:
@@ -430,7 +509,8 @@ runs them all with the real engine code and prints PASS/FAIL with evidence (exit
 `walk` replays the route with the per-tick player physics (see [Physics rules](#physics-rules-a-map-author-must-know));
 `views` are golden-image regression tests (`golden/<scene>/<name>.png` beside the scene; recorded on
 first run or with `--bless`; on failure a `golden | now | diff` image is written under `out/verify/`).
-`verify --no-views` skips rendering (no GPU), `--only walk` runs a subset, `--json` is machine-readable.
+`verify --no-views` skips rendering (no GPU), `--only walk` runs a subset; add the global `--json` for the machine-readable envelope.
+`checks.sim` holds headless gameplay scenarios (see [Game rules as data](#game-rules-as-data-vars-rules)).
 
 ## Validation
 

@@ -1,13 +1,14 @@
 //! Offline renderer: builds GPU meshes from a `Scene`, renders frames headlessly (used by frame/tour/catalog/verify).
 
+use crate::characters::{human_parts, rat_parts, RatPose};
+use crate::geometry::{build_stairs_parts, trs};
 use crate::gpu::{
-    create_pipelines, create_post_pipeline, make_shadow_sampler, post_uniform, FrameTargets, Gpu, GlobalUniform, GpuMesh,
-    ObjectUniform, Pipelines, PostFx, MAX_LIGHTS,
+    create_pipelines, create_post_pipeline, make_shadow_sampler, post_uniform, FrameTargets, GlobalUniform, Gpu, GpuMesh, ObjectUniform, Pipelines, PostFx,
+    MAX_LIGHTS,
 };
 use crate::mesh::Mesh;
 use crate::props::prop_parts;
-use crate::schema::{Background, LightKind, Material, Object, ObjectKind, PrimKind, Scene, StairsDef};
-use crate::characters::{human_parts, rat_parts, RatPose};
+use crate::schema::{Background, LightKind, Material, Object, ObjectKind, PrimKind, Scene};
 use crate::skeleton::{HumanoidRig, PoseSample};
 use anyhow::Result;
 use glam::{Mat4, Quat, Vec3};
@@ -39,11 +40,6 @@ fn sample_material(mat: &Material, t: f32) -> SampledMaterial {
     SampledMaterial { color: mat.color.sample(t), metallic: mat.metallic, roughness: mat.roughness, emissive: mat.emissive }
 }
 
-pub(crate) fn trs(pos: Vec3, rot_deg: Vec3, scale: Vec3) -> Mat4 {
-    let rot = Quat::from_euler(glam::EulerRot::XYZ, rot_deg.x.to_radians(), rot_deg.y.to_radians(), rot_deg.z.to_radians());
-    Mat4::from_scale_rotation_translation(scale, rot, pos)
-}
-
 pub(crate) fn build_prim_mesh(p: &PrimKind) -> Mesh {
     match p {
         PrimKind::Box { size } => Mesh::cuboid(*size),
@@ -55,33 +51,9 @@ pub(crate) fn build_prim_mesh(p: &PrimKind) -> Mesh {
     }
 }
 
-/// `steps` solid stacked box treads: step `i` owns its own depth slice of the run
-/// (`[-run/2 + i*step_d, -run/2 + (i+1)*step_d]`) and spans height `[0, (i+1)*step_h]` — each
-/// box is a self-contained solid block, so the whole thing reads as a real staircase silhouette
-/// rather than floating slabs. Purely visual; `viewer::ground_height_at` uses a separate smooth
-/// ramp formula for actually walking on it (see that function's doc comment for why).
-pub(crate) fn build_stairs_parts(s: &StairsDef) -> Vec<(PrimKind, Mat4)> {
-    let step_h = s.rise / s.steps as f32;
-    let step_d = s.run / s.steps as f32;
-    (0..s.steps)
-        .map(|i| {
-            let z_start = -s.run * 0.5 + step_d * i as f32;
-            let y_height = step_h * (i + 1) as f32;
-            let shape = PrimKind::Box { size: Vec3::new(s.width, y_height, step_d) };
-            let center = Vec3::new(0.0, y_height * 0.5, z_start + step_d * 0.5);
-            (shape, Mat4::from_translation(center))
-        })
-        .collect()
-}
-
 /// A character part's final material: its own colour if it has one, else the object's.
 fn char_material(base: &SampledMaterial, part: &crate::characters::CharPart) -> SampledMaterial {
-    SampledMaterial {
-        color: part.color.unwrap_or(base.color),
-        metallic: part.metallic,
-        roughness: part.roughness,
-        emissive: base.emissive,
-    }
+    SampledMaterial { color: part.color.unwrap_or(base.color), metallic: part.metallic, roughness: part.roughness, emissive: base.emissive }
 }
 
 pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
@@ -295,16 +267,10 @@ impl Renderer {
                 material: [mat.metallic, mat.roughness, 0.0, 0.0],
                 emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
             };
-            self.gpu.queue.write_buffer(
-                &self.object_buf,
-                i as u64 * self.object_stride,
-                bytemuck::bytes_of(&obj_uniform),
-            );
+            self.gpu.queue.write_buffer(&self.object_buf, i as u64 * self.object_stride, bytemuck::bytes_of(&obj_uniform));
         }
 
-        let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("frame-encoder"),
-        });
+        let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame-encoder") });
 
         if globals.counts[1] >= 0.0 {
             let mut shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -402,12 +368,7 @@ impl Renderer {
         }
 
         encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture: &self.targets.color_tex,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
+            wgpu::TexelCopyTextureInfo { texture: &self.targets.color_tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
             wgpu::TexelCopyBufferInfo {
                 buffer: &self.targets.staging_buffer,
                 layout: wgpu::TexelCopyBufferLayout {

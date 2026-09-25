@@ -59,7 +59,7 @@ pub fn parse_spawns(scene_json: &str) -> Result<Vec<Spawn>, String> {
     let tgt = cam.get("target").and_then(Value::as_array).filter(|a| a.len() == 3).ok_or("camera.target must be [x, y, z]")?;
     let (px, pz) = (num(&pos[0]).unwrap_or(0.0), num(&pos[2]).unwrap_or(0.0));
     let (tx, tz) = (num(&tgt[0]).unwrap_or(0.0), num(&tgt[2]).unwrap_or(0.0));
-    Ok(vec![Spawn { id: "camera".into(), position: [px, 0.0, pz], yaw_deg: (tx - px).atan2(-(tz - pz)).to_degrees(), group: String::new() }])
+    Ok(vec![Spawn { id: "camera".into(), position: [px, 0.0, pz], yaw_deg: libm::atan2f(tx - px, -(tz - pz)).to_degrees(), group: String::new() }])
 }
 
 #[cfg(test)]

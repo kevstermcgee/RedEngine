@@ -106,8 +106,9 @@ actually connects plays a thunk and flashes the object (a swing through air is s
 **The revolver (mouse wheel).** The human's primary weapon is the bat; **scroll the mouse wheel** to
 draw the silver revolver (scroll again to go back). **Left-click fires**: a hitscan shot along the
 crosshair (80 m), with a muzzle flash, recoil kick, a gunshot, a hit flash on whatever it strikes and a
-punch for loose props. Ammo is **infinite for now** (`weapons::REVOLVER_AMMO`; the limited-ammo variant is
-already written). Cheddar has no weapons.
+punch for loose props. Ammo is **infinite by default**; a scene turns on limited ammo with
+`"weapons": {"revolver": {"ammo": {"loaded": 6, "reserve": 24}}}` (**R** reloads). Cheddar has no weapons. Online, weapons,
+damage, death/respawn and pick-ups run on the server (`sim::interact`).
 
 **Loose props (E).** Both characters can pick up a small prop with **E** (the crosshair turns
 green when you are looking at one you can lift), carry it in front of them, and drop it with **E**
@@ -117,7 +118,7 @@ things about the size of his head (apples, mugs, books) but can shove or bat-kno
 Walking into a small prop pushes it; a bat hit sends light props flying. While carrying, the human
 cannot swing the bat. Physics is [rapier](https://rapier.rs) (see ADR 0012); props sit exactly where
 the map put them until something disturbs them. (Right-click is still reserved for the hider's
-"choose an object to replicate", then **R** — not built yet.) Walls, furniture built from `box` primitives, and every `prop` (one
+"choose an object to replicate" — not built yet.) Walls, furniture built from `box` primitives, and every `prop` (one
 collider per prop's overall footprint, not per part) block movement (a simple
 circle-vs-AABB push-out, axis-aligned); other primitive shapes and the `humanoid` rig don't
 collide yet. Any keyframed objects in the scene still animate on their own clock while you walk
@@ -125,7 +126,7 @@ around, since only the camera is overridden.
 
 Movement/collision/gravity run on a fixed 60Hz timestep decoupled from the render frame rate,
 with the rendered frame interpolating between the last two completed physics states (see
-`App::fixed_step_physics`/`App::update` in `src/bin/re2.rs`) — frame-rate-independent and
+`App::fixed_step_physics`/`App::update` in `src/bin/re2/frame.rs`) — frame-rate-independent and
 resistant to tunneling through thin colliders under a frame-time spike. Rendering itself uses
 4x MSAA and backface culling (every primitive mesh is a closed solid, verified by
 `mesh::tests::all_primitives_are_ccw_front_facing`), plus per-mesh frustum culling against both
@@ -256,8 +257,11 @@ src/
   tools/        # map tools behind the CLI: world, reach, lint, plan, walk, edit, gen, inspect, shots, font
   audio.rs      # synthesized sound effects (no imported samples) + rodio playback
   shaders/      # WGSL: scene (lit + shadow-sampled), shadow (depth-only), background (sky), postfx (clarity)
-  main.rs       # validate / frame / render / storyboard CLI
-  bin/re2.rs    # windowing/input (winit) for the first-person viewer
+  main.rs, cli/ # the `red_engine2` CLI (clap definition + commands, split by theme)
+  bin/re2/      # the windowed game (winit): App state, frame loop, events, weapons, avatar, window
+  bin/red_server.rs, bin/red_bot.rs   # the headless authoritative server and scripted client (build with --no-default-features)
+  sim/          # headless simulation: match, interactions, interest, game rules, scenarios, traces/replay
+  net/          # UDP protocol, server, client, prediction, interpolation
 mcp_server.py   # MCP tool wrapper around the compiled binary (render + lint/plan/reach/walk/tour/edit tools)
 AGENTS.md       # START HERE (AI agents): the map-editing workflow, tool reference, conventions
 SPEC.md         # the scene-language reference (read this, not the source, to use the tool)

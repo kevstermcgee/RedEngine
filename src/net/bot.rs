@@ -3,16 +3,16 @@
 //! `red_bot` binary), and it shares [`ClientWorld`] with the graphical client so both see the same
 //! static map.
 
+use crate::collide::{collect_box_colliders_except, collect_ground_candidates_except, Collider2D, GroundCandidates};
 use crate::net::client::{ConnState, NetClient, NetEvent, TICK_SECS};
 use crate::net::interp::{PlayerPose, PropPose};
 use crate::net::predict::Predictor;
+use crate::net::protocol::character_from_wire;
 use crate::net::protocol::PlayerSnap;
-use crate::net::server::char_from_u8;
 use crate::physics::loose_props;
 use crate::player::Character;
 use crate::schema::Scene;
 use crate::sim::player::{PlayerInput, PlayerState};
-use crate::viewer::{collect_box_colliders_except, collect_ground_candidates_except, Collider2D, GroundCandidates};
 use glam::Vec2;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -111,6 +111,11 @@ pub struct Bot {
     character: Character,
     /// Every event seen, for tests: `(seconds, description)`.
     pub events: Vec<(f64, String)>,
+    /// Action buttons held on every input the bot sends (`PlayerInput::flags` bits: 8 interact, 16 attack, 32 reload,
+    /// 64 switch). The server acts on the press, so set a button for a few ticks, then clear it.
+    pub buttons: u8,
+    /// Look pitch the bot sends, radians (negative = down): tests aim at low props with it.
+    pub pitch: f32,
 }
 
 impl Bot {
@@ -119,11 +124,24 @@ impl Bot {
         let code = if character == Character::Rat { 1 } else { 0 };
         let client = NetClient::connect(server, code, world.map_hash, resume_token)?;
         let now = Instant::now();
-        Ok(Bot { client, predictor: None, world, behavior, started: now, next_tick: now, waypoint: 0, yaw: 0.0, character, events: Vec::new() })
+        Ok(Bot {
+            client,
+            predictor: None,
+            world,
+            behavior,
+            started: now,
+            next_tick: now,
+            waypoint: 0,
+            yaw: 0.0,
+            character,
+            events: Vec::new(),
+            buttons: 0,
+            pitch: 0.0,
+        })
     }
 
     fn own_state(&self, s: &PlayerSnap) -> PlayerState {
-        PlayerState { pos: Vec2::new(s.pos[0], s.pos[2]), foot_y: s.pos[1], vy: s.vy, yaw: s.yaw, pitch: s.pitch, character: char_from_u8(s.character) }
+        PlayerState { pos: Vec2::new(s.pos[0], s.pos[2]), foot_y: s.pos[1], vy: s.vy, yaw: s.yaw, pitch: s.pitch, character: character_from_wire(s.character) }
     }
 
     fn decide(&mut self, st: &PlayerState, dt: f32) -> PlayerInput {
@@ -155,7 +173,14 @@ impl Bot {
             let t = now.duration_since(self.started).as_secs_f64();
             match ev {
                 NetEvent::Connected(w) => {
-                    let st = PlayerState { pos: Vec2::new(w.spawn[0], w.spawn[2]), foot_y: w.spawn[1], vy: 0.0, yaw: w.spawn[3], pitch: 0.0, character: char_from_u8(w.character) };
+                    let st = PlayerState {
+                        pos: Vec2::new(w.spawn[0], w.spawn[2]),
+                        foot_y: w.spawn[1],
+                        vy: 0.0,
+                        yaw: w.spawn[3],
+                        pitch: 0.0,
+                        character: character_from_wire(w.character),
+                    };
                     match &mut self.predictor {
                         Some(p) => p.teleport(st),
                         None => self.predictor = Some(Predictor::new(st)),
@@ -177,16 +202,21 @@ impl Bot {
                 NetEvent::ServerBye => self.events.push((t, "server said bye".into())),
             }
         }
-        if self.client.state() != ConnState::Connected || self.predictor.is_none() {
+        if self.client.state() != ConnState::Connected {
             self.next_tick = now;
             return;
         }
         let tick = Duration::from_secs_f64(TICK_SECS);
         let mut ran = 0;
         while now >= self.next_tick && ran < 8 {
-            let state = self.predictor.as_ref().expect("checked").state;
+            let Some(state) = self.predictor.as_ref().map(|p| p.state) else {
+                self.next_tick = now; // connected but no snapshot yet: nothing to predict from
+                return;
+            };
             let mut input = self.decide(&state, TICK_SECS as f32);
-            let p = self.predictor.as_mut().expect("checked");
+            input = input.with_flags(input.flags() | self.buttons);
+            input.pitch = self.pitch;
+            let Some(p) = self.predictor.as_mut() else { return };
             input.seq = p.next_seq();
             p.apply_local(input, &self.world.colliders, &self.world.ground);
             self.client.send_input(input, now);

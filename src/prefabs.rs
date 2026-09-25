@@ -143,11 +143,7 @@ impl Library {
 fn param_spec(name: &str, v: &Value) -> ParamDef {
     // `{"default": .., "desc": ..}` is a spec; anything else is just the default value.
     match v.as_object().filter(|o| o.contains_key("default")) {
-        Some(o) => ParamDef {
-            name: name.to_string(),
-            default: o["default"].clone(),
-            desc: o.get("desc").and_then(Value::as_str).unwrap_or("").to_string(),
-        },
+        Some(o) => ParamDef { name: name.to_string(), default: o["default"].clone(), desc: o.get("desc").and_then(Value::as_str).unwrap_or("").to_string() },
         None => ParamDef { name: name.to_string(), default: v.clone(), desc: String::new() },
     }
 }
@@ -193,7 +189,12 @@ fn build_def(name: &str, o: &Map<String, Value>, category: &str, lib: &Library) 
         category: category.to_string(),
         tags,
         desc: o.get("desc").and_then(Value::as_str).map(str::to_string).or_else(|| base.as_ref().map(|b| b.desc.clone())).unwrap_or_default(),
-        mount: o.get("mount").and_then(Value::as_str).map(str::to_string).or_else(|| base.as_ref().map(|b| b.mount.clone())).unwrap_or_else(|| "floor".to_string()),
+        mount: o
+            .get("mount")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| base.as_ref().map(|b| b.mount.clone()))
+            .unwrap_or_else(|| "floor".to_string()),
         params,
         objects,
         collide: o.get("collide").and_then(Value::as_bool).or_else(|| base.as_ref().map(|b| b.collide)).unwrap_or(true),
@@ -453,6 +454,7 @@ pub fn expand_instance(lib: &Library, inst: &Map<String, Value>, id: &str, depth
     }
     let mut params: BTreeMap<String, Value> = def.params.iter().map(|p| (p.name.clone(), p.default.clone())).collect();
     let mut errs = Vec::new();
+    crate::strict::check_keys(&mut errs, id, inst, crate::strict::PREFAB_INSTANCE_KEYS);
     if let Some(given) = inst.get("params") {
         match given.as_object() {
             Some(g) => {
@@ -524,9 +526,9 @@ fn expand_list(lib: &Library, objects: &mut [Value], depth: usize) -> Vec<String
 }
 
 fn contains_prefab(objects: &[Value]) -> bool {
-    objects.iter().any(|o| {
-        o.get("type").and_then(Value::as_str) == Some("prefab") || o.get("children").and_then(Value::as_array).is_some_and(|k| contains_prefab(k))
-    })
+    objects
+        .iter()
+        .any(|o| o.get("type").and_then(Value::as_str) == Some("prefab") || o.get("children").and_then(Value::as_array).is_some_and(|k| contains_prefab(k)))
 }
 
 /// The pre-pass `schema::parse_scene` runs: registers the scene's own `prefabs` and replaces

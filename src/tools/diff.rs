@@ -49,7 +49,12 @@ fn changes(path: &str, a: &Value, b: &Value, out: &mut Vec<String>) {
 }
 
 fn by_id(v: &Value, key: &str) -> BTreeMap<String, Value> {
-    v.get(key).and_then(Value::as_array).map(|a| a.iter().enumerate().map(|(i, o)| (o.get("id").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| format!("#{i}")), o.clone())).collect()).unwrap_or_default()
+    v.get(key)
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter().enumerate().map(|(i, o)| (o.get("id").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| format!("#{i}")), o.clone())).collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Result of a semantic scene diff: human-readable text and whether anything changed.

@@ -6,10 +6,10 @@
 //! builds, plus the optional authoring metadata that lives in the raw JSON but not in the
 //! compiled scene (`zones`, per-object `lint_ignore`).
 
+use crate::collide::{collect_box_colliders, collect_ground_candidates, Collider2D, GroundCandidates};
+use crate::geometry::trs;
 use crate::props::{collision, collision_box, local_bounds, prop_parts, Collision, PropKind};
-use crate::render::trs;
 use crate::schema::{Object, ObjectKind, PrimKind, Scene};
-use crate::viewer::{collect_box_colliders, collect_ground_candidates, Collider2D, GroundCandidates};
 use glam::{Mat4, Vec2, Vec3};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -290,11 +290,7 @@ fn footprint_of(world: Mat4, center: Vec3, half: Vec3) -> Obb {
     let tilted = world.x_axis.y.abs() > 1e-3 || world.z_axis.y.abs() > 1e-3 || world.y_axis.x.abs() > 1e-3 || world.y_axis.z.abs() > 1e-3;
     if !tilted && x_axis.length() > 1e-6 && z_axis.length() > 1e-6 {
         let c = world.transform_point3(center);
-        return Obb {
-            center: Vec2::new(c.x, c.z),
-            half: Vec2::new(half.x * x_axis.length(), half.z * z_axis.length()),
-            axis: x_axis.normalize(),
-        };
+        return Obb { center: Vec2::new(c.x, c.z), half: Vec2::new(half.x * x_axis.length(), half.z * z_axis.length()), axis: x_axis.normalize() };
     }
     let (min, max) = aabb_of(world, center, half);
     Obb { center: Vec2::new((min.x + max.x) * 0.5, (min.z + max.z) * 0.5), half: Vec2::new((max.x - min.x) * 0.5, (max.z - min.z) * 0.5), axis: Vec2::X }
@@ -386,10 +382,7 @@ fn flatten_object(o: &Object, top_id: &str, parent: Mat4, collide: bool, ignores
                     let (bmin, bmax) = collision_box(p.kind).expect("box collision has a box");
                     vec![aabb_of(world, (bmin + bmax) * 0.5, (bmax - bmin) * 0.5)]
                 }
-                Collision::Union => prop_parts(p.kind)
-                    .iter()
-                    .map(|part| aabb_of(world * part.local_transform, Vec3::ZERO, part.shape.half_extent()))
-                    .collect(),
+                Collision::Union => prop_parts(p.kind).iter().map(|part| aabb_of(world * part.local_transform, Vec3::ZERO, part.shape.half_extent())).collect(),
             };
             let footprint = collision_box(p.kind)
                 .map(|(bmin, bmax)| footprint_of(world, (bmin + bmax) * 0.5, (bmax - bmin) * 0.5))

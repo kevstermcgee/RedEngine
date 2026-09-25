@@ -3,11 +3,13 @@
 //! measured sizes, parameters, and a paste-ready usage snippet. `catalog --sheet out.png`
 //! renders a labelled contact sheet so an AI (or a human) can *see* what exists before building.
 
+#[cfg(feature = "gfx")]
 use super::font::{draw_text, text_width};
 use super::world::MapWorld;
 use crate::prefabs;
 use crate::props::{local_bounds, PropKind};
 use glam::Vec3;
+#[cfg(feature = "gfx")]
 use image::{Rgb, RgbImage};
 use serde_json::{json, Value};
 use std::path::Path;
@@ -167,7 +169,10 @@ pub fn filter<'a>(all: &'a [Entry], query: Option<&str>, tag: Option<&str>, cate
         .filter(|e| kind.is_none_or(|k| e.kind == k))
         .filter(|e| {
             words.iter().all(|w| {
-                e.name.contains(w.as_str()) || e.category.contains(w.as_str()) || e.tags.iter().any(|t| t.contains(w.as_str())) || e.desc.to_lowercase().contains(w.as_str())
+                e.name.contains(w.as_str())
+                    || e.category.contains(w.as_str())
+                    || e.tags.iter().any(|t| t.contains(w.as_str()))
+                    || e.desc.to_lowercase().contains(w.as_str())
             })
         })
         .collect()
@@ -244,7 +249,13 @@ pub fn render_detail(e: &Entry, json_out: bool) -> String {
         return serde_json::to_string_pretty(&entry_json(e)).unwrap();
     }
     let s = e.size();
-    let mut out = format!("{} ({}{}){}\n", e.name, e.kind, e.variant_of.as_ref().map(|b| format!(", variant of {b}")).unwrap_or_default(), if e.desc.is_empty() { String::new() } else { format!(" — {}", e.desc) });
+    let mut out = format!(
+        "{} ({}{}){}\n",
+        e.name,
+        e.kind,
+        e.variant_of.as_ref().map(|b| format!(", variant of {b}")).unwrap_or_default(),
+        if e.desc.is_empty() { String::new() } else { format!(" — {}", e.desc) }
+    );
     out.push_str(&format!("size {:.2} x {:.2} x {:.2} m (w x h x d)   bounds y {:.2}..{:.2}   mount: {}\n", s.x, s.y, s.z, e.min.y, e.max.y, e.mount));
     out.push_str(&format!("tags: {}\n", e.tags.join(" ")));
     out.push_str(&format!(
@@ -268,8 +279,15 @@ pub fn render_detail(e: &Entry, json_out: bool) -> String {
     out
 }
 
+/// Unavailable without the `gfx` feature (no renderer in this build).
+#[cfg(not(feature = "gfx"))]
+pub fn sheet(_rows: &[&Entry], _out: &Path, _cols: u32, _tile: (u32, u32)) -> Result<(), String> {
+    Err(super::NO_GFX.to_string())
+}
+
 /// Renders `rows` as a labelled contact sheet: one 3/4-view tile per asset, name on top, real
 /// size at the bottom. Tiny assets are scaled up for framing only (the label shows true size).
+#[cfg(feature = "gfx")]
 pub fn sheet(rows: &[&Entry], out: &Path, cols: u32, tile: (u32, u32)) -> Result<(), String> {
     if rows.is_empty() {
         return Err("nothing to render (the filter matched no assets)".to_string());
@@ -371,7 +389,11 @@ mod tests {
     #[test]
     fn every_prop_has_catalogue_info() {
         for k in PropKind::ALL {
-            assert!(PROP_INFO.iter().any(|(n, t, d)| *n == k.name() && !t.is_empty() && !d.is_empty()), "prop '{}' has no PROP_INFO entry (tags + description)", k.name());
+            assert!(
+                PROP_INFO.iter().any(|(n, t, d)| *n == k.name() && !t.is_empty() && !d.is_empty()),
+                "prop '{}' has no PROP_INFO entry (tags + description)",
+                k.name()
+            );
         }
         for (n, _, _) in PROP_INFO {
             assert!(PropKind::from_name(n).is_some(), "PROP_INFO names unknown prop '{n}'");

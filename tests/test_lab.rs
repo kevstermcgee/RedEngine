@@ -4,12 +4,12 @@
 //! playtest. (The map's own `checks` block — lint, reach, real-physics walks — runs from `verify`.)
 
 use glam::{Mat4, Vec3};
+use red_engine2::collide::{collect_box_colliders_except, collect_ground_candidates_except};
 use red_engine2::hit::{collect_hit_shapes_where, raycast_shapes};
 use red_engine2::physics::PropWorld;
 use red_engine2::player::{step_horizontal_r, Character};
 use red_engine2::schema::Scene;
 use red_engine2::tools::verify::{run, Options};
-use red_engine2::viewer::{collect_box_colliders_except, collect_ground_candidates_except};
 use std::path::Path;
 
 fn lab() -> Scene {

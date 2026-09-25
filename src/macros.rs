@@ -124,6 +124,7 @@ fn expand_wall(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> Ve
                 errs.push(format!("{path}: must be an object"));
                 continue;
             };
+            crate::strict::check_keys(errs, &path, o, crate::strict::OPENING_KEYS);
             let kind = o.get("kind").and_then(Value::as_str).unwrap_or("door");
             let (def_h, def_sill) = match kind {
                 "door" => (2.2, 0.0),
@@ -144,7 +145,8 @@ fn expand_wall(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> Ve
             if kind == "door" && oh < crate::player::PLAYER_HEADROOM {
                 errs.push(format!(
                     "{path}.height: a door must be at least {:.2} m tall (got {:.2}) — the player's body is 2.0 m, so a lower header blocks the doorway",
-                    crate::player::PLAYER_HEADROOM, oh
+                    crate::player::PLAYER_HEADROOM,
+                    oh
                 ));
                 continue;
             }
@@ -153,12 +155,7 @@ fn expand_wall(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> Ve
                 continue;
             }
             if at - width * 0.5 < -1e-3 || at + width * 0.5 > len + 1e-3 {
-                errs.push(format!(
-                    "{path}.at: opening spans {:.2}..{:.2} but the wall is only {:.2} long",
-                    at - width * 0.5,
-                    at + width * 0.5,
-                    len
-                ));
+                errs.push(format!("{path}.at: opening spans {:.2}..{:.2} but the wall is only {:.2} long", at - width * 0.5, at + width * 0.5, len));
                 continue;
             }
             if sill + oh > height + 1e-3 {
@@ -180,6 +177,9 @@ fn expand_wall(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> Ve
         }
     }
 
+    if let Some(Value::Object(b)) = obj.get("baseboard") {
+        crate::strict::check_keys(errs, &format!("{id}.baseboard"), b, crate::strict::BASEBOARD_KEYS);
+    }
     let base = obj.get("baseboard").map(|b| match b {
         Value::String(s) => (s.clone(), 0.12),
         Value::Object(m) => (m.get("color").and_then(Value::as_str).unwrap_or("#f2efe8").to_string(), num(m, "height", 0.12)),
@@ -297,6 +297,9 @@ fn expand_fence(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> V
     let mut gaps: Vec<([f32; 2], f32)> = Vec::new();
     if let Some(arr) = obj.get("gaps").and_then(Value::as_array) {
         for (i, g) in arr.iter().enumerate() {
+            if let Some(go) = g.as_object() {
+                crate::strict::check_keys(errs, &format!("{id}.gaps[{i}]"), go, crate::strict::GAP_KEYS);
+            }
             match (g.get("at").and_then(|v| xz(Some(v))), g.get("width").and_then(Value::as_f64)) {
                 (Some(at), Some(w)) if w > 0.0 => gaps.push((at, w as f32)),
                 _ => errs.push(format!("{id}.gaps[{i}]: needs 'at': [x, z] and 'width' > 0")),
@@ -496,7 +499,10 @@ mod tests {
                                 assert!(
                                     overlap(0) * overlap(1) < 1e-9,
                                     "trim={trim} base={base}: '{}' and '{}' have coplanar overlapping faces (axis {}, at {:.4})",
-                                    all[i].0, all[j].0, fa.0, fa.2
+                                    all[i].0,
+                                    all[j].0,
+                                    fa.0,
+                                    fa.2
                                 );
                             }
                         }

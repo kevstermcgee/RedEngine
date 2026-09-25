@@ -57,11 +57,7 @@ fn stairs_lead_up_to_every_bedroom_and_the_bathroom() {
 
 #[test]
 fn back_door_patio_and_shed() {
-    assert_route(
-        "back yard and shed",
-        &[(0.0, -8.0), (0.0, 0.8), (0.0, 11.0), (0.0, 13.0), (5.0, 16.0), (9.0, 18.0), (9.0, 21.0)],
-        0.0,
-    );
+    assert_route("back yard and shed", &[(0.0, -8.0), (0.0, 0.8), (0.0, 11.0), (0.0, 13.0), (5.0, 16.0), (9.0, 18.0), (9.0, 21.0)], 0.0);
 }
 
 #[test]

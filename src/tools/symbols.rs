@@ -251,7 +251,9 @@ fn scan(rel: &str, lines: &[String], out: &mut Vec<Symbol>) {
         let sig: String = sig.split('{').next().unwrap_or("").trim().trim_end_matches(';').split_whitespace().collect::<Vec<_>>().join(" ");
         let sig = if sig.chars().count() > 150 { format!("{}…", sig.chars().take(150).collect::<String>()) } else { sig };
         let container = stack.iter().rev().find(|(_, _, is_type)| *is_type).map(|(c, _, _)| c.clone());
-        let in_tests = stack.iter().any(|(c, _, _)| c == "tests" || c.ends_with("_tests")) || rel.starts_with("tests/") || (kind == "mod" && (name == "tests" || name.ends_with("_tests")));
+        let in_tests = stack.iter().any(|(c, _, _)| c == "tests" || c.ends_with("_tests"))
+            || rel.starts_with("tests/")
+            || (kind == "mod" && (name == "tests" || name.ends_with("_tests")));
         if matches!(kind, "impl" | "mod" | "trait") {
             stack.push((name.clone(), end, kind != "mod"));
         }
@@ -340,10 +342,15 @@ pub fn outline(ix: &Index, file: &str, all: bool) -> Result<String, String> {
     let f = match matches.as_slice() {
         [] => return Err(format!("no source file matches '{file}' (try `src map`)")),
         [f] => *f,
-        many => many.iter().find(|f| f.rel.ends_with(&format!("/{file}")) || f.rel.ends_with(&format!("/{file}.rs"))).copied().ok_or_else(|| format!("'{file}' is ambiguous: {}", many.iter().map(|f| f.rel.as_str()).collect::<Vec<_>>().join(", ")))?,
+        many => many
+            .iter()
+            .find(|f| f.rel.ends_with(&format!("/{file}")) || f.rel.ends_with(&format!("/{file}.rs")))
+            .copied()
+            .ok_or_else(|| format!("'{file}' is ambiguous: {}", many.iter().map(|f| f.rel.as_str()).collect::<Vec<_>>().join(", ")))?,
     };
     let mut out = format!("{} ({} lines)\n", f.rel, f.lines.len());
-    for s in ix.symbols.iter().filter(|s| s.file == f.rel && (all || (s.public && !s.in_tests) || s.kind == "impl") && !(s.kind == "mod" && s.name == "tests")) {
+    for s in ix.symbols.iter().filter(|s| s.file == f.rel && (all || (s.public && !s.in_tests) || s.kind == "impl") && !(s.kind == "mod" && s.name == "tests"))
+    {
         let indent = if s.container.is_some() { "    " } else { "" };
         if s.kind == "impl" {
             if all {
@@ -364,7 +371,8 @@ pub fn show(ix: &Index, query: &str, max_lines: usize) -> Result<String, String>
     let ws = words(query);
     let hits = find(ix, query, None, None, true, 8);
     // Prefer an exact qualified-name / name match.
-    let exact: Vec<&&Symbol> = hits.iter().filter(|s| ws.iter().all(|w| s.name.to_lowercase() == *w || s.container.as_deref().is_some_and(|c| c.to_lowercase() == *w))).collect();
+    let exact: Vec<&&Symbol> =
+        hits.iter().filter(|s| ws.iter().all(|w| s.name.to_lowercase() == *w || s.container.as_deref().is_some_and(|c| c.to_lowercase() == *w))).collect();
     let pick: &Symbol = match (exact.as_slice(), hits.as_slice()) {
         ([one], _) => one,
         ([first, ..], _) => {
@@ -382,7 +390,13 @@ pub fn show(ix: &Index, query: &str, max_lines: usize) -> Result<String, String>
 fn show_symbol(ix: &Index, s: &Symbol, max_lines: usize) -> Result<String, String> {
     let f = ix.file(&s.file).ok_or("file vanished")?;
     let end = s.end.min(s.line + max_lines - 1);
-    let mut out = format!("{}:{}-{}{}\n", s.file, s.line, s.end, if end < s.end { format!("  (showing {max_lines} of {} lines; --lines N for more)", s.end - s.line + 1) } else { String::new() });
+    let mut out = format!(
+        "{}:{}-{}{}\n",
+        s.file,
+        s.line,
+        s.end,
+        if end < s.end { format!("  (showing {max_lines} of {} lines; --lines N for more)", s.end - s.line + 1) } else { String::new() }
+    );
     for l in s.line..=end {
         out.push_str(&format!("{l:>5}  {}\n", f.lines[l - 1]));
     }
@@ -414,7 +428,13 @@ pub fn refs(ix: &Index, name: &str, limit: usize) -> String {
                 if defs.contains(&(f.rel.clone(), i + 1)) {
                     break;
                 }
-                let encl = ix.symbols.iter().filter(|s| s.file == f.rel && s.kind == "fn" && s.line <= i + 1 && i < s.end).min_by_key(|s| s.end - s.line).map(|s| s.qualified()).unwrap_or_default();
+                let encl = ix
+                    .symbols
+                    .iter()
+                    .filter(|s| s.file == f.rel && s.kind == "fn" && s.line <= i + 1 && i < s.end)
+                    .min_by_key(|s| s.end - s.line)
+                    .map(|s| s.qualified())
+                    .unwrap_or_default();
                 by_file.entry(f.rel.as_str()).or_default().push((i + 1, l.trim().chars().take(110).collect(), encl));
                 total += 1;
                 break;
@@ -467,7 +487,12 @@ pub fn modules(ix: &Index) -> Vec<ModInfo> {
     let mut out = Vec::new();
     for f in ix.files.iter().filter(|f| f.rel.starts_with("src/")) {
         let name = module_of(&f.rel);
-        let purpose = f.lines.iter().take_while(|l| l.trim_start().starts_with("//!") || l.trim().is_empty()).find_map(|l| l.trim_start().strip_prefix("//!").map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).unwrap_or_default();
+        let purpose = f
+            .lines
+            .iter()
+            .take_while(|l| l.trim_start().starts_with("//!") || l.trim().is_empty())
+            .find_map(|l| l.trim_start().strip_prefix("//!").map(|s| s.trim().to_string()).filter(|s| !s.is_empty()))
+            .unwrap_or_default();
         let mut uses = BTreeSet::new();
         let in_tools = name.starts_with("tools::");
         for l in &f.lines {
@@ -475,7 +500,8 @@ pub fn modules(ix: &Index) -> Vec<ModInfo> {
             let mut rest = code;
             while let Some(p) = rest.find("crate::") {
                 rest = &rest[p + 7..];
-                let seg: Vec<&str> = rest.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':')).next().unwrap_or("").split("::").filter(|s| !s.is_empty()).collect();
+                let seg: Vec<&str> =
+                    rest.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':')).next().unwrap_or("").split("::").filter(|s| !s.is_empty()).collect();
                 if let Some(first) = seg.first() {
                     let cand2 = seg.get(1).map(|s| format!("{first}::{s}"));
                     let m = cand2.filter(|c| known.contains(c)).unwrap_or_else(|| first.to_string());
@@ -503,7 +529,8 @@ pub fn modules(ix: &Index) -> Vec<ModInfo> {
 /// Renders `src map`.
 pub fn render_map(ix: &Index) -> String {
     let mods = modules(ix);
-    let mut out = format!("{} source files, {} symbols. `src outline <mod>` lists a file, `src show <symbol>` prints one item.\n\n", ix.files.len(), ix.symbols.len());
+    let mut out =
+        format!("{} source files, {} symbols. `src outline <mod>` lists a file, `src show <symbol>` prints one item.\n\n", ix.files.len(), ix.symbols.len());
     let w = mods.iter().map(|m| m.name.len()).max().unwrap_or(8);
     for m in &mods {
         out.push_str(&format!("{:<w$} {:>5}L {:>3}pub  {}\n", m.name, m.lines, m.pub_items, m.purpose.chars().take(96).collect::<String>(), w = w));
@@ -533,7 +560,12 @@ pub fn render_deps(ix: &Index, module: Option<&str>) -> Result<String, String> {
     };
     for m in sel {
         let ub: Vec<&str> = used_by.get(m.name.as_str()).map(|s| s.iter().copied().collect()).unwrap_or_default();
-        out.push_str(&format!("{}\n    uses:    {}\n    used by: {}\n", m.name, if m.uses.is_empty() { "-".to_string() } else { m.uses.iter().cloned().collect::<Vec<_>>().join(", ") }, if ub.is_empty() { "-".to_string() } else { ub.join(", ") }));
+        out.push_str(&format!(
+            "{}\n    uses:    {}\n    used by: {}\n",
+            m.name,
+            if m.uses.is_empty() { "-".to_string() } else { m.uses.iter().cloned().collect::<Vec<_>>().join(", ") },
+            if ub.is_empty() { "-".to_string() } else { ub.join(", ") }
+        ));
     }
     Ok(out)
 }
@@ -542,7 +574,8 @@ pub fn render_deps(ix: &Index, module: Option<&str>) -> Result<String, String> {
 /// gaps, and the undocumented items themselves (up to `limit`). `///` docs are what `src find/show`
 /// and `search` show instead of source, so a public item without one is invisible to an AI.
 pub fn coverage(ix: &Index, file: Option<&str>, limit: usize) -> String {
-    let items: Vec<&Symbol> = ix.symbols.iter().filter(|s| s.public && !s.in_tests && !matches!(s.kind, "impl" | "mod") && file.is_none_or(|f| s.file.contains(f))).collect();
+    let items: Vec<&Symbol> =
+        ix.symbols.iter().filter(|s| s.public && !s.in_tests && !matches!(s.kind, "impl" | "mod") && file.is_none_or(|f| s.file.contains(f))).collect();
     let missing: Vec<&Symbol> = items.iter().copied().filter(|s| s.doc.trim().is_empty()).collect();
     let pct = if items.is_empty() { 100.0 } else { 100.0 * (items.len() - missing.len()) as f32 / items.len() as f32 };
     let mut out = format!("{} of {} public items documented ({pct:.0}%).\n", items.len() - missing.len(), items.len());

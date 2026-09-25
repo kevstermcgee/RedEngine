@@ -5,7 +5,7 @@ Status: accepted
 Roadmap items 3-5 (ADR 0015): make the simulation authoritative in a headless process, put a real
 low-latency transport around it, and prove one server + two independently running graphical clients in the
 Test Lab. Constraint from the brief: nothing here may need a window, GPU or audio device on the server side
-of the design (the `red_server` binary still *links* wgpu/rodio because the crate is not yet split, ADR 0010).
+of the design (update: the crate is now split by a `gfx` feature and `red_server` links none of them, ADR 0017).
 
 ## Decision
 **Authority.** `sim::match_sim::MatchSim` owns every player and every physics prop and is ticked at 60 Hz. A
@@ -59,13 +59,14 @@ restarts things), `scripts/play_multiplayer.ps1`.
 ## Known limits (deliberately not done)
 No interest management (everyone gets every player and changed prop), no encryption or real authentication
 (the resume token is only unguessable by accident), no lag compensation (nothing is hit-tested over the network
-yet), weapons and pick-up are not networked, players do not collide with each other, at most 8 players. RTT is
+yet), players do not collide with each other, at most 8 players. RTT is
 measured at the client's frame rate (~1 frame of quantisation, so loopback reads 8-15 ms). Prediction and the
 server use the platform's libm trig, so a Windows client against a Linux server may correct by millimetres
-(hazard 3 in ADR 0014). The server links wgpu/alsa until the crate is split (ADR 0010).
+(hazard 3 in ADR 0014; ADR 0021 switched the simulation maths to `libm`). Weapons and pick-up were not networked when this was written:
+they are now (ADR 0022). The server no longer links wgpu/alsa (ADR 0017).
 
 ## Consequences
-- `MatchSim::checksum()` is the seed of deterministic replay / desync detection (roadmap 6); not wired to the
-  network yet.
+- `MatchSim::checksum()` was the seed of deterministic replay / desync detection: see ADR 0021 (`red_server --record`,
+  `red_engine2 replay`).
 - Adding an authoritative feature = add it to `MatchSim`, then to `PlayerSnap`/`PropSnap` (bump
   `PROTOCOL_VERSION`), then test it in `net_e2e`.

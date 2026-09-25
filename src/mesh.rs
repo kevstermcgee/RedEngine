@@ -14,8 +14,7 @@ pub struct Vertex {
 
 impl Vertex {
     /// Vertex attribute layout matching `Vertex` (location 0 position, 1 normal).
-    pub const ATTRS: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+    pub const ATTRS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
 
     /// The wgpu vertex-buffer layout for `Vertex`.
     pub fn layout() -> wgpu::VertexBufferLayout<'static> {
@@ -48,36 +47,12 @@ impl Mesh {
         let h = size * 0.5;
         let mut m = Mesh::default();
         // +Y top, -Y bottom, +X right, -X left, +Z front, -Z back
-        Mesh::quad(
-            Vec3::new(-h.x, h.y, -h.z), Vec3::new(-h.x, h.y, h.z),
-            Vec3::new(h.x, h.y, h.z), Vec3::new(h.x, h.y, -h.z),
-            Vec3::Y, &mut m,
-        );
-        Mesh::quad(
-            Vec3::new(-h.x, -h.y, h.z), Vec3::new(-h.x, -h.y, -h.z),
-            Vec3::new(h.x, -h.y, -h.z), Vec3::new(h.x, -h.y, h.z),
-            -Vec3::Y, &mut m,
-        );
-        Mesh::quad(
-            Vec3::new(h.x, -h.y, h.z), Vec3::new(h.x, -h.y, -h.z),
-            Vec3::new(h.x, h.y, -h.z), Vec3::new(h.x, h.y, h.z),
-            Vec3::X, &mut m,
-        );
-        Mesh::quad(
-            Vec3::new(-h.x, -h.y, -h.z), Vec3::new(-h.x, -h.y, h.z),
-            Vec3::new(-h.x, h.y, h.z), Vec3::new(-h.x, h.y, -h.z),
-            -Vec3::X, &mut m,
-        );
-        Mesh::quad(
-            Vec3::new(h.x, -h.y, h.z), Vec3::new(h.x, h.y, h.z),
-            Vec3::new(-h.x, h.y, h.z), Vec3::new(-h.x, -h.y, h.z),
-            Vec3::Z, &mut m,
-        );
-        Mesh::quad(
-            Vec3::new(-h.x, -h.y, -h.z), Vec3::new(-h.x, h.y, -h.z),
-            Vec3::new(h.x, h.y, -h.z), Vec3::new(h.x, -h.y, -h.z),
-            -Vec3::Z, &mut m,
-        );
+        Mesh::quad(Vec3::new(-h.x, h.y, -h.z), Vec3::new(-h.x, h.y, h.z), Vec3::new(h.x, h.y, h.z), Vec3::new(h.x, h.y, -h.z), Vec3::Y, &mut m);
+        Mesh::quad(Vec3::new(-h.x, -h.y, h.z), Vec3::new(-h.x, -h.y, -h.z), Vec3::new(h.x, -h.y, -h.z), Vec3::new(h.x, -h.y, h.z), -Vec3::Y, &mut m);
+        Mesh::quad(Vec3::new(h.x, -h.y, h.z), Vec3::new(h.x, -h.y, -h.z), Vec3::new(h.x, h.y, -h.z), Vec3::new(h.x, h.y, h.z), Vec3::X, &mut m);
+        Mesh::quad(Vec3::new(-h.x, -h.y, -h.z), Vec3::new(-h.x, -h.y, h.z), Vec3::new(-h.x, h.y, h.z), Vec3::new(-h.x, h.y, -h.z), -Vec3::X, &mut m);
+        Mesh::quad(Vec3::new(h.x, -h.y, h.z), Vec3::new(h.x, h.y, h.z), Vec3::new(-h.x, h.y, h.z), Vec3::new(-h.x, -h.y, h.z), Vec3::Z, &mut m);
+        Mesh::quad(Vec3::new(-h.x, -h.y, -h.z), Vec3::new(-h.x, h.y, -h.z), Vec3::new(h.x, h.y, -h.z), Vec3::new(h.x, -h.y, -h.z), -Vec3::Z, &mut m);
         m
     }
 
@@ -226,11 +201,7 @@ impl Mesh {
         let mut m = Mesh::default();
         let hw = width * 0.5;
         let hd = depth * 0.5;
-        Mesh::quad(
-            Vec3::new(-hw, 0.0, hd), Vec3::new(hw, 0.0, hd),
-            Vec3::new(hw, 0.0, -hd), Vec3::new(-hw, 0.0, -hd),
-            Vec3::Y, &mut m,
-        );
+        Mesh::quad(Vec3::new(-hw, 0.0, hd), Vec3::new(hw, 0.0, hd), Vec3::new(hw, 0.0, -hd), Vec3::new(-hw, 0.0, -hd), Vec3::Y, &mut m);
         m
     }
 }
@@ -283,10 +254,8 @@ mod tests {
             if winding_normal.length_squared() < 1e-12 {
                 continue;
             }
-            let avg_shading_normal = (Vec3::from_array(m.vertices[a].normal)
-                + Vec3::from_array(m.vertices[b].normal)
-                + Vec3::from_array(m.vertices[c].normal))
-                / 3.0;
+            let avg_shading_normal =
+                (Vec3::from_array(m.vertices[a].normal) + Vec3::from_array(m.vertices[b].normal) + Vec3::from_array(m.vertices[c].normal)) / 3.0;
             assert!(
                 winding_normal.dot(avg_shading_normal) > 0.0,
                 "{name}: triangle ({a},{b},{c}) wound opposite its stored normals — backface culling would hide it"

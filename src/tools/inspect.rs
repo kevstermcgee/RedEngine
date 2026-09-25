@@ -30,16 +30,13 @@ fn rows(world: &MapWorld, all: bool) -> Vec<Row> {
         let key = if all { it.id.clone() } else { it.top_id.clone() };
         let kind = if all || it.top_id == it.id { it.kind.label() } else { "group".to_string() };
         let macro_kind = if !all && it.top_id != it.id {
-            world
-                .raw
-                .get("objects")
-                .and_then(Value::as_array)
-                .and_then(|a| a.iter().find(|o| o.get("id").and_then(Value::as_str) == Some(&it.top_id)))
-                .map(|o| match o.get("type").and_then(Value::as_str) {
+            world.raw.get("objects").and_then(Value::as_array).and_then(|a| a.iter().find(|o| o.get("id").and_then(Value::as_str) == Some(&it.top_id))).map(
+                |o| match o.get("type").and_then(Value::as_str) {
                     Some("prefab") => format!("prefab:{}", o.get("prefab").and_then(Value::as_str).unwrap_or("?")),
                     Some(t) => t.to_string(),
                     None => "?".to_string(),
-                })
+                },
+            )
         } else {
             None
         };
@@ -89,7 +86,10 @@ pub fn object_info(world: &MapWorld, id: &str, findings: &[Finding]) -> Result<S
         let mut close: Vec<&str> = world.items.iter().map(|i| i.top_id.as_str()).filter(|t| t.contains(id) || id.contains(*t)).collect();
         close.sort();
         close.dedup();
-        return Err(format!("no object '{id}'{}", if close.is_empty() { String::new() } else { format!(" (did you mean: {}?)", close.iter().take(6).cloned().collect::<Vec<_>>().join(", ")) }));
+        return Err(format!(
+            "no object '{id}'{}",
+            if close.is_empty() { String::new() } else { format!(" (did you mean: {}?)", close.iter().take(6).cloned().collect::<Vec<_>>().join(", ")) }
+        ));
     }
     let mut min = Vec3::splat(f32::INFINITY);
     let mut max = Vec3::splat(f32::NEG_INFINITY);

@@ -14,6 +14,7 @@ pub const FILES: &[(&str, &str)] = &[
     ("two_floor_house", include_str!("../../recipes/two_floor_house.json")),
     ("convenience_store", include_str!("../../recipes/convenience_store.json")),
     ("classroom_wing", include_str!("../../recipes/classroom_wing.json")),
+    ("coin_run", include_str!("../../recipes/coin_run.json")),
 ];
 
 /// A known-good example map, parsed, with its `recipe` metadata block.
@@ -60,7 +61,10 @@ pub fn render_one(name: &str) -> Result<String, String> {
     let all = all();
     let Some(r) = all.iter().find(|r| r.name == name) else {
         let hint = crate::prefabs::suggest(name, all.iter().map(|r| r.name));
-        return Err(format!("no recipe '{name}'{} — run `red_engine2 recipe`", if hint.is_empty() { String::new() } else { format!(" (did you mean {}?)", hint.join(", ")) }));
+        return Err(format!(
+            "no recipe '{name}'{} — run `red_engine2 recipe`",
+            if hint.is_empty() { String::new() } else { format!(" (did you mean {}?)", hint.join(", ")) }
+        ));
     };
     let n_obj = r.json["objects"].as_array().map(Vec::len).unwrap_or(0);
     let zones: Vec<&str> = r.json["zones"].as_array().map(|z| z.iter().filter_map(|z| z["id"].as_str()).collect()).unwrap_or_default();

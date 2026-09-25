@@ -7,8 +7,8 @@
 //! prediction and server agreed, nothing changes, and if they did not (a prop nudged them, a wall
 //! the client had wrong) the difference is smoothed away over a few ticks instead of popping.
 
+use crate::collide::{Collider2D, GroundCandidates};
 use crate::sim::player::{step_player, PlayerInput, PlayerState};
-use crate::viewer::{Collider2D, GroundCandidates};
 use glam::Vec2;
 use std::collections::VecDeque;
 
@@ -103,8 +103,8 @@ impl Predictor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::collide::{collect_box_colliders, collect_ground_candidates};
     use crate::player::Character;
-    use crate::viewer::{collect_box_colliders, collect_ground_candidates};
     use std::path::Path;
 
     fn world() -> (Vec<Collider2D>, GroundCandidates) {

@@ -176,13 +176,7 @@ pub struct PropPart {
 
 impl PropPart {
     fn new(shape: PrimKind, pos: Vec3) -> Self {
-        PropPart {
-            shape,
-            local_transform: Mat4::from_translation(pos),
-            metallic_delta: 0.0,
-            roughness_delta: 0.0,
-            color_override: None,
-        }
+        PropPart { shape, local_transform: Mat4::from_translation(pos), metallic_delta: 0.0, roughness_delta: 0.0, color_override: None }
     }
 
     /// A non-uniformly scaled part (e.g. a sphere squashed into a low mound or boulder).
@@ -197,19 +191,8 @@ impl PropPart {
     }
 
     fn rotated(shape: PrimKind, pos: Vec3, rot_deg: Vec3) -> Self {
-        let rot = Quat::from_euler(
-            glam::EulerRot::XYZ,
-            rot_deg.x.to_radians(),
-            rot_deg.y.to_radians(),
-            rot_deg.z.to_radians(),
-        );
-        PropPart {
-            shape,
-            local_transform: Mat4::from_rotation_translation(rot, pos),
-            metallic_delta: 0.0,
-            roughness_delta: 0.0,
-            color_override: None,
-        }
+        let rot = Quat::from_euler(glam::EulerRot::XYZ, rot_deg.x.to_radians(), rot_deg.y.to_radians(), rot_deg.z.to_radians());
+        PropPart { shape, local_transform: Mat4::from_rotation_translation(rot, pos), metallic_delta: 0.0, roughness_delta: 0.0, color_override: None }
     }
 
     fn metallic(mut self, delta: f32) -> Self {
@@ -311,9 +294,7 @@ pub enum Collision {
 pub fn collision(kind: PropKind) -> Collision {
     match kind {
         PropKind::FlowerPatch | PropKind::Rug => Collision::None,
-        PropKind::TreeOak | PropKind::TreePine => {
-            Collision::Box { min: Vec3::new(-0.2, 0.0, -0.2), max: Vec3::new(0.2, 4.0, 0.2) }
-        }
+        PropKind::TreeOak | PropKind::TreePine => Collision::Box { min: Vec3::new(-0.2, 0.0, -0.2), max: Vec3::new(0.2, 4.0, 0.2) },
         // A shrub is a round clump; its bounding box would be a generous square around it.
         PropKind::Bush => Collision::Box { min: Vec3::new(-0.6, 0.0, -0.6), max: Vec3::new(0.6, 0.9, 0.6) },
         _ => Collision::Union,
@@ -625,10 +606,7 @@ fn tv_parts() -> Vec<PropPart> {
 fn kitchen_counter_parts() -> Vec<PropPart> {
     let body = b(1.8, 0.9, 0.6);
     let top = b(1.86, 0.05, 0.64);
-    vec![
-        PropPart::new(body, Vec3::new(0.0, 0.45, 0.0)),
-        PropPart::new(top, Vec3::new(0.0, 0.925, 0.0)).metallic(0.15).roughness(-0.25),
-    ]
+    vec![PropPart::new(body, Vec3::new(0.0, 0.45, 0.0)), PropPart::new(top, Vec3::new(0.0, 0.925, 0.0)).metallic(0.15).roughness(-0.25)]
 }
 
 /// A refrigerator: tall body, a darker seam between the freezer and fridge sections, and a
@@ -649,14 +627,9 @@ fn stove_parts() -> Vec<PropPart> {
     let body = b(0.6, 0.9, 0.6);
     let burner = cyl(0.08, 0.02);
     let oven_door = b(0.55, 0.5, 0.03);
-    let mut parts = vec![
-        PropPart::new(body, Vec3::new(0.0, 0.45, 0.0)),
-        PropPart::new(oven_door, Vec3::new(0.0, 0.35, 0.31)).metallic(0.1),
-    ];
+    let mut parts = vec![PropPart::new(body, Vec3::new(0.0, 0.45, 0.0)), PropPart::new(oven_door, Vec3::new(0.0, 0.35, 0.31)).metallic(0.1)];
     for &(x, z) in &[(0.15, 0.15), (-0.15, 0.15), (0.15, -0.15), (-0.15, -0.15)] {
-        parts.push(
-            PropPart::new(burner, Vec3::new(x, 0.91, z)).color(Vec3::new(0.05, 0.05, 0.05)).metallic(0.4).roughness(-0.2),
-        );
+        parts.push(PropPart::new(burner, Vec3::new(x, 0.91, z)).color(Vec3::new(0.05, 0.05, 0.05)).metallic(0.4).roughness(-0.2));
     }
     parts
 }
@@ -715,12 +688,8 @@ fn washer_dryer_parts() -> Vec<PropPart> {
     vec![
         PropPart::new(body, Vec3::new(0.0, 0.85, 0.0)),
         PropPart::new(seam, Vec3::new(0.0, 0.85, 0.0)),
-        PropPart::rotated(door, Vec3::new(0.0, 1.2, 0.34), Vec3::new(90.0, 0.0, 0.0))
-            .color(Vec3::new(0.05, 0.05, 0.05))
-            .roughness(-0.2),
-        PropPart::rotated(door, Vec3::new(0.0, 0.45, 0.34), Vec3::new(90.0, 0.0, 0.0))
-            .color(Vec3::new(0.05, 0.05, 0.05))
-            .roughness(-0.2),
+        PropPart::rotated(door, Vec3::new(0.0, 1.2, 0.34), Vec3::new(90.0, 0.0, 0.0)).color(Vec3::new(0.05, 0.05, 0.05)).roughness(-0.2),
+        PropPart::rotated(door, Vec3::new(0.0, 0.45, 0.34), Vec3::new(90.0, 0.0, 0.0)).color(Vec3::new(0.05, 0.05, 0.05)).roughness(-0.2),
     ]
 }
 
@@ -944,7 +913,7 @@ fn picnic_table_parts() -> Vec<PropPart> {
     ]
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "gfx"))]
 mod tests {
     use super::*;
     use crate::mesh::Mesh;

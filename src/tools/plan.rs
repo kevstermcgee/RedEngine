@@ -369,7 +369,13 @@ pub fn render_ascii(world: &MapWorld, reach: Option<&Reach>, findings: &[Finding
             let p = Vec2::new(bmin.x + (ix as f32 + 0.5) * cell, bmin.y + (iz as f32 + 0.5) * cell);
             let floor = ground_floor || world.items.iter().any(|i| is_floor_fill(i, opts.y) && i.footprint.is_some_and(|f| f.contains(p)));
             let walk = reach.is_some_and(|r| r.reachable(p, opts.y, 0.35));
-            *ch = if walk { '.' } else if floor { ',' } else { ' ' };
+            *ch = if walk {
+                '.'
+            } else if floor {
+                ','
+            } else {
+                ' '
+            };
             // Glyph priority: wall > stairs > prop > other box, so a baseboard strip never hides
             // the wall it runs along and a rug/trim never hides furniture.
             let mut rank = 0;
@@ -427,10 +433,7 @@ pub fn render_ascii(world: &MapWorld, reach: Option<&Reach>, findings: &[Finding
     }
 
     let mut out = String::new();
-    out.push_str(&format!(
-        "plan y={:.1}  {}x{} cells of {}m  origin=({:.1},{:.1})  (+X right, +Z down)\n",
-        opts.y, nx, nz, cell, bmin.x, bmin.y
-    ));
+    out.push_str(&format!("plan y={:.1}  {}x{} cells of {}m  origin=({:.1},{:.1})  (+X right, +Z down)\n", opts.y, nx, nz, cell, bmin.x, bmin.y));
     // Column ruler: a tick every 2 m, labelled with the whole-meter x coordinate.
     let mut ruler = vec![' '; nx + 6];
     let mut x = bmin.x.ceil() as i32;

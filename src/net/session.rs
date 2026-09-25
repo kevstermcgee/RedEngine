@@ -11,8 +11,8 @@ use crate::net::bot::ClientWorld;
 use crate::net::client::{ConnState, NetClient, NetEvent};
 use crate::net::interp::PlayerPose;
 use crate::net::predict::Predictor;
+use crate::net::protocol::character_from_wire;
 use crate::net::protocol::{PlayerSnap, MAX_PLAYERS_PER_SNAPSHOT};
-use crate::net::server::char_from_u8;
 use crate::physics::set_object_pose;
 use crate::player::Character;
 use crate::schema::{Object, ObjectKind, Scene};
@@ -57,6 +57,8 @@ pub struct NetSession {
     pub status: String,
     /// Speed of the local player at the last predicted tick (m/s), for the local walk animation.
     pub last_speed: f32,
+    /// The server's latest word about the local player (weapon in hand, hit points, what they carry).
+    pub own: Option<PlayerSnap>,
 }
 
 impl NetSession {
@@ -65,7 +67,17 @@ impl NetSession {
     pub fn connect(server: SocketAddr, character: Character, world: ClientWorld, resume_token: u64) -> std::io::Result<NetSession> {
         let code = if character == Character::Rat { 1 } else { 0 };
         let client = NetClient::connect(server, code, world.map_hash, resume_token)?;
-        Ok(NetSession { client, predictor: None, world, avatars: Vec::new(), started: Instant::now(), teleport: None, status: "connecting...".into(), last_speed: 0.0 })
+        Ok(NetSession {
+            client,
+            predictor: None,
+            world,
+            avatars: Vec::new(),
+            started: Instant::now(),
+            teleport: None,
+            status: "connecting...".into(),
+            last_speed: 0.0,
+            own: None,
+        })
     }
 
     /// Adds hidden avatar objects (8 humans, 8 rats) to `scene`. Do this before the renderer is created.
@@ -109,7 +121,7 @@ impl NetSession {
     }
 
     fn own_state(s: &PlayerSnap) -> PlayerState {
-        PlayerState { pos: Vec2::new(s.pos[0], s.pos[2]), foot_y: s.pos[1], vy: s.vy, yaw: s.yaw, pitch: s.pitch, character: char_from_u8(s.character) }
+        PlayerState { pos: Vec2::new(s.pos[0], s.pos[2]), foot_y: s.pos[1], vy: s.vy, yaw: s.yaw, pitch: s.pitch, character: character_from_wire(s.character) }
     }
 
     /// Receives network traffic; applies welcomes (sets [`teleport`](Self::teleport)) and reconciles
@@ -118,7 +130,14 @@ impl NetSession {
         for ev in self.client.poll(now) {
             match ev {
                 NetEvent::Connected(w) => {
-                    let st = PlayerState { pos: Vec2::new(w.spawn[0], w.spawn[2]), foot_y: w.spawn[1], vy: 0.0, yaw: w.spawn[3], pitch: 0.0, character: char_from_u8(w.character) };
+                    let st = PlayerState {
+                        pos: Vec2::new(w.spawn[0], w.spawn[2]),
+                        foot_y: w.spawn[1],
+                        vy: 0.0,
+                        yaw: w.spawn[3],
+                        pitch: 0.0,
+                        character: character_from_wire(w.character),
+                    };
                     match &mut self.predictor {
                         Some(p) => p.teleport(st),
                         None => self.predictor = Some(Predictor::new(st)),
@@ -129,6 +148,7 @@ impl NetSession {
                     if let Some(p) = &mut self.predictor {
                         p.reconcile(Self::own_state(&own), ack_input_seq, &self.world.colliders, &self.world.ground);
                     }
+                    self.own = Some(own);
                 }
                 _ => {}
             }
@@ -178,7 +198,7 @@ impl NetSession {
             }
         }
         for (id, pose) in &view.players {
-            let ch = char_from_u8(pose.character);
+            let ch = character_from_wire(pose.character);
             let idx = match self.avatars.iter().position(|a| a.used_by == Some(*id) && a.character == ch) {
                 Some(i) => i,
                 None => match self.avatars.iter().position(|a| a.used_by.is_none() && a.character == ch) {
@@ -317,13 +337,18 @@ mod tests {
             session.poll(now);
             session.update_scene(&mut scene, now, 0.01);
             saw_avatar |= visible_avatars(&scene).len() == 1;
-            moved_prop_posed |= session.world.prop_objects.iter().enumerate().any(|(i, &o)| (scene.objects[o].position.sample(0.0) - authored[i]).length() > 0.05);
+            moved_prop_posed |=
+                session.world.prop_objects.iter().enumerate().any(|(i, &o)| (scene.objects[o].position.sample(0.0) - authored[i]).length() > 0.05);
             std::thread::sleep(Duration::from_millis(4));
         }
         assert!(saw_avatar, "the other player's avatar appeared in the scene");
         assert!(moved_prop_posed, "a prop moved by the other player was posed in the scene");
         let visible = visible_avatars(&scene);
-        assert!(visible.iter().all(|o| o.id.starts_with("net_rat_")), "the bot is a rat, so a rat avatar is used: {:?}", visible.iter().map(|o| &o.id).collect::<Vec<_>>());
+        assert!(
+            visible.iter().all(|o| o.id.starts_with("net_rat_")),
+            "the bot is a rat, so a rat avatar is used: {:?}",
+            visible.iter().map(|o| &o.id).collect::<Vec<_>>()
+        );
 
         // The other player leaves: the avatar is hidden again.
         bot.client.disconnect();

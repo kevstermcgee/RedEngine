@@ -1,9 +1,12 @@
 # Working on Red Engine 2 (for AI agents)
 
-Red Engine 2 is a Rust + wgpu engine whose maps are **JSON scene files**. `re2` walks you around
-one in first person (the future prop-hunt game); `red_engine2` (the offline CLI) validates, renders
-and — the point of this document — **analyzes and edits** maps. You almost never need to read Rust
-to change a map: read [`SPEC.md`](SPEC.md) for the scene language, then use the tools below.
+Red Engine 2 is a Rust + wgpu engine whose maps are **JSON scene files** — and whose **game rules are data too**.
+`re2` walks you around one in first person; `red_server` runs the same simulation headless as an authoritative UDP
+server; `red_engine2` (the CLI) validates, renders, **analyzes, edits and plays scripted matches** on maps. You almost
+never need to read Rust to change a map or a game: read [`SPEC.md`](SPEC.md) for the scene language, then use the tools below.
+
+**Read `red_engine2 describe --brief` first (about 1 KB)**, then ask `search "<your question>"`; open SPEC/AGENTS only for a topic
+you cannot get from `describe <topic>`. Every command takes the global `--json` for one stable envelope (`describe diagnostics`).
 
 > **The one rule:** never trust a map edit you haven't run through `lint`, and never judge a
 > layout you haven't *looked at* (`plan` / `tour`). The tools use the game's real collision code, so
@@ -16,36 +19,54 @@ Engine quality, the shared headless simulation (`src/sim/`), testing and extensi
 system under test (spawns, clearance gaps, stairs/ledges, static + dynamic props and stacks, hitscan lane,
 character sizes). `tests/test_lab.rs` + its own `checks` guard it. `house`/`school`/`office`/`store` are
 **legacy reference content**: keep them working when cheap, never let them block a better engine design, and
-record any deliberate incompatibility in ADR 0015. Before pushing: `scripts/ci.sh` (clippy `-D warnings`, `cargo test`,
-benches compile — the same as `.github/workflows/ci.yml`). Performance: `cargo bench --bench sim` then
-`python benches/check.py` (`benches/README.md`); allocation/body-count guards are ordinary tests.
+record any deliberate incompatibility in ADR 0015. Before pushing: `scripts/ci.sh` — `cargo fmt --check`, clippy `-D warnings`,
+`cargo test --locked`, benches compile, and the **headless server** build/lint/test with `--no-default-features` (no wgpu/winit/rodio;
+the same as `.github/workflows/ci.yml`, whose `headless-linux` job installs no graphics/audio libraries). Performance:
+`cargo bench --bench sim` then `python benches/check.py` (`benches/README.md`); allocation, bandwidth and packet-size budgets are
+ordinary tests (`tests/alloc_budget.rs`, `tests/net_budget.rs`), and `tests/ai_tasks.rs` budgets the *context* canonical AI tasks may use.
 
-## Multiplayer (ADR 0016)
+## Multiplayer (ADR 0016, 0017, 0021, 0022)
 
 ```bash
-cargo build --release --bin re2 --bin red_server --bin red_bot
-target/release/red_server --map examples/test_lab.json --spawn-group duel   # headless authoritative server, UDP 27015
-target/release/re2 --connect 127.0.0.1:27015 examples/test_lab.json          # graphical client (run two)
-target/release/red_bot --server 127.0.0.1:27015 --behavior forward:0        # headless scripted client (JSON output)
+cargo build --release --bin re2 --bin red_server --bin red_bot        # everything (default features)
+cargo build --release --no-default-features --bin red_server --bin red_bot   # the server on a bare box: no graphics/audio crates
+target/release/red_server --map examples/test_lab.json [--spawn-group duel] [--record out/match.json] [--no-interest]
+target/release/re2 --connect 127.0.0.1:27015 examples/test_lab.json     # graphical client (run two); E pick up/drop, click, wheel, R reload
+target/release/red_bot --server 127.0.0.1:27015 --behavior forward:0    # headless scripted client (JSON output)
+red_engine2 replay out/match.json                                        # replay a recorded match: first divergent tick + state diff
 powershell -File scripts/play_multiplayer.ps1        # server + two tiled windows      (Windows)
-powershell -File scripts/multiplayer_demo.ps1        # the same, scripted, with screenshots and kill/restart checks
 ```
-Code: `src/sim/match_sim.rs` (the authoritative world), `src/sim/player.rs` (`step_player`, shared by single-player,
-server and prediction), `src/net/` (`protocol`, `server`, `client`, `interp`, `predict`, `bot`, `session`). Tests:
-`tests/net_e2e.rs` (real UDP, lossy-link proxy), `tests/net_processes.rs` (separate processes). Online, weapons and
-pick-up are disabled (not networked yet). Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`.
+The server is authoritative for **everything**: movement (`sim::player::step_player`, shared with single-player and prediction),
+props, **pick-up/drop** (per-player carry; a contested prop goes to exactly one player), **bat and revolver** (cooldown, ammo,
+damage, death, respawn: `sim::interact`, numbers in the scene's `weapons` block) and the scene's **rules**. Clients send inputs
+and buttons only. **Interest management** (`sim::interest`): a client hears about its own room and rooms one open portal away
+(zones + portals in the scene; `--no-interest` turns it off); the server acknowledges moving props per client, so a prop that
+changed while you were away is delivered when you walk into range. Code: `src/sim/{match_sim,interact,interest,player,rules*,scenario,trace,replay}.rs`,
+`src/net/{protocol,server,sessions,snapshots,limits,client,interp,predict,bot,session}.rs`. Hostile-network behaviour is tested
+(`tests/net_abuse.rs`: garbage, floods, hostile values; rate limits and no panics are enforced in `src/net` and `src/sim` by lint).
+Tests: `net_e2e` (real UDP, lossy proxy), `net_processes` (separate processes), `net_interactions`, `net_interest`, `net_budget`, `sim_replay`.
+Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`. Limits: `re2` single-player still runs its own
+weapon logic (the online path uses the server's); rule state (variables, hidden objects) is not replicated to clients yet.
+
+## Game rules, headless play, replay (ADR 0020, 0021)
+
+`vars` + `rules` in the scene declare gameplay (triggers, conditions, actions); `checks.sim` scenarios play scripted players through
+the real simulation and assert the outcome, with no window (`red_engine2 sim scene.json`); `red_engine2 replay trace.json` re-runs a
+recorded match and names the first divergent tick. `describe rules` and `describe sim` have the syntax with runnable examples;
+`recipe coin_run` is a complete game proven by its own scenarios.
 
 ## Start here (you should never need to read Rust)
 
 The engine describes itself. In this order, cheapest first:
 
 ```bash
+red_engine2 describe --brief            # ~1 KB: binaries, workflow, commands, topics (read this first)
 red_engine2 describe                    # overview: what exists, every command, topics (~50 lines)
 red_engine2 search "<question>"         # best fragments across docs, assets, lint codes, recipes, Rust symbols
 red_engine2 catalog [words|name]        # 39 props + ~155 JSON prefabs (incl. wall art, sculptures, unlit lamps); `catalog apple_red` = params + paste-ready snippet
 red_engine2 catalog --category food --sheet out/food.png   # SEE the assets (labelled contact sheet)
 red_engine2 recipe [name] [--new my.json]   # known-good complete maps to copy from
-red_engine2 describe objects|lint|physics|conventions       # exact fields, lint codes, numbers, rules
+red_engine2 describe objects|scene|lint|physics|conventions|rules|sim|diagnostics   # exact fields, codes, numbers, rules, syntax
 red_engine2 src map | find <words> | show <symbol> | refs <symbol> | deps   # only if you MUST touch Rust
 red_engine2 describe glossary           # vocabulary: prop vs prefab, zone, body band, the four maps, "tire iron" naming
 red_engine2 describe decisions          # ADR index: WHY it is built this way (docs/adr/); `search <topic> --kind adr`
@@ -95,11 +116,13 @@ Every editing command re-validates the whole scene and **refuses to write an inv
 | `tour <scene> out.png` | Contact sheet: exterior, cutaway per floor, 2 views per zone | `--only kitchen`, `--cols 3`, custom `--view "name:ex,ey,ez:tx,ty,tz"` |
 | `ls <scene>` | Objects + world bounds | `--filter sofa`, `--kind prop\|box\|stairs\|wall\|<prop name>`, `--all` (pieces), `--json` |
 | `info <scene> <id>` | Everything about one object | includes nearby solids and lint findings |
-| `describe [topic]` | The engine describing itself (commands come from the real CLI definition) | topics: overview commands objects scene lint physics conventions glossary decisions all; `--json` |
+| `describe [topic]` | The engine describing itself (commands come from the real CLI definition) | `--brief`; topics: brief overview commands objects scene lint physics conventions glossary decisions diagnostics rules sim all |
 | `search <words>` | Best fragments across docs/assets/lint/recipes/commands/Rust symbols | `--kind doc\|adr\|glossary\|asset\|lint\|rule\|type\|recipe\|command\|src`, `--limit` |
-| `catalog [words\|name]` | Asset catalogue (props + prefabs) with tags, real sizes, params, snippets | `--tag`, `--category`, `--kind`, `--long`, `--json`, `--sheet out.png --cols 5` |
+| `catalog [words\|name]` | Asset catalogue (props + prefabs) with tags, real sizes, params, snippets | `--tag`, `--category`, `--kind`, `--long`, `--sheet out.png --cols 5` |
 | `recipe [name]` | Known-good example maps; `--new out.json` copies one, `--print` dumps it | each is lint-clean and passes its own `verify` (test-enforced) |
-| `verify <scene>` | Run the scene's `checks` block; PASS/FAIL with evidence; exit 1 on failure | `--bless` (record golden views), `--no-views`, `--only walk`, `--json` |
+| `verify <scene>` | Run the scene's `checks` block (lint, reach, walk, objects, views, **sim**); PASS/FAIL with evidence; exit 1 on failure | `--bless` (record golden views), `--no-views`, `--only walk` |
+| `sim <scene>` | Play scripted players through the real simulation, headless: the scene's `checks.sim` or `--scenario file.json` | `--only name`, `--trace out.json` (record), `--dump-every 1` |
+| `replay <trace>` | Re-run a recorded match with no renderer/socket; first divergent tick + state diff | `--scene map.json`, `--against other.json` |
 | `diff a b` / `diff a --git` | Semantic diff by object id (added/removed/changed fields) | ignores formatting + float noise |
 | `src map\|find\|outline\|show\|refs\|deps\|coverage` | Navigate the engine's Rust without reading files | scans on demand (never stale); `show` prints one item, bounded; `coverage` lists pub items missing a `///` doc |
 | `props` | The prop library: sizes, collision, conventions | check dimensions here before placing |
@@ -111,6 +134,10 @@ Every editing command re-validates the whole scene and **refuses to write an inv
 | `rename`, `fmt` | Rename an id; normalize formatting | first edit of a hand-written file re-formats it once |
 | `scatter <scene> --zone yard --kind tree_oak,bush --count 8 --seed 3` | Seeded random planting that avoids walls, props, and each other | `--rect`, `--exclude`, `--color`, `--scale 0.9:1.3`, `--clearance`, `--min-gap`, `--lint-ignore unreachable` |
 | `line <scene> --kind hedge --from x,z --to x,z --spacing 1.8` | Evenly spaced props along a line | |
+
+**Every command accepts the global `--json`**: one document `{schema, command, ok, exit, data, diagnostics:[{code, path, message, fix?}], stderr}`
+(`data` is what the command printed, as JSON when it has a JSON form). Scene errors are `path: message` with a stable code and a did-you-mean;
+**unknown fields are errors** (put notes under `x-…`/`_…`/`notes`; SPEC "Strict fields").
 
 Negative coordinates work as values (`--eye -3,1.6,2`). Coordinates are `x,y,z` with **+Y up**;
 `plan` draws **+X right and +Z down**. A prop/wall list's numbers are always meters.
@@ -260,17 +287,25 @@ Lessons from building them (all bit at least once):
 src/schema.rs     JSON -> Scene (validation, macro expansion hook, `post`, `zones` ignored here)
 src/macros.rs     `wall` / `fence` expand to groups of boxes at parse time (add new sugar here)
 src/props.rs      prop library: parts, `collision()` policy, `lifted()` for origin-at-base
-src/net/          UDP multiplayer: protocol, server, client, interpolation, prediction, headless bot (ADR 0016)
-src/sim/          headless sim core: fixed 60 Hz clock, tick-based weapon timing (ADR 0014); no wgpu/winit allowed here
-src/viewer.rs     live renderer + colliders + ground height (stairs ramp, box tops) + stairs rails
+src/strict.rs     unknown-field detection with did-you-mean; the extension namespace (`x-`, `_`, notes)
+src/collide.rs    static-world collision + ground height (stairs ramp, box tops), interactables — renderer-free (was in viewer.rs)
+src/geometry.rs   `trs` + stair treads, shared by renderer, physics and tools
+src/weapons.rs    the demo weapons as data (`weapons` in the scene: damage, revolver ammo) + timings
+src/physics/      loose props on rapier: `mod.rs` (world, step), `classify.rs` (what is loose/carriable), `interact.rs` (per-player carry, strikes), `fixed.rs`
+src/net/          UDP multiplayer: protocol, server (+ sessions, snapshots, limits), client, interpolation, prediction, headless bot (ADR 0016)
+src/sim/          headless sim core (no wgpu/winit): clock, `match_sim` (authoritative world), `interact` (pick-up/combat), `interest` (rooms/portals),
+                  `rules*` (game rules as data), `scenario` (headless play-throughs), `trace`/`replay`/`checksum` (deterministic replay, ADR 0021)
+src/viewer.rs     live renderer (feature `gfx`): camera, held models, frustum culling
 src/player.rs     player constants + `step_horizontal` / `vertical_step` (shared by re2 and tools)
 src/render.rs     offline renderer; gpu.rs pipelines (incl. the clarity `PostFx`); shaders/*.wgsl
 src/prefabs.rs    JSON prefab templates: params, `$x` / `=expr` substitution, `extends`, parse-time expansion
 src/tools/        world (MapWorld) reach lint plan font edit gen inspect shots walk (analysis/edit)
-                  catalog describe search symbols recipes verify diff (AI-facing: self-description & feedback)
+                  catalog describe search symbols recipes verify diff simrun envelope (AI-facing: self-description, feedback, `--json`)
 assets/*.json     the built-in prefab catalogue (embedded); recipes/*.json + recipes/golden/ the example maps
 docs/GLOSSARY.md  vocabulary; docs/adr/NNNN-*.md  architecture decision records (both embedded + searchable)
-src/bin/re2.rs    windowing/input; src/main.rs the `red_engine2` CLI
+src/bin/re2/      the windowed game: `main.rs` (App state, setup), `frame.rs` (fixed step + update + draw), `events.rs` (winit input), `weapons.rs`, `avatar.rs`, `window.rs`
+src/main.rs + src/cli/   the `red_engine2` CLI: `args.rs` (clap definition), `analyze.rs`, `editing.rs`, `info.rs`, `render_cmds.rs`, `util.rs`
+Cargo feature `gfx` (default) = everything that draws or plays sound; without it the server, bot and analysis CLI still build (ADR 0017).
 ```
 
 - **Docs cannot drift:** `describe` reads the CLI's own clap definition; its object-type examples,
@@ -281,11 +316,10 @@ src/bin/re2.rs    windowing/input; src/main.rs the `red_engine2` CLI
   it to `SPEC.md`. `props_rest_on_the_floor` and the mesh tests will tell you if it's off.
 - **Add sugar (`wall`-style):** write `expand_x` in `macros.rs` producing JSON, add the type to
   `MACRO_TYPES`, unit-test it, document it in `SPEC.md`. Nothing downstream needs to change.
-- **Physics rule changes** go in `viewer.rs`/`player.rs` and must keep `re2` and the tools on the
+- **Physics rule changes** go in `collide.rs`/`player.rs`/`sim/player.rs` and must keep `re2`, the server and the tools on the
   same functions. Re-run `cargo test` — `tests/house_walk.rs` is the regression net.
-- **WGSL struct changes:** `Globals` is copied into `scene.wgsl`, `shadow.wgsl` *and*
-  `background.wgsl`; change all three (a stale copy renders the sky black). Test on an *open*
-  scene, not just an enclosed room.
+- **WGSL struct changes:** `Globals` and `ObjectUniform` live once, in `src/shaders/common.wgsl`, which `gpu.rs` concatenates in front
+  of scene/shadow/background at compile time; `gpu::tests` checks the Rust mirrors against it without a GPU. Test on an *open* scene.
 - **Verify rendering** with `frame`/`tour` (offline, no window) and, for the live path, launch
   `re2` and screenshot it (`RE2_STATS=1` for FPS). Don't rely on simulated key input for anything
   beyond a short interaction; use `walk` and the unit tests for movement.
@@ -299,10 +333,10 @@ Every task should be doable from `describe`/`search`/`src show`, not by reading 
 - **New module = a `//!` line saying what it is** (`src map` prints it) and `///` on every `pub` item
   (`red_engine2 src coverage --file <path>` lists gaps; `src show` and `search` print docs, not bodies).
 - **Simulation rules are pure functions** (like `player.rs`): input state in, new state out, no window/GPU
-  types. Do not add game/physics logic to `App` in `re2.rs` — the tools and a future headless server
-  (ADR 0010) can only reuse what is callable without a renderer.
-- **Prefer a new file over growing a big one.** `viewer.rs`, `main.rs`, `re2.rs`, `props.rs` are already
-  ~1000+ lines; navigate them with `src outline`/`src show`, and put new subsystems in their own module.
+  types. Do not add game/physics logic to `App` in `bin/re2/` — the tools and the headless server
+  (ADR 0016, 0017) can only reuse what is callable without a renderer; put it in `sim/`.
+- **Prefer a new file over growing a big one.** `schema.rs`, `props.rs`, `viewer.rs` are ~1000 lines; `re2`, the CLI and `physics` were
+  split by subsystem (see the map above). Navigate with `src outline`/`src show`, and put new subsystems in their own module.
 - **A decision that a future reader would otherwise have to re-derive gets an ADR** (`docs/adr/`, template in
   its README; a test makes you register it). A new term gets a line in `docs/GLOSSARY.md`.
 - **Behaviour worth keeping is a test or a `checks` entry**, not prose: `tests/house_walk.rs` and each
@@ -321,17 +355,17 @@ starts in third person. See ADR 0011.
 ## Weapons (bat + silver revolver) — `weapons.rs`, `revolver.rs`
 
 Mouse wheel switches (human only); left-click swings the bat or fires the revolver (hitscan, `probe(eye, reach)`
-in `re2.rs` merges exact static shapes with `PropWorld::ray_props`). Ammo is `weapons::REVOLVER_AMMO`
-(`Infinite` now; `Limited{..}` + `reload()` + empty click are ready). Held models are `HeldPart`s tagged with
+in `bin/re2/weapons.rs` merges exact static shapes with `PropWorld::ray_props`). Ammo is the scene's `weapons.revolver.ammo`
+(`"infinite"` by default, or `{loaded, capacity, reserve}`; `R` reloads; an empty cylinder clicks). Online, the same weapons run on the server (`sim::interact`). Held models are `HeldPart`s tagged with
 their `weapon` (and `muzzle_flash`/`emissive`); `FrameOptions.weapon/muzzle_flash` pick what draws. Debug env:
 `RE2_WEAPON=revolver`, `RE2_FREEZE_SHOT=<s since shot>` (0.02 = flash + kick) for screenshots. ADR 0013.
 
-## Loose props (pick up / drop / knock over) — `src/physics.rs`
+## Loose props (pick up / drop / knock over) — `src/physics/`
 
 A carried prop follows where you look (`PropWorld::hold_pose`): lowered when looking down, chest height ahead, held
 overhead when looking straight up, never through a ceiling or floor. Struck or shot objects make a sound but do not
 change colour. `Esc` frees the mouse and opens a small pause menu (Resume / Quit game: `menu::paint_pause`,
-`re2.rs::enter_pause`); Esc or Enter resumes.
+`bin/re2/window.rs::enter_pause`); Esc or Enter resumes.
 
 In `re2`, `E` picks up the (green-crosshair) prop in front of you and drops it again; dropped props fall,
 tumble and knock things over. `physics::classify` decides what is loose (lift-able prop or floor-mounted

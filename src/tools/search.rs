@@ -33,9 +33,21 @@ const ADRS: &[(&str, &str)] = &[
     ("0011-two-characters-and-exact-melee-hits.md", include_str!("../../docs/adr/0011-two-characters-and-exact-melee-hits.md")),
     ("0012-rapier-prop-physics-dormant-until-disturbed.md", include_str!("../../docs/adr/0012-rapier-prop-physics-dormant-until-disturbed.md")),
     ("0013-revolver-second-weapon-hitscan-infinite-ammo.md", include_str!("../../docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md")),
-    ("0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", include_str!("../../docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md")),
+    (
+        "0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md",
+        include_str!("../../docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md"),
+    ),
     ("0015-engine-first-refocus-test-lab-and-legacy-maps.md", include_str!("../../docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md")),
     ("0016-authoritative-udp-multiplayer.md", include_str!("../../docs/adr/0016-authoritative-udp-multiplayer.md")),
+    ("0017-headless-build-gfx-feature.md", include_str!("../../docs/adr/0017-headless-build-gfx-feature.md")),
+    ("0018-self-describing-engine-pattern.md", include_str!("../../docs/adr/0018-self-describing-engine-pattern.md")),
+    ("0019-strict-fields-versioning-and-json-envelope.md", include_str!("../../docs/adr/0019-strict-fields-versioning-and-json-envelope.md")),
+    ("0020-game-rules-as-data-and-headless-scenarios.md", include_str!("../../docs/adr/0020-game-rules-as-data-and-headless-scenarios.md")),
+    ("0021-deterministic-traces-replay-and-checksums.md", include_str!("../../docs/adr/0021-deterministic-traces-replay-and-checksums.md")),
+    (
+        "0022-authoritative-interactions-per-prop-acks-and-interest.md",
+        include_str!("../../docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md"),
+    ),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
@@ -49,7 +61,10 @@ pub struct Doc {
     pub extra: String,
 }
 
-const STOP: &[&str] = &["the", "a", "an", "of", "to", "in", "is", "it", "and", "or", "for", "on", "how", "do", "i", "can", "what", "with", "my", "be", "are", "does", "make", "get", "use", "add", "want", "need"];
+const STOP: &[&str] = &[
+    "the", "a", "an", "of", "to", "in", "is", "it", "and", "or", "for", "on", "how", "do", "i", "can", "what", "with", "my", "be", "are", "does", "make",
+    "get", "use", "add", "want", "need",
+];
 
 const SYNONYMS: &[(&str, &str)] = &[
     ("collide", "collision collider blocks block solid"),
@@ -87,6 +102,30 @@ const SYNONYMS: &[(&str, &str)] = &[
     ("room", "zone wall floor"),
     ("map", "scene json level"),
     ("level", "map scene floor"),
+    ("server", "red_server multiplayer authoritative udp headless host"),
+    ("multiplayer", "red_server red_bot server udp online"),
+    ("online", "multiplayer server connect"),
+    ("bot", "red_bot scripted client headless"),
+    ("client", "connect re2 red_bot multiplayer"),
+    ("connect", "server join client udp multiplayer"),
+    ("coin", "collectible pickup score rules vars"),
+    ("collectible", "coin pickup score rules trigger"),
+    ("score", "vars rules variable add"),
+    ("win", "victory end rules condition goal"),
+    ("trigger", "rules enter exit zone volume event"),
+    ("rule", "rules vars when if do actions"),
+    ("gameplay", "rules scenario sim checks"),
+    ("damage", "health hp hit shot weapons interact combat"),
+    ("shoot", "revolver hitscan attack weapon damage"),
+    ("weapon", "revolver bat attack ammo weapons"),
+    ("ammo", "revolver reload weapons cylinder"),
+    ("replay", "trace checksum desync sim record determinism"),
+    ("desync", "replay trace checksum diverge"),
+    ("record", "trace replay red_server"),
+    ("typo", "unknown field did you mean validate strict"),
+    ("json", "envelope machine-readable diagnostics"),
+    ("bandwidth", "interest snapshot budget packet"),
+    ("interest", "rooms portals zones snapshot bandwidth"),
 ];
 
 fn stem(w: &str) -> String {
@@ -100,14 +139,18 @@ fn stem(w: &str) -> String {
 }
 
 fn tokens(s: &str) -> Vec<String> {
-    s.split(|c: char| !(c.is_alphanumeric() || c == '-')).filter(|w| w.len() > 1).flat_map(|w| {
-        // split snake/camel-ish joined names too: chair_folding -> chair, folding
-        let mut v = vec![stem(w)];
-        if w.contains('-') {
-            v.extend(w.split('-').filter(|p| p.len() > 1).map(stem));
-        }
-        v
-    }).filter(|w| !STOP.contains(&w.as_str())).collect()
+    s.split(|c: char| !(c.is_alphanumeric() || c == '-'))
+        .filter(|w| w.len() > 1)
+        .flat_map(|w| {
+            // split snake/camel-ish joined names too: chair_folding -> chair, folding
+            let mut v = vec![stem(w)];
+            if w.contains('-') {
+                v.extend(w.split('-').filter(|p| p.len() > 1).map(stem));
+            }
+            v
+        })
+        .filter(|w| !STOP.contains(&w.as_str()))
+        .collect()
 }
 
 fn tokens_snake(s: &str) -> Vec<String> {
@@ -166,10 +209,22 @@ pub fn corpus(commands: &Value) -> Vec<Doc> {
         });
     }
     for (c, sev, d) in describe::LINT_CODES {
-        docs.push(Doc { kind: "lint", title: format!("lint code `{c}` ({sev})"), body: d.to_string(), loc: "red_engine2 describe lint".into(), extra: c.replace('-', " ") });
+        docs.push(Doc {
+            kind: "lint",
+            title: format!("lint code `{c}` ({sev})"),
+            body: d.to_string(),
+            loc: "red_engine2 describe lint".into(),
+            extra: c.replace('-', " "),
+        });
     }
     for (k, d) in describe::CONVENTIONS {
-        docs.push(Doc { kind: "rule", title: format!("convention: {k}"), body: d.to_string(), loc: "red_engine2 describe conventions".into(), extra: String::new() });
+        docs.push(Doc {
+            kind: "rule",
+            title: format!("convention: {k}"),
+            body: d.to_string(),
+            loc: "red_engine2 describe conventions".into(),
+            extra: String::new(),
+        });
     }
     for t in describe::TYPES {
         docs.push(Doc {
@@ -184,20 +239,37 @@ pub fn corpus(commands: &Value) -> Vec<Doc> {
         docs.push(Doc {
             kind: "recipe",
             title: format!("recipe `{}`: {}", r.name, r.title()),
-            body: format!("{} Teaches: {}", r.summary(), r.json["recipe"]["teaches"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("; ")).unwrap_or_default()),
+            body: format!(
+                "{} Teaches: {}",
+                r.summary(),
+                r.json["recipe"]["teaches"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("; ")).unwrap_or_default()
+            ),
             loc: format!("red_engine2 recipe {}", r.name),
             extra: r.name.replace('_', " "),
         });
     }
     for c in commands.as_array().into_iter().flatten() {
         let name = c["name"].as_str().unwrap_or("?");
-        let flags: Vec<String> = c["args"].as_array().into_iter().flatten().map(|a| format!("{} {}", a["name"].as_str().unwrap_or(""), a["help"].as_str().unwrap_or(""))).collect();
-        docs.push(Doc { kind: "command", title: format!("command `{name}`"), body: format!("{}\n{}", c["about"].as_str().unwrap_or(""), flags.join("\n")), loc: format!("red_engine2 {name} --help"), extra: name.to_string() });
+        let flags: Vec<String> =
+            c["args"].as_array().into_iter().flatten().map(|a| format!("{} {}", a["name"].as_str().unwrap_or(""), a["help"].as_str().unwrap_or(""))).collect();
+        docs.push(Doc {
+            kind: "command",
+            title: format!("command `{name}`"),
+            body: format!("{}\n{}", c["about"].as_str().unwrap_or(""), flags.join("\n")),
+            loc: format!("red_engine2 {name} --help"),
+            extra: name.to_string(),
+        });
     }
     if let Some(root) = symbols::find_root() {
         let ix = symbols::Index::build(&root);
         for s in ix.symbols.iter().filter(|s| !s.in_tests && s.public && !matches!(s.kind, "impl" | "mod")) {
-            docs.push(Doc { kind: "src", title: s.sig.clone(), body: s.doc.clone(), loc: format!("{}:{}  (red_engine2 src show {})", s.file, s.line, s.name), extra: format!("{} {}", s.name.replace('_', " "), s.container.clone().unwrap_or_default()) });
+            docs.push(Doc {
+                kind: "src",
+                title: s.sig.clone(),
+                body: s.doc.clone(),
+                loc: format!("{}:{}  (red_engine2 src show {})", s.file, s.line, s.name),
+                extra: format!("{} {}", s.name.replace('_', " "), s.container.clone().unwrap_or_default()),
+            });
         }
     }
     docs
@@ -229,7 +301,8 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
     if q.is_empty() {
         return Vec::new();
     }
-    let toks: Vec<(Vec<String>, Vec<String>, Vec<String>)> = docs.iter().map(|d| (tokens_snake(&d.title), tokens_snake(&d.body), tokens_snake(&d.extra))).collect();
+    let toks: Vec<(Vec<String>, Vec<String>, Vec<String>)> =
+        docs.iter().map(|d| (tokens_snake(&d.title), tokens_snake(&d.body), tokens_snake(&d.extra))).collect();
     let mut df: HashMap<&str, usize> = HashMap::new();
     for (t, b, e) in &toks {
         let set: HashSet<&str> = t.iter().chain(b).chain(e).map(String::as_str).collect();
@@ -308,6 +381,17 @@ fn fragment(d: &Doc, q: &[(String, f32)]) -> String {
     lines[best.0..best.0 + 7].join("\n").trim_end().to_string()
 }
 
+/// The hits as JSON: `{query, hits:[{kind, title, loc, score, fragment}]}` (`--json`).
+pub fn to_json(hits: &[Hit], query: &str) -> Value {
+    serde_json::json!({
+        "query": query,
+        "hits": hits.iter().map(|h| serde_json::json!({
+            "kind": h.doc.kind, "title": h.doc.title, "loc": h.doc.loc,
+            "score": (h.score * 100.0).round() / 100.0, "fragment": h.fragment,
+        })).collect::<Vec<_>>(),
+    })
+}
+
 /// Formats hits as text (kind, title, fragment, where to read more).
 pub fn render(hits: &[Hit], query: &str) -> String {
     if hits.is_empty() {
@@ -374,6 +458,28 @@ mod tests {
             assert!(text.contains("\nStatus: "), "{f}: needs a `Status:` line");
             for h in ["## Context", "## Decision", "## Consequences"] {
                 assert!(text.contains(h), "{f}: missing `{h}`");
+            }
+        }
+    }
+
+    /// The index table and each file's own `Status:` line must agree, and a superseded ADR must name a
+    /// replacement that exists — so "proposed / not built" can never linger next to working code (ADR 0010 did).
+    #[test]
+    fn adr_statuses_agree_between_the_table_and_the_files_and_superseders_exist() {
+        for (f, text) in ADRS {
+            let number = &f[..4];
+            let status = text.lines().find_map(|l| l.strip_prefix("Status: ")).unwrap_or_else(|| panic!("{f}: no Status line"));
+            let word = status.split(|c: char| !c.is_alphabetic()).next().unwrap_or("");
+            assert!(["accepted", "proposed", "superseded"].contains(&word), "{f}: unknown status `{status}`");
+            let row = ADR_INDEX.lines().find(|l| l.contains(&format!("[{number}]"))).unwrap_or_else(|| panic!("{f}: no row in docs/adr/README.md"));
+            let row_status = row.rsplit('|').nth(1).unwrap_or("").trim();
+            assert!(row_status.starts_with(word), "{f}: the file says `{status}` but the README row says `{row_status}`");
+            if word == "superseded" {
+                let by: Vec<&str> = status.split(|c: char| !c.is_ascii_digit()).filter(|s| s.len() == 4).collect();
+                assert!(!by.is_empty(), "{f}: `superseded` must say by which ADR number(s): `{status}`");
+                for n in by {
+                    assert!(ADRS.iter().any(|(g, _)| g.starts_with(n)), "{f}: superseded by {n}, which does not exist");
+                }
             }
         }
     }

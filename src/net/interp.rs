@@ -39,6 +39,16 @@ pub struct PlayerPose {
     pub character: u8,
     /// Crouching.
     pub crouching: bool,
+    /// Swinging the bat.
+    pub swinging: bool,
+    /// Dead (waiting to respawn).
+    pub dead: bool,
+    /// The weapon in hand (`weapons::Weapon::wire`).
+    pub weapon: u8,
+    /// The prop being carried (`protocol::NO_PROP` when none).
+    pub held: u16,
+    /// Hit points.
+    pub hp: u8,
 }
 
 /// Shortest-arc blend of two angles (radians).
@@ -61,6 +71,11 @@ impl Blend for PlayerPose {
             speed: self.speed + (o.speed - self.speed) * t,
             character: o.character,
             crouching: if t < 0.5 { self.crouching } else { o.crouching },
+            swinging: o.swinging,
+            dead: o.dead,
+            weapon: o.weapon,
+            held: o.held,
+            hp: o.hp,
         }
     }
 }
@@ -82,7 +97,19 @@ impl Blend for PropPose {
 
 impl From<&PlayerSnap> for PlayerPose {
     fn from(p: &PlayerSnap) -> Self {
-        PlayerPose { pos: Vec3::from(p.pos), yaw: p.yaw, pitch: p.pitch, speed: p.speed, character: p.character, crouching: p.flags & 1 != 0 }
+        PlayerPose {
+            pos: Vec3::from(p.pos),
+            yaw: p.yaw,
+            pitch: p.pitch,
+            speed: p.speed,
+            character: p.character,
+            crouching: p.flags & 1 != 0,
+            swinging: p.flags & 2 != 0,
+            dead: p.flags & 4 != 0,
+            weapon: p.weapon,
+            held: p.held,
+            hp: p.hp,
+        }
     }
 }
 
@@ -258,7 +285,19 @@ mod tests {
             ack_input_seq: 0,
             echo_time_ms: 0,
             echo_hold_ms: 0,
-            players: vec![PlayerSnap { id: 1, character: 0, flags: 0, pos: [x, 0.0, 0.0], yaw: 0.0, pitch: 0.0, speed: 3.0, vy: 0.0 }],
+            players: vec![PlayerSnap {
+                id: 1,
+                character: 0,
+                flags: 0,
+                pos: [x, 0.0, 0.0],
+                yaw: 0.0,
+                pitch: 0.0,
+                speed: 3.0,
+                vy: 0.0,
+                weapon: 0,
+                held: crate::net::protocol::NO_PROP,
+                hp: 100,
+            }],
             props: vec![],
         }
     }
@@ -273,7 +312,19 @@ mod tests {
     #[test]
     fn history_interpolates_holds_at_the_ends_and_ignores_reordered_samples() {
         let mut h: History<PlayerPose> = History::default();
-        let pose = |x: f32| PlayerPose { pos: Vec3::new(x, 0.0, 0.0), yaw: 0.0, pitch: 0.0, speed: 0.0, character: 0, crouching: false };
+        let pose = |x: f32| PlayerPose {
+            pos: Vec3::new(x, 0.0, 0.0),
+            yaw: 0.0,
+            pitch: 0.0,
+            speed: 0.0,
+            character: 0,
+            crouching: false,
+            swinging: false,
+            dead: false,
+            weapon: 0,
+            held: u16::MAX,
+            hp: 100,
+        };
         h.push(1.0, pose(0.0));
         h.push(2.0, pose(10.0));
         h.push(1.5, pose(99.0)); // reordered: dropped
@@ -353,7 +404,14 @@ mod tests {
         let mut s = snap(0, 0.0);
         s.props.push(PropSnap { id: 3, pos: [1.0, 2.0, 3.0], rot: [0.0, 0.0, 0.0, 1.0] });
         w.apply(&s, 0.0);
-        w.apply(&{ let mut s2 = snap(2, 0.0); s2.props.push(PropSnap { id: 3, pos: [2.0, 2.0, 3.0], rot: [0.0, 0.0, 0.0, 1.0] }); s2 }, 0.033);
+        w.apply(
+            &{
+                let mut s2 = snap(2, 0.0);
+                s2.props.push(PropSnap { id: 3, pos: [2.0, 2.0, 3.0], rot: [0.0, 0.0, 0.0, 1.0] });
+                s2
+            },
+            0.033,
+        );
         let v = w.view(0.2, Some(1));
         assert!(v.players.is_empty(), "player 1 is me");
         assert_eq!(v.props.len(), 1);

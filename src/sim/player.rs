@@ -4,10 +4,10 @@
 //!
 //! Input is a [`PlayerInput`] (what the player is asking for this tick, not where they are), so a
 //! client can never tell the server a position. The world it moves through is just the static
-//! collider list and the ground candidates (`viewer::collect_*`), which the caller builds once.
+//! collider list and the ground candidates (`collide::collect_*`), which the caller builds once.
 
-use crate::player::{step_horizontal_band, vertical_step, BodySpec, Character, CROUCH_SPEED_MULT, FIXED_DT};
-use crate::viewer::{Collider2D, GroundCandidates};
+use crate::collide::{Collider2D, GroundCandidates};
+use crate::player::{step_horizontal_band, vertical_step_on, BodySpec, Character, CROUCH_SPEED_MULT, FIXED_DT};
 use glam::Vec2;
 
 /// Everything about a player the simulation owns.
@@ -54,9 +54,40 @@ pub struct PlayerInput {
     pub yaw: f32,
     /// Look pitch, radians.
     pub pitch: f32,
+    /// Interact held (`E`): picks up the prop under the crosshair, or drops the carried one. Acts on the press (rising edge).
+    pub interact: bool,
+    /// Primary action held (left click): swing the bat / fire the revolver. Acts on the press.
+    pub attack: bool,
+    /// Reload held (`R`). Acts on the press.
+    pub reload: bool,
+    /// Switch-weapon held (mouse wheel / `Q`). Acts on the press.
+    pub switch_weapon: bool,
 }
 
 impl PlayerInput {
+    /// The action buttons as bits for the wire and traces: bit 0 jump, 1 sprint, 2 crouch, 3 interact, 4 attack, 5 reload, 6 switch.
+    pub fn flags(&self) -> u8 {
+        (self.jump as u8)
+            | ((self.sprint as u8) << 1)
+            | ((self.crouch as u8) << 2)
+            | ((self.interact as u8) << 3)
+            | ((self.attack as u8) << 4)
+            | ((self.reload as u8) << 5)
+            | ((self.switch_weapon as u8) << 6)
+    }
+
+    /// The inverse of [`flags`](Self::flags) applied to `self` (movement axes and look are left as they are).
+    pub fn with_flags(mut self, f: u8) -> Self {
+        self.jump = f & 1 != 0;
+        self.sprint = f & 2 != 0;
+        self.crouch = f & 4 != 0;
+        self.interact = f & 8 != 0;
+        self.attack = f & 16 != 0;
+        self.reload = f & 32 != 0;
+        self.switch_weapon = f & 64 != 0;
+        self
+    }
+
     /// Replaces non-finite or out-of-range values (a corrupt or hostile packet) with harmless ones.
     pub fn sanitized(mut self) -> Self {
         self.forward = self.forward.clamp(-1, 1);
@@ -75,13 +106,19 @@ impl PlayerInput {
 /// Advances `state` by one [`FIXED_DT`] tick under `input` through the static world, returning the
 /// horizontal speed it moved at (m/s, 0 when standing still) for animation.
 pub fn step_player(state: &mut PlayerState, input: &PlayerInput, colliders: &[Collider2D], ground: &GroundCandidates) -> f32 {
+    step_player_on(state, input, colliders, ground, None)
+}
+
+/// [`step_player`] with an optional extra floor under the feet (single-player: the top of a loose prop the player stands on;
+/// the server and prediction pass `None`, so online you still cannot stand on a crate).
+pub fn step_player_on(state: &mut PlayerState, input: &PlayerInput, colliders: &[Collider2D], ground: &GroundCandidates, extra_floor: Option<f32>) -> f32 {
     let input = input.sanitized();
     state.yaw = input.yaw;
     state.pitch = input.pitch;
     let body: BodySpec = state.character.body();
 
     // Same convention as `FpsCamera`: forward = (sin yaw, -cos yaw), right = (cos yaw, sin yaw).
-    let (sy, cy) = state.yaw.sin_cos();
+    let (sy, cy) = libm::sincosf(state.yaw);
     let fwd = Vec2::new(sy, -cy);
     let right = Vec2::new(cy, sy);
     let mut dir = fwd * input.forward as f32 + right * input.strafe as f32;
@@ -100,7 +137,7 @@ pub fn step_player(state: &mut PlayerState, input: &PlayerInput, colliders: &[Co
         };
         state.pos = step_horizontal_band(colliders, state.pos, state.foot_y, dir * speed_now * FIXED_DT, body.radius, body.band_top);
     }
-    let (foot_y, vy) = vertical_step(ground, state.pos, state.foot_y, state.vy, input.jump);
+    let (foot_y, vy) = vertical_step_on(ground, extra_floor, state.pos, state.foot_y, state.vy, input.jump);
     state.foot_y = foot_y;
     state.vy = vy;
     speed_now
@@ -109,7 +146,7 @@ pub fn step_player(state: &mut PlayerState, input: &PlayerInput, colliders: &[Co
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::viewer::{collect_box_colliders, collect_ground_candidates};
+    use crate::collide::{collect_box_colliders, collect_ground_candidates};
     use std::path::Path;
 
     fn world() -> (Vec<Collider2D>, GroundCandidates) {

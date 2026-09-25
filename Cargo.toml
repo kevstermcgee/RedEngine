@@ -3,22 +3,33 @@ name = "red_engine2"
 version = "0.1.0"
 edition = "2021"
 
+# `gfx` (default) = everything that draws or plays sound: wgpu, winit, rodio, ffmpeg. The dedicated server, the bot and the
+# map-analysis CLI build without it (`cargo build --no-default-features --bin red_server`); CI enforces that on Linux.
+[features]
+default = ["gfx"]
+gfx = ["dep:wgpu", "dep:winit", "dep:rodio", "dep:pollster", "dep:ffmpeg-sidecar"]
+
 [dependencies]
 anyhow = "1.0.104"
 bytemuck = { version = "1.25.2", features = ["derive"] }
 clap = { version = "4.6.7", features = ["derive"] }
 env_logger = "0.11.11"
-ffmpeg-sidecar = "2.5.2"
-glam = { version = "0.33.8", features = ["serde"] }
+ffmpeg-sidecar = { version = "2.5.2", optional = true }
+# `libm`: glam uses the pure-Rust libm for sin/cos/atan2 instead of the platform C library, so simulation maths is
+# bit-identical on Windows and Linux (replay checksums, ADR 0019).
+glam = { version = "0.33.8", features = ["serde", "libm"] }
+libm = "0.2"
+# Graceful Ctrl-C for `red_server` (tell clients bye, write the `--record` trace).
+ctrlc = "3"
 image = { version = "0.25.9", default-features = false, features = ["png"] }
-pollster = "1.0.1"
-rodio = { version = "0.20", default-features = false }
+pollster = { version = "1.0.1", optional = true }
+rodio = { version = "0.20", default-features = false, optional = true }
 rapier3d = { version = "0.35", features = ["enhanced-determinism"] }
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = { version = "1.0.151", features = ["preserve_order"] }
+serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
 thiserror = "2.0.20"
-wgpu = "30.0.1"
-winit = "0.30"
+wgpu = { version = "30.0.1", optional = true }
+winit = { version = "0.30", optional = true }
 
 [profile.release]
 lto = true
@@ -42,6 +53,11 @@ criterion = "0.8.2"
 inherits = "release"
 lto = "thin"
 codegen-units = 16
+
+[[bin]]
+name = "re2"
+path = "src/bin/re2/main.rs"
+required-features = ["gfx"]
 
 [[bench]]
 name = "sim"

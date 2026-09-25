@@ -1,0 +1,629 @@
+{
+ "recipe": {
+  "title": "Coin run: game rules as data, proven headless",
+  "summary": "A one-room game whose whole logic is data: collect 3 coins, then reach the exit to win; the exit stays locked without them and a trap zone sends you back to the start. `checks.sim` proves each behaviour by playing scripted players through the real authoritative simulation - no window, no Rust.",
+  "teaches": [
+   "`vars` + `rules`: when/who/if/once/do (enter a volume, add to a variable, hide an object, emit an event, end the match)",
+   "volumes from an object (`{object, pad}`), a zone (`{zone}`) or a box",
+   "`teleport` to a spawn point; conditional rules with expressions (`score >= 3`)",
+   "`checks.sim` scenarios: scripted walk paths + expectations on events, variables and where players end up",
+   "`red_engine2 sim coin_run.json --trace out/run.json` then `replay out/run.json` for deterministic reproduction"
+  ],
+  "tips": [
+   "Declare every variable in `vars`: a typo in a rule is a validate error, not a rule that never fires.",
+   "An `emit` name that nothing listens for is fine; a `when: {event}` nothing emits is an error.",
+   "Rules only run in the simulation (server / `sim`); hiding an object is state that a renderer or client acts on."
+  ]
+ },
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "background": {
+  "sky_top": "#8fc7ff",
+  "sky_bottom": "#eef6ff"
+ },
+ "ambient": {
+  "color": "#ffffff",
+  "intensity": 0.45
+ },
+ "camera": {
+  "fov": 70,
+  "position": [
+   -8,
+   1.7,
+   0
+  ],
+  "target": [
+   0,
+   1.4,
+   0
+  ]
+ },
+ "post": {
+  "ao": 0.8,
+  "outline": 0.5
+ },
+ "lights": [
+  {
+   "id": "lamp_w",
+   "type": "point",
+   "position": [
+    -5,
+    2.6,
+    0
+   ],
+   "color": "#fff0d0",
+   "intensity": 11,
+   "range": 9
+  },
+  {
+   "id": "lamp_e",
+   "type": "point",
+   "position": [
+    5,
+    2.6,
+    0
+   ],
+   "color": "#fff0d0",
+   "intensity": 11,
+   "range": 9
+  }
+ ],
+ "zones": [
+  {
+   "id": "arena",
+   "rect": [
+    -9.88,
+    -5.88,
+    9.88,
+    5.88
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "exit",
+   "rect": [
+    8,
+    -1.5,
+    9.88,
+    1.5
+   ],
+   "y": 0,
+   "kind": "goal"
+  },
+  {
+   "id": "trap",
+   "rect": [
+    -1,
+    -5.5,
+    1,
+    -3.5
+   ],
+   "y": 0,
+   "kind": "hazard"
+  }
+ ],
+ "spawns": [
+  {
+   "id": "spawn_a",
+   "position": [
+    -8,
+    0,
+    0
+   ],
+   "yaw_deg": 90,
+   "group": "solo"
+  }
+ ],
+ "vars": {
+  "score": 0
+ },
+ "rules": [
+  {
+   "id": "take_coin_1",
+   "when": {
+    "enter": {
+     "object": "coin_1",
+     "pad": 0.3
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "add": [
+      "score",
+      1
+     ]
+    },
+    {
+     "hide": "coin_1"
+    },
+    {
+     "emit": "coin"
+    }
+   ]
+  },
+  {
+   "id": "take_coin_2",
+   "when": {
+    "enter": {
+     "object": "coin_2",
+     "pad": 0.3
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "add": [
+      "score",
+      1
+     ]
+    },
+    {
+     "hide": "coin_2"
+    },
+    {
+     "emit": "coin"
+    }
+   ]
+  },
+  {
+   "id": "take_coin_3",
+   "when": {
+    "enter": {
+     "object": "coin_3",
+     "pad": 0.3
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "add": [
+      "score",
+      1
+     ]
+    },
+    {
+     "hide": "coin_3"
+    },
+    {
+     "emit": "coin"
+    }
+   ]
+  },
+  {
+   "id": "exit_locked",
+   "when": {
+    "enter": {
+     "zone": "exit"
+    }
+   },
+   "if": "score < 3",
+   "do": [
+    {
+     "emit": "locked"
+    }
+   ]
+  },
+  {
+   "id": "exit_open",
+   "when": {
+    "enter": {
+     "zone": "exit"
+    }
+   },
+   "if": "score >= 3",
+   "do": [
+    {
+     "emit": "victory"
+    },
+    {
+     "end": "victory"
+    }
+   ]
+  },
+  {
+   "id": "trap",
+   "when": {
+    "enter": {
+     "zone": "trap"
+    }
+   },
+   "do": [
+    {
+     "emit": "ouch"
+    },
+    {
+     "teleport": "spawn_a"
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0
+  },
+  "walk": [
+   {
+    "name": "start to the exit",
+    "path": "-8,0; 8.8,0",
+    "ends_near": [
+     8.8,
+     0
+    ],
+    "tol": 0.4,
+    "floor_y": 0
+   }
+  ],
+  "objects": {
+   "exist": [
+    "floor",
+    "coin_1",
+    "coin_2",
+    "coin_3",
+    "exit_pad"
+   ],
+   "min_count": 10
+  },
+  "sim": [
+   {
+    "name": "collect all three coins, then win",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "spawn_a"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-5,-3; 0,3; 5,-2; 8.8,0"
+     }
+    ],
+    "expect": [
+     {
+      "event": "coin",
+      "count": 3
+     },
+     {
+      "var": "score",
+      "eq": 3
+     },
+     {
+      "event": "victory",
+      "count": 1
+     },
+     {
+      "ended": "victory"
+     },
+     {
+      "hidden": "coin_1"
+     },
+     {
+      "hidden": "coin_2"
+     },
+     {
+      "hidden": "coin_3"
+     },
+     {
+      "no_event": "ouch"
+     }
+    ]
+   },
+   {
+    "name": "the exit stays locked without the coins",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "spawn_a"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "8.8,0"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "event": "locked",
+      "min": 1
+     },
+     {
+      "no_event": "victory"
+     },
+     {
+      "not_ended": true
+     },
+     {
+      "var": "score",
+      "eq": 0
+     },
+     {
+      "player": "p1",
+      "near": [
+       8.8,
+       0
+      ],
+      "tol": 0.4
+     }
+    ]
+   },
+   {
+    "name": "the trap sends you back to the start",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "spawn_a"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "0,-4.5",
+      "until_event": "ouch"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "event": "ouch",
+      "count": 1
+     },
+     {
+      "player": "p1",
+      "near": [
+       -8,
+       0
+      ],
+      "tol": 0.6
+     }
+    ]
+   },
+   {
+    "name": "a rat collects the coins too",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "cheddar",
+      "character": "rat",
+      "spawn": "spawn_a"
+     }
+    ],
+    "script": [
+     {
+      "player": "cheddar",
+      "walk": "-5,-3; 0,3; 5,-2; 8.8,0"
+     }
+    ],
+    "max_seconds": 40,
+    "expect": [
+     {
+      "var": "score",
+      "eq": 3
+     },
+     {
+      "ended": "victory"
+     }
+    ]
+   }
+  ]
+ },
+ "objects": [
+  {
+   "id": "floor",
+   "type": "plane",
+   "size": [
+    20,
+    12
+   ],
+   "position": [
+    0,
+    0.01,
+    0
+   ],
+   "material": {
+    "color": "#c8c0b0",
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": "ceiling",
+   "type": "box",
+   "size": [
+    20,
+    0.2,
+    12
+   ],
+   "position": [
+    0,
+    2.9,
+    0
+   ],
+   "material": {
+    "color": "#e8e4dc"
+   }
+  },
+  {
+   "id": "wall_n",
+   "type": "wall",
+   "from": [
+    -10,
+    -6
+   ],
+   "to": [
+    10,
+    -6
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "wall_s",
+   "type": "wall",
+   "from": [
+    -10,
+    6
+   ],
+   "to": [
+    10,
+    6
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "wall_w",
+   "type": "wall",
+   "from": [
+    -10,
+    -6
+   ],
+   "to": [
+    -10,
+    6
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "wall_e",
+   "type": "wall",
+   "from": [
+    10,
+    -6
+   ],
+   "to": [
+    10,
+    6
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "exit_pad",
+   "type": "plane",
+   "size": [
+    1.88,
+    3
+   ],
+   "position": [
+    8.94,
+    0.02,
+    0
+   ],
+   "material": {
+    "color": "#3fbf6a",
+    "emissive": "#1a5a30",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "trap_pad",
+   "type": "plane",
+   "size": [
+    2,
+    2
+   ],
+   "position": [
+    0,
+    0.02,
+    -4.5
+   ],
+   "material": {
+    "color": "#c44a3a",
+    "emissive": "#5a1a10",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "coin_1",
+   "type": "cylinder",
+   "radius": 0.25,
+   "height": 0.08,
+   "position": [
+    -5,
+    0.45,
+    -3
+   ],
+   "rotation": [
+    90,
+    0,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "color": "#f2c230",
+    "emissive": "#7a5a08",
+    "metallic": 0.8,
+    "roughness": 0.3
+   }
+  },
+  {
+   "id": "coin_2",
+   "type": "cylinder",
+   "radius": 0.25,
+   "height": 0.08,
+   "position": [
+    0,
+    0.45,
+    3
+   ],
+   "rotation": [
+    90,
+    0,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "color": "#f2c230",
+    "emissive": "#7a5a08",
+    "metallic": 0.8,
+    "roughness": 0.3
+   }
+  },
+  {
+   "id": "coin_3",
+   "type": "cylinder",
+   "radius": 0.25,
+   "height": 0.08,
+   "position": [
+    5,
+    0.45,
+    -2
+   ],
+   "rotation": [
+    90,
+    0,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "color": "#f2c230",
+    "emissive": "#7a5a08",
+    "metallic": 0.8,
+    "roughness": 0.3
+   }
+  }
+ ]
+}

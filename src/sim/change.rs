@@ -187,6 +187,11 @@ impl<T> TrackedColumn<T> {
         self.newest
     }
 
+    /// The generation slot `slot` last changed at.
+    pub fn changed_at(&self, slot: usize) -> Generation {
+        self.items[slot].changed_at()
+    }
+
     /// O(1): did *anything* in the column change after `since`? A quiet column never scans.
     pub fn changed_since(&self, since: Generation) -> bool {
         self.newest > since

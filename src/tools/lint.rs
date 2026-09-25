@@ -25,10 +25,10 @@
 
 use super::reach::{Reach, DROP_THRESHOLD};
 use super::world::{Item, ItemKind, MapWorld};
+use crate::collide::ground_height_at;
 use crate::player::{MIN_COMFORTABLE_DOOR_WIDTH, PLAYER_HEADROOM};
 use crate::props::PropKind;
 use crate::schema::LightKind;
-use crate::viewer::ground_height_at;
 use glam::{Vec2, Vec3};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -130,7 +130,13 @@ fn check_duplicate_ids(world: &MapWorld, out: &mut Vec<Finding>) {
     let mut dups: Vec<_> = seen.into_iter().filter(|(_, n)| *n > 1).collect();
     dups.sort();
     for (id, n) in dups {
-        out.push(finding(Severity::Error, "duplicate-id", format!("id '{id}' is used by {n} objects — edit tools (set/move/rm) can't address them uniquely"), None, &[&id]));
+        out.push(finding(
+            Severity::Error,
+            "duplicate-id",
+            format!("id '{id}' is used by {n} objects — edit tools (set/move/rm) can't address them uniquely"),
+            None,
+            &[&id],
+        ));
     }
 }
 
@@ -303,7 +309,13 @@ fn check_support(world: &MapWorld, out: &mut Vec<Finding>) {
             continue;
         }
         if base < -0.08 {
-            out.push(finding(Severity::Warn, "sunk", format!("'{}' is sunk {:.2} m into the ground (base at y={:.2})", it.top_id, -base, base), Some(Vec3::new(center.x, base, center.y)), &[it.top_id]));
+            out.push(finding(
+                Severity::Warn,
+                "sunk",
+                format!("'{}' is sunk {:.2} m into the ground (base at y={:.2})", it.top_id, -base, base),
+                Some(Vec3::new(center.x, base, center.y)),
+                &[it.top_id],
+            ));
             continue;
         }
         for s in &surfaces {
@@ -318,7 +330,14 @@ fn check_support(world: &MapWorld, out: &mut Vec<Finding>) {
                 out.push(finding(
                     Severity::Warn,
                     "sunk",
-                    format!("'{}' is buried {:.2} m in '{}' (its base y={:.2} is below that slab's top y={:.2})", it.top_id, s.top - base, s.owner.id, base, s.top),
+                    format!(
+                        "'{}' is buried {:.2} m in '{}' (its base y={:.2} is below that slab's top y={:.2})",
+                        it.top_id,
+                        s.top - base,
+                        s.owner.id,
+                        base,
+                        s.top
+                    ),
                     Some(Vec3::new(center.x, base, center.y)),
                     &[it.top_id],
                 ));
@@ -359,7 +378,10 @@ fn check_headroom(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
         out.push(finding(
             Severity::Error,
             "headroom",
-            format!("'{id}' leaves only {:.2} m of headroom (need {:.2}) over walkable floor at ({:.1}, {:.1}), y={:.1}", clearance, PLAYER_HEADROOM, at.x, at.z, at.y),
+            format!(
+                "'{id}' leaves only {:.2} m of headroom (need {:.2}) over walkable floor at ({:.1}, {:.1}), y={:.1}",
+                clearance, PLAYER_HEADROOM, at.x, at.z, at.y
+            ),
             Some(at),
             &[&id],
         ));
@@ -373,14 +395,32 @@ fn check_stairs(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
         let top = base + s.rise;
         let id = it.top_id.as_str();
         if s.width < 0.8 {
-            out.push(finding(Severity::Error, "stairs-narrow", format!("stairs '{id}' are {:.2} m wide; the player needs > 0.8 m between the side rails (use >= 1.1)", s.width), Some(it.origin), &[id]));
+            out.push(finding(
+                Severity::Error,
+                "stairs-narrow",
+                format!("stairs '{id}' are {:.2} m wide; the player needs > 0.8 m between the side rails (use >= 1.1)", s.width),
+                Some(it.origin),
+                &[id],
+            ));
         } else if s.width < 1.0 {
-            out.push(finding(Severity::Warn, "stairs-narrow", format!("stairs '{id}' are only {:.2} m wide — a tight squeeze (>= 1.1 recommended)", s.width), Some(it.origin), &[id]));
+            out.push(finding(
+                Severity::Warn,
+                "stairs-narrow",
+                format!("stairs '{id}' are only {:.2} m wide — a tight squeeze (>= 1.1 recommended)", s.width),
+                Some(it.origin),
+                &[id],
+            ));
         }
         let step_h = s.rise / s.steps as f32;
         let tread = s.run / s.steps as f32;
         if step_h > 0.22 || tread < 0.22 {
-            out.push(finding(Severity::Warn, "stairs-steep", format!("stairs '{id}': {} steps of {:.2} m rise x {:.2} m tread look too steep (aim for <= 0.20 x >= 0.26)", s.steps, step_h, tread), Some(it.origin), &[id]));
+            out.push(finding(
+                Severity::Warn,
+                "stairs-steep",
+                format!("stairs '{id}': {} steps of {:.2} m rise x {:.2} m tread look too steep (aim for <= 0.20 x >= 0.26)", s.steps, step_h, tread),
+                Some(it.origin),
+                &[id],
+            ));
         }
         let bottom_pt = s.point(-0.5, 0.0);
         let top_pt = s.point(s.run + 0.5, 0.0);
@@ -396,7 +436,10 @@ fn check_stairs(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
         if !reach.reachable(top_pt, top, 0.2) {
             let floor_there = ground_height_at(&world.ground, top_pt, top);
             let why = if (floor_there - top).abs() > 0.1 {
-                format!("there is no floor at y={:.1} beyond the top step (ground there is y={:.2}) — the floor slab must start where the stairs end", top, floor_there)
+                format!(
+                    "there is no floor at y={:.1} beyond the top step (ground there is y={:.2}) — the floor slab must start where the stairs end",
+                    top, floor_there
+                )
             } else {
                 "something blocks the exit (a wall or prop right after the top step)".to_string()
             };
@@ -413,11 +456,23 @@ fn check_stairs(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
 
 fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
     if !reach.start_ok {
-        out.push(finding(Severity::Error, "spawn", format!("the player spawn ({:.1}, {:.1}) is inside solid geometry with no free space within 1 m", reach.start.x, reach.start.y), Some(Vec3::new(reach.start.x, 0.0, reach.start.y)), &[]));
+        out.push(finding(
+            Severity::Error,
+            "spawn",
+            format!("the player spawn ({:.1}, {:.1}) is inside solid geometry with no free space within 1 m", reach.start.x, reach.start.y),
+            Some(Vec3::new(reach.start.x, 0.0, reach.start.y)),
+            &[],
+        ));
         return;
     }
     if reach.start_adjusted {
-        out.push(finding(Severity::Warn, "spawn", format!("the player spawn ({:.1}, {:.1}) overlaps a collider; the player would be pushed out", reach.start.x, reach.start.y), Some(Vec3::new(reach.start.x, 0.0, reach.start.y)), &[]));
+        out.push(finding(
+            Severity::Warn,
+            "spawn",
+            format!("the player spawn ({:.1}, {:.1}) overlaps a collider; the player would be pushed out", reach.start.x, reach.start.y),
+            Some(Vec3::new(reach.start.x, 0.0, reach.start.y)),
+            &[],
+        ));
     }
     if reach.truncated {
         out.push(finding(Severity::Warn, "reach", "reachability search hit its state limit; results are partial (try a larger --cell)".to_string(), None, &[]));
@@ -436,7 +491,12 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
         out.push(finding(
             Severity::Error,
             "leak",
-            format!("the player can walk off the map: {} border cells reachable in {} place(s), near {} — close the perimeter (fence/wall gap)", reach.leaks.len(), clusters.len(), list.join(", ")),
+            format!(
+                "the player can walk off the map: {} border cells reachable in {} place(s), near {} — close the perimeter (fence/wall gap)",
+                reach.leaks.len(),
+                clusters.len(),
+                list.join(", ")
+            ),
             Some(Vec3::new(clusters[0].0.x, 0.0, clusters[0].0.y)),
             &[],
         ));
@@ -446,7 +506,14 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
         out.push(finding(
             Severity::Warn,
             "drop",
-            format!("unprotected {:.1} m drop near ({:.1}, {:.1}): walkable floor at y={:.1} ends with nothing to stop the player (~{} cells) — add a railing/wall", from - to, p.x, p.y, from, n),
+            format!(
+                "unprotected {:.1} m drop near ({:.1}, {:.1}): walkable floor at y={:.1} ends with nothing to stop the player (~{} cells) — add a railing/wall",
+                from - to,
+                p.x,
+                p.y,
+                from,
+                n
+            ),
             Some(Vec3::new(p.x, from, p.y)),
             &[],
         ));
@@ -456,11 +523,29 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
     for z in &world.zones {
         let (got, free) = reach.area_in(world, z.min, z.max, z.y, 0.35);
         if free < 0.5 {
-            out.push(finding(Severity::Warn, "zone", format!("zone '{}' has almost no free floor at y={:.1} ({:.1} m^2) — is its rect/y right?", z.id, z.y, free), Some(Vec3::new((z.min.x + z.max.x) * 0.5, z.y, (z.min.y + z.max.y) * 0.5)), &[]));
+            out.push(finding(
+                Severity::Warn,
+                "zone",
+                format!("zone '{}' has almost no free floor at y={:.1} ({:.1} m^2) — is its rect/y right?", z.id, z.y, free),
+                Some(Vec3::new((z.min.x + z.max.x) * 0.5, z.y, (z.min.y + z.max.y) * 0.5)),
+                &[],
+            ));
         } else if got < 0.5 {
-            out.push(finding(Severity::Error, "zone", format!("zone '{}' is UNREACHABLE: 0 of {:.1} m^2 can be walked to from the spawn", z.id, free), Some(Vec3::new((z.min.x + z.max.x) * 0.5, z.y, (z.min.y + z.max.y) * 0.5)), &[]));
+            out.push(finding(
+                Severity::Error,
+                "zone",
+                format!("zone '{}' is UNREACHABLE: 0 of {:.1} m^2 can be walked to from the spawn", z.id, free),
+                Some(Vec3::new((z.min.x + z.max.x) * 0.5, z.y, (z.min.y + z.max.y) * 0.5)),
+                &[],
+            ));
         } else if got / free < 0.6 {
-            out.push(finding(Severity::Warn, "zone", format!("zone '{}' is only {:.0}% reachable ({:.1} of {:.1} m^2) — part of it is sealed off", z.id, got / free * 100.0, got, free), Some(Vec3::new((z.min.x + z.max.x) * 0.5, z.y, (z.min.y + z.max.y) * 0.5)), &[]));
+            out.push(finding(
+                Severity::Warn,
+                "zone",
+                format!("zone '{}' is only {:.0}% reachable ({:.1} of {:.1} m^2) — part of it is sealed off", z.id, got / free * 100.0, got, free),
+                Some(Vec3::new((z.min.x + z.max.x) * 0.5, z.y, (z.min.y + z.max.y) * 0.5)),
+                &[],
+            ));
         }
     }
 
@@ -538,7 +623,10 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
             out.push(finding(
                 Severity::Warn,
                 "unreachable",
-                format!("prop '{}' at ({:.1}, {:.1}) can't be approached — it's sealed behind walls or other props (no reachable floor within 0.9 m)", it.top_id, it.origin.x, it.origin.z),
+                format!(
+                    "prop '{}' at ({:.1}, {:.1}) can't be approached — it's sealed behind walls or other props (no reachable floor within 0.9 m)",
+                    it.top_id, it.origin.x, it.origin.z
+                ),
                 Some(it.origin),
                 &[&it.top_id],
             ));
@@ -548,7 +636,16 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
     // Tight connections between zones.
     for (a, b, mid, width) in reach.passages(&world.zones) {
         if width < MIN_COMFORTABLE_DOOR_WIDTH - 0.05 && width > 0.0 {
-            out.push(finding(Severity::Warn, "door", format!("the connection {a} <-> {b} near ({:.1}, {:.1}) is only ~{:.2} m wide (>= {:.1} m is comfortable)", mid.x, mid.y, width, MIN_COMFORTABLE_DOOR_WIDTH), Some(Vec3::new(mid.x, 0.0, mid.y)), &[]));
+            out.push(finding(
+                Severity::Warn,
+                "door",
+                format!(
+                    "the connection {a} <-> {b} near ({:.1}, {:.1}) is only ~{:.2} m wide (>= {:.1} m is comfortable)",
+                    mid.x, mid.y, width, MIN_COMFORTABLE_DOOR_WIDTH
+                ),
+                Some(Vec3::new(mid.x, 0.0, mid.y)),
+                &[],
+            ));
         }
     }
     let _ = DROP_THRESHOLD;
@@ -585,7 +682,13 @@ fn check_openings(world: &MapWorld, out: &mut Vec<Finding>) {
             let side = |sgn: f32| region.iter().any(|p| (*p - center).dot(normal) * sgn >= 0.9);
             let (a, b) = (side(1.0), side(-1.0));
             if !(a && b) {
-                let which = if !a && !b { "either side" } else if !a { "one side" } else { "the other side" };
+                let which = if !a && !b {
+                    "either side"
+                } else if !a {
+                    "one side"
+                } else {
+                    "the other side"
+                };
                 out.push(finding(
                     Severity::Error,
                     "door-blocked",
@@ -607,7 +710,13 @@ fn check_lights(world: &MapWorld, out: &mut Vec<Finding>) {
         let p = position.sample(0.0);
         for it in world.items.iter().filter(|i| matches!(i.kind, ItemKind::Box) && i.is_solid()) {
             if p.x >= it.min.x && p.x <= it.max.x && p.y >= it.min.y && p.y <= it.max.y && p.z >= it.min.z && p.z <= it.max.z {
-                out.push(finding(Severity::Warn, "light", format!("light '{}' at ({:.1}, {:.1}, {:.1}) is inside '{}' — it will be blocked/look wrong", l.id, p.x, p.y, p.z, it.id), Some(p), &[&it.top_id]));
+                out.push(finding(
+                    Severity::Warn,
+                    "light",
+                    format!("light '{}' at ({:.1}, {:.1}, {:.1}) is inside '{}' — it will be blocked/look wrong", l.id, p.x, p.y, p.z, it.id),
+                    Some(p),
+                    &[&it.top_id],
+                ));
                 break;
             }
         }
@@ -624,7 +733,10 @@ fn check_z_fight(world: &MapWorld, out: &mut Vec<Finding>) {
                     out.push(finding(
                         Severity::Warn,
                         "z-fight",
-                        format!("planes '{}' and '{}' overlap by {:.1} m^2 at the same height (y={:.3}) and will flicker — raise one by ~0.01", a.id, b.id, area, a.max.y),
+                        format!(
+                            "planes '{}' and '{}' overlap by {:.1} m^2 at the same height (y={:.3}) and will flicker — raise one by ~0.01",
+                            a.id, b.id, area, a.max.y
+                        ),
                         Some(Vec3::new((a.min.x + a.max.x) * 0.5, a.max.y, (a.min.z + a.max.z) * 0.5)),
                         &[&a.top_id, &b.top_id],
                     ));
@@ -681,7 +793,8 @@ mod tests {
 
     #[test]
     fn hovering_and_sunk_props_are_flagged() {
-        let f = run(&room(r##",{"id":"up","type":"prop","prop":"crate","position":[1,1.0,1]},{"id":"down","type":"prop","prop":"chair","position":[-2,-0.4,1]}"##));
+        let f =
+            run(&room(r##",{"id":"up","type":"prop","prop":"crate","position":[1,1.0,1]},{"id":"down","type":"prop","prop":"chair","position":[-2,-0.4,1]}"##));
         assert!(f.iter().any(|x| x.code == "floating" && x.ids[0] == "up"), "{}", format_report(&f));
         assert!(f.iter().any(|x| x.code == "sunk" && x.ids[0] == "down"), "{}", format_report(&f));
     }
@@ -711,18 +824,20 @@ mod tests {
     #[test]
     fn missing_railing_around_a_hole_is_a_drop() {
         // A raised deck reached by stairs, with open edges and nothing to stop the player.
-        let f = run(
-            r##"{"camera":{"position":[0,1.7,3.2]},"objects":[
+        let f = run(r##"{"camera":{"position":[0,1.7,3.2]},"objects":[
             {"id":"n","type":"wall","from":[-4,-4],"to":[4,-4]},
             {"id":"s","type":"wall","from":[-4,4],"to":[4,4]},
             {"id":"e","type":"wall","from":[4,-4],"to":[4,4]},
             {"id":"w","type":"wall","from":[-4,-4],"to":[-4,4]},
             {"id":"st","type":"stairs","position":[0,0,-1.5],"width":1.2,"run":3.0,"rise":2.0,"steps":10},
-            {"id":"deck","type":"box","size":[6,0.2,2.5],"position":[0,1.9,1.25]}]}"##,
-        );
+            {"id":"deck","type":"box","size":[6,0.2,2.5],"position":[0,1.9,1.25]}]}"##);
         assert!(f.iter().any(|x| x.code == "drop"), "{}", format_report(&f));
-        assert!(!f.iter().any(|x| x.code == "stairs-top"), "the deck starts right where the stairs end:
-{}", format_report(&f));
+        assert!(
+            !f.iter().any(|x| x.code == "stairs-top"),
+            "the deck starts right where the stairs end:
+{}",
+            format_report(&f)
+        );
     }
 }
 
@@ -774,14 +889,18 @@ mod prefab_tests {
 
     #[test]
     fn a_prefab_hovering_or_resting_is_judged_like_a_prop() {
-        let f = run(r##",{"id":"a_up","type":"prefab","prefab":"apple_red","position":[1,1.0,1]},{"id":"a_ok","type":"prefab","prefab":"apple_red","position":[-1,0,-1]}"##);
+        let f = run(
+            r##",{"id":"a_up","type":"prefab","prefab":"apple_red","position":[1,1.0,1]},{"id":"a_ok","type":"prefab","prefab":"apple_red","position":[-1,0,-1]}"##,
+        );
         assert!(f.iter().any(|x| x.code == "floating" && x.ids[0] == "a_up"), "{}", format_report(&f));
         assert!(!f.iter().any(|x| x.ids.first().is_some_and(|i| i == "a_ok")), "{}", format_report(&f));
     }
 
     #[test]
     fn a_prefab_resting_on_a_table_is_fine_and_lint_ignore_works() {
-        let on_table = run(r##",{"id":"t","type":"prop","prop":"dining_table","position":[0,0,0]},{"id":"bowl","type":"prefab","prefab":"fruit_bowl","position":[0,0.78,0]}"##);
+        let on_table = run(
+            r##",{"id":"t","type":"prop","prop":"dining_table","position":[0,0,0]},{"id":"bowl","type":"prefab","prefab":"fruit_bowl","position":[0,0.78,0]}"##,
+        );
         assert!(!on_table.iter().any(|x| x.code == "floating" || x.code == "sunk"), "{}", format_report(&on_table));
         let ignored = run(r##",{"id":"a_up","type":"prefab","prefab":"apple_red","position":[1,1.0,1],"lint_ignore":["floating"]}"##);
         assert!(!ignored.iter().any(|x| x.code == "floating"), "{}", format_report(&ignored));

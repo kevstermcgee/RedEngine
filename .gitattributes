@@ -1,0 +1,7 @@
+# Keep the repo LF everywhere so a Windows checkout and a Linux/container checkout produce identical bytes
+# (golden images, trace checksums and `docs cannot drift` tests all hash or compare file text).
+* text=auto eol=lf
+*.sh text eol=lf
+*.png binary
+*.ico binary
+*.jpg binary

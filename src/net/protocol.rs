@@ -11,19 +11,21 @@
 //! Server -> client: [`ServerMsg::Welcome`], [`ServerMsg::Reject`], [`ServerMsg::Snapshot`] (every
 //! player, plus the props that changed since the client last acknowledged), [`ServerMsg::Bye`].
 
+use crate::player::Character;
 use crate::sim::player::PlayerInput;
+use std::fmt;
 
 /// First two bytes of every datagram ("RD").
 pub const MAGIC: u16 = 0x5244;
 /// Bumped on any incompatible change; a mismatched client is rejected.
-pub const PROTOCOL_VERSION: u16 = 1;
+pub const PROTOCOL_VERSION: u16 = 2;
 /// Largest datagram either side sends or accepts (under a typical 1500-byte MTU).
 pub const MAX_PACKET: usize = 1400;
 /// Most inputs one packet carries (the newest is last).
 pub const MAX_INPUTS_PER_PACKET: usize = 4;
 /// Most players in one snapshot.
 pub const MAX_PLAYERS_PER_SNAPSHOT: usize = 8;
-/// Most props in one snapshot (30 bytes each: fits the packet with the players).
+/// Most props in one snapshot (30 bytes each: fits the packet with the players, 35 bytes each).
 pub const MAX_PROPS_PER_SNAPSHOT: usize = 30;
 
 const KIND_HELLO: u8 = 1;
@@ -47,6 +49,37 @@ pub enum DecodeError {
     OutOfRange,
     /// Bytes left over after the message.
     TrailingBytes,
+}
+
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DecodeError::NotOurs => write!(f, "not a Red datagram (magic bytes are not 0x5244)"),
+            DecodeError::Truncated => write!(f, "datagram ends before the message does"),
+            DecodeError::UnknownKind(k) => write!(f, "unknown message kind {k}"),
+            DecodeError::OutOfRange => write!(f, "a count or enum value is outside the protocol's limits"),
+            DecodeError::TrailingBytes => write!(f, "extra bytes after the end of the message"),
+        }
+    }
+}
+
+impl std::error::Error for DecodeError {}
+
+/// `0` human, `1` rat: how a [`Character`] travels on the wire.
+pub fn character_to_wire(c: Character) -> u8 {
+    match c {
+        Character::Human => 0,
+        Character::Rat => 1,
+    }
+}
+
+/// The inverse of [`character_to_wire`]; anything but `1` is a human (a hostile value gets the default body).
+pub fn character_from_wire(v: u8) -> Character {
+    if v == 1 {
+        Character::Rat
+    } else {
+        Character::Human
+    }
 }
 
 /// Why the server refused a join.
@@ -139,7 +172,7 @@ pub struct PlayerSnap {
     pub id: u8,
     /// `0` human, `1` rat.
     pub character: u8,
-    /// Bit 0: crouching.
+    /// Bit 0: crouching, bit 1: swinging the bat, bit 2: dead.
     pub flags: u8,
     /// `x, foot_y, z`.
     pub pos: [f32; 3],
@@ -151,7 +184,16 @@ pub struct PlayerSnap {
     pub speed: f32,
     /// Vertical velocity, m/s (lets the owner's client replay a jump exactly).
     pub vy: f32,
+    /// The weapon in hand (`weapons::Weapon::wire`).
+    pub weapon: u8,
+    /// The prop this player is carrying ([`NO_PROP`] when none).
+    pub held: u16,
+    /// Hit points.
+    pub hp: u8,
 }
+
+/// `PlayerSnap::held` when the player carries nothing.
+pub const NO_PROP: u16 = u16::MAX;
 
 /// One prop's pose in a snapshot.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -238,19 +280,24 @@ impl<'a> R<'a> {
         Ok(s)
     }
     fn u8(&mut self) -> Result<u8, DecodeError> {
-        Ok(self.take(1)?[0])
+        Ok(self.array::<1>()?[0])
+    }
+    fn array<const N: usize>(&mut self) -> Result<[u8; N], DecodeError> {
+        let mut a = [0u8; N];
+        a.copy_from_slice(self.take(N)?);
+        Ok(a)
     }
     fn u16(&mut self) -> Result<u16, DecodeError> {
-        Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()))
+        Ok(u16::from_le_bytes(self.array()?))
     }
     fn u32(&mut self) -> Result<u32, DecodeError> {
-        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+        Ok(u32::from_le_bytes(self.array()?))
     }
     fn u64(&mut self) -> Result<u64, DecodeError> {
-        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+        Ok(u64::from_le_bytes(self.array()?))
     }
     fn f32(&mut self) -> Result<f32, DecodeError> {
-        Ok(f32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+        Ok(f32::from_le_bytes(self.array()?))
     }
     fn finish(&self) -> Result<(), DecodeError> {
         if self.i == self.b.len() {
@@ -275,7 +322,7 @@ fn open(bytes: &[u8]) -> Result<(u8, R<'_>), DecodeError> {
 
 fn put_input(w: &mut W, i: &PlayerInput) {
     w.u32(i.seq);
-    w.u8((i.jump as u8) | ((i.sprint as u8) << 1) | ((i.crouch as u8) << 2));
+    w.u8(i.flags());
     w.u8(i.forward as u8);
     w.u8(i.strafe as u8);
     w.f32(i.yaw);
@@ -287,7 +334,7 @@ fn get_input(r: &mut R) -> Result<PlayerInput, DecodeError> {
     let flags = r.u8()?;
     let (forward, strafe) = (r.u8()? as i8, r.u8()? as i8);
     let (yaw, pitch) = (r.f32()?, r.f32()?);
-    Ok(PlayerInput { seq, forward, strafe, jump: flags & 1 != 0, sprint: flags & 2 != 0, crouch: flags & 4 != 0, yaw, pitch }.sanitized())
+    Ok(PlayerInput { seq, forward, strafe, yaw, pitch, ..Default::default() }.with_flags(flags).sanitized())
 }
 
 impl ClientMsg {
@@ -384,6 +431,9 @@ impl ServerMsg {
                     w.f32(p.pitch);
                     w.f32(p.speed);
                     w.f32(p.vy);
+                    w.u8(p.weapon);
+                    w.u16(p.held);
+                    w.u8(p.hp);
                 }
                 for q in &s.props[..nq] {
                     w.u16(q.id);
@@ -424,6 +474,9 @@ impl ServerMsg {
                         pitch: r.f32()?,
                         speed: r.f32()?,
                         vy: r.f32()?,
+                        weapon: r.u8()?,
+                        held: r.u16()?,
+                        hp: r.u8()?,
                     });
                 }
                 let mut props = Vec::with_capacity(nq);
@@ -442,7 +495,7 @@ impl ServerMsg {
 
 /// Bytes of an encoded snapshot with `players` players and `props` props.
 pub const fn snapshot_bytes(players: usize, props: usize) -> usize {
-    5 + 16 + 2 + 2 + players * 31 + props * 30
+    5 + 16 + 2 + 2 + players * 35 + props * 30
 }
 
 #[cfg(test)]
@@ -450,7 +503,20 @@ mod tests {
     use super::*;
 
     fn input(seq: u32) -> PlayerInput {
-        PlayerInput { seq, forward: 1, strafe: -1, jump: true, sprint: false, crouch: true, yaw: 1.25, pitch: -0.5 }
+        PlayerInput {
+            seq,
+            forward: 1,
+            strafe: -1,
+            jump: true,
+            sprint: false,
+            crouch: true,
+            yaw: 1.25,
+            pitch: -0.5,
+            interact: true,
+            attack: false,
+            reload: true,
+            switch_weapon: true,
+        }
     }
 
     fn roundtrip_c(m: ClientMsg) {
@@ -473,12 +539,34 @@ mod tests {
         roundtrip_c(ClientMsg::Input(InputPacket { snapshot_ack: 7, client_time_ms: 123456, inputs: vec![input(1), input(2), input(3), input(4)] }));
         roundtrip_c(ClientMsg::Input(InputPacket { snapshot_ack: 0, client_time_ms: 0, inputs: vec![] }));
         roundtrip_c(ClientMsg::Bye);
-        roundtrip_s(ServerMsg::Welcome(Welcome { player_id: 3, token: 42, tick_rate: 60, snapshot_every: 2, server_tick: 999, spawn: [1.0, 0.0, -2.5, 1.57], character: 0 }));
+        roundtrip_s(ServerMsg::Welcome(Welcome {
+            player_id: 3,
+            token: 42,
+            tick_rate: 60,
+            snapshot_every: 2,
+            server_tick: 999,
+            spawn: [1.0, 0.0, -2.5, 1.57],
+            character: 0,
+        }));
         for r in [RejectReason::Version, RejectReason::WrongMap, RejectReason::Full] {
             roundtrip_s(ServerMsg::Reject(r));
         }
         roundtrip_s(ServerMsg::Bye);
-        let players = (0..MAX_PLAYERS_PER_SNAPSHOT as u8).map(|i| PlayerSnap { id: i, character: i % 2, flags: 1, pos: [i as f32, 0.5, -1.0], yaw: 0.3, pitch: 0.1, speed: 3.2, vy: -0.5 }).collect();
+        let players = (0..MAX_PLAYERS_PER_SNAPSHOT as u8)
+            .map(|i| PlayerSnap {
+                id: i,
+                character: i % 2,
+                flags: 1,
+                pos: [i as f32, 0.5, -1.0],
+                yaw: 0.3,
+                pitch: 0.1,
+                speed: 3.2,
+                vy: -0.5,
+                weapon: 1,
+                held: 7,
+                hp: 80,
+            })
+            .collect();
         let props = (0..MAX_PROPS_PER_SNAPSHOT as u16).map(|i| PropSnap { id: i, pos: [1.0, 2.0, 3.0], rot: [0.0, 0.0, 0.0, 1.0] }).collect();
         roundtrip_s(ServerMsg::Snapshot(Snapshot { seq: 5, server_tick: 100, ack_input_seq: 90, echo_time_ms: 77, echo_hold_ms: 12, players, props }));
     }
@@ -491,7 +579,22 @@ mod tests {
             ack_input_seq: 1,
             echo_time_ms: 1,
             echo_hold_ms: 0,
-            players: vec![PlayerSnap { id: 0, character: 0, flags: 0, pos: [0.0; 3], yaw: 0.0, pitch: 0.0, speed: 0.0, vy: 0.0 }; MAX_PLAYERS_PER_SNAPSHOT],
+            players: vec![
+                PlayerSnap {
+                    id: 0,
+                    character: 0,
+                    flags: 0,
+                    pos: [0.0; 3],
+                    yaw: 0.0,
+                    pitch: 0.0,
+                    speed: 0.0,
+                    vy: 0.0,
+                    weapon: 0,
+                    held: NO_PROP,
+                    hp: 100
+                };
+                MAX_PLAYERS_PER_SNAPSHOT
+            ],
             props: vec![PropSnap { id: 0, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }; MAX_PROPS_PER_SNAPSHOT],
         };
         let mut b = Vec::new();
@@ -517,7 +620,16 @@ mod tests {
             let _ = ServerMsg::decode(&bytes);
         }
         let mut valid = Vec::new();
-        ServerMsg::Snapshot(Snapshot { seq: 1, server_tick: 2, ack_input_seq: 3, echo_time_ms: 4, echo_hold_ms: 5, players: vec![], props: vec![PropSnap { id: 1, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }] }).encode(&mut valid);
+        ServerMsg::Snapshot(Snapshot {
+            seq: 1,
+            server_tick: 2,
+            ack_input_seq: 3,
+            echo_time_ms: 4,
+            echo_hold_ms: 5,
+            players: vec![],
+            props: vec![PropSnap { id: 1, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }],
+        })
+        .encode(&mut valid);
         for cut in 0..valid.len() {
             assert!(ServerMsg::decode(&valid[..cut]).is_err(), "a truncated packet ({cut} bytes) must not decode");
         }

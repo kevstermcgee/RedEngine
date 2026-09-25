@@ -11,8 +11,8 @@
 //! choice — a map that relies on jumping to reach a floor is broken for most players anyway).
 
 use super::world::{MapWorld, Zone};
+use crate::collide::{collider_blocks_at, ground_height_at, Collider2D};
 use crate::player::PLAYER_RADIUS;
-use crate::viewer::{collider_blocks_at, ground_height_at, Collider2D};
 use glam::Vec2;
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -316,8 +316,7 @@ impl Reach {
             }
         }
         let a = self.cell * self.cell;
-        let mut out: Vec<(f32, f32)> =
-            buckets.into_iter().map(|(k, n)| (k as f32 / 10.0, n as f32 * a)).filter(|(_, area)| *area >= 2.0).collect();
+        let mut out: Vec<(f32, f32)> = buckets.into_iter().map(|(k, n)| (k as f32 / 10.0, n as f32 * a)).filter(|(_, area)| *area >= 2.0).collect();
         out.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         out
     }
@@ -348,15 +347,11 @@ impl Reach {
     pub fn zone_of(zones: &[Zone], p: Vec2, y: f32) -> Option<&Zone> {
         const WALL_TOLERANCE: f32 = 0.2;
         let on_floor = |z: &&Zone| (z.y - y).abs() <= 0.6;
-        zones
-            .iter()
-            .filter(on_floor)
-            .find(|z| z.contains(p))
-            .or_else(|| {
-                zones.iter().filter(on_floor).find(|z| {
-                    p.x >= z.min.x - WALL_TOLERANCE && p.x <= z.max.x + WALL_TOLERANCE && p.y >= z.min.y - WALL_TOLERANCE && p.y <= z.max.y + WALL_TOLERANCE
-                })
+        zones.iter().filter(on_floor).find(|z| z.contains(p)).or_else(|| {
+            zones.iter().filter(on_floor).find(|z| {
+                p.x >= z.min.x - WALL_TOLERANCE && p.x <= z.max.x + WALL_TOLERANCE && p.y >= z.min.y - WALL_TOLERANCE && p.y <= z.max.y + WALL_TOLERANCE
             })
+        })
     }
 
     /// Doorway/opening connections between zones: `(zone A, zone B, midpoint, width)`.
@@ -410,8 +405,10 @@ mod tests {
 
     #[test]
     fn open_yard_floods_to_the_border() {
-        let w = world(r##"{"camera":{"position":[0,1.7,0]},"objects":[
-            {"id":"b","type":"box","size":[1,2,1],"position":[5,1,5]}]}"##);
+        let w = world(
+            r##"{"camera":{"position":[0,1.7,0]},"objects":[
+            {"id":"b","type":"box","size":[1,2,1],"position":[5,1,5]}]}"##,
+        );
         let r = compute(&w, &ReachParams { cell: 0.25, ..Default::default() });
         assert!(r.start_ok);
         assert!(!r.leaks.is_empty(), "an unfenced yard must report a perimeter leak");
@@ -420,11 +417,13 @@ mod tests {
     #[test]
     fn sealed_room_reaches_only_its_interior() {
         // Four walls around the spawn: the flood must stay inside and never reach the border.
-        let w = world(r##"{"camera":{"position":[0,1.7,0]},"objects":[
+        let w = world(
+            r##"{"camera":{"position":[0,1.7,0]},"objects":[
             {"id":"n","type":"wall","from":[-3,-3],"to":[3,-3]},
             {"id":"s","type":"wall","from":[-3,3],"to":[3,3]},
             {"id":"e","type":"wall","from":[3,-3],"to":[3,3]},
-            {"id":"w","type":"wall","from":[-3,-3],"to":[-3,3]}]}"##);
+            {"id":"w","type":"wall","from":[-3,-3],"to":[-3,3]}]}"##,
+        );
         let r = compute(&w, &ReachParams { cell: 0.1, ..Default::default() });
         assert!(r.leaks.is_empty(), "sealed room must not leak");
         let area = r.total_area();
@@ -449,9 +448,11 @@ mod tests {
     #[test]
     fn stairs_to_a_landing_reach_the_upper_floor() {
         // A stair run climbing +Z from z=1 to z=5, landing on a slab that starts at z=5.
-        let w = world(r##"{"camera":{"position":[0,1.7,-1]},"objects":[
+        let w = world(
+            r##"{"camera":{"position":[0,1.7,-1]},"objects":[
             {"id":"st","type":"stairs","position":[0,0,3],"width":1.2,"run":4.0,"rise":2.8,"steps":14},
-            {"id":"deck","type":"box","size":[6,0.2,4],"position":[0,2.7,7]}]}"##);
+            {"id":"deck","type":"box","size":[6,0.2,4],"position":[0,2.7,7]}]}"##,
+        );
         let r = compute(&w, &ReachParams { cell: 0.1, ..Default::default() });
         assert!(r.reachable(Vec2::new(0.0, 6.5), 2.8, 0.1), "the deck above the stairs must be reachable");
         assert!(r.reachable(Vec2::new(0.0, 3.0), 1.4, 0.3), "and so must the middle of the ramp");
@@ -459,8 +460,10 @@ mod tests {
 
     #[test]
     fn stairs_do_not_let_you_walk_into_the_stair_volume_from_the_side() {
-        let w = world(r##"{"camera":{"position":[0,1.7,-1]},"objects":[
-            {"id":"st","type":"stairs","position":[0,0,3],"width":1.2,"run":4.0,"rise":2.8,"steps":14}]}"##);
+        let w = world(
+            r##"{"camera":{"position":[0,1.7,-1]},"objects":[
+            {"id":"st","type":"stairs","position":[0,0,3],"width":1.2,"run":4.0,"rise":2.8,"steps":14}]}"##,
+        );
         let r = compute(&w, &ReachParams { cell: 0.1, ..Default::default() });
         assert!(!r.reachable(Vec2::new(0.0, 4.0), 0.0, 0.1), "the stair volume must not be enterable at floor level");
     }

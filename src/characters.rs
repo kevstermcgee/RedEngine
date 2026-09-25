@@ -12,8 +12,8 @@
 
 use crate::color::parse_hex_to_linear;
 use crate::schema::{HumanoidDef, Material, Object, ObjectKind, Pose, PrimKind, RatDef};
-use crate::track::Track;
 use crate::skeleton::{pose_to_parts, BonePart, HumanoidRig, PoseSample};
+use crate::track::Track;
 use glam::{Mat4, Quat, Vec3};
 
 /// One coloured piece of a character, in the character's local space.
@@ -35,13 +35,7 @@ fn hex(s: &str) -> Vec3 {
 }
 
 fn ellipsoid(center: Vec3, radii: Vec3, rot: Quat, color: Option<Vec3>, roughness: f32) -> CharPart {
-    CharPart {
-        shape: PrimKind::Sphere { radius: 1.0 },
-        local: Mat4::from_scale_rotation_translation(radii, rot, center),
-        color,
-        metallic: 0.0,
-        roughness,
-    }
+    CharPart { shape: PrimKind::Sphere { radius: 1.0 }, local: Mat4::from_scale_rotation_translation(radii, rot, center), color, metallic: 0.0, roughness }
 }
 
 /// A capsule whose axis runs `a -> b` (its mesh is `length` long in total, caps included).
@@ -155,7 +149,8 @@ pub fn human_parts(rig: &HumanoidRig, pose: &PoseSample, look: &HumanLook) -> Ve
     }
     for leg in [6usize, 9] {
         out.push(ellipsoid(bone_end(&core[leg], 1.0), Vec3::splat(rig.upper_leg_radius * 0.84), Quat::IDENTITY, pants, 0.8)); // knee
-        out.push(ellipsoid(bone_end(&core[leg + 1], 1.0), Vec3::splat(rig.foot_radius * 0.98), Quat::IDENTITY, shoes, 0.5)); // ankle
+        out.push(ellipsoid(bone_end(&core[leg + 1], 1.0), Vec3::splat(rig.foot_radius * 0.98), Quat::IDENTITY, shoes, 0.5));
+        // ankle
     }
     // Pelvis (trousers) with the shirt hem hanging over its top edge.
     out.push(ellipsoid(Vec3::new(0.0, rig.hip_y - 0.012 * h, 0.0), Vec3::new(0.098, 0.058, 0.070) * h, Quat::IDENTITY, pants, 0.8));
@@ -302,13 +297,10 @@ pub fn human_object(id: &str) -> Object {
 /// Cheddar standing still at the origin, in his brownish-grey fur.
 pub fn rat_object(id: &str) -> Object {
     let material = Material { color: Track::constant(hex(RAT_FUR_HEX)), metallic: 0.0, roughness: 0.9, emissive: Vec3::ZERO };
-    object(
-        id,
-        ObjectKind::Rat(Box::new(RatDef { material, gait: Track::constant(0.0), stride: Track::constant(0.0), sway: Track::constant(0.0) })),
-    )
+    object(id, ObjectKind::Rat(Box::new(RatDef { material, gait: Track::constant(0.0), stride: Track::constant(0.0), sway: Track::constant(0.0) })))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "gfx"))]
 mod tests {
     use super::*;
     use crate::render::build_prim_mesh;

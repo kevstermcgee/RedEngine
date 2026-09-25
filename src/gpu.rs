@@ -8,8 +8,7 @@ use wgpu::util::DeviceExt;
 
 /// Shadow-map resolution in texels (square).
 pub const SHADOW_SIZE: u32 = 2048;
-/// Maximum point lights per scene. The three WGSL `Globals` copies must agree with this (see AGENTS.md).
-pub const MAX_LIGHTS: usize = 16;
+pub use crate::schema::MAX_LIGHTS;
 /// Offline-render supersampling factor per axis (the live viewer uses MSAA instead).
 pub const SUPERSAMPLE: u32 = 2;
 /// MSAA sample count for the live viewer's color/depth targets. The offline `Renderer` gets
@@ -105,10 +104,7 @@ impl Gpu {
     async fn new_async() -> Result<Self> {
         let instance = wgpu::Instance::default();
         let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                ..Default::default()
-            })
+            .request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, ..Default::default() })
             .await
             .context("no compatible GPU adapter found (forge3d needs Vulkan, DX12, or Metal)")?;
         let (device, queue) = adapter
@@ -224,15 +220,15 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
 
     let scene_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("scene-shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shaders/scene.wgsl").into()),
+        source: wgpu::ShaderSource::Wgsl(concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/scene.wgsl")).into()),
     });
     let shadow_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("shadow-shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shadow.wgsl").into()),
+        source: wgpu::ShaderSource::Wgsl(concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/shadow.wgsl")).into()),
     });
     let bg_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("background-shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shaders/background.wgsl").into()),
+        source: wgpu::ShaderSource::Wgsl(concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/background.wgsl")).into()),
     });
 
     let main_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -256,23 +252,14 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
     let main = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("main-pipeline"),
         layout: Some(&main_layout),
-        vertex: wgpu::VertexState {
-            module: &scene_shader,
-            entry_point: Some("vs_main"),
-            compilation_options: Default::default(),
-            buffers: &vertex_buffers,
-        },
+        vertex: wgpu::VertexState { module: &scene_shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &vertex_buffers },
         fragment: Some(wgpu::FragmentState {
             module: &scene_shader,
             entry_point: Some("fs_main"),
             compilation_options: Default::default(),
             targets: &[Some(color_format.into())],
         }),
-        primitive: wgpu::PrimitiveState {
-            cull_mode: Some(wgpu::Face::Back),
-            front_face: wgpu::FrontFace::Ccw,
-            ..Default::default()
-        },
+        primitive: wgpu::PrimitiveState { cull_mode: Some(wgpu::Face::Back), front_face: wgpu::FrontFace::Ccw, ..Default::default() },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: wgpu::TextureFormat::Depth32Float,
             depth_write_enabled: Some(true),
@@ -288,12 +275,7 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
     let shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("shadow-pipeline"),
         layout: Some(&shadow_layout),
-        vertex: wgpu::VertexState {
-            module: &shadow_shader,
-            entry_point: Some("vs_shadow"),
-            compilation_options: Default::default(),
-            buffers: &vertex_buffers,
-        },
+        vertex: wgpu::VertexState { module: &shadow_shader, entry_point: Some("vs_shadow"), compilation_options: Default::default(), buffers: &vertex_buffers },
         fragment: None,
         // Every primitive mesh is a closed solid, so a backface never wins the depth test
         // against its own front face — culling it in the shadow pass is free (no peter-panning
@@ -316,12 +298,7 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
     let background = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("background-pipeline"),
         layout: Some(&bg_layout),
-        vertex: wgpu::VertexState {
-            module: &bg_shader,
-            entry_point: Some("vs_bg"),
-            compilation_options: Default::default(),
-            buffers: &[],
-        },
+        vertex: wgpu::VertexState { module: &bg_shader, entry_point: Some("vs_bg"), compilation_options: Default::default(), buffers: &[] },
         fragment: Some(wgpu::FragmentState {
             module: &bg_shader,
             entry_point: Some("fs_bg"),
@@ -337,12 +314,7 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
         cache: None,
     });
 
-    Pipelines {
-        layouts: BindLayouts { global_uniform: global_uniform_bgl, global_full: global_full_bgl, object: object_bgl },
-        shadow,
-        background,
-        main,
-    }
+    Pipelines { layouts: BindLayouts { global_uniform: global_uniform_bgl, global_full: global_full_bgl, object: object_bgl }, shadow, background, main }
 }
 
 /// Offscreen color/depth targets an offline frame renders into, at a given output size.
@@ -466,12 +438,7 @@ pub fn create_crosshair_pipeline(device: &wgpu::Device, color_format: wgpu::Text
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("crosshair-pipeline"),
         layout: Some(&layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_crosshair"),
-            compilation_options: Default::default(),
-            buffers: &[],
-        },
+        vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_crosshair"), compilation_options: Default::default(), buffers: &[] },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point: Some("fs_crosshair"),
@@ -529,11 +496,7 @@ pub fn create_post_pipeline(device: &wgpu::Device, color_format: wgpu::TextureFo
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
                 visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled,
-                    sample_type: wgpu::TextureSampleType::Depth,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                },
+                ty: wgpu::BindingType::Texture { multisampled, sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2 },
                 count: None,
             },
         ],
@@ -545,41 +508,21 @@ pub fn create_post_pipeline(device: &wgpu::Device, color_format: wgpu::TextureFo
     });
     let depth_ty = if multisampled { "texture_depth_multisampled_2d" } else { "texture_depth_2d" };
     let source = include_str!("shaders/postfx.wgsl").replace("DEPTH_TEXTURE_TYPE", depth_ty);
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("post-shader"),
-        source: wgpu::ShaderSource::Wgsl(source.into()),
-    });
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("post-shader"), source: wgpu::ShaderSource::Wgsl(source.into()) });
     // dst_color * src_color: the pass writes a per-pixel brightness multiplier (1 = untouched).
     let multiply = wgpu::BlendState {
-        color: wgpu::BlendComponent {
-            src_factor: wgpu::BlendFactor::Zero,
-            dst_factor: wgpu::BlendFactor::Src,
-            operation: wgpu::BlendOperation::Add,
-        },
-        alpha: wgpu::BlendComponent {
-            src_factor: wgpu::BlendFactor::Zero,
-            dst_factor: wgpu::BlendFactor::One,
-            operation: wgpu::BlendOperation::Add,
-        },
+        color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::Zero, dst_factor: wgpu::BlendFactor::Src, operation: wgpu::BlendOperation::Add },
+        alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::Zero, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
     };
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("post-pipeline"),
         layout: Some(&layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_post"),
-            compilation_options: Default::default(),
-            buffers: &[],
-        },
+        vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_post"), compilation_options: Default::default(), buffers: &[] },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point: Some("fs_post"),
             compilation_options: Default::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: color_format,
-                blend: Some(multiply),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
+            targets: &[Some(wgpu::ColorTargetState { format: color_format, blend: Some(multiply), write_mask: wgpu::ColorWrites::ALL })],
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
@@ -613,25 +556,84 @@ impl PostFx {
 /// Builds the post pass uniform for a target of `width` x `height` pixels seen through a
 /// perspective camera (`fov_deg` vertical), from a scene's `post` settings. `edge_width_px`
 /// is the outline thickness in *target* pixels (scale it with resolution/supersampling).
-pub fn post_uniform(
-    settings: &crate::schema::PostSettings,
-    near: f32,
-    far: f32,
-    fov_deg: f32,
-    width: u32,
-    height: u32,
-    edge_width_px: f32,
-) -> PostUniform {
+pub fn post_uniform(settings: &crate::schema::PostSettings, near: f32, far: f32, fov_deg: f32, width: u32, height: u32, edge_width_px: f32) -> PostUniform {
     let tan_half = (fov_deg.to_radians() * 0.5).tan().max(1e-4);
     let aspect = width as f32 / height.max(1) as f32;
     PostUniform {
         cam: [near, far, 1.0 / (aspect * tan_half), 1.0 / tan_half],
-        params: [
-            if settings.enabled { settings.ao } else { 0.0 },
-            if settings.enabled { settings.outline } else { 0.0 },
-            settings.ao_radius,
-            edge_width_px,
-        ],
+        params: [if settings.enabled { settings.ao } else { 0.0 }, if settings.enabled { settings.outline } else { 0.0 }, settings.ao_radius, edge_width_px],
         params2: [width as f32, height as f32, 0.035, 0.0],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const COMMON: &str = include_str!("shaders/common.wgsl");
+    const SHADERS: [(&str, &str); 3] = [
+        ("scene.wgsl", include_str!("shaders/scene.wgsl")),
+        ("shadow.wgsl", include_str!("shaders/shadow.wgsl")),
+        ("background.wgsl", include_str!("shaders/background.wgsl")),
+    ];
+
+    /// `(size, alignment)` of a WGSL type as used in uniform structs (no `vec3`: pad to `vec4` instead).
+    fn type_layout(ty: &str) -> (usize, usize) {
+        let ty = ty.trim();
+        match ty {
+            "f32" | "u32" | "i32" => (4, 4),
+            "vec2<f32>" => (8, 8),
+            "vec4<f32>" => (16, 16),
+            "mat4x4<f32>" => (64, 16),
+            _ => {
+                let inner =
+                    ty.strip_prefix("array<").and_then(|s| s.strip_suffix('>')).unwrap_or_else(|| panic!("type `{ty}` is not supported by the layout test"));
+                let (elem, n) = inner.rsplit_once(',').unwrap_or_else(|| panic!("bad array type `{ty}`"));
+                let (size, align) = type_layout(elem);
+                let stride = size.div_ceil(align) * align;
+                (stride * n.trim().parse::<usize>().unwrap_or_else(|_| panic!("array length in `{ty}` must be a number")), align)
+            }
+        }
+    }
+
+    /// The field names and total size of `struct <name> { ... }` in `src`, laid out like a WGSL uniform.
+    fn wgsl_struct(src: &str, name: &str) -> (Vec<String>, usize) {
+        let start = src.find(&format!("struct {name} {{")).unwrap_or_else(|| panic!("struct {name} not found"));
+        let body = &src[start..];
+        let body = &body[body.find('{').unwrap_or(0) + 1..body.find("};").unwrap_or(body.len())];
+        let (mut offset, mut max_align, mut names) = (0usize, 1usize, Vec::new());
+        for line in body.lines().map(|l| l.split("//").next().unwrap_or("").trim()).filter(|l| !l.is_empty()) {
+            let (field, ty) = line.trim_end_matches(',').split_once(':').unwrap_or_else(|| panic!("cannot parse field `{line}`"));
+            let (size, align) = type_layout(ty);
+            offset = offset.div_ceil(align) * align + size;
+            max_align = max_align.max(align);
+            names.push(field.trim().to_string());
+        }
+        (names, offset.div_ceil(max_align) * max_align)
+    }
+
+    #[test]
+    fn the_rust_uniform_structs_match_their_wgsl_definitions() {
+        let (names, size) = wgsl_struct(COMMON, "Globals");
+        assert_eq!(size, std::mem::size_of::<GlobalUniform>(), "Globals: wgsl {names:?} is {size} bytes");
+        let (_, size) = wgsl_struct(COMMON, "ObjectUniform");
+        assert_eq!(size, std::mem::size_of::<ObjectUniform>(), "ObjectUniform");
+        let (_, size) = wgsl_struct(include_str!("shaders/postfx.wgsl"), "Post");
+        assert_eq!(size, std::mem::size_of::<PostUniform>(), "Post");
+        let (_, size) = wgsl_struct(include_str!("shaders/crosshair.wgsl"), "Crosshair");
+        assert_eq!(size, std::mem::size_of::<CrosshairUniform>(), "Crosshair");
+    }
+
+    #[test]
+    fn globals_and_the_light_count_exist_once() {
+        assert!(COMMON.contains(&format!("const MAX_LIGHTS: u32 = {}u;", MAX_LIGHTS)), "common.wgsl MAX_LIGHTS must equal schema::MAX_LIGHTS ({MAX_LIGHTS})");
+        assert!(COMMON.contains(&format!("array<vec4<f32>, {MAX_LIGHTS}>")), "the light arrays must be MAX_LIGHTS long");
+        for (file, src) in SHADERS {
+            assert!(
+                !src.contains("struct Globals"),
+                "{file} defines its own `struct Globals`: it lives only in common.wgsl (a stale copy renders the sky black)"
+            );
+            assert!(!src.contains("struct ObjectUniform"), "{file} defines its own `struct ObjectUniform`: it lives only in common.wgsl");
+        }
     }
 }

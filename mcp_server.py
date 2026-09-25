@@ -34,7 +34,13 @@ Self-description / search / verification (an AI should never need to read the Ru
     catalog_sheet(query)                    -> labelled contact-sheet image of matching assets
     recipes(name)                           -> known-good example maps (list, or explain one)
     source_lookup(action, query)            -> src map|find|outline|show|refs|deps over the engine source
-    verify_map(scene_json)                  -> run the scene's own `checks` block (lint/reach/walk/objects; views skipped)
+    verify_map(scene_json)                  -> run the scene's own `checks` block (lint/reach/walk/objects/sim; views skipped)
+
+Game rules, headless play, replay, structured output (the MCP layer is a thin pass-through; the CLI's `--json` envelope is the API):
+    describe_brief()                        -> the ~1 KB first read: binaries, workflow, commands, topics
+    sim_map(scene_json, scenario_json="")   -> play scripted players through the real simulation (the scene's checks.sim, or one scenario)
+    replay_trace(trace_path, scene_path="") -> re-run a recorded match; first divergent tick + state diff
+    run_json(args)                          -> any subcommand with the global --json: {schema, command, ok, exit, data, diagnostics, stderr}
 """
 from __future__ import annotations
 import json
@@ -277,9 +283,54 @@ def list_props() -> str:
 
 @mcp.tool()
 def describe(topic: str = "overview") -> str:
-    """The engine describing itself. Topics: overview (default), commands, objects, scene, lint,
-    physics, conventions, all. Start here instead of reading source."""
+    """The engine describing itself. Topics: brief, overview (default), commands, objects, scene, lint,
+    physics, conventions, rules, sim, diagnostics, glossary, decisions, all. Start with `brief`."""
     return _text(_run("describe", topic))
+
+
+@mcp.tool()
+def describe_brief() -> str:
+    """The cheapest first read (~1 KB): what the engine is, its binaries, the workflow, every command
+    and the topics to ask for next."""
+    return _text(_run("describe", "--brief"))
+
+
+@mcp.tool()
+def sim_map(scene_json: str, scenario_json: str = "") -> str:
+    """Play scripted players through the real authoritative simulation, headless, and report PASS/FAIL
+    with evidence. With no scenario_json it runs the scene's own `checks.sim`; otherwise the given
+    scenario (one object or an array). See `describe sim` for the scenario format."""
+    scene_path = _write_scene_tempfile(scene_json)
+    scenario_path = None
+    try:
+        args = ["sim", scene_path]
+        if scenario_json:
+            json.loads(scenario_json)
+            fd, scenario_path = tempfile.mkstemp(suffix=".json", prefix="re2_scenario_")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(scenario_json)
+            args += ["--scenario", scenario_path]
+        return _text(_run(*args))
+    finally:
+        os.remove(scene_path)
+        if scenario_path:
+            os.remove(scenario_path)
+
+
+@mcp.tool()
+def replay_trace(trace_path: str, scene_path: str = "") -> str:
+    """Re-run a recorded match trace (from `sim --trace` or `red_server --record`) with no renderer or
+    socket; reports the first divergent tick, which of players/props/rules differ, and a state diff."""
+    args = ["replay", trace_path] + (["--scene", scene_path] if scene_path else [])
+    return _text(_run(*args))
+
+
+@mcp.tool()
+def run_json(args: list[str]) -> str:
+    """Run any red_engine2 subcommand with the global --json flag and return the stable envelope:
+    {schema, command, ok, exit, data, diagnostics:[{code, path, message, fix?}], stderr}. Use this
+    when you want to parse a result instead of reading text."""
+    return _run("--json", *args).stdout
 
 
 @mcp.tool()

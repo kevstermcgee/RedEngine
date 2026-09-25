@@ -5,8 +5,8 @@
 //! front door of `examples/house.json` "hit" the wall group whose box spans the doorway.
 
 use glam::Vec3;
+use red_engine2::collide::{collect_interactables, raycast_nearest};
 use red_engine2::hit::{collect_hit_shapes, raycast_shapes};
-use red_engine2::viewer::{collect_interactables, raycast_nearest};
 use std::path::Path;
 
 fn house() -> red_engine2::schema::Scene {

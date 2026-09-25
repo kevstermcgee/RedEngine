@@ -8,10 +8,12 @@
 //! player is remembered for [`ServerConfig::resume_grace`] so a returning client (same token) gets
 //! back where it was. Clients only ever send *inputs*; nothing a client says can set a position.
 
+use super::limits::{TokenBucket, HELLOS_PER_SEC, HELLO_BURST, MAX_PARKED};
+use super::sessions::{Parked, Session, TokenSource};
+use super::snapshots::{player_snaps, props_to_send, room_of_player, visible_players};
 use crate::net::protocol::*;
-use crate::player::Character;
-use crate::sim::change::Generation;
 use crate::sim::clock::TICK_RATE_HZ;
+use crate::sim::interest::InterestMap;
 use crate::sim::match_sim::MatchSim;
 use crate::sim::player::PlayerState;
 use glam::Vec3;
@@ -40,7 +42,14 @@ pub struct ServerConfig {
 impl ServerConfig {
     /// Sensible defaults for a LAN/loopback match.
     pub fn new(bind: SocketAddr, map_hash: u32) -> Self {
-        ServerConfig { bind, snapshot_every: 2, client_timeout: Duration::from_millis(3000), resume_grace: Duration::from_secs(30), map_hash, stats_every: None }
+        ServerConfig {
+            bind,
+            snapshot_every: 2,
+            client_timeout: Duration::from_millis(3000),
+            resume_grace: Duration::from_secs(30),
+            map_hash,
+            stats_every: None,
+        }
     }
 }
 
@@ -61,8 +70,16 @@ pub struct ServerStats {
     pub bytes_in: u64,
     /// Bytes sent.
     pub bytes_out: u64,
+    /// Moving-prop records sent in snapshots (with interest management on, far rooms cost nothing).
+    pub props_sent: u64,
+    /// Player records sent in snapshots.
+    pub players_sent: u64,
     /// Datagrams that failed to decode or were oversized.
     pub bad_packets: u64,
+    /// Input packets dropped because their session exceeded its packet budget (a flood).
+    pub rate_limited: u64,
+    /// Hellos dropped because the server-wide join budget was spent (a join flood).
+    pub hellos_throttled: u64,
     /// Players joined (fresh).
     pub joins: u64,
     /// Players who resumed with a token.
@@ -71,32 +88,6 @@ pub struct ServerStats {
     pub leaves: u64,
     /// Of those, timeouts.
     pub timeouts: u64,
-}
-
-#[derive(Clone, Copy)]
-struct SentSnap {
-    seq: u32,
-    gen: Generation,
-    complete: bool,
-}
-
-struct Session {
-    addr: SocketAddr,
-    slot: usize,
-    token: u64,
-    last_heard: Instant,
-    snapshot_seq: u32,
-    /// Everything stamped at or before this generation is known to have reached the client.
-    acked_gen: Generation,
-    sent: [Option<SentSnap>; 64],
-    last_client_time_ms: u32,
-    last_client_packet_at: Instant,
-}
-
-struct Parked {
-    token: u64,
-    state: PlayerState,
-    expires: Instant,
 }
 
 /// A prop the server nudges periodically so there is always an authoritative moving prop to watch.
@@ -115,26 +106,16 @@ pub struct Server {
     stats: ServerStats,
     kick: Option<DemoKick>,
     out: Vec<u8>,
-    changed: Vec<usize>,
-    token_counter: u64,
+    changed: Vec<(crate::sim::change::Generation, usize)>,
+    players_scratch: Vec<PlayerSnap>,
+    visible_scratch: Vec<PlayerSnap>,
+    props_scratch: Vec<PropSnap>,
+    sent_scratch: Vec<(usize, crate::sim::change::Generation)>,
+    interest: Option<InterestMap>,
+    tokens: TokenSource,
+    hello_bucket: TokenBucket,
     started: Instant,
     log: Box<dyn FnMut(&str) + Send>,
-}
-
-fn char_to_u8(c: Character) -> u8 {
-    match c {
-        Character::Human => 0,
-        Character::Rat => 1,
-    }
-}
-
-/// `0` human, `1` rat (anything else is a human).
-pub fn char_from_u8(v: u8) -> Character {
-    if v == 1 {
-        Character::Rat
-    } else {
-        Character::Human
-    }
 }
 
 impl Server {
@@ -152,7 +133,13 @@ impl Server {
             kick: None,
             out: Vec::with_capacity(MAX_PACKET),
             changed: Vec::new(),
-            token_counter: 0,
+            players_scratch: Vec::new(),
+            visible_scratch: Vec::new(),
+            props_scratch: Vec::new(),
+            sent_scratch: Vec::new(),
+            interest: None,
+            tokens: TokenSource::new(),
+            hello_bucket: TokenBucket::new(HELLOS_PER_SEC, HELLO_BURST, Instant::now()),
             started: Instant::now(),
             log: Box::new(|s| println!("{s}")),
         })
@@ -176,6 +163,27 @@ impl Server {
     /// Counters.
     pub fn stats(&self) -> &ServerStats {
         &self.stats
+    }
+
+    /// Dropped players still remembered for resume (bounded by `limits::MAX_PARKED`).
+    pub fn parked_count(&self) -> usize {
+        self.parked.len()
+    }
+
+    /// Turns on spatial interest management: each client is sent only the players and moving props in its own room and the
+    /// rooms within `hops` open portals (see `sim::interest`). Off by default; `red_server` turns it on when the map has zones.
+    pub fn set_interest(&mut self, map: Option<InterestMap>) {
+        self.interest = map;
+    }
+
+    /// Starts recording the match into a [`Trace`](crate::sim::trace::Trace) (before the first tick).
+    pub fn start_recording(&mut self, header: crate::sim::trace::Header) -> Result<(), String> {
+        self.sim.start_recording(header)
+    }
+
+    /// Finishes recording; `None` if it never started.
+    pub fn take_trace(&mut self) -> Option<crate::sim::trace::Trace> {
+        self.sim.take_trace()
     }
 
     /// Number of connected clients.
@@ -202,18 +210,6 @@ impl Server {
             Err(e) if e.kind() == ErrorKind::WouldBlock => {}
             Err(_) => {} // unreachable peer: the timeout will collect it
         }
-    }
-
-    fn new_token(&mut self) -> u64 {
-        self.token_counter += 1;
-        // Not cryptographic: it only has to be unguessable by accident and distinct per player.
-        let mut x = self.token_counter ^ (self.started.elapsed().as_nanos() as u64) ^ 0x9e37_79b9_7f4a_7c15;
-        x ^= x >> 30;
-        x = x.wrapping_mul(0xbf58_476d_1ce4_e5b9);
-        x ^= x >> 27;
-        x = x.wrapping_mul(0x94d0_49bb_1331_11eb);
-        x ^= x >> 31;
-        x.max(1)
     }
 
     /// Reads every datagram waiting on the socket and acts on it.
@@ -252,12 +248,20 @@ impl Server {
                 Some(i) => {
                     let (slot, s) = (self.sessions[i].slot, &mut self.sessions[i]);
                     s.last_heard = now;
+                    if !s.input_bucket.allow(now) {
+                        self.stats.rate_limited += 1;
+                        return;
+                    }
                     s.last_client_time_ms = p.client_time_ms;
                     s.last_client_packet_at = now;
-                    // Acknowledge: if that snapshot was complete, everything stamped up to it arrived.
-                    if let Some(sent) = s.sent[p.snapshot_ack as usize % 64].filter(|x| x.seq == p.snapshot_ack) {
-                        if sent.complete && sent.gen > s.acked_gen {
-                            s.acked_gen = sent.gen;
+                    // Acknowledge: every prop pose that snapshot carried is now confirmed for this client.
+                    let sent = &s.sent[p.snapshot_ack as usize % 64];
+                    if sent.seq == p.snapshot_ack && p.snapshot_ack != 0 {
+                        for &(entity, gen) in &sent.props {
+                            if s.known.len() <= entity {
+                                s.known.resize(entity + 1, crate::sim::change::Generation(0));
+                            }
+                            s.known[entity] = s.known[entity].max(gen);
                         }
                     }
                     for input in p.inputs {
@@ -275,20 +279,26 @@ impl Server {
         }
     }
 
-    fn welcome_for(&self, s: &Session) -> Welcome {
-        let p = self.sim.player(s.slot).expect("session without a player").state;
-        Welcome {
+    /// The Welcome for `s`, or `None` if its player no longer exists (the caller then drops the session).
+    fn welcome_for(&self, s: &Session) -> Option<Welcome> {
+        let p = self.sim.player(s.slot)?.state;
+        Some(Welcome {
             player_id: s.slot as u8,
             token: s.token,
             tick_rate: TICK_RATE_HZ as u16,
             snapshot_every: self.cfg.snapshot_every,
             server_tick: self.sim.tick() as u32,
             spawn: [p.pos.x, p.foot_y, p.pos.y, p.yaw],
-            character: char_to_u8(p.character),
-        }
+            character: character_to_wire(p.character),
+        })
     }
 
     fn on_hello(&mut self, addr: SocketAddr, h: Hello, now: Instant) {
+        // A join flood (spoofed sources filling the match with ghosts) is cut off before it costs a reply.
+        if !self.hello_bucket.allow(now) {
+            self.stats.hellos_throttled += 1;
+            return;
+        }
         if h.version != PROTOCOL_VERSION {
             return self.send(addr, &ServerMsg::Reject(RejectReason::Version));
         }
@@ -298,8 +308,10 @@ impl Server {
         // A retransmitted Hello from a client we already have: answer again, change nothing.
         if let Some(i) = self.sessions.iter().position(|s| s.addr == addr) {
             self.sessions[i].last_heard = now;
-            let w = self.welcome_for(&self.sessions[i]);
-            return self.send(addr, &ServerMsg::Welcome(w));
+            return match self.welcome_for(&self.sessions[i]) {
+                Some(w) => self.send(addr, &ServerMsg::Welcome(w)),
+                None => self.drop_session(i, now, false), // its player vanished: free the slot; the client re-joins
+            };
         }
         // Resume: the token of a recently dropped player, or of a live session from another address
         // (the client came back from a new port before we noticed the old one had died).
@@ -321,23 +333,16 @@ impl Server {
                 Some(slot) => (token, slot, false),
                 None => return self.send(addr, &ServerMsg::Reject(RejectReason::Full)),
             },
-            None => match self.sim.add_player(char_from_u8(h.character)) {
-                Some(slot) => (self.new_token(), slot, true),
+            None => match self.sim.add_player(character_from_wire(h.character)) {
+                Some(slot) => (self.tokens.next(), slot, true),
                 None => return self.send(addr, &ServerMsg::Reject(RejectReason::Full)),
             },
         };
-        let session = Session {
-            addr,
-            slot,
-            token,
-            last_heard: now,
-            snapshot_seq: 0,
-            acked_gen: Generation(0),
-            sent: [None; 64],
-            last_client_time_ms: 0,
-            last_client_packet_at: now,
+        let session = Session::new(addr, slot, token, now);
+        let Some(w) = self.welcome_for(&session) else {
+            self.sim.remove_player(slot);
+            return;
         };
-        let w = self.welcome_for(&session);
         self.sessions.push(session);
         if fresh {
             self.stats.joins += 1;
@@ -353,6 +358,9 @@ impl Server {
         let s = self.sessions.remove(index);
         if let Some(state) = self.sim.remove_player(s.slot) {
             self.parked.push(Parked { token: s.token, state, expires: now + self.cfg.resume_grace });
+            if self.parked.len() > MAX_PARKED {
+                self.parked.remove(0); // a join/leave flood cannot grow this list; the oldest resume is forgotten
+            }
         }
         self.stats.leaves += 1;
         if timed_out {
@@ -365,6 +373,10 @@ impl Server {
     pub fn tick(&mut self, now: Instant) {
         let t0 = Instant::now();
         self.sim.tick_once();
+        for e in self.sim.take_events() {
+            let who = e.slot.map(|s| format!(" (player {s})")).unwrap_or_default();
+            self.say(format!("event {} by rule {}{who} at tick {}", e.name, e.rule, e.tick));
+        }
         let us = t0.elapsed().as_micros() as u64;
         self.stats.ticks += 1;
         self.stats.tick_us_total += us;
@@ -384,7 +396,7 @@ impl Server {
                 let at = self.sim.props().prop_pose(prop).w_axis.truncate();
                 // Proportional to the prop's mass: a 4 m/s shove, so a crate and a barrel both really travel.
                 let impulse = self.sim.props().mass(prop) * 4.0;
-                self.sim.props_mut().strike_impulse(prop, Vec3::new(dir, 0.0, 0.0), at + Vec3::Y * 0.2, impulse);
+                self.sim.apply_impulse(prop, Vec3::new(dir, 0.0, 0.0), at + Vec3::Y * 0.2, impulse);
             }
         }
         if self.sim.tick().is_multiple_of(self.cfg.snapshot_every.max(1) as u64) {
@@ -411,52 +423,37 @@ impl Server {
     }
 
     fn send_snapshots(&mut self, now: Instant) {
-        let players: Vec<PlayerSnap> = self
-            .sim
-            .players()
-            .map(|(slot, p)| PlayerSnap {
-                id: slot as u8,
-                character: char_to_u8(p.state.character),
-                flags: p.crouching as u8,
-                pos: [p.state.pos.x, p.state.foot_y, p.state.pos.y],
-                yaw: p.state.yaw,
-                pitch: p.state.pitch,
-                speed: p.speed,
-                vy: p.state.vy,
-            })
-            .collect();
-        let gen_now = self.sim.props_mut().clock_mut().now();
+        player_snaps(&self.sim, &mut self.players_scratch);
         for i in 0..self.sessions.len() {
-            let (slot, cursor) = (self.sessions[i].slot, self.sessions[i].acked_gen);
-            self.changed.clear();
-            self.changed.extend(self.sim.props().entities().transforms.iter_changed_since(cursor).map(|(entity_slot, _)| entity_slot));
-            let total = self.changed.len();
-            let complete = total <= MAX_PROPS_PER_SNAPSHOT;
-            // Too many changed to fit: send a rotating window, and do NOT advance the cursor (the rest
-            // stays "changed since" and comes in later snapshots).
-            let (start, take) = if complete { (0, total) } else { ((self.sessions[i].snapshot_seq as usize * MAX_PROPS_PER_SNAPSHOT) % total, MAX_PROPS_PER_SNAPSHOT) };
-            let props: Vec<PropSnap> = (0..take)
-                .map(|k| {
-                    let entity_slot = self.changed[(start + k) % total];
-                    let t = self.sim.props().entities().transforms.get(entity_slot);
-                    PropSnap { id: self.sim.props().prop_of_entity(entity_slot) as u16, pos: t.position.to_array(), rot: t.rotation.to_array() }
-                })
-                .collect();
+            let slot = self.sessions[i].slot;
+            let room = room_of_player(&self.sim, self.interest.as_ref(), slot);
+            visible_players(&self.sim, self.interest.as_ref(), slot, &self.players_scratch, &mut self.visible_scratch);
             let s = &mut self.sessions[i];
-            s.snapshot_seq += 1;
+            props_to_send(&self.sim, self.interest.as_ref(), room, &s.known, &mut self.changed, &mut self.props_scratch, &mut self.sent_scratch);
+            s.snapshot_seq = s.snapshot_seq.wrapping_add(1);
             let seq = s.snapshot_seq;
-            s.sent[seq as usize % 64] = Some(SentSnap { seq, gen: gen_now, complete });
+            let entry = &mut s.sent[seq as usize % 64];
+            entry.seq = seq;
+            entry.props.clear();
+            entry.props.extend_from_slice(&self.sent_scratch);
             let snap = Snapshot {
                 seq,
                 server_tick: self.sim.tick() as u32,
                 ack_input_seq: self.sim.player(slot).map_or(0, |p| p.last_processed_seq),
                 echo_time_ms: s.last_client_time_ms,
                 echo_hold_ms: now.duration_since(s.last_client_packet_at).as_millis().min(65_535) as u16,
-                players: players.clone(),
-                props,
+                players: std::mem::take(&mut self.visible_scratch),
+                props: std::mem::take(&mut self.props_scratch),
             };
             let addr = s.addr;
-            self.send(addr, &ServerMsg::Snapshot(snap));
+            self.stats.players_sent += snap.players.len() as u64;
+            self.stats.props_sent += snap.props.len() as u64;
+            let msg = ServerMsg::Snapshot(snap);
+            self.send(addr, &msg);
+            if let ServerMsg::Snapshot(snap) = msg {
+                // Take the buffers back so the next client reuses their allocations.
+                (self.visible_scratch, self.props_scratch) = (snap.players, snap.props);
+            }
             self.stats.snapshots_sent += 1;
         }
         // Close the generation: writes from here on are strictly newer than every snapshot just sent.
