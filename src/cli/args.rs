@@ -77,6 +77,27 @@ pub(crate) enum SrcCmd {
 }
 
 #[derive(Subcommand)]
+pub(crate) enum GameCmd {
+    /// Project health: every blueprint builds and equals its committed map, every map passes its own `checks`. Exit 1 on any problem.
+    Check {
+        /// Also run the golden-image view checks (needs a GPU; the default is headless).
+        #[arg(long)]
+        views: bool,
+    },
+    /// Compile every blueprint listed in game.json into its map.
+    BuildAll,
+    /// Print the resolved project: engine pin, blueprints, maps, server settings, commands.
+    Info,
+    /// Start the headless authoritative server on the project's map (extra arguments go to `red_server`).
+    Serve {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        extra: Vec<String>,
+    },
+    /// Start the graphical client on the project's map, connected to HOST:PORT (default: the local server).
+    Play { addr: Option<String> },
+}
+
+#[derive(Subcommand)]
 pub(crate) enum Command {
     /// Check a scene file for errors before spending any render time.
     Validate { scene: PathBuf },
@@ -302,6 +323,71 @@ pub(crate) enum Command {
         /// Where diff images are written (default out/verify).
         #[arg(long)]
         out_dir: Option<PathBuf>,
+    },
+    /// The framework layer: compile a short blueprint (rooms, doors, spawns, prop fill) into a complete, lint-clean scene with walls,
+    /// floors, lamps, zones, spawns, portals/interest for multiplayer, and a `checks` block that already passes (incl. auto-planned
+    /// walks). `build --example` prints a starter; `build bp.json --check` fails if the committed map is stale.
+    Build {
+        /// The blueprint JSON (not needed with --example).
+        blueprint: Option<PathBuf>,
+        /// Where to write the scene (default: next to the blueprint; `x.blueprint.json` -> `x.json`, else `x.map.json`).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Do not write: exit 1 if the existing scene differs from what the blueprint builds (catches stale or hand-edited maps).
+        #[arg(long)]
+        check: bool,
+        /// Print a small working blueprint and exit.
+        #[arg(long)]
+        example: bool,
+    },
+    /// Scaffold a game project that USES the engine (pinned in game.json) instead of forking it: a starter blueprint and the map it builds,
+    /// CLAUDE.md, STATUS.md, `scripts/red` (finds/builds the pinned engine) and a CI workflow. The result already passes `game check`.
+    NewGame {
+        /// Directory to create the project in.
+        dir: PathBuf,
+        /// Project name (default: the directory name).
+        #[arg(long)]
+        name: Option<String>,
+        /// Use a local engine checkout (relative to the project) instead of cloning one.
+        #[arg(long)]
+        engine_path: Option<String>,
+        /// Engine git URL to pin (default: the official repo).
+        #[arg(long)]
+        engine_git: Option<String>,
+        /// Branch, tag or commit of the engine to pin.
+        #[arg(long)]
+        engine_ref: Option<String>,
+    },
+    /// Operate on a game project (the directory holding game.json): check, build-all, info, serve, play.
+    Game {
+        #[command(subcommand)]
+        cmd: GameCmd,
+        /// The project directory.
+        #[arg(long, default_value = ".", global = true)]
+        dir: PathBuf,
+    },
+    /// Resume-in-one-screen and keep the docs honest: facts derived from the repo (binaries, features, ADRs, suites), git position,
+    /// uncommitted files and the project's STATUS.md handoff. `--init` creates STATUS.md, `--note "..." --section next` appends a
+    /// dated bullet, `--sync-docs CLAUDE.md` rewrites the derived-facts region of a doc (tests fail if it is stale).
+    Status {
+        /// Project root (default: the current directory).
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+        /// Create STATUS.md from the template if it does not exist.
+        #[arg(long)]
+        init: bool,
+        /// Append a dated bullet to STATUS.md.
+        #[arg(long)]
+        note: Option<String>,
+        /// Section for --note: now | done | next | blocked | notes.
+        #[arg(long, default_value = "done")]
+        section: String,
+        /// Print only the derived facts block.
+        #[arg(long)]
+        facts: bool,
+        /// Rewrite the `<!-- facts:begin -->` region of these docs with the derived facts (repeatable).
+        #[arg(long)]
+        sync_docs: Vec<PathBuf>,
     },
     /// Run scripted, headless play-throughs against the real authoritative simulation (no window): the scene's
     /// `checks.sim` scenarios, or `--scenario file.json`. Prints PASS/FAIL with evidence; exit 1 on failure.

@@ -90,6 +90,10 @@ fn run(command: Command) -> Result<(), String> {
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
         Command::Lint { scene, strict, cell } => run_lint(&scene, envelope::capturing(), strict, cell),
         Command::Reach { scene, from, to, cell } => run_reach(&scene, from.as_deref(), to.as_deref(), cell, envelope::capturing()),
+        Command::NewGame { dir, name, engine_path, engine_git, engine_ref } => run_new_game(&dir, name.as_deref(), engine_path, engine_git, engine_ref),
+        Command::Game { cmd, dir } => run_game(&dir, cmd),
+        Command::Build { blueprint, out, check, example } => run_build(blueprint.as_deref(), out.as_deref(), check, example),
+        Command::Status { root, init, note, section, facts, sync_docs } => run_status(&root, init, note.as_deref(), &section, facts, &sync_docs),
         Command::Walk { scene, path, from, auto, to, cell, explain } => run_walk(&scene, path.as_deref(), from.as_deref(), auto, to.as_deref(), cell, explain.as_deref()),
         Command::Plan { scene, out, y, all_floors, ascii, ascii_cell, scale, bounds, labels, no_reach, no_lint } => {
             run_plan(&scene, out, y, all_floors, ascii, ascii_cell, scale, bounds.as_deref(), &labels, no_reach, no_lint)
