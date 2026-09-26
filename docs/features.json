@@ -48,11 +48,11 @@
       "depends_on": ["player_physics", "prop_physics"]
     },
     "game_rules": {
-      "summary": "Game rules as data: vars, rules, the expression language, scripted headless scenarios (`sim`).",
+      "summary": "Game rules as data: vars, rules, the expression language, scripted headless scenarios (`sim`), and standard-client presentation.",
       "files": ["src/sim/rules.rs", "src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "recipes/coin_run.json"],
       "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
-      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md"],
+      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md"],
       "depends_on": ["sim_core"]
     },
     "replay": {
@@ -140,12 +140,12 @@
       "depends_on": ["match_flow", "net_protocol"]
     },
     "graphical_client": {
-      "summary": "The `re2` game: window, input, rendering the live world, avatars, weapons, the launch menu, connect form and the online lobby/HUD wiring.",
+      "summary": "The `re2` game: window, input, live rendering, avatars, weapons, rule-state presentation, launch/connect and online lobby/HUD wiring.",
       "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
       "tests": ["lib:viewer"],
       "commands": ["powershell -File scripts/lobby_demo.ps1"],
-      "docs": ["README.md"],
-      "depends_on": ["net_client", "ui_kit", "player_physics", "prop_physics", "offline_renderer"]
+      "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md"],
+      "depends_on": ["net_client", "ui_kit", "player_physics", "prop_physics", "offline_renderer", "game_rules"]
     },
     "map_analysis": {
       "summary": "lint, reach, walk (incl. auto-planned routes), plan, tour, ray, ls/info, diff: what the map will do, answered with the game's own physics.",

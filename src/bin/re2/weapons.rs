@@ -14,6 +14,7 @@ impl App {
         if let Some(audio) = &self.audio {
             audio.play(&self.hit_sound);
         }
+        self.rules.inject(self.clock.ticks_run(), "hit", Some(0));
     }
 
     /// Blends between `idle`, `windup`, and `strike` values across the current swing's three
@@ -150,6 +151,7 @@ impl App {
             }
             println!("Shot '{}' at {:.1} m", self.scene.objects[object_index].id, distance);
         }
+        self.rules.inject(self.clock.ticks_run(), "shot", Some(0));
     }
 
     /// Whether action button `i` is still held this tick (online pulses count down; offline they are never set).
@@ -214,10 +216,12 @@ impl App {
         let Some(props) = self.props.as_mut() else { return };
         if props.held().is_some() {
             props.drop_held(self.player_vel + toss);
+            self.rules.inject(self.clock.ticks_run(), "drop", Some(0));
         } else if let Some(p) = self.pickup_target {
             props.pick_up(p);
             self.swing.cancel();
             self.swing_timer = None;
+            self.rules.inject(self.clock.ticks_run(), "pickup", Some(0));
         }
     }
 

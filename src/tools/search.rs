@@ -60,6 +60,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0032-provable-releases.md", include_str!("../../docs/adr/0032-provable-releases.md")),
     ("0033-feature-index-and-impact.md", include_str!("../../docs/adr/0033-feature-index-and-impact.md")),
     ("0034-net-test-and-bad-network-resilience.md", include_str!("../../docs/adr/0034-net-test-and-bad-network-resilience.md")),
+    ("0035-rule-state-in-the-standard-client.md", include_str!("../../docs/adr/0035-rule-state-in-the-standard-client.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.

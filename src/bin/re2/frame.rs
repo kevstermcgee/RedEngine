@@ -81,6 +81,65 @@ impl App {
         }
 
         self.fixed_step_combat();
+        if self.net.is_none() {
+            self.fixed_step_rules();
+        }
+    }
+
+    /// Runs scene rules for the offline player and applies their world-facing effects. This is
+    /// deliberately the existing [`RulesEngine`], not a presentation-side copy of game logic.
+    fn fixed_step_rules(&mut self) {
+        if !self.rules.has_rules() {
+            return;
+        }
+        let tick = self.clock.ticks_run();
+        if tick >= self.rule_event_until {
+            self.rule_event = None;
+        }
+        if self.rules.ended().is_some() {
+            return;
+        }
+        let player = RulePlayer {
+            slot: 0,
+            pos: Vec3::new(self.physics_pos.x, self.foot_y, self.physics_pos.y),
+            radius: self.body.radius,
+            height: self.body.body_height,
+            character: self.character,
+        };
+        for effect in self.rules.step(tick, &[player]) {
+            match effect {
+                red_engine2::sim::rules_run::Effect::Teleport { slot: 0, target } => {
+                    let target = match target {
+                        Target::Point(p) => Some(p),
+                        Target::Spawn(id) => self.spawns.iter().find(|s| s.id == id).map(|s| Vec3::from(s.position)),
+                    };
+                    if let Some(p) = target {
+                        self.physics_pos = Vec2::new(p.x, p.z);
+                        self.prev_physics_pos = self.physics_pos;
+                        self.foot_y = p.y;
+                        self.prev_foot_y = p.y;
+                        self.vertical_velocity = 0.0;
+                    }
+                }
+                red_engine2::sim::rules_run::Effect::Teleport { .. } => {}
+                red_engine2::sim::rules_run::Effect::Impulse { object, dir, speed } => {
+                    let object_index = self.scene.objects.iter().position(|o| o.id == object);
+                    if let (Some(props), Some(object_index)) = (self.props.as_mut(), object_index) {
+                        if let Some(prop) = props.prop_of_object(object_index) {
+                            let at = props.prop_pose(prop).w_axis.truncate();
+                            let impulse = props.mass(prop) * speed;
+                            props.strike_impulse(prop, dir.normalize_or_zero(), at, impulse);
+                        }
+                    }
+                }
+            }
+        }
+        for event in self.rules.take_new_events() {
+            if !event.name.starts_with("end:") {
+                self.rule_event = Some(event.name);
+                self.rule_event_until = tick + 120;
+            }
+        }
     }
 
     /// The player's eye at the latest completed tick (the origin of this tick's swings and shots).
@@ -127,6 +186,7 @@ impl App {
         }
 
         self.sync_online_ui();
+        self.sync_rule_hud();
 
         // Online, the weapon in hand is whatever the server says (it owns weapons, health and pick-ups).
         if let Some(w) = server_weapon {
@@ -230,6 +290,9 @@ impl App {
         let muzzle_flash = (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0);
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(live) = gpu.live.as_mut() else { return };
+        if self.net.is_none() {
+            live.set_hidden_objects(self.rules.hidden());
+        }
         let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
@@ -364,6 +427,7 @@ impl App {
             gpu.menu = None;
         }
         self.phase = Phase::Playing;
+        self.rule_hud_painted = None;
         println!("Playing as {}.", who.name());
         if let Some(window) = &self.window {
             window.set_title(&format!("Red Engine 2 — {} — {}", self.scene_path.display(), who.name()));

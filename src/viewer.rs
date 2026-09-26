@@ -11,10 +11,11 @@ use crate::gpu::{
 };
 use crate::mesh::{Mesh, Vertex};
 use crate::overlay::Overlay;
-use crate::render::{build_globals_common, collect_leaf_meshes, collect_leaf_transforms};
+use crate::render::{build_globals_common, collect_leaf_meshes, collect_leaf_object_paths, collect_leaf_transforms};
 use crate::schema::Scene;
 use crate::weapons::Weapon;
 use glam::{Mat4, Quat, Vec3, Vec4};
+use std::collections::HashSet;
 
 fn align_up(value: u64, alignment: u64) -> u64 {
     value.div_ceil(alignment) * alignment
@@ -411,6 +412,10 @@ pub struct LiveRenderer {
     object_bind_group: wgpu::BindGroup,
     targets: LiveTargets,
     meshes: Vec<GpuMesh>,
+    /// Object ancestry for each scene mesh, in exactly the same order as `meshes`.
+    mesh_object_paths: Vec<Vec<String>>,
+    /// Scene object ids suppressed by a game rule or application.
+    hidden_objects: HashSet<String>,
     held: Vec<HeldGpu>,
     crosshair: CrosshairPipeline,
     crosshair_buf: wgpu::Buffer,
@@ -462,6 +467,9 @@ impl LiveRenderer {
 
         let mut raw_meshes = Vec::new();
         collect_leaf_meshes(&scene.objects, &mut raw_meshes);
+        let mut mesh_object_paths = Vec::new();
+        collect_leaf_object_paths(&scene.objects, &[], &mut mesh_object_paths);
+        debug_assert_eq!(raw_meshes.len(), mesh_object_paths.len());
         let meshes: Vec<GpuMesh> = raw_meshes.iter().map(|m| GpuMesh::upload(device, m)).collect();
         let held: Vec<HeldGpu> = build_all_held_parts()
             .into_iter()
@@ -551,6 +559,8 @@ impl LiveRenderer {
             object_bind_group,
             targets,
             meshes,
+            mesh_object_paths,
+            hidden_objects: HashSet::new(),
             held,
             crosshair,
             crosshair_buf,
@@ -580,6 +590,15 @@ impl LiveRenderer {
                 wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&make_shadow_sampler(device)) },
             ],
         });
+    }
+
+    /// Replaces the set of scene object ids omitted from both the colour and shadow passes.
+    /// Hiding a group also hides every descendant mesh. This is intentionally renderer state:
+    /// it does not mutate authored transforms or collision, and accepts the output of
+    /// [`crate::sim::rules_run::RulesEngine::hidden`] directly.
+    pub fn set_hidden_objects<'a>(&mut self, ids: impl IntoIterator<Item = &'a str>) {
+        self.hidden_objects.clear();
+        self.hidden_objects.extend(ids.into_iter().map(str::to_owned));
     }
 
     /// Renders one frame: `t` is the scene animation time (seconds, for any keyframed objects
@@ -642,10 +661,11 @@ impl LiveRenderer {
         let mut main_visible = Vec::with_capacity(self.meshes.len());
         let mut shadow_visible = Vec::with_capacity(self.meshes.len());
         for (i, mesh) in self.meshes.iter().enumerate() {
+            let shown = !self.mesh_object_paths[i].iter().any(|id| self.hidden_objects.contains(id));
             let (center, half) = world_aabb(transforms[i].0, mesh.local_min, mesh.local_max);
-            main_visible.push(!aabb_outside_frustum(center, half, &cam_planes));
+            main_visible.push(shown && !aabb_outside_frustum(center, half, &cam_planes));
             shadow_visible.push(match &light_planes {
-                Some(planes) => !aabb_outside_frustum(center, half, planes),
+                Some(planes) => shown && !aabb_outside_frustum(center, half, planes),
                 None => false,
             });
         }

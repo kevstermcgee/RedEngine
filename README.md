@@ -108,6 +108,11 @@ fullscreen vs. maximized, **Q** to toggle first-/third-person, click the window 
 mouse, **Escape** to release it and open the pause menu (Resume / Quit game). The window launches maximized, fit to whichever monitor it
 opens on.
 
+Scenes with `vars` and `rules` are playable here, not only in the headless simulator. Offline `re2` runs the shared rule state
+machine at 60 Hz: `hide`/`show` changes rendered object visibility, teleport and prop impulse effects reach the live world, and
+pickup/drop/shot/hit events can trigger rules. A compact generic HUD shows scene variables, recent events and an `end` outcome.
+The online server also runs rules authoritatively, but protocol v3 does not yet replicate their presentation state to clients.
+
 This is a viewer, not an editor. The seeker's primary action on objects is **hitting them with
 the bat**: a raycast from the player's eye against the objects' *real shapes* finds what is
 within bat reach, the crosshair turns gold when something is in range, and only a swing that

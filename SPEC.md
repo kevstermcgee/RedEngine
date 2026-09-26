@@ -439,13 +439,17 @@ condition holds, and then **does** its actions:
 - **`if`**: an expression over the `vars` and the built-ins `time` (s), `tick`, `players`: numbers, `true`/`false`,
   `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`.
 - **`do`** (in order): `{set: [var, value]}`, `{add: [var, n]}` (value/n is a number, bool or expression string), `{emit: name}`,
-  `{hide: id}` / `{show: id}` (state a renderer or client acts on), `{teleport: [x,y,z] | spawn_id}` (the triggering player),
+  `{hide: id}` / `{show: id}` (the standard single-player client omits that object tree from rendering),
+  `{teleport: [x,y,z] | spawn_id}` (the triggering player),
   `{end: outcome}` (the match ends; rules stop), `{impulse: {object, dir: [x,y,z], speed}}` (shove a loose prop).
 
 Everything a rule names — variables, objects, zones, spawn points, events — is checked when the scene loads, with a
 did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mean `score`?`). Rules run inside the
 authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state is part of the
-match checksum. `red_engine2 describe rules` prints this with a runnable example; `recipe coin_run` is a complete game.
+match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport and impulse, feeds its pickup/drop/shot/hit
+events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
+state remains server-authoritative and is not replicated by protocol v3. `red_engine2 describe rules` prints this with a runnable
+example; `recipe coin_run` is a complete game.
 
 ### Proving gameplay headless (`checks.sim`, `sim`)
 

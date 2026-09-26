@@ -8,6 +8,7 @@ use red_engine2::ui::online::{
     action_at, connect_action_for, connect_layout, hud_layout, lobby_layout, results_layout, screen_for, ConnectAction, ConnectForm, OnlineAction,
     OnlineScreen, OnlineView,
 };
+use red_engine2::ui::rules::hud_layout as rules_hud_layout;
 use red_engine2::ui::Layout;
 use std::hash::{Hash, Hasher};
 
@@ -106,6 +107,33 @@ impl App {
         if let Some(gpu) = self.gpu.as_mut() {
             if let Some(live) = gpu.live.as_mut() {
                 live.overlay.set(&gpu.device, &gpu.queue, w, h, &layout.paint().px);
+            }
+        }
+    }
+
+    /// Paints the offline rule state over the world. It intentionally yields to the pause and
+    /// online overlays, which own the same texture while they are active.
+    pub(crate) fn sync_rule_hud(&mut self) {
+        if self.net.is_some() || self.paused || !self.rules.has_rules() {
+            return;
+        }
+        let Some((w, h)) = self.window_size() else { return };
+        let vars = self.rules.vars();
+        let event = self.rule_event.as_deref();
+        let outcome = self.rules.ended();
+        let fingerprint = format!("{:?}|{:?}|{:?}", vars, event, outcome);
+        if self.rule_hud_painted.as_ref().is_some_and(|(pw, ph, old)| (*pw, *ph) == (w, h) && old == &fingerprint) {
+            return;
+        }
+        let layout = rules_hud_layout(w, h, &vars, event, outcome);
+        self.rule_hud_painted = Some((w, h, fingerprint));
+        if let Some(gpu) = self.gpu.as_mut() {
+            if let Some(live) = gpu.live.as_mut() {
+                if layout.widgets.is_empty() {
+                    live.overlay.hide();
+                } else {
+                    live.overlay.set(&gpu.device, &gpu.queue, w, h, &layout.paint().px);
+                }
             }
         }
     }

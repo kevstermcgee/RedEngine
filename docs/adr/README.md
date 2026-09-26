@@ -39,6 +39,7 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0032](0032-provable-releases.md) | Provable releases: `package` and `package --verify` | accepted |
 | [0033](0033-feature-index-and-impact.md) | A feature index that cannot rot, and `impact` | accepted |
 | [0034](0034-net-test-and-bad-network-resilience.md) | `net-test` and bad-network resilience (bursty loss, bounded extrapolation) | accepted |
+| [0035](0035-rule-state-in-the-standard-client.md) | Shared rule state drives standard-client visibility, effects and a generic HUD | accepted |
 
 ## Writing one
 

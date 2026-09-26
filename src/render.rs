@@ -86,6 +86,28 @@ pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
     }
 }
 
+/// For each mesh produced by [`collect_leaf_meshes`], records the object-id path that owns it.
+/// A group id remains in the path of every descendant, so hiding either a whole prefab/group or
+/// one nested object can be implemented without changing scene transforms or rebuilding GPU data.
+pub(crate) fn collect_leaf_object_paths(objects: &[Object], parents: &[String], out: &mut Vec<Vec<String>>) {
+    for o in objects {
+        let mut path = parents.to_vec();
+        path.push(o.id.clone());
+        let count = match &o.kind {
+            ObjectKind::Prim(_) => 1,
+            ObjectKind::Group(children) => {
+                collect_leaf_object_paths(children, &path, out);
+                0
+            }
+            ObjectKind::Humanoid(h) => human_parts(&HumanoidRig::new(h.height, h.build), &PoseSample::default(), &h.look).len(),
+            ObjectKind::Rat(_) => rat_parts(&RatPose::default()).len(),
+            ObjectKind::Prop(p) => prop_parts(p.kind).len(),
+            ObjectKind::Stairs(s) => build_stairs_parts(s).len(),
+        };
+        out.extend(std::iter::repeat_n(path, count));
+    }
+}
+
 pub(crate) fn collect_leaf_transforms(objects: &[Object], t: f32, parent: Mat4, out: &mut Vec<(Mat4, SampledMaterial)>) {
     for o in objects {
         let local = trs(o.position.sample(t), o.rotation.sample(t), o.scale.sample(t));
@@ -511,5 +533,26 @@ mod tests {
                 panic!("stairs parts should all be boxes");
             }
         }
+    }
+
+    #[test]
+    fn every_leaf_mesh_keeps_its_object_ancestry_for_visibility() {
+        let scene = crate::schema::parse_scene(
+            r##"{"camera":{"position":[0,2,5],"target":[0,0,0]},"objects":[
+              {"id":"plain","type":"box","size":[1,1,1]},
+              {"id":"prefab","type":"group","children":[
+                {"id":"nested","type":"sphere","radius":1},
+                {"id":"steps","type":"stairs","position":[0,0,0],"width":1,"run":2,"rise":1,"steps":3}
+              ]}] }"##,
+        )
+        .unwrap();
+        let mut meshes = Vec::new();
+        let mut paths = Vec::new();
+        collect_leaf_meshes(&scene.objects, &mut meshes);
+        collect_leaf_object_paths(&scene.objects, &[], &mut paths);
+        assert_eq!(paths.len(), meshes.len());
+        assert_eq!(paths[0], ["plain"]);
+        assert_eq!(paths[1], ["prefab", "nested"]);
+        assert!(paths[2..].iter().all(|p| p == &["prefab", "steps"]));
     }
 }

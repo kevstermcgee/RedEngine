@@ -14,6 +14,7 @@
 //! * `red_engine2 ui-check` audits every screen at many window sizes (also a test, `ui::screens::tests`).
 
 pub mod online;
+pub mod rules;
 pub mod screens;
 
 use crate::tools::font::{glyph, GLYPH_H, GLYPH_W};

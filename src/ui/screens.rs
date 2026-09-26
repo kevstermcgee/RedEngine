@@ -6,6 +6,7 @@
 //! shape), register it in [`build`], and `ui-check` will cover it at every size in [`CHECK_SIZES`].
 
 use super::online::{connect_layout, hud_layout, lobby_layout, results_layout, ConnectForm, OnlineView};
+use super::rules::hud_layout as rules_hud_layout;
 use super::{fit_scale, text_height, wrap, Layout};
 use crate::player::Character;
 use crate::sim::flow::Phase;
@@ -17,7 +18,7 @@ const SHADE: [u8; 4] = [6, 8, 14, 0];
 
 /// Screens `ui-shot` / `ui-check` know, in display order.
 pub fn all() -> &'static [&'static str] {
-    &["menu", "pause", "connect", "lobby", "countdown", "hud", "results"]
+    &["menu", "pause", "connect", "lobby", "countdown", "hud", "rules", "results"]
 }
 
 /// Window sizes `ui-check` audits every screen at: small, common, portrait and large.
@@ -51,6 +52,7 @@ pub fn build(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Option<Layout> {
         "lobby" => Some(lobby_layout(w, h, &demo(Phase::Waiting, opts), opts.hover_id.as_deref())),
         "countdown" => Some(hud_layout(w, h, &demo(Phase::Countdown, opts))),
         "hud" => Some(hud_layout(w, h, &demo(Phase::Playing, opts))),
+        "rules" => Some(rules_hud_layout(w, h, &[("score", 3.0), ("coins_left", 1.0)], Some("coin"), opts.message.as_deref())),
         "results" => Some(results_layout(w, h, &demo(Phase::Results, opts), opts.hover_id.as_deref())),
         _ => None,
     }

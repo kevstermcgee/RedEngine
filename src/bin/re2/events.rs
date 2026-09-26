@@ -94,6 +94,7 @@ impl ApplicationHandler for App {
                     self.repaint_pause();
                 }
                 self.online.painted = None;
+                self.rule_hud_painted = None;
             }
             // The connect form (typing) and the lobby / results screens (clicks): each owns the keyboard and the mouse while it shows.
             WindowEvent::KeyboardInput { event, .. } if self.phase == Phase::Connect => self.connect_key(&event, event_loop),

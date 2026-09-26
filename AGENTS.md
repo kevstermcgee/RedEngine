@@ -46,7 +46,8 @@ changed while you were away is delivered when you walk into range. Code: `src/si
 (`tests/net_abuse.rs`: garbage, floods, hostile values; rate limits and no panics are enforced in `src/net` and `src/sim` by lint).
 Tests: `net_e2e` (real UDP, lossy proxy), `net_processes` (separate processes), `net_interactions`, `net_interest`, `net_budget`, `sim_replay`.
 Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`. Limits: `re2` single-player still runs its own
-weapon logic (the online path uses the server's); rule state (variables, hidden objects) is not replicated to clients yet.
+weapon logic (the online path uses the server's), but it runs the shared rule state machine and presents its variables, events,
+hidden objects and outcome. Rule state is not replicated to network clients yet.
 
 **Joining and the lobby (protocol v3).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
 response, the key is never sent) and every datagram after the handshake is authenticated, so forged, replayed or injected packets are dropped
@@ -68,7 +69,8 @@ impact --git` says which tests and docs a change touches; `features --check` kee
 `vars` + `rules` in the scene declare gameplay (triggers, conditions, actions); `checks.sim` scenarios play scripted players through
 the real simulation and assert the outcome, with no window (`red_engine2 sim scene.json`); `red_engine2 replay trace.json` re-runs a
 recorded match and names the first divergent tick. `describe rules` and `describe sim` have the syntax with runnable examples;
-`recipe coin_run` is a complete game proven by its own scenarios.
+`recipe coin_run` is a complete game proven by its own scenarios. In single-player `re2`, the same rules drive hidden/shown objects,
+teleports and prop impulses; a compact generic HUD shows scene variables, recent events and the terminal outcome.
 
 ## Start here (you should never need to read Rust)
 
@@ -152,7 +154,7 @@ Every editing command re-validates the whole scene and **refuses to write an inv
 | `new-game <dir>` / `game check\|build-all\|info\|serve\|play` | Scaffold and run a game project that pins the engine | `scripts/red` wraps these |
 | `status` | Resume in one screen: derived facts, git, STATUS.md | `--init`, `--note "..." --section next`, `--sync-docs CLAUDE.md` |
 | `doctor` | What this machine can do (GPU/software rendering, audio, ffmpeg, UDP, output dir, git) | exit 1 only if UDP or the output dir is broken |
-| `ui-shot <screen> out.png` / `ui-check` | Render and audit the 2-D screens (`menu`, `pause`, `connect`, `lobby`, `countdown`, `hud`, `results`) with no window | `--size WxH --hover resume\|ready\|leave\|connect --message "..."`; `ui-check` audits 9 sizes |
+| `ui-shot <screen> out.png` / `ui-check` | Render and audit the 2-D screens (`menu`, `pause`, `connect`, `lobby`, `countdown`, `hud`, `rules`, `results`) with no window | `--size WxH --hover resume\|ready\|leave\|connect --message "..."`; `ui-check` audits 9 sizes |
 | `plan <scene> [out.png]` | Labelled top-down plan: walls, props (ids), stairs (arrow + height), walkable area (cyan), lights, spawn, findings | `--y 3.0` picks a floor, `--all-floors`, `--ascii` (text, cheap), `--bounds=x0,z0,x1,z1` to zoom, `--scale`, `--labels all` |
 | `render <scene> out.mp4` / `storyboard <scene> out.png` | Full MP4 of an animated scene (needs ffmpeg) / a multi-frame contact sheet | offline renderer; `--frames N` for the sheet |
 | `frame <scene> out.png` | One rendered frame | `--eye x,y,z --at x,y,z --fov 70` free camera, `--hide 'roof' --hide 'wall2_*'`, `--cut-above 5.7` (peel off roof/upper floors) |

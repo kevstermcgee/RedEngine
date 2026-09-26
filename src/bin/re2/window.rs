@@ -18,6 +18,7 @@ impl App {
         self.paused = false;
         self.pause_hover = None;
         self.online.painted = None; // the online overlay (if any) is redrawn next frame
+        self.rule_hud_painted = None; // likewise for the offline rules HUD
         if let Some(live) = self.gpu.as_mut().and_then(|g| g.live.as_mut()) {
             live.overlay.hide();
         }

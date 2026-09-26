@@ -36,6 +36,9 @@ use red_engine2::schema::{Object, ObjectKind, Scene};
 use red_engine2::sim::clock::TickClock;
 use red_engine2::sim::combat::{Cooldown, MeleeSwing, WeaponSwitch};
 use red_engine2::sim::player::{step_player_on, PlayerInput, PlayerState};
+use red_engine2::sim::rules::Target;
+use red_engine2::sim::rules_run::{RulePlayer, RulesEngine};
+use red_engine2::sim::spawns::{parse_spawns, Spawn};
 use red_engine2::skeleton::{pose_to_parts, HumanoidRig, PoseSample};
 use red_engine2::track::Track;
 use red_engine2::viewer::{viewmodel_transform, FpsCamera, FrameOptions, LiveRenderer};
@@ -297,6 +300,16 @@ struct App {
     switch: WeaponSwitch,
     /// The fixed 60 Hz clock: frames push real time in, ticks come out.
     clock: TickClock,
+    /// Offline uses the same pure scene-rule state machine as `MatchSim`. Online rule state is
+    /// authoritative on the server and is not replicated by protocol v3 yet.
+    rules: RulesEngine,
+    /// Named targets for the rule `teleport` action.
+    spawns: Vec<Spawn>,
+    /// Most recent non-terminal rule event, shown briefly by the generic rules HUD.
+    rule_event: Option<String>,
+    rule_event_until: u64,
+    /// Last `(width, height, content)` painted into the offline rules HUD.
+    rule_hud_painted: Option<(u32, u32, String)>,
     /// Seconds since the last shot (drives the recoil kick); starts settled.
     since_shot: f32,
     /// Seconds of muzzle flash left.
@@ -374,6 +387,13 @@ impl App {
             camera.pitch = deg.to_radians();
         }
         let scene_ammo = scene.weapons.revolver_ammo;
+        let rules = RulesEngine::new(scene.rules.clone());
+        // A validated scene with authored spawns parses here. The camera fallback below also
+        // supports animated/offline scenes whose raw camera is not a constant triple.
+        let spawns = std::fs::read_to_string(&scene_path)
+            .ok()
+            .and_then(|text| parse_spawns(&text).ok())
+            .unwrap_or_else(|| vec![Spawn { id: "camera".into(), position: [spawn.x, 0.0, spawn.z], yaw_deg: yaw, group: String::new() }]);
         App {
             window: None,
             gpu: None,
@@ -418,6 +438,11 @@ impl App {
             swing: MeleeSwing::default(),
             switch: WeaponSwitch::default(),
             clock: TickClock::default(),
+            rules,
+            spawns,
+            rule_event: None,
+            rule_event_until: 0,
+            rule_hud_painted: None,
             swing_timer: None,
             target_index: None,
             physics_pos: Vec2::new(spawn.x, spawn.z),
