@@ -66,7 +66,7 @@ impl App {
         } else {
             // Offline the player can stand on (and jump off) a loose prop: its top is an extra floor under the feet.
             let extra_floor = self.props.as_ref().and_then(|p| p.floor_under(st.pos, st.foot_y, self.body.radius, 0.35));
-            self.last_move_speed = step_player_on(&mut st, &input, &self.colliders, &self.ground, extra_floor);
+            self.last_move_speed = step_player_on_tuned(&mut st, &input, &self.colliders, &self.ground, extra_floor, self.scene.player, &self.scene.jump_pads);
         }
         self.physics_pos = st.pos;
         self.foot_y = st.foot_y;
@@ -253,7 +253,7 @@ impl App {
         let wants_ads = self.ads_held && self.shown_weapon().is_firearm() && !self.carrying() && self.view_mode == ViewMode::FirstPerson;
         let ads_target = if wants_ads { 1.0 } else { 0.0 };
         self.ads_blend += (ads_target - self.ads_blend) * (dt / ADS_TRANSITION_TIME).min(1.0);
-        let hip_fov = if sprinting { BASE_FOV_DEG + SPRINT_FOV_BOOST_DEG } else { BASE_FOV_DEG };
+        let hip_fov = if sprinting { self.scene.player.fov_deg + SPRINT_FOV_BOOST_DEG } else { self.scene.player.fov_deg };
         let target_fov = hip_fov + (ADS_FOV_DEG - hip_fov) * self.ads_blend;
         let fov_blend = (dt / FOV_TRANSITION_TIME).min(1.0);
         self.fov_deg += (target_fov - self.fov_deg) * fov_blend;

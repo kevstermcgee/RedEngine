@@ -56,6 +56,10 @@ glossary` prints the lot). Terms are grouped; each line says what it *is* and wh
 
 - **fixed step** — player physics ticks at 1/60 s regardless of frame rate; the rendered camera
   interpolates between ticks (ADR 0005).
+- **player tuning** — the optional scene `player` block: bounded human FOV, walk/sprint speed,
+  crouch multiplier, jump speed and gravity shared by offline, server and prediction (ADR 0039).
+- **jump pad** — a scene-authored rectangle that applies deterministic upward launch velocity when
+  the player's feet touch it; visual geometry remains an ordinary prefab (ADR 0039).
 - **foot height / foot_y** — the y of the player's feet. Everything vertical is relative to it.
 - **body band** — the vertical slice `foot_y+0.05 .. foot_y+2.0` in which colliders block the
   player; re-evaluated every tick against the *current* foot height. This is why upstairs walls need
@@ -111,6 +115,7 @@ without asking.
 ## Weapons
 
 - **Weapon** — `weapons::Weapon`: the legacy bat plus eleven hitscan firearms; the mouse wheel cycles (human only).
+- **starting weapon** — `weapons.starting`: the built-in weapon equipped at spawn; defaults to the bat.
 - **firearm spec** — `weapons::FirearmSpec`: authoritative damage, tick cadence, range and prop impulse plus visual recoil. The library includes pistol, revolver, machine pistol, SMG, carbine, rifle, bullpup, marksman rifle, shotgun, LMG and scout rifle.
 - **ADS / aim down sights** — hold right mouse to smoothly align a firearm and narrow FOV; presentation only, so the authoritative shot still follows the player's replicated look direction.
 - **revolver** — the silver six-shooter: hitscan, 0.42 s between shots, 80 m, infinite ammo by default; a scene's

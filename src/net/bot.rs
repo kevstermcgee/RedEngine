@@ -25,6 +25,10 @@ pub struct ClientWorld {
     pub colliders: Vec<Collider2D>,
     /// Static ground candidates.
     pub ground: GroundCandidates,
+    /// Player movement/view numbers parsed from the same map as the server.
+    pub player_tuning: crate::player::PlayerTuning,
+    /// Authoritative vertical launch surfaces.
+    pub jump_pads: Vec<crate::player::JumpPad>,
     collider_groups: Vec<Vec<Collider2D>>,
     ground_groups: Vec<GroundCandidates>,
     collision_object_ids: Vec<String>,
@@ -62,6 +66,8 @@ impl ClientWorld {
         ClientWorld {
             colliders,
             ground,
+            player_tuning: scene.player,
+            jump_pads: scene.jump_pads.clone(),
             collider_groups,
             ground_groups,
             collision_object_ids: scene.objects.iter().map(|object| object.id.clone()).collect(),
@@ -248,7 +254,14 @@ impl Bot {
                 NetEvent::Snapshot { own: Some(own), ack_input_seq } => {
                     let server_state = self.own_state(&own);
                     if let Some(p) = &mut self.predictor {
-                        p.reconcile(server_state, ack_input_seq, &self.world.colliders, &self.world.ground);
+                        p.reconcile_tuned(
+                            server_state,
+                            ack_input_seq,
+                            &self.world.colliders,
+                            &self.world.ground,
+                            self.world.player_tuning,
+                            &self.world.jump_pads,
+                        );
                     }
                 }
                 NetEvent::Snapshot { own: None, .. } => {}
@@ -282,7 +295,7 @@ impl Bot {
             input.pitch = self.pitch;
             let Some(p) = self.predictor.as_mut() else { return };
             input.seq = p.next_seq();
-            p.apply_local(input, &self.world.colliders, &self.world.ground);
+            p.apply_local_tuned(input, &self.world.colliders, &self.world.ground, self.world.player_tuning, &self.world.jump_pads);
             self.client.send_input(input, now);
             self.next_tick += tick;
             ran += 1;

@@ -91,6 +91,8 @@ pub fn menu_scene() -> Scene {
             target: Track::constant(Vec3::new(0.0, 0.95, 0.0)),
             roll: Track::constant(0.0),
         },
+        player: Default::default(),
+        jump_pads: Vec::new(),
         post: PostSettings::default(),
         rules: Default::default(),
         weapons: Default::default(),

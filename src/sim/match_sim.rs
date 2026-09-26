@@ -17,7 +17,7 @@ use crate::physics::PropWorld;
 use crate::player::Character;
 use crate::schema::Scene;
 use crate::sim::interact::Combat;
-use crate::sim::player::{step_player, PlayerInput, PlayerState};
+use crate::sim::player::{step_player_tuned, PlayerInput, PlayerState};
 use crate::sim::rules::Target;
 use crate::sim::rules_run::{Effect, GameEvent, RulePlayer, RulesEngine};
 use crate::sim::spawns::Spawn;
@@ -61,6 +61,8 @@ pub struct MatchSim {
     pub(super) hit_shapes: Vec<HitShape>,
     /// The scene's weapon numbers.
     pub(super) weapons: crate::weapons::WeaponConfig,
+    pub(super) player_tuning: crate::player::PlayerTuning,
+    pub(super) jump_pads: Vec<crate::player::JumpPad>,
     pub(super) spawns: Vec<Spawn>,
     pub(super) next_spawn: usize,
     pub(super) players: Vec<Option<ServerPlayer>>,
@@ -107,6 +109,8 @@ impl MatchSim {
             collision_object_ids: scene.objects.iter().map(|object| object.id.clone()).collect(),
             hit_shapes: collect_hit_shapes_where(scene, |i| !loose.contains(&i)),
             weapons: scene.weapons,
+            player_tuning: scene.player,
+            jump_pads: scene.jump_pads.clone(),
             props,
             spawns,
             next_spawn: 0,
@@ -257,7 +261,7 @@ impl MatchSim {
             for input in inputs.into_iter().flatten() {
                 let Some(p) = self.players[slot].as_mut() else { break };
                 if !dead {
-                    p.speed = step_player(&mut p.state, &input, &self.colliders, &self.ground);
+                    p.speed = step_player_tuned(&mut p.state, &input, &self.colliders, &self.ground, self.player_tuning, &self.jump_pads);
                     p.crouching = input.crouch;
                 }
                 p.last_processed_seq = input.seq;

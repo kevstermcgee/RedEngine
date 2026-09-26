@@ -69,7 +69,7 @@ impl Combat {
     /// A fresh, alive player carrying the bat.
     pub fn new(cfg: &WeaponConfig) -> Combat {
         Combat {
-            weapon: Weapon::Bat,
+            weapon: cfg.starting_weapon,
             swing: MeleeSwing::default(),
             cooldown: Cooldown::default(),
             switch: WeaponSwitch::default(),

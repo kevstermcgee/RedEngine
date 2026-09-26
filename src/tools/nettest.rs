@@ -235,8 +235,11 @@ fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, 
     let worst_final = clients.iter().map(|c| c.final_error_m).fold(0.0f32, f32::max);
     add("prediction ends on the server's position", worst_final <= 0.10, format!("worst final error {worst_final:.3} m (limit 0.10)"));
     let worst_corr = clients.iter().map(|c| c.worst_correction_m).fold(0.0f32, f32::max);
-    // The snap distance is 1.5 m; on a cruel link with a third of snapshots lost, corrections near 0.6 m are legitimate, a metre is not.
-    add("corrections stay small", worst_corr <= 1.0, format!("worst correction {worst_corr:.3} m (limit 1.0)"));
+    // Judge the displacement in travel time as well as metres: a one-metre correction is a useful
+    // ceiling at the stock pace, while a deliberately fast arena game can cover farther during one
+    // bad-link RTT without its prediction being proportionally worse.
+    let correction_limit = (scene.player.sprint_speed * 0.12).max(1.0);
+    add("corrections stay small", worst_corr <= correction_limit, format!("worst correction {worst_corr:.3} m (speed-aware limit {correction_limit:.3})"));
     if opts.players > 1 {
         let worst_step = clients.iter().map(|c| c.worst_remote_step_m).fold(0.0f32, f32::max);
         add(

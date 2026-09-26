@@ -7,7 +7,7 @@
 //! collider list and the ground candidates (`collide::collect_*`), which the caller builds once.
 
 use crate::collide::{Collider2D, GroundCandidates};
-use crate::player::{step_horizontal_band, vertical_step_on, BodySpec, Character, CROUCH_SPEED_MULT, FIXED_DT};
+use crate::player::{step_horizontal_band, vertical_step_on, vertical_step_on_tuned, BodySpec, Character, JumpPad, PlayerTuning, CROUCH_SPEED_MULT, FIXED_DT};
 use glam::Vec2;
 
 /// Everything about a player the simulation owns.
@@ -109,9 +109,34 @@ pub fn step_player(state: &mut PlayerState, input: &PlayerInput, colliders: &[Co
     step_player_on(state, input, colliders, ground, None)
 }
 
+/// [`step_player`] with scene-authored human movement and jump pads.
+pub fn step_player_tuned(
+    state: &mut PlayerState,
+    input: &PlayerInput,
+    colliders: &[Collider2D],
+    ground: &GroundCandidates,
+    tuning: PlayerTuning,
+    jump_pads: &[JumpPad],
+) -> f32 {
+    step_player_on_tuned(state, input, colliders, ground, None, tuning, jump_pads)
+}
+
 /// [`step_player`] with an optional extra floor under the feet (single-player: the top of a loose prop the player stands on;
 /// the server and prediction pass `None`, so online you still cannot stand on a crate).
 pub fn step_player_on(state: &mut PlayerState, input: &PlayerInput, colliders: &[Collider2D], ground: &GroundCandidates, extra_floor: Option<f32>) -> f32 {
+    step_player_on_tuned(state, input, colliders, ground, extra_floor, PlayerTuning::default(), &[])
+}
+
+/// [`step_player_on`] with scene-authored human movement and jump pads.
+pub fn step_player_on_tuned(
+    state: &mut PlayerState,
+    input: &PlayerInput,
+    colliders: &[Collider2D],
+    ground: &GroundCandidates,
+    extra_floor: Option<f32>,
+    tuning: PlayerTuning,
+    jump_pads: &[JumpPad],
+) -> f32 {
     let input = input.sanitized();
     state.yaw = input.yaw;
     state.pitch = input.pitch;
@@ -128,16 +153,30 @@ pub fn step_player_on(state: &mut PlayerState, input: &PlayerInput, colliders: &
     let mut speed_now = 0.0;
     if dir.length_squared() > 1e-8 {
         dir = dir.normalize();
-        speed_now = if input.crouch {
-            body.walk_speed * CROUCH_SPEED_MULT
-        } else if sprinting {
-            body.sprint_speed
+        let (walk_speed, sprint_speed, crouch_multiplier) = if state.character == Character::Human {
+            (tuning.walk_speed, tuning.sprint_speed, tuning.crouch_multiplier)
         } else {
-            body.walk_speed
+            (body.walk_speed, body.sprint_speed, CROUCH_SPEED_MULT)
+        };
+        speed_now = if input.crouch {
+            walk_speed * crouch_multiplier
+        } else if sprinting {
+            sprint_speed
+        } else {
+            walk_speed
         };
         state.pos = step_horizontal_band(colliders, state.pos, state.foot_y, dir * speed_now * FIXED_DT, body.radius, body.band_top);
     }
-    let (foot_y, vy) = vertical_step_on(ground, extra_floor, state.pos, state.foot_y, state.vy, input.jump);
+    let (foot_y, mut vy) = if state.character == Character::Human {
+        vertical_step_on_tuned(ground, extra_floor, state.pos, state.foot_y, state.vy, input.jump, tuning.jump_speed, tuning.gravity)
+    } else {
+        vertical_step_on(ground, extra_floor, state.pos, state.foot_y, state.vy, input.jump)
+    };
+    if state.character == Character::Human && state.vy <= 0.0 {
+        if let Some(pad) = jump_pads.iter().find(|pad| pad.touches(state.pos, foot_y)) {
+            vy = pad.launch_speed;
+        }
+    }
     state.foot_y = foot_y;
     state.vy = vy;
     speed_now
@@ -238,5 +277,22 @@ mod tests {
         }
         assert!(peak > 0.3 && peak < 0.5, "jump apex ~0.4 m: {peak}");
         assert_eq!(s.foot_y, 0.0);
+    }
+
+    #[test]
+    fn authored_arena_tuning_and_jump_pads_are_deterministic() {
+        let (c, g) = world();
+        let tuning = PlayerTuning { fov_deg: 90.0, walk_speed: 9.0, sprint_speed: 13.0, crouch_multiplier: 0.5, jump_speed: 6.0, gravity: 18.0 };
+        let pad = JumpPad { id: "test_pad".into(), center: Vec2::new(-22.0, -3.0), size: Vec2::splat(2.0), foot_y: 0.0, launch_speed: 11.0 };
+        let mut a = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
+        let mut b = a;
+        for k in 0..30 {
+            let input = PlayerInput { seq: k, forward: 1, yaw: 90f32.to_radians(), ..Default::default() };
+            step_player_tuned(&mut a, &input, &c, &g, tuning, std::slice::from_ref(&pad));
+            step_player_tuned(&mut b, &input, &c, &g, tuning, std::slice::from_ref(&pad));
+        }
+        assert_eq!(a, b, "authored movement stays bit-identical");
+        assert!(a.pos.x > -18.0, "fast profile moved {:.2} m", a.pos.x + 22.0);
+        assert!(a.foot_y > 1.0, "jump pad launched to y={}", a.foot_y);
     }
 }

@@ -64,6 +64,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0036-repeated-bounded-online-rule-state.md", include_str!("../../docs/adr/0036-repeated-bounded-online-rule-state.md")),
     ("0037-core-assets-are-a-growing-api.md", include_str!("../../docs/adr/0037-core-assets-are-a-growing-api.md")),
     ("0038-reusable-firearm-arsenal-and-ads.md", include_str!("../../docs/adr/0038-reusable-firearm-arsenal-and-ads.md")),
+    ("0039-authored-player-tuning-and-jump-pads.md", include_str!("../../docs/adr/0039-authored-player-tuning-and-jump-pads.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
@@ -101,6 +102,8 @@ const SYNONYMS: &[(&str, &str)] = &[
     ("stuck", "unreachable walk blocked"),
     ("reach", "reachable unreachable walk"),
     ("spawn", "camera start player"),
+    ("arena", "movement sprint jump pad launch fast fov"),
+    ("jump-pad", "launch pad vertical velocity arena movement"),
     ("color", "material hex emissive"),
     ("glow", "emissive light"),
     ("sound", "audio"),
