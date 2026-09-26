@@ -573,7 +573,9 @@ What comes out: a `floor_<room>` plane per room; `wall_ext_N` (0.24 thick) aroun
 door openings; a `sun` and one lamp per 8 x 8 m of room; `zones`, `spawns`, `portals` and `interest`; a camera at the first spawn; and `checks`:
 lint (0 errors, the warnings found at build time), one `reach` per room, one `auto` walk from the first spawn to every other room, an object
 count. The output is deterministic, so `red_engine2 build bp.json --check` fails (exit 1) when the committed map differs from what the blueprint
-builds. A game project (`red_engine2 new-game`, `game check`) wires blueprints, maps and the server together; see ADR 0024.
+builds. A game project (`red_engine2 new-game`, `game check`) wires blueprints, maps and the server together; every project also exposes
+`game play-local` for direct single-player testing without starting or joining a server. Online support is additive, never a replacement
+for local play. See ADR 0024.
 
 ## Validation
 

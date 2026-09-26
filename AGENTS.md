@@ -155,7 +155,7 @@ Every editing command re-validates the whole scene and **refuses to write an inv
 | `ray <scene> --from x,y,z --to x,y,z` | Line of sight against the real shapes | `clear`, or the first object in the way (id, kind, distance, point); `--skip id` |
 | `patch <scene> '<json>'` / `--file` | Many edits (add/set/move/rm/clone/rename) as one atomic, validated call | any failing op aborts the whole patch and is named (`ops[3] (move): ...`) |
 | `build <blueprint> [--out f] [--check]` | Compile a blueprint into a complete, lint-clean, self-checking map | `--example` prints a starter; `--check` = stale-map detector |
-| `new-game <dir>` / `game check\|build-all\|info\|serve\|play` | Scaffold and run a game project that pins the engine | `scripts/red` wraps these |
+| `new-game <dir>` / `game check\|build-all\|info\|play-local\|serve\|play` | Scaffold and run a game project that pins the engine; every project has direct local single-player even when it also supports online play | `scripts/red` wraps these |
 | `status` | Resume in one screen: derived facts, git, STATUS.md | `--init`, `--note "..." --section next`, `--sync-docs CLAUDE.md` |
 | `doctor` | What this machine can do (GPU/software rendering, audio, ffmpeg, UDP, output dir, git) | exit 1 only if UDP or the output dir is broken |
 | `ui-shot <screen> out.png` / `ui-check` | Render and audit the 2-D screens (`menu`, `pause`, `connect`, `lobby`, `countdown`, `hud`, `rules`, `results`) with no window | `--size WxH --hover resume\|ready\|leave\|connect --message "..."`; `ui-check` audits 9 sizes |
