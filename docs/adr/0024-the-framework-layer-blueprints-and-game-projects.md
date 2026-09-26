@@ -17,7 +17,7 @@ The framework is a data layer inside the existing CLI, not another process or re
   server needs), seeded fill that keeps door pads, room aisles and spawn pads clear, and a `checks` block that already passes
   (lint budget, reach per room, an auto-planned walk from the first spawn to every room). Output is deterministic and
   is a normal scene; `build --check` fails when the committed map is not what the blueprint builds.
-- **Game project** (`new-game`, `game check|build-all|info|serve|play`, `tools/game.rs`, `tools/newgame.rs`): a directory with
+- **Game project** (`new-game`, `game check|build-all|info|play-local|serve|play`, `tools/game.rs`, `tools/newgame.rs`): a directory with
   `game.json` (name, pinned engine as a git ref or local path, blueprints, maps, server settings), blueprints, generated maps,
   `CLAUDE.md`, `STATUS.md`, `scripts/red` (+ `red.ps1`) which fetches and builds the pinned engine, and a CI workflow that runs
   `red check` on a headless build. Game rules stay data (ADR 0020), so most games need no Rust; when they do, the crate
@@ -26,7 +26,8 @@ The framework is a data layer inside the existing CLI, not another process or re
   `extra` appends raw objects, `scene` merges any scene keys.
 
 ## Consequences
-An AI's first game is: `new-game`, edit one blueprint, `build-all`, `check`, `serve`. Engine upgrades are a one-line ref change.
+An AI's first game is: `new-game`, edit one blueprint, `build-all`, `check`, `play-local`. Direct local single-player is mandatory
+for testing and does not start a server; `serve` and online `play` are additive. Engine upgrades are a one-line ref change.
 The layout vocabulary is deliberately small (axis-aligned rooms on a shared grid, doors, fill); non-rectangular architecture is
 still hand-authored scene JSON. Adding a blueprint key means adding it to the key list, `SPEC.md` "Blueprints" (a test checks
 every key is documented) and a test. To undo: delete `blueprint.rs`, `game.rs`, `newgame.rs`; scenes are untouched.

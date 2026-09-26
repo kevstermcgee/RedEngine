@@ -237,6 +237,7 @@ pub(crate) fn run_new_game(
     println!("  cd {}", dir.display());
     println!("  scripts/red check            # (scripts\\red.ps1 on Windows) fetches + builds the engine on first use, then verifies the starter map");
     println!("  scripts/red plan maps/main.json   # look at it; then edit blueprints/main.blueprint.json and `scripts/red build-all`");
+    println!("  scripts/red play-local       # run around locally without a server or network connection");
     Ok(())
 }
 
@@ -283,6 +284,11 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
                 game::sibling_exe("re2").ok_or("re2 (the game client) is not built next to red_engine2 (cargo build --bin re2, or use `scripts/red play`)")?;
             let addr = addr.unwrap_or_else(|| format!("127.0.0.1:{}", cfg.server.port));
             launch(&exe, &["--connect".to_string(), addr, cfg.dir.join(&cfg.server.map).display().to_string()])
+        }
+        GameCmd::PlayLocal => {
+            let exe = game::sibling_exe("re2")
+                .ok_or("re2 (the game client) is not built next to red_engine2 (cargo build --bin re2, or use `scripts/red play-local`)")?;
+            launch(&exe, &[cfg.dir.join(&cfg.server.map).display().to_string()])
         }
     }
 }

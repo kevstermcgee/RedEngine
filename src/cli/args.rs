@@ -95,6 +95,8 @@ pub(crate) enum GameCmd {
     },
     /// Start the graphical client on the project's map, connected to HOST:PORT (default: the local server).
     Play { addr: Option<String> },
+    /// Start the project's map directly in local single-player, with no server or network connection.
+    PlayLocal,
 }
 
 #[derive(Subcommand)]
@@ -430,7 +432,7 @@ pub(crate) enum Command {
         #[arg(long)]
         engine_ref: Option<String>,
     },
-    /// Operate on a game project (the directory holding game.json): check, build-all, info, serve, play.
+    /// Operate on a game project (the directory holding game.json): check, build-all, info, play-local, serve, play.
     Game {
         #[command(subcommand)]
         cmd: GameCmd,

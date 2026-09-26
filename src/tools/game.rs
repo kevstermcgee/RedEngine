@@ -13,8 +13,8 @@
 //! ```
 //!
 //! `red_engine2 game check` is the one command that answers "is this project healthy?": every blueprint still builds
-//! and still equals its committed map, and every map passes its own `checks`. `game serve` / `game play` start the
-//! headless server and the game client on the project's map. Custom Rust is only needed when the data-driven layer
+//! and still equals its committed map, and every map passes its own `checks`. `game play-local` starts the map with
+//! no network dependency; `game serve` / `game play` start the headless server and an online client. Custom Rust is only needed when the data-driven layer
 //! (rules as data, ADR 0020) is not enough, and then the crate depends on `red_engine2` as a library; it never copies it.
 
 use super::blueprint;
@@ -320,7 +320,7 @@ pub fn info(cfg: &GameConfig) -> String {
         cfg.server.map,
         if cfg.server.spawn_group.is_empty() { String::new() } else { format!(" (spawn group {})", cfg.server.spawn_group) }
     ));
-    s.push_str("commands scripts/red check | build-all | serve | play [HOST:PORT] | <any red_engine2 command>\n");
+    s.push_str("commands scripts/red check | build-all | play-local | serve | play [HOST:PORT] | <any red_engine2 command>\n");
     s
 }
 
@@ -335,6 +335,7 @@ mod tests {
         let c = parse(Path::new("."), GOOD).unwrap();
         assert_eq!((c.name.as_str(), c.server.port, c.server.map.as_str()), ("t", 28000, "maps/main.json"));
         assert!(server_args(&c).join(" ").contains("--spawn-group duel"));
+        assert!(info(&c).contains("play-local"), "local single-player must be discoverable for every project");
         let e = parse(Path::new("."), r#"{"game":1,"engine":{"path":"x"},"mapz":[]}"#).unwrap_err();
         assert!(e.iter().any(|m| m.contains("unknown field")), "{e:?}");
         let e = parse(Path::new("."), r#"{"game":1}"#).unwrap_err();

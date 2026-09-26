@@ -35,7 +35,12 @@ scripts/red plan maps/main.json  # LOOK at it (labelled top-down PNG); `tour` re
   prefabs in `assets/gameplay.json` (already linked by `prefab_files`). Inspect both together with
   `scripts/red catalog --library assets/gameplay.json <need>`. Follow Reuse -> Modify -> Generate -> Import.
 
-## Multiplayer
+## Play locally (required for every game)
+```bash
+scripts/red play-local           # direct single-player: no server or network needed
+```
+
+## Multiplayer (optional in addition to local play)
 ```bash
 scripts/red serve                # headless authoritative UDP server on the map in game.json (port 27015)
 scripts/red play 127.0.0.1:27015   # the graphical client (run two)
@@ -49,7 +54,7 @@ scripts/red play 127.0.0.1:27015   # the graphical client (run two)
 
 const RED_SH: &str = r##"#!/usr/bin/env bash
 # scripts/red: run the Red Engine version this project pins (game.json "engine"), building it on first use.
-#   scripts/red doctor | check | build-all | info | serve | play [HOST:PORT] | status ... | <any red_engine2 command>
+#   scripts/red doctor | check | build-all | info | play-local | serve | play [HOST:PORT] | status ... | <any red_engine2 command>
 # Env: RED_ENGINE=/path/to/checkout (override), RED_UPDATE=1 (git fetch the pinned ref), RED_REBUILD=1 (force a build),
 # RED_HEADLESS=1 (no graphics crates: CLI + server only, ideal for CI and containers), RED_PROFILE=debug|release (default debug).
 set -eu
@@ -102,8 +107,8 @@ command -v cargo >/dev/null 2>&1 || { echo "red: cargo not found (install Rust: 
 
 if [ "${1:-}" = "--rebuild" ]; then REBUILD=1; shift; fi
 MODE=default; FEATURES=""; [ "${RED_HEADLESS:-0}" = "1" ] && { MODE=headless; FEATURES="--no-default-features"; }
-[ "$MODE" = "headless" ] && [ "$cmd" = "play" ] && { echo "red: play needs graphics; unset RED_HEADLESS" >&2; exit 2; }
-REQUIRED="red_engine2"; [ "$cmd" = "serve" ] && REQUIRED="$REQUIRED red_server"; [ "$cmd" = "play" ] && REQUIRED="$REQUIRED re2"
+[ "$MODE" = "headless" ] && { [ "$cmd" = "play" ] || [ "$cmd" = "play-local" ]; } && { echo "red: $cmd needs graphics; unset RED_HEADLESS" >&2; exit 2; }
+REQUIRED="red_engine2"; [ "$cmd" = "serve" ] && REQUIRED="$REQUIRED red_server"; { [ "$cmd" = "play" ] || [ "$cmd" = "play-local" ]; } && REQUIRED="$REQUIRED re2"
 needs_build() {
   OUT="$(exe "$1")"; STAMP="$TARGET/$PROFILE/.red-wrapper-$1.mode"
   [ "$REBUILD" = "1" ] || [ ! -f "$OUT" ] && return 0
@@ -125,14 +130,13 @@ fi
 
 CLI="$(exe red_engine2)"
 case "$cmd" in
-  check|build-all|info|serve) exec "$CLI" game "$cmd" "$@" ;;
-  play) exec "$CLI" game play "$@" ;;
+  check|build-all|info|play-local|serve|play) exec "$CLI" game "$cmd" "$@" ;;
   *) exec "$CLI" "$cmd" "$@" ;;
 esac
 "##;
 
 const RED_PS1: &str = r##"# scripts/red.ps1: the Windows-native twin of scripts/red (same commands and env vars).
-#   powershell -File scripts\red.ps1 doctor | check | build-all | info | serve | play [HOST:PORT] | status ... | <any red_engine2 command>
+#   powershell -File scripts\red.ps1 doctor | check | build-all | info | play-local | serve | play [HOST:PORT] | status ... | <any red_engine2 command>
 param([Parameter(Position = 0)][string]$Cmd = 'help', [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -174,8 +178,8 @@ if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { Write-Error 'red: 
 if ($Rest.Count -gt 0 -and $Rest[0] -eq '--rebuild') { $rebuild = $true; $Rest = @($Rest | Select-Object -Skip 1) }
 $mode = if ($env:RED_HEADLESS -eq '1') { 'headless' } else { 'default' }
 $features = if ($mode -eq 'headless') { @('--no-default-features') } else { @() }
-if ($mode -eq 'headless' -and $Cmd -eq 'play') { Write-Error 'red: play needs graphics; unset RED_HEADLESS'; exit 2 }
-$required = @('red_engine2'); if ($Cmd -eq 'serve') { $required += 'red_server' }; if ($Cmd -eq 'play') { $required += 're2' }
+if ($mode -eq 'headless' -and $Cmd -in 'play', 'play-local') { Write-Error "red: $Cmd needs graphics; unset RED_HEADLESS"; exit 2 }
+$required = @('red_engine2'); if ($Cmd -eq 'serve') { $required += 'red_server' }; if ($Cmd -in 'play', 'play-local') { $required += 're2' }
 function Needs-Build([string]$n) {
     $out = Exe $n; if ($rebuild -or -not (Test-Path $out)) { return $true }
     $stamp = Join-Path $Target "$Profile_\.red-wrapper-$n.mode"
@@ -196,7 +200,7 @@ if ($build) {
 
 $cli = Exe 'red_engine2'
 switch ($Cmd) {
-    { $_ -in 'check', 'build-all', 'info', 'serve', 'play' } { & $cli game $Cmd @Rest }
+    { $_ -in 'check', 'build-all', 'info', 'play-local', 'serve', 'play' } { & $cli game $Cmd @Rest }
     default { & $cli $Cmd @Rest }
 }
 exit $LASTEXITCODE
@@ -314,7 +318,9 @@ mod tests {
         assert!(std::fs::read_to_string(dir.join("blueprints/main.blueprint.json")).unwrap().contains("../assets/gameplay.json"));
         let game = std::fs::read_to_string(dir.join("game.json")).unwrap();
         assert!(game.contains("\"path\": \"../engine\""), "backslashes in a path are normalised: {game}");
-        assert!(std::fs::read_to_string(dir.join("CLAUDE.md")).unwrap().starts_with("# cheese"));
+        let guide = std::fs::read_to_string(dir.join("CLAUDE.md")).unwrap();
+        assert!(guide.starts_with("# cheese"));
+        assert!(guide.contains("scripts/red play-local"), "every new game must document direct local single-player");
         assert!(scaffold(&dir, "cheese", &EngineRef::default()).is_err(), "second run must not clobber");
         assert!(scaffold(&std::env::temp_dir().join("re2_newgame_bad"), "bad name!", &EngineRef::default()).is_err());
     }
@@ -322,7 +328,7 @@ mod tests {
     #[test]
     fn the_wrapper_scripts_only_use_commands_the_cli_has() {
         // Every subcommand the wrapper forwards to `game` must exist (the CLI's own `describe commands` is the source of truth).
-        for sub in ["check", "build-all", "info", "serve", "play"] {
+        for sub in ["check", "build-all", "info", "play-local", "serve", "play"] {
             assert!(RED_SH.contains(sub) && RED_PS1.contains(sub), "{sub}");
         }
     }
