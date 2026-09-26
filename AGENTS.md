@@ -15,6 +15,10 @@ you cannot get from `describe <topic>`. Every command takes the global `--json` 
 ## Current direction (ADR 0015): engine first, Test Lab as the dev map
 
 Engine quality, the shared headless simulation (`src/sim/`), testing and extensibility come before map work.
+Curated games, prototypes, test content and demos are published to RedEngineGames
+through `games-publish.json`. Run `python scripts/publish_games.py check` after
+changing that manifest or any published source. See docs/GAMES_PUBLISHING.md; never
+publish build output, logs, credentials or unreviewed scratch files.
 `examples/test_lab.json` (the **Red Test Lab**) is the primary development map: basic visuals, one room per
 system under test (spawns, clearance gaps, stairs/ledges, static + dynamic props and stacks, hitscan lane,
 character sizes). `tests/test_lab.rs` + its own `checks` guard it. `house`/`school`/`office`/`store` are

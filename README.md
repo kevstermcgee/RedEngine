@@ -21,6 +21,11 @@ you shouldn't need to read the engine's source to build or change a map.
 `red_engine2 describe --brief` (1 KB) first, and host it with [`docs/HOSTING.md`](docs/HOSTING.md). Why the tooling looks the way it does:
 [`docs/analysis/2026-09-24-cheddar-feedback.md`](docs/analysis/2026-09-24-cheddar-feedback.md).
 
+Curated games, prototypes, test content, and demos are copied automatically to
+[RedEngineGames](https://github.com/kevstermcgee/RedEngineGames). See
+[`docs/GAMES_PUBLISHING.md`](docs/GAMES_PUBLISHING.md) to validate an export or add
+new content to the publication manifest.
+
 ## Why this design
 
 - **JSON in, live game or offline render out.** Scenes are data files: cheap to generate,

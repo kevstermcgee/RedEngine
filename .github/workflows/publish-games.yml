@@ -1,0 +1,55 @@
+name: Publish games
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - benches/**
+      - examples/**
+      - recipes/**
+      - scripts/lobby_demo.ps1
+      - scripts/multiplayer_demo.ps1
+      - games-publish.json
+      - scripts/publish_games.py
+      - .github/workflows/publish-games.yml
+  workflow_dispatch:
+
+concurrency:
+  group: publish-redengine-games
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out RedEngine
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check out RedEngineGames
+        uses: actions/checkout@v4
+        with:
+          repository: kevstermcgee/RedEngineGames
+          ssh-key: ${{ secrets.GAMES_REPO_DEPLOY_KEY }}
+          path: _games_repo
+
+      - name: Export curated content
+        run: python scripts/publish_games.py export --output _games_repo --revision "$GITHUB_SHA"
+
+      - name: Commit and push changes
+        working-directory: _games_repo
+        shell: bash
+        run: |
+          git add games prototypes tests demos .games-catalog.json
+          if git diff --cached --quiet; then
+            echo "RedEngineGames is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Sync RedEngine content at ${GITHUB_SHA::12}"
+          git push

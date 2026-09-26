@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "source_repository": "kevstermcgee/RedEngine",
+  "target_repository": "kevstermcgee/RedEngineGames",
+  "collections": {
+    "games": [
+      {"source": "examples/prop_hunt_yard.json", "destination": "prop-hunt"},
+      {"source": "recipes/coin_run.json", "destination": "coin-run"}
+    ],
+    "prototypes": [
+      {"source": "recipes", "destination": "recipes"}
+    ],
+    "tests": [
+      {"source": "examples/test_lab.json", "destination": "test-lab"},
+      {"source": "benches", "destination": "performance"}
+    ],
+    "demos": [
+      {"source": "examples", "destination": "examples"},
+      {"source": "scripts/lobby_demo.ps1", "destination": "multiplayer"},
+      {"source": "scripts/multiplayer_demo.ps1", "destination": "multiplayer"}
+    ]
+  }
+}
