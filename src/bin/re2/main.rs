@@ -40,8 +40,7 @@ use red_engine2::track::Track;
 use red_engine2::viewer::{viewmodel_transform, FpsCamera, FrameOptions, LiveRenderer};
 use red_engine2::viewer::{IDLE_PITCH_DEG, IDLE_ROLL_DEG};
 use red_engine2::weapons::{
-    Ammo, Weapon, DRY_FIRE_COOLDOWN_TICKS, MUZZLE_FLASH_TIME, RECOIL_TIME, REVOLVER_COOLDOWN_TICKS, REVOLVER_IMPULSE, REVOLVER_RANGE, SWING_RECOVER_SECS,
-    SWING_STRIKE_SECS, SWING_WINDUP_SECS, SWITCH_SECS,
+    Ammo, Weapon, DRY_FIRE_COOLDOWN_TICKS, MUZZLE_FLASH_TIME, RECOIL_TIME, SWING_RECOVER_SECS, SWING_STRIKE_SECS, SWING_WINDUP_SECS, SWITCH_SECS,
 };
 use std::collections::HashSet;
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -78,6 +77,9 @@ const MOUSE_SENSITIVITY: f32 = 0.0025;
 const MOUSE_SETTLE_SECS: f32 = 0.35;
 
 const BASE_FOV_DEG: f32 = 90.0;
+/// Firearm aim-down-sights FOV and the time used to blend into/out of it.
+const ADS_FOV_DEG: f32 = 54.0;
+const ADS_TRANSITION_TIME: f32 = 0.14;
 // A game-y widened FOV while sprinting reads as speed even before the eye adjusts to how fast
 // the walls are sliding by; it also smoothly signals when sprint actually kicks in vs. Shift
 // being held but disallowed (crouching, or not moving forward).
@@ -85,8 +87,7 @@ const SPRINT_FOV_BOOST_DEG: f32 = 8.0;
 const FOV_TRANSITION_TIME: f32 = 0.15;
 
 // Hitting things with the bat is the seeker's main way to act on objects (a struck object makes a
-// sound but does not change colour); `E` picks up / drops loose props; right-click is reserved for the
-// hider's "pick an object to replicate" (then `R`), not built yet.
+// sound but does not change colour); `E` picks up / drops loose props; right-click smoothly aims a firearm.
 
 // Bat viewmodel: idle pose and swing animation, both expressed as a pitch (rotation about
 // the camera's local right axis, tipping the bar up/down) plus a forward lunge, in the
@@ -258,6 +259,10 @@ struct App {
     jump_queued: bool,
     /// Left click waiting for the next simulation tick (swing or shot).
     attack_queued: bool,
+    /// Right mouse is held and the current firearm should aim down sights.
+    ads_held: bool,
+    /// Smoothed 0 (hip) .. 1 (sights) presentation blend.
+    ads_blend: f32,
     /// Online: ticks left to hold each action button (interact, attack, switch, reload) on the input sent to the server.
     /// The server acts on the press, so a short pulse is one action.
     net_pulse: [u8; 4],
@@ -422,6 +427,8 @@ impl App {
             sprint_held: false,
             jump_queued: false,
             attack_queued: false,
+            ads_held: false,
+            ads_blend: 0.0,
             net_pulse: [0; 4],
             paused: false,
             pause_hover: None,

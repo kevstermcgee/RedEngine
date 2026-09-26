@@ -110,7 +110,9 @@ without asking.
 
 ## Weapons
 
-- **Weapon** — `weapons::Weapon`: `Bat` (primary) or `Revolver`; the mouse wheel cycles (human only).
+- **Weapon** — `weapons::Weapon`: the legacy bat plus eleven hitscan firearms; the mouse wheel cycles (human only).
+- **firearm spec** — `weapons::FirearmSpec`: authoritative damage, tick cadence, range and prop impulse plus visual recoil. The library includes pistol, revolver, machine pistol, SMG, carbine, rifle, bullpup, marksman rifle, shotgun, LMG and scout rifle.
+- **ADS / aim down sights** — hold right mouse to smoothly align a firearm and narrow FOV; presentation only, so the authoritative shot still follows the player's replicated look direction.
 - **revolver** — the silver six-shooter: hitscan, 0.42 s between shots, 80 m, infinite ammo by default; a scene's
   `weapons.revolver.ammo` caps it (`Ammo::Limited`, `R` reloads). Model in `revolver.rs`. ADR 0013.
 - **hitscan / muzzle flash** — a shot is an instant ray from the eye; the flash is an emissive held part shown

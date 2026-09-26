@@ -180,7 +180,7 @@ impl ApplicationHandler for App {
                     if code == KeyCode::KeyR && event.state == ElementState::Pressed && !self.keys.contains(&code) && self.grabbed {
                         if self.net.is_some() {
                             self.net_pulse[3] = NET_PULSE_TICKS;
-                        } else if self.weapon == Weapon::Revolver {
+                        } else if self.weapon.is_firearm() {
                             let n = self.ammo.reload();
                             if n > 0 {
                                 println!("Reloaded {n} round(s): {:?}", self.ammo);
@@ -212,6 +212,9 @@ impl ApplicationHandler for App {
                     self.attack_queued = true;
                 }
             }
+            WindowEvent::MouseInput { state, button: MouseButton::Right, .. } if self.phase == Phase::Playing && !self.paused => {
+                self.ads_held = state == ElementState::Pressed && self.grabbed;
+            }
             WindowEvent::MouseWheel { delta, .. } if self.phase == Phase::Playing && self.grabbed => {
                 let lines = match delta {
                     MouseScrollDelta::LineDelta(_, y) => y,
@@ -223,6 +226,7 @@ impl ApplicationHandler for App {
                 // No key-release events arrive while unfocused: forget held keys so we do not walk on alone.
                 self.keys.clear();
                 self.sprint_held = false;
+                self.ads_held = false;
                 self.set_grab(false);
             }
             WindowEvent::RedrawRequested => {

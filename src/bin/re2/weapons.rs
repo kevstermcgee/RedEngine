@@ -54,11 +54,14 @@ impl App {
         }
         // Scrolling between weapons lowers the old one and raises the new one.
         let dip = self.switch_dip();
-        if self.shown_weapon() == Weapon::Revolver {
-            let k = self.recoil_kick();
+        if let Some(spec) = self.shown_weapon().firearm() {
+            let k = self.recoil_kick() * spec.recoil;
+            let ads = self.ads_blend;
             let local_rotation = Mat4::from_rotation_y(GUN_YAW_DEG.to_radians())
                 * Mat4::from_rotation_x((GUN_IDLE_PITCH_DEG + GUN_RECOIL_PITCH_DEG * k + 25.0 * dip).to_radians());
-            let local_offset = Vec3::new(GUN_RIGHT, -GUN_DOWN - 0.30 * dip, GUN_FORWARD - GUN_RECOIL_BACK * k);
+            let hip = Vec3::new(GUN_RIGHT, -GUN_DOWN - 0.30 * dip, GUN_FORWARD - GUN_RECOIL_BACK * k);
+            let aimed = Vec3::new(0.0, -0.035 - 0.30 * dip, GUN_FORWARD + 0.06 - GUN_RECOIL_BACK * k);
+            let local_offset = hip.lerp(aimed, ads);
             return viewmodel_transform(&self.camera, local_offset, local_rotation);
         }
         let pitch_deg = self.swing_blend(IDLE_PITCH_DEG, WINDUP_PITCH_DEG, STRIKE_PITCH_DEG);
@@ -118,7 +121,7 @@ impl App {
         self.weapon = to;
         self.swing.cancel();
         println!("Weapon: {}", to.name());
-        if to == Weapon::Revolver {
+        if to.is_firearm() {
             if let Some(audio) = &self.audio {
                 audio.play(&self.click_sound);
             }
@@ -126,7 +129,8 @@ impl App {
     }
 
     /// Simulation tick: one revolver shot at the crosshair (hitscan) from the tick's eye. Infinite ammo for now.
-    pub(crate) fn fire_revolver(&mut self) {
+    pub(crate) fn fire_firearm(&mut self) {
+        let Some(spec) = self.weapon.firearm() else { return };
         if !self.shot_cd.ready() || self.switch.is_active() || self.carrying() {
             return;
         }
@@ -137,7 +141,7 @@ impl App {
             }
             return;
         }
-        self.shot_cd.start(REVOLVER_COOLDOWN_TICKS);
+        self.shot_cd.start(spec.cooldown_ticks);
         self.since_shot = 0.0;
         self.flash_left = MUZZLE_FLASH_TIME;
         if let Some(audio) = &self.audio {
@@ -145,9 +149,9 @@ impl App {
         }
         let dir = self.camera.forward();
         let eye = self.tick_eye();
-        if let Some((object_index, distance, loose)) = self.probe(eye, REVOLVER_RANGE) {
+        if let Some((object_index, distance, loose)) = self.probe(eye, spec.range) {
             if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
-                props.strike_impulse(prop, dir, eye + dir * distance, REVOLVER_IMPULSE);
+                props.strike_impulse(prop, dir, eye + dir * distance, spec.impulse);
             }
             println!("Shot '{}' at {:.1} m", self.scene.objects[object_index].id, distance);
         }
@@ -196,7 +200,7 @@ impl App {
                 Weapon::Bat => {
                     self.swing.start();
                 }
-                Weapon::Revolver => self.fire_revolver(),
+                _ => self.fire_firearm(),
             }
         }
     }

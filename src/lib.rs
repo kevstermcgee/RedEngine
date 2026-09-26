@@ -7,6 +7,8 @@ pub mod collide;
 pub mod color;
 pub mod crypto;
 pub mod easing;
+#[cfg(feature = "gfx")]
+pub mod firearms;
 pub mod geometry;
 #[cfg(feature = "gfx")]
 pub mod gpu;

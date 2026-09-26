@@ -5,7 +5,8 @@
 use std::path::{Path, PathBuf};
 
 /// Modules gated behind `#[cfg(feature = "gfx")]` in `src/lib.rs`, plus the windowed binary.
-const GFX_ONLY: &[&str] = &["audio.rs", "gpu.rs", "menu.rs", "mesh.rs", "overlay.rs", "probe.rs", "render.rs", "revolver.rs", "video.rs", "viewer.rs"];
+const GFX_ONLY: &[&str] =
+    &["audio.rs", "firearms.rs", "gpu.rs", "menu.rs", "mesh.rs", "overlay.rs", "probe.rs", "render.rs", "revolver.rs", "video.rs", "viewer.rs"];
 /// Directories that are entirely windowed code (`re2` is a directory binary: main.rs, weapons.rs, avatar.rs, window.rs, win.rs).
 const GFX_ONLY_DIRS: &[&str] = &["bin/re2/"];
 const BANNED: &[&str] = &["wgpu::", "winit::", "rodio::", "ffmpeg_sidecar", "pollster::"];

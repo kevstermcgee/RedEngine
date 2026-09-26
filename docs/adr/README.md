@@ -42,6 +42,7 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0035](0035-rule-state-in-the-standard-client.md) | Shared rule state drives standard-client visibility, effects and a generic HUD | accepted |
 | [0036](0036-repeated-bounded-online-rule-state.md) | Repeated bounded rule-state snapshots give online clients loss/reconnect/late-join recovery | accepted |
 | [0037](0037-core-assets-are-a-growing-api.md) | Core assets are a growing API, not an exhaustive inventory | accepted |
+| [0038](0038-reusable-firearm-arsenal-and-ads.md) | Reusable eleven-firearm arsenal, procedural models and smooth aim-down-sights | accepted |
 
 ## Writing one
 
