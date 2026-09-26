@@ -1,0 +1,12 @@
+{
+  "rounds": {
+    "RedEngine-01": {
+      "date": "2026-09-26",
+      "commit": "5b6d540cbfd1ed43ca1336aa396f0bc078b75425",
+      "combos": [
+        "slot4:strategy-defense+build",
+        "stretch:audio_cues"
+      ]
+    }
+  }
+}
