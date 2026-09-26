@@ -116,6 +116,8 @@ pub struct ServerStats {
     pub rounds: u64,
     /// `Status` messages sent.
     pub statuses_sent: u64,
+    /// Complete rule-state messages sent.
+    pub rule_states_sent: u64,
 }
 
 /// A prop the server nudges periodically so there is always an authoritative moving prop to watch.
@@ -809,11 +811,20 @@ impl Server {
             Some(r) => (r.winner, r.end_code, r.end_text.clone()),
             None => (NO_WINNER, NO_END, String::new()),
         };
+        let rules = self.sim.rules();
+        let vars: Vec<RuleVar> = rules.vars().into_iter().take(MAX_RULE_VARS).map(|(name, value)| RuleVar { name: name.to_string(), value }).collect();
+        let hidden: Vec<u16> = rules.hidden().filter_map(|id| self.sim.rule_object_index(id)).take(MAX_RULE_HIDDEN).collect();
+        let latest_event = rules.history().iter().rev().find(|e| !e.name.starts_with("end:"));
+        let event = latest_event.map_or_else(String::new, |e| e.name.clone());
+        let event_tick = latest_event.map_or(0, |e| e.tick.min(u32::MAX as u64) as u32);
+        let outcome = rules.ended().unwrap_or_default().to_string();
+        let rule_tick = self.sim.tick().min(u32::MAX as u64) as u32;
         for i in 0..self.sessions.len() {
             let s = &mut self.sessions[i];
             s.status_seq = s.status_seq.wrapping_add(1);
+            let status_seq = s.status_seq;
             let status = Status {
-                seq: s.status_seq,
+                seq: status_seq,
                 phase,
                 round,
                 ticks_left,
@@ -828,6 +839,18 @@ impl Server {
             };
             self.stats.statuses_sent += 1;
             self.send_signed(i, &ServerMsg::Status(status));
+            let rule_state = RuleState {
+                seq: status_seq,
+                round,
+                server_tick: rule_tick,
+                vars: vars.clone(),
+                hidden: hidden.clone(),
+                event: event.clone(),
+                event_tick,
+                outcome: outcome.clone(),
+            };
+            self.stats.rule_states_sent += 1;
+            self.send_signed(i, &ServerMsg::RuleState(rule_state));
         }
     }
 

@@ -351,8 +351,9 @@ fn rules_text() -> String {
          An unknown variable/zone/object/spawn/event is a validate error with a did-you-mean.\n\
          Rules run in the authoritative simulation (server, `sim`), deterministically; state (vars, hidden objects, outcome) is\n\
          part of the match checksum. Offline `re2` runs the same rule state machine: hide/show changes rendering, teleport/impulse\n\
-         are applied, pickup/drop/shot/hit are injected, and vars/events/outcome appear in a generic HUD. Online rule state is not\n\
-         replicated to clients yet. Prove a rule with `checks.sim` (see `describe sim`).\n\nExample scene:\n",
+         are applied, pickup/drop/shot/hit are injected, and vars/events/outcome appear in a generic HUD. Online clients use the same\n\
+         HUD from a repeated bounded authoritative state, so loss, reconnect and late join recover it. Prove a rule with `checks.sim`\n\
+         (see `describe sim`).\n\nExample scene:\n",
     );
     out.push_str(RULES_EXAMPLE);
     out.push('\n');

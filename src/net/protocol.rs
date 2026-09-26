@@ -10,7 +10,7 @@
 //! [`ClientMsg::Lobby`] (ready / character, repeated: *state*, not events, so a lost packet costs nothing), [`ClientMsg::Bye`].
 //! Server -> client: [`ServerMsg::Challenge`], [`ServerMsg::Welcome`], [`ServerMsg::Reject`], [`ServerMsg::Snapshot`] (every
 //! player, plus the props that changed since the client last acknowledged), [`ServerMsg::Status`] (the lobby / round state and the
-//! roster, repeated), [`ServerMsg::NoSession`], [`ServerMsg::Bye`].
+//! roster, repeated), [`ServerMsg::RuleState`] (the current data-authored game state, repeated), [`ServerMsg::NoSession`], [`ServerMsg::Bye`].
 //!
 //! Every datagram except `Hello`, `Challenge`, `Reject` and `NoSession` ends with an 8-byte tag (see [`super::auth`], ADR 0028):
 //! [`ClientMsg::decode`] and [`ServerMsg::decode`] parse a datagram *whose tag has already been verified and stripped*
@@ -25,7 +25,7 @@ use std::fmt;
 /// First two bytes of every datagram ("RD").
 pub const MAGIC: u16 = 0x5244;
 /// Bumped on any incompatible change; a mismatched client is rejected.
-pub const PROTOCOL_VERSION: u16 = 3;
+pub const PROTOCOL_VERSION: u16 = 4;
 /// Largest datagram either side sends or accepts (under a typical 1500-byte MTU).
 pub const MAX_PACKET: usize = 1400;
 /// Most inputs one packet carries (the newest is last).
@@ -41,6 +41,12 @@ pub const MAX_NAME: usize = 16;
 pub const MAX_OUTCOME: usize = 32;
 /// Most roster entries in a [`Status`] (a match holds at most this many players).
 pub const MAX_ROSTER: usize = MAX_PLAYERS_PER_SNAPSHOT;
+/// Most scene variables presented by a networked game.
+pub const MAX_RULE_VARS: usize = 16;
+/// Most hidden objects in a networked game's current state.
+pub const MAX_RULE_HIDDEN: usize = 256;
+/// Longest variable, event or outcome name in network rule presentation, bytes.
+pub const MAX_RULE_TEXT: usize = 32;
 /// `Status::winner` when nobody won (a draw, or a co-operative outcome).
 pub const NO_WINNER: u8 = 255;
 
@@ -55,6 +61,7 @@ const KIND_S_BYE: u8 = 19;
 const KIND_CHALLENGE: u8 = 20;
 const KIND_STATUS: u8 = 21;
 const KIND_NO_SESSION: u8 = 22;
+const KIND_RULE_STATE: u8 = 23;
 
 /// The kind byte of a datagram (`None` if it is too short to have one or is not ours).
 pub fn peek_kind(bytes: &[u8]) -> Option<u8> {
@@ -63,7 +70,7 @@ pub fn peek_kind(bytes: &[u8]) -> Option<u8> {
 
 /// Whether datagrams of this kind carry an authentication tag (everything after the handshake).
 pub fn is_signed(kind: u8) -> bool {
-    matches!(kind, KIND_INPUT | KIND_C_BYE | KIND_LOBBY | KIND_WELCOME | KIND_SNAPSHOT | KIND_S_BYE | KIND_STATUS)
+    matches!(kind, KIND_INPUT | KIND_C_BYE | KIND_LOBBY | KIND_WELCOME | KIND_SNAPSHOT | KIND_S_BYE | KIND_STATUS | KIND_RULE_STATE)
 }
 
 /// A player name made safe to show and to send: control characters removed, trimmed, at most [`MAX_NAME`] bytes (cut on a character
@@ -393,6 +400,37 @@ pub struct Status {
 /// `Status::end_code` before any round has ended.
 pub const NO_END: u8 = 255;
 
+/// One scene variable in a [`RuleState`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuleVar {
+    /// Authored variable name.
+    pub name: String,
+    /// Authoritative value.
+    pub value: f64,
+}
+
+/// The complete bounded presentation state of data-authored rules. The server repeats it, so a
+/// lost datagram, reconnect, or late join recovers current truth without replaying old events.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuleState {
+    /// Increasing (wrapping); an older state that arrives late is ignored.
+    pub seq: u16,
+    /// Match-flow round this state belongs to (`0` in open play).
+    pub round: u16,
+    /// Server simulation tick represented by this state.
+    pub server_tick: u32,
+    /// Scene variables, in authored order.
+    pub vars: Vec<RuleVar>,
+    /// Indices in the shared parsed scene for objects currently hidden.
+    pub hidden: Vec<u16>,
+    /// Most recent non-terminal event, empty when none exists.
+    pub event: String,
+    /// Tick at which `event` occurred.
+    pub event_tick: u32,
+    /// Terminal rule outcome, empty while the game is running.
+    pub outcome: String,
+}
+
 /// Messages a server sends.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ServerMsg {
@@ -411,6 +449,8 @@ pub enum ServerMsg {
     Snapshot(Snapshot),
     /// Lobby / round state and the roster.
     Status(Status),
+    /// Current data-authored rule presentation state.
+    RuleState(RuleState),
     /// "I have no session for your address" (the server restarted, or timed you out): re-join. Unauthenticated, so a client only
     /// takes it as a hint to re-handshake.
     NoSession,
@@ -672,6 +712,26 @@ impl ServerMsg {
                     w.text(&e.name, MAX_NAME);
                 }
             }
+            ServerMsg::RuleState(st) => {
+                w.header(KIND_RULE_STATE);
+                w.u16(st.seq);
+                w.u16(st.round);
+                w.u32(st.server_tick);
+                let nv = st.vars.len().min(MAX_RULE_VARS);
+                w.u8(nv as u8);
+                for v in &st.vars[..nv] {
+                    w.text(&v.name, MAX_RULE_TEXT);
+                    w.u64(v.value.to_bits());
+                }
+                let nh = st.hidden.len().min(MAX_RULE_HIDDEN);
+                w.u16(nh as u16);
+                for &id in &st.hidden[..nh] {
+                    w.u16(id);
+                }
+                w.text(&st.event, MAX_RULE_TEXT);
+                w.u32(st.event_tick);
+                w.text(&st.outcome, MAX_RULE_TEXT);
+            }
             ServerMsg::Snapshot(s) => {
                 w.header(KIND_SNAPSHOT);
                 w.u32(s.seq);
@@ -749,6 +809,35 @@ impl ServerMsg {
                     echo_time_ms,
                     echo_hold_ms,
                     roster,
+                })
+            }
+            KIND_RULE_STATE => {
+                let (seq, round, server_tick) = (r.u16()?, r.u16()?, r.u32()?);
+                let nv = r.u8()? as usize;
+                if nv > MAX_RULE_VARS {
+                    return Err(DecodeError::OutOfRange);
+                }
+                let mut vars = Vec::with_capacity(nv);
+                for _ in 0..nv {
+                    vars.push(RuleVar { name: r.text(MAX_RULE_TEXT)?, value: f64::from_bits(r.u64()?) });
+                }
+                let nh = r.u16()? as usize;
+                if nh > MAX_RULE_HIDDEN {
+                    return Err(DecodeError::OutOfRange);
+                }
+                let mut hidden = Vec::with_capacity(nh);
+                for _ in 0..nh {
+                    hidden.push(r.u16()?);
+                }
+                ServerMsg::RuleState(RuleState {
+                    seq,
+                    round,
+                    server_tick,
+                    vars,
+                    hidden,
+                    event: r.text(MAX_RULE_TEXT)?,
+                    event_tick: r.u32()?,
+                    outcome: r.text(MAX_RULE_TEXT)?,
                 })
             }
             KIND_SNAPSHOT => {
@@ -854,12 +943,33 @@ mod tests {
         }
     }
 
+    fn full_rule_state() -> RuleState {
+        RuleState {
+            seq: u16::MAX,
+            round: 9,
+            server_tick: 123_456,
+            vars: (0..MAX_RULE_VARS).map(|i| RuleVar { name: format!("variable_{i:02}_with_long_name"), value: i as f64 + 0.5 }).collect(),
+            hidden: (0..MAX_RULE_HIDDEN as u16).collect(),
+            event: "collected_the_last_object".into(),
+            event_tick: 123_450,
+            outcome: "a_wonderful_victory".into(),
+        }
+    }
+
     #[test]
     fn a_status_and_a_welcome_fit_a_packet_with_room_for_the_tag() {
         let mut b = Vec::new();
         ServerMsg::Status(full_status()).encode(&mut b);
         assert!(b.len() + super::super::auth::TAG_LEN <= MAX_PACKET, "{} bytes", b.len());
         assert!(b.len() < 320, "a full 8-player roster is {} bytes; keep Status small (it is sent 5x a second to everyone)", b.len());
+    }
+
+    #[test]
+    fn a_full_rule_state_is_bounded_and_fits_one_datagram() {
+        let mut b = Vec::new();
+        ServerMsg::RuleState(full_rule_state()).encode(&mut b);
+        assert!(b.len() + super::super::auth::TAG_LEN <= MAX_PACKET, "{} bytes", b.len());
+        assert_eq!(ServerMsg::decode(&b).unwrap(), ServerMsg::RuleState(full_rule_state()));
     }
 
     #[test]
@@ -938,6 +1048,7 @@ mod tests {
         roundtrip_s(ServerMsg::NoSession);
         roundtrip_s(ServerMsg::Challenge { cookie: u64::MAX, requires_key: true });
         roundtrip_s(ServerMsg::Status(full_status()));
+        roundtrip_s(ServerMsg::RuleState(full_rule_state()));
         let players = (0..MAX_PLAYERS_PER_SNAPSHOT as u8)
             .map(|i| PlayerSnap {
                 id: i,

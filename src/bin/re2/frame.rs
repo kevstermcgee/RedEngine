@@ -290,7 +290,9 @@ impl App {
         let muzzle_flash = (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0);
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(live) = gpu.live.as_mut() else { return };
-        if self.net.is_none() {
+        if let Some(net) = &self.net {
+            live.set_hidden_objects(net.hidden_objects());
+        } else {
             live.set_hidden_objects(self.rules.hidden());
         }
         let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };

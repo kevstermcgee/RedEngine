@@ -30,5 +30,5 @@ tolerant of lost datagrams.
 ## Consequences
 `tests/net_flow.rs` runs the whole loop over real UDP (join, ready, countdown, round, time up, results, lobby, rematch, late joiner,
 aborted countdown, keyed server). `scripts/lobby_demo.ps1` drives a real graphical client through it and screenshots each stage.
-Not built: a spectator camera for late joiners, kick/ban, teams, map voting, and per-player rule state in `Status` (rules stay
-server-side; a game shows its own score through `vars` once those are replicated).
+Not built: a spectator camera for late joiners, kick/ban, teams, map voting, and per-player rule state. ADR 0036 later added global
+rule presentation as its own repeated protocol-v4 message rather than growing `Status`.

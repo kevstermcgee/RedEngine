@@ -94,11 +94,24 @@ impl App {
         }
         let Some((w, h)) = self.window_size() else { return };
         let hover = self.online.hover.clone();
-        let layout = match screen {
+        let mut layout = match screen {
             OnlineScreen::Lobby => lobby_layout(w, h, &view, hover.as_deref()),
             OnlineScreen::Results => results_layout(w, h, &view, hover.as_deref()),
             OnlineScreen::Hud => hud_layout(w, h, &view),
         };
+        if screen == OnlineScreen::Hud {
+            if let Some(state) = self.net.as_ref().and_then(|n| n.client.rule_state()) {
+                let vars: Vec<(&str, f64)> = state.vars.iter().map(|v| (v.name.as_str(), v.value)).collect();
+                let event = (!state.event.is_empty() && state.server_tick.saturating_sub(state.event_tick) <= 120).then_some(state.event.as_str());
+                let outcome = (!state.outcome.is_empty()).then_some(state.outcome.as_str());
+                let mut rules = rules_hud_layout(w, h, &vars, event, outcome);
+                let offset = layout.widgets.len();
+                for widget in &mut rules.widgets {
+                    widget.container = widget.container.map(|i| i + offset);
+                }
+                layout.widgets.extend(rules.widgets);
+            }
+        }
         let hash = layout_hash(&layout);
         if self.online.painted == Some(hash) {
             return;

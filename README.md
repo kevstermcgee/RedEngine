@@ -117,7 +117,8 @@ opens on.
 Scenes with `vars` and `rules` are playable here, not only in the headless simulator. Offline `re2` runs the shared rule state
 machine at 60 Hz: `hide`/`show` changes rendered object visibility, teleport and prop impulse effects reach the live world, and
 pickup/drop/shot/hit events can trigger rules. A compact generic HUD shows scene variables, recent events and an `end` outcome.
-The online server also runs rules authoritatively, but protocol v3 does not yet replicate their presentation state to clients.
+Online uses the same presentation: protocol v4 repeats a bounded authoritative rule-state snapshot (up to 16 variables and 256 hidden
+object indices, plus the recent event and outcome). Packet loss, reconnects and late joins recover current truth without replaying events.
 
 This is a viewer, not an editor. The seeker's primary action on objects is **hitting them with
 the bat**: a raycast from the player's eye against the objects' *real shapes* finds what is

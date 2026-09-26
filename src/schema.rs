@@ -867,16 +867,24 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
     })
 }
 
-/// Everything a rule may refer to: object ids (any depth), top-level object bounds, zones and spawn ids.
-fn rule_refs(root: &Map<String, Value>, objects: &[Object]) -> crate::sim::rules::Refs {
-    fn ids(o: &Object, out: &mut std::collections::HashSet<String>) {
-        out.insert(o.id.clone());
+/// Object ids at every depth in deterministic scene order. Network rule presentation uses this
+/// shared dictionary so a compact index can name a nested child as well as a top-level object.
+pub fn object_ids(objects: &[Object]) -> Vec<String> {
+    fn ids(o: &Object, out: &mut Vec<String>) {
+        out.push(o.id.clone());
         if let ObjectKind::Group(kids) = &o.kind {
             kids.iter().for_each(|k| ids(k, out));
         }
     }
+    let mut out = Vec::new();
+    objects.iter().for_each(|o| ids(o, &mut out));
+    out
+}
+
+/// Everything a rule may refer to: object ids (any depth), top-level object bounds, zones and spawn ids.
+fn rule_refs(root: &Map<String, Value>, objects: &[Object]) -> crate::sim::rules::Refs {
     let mut refs = crate::sim::rules::Refs::default();
-    objects.iter().for_each(|o| ids(o, &mut refs.object_ids));
+    refs.object_ids.extend(object_ids(objects));
     for it in crate::collide::interactables_of(objects) {
         refs.bounds.insert(it.id, (it.min, it.max));
     }

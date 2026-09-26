@@ -13,6 +13,8 @@
 //! In a match flow ([`crate::sim::flow`]) the server also sends a [`Status`] (phase, timer, roster) that [`NetClient::status`] keeps, and
 //! a new `Welcome` at each round start ([`NetEvent::Connected`] again: put the player at the new spawn). [`NetClient::set_ready`] and
 //! [`NetClient::set_character`] are *state*, repeated until the server's roster shows them, so a lost packet costs nothing.
+//! [`RuleState`] is likewise a repeated complete presentation snapshot: variables, visibility, recent event and outcome recover after loss,
+//! reconnect and late join without replaying transient commands.
 
 use crate::net::auth::{join_proof, Direction, SessionKey};
 use crate::net::interp::{RemoteWorld, View};
@@ -139,6 +141,7 @@ pub struct NetClient {
     stats: ClientStats,
     out: Vec<u8>,
     status: Option<Status>,
+    rule_state: Option<RuleState>,
     ready: bool,
     last_lobby: Option<Instant>,
     /// The round of the newest Welcome we applied (echoed to the server so it stops repeating it).
@@ -189,6 +192,7 @@ impl NetClient {
             stats: ClientStats::default(),
             out: Vec::with_capacity(MAX_PACKET),
             status: None,
+            rule_state: None,
             ready: false,
             last_lobby: None,
             round_ack: 0,
@@ -242,6 +246,11 @@ impl NetClient {
     /// The newest lobby / round status (`None` until the first one arrives).
     pub fn status(&self) -> Option<&Status> {
         self.status.as_ref()
+    }
+
+    /// Newest complete authoritative rule presentation state.
+    pub fn rule_state(&self) -> Option<&RuleState> {
+        self.rule_state.as_ref()
     }
 
     /// The phase (`Playing` until the server says otherwise, which is what an open-play server means).
@@ -481,7 +490,11 @@ impl NetClient {
                     return; // a duplicate answer to a retransmitted Hello, or a repeated round Welcome
                 }
                 let first = self.state != ConnState::Connected;
+                let new_round = self.welcome.is_some_and(|old| old.round != w.round);
                 self.welcome = Some(w);
+                if new_round {
+                    self.rule_state = None;
+                }
                 self.token = w.token;
                 self.state = ConnState::Connected;
                 self.round_ack = w.round;
@@ -535,6 +548,19 @@ impl NetClient {
                 if changed {
                     events.push(NetEvent::PhaseChanged { phase, round });
                 }
+            }
+            ServerMsg::RuleState(st) => {
+                self.last_heard = now;
+                if self.state != ConnState::Connected {
+                    return;
+                }
+                if self.welcome.is_none_or(|w| w.round != st.round) {
+                    return; // delayed state from the previous round, or a new round whose Welcome has not arrived yet
+                }
+                if self.rule_state.as_ref().is_some_and(|old| (st.seq.wrapping_sub(old.seq) as i16) <= 0) {
+                    return;
+                }
+                self.rule_state = Some(st);
             }
             ServerMsg::NoSession => {
                 // Unauthenticated, so only believed when a live session has gone quiet (a forger cannot make a healthy one restart).

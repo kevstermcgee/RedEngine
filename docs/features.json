@@ -50,9 +50,9 @@
     "game_rules": {
       "summary": "Game rules as data: vars, rules, the expression language, scripted headless scenarios (`sim`), and standard-client presentation.",
       "files": ["src/sim/rules.rs", "src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "recipes/coin_run.json"],
-      "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks"],
+      "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks", "net_rule_state"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
-      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md"],
+      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md"],
       "depends_on": ["sim_core"]
     },
     "replay": {
@@ -74,8 +74,8 @@
     "net_protocol": {
       "summary": "The wire format (bounded, fuzz-tested), abuse limits, sizes.",
       "files": ["src/net/protocol.rs", "src/net/limits.rs", "src/net/mod.rs"],
-      "tests": ["lib:net::protocol", "lib:net::limits", "net_abuse", "net_budget"],
-      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md"],
+      "tests": ["lib:net::protocol", "lib:net::limits", "net_abuse", "net_budget", "net_rule_state"],
+      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0036-repeated-bounded-online-rule-state.md"],
       "depends_on": ["match_flow"]
     },
     "net_auth": {
@@ -87,7 +87,7 @@
     "net_server": {
       "summary": "The authoritative UDP server: sessions, handshake, snapshots with per-client acks, status, rounds, rate limits; `red_server`.",
       "files": ["src/net/server.rs", "src/net/sessions.rs", "src/net/snapshots.rs", "src/bin/red_server.rs"],
-      "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "server_env"],
+      "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "server_env"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md"],
       "depends_on": ["net_protocol", "net_auth", "sim_core", "match_flow"]
@@ -95,7 +95,7 @@
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
       "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs"],
-      "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_sim"],
+      "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md"],
       "depends_on": ["net_protocol", "net_auth"]

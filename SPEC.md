@@ -448,8 +448,9 @@ did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mea
 authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state is part of the
 match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport and impulse, feeds its pickup/drop/shot/hit
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
-state remains server-authoritative and is not replicated by protocol v3. `red_engine2 describe rules` prints this with a runnable
-example; `recipe coin_run` is a complete game.
+state remains server-authoritative; protocol v4 repeatedly sends the complete bounded presentation state (16 variables, 256 hidden
+objects, recent event and outcome), so loss, reconnect and late join recover it. `red_engine2 describe rules` prints this with a
+runnable example; `recipe coin_run` is a complete game.
 
 ### Proving gameplay headless (`checks.sim`, `sim`)
 

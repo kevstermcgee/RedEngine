@@ -34,5 +34,5 @@ lost snapshot made the cursor resend everything since.
 Adding an interaction: implement it in `interact.rs` on `MatchSim`, raise an engine event if rules should see it, add the button/field to the
 protocol (bump `PROTOCOL_VERSION`, update the size formula and `net_budget`), test it in `interactions.rs` and over UDP. A v1 client is
 refused by the existing version check; there is no compatibility layer. Not done: single-player `re2` still runs its own weapon code (moving it
-onto a local `MatchSim` remains useful consolidation; ADR 0035 now runs the shared `RulesEngine` offline), rule state (variables, hidden objects) is not sent to network clients, and the demo characters
+onto a local `MatchSim` remains useful consolidation; ADR 0035 now runs the shared `RulesEngine` offline and ADR 0036 sends its presentation state online), and the demo characters
 (human, rat) remain compiled-in profiles rather than data.

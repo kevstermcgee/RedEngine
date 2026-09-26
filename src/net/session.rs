@@ -197,6 +197,17 @@ impl NetSession {
         self.predictor.as_ref().map_or(Vec2::ZERO, |p| p.visual_pos() - p.state.pos)
     }
 
+    /// Object ids hidden by the newest authoritative rule-state snapshot. Wire indices refer to
+    /// the shared parsed scene; invalid indices are ignored defensively.
+    pub fn hidden_objects(&self) -> Vec<&str> {
+        self.client
+            .rule_state()
+            .into_iter()
+            .flat_map(|state| state.hidden.iter())
+            .filter_map(|&i| self.world.rule_object_ids.get(i as usize).map(String::as_str))
+            .collect()
+    }
+
     /// Updates the scene from the interpolated network view: remote players wear pooled avatar
     /// objects (position, facing, walk cycle) and props take the server's poses. Unused avatars are hidden.
     pub fn update_scene(&mut self, scene: &mut Scene, now: Instant, dt: f32) {

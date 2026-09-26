@@ -300,8 +300,8 @@ struct App {
     switch: WeaponSwitch,
     /// The fixed 60 Hz clock: frames push real time in, ticks come out.
     clock: TickClock,
-    /// Offline uses the same pure scene-rule state machine as `MatchSim`. Online rule state is
-    /// authoritative on the server and is not replicated by protocol v3 yet.
+    /// Offline uses the same pure scene-rule state machine as `MatchSim`; online presents the
+    /// server's repeated authoritative rule-state snapshot.
     rules: RulesEngine,
     /// Named targets for the rule `teleport` action.
     spawns: Vec<Spawn>,

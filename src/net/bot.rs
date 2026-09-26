@@ -27,6 +27,8 @@ pub struct ClientWorld {
     pub ground: GroundCandidates,
     /// Prop id (as used in snapshots) -> index into `scene.objects`.
     pub prop_objects: Vec<usize>,
+    /// Any-depth object ids in the same deterministic dictionary order used by the server.
+    pub rule_object_ids: Vec<String>,
     /// Hash of the map file text, sent when joining.
     pub map_hash: u32,
 }
@@ -46,7 +48,13 @@ impl ClientWorld {
     }
 
     fn from_parts(scene: &Scene, loose: &std::collections::HashSet<usize>, prop_objects: Vec<usize>, map_hash: u32) -> ClientWorld {
-        ClientWorld { colliders: collect_box_colliders_except(scene, loose), ground: collect_ground_candidates_except(scene, loose), prop_objects, map_hash }
+        ClientWorld {
+            colliders: collect_box_colliders_except(scene, loose),
+            ground: collect_ground_candidates_except(scene, loose),
+            prop_objects,
+            rule_object_ids: crate::schema::object_ids(&scene.objects),
+            map_hash,
+        }
     }
 }
 

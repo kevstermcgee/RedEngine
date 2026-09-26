@@ -21,6 +21,6 @@ idea as data, and proves it works with one command.
 
 ## Consequences
 Rules are state, not presentation: `hide` records a hidden object; a renderer or client must act on it. ADR 0035 wires that state
-to single-player `re2`; network replication of rule state is still not built. Variables are global (no per-player or per-team
+to single-player `re2`; ADR 0036 replicates its bounded presentation state online. Variables are global (no per-player or per-team
 scope yet). New actions or triggers go in `rules.rs` (parse) and `rules_run.rs` (run) with a test each; `describe rules` is
 generated from `ACTIONS` and its example is parsed and *played* by a test, so the docs cannot drift.

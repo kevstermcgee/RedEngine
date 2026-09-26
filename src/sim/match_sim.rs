@@ -66,6 +66,8 @@ pub struct MatchSim {
     pub(super) rules: RulesEngine,
     /// Top-level object id to index, to find the prop an `impulse` rule names.
     object_index: HashMap<String, usize>,
+    /// Any-depth object id to the shared compact dictionary used by network rule presentation.
+    rule_object_index: HashMap<String, u16>,
     recorder: Option<Trace>,
     events_out: Vec<GameEvent>,
 }
@@ -99,6 +101,12 @@ impl MatchSim {
             tick: 0,
             rules: RulesEngine::new(scene.rules.clone()),
             object_index: scene.objects.iter().enumerate().map(|(i, o)| (o.id.clone(), i)).collect(),
+            rule_object_index: crate::schema::object_ids(&scene.objects)
+                .into_iter()
+                .take(u16::MAX as usize + 1)
+                .enumerate()
+                .map(|(i, id)| (id, i as u16))
+                .collect(),
             recorder: None,
             events_out: Vec::new(),
         })
@@ -324,6 +332,11 @@ impl MatchSim {
     /// The scene's rules state (variables, hidden objects, outcome, event history).
     pub fn rules(&self) -> &RulesEngine {
         &self.rules
+    }
+
+    /// Shared presentation-dictionary index for an authored object id at any nesting depth.
+    pub fn rule_object_index(&self, id: &str) -> Option<u16> {
+        self.rule_object_index.get(id).copied()
     }
 
     /// Game events since the last call (a server logs them).

@@ -17,8 +17,7 @@ layer merely to present it.
   collision are not mutated.
 - The existing audited UI kit renders a compact, genre-neutral rules HUD: scene-defined variables, the newest event for two
   seconds, and the terminal outcome. No new scene schema or benchmark-specific HUD declaration is introduced.
-- Protocol v3 is unchanged. Online rules remain authoritative on the server, but variables and hidden ids are not yet replicated;
-  the graphical online client therefore continues to show only the established match-flow HUD.
+- Protocol v3 was unchanged by this decision. ADR 0036 later added online replication and reused this same generic HUD.
 
 ## Consequences
 A scene game proven with `sim` now has a direct visible single-player path without a parallel gameplay implementation. The local
