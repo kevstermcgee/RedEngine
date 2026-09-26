@@ -35,7 +35,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 fn apply_character_policy(policy: Option<crate::player::Character>, requested: u8) -> u8 {
-    policy.map(character_to_wire).unwrap_or_else(|| requested.min(1))
+    policy.map(character_to_wire).unwrap_or_else(|| requested.min(5))
 }
 
 /// A `Status` goes to every client this often (5 Hz), and at once when something changes.
@@ -550,7 +550,7 @@ impl Server {
         };
         let fresh = resumed.is_none();
         let token = resumed.as_ref().map_or_else(|| self.tokens.next(), |p| p.token);
-        let requested_character = resumed.as_ref().map_or(h.character.min(1), |p| p.character);
+        let requested_character = resumed.as_ref().map_or(h.character.min(5), |p| p.character);
         let character = apply_character_policy(self.sim.forced_character(), requested_character);
         let name = if h.name.trim().is_empty() { resumed.as_ref().map_or_else(|| sanitize_name(""), |p| p.name.clone()) } else { sanitize_name(&h.name) };
         let key = SessionKey::derive(key_bytes.as_bytes(), h.client_nonce, h.cookie);
@@ -954,6 +954,6 @@ mod character_policy_tests {
         assert_eq!(apply_character_policy(Some(crate::player::Character::Human), 1), 0);
         assert_eq!(apply_character_policy(Some(crate::player::Character::Rat), 0), 1);
         assert_eq!(apply_character_policy(None, 1), 1);
-        assert_eq!(apply_character_policy(None, 99), 1);
+        assert_eq!(apply_character_policy(None, 99), 5);
     }
 }

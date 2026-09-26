@@ -58,6 +58,8 @@ fn limb(a: Vec3, b: Vec3, radius: f32, color: Option<Vec3>, roughness: f32) -> C
 /// The colours of a human that are not the shirt (which is the humanoid's `material.color`).
 #[derive(Debug, Clone, Copy)]
 pub struct HumanLook {
+    /// Costume on the shared human rig (Human means ordinary clothing).
+    pub style: crate::player::Character,
     /// Face, neck, forearms, hands, ears (linear RGB).
     pub skin: Vec3,
     /// Hair and eyebrows.
@@ -70,7 +72,7 @@ pub struct HumanLook {
 
 impl Default for HumanLook {
     fn default() -> Self {
-        HumanLook { skin: hex("#d9a684"), hair: hex("#3a281c"), pants: hex("#36445e"), shoes: hex("#2a2622") }
+        HumanLook { style: crate::player::Character::Human, skin: hex("#d9a684"), hair: hex("#3a281c"), pants: hex("#36445e"), shoes: hex("#2a2622") }
     }
 }
 
@@ -155,7 +157,60 @@ pub fn human_parts(rig: &HumanoidRig, pose: &PoseSample, look: &HumanLook) -> Ve
     // Pelvis (trousers) with the shirt hem hanging over its top edge.
     out.push(ellipsoid(Vec3::new(0.0, rig.hip_y - 0.012 * h, 0.0), Vec3::new(0.098, 0.058, 0.070) * h, Quat::IDENTITY, pants, 0.8));
     out.push(ellipsoid(Vec3::new(0.0, rig.hip_y + 0.040 * h, 0.0), Vec3::new(0.099, 0.052, 0.062) * h, Quat::IDENTITY, None, 0.85));
+    crate::costumes::decorate(&mut out, &core, h, look.style);
     out
+}
+
+/// Builds a playable or showcase character, retaining the human rig's stable bone indices.
+pub fn character_object(who: crate::player::Character, id: &str) -> Object {
+    use crate::player::Character;
+    if who == Character::Rat {
+        return rat_object(id);
+    }
+    let mut object = human_object(id);
+    if let ObjectKind::Humanoid(h) = &mut object.kind {
+        h.look = HumanLook::styled(who);
+        let shirt = match who {
+            Character::Wizard => "#443b9c",
+            Character::Cowboy => "#995a35",
+            Character::Alien => "#efad38",
+            Character::Robot => "#3c9fba",
+            _ => "#af303c",
+        };
+        h.material.color = Track::constant(hex(shirt));
+    }
+    object
+}
+
+impl HumanLook {
+    /// Costume palette; scene authors can still override individual colours.
+    pub fn styled(style: crate::player::Character) -> Self {
+        use crate::player::Character;
+        let mut look = Self { style, ..Self::default() };
+        match style {
+            Character::Wizard => {
+                look.hair = hex("#ddd9d2");
+                look.pants = hex("#30294e");
+            }
+            Character::Cowboy => {
+                look.pants = hex("#334e75");
+                look.shoes = hex("#613622");
+            }
+            Character::Alien => {
+                look.skin = hex("#70c99c");
+                look.hair = look.skin;
+                look.pants = hex("#454278");
+            }
+            Character::Robot => {
+                look.skin = hex("#9ab8c5");
+                look.hair = look.skin;
+                look.pants = hex("#344f63");
+                look.shoes = hex("#243c4f");
+            }
+            _ => {}
+        }
+        look
+    }
 }
 
 // ---------------------------------------------------------------------------------------------

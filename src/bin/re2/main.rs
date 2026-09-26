@@ -18,7 +18,7 @@
 use clap::Parser;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use red_engine2::audio::{synth_bat_hit, synth_revolver_shot, synth_weapon_click, Audio};
-use red_engine2::characters::{human_object, rat_object, HUMAN_HEIGHT};
+use red_engine2::characters::HUMAN_HEIGHT;
 use red_engine2::collide::{
     collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, colliders_on_floor, resolve_collision, Collider2D, GroundCandidates,
 };
@@ -55,9 +55,11 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
 mod avatar;
+mod controller;
 mod events;
 mod frame;
 mod online;
+mod project_browser;
 mod weapons;
 mod window;
 use window::acquire_frame;
@@ -78,7 +80,6 @@ const MOUSE_SENSITIVITY: f32 = 0.0025;
 const MOUSE_SETTLE_SECS: f32 = 0.35;
 
 /// Firearm aim-down-sights FOV and the time used to blend into/out of it.
-const ADS_FOV_DEG: f32 = 54.0;
 const ADS_TRANSITION_TIME: f32 = 0.14;
 // A game-y widened FOV while sprinting reads as speed even before the eye adjusts to how fast
 // the walls are sliding by; it also smoothly signals when sprint actually kicks in vs. Shift
@@ -162,15 +163,6 @@ const SCROLL_LINES_PER_SWITCH: f32 = 1.0;
 /// Online: how many ticks an action button (E, click, wheel, R) is held on the input sent to the server (the server acts on
 /// the press, and the redundant input packets make three ticks robust against a lost datagram).
 const NET_PULSE_TICKS: u8 = 3;
-/// Revolver viewmodel rest pose in the camera's frame (right, down, forward), and its recoil kick.
-const GUN_RIGHT: f32 = 0.16;
-const GUN_DOWN: f32 = 0.17;
-const GUN_FORWARD: f32 = 0.40;
-/// The gun angles in toward the crosshair by this much, so the player sees its left side (cylinder and all).
-const GUN_YAW_DEG: f32 = -8.0;
-const GUN_IDLE_PITCH_DEG: f32 = -3.0;
-const GUN_RECOIL_PITCH_DEG: f32 = -17.0;
-const GUN_RECOIL_BACK: f32 = 0.06;
 /// Arm pose for aiming the revolver in third person (shoulder raised to level, elbow nearly straight).
 const AIM_SHOULDER_X: f32 = -84.0;
 const AIM_ELBOW_DEG: f32 = 6.0;
@@ -188,10 +180,7 @@ enum ViewMode {
 /// the scene JSON, since it represents the player rather than the room. Its transform and pose are
 /// rewritten every frame by `update_player_body`; the values here are just the resting pose.
 fn build_player_object(who: Character) -> Object {
-    let mut o = match who {
-        Character::Human => human_object("player_body"),
-        Character::Rat => rat_object("player_body"),
-    };
+    let mut o = red_engine2::characters::character_object(who, "player_body");
     o.scale = Track::constant(Vec3::splat(HIDDEN_SCALE));
     o.collide = true;
     o
@@ -250,6 +239,11 @@ struct App {
     cursor_x: f32,
     cursor_y: f32,
     keys: HashSet<KeyCode>,
+    controller: red_engine2::controller::Controller,
+    pad: red_engine2::controller::Sample,
+    focused: bool,
+    project_maps: Vec<red_engine2::project_browser::MapEntry>,
+    map_selection: Option<usize>,
     grabbed: bool,
     /// When the mouse was last captured. Capturing recenters the cursor, which delivers one big
     /// spurious motion delta — without ignoring input briefly the camera spins away from the
@@ -259,6 +253,8 @@ struct App {
     jump_queued: bool,
     /// Left click waiting for the next simulation tick (swing or shot).
     attack_queued: bool,
+    /// Held trigger for automatic weapons; cleared whenever mouse capture is released.
+    attack_held: bool,
     /// Right mouse is held and the current firearm should aim down sights.
     ads_held: bool,
     /// Smoothed 0 (hip) .. 1 (sights) presentation blend.
@@ -334,6 +330,7 @@ struct App {
     foot_y: f32,
     prev_foot_y: f32,
     vertical_velocity: f32,
+    horizontal_velocity: Vec2,
     /// This frame's walking speed (0 when standing still), captured from the last fixed physics
     /// step that ran so the walk-cycle animation (which runs once per rendered frame, not once
     /// per physics step) knows how fast to play.
@@ -378,6 +375,7 @@ impl App {
     fn new(scene: Scene, scene_path: PathBuf, forced_character: Option<Character>, net_server: Option<SocketAddr>, net_world: Option<ClientWorld>) -> Self {
         // The player's body is added by `start_game` once the character is chosen.
         let player_object_index = scene.objects.len();
+        let project_maps = red_engine2::project_browser::maps_for(&scene_path);
         let character = forced_character.unwrap_or(Character::Human);
         let body = character.body();
 
@@ -424,11 +422,17 @@ impl App {
             cursor_x: 0.0,
             cursor_y: 0.0,
             keys: HashSet::new(),
+            controller: Default::default(),
+            pad: Default::default(),
+            focused: true,
+            project_maps,
+            map_selection: None,
             grabbed: false,
             grabbed_at: Instant::now(),
             sprint_held: false,
             jump_queued: false,
             attack_queued: false,
+            attack_held: false,
             ads_held: false,
             ads_blend: 0.0,
             net_pulse: [0; 4],
@@ -461,6 +465,7 @@ impl App {
             foot_y: 0.0,
             prev_foot_y: 0.0,
             vertical_velocity: 0.0,
+            horizontal_velocity: Vec2::ZERO,
             last_move_speed: 0.0,
             eye_height: body.stand_eye,
             fov_deg: player_fov_deg,
@@ -510,7 +515,7 @@ struct CliArgs {
     #[arg(default_value = "examples/room.json")]
     scene: PathBuf,
     /// Skip character selection.
-    #[arg(long = "as", alias = "character", value_parser = parse_character_arg, value_name = "human|rat")]
+    #[arg(long = "as", alias = "character", value_parser = parse_character_arg, value_name = "CHARACTER")]
     who: Option<Character>,
     /// Join a server (`:27015` is added when no port is given).
     #[arg(long, value_name = "HOST:PORT")]
@@ -524,7 +529,7 @@ struct CliArgs {
 }
 
 fn parse_character_arg(value: &str) -> Result<Character, String> {
-    Character::parse(value).ok_or_else(|| "expected `human` or `rat`".to_string())
+    Character::parse(value).ok_or_else(|| "expected human, rat, wizard, cowboy, alien or robot".to_string())
 }
 
 fn resolved_character(requested: Option<Character>, scene_policy: Option<Character>) -> Option<Character> {
@@ -585,11 +590,13 @@ fn main() {
     if let Some(character) = scene.player.character {
         println!("This game starts as {} (set by player.character).", character.name());
     } else {
-        println!("Pick Human (1) or Cheddar the rat (2) on the launch screen; `--as human|rat` skips it.");
+        println!("Choose a character with 1-6, arrows + Enter, or D-pad + A. --as CHARACTER skips selection.");
     }
     println!("WASD / arrow keys to walk, mouse to look, Shift to sprint forward, Space to jump, Ctrl to crouch.");
     match scene.player.character {
-        Some(Character::Human) => println!("Human: left-click swings the bat."),
+        Some(Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot) => {
+            println!("Left-click / right trigger uses the equipped weapon.")
+        }
         Some(Character::Rat) => println!("Cheddar is small and always as fast as a human sprinting."),
         None => println!("Human: left-click swings the bat. Cheddar: small, and always as fast as a human sprinting."),
     }

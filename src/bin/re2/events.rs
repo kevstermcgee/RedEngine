@@ -95,7 +95,17 @@ impl ApplicationHandler for App {
                 }
                 self.online.painted = None;
                 self.rule_hud_painted = None;
+                self.repaint_maps();
             }
+            WindowEvent::KeyboardInput { event, .. } if self.map_selection.is_some() => {
+                if let (PhysicalKey::Code(code), ElementState::Pressed) = (event.physical_key, event.state) {
+                    if !event.repeat {
+                        self.map_key(code);
+                    }
+                }
+            }
+            WindowEvent::CursorMoved { position, .. } if self.map_selection.is_some() => self.cursor = (position.x as f32, position.y as f32),
+            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.map_selection.is_some() => self.map_click(),
             // The connect form (typing) and the lobby / results screens (clicks): each owns the keyboard and the mouse while it shows.
             WindowEvent::KeyboardInput { event, .. } if self.phase == Phase::Connect => self.connect_key(&event, event_loop),
             WindowEvent::CursorMoved { position, .. } if self.phase == Phase::Connect => self.connect_hover(position.x as f32, position.y as f32),
@@ -146,6 +156,10 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(code) = event.physical_key {
                     if event.state == ElementState::Pressed && !event.repeat {
+                        if code == KeyCode::KeyM {
+                            self.open_maps();
+                            return;
+                        }
                         if code == KeyCode::Escape {
                             if self.paused {
                                 self.leave_pause();
@@ -210,7 +224,11 @@ impl ApplicationHandler for App {
                 } else {
                     // Acted on by the next simulation tick (`fixed_step_combat`).
                     self.attack_queued = true;
+                    self.attack_held = true;
                 }
+            }
+            WindowEvent::MouseInput { state: ElementState::Released, button: MouseButton::Left, .. } => {
+                self.attack_held = false;
             }
             WindowEvent::MouseInput { state, button: MouseButton::Right, .. } if self.phase == Phase::Playing && !self.paused => {
                 self.ads_held = state == ElementState::Pressed && self.grabbed;
@@ -223,17 +241,22 @@ impl ApplicationHandler for App {
                 self.on_scroll(lines);
             }
             WindowEvent::Focused(false) => {
+                self.focused = false;
+                self.pad = Default::default();
+                self.controller.reset();
                 // No key-release events arrive while unfocused: forget held keys so we do not walk on alone.
                 self.keys.clear();
                 self.sprint_held = false;
                 self.ads_held = false;
                 self.set_grab(false);
             }
+            WindowEvent::Focused(true) => self.focused = true,
             WindowEvent::RedrawRequested => {
                 let now = Instant::now();
                 let raw_dt = (now - self.last_frame).as_secs_f32();
                 let dt = raw_dt.min(0.1);
                 self.last_frame = now;
+                self.poll_controller(dt, event_loop);
                 if let Some(st) = &mut self.stats {
                     st.frames += 1;
                     st.worst_ms = st.worst_ms.max(raw_dt * 1000.0);
@@ -267,7 +290,8 @@ impl ApplicationHandler for App {
     fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, event: DeviceEvent) {
         if let DeviceEvent::MouseMotion { delta: (dx, dy) } = event {
             if self.grabbed && self.grabbed_at.elapsed().as_secs_f32() > MOUSE_SETTLE_SECS {
-                self.camera.look(dx as f32 * MOUSE_SENSITIVITY, -dy as f32 * MOUSE_SENSITIVITY);
+                let sensitivity = MOUSE_SENSITIVITY * red_engine2::firearms::zoom_sensitivity(self.camera.fov_deg, self.scene.player.fov_deg);
+                self.camera.look(dx as f32 * sensitivity, -dy as f32 * sensitivity);
             }
         }
     }
@@ -279,8 +303,18 @@ impl App {
         match code {
             KeyCode::Digit1 | KeyCode::Numpad1 => self.start_game(Character::Human),
             KeyCode::Digit2 | KeyCode::Numpad2 => self.start_game(Character::Rat),
-            KeyCode::ArrowLeft | KeyCode::KeyA => self.character = Character::Human,
-            KeyCode::ArrowRight | KeyCode::KeyD => self.character = Character::Rat,
+            KeyCode::Digit3 => self.start_game(Character::Wizard),
+            KeyCode::Digit4 => self.start_game(Character::Cowboy),
+            KeyCode::Digit5 => self.start_game(Character::Alien),
+            KeyCode::Digit6 => self.start_game(Character::Robot),
+            KeyCode::ArrowLeft | KeyCode::KeyA => {
+                let i = Character::ALL.iter().position(|c| *c == self.character).unwrap_or(0);
+                self.character = Character::ALL[(i + Character::ALL.len() - 1) % Character::ALL.len()];
+            }
+            KeyCode::ArrowRight | KeyCode::KeyD => {
+                let i = Character::ALL.iter().position(|c| *c == self.character).unwrap_or(0);
+                self.character = Character::ALL[(i + 1) % Character::ALL.len()];
+            }
             KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space => self.start_game(self.character),
             KeyCode::KeyO => self.open_connect(),
             KeyCode::Escape => event_loop.exit(),

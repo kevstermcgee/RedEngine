@@ -201,7 +201,7 @@ impl MatchSim {
         self.props.set_player_slot(slot, glam::Vec3::new(state.pos.x, state.foot_y, state.pos.y), body.radius, body.body_height);
         if let Some(r) = &mut self.recorder {
             let character = crate::net::protocol::character_to_wire(state.character);
-            let state = [state.pos.x, state.pos.y, state.foot_y, state.vy, state.yaw, state.pitch].map(f32::to_bits);
+            let state = [state.pos.x, state.pos.y, state.foot_y, state.vy, state.yaw, state.pitch, state.velocity.x, state.velocity.y].map(f32::to_bits);
             r.entries.push(Entry::Join { tick: self.tick, slot, character, state });
         }
         true
@@ -352,6 +352,7 @@ impl MatchSim {
         p.state.pos = Vec2::new(to.x, to.z);
         p.state.foot_y = to.y;
         p.state.vy = 0.0;
+        p.state.velocity = glam::Vec2::ZERO;
         let body = p.state.character.body();
         self.props.set_player_slot(slot, to, body.radius, body.body_height);
     }
@@ -398,7 +399,7 @@ impl MatchSim {
                 tick: 0,
                 slot,
                 character: crate::net::protocol::character_to_wire(s.character),
-                state: [s.pos.x, s.pos.y, s.foot_y, s.vy, s.yaw, s.pitch].map(f32::to_bits),
+                state: [s.pos.x, s.pos.y, s.foot_y, s.vy, s.yaw, s.pitch, s.velocity.x, s.velocity.y].map(f32::to_bits),
             });
         }
         self.recorder = Some(trace);

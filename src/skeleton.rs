@@ -29,7 +29,7 @@ impl HumanoidRig {
     pub fn new(height: f32, build: f32) -> Self {
         let h = height;
         // Ordinary adult proportions (head ~1/7.5 of height, legs ~ half of it, arms reaching
-        // mid-thigh): `hip_y` + torso put the shoulder line at 0.82h, the ankles sit 0.04h off the
+        // mid-thigh): `hip_y` + torso put the neck base at 0.82h; shoulders sit 0.02h below it, the ankles sit 0.04h off the
         // floor so a shoe capsule rests on it, and the hands hang to ~0.45h.
         HumanoidRig {
             hip_y: 0.53 * h,
@@ -109,8 +109,10 @@ pub fn pose_to_parts(rig: &HumanoidRig, pose: &PoseSample) -> Vec<BonePart> {
     let head_center = shoulder + (r_head * Vec3::Y) * (rig.neck_len + rig.head_radius);
     parts.push(BonePart { center: head_center, rotation: r_head, length: rig.head_radius * 2.0, radius: rig.head_radius, kind: BoneKind::Sphere });
 
-    let sl = shoulder + r_spine * Vec3::new(-rig.shoulder_half, 0.0, 0.0);
-    let sr = shoulder + r_spine * Vec3::new(rig.shoulder_half, 0.0, 0.0);
+    // Lower the arm sockets slightly for a relaxed shoulder line, keeping head height fixed.
+    let shoulder_drop = 0.02 * (rig.hip_y / 0.53);
+    let sl = shoulder + r_spine * Vec3::new(-rig.shoulder_half, -shoulder_drop, 0.0);
+    let sr = shoulder + r_spine * Vec3::new(rig.shoulder_half, -shoulder_drop, 0.0);
 
     let r_lsh = r_spine * euler_deg(pose.l_shoulder);
     let el = sl + r_lsh * Vec3::new(0.0, -rig.upper_arm_len, 0.0);

@@ -397,7 +397,7 @@ pub(crate) enum Command {
         /// Pause menu status line (long text wraps).
         #[arg(long)]
         message: Option<String>,
-        /// Launch menu selection: `human` or `rat`.
+        /// Launch menu selection: human, rat, wizard, cowboy, alien or robot.
         #[arg(long)]
         selected: Option<String>,
         /// Map name shown on the screens.

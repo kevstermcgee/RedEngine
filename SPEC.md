@@ -105,6 +105,21 @@ speed; `jump_speed` and `gravity` control the vertical arc. Sprint speed must no
 Omitting the movement fields keeps the engine defaults. Human offline play, the server, bots and prediction use
 the same values. The rat character retains its character-specific body profile.
 
+Optional momentum fields: `acceleration` (0–100, default 0) enables acceleration/friction when positive;
+`air_acceleration` (0–30, default 1), `friction` (0–30, default 6), and `max_speed`
+(at least sprint speed, at most 50 m/s, default max(20, sprint speed)) tune that profile.
+Ground friction slows released input; air movement preserves momentum and adds velocity along the
+wish direction up to the speed cap. Zero acceleration retains immediate legacy movement.
+Horizontal velocity is part of protocol v7 and replay format v2; older clients/traces are rejected.
+
+Firearm presentation uses per-model sight/grip anchors. Iron sights have open rear notches, optics
+have open housings, and aiming removes hip yaw/pitch. Mouse sensitivity follows the tangent ratio
+of current/base FOV. Precision rifles magnify more than ordinary irons. Automatic weapons repeat
+while held; the shotgun emits nine deterministic pellets whose damage sums to the configured shot
+damage. The shared ammo pool and instantaneous reload remain prototype limitations.
+`cargo run --example weapon_poses -- out/weapon-poses` renders hip/aim/recoil views of every firearm
+using the real live renderer without a window.
+
 Each `jump_pads` entry is a horizontal rectangle centered at `position.xz`, active when the player's
 feet are at `position.y`. Contact sets vertical velocity to `launch_speed`; normal horizontal input
 continues to apply. Use non-colliding emissive geometry to show the pad. Launch pads are deterministic
@@ -476,7 +491,7 @@ did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mea
 authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state is part of the
 match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport and impulse, feeds its pickup/drop/shot/hit
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
-state remains server-authoritative; protocol v5 repeatedly sends the complete bounded presentation state (16 variables, 256 hidden
+state remains server-authoritative; protocol v7 repeatedly sends the complete bounded presentation state (16 variables, 256 hidden
 objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. `red_engine2 describe rules` prints this with a
 runnable example; `recipe coin_run` is a complete game.
 
@@ -586,6 +601,23 @@ type, keyframe `t` values not sorted ascending, more than one shadow-casting lig
 `ease` name, malformed hex color, an opening outside its `wall`, a `door` shorter than 2.05 m.
 Beyond schema validation, `red_engine2 lint scene.json` checks a *walkable map* for layout
 problems (stairs that lead nowhere, unreachable rooms, overlaps, ...).
+
+## Native controllers and sandbox inspection
+
+The graphics client polls native gamepads through gilrs. Left-stick movement retains analog
+strength; right-stick look is time-based and FOV-compensated. Input flag bit 7 selects signed
+-127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v7.
+Headless builds do not pull in gilrs. Focus loss, disconnect and menu transitions require
+neutral controls before gameplay resumes. See docs/CONTROLLERS_AND_SANDBOX.md for bindings.
+
+Character values include human, rat, wizard, cowboy, alien and robot. All except rat use
+the human body and weapon logic; rules with who:human include those human-rig characters.
+A humanoid object may set style to human, wizard, cowboy, alien or robot. Costume parts follow
+the existing rig and preserve the twelve core bone indices.
+
+For local projects, M / D-pad up opens the declared game.json map list. Loading a map resets
+its simulation and retains the current character unless the destination has a character policy.
+Maps outside the containing project are not listed. Online sessions do not permit local map travel.
 
 ## Known limits (intentional)
 

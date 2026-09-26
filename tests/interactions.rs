@@ -17,6 +17,57 @@ fn lab_text() -> String {
     std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap()
 }
 
+#[test]
+fn held_automatic_trigger_repeats_but_a_pistol_requires_a_new_press() {
+    for (weapon, repeated) in [("smg", true), ("lmg", true), ("pistol", false)] {
+        let mut rig = Rig::new("duel", json!({"weapons":{"starting":weapon}}));
+        let slot = rig.join(Character::Human);
+        for _ in 0..60 {
+            rig.push(slot, |input| input.attack = true);
+            rig.sim.tick_once();
+        }
+        let shots = rig.count("shot");
+        assert_eq!(shots > 1, repeated, "{weapon}: {shots}");
+        assert!(shots > 0);
+        rig.idle(60);
+        assert_eq!(rig.count("shot"), shots, "release stops firing");
+    }
+}
+
+#[test]
+fn shotgun_spreads_rays_and_preserves_total_damage() {
+    let shotgun = Weapon::Shotgun;
+    let total: u32 = (0..shotgun.pellets()).map(|i| shotgun.pellet_damage(62, i)).sum();
+    assert_eq!(total, 62);
+    let forward = glam::Vec3::NEG_Z;
+    assert_eq!(shotgun.shot_direction(forward, 0), forward);
+    for i in 1..shotgun.pellets() {
+        let ray = shotgun.shot_direction(forward, i);
+        assert!(ray.dot(forward) < 0.9999 && ray.dot(forward) > 0.99);
+        assert!((ray.length() - 1.0).abs() < 1e-5);
+    }
+}
+
+#[test]
+fn momentum_and_automatic_fire_replay_exactly() {
+    let config = json!({"player":{"acceleration":12,"air_acceleration":2}, "weapons":{"starting":"smg"}});
+    let mut rig = Rig::new("duel", config.clone());
+    rig.sim.start_recording(Header::new(0, 0, "duel", 1, 30)).unwrap();
+    let slot = rig.join(Character::Human);
+    for tick in 0..90 {
+        rig.push(slot, |input| {
+            input.forward = 1;
+            input.strafe = i8::from(tick > 20);
+            input.jump = tick == 10;
+            input.attack = tick < 40;
+        });
+        rig.sim.tick_once();
+    }
+    let trace = rig.sim.take_trace().unwrap();
+    let (scene, spawns) = lab_with(config);
+    assert!(replay(&trace, &scene, &spawns).unwrap().is_clean());
+}
+
 /// The Test Lab with extra top-level keys merged in (`weapons`, `vars`, `rules`).
 fn lab_with(extra: Value) -> (red_engine2::schema::Scene, Vec<Spawn>) {
     let mut v: Value = serde_json::from_str(&lab_text()).unwrap();

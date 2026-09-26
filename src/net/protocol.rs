@@ -25,15 +25,15 @@ use std::fmt;
 /// First two bytes of every datagram ("RD").
 pub const MAGIC: u16 = 0x5244;
 /// Bumped on any incompatible change; a mismatched client is rejected.
-pub const PROTOCOL_VERSION: u16 = 5;
+pub const PROTOCOL_VERSION: u16 = 7;
 /// Largest datagram either side sends or accepts (under a typical 1500-byte MTU).
 pub const MAX_PACKET: usize = 1400;
 /// Most inputs one packet carries (the newest is last).
 pub const MAX_INPUTS_PER_PACKET: usize = 4;
 /// Most players in one snapshot.
 pub const MAX_PLAYERS_PER_SNAPSHOT: usize = 8;
-/// Most props in one snapshot (30 bytes each: fits the packet with the players, 35 bytes each).
-pub const MAX_PROPS_PER_SNAPSHOT: usize = 30;
+/// Most props in one snapshot (30 bytes each: fits players of at most 43 bytes each).
+pub const MAX_PROPS_PER_SNAPSHOT: usize = 29;
 
 /// Longest player name, bytes.
 pub const MAX_NAME: usize = 16;
@@ -127,16 +127,16 @@ pub fn character_to_wire(c: Character) -> u8 {
     match c {
         Character::Human => 0,
         Character::Rat => 1,
+        Character::Wizard => 2,
+        Character::Cowboy => 3,
+        Character::Alien => 4,
+        Character::Robot => 5,
     }
 }
 
 /// The inverse of [`character_to_wire`]; anything but `1` is a human (a hostile value gets the default body).
 pub fn character_from_wire(v: u8) -> Character {
-    if v == 1 {
-        Character::Rat
-    } else {
-        Character::Human
-    }
+    Character::ALL.get(v as usize).copied().unwrap_or(Character::Human)
 }
 
 /// Why the server refused a join.
@@ -306,6 +306,8 @@ pub struct PlayerSnap {
     pub speed: f32,
     /// Vertical velocity, m/s (lets the owner's client replay a jump exactly).
     pub vy: f32,
+    /// Horizontal momentum for prediction, x and z in metres per second.
+    pub velocity: [f32; 2],
     /// The weapon in hand (`weapons::Weapon::wire`).
     pub weapon: u8,
     /// The prop this player is carrying ([`NO_PROP`] when none).
@@ -753,9 +755,11 @@ impl ServerMsg {
                 let nq = s.props.len().min(MAX_PROPS_PER_SNAPSHOT);
                 w.u8(nq as u8);
                 for p in &s.players[..np] {
+                    let moving = p.velocity != [0.0; 2];
                     w.u8(p.id);
                     w.u8(p.character);
-                    w.u8(p.flags);
+                    // Bit 7 is a wire-only velocity-presence flag.
+                    w.u8((p.flags & 0x7f) | if moving { 0x80 } else { 0 });
                     for v in p.pos {
                         w.f32(v);
                     }
@@ -763,6 +767,10 @@ impl ServerMsg {
                     w.f32(p.pitch);
                     w.f32(p.speed);
                     w.f32(p.vy);
+                    if moving {
+                        w.f32(p.velocity[0]);
+                        w.f32(p.velocity[1]);
+                    }
                     w.u8(p.weapon);
                     w.u16(p.held);
                     w.u8(p.hp);
@@ -867,15 +875,19 @@ impl ServerMsg {
                 }
                 let mut players = Vec::with_capacity(np);
                 for _ in 0..np {
+                    let id = r.u8()?;
+                    let character = r.u8()?;
+                    let flags = r.u8()?;
                     players.push(PlayerSnap {
-                        id: r.u8()?,
-                        character: r.u8()?,
-                        flags: r.u8()?,
+                        id,
+                        character,
+                        flags: flags & 0x7f,
                         pos: [r.f32()?, r.f32()?, r.f32()?],
                         yaw: r.f32()?,
                         pitch: r.f32()?,
                         speed: r.f32()?,
                         vy: r.f32()?,
+                        velocity: if flags & 0x80 != 0 { [r.f32()?, r.f32()?] } else { [0.0; 2] },
                         weapon: r.u8()?,
                         held: r.u16()?,
                         hp: r.u8()?,
@@ -895,9 +907,9 @@ impl ServerMsg {
     }
 }
 
-/// Bytes of an encoded snapshot with `players` players and `props` props.
+/// Maximum encoded bytes with `players` players and `props` props (zero velocity saves eight bytes).
 pub const fn snapshot_bytes(players: usize, props: usize) -> usize {
-    5 + 16 + 2 + 2 + players * 35 + props * 30
+    5 + 16 + 2 + 2 + players * 43 + props * 30
 }
 
 #[cfg(test)]
@@ -907,6 +919,7 @@ mod tests {
     fn input(seq: u32) -> PlayerInput {
         PlayerInput {
             seq,
+            analog: false,
             forward: 1,
             strafe: -1,
             jump: true,
@@ -918,6 +931,20 @@ mod tests {
             attack: false,
             reload: true,
             switch_weapon: true,
+        }
+    }
+
+    #[test]
+    fn analog_input_keeps_stick_precision_on_the_wire() {
+        let mut packet = InputPacket::default();
+        packet.inputs.push(PlayerInput { analog: true, forward: 63, strafe: -101, ..Default::default() });
+        roundtrip_c(ClientMsg::Input(packet));
+    }
+
+    #[test]
+    fn every_playable_character_has_a_distinct_wire_identity() {
+        for who in Character::ALL {
+            assert_eq!(character_from_wire(character_to_wire(who)), who);
         }
     }
 
@@ -1078,6 +1105,7 @@ mod tests {
                 pitch: 0.1,
                 speed: 3.2,
                 vy: -0.5,
+                velocity: [3.0, -2.0],
                 weapon: 1,
                 held: 7,
                 hp: 80,
@@ -1105,6 +1133,7 @@ mod tests {
                     pitch: 0.0,
                     speed: 0.0,
                     vy: 0.0,
+                    velocity: [1.0; 2],
                     weapon: 0,
                     held: NO_PROP,
                     hp: 100

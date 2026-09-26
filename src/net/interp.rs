@@ -23,10 +23,17 @@ const HISTORY: usize = 24;
 /// running off across the map. Found by `red_engine2 net-test`: without it a burst of loss froze a remote player, then snapped them forward.
 pub const MAX_EXTRAPOLATE: f64 = 0.25;
 /// When the position a remote player should be drawn at jumps away from where they *were* drawn (a long outage ended), the drawn position
-/// catches up at most this fast, m/s, so it glides instead of snapping. Faster than any player moves, so normal motion is never slowed.
+/// catches up at least this fast, m/s. Movement profiles raise this baseline for faster players.
 pub const CATCH_UP_SPEED: f32 = 10.0;
 /// A jump bigger than this, metres, is a teleport (a respawn) and is not glided.
 pub const TELEPORT_DISTANCE: f32 = 4.0;
+
+/// Smoothing must outrun legal movement, including arena momentum and vertical launch pads.
+pub fn catch_up_speed(tuning: crate::player::PlayerTuning, pads: &[crate::player::JumpPad]) -> f32 {
+    let horizontal = if tuning.acceleration > 0.0 { tuning.max_speed } else { tuning.sprint_speed };
+    let vertical = pads.iter().map(|pad| pad.launch_speed).fold(tuning.jump_speed, f32::max);
+    CATCH_UP_SPEED.max(1.5 * horizontal.max(vertical))
+}
 
 /// Anything that can be blended between two samples.
 pub trait Blend: Copy {
@@ -247,14 +254,14 @@ pub struct View {
 
 /// `target` limited so the drawn position never moves faster than [`CATCH_UP_SPEED`] away from where it was last drawn (`last`), except for a
 /// teleport. Records the result in `last`. Normal motion is far slower than the limit, so this only ever acts after an outage.
-fn limit_catch_up(last: &mut Option<(f64, Vec3)>, now: f64, target: Vec3) -> Vec3 {
+fn limit_catch_up(last: &mut Option<(f64, Vec3)>, now: f64, target: Vec3, speed: f32) -> Vec3 {
     let out = match *last {
         Some((t0, prev)) => {
             let dt = (now - t0).clamp(0.0, 0.1) as f32;
             let d = target - prev;
             let dist = d.length();
-            if dist <= TELEPORT_DISTANCE && dist > CATCH_UP_SPEED * dt {
-                prev + d / dist * (CATCH_UP_SPEED * dt)
+            if dist <= TELEPORT_DISTANCE.max(speed * MAX_EXTRAPOLATE as f32) && dist > speed * dt {
+                prev + d / dist * (speed * dt)
             } else {
                 target
             }
@@ -268,6 +275,7 @@ fn limit_catch_up(last: &mut Option<(f64, Vec3)>, now: f64, target: Vec3) -> Vec
 /// The client's picture of the remote world.
 #[derive(Debug, Default)]
 pub struct RemoteWorld {
+    motion_limit: f32,
     clock: ServerClock,
     players: [Option<History<PlayerPose>>; MAX_PLAYERS_PER_SNAPSHOT],
     present: [bool; MAX_PLAYERS_PER_SNAPSHOT],
@@ -279,6 +287,10 @@ pub struct RemoteWorld {
 }
 
 impl RemoteWorld {
+    /// Set the map's legal motion envelope before receiving snapshots.
+    pub fn set_movement_profile(&mut self, tuning: crate::player::PlayerTuning, pads: &[crate::player::JumpPad]) {
+        self.motion_limit = catch_up_speed(tuning, pads);
+    }
     /// Applies a snapshot that arrived at client time `local_secs`.
     pub fn apply(&mut self, snap: &Snapshot, local_secs: f64) {
         let t = snap.server_tick as f64 * TICK_DT as f64;
@@ -325,7 +337,7 @@ impl RemoteWorld {
             .filter(|&i| self.present[i] && Some(i as u8) != me)
             .filter_map(|i| {
                 let mut pose = self.players[i].as_ref().and_then(|h| h.sample(rt))?;
-                pose.pos = limit_catch_up(&mut drawn[i], local_secs, pose.pos);
+                pose.pos = limit_catch_up(&mut drawn[i], local_secs, pose.pos, self.motion_limit.max(CATCH_UP_SPEED));
                 Some((i as u8, pose))
             })
             .collect();
@@ -336,7 +348,9 @@ impl RemoteWorld {
 
     /// Forgets everything (after a reconnect).
     pub fn reset(&mut self) {
+        let motion_limit = self.motion_limit;
         *self = RemoteWorld::default();
+        self.motion_limit = motion_limit;
     }
 }
 
@@ -360,6 +374,7 @@ mod tests {
                 pitch: 0.0,
                 speed: 3.0,
                 vy: 0.0,
+                velocity: [0.0; 2],
                 weapon: 0,
                 held: crate::net::protocol::NO_PROP,
                 hp: 100,
@@ -492,6 +507,38 @@ mod tests {
             t += frame;
         }
         assert!(worst < v * frame as f32 * 2.5, "largest per-frame step {worst} vs ideal {}: extrapolation should bridge the gap", v * frame as f32);
+    }
+
+    #[test]
+    fn arena_speed_does_not_outrun_smoothing_and_snap_after_packet_loss() {
+        let tuning = crate::player::PlayerTuning { acceleration: 12.0, max_speed: 20.0, ..Default::default() };
+        let mut world = RemoteWorld::default();
+        world.set_movement_profile(tuning, &[]);
+        let limit = catch_up_speed(tuning, &[]);
+        let frame = 1.0 / 144.0;
+        let mut previous = None::<f32>;
+        let mut next_tick = 0;
+        for frame_index in 0..576 {
+            let now = frame_index as f64 * frame;
+            while next_tick as f64 / 60.0 <= now {
+                if !(40..48).contains(&next_tick) {
+                    let mut snapshot = snap(next_tick, 20.0 * next_tick as f32 / 60.0);
+                    snapshot.players[0].speed = 20.0;
+                    snapshot.players[0].velocity = [20.0, 0.0];
+                    world.apply(&snapshot, next_tick as f64 / 60.0);
+                }
+                next_tick += 2;
+            }
+            if let Some((_, pose)) = world.view(now, None).players.first() {
+                if let Some(last) = previous {
+                    assert!((pose.pos.x - last).abs() <= limit * frame as f32 + 0.001);
+                }
+                previous = Some(pose.pos.x);
+            }
+        }
+        assert!(previous.unwrap() > 70.0, "the renderer must keep up with arena movement");
+        world.reset();
+        assert_eq!(world.motion_limit, limit, "reconnect retains the map profile");
     }
 
     /// The smoothness guarantee: a player moving at constant speed, snapshots at 30 Hz arriving with

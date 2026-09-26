@@ -12,7 +12,7 @@ use super::player::PlayerInput;
 use serde_json::{json, Value};
 
 /// The trace file format version.
-pub const TRACE_VERSION: u32 = 1;
+pub const TRACE_VERSION: u32 = 2;
 
 /// Describes the run a trace came from.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,8 +50,8 @@ pub enum Entry {
         slot: usize,
         /// `0` human, `1` rat.
         character: u8,
-        /// `pos.x, pos.y, foot_y, vy, yaw, pitch` as `f32` bits.
-        state: [u32; 6],
+        /// `pos.x, pos.y, foot_y, vy, yaw, pitch, velocity.x, velocity.y` as `f32` bits.
+        state: [u32; 8],
     },
     /// A player left.
     Leave {
@@ -133,8 +133,8 @@ pub struct TraceEvent {
 pub struct Dump {
     /// Ticks completed.
     pub tick: u64,
-    /// `[slot, x, foot_y, z, yaw, pitch, vy]` per player.
-    pub players: Vec<[f64; 7]>,
+    /// `[slot, x, foot_y, z, yaw, pitch, vy, vx, vz]` per player.
+    pub players: Vec<[f64; 9]>,
     /// `[prop, x, y, z, qx, qy, qz, qw]` per dynamic prop.
     pub props: Vec<[f64; 8]>,
     /// The scene's rule variables.
@@ -298,8 +298,8 @@ fn parse_entry(e: &Value) -> Option<Entry> {
     let i = |i: usize| a.get(i).and_then(Value::as_i64);
     match a.first()?.as_str()? {
         "j" => {
-            let s = a.get(4)?.as_array().filter(|s| s.len() == 6)?;
-            let mut state = [0u32; 6];
+            let s = a.get(4)?.as_array().filter(|s| s.len() == 8)?;
+            let mut state = [0u32; 8];
             for (k, x) in s.iter().enumerate() {
                 state[k] = x.as_u64()? as u32;
             }
@@ -331,7 +331,7 @@ fn parse_dump(d: &Value) -> Option<Dump> {
     let rows = |k: &str, n: usize| -> Option<Vec<Vec<f64>>> {
         d.get(k)?.as_array()?.iter().map(|r| r.as_array().filter(|r| r.len() == n)?.iter().map(Value::as_f64).collect()).collect()
     };
-    let players = rows("players", 7)?.into_iter().map(|r| [r[0], r[1], r[2], r[3], r[4], r[5], r[6]]).collect();
+    let players = rows("players", 9)?.into_iter().map(|r| [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]]).collect();
     let props = rows("props", 8)?.into_iter().map(|r| [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]]).collect();
     let vars = d.get("vars")?.as_array()?.iter().map(|p| Some((p.get(0)?.as_str()?.to_string(), p.get(1)?.as_f64()?))).collect::<Option<Vec<_>>>()?;
     let hidden = d.get("hidden")?.as_array()?.iter().map(|s| s.as_str().map(str::to_string)).collect::<Option<Vec<_>>>()?;
@@ -361,8 +361,8 @@ pub fn diff_dumps(a: &Dump, b: &Dump) -> Vec<String> {
             Some(q) => {
                 if !p.iter().zip(q).all(|(x, y)| close(*x, *y)) {
                     out.push(format!(
-                        "player {}: pos ({:.4}, {:.4}, {:.4}) vs ({:.4}, {:.4}, {:.4}), yaw {:.4} vs {:.4}, vy {:.4} vs {:.4}",
-                        p[0], p[1], p[2], p[3], q[1], q[2], q[3], p[4], q[4], p[6], q[6]
+                        "player {}: pos ({:.4}, {:.4}, {:.4}) vs ({:.4}, {:.4}, {:.4}), yaw {:.4} vs {:.4}, vy {:.4} vs {:.4}, momentum ({:.4},{:.4}) vs ({:.4},{:.4})",
+                        p[0], p[1], p[2], p[3], q[1], q[2], q[3], p[4], q[4], p[6], q[6], p[7], p[8], q[7], q[8]
                     ));
                 }
             }
@@ -413,12 +413,13 @@ mod tests {
 
     fn sample() -> Trace {
         let mut t = Trace::new(Header::new(0xdead_beef, u64::MAX, "duel", 1, 60));
-        t.entries.push(Entry::Join { tick: 0, slot: 0, character: 1, state: [1, 2, 3, 4, 5, 6] });
+        t.entries.push(Entry::Join { tick: 0, slot: 0, character: 1, state: [1, 2, 3, 4, 5, 6, 7, 8] });
         t.entries.push(Entry::Input {
             tick: 3,
             slot: 0,
             input: PlayerInput {
                 seq: 7,
+                analog: false,
                 forward: 1,
                 strafe: -1,
                 jump: true,
@@ -439,7 +440,7 @@ mod tests {
         t.events.push(TraceEvent { tick: 6, rule: "t".into(), name: "end:x".into(), slot: None });
         t.dumps.push(Dump {
             tick: 60,
-            players: vec![[0.0, 1.5, 0.0, -2.0, 0.3, 0.0, 0.0]],
+            players: vec![[0.0, 1.5, 0.0, -2.0, 0.3, 0.0, 0.0, 1.0, -2.0]],
             props: vec![[3.0, 1.0, 0.5, 2.0, 0.0, 0.0, 0.0, 1.0]],
             vars: vec![("score".into(), 2.0)],
             hidden: vec!["coin".into()],

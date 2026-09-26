@@ -39,6 +39,14 @@ impl App {
     }
 
     pub(crate) fn set_grab(&mut self, grabbed: bool) {
+        if !grabbed {
+            self.pad = Default::default();
+            self.controller.reset();
+            self.attack_held = false;
+            self.attack_queued = false;
+            self.ads_held = false;
+            self.net_pulse[1] = 0;
+        }
         let Some(window) = &self.window else { return };
         if grabbed {
             let ok = window.set_cursor_grab(CursorGrabMode::Locked).is_ok() || window.set_cursor_grab(CursorGrabMode::Confined).is_ok();

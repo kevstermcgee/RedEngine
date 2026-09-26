@@ -27,6 +27,14 @@ pub struct PlayerTuning {
     pub jump_speed: f32,
     /// Downward acceleration, m/s².
     pub gravity: f32,
+    /// Ground acceleration per second; zero preserves legacy immediate movement.
+    pub acceleration: f32,
+    /// Acceleration along the wish direction while airborne.
+    pub air_acceleration: f32,
+    /// Ground friction per second for momentum movement.
+    pub friction: f32,
+    /// Maximum accumulated horizontal speed for momentum movement, m/s.
+    pub max_speed: f32,
 }
 
 impl Default for PlayerTuning {
@@ -39,6 +47,10 @@ impl Default for PlayerTuning {
             crouch_multiplier: CROUCH_SPEED_MULT,
             jump_speed: JUMP_SPEED,
             gravity: GRAVITY,
+            acceleration: 0.0,
+            air_acceleration: 1.0,
+            friction: 6.0,
+            max_speed: 20.0,
         }
     }
 }
@@ -131,6 +143,14 @@ pub enum Character {
     Human,
     /// Cheddar, the small brownish-grey lab rat.
     Rat,
+    /// Star-hatted spellcaster using the human movement rig.
+    Wizard,
+    /// Frontier explorer using the human movement rig.
+    Cowboy,
+    /// Antenna-bearing visitor using the human movement rig.
+    Alien,
+    /// Workshop robot using the human movement rig.
+    Robot,
 }
 
 /// Everything about a body that differs between characters. Gravity and the ground/step rules are
@@ -170,12 +190,12 @@ pub struct BodySpec {
 
 impl Character {
     /// Both characters, in the order the launch screen shows them.
-    pub const ALL: [Character; 2] = [Character::Human, Character::Rat];
+    pub const ALL: [Character; 6] = [Character::Human, Character::Rat, Character::Wizard, Character::Cowboy, Character::Alien, Character::Robot];
 
     /// The body numbers for this character.
     pub fn body(self) -> BodySpec {
         match self {
-            Character::Human => BodySpec {
+            Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot => BodySpec {
                 radius: PLAYER_RADIUS,
                 stand_eye: STAND_EYE_HEIGHT,
                 crouch_eye: CROUCH_EYE_HEIGHT,
@@ -216,6 +236,10 @@ impl Character {
         match self {
             Character::Human => "Human",
             Character::Rat => "Cheddar the rat",
+            Character::Wizard => "Wizard",
+            Character::Cowboy => "Cowboy",
+            Character::Alien => "Alien",
+            Character::Robot => "Robot",
         }
     }
 
@@ -224,6 +248,10 @@ impl Character {
         match s.trim().to_ascii_lowercase().as_str() {
             "human" | "person" | "h" => Some(Character::Human),
             "rat" | "cheddar" | "r" => Some(Character::Rat),
+            "wizard" => Some(Character::Wizard),
+            "cowboy" => Some(Character::Cowboy),
+            "alien" => Some(Character::Alien),
+            "robot" => Some(Character::Robot),
             _ => None,
         }
     }

@@ -5,6 +5,8 @@ pub mod audio;
 pub mod characters;
 pub mod collide;
 pub mod color;
+pub mod controller;
+pub mod costumes;
 pub mod crypto;
 pub mod easing;
 #[cfg(feature = "gfx")]
@@ -26,6 +28,7 @@ pub mod player;
 pub mod prefabs;
 #[cfg(feature = "gfx")]
 pub mod probe;
+pub mod project_browser;
 pub mod props;
 #[cfg(feature = "gfx")]
 pub mod render;

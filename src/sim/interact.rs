@@ -216,6 +216,7 @@ impl MatchSim {
         let now = [input.interact, input.attack, input.reload, input.switch_weapon];
         let edge: [bool; 4] = std::array::from_fn(|i| now[i] && !p.combat.prev[i]);
         p.combat.prev = now;
+        let repeating = input.attack && p.combat.weapon.automatic();
         if edge[0] {
             self.interact(slot);
         }
@@ -227,7 +228,7 @@ impl MatchSim {
                 p.combat.ammo.reload();
             }
         }
-        if edge[1] {
+        if edge[1] || repeating {
             self.attack(slot);
         }
     }
@@ -284,11 +285,14 @@ impl MatchSim {
                 p.combat.cooldown.start(spec.cooldown_ticks);
                 let (eye, look) = eye_and_look(&p.state, p.crouching);
                 self.rules.inject(self.tick, "shot", Some(slot));
-                if let Some(hit) = self.probe(eye, look, spec.range, slot) {
-                    match hit.target {
-                        RayTarget::Prop(prop) => self.apply_impulse(prop, look, eye + look * hit.distance, spec.impulse),
-                        RayTarget::Player(target) => self.damage(target, self.weapons.damage(firearm), slot),
-                        RayTarget::Static => {}
+                for pellet in 0..firearm.pellets() {
+                    let dir = firearm.shot_direction(look, pellet);
+                    if let Some(hit) = self.probe(eye, dir, spec.range, slot) {
+                        match hit.target {
+                            RayTarget::Prop(prop) => self.apply_impulse(prop, dir, eye + dir * hit.distance, spec.impulse / firearm.pellets() as f32),
+                            RayTarget::Player(target) => self.damage(target, firearm.pellet_damage(self.weapons.damage(firearm), pellet), slot),
+                            RayTarget::Static => {}
+                        }
                     }
                 }
             }

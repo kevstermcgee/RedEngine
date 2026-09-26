@@ -172,12 +172,13 @@ pub struct Bot {
 impl Bot {
     /// Starts joining `server` as `character` on the map in `world`. `resume_token` is `0` for a fresh join.
     pub fn new(server: SocketAddr, character: Character, world: ClientWorld, behavior: Behavior, resume_token: u64) -> std::io::Result<Bot> {
-        let code = if character == Character::Rat { 1 } else { 0 };
+        let code = crate::net::protocol::character_to_wire(character);
         Self::with_client(NetClient::connect(server, code, world.map_hash, resume_token)?, character, world, behavior)
     }
 
     /// Like [`Bot::new`] with a client the caller configured (a join key, a name).
-    pub fn with_client(client: NetClient, character: Character, world: ClientWorld, behavior: Behavior) -> std::io::Result<Bot> {
+    pub fn with_client(mut client: NetClient, character: Character, world: ClientWorld, behavior: Behavior) -> std::io::Result<Bot> {
+        client.set_movement_profile(world.player_tuning, &world.jump_pads);
         let now = Instant::now();
         Ok(Bot {
             client,
@@ -197,7 +198,15 @@ impl Bot {
     }
 
     fn own_state(&self, s: &PlayerSnap) -> PlayerState {
-        PlayerState { pos: Vec2::new(s.pos[0], s.pos[2]), foot_y: s.pos[1], vy: s.vy, yaw: s.yaw, pitch: s.pitch, character: character_from_wire(s.character) }
+        PlayerState {
+            pos: Vec2::new(s.pos[0], s.pos[2]),
+            foot_y: s.pos[1],
+            vy: s.vy,
+            velocity: Vec2::from_array(s.velocity),
+            yaw: s.yaw,
+            pitch: s.pitch,
+            character: character_from_wire(s.character),
+        }
     }
 
     fn decide(&mut self, st: &PlayerState, dt: f32) -> PlayerInput {
@@ -236,6 +245,7 @@ impl Bot {
                         pos: Vec2::new(w.spawn[0], w.spawn[2]),
                         foot_y: w.spawn[1],
                         vy: 0.0,
+                        velocity: Vec2::ZERO,
                         yaw: w.spawn[3],
                         pitch: 0.0,
                         character: character_from_wire(w.character),

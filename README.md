@@ -1,5 +1,9 @@
 # Red Engine 2 (red_engine2)
 
+**Sandbox and controllers:** RedEngineSandbox is the central asset/character/map inspection project
+in RedEngineGames/projects/redengine-sandbox. The engine includes native gamepad input, six playable
+characters and an in-window local project map browser. See [controls and workflow](docs/CONTROLLERS_AND_SANDBOX.md).
+
 An AI-first game engine in Rust for online first-person games. It grew out of a
 JSON-scene 3D renderer and began as the base for a prop hunt game. The primary
 development map is `examples/test_lab.json`; the house, school, office and store

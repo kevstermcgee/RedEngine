@@ -6,7 +6,7 @@
 //! Avatars are pre-created (a fixed pool of hidden humans and rats) before the renderer is built,
 //! because the renderer takes its meshes from the scene at creation; a joining player just claims one.
 
-use crate::characters::{human_object, rat_object};
+use crate::characters::character_object;
 use crate::net::bot::ClientWorld;
 use crate::net::client::{ClientConfig, ConnState, NetClient, NetEvent};
 use crate::net::interp::PlayerPose;
@@ -67,13 +67,14 @@ impl NetSession {
     /// Starts joining `server`. Call [`add_avatar_pool`](Self::add_avatar_pool) on the scene, then
     /// [`wait_connected`](Self::wait_connected).
     pub fn connect(server: SocketAddr, character: Character, world: ClientWorld, resume_token: u64) -> std::io::Result<NetSession> {
-        let code = if character == Character::Rat { 1 } else { 0 };
+        let code = crate::net::protocol::character_to_wire(character);
         Self::connect_with(ClientConfig::new(server, code, world.map_hash, resume_token), world)
     }
 
     /// Like [`NetSession::connect`] with a join key and a name (`cfg.map_hash` should be `world.map_hash`).
     pub fn connect_with(cfg: ClientConfig, world: ClientWorld) -> std::io::Result<NetSession> {
-        let client = NetClient::connect_with(cfg)?;
+        let mut client = NetClient::connect_with(cfg)?;
+        client.set_movement_profile(world.player_tuning, &world.jump_pads);
         Ok(NetSession {
             client,
             predictor: None,
@@ -88,14 +89,14 @@ impl NetSession {
         })
     }
 
-    /// Adds hidden avatar objects (8 humans, 8 rats) to `scene`. Do this before the renderer is created.
+    /// Adds hidden avatars for every allowed character; fixed-character games allocate only that body.
     pub fn add_avatar_pool(&mut self, scene: &mut Scene) {
-        for who in [Character::Human, Character::Rat] {
+        for who in Character::ALL {
+            if scene.player.character.is_some_and(|forced| forced != who) {
+                continue;
+            }
             for k in 0..MAX_PLAYERS_PER_SNAPSHOT {
-                let mut o: Object = match who {
-                    Character::Human => human_object(&format!("net_human_{k}")),
-                    Character::Rat => rat_object(&format!("net_rat_{k}")),
-                };
+                let mut o: Object = character_object(who, &format!("net_{who:?}_{k}").to_lowercase());
                 o.scale = Track::constant(Vec3::splat(HIDDEN_SCALE));
                 o.collide = false;
                 self.avatars.push(Avatar { object_index: scene.objects.len(), character: who, used_by: None, phase: 0.0 });
@@ -133,7 +134,15 @@ impl NetSession {
     }
 
     fn own_state(s: &PlayerSnap) -> PlayerState {
-        PlayerState { pos: Vec2::new(s.pos[0], s.pos[2]), foot_y: s.pos[1], vy: s.vy, yaw: s.yaw, pitch: s.pitch, character: character_from_wire(s.character) }
+        PlayerState {
+            pos: Vec2::new(s.pos[0], s.pos[2]),
+            foot_y: s.pos[1],
+            vy: s.vy,
+            velocity: Vec2::from_array(s.velocity),
+            yaw: s.yaw,
+            pitch: s.pitch,
+            character: character_from_wire(s.character),
+        }
     }
 
     /// Receives network traffic; applies welcomes (sets [`teleport`](Self::teleport)) and reconciles
@@ -148,6 +157,7 @@ impl NetSession {
                         pos: Vec2::new(w.spawn[0], w.spawn[2]),
                         foot_y: w.spawn[1],
                         vy: 0.0,
+                        velocity: Vec2::ZERO,
                         yaw: w.spawn[3],
                         pitch: 0.0,
                         character: character_from_wire(w.character),
@@ -275,7 +285,7 @@ fn pose_avatar(o: &mut Object, who: Character, pose: &PlayerPose, phase: &mut f3
     o.rotation = Track::constant(Vec3::new(0.0, yaw_deg, 0.0));
     o.scale = Track::constant(Vec3::ONE);
     match (&mut o.kind, who) {
-        (ObjectKind::Humanoid(h), Character::Human) => {
+        (ObjectKind::Humanoid(h), who) if who != Character::Rat => {
             let walk = crate::player::Character::Human.body().walk_speed;
             let (spine_x, l_hip, r_hip, l_knee, r_knee, l_sh, r_sh) = if pose.speed > 0.05 {
                 *phase += dt * pose.speed * (WALK_CYCLES_PER_SEC_AT_WALK_SPEED / walk) * std::f32::consts::TAU;

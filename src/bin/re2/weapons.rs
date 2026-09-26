@@ -56,12 +56,7 @@ impl App {
         let dip = self.switch_dip();
         if let Some(spec) = self.shown_weapon().firearm() {
             let k = self.recoil_kick() * spec.recoil;
-            let ads = self.ads_blend;
-            let local_rotation = Mat4::from_rotation_y(GUN_YAW_DEG.to_radians())
-                * Mat4::from_rotation_x((GUN_IDLE_PITCH_DEG + GUN_RECOIL_PITCH_DEG * k + 25.0 * dip).to_radians());
-            let hip = Vec3::new(GUN_RIGHT, -GUN_DOWN - 0.30 * dip, GUN_FORWARD - GUN_RECOIL_BACK * k);
-            let aimed = Vec3::new(0.0, -0.035 - 0.30 * dip, GUN_FORWARD + 0.06 - GUN_RECOIL_BACK * k);
-            let local_offset = hip.lerp(aimed, ads);
+            let (local_offset, local_rotation) = red_engine2::firearms::held_pose(self.shown_weapon(), self.ads_blend, k, dip);
             return viewmodel_transform(&self.camera, local_offset, local_rotation);
         }
         let pitch_deg = self.swing_blend(IDLE_PITCH_DEG, WINDUP_PITCH_DEG, STRIKE_PITCH_DEG);
@@ -149,11 +144,14 @@ impl App {
         }
         let dir = self.camera.forward();
         let eye = self.tick_eye();
-        if let Some((object_index, distance, loose)) = self.probe(eye, spec.range) {
-            if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
-                props.strike_impulse(prop, dir, eye + dir * distance, spec.impulse);
+        for pellet in 0..self.weapon.pellets() {
+            let dir = self.weapon.shot_direction(dir, pellet);
+            if let Some((object_index, distance, loose)) = self.probe_direction(eye, dir, spec.range) {
+                if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
+                    props.strike_impulse(prop, dir, eye + dir * distance, spec.impulse / self.weapon.pellets() as f32);
+                }
+                println!("Shot '{}' at {:.1} m", self.scene.objects[object_index].id, distance);
             }
-            println!("Shot '{}' at {:.1} m", self.scene.objects[object_index].id, distance);
         }
         self.rules.inject(self.clock.ticks_run(), "shot", Some(0));
     }
@@ -195,7 +193,9 @@ impl App {
         if let Some(dir) = self.switch_queued.take() {
             self.begin_switch(dir);
         }
-        if std::mem::take(&mut self.attack_queued) && self.body.has_bat && !self.carrying() && !self.switch.is_active() {
+        let attack =
+            std::mem::take(&mut self.attack_queued) || ((self.attack_held || self.pad.down(red_engine2::controller::button::FIRE)) && self.weapon.automatic());
+        if attack && self.body.has_bat && !self.carrying() && !self.switch.is_active() {
             match self.weapon {
                 Weapon::Bat => {
                     self.swing.start();
@@ -237,7 +237,10 @@ impl App {
 
     /// [`melee_probe`](Self::melee_probe) for any reach (a bullet travels 80 m).
     pub(crate) fn probe(&self, eye: Vec3, reach: f32) -> Option<(usize, f32, Option<usize>)> {
-        let dir = self.camera.forward();
+        self.probe_direction(eye, self.camera.forward(), reach)
+    }
+
+    fn probe_direction(&self, eye: Vec3, dir: Vec3, reach: f32) -> Option<(usize, f32, Option<usize>)> {
         let fixed = raycast_shapes(eye, dir, reach, &self.hit_shapes).map(|h| (h.object_index, h.distance, None));
         let loose = self.props.as_ref().and_then(|p| p.ray_props(eye, dir, reach).map(|(prop, d)| (p.props()[prop].object_index, d, Some(prop))));
         match (fixed, loose) {

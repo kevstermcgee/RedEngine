@@ -19,6 +19,8 @@ pub struct PlayerState {
     pub foot_y: f32,
     /// Vertical velocity, m/s.
     pub vy: f32,
+    /// Horizontal momentum, replicated for exact client reconciliation.
+    pub velocity: Vec2,
     /// Look direction, radians (0 = looking along -Z, increasing clockwise seen from above).
     pub yaw: f32,
     /// Look pitch, radians.
@@ -30,7 +32,7 @@ pub struct PlayerState {
 impl PlayerState {
     /// A player standing at `(x, z)` on the ground facing `yaw_deg`.
     pub fn spawn(x: f32, z: f32, foot_y: f32, yaw_deg: f32, character: Character) -> Self {
-        PlayerState { pos: Vec2::new(x, z), foot_y, vy: 0.0, yaw: yaw_deg.to_radians(), pitch: 0.0, character }
+        PlayerState { pos: Vec2::new(x, z), foot_y, vy: 0.0, velocity: Vec2::ZERO, yaw: yaw_deg.to_radians(), pitch: 0.0, character }
     }
 }
 
@@ -44,6 +46,8 @@ pub struct PlayerInput {
     pub forward: i8,
     /// `+1` right, `-1` left.
     pub strafe: i8,
+    /// Signed stick axes in -127..127 instead of digital -1..1; carried in flag bit 7.
+    pub analog: bool,
     /// Jump this tick (only takes effect when grounded).
     pub jump: bool,
     /// Sprint requested (needs forward, not backward, not crouching).
@@ -74,6 +78,7 @@ impl PlayerInput {
             | ((self.attack as u8) << 4)
             | ((self.reload as u8) << 5)
             | ((self.switch_weapon as u8) << 6)
+            | ((self.analog as u8) << 7)
     }
 
     /// The inverse of [`flags`](Self::flags) applied to `self` (movement axes and look are left as they are).
@@ -85,13 +90,15 @@ impl PlayerInput {
         self.attack = f & 16 != 0;
         self.reload = f & 32 != 0;
         self.switch_weapon = f & 64 != 0;
+        self.analog = f & 128 != 0;
         self
     }
 
     /// Replaces non-finite or out-of-range values (a corrupt or hostile packet) with harmless ones.
     pub fn sanitized(mut self) -> Self {
-        self.forward = self.forward.clamp(-1, 1);
-        self.strafe = self.strafe.clamp(-1, 1);
+        let limit = if self.analog { 127 } else { 1 };
+        self.forward = self.forward.clamp(-limit, limit);
+        self.strafe = self.strafe.clamp(-limit, limit);
         if !self.yaw.is_finite() {
             self.yaw = 0.0;
         }
@@ -147,13 +154,14 @@ pub fn step_player_on_tuned(
     let fwd = Vec2::new(sy, -cy);
     let right = Vec2::new(cy, sy);
     let mut dir = fwd * input.forward as f32 + right * input.strafe as f32;
+    let strength = if input.analog { (dir.length() / 127.0).min(1.0) } else { 1.0 };
 
     // Sprinting needs a forward component (no sprinting backward), and crouch always wins.
     let sprinting = input.sprint && input.forward > 0 && !input.crouch && body.sprint_speed > body.walk_speed;
     let mut speed_now = 0.0;
     if dir.length_squared() > 1e-8 {
         dir = dir.normalize();
-        let (walk_speed, sprint_speed, crouch_multiplier) = if state.character == Character::Human {
+        let (walk_speed, sprint_speed, crouch_multiplier) = if state.character != Character::Rat {
             (tuning.walk_speed, tuning.sprint_speed, tuning.crouch_multiplier)
         } else {
             (body.walk_speed, body.sprint_speed, CROUCH_SPEED_MULT)
@@ -164,15 +172,47 @@ pub fn step_player_on_tuned(
             sprint_speed
         } else {
             walk_speed
-        };
-        state.pos = step_horizontal_band(colliders, state.pos, state.foot_y, dir * speed_now * FIXED_DT, body.radius, body.band_top);
+        } * strength;
     }
-    let (foot_y, mut vy) = if state.character == Character::Human {
+    if tuning.acceleration > 0.0 && state.character != Character::Rat {
+        let floor = crate::collide::ground_height_at(ground, state.pos, state.foot_y).max(extra_floor.unwrap_or(f32::NEG_INFINITY));
+        let grounded = state.vy <= 0.0 && (state.foot_y - floor).abs() < 0.05;
+        if grounded {
+            let speed = state.velocity.length();
+            if speed > 0.0 {
+                state.velocity *= ((speed - speed.max(1.0) * tuning.friction * FIXED_DT).max(0.0)) / speed;
+            }
+        }
+        if speed_now > 0.0 {
+            let acceleration = if grounded { tuning.acceleration } else { tuning.air_acceleration };
+            let add = (speed_now - state.velocity.dot(dir)).max(0.0);
+            state.velocity += dir * add.min(acceleration * speed_now * FIXED_DT);
+        }
+        state.velocity = state.velocity.clamp_length_max(tuning.max_speed);
+    } else {
+        state.velocity = dir * speed_now;
+    }
+    let before = state.pos;
+    let intended = state.velocity * FIXED_DT;
+    if intended.length_squared() > 0.0 {
+        state.pos = step_horizontal_band(colliders, state.pos, state.foot_y, intended, body.radius, body.band_top);
+    }
+    let actual = state.pos - before;
+    // Remove blocked components instead of banking velocity into a wall.
+    for axis in 0..2 {
+        if (actual[axis] - intended[axis]).abs() > 0.001 {
+            state.velocity[axis] = actual[axis] / FIXED_DT;
+        }
+    }
+    if tuning.acceleration > 0.0 {
+        speed_now = actual.length() / FIXED_DT;
+    }
+    let (foot_y, mut vy) = if state.character != Character::Rat {
         vertical_step_on_tuned(ground, extra_floor, state.pos, state.foot_y, state.vy, input.jump, tuning.jump_speed, tuning.gravity)
     } else {
         vertical_step_on(ground, extra_floor, state.pos, state.foot_y, state.vy, input.jump)
     };
-    if state.character == Character::Human && state.vy <= 0.0 {
+    if state.character != Character::Rat && state.vy <= 0.0 {
         if let Some(pad) = jump_pads.iter().find(|pad| pad.touches(state.pos, foot_y)) {
             vy = pad.launch_speed;
         }
@@ -184,9 +224,60 @@ pub fn step_player_on_tuned(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn analog_strength_and_diagonal_speed_are_bounded() {
+        let tuning = PlayerTuning::default();
+        let mut half = PlayerState::spawn(0.0, 0.0, 0.0, 0.0, Character::Human);
+        let mut full = half;
+        let mut diagonal = half;
+        let ground = crate::collide::collect_ground_candidates(&crate::schema::parse_scene(include_str!("../../examples/test_lab.json")).unwrap());
+        let a = PlayerInput { analog: true, forward: 64, ..Default::default() };
+        let b = PlayerInput { forward: 1, ..Default::default() };
+        let c = PlayerInput { analog: true, forward: 127, strafe: 127, ..Default::default() };
+        step_player_tuned(&mut half, &a, &[], &ground, tuning, &[]);
+        step_player_tuned(&mut full, &b, &[], &ground, tuning, &[]);
+        step_player_tuned(&mut diagonal, &c, &[], &ground, tuning, &[]);
+        assert!((half.pos.length() / full.pos.length() - 64.0 / 127.0).abs() < 0.001);
+        assert!((diagonal.pos.length() - full.pos.length()).abs() < 0.001);
+        assert_eq!(a.with_flags(a.flags()), a);
+    }
     use super::*;
     use crate::collide::{collect_box_colliders, collect_ground_candidates};
     use std::path::Path;
+
+    #[test]
+    fn arena_momentum_survives_airborne_release_and_ground_friction_stops_it() {
+        let ground = GroundCandidates::default();
+        let tuning = PlayerTuning { acceleration: 12.0, air_acceleration: 2.0, walk_speed: 9.0, sprint_speed: 9.0, ..Default::default() };
+        let mut state = PlayerState::spawn(0.0, 0.0, 0.0, 0.0, Character::Human);
+        for _ in 0..60 {
+            step_player_on_tuned(&mut state, &PlayerInput { forward: 1, ..Default::default() }, &[], &ground, None, tuning, &[]);
+        }
+        assert!((state.velocity.length() - 9.0).abs() < 0.01);
+        step_player_on_tuned(&mut state, &PlayerInput { jump: true, ..Default::default() }, &[], &ground, None, tuning, &[]);
+        let airborne_speed = state.velocity.length();
+        for _ in 0..10 {
+            step_player_on_tuned(&mut state, &PlayerInput::default(), &[], &ground, None, tuning, &[]);
+        }
+        assert!((state.velocity.length() - airborne_speed).abs() < 0.01);
+        for _ in 0..180 {
+            step_player_on_tuned(&mut state, &PlayerInput::default(), &[], &ground, None, tuning, &[]);
+        }
+        assert!(state.velocity.length() < 0.01);
+    }
+
+    #[test]
+    fn air_strafing_adds_bounded_momentum() {
+        let ground = GroundCandidates::default();
+        let tuning = PlayerTuning { acceleration: 12.0, air_acceleration: 2.0, max_speed: 14.0, walk_speed: 9.0, ..Default::default() };
+        let mut state = PlayerState::spawn(0.0, 0.0, 100.0, 0.0, Character::Human);
+        state.velocity = Vec2::new(0.0, -9.0);
+        for _ in 0..30 {
+            step_player_on_tuned(&mut state, &PlayerInput { strafe: 1, ..Default::default() }, &[], &ground, None, tuning, &[]);
+        }
+        assert!(state.velocity.x > 1.0 && state.velocity.y < -8.9);
+        assert!(state.velocity.length() > 9.0 && state.velocity.length() <= 14.001);
+    }
 
     fn world() -> (Vec<Collider2D>, GroundCandidates) {
         let scene = crate::load_scene(&Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap();

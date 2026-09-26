@@ -127,6 +127,46 @@ impl Weapon {
         self != Weapon::Bat
     }
 
+    /// Perspective magnification while aiming; irons stay modest, precision rifles zoom further.
+    pub fn aim_magnification(self) -> f32 {
+        match self {
+            Weapon::Marksman => 2.0,
+            Weapon::Scout => 2.5,
+            Weapon::Bat => 1.0,
+            _ => 1.25,
+        }
+    }
+
+    /// Whether holding the trigger repeats shots at the authoritative cooldown.
+    pub fn automatic(self) -> bool {
+        matches!(self, Weapon::MachinePistol | Weapon::Smg | Weapon::Carbine | Weapon::Rifle | Weapon::Bullpup | Weapon::Lmg)
+    }
+
+    /// Number of deterministic rays emitted by one trigger action.
+    pub fn pellets(self) -> u32 {
+        if self == Weapon::Shotgun {
+            9
+        } else {
+            1
+        }
+    }
+
+    /// Shared pellet cone; the center plus eight ring samples, with no frame-dependent RNG.
+    pub fn shot_direction(self, forward: glam::Vec3, pellet: u32) -> glam::Vec3 {
+        if self != Weapon::Shotgun || pellet == 0 {
+            return forward;
+        }
+        let right = forward.cross(glam::Vec3::Y).normalize_or_zero();
+        let up = right.cross(forward).normalize_or_zero();
+        let angle = (pellet - 1) as f32 * std::f32::consts::TAU / 8.0;
+        (forward + (right * angle.cos() + up * angle.sin()) * 0.055).normalize()
+    }
+
+    /// Split configured shot damage across pellets without increasing the total.
+    pub fn pellet_damage(self, total: u32, pellet: u32) -> u32 {
+        total / self.pellets() + u32::from(pellet < total % self.pellets())
+    }
+
     /// Shooter-facing tuning shared by offline play and the authoritative server.
     pub fn firearm(self) -> Option<FirearmSpec> {
         let spec = match self {

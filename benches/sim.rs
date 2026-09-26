@@ -189,7 +189,20 @@ fn net_codec(c: &mut Criterion) {
         echo_time_ms: 1,
         echo_hold_ms: 0,
         players: vec![
-            PlayerSnap { id: 0, character: 0, flags: 0, pos: [1.0; 3], yaw: 0.1, pitch: 0.1, speed: 3.0, vy: 0.0, weapon: 0, held: NO_PROP, hp: 100 };
+            PlayerSnap {
+                id: 0,
+                character: 0,
+                flags: 0,
+                pos: [1.0; 3],
+                yaw: 0.1,
+                pitch: 0.1,
+                speed: 3.0,
+                vy: 0.0,
+                velocity: [0.0; 2],
+                weapon: 0,
+                held: NO_PROP,
+                hp: 100
+            };
             MAX_PLAYERS_PER_SNAPSHOT
         ],
         props: vec![PropSnap { id: 0, pos: [1.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }; MAX_PROPS_PER_SNAPSHOT],

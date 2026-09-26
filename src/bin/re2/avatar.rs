@@ -24,7 +24,9 @@ impl App {
             body.scale = Track::constant(scale);
         }
         match self.character {
-            Character::Human => self.pose_human(body_pos, yaw_deg, speed, dt, scale),
+            Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot => {
+                self.pose_human(body_pos, yaw_deg, speed, dt, scale)
+            }
             Character::Rat => self.pose_rat(speed, dt),
         }
     }
@@ -140,7 +142,10 @@ impl App {
             let basis = Mat4::from_cols(right.extend(0.0), Vec3::Y.extend(0.0), fwd.extend(0.0), Vec4::new(0.0, 0.0, 0.0, 1.0));
             if aiming {
                 // The revolver aims where the player looks (pitch tips the barrel, recoil kicks it up).
-                Mat4::from_translation(wrist) * basis * Mat4::from_rotation_x((-self.camera.pitch) + (-0.30 * kick))
+                Mat4::from_translation(wrist)
+                    * basis
+                    * Mat4::from_rotation_x((-self.camera.pitch) + (-0.30 * kick))
+                    * Mat4::from_translation(-red_engine2::firearms::grip_anchor(self.shown_weapon()))
             } else {
                 let pitch_deg = self.swing_blend(IDLE_PITCH_DEG, WINDUP_PITCH_DEG, STRIKE_PITCH_DEG);
                 Mat4::from_translation(wrist) * basis * Mat4::from_rotation_z(IDLE_ROLL_DEG.to_radians()) * Mat4::from_rotation_x(pitch_deg.to_radians())

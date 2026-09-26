@@ -14,7 +14,6 @@ use crate::sim::flow::Phase;
 const TEXT: [u8; 4] = [236, 238, 245, 255];
 const DIM: [u8; 4] = [150, 156, 176, 255];
 const GOLD: [u8; 4] = [255, 210, 74, 255];
-const SHADE: [u8; 4] = [6, 8, 14, 0];
 
 /// Screens `ui-shot` / `ui-check` know, in display order.
 pub fn all() -> &'static [&'static str] {
@@ -101,80 +100,48 @@ pub fn audit_all() -> Vec<(String, (u32, u32), String)> {
 
 /// Which character is under a cursor at `x` in a `w`-wide window: the left half is the human, the right half the rat.
 pub fn character_at(w: u32, x: f32) -> Character {
-    if x < w as f32 * 0.5 {
-        Character::Human
-    } else {
-        Character::Rat
-    }
+    let index = (x.max(0.0) / w.max(1) as f32 * Character::ALL.len() as f32) as usize;
+    Character::ALL[index.min(Character::ALL.len() - 1)]
 }
 
-/// The launch screen ("Human or Cheddar the rat?") for a `w` x `h` window.
+/// Six playable bodies/costumes, with matching mouse and controller selection.
 pub fn menu_layout(w: u32, h: u32, selected: Character, map: &str) -> Layout {
     let mut l = Layout::new(w, h);
     let (wi, hi) = (w as i32, h as i32);
-    let s = (hi / 240).max(1); // base text scale: 3 at 720p, 4 at 1080p
-    let shade = |a: u8| [SHADE[0], SHADE[1], SHADE[2], a];
-
-    // Dim the card that is not chosen so the choice reads at a glance; bands keep text legible over the 3-D backdrop.
-    let unpicked_x0 = if selected == Character::Human { wi / 2 } else { 0 };
-    l.panel("unpicked_dim", (unpicked_x0, 0, unpicked_x0 + wi / 2, hi), None, Some(shade(110)), None);
-    let top = l.panel("band_top", (0, 0, wi, hi * 22 / 100), None, Some(shade(150)), None);
-    let bottom_y = hi * 72 / 100;
-    l.panel("band_bottom", (0, bottom_y, wi, hi), None, Some(shade(170)), None);
-
+    let s = (hi / 240).max(1);
     let max_w = wi - 8;
-    // PLAY ONLINE: a button in the top-right corner of the top band (the O key does the same).
+    let top = l.panel("band_top", (0, 0, wi, hi * 22 / 100), None, Some([12, 16, 26, 220]), None);
+    l.panel("band_bottom", (0, hi * 72 / 100, wi, hi), None, Some([12, 16, 26, 220]), None);
     let (bw, bh, m) = ((98 * s).min(wi / 3), 12 * s, 3 * s);
     l.button(
         "online",
         (wi - bw - m, m, wi - m, m + bh),
         Some(top),
-        "PLAY ONLINE (O)",
-        fit_scale("PLAY ONLINE (O)", bw - 4 * s, s),
+        "ONLINE (O/Y)",
+        fit_scale("ONLINE (O/Y)", bw - 4 * s, s),
         [30, 34, 52, 255],
         (GOLD, (s / 2).max(1)),
         GOLD,
     );
     l.label_fit("brand", Some(top), wi / 2, hi * 4 / 100, "RED ENGINE 2", s, max_w, DIM);
     l.label_fit("heading", Some(top), wi / 2, hi * 9 / 100, "CHOOSE YOUR CHARACTER", s * 2, max_w, TEXT);
-    l.label_fit("map", Some(top), wi / 2, hi * 16 / 100, &format!("MAP: {}", map.to_uppercase()), s, max_w, DIM);
-
-    // The hint sits on the bottom edge; the card text above it must end before it starts.
-    let hint = "CLICK A CHARACTER OR PRESS 1 / 2 TO PLAY  (ARROWS + ENTER WORK TOO)  -  O = PLAY ONLINE";
-    let hint_scale = fit_scale(hint, max_w, s);
-    let hint_y = hi - text_height(hint_scale) - 3 * hint_scale;
-
-    let cards: [(Character, i32, &str, &[&str]); 2] = [
-        (Character::Human, wi / 4, "1  HUMAN", &["TALL AND STRONG.", "SWINGS A BAT.", "WALK, OR SPRINT WITH SHIFT."]),
-        (
-            Character::Rat,
-            wi * 3 / 4,
-            "2  CHEDDAR THE RAT",
-            &["SMALL, QUICK AND HARD TO SPOT.", "RUNS UNDER TABLES AND PLATFORMS.", "FITS THROUGH TIGHT GAPS.", "(SHOWN ABOUT 3X LIFE SIZE)"],
-        ),
-    ];
-    for (who, cx, title, lines) in cards {
+    l.label_fit("map", Some(top), wi / 2, hi * 17 / 100, map, s, max_w, DIM);
+    for (index, who) in Character::ALL.iter().copied().enumerate() {
+        let x0 = wi * index as i32 / 6;
+        let x1 = wi * (index as i32 + 1) / 6;
         let picked = who == selected;
-        let col_w = wi / 2 - 8;
-        let column = l.panel(&format!("column_{who:?}").to_lowercase(), (cx - wi / 4, bottom_y, cx + wi / 4, hi), None, None, None);
-        let title_y = hi * 74 / 100;
-        l.label_fit(&format!("title_{who:?}").to_lowercase(), Some(column), cx, title_y, title, s * 2, col_w, if picked { GOLD } else { TEXT });
-        // Body text: the largest scale whose wrapped lines still end above the hint.
-        let body_y = title_y + 16 * s;
-        let avail = (hint_y - 2 * s) - body_y;
-        let body_scale =
-            (1..=s).rev().find(|&sc| lines.iter().map(|t| wrap(t, col_w, sc).len() as i32).sum::<i32>() * (text_height(sc) + 2 * sc) <= avail).unwrap_or(1);
-        let mut y = body_y;
-        for (i, line) in lines.iter().enumerate() {
-            y = l.label_wrapped(&format!("body_{who:?}_{i}").to_lowercase(), Some(column), cx, y, line, body_scale, col_w, if picked { TEXT } else { DIM });
-        }
+        let title = format!("{} {}", index + 1, if who == Character::Rat { "RAT" } else { who.name() });
+        l.label_fit(&format!("title_{who:?}"), None, (x0 + x1) / 2, hi * 76 / 100, &title, s, x1 - x0 - 16, if picked { GOLD } else { TEXT });
         if picked {
-            let (x0, x1) = (cx - wi / 4 + 3 * s, cx + wi / 4 - 3 * s);
-            let frame = l.panel(&format!("selected_{who:?}").to_lowercase(), (x0, hi * 24 / 100, x1, hi * 71 / 100), None, None, Some((GOLD, (s / 2).max(2))));
-            l.label_fit("selected_tag", Some(frame), cx, hi * 71 / 100 - 9 * s - (s / 2).max(2), "< SELECTED >", s, x1 - x0 - 8, GOLD);
+            l.panel("selected", (x0 + 2, hi * 24 / 100, x1 - 2, hi * 71 / 100), None, None, Some((GOLD, 2)));
+        } else {
+            l.panel(&format!("dim_{index}"), (x0, hi * 24 / 100, x1, hi * 71 / 100), None, Some([12, 16, 26, 90]), None);
         }
     }
-    l.label_fit("hint", None, wi / 2, hint_y, hint, s, max_w, DIM);
+    let detail =
+        if selected == Character::Rat { "CHEDDAR: SMALL BODY / LOW TUNNELS / QUICK FEET" } else { "HUMAN RIG: WALK / SPRINT / JUMP / CARRY / WEAPONS" };
+    l.label_fit("detail", None, wi / 2, hi * 84 / 100, detail, s, max_w, DIM);
+    l.label_fit("hint", None, wi / 2, hi * 93 / 100, "1-6 / ARROWS + ENTER / D-PAD + A", s, max_w, DIM);
     l
 }
 
@@ -298,7 +265,7 @@ mod tests {
     #[test]
     fn clicks_pick_the_side_they_land_on() {
         assert_eq!(character_at(1000, 100.0), Character::Human);
-        assert_eq!(character_at(1000, 900.0), Character::Rat);
+        assert_eq!(character_at(1000, 900.0), Character::Robot);
     }
 
     #[test]
@@ -311,8 +278,8 @@ mod tests {
         assert_ne!(human, rat, "the selection changes what is painted");
         // Gold frame pixels appear only on the selected side.
         let gold_left = |img: &[u8]| {
-            (0..h).any(|y| {
-                (0..w / 2).any(|x| {
+            (h * 24 / 100..h * 71 / 100).any(|y| {
+                (0..w / 6).any(|x| {
                     let p = &img[((y * w + x) * 4) as usize..][..4];
                     p[0] > 240 && p[1] > 190 && p[2] < 100 && p[3] > 240
                 })

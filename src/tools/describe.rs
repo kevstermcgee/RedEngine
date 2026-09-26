@@ -187,7 +187,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("background", "{sky_top, sky_bottom} gradient, or {color} flat"),
     ("ambient", "{color, intensity} flat fill light (0.1-0.4 typical)"),
     ("camera", "{fov, position, target, near, far} REQUIRED; for walkable maps position.xz is the player spawn"),
-    ("player", "{character: human|rat, fov, walk_speed, sprint_speed, crouch_multiplier, jump_speed, gravity}; character locks a game to one body, omission shows selection"),
+    ("player", "{character: human|rat|wizard|cowboy|alien|robot, fov, walk_speed, sprint_speed, crouch_multiplier, jump_speed, gravity, acceleration, air_acceleration, friction, max_speed}; positive acceleration enables horizontal momentum; character locks a game to one body"),
     ("jump_pads", "[{id, position:[x,y,z], size:[w,d], launch_speed}] rectangular vertical launch volumes evaluated by shared movement"),
     ("post", "{ao, outline, ao_radius, enabled} clarity pass: contact shadows + silhouette outlines"),
     ("lights", "<= 16; {id, type: directional|point, color, intensity, direction|position, range, cast_shadows, shadow_radius, shadow_center}; one directional may cast shadows"),
@@ -405,7 +405,7 @@ fn sim_text() -> String {
          \x20 Plays scripted players through the real authoritative simulation (no window, no GPU, no socket) and checks what happened.\n\
          \x20 Scenarios live in the scene's `checks.sim` (so `verify` runs them) or in a file. Exit 1 if any fails.\n\n\
          scenario = { name, players, script, expect, spawn_group?, max_seconds? (30), settle_seconds? (0.5) }\n\
-         \x20 players  [{id, character: human|rat, spawn?: spawn id}]\n\
+         \x20 players  [{id, character: human|rat|wizard|cowboy|alien|robot, spawn?: spawn id}]\n\
          \x20 script   [{player, walk: \"x,z; x,z\" | wait: secs | hold: {forward, strafe, sprint, crouch, jump, yaw_deg, seconds}, until_event?: name}]\n\
          \x20          each player's steps run in order; players run in parallel; a walk that gets stuck fails the scenario\n\
          \x20 expect   [{event: name, count|min|max} {no_event: name} {var: name, eq|ne: number|bool, gt|gte|lt|lte: number}\n\

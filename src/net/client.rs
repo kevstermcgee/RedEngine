@@ -170,7 +170,7 @@ impl NetClient {
         let mut c = NetClient {
             socket,
             server: cfg.server,
-            character: cfg.character.min(1),
+            character: cfg.character.min(5),
             map_hash: cfg.map_hash,
             name: sanitize_name(&cfg.name),
             join_key: cfg.join_key.filter(|k| !k.is_empty()),
@@ -283,7 +283,7 @@ impl NetClient {
 
     /// Chooses `0` human or `1` rat for the next spawn. Sent at once.
     pub fn set_character(&mut self, character: u8, now: Instant) {
-        let character = character.min(1);
+        let character = character.min(5);
         if self.character != character {
             self.character = character;
             self.send_lobby(now);
@@ -303,6 +303,11 @@ impl NetClient {
     /// Snapshots applied to the remote world.
     pub fn remote_world(&self) -> &RemoteWorld {
         &self.world
+    }
+
+    /// Configure interpolation for the locally validated map's movement speeds.
+    pub fn set_movement_profile(&mut self, tuning: crate::player::PlayerTuning, pads: &[crate::player::JumpPad]) {
+        self.world.set_movement_profile(tuning, pads);
     }
 
     fn raw_send(&mut self) {

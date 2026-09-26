@@ -101,7 +101,8 @@ impl Predictor {
             self.corrections += 1;
             self.worst_correction = self.worst_correction.max(mag);
         }
-        if mag > SNAP_DISTANCE {
+        let snap_distance = if tuning.acceleration > 0.0 { SNAP_DISTANCE.max(tuning.max_speed * 0.12) } else { SNAP_DISTANCE };
+        if mag > snap_distance {
             self.correction = Vec2::ZERO;
         } else {
             self.correction += err;
@@ -128,6 +129,17 @@ impl Predictor {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn arena_packet_loss_corrections_are_smoothed_within_the_movement_envelope() {
+        let (colliders, ground) = world();
+        let mut predictor = Predictor::new(start());
+        let before = predictor.visual_pos();
+        let server = PlayerState { pos: before + Vec2::new(2.0, 0.0), ..predictor.state };
+        let tuning = crate::player::PlayerTuning { acceleration: 12.0, max_speed: 20.0, ..Default::default() };
+        predictor.reconcile_tuned(server, 0, &colliders, &ground, tuning, &[]);
+        assert_eq!(predictor.state.pos, server.pos);
+        assert!((predictor.visual_pos() - before).length() < 0.001);
+    }
     use super::*;
     use crate::collide::{collect_box_colliders, collect_ground_candidates};
     use crate::player::Character;
@@ -141,6 +153,25 @@ mod tests {
 
     fn start() -> PlayerState {
         PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human)
+    }
+
+    #[test]
+    fn momentum_reconciliation_replays_air_control_exactly() {
+        let (c, g) = world();
+        let tuning = PlayerTuning { acceleration: 12.0, air_acceleration: 2.0, ..Default::default() };
+        let mut client = Predictor::new(start());
+        let mut acknowledged = start();
+        for seq in 1..=24 {
+            let input = PlayerInput { seq, forward: 1, strafe: i8::from(seq > 12), jump: seq == 10, yaw: 1.0, ..Default::default() };
+            client.apply_local_tuned(input, &c, &g, tuning, &[]);
+            if seq <= 12 {
+                step_player_tuned(&mut acknowledged, &input, &c, &g, tuning, &[]);
+            }
+        }
+        let expected = client.state;
+        client.reconcile_tuned(acknowledged, 12, &c, &g, tuning, &[]);
+        assert_eq!(client.state, expected);
+        assert!(client.state.velocity.length() > 0.0);
     }
 
     fn input(p: &mut Predictor, forward: i8, jump: bool) -> PlayerInput {

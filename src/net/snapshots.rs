@@ -24,6 +24,7 @@ pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
         pitch: p.state.pitch,
         speed: p.speed,
         vy: p.state.vy,
+        velocity: p.state.velocity.to_array(),
         weapon: p.combat.weapon.wire(),
         held: sim.props().held_by(slot).map_or(NO_PROP, |h| h as u16),
         hp: p.combat.hp.min(255) as u8,

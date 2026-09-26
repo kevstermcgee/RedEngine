@@ -45,6 +45,9 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0038](0038-reusable-firearm-arsenal-and-ads.md) | Reusable eleven-firearm arsenal, procedural models and smooth aim-down-sights | accepted |
 | [0039](0039-authored-player-tuning-and-jump-pads.md) | Scene-authored player tuning, starting weapon and deterministic jump pads | accepted |
 
+| [0040](0040-shooter-presentation-and-momentum.md) | Shooter sight anchors, automatic fire, pellets and replicated momentum | accepted |
+| [0041](0041-native-input-and-sandbox-workflow.md) | Native controller input, human-rig costumes and the sandbox project workflow | accepted |
+
 ## Writing one
 
 Copy the shape below, take the next number, add a row above (a test fails if a file is missing from

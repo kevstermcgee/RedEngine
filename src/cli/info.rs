@@ -332,12 +332,9 @@ pub(crate) fn run_ui_shot(
         Some("quit") => (Some(PauseAction::Quit), None),
         Some(o) => (None, Some(o.to_string())),
     };
-    let selected = match selected {
-        None => None,
-        Some("human") => Some(Character::Human),
-        Some("rat") => Some(Character::Rat),
-        Some(o) => return Err(format!("--selected must be human or rat, got '{o}'")),
-    };
+    let selected = selected
+        .map(|name| Character::parse(name).ok_or_else(|| format!("--selected must be human, rat, wizard, cowboy, alien or robot, got '{name}'")))
+        .transpose()?;
     let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, selected, hover_id })
         .ok_or_else(|| format!("unknown screen '{screen}' (screens: {})", screens::all().join(", ")))?;
     if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {

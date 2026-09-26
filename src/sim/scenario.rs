@@ -328,14 +328,11 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                 } else if players.iter().any(|q: &PlayerSpec| q.id == id) {
                     errs.push(format!("{pp}.id: duplicate player id `{id}`"));
                 }
-                let character = match po.get("character").and_then(Value::as_str).unwrap_or("human") {
-                    "human" => Character::Human,
-                    "rat" => Character::Rat,
-                    other => {
-                        errs.push(format!("{pp}.character: `{other}` is not human or rat"));
-                        Character::Human
-                    }
-                };
+                let name = po.get("character").and_then(Value::as_str).unwrap_or("human");
+                let character = Character::parse(name).unwrap_or_else(|| {
+                    errs.push(format!("{pp}.character: unknown character '{name}'"));
+                    Character::Human
+                });
                 players.push(PlayerSpec { id, character, spawn: po.get("spawn").and_then(Value::as_str).map(str::to_string) });
             }
         }
@@ -394,6 +391,7 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                 let pitch = h.get("pitch_deg").and_then(Value::as_f64).unwrap_or(0.0) as f32;
                 let input = PlayerInput {
                     seq: 0,
+                    analog: false,
                     forward: int("forward"),
                     strafe: int("strafe"),
                     jump: flag("jump"),

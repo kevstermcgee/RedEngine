@@ -8,7 +8,7 @@
 //!
 //! [`character_at`] maps a cursor position to a character so a click picks one.
 
-use crate::characters::{human_object, rat_object};
+use crate::characters::character_object;
 use crate::player::Character;
 use crate::schema::{Background, Camera, Light, LightKind, Material, Object, ObjectKind, PostSettings, PrimKind, Scene};
 use crate::track::Track;
@@ -73,7 +73,11 @@ pub fn menu_scene() -> Scene {
         movable: None,
         kind: ObjectKind::Prim(PrimKind::Plane { size: (40.0, 40.0) }),
     };
-    let objects = vec![floor, pedestal("human_pedestal", 1.05, 0.06), human_object("human"), pedestal("rat_pedestal", 1.45, RAT_PODIUM), rat_object("rat")];
+    let mut objects = vec![floor];
+    for who in Character::ALL {
+        objects.push(pedestal(&format!("{who:?}_pedestal"), 0.45, 0.06));
+        objects.push(character_object(who, &format!("{who:?}").to_lowercase()));
+    }
     debug_assert!(matches!(objects[HUMAN_INDEX].kind, ObjectKind::Humanoid(_)) && matches!(objects[RAT_INDEX].kind, ObjectKind::Rat(_)));
     Scene {
         fps: 30,
@@ -117,11 +121,8 @@ pub fn menu_camera() -> FpsCamera {
 /// screen whatever the window shape): x of the character's centre, in world units.
 fn slot_x(aspect: f32, which: Character) -> f32 {
     let half_width = CAMERA_DISTANCE * (CAMERA_FOV_DEG.to_radians() * 0.5).tan() * aspect;
-    let x = half_width * 0.5;
-    match which {
-        Character::Human => -x,
-        Character::Rat => x,
-    }
+    let index = Character::ALL.iter().position(|c| *c == which).unwrap_or(0);
+    half_width * (2.0 * (index as f32 + 0.5) / Character::ALL.len() as f32 - 1.0)
 }
 
 /// Places and turns the two models: each slowly sways, the `selected` one a little wider and
@@ -137,8 +138,16 @@ pub fn animate(scene: &mut Scene, aspect: f32, time: f32, selected: Character) {
         m.rotation = Track::constant(Vec3::new(0.0, sway, 0.0));
         m.scale = Track::constant(Vec3::splat(scale));
     };
-    place(scene, 1, HUMAN_INDEX, Character::Human, 1.0, 0.06);
-    place(scene, 3, RAT_INDEX, Character::Rat, RAT_PREVIEW_SCALE, RAT_PODIUM);
+    for (index, who) in Character::ALL.iter().copied().enumerate() {
+        place(
+            scene,
+            1 + index * 2,
+            2 + index * 2,
+            who,
+            if who == Character::Rat { RAT_PREVIEW_SCALE * 0.7 } else { 0.7 },
+            if who == Character::Rat { RAT_PODIUM } else { 0.20 },
+        );
+    }
     if let ObjectKind::Rat(r) = &mut scene.objects[RAT_INDEX].kind {
         let trot = selected == Character::Rat;
         r.gait = Track::constant(if trot { time * 14.0 } else { 0.0 });
@@ -159,13 +168,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn scene_has_the_two_models_where_animate_expects() {
+    fn scene_has_all_six_models_in_their_selection_slots() {
         let mut scene = menu_scene();
         animate(&mut scene, 16.0 / 9.0, 1.0, Character::Rat);
         assert!(matches!(scene.objects[HUMAN_INDEX].kind, ObjectKind::Humanoid(_)));
         assert!(matches!(scene.objects[RAT_INDEX].kind, ObjectKind::Rat(_)));
-        // The two models stand on opposite sides of the screen centre.
-        let (hx, rx) = (scene.objects[HUMAN_INDEX].position.sample(0.0).x, scene.objects[RAT_INDEX].position.sample(0.0).x);
-        assert!(hx < -0.5 && rx > 0.5, "{hx} {rx}");
+        assert_eq!(scene.objects.len(), 1 + 2 * Character::ALL.len());
+        for (index, who) in Character::ALL.iter().copied().enumerate() {
+            let x = scene.objects[2 + index * 2].position.sample(0.0).x;
+            assert_eq!(x, slot_x(16.0 / 9.0, who));
+            if index > 0 {
+                assert!(x > scene.objects[index * 2].position.sample(0.0).x);
+            }
+        }
     }
 }

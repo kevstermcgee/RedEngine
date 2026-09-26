@@ -127,18 +127,34 @@ impl App {
     /// Paints the offline rule state over the world. It intentionally yields to the pause and
     /// online overlays, which own the same texture while they are active.
     pub(crate) fn sync_rule_hud(&mut self) {
-        if self.net.is_some() || self.paused || !self.rules.has_rules() {
+        if self.net.is_some() || self.paused || (!self.rules.has_rules() && self.project_maps.is_empty()) {
             return;
         }
         let Some((w, h)) = self.window_size() else { return };
         let vars = self.rules.vars();
         let event = self.rule_event.as_deref();
         let outcome = self.rules.ended();
-        let fingerprint = format!("{:?}|{:?}|{:?}", vars, event, outcome);
+        let inspected = self.target_index.and_then(|i| self.scene.objects.get(i)).map(|o| o.id.as_str()).unwrap_or("look at an asset to inspect its id");
+        let fingerprint = format!("{:?}|{:?}|{:?}|{}", vars, event, outcome, inspected);
         if self.rule_hud_painted.as_ref().is_some_and(|(pw, ph, old)| (*pw, *ph) == (w, h) && old == &fingerprint) {
             return;
         }
-        let layout = rules_hud_layout(w, h, &vars, event, outcome);
+        let mut layout = rules_hud_layout(w, h, &vars, event, outcome);
+        if !self.project_maps.is_empty() {
+            let s = (h as i32 / 540).max(1);
+            layout.panel("project_help", (0, h as i32 - 32 * s, w as i32, h as i32), None, Some([12, 18, 28, 200]), None);
+            layout.label_fit("inspect", None, w as i32 / 2, h as i32 - 28 * s, inspected, s, w as i32 - 12, [239, 205, 131, 255]);
+            layout.label_fit(
+                "project_controls",
+                None,
+                w as i32 / 2,
+                h as i32 - 13 * s,
+                "M / D-PAD UP: MAPS   Q / BACK: VIEW   E / X: PICK UP   WHEEL / LB-RB: WEAPONS",
+                s,
+                w as i32 - 12,
+                [216, 230, 237, 255],
+            );
+        }
         self.rule_hud_painted = Some((w, h, fingerprint));
         if let Some(gpu) = self.gpu.as_mut() {
             if let Some(live) = gpu.live.as_mut() {
@@ -189,7 +205,7 @@ impl App {
                 if self.forced_character.is_some() {
                     return;
                 }
-                let other = 1 - net.client.character();
+                let other = (net.client.character() + 1) % Character::ALL.len() as u8;
                 net.client.set_character(other, now);
             }
             OnlineAction::Leave => {

@@ -2,6 +2,8 @@
 # The exact steps CI runs (.github/workflows/ci.yml). Run before pushing; green here = green there
 # (on this platform). Usage: scripts/ci.sh
 set -euo pipefail
+# Keep real-time network tests from contending with one another on shared runners.
+export RUST_TEST_THREADS="${RUST_TEST_THREADS:-1}"
 cd "$(dirname "$0")/.."
 
 echo "== rustfmt (rustfmt.toml is the style) =="

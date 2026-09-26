@@ -167,7 +167,7 @@ impl RulesEngine {
     }
 
     fn who_ok(who: Who, c: Character) -> bool {
-        matches!((who, c), (Who::Any, _) | (Who::Human, Character::Human) | (Who::Rat, Character::Rat))
+        matches!(who, Who::Any) || (matches!(who, Who::Human) && c != Character::Rat) || (matches!(who, Who::Rat) && c == Character::Rat)
     }
 
     fn record(&mut self, tick: u64, rule: &str, name: String, slot: Option<usize>) {

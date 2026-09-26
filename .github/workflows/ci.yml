@@ -5,6 +5,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # Real-time UDP tests share host scheduling; match the verified serial local run.
+  RUST_TEST_THREADS: "1"
   RUSTFLAGS: ""
 
 jobs:
@@ -33,7 +35,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Linux system libraries (audio backend for rodio)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
       - name: clippy
         run: cargo clippy --locked --all-targets -- -D warnings
       - name: tests

@@ -149,11 +149,7 @@ pub fn action_at(layout: &Layout, x: f32, y: f32) -> Option<OnlineAction> {
 }
 
 fn character_name(c: u8) -> &'static str {
-    if c == 1 {
-        "RAT"
-    } else {
-        "HUMAN"
-    }
+    crate::net::protocol::character_from_wire(c).name()
 }
 
 /// `M:SS` for a number of seconds.

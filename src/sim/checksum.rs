@@ -35,7 +35,7 @@ impl MatchSim {
         let mut players = Hasher::new();
         for (slot, p) in self.players() {
             players.mix(slot as u64);
-            for f in [p.state.pos.x, p.state.pos.y, p.state.foot_y, p.state.vy, p.state.yaw, p.state.pitch] {
+            for f in [p.state.pos.x, p.state.pos.y, p.state.foot_y, p.state.vy, p.state.velocity.x, p.state.velocity.y, p.state.yaw, p.state.pitch] {
                 players.f(f);
             }
             players.mix(p.combat.state_hash());
@@ -66,7 +66,7 @@ impl MatchSim {
         let mut c = Hasher::new();
         for (slot, p) in self.players() {
             c.mix(slot as u64);
-            for f in [p.state.pos.x, p.state.pos.y, p.state.foot_y, p.state.vy] {
+            for f in [p.state.pos.x, p.state.pos.y, p.state.foot_y, p.state.vy, p.state.velocity.x, p.state.velocity.y] {
                 c.q(f);
             }
             c.mix(p.combat.state_hash());
@@ -93,7 +93,17 @@ impl MatchSim {
                 .players()
                 .map(|(slot, p)| {
                     let s = &p.state;
-                    [slot as f64, s.pos.x as f64, s.foot_y as f64, s.pos.y as f64, s.yaw as f64, s.pitch as f64, s.vy as f64]
+                    [
+                        slot as f64,
+                        s.pos.x as f64,
+                        s.foot_y as f64,
+                        s.pos.y as f64,
+                        s.yaw as f64,
+                        s.pitch as f64,
+                        s.vy as f64,
+                        s.velocity.x as f64,
+                        s.velocity.y as f64,
+                    ]
                 })
                 .collect(),
             props: (0..e.len())

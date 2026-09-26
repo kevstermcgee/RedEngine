@@ -491,12 +491,12 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
         Some(Value::String(value)) => match crate::player::Character::parse(value) {
             Some(character) => Some(character),
             None => {
-                ctx.err("player.character", "must be `human` or `rat`");
+                ctx.err("player.character", "must be human, rat, wizard, cowboy, alien or robot");
                 None
             }
         },
         Some(_) => {
-            ctx.err("player.character", "must be a string: `human` or `rat`");
+            ctx.err("player.character", "must be a string: human, rat, wizard, cowboy, alien or robot");
             None
         }
     };
@@ -508,6 +508,10 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
         crouch_multiplier: ranged(ctx, obj, "crouch_multiplier", "player", d.crouch_multiplier, 0.1, 1.0),
         jump_speed: ranged(ctx, obj, "jump_speed", "player", d.jump_speed, 1.0, 15.0),
         gravity: ranged(ctx, obj, "gravity", "player", d.gravity, 1.0, 40.0),
+        acceleration: ranged(ctx, obj, "acceleration", "player", d.acceleration, 0.0, 100.0),
+        air_acceleration: ranged(ctx, obj, "air_acceleration", "player", d.air_acceleration, 0.0, 30.0),
+        friction: ranged(ctx, obj, "friction", "player", d.friction, 0.0, 30.0),
+        max_speed: ranged(ctx, obj, "max_speed", "player", d.max_speed.max(sprint_speed), sprint_speed, 50.0),
     }
 }
 
@@ -649,7 +653,15 @@ fn parse_humanoid(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Humano
         l_knee: parse_pose_track_f32(ctx, &pose_obj, "l_knee", &ppath),
         r_knee: parse_pose_track_f32(ctx, &pose_obj, "r_knee", &ppath),
     };
-    let mut look = crate::characters::HumanLook::default();
+    let style = obj.get("style").and_then(Value::as_str).unwrap_or("human");
+    let style = match crate::player::Character::parse(style) {
+        Some(who) if who != crate::player::Character::Rat => who,
+        _ => {
+            ctx.errors.push(format!("{path}.style: expected human, wizard, cowboy, alien or robot"));
+            crate::player::Character::Human
+        }
+    };
+    let mut look = crate::characters::HumanLook::styled(style);
     for (key, slot) in [("skin", &mut look.skin), ("hair", &mut look.hair), ("pants", &mut look.pants), ("shoes", &mut look.shoes)] {
         *slot = plain_hex(ctx, obj, key, path, *slot);
     }
@@ -1086,7 +1098,7 @@ mod tests {
         assert!(errors.iter().any(|e| e.contains("field_of_view") && e.contains("fov")), "{errors:?}");
         assert!(errors.iter().any(|e| e.contains("boost") && e.contains("launch_speed")), "{errors:?}");
 
-        let errors = parse_scene(r#"{"camera":{},"player":{"character":"robot"},"objects":[]}"#).unwrap_err();
+        let errors = parse_scene(r#"{"camera":{},"player":{"character":"unknown-creature"},"objects":[]}"#).unwrap_err();
         assert!(errors.iter().any(|e| e.contains("player.character") && e.contains("human")), "{errors:?}");
     }
 

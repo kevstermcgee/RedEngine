@@ -104,6 +104,7 @@ pub fn run(scene_path: &Path, opts: &Options) -> Result<Vec<ProfileReport>, Stri
 
 fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, seed: u64) -> Result<ProfileReport, String> {
     let scene = crate::schema::parse_scene(text).map_err(|e| e.join("; "))?;
+    let catch_up_speed = crate::net::interp::catch_up_speed(scene.player, &scene.jump_pads);
     let spawns = parse_spawns(text)?;
     let sim = MatchSim::try_new(&scene, spawns)?;
     let mut cfg = ServerConfig::new("127.0.0.1:0".parse().map_err(|e| format!("{e}"))?, crate::net::map_hash(text));
@@ -205,7 +206,7 @@ fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, 
                 for (rid, p) in &f.remote {
                     let now = Vec2::new(p.pos.x, p.pos.z);
                     if let Some((t0, prev)) = last.insert(*rid, (f.t, now)) {
-                        let allowed = crate::net::interp::CATCH_UP_SPEED * (f.t - t0).max(0.0) as f32;
+                        let allowed = catch_up_speed * (f.t - t0).max(0.0) as f32;
                         worst_step = worst_step.max((prev.distance(now) - allowed).max(0.0));
                     }
                 }
@@ -238,14 +239,15 @@ fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, 
     // Judge the displacement in travel time as well as metres: a one-metre correction is a useful
     // ceiling at the stock pace, while a deliberately fast arena game can cover farther during one
     // bad-link RTT without its prediction being proportionally worse.
-    let correction_limit = (scene.player.sprint_speed * 0.12).max(1.0);
+    let movement_speed = if scene.player.acceleration > 0.0 { scene.player.max_speed } else { scene.player.sprint_speed };
+    let correction_limit = (movement_speed * 0.12).max(1.0);
     add("corrections stay small", worst_corr <= correction_limit, format!("worst correction {worst_corr:.3} m (speed-aware limit {correction_limit:.3})"));
     if opts.players > 1 {
         let worst_step = clients.iter().map(|c| c.worst_remote_step_m).fold(0.0f32, f32::max);
         add(
             "other players glide, they do not teleport",
             worst_step <= 0.15,
-            format!("worst drawn jump {worst_step:.3} m beyond {} m/s (limit 0.15)", crate::net::interp::CATCH_UP_SPEED),
+            format!("worst drawn jump {worst_step:.3} m beyond {catch_up_speed} m/s (limit 0.15)"),
         );
     }
     add("bandwidth stays modest", server_bytes_per_client_sec <= 24_000.0, format!("{server_bytes_per_client_sec:.0} B/s per client (limit 24000)"));

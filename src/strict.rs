@@ -47,7 +47,19 @@ pub const POST_KEYS: &[&str] = &["enabled", "ao", "outline", "ao_radius"];
 /// `camera` keys.
 pub const CAMERA_KEYS: &[&str] = &["fov", "near", "far", "position", "target", "roll"];
 /// Live-player tuning keys.
-pub const PLAYER_KEYS: &[&str] = &["character", "fov", "walk_speed", "sprint_speed", "crouch_multiplier", "jump_speed", "gravity"];
+pub const PLAYER_KEYS: &[&str] = &[
+    "character",
+    "fov",
+    "walk_speed",
+    "sprint_speed",
+    "crouch_multiplier",
+    "jump_speed",
+    "gravity",
+    "acceleration",
+    "air_acceleration",
+    "friction",
+    "max_speed",
+];
 /// One `jump_pads` entry.
 pub const JUMP_PAD_KEYS: &[&str] = &["id", "position", "size", "launch_speed"];
 /// `material` keys.
@@ -81,7 +93,7 @@ pub fn object_keys(ty: &str) -> Option<Vec<&'static str>> {
         "plane" => &["size", "material"],
         // A prefab instance expands to a group that remembers where it came from.
         "group" => &["children", "prefab_name", "mount"],
-        "humanoid" => &["height", "build", "material", "pose", "skin", "hair", "pants", "shoes"],
+        "humanoid" => &["height", "build", "material", "pose", "skin", "hair", "pants", "shoes", "style"],
         "rat" => &["material", "pose"],
         "prop" => &["prop", "material"],
         "stairs" => &["width", "run", "rise", "steps", "material"],

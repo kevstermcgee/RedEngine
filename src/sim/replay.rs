@@ -103,9 +103,10 @@ fn fresh(scene: &crate::schema::Scene, spawns: &[Spawn], header: &Header) -> Res
 fn apply(sim: &mut MatchSim, e: &Entry) {
     match e {
         Entry::Join { state, character, .. } => {
-            let [px, py, fy, vy, yaw, pitch] = state.map(f32::from_bits);
+            let [px, py, fy, vy, yaw, pitch, vx, vz] = state.map(f32::from_bits);
             let character = crate::net::protocol::character_from_wire(*character);
-            let _: Option<usize> = sim.add_player_with(PlayerState { pos: Vec2::new(px, py), foot_y: fy, vy, yaw, pitch, character });
+            let _: Option<usize> =
+                sim.add_player_with(PlayerState { pos: Vec2::new(px, py), foot_y: fy, vy, velocity: Vec2::new(vx, vz), yaw, pitch, character });
         }
         Entry::Leave { slot, .. } => {
             let _ = sim.remove_player(*slot);

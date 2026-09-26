@@ -16,17 +16,21 @@ impl App {
         }
         let held = |a: KeyCode, b: KeyCode| self.keys.contains(&a) || self.keys.contains(&b);
         let axis = |pos: bool, neg: bool| pos as i8 - neg as i8;
+        let forward = axis(held(KeyCode::KeyW, KeyCode::ArrowUp), held(KeyCode::KeyS, KeyCode::ArrowDown));
+        let strafe = axis(held(KeyCode::KeyD, KeyCode::ArrowRight), held(KeyCode::KeyA, KeyCode::ArrowLeft));
+        let analog = self.grabbed && forward == 0 && strafe == 0 && self.pad.movement.length_squared() > 0.0;
         PlayerInput {
             seq: 0,
-            forward: axis(held(KeyCode::KeyW, KeyCode::ArrowUp), held(KeyCode::KeyS, KeyCode::ArrowDown)),
-            strafe: axis(held(KeyCode::KeyD, KeyCode::ArrowRight), held(KeyCode::KeyA, KeyCode::ArrowLeft)),
+            forward: if analog { (self.pad.movement.y * 127.0).round() as i8 } else { forward },
+            strafe: if analog { (self.pad.movement.x * 127.0).round() as i8 } else { strafe },
+            analog,
             jump: std::mem::take(&mut self.jump_queued),
-            sprint: self.sprint_held,
-            crouch: held(KeyCode::ControlLeft, KeyCode::ControlRight),
+            sprint: self.sprint_held || self.pad.down(red_engine2::controller::button::SPRINT),
+            crouch: held(KeyCode::ControlLeft, KeyCode::ControlRight) || self.pad.down(red_engine2::controller::button::CROUCH),
             yaw: self.camera.yaw,
             pitch: self.camera.pitch,
             interact: self.take_pulse(0),
-            attack: self.take_pulse(1),
+            attack: self.take_pulse(1) || ((self.attack_held || self.pad.down(red_engine2::controller::button::FIRE)) && self.weapon.automatic()),
             switch_weapon: self.take_pulse(2),
             reload: self.take_pulse(3),
         }
@@ -53,6 +57,7 @@ impl App {
             pos: self.physics_pos,
             foot_y: self.foot_y,
             vy: self.vertical_velocity,
+            velocity: self.horizontal_velocity,
             yaw: self.camera.yaw,
             pitch: self.camera.pitch,
             character: self.character,
@@ -71,6 +76,7 @@ impl App {
         self.physics_pos = st.pos;
         self.foot_y = st.foot_y;
         self.vertical_velocity = st.vy;
+        self.horizontal_velocity = st.velocity;
 
         // Loose props: the player's body shoves what it walks into, then the world steps.
         let d = (self.physics_pos - self.prev_physics_pos) / FIXED_DT;
@@ -120,6 +126,7 @@ impl App {
                         self.foot_y = p.y;
                         self.prev_foot_y = p.y;
                         self.vertical_velocity = 0.0;
+                        self.horizontal_velocity = Vec2::ZERO;
                     }
                 }
                 red_engine2::sim::rules_run::Effect::Teleport { .. } => {}
@@ -170,6 +177,7 @@ impl App {
                 self.foot_y = st.foot_y;
                 self.prev_foot_y = st.foot_y;
                 self.vertical_velocity = 0.0;
+                self.horizontal_velocity = Vec2::ZERO;
                 self.camera.yaw = st.yaw;
             }
             // Reconciliation may have nudged the predicted state; carry the difference through so the
@@ -180,6 +188,7 @@ impl App {
                 self.physics_pos = st.pos;
                 self.foot_y = st.foot_y;
                 self.vertical_velocity = st.vy;
+                self.horizontal_velocity = st.velocity;
             }
             if self.net_title_at.elapsed().as_secs_f32() > 1.0 {
                 self.net_title_at = Instant::now();
@@ -211,10 +220,15 @@ impl App {
         }
         let foot_y = self.prev_foot_y + (self.foot_y - self.prev_foot_y) * alpha;
 
-        let crouching = self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight);
-        let forward_held = self.keys.contains(&KeyCode::KeyW) || self.keys.contains(&KeyCode::ArrowUp);
+        let crouching =
+            self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight) || self.pad.down(red_engine2::controller::button::CROUCH);
+        let forward_held = self.keys.contains(&KeyCode::KeyW) || self.keys.contains(&KeyCode::ArrowUp) || self.pad.movement.y > 0.0;
         let back_held = self.keys.contains(&KeyCode::KeyS) || self.keys.contains(&KeyCode::ArrowDown);
-        let sprinting = self.sprint_held && forward_held && !back_held && !crouching && self.body.sprint_speed > self.body.walk_speed;
+        let sprinting = (self.sprint_held || self.pad.down(red_engine2::controller::button::SPRINT))
+            && forward_held
+            && !back_held
+            && !crouching
+            && self.scene.player.sprint_speed > self.scene.player.walk_speed;
 
         // Crouch: blend the eye height toward its target instead of snapping, so the camera
         // doesn't jump-cut when Ctrl is pressed/released.
@@ -250,11 +264,15 @@ impl App {
         };
 
         // Aim-down-sights and sprint FOV transitions use the same smooth presentation path.
-        let wants_ads = self.ads_held && self.shown_weapon().is_firearm() && !self.carrying() && self.view_mode == ViewMode::FirstPerson;
+        let wants_ads = (self.ads_held || self.pad.down(red_engine2::controller::button::AIM))
+            && self.shown_weapon().is_firearm()
+            && !self.carrying()
+            && self.view_mode == ViewMode::FirstPerson;
         let ads_target = if wants_ads { 1.0 } else { 0.0 };
         self.ads_blend += (ads_target - self.ads_blend) * (dt / ADS_TRANSITION_TIME).min(1.0);
         let hip_fov = if sprinting { self.scene.player.fov_deg + SPRINT_FOV_BOOST_DEG } else { self.scene.player.fov_deg };
-        let target_fov = hip_fov + (ADS_FOV_DEG - hip_fov) * self.ads_blend;
+        let aim_fov = 2.0 * ((0.5 * self.scene.player.fov_deg.to_radians()).tan() / self.shown_weapon().aim_magnification()).atan().to_degrees();
+        let target_fov = hip_fov + (aim_fov - hip_fov) * self.ads_blend;
         let fov_blend = (dt / FOV_TRANSITION_TIME).min(1.0);
         self.fov_deg += (target_fov - self.fov_deg) * fov_blend;
         self.camera.fov_deg = self.fov_deg;
@@ -379,7 +397,7 @@ impl App {
                 }
                 None => {
                     let (Some(addr), Some(world)) = (self.net_server, self.net_world.take()) else { fail_online("no server to join") };
-                    let mut cfg = red_engine2::net::client::ClientConfig::new(addr, if who == Character::Rat { 1 } else { 0 }, world.map_hash, 0);
+                    let mut cfg = red_engine2::net::client::ClientConfig::new(addr, red_engine2::net::protocol::character_to_wire(who), world.map_hash, 0);
                     cfg.join_key = self.join_key.clone();
                     cfg.name = self.player_name.clone();
                     let mut s = match NetSession::connect_with(cfg, world) {
@@ -431,7 +449,7 @@ impl App {
             self.view_mode = ViewMode::ThirdPerson;
         }
         // Debug: `RE2_WEAPON=<name>` starts with that weapon in hand (for screenshots and game launchers).
-        if who == Character::Human {
+        if who != Character::Rat {
             if let Ok(wanted) = std::env::var("RE2_WEAPON") {
                 if let Some(weapon) =
                     Weapon::ALL.iter().copied().find(|w| w.name().eq_ignore_ascii_case(&wanted) || format!("{w:?}").eq_ignore_ascii_case(&wanted))

@@ -182,3 +182,6 @@ without asking.
   right-click to pick an object, then **R** to replicate it (not built). (**E** now picks up and
   drops loose props — see "Loose props" below.)
 - **match server** — built: `red_server` (ADR 0016). ADR 0010 is the historical proposal it replaced.
+
+- **sight anchor** — a model-space point on the aiming axis, aligned with the camera ray in ADS.
+- **horizontal momentum** — persistent x/z velocity, controlled by scene acceleration, air acceleration, friction and max_speed; replicated for prediction (ADR 0040).

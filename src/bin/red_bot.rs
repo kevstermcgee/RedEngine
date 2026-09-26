@@ -3,7 +3,7 @@
 //! players, props) so multiplayer can be verified from a separate process.
 //!
 //! ```text
-//! red_bot --server 127.0.0.1:27015 [--map examples/test_lab.json] [--as human|rat]
+//! red_bot --server 127.0.0.1:27015 [--map examples/test_lab.json] [--as human|rat|wizard|cowboy|alien|robot]
 //!         [--behavior idle | forward:YAW | circle:DEG_PER_SEC | route:x,z;x,z;...] [--sprint]
 //!         [--duration 5] [--report-every 0.5] [--token N] [--leave-after SECS] [--rejoin-after SECS]
 //!         [--key JOIN_KEY] [--name NAME] [--ready]
@@ -24,7 +24,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 fn usage() -> ! {
-    eprintln!("usage: red_bot --server HOST:PORT [--map FILE] [--as human|rat] [--behavior idle|forward:YAW|circle:DPS|route:x,z;x,z] [--sprint] [--duration S] [--report-every S] [--token N] [--leave-after S] [--rejoin-after S] [--key K] [--name N] [--ready]");
+    eprintln!("usage: red_bot --server HOST:PORT [--map FILE] [--as human|rat|wizard|cowboy|alien|robot] [--behavior idle|forward:YAW|circle:DPS|route:x,z;x,z] [--sprint] [--duration S] [--report-every S] [--token N] [--leave-after S] [--rejoin-after S] [--key K] [--name N] [--ready]");
     std::process::exit(2);
 }
 

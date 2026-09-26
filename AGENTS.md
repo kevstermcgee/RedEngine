@@ -53,7 +53,7 @@ Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`
 weapon logic (the online path uses the server's). Offline and online both use the shared generic presentation for rule variables,
 recent events, hidden objects and outcome; online receives repeated complete rule-state snapshots (ADR 0036).
 
-**Joining and the lobby (protocol v5).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
+**Joining and the lobby (protocol v7).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
 response, the key is never sent) and every datagram after the handshake is authenticated, so forged, replayed or injected packets are dropped
 (ADR 0028; authentication, **not** encryption; use `--key auto`, not a short word). `--lobby` (or a scene `"match"` block, see `describe
 scene`) turns on the flow lobby -> ready-up -> countdown -> timed round -> results -> rematch (`sim::flow`, ADR 0029; `--min-players
@@ -408,6 +408,13 @@ Every task should be doable from `describe`/`search`/`src show`, not by reading 
 
 ## Characters, the launch menu, hit-testing (`re2`)
 
+The roster now includes human, rat, wizard, cowboy, alien and robot. Costumes share human physics;
+only the rat has a distinct body. Scene exhibits use humanoid.style. Native gamepad actions and
+the project map browser are documented in docs/CONTROLLERS_AND_SANDBOX.md and ADR 0041.
+RedEngineSandbox is the central manual inspection project; the Red Test Lab remains the automated regression fixture.
+Sandbox maps come from its scripts/generate.py, and --check detects catalogue/reference-map drift.
+Do not confuse synthetic controller tests with physical-device validation.
+
 `re2 [map.json] [--as human|rat]` — without `--as` (or `RE2_CHARACTER`) a menu asks; keys `1`/`2`, click, or
 arrows + Enter. The human swings the bat; **Cheddar the rat** (`type:"rat"` in a scene too) is tiny, has no
 bat, has one pace of 4.0 m/s (`player::RAT_SPEED`; a human walks 3.2 and sprints 6.5), fits through 0.25 m gaps and runs under anything with a 0.25 m clearance (tables, platforms: `RAT_BAND_TOP`, `props::has_clearance`). Body numbers live in
@@ -463,3 +470,12 @@ backface culling drew the *insides* of the bat/fist and the bat showed through t
 `re2` is a Windows GUI-subsystem binary (no console window on launch). It re-attaches to the parent
 terminal when there is one, so `RE2_STATS=1` and panics still print when started from a shell; a
 scene that fails to load pops a message box when there is no terminal.
+
+## Shooter presentation and movement
+
+Sight anchors and grip anchors are shared by procedural geometry and the client. Use
+`cargo run --example weapon_poses -- out/weapon-poses` to inspect all firearms through the live renderer.
+Automatic weapons fire while held; shotgun pellets share the same pattern online and offline.
+Optional `player.acceleration`, `air_acceleration`, `friction`, and `max_speed` enable momentum.
+Protocol v7 replicates horizontal velocity; trace v2 records it. Rebuild client and server together.
+See ADR 0040. Per-weapon magazines, timed reloads, team rules and projectiles remain future work.

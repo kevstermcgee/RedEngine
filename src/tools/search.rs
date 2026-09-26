@@ -65,6 +65,8 @@ const ADRS: &[(&str, &str)] = &[
     ("0037-core-assets-are-a-growing-api.md", include_str!("../../docs/adr/0037-core-assets-are-a-growing-api.md")),
     ("0038-reusable-firearm-arsenal-and-ads.md", include_str!("../../docs/adr/0038-reusable-firearm-arsenal-and-ads.md")),
     ("0039-authored-player-tuning-and-jump-pads.md", include_str!("../../docs/adr/0039-authored-player-tuning-and-jump-pads.md")),
+    ("0040-shooter-presentation-and-momentum.md", include_str!("../../docs/adr/0040-shooter-presentation-and-momentum.md")),
+    ("0041-native-input-and-sandbox-workflow.md", include_str!("../../docs/adr/0041-native-input-and-sandbox-workflow.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
