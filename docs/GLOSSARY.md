@@ -57,7 +57,8 @@ glossary` prints the lot). Terms are grouped; each line says what it *is* and wh
 - **fixed step** — player physics ticks at 1/60 s regardless of frame rate; the rendered camera
   interpolates between ticks (ADR 0005).
 - **player tuning** — the optional scene `player` block: bounded human FOV, walk/sprint speed,
-  crouch multiplier, jump speed and gravity shared by offline, server and prediction (ADR 0039).
+  crouch multiplier, jump speed and gravity shared by offline, server and prediction. Its optional
+  `character` locks a game to Human or Rat and bypasses the generic picker (ADR 0039).
 - **jump pad** — a scene-authored rectangle that applies deterministic upward launch velocity when
   the player's feet touch it; visual geometry remains an ordinary prefab (ADR 0039).
 - **foot height / foot_y** — the y of the player's feet. Everything vertical is relative to it.

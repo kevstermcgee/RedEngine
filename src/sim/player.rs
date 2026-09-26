@@ -282,7 +282,8 @@ mod tests {
     #[test]
     fn authored_arena_tuning_and_jump_pads_are_deterministic() {
         let (c, g) = world();
-        let tuning = PlayerTuning { fov_deg: 90.0, walk_speed: 9.0, sprint_speed: 13.0, crouch_multiplier: 0.5, jump_speed: 6.0, gravity: 18.0 };
+        let tuning =
+            PlayerTuning { fov_deg: 90.0, walk_speed: 9.0, sprint_speed: 13.0, crouch_multiplier: 0.5, jump_speed: 6.0, gravity: 18.0, ..Default::default() };
         let pad = JumpPad { id: "test_pad".into(), center: Vec2::new(-22.0, -3.0), size: Vec2::splat(2.0), foot_y: 0.0, launch_speed: 11.0 };
         let mut a = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
         let mut b = a;

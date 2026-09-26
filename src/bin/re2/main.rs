@@ -5,8 +5,9 @@
 //! default position, and lets you walk around and look at things: WASD or the arrow keys to
 //! move, the mouse to look, Shift to sprint forward, Space for a small jump, Ctrl to crouch,
 //! F to toggle borderless fullscreen / maximized, click to (re)capture the mouse, Escape to
-//! release it, Q to toggle between first- and third-person view. On launch a menu asks whether to
-//! play the Human or Cheddar the rat (`--as human|rat` or `RE2_CHARACTER` skips it). The human
+//! release it, Q to toggle between first- and third-person view. Unless a scene locks a character
+//! with `player.character`, a launch menu asks whether to play the Human or Cheddar the rat
+//! (`--as human|rat` or `RE2_CHARACTER` also skips it). The human
 //! holds a bat; left-click swings it, and anything the swing actually touches gets logged, thunks
 //! and flashes — a swing through empty air is silent. Hitting things is the seeker's primary
 //! action on objects; the crosshair turns gold when something is within bat reach. Cheddar is
@@ -526,6 +527,10 @@ fn parse_character_arg(value: &str) -> Result<Character, String> {
     Character::parse(value).ok_or_else(|| "expected `human` or `rat`".to_string())
 }
 
+fn resolved_character(requested: Option<Character>, scene_policy: Option<Character>) -> Option<Character> {
+    scene_policy.or(requested)
+}
+
 /// Command line: `re2 [scene.json] [--as human|rat] [--connect HOST:PORT] [--key JOIN_KEY] [--name NAME]` (the character can also
 /// come from `RE2_CHARACTER`, the server from `RE2_CONNECT`, the key from `RE2_KEY`, the name from `RE2_NAME`); without a character the
 /// launch menu asks, and its PLAY ONLINE button (or the O key) opens a form for the server, key and name.
@@ -552,7 +557,7 @@ fn fail_online(msg: &str) -> ! {
 
 fn main() {
     env_logger::init();
-    let Args { scene: scene_path, who: forced_character, connect, key, name } = parse_args();
+    let Args { scene: scene_path, who: requested_character, connect, key, name } = parse_args();
     // Online, the client's map is loaded together with its hash and static collision (what the server has).
     let mut net_world = None;
     let loaded = if connect.is_some() {
@@ -572,18 +577,29 @@ fn main() {
         }
         std::process::exit(1);
     });
+    // A game-authored policy wins over local flags: the authoritative server enforces the same
+    // value, so exposing an impossible character choice would only create a correction after join.
+    let forced_character = resolved_character(requested_character, scene.player.character);
 
     println!("Red Engine 2 — {}", scene_path.display());
-    println!("Pick Human (1) or Cheddar the rat (2) on the launch screen; `--as human|rat` skips it.");
+    if let Some(character) = scene.player.character {
+        println!("This game starts as {} (set by player.character).", character.name());
+    } else {
+        println!("Pick Human (1) or Cheddar the rat (2) on the launch screen; `--as human|rat` skips it.");
+    }
     println!("WASD / arrow keys to walk, mouse to look, Shift to sprint forward, Space to jump, Ctrl to crouch.");
-    println!("Human: left-click swings the bat. Cheddar: small, and always as fast as a human sprinting.");
+    match scene.player.character {
+        Some(Character::Human) => println!("Human: left-click swings the bat."),
+        Some(Character::Rat) => println!("Cheddar is small and always as fast as a human sprinting."),
+        None => println!("Human: left-click swings the bat. Cheddar: small, and always as fast as a human sprinting."),
+    }
     println!("Q to toggle first-/third-person view, F to toggle fullscreen / maximized.");
     println!("Click the window to capture the mouse, Escape to release it.");
 
     let event_loop = EventLoop::new().expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Poll);
     if let Some(addr) = connect {
-        println!("Online: will join {addr} once you pick a character. Weapons and pick-up are not networked yet.");
+        println!("Online: will join {addr}{}.", if forced_character.is_some() { "" } else { " once you pick a character" });
     }
     let mut app = App::new(scene, scene_path, forced_character, connect, net_world);
     if key.is_some() {
@@ -594,4 +610,16 @@ fn main() {
         app.player_name = n;
     }
     event_loop.run_app(&mut app).expect("event loop error");
+}
+
+#[cfg(test)]
+mod character_policy_tests {
+    use super::*;
+
+    #[test]
+    fn a_scene_policy_skips_and_overrides_the_generic_picker() {
+        assert_eq!(resolved_character(None, Some(Character::Human)), Some(Character::Human));
+        assert_eq!(resolved_character(Some(Character::Rat), Some(Character::Human)), Some(Character::Human));
+        assert_eq!(resolved_character(None, None), None);
+    }
 }

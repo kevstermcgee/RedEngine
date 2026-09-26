@@ -187,7 +187,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("background", "{sky_top, sky_bottom} gradient, or {color} flat"),
     ("ambient", "{color, intensity} flat fill light (0.1-0.4 typical)"),
     ("camera", "{fov, position, target, near, far} REQUIRED; for walkable maps position.xz is the player spawn"),
-    ("player", "{fov, walk_speed, sprint_speed, crouch_multiplier, jump_speed, gravity} live human movement tuning; omitted = engine defaults"),
+    ("player", "{character: human|rat, fov, walk_speed, sprint_speed, crouch_multiplier, jump_speed, gravity}; character locks a game to one body, omission shows selection"),
     ("jump_pads", "[{id, position:[x,y,z], size:[w,d], launch_speed}] rectangular vertical launch volumes evaluated by shared movement"),
     ("post", "{ao, outline, ao_radius, enabled} clarity pass: contact shadows + silhouette outlines"),
     ("lights", "<= 16; {id, type: directional|point, color, intensity, direction|position, range, cast_shadows, shadow_radius, shadow_center}; one directional may cast shadows"),
@@ -243,7 +243,7 @@ fn physics() -> Vec<(&'static str, String, &'static str)> {
         (
             "scene_player_tuning",
             "player{...}".to_string(),
-            "a scene may override human FOV, walk/sprint, crouch, jump and gravity; omission keeps these defaults",
+            "a scene may lock one character and override human FOV, walk/sprint, crouch, jump and gravity; omission keeps selection and defaults",
         ),
         (
             "jump_pads",
