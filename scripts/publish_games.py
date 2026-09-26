@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -53,6 +54,32 @@ def load_manifest(root: Path) -> dict:
     for category in CATEGORIES:
         if not isinstance(collections.get(category), list) or not collections[category]:
             raise PublishError(f"collections.{category} must be a non-empty array")
+    playables = data.get("playables")
+    if not isinstance(playables, list) or not playables:
+        raise PublishError("playables must be a non-empty array")
+    slugs = set()
+    for index, playable in enumerate(playables):
+        if not isinstance(playable, dict):
+            raise PublishError(f"playables[{index}] must be an object")
+        slug = playable.get("slug")
+        if not isinstance(slug, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+            raise PublishError(f"playables[{index}].slug must be lowercase kebab-case")
+        if slug in slugs:
+            raise PublishError(f"duplicate playable slug: {slug}")
+        slugs.add(slug)
+        if not isinstance(playable.get("name"), str) or not playable["name"].strip():
+            raise PublishError(f"playables[{index}].name must be a non-empty string")
+        safe_relative(playable.get("entry"), f"playables[{index}].entry")
+        files = playable.get("files")
+        if not isinstance(files, list) or not files:
+            raise PublishError(f"playables[{index}].files must be a non-empty array")
+        for file_index, value in enumerate(files):
+            safe_relative(value, f"playables[{index}].files[{file_index}]")
+        arguments = playable.get("arguments")
+        if not isinstance(arguments, list) or any(
+            not isinstance(value, str) or "\n" in value or "\r" in value for value in arguments
+        ):
+            raise PublishError(f"playables[{index}].arguments must be an array of single-line strings")
     return data
 
 
@@ -116,8 +143,17 @@ def export_tree(root: Path, staging: Path, manifest: dict, revision: str) -> dic
         "source_revision": revision,
         "target_repository": manifest["target_repository"],
         "collections": counts,
+        "playables": manifest["playables"],
         "files": sorted(catalog_files, key=lambda item: item["path"]),
     }
+    published_paths = set(emitted)
+    for playable in catalog["playables"]:
+        if playable["entry"] not in published_paths:
+            raise PublishError(f"playable entry is not published: {playable['entry']}")
+        for value in playable["files"]:
+            prefix = value.rstrip("/") + "/"
+            if value not in published_paths and not any(path.startswith(prefix) for path in published_paths):
+                raise PublishError(f"playable file is not published: {value}")
     (staging / CATALOG_NAME).write_text(
         json.dumps(catalog, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -191,4 +227,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

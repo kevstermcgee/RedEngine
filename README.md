@@ -24,7 +24,8 @@ you shouldn't need to read the engine's source to build or change a map.
 Curated games, prototypes, test content, and demos are copied automatically to
 [RedEngineGames](https://github.com/kevstermcgee/RedEngineGames). See
 [`docs/GAMES_PUBLISHING.md`](docs/GAMES_PUBLISHING.md) to validate an export or add
-new content to the publication manifest.
+new content to the publication manifest. Ready-to-play Windows packages are on the
+[latest RedEngineGames release](https://github.com/kevstermcgee/RedEngineGames/releases/latest).
 
 ## Why this design
 

@@ -19,5 +19,63 @@
       {"source": "scripts/lobby_demo.ps1", "destination": "multiplayer"},
       {"source": "scripts/multiplayer_demo.ps1", "destination": "multiplayer"}
     ]
-  }
+  },
+  "playables": [
+    {
+      "slug": "prop-hunt-yard",
+      "name": "Prop Hunt Yard",
+      "entry": "games/prop-hunt/prop_hunt_yard.json",
+      "files": ["games/prop-hunt"],
+      "arguments": ["content/games/prop-hunt/prop_hunt_yard.json"]
+    },
+    {
+      "slug": "coin-run",
+      "name": "Coin Run",
+      "entry": "games/coin-run/coin_run.json",
+      "files": ["games/coin-run"],
+      "arguments": ["content/games/coin-run/coin_run.json"]
+    },
+    {
+      "slug": "red-test-lab",
+      "name": "Red Test Lab",
+      "entry": "tests/test-lab/test_lab.json",
+      "files": ["tests/test-lab"],
+      "arguments": ["content/tests/test-lab/test_lab.json"]
+    },
+    {
+      "slug": "house",
+      "name": "House Demo",
+      "entry": "demos/examples/house.json",
+      "files": ["demos/examples/house.json"],
+      "arguments": ["content/demos/examples/house.json"]
+    },
+    {
+      "slug": "school",
+      "name": "School Demo",
+      "entry": "demos/examples/school.json",
+      "files": ["demos/examples/school.json"],
+      "arguments": ["content/demos/examples/school.json"]
+    },
+    {
+      "slug": "office",
+      "name": "Office Demo",
+      "entry": "demos/examples/office.json",
+      "files": ["demos/examples/office.json"],
+      "arguments": ["content/demos/examples/office.json"]
+    },
+    {
+      "slug": "store",
+      "name": "Store Demo",
+      "entry": "demos/examples/store.json",
+      "files": ["demos/examples/store.json"],
+      "arguments": ["content/demos/examples/store.json"]
+    },
+    {
+      "slug": "orbit-walk",
+      "name": "Orbit Walk",
+      "entry": "demos/examples/orbit_walk.json",
+      "files": ["demos/examples/orbit_walk.json"],
+      "arguments": ["content/demos/examples/orbit_walk.json"]
+    }
+  ]
 }

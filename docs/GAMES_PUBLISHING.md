@@ -31,3 +31,13 @@ the `GAMES_REPO_DEPLOY_KEY` Actions secret. The key can write only to
 The generated `.games-catalog.json` records the exact RedEngine commit and SHA-256
 digest of every copied file. The publisher rejects missing sources, path traversal,
 symlinks, and destination collisions before replacing any managed collection.
+
+## Playable releases
+
+The manifest's `playables` array is also copied into the catalog. Each entry names a
+download, its main published file, every published file or directory it needs, and
+the command-line arguments used by its launcher. `RedEngineGames` builds the exact
+cataloged RedEngine commit on a Windows runner and creates a permanent GitHub
+Release containing one ZIP per playable. Each ZIP includes the engine and a small
+`Play-<slug>.exe` launcher. Add an entry only after its content is self-contained and
+manually playable with the listed arguments.
