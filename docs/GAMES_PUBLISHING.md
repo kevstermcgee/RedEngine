@@ -21,7 +21,7 @@ To inspect the exact result locally, export into a separate directory:
 python scripts/publish_games.py export --output ../RedEngineGames-preview
 ```
 
-On a push to `main` that changes a published source, the manifest, or the publisher,
+On a push to `main` that changes the engine, a published source, the manifest, or the publisher,
 `.github/workflows/publish-games.yml` checks out `RedEngineGames`, rebuilds the four
 managed collections, and pushes only when the copy changed. It can also be run
 manually. The workflow authenticates with the repository-scoped SSH deploy key in
