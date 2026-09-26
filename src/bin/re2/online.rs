@@ -186,6 +186,9 @@ impl App {
                 net.client.set_ready(want, now);
             }
             OnlineAction::ToggleCharacter => {
+                if self.forced_character.is_some() {
+                    return;
+                }
                 let other = 1 - net.client.character();
                 net.client.set_character(other, now);
             }

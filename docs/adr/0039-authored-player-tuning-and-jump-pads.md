@@ -9,8 +9,9 @@ also had to fake launch pads with geometry, which could not produce an intention
 
 ## Decision
 
-A scene may author a bounded `player` block for base FOV, walk/sprint speed, crouch multiplier,
-jump speed and gravity. Omission preserves the established engine defaults. A scene may also author
+A scene may author a bounded `player` block for a fixed character, base FOV, walk/sprint speed,
+crouch multiplier, jump speed and gravity. A fixed character bypasses the generic picker and is
+enforced by the server; omission preserves selection and the established defaults. A scene may also author
 rectangular `jump_pads`; touching one at its floor height sets an upward launch velocity.
 
 The tuning and pads are data passed through the shared headless movement function. Offline play,

@@ -34,6 +34,10 @@ use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+fn apply_character_policy(policy: Option<crate::player::Character>, requested: u8) -> u8 {
+    policy.map(character_to_wire).unwrap_or_else(|| requested.min(1))
+}
+
 /// A `Status` goes to every client this often (5 Hz), and at once when something changes.
 const STATUS_EVERY_TICKS: u64 = (TICK_RATE_HZ / 5) as u64;
 
@@ -433,6 +437,7 @@ impl Server {
 
     fn on_lobby(&mut self, i: usize, l: LobbyCmd, now: Instant) {
         let playing = self.phase() == Phase::Playing && self.flow.is_some();
+        let forced_character = self.sim.forced_character();
         let s = &mut self.sessions[i];
         if !s.lobby_bucket.allow(now) {
             self.stats.rate_limited += 1;
@@ -447,7 +452,7 @@ impl Server {
         s.round_ack = s.round_ack.max(l.round_ack);
         s.rtt_ms = l.rtt_ms.min(9_999);
         let ready = l.ready && !playing;
-        let character = l.character.min(1);
+        let character = apply_character_policy(forced_character, l.character);
         if ready != s.ready || character != s.character {
             s.ready = ready;
             s.character = character;
@@ -545,7 +550,8 @@ impl Server {
         };
         let fresh = resumed.is_none();
         let token = resumed.as_ref().map_or_else(|| self.tokens.next(), |p| p.token);
-        let character = resumed.as_ref().map_or(h.character.min(1), |p| p.character);
+        let requested_character = resumed.as_ref().map_or(h.character.min(1), |p| p.character);
+        let character = apply_character_policy(self.sim.forced_character(), requested_character);
         let name = if h.name.trim().is_empty() { resumed.as_ref().map_or_else(|| sanitize_name(""), |p| p.name.clone()) } else { sanitize_name(&h.name) };
         let key = SessionKey::derive(key_bytes.as_bytes(), h.client_nonce, h.cookie);
         let mut session = Session::new(addr, slot, token, key, h.client_nonce, h.cookie, name, character, now);
@@ -936,5 +942,18 @@ pub fn raise_timer_resolution() {
         unsafe {
             timeBeginPeriod(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod character_policy_tests {
+    use super::*;
+
+    #[test]
+    fn a_scene_character_overrides_join_and_lobby_requests() {
+        assert_eq!(apply_character_policy(Some(crate::player::Character::Human), 1), 0);
+        assert_eq!(apply_character_policy(Some(crate::player::Character::Rat), 0), 1);
+        assert_eq!(apply_character_policy(None, 1), 1);
+        assert_eq!(apply_character_policy(None, 99), 1);
     }
 }

@@ -149,6 +149,11 @@ impl MatchSim {
         (&self.colliders, &self.ground)
     }
 
+    /// A map-authored single-character policy, enforced by the authoritative server.
+    pub fn forced_character(&self) -> Option<Character> {
+        self.player_tuning.character
+    }
+
     /// The map's spawn points.
     pub fn spawns(&self) -> &[Spawn] {
         &self.spawns

@@ -486,7 +486,22 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
     let d = crate::player::PlayerTuning::default();
     let walk_speed = ranged(ctx, obj, "walk_speed", "player", d.walk_speed, 0.5, 20.0);
     let sprint_speed = ranged(ctx, obj, "sprint_speed", "player", d.sprint_speed, walk_speed, 30.0);
+    let character = match obj.get("character") {
+        None => None,
+        Some(Value::String(value)) => match crate::player::Character::parse(value) {
+            Some(character) => Some(character),
+            None => {
+                ctx.err("player.character", "must be `human` or `rat`");
+                None
+            }
+        },
+        Some(_) => {
+            ctx.err("player.character", "must be a string: `human` or `rat`");
+            None
+        }
+    };
     crate::player::PlayerTuning {
+        character,
         fov_deg: ranged(ctx, obj, "fov", "player", d.fov_deg, 60.0, 120.0),
         walk_speed,
         sprint_speed,
@@ -1053,7 +1068,7 @@ mod tests {
         let scene = parse_scene(
             r#"{
                 "camera":{"position":[0,2,8],"target":[0,1,0]},
-                "player":{"fov":90,"walk_speed":9,"sprint_speed":13,"crouch_multiplier":0.5,"jump_speed":6,"gravity":18},
+                "player":{"character":"human","fov":90,"walk_speed":9,"sprint_speed":13,"crouch_multiplier":0.5,"jump_speed":6,"gravity":18},
                 "jump_pads":[{"id":"lift","position":[1,0,2],"size":[2,3],"launch_speed":11}],
                 "objects":[]
             }"#,
@@ -1061,6 +1076,7 @@ mod tests {
         .unwrap();
         assert_eq!(scene.player.fov_deg, 90.0);
         assert_eq!(scene.player.sprint_speed, 13.0);
+        assert_eq!(scene.player.character, Some(crate::player::Character::Human));
         assert_eq!(scene.jump_pads.len(), 1);
         assert_eq!(scene.jump_pads[0].id, "lift");
 
@@ -1069,6 +1085,9 @@ mod tests {
                 .unwrap_err();
         assert!(errors.iter().any(|e| e.contains("field_of_view") && e.contains("fov")), "{errors:?}");
         assert!(errors.iter().any(|e| e.contains("boost") && e.contains("launch_speed")), "{errors:?}");
+
+        let errors = parse_scene(r#"{"camera":{},"player":{"character":"robot"},"objects":[]}"#).unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("player.character") && e.contains("human")), "{errors:?}");
     }
 
     #[test]

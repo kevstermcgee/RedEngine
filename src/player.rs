@@ -12,6 +12,9 @@ use glam::Vec2;
 /// the map, so the authoritative server and every predicting client use the same numbers.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerTuning {
+    /// When set, this scene is a single-character game: clients skip selection and the server
+    /// rejects attempts to switch to another built-in body.
+    pub character: Option<Character>,
     /// Vertical field of view in degrees.
     pub fov_deg: f32,
     /// Ordinary movement speed, m/s.
@@ -29,6 +32,7 @@ pub struct PlayerTuning {
 impl Default for PlayerTuning {
     fn default() -> Self {
         PlayerTuning {
+            character: None,
             fov_deg: 90.0,
             walk_speed: WALK_SPEED,
             sprint_speed: SPRINT_SPEED,
@@ -119,8 +123,8 @@ pub fn step_horizontal_band(colliders: &[Collider2D], pos: Vec2, foot_y: f32, de
     resolve_collision(p, radius, &active)
 }
 
-/// Who the player is. Chosen on the launch screen; each character has its own body numbers
-/// ([`BodySpec`]) and model (`crate::characters`).
+/// Who the player is. A scene policy, command-line override, or the launch screen selects it;
+/// each character has its own body numbers ([`BodySpec`]) and model (`crate::characters`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Character {
     /// The ordinary-looking person with a bat.

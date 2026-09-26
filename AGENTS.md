@@ -424,7 +424,8 @@ in `bin/re2/weapons.rs` merges exact static shapes with `PropWorld::ray_props`).
 their `weapon` (and `muzzle_flash`/`emissive`); `FrameOptions.weapon/muzzle_flash` pick what draws. Debug env:
 `RE2_WEAPON=revolver`, `RE2_FREEZE_SHOT=<s since shot>` (0.02 = flash + kick) for screenshots. A scene can
 select the equipped spawn weapon with `weapons.starting`. Arena-style games can author a shared `player`
-movement/FOV profile and deterministic `jump_pads`; offline, server and prediction use the same values. ADR 0013, 0039.
+movement/FOV profile and deterministic `jump_pads`; `player.character` locks a single-character game and
+bypasses the generic picker. Offline, server and prediction use the same values. ADR 0013, 0039.
 
 ## Loose props (pick up / drop / knock over) — `src/physics/`
 
