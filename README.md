@@ -1,7 +1,9 @@
 # Red Engine 2 (red_engine2)
 
-An AI-first game engine in Rust for online first-person games (it grew out of a JSON-scene 3D renderer and began as the base for a
-prop hunt game). The same AI-authorable JSON-scene core, purpose-built for the real-time
+An AI-first game engine in Rust for online first-person games. It grew out of a
+JSON-scene 3D renderer and began as the base for a prop hunt game. The primary
+development map is `examples/test_lab.json`; the house, school, office and store
+remain tested legacy reference maps. The same AI-authorable JSON-scene core, purpose-built for the real-time
 first-person viewer (**Red Engine 2** — see below) rather than the offline MP4 renderer,
 which is kept around only as a fast way to eyeball scenes/props while authoring them. You
 describe a scenario as one compact JSON scene file — primitives, props, a posable humanoid
@@ -21,8 +23,9 @@ you shouldn't need to read the engine's source to build or change a map.
 
 ## Why this design
 
-- **JSON in, MP4 out.** The scene format is the entire interface — a data file, cheap to
-  generate, cheap to validate, cheap to patch when something's off.
+- **JSON in, live game or offline render out.** Scenes are data files: cheap to generate,
+  validate and patch. The same scene drives the graphical client, headless simulation,
+  analysis tools and optional offline MP4 renderer.
 - **World coordinates, not pixels.** Right-handed, Y-up, roughly `-15..15` on X/Z. The
   camera and lights are just objects with position tracks, same as everything else.
 - **Sparse keyframes.** Set only what changes, when it changes; the engine interpolates the
@@ -60,9 +63,11 @@ red_engine2 plan  examples/house.json --all-floors   # labelled top-down plan PN
 red_engine2 tour  examples/house.json out/tour.png   # rendered views of every room + cutaway per floor
 red_engine2 walk  examples/house.json --path "0,-8; 0,1; -0.8,2; -0.8,7.6"   # replay a route with real physics
 red_engine2 reach examples/house.json          # floors/rooms reached, doorways between rooms, drops, leaks
-red_engine2 ls | info | props                  # inspect objects, one object, the prop library
-red_engine2 set | move | add | rm | clone | array | rename | fmt    # safe edits (re-validated, atomic)
-red_engine2 scatter | line                     # seeded planting: trees, bushes, flowers, hedge rows
+red_engine2 ls examples/house.json             # inspect objects and world bounds
+red_engine2 info examples/house.json sofa_1    # inspect one object and nearby findings
+red_engine2 props                              # list the Rust prop library
+red_engine2 set examples/house.json sofa_1 material.color=#aa3322  # safe, re-validated edit
+red_engine2 scatter examples/house.json --zone back_yard --kind bush --count 8 --seed 3
 red_engine2 frame scene.json out.png --eye x,y,z --at x,y,z --hide roof --cut-above 5.7   # free camera / cutaways
 ```
 
@@ -201,10 +206,11 @@ red_engine2 render examples/hello_world.json out/hello_world.mp4
 python mcp_server.py
 ```
 
-Exposes `get_spec`, `list_examples`, `get_example(name)`, `validate_scene(scene_json)`,
-`render_frame(scene_json, t)`, `render_storyboard(scene_json, frames)`, and
-`render_scene(scene_json, out_path)`. It's a thin wrapper around the compiled binary — build
-that first with `cargo build --release`.
+It exposes validation and rendering plus the map-analysis, editing, discovery,
+catalogue, recipe, verification, simulation, replay, performance, network-test,
+blueprint, source-navigation and project-status tools documented at the top of
+`mcp_server.py`. It is a thin wrapper around the compiled binary — build that first
+with `cargo build --release`.
 
 To register it with Claude Code, add to your MCP config:
 
@@ -221,6 +227,8 @@ To register it with Claude Code, add to your MCP config:
 
 ## Examples
 
+- [`examples/test_lab.json`](examples/test_lab.json) — the primary engine-development
+  map, with one small area per system under test and self-contained checks.
 - [`examples/hello_world.json`](examples/hello_world.json) — a bouncing ball, a spinning
   cube, a signpost `group`, a waving `humanoid`, shadows, and a camera dolly.
 - [`examples/orbit_walk.json`](examples/orbit_walk.json) — a full camera orbit around a
@@ -235,8 +243,13 @@ To register it with Claude Code, add to your MCP config:
   bathrooms, a straight staircase with a railed opening) on a fully fenced lot with front/side/back
   yards, patio, garden shed and landscaping (trees, hedges, shrubs, flower beds, a tree line
   outside the fence). Lint-clean, with a real-physics walk test through every room
-  (`tests/house_walk.rs`) and a good worked example of every tool. First of a planned four (house,
-  school, office, convenience store), all drawing from the same shared `props.rs` library.
+  (`tests/house_walk.rs`) and a good worked example of every tool.
+- [`examples/school.json`](examples/school.json),
+  [`examples/office.json`](examples/office.json), and
+  [`examples/store.json`](examples/store.json) — the other three legacy reference maps.
+  All four draw from the same prop/prefab library and carry verification checks.
+  `tests/maps_verify.rs` covers these three maps, while `tests/house_walk.rs` covers
+  house routes and `tests/prop_physics.rs` covers prop behavior across all four.
 
 Render either of the first two and open the resulting `.mp4` to see the offline engine's full
 current capability; open `room.json`, `prop_hunt_yard.json`, or `house.json` in `re2` to walk
@@ -280,12 +293,13 @@ tests/          # schema/math unit tests (in src/) + an examples-validate integr
 cargo test
 ```
 
-Unit tests (60+) cover easing/keyframe math, color parsing, mesh generation (index bounds, unit
+The test suite covers easing/keyframe math, color parsing, mesh generation (index bounds, unit
 normals, and — since the live viewer's pipelines cull backfaces — that every primitive's
 triangles are wound consistently with their own stored normals), humanoid forward-kinematics
 (symmetry, joint-bend distance checks), that every prop builds valid parts and round-trips
-through its schema name, and the multi-floor ground-height mechanism itself (`viewer::
-ground_tests` — climbing/descending a ramp smoothly, and both "unreachable" rejection cases) —
+through its schema name, and the multi-floor ground-height mechanism itself
+(`collide::ground_tests` — climbing/descending a ramp smoothly, and both "unreachable"
+rejection cases) —
 that last one directly drives the same per-tick clamp the live viewer uses, deliberately not
 relying on simulated window input, which turned out to be too flaky in practice to trust for
 anything beyond short, simple interactions. An integration test parses and validates every
@@ -293,7 +307,9 @@ bundled example scene, and `tests/house_walk.rs` walks real routes through every
 `examples/house.json` — front door, each ground-floor room, up the stairs into every bedroom,
 out to the shed — using the game's per-tick physics, so a layout edit that seals a door or breaks
 the staircase fails `cargo test` instead of reaching a player. The map tools have their own unit
-tests (lint checks, reachability, wall/fence expansion, edit round-trips, scatter determinism). GPU rendering itself isn't exercised by `cargo test` (no GPU in most CI
+tests (lint checks, reachability, wall/fence expansion, edit round-trips, scatter determinism),
+and integration suites cover authoritative networking, authentication, rules, replay,
+budgets and repository/doc consistency. GPU rendering itself isn't exercised by `cargo test` (no GPU in most CI
 runners) — use `frame`/`storyboard`, or launch `re2`, for a manual visual check after
 render-path changes.
 
@@ -328,8 +344,8 @@ See [`docs/HOSTING.md`](docs/HOSTING.md); `red_engine2 describe multiplayer` is 
 
 `red_engine2` describes itself and ships the tooling to build maps accurately without reading Rust:
 `describe` (self-description), `search` (docs + assets + lint codes + recipes + Rust symbols),
-`catalog` (39 props + ~155 JSON prefabs with tags, sizes, params; `--sheet` renders a labelled contact
-sheet), `recipe` (four known-good complete maps: house, school wing, convenience store, two rooms),
+`catalog` (the current props and JSON prefabs with tags, sizes and params; `--sheet` renders a labelled contact
+sheet), `recipe` (known-good scene and game recipes),
 `verify` (a scene's own `checks`: lint budget, reachability, real-physics walks, object assertions,
 golden-image views with diff images), `diff` (semantic scene diff), and `src map|find|show|refs|deps`
 (navigate the Rust without reading files). New furniture/food/decor is added as JSON prefabs in
