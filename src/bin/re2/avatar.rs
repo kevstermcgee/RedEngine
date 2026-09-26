@@ -72,7 +72,7 @@ impl App {
         // swing mid-stride recovers back into whatever the walk cycle is doing by then rather
         // than snapping to a fixed rest angle.
         let carrying = self.carrying();
-        let aiming = !carrying && self.shown_weapon() == Weapon::Revolver;
+        let aiming = !carrying && self.shown_weapon().is_firearm();
         let kick = self.recoil_kick();
         // Carrying: both arms forward, elbows bent, holding the prop out in front of the chest.
         // Aiming the revolver: the gun arm out level (following where the player looks), kicking on a shot.

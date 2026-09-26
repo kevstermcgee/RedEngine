@@ -10,8 +10,8 @@
       "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md"]
     },
     "offline_renderer": {
-      "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, the humanoid and rat rigs, props, the offline `frame`/`render` commands.",
-      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/props.rs", "src/revolver.rs", "src/shaders/**"],
+      "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
+      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/props.rs", "src/revolver.rs", "src/firearms.rs", "src/shaders/**"],
       "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:skeleton"],
       "commands": ["red_engine2 frame examples/test_lab.json out/frame.png", "red_engine2 tour examples/test_lab.json out/tour.png"],
       "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md"],
@@ -33,10 +33,10 @@
       "depends_on": ["player_physics"]
     },
     "combat_weapons": {
-      "summary": "Bat and revolver: tick-based swings, cooldowns, hitscan, health, death and respawn, authoritative pick-up contention.",
+      "summary": "Bat plus an eleven-firearm arsenal: tick-based swings/cooldowns, hitscan, health, death, respawn and authoritative pick-up contention.",
       "files": ["src/weapons.rs", "src/sim/combat.rs", "src/sim/interact.rs"],
       "tests": ["lib:weapons", "lib:sim::combat", "lib:sim::interact", "interactions", "net_interactions"],
-      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md"],
+      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md"],
       "depends_on": ["prop_physics", "sim_core"]
     },
     "sim_core": {

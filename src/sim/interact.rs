@@ -20,9 +20,7 @@ use super::match_sim::MatchSim;
 use super::player::{PlayerInput, PlayerState};
 use crate::hit::raycast_shapes;
 use crate::player::Character;
-use crate::weapons::{
-    Ammo, Weapon, WeaponConfig, BAT_REACH, DRY_FIRE_COOLDOWN_TICKS, PLAYER_MAX_HP, RESPAWN_TICKS, REVOLVER_COOLDOWN_TICKS, REVOLVER_IMPULSE, REVOLVER_RANGE,
-};
+use crate::weapons::{Ammo, Weapon, WeaponConfig, BAT_REACH, DRY_FIRE_COOLDOWN_TICKS, PLAYER_MAX_HP, RESPAWN_TICKS};
 use glam::Vec3;
 
 /// What a ray met first.
@@ -225,7 +223,7 @@ impl MatchSim {
             self.switch_weapon(slot);
         }
         if edge[2] {
-            if let Some(p) = self.players[slot].as_mut().filter(|p| p.combat.weapon == Weapon::Revolver) {
+            if let Some(p) = self.players[slot].as_mut().filter(|p| p.combat.weapon.is_firearm()) {
                 p.combat.ammo.reload();
             }
         }
@@ -274,7 +272,8 @@ impl MatchSim {
             Weapon::Bat => {
                 p.combat.swing.start();
             }
-            Weapon::Revolver => {
+            firearm => {
+                let Some(spec) = firearm.firearm() else { return };
                 if !p.combat.cooldown.ready() {
                     return;
                 }
@@ -282,13 +281,13 @@ impl MatchSim {
                     p.combat.cooldown.start(DRY_FIRE_COOLDOWN_TICKS);
                     return;
                 }
-                p.combat.cooldown.start(REVOLVER_COOLDOWN_TICKS);
+                p.combat.cooldown.start(spec.cooldown_ticks);
                 let (eye, look) = eye_and_look(&p.state, p.crouching);
                 self.rules.inject(self.tick, "shot", Some(slot));
-                if let Some(hit) = self.probe(eye, look, REVOLVER_RANGE, slot) {
+                if let Some(hit) = self.probe(eye, look, spec.range, slot) {
                     match hit.target {
-                        RayTarget::Prop(prop) => self.apply_impulse(prop, look, eye + look * hit.distance, REVOLVER_IMPULSE),
-                        RayTarget::Player(target) => self.damage(target, self.weapons.revolver_damage, slot),
+                        RayTarget::Prop(prop) => self.apply_impulse(prop, look, eye + look * hit.distance, spec.impulse),
+                        RayTarget::Player(target) => self.damage(target, self.weapons.damage(firearm), slot),
                         RayTarget::Static => {}
                     }
                 }

@@ -14,11 +14,59 @@ pub enum Weapon {
     Bat,
     /// The silver revolver: hitscan, one shot per click.
     Revolver,
+    /// Compact service pistol.
+    Pistol,
+    /// Fast-handling machine pistol.
+    MachinePistol,
+    /// Compact submachine gun.
+    Smg,
+    /// Short assault carbine.
+    Carbine,
+    /// Full-length assault rifle.
+    Rifle,
+    /// Bullpup rifle.
+    Bullpup,
+    /// Semi-automatic marksman rifle.
+    Marksman,
+    /// Pump-action combat shotgun (single hitscan prototype projectile).
+    Shotgun,
+    /// Belt-fed light machine gun.
+    Lmg,
+    /// Lightweight scout rifle.
+    Scout,
 }
 
 impl Weapon {
     /// Every weapon, in scroll order.
-    pub const ALL: [Weapon; 2] = [Weapon::Bat, Weapon::Revolver];
+    pub const ALL: [Weapon; 12] = [
+        Weapon::Bat,
+        Weapon::Revolver,
+        Weapon::Pistol,
+        Weapon::MachinePistol,
+        Weapon::Smg,
+        Weapon::Carbine,
+        Weapon::Rifle,
+        Weapon::Bullpup,
+        Weapon::Marksman,
+        Weapon::Shotgun,
+        Weapon::Lmg,
+        Weapon::Scout,
+    ];
+
+    /// The ten firearms shipped with the reusable shooter prototype.
+    pub const FIREARMS: [Weapon; 11] = [
+        Weapon::Pistol,
+        Weapon::Revolver,
+        Weapon::MachinePistol,
+        Weapon::Smg,
+        Weapon::Carbine,
+        Weapon::Rifle,
+        Weapon::Bullpup,
+        Weapon::Marksman,
+        Weapon::Shotgun,
+        Weapon::Lmg,
+        Weapon::Scout,
+    ];
 
     /// The next weapon in scroll order (wraps around); `-1` goes the other way.
     pub fn cycle(self, direction: i32) -> Weapon {
@@ -41,7 +89,62 @@ impl Weapon {
         match self {
             Weapon::Bat => "baseball bat",
             Weapon::Revolver => "silver revolver",
+            Weapon::Pistol => "R9 service pistol",
+            Weapon::MachinePistol => "Viper machine pistol",
+            Weapon::Smg => "Ember SMG",
+            Weapon::Carbine => "Rook carbine",
+            Weapon::Rifle => "Redline rifle",
+            Weapon::Bullpup => "Kestrel bullpup",
+            Weapon::Marksman => "Longbow marksman rifle",
+            Weapon::Shotgun => "Breach shotgun",
+            Weapon::Lmg => "Atlas LMG",
+            Weapon::Scout => "Warden scout rifle",
         }
+    }
+
+    /// True for every ranged weapon.
+    pub fn is_firearm(self) -> bool {
+        self != Weapon::Bat
+    }
+
+    /// Shooter-facing tuning shared by offline play and the authoritative server.
+    pub fn firearm(self) -> Option<FirearmSpec> {
+        let spec = match self {
+            Weapon::Bat => return None,
+            Weapon::Pistol => FirearmSpec::new(26, 0.28, 70.0, 22.0, 0.55),
+            Weapon::Revolver => FirearmSpec::new(25, REVOLVER_COOLDOWN, REVOLVER_RANGE, REVOLVER_IMPULSE, 1.0),
+            Weapon::MachinePistol => FirearmSpec::new(18, 0.12, 55.0, 18.0, 0.42),
+            Weapon::Smg => FirearmSpec::new(20, 0.10, 62.0, 20.0, 0.38),
+            Weapon::Carbine => FirearmSpec::new(28, 0.15, 95.0, 28.0, 0.52),
+            Weapon::Rifle => FirearmSpec::new(32, 0.18, 110.0, 32.0, 0.64),
+            Weapon::Bullpup => FirearmSpec::new(30, 0.16, 100.0, 30.0, 0.56),
+            Weapon::Marksman => FirearmSpec::new(48, 0.36, 150.0, 40.0, 0.82),
+            Weapon::Shotgun => FirearmSpec::new(62, 0.72, 32.0, 58.0, 1.15),
+            Weapon::Lmg => FirearmSpec::new(27, 0.13, 105.0, 36.0, 0.72),
+            Weapon::Scout => FirearmSpec::new(70, 0.85, 180.0, 48.0, 0.95),
+        };
+        Some(spec)
+    }
+}
+
+/// Pure gameplay tuning for one hitscan firearm.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FirearmSpec {
+    /// Damage dealt to a player.
+    pub damage: u32,
+    /// Minimum time between shots.
+    pub cooldown_ticks: u32,
+    /// Hitscan range in metres.
+    pub range: f32,
+    /// Impulse applied to loose props.
+    pub impulse: f32,
+    /// Relative camera/viewmodel recoil strength.
+    pub recoil: f32,
+}
+
+impl FirearmSpec {
+    const fn new(damage: u32, cooldown: f32, range: f32, impulse: f32, recoil: f32) -> Self {
+        Self { damage, cooldown_ticks: secs_to_ticks(cooldown), range, impulse, recoil }
     }
 }
 
@@ -84,6 +187,17 @@ pub struct WeaponConfig {
 impl Default for WeaponConfig {
     fn default() -> Self {
         WeaponConfig { bat_damage: BAT_DAMAGE, revolver_damage: REVOLVER_DAMAGE, revolver_ammo: REVOLVER_AMMO }
+    }
+}
+
+impl WeaponConfig {
+    /// Damage for any weapon, preserving the scene's legacy bat/revolver overrides.
+    pub fn damage(&self, weapon: Weapon) -> u32 {
+        match weapon {
+            Weapon::Bat => self.bat_damage,
+            Weapon::Revolver => self.revolver_damage,
+            other => other.firearm().map_or(0, |s| s.damage),
+        }
     }
 }
 
@@ -233,9 +347,11 @@ mod tests {
     #[test]
     fn scrolling_cycles_through_the_weapons_both_ways() {
         assert_eq!(Weapon::Bat.cycle(1), Weapon::Revolver);
-        assert_eq!(Weapon::Revolver.cycle(1), Weapon::Bat);
-        assert_eq!(Weapon::Bat.cycle(-1), Weapon::Revolver);
+        assert_eq!(Weapon::Scout.cycle(1), Weapon::Bat);
+        assert_eq!(Weapon::Bat.cycle(-1), Weapon::Scout);
         assert_eq!(Weapon::Revolver.cycle(-3), Weapon::Bat, "only the direction matters");
+        assert_eq!(Weapon::FIREARMS.len(), 11);
+        assert!(Weapon::FIREARMS.iter().all(|w| w.is_firearm() && w.firearm().is_some()));
     }
 
     #[test]

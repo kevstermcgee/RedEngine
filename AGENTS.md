@@ -416,11 +416,11 @@ them offline — put a `humanoid`/`rat` in a scene to look at them). Swings use 
 shapes, not bounding boxes): no hit -> no thunk. `tests/melee_hits.rs` guards it. Debug: `RE2_VIEW=third`
 starts in third person. See ADR 0011.
 
-## Weapons (bat + silver revolver) — `weapons.rs`, `revolver.rs`
+## Weapons (bat + reusable firearm arsenal) — `weapons.rs`, `revolver.rs`, `firearms.rs`
 
-Mouse wheel switches (human only); left-click swings the bat or fires the revolver (hitscan, `probe(eye, reach)`
+Mouse wheel switches (human only); left-click swings the bat or fires the active firearm (hitscan, `probe(eye, reach)`
 in `bin/re2/weapons.rs` merges exact static shapes with `PropWorld::ray_props`). Ammo is the scene's `weapons.revolver.ammo`
-(`"infinite"` by default, or `{loaded, capacity, reserve}`; `R` reloads; an empty cylinder clicks). Online, the same weapons run on the server (`sim::interact`). Held models are `HeldPart`s tagged with
+(`"infinite"` by default, or `{loaded, capacity, reserve}`; `R` reloads; an empty weapon clicks). Eleven firearms ship with distinct authoritative damage/range/cadence/impulse tuning; right mouse smoothly aims down sights. Online, the same weapons run on the server (`sim::interact`). Held models are `HeldPart`s tagged with
 their `weapon` (and `muzzle_flash`/`emissive`); `FrameOptions.weapon/muzzle_flash` pick what draws. Debug env:
 `RE2_WEAPON=revolver`, `RE2_FREEZE_SHOT=<s since shot>` (0.02 = flash + kick) for screenshots. ADR 0013.
 

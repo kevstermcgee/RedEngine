@@ -249,8 +249,12 @@ impl App {
             }
         };
 
-        // Sprint FOV kick, blended the same way as the crouch height.
-        let target_fov = if sprinting { BASE_FOV_DEG + SPRINT_FOV_BOOST_DEG } else { BASE_FOV_DEG };
+        // Aim-down-sights and sprint FOV transitions use the same smooth presentation path.
+        let wants_ads = self.ads_held && self.shown_weapon().is_firearm() && !self.carrying() && self.view_mode == ViewMode::FirstPerson;
+        let ads_target = if wants_ads { 1.0 } else { 0.0 };
+        self.ads_blend += (ads_target - self.ads_blend) * (dt / ADS_TRANSITION_TIME).min(1.0);
+        let hip_fov = if sprinting { BASE_FOV_DEG + SPRINT_FOV_BOOST_DEG } else { BASE_FOV_DEG };
+        let target_fov = hip_fov + (ADS_FOV_DEG - hip_fov) * self.ads_blend;
         let fov_blend = (dt / FOV_TRANSITION_TIME).min(1.0);
         self.fov_deg += (target_fov - self.fov_deg) * fov_blend;
         self.camera.fov_deg = self.fov_deg;
@@ -271,7 +275,7 @@ impl App {
         // it is gold only where a swing would actually connect. Only the human has a bat. The ray
         // starts at the player's eye (`anchor`), not the camera: in third person the camera hangs
         // metres behind the player, and testing from there "hit" things behind them.
-        let reach = if self.shown_weapon() == Weapon::Revolver { REVOLVER_RANGE } else { MELEE_REACH };
+        let reach = self.shown_weapon().firearm().map_or(MELEE_REACH, |s| s.range);
         self.target_index = if self.body.has_bat && !self.carrying() { self.probe(anchor, reach).map(|(o, _, _)| o) } else { None };
 
         if let Some(t) = self.freeze_shot {
@@ -426,9 +430,15 @@ impl App {
         if self.debug_third_person {
             self.view_mode = ViewMode::ThirdPerson;
         }
-        // Debug: `RE2_WEAPON=revolver` starts with the revolver in hand (for screenshots).
-        if who == Character::Human && std::env::var("RE2_WEAPON").is_ok_and(|v| v.eq_ignore_ascii_case("revolver")) {
-            self.weapon = Weapon::Revolver;
+        // Debug: `RE2_WEAPON=<name>` starts with that weapon in hand (for screenshots and game launchers).
+        if who == Character::Human {
+            if let Ok(wanted) = std::env::var("RE2_WEAPON") {
+                if let Some(weapon) =
+                    Weapon::ALL.iter().copied().find(|w| w.name().eq_ignore_ascii_case(&wanted) || format!("{w:?}").eq_ignore_ascii_case(&wanted))
+                {
+                    self.weapon = weapon;
+                }
+            }
         }
         if let Some(gpu) = self.gpu.as_mut() {
             gpu.live = Some(LiveRenderer::new(&gpu.device, gpu.config.format, &self.scene, gpu.config.width, gpu.config.height));

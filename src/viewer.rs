@@ -149,6 +149,9 @@ pub fn flip_winding_for_viewmodel(parts: &mut [HeldPart]) {
 pub fn build_all_held_parts() -> Vec<HeldPart> {
     let mut parts = build_held_parts();
     parts.extend(crate::revolver::build_revolver_parts());
+    for weapon in Weapon::FIREARMS.into_iter().filter(|w| *w != Weapon::Revolver) {
+        parts.extend(crate::firearms::build_firearm_parts(weapon));
+    }
     parts
 }
 

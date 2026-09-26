@@ -49,5 +49,5 @@ ADRs, then `scripts/dev test`. Before pushing: `scripts/ci.sh`. Record progress 
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `red_bot`, `red_engine2`, `red_server`.
 - Cargo features: `default`, `gfx`.
-- 27 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 37 ADRs (latest: 0037 core assets are a growing api). Test *counts* are not stated here: run `scripts/dev test`.
+- 27 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 38 ADRs (latest: 0038 reusable firearm arsenal and ads). Test *counts* are not stated here: run `scripts/dev test`.
 <!-- facts:end -->

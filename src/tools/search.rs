@@ -63,6 +63,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0035-rule-state-in-the-standard-client.md", include_str!("../../docs/adr/0035-rule-state-in-the-standard-client.md")),
     ("0036-repeated-bounded-online-rule-state.md", include_str!("../../docs/adr/0036-repeated-bounded-online-rule-state.md")),
     ("0037-core-assets-are-a-growing-api.md", include_str!("../../docs/adr/0037-core-assets-are-a-growing-api.md")),
+    ("0038-reusable-firearm-arsenal-and-ads.md", include_str!("../../docs/adr/0038-reusable-firearm-arsenal-and-ads.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
