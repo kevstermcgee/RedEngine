@@ -103,7 +103,7 @@ shows what changed by object id. For the 4-map plan start from `recipe two_floor
 
 A game is its own directory that **uses** the engine; do not fork this repo. `red_engine2 new-game ../mygame --name mygame --engine-path ../red-engine-2`
 creates `game.json` (pins the engine), `blueprints/main.blueprint.json`, the built `maps/main.json`, `CLAUDE.md`, `STATUS.md`, `scripts/red` (finds/builds
-the pinned engine) and a CI workflow; it is green from the first commit (`scripts/red check`). The loop: edit the blueprint, `scripts/red build-all`,
+the pinned engine), an assets/gameplay.json linked local asset incubator and a CI workflow; it is green from the first commit (`scripts/red check`). The loop: edit the blueprint, `scripts/red build-all`,
 `scripts/red check`, `scripts/red plan maps/main.json` (look), `scripts/red serve`. A **blueprint** (`build --example`, SPEC "Blueprints") is rooms as
 rectangles, doors between them, spawn groups and prop fill; it compiles to walls, floors, lamps, zones, spawns, `portals` + `interest`, fill that never
 seals a door, and a `checks` block that already passes (lint, reach per room, auto-planned walks). Game logic goes in the blueprint's `scene` block as
@@ -245,6 +245,13 @@ then `red_engine2 catalog <name> --sheet out/x.png` and *look* at it. Categories
 listed in `src/prefabs.rs::BUILTIN_FILES` (a new file must be added there). For one-off items, define
 them in the scene's own `"prefabs"` instead. Props (Rust, `src/props.rs`) are for things needing
 custom collision.
+
+Use **Reuse -> Modify -> Generate -> Import**, in that order. Do not grow the core pre-emptively:
+start specialized assets in a game's prefab file, discover them with `catalog --library <file>`,
+and promote only assets that proved useful across contexts. `catalog --manifest` and
+`assets/README.md` define the pack policy and structured `meta` fields (aliases, roles, styles,
+lifecycle, license and provenance). Asset names are API identifiers; prefer a variant plus
+deprecation over silently changing a stable asset's meaning.
 
 ### Recipes
 

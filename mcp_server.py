@@ -30,7 +30,7 @@ Map-analysis tools (for walkable maps; see AGENTS.md):
 Self-description / search / verification (an AI should never need to read the Rust):
     describe(topic)                         -> the engine describing itself (overview, commands, objects, lint, physics, ...)
     search_engine(query)                    -> best fragments across docs, assets, lint codes, recipes, commands, Rust symbols
-    catalog(query)                          -> the asset catalogue (props + prefabs), or one asset's params + snippet
+    catalog(query, library, manifest)       -> versioned asset API, including game-local packs and pack policy
     catalog_sheet(query)                    -> labelled contact-sheet image of matching assets
     recipes(name)                           -> known-good example maps (list, or explain one)
     source_lookup(action, query)            -> src map|find|outline|show|refs|deps over the engine source
@@ -383,11 +383,14 @@ def search_engine(query: str, kind: str = "", limit: int = 8) -> str:
 
 
 @mcp.tool()
-def catalog(query: str = "", long: bool = False) -> str:
-    """List/search the asset catalogue (39 props + ~100 JSON prefabs: food, kitchen, furniture,
-    office, school, store, decor, outdoor). A single exact name (e.g. "apple_red") returns that
-    asset's size, params and a paste-ready JSON snippet."""
+def catalog(query: str = "", long: bool = False, library: str = "", manifest: bool = False) -> str:
+    """Query the versioned asset API. An exact name returns structured metadata and usage;
+    `library` adds a game-local prefab JSON file and `manifest` returns pack policy."""
     args = ["catalog"] + query.split() + (["--long"] if long else [])
+    if library:
+        args += ["--library", library]
+    if manifest:
+        args += ["--manifest"]
     return _text(_run(*args))
 
 

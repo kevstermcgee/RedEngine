@@ -31,6 +31,9 @@ scripts/red plan maps/main.json  # LOOK at it (labelled top-down PNG); `tour` re
 - **Game rules are data**: put `vars` / `rules` / `weapons` under the blueprint's `"scene"` block (`scripts/red describe rules`), and prove
   them with `checks.sim` scenarios (`scripts/red sim maps/main.json`). No Rust needed for most games.
 - Maps under `maps/` are generated. Do not hand-edit them: `check` fails on drift. (If you must hand-edit, delete the blueprint.)
+- **Assets grow locally first**: search core with `scripts/red catalog <need>`, then put specialized
+  prefabs in `assets/gameplay.json` (already linked by `prefab_files`). Inspect both together with
+  `scripts/red catalog --library assets/gameplay.json <need>`. Follow Reuse -> Modify -> Generate -> Import.
 
 ## Multiplayer
 ```bash
@@ -168,6 +171,22 @@ jobs:
       - run: RED_HEADLESS=1 bash scripts/red check
 "#;
 
+const LOCAL_ASSETS_README: &str = r#"# Game-local assets
+
+`gameplay.json` is this game's incubator for specialized prefabs. Search the core first, prefer an
+`extends` variant second, and create a new definition only when neither fits. The main blueprint
+already includes this file through `prefab_files`, so built maps remain self-contained.
+
+Discover local and core assets together:
+
+```bash
+scripts/red catalog --library assets/gameplay.json "what I need"
+```
+
+Use the structured `meta` fields shown by `scripts/red catalog --manifest`. If an asset proves useful
+across games, propose it for the narrowest engine pack; do not copy the whole local library into core.
+"#;
+
 fn write(dir: &Path, rel: &str, text: &str, out: &mut Vec<PathBuf>) -> Result<(), String> {
     let p = dir.join(rel);
     if let Some(parent) = p.parent() {
@@ -203,7 +222,13 @@ pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBu
         ),
         &mut out,
     )?;
-    write(dir, "blueprints/main.blueprint.json", &super::blueprint::example().replace("three_rooms", name), &mut out)?;
+    let mut blueprint: serde_json::Value =
+        serde_json::from_str(&super::blueprint::example().replace("three_rooms", name)).map_err(|e| format!("internal starter blueprint is invalid: {e}"))?;
+    blueprint["prefab_files"] = serde_json::json!(["../assets/gameplay.json"]);
+    let blueprint = serde_json::to_string_pretty(&blueprint).map_err(|e| e.to_string())? + "\n";
+    write(dir, "assets/gameplay.json", "[]\n", &mut out)?;
+    write(dir, "assets/README.md", LOCAL_ASSETS_README, &mut out)?;
+    write(dir, "blueprints/main.blueprint.json", &blueprint, &mut out)?;
     write(dir, "CLAUDE.md", &CLAUDE_MD.replace("{{NAME}}", name), &mut out)?;
     write(dir, "scripts/red", RED_SH, &mut out)?;
     write(dir, "scripts/red.ps1", RED_PS1, &mut out)?;
@@ -230,9 +255,20 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("re2_newgame_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let files = scaffold(&dir, "cheese", &EngineRef { path: Some("..\\engine".into()), ..Default::default() }).unwrap();
-        for f in ["game.json", "CLAUDE.md", "STATUS.md", "scripts/red", "scripts/red.ps1", "maps/main.json", "blueprints/main.blueprint.json"] {
+        for f in [
+            "game.json",
+            "CLAUDE.md",
+            "STATUS.md",
+            "scripts/red",
+            "scripts/red.ps1",
+            "maps/main.json",
+            "blueprints/main.blueprint.json",
+            "assets/gameplay.json",
+            "assets/README.md",
+        ] {
             assert!(dir.join(f).exists(), "missing {f}: {files:?}");
         }
+        assert!(std::fs::read_to_string(dir.join("blueprints/main.blueprint.json")).unwrap().contains("../assets/gameplay.json"));
         let game = std::fs::read_to_string(dir.join("game.json")).unwrap();
         assert!(game.contains("\"path\": \"../engine\""), "backslashes in a path are normalised: {game}");
         assert!(std::fs::read_to_string(dir.join("CLAUDE.md")).unwrap().starts_with("# cheese"));

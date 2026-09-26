@@ -17,7 +17,8 @@ stairs, props, keyframes, the humanoid rig). Both are written to be read once an
 you shouldn't need to read the engine's source to build or change a map.
 
 **Building a game on Red?** Do not fork this repository. Run `red_engine2 new-game ../mygame --name mygame --engine-path ../red-engine-2`
-(a project that pins the engine, with a blueprint, a map, `scripts/red`, `STATUS.md` and CI; ADR 0024), read [`CLAUDE.md`](CLAUDE.md) (4 KB) and
+(a project that pins the engine, with a blueprint, map, linked `assets/gameplay.json` incubator,
+`scripts/red`, `STATUS.md` and CI; ADR 0024/0037), read [`CLAUDE.md`](CLAUDE.md) (4 KB) and
 `red_engine2 describe --brief` (1 KB) first, and host it with [`docs/HOSTING.md`](docs/HOSTING.md). Why the tooling looks the way it does:
 [`docs/analysis/2026-09-24-cheddar-feedback.md`](docs/analysis/2026-09-24-cheddar-feedback.md).
 
@@ -356,8 +357,9 @@ See [`docs/HOSTING.md`](docs/HOSTING.md); `red_engine2 describe multiplayer` is 
 
 `red_engine2` describes itself and ships the tooling to build maps accurately without reading Rust:
 `describe` (self-description), `search` (docs + assets + lint codes + recipes + Rust symbols),
-`catalog` (the current props and JSON prefabs with tags, sizes and params; `--sheet` renders a labelled contact
-sheet), `recipe` (known-good scene and game recipes),
+`catalog` (a versioned, machine-readable asset API with discovery, placement, geometry, physics,
+lineage, lifecycle, parameters and instantiation; `--manifest` lists packs/policy, `--library` includes a
+game-local pack, and `--sheet` renders a labelled contact sheet), `recipe` (known-good scene and game recipes),
 `verify` (a scene's own `checks`: lint budget, reachability, real-physics walks, object assertions,
 golden-image views with diff images), `diff` (semantic scene diff), and `src map|find|show|refs|deps`
 (navigate the Rust without reading files). New furniture/food/decor is added as JSON prefabs in

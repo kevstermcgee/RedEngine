@@ -62,6 +62,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0034-net-test-and-bad-network-resilience.md", include_str!("../../docs/adr/0034-net-test-and-bad-network-resilience.md")),
     ("0035-rule-state-in-the-standard-client.md", include_str!("../../docs/adr/0035-rule-state-in-the-standard-client.md")),
     ("0036-repeated-bounded-online-rule-state.md", include_str!("../../docs/adr/0036-repeated-bounded-online-rule-state.md")),
+    ("0037-core-assets-are-a-growing-api.md", include_str!("../../docs/adr/0037-core-assets-are-a-growing-api.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
@@ -217,9 +218,20 @@ pub fn corpus(commands: &Value) -> Vec<Doc> {
         docs.push(Doc {
             kind: "asset",
             title: format!("{} ({}, {})", e.name, e.kind, e.category),
-            body: format!("{} — {:.2}x{:.2}x{:.2} m; tags: {}", e.desc, e.size().x, e.size().y, e.size().z, e.tags.join(" ")),
+            body: format!(
+                "{} — {:.2}x{:.2}x{:.2} m; tags: {}; aliases: {}; roles: {}; styles: {}; status: {}",
+                e.desc,
+                e.size().x,
+                e.size().y,
+                e.size().z,
+                e.tags.join(" "),
+                e.aliases.join(" "),
+                e.roles.join(" "),
+                e.styles.join(" "),
+                e.status
+            ),
             loc: format!("red_engine2 catalog {}", e.name),
-            extra: format!("{} {}", e.name.replace('_', " "), e.tags.join(" ")),
+            extra: format!("{} {} {} {}", e.name.replace('_', " "), e.tags.join(" "), e.aliases.join(" "), e.roles.join(" ")),
         });
     }
     for (c, sev, d) in describe::LINT_CODES {

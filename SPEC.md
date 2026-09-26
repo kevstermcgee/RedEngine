@@ -377,8 +377,15 @@ params and a paste-ready snippet.
   `"="` is an arithmetic expression (`+ - * /`, parentheses, `min() max() abs()`, params as `$name`).
   `"extends": "other"` makes a variant that inherits objects/params/tags and overrides defaults
   (`apple_green` is `apple_red` with a different color). Prefabs may nest other prefabs.
-- Built-in catalogue files live in `assets/*.json` (embedded in the binary); every entry is
-  test-enforced to expand, have tags + a description, and rest on its mount surface.
+- Built-in catalogue files live in focused packs under `assets/*.json` (embedded in the binary);
+  `assets/packs.json` is their machine-readable registry. Every entry is test-enforced to expand,
+  have tags + a description, and rest on its mount surface. `catalog --manifest` describes the
+  versioned asset API and pack policy; `catalog --library game-assets.json <need>` searches a
+  game-local pack together with the core before it is promoted.
+- Optional definition `meta` is normalized into the catalog API: `aliases`, `roles`, `styles`,
+  lifecycle `status` (`stable|experimental|deprecated`) and `revision`, `license`, creation
+  `origin` (`authored|generated|modified|imported`), and free-text `provenance`. Old definitions
+  default to stable revision 1, MIT, authored.
 
 ## Zones
 

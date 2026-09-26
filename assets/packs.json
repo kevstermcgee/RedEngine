@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "description": "Registry for RedEngine's curated, procedural core asset packs. Pack files contain prefab definitions; this file contains library-level discovery metadata.",
+  "policy": {
+    "foundation": "Keep the core small and broadly reusable. Specialized assets begin in a game's local prefab library.",
+    "promotion": "Promote a local asset only after reuse in more than one context, with a clear name, structured metadata, parameters, and a rendered review sheet.",
+    "compatibility": "Names are stable API identifiers. Prefer a new variant and deprecate the old identifier instead of silently changing its meaning."
+  },
+  "packs": [
+    {"id": "prop", "file": "src/props.rs", "description": "Engine-native objects that need custom collision or gameplay behavior", "tags": ["physics", "gameplay"]},
+    {"id": "food", "file": "assets/food.json", "description": "Reusable food, drink, and table-setting pieces", "tags": ["small", "surface"]},
+    {"id": "kitchen", "file": "assets/kitchen.json", "description": "Kitchen fixtures, appliances, cookware, and service items", "tags": ["interior", "utility"]},
+    {"id": "furniture", "file": "assets/furniture.json", "description": "General-purpose seating, tables, storage, and residential furniture", "tags": ["interior", "layout"]},
+    {"id": "office", "file": "assets/office.json", "description": "Workplace furniture, equipment, and electronics", "tags": ["interior", "workplace"]},
+    {"id": "school", "file": "assets/school.json", "description": "Classroom, library, cafeteria, and gym vocabulary", "tags": ["interior", "education"]},
+    {"id": "store", "file": "assets/store.json", "description": "Retail fixtures, stockroom equipment, and checkout vocabulary", "tags": ["interior", "retail"]},
+    {"id": "decor", "file": "assets/decor.json", "description": "General decoration, plants, signs, and small set-dressing", "tags": ["decor", "set-dressing"]},
+    {"id": "art", "file": "assets/art.json", "description": "Wall art and sculptures", "tags": ["decor", "visual"]},
+    {"id": "lamps", "file": "assets/lamps.json", "description": "Visible lamp fixtures; scene lights remain separate", "tags": ["lighting", "interior"]},
+    {"id": "outdoor", "file": "assets/outdoor.json", "description": "Street, yard, park, and exterior set pieces", "tags": ["exterior", "environment"]}
+  ]
+}

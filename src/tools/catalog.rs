@@ -12,7 +12,15 @@ use glam::Vec3;
 #[cfg(feature = "gfx")]
 use image::{Rgb, RgbImage};
 use serde_json::{json, Value};
-use std::path::Path;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+
+/// Version of the machine-readable asset record returned by `catalog --json`.
+pub const API_VERSION: u32 = 1;
+
+/// Embedded pack registry. It is intentionally data, so another tool can enumerate the library
+/// without discovering Rust constants or walking the repository.
+pub const PACKS: &str = include_str!("../../assets/packs.json");
 
 /// One catalogue entry: a prop or a prefab, with tags, description, params and size.
 #[derive(Debug, Clone)]
@@ -22,6 +30,9 @@ pub struct Entry {
     pub kind: &'static str,
     pub category: String,
     pub tags: Vec<String>,
+    pub aliases: Vec<String>,
+    pub roles: Vec<String>,
+    pub styles: Vec<String>,
     pub desc: String,
     /// `floor` / `wall` — where the origin sits (see `prefabs` docs).
     pub mount: String,
@@ -31,6 +42,14 @@ pub struct Entry {
     pub solid_parts: usize,
     pub params: Vec<(String, Value, String)>,
     pub variant_of: Option<String>,
+    /// Stable lifecycle and provenance fields used by asset pipelines and caches.
+    pub status: String,
+    pub revision: u64,
+    pub license: String,
+    pub origin: String,
+    pub provenance: Option<String>,
+    /// Canonical source location (`engine:props` or a JSON library path and pack).
+    pub source: String,
     /// Set if the entry failed to expand/parse (a catalogue bug).
     pub error: Option<String>,
 }
@@ -98,6 +117,9 @@ fn prop_entry(k: PropKind) -> Entry {
         kind: "prop",
         category: "prop".to_string(),
         tags: info.map(|i| i.1.split_whitespace().map(str::to_string).collect()).unwrap_or_default(),
+        aliases: Vec::new(),
+        roles: info.map(|i| i.1.split_whitespace().map(str::to_string).collect()).unwrap_or_default(),
+        styles: vec!["procedural".to_string()],
         desc: info.map(|i| i.2.to_string()).unwrap_or_default(),
         mount: "floor".to_string(),
         min: mn,
@@ -105,16 +127,25 @@ fn prop_entry(k: PropKind) -> Entry {
         solid_parts: solid,
         params: vec![("material.color".to_string(), json!("#rrggbb"), "tints the body (foliage/blooms for plants)".to_string())],
         variant_of: None,
+        status: "stable".to_string(),
+        revision: 1,
+        license: "MIT".to_string(),
+        origin: "authored".to_string(),
+        provenance: Some("RedEngine procedural prop geometry".to_string()),
+        source: "engine:src/props.rs".to_string(),
         error: None,
     }
 }
 
-fn measure(def: &prefabs::PrefabDef) -> Entry {
+fn measure(def: &prefabs::PrefabDef, lib: &prefabs::Library, source: &str) -> Entry {
     let mut e = Entry {
         name: def.name.clone(),
         kind: "prefab",
         category: def.category.clone(),
         tags: def.tags.clone(),
+        aliases: def.aliases.clone(),
+        roles: def.roles.clone(),
+        styles: def.styles.clone(),
         desc: def.desc.clone(),
         mount: def.mount.clone(),
         min: Vec3::ZERO,
@@ -122,9 +153,15 @@ fn measure(def: &prefabs::PrefabDef) -> Entry {
         solid_parts: 0,
         params: def.params.iter().map(|p| (p.name.clone(), p.default.clone(), p.desc.clone())).collect(),
         variant_of: def.extends.clone(),
+        status: def.status.clone(),
+        revision: def.revision,
+        license: def.license.clone(),
+        origin: def.origin.clone(),
+        provenance: def.provenance.clone(),
+        source: source.to_string(),
         error: None,
     };
-    let scene = prefabs::preview_scene(&def.name, None);
+    let scene = prefabs::preview_scene_in(lib, &def.name, None);
     match MapWorld::from_text(&scene.to_string(), Path::new("<catalog>")) {
         Ok(w) => {
             let mut mn = Vec3::splat(f32::INFINITY);
@@ -150,17 +187,61 @@ fn measure(def: &prefabs::PrefabDef) -> Entry {
 pub fn entries() -> Vec<Entry> {
     let mut out: Vec<Entry> = PropKind::ALL.iter().map(|k| prop_entry(*k)).collect();
     let (lib, _) = prefabs::builtin();
-    out.extend(lib.defs.iter().map(measure));
+    out.extend(lib.defs.iter().map(|d| measure(d, lib, &format!("engine:assets/{}.json", d.category))));
     out
+}
+
+/// Loads additional project/game prefab libraries and returns one combined catalogue. Built-ins
+/// remain first; a local definition with the same name shadows it, just like scene-local prefabs.
+pub fn entries_with_libraries(paths: &[PathBuf]) -> Result<Vec<Entry>, String> {
+    if paths.is_empty() {
+        return Ok(entries());
+    }
+    let (builtins, builtin_errors) = prefabs::builtin();
+    if !builtin_errors.is_empty() {
+        return Err(builtin_errors.join("\n"));
+    }
+    let mut lib = builtins.clone();
+    let builtin_len = lib.defs.len();
+    let mut sources: Vec<String> = Vec::new();
+    for path in paths {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let value: Value = serde_json::from_str(&text).map_err(|e| format!("{}: invalid JSON: {e}", path.display()))?;
+        let category = path.file_stem().and_then(|s| s.to_str()).unwrap_or("project");
+        let before = lib.defs.len();
+        let errors = lib.add_json(&value, category);
+        if !errors.is_empty() {
+            return Err(format!("{}:\n  {}", path.display(), errors.join("\n  ")));
+        }
+        let source = path.to_string_lossy().replace('\\', "/");
+        sources.extend((before..lib.defs.len()).map(|_| source.clone()));
+    }
+    let mut out: Vec<Entry> = PropKind::ALL.iter().map(|k| prop_entry(*k)).collect();
+    let local_names: HashSet<&str> = lib.defs[builtin_len..].iter().map(|d| d.name.as_str()).collect();
+    out.extend(
+        lib.defs[..builtin_len]
+            .iter()
+            .filter(|d| !local_names.contains(d.name.as_str()))
+            .map(|d| measure(d, &lib, &format!("engine:assets/{}.json", d.category))),
+    );
+    out.extend(
+        lib.defs[builtin_len..]
+            .iter()
+            .zip(sources)
+            .enumerate()
+            .filter(|(i, (d, _))| !lib.defs[builtin_len + i + 1..].iter().any(|later| later.name == d.name))
+            .map(|(_, (d, source))| measure(d, &lib, &source)),
+    );
+    Ok(out)
 }
 
 /// Looks an entry up by exact name.
 pub fn find<'a>(all: &'a [Entry], name: &str) -> Option<&'a Entry> {
-    all.iter().find(|e| e.name == name)
+    all.iter().rev().find(|e| e.name == name)
 }
 
-/// Filters by free-text query (every word must match the name, a tag, the category, or the
-/// description), plus optional exact tag / category / kind filters.
+/// Filters by free-text query (every word must match structured discovery metadata), plus optional
+/// exact tag / category / kind filters.
 pub fn filter<'a>(all: &'a [Entry], query: Option<&str>, tag: Option<&str>, category: Option<&str>, kind: Option<&str>) -> Vec<&'a Entry> {
     let words: Vec<String> = query.map(|q| q.to_lowercase().split_whitespace().map(str::to_string).collect()).unwrap_or_default();
     all.iter()
@@ -172,6 +253,9 @@ pub fn filter<'a>(all: &'a [Entry], query: Option<&str>, tag: Option<&str>, cate
                 e.name.contains(w.as_str())
                     || e.category.contains(w.as_str())
                     || e.tags.iter().any(|t| t.contains(w.as_str()))
+                    || e.aliases.iter().any(|t| t.to_lowercase().contains(w.as_str()))
+                    || e.roles.iter().any(|t| t.to_lowercase().contains(w.as_str()))
+                    || e.styles.iter().any(|t| t.to_lowercase().contains(w.as_str()))
                     || e.desc.to_lowercase().contains(w.as_str())
             })
         })
@@ -235,12 +319,52 @@ pub fn render_list(rows: &[&Entry], json_out: bool, long: bool) -> String {
 pub fn entry_json(e: &Entry) -> Value {
     let s = e.size();
     json!({
-        "name": e.name, "kind": e.kind, "category": e.category, "tags": e.tags, "desc": e.desc, "mount": e.mount,
-        "size": [s.x, s.y, s.z], "min": [e.min.x, e.min.y, e.min.z], "max": [e.max.x, e.max.y, e.max.z],
+        "asset_api": API_VERSION,
+        "id": e.name, "name": e.name, "kind": e.kind, "pack": e.category, "category": e.category,
+        "description": e.desc, "desc": e.desc,
+        "discovery": {"tags": e.tags, "aliases": e.aliases, "roles": e.roles, "styles": e.styles},
+        "placement": {"mount": e.mount, "origin": "base-center", "forward": "+Z"},
+        "geometry": {"size_m": [s.x, s.y, s.z], "bounds_m": {"min": [e.min.x, e.min.y, e.min.z], "max": [e.max.x, e.max.y, e.max.z]}},
+        "physics": {"solid_parts": e.solid_parts, "walk_through": e.solid_parts == 0},
+        "lineage": {"variant_of": e.variant_of, "origin": e.origin, "provenance": e.provenance, "source": e.source},
+        "lifecycle": {"status": e.status, "revision": e.revision, "license": e.license},
+        "parameters": e.params.iter().map(|(k, v, d)| json!({"name": k, "default": v, "description": d})).collect::<Vec<_>>(),
+        "instantiation": {"object": serde_json::from_str::<Value>(&usage_snippet(e)).unwrap(), "add_json": usage_snippet(e)},
+        // Compatibility keys for existing API consumers. New integrations should use the groups above.
+        "tags": e.tags, "mount": e.mount, "size": [s.x, s.y, s.z], "min": [e.min.x, e.min.y, e.min.z], "max": [e.max.x, e.max.y, e.max.z],
         "solid_parts": e.solid_parts, "variant_of": e.variant_of,
         "params": e.params.iter().map(|(k, v, d)| json!({"name": k, "default": v, "desc": d})).collect::<Vec<_>>(),
         "usage": usage_snippet(e), "error": e.error,
     })
+}
+
+/// The versioned top-level contract and pack registry (`catalog --manifest --json`).
+pub fn manifest_json(asset_count: usize) -> Result<Value, String> {
+    let mut value: Value = serde_json::from_str(PACKS).map_err(|e| format!("assets/packs.json: {e}"))?;
+    value["asset_api"] = json!(API_VERSION);
+    value["asset_count"] = json!(asset_count);
+    value["workflow"] = json!(["reuse", "modify", "generate", "import"]);
+    value["record_groups"] = json!(["discovery", "placement", "geometry", "physics", "lineage", "lifecycle", "parameters", "instantiation"]);
+    Ok(value)
+}
+
+/// Human-readable summary of the API and the asset growth workflow.
+pub fn render_manifest(asset_count: usize, json_out: bool) -> Result<String, String> {
+    let value = manifest_json(asset_count)?;
+    if json_out {
+        return Ok(serde_json::to_string_pretty(&value).unwrap());
+    }
+    let mut out = format!("Core Asset Library API v{API_VERSION} — {asset_count} assets\nworkflow: Reuse -> Modify -> Generate -> Import\n\n");
+    for pack in value["packs"].as_array().into_iter().flatten() {
+        out.push_str(&format!(
+            "{:<11} {:<22} {}\n",
+            pack["id"].as_str().unwrap_or("?"),
+            pack["file"].as_str().unwrap_or("?"),
+            pack["description"].as_str().unwrap_or("")
+        ));
+    }
+    out.push_str("\nDiscover: catalog <need> | inspect a game pack: catalog --library assets/custom.json <need>\nPromote: validate a game-local prefab, add it to the narrowest shared pack, then run catalog <name> --sheet out.png and tests.\n");
+    Ok(out)
 }
 
 /// Full detail view of one entry (params, size, snippet), as text or JSON.
@@ -258,6 +382,13 @@ pub fn render_detail(e: &Entry, json_out: bool) -> String {
     );
     out.push_str(&format!("size {:.2} x {:.2} x {:.2} m (w x h x d)   bounds y {:.2}..{:.2}   mount: {}\n", s.x, s.y, s.z, e.min.y, e.max.y, e.mount));
     out.push_str(&format!("tags: {}\n", e.tags.join(" ")));
+    if !e.aliases.is_empty() || !e.roles.is_empty() || !e.styles.is_empty() {
+        out.push_str(&format!("discover: aliases [{}]  roles [{}]  styles [{}]\n", e.aliases.join(", "), e.roles.join(", "), e.styles.join(", ")));
+    }
+    out.push_str(&format!("lifecycle: {} r{}  license {}  origin {}  source {}\n", e.status, e.revision, e.license, e.origin, e.source));
+    if let Some(p) = &e.provenance {
+        out.push_str(&format!("provenance: {p}\n"));
+    }
     out.push_str(&format!(
         "collision: {}\n",
         match (e.kind, e.solid_parts) {
@@ -437,6 +568,48 @@ mod tests {
         let n = names.len();
         names.dedup();
         assert_eq!(n, names.len(), "a prefab shares a name with a prop or another prefab");
+    }
+
+    #[test]
+    fn pack_manifest_matches_embedded_library_files() {
+        let manifest: Value = serde_json::from_str(PACKS).expect("assets/packs.json is valid JSON");
+        assert_eq!(manifest["format"], 1);
+        let files: Vec<&str> = manifest["packs"].as_array().unwrap().iter().filter_map(|p| p["file"].as_str()).collect();
+        for (category, _) in prefabs::BUILTIN_FILES {
+            let file = format!("assets/{category}.json");
+            assert!(files.contains(&file.as_str()), "{file} is missing from assets/packs.json");
+        }
+    }
+
+    #[test]
+    fn json_record_is_a_versioned_structured_api() {
+        let all = entries();
+        let v = entry_json(find(&all, "crate").unwrap());
+        assert_eq!(v["asset_api"], API_VERSION);
+        for group in ["discovery", "placement", "geometry", "physics", "lineage", "lifecycle", "parameters", "instantiation"] {
+            assert!(!v[group].is_null(), "missing asset API group {group}");
+        }
+        assert_eq!(v["placement"]["forward"], "+Z");
+        assert_eq!(v["lifecycle"]["status"], "stable");
+        assert!(v["usage"].is_string(), "the pre-API usage key remains backward compatible");
+    }
+
+    #[test]
+    fn local_library_metadata_drives_discovery() {
+        let mut lib = prefabs::builtin().0.clone();
+        let errors = lib.add_json(
+            &json!([{"name":"cover_box","tags":["box"],"desc":"local asset","meta":{
+                "aliases":["waist high crate"],"roles":["cover"],"styles":["sci-fi"],"status":"experimental",
+                "revision":2,"license":"MIT","origin":"modified","provenance":"game prototype"
+            },"objects":[{"id":"body","type":"box","size":[1,1,1],"position":[0,0.5,0]}]}]),
+            "project",
+        );
+        assert!(errors.is_empty(), "{errors:?}");
+        let entry = measure(lib.find("cover_box").unwrap(), &lib, "game/assets/core.json");
+        assert_eq!(entry.revision, 2);
+        assert_eq!(entry.origin, "modified");
+        assert_eq!(entry.provenance.as_deref(), Some("game prototype"));
+        assert_eq!(filter(&[entry], Some("waist cover sci-fi"), None, None, None).len(), 1);
     }
 
     #[test]

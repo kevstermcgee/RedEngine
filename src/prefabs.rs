@@ -69,6 +69,22 @@ pub struct PrefabDef {
     pub collide: bool,
     /// The prefab this one extends, if any (a variant).
     pub extends: Option<String>,
+    /// Alternative names and vocabulary used only for discovery.
+    pub aliases: Vec<String>,
+    /// Gameplay/level-design jobs this asset commonly fills (for example `seating` or `cover`).
+    pub roles: Vec<String>,
+    /// Visual families this asset fits. Kept separate from free-form tags so tools can filter it.
+    pub styles: Vec<String>,
+    /// `stable`, `experimental`, or `deprecated`.
+    pub status: String,
+    /// Monotonic metadata/shape revision for caches and downstream tooling.
+    pub revision: u64,
+    /// SPDX license identifier for the definition and any imported source material.
+    pub license: String,
+    /// How the asset entered the library: `authored`, `generated`, `modified`, or `imported`.
+    pub origin: String,
+    /// Optional human-readable provenance (generator prompt/tool, upstream URL, or parent asset).
+    pub provenance: Option<String>,
 }
 
 /// A set of prefab definitions (the built-ins from `assets/*.json` plus any scene-local ones).
@@ -150,6 +166,35 @@ fn param_spec(name: &str, v: &Value) -> ParamDef {
 
 fn build_def(name: &str, o: &Map<String, Value>, category: &str, lib: &Library) -> Result<PrefabDef, String> {
     let base = o.get("extends").and_then(Value::as_str).and_then(|b| lib.find(b)).cloned();
+    let meta = match o.get("meta") {
+        Some(Value::Object(m)) => Some(m),
+        Some(_) => return Err(format!("prefab '{name}'.meta: must be an object")),
+        None => None,
+    };
+    if let Some(meta) = meta {
+        const KEYS: &[&str] = &["aliases", "roles", "styles", "status", "revision", "license", "origin", "provenance"];
+        if let Some(key) = meta
+            .keys()
+            .find(|key| !KEYS.contains(&key.as_str()) && !key.starts_with("x-") && !key.starts_with("x_") && !key.starts_with('_') && key.as_str() != "notes")
+        {
+            return Err(format!("prefab '{name}'.meta.{key}: unknown metadata field"));
+        }
+    }
+    let strings = |key: &str, inherited: Vec<String>| -> Result<Vec<String>, String> {
+        let Some(v) = meta.and_then(|m| m.get(key)) else { return Ok(inherited) };
+        let Some(a) = v.as_array() else { return Err(format!("prefab '{name}'.meta.{key}: must be an array of strings")) };
+        let mut out = Vec::new();
+        for (i, value) in a.iter().enumerate() {
+            let Some(s) = value.as_str() else { return Err(format!("prefab '{name}'.meta.{key}[{i}]: must be a string")) };
+            if s.trim().is_empty() {
+                return Err(format!("prefab '{name}'.meta.{key}[{i}]: must not be empty"));
+            }
+            if !out.iter().any(|x| x == s) {
+                out.push(s.to_string());
+            }
+        }
+        Ok(out)
+    };
     let tags: Vec<String> = {
         let mut t: Vec<String> = base.as_ref().map(|b| b.tags.clone()).unwrap_or_default();
         if let Some(a) = o.get("tags").and_then(Value::as_array) {
@@ -184,6 +229,37 @@ fn build_def(name: &str, o: &Map<String, Value>, category: &str, lib: &Library) 
             None => return Err(format!("prefab '{name}': needs an \"objects\" array (or \"extends\")")),
         },
     };
+    let status = meta
+        .and_then(|m| m.get("status"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| base.as_ref().map(|b| b.status.clone()))
+        .unwrap_or_else(|| "stable".to_string());
+    if !["stable", "experimental", "deprecated"].contains(&status.as_str()) {
+        return Err(format!("prefab '{name}'.meta.status: expected stable, experimental, or deprecated, got '{status}'"));
+    }
+    let revision = meta.and_then(|m| m.get("revision")).and_then(Value::as_u64).or_else(|| base.as_ref().map(|b| b.revision)).unwrap_or(1);
+    if revision == 0 {
+        return Err(format!("prefab '{name}'.meta.revision: must be at least 1"));
+    }
+    let origin = meta
+        .and_then(|m| m.get("origin"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| base.as_ref().map(|b| b.origin.clone()))
+        .unwrap_or_else(|| "authored".to_string());
+    if !["authored", "generated", "modified", "imported"].contains(&origin.as_str()) {
+        return Err(format!("prefab '{name}'.meta.origin: expected authored, generated, modified, or imported, got '{origin}'"));
+    }
+    let license = meta
+        .and_then(|m| m.get("license"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| base.as_ref().map(|b| b.license.clone()))
+        .unwrap_or_else(|| "MIT".to_string());
+    if license.trim().is_empty() {
+        return Err(format!("prefab '{name}'.meta.license: must not be empty"));
+    }
     Ok(PrefabDef {
         name: name.to_string(),
         category: category.to_string(),
@@ -199,6 +275,18 @@ fn build_def(name: &str, o: &Map<String, Value>, category: &str, lib: &Library) 
         objects,
         collide: o.get("collide").and_then(Value::as_bool).or_else(|| base.as_ref().map(|b| b.collide)).unwrap_or(true),
         extends: o.get("extends").and_then(Value::as_str).map(str::to_string),
+        aliases: strings("aliases", Vec::new())?,
+        roles: strings("roles", base.as_ref().map(|b| b.roles.clone()).unwrap_or_default())?,
+        styles: strings("styles", base.as_ref().map(|b| b.styles.clone()).unwrap_or_default())?,
+        status,
+        revision,
+        license,
+        origin,
+        provenance: meta
+            .and_then(|m| m.get("provenance"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| base.as_ref().and_then(|b| b.provenance.clone())),
     })
 }
 
@@ -559,15 +647,23 @@ pub fn expand_scene(root: &mut Value) -> Result<(), Vec<String>> {
 /// A complete one-object scene containing `prefab` at the origin — used to measure, render and
 /// lint catalogue entries.
 pub fn preview_scene(name: &str, params: Option<&Value>) -> Value {
+    preview_scene_in(&builtin().0, name, params)
+}
+
+/// A complete one-object scene expanded with an explicit library. This is the catalogue API's
+/// bridge for inspecting project-local packs without first promoting them into the engine.
+pub fn preview_scene_in(lib: &Library, name: &str, params: Option<&Value>) -> Value {
     let mut inst = json!({ "id": "item", "type": "prefab", "prefab": name });
     if let Some(p) = params {
         inst["params"] = p.clone();
     }
+    let object = expand_instance(lib, inst.as_object().unwrap(), "item", 0)
+        .unwrap_or_else(|errors| json!({"id": "catalog_error", "type": "group", "children": [], "x-errors": errors}));
     json!({
         "meta": { "fps": 30, "duration": 1, "resolution": [640, 480] },
         "camera": { "fov": 40, "position": [2, 1.5, 3], "target": [0, 0.4, 0] },
         "lights": [{ "type": "directional", "direction": [-0.4, -1, -0.5], "intensity": 1.0 }],
-        "objects": [inst],
+        "objects": [object],
     })
 }
 
@@ -627,6 +723,28 @@ mod tests {
         assert_eq!(v.params[0].default, json!("#ff0000"));
         assert_eq!(v.params[0].desc, "skin");
         assert_eq!(v.tags, vec!["toy", "red"]);
+    }
+
+    #[test]
+    fn structured_metadata_is_normalized_and_validated() {
+        let mut lib = Library::default();
+        let errs = lib.add_json(
+            &json!([{"name":"locker","tags":["storage"],"desc":"locker","meta":{
+                "aliases":["school locker"],"roles":["storage","cover"],"styles":["institutional"],
+                "status":"experimental","revision":3,"license":"CC0-1.0","origin":"generated","provenance":"shape generator v2"
+            },"objects":[{"id":"body","type":"box","size":[1,2,1],"position":[0,1,0]}]}]),
+            "game",
+        );
+        assert!(errs.is_empty(), "{errs:?}");
+        let d = lib.find("locker").unwrap();
+        assert_eq!(d.aliases, vec!["school locker"]);
+        assert_eq!(d.roles, vec!["storage", "cover"]);
+        assert_eq!(d.status, "experimental");
+        assert_eq!(d.revision, 3);
+        assert_eq!(d.origin, "generated");
+
+        let errors = lib.add_json(&json!([{"name":"bad","meta":{"status":"finished","origin":"downloaded","revision":0},"objects":[]}]), "game");
+        assert!(errors.iter().any(|e| e.contains("meta.status")), "{errors:?}");
     }
 
     #[test]

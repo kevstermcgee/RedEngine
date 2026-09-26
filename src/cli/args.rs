@@ -255,12 +255,18 @@ pub(crate) enum Command {
         /// Only assets carrying this exact tag.
         #[arg(long)]
         tag: Option<String>,
-        /// Only this category (prop, food, kitchen, furniture, office, school, store, decor, outdoor).
+        /// Only this pack/category (prop, food, kitchen, furniture, office, school, store, decor, art, lamps, outdoor).
         #[arg(long)]
         category: Option<String>,
         /// prop | prefab
         #[arg(long)]
         kind: Option<String>,
+        /// Include a game/project prefab JSON file in discovery (repeatable). Definitions use the same format as assets/*.json.
+        #[arg(long = "library")]
+        libraries: Vec<PathBuf>,
+        /// Print the versioned asset API, pack registry, and growth policy instead of asset rows.
+        #[arg(long)]
+        manifest: bool,
         /// Print the full table (sizes, tags) even for long lists.
         #[arg(long)]
         long: bool,

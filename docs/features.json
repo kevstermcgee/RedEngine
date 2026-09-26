@@ -4,10 +4,10 @@
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, wall/fence sugar, prefabs, tracks and easing, colours.",
-      "files": ["src/schema.rs", "src/strict.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "examples/**", "SPEC.md"],
+      "files": ["src/schema.rs", "src/strict.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/**", "SPEC.md"],
       "tests": ["lib:schema", "lib:strict", "lib:prefabs", "lib:macros", "lib:track", "examples_validate"],
       "commands": ["red_engine2 validate examples/test_lab.json"],
-      "docs": ["SPEC.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md"]
+      "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md"]
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, the humanoid and rat rigs, props, the offline `frame`/`render` commands.",
@@ -183,7 +183,7 @@
       "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py"],
       "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "cli_envelope", "docs_fresh", "features_index"],
       "commands": ["red_engine2 describe --brief", "red_engine2 features --check"],
-      "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md"]
+      "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md"]
     },
     "docs_and_adrs": {
       "summary": "The docs an outsider or an agent reads first, kept true by tests: README, SPEC, AGENTS, CLAUDE, LICENSE, glossary, decisions.",

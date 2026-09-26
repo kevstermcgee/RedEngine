@@ -97,12 +97,18 @@ pub(crate) fn run_catalog(
     tag: Option<&str>,
     category: Option<&str>,
     kind: Option<&str>,
+    libraries: &[PathBuf],
+    manifest: bool,
     long: bool,
     json: bool,
     sheet: Option<&Path>,
     cols: u32,
 ) -> Result<(), String> {
-    let all = catalog::entries();
+    let all = catalog::entries_with_libraries(libraries)?;
+    if manifest {
+        print!("{}", catalog::render_manifest(all.len(), json)?);
+        return Ok(());
+    }
     if let (Some(name), None, None, None, None) = (query.first().filter(|_| query.len() == 1), tag, category, kind, sheet) {
         if let Some(e) = catalog::find(&all, name) {
             print!("{}", catalog::render_detail(e, json));

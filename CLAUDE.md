@@ -15,7 +15,7 @@ $R describe --brief              # ~1 KB manual: binaries, workflow, commands, t
 
 ## Making a game (the fast path)
 ```bash
-$R new-game ../mygame --name mygame --engine-path ../red-engine-2   # a project that USES the engine: blueprint + map + scripts/red + CI
+$R new-game ../mygame --name mygame --engine-path ../red-engine-2   # engine pin + blueprint/map + local asset incubator + scripts/red + CI
 cd ../mygame && scripts/red check                                   # green from the first commit
 # edit blueprints/main.blueprint.json (rooms, doors, spawns, fill, rules under "scene"), then:
 scripts/red build-all && scripts/red check && scripts/red plan maps/main.json   # build, verify, LOOK
@@ -49,5 +49,5 @@ ADRs, then `scripts/dev test`. Before pushing: `scripts/ci.sh`. Record progress 
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `red_bot`, `red_engine2`, `red_server`.
 - Cargo features: `default`, `gfx`.
-- 27 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 36 ADRs (latest: 0036 repeated bounded online rule state). Test *counts* are not stated here: run `scripts/dev test`.
+- 27 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 37 ADRs (latest: 0037 core assets are a growing api). Test *counts* are not stated here: run `scripts/dev test`.
 <!-- facts:end -->
