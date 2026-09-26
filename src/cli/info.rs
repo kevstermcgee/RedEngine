@@ -177,7 +177,11 @@ pub(crate) fn run_build(blueprint: Option<&Path>, out: Option<&Path>, check: boo
     let value: Value = serde_json::from_str(&text).map_err(|e| format!("{}: not valid JSON: {e}", bp_path.display()))?;
     let built = blueprint::compile_in(&value, bp_path.parent())
         .map_err(|errs| format!("{}: the blueprint has {} problem(s):\n  {}", bp_path.display(), errs.len(), errs.join("\n  ")))?;
-    let dest = out.map(Path::to_path_buf).unwrap_or_else(|| red_engine2::tools::game::blueprint_out(bp_path));
+    let project_dest = if out.is_none() { red_engine2::tools::game::destination_for_blueprint(bp_path).map_err(|errors| errors.join("\n"))? } else { None };
+    let dest = out.map(Path::to_path_buf).or(project_dest.clone()).unwrap_or_else(|| red_engine2::tools::game::blueprint_out(bp_path));
+    if project_dest.is_some() {
+        println!("game project mapping: {} -> {}", bp_path.display(), dest.display());
+    }
     for line in &built.summary {
         println!("{line}");
     }

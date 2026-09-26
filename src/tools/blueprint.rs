@@ -36,8 +36,9 @@ const WALL_EXT: f32 = 0.24;
 const WALL_PART: f32 = 0.15;
 /// Doors narrower than this trip the `door` lint and squeeze a 0.7 m body.
 const MIN_DOOR: f32 = 0.9;
-/// Point lights the renderer supports, minus the sun's slot.
-const MAX_LAMPS: usize = 15;
+/// Authored point lights the scene format supports, minus the sun's slot. Each rendered view
+/// selects the nearest 15, so large maps can light every room without a giant shader uniform.
+const MAX_LAMPS: usize = crate::schema::MAX_SCENE_LIGHTS - 1;
 const FLOOR_COLORS: [&str; 6] = ["#8f9aa8", "#a89f8f", "#8fa895", "#a88f9d", "#9fa8b8", "#b0a688"];
 
 /// The keys this level of a blueprint accepts (a test checks each is documented in SPEC.md).
@@ -544,7 +545,7 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
             for iz in 0..nz {
                 if lights.len() > MAX_LAMPS {
                     if !notes.iter().any(|n| n.contains("lamps capped")) {
-                        notes.push(format!("lamps capped at {MAX_LAMPS}: the renderer supports 16 lights; set \"lamp\": false on rooms that do not need one"));
+                        notes.push(format!("lamps capped at {MAX_LAMPS}: reduce room lamps or set \"lamp\": false where ambient light is enough"));
                     }
                     continue;
                 }

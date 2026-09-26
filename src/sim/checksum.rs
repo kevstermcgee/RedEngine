@@ -105,6 +105,7 @@ impl MatchSim {
                 .collect(),
             vars: self.rules.vars().into_iter().map(|(n, v)| (n.to_string(), v)).collect(),
             hidden: self.rules.hidden().map(str::to_string).collect(),
+            collision_disabled: self.rules.collision_disabled().map(str::to_string).collect(),
             ended: self.rules.ended().map(str::to_string),
         }
     }

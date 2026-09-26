@@ -53,7 +53,7 @@ Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`
 weapon logic (the online path uses the server's). Offline and online both use the shared generic presentation for rule variables,
 recent events, hidden objects and outcome; online receives repeated complete rule-state snapshots (ADR 0036).
 
-**Joining and the lobby (protocol v4).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
+**Joining and the lobby (protocol v5).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
 response, the key is never sent) and every datagram after the handshake is authenticated, so forged, replayed or injected packets are dropped
 (ADR 0028; authentication, **not** encryption; use `--key auto`, not a short word). `--lobby` (or a scene `"match"` block, see `describe
 scene`) turns on the flow lobby -> ready-up -> countdown -> timed round -> results -> rematch (`sim::flow`, ADR 0029; `--min-players

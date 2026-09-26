@@ -212,6 +212,7 @@ struct Placed<'a> {
     top_id: &'a str,
     base: f32,
     center: Vec2,
+    support_samples: Vec<Vec2>,
     ignore: &'a [String],
 }
 
@@ -241,6 +242,21 @@ fn placed_things(world: &MapWorld) -> Vec<Placed<'_>> {
             top_id: &it.top_id,
             base: it.min.y,
             center: it.footprint.map(|f| f.center).unwrap_or(Vec2::new((it.min.x + it.max.x) * 0.5, (it.min.z + it.max.z) * 0.5)),
+            support_samples: it.footprint.map_or_else(
+                || {
+                    let min = Vec2::new(it.min.x, it.min.z);
+                    let max = Vec2::new(it.max.x, it.max.z);
+                    let center = (min + max) * 0.5;
+                    vec![center, min, max, Vec2::new(min.x, max.y), Vec2::new(max.x, min.y)]
+                },
+                |footprint| {
+                    let corners = footprint.corners();
+                    let mut points = vec![footprint.center];
+                    points.extend(corners);
+                    points.extend(corners.into_iter().map(|corner| (corner + footprint.center) * 0.5));
+                    points
+                },
+            ),
             ignore: &it.ignore,
         })
         .collect();
@@ -256,7 +272,16 @@ fn placed_things(world: &MapWorld) -> Vec<Placed<'_>> {
         let pieces: Vec<&Item> = world.items.iter().filter(|i| i.top_id == id).collect();
         let Some(first) = pieces.first() else { continue };
         let base = pieces.iter().map(|i| i.min.y).fold(f32::INFINITY, f32::min);
-        out.push(Placed { top_id: id, base, center: Vec2::new(first.origin.x, first.origin.z), ignore: &first.ignore });
+        let min = pieces.iter().fold(Vec2::splat(f32::INFINITY), |v, item| v.min(Vec2::new(item.min.x, item.min.z)));
+        let max = pieces.iter().fold(Vec2::splat(f32::NEG_INFINITY), |v, item| v.max(Vec2::new(item.max.x, item.max.z)));
+        let center = Vec2::new(first.origin.x, first.origin.z);
+        out.push(Placed {
+            top_id: id,
+            base,
+            center,
+            support_samples: vec![center, min, max, Vec2::new(min.x, max.y), Vec2::new(max.x, min.y)],
+            ignore: &first.ignore,
+        });
     }
     out
 }
@@ -287,7 +312,8 @@ fn check_support(world: &MapWorld, out: &mut Vec<Finding>) {
             if s.owner.top_id == it.top_id {
                 continue;
             }
-            if s.top <= base + 0.06 && contains_xz(s.min, s.max, center) && s.top > best.0 {
+            let supported = contains_xz(s.min, s.max, center) || it.support_samples.iter().filter(|&&sample| contains_xz(s.min, s.max, sample)).count() >= 2;
+            if s.top <= base + 0.06 && supported && s.top > best.0 {
                 best = (s.top, Some(s.owner));
             }
         }
@@ -904,6 +930,14 @@ mod prefab_tests {
         assert!(!on_table.iter().any(|x| x.code == "floating" || x.code == "sunk"), "{}", format_report(&on_table));
         let ignored = run(r##",{"id":"a_up","type":"prefab","prefab":"apple_red","position":[1,1.0,1],"lint_ignore":["floating"]}"##);
         assert!(!ignored.iter().any(|x| x.code == "floating"), "{}", format_report(&ignored));
+    }
+
+    #[test]
+    fn an_edge_aligned_decoration_with_meaningful_support_is_not_floating() {
+        let findings = run(
+            r##",{"id":"tabletop","type":"box","size":[1,0.5,1],"position":[0,0.25,0]},{"id":"apple","type":"prefab","prefab":"apple_red","position":[0.53,0.5,0]}"##,
+        );
+        assert!(!findings.iter().any(|finding| finding.code == "floating" && finding.ids[0] == "apple"), "{}", format_report(&findings));
     }
 
     #[test]

@@ -14,16 +14,12 @@
 //! see `red_engine2::physics`. (Right-click is reserved for the hider's "choose an object to
 //! replicate", then R — not built yet.)
 
-// A game window shouldn't drag a console window along with it. `windows_subsystem = "windows"`
-// stops Windows creating one; `win::attach_console` then re-attaches to the *parent* terminal
-// when there is one, so `cargo run` / `RE2_STATS=1` / panics still print where you launched it.
-#![cfg_attr(windows, windows_subsystem = "windows")]
-
+use clap::Parser;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use red_engine2::audio::{synth_bat_hit, synth_revolver_shot, synth_weapon_click, Audio};
 use red_engine2::characters::{human_object, rat_object, HUMAN_HEIGHT};
 use red_engine2::collide::{
-    collect_box_colliders_except, collect_ground_candidates_except, colliders_on_floor, resolve_collision, Collider2D, GroundCandidates,
+    collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, colliders_on_floor, resolve_collision, Collider2D, GroundCandidates,
 };
 use red_engine2::easing::Ease;
 use red_engine2::hit::{collect_hit_shapes_where, raycast_shapes, HitShape};
@@ -229,6 +225,9 @@ struct App {
     scene_path: PathBuf,
     colliders: Vec<Collider2D>,
     ground: GroundCandidates,
+    collider_groups: Vec<Vec<Collider2D>>,
+    ground_groups: Vec<GroundCandidates>,
+    collision_object_ids: Vec<String>,
     /// Every solid leaf shape a swing can strike (see `red_engine2::hit`), excluding the player.
     hit_shapes: Vec<HitShape>,
     /// Loose props (pick up with E, drop, knock over); built when the game starts.
@@ -401,6 +400,9 @@ impl App {
             scene_path,
             colliders: Vec::new(),
             ground: GroundCandidates::default(),
+            collider_groups: Vec::new(),
+            ground_groups: Vec::new(),
+            collision_object_ids: Vec::new(),
             hit_shapes: Vec::new(),
             props: None,
             pickup_target: None,
@@ -478,7 +480,7 @@ impl App {
     }
 }
 
-/// What the command line asked for.
+/// What the resolved command line asked for.
 struct Args {
     scene: PathBuf,
     who: Option<Character>,
@@ -487,36 +489,49 @@ struct Args {
     name: Option<String>,
 }
 
+/// Red Engine 2 real-time game client.
+#[derive(Parser)]
+#[command(
+    version,
+    about,
+    after_help = "Controls: WASD/arrow keys move, mouse looks, Shift sprints, Space jumps, Ctrl crouches, Q changes view, F toggles fullscreen."
+)]
+struct CliArgs {
+    /// Scene/map JSON to play.
+    #[arg(default_value = "examples/room.json")]
+    scene: PathBuf,
+    /// Skip character selection.
+    #[arg(long = "as", alias = "character", value_parser = parse_character_arg, value_name = "human|rat")]
+    who: Option<Character>,
+    /// Join a server (`:27015` is added when no port is given).
+    #[arg(long, value_name = "HOST:PORT")]
+    connect: Option<String>,
+    /// Server join key.
+    #[arg(long)]
+    key: Option<String>,
+    /// Multiplayer display name.
+    #[arg(long)]
+    name: Option<String>,
+}
+
+fn parse_character_arg(value: &str) -> Result<Character, String> {
+    Character::parse(value).ok_or_else(|| "expected `human` or `rat`".to_string())
+}
+
 /// Command line: `re2 [scene.json] [--as human|rat] [--connect HOST:PORT] [--key JOIN_KEY] [--name NAME]` (the character can also
 /// come from `RE2_CHARACTER`, the server from `RE2_CONNECT`, the key from `RE2_KEY`, the name from `RE2_NAME`); without a character the
 /// launch menu asks, and its PLAY ONLINE button (or the O key) opens a form for the server, key and name.
 fn parse_args() -> Args {
-    let mut scene = None;
-    let mut who = std::env::var("RE2_CHARACTER").ok().and_then(|v| Character::parse(&v));
-    let mut connect: Option<String> = std::env::var("RE2_CONNECT").ok().filter(|v| !v.is_empty());
-    let (mut key, mut name) = (None::<String>, None::<String>);
-    let mut args = std::env::args().skip(1);
-    while let Some(a) = args.next() {
-        if a == "--as" || a == "--character" {
-            match args.next().as_deref().and_then(Character::parse) {
-                Some(c) => who = Some(c),
-                None => eprintln!("--as expects `human` or `rat`; showing the menu instead"),
-            }
-        } else if a == "--connect" {
-            connect = args.next();
-        } else if a == "--key" {
-            key = args.next();
-        } else if a == "--name" {
-            name = args.next();
-        } else if scene.is_none() {
-            scene = Some(PathBuf::from(a));
-        }
-    }
+    let cli = CliArgs::parse();
+    let who = cli.who.or_else(|| std::env::var("RE2_CHARACTER").ok().and_then(|value| Character::parse(&value)));
+    let connect = cli.connect.or_else(|| std::env::var("RE2_CONNECT").ok().filter(|value| !value.is_empty()));
+    let key = cli.key.or_else(|| std::env::var("RE2_KEY").ok().filter(|value| !value.is_empty()));
+    let name = cli.name.or_else(|| std::env::var("RE2_NAME").ok().filter(|value| !value.is_empty()));
     let connect = connect.map(|c| {
         let c = if c.contains(':') { c } else { format!("{c}:{}", red_engine2::net::DEFAULT_PORT) };
         c.to_socket_addrs().ok().and_then(|mut i| i.next()).unwrap_or_else(|| fail_online(&format!("'{c}' is not a valid HOST:PORT")))
     });
-    Args { scene: scene.unwrap_or_else(|| PathBuf::from("examples/room.json")), who, connect, key, name }
+    Args { scene: cli.scene, who, connect, key, name }
 }
 
 /// Reports a fatal online-mode problem (message box when there is no console) and exits.
@@ -528,8 +543,6 @@ fn fail_online(msg: &str) -> ! {
 }
 
 fn main() {
-    #[cfg(windows)]
-    let has_console = win::attach_console();
     env_logger::init();
     let Args { scene: scene_path, who: forced_character, connect, key, name } = parse_args();
     // Online, the client's map is loaded together with its hash and static collision (what the server has).
@@ -548,11 +561,6 @@ fn main() {
         eprintln!("failed to load scene {}:", scene_path.display());
         for e in &errs {
             eprintln!("  {e}");
-        }
-        #[cfg(windows)]
-        if !has_console {
-            let list: Vec<String> = errs.iter().map(|e| format!("  {e}")).collect();
-            win::message_box("Red Engine 2", &format!("Failed to load scene {}:\n{}", scene_path.display(), list.join("\n")));
         }
         std::process::exit(1);
     });

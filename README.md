@@ -41,7 +41,7 @@ new content to the publication manifest. Ready-to-play Windows packages are on t
 - **A posable rig, not just primitives.** `humanoid` is a fixed capsule-and-sphere skeleton
   posed by joint rotations (forward kinematics) — the 3D analog of the 2D engine's
   `stickfigure`. `group` covers everything else you want to build once and move as a unit.
-- **Real lighting, not flat shading.** Up to 16 lights (directional/point), one shadow-casting
+- **Real lighting, not flat shading.** Up to 256 authored lights with the nearest 16 active per view, one shadow-casting
   sun with a shadow map, Blinn-Phong-ish shading (softened shininess curve + a cheap Fresnel
   rim term) with metallic/roughness controls, a sky gradient background, and Reinhard
   tone-mapping so bright/overlapping lights roll off gracefully instead of blowing out to flat
@@ -116,10 +116,11 @@ mouse, **Escape** to release it and open the pause menu (Resume / Quit game). Th
 opens on.
 
 Scenes with `vars` and `rules` are playable here, not only in the headless simulator. Offline `re2` runs the shared rule state
-machine at 60 Hz: `hide`/`show` changes rendered object visibility, teleport and prop impulse effects reach the live world, and
+machine at 60 Hz: `hide`/`show` changes rendered object visibility, `collision` can open or close authored static geometry,
+teleport and prop impulse effects reach the live world, and
 pickup/drop/shot/hit events can trigger rules. A compact generic HUD shows scene variables, recent events and an `end` outcome.
-Online uses the same presentation: protocol v4 repeats a bounded authoritative rule-state snapshot (up to 16 variables and 256 hidden
-object indices, plus the recent event and outcome). Packet loss, reconnects and late joins recover current truth without replaying events.
+Online uses the same presentation: protocol v5 repeats a bounded authoritative rule-state snapshot (up to 16 variables, 256 hidden
+object indices and 64 collision-disabled objects, plus the recent event and outcome). Packet loss, reconnects and late joins recover current truth without replaying events.
 
 This is a viewer, not an editor. The seeker's primary action on objects is **hitting them with
 the bat**: a raycast from the player's eye against the objects' *real shapes* finds what is
@@ -334,7 +335,7 @@ the fixed capsule-rig `humanoid`, no sloped roofs (flat ceiling/roof slabs only)
 renderer draws no 2-D text; the live game's menus, lobby and HUD come from the headless-audited
 UI kit (`src/ui`, ADR 0026). Player physics is a simple fixed-timestep circle-vs-AABB-plus-ground-height
 model, not a general physics engine — walking up multiple floors via `stairs` works, but there is no
-jumping between floors, ladders, or slopes other than stairs. At most 16 lights and 1 shadow-casting
+jumping between floors, ladders, or slopes other than stairs. At most 256 authored lights, 16 active per view, and 1 shadow-casting
 light (point lights don't cast shadows).
 
 Multiplayer exists (ADR 0016, 0022, 0028): an authoritative headless UDP server (`red_server`), a

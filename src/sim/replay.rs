@@ -78,7 +78,10 @@ fn detail_for(tick: u64, recorded: &[Dump], replay_at: &dyn Fn(u64) -> Option<Du
         return match replay_at(tick) {
             Some(now) => vec![
                 format!("recorded state agrees with the replay at tick {} (the nearest dump); it diverged after that — re-record with `--dump-every 1` for the exact state diff", rec.tick),
-                format!("replay state at tick {tick}: {} player(s), {} moving prop(s), vars {:?}, hidden {:?}", now.players.len(), now.props.len(), now.vars, now.hidden),
+                format!(
+                    "replay state at tick {tick}: {} player(s), {} moving prop(s), vars {:?}, hidden {:?}, collision disabled {:?}",
+                    now.players.len(), now.props.len(), now.vars, now.hidden, now.collision_disabled
+                ),
             ],
             None => Vec::new(),
         };

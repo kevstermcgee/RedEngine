@@ -11,7 +11,7 @@
 //! [`PropWorld`]), and the props are simulated here, so a prop moved by one player is seen moved by
 //! every other.
 
-use crate::collide::{collect_box_colliders_except, collect_ground_candidates_except, Collider2D, GroundCandidates};
+use crate::collide::{collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, Collider2D, GroundCandidates};
 use crate::hit::{collect_hit_shapes_where, HitShape};
 use crate::physics::PropWorld;
 use crate::player::Character;
@@ -54,6 +54,9 @@ pub struct MatchSim {
     pub(super) props: PropWorld,
     colliders: Vec<Collider2D>,
     ground: GroundCandidates,
+    collider_groups: Vec<Vec<Collider2D>>,
+    ground_groups: Vec<GroundCandidates>,
+    collision_object_ids: Vec<String>,
     /// Exact shapes of the fixed world, for bat swings and bullets.
     pub(super) hit_shapes: Vec<HitShape>,
     /// The scene's weapon numbers.
@@ -89,9 +92,19 @@ impl MatchSim {
         }
         let props = PropWorld::new(scene, None);
         let loose = props.movable_indices();
+        let collider_groups = collect_box_colliders_grouped_except(scene, &loose);
+        let ground_groups = collect_ground_candidates_grouped_except(scene, &loose);
+        let colliders = collider_groups.iter().flatten().copied().collect();
+        let mut ground = GroundCandidates::default();
+        for group in &ground_groups {
+            ground.append(group);
+        }
         Ok(MatchSim {
-            colliders: collect_box_colliders_except(scene, &loose),
-            ground: collect_ground_candidates_except(scene, &loose),
+            colliders,
+            ground,
+            collider_groups,
+            ground_groups,
+            collision_object_ids: scene.objects.iter().map(|object| object.id.clone()).collect(),
             hit_shapes: collect_hit_shapes_where(scene, |i| !loose.contains(&i)),
             weapons: scene.weapons,
             props,
@@ -278,6 +291,7 @@ impl MatchSim {
                 }
             })
             .collect();
+        let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
         for effect in self.rules.step(self.tick, &views) {
             match effect {
                 Effect::Teleport { slot, target } => self.teleport(slot, &target),
@@ -289,12 +303,31 @@ impl MatchSim {
                 }
             }
         }
+        if !self.rules.collision_disabled().eq(collision_before.iter().map(String::as_str)) {
+            self.rebuild_static_world();
+        }
         let new = self.rules.take_new_events();
         if let Some(r) = &mut self.recorder {
             r.events.extend(new.iter().map(|e| crate::sim::trace::TraceEvent { tick: e.tick, rule: e.rule.clone(), name: e.name.clone(), slot: e.slot }));
         }
         if self.events_out.len() < 256 {
             self.events_out.extend(new);
+        }
+    }
+
+    fn rebuild_static_world(&mut self) {
+        self.colliders.clear();
+        self.ground = GroundCandidates::default();
+        for (i, id) in self.collision_object_ids.iter().enumerate() {
+            if self.rules.collision_disabled().any(|disabled| disabled == id) {
+                continue;
+            }
+            if let Some(group) = self.collider_groups.get(i) {
+                self.colliders.extend_from_slice(group);
+            }
+            if let Some(group) = self.ground_groups.get(i) {
+                self.ground.append(group);
+            }
         }
     }
 
@@ -403,6 +436,28 @@ mod tests {
 
     fn input(seq: u32, forward: i8, yaw_deg: f32) -> PlayerInput {
         PlayerInput { seq, forward, yaw: yaw_deg.to_radians(), ..Default::default() }
+    }
+
+    #[test]
+    fn a_rule_can_disable_static_collision_authoritatively() {
+        let scene = crate::schema::parse_scene(
+            r#"{
+                "camera":{"position":[-2,1.7,0]},
+                "rules":[{"id":"open","when":{"start":true},"do":[{"collision":["gate",false]}]}],
+                "objects":[
+                    {"id":"floor","type":"plane","size":[10,10]},
+                    {"id":"gate","type":"box","size":[0.2,2,4],"position":[0,1,0]}
+                ]
+            }"#,
+        )
+        .unwrap();
+        let spawn = Spawn { id: "start".into(), position: [-2.0, 0.0, 0.0], yaw_deg: 90.0, group: String::new() };
+        let mut sim = MatchSim::new(&scene, vec![spawn]);
+        assert!(!sim.static_world().0.is_empty());
+        sim.add_player(Character::Human).unwrap();
+        sim.tick_once();
+        assert!(sim.rules().collision_disabled().any(|id| id == "gate"));
+        assert!(sim.static_world().0.is_empty(), "the gate collider should be removed after the start rule");
     }
 
     #[test]

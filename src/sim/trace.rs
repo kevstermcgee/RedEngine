@@ -141,6 +141,8 @@ pub struct Dump {
     pub vars: Vec<(String, f64)>,
     /// Hidden objects.
     pub hidden: Vec<String>,
+    /// Top-level objects whose authored collision is disabled.
+    pub collision_disabled: Vec<String>,
     /// The match outcome once ended.
     pub ended: Option<String>,
 }
@@ -217,7 +219,8 @@ impl Trace {
             "checkpoints": self.checkpoints.iter().map(|c| json!([c.tick, hex(c.players), hex(c.props), hex(c.rules), hex(c.coarse)])).collect::<Vec<_>>(),
             "events": self.events.iter().map(|e| json!([e.tick, e.rule, e.name, e.slot])).collect::<Vec<_>>(),
             "dumps": self.dumps.iter().map(|d| json!({
-                "tick": d.tick, "players": d.players, "props": d.props, "vars": d.vars, "hidden": d.hidden, "ended": d.ended,
+                "tick": d.tick, "players": d.players, "props": d.props, "vars": d.vars, "hidden": d.hidden,
+                "collision_disabled": d.collision_disabled, "ended": d.ended,
             })).collect::<Vec<_>>(),
         })
     }
@@ -332,7 +335,19 @@ fn parse_dump(d: &Value) -> Option<Dump> {
     let props = rows("props", 8)?.into_iter().map(|r| [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]]).collect();
     let vars = d.get("vars")?.as_array()?.iter().map(|p| Some((p.get(0)?.as_str()?.to_string(), p.get(1)?.as_f64()?))).collect::<Option<Vec<_>>>()?;
     let hidden = d.get("hidden")?.as_array()?.iter().map(|s| s.as_str().map(str::to_string)).collect::<Option<Vec<_>>>()?;
-    Some(Dump { tick: d.get("tick")?.as_u64()?, players, props, vars, hidden, ended: d.get("ended").and_then(Value::as_str).map(str::to_string) })
+    let collision_disabled = match d.get("collision_disabled") {
+        None => Vec::new(),
+        Some(value) => value.as_array()?.iter().map(|s| s.as_str().map(str::to_string)).collect::<Option<Vec<_>>>()?,
+    };
+    Some(Dump {
+        tick: d.get("tick")?.as_u64()?,
+        players,
+        props,
+        vars,
+        hidden,
+        collision_disabled,
+        ended: d.get("ended").and_then(Value::as_str).map(str::to_string),
+    })
 }
 
 /// A compact human-readable difference between two dumps (`a` = what was recorded, `b` = what a replay computed).
@@ -383,6 +398,9 @@ pub fn diff_dumps(a: &Dump, b: &Dump) -> Vec<String> {
     if a.hidden != b.hidden {
         out.push(format!("hidden objects: {:?} vs {:?}", a.hidden, b.hidden));
     }
+    if a.collision_disabled != b.collision_disabled {
+        out.push(format!("collision-disabled objects: {:?} vs {:?}", a.collision_disabled, b.collision_disabled));
+    }
     if a.ended != b.ended {
         out.push(format!("outcome: {:?} vs {:?}", a.ended, b.ended));
     }
@@ -425,6 +443,7 @@ mod tests {
             props: vec![[3.0, 1.0, 0.5, 2.0, 0.0, 0.0, 0.0, 1.0]],
             vars: vec![("score".into(), 2.0)],
             hidden: vec!["coin".into()],
+            collision_disabled: vec!["gate".into()],
             ended: Some("victory".into()),
         });
         t.final_tick = 120;

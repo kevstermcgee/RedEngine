@@ -25,7 +25,7 @@ use std::fmt;
 /// First two bytes of every datagram ("RD").
 pub const MAGIC: u16 = 0x5244;
 /// Bumped on any incompatible change; a mismatched client is rejected.
-pub const PROTOCOL_VERSION: u16 = 4;
+pub const PROTOCOL_VERSION: u16 = 5;
 /// Largest datagram either side sends or accepts (under a typical 1500-byte MTU).
 pub const MAX_PACKET: usize = 1400;
 /// Most inputs one packet carries (the newest is last).
@@ -45,6 +45,8 @@ pub const MAX_ROSTER: usize = MAX_PLAYERS_PER_SNAPSHOT;
 pub const MAX_RULE_VARS: usize = 16;
 /// Most hidden objects in a networked game's current state.
 pub const MAX_RULE_HIDDEN: usize = 256;
+/// Most objects with collision disabled by rules.
+pub const MAX_RULE_COLLISION: usize = 64;
 /// Longest variable, event or outcome name in network rule presentation, bytes.
 pub const MAX_RULE_TEXT: usize = 32;
 /// `Status::winner` when nobody won (a draw, or a co-operative outcome).
@@ -423,6 +425,8 @@ pub struct RuleState {
     pub vars: Vec<RuleVar>,
     /// Indices in the shared parsed scene for objects currently hidden.
     pub hidden: Vec<u16>,
+    /// Indices of top-level objects whose authored collision is currently disabled.
+    pub collision_disabled: Vec<u16>,
     /// Most recent non-terminal event, empty when none exists.
     pub event: String,
     /// Tick at which `event` occurred.
@@ -728,6 +732,11 @@ impl ServerMsg {
                 for &id in &st.hidden[..nh] {
                     w.u16(id);
                 }
+                let nc = st.collision_disabled.len().min(MAX_RULE_COLLISION);
+                w.u16(nc as u16);
+                for &id in &st.collision_disabled[..nc] {
+                    w.u16(id);
+                }
                 w.text(&st.event, MAX_RULE_TEXT);
                 w.u32(st.event_tick);
                 w.text(&st.outcome, MAX_RULE_TEXT);
@@ -829,12 +838,21 @@ impl ServerMsg {
                 for _ in 0..nh {
                     hidden.push(r.u16()?);
                 }
+                let nc = r.u16()? as usize;
+                if nc > MAX_RULE_COLLISION {
+                    return Err(DecodeError::OutOfRange);
+                }
+                let mut collision_disabled = Vec::with_capacity(nc);
+                for _ in 0..nc {
+                    collision_disabled.push(r.u16()?);
+                }
                 ServerMsg::RuleState(RuleState {
                     seq,
                     round,
                     server_tick,
                     vars,
                     hidden,
+                    collision_disabled,
                     event: r.text(MAX_RULE_TEXT)?,
                     event_tick: r.u32()?,
                     outcome: r.text(MAX_RULE_TEXT)?,
@@ -950,6 +968,7 @@ mod tests {
             server_tick: 123_456,
             vars: (0..MAX_RULE_VARS).map(|i| RuleVar { name: format!("variable_{i:02}_with_long_name"), value: i as f64 + 0.5 }).collect(),
             hidden: (0..MAX_RULE_HIDDEN as u16).collect(),
+            collision_disabled: (0..MAX_RULE_COLLISION as u16).collect(),
             event: "collected_the_last_object".into(),
             event_tick: 123_450,
             outcome: "a_wonderful_victory".into(),

@@ -95,7 +95,8 @@ track around a fixed `target`, not a rotation track on the camera itself.
 
 ## Lights
 
-Up to 16 lights. Each has a `type` of `"directional"` or `"point"`.
+Up to 256 lights may be authored. Each rendered view evaluates all directional lights plus the nearest point lights,
+up to 16 active lights total. Each light has a `type` of `"directional"` or `"point"`.
 
 ```json
 { "id": "sun", "type": "directional", "direction": [-0.4, -1, -0.3],
@@ -354,6 +355,8 @@ params and a paste-ready snippet.
 - An instance **expands at parse time into a plain `group`** (children ids become `snack_1.body`, ...),
   so every tool sees ordinary primitives. `position`/`rotation`/`scale` work like any object.
 - `params` overrides the prefab's declared params (unknown names are errors with a "did you mean").
+- For prefabs that declare a `color` param, `material: {"color":"#rrggbb"}` is a convenience alias for
+  `params.color`. Supplying conflicting values is an error; other prefab material fields remain explicit params.
 - **Origin & facing** follow `prop`s: origin = middle of the base (`position.y` = the surface it
   stands on; put an apple on a 0.78 m table at `y: 0.78`), front = local `+Z`. Prefabs with
   `"mount": "wall"` (pictures, clocks, blackboards, shelves) have their origin at the middle of the
@@ -447,6 +450,7 @@ condition holds, and then **does** its actions:
   `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`.
 - **`do`** (in order): `{set: [var, value]}`, `{add: [var, n]}` (value/n is a number, bool or expression string), `{emit: name}`,
   `{hide: id}` / `{show: id}` (the standard single-player client omits that object tree from rendering),
+  `{collision: [top_level_id, bool]}` (enable/disable its authored static collision and standable surfaces),
   `{teleport: [x,y,z] | spawn_id}` (the triggering player),
   `{end: outcome}` (the match ends; rules stop), `{impulse: {object, dir: [x,y,z], speed}}` (shove a loose prop).
 
@@ -455,8 +459,8 @@ did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mea
 authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state is part of the
 match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport and impulse, feeds its pickup/drop/shot/hit
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
-state remains server-authoritative; protocol v4 repeatedly sends the complete bounded presentation state (16 variables, 256 hidden
-objects, recent event and outcome), so loss, reconnect and late join recover it. `red_engine2 describe rules` prints this with a
+state remains server-authoritative; protocol v5 repeatedly sends the complete bounded presentation state (16 variables, 256 hidden
+objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. `red_engine2 describe rules` prints this with a
 runnable example; `recipe coin_run` is a complete game.
 
 ### Proving gameplay headless (`checks.sim`, `sim`)
@@ -468,7 +472,7 @@ checks the outcome. They live in `checks.sim` (so `verify` runs them) or a file 
 "checks": { "sim": [ { "name": "collect all three coins, then win",
   "players": [ { "id": "p1", "character": "human", "spawn": "spawn_a" } ],
   "script": [ { "player": "p1", "walk": "-5,-3; 0,3; 5,-2; 8.8,0" } ],
-  "expect": [ { "event": "coin", "count": 3 }, { "var": "score", "eq": 3 }, { "ended": "victory" },
+  "expect": [ { "event": "coin", "count": 3 }, { "var": "has_key", "eq": true }, { "ended": "victory" },
               { "hidden": "coin_1" }, { "no_event": "ouch" }, { "player": "p1", "near": [8.8, 0], "tol": 0.8 } ] } ] }
 ```
 
@@ -539,7 +543,7 @@ document with `"blueprint": 1`; unknown keys are errors with a did-you-mean. Coo
 | `name` | Map name (used in the summary and the `x-blueprint` note). |
 | `height` | Wall height, default `2.8` (2.3 to 8). |
 | `ceiling` | `true` adds a slab over every room (default `false`: open top, lit by the sun and lamps). |
-| `rooms` | List of rooms; each has an `id` (letters, digits, `_`, `-`), a `rect` (`[x0, z0, x1, z1]`), an optional `floor` colour (hex) and an optional `lamp` (`false` skips the room's lights; at most 15 lamps in total). Rects may touch along an edge but not overlap. |
+| `rooms` | List of rooms; each has an `id` (letters, digits, `_`, `-`), a `rect` (`[x0, z0, x1, z1]`), an optional `floor` colour (hex) and an optional `lamp` (`false` skips the room's lights; at most 255 generated lamps in total). Rects may touch along an edge but not overlap. |
 | `doors` | List of openings; each names the two rooms it joins in `between` (`["hall", "store"]`, they must share a wall), and may set `width` (default 1.4, at least 0.9), `at` (offset from the middle of the shared wall) and `kind` (`door` or `arch`). Doors also become `portals` (interest management for the server). |
 | `spawns` | List of spawn requests; each has a `room`, an optional `group` (`red_server --spawn-group`), a `count` of points spread around the room facing its centre (a lone spawn faces the first door) and an optional `id` prefix. |
 | `fill` | List of prop fills; each has a `room`, a `kind` (a prop name or a list; see `props`), a `count`, a `seed`, a `scale` range (`[0.9, 1.15]`), `colors`, `min_gap`, `clearance` and an `id` prefix. Placed by `scatter` while keeping door pads, aisles between doors, spawn pads and `keep_clear` free. |
@@ -569,5 +573,5 @@ problems (stairs that lead nowhere, unreachable rooms, overlaps, ...).
 No imported meshes/textures, no scene-object physics in the *offline* tools (nothing falls, bounces,
 or collides on its own there; in the live viewer the player has its own simple gravity/collision
 model, and small props are rigid bodies you can pick up, drop and knock over — see `movable` above), no per-vertex mesh deformation/skinning beyond the fixed
-capsule-rig `humanoid`, no 2-D text in the *offline* renderer (composite with the 2D engine for captions; the live game's menus, lobby and HUD use the `src/ui` kit), at most 16 lights and 1 shadow-casting light. The
+capsule-rig `humanoid`, no 2-D text in the *offline* renderer (composite with the 2D engine for captions; the live game's menus, lobby and HUD use the `src/ui` kit), at most 256 authored lights, 16 active lights per view, and 1 shadow-casting light. The
 goal is a small, auditable surface an AI can hold in context, not a general-purpose 3D suite.

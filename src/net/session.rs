@@ -167,6 +167,8 @@ impl NetSession {
                 _ => {}
             }
         }
+        let collision_disabled = self.client.rule_state().map(|state| state.collision_disabled.clone()).unwrap_or_default();
+        self.world.set_collision_disabled(&collision_disabled);
         self.status = match self.client.state() {
             ConnState::Connected => {
                 let s = self.client.stats();

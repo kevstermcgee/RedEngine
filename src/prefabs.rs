@@ -562,6 +562,30 @@ pub fn expand_instance(lib: &Library, inst: &Map<String, Value>, id: &str, depth
             None => errs.push(format!("{id}.params: must be an object")),
         }
     }
+    if let Some(material) = inst.get("material") {
+        match material.as_object() {
+            Some(material) => {
+                for key in material.keys().filter(|key| key.as_str() != "color") {
+                    errs.push(format!("{id}.material.{key}: prefab material aliases currently support only color; use the prefab's declared params"));
+                }
+                if let Some(color) = material.get("color") {
+                    if !params.contains_key("color") {
+                        errs.push(format!(
+                            "{id}.material.color: '{name}' has no color param (has: {})",
+                            if params.is_empty() { "none".to_string() } else { params.keys().cloned().collect::<Vec<_>>().join(", ") }
+                        ));
+                    } else if let Some(given) = inst.get("params").and_then(Value::as_object).and_then(|p| p.get("color")) {
+                        if given != color {
+                            errs.push(format!("{id}: params.color and material.color conflict; give color only once"));
+                        }
+                    } else {
+                        params.insert("color".into(), color.clone());
+                    }
+                }
+            }
+            None => errs.push(format!("{id}.material: must be an object like {{\"color\": \"#rrggbb\"}}")),
+        }
+    }
     let mut children: Vec<Value> = Vec::new();
     for (i, o) in def.objects.iter().enumerate() {
         let mut c = subst(o, &params, &format!("{id}[{name}].objects[{i}]"), &mut errs);
@@ -755,6 +779,31 @@ mod tests {
         assert!(e[0].contains("x.prefab") && e[0].contains("did you mean: apple"), "{e:?}");
         let e = expand_instance(&lib, json!({"id":"x","type":"prefab","prefab":"apple","params":{"colour":"#fff"}}).as_object().unwrap(), "x", 0).unwrap_err();
         assert!(e[0].contains("x.params.colour") && e[0].contains("did you mean color"), "{e:?}");
+    }
+
+    #[test]
+    fn material_color_is_a_guarded_alias_for_the_color_param() {
+        let mut lib = Library::default();
+        lib.add_json(
+            &json!([
+                { "name": "apple", "params": { "color": "#f00" }, "objects": [{"id":"skin","type":"sphere","radius":1,"material":{"color":"$color"}}] },
+                { "name": "plain", "objects": [] }
+            ]),
+            "t",
+        );
+        let g = expand_instance(&lib, json!({"id":"x","type":"prefab","prefab":"apple","material":{"color":"#0f0"}}).as_object().unwrap(), "x", 0).unwrap();
+        assert_eq!(g["children"][0]["material"]["color"], "#0f0");
+        let conflict = expand_instance(
+            &lib,
+            json!({"id":"x","type":"prefab","prefab":"apple","params":{"color":"#00f"},"material":{"color":"#0f0"}}).as_object().unwrap(),
+            "x",
+            0,
+        )
+        .unwrap_err();
+        assert!(conflict.iter().any(|e| e.contains("conflict")), "{conflict:?}");
+        let unsupported =
+            expand_instance(&lib, json!({"id":"x","type":"prefab","prefab":"plain","material":{"color":"#0f0"}}).as_object().unwrap(), "x", 0).unwrap_err();
+        assert!(unsupported.iter().any(|e| e.contains("has no color param")), "{unsupported:?}");
     }
 
     #[test]

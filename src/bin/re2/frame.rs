@@ -106,6 +106,7 @@ impl App {
             height: self.body.body_height,
             character: self.character,
         };
+        let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
         for effect in self.rules.step(tick, &[player]) {
             match effect {
                 red_engine2::sim::rules_run::Effect::Teleport { slot: 0, target } => {
@@ -133,6 +134,9 @@ impl App {
                     }
                 }
             }
+        }
+        if !self.rules.collision_disabled().eq(collision_before.iter().map(String::as_str)) {
+            self.rebuild_collision_world();
         }
         for event in self.rules.take_new_events() {
             if !event.name.starts_with("end:") {
@@ -404,8 +408,10 @@ impl App {
             let props = PropWorld::new(&self.scene, Some(self.player_object_index));
             let loose = props.movable_indices();
             println!("{} loose props (pick up with E).", loose.len());
-            self.colliders = collect_box_colliders_except(&self.scene, &loose);
-            self.ground = collect_ground_candidates_except(&self.scene, &loose);
+            self.collider_groups = collect_box_colliders_grouped_except(&self.scene, &loose);
+            self.ground_groups = collect_ground_candidates_grouped_except(&self.scene, &loose);
+            self.collision_object_ids = self.scene.objects.iter().map(|object| object.id.clone()).collect();
+            self.rebuild_collision_world();
             (Some(props), loose)
         };
         let _ = online;
@@ -437,5 +443,17 @@ impl App {
         self.last_frame = Instant::now();
         self.net_title_at = Instant::now();
         self.set_grab(true);
+    }
+
+    fn rebuild_collision_world(&mut self) {
+        self.colliders.clear();
+        self.ground = GroundCandidates::default();
+        for (i, id) in self.collision_object_ids.iter().enumerate() {
+            if self.rules.collision_disabled().any(|disabled| disabled == id) {
+                continue;
+            }
+            self.colliders.extend_from_slice(&self.collider_groups[i]);
+            self.ground.append(&self.ground_groups[i]);
+        }
     }
 }

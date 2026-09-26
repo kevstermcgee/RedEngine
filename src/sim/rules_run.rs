@@ -75,6 +75,7 @@ pub struct RulesEngine {
     next_ok: Vec<u64>,
     inside: BTreeMap<(usize, usize), bool>,
     hidden: BTreeSet<String>,
+    collision_disabled: BTreeSet<String>,
     ended: Option<String>,
     started: bool,
     history: Vec<GameEvent>,
@@ -94,6 +95,7 @@ impl RulesEngine {
             set,
             inside: BTreeMap::new(),
             hidden: BTreeSet::new(),
+            collision_disabled: BTreeSet::new(),
             ended: None,
             started: false,
             history: Vec::new(),
@@ -126,6 +128,11 @@ impl RulesEngine {
     /// Ids of objects a rule has hidden.
     pub fn hidden(&self) -> impl Iterator<Item = &str> {
         self.hidden.iter().map(String::as_str)
+    }
+
+    /// Top-level objects whose authored static collision is currently disabled.
+    pub fn collision_disabled(&self) -> impl Iterator<Item = &str> {
+        self.collision_disabled.iter().map(String::as_str)
     }
 
     /// Every event so far (at most [`MAX_HISTORY`]; the oldest are dropped).
@@ -207,6 +214,13 @@ impl RulesEngine {
                 }
                 Action::Show(o) => {
                     self.hidden.remove(&o);
+                }
+                Action::Collision { object, enabled } => {
+                    if enabled {
+                        self.collision_disabled.remove(&object);
+                    } else {
+                        self.collision_disabled.insert(object);
+                    }
                 }
                 Action::Teleport(target) => {
                     if let Some(slot) = slot {
@@ -308,6 +322,15 @@ impl RulesEngine {
             o.bytes().for_each(|b| mix(b as u64));
             mix(0xff);
         }
+        // Preserve pre-v5 checksums while no dynamic collision state exists, so old traces remain
+        // replayable. The marker makes a non-empty collision set distinct from hidden-object data.
+        if !self.collision_disabled.is_empty() {
+            mix(0xfe);
+            for o in &self.collision_disabled {
+                o.bytes().for_each(|b| mix(b as u64));
+                mix(0xff);
+            }
+        }
         if let Some(e) = &self.ended {
             e.bytes().for_each(|b| mix(b as u64));
         }
@@ -325,6 +348,7 @@ mod tests {
     fn engine(v: Value) -> RulesEngine {
         let mut refs = Refs::default();
         refs.object_ids.insert("coin".into());
+        refs.top_level_ids.insert("coin".into());
         refs.bounds.insert("coin".into(), (Vec3::new(2.0, 0.0, 0.0), Vec3::new(2.4, 0.4, 0.4)));
         refs.zones.insert("exit".into(), (Vec3::new(8.0, 0.0, -1.0), Vec3::new(10.0, 0.0, 1.0)));
         refs.spawn_ids.insert("start".into());

@@ -107,6 +107,7 @@ pub const TYPES: &[TypeInfo] = &[
         fields: &[
             ("prefab", "name, required", "e.g. apple_red, chair_folding, shelf_gondola"),
             ("params", "{name: value}", "the prefab's declared params (`catalog <name>` shows them)"),
+            ("material.color", "#hex", "alias for params.color when the prefab declares a color param"),
             ("collide", "bool", "override the prefab's default (small items default to walk-through)"),
         ],
         example: r##"{"id":"a1","type":"prefab","prefab":"apple_red","position":[0,0,0],"params":{"color":"#8cc63f"}}"##,
@@ -350,7 +351,8 @@ fn rules_text() -> String {
          Expressions: numbers, true/false, variables, + - * / %, < <= > >= == !=, && || !, parentheses. x/0 = 0 (never NaN).\n\
          An unknown variable/zone/object/spawn/event is a validate error with a did-you-mean.\n\
          Rules run in the authoritative simulation (server, `sim`), deterministically; state (vars, hidden objects, outcome) is\n\
-         part of the match checksum. Offline `re2` runs the same rule state machine: hide/show changes rendering, teleport/impulse\n\
+         part of the match checksum. Offline `re2` runs the same rule state machine: hide/show changes rendering, collision changes\n\
+         static movement/ground collision for a top-level object, and teleport/impulse\n\
          are applied, pickup/drop/shot/hit are injected, and vars/events/outcome appear in a generic HUD. Online clients use the same\n\
          HUD from a repeated bounded authoritative state, so loss, reconnect and late join recover it. Prove a rule with `checks.sim`\n\
          (see `describe sim`).\n\nExample scene:\n",
@@ -394,8 +396,9 @@ fn sim_text() -> String {
          \x20 players  [{id, character: human|rat, spawn?: spawn id}]\n\
          \x20 script   [{player, walk: \"x,z; x,z\" | wait: secs | hold: {forward, strafe, sprint, crouch, jump, yaw_deg, seconds}, until_event?: name}]\n\
          \x20          each player's steps run in order; players run in parallel; a walk that gets stuck fails the scenario\n\
-         \x20 expect   [{event: name, count|min|max} {no_event: name} {var: name, eq|ne|gt|gte|lt|lte: n} {ended: outcome} {not_ended: true}\n\
-         \x20           {hidden|shown: object id} {player: id, near: [x,z], tol?, y?}]\n\
+         \x20 expect   [{event: name, count|min|max} {no_event: name} {var: name, eq|ne: number|bool, gt|gte|lt|lte: number}\n\
+         \x20           {ended: outcome} {not_ended: true} {hidden|shown: object id} {collision_disabled|collision_enabled: object id}\n\
+         \x20           {player: id, near: [x,z], tol?, y?}]\n\
          The run ends when a rule `end`s the match, when every script is done (+ settle), or at max_seconds.\n\n\
          red_engine2 replay <trace.json> [--scene map.json] [--against other.json]\n\
          \x20 A trace records a match: header (engine, tick rate, map hash, seed, platform), every join/leave/input/impulse in order, game events,\n\

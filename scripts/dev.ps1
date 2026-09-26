@@ -17,10 +17,23 @@ function Need-Cargo {
     if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { Write-Error 'dev: cargo not found. Install Rust from https://rustup.rs'; exit 127 }
 }
 function Exe([string]$Name) { Join-Path $Root "target\$Profile_\$Name.exe" }
+function Needs-Build([string]$Name, [string]$Mode = 'default') {
+    $out = Exe $Name
+    if ($env:RED_REBUILD -eq '1' -or -not (Test-Path $out)) { return $true }
+    $stamp = Join-Path $Root "target\$Profile_\.red-dev-$Name.mode"
+    if (-not (Test-Path $stamp) -or (Get-Content $stamp -Raw) -ne $Mode) { return $true }
+    $inputs = @((Join-Path $Root 'Cargo.toml'), (Join-Path $Root 'Cargo.lock'), (Join-Path $Root 'build.rs'))
+    $inputs += Get-ChildItem (Join-Path $Root 'src'), (Join-Path $Root 'assets') -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+    $built = (Get-Item $out).LastWriteTimeUtc
+    return $null -ne ($inputs | Where-Object { (Test-Path $_) -and (Get-Item $_).LastWriteTimeUtc -gt $built } | Select-Object -First 1)
+}
 function Cli {
     Need-Cargo
-    & cargo build @PFlag --bin red_engine2 --quiet
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if (Needs-Build 'red_engine2') {
+        & cargo build @PFlag --bin red_engine2 --quiet
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        Set-Content -NoNewline -Path (Join-Path $Root "target\$Profile_\.red-dev-red_engine2.mode") -Value 'default'
+    }
     return (Exe 'red_engine2')
 }
 
@@ -46,8 +59,11 @@ switch ($Cmd) {
     'status' { $e = Cli; & $e status @Rest; exit $LASTEXITCODE }
     'server' {
         Need-Cargo
-        & cargo build @PFlag --no-default-features --bin red_server --quiet
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if (Needs-Build 'red_server' 'headless') {
+            & cargo build @PFlag --no-default-features --bin red_server --quiet
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Set-Content -NoNewline -Path (Join-Path $Root "target\$Profile_\.red-dev-red_server.mode") -Value 'headless'
+        }
         & (Exe 'red_server') --map @Rest; exit $LASTEXITCODE
     }
     'ci' { if (Get-Command bash -ErrorAction SilentlyContinue) { & bash scripts/ci.sh; exit $LASTEXITCODE } else { Write-Error 'ci needs bash (Git for Windows ships one)'; exit 2 } }

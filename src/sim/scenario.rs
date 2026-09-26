@@ -39,6 +39,8 @@ const EXPECT_KEYS: &[&str] = &[
     "not_ended",
     "hidden",
     "shown",
+    "collision_disabled",
+    "collision_enabled",
     "player",
     "count",
     "min",
@@ -155,6 +157,8 @@ pub enum Expect {
     Ended(Option<String>),
     /// An object is (`true`) or is not (`false`) hidden.
     Hidden(String, bool),
+    /// A top-level object's collision is disabled (`true`) or enabled (`false`).
+    CollisionDisabled(String, bool),
     /// A player ended within `tol` metres (in x/z) of a point, and optionally at a floor height.
     PlayerNear {
         /// Player id.
@@ -439,10 +443,13 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
 }
 
 fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: &[String], players: &[PlayerSpec], errs: &mut Vec<String>) -> Option<Expect> {
-    let main: Vec<&str> = ["event", "no_event", "var", "ended", "not_ended", "hidden", "shown", "player"].into_iter().filter(|k| eo.contains_key(*k)).collect();
+    let main: Vec<&str> = ["event", "no_event", "var", "ended", "not_ended", "hidden", "shown", "collision_disabled", "collision_enabled", "player"]
+        .into_iter()
+        .filter(|k| eo.contains_key(*k))
+        .collect();
     if main.len() != 1 {
         errs.push(format!(
-            "{ep}: give exactly one of event, no_event, var, ended, not_ended, hidden, shown, player (got {})",
+            "{ep}: give exactly one of event, no_event, var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player (got {})",
             if main.is_empty() { "none".to_string() } else { main.join(" + ") }
         ));
         return None;
@@ -469,11 +476,26 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
                 return None;
             }
             let cmps = [("eq", Cmp::Eq), ("ne", Cmp::Ne), ("gt", Cmp::Gt), ("gte", Cmp::Ge), ("lt", Cmp::Lt), ("lte", Cmp::Le)];
-            let given: Vec<(Cmp, f64)> = cmps.iter().filter_map(|(k, c)| eo.get(*k).and_then(Value::as_f64).map(|v| (*c, v))).collect();
+            let mut given = Vec::new();
+            for (key, cmp) in cmps {
+                let Some(value) = eo.get(key) else { continue };
+                match value {
+                    Value::Number(n) => {
+                        if let Some(value) = n.as_f64() {
+                            given.push((cmp, value));
+                        }
+                    }
+                    Value::Bool(value) if matches!(cmp, Cmp::Eq | Cmp::Ne) => given.push((cmp, if *value { 1.0 } else { 0.0 })),
+                    Value::Bool(_) => errs.push(format!("{ep}.{key}: boolean values are only valid with eq or ne")),
+                    _ => errs.push(format!("{ep}.{key}: expected a number, or true/false with eq or ne")),
+                }
+            }
             match given.as_slice() {
                 [(cmp, value)] => Some(Expect::Var { name: text, cmp: *cmp, value: *value }),
                 _ => {
-                    errs.push(format!("{ep}: a `var` check needs exactly one of eq, ne, gt, gte, lt, lte with a number"));
+                    if given.len() != 1 && !errs.iter().any(|e| e.starts_with(ep)) {
+                        errs.push(format!("{ep}: a `var` check needs exactly one of eq, ne, gt, gte, lt, lte; eq/ne also accept true/false"));
+                    }
                     None
                 }
             }
@@ -486,6 +508,13 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
                 return None;
             }
             Some(Expect::Hidden(text, key == "hidden"))
+        }
+        "collision_disabled" | "collision_enabled" => {
+            if !object_ids.contains(&text) {
+                errs.push(format!("{ep}.{key}: no object `{text}`{}", near_names(&text, object_ids.iter().cloned())));
+                return None;
+            }
+            Some(Expect::CollisionDisabled(text, key == "collision_disabled"))
         }
         _ => {
             if !players.iter().any(|q| q.id == text) {
@@ -721,6 +750,14 @@ fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], histo
             let hidden = sim.rules().hidden().any(|h| h == id);
             done(format!("{id} {}", if *want { "hidden" } else { "shown" }), hidden == *want, format!("{id} is {}", if hidden { "hidden" } else { "shown" }))
         }
+        Expect::CollisionDisabled(id, want) => {
+            let disabled = sim.rules().collision_disabled().any(|object| object == id);
+            done(
+                format!("{id} collision {}", if *want { "disabled" } else { "enabled" }),
+                disabled == *want,
+                format!("{id} collision is {}", if disabled { "disabled" } else { "enabled" }),
+            )
+        }
         Expect::PlayerNear { player, at, tol, y } => {
             let Some(pi) = scenario.players.iter().position(|p| &p.id == player) else { return done(format!("{player} near"), false, "unknown player".into()) };
             let Some(pl) = sim.player(slots[pi]) else { return done(format!("{player} near"), false, "the player left".into()) };
@@ -746,4 +783,50 @@ fn seen(history: &[GameEvent]) -> String {
         }
     }
     names.join(", ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn rules() -> RuleSet {
+        let mut rules = RuleSet::default();
+        rules.var_names.push("flag".into());
+        rules.var_init.push(0.0);
+        rules
+    }
+
+    #[test]
+    fn boolean_variable_expectations_normalize_for_equality() {
+        let scenario = parse(
+            &json!({
+                "name": "bools",
+                "players": [{"id": "p"}],
+                "script": [{"player": "p", "wait": 0}],
+                "expect": [{"var": "flag", "eq": true}, {"var": "flag", "ne": false}]
+            }),
+            &rules(),
+            &[],
+        )
+        .unwrap();
+        assert!(matches!(scenario.expect[0], Expect::Var { cmp: Cmp::Eq, value: 1.0, .. }));
+        assert!(matches!(scenario.expect[1], Expect::Var { cmp: Cmp::Ne, value: 0.0, .. }));
+    }
+
+    #[test]
+    fn boolean_variable_expectations_reject_ordering() {
+        let errors = parse(
+            &json!({
+                "name": "bools",
+                "players": [{"id": "p"}],
+                "script": [{"player": "p", "wait": 0}],
+                "expect": [{"var": "flag", "gt": true}]
+            }),
+            &rules(),
+            &[],
+        )
+        .unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("only valid with eq or ne")), "{errors:?}");
+    }
 }

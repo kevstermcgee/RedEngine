@@ -12,8 +12,10 @@ use serde_json::{Map, Value};
 /// a newer number is refused with a message instead of half-working. Migration rules: `SPEC.md`, "Versioning".
 pub const SCHEMA_VERSION: u32 = 1;
 
-/// Maximum point lights per scene (`lights` beyond this are a validation error). The WGSL `Globals` block must agree.
+/// Maximum lights evaluated by the shader for one camera. The WGSL `Globals` block must agree.
 pub const MAX_LIGHTS: usize = 16;
+/// Maximum authored lights in a scene. The renderer selects the nearest point lights for each view.
+pub const MAX_SCENE_LIGHTS: usize = 256;
 
 // ---------------------------------------------------------------------------------------------
 // Compiled scene (what the renderer actually walks)
@@ -797,8 +799,8 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
 
     let mut lights = Vec::new();
     if let Some(arr) = root.get("lights").and_then(Value::as_array) {
-        if arr.len() > MAX_LIGHTS {
-            ctx.err("lights", format!("at most {MAX_LIGHTS} lights are allowed"));
+        if arr.len() > MAX_SCENE_LIGHTS {
+            ctx.err("lights", format!("at most {MAX_SCENE_LIGHTS} authored lights are allowed"));
         }
         let mut shadow_casters = 0;
         for (i, lv) in arr.iter().enumerate() {
@@ -885,6 +887,7 @@ pub fn object_ids(objects: &[Object]) -> Vec<String> {
 fn rule_refs(root: &Map<String, Value>, objects: &[Object]) -> crate::sim::rules::Refs {
     let mut refs = crate::sim::rules::Refs::default();
     refs.object_ids.extend(object_ids(objects));
+    refs.top_level_ids.extend(objects.iter().map(|object| object.id.clone()));
     for it in crate::collide::interactables_of(objects) {
         refs.bounds.insert(it.id, (it.min, it.max));
     }

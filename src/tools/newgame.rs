@@ -50,8 +50,8 @@ scripts/red play 127.0.0.1:27015   # the graphical client (run two)
 const RED_SH: &str = r##"#!/usr/bin/env bash
 # scripts/red: run the Red Engine version this project pins (game.json "engine"), building it on first use.
 #   scripts/red doctor | check | build-all | info | serve | play [HOST:PORT] | status ... | <any red_engine2 command>
-# Env: RED_ENGINE=/path/to/checkout (override), RED_UPDATE=1 (git fetch the pinned ref), RED_HEADLESS=1 (no graphics crates:
-# CLI + server only, ideal for CI and containers), RED_PROFILE=debug|release (default debug).
+# Env: RED_ENGINE=/path/to/checkout (override), RED_UPDATE=1 (git fetch the pinned ref), RED_REBUILD=1 (force a build),
+# RED_HEADLESS=1 (no graphics crates: CLI + server only, ideal for CI and containers), RED_PROFILE=debug|release (default debug).
 set -eu
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -88,7 +88,10 @@ PROFILE="${RED_PROFILE:-debug}"; PFLAG=""; [ "$PROFILE" = "release" ] && PFLAG="
 TARGET="${CARGO_TARGET_DIR:-$ENGINE/target}"
 exe() { for c in "$TARGET/$PROFILE/$1" "$TARGET/$PROFILE/$1.exe"; do [ -f "$c" ] && { echo "$c"; return; }; done; echo "$TARGET/$PROFILE/$1"; }
 
+REBUILD="${RED_REBUILD:-0}"
+if [ "${1:-}" = "--rebuild" ]; then REBUILD=1; shift; fi
 cmd="${1:-help}"; [ $# -gt 0 ] && shift
+if [ "$cmd" = "help" ] || [ "$cmd" = "-h" ] || [ "$cmd" = "--help" ]; then sed -n '2,5p' "$0"; exit 0; fi
 if [ "$cmd" = "doctor" ]; then
   echo "project  $ROOT"; echo "engine   $ENGINE ($(git -C "$ENGINE" rev-parse --short HEAD 2>/dev/null || echo 'not a git checkout'))"
   command -v cargo >/dev/null 2>&1 && echo "cargo    $(cargo --version)" || echo "cargo    NOT FOUND (install Rust: https://rustup.rs)"
@@ -97,16 +100,33 @@ if [ "$cmd" = "doctor" ]; then
 fi
 command -v cargo >/dev/null 2>&1 || { echo "red: cargo not found (install Rust: https://rustup.rs)" >&2; exit 127; }
 
-BINS="--bin red_engine2 --bin red_server"; FEATURES=""
-if [ "${RED_HEADLESS:-0}" = "1" ]; then FEATURES="--no-default-features"; else [ "$cmd" = "play" ] && BINS="$BINS --bin re2"; fi
-[ -f "$(exe red_engine2)" ] || echo "red: building the engine (first time takes a few minutes; later runs are instant) ..." >&2
-cargo build --quiet $PFLAG $FEATURES --manifest-path "$ENGINE/Cargo.toml" $BINS
+if [ "${1:-}" = "--rebuild" ]; then REBUILD=1; shift; fi
+MODE=default; FEATURES=""; [ "${RED_HEADLESS:-0}" = "1" ] && { MODE=headless; FEATURES="--no-default-features"; }
+[ "$MODE" = "headless" ] && [ "$cmd" = "play" ] && { echo "red: play needs graphics; unset RED_HEADLESS" >&2; exit 2; }
+REQUIRED="red_engine2"; [ "$cmd" = "serve" ] && REQUIRED="$REQUIRED red_server"; [ "$cmd" = "play" ] && REQUIRED="$REQUIRED re2"
+needs_build() {
+  OUT="$(exe "$1")"; STAMP="$TARGET/$PROFILE/.red-wrapper-$1.mode"
+  [ "$REBUILD" = "1" ] || [ ! -f "$OUT" ] && return 0
+  [ -f "$STAMP" ] || return 0
+  [ "$(cat "$STAMP")" != "$MODE" ] && return 0
+  for f in "$ENGINE/Cargo.toml" "$ENGINE/Cargo.lock" "$ENGINE/build.rs"; do [ -f "$f" ] && [ "$f" -nt "$OUT" ] && return 0; done
+  for d in "$ENGINE/src" "$ENGINE/assets"; do
+    [ -d "$d" ] && [ -n "$(find "$d" -type f -newer "$OUT" -print -quit)" ] && return 0
+  done
+  return 1
+}
+BUILD=0; BINS=""
+for b in $REQUIRED; do BINS="$BINS --bin $b"; needs_build "$b" && BUILD=1; done
+if [ "$BUILD" = "1" ]; then
+  echo "red: building required engine binaries ..." >&2
+  cargo build --quiet $PFLAG $FEATURES --manifest-path "$ENGINE/Cargo.toml" $BINS
+  for b in $REQUIRED; do printf '%s' "$MODE" > "$TARGET/$PROFILE/.red-wrapper-$b.mode"; done
+fi
 
 CLI="$(exe red_engine2)"
 case "$cmd" in
   check|build-all|info|serve) exec "$CLI" game "$cmd" "$@" ;;
   play) exec "$CLI" game play "$@" ;;
-  help|-h|--help) sed -n '2,5p' "$0" ;;
   *) exec "$CLI" "$cmd" "$@" ;;
 esac
 "##;
@@ -137,6 +157,13 @@ $PFlag = if ($Profile_ -eq 'release') { @('--release') } else { @() }
 $Target = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $Engine 'target' }
 function Exe([string]$n) { Join-Path $Target "$Profile_\$n.exe" }
 
+$rebuild = $env:RED_REBUILD -eq '1'
+if ($Cmd -eq '--rebuild') {
+    $rebuild = $true
+    $Cmd = if ($Rest.Count -gt 0) { $Rest[0] } else { 'help' }
+    $Rest = @($Rest | Select-Object -Skip 1)
+}
+if ($Cmd -in 'help', '-h', '--help') { Get-Content $PSCommandPath -TotalCount 2 | ForEach-Object { $_ -replace '^# ?', '' }; exit 0 }
 if ($Cmd -eq 'doctor') {
     "project  $Root"; "engine   $Engine"
     if (Get-Command cargo -ErrorAction SilentlyContinue) { "cargo    $(cargo --version)" } else { 'cargo    NOT FOUND (install Rust: https://rustup.rs)' }
@@ -144,16 +171,32 @@ if ($Cmd -eq 'doctor') {
     exit 0
 }
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { Write-Error 'red: cargo not found (install Rust: https://rustup.rs)'; exit 127 }
-$bins = @('--bin', 'red_engine2', '--bin', 'red_server'); $features = @()
-if ($env:RED_HEADLESS -eq '1') { $features = @('--no-default-features') } elseif ($Cmd -eq 'play') { $bins += @('--bin', 're2') }
-if (-not (Test-Path (Exe 'red_engine2'))) { Write-Host 'red: building the engine (first time takes a few minutes; later runs are instant) ...' }
-& cargo build --quiet @PFlag @features --manifest-path (Join-Path $Engine 'Cargo.toml') @bins
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($Rest.Count -gt 0 -and $Rest[0] -eq '--rebuild') { $rebuild = $true; $Rest = @($Rest | Select-Object -Skip 1) }
+$mode = if ($env:RED_HEADLESS -eq '1') { 'headless' } else { 'default' }
+$features = if ($mode -eq 'headless') { @('--no-default-features') } else { @() }
+if ($mode -eq 'headless' -and $Cmd -eq 'play') { Write-Error 'red: play needs graphics; unset RED_HEADLESS'; exit 2 }
+$required = @('red_engine2'); if ($Cmd -eq 'serve') { $required += 'red_server' }; if ($Cmd -eq 'play') { $required += 're2' }
+function Needs-Build([string]$n) {
+    $out = Exe $n; if ($rebuild -or -not (Test-Path $out)) { return $true }
+    $stamp = Join-Path $Target "$Profile_\.red-wrapper-$n.mode"
+    if (-not (Test-Path $stamp) -or (Get-Content $stamp -Raw) -ne $mode) { return $true }
+    $inputs = @((Join-Path $Engine 'Cargo.toml'), (Join-Path $Engine 'Cargo.lock'), (Join-Path $Engine 'build.rs'))
+    $inputs += Get-ChildItem (Join-Path $Engine 'src'), (Join-Path $Engine 'assets') -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+    $built = (Get-Item $out).LastWriteTimeUtc
+    return $null -ne ($inputs | Where-Object { (Test-Path $_) -and (Get-Item $_).LastWriteTimeUtc -gt $built } | Select-Object -First 1)
+}
+$build = $false; $bins = @()
+foreach ($b in $required) { $bins += @('--bin', $b); if (Needs-Build $b) { $build = $true } }
+if ($build) {
+    Write-Host 'red: building required engine binaries ...'
+    & cargo build --quiet @PFlag @features --manifest-path (Join-Path $Engine 'Cargo.toml') @bins
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    foreach ($b in $required) { Set-Content -NoNewline -Path (Join-Path $Target "$Profile_\.red-wrapper-$b.mode") -Value $mode }
+}
 
 $cli = Exe 'red_engine2'
 switch ($Cmd) {
     { $_ -in 'check', 'build-all', 'info', 'serve', 'play' } { & $cli game $Cmd @Rest }
-    'help' { Get-Content $PSCommandPath -TotalCount 2 | ForEach-Object { $_ -replace '^# ?', '' } }
     default { & $cli $Cmd @Rest }
 }
 exit $LASTEXITCODE

@@ -167,13 +167,34 @@ pub fn blueprint_out(bp: &Path) -> PathBuf {
 }
 
 /// The map a blueprint builds into: the `maps` entry with the same base name if there is one, else beside the blueprint.
-fn map_for(cfg: &GameConfig, bp: &str) -> PathBuf {
+pub fn map_for(cfg: &GameConfig, bp: &str) -> PathBuf {
     let base = Path::new(bp).file_stem().map(|s| s.to_string_lossy().trim_end_matches(".blueprint").to_string()).unwrap_or_default();
     cfg.maps
         .iter()
         .find(|m| Path::new(m).file_stem().is_some_and(|s| s.to_string_lossy() == base))
         .map(|m| cfg.dir.join(m))
         .unwrap_or_else(|| blueprint_out(&cfg.dir.join(bp)))
+}
+
+/// If `bp` belongs to an enclosing game project, returns the map destination configured for it.
+/// An unlisted blueprint keeps standalone `build` behavior even when it happens to live under a game directory.
+pub fn destination_for_blueprint(bp: &Path) -> Result<Option<PathBuf>, Vec<String>> {
+    let bp = std::fs::canonicalize(bp).map_err(|e| vec![format!("{}: {e}", bp.display())])?;
+    let Some(parent) = bp.parent() else { return Ok(None) };
+    for dir in parent.ancestors() {
+        if !dir.join("game.json").is_file() {
+            continue;
+        }
+        let cfg = load(dir)?;
+        for configured in &cfg.blueprints {
+            let candidate = cfg.dir.join(configured);
+            if std::fs::canonicalize(&candidate).ok().as_ref() == Some(&bp) {
+                return Ok(Some(map_for(&cfg, configured)));
+            }
+        }
+        return Ok(None);
+    }
+    Ok(None)
 }
 
 /// Compiles every blueprint and writes its map. Returns one line per blueprint.
@@ -338,5 +359,13 @@ mod tests {
         // Rebuilding fixes it.
         assert!(build_all(&cfg).iter().all(|l| !l.failed));
         assert_eq!(check(&cfg, false).failed(), 0);
+        assert_eq!(
+            destination_for_blueprint(&dir.join("blueprints/main.blueprint.json")).unwrap(),
+            Some(std::fs::canonicalize(dir.join("maps/main.json")).unwrap())
+        );
+
+        let other = dir.join("blueprints/other.blueprint.json");
+        std::fs::write(&other, "{}").unwrap();
+        assert_eq!(destination_for_blueprint(&other).unwrap(), None);
     }
 }

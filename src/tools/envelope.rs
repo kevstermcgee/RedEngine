@@ -229,7 +229,7 @@ mod tests {
             "a.type: unknown type 'q'",
             "a.prefab: unknown prefab 'q'",
             "duplicate id 'x'",
-            "lights: at most 16 lights are allowed",
+            "lights: at most 256 authored lights are allowed",
             "something else entirely",
         ] {
             let c = classify(msg);

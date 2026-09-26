@@ -18,8 +18,8 @@
 //! that silently never fires. Running the rules is [`super::rules_run`]; the whole layer is headless and
 //! deterministic (it is part of [`super::match_sim::MatchSim`] and of its checksum).
 //!
-//! Actions: `set [var, value]`, `add [var, n]`, `emit name`, `hide id`, `show id`, `teleport [x,y,z] | spawn_id`,
-//! `end reason`, `impulse {object, dir, speed}`. Volumes: `{zone}`, `{object, pad}`, `{box: [x0,y0,z0,x1,y1,z1]}`.
+//! Actions: `set [var, value]`, `add [var, n]`, `emit name`, `hide id`, `show id`, `collision [id, bool]`,
+//! `teleport [x,y,z] | spawn_id`, `end reason`, `impulse {object, dir, speed}`.
 
 use super::clock::secs_to_ticks;
 use super::rules_expr::{self, Expr, Op};
@@ -43,6 +43,7 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("emit", "name         record a game event; other rules can react with `when: {event: name}`"),
     ("hide", "object_id    mark an object hidden (state only: renderers/clients decide what that means)"),
     ("show", "object_id    the opposite of hide"),
+    ("collision", "[object_id, bool]   enable/disable a top-level object's collision"),
     ("teleport", "[x,y,z] | spawn_id   move the player that triggered the rule"),
     ("end", "reason        end the match with this outcome; rules stop firing"),
     ("impulse", "{object, dir:[x,y,z], speed}   shove a loose prop (a physics prop), speed in m/s"),
@@ -110,6 +111,13 @@ pub enum Action {
     Hide(String),
     /// Mark an object shown.
     Show(String),
+    /// Enable or disable a top-level object's collision.
+    Collision {
+        /// Top-level object id.
+        object: String,
+        /// Whether it should collide.
+        enabled: bool,
+    },
     /// Move the triggering player.
     Teleport(Target),
     /// End the match with an outcome.
@@ -166,6 +174,8 @@ impl Default for RuleSet {
 pub struct Refs {
     /// Every object id (any depth), for `hide`/`show`.
     pub object_ids: HashSet<String>,
+    /// Top-level object ids, for collision state changes.
+    pub top_level_ids: HashSet<String>,
     /// Top-level objects and their world bounds, for `{object}` volumes and `impulse`.
     pub bounds: HashMap<String, (Vec3, Vec3)>,
     /// Zones: id to `(min, max)` where `min.y` is the floor height.
@@ -365,6 +375,22 @@ fn parse_action(v: &Value, names: &[String], refs: &Refs, path: &str, errs: &mut
             }
             Some(if key.as_str() == "hide" { Action::Hide(id.to_string()) } else { Action::Show(id.to_string()) })
         }
+        "collision" => {
+            let Some(pair) = pair() else {
+                errs.push(format!("{sub}: must be [object_id, true|false]"));
+                return None;
+            };
+            let id = pair[0].as_str().unwrap_or("");
+            if !refs.top_level_ids.contains(id) {
+                errs.push(format!("{sub}[0]: no top-level object `{id}`{}", near(id, refs.top_level_ids.iter().cloned())));
+                return None;
+            }
+            let Some(enabled) = pair[1].as_bool() else {
+                errs.push(format!("{sub}[1]: must be true or false"));
+                return None;
+            };
+            Some(Action::Collision { object: id.to_string(), enabled })
+        }
         "teleport" => match (vec3(val), val.as_str()) {
             (Some(p), _) => Some(Action::Teleport(Target::Point(p))),
             (None, Some(s)) if refs.spawn_ids.contains(s) => Some(Action::Teleport(Target::Spawn(s.to_string()))),
@@ -528,6 +554,7 @@ mod tests {
     fn refs() -> Refs {
         let mut r = Refs::default();
         r.object_ids.extend(["coin_1".to_string(), "door".to_string()]);
+        r.top_level_ids.extend(["coin_1".to_string(), "door".to_string()]);
         r.bounds.insert("coin_1".into(), (Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.4, 0.4, 1.4)));
         r.zones.insert("exit".into(), (Vec3::new(8.0, 0.0, 0.0), Vec3::new(10.0, 0.0, 2.0)));
         r.spawn_ids.insert("spawn_a".into());

@@ -112,43 +112,49 @@ pub fn collect_box_colliders(scene: &Scene) -> Vec<Collider2D> {
     collect_box_colliders_except(scene, &std::collections::HashSet::new())
 }
 
+fn collect_object_colliders(objects: &[Object], parent: Mat4, out: &mut Vec<Collider2D>) {
+    for o in objects {
+        if !o.collide {
+            continue;
+        }
+        let local = trs(o.position.sample(0.0), o.rotation.sample(0.0), o.scale.sample(0.0));
+        let world = parent * local;
+        match &o.kind {
+            ObjectKind::Prim(PrimKind::Box { size }) => push_box_collider(world, *size * 0.5, out),
+            ObjectKind::Prim(_) => {}
+            ObjectKind::Group(children) => collect_object_colliders(children, world, out),
+            ObjectKind::Humanoid(_) | ObjectKind::Rat(_) => {}
+            ObjectKind::Stairs(st) => push_stairs_colliders(world, st, out),
+            ObjectKind::Prop(p) => {
+                for (lmin, lmax) in game_collision_boxes(p.kind) {
+                    push_box_collider(world * Mat4::from_translation((lmin + lmax) * 0.5), (lmax - lmin) * 0.5, out);
+                }
+            }
+        }
+    }
+}
+
+/// Static colliders grouped by top-level scene object. Ownership is retained so live game rules
+/// can disable one object's collision without rebuilding its geometry.
+pub fn collect_box_colliders_grouped_except(scene: &Scene, skip: &std::collections::HashSet<usize>) -> Vec<Vec<Collider2D>> {
+    scene
+        .objects
+        .iter()
+        .enumerate()
+        .map(|(i, object)| {
+            let mut out = Vec::new();
+            if !skip.contains(&i) {
+                collect_object_colliders(std::slice::from_ref(object), Mat4::IDENTITY, &mut out);
+            }
+            out
+        })
+        .collect()
+}
+
 /// [`collect_box_colliders`] leaving out the top-level objects in `skip` — loose physics props
 /// (see `crate::physics`), which move and so are not static walls.
 pub fn collect_box_colliders_except(scene: &Scene, skip: &std::collections::HashSet<usize>) -> Vec<Collider2D> {
-    fn walk(objects: &[crate::schema::Object], parent: Mat4, out: &mut Vec<Collider2D>) {
-        for o in objects {
-            if !o.collide {
-                continue;
-            }
-            let local = trs(o.position.sample(0.0), o.rotation.sample(0.0), o.scale.sample(0.0));
-            let world = parent * local;
-            match &o.kind {
-                crate::schema::ObjectKind::Prim(crate::schema::PrimKind::Box { size }) => {
-                    push_box_collider(world, *size * 0.5, out);
-                }
-                crate::schema::ObjectKind::Prim(_) => {}
-                crate::schema::ObjectKind::Group(children) => walk(children, world, out),
-                crate::schema::ObjectKind::Humanoid(_) | crate::schema::ObjectKind::Rat(_) => {}
-                crate::schema::ObjectKind::Stairs(st) => push_stairs_colliders(world, st, out),
-                crate::schema::ObjectKind::Prop(p) => {
-                    // One collider per prop (see `crate::props::collision`): normally the union
-                    // of every part, but a tree only blocks at its trunk and flowers/rugs don't
-                    // block at all.
-                    // (Furniture on legs blocks part by part, so a rat can run under it: `game_collision_boxes`.)
-                    for (lmin, lmax) in game_collision_boxes(p.kind) {
-                        push_box_collider(world * Mat4::from_translation((lmin + lmax) * 0.5), (lmax - lmin) * 0.5, out);
-                    }
-                }
-            }
-        }
-    }
-    let mut out = Vec::new();
-    for (i, o) in scene.objects.iter().enumerate() {
-        if !skip.contains(&i) {
-            walk(std::slice::from_ref(o), Mat4::IDENTITY, &mut out);
-        }
-    }
-    out
+    collect_box_colliders_grouped_except(scene, skip).into_iter().flatten().collect()
 }
 
 /// Filters a full collider list down to the ones that actually block movement *at the player's
@@ -250,55 +256,73 @@ impl GroundCandidates {
     pub fn stairs_height_at(&self, xz: glam::Vec2) -> Option<f32> {
         self.stairs.iter().filter_map(|st| st.height_at(xz)).fold(None, |a, h| Some(a.map_or(h, |m: f32| m.max(h))))
     }
+
+    pub fn append(&mut self, other: &GroundCandidates) {
+        self.box_tops.extend_from_slice(&other.box_tops);
+        self.stairs.extend_from_slice(&other.stairs);
+    }
 }
 
 pub fn collect_ground_candidates(scene: &Scene) -> GroundCandidates {
     collect_ground_candidates_except(scene, &std::collections::HashSet::new())
 }
 
-/// [`collect_ground_candidates`] leaving out the top-level objects in `skip` (loose physics props).
-pub fn collect_ground_candidates_except(scene: &Scene, skip: &std::collections::HashSet<usize>) -> GroundCandidates {
-    fn walk(objects: &[Object], parent: Mat4, box_tops: &mut Vec<Collider2D>, stairs: &mut Vec<StairsRamp>) {
-        for o in objects {
-            if !o.collide {
-                continue;
-            }
-            let local = trs(o.position.sample(0.0), o.rotation.sample(0.0), o.scale.sample(0.0));
-            let world = parent * local;
-            match &o.kind {
-                ObjectKind::Prim(PrimKind::Box { size }) => push_box_collider(world, *size * 0.5, box_tops),
-                ObjectKind::Prim(_) => {}
-                ObjectKind::Group(children) => walk(children, world, box_tops, stairs),
-                ObjectKind::Humanoid(_) | ObjectKind::Rat(_) => {}
-                ObjectKind::Prop(p) => {
-                    // Only props that block the player in the ordinary way are standable.
-                    if collision(p.kind) == Collision::Union {
-                        for part in prop_parts(p.kind) {
-                            if let PrimKind::Box { size } = part.shape {
-                                push_box_collider(world * part.local_transform, size * 0.5, box_tops);
-                            }
+fn collect_object_ground(objects: &[Object], parent: Mat4, out: &mut GroundCandidates) {
+    for o in objects {
+        if !o.collide {
+            continue;
+        }
+        let local = trs(o.position.sample(0.0), o.rotation.sample(0.0), o.scale.sample(0.0));
+        let world = parent * local;
+        match &o.kind {
+            ObjectKind::Prim(PrimKind::Box { size }) => push_box_collider(world, *size * 0.5, &mut out.box_tops),
+            ObjectKind::Prim(_) => {}
+            ObjectKind::Group(children) => collect_object_ground(children, world, out),
+            ObjectKind::Humanoid(_) | ObjectKind::Rat(_) => {}
+            ObjectKind::Prop(p) => {
+                if collision(p.kind) == Collision::Union {
+                    for part in prop_parts(p.kind) {
+                        if let PrimKind::Box { size } = part.shape {
+                            push_box_collider(world * part.local_transform, size * 0.5, &mut out.box_tops);
                         }
                     }
                 }
-                ObjectKind::Stairs(s) => stairs.push(StairsRamp {
-                    world_to_local: world.inverse(),
-                    half_width: s.width * 0.5,
-                    half_run: s.run * 0.5,
-                    base_y: world.transform_point3(Vec3::ZERO).y,
-                    rise: s.rise,
-                    steps: s.steps,
-                }),
             }
+            ObjectKind::Stairs(s) => out.stairs.push(StairsRamp {
+                world_to_local: world.inverse(),
+                half_width: s.width * 0.5,
+                half_run: s.run * 0.5,
+                base_y: world.transform_point3(Vec3::ZERO).y,
+                rise: s.rise,
+                steps: s.steps,
+            }),
         }
     }
-    let mut box_tops = Vec::new();
-    let mut stairs = Vec::new();
-    for (i, o) in scene.objects.iter().enumerate() {
-        if !skip.contains(&i) {
-            walk(std::slice::from_ref(o), Mat4::IDENTITY, &mut box_tops, &mut stairs);
-        }
+}
+
+/// Standable surfaces grouped by top-level scene object, parallel to the grouped static colliders.
+pub fn collect_ground_candidates_grouped_except(scene: &Scene, skip: &std::collections::HashSet<usize>) -> Vec<GroundCandidates> {
+    scene
+        .objects
+        .iter()
+        .enumerate()
+        .map(|(i, object)| {
+            let mut out = GroundCandidates::default();
+            if !skip.contains(&i) {
+                collect_object_ground(std::slice::from_ref(object), Mat4::IDENTITY, &mut out);
+            }
+            out
+        })
+        .collect()
+}
+
+/// [`collect_ground_candidates`] leaving out the top-level objects in `skip` (loose physics props).
+pub fn collect_ground_candidates_except(scene: &Scene, skip: &std::collections::HashSet<usize>) -> GroundCandidates {
+    let mut out = GroundCandidates::default();
+    for group in collect_ground_candidates_grouped_except(scene, skip) {
+        out.append(&group);
     }
-    GroundCandidates { box_tops, stairs }
+    out
 }
 
 /// A small tolerance, in world units, for how far above the player's *current* foot height a

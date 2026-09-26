@@ -68,9 +68,25 @@ need_cargo() {
   }
 }
 
+needs_build() { # binary name + build mode: missing, forced, mode-changed, or older than an input
+  local exe="$ROOT/target/$PROFILE/$1"
+  local mode="${2:-default}" stamp="$ROOT/target/$PROFILE/.red-dev-$1.mode"
+  [ -f "$exe" ] || exe="$exe.exe"
+  [ "${RED_REBUILD:-0}" = "1" ] || [ ! -f "$exe" ] && return 0
+  [ -f "$stamp" ] || return 0
+  [ "$(cat "$stamp")" != "$mode" ] && return 0
+  local f d
+  for f in "$ROOT/Cargo.toml" "$ROOT/Cargo.lock" "$ROOT/build.rs"; do [ -f "$f" ] && [ "$f" -nt "$exe" ] && return 0; done
+  for d in "$ROOT/src" "$ROOT/assets"; do [ -d "$d" ] && [ -n "$(find "$d" -type f -newer "$exe" -print -quit)" ] && return 0; done
+  return 1
+}
+
 cli() { # path of the CLI binary, building it if needed
   need_cargo
-  run "build red_engine2" cargo build $PFLAG --bin red_engine2 --quiet || exit $?
+  if needs_build red_engine2 default; then
+    run "build red_engine2" cargo build $PFLAG --bin red_engine2 --quiet || exit $?
+    printf '%s' default > "$ROOT/target/$PROFILE/.red-dev-red_engine2.mode"
+  fi
   local exe="$ROOT/target/$PROFILE/red_engine2"
   [ -x "$exe" ] || exe="$exe.exe"
   echo "$exe"
@@ -104,7 +120,10 @@ case "$cmd" in
   status) exe="$(cli)" || exit $?; exec "$exe" status "$@" ;;
   server)
     need_cargo
-    run "build red_server" cargo build $PFLAG --no-default-features --bin red_server --quiet || exit $?
+    if needs_build red_server headless; then
+      run "build red_server" cargo build $PFLAG --no-default-features --bin red_server --quiet || exit $?
+      printf '%s' headless > "$ROOT/target/$PROFILE/.red-dev-red_server.mode"
+    fi
     exe="$ROOT/target/$PROFILE/red_server"; [ -x "$exe" ] || exe="$exe.exe"
     exec "$exe" --map "$@" ;;
   ci)     need_cargo; logged ci bash scripts/ci.sh ;;

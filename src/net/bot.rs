@@ -3,7 +3,7 @@
 //! `red_bot` binary), and it shares [`ClientWorld`] with the graphical client so both see the same
 //! static map.
 
-use crate::collide::{collect_box_colliders_except, collect_ground_candidates_except, Collider2D, GroundCandidates};
+use crate::collide::{collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, Collider2D, GroundCandidates};
 use crate::net::client::{ConnState, NetClient, NetEvent, TICK_SECS};
 use crate::net::interp::{PlayerPose, PropPose};
 use crate::net::predict::Predictor;
@@ -25,6 +25,10 @@ pub struct ClientWorld {
     pub colliders: Vec<Collider2D>,
     /// Static ground candidates.
     pub ground: GroundCandidates,
+    collider_groups: Vec<Vec<Collider2D>>,
+    ground_groups: Vec<GroundCandidates>,
+    collision_object_ids: Vec<String>,
+    collision_disabled: Vec<u16>,
     /// Prop id (as used in snapshots) -> index into `scene.objects`.
     pub prop_objects: Vec<usize>,
     /// Any-depth object ids in the same deterministic dictionary order used by the server.
@@ -48,12 +52,42 @@ impl ClientWorld {
     }
 
     fn from_parts(scene: &Scene, loose: &std::collections::HashSet<usize>, prop_objects: Vec<usize>, map_hash: u32) -> ClientWorld {
+        let collider_groups = collect_box_colliders_grouped_except(scene, loose);
+        let ground_groups = collect_ground_candidates_grouped_except(scene, loose);
+        let colliders = collider_groups.iter().flatten().copied().collect();
+        let mut ground = GroundCandidates::default();
+        for group in &ground_groups {
+            ground.append(group);
+        }
         ClientWorld {
-            colliders: collect_box_colliders_except(scene, loose),
-            ground: collect_ground_candidates_except(scene, loose),
+            colliders,
+            ground,
+            collider_groups,
+            ground_groups,
+            collision_object_ids: scene.objects.iter().map(|object| object.id.clone()).collect(),
+            collision_disabled: Vec::new(),
             prop_objects,
             rule_object_ids: crate::schema::object_ids(&scene.objects),
             map_hash,
+        }
+    }
+
+    /// Applies the authoritative collision-state indices from a rule-state snapshot.
+    pub fn set_collision_disabled(&mut self, disabled: &[u16]) {
+        if self.collision_disabled == disabled {
+            return;
+        }
+        self.collision_disabled = disabled.to_vec();
+        let names: std::collections::HashSet<&str> =
+            disabled.iter().filter_map(|&index| self.rule_object_ids.get(index as usize).map(String::as_str)).collect();
+        self.colliders.clear();
+        self.ground = GroundCandidates::default();
+        for (i, id) in self.collision_object_ids.iter().enumerate() {
+            if names.contains(id.as_str()) {
+                continue;
+            }
+            self.colliders.extend_from_slice(&self.collider_groups[i]);
+            self.ground.append(&self.ground_groups[i]);
         }
     }
 }
@@ -223,6 +257,8 @@ impl Bot {
                 NetEvent::ServerBye => self.events.push((t, "server said bye".into())),
             }
         }
+        let collision_disabled = self.client.rule_state().map(|state| state.collision_disabled.clone()).unwrap_or_default();
+        self.world.set_collision_disabled(&collision_disabled);
         if self.auto_ready
             && self.client.state() == ConnState::Connected
             && !self.client.is_ready()

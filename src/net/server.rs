@@ -814,6 +814,7 @@ impl Server {
         let rules = self.sim.rules();
         let vars: Vec<RuleVar> = rules.vars().into_iter().take(MAX_RULE_VARS).map(|(name, value)| RuleVar { name: name.to_string(), value }).collect();
         let hidden: Vec<u16> = rules.hidden().filter_map(|id| self.sim.rule_object_index(id)).take(MAX_RULE_HIDDEN).collect();
+        let collision_disabled: Vec<u16> = rules.collision_disabled().filter_map(|id| self.sim.rule_object_index(id)).take(MAX_RULE_COLLISION).collect();
         let latest_event = rules.history().iter().rev().find(|e| !e.name.starts_with("end:"));
         let event = latest_event.map_or_else(String::new, |e| e.name.clone());
         let event_tick = latest_event.map_or(0, |e| e.tick.min(u32::MAX as u64) as u32);
@@ -845,6 +846,7 @@ impl Server {
                 server_tick: rule_tick,
                 vars: vars.clone(),
                 hidden: hidden.clone(),
+                collision_disabled: collision_disabled.clone(),
                 event: event.clone(),
                 event_tick,
                 outcome: outcome.clone(),

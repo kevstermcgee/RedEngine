@@ -61,7 +61,7 @@ pub const BASEBOARD_KEYS: &[&str] = &["color", "height"];
 /// Keys of one fence `gaps` entry.
 pub const GAP_KEYS: &[&str] = &["at", "width"];
 /// Keys of a prefab instance.
-pub const PREFAB_INSTANCE_KEYS: &[&str] = &["id", "type", "prefab", "params", "position", "rotation", "scale", "collide", "movable", "lint_ignore"];
+pub const PREFAB_INSTANCE_KEYS: &[&str] = &["id", "type", "prefab", "params", "material", "position", "rotation", "scale", "collide", "movable", "lint_ignore"];
 
 /// Keys every ordinary object may carry.
 const COMMON: &[&str] = &["id", "type", "position", "rotation", "scale", "collide", "movable", "lint_ignore"];

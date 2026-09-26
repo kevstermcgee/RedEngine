@@ -429,9 +429,23 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
     let mut light_color_intensity = [[0f32; 4]; MAX_LIGHTS];
     let mut shadow_idx: i32 = -1;
     let mut light_view_proj = Mat4::IDENTITY;
-    let n = scene.lights.len().min(MAX_LIGHTS);
-    for i in 0..n {
-        let light = &scene.lights[i];
+    let mut selected: Vec<usize> =
+        scene.lights.iter().enumerate().filter_map(|(i, light)| matches!(light.kind, LightKind::Directional { .. }).then_some(i)).collect();
+    let mut points: Vec<(usize, f32)> = scene
+        .lights
+        .iter()
+        .enumerate()
+        .filter_map(|(i, light)| match &light.kind {
+            LightKind::Point { position, .. } => Some((i, position.sample(t).distance_squared(cam_pos))),
+            LightKind::Directional { .. } => None,
+        })
+        .collect();
+    points.sort_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+    selected.extend(points.into_iter().map(|(i, _)| i));
+    selected.truncate(MAX_LIGHTS);
+    let n = selected.len();
+    for (i, source_index) in selected.into_iter().enumerate() {
+        let light = &scene.lights[source_index];
         let intensity = light.intensity.sample(t);
         let color = light.color.sample(t) * intensity;
         match &light.kind {
@@ -554,5 +568,26 @@ mod tests {
         assert_eq!(paths[0], ["plain"]);
         assert_eq!(paths[1], ["prefab", "nested"]);
         assert!(paths[2..].iter().all(|p| p == &["prefab", "steps"]));
+    }
+
+    #[test]
+    fn authored_point_lights_are_culled_to_the_nearest_shader_budget() {
+        let lights = (0..20)
+            .map(|x| {
+                serde_json::json!({
+                    "id": format!("light_{x}"),
+                    "type": "point",
+                    "position": [x, 0, 0],
+                    "range": 10
+                })
+            })
+            .collect::<Vec<_>>();
+        let text = serde_json::json!({"camera": {}, "lights": lights, "objects": []}).to_string();
+        let scene = crate::schema::parse_scene(&text).expect("more than 16 authored lights should parse");
+        let globals = build_globals_common(&scene, 0.0, Vec3::new(18.0, 0.0, 0.0), Mat4::IDENTITY);
+
+        assert_eq!(globals.counts[0], MAX_LIGHTS as f32);
+        assert_eq!(globals.light_pos_or_dir[0], [18.0, 0.0, 0.0, 1.0]);
+        assert!(globals.light_pos_or_dir[..MAX_LIGHTS].iter().all(|light| light[0] != 0.0));
     }
 }

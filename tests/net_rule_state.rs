@@ -37,6 +37,7 @@ fn peers_and_a_late_joiner_recover_the_same_complete_rule_state() {
         "do": [
             {"add": ["score", 3]},
             {"hide": "floor_spawn_hall"},
+            {"collision": ["floor_spawn_hall", false]},
             {"emit": "collected"},
             {"end": "victory"}
         ]
@@ -64,6 +65,7 @@ fn peers_and_a_late_joiner_recover_the_same_complete_rule_state() {
     let state = a.rule_state().unwrap();
     assert_eq!(state.vars.iter().find(|v| v.name == "score").map(|v| v.value), Some(3.0));
     assert_eq!(state.hidden, [hidden_index]);
+    assert_eq!(state.collision_disabled, [hidden_index]);
     assert_eq!(state.event, "collected");
 
     let mut late = NetClient::connect(addr, 0, hash, 0).unwrap();
@@ -71,6 +73,7 @@ fn peers_and_a_late_joiner_recover_the_same_complete_rule_state() {
     let late_state = late.rule_state().unwrap();
     assert_eq!(late_state.vars, state.vars);
     assert_eq!(late_state.hidden, state.hidden);
+    assert_eq!(late_state.collision_disabled, state.collision_disabled);
     assert_eq!(late_state.outcome, state.outcome);
 
     stop.store(true, Ordering::Relaxed);
