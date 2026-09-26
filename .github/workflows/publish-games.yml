@@ -26,12 +26,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out RedEngine
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Check out RedEngineGames
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: kevstermcgee/RedEngineGames
           ssh-key: ${{ secrets.GAMES_REPO_DEPLOY_KEY }}
