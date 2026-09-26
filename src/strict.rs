@@ -30,6 +30,8 @@ pub const ROOT_KEYS: &[&str] = &[
     "prefabs",
     "vars",
     "rules",
+    "player",
+    "jump_pads",
     "weapons",
     "match",
     "objects",
@@ -44,6 +46,10 @@ pub const AMBIENT_KEYS: &[&str] = &["color", "intensity"];
 pub const POST_KEYS: &[&str] = &["enabled", "ao", "outline", "ao_radius"];
 /// `camera` keys.
 pub const CAMERA_KEYS: &[&str] = &["fov", "near", "far", "position", "target", "roll"];
+/// Live-player tuning keys.
+pub const PLAYER_KEYS: &[&str] = &["fov", "walk_speed", "sprint_speed", "crouch_multiplier", "jump_speed", "gravity"];
+/// One `jump_pads` entry.
+pub const JUMP_PAD_KEYS: &[&str] = &["id", "position", "size", "launch_speed"];
 /// `material` keys.
 pub const MATERIAL_KEYS: &[&str] = &["color", "metallic", "roughness", "emissive"];
 /// Point-light keys.

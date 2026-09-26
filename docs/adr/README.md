@@ -43,6 +43,7 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0036](0036-repeated-bounded-online-rule-state.md) | Repeated bounded rule-state snapshots give online clients loss/reconnect/late-join recovery | accepted |
 | [0037](0037-core-assets-are-a-growing-api.md) | Core assets are a growing API, not an exhaustive inventory | accepted |
 | [0038](0038-reusable-firearm-arsenal-and-ads.md) | Reusable eleven-firearm arsenal, procedural models and smooth aim-down-sights | accepted |
+| [0039](0039-authored-player-tuning-and-jump-pads.md) | Scene-authored player tuning, starting weapon and deterministic jump pads | accepted |
 
 ## Writing one
 

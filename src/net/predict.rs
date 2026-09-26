@@ -8,7 +8,8 @@
 //! the client had wrong) the difference is smoothed away over a few ticks instead of popping.
 
 use crate::collide::{Collider2D, GroundCandidates};
-use crate::sim::player::{step_player, PlayerInput, PlayerState};
+use crate::player::{JumpPad, PlayerTuning};
+use crate::sim::player::{step_player_tuned, PlayerInput, PlayerState};
 use glam::Vec2;
 use std::collections::VecDeque;
 
@@ -49,7 +50,19 @@ impl Predictor {
     /// Applies one local tick of input immediately and remembers it until acknowledged. Returns the
     /// horizontal speed (for the local walk animation).
     pub fn apply_local(&mut self, input: PlayerInput, colliders: &[Collider2D], ground: &GroundCandidates) -> f32 {
-        let speed = step_player(&mut self.state, &input, colliders, ground);
+        self.apply_local_tuned(input, colliders, ground, PlayerTuning::default(), &[])
+    }
+
+    /// [`apply_local`](Self::apply_local) with map-authored movement and jump pads.
+    pub fn apply_local_tuned(
+        &mut self,
+        input: PlayerInput,
+        colliders: &[Collider2D],
+        ground: &GroundCandidates,
+        tuning: PlayerTuning,
+        jump_pads: &[JumpPad],
+    ) -> f32 {
+        let speed = step_player_tuned(&mut self.state, &input, colliders, ground, tuning, jump_pads);
         self.pending.push_back(input);
         while self.pending.len() > MAX_PENDING {
             self.pending.pop_front();
@@ -61,13 +74,26 @@ impl Predictor {
     /// The server says: after processing input `ack_seq`, the player is in `server`. Take that, replay
     /// what the server has not seen yet, and smooth any difference from what was on screen.
     pub fn reconcile(&mut self, server: PlayerState, ack_seq: u32, colliders: &[Collider2D], ground: &GroundCandidates) {
+        self.reconcile_tuned(server, ack_seq, colliders, ground, PlayerTuning::default(), &[]);
+    }
+
+    /// [`reconcile`](Self::reconcile) with map-authored movement and jump pads.
+    pub fn reconcile_tuned(
+        &mut self,
+        server: PlayerState,
+        ack_seq: u32,
+        colliders: &[Collider2D],
+        ground: &GroundCandidates,
+        tuning: PlayerTuning,
+        jump_pads: &[JumpPad],
+    ) {
         let before = self.state;
         while self.pending.front().is_some_and(|i| (i.seq.wrapping_sub(ack_seq) as i32) <= 0) {
             self.pending.pop_front();
         }
         self.state = server;
         for input in self.pending.iter() {
-            step_player(&mut self.state, input, colliders, ground);
+            step_player_tuned(&mut self.state, input, colliders, ground, tuning, jump_pads);
         }
         let err = before.pos - self.state.pos;
         let mag = err.length();
@@ -105,6 +131,7 @@ mod tests {
     use super::*;
     use crate::collide::{collect_box_colliders, collect_ground_candidates};
     use crate::player::Character;
+    use crate::sim::player::step_player;
     use std::path::Path;
 
     fn world() -> (Vec<Collider2D>, GroundCandidates) {

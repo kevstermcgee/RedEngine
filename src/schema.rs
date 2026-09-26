@@ -52,6 +52,10 @@ pub struct Scene {
     pub ambient_color: Vec3,
     pub ambient_intensity: f32,
     pub camera: Camera,
+    /// Live-player movement/view tuning. Defaults preserve the classic engine feel and 90° FOV.
+    pub player: crate::player::PlayerTuning,
+    /// Authoritative vertical launch surfaces.
+    pub jump_pads: Vec<crate::player::JumpPad>,
     pub post: PostSettings,
     pub lights: Vec<Light>,
     pub objects: Vec<Object>,
@@ -462,6 +466,77 @@ fn parse_camera(ctx: &mut Ctx, obj: &Map<String, Value>) -> Camera {
     }
 }
 
+fn ranged(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path: &str, default: f32, min: f32, max: f32) -> f32 {
+    let value = plain_f32(ctx, obj, key, path, default);
+    if !(min..=max).contains(&value) {
+        ctx.err(&format!("{path}.{key}"), format!("must be between {min} and {max}"));
+        default
+    } else {
+        value
+    }
+}
+
+fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::PlayerTuning {
+    let Some(obj) = root.get("player") else { return Default::default() };
+    let Some(obj) = obj.as_object() else {
+        ctx.err("player", "must be an object");
+        return Default::default();
+    };
+    check_keys(&mut ctx.errors, "player", obj, strict::PLAYER_KEYS);
+    let d = crate::player::PlayerTuning::default();
+    let walk_speed = ranged(ctx, obj, "walk_speed", "player", d.walk_speed, 0.5, 20.0);
+    let sprint_speed = ranged(ctx, obj, "sprint_speed", "player", d.sprint_speed, walk_speed, 30.0);
+    crate::player::PlayerTuning {
+        fov_deg: ranged(ctx, obj, "fov", "player", d.fov_deg, 60.0, 120.0),
+        walk_speed,
+        sprint_speed,
+        crouch_multiplier: ranged(ctx, obj, "crouch_multiplier", "player", d.crouch_multiplier, 0.1, 1.0),
+        jump_speed: ranged(ctx, obj, "jump_speed", "player", d.jump_speed, 1.0, 15.0),
+        gravity: ranged(ctx, obj, "gravity", "player", d.gravity, 1.0, 40.0),
+    }
+}
+
+fn parse_jump_pads(ctx: &mut Ctx, root: &Map<String, Value>) -> Vec<crate::player::JumpPad> {
+    let Some(value) = root.get("jump_pads") else { return Vec::new() };
+    let Some(items) = value.as_array() else {
+        ctx.err("jump_pads", "must be an array");
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for (index, value) in items.iter().enumerate() {
+        let path = format!("jump_pads[{index}]");
+        let Some(obj) = value.as_object() else {
+            ctx.err(&path, "must be an object");
+            continue;
+        };
+        check_keys(&mut ctx.errors, &path, obj, strict::JUMP_PAD_KEYS);
+        let id = obj.get("id").and_then(Value::as_str).unwrap_or("jump_pad").to_string();
+        let position = match obj.get("position").map(as_vec3) {
+            Some(Ok(v)) => v,
+            _ => {
+                ctx.err(&format!("{path}.position"), "must be [x, y, z]");
+                Vec3::ZERO
+            }
+        };
+        let size = match obj.get("size").and_then(Value::as_array).filter(|v| v.len() == 2) {
+            Some(v) => Vec3::new(as_f32(&v[0]).unwrap_or(1.0), 0.0, as_f32(&v[1]).unwrap_or(1.0)),
+            None => {
+                ctx.err(&format!("{path}.size"), "must be [width, depth]");
+                Vec3::new(1.0, 0.0, 1.0)
+            }
+        };
+        let launch_speed = ranged(ctx, obj, "launch_speed", &path, 9.0, 2.0, 30.0);
+        out.push(crate::player::JumpPad {
+            id,
+            center: glam::Vec2::new(position.x, position.z),
+            size: glam::Vec2::new(size.x.max(0.2), size.z.max(0.2)),
+            foot_y: position.y,
+            launch_speed,
+        });
+    }
+    out
+}
+
 fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
     let id = obj.get("id").and_then(Value::as_str).unwrap_or("light").to_string();
     let cast_shadows = obj.get("cast_shadows").and_then(Value::as_bool).unwrap_or(false);
@@ -796,6 +871,8 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         }
         Some(c) => parse_camera(&mut ctx, c),
     };
+    let player = parse_player(&mut ctx, root);
+    let jump_pads = parse_jump_pads(&mut ctx, root);
 
     let mut lights = Vec::new();
     if let Some(arr) = root.get("lights").and_then(Value::as_array) {
@@ -861,6 +938,8 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         ambient_color,
         ambient_intensity,
         camera,
+        player,
+        jump_pads,
         post,
         lights,
         objects,
@@ -967,6 +1046,29 @@ mod tests {
         let scene = parse_scene(json).expect("should parse");
         assert_eq!(scene.fps, 30);
         assert_eq!(scene.objects.len(), 0);
+    }
+
+    #[test]
+    fn player_tuning_and_jump_pads_parse_strictly() {
+        let scene = parse_scene(
+            r#"{
+                "camera":{"position":[0,2,8],"target":[0,1,0]},
+                "player":{"fov":90,"walk_speed":9,"sprint_speed":13,"crouch_multiplier":0.5,"jump_speed":6,"gravity":18},
+                "jump_pads":[{"id":"lift","position":[1,0,2],"size":[2,3],"launch_speed":11}],
+                "objects":[]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(scene.player.fov_deg, 90.0);
+        assert_eq!(scene.player.sprint_speed, 13.0);
+        assert_eq!(scene.jump_pads.len(), 1);
+        assert_eq!(scene.jump_pads[0].id, "lift");
+
+        let errors =
+            parse_scene(r#"{"camera":{},"player":{"field_of_view":90},"jump_pads":[{"id":"x","position":[0,0,0],"size":[1,1],"boost":9}],"objects":[]}"#)
+                .unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("field_of_view") && e.contains("fov")), "{errors:?}");
+        assert!(errors.iter().any(|e| e.contains("boost") && e.contains("launch_speed")), "{errors:?}");
     }
 
     #[test]

@@ -102,6 +102,26 @@ impl Weapon {
         }
     }
 
+    /// Parses a stable scene-facing weapon name.
+    pub fn parse(value: &str) -> Option<Self> {
+        let normalized = value.trim().to_ascii_lowercase().replace([' ', '_'], "-");
+        match normalized.as_str() {
+            "bat" | "baseball-bat" => Some(Weapon::Bat),
+            "revolver" => Some(Weapon::Revolver),
+            "pistol" => Some(Weapon::Pistol),
+            "machine-pistol" => Some(Weapon::MachinePistol),
+            "smg" => Some(Weapon::Smg),
+            "carbine" => Some(Weapon::Carbine),
+            "rifle" => Some(Weapon::Rifle),
+            "bullpup" => Some(Weapon::Bullpup),
+            "marksman" | "marksman-rifle" => Some(Weapon::Marksman),
+            "shotgun" => Some(Weapon::Shotgun),
+            "lmg" => Some(Weapon::Lmg),
+            "scout" | "scout-rifle" => Some(Weapon::Scout),
+            _ => None,
+        }
+    }
+
     /// True for every ranged weapon.
     pub fn is_firearm(self) -> bool {
         self != Weapon::Bat
@@ -176,6 +196,8 @@ pub const RESPAWN_TICKS: u64 = crate::sim::clock::secs_to_ticks(3.0) as u64;
 /// The per-scene weapon numbers (`weapons` in the scene; defaults are the numbers above).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WeaponConfig {
+    /// Weapon equipped on spawn and respawn.
+    pub starting_weapon: Weapon,
     /// Damage of a bat hit on a player.
     pub bat_damage: u32,
     /// Damage of a revolver hit on a player.
@@ -186,7 +208,7 @@ pub struct WeaponConfig {
 
 impl Default for WeaponConfig {
     fn default() -> Self {
-        WeaponConfig { bat_damage: BAT_DAMAGE, revolver_damage: REVOLVER_DAMAGE, revolver_ammo: REVOLVER_AMMO }
+        WeaponConfig { starting_weapon: Weapon::Bat, bat_damage: BAT_DAMAGE, revolver_damage: REVOLVER_DAMAGE, revolver_ammo: REVOLVER_AMMO }
     }
 }
 
@@ -201,7 +223,7 @@ impl WeaponConfig {
     }
 }
 
-const WEAPONS_KEYS: &[&str] = &["bat", "revolver"];
+const WEAPONS_KEYS: &[&str] = &["starting", "bat", "revolver"];
 const BAT_KEYS: &[&str] = &["damage"];
 const REVOLVER_KEYS: &[&str] = &["damage", "ammo"];
 const AMMO_KEYS: &[&str] = &["loaded", "capacity", "reserve"];
@@ -229,6 +251,14 @@ pub fn parse_weapons(root: &JsonMap) -> Result<WeaponConfig, Vec<String>> {
     };
     let mut errs = Vec::new();
     check_keys(&mut errs, "weapons", w, WEAPONS_KEYS);
+    if let Some(value) = w.get("starting") {
+        match value.as_str().and_then(Weapon::parse) {
+            Some(weapon) => cfg.starting_weapon = weapon,
+            None => errs.push(
+                "weapons.starting: expected bat, revolver, pistol, machine-pistol, smg, carbine, rifle, bullpup, marksman, shotgun, lmg, or scout".to_string(),
+            ),
+        }
+    }
     if let Some(b) = w.get("bat").and_then(Value::as_object) {
         check_keys(&mut errs, "weapons.bat", b, BAT_KEYS);
         cfg.bat_damage = whole(b, "damage", "weapons.bat", 10_000, BAT_DAMAGE, &mut errs);
@@ -365,6 +395,14 @@ mod tests {
         let e = parse_weapons(&root(r#"{"weapons":{"revolvr":{},"bat":{"dmg":1},"revolver":{"ammo":7}}}"#)).unwrap_err().join("\n");
         assert!(e.contains("weapons.revolvr: unknown field") && e.contains("weapons.bat.dmg: unknown field") && e.contains("ammo: must be"), "{e}");
         assert_eq!(Weapon::from_wire(Weapon::Revolver.wire()), Weapon::Revolver);
+    }
+
+    #[test]
+    fn a_scene_can_choose_any_starting_weapon() {
+        let root = serde_json::from_str::<serde_json::Value>(r#"{"weapons":{"starting":"shotgun"}}"#).unwrap().as_object().unwrap().clone();
+        assert_eq!(parse_weapons(&root).unwrap().starting_weapon, Weapon::Shotgun);
+        let bad = serde_json::from_str::<serde_json::Value>(r#"{"weapons":{"starting":"rocket-sock"}}"#).unwrap().as_object().unwrap().clone();
+        assert!(parse_weapons(&bad).unwrap_err()[0].contains("weapons.starting"));
     }
 
     #[test]

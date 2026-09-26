@@ -8,6 +8,60 @@
 use crate::collide::{colliders_on_floor_h, ground_height_at, resolve_collision, Collider2D, GroundCandidates, PLAYER_BAND_MAX_Y};
 use glam::Vec2;
 
+/// Per-scene tuning for a human player's first-person movement and view. These values are part of
+/// the map, so the authoritative server and every predicting client use the same numbers.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerTuning {
+    /// Vertical field of view in degrees.
+    pub fov_deg: f32,
+    /// Ordinary movement speed, m/s.
+    pub walk_speed: f32,
+    /// Forward speed while sprint is held, m/s.
+    pub sprint_speed: f32,
+    /// Multiplier applied to `walk_speed` while crouched.
+    pub crouch_multiplier: f32,
+    /// Initial upward speed of a normal jump, m/s.
+    pub jump_speed: f32,
+    /// Downward acceleration, m/s².
+    pub gravity: f32,
+}
+
+impl Default for PlayerTuning {
+    fn default() -> Self {
+        PlayerTuning {
+            fov_deg: 90.0,
+            walk_speed: WALK_SPEED,
+            sprint_speed: SPRINT_SPEED,
+            crouch_multiplier: CROUCH_SPEED_MULT,
+            jump_speed: JUMP_SPEED,
+            gravity: GRAVITY,
+        }
+    }
+}
+
+/// An authored vertical launcher. A player touching its top surface is launched identically in
+/// offline play, server simulation, replay, and client prediction.
+#[derive(Debug, Clone, PartialEq)]
+pub struct JumpPad {
+    pub id: String,
+    /// Centre in the horizontal X/Z plane.
+    pub center: Vec2,
+    /// Width/depth in meters.
+    pub size: Vec2,
+    /// Height of the surface the player's feet touch.
+    pub foot_y: f32,
+    /// Initial upward speed, m/s.
+    pub launch_speed: f32,
+}
+
+impl JumpPad {
+    /// Whether a grounded player at `pos`/`foot_y` is touching this pad.
+    pub fn touches(&self, pos: Vec2, foot_y: f32) -> bool {
+        let half = self.size * 0.5;
+        (pos.x - self.center.x).abs() <= half.x && (pos.y - self.center.y).abs() <= half.y && (foot_y - self.foot_y).abs() <= 0.18
+    }
+}
+
 /// Movement/collision/gravity run at this fixed timestep (`sim::clock::TICK_DT`, 60 Hz) in the live viewer.
 pub const FIXED_DT: f32 = crate::sim::clock::TICK_DT;
 
@@ -192,13 +246,27 @@ pub fn vertical_step(ground: &GroundCandidates, pos: Vec2, foot_y: f32, vertical
 /// [`vertical_step`] with an optional extra floor under the feet (the top of a loose prop the player stands on, found by
 /// `PropWorld::floor_under`): the higher of it and the static ground is what they stand on, and they can jump off it.
 pub fn vertical_step_on(ground: &GroundCandidates, extra_floor: Option<f32>, pos: Vec2, foot_y: f32, vertical_velocity: f32, jump: bool) -> (f32, f32) {
+    vertical_step_on_tuned(ground, extra_floor, pos, foot_y, vertical_velocity, jump, JUMP_SPEED, GRAVITY)
+}
+
+/// [`vertical_step_on`] with authored jump and gravity values.
+pub fn vertical_step_on_tuned(
+    ground: &GroundCandidates,
+    extra_floor: Option<f32>,
+    pos: Vec2,
+    foot_y: f32,
+    vertical_velocity: f32,
+    jump: bool,
+    jump_speed: f32,
+    gravity: f32,
+) -> (f32, f32) {
     let ground_now = ground_height_at(ground, pos, foot_y).max(extra_floor.unwrap_or(f32::NEG_INFINITY));
     let grounded = foot_y <= ground_now && vertical_velocity <= 0.0;
     let mut vy = vertical_velocity;
     if jump && grounded {
-        vy = JUMP_SPEED;
+        vy = jump_speed;
     }
-    vy -= GRAVITY * FIXED_DT;
+    vy -= gravity * FIXED_DT;
     let mut y = foot_y + vy * FIXED_DT;
     if y <= ground_now {
         y = ground_now;

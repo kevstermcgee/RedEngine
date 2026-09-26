@@ -422,7 +422,9 @@ Mouse wheel switches (human only); left-click swings the bat or fires the active
 in `bin/re2/weapons.rs` merges exact static shapes with `PropWorld::ray_props`). Ammo is the scene's `weapons.revolver.ammo`
 (`"infinite"` by default, or `{loaded, capacity, reserve}`; `R` reloads; an empty weapon clicks). Eleven firearms ship with distinct authoritative damage/range/cadence/impulse tuning; right mouse smoothly aims down sights. Online, the same weapons run on the server (`sim::interact`). Held models are `HeldPart`s tagged with
 their `weapon` (and `muzzle_flash`/`emissive`); `FrameOptions.weapon/muzzle_flash` pick what draws. Debug env:
-`RE2_WEAPON=revolver`, `RE2_FREEZE_SHOT=<s since shot>` (0.02 = flash + kick) for screenshots. ADR 0013.
+`RE2_WEAPON=revolver`, `RE2_FREEZE_SHOT=<s since shot>` (0.02 = flash + kick) for screenshots. A scene can
+select the equipped spawn weapon with `weapons.starting`. Arena-style games can author a shared `player`
+movement/FOV profile and deterministic `jump_pads`; offline, server and prediction use the same values. ADR 0013, 0039.
 
 ## Loose props (pick up / drop / knock over) — `src/physics/`
 

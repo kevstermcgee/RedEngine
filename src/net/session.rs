@@ -160,7 +160,14 @@ impl NetSession {
                 }
                 NetEvent::Snapshot { own: Some(own), ack_input_seq } => {
                     if let Some(p) = &mut self.predictor {
-                        p.reconcile(Self::own_state(&own), ack_input_seq, &self.world.colliders, &self.world.ground);
+                        p.reconcile_tuned(
+                            Self::own_state(&own),
+                            ack_input_seq,
+                            &self.world.colliders,
+                            &self.world.ground,
+                            self.world.player_tuning,
+                            &self.world.jump_pads,
+                        );
                     }
                     self.own = Some(own);
                 }
@@ -189,7 +196,7 @@ impl NetSession {
         }
         let p = self.predictor.as_mut()?;
         input.seq = p.next_seq();
-        self.last_speed = p.apply_local(input, &self.world.colliders, &self.world.ground);
+        self.last_speed = p.apply_local_tuned(input, &self.world.colliders, &self.world.ground, self.world.player_tuning, &self.world.jump_pads);
         self.client.send_input(input, now);
         Some(p.state)
     }

@@ -13,6 +13,8 @@ implementation detail.
   "background": { "sky_top": "#8fc7ff", "sky_bottom": "#eef6ff" },
   "ambient": { "color": "#ffffff", "intensity": 0.25 },
   "camera": { "fov": 50, "position": [0, 2, 8], "target": [0, 1, 0] },
+  "player": { "fov": 90, "walk_speed": 5, "sprint_speed": 8, "crouch_multiplier": 0.45, "jump_speed": 5, "gravity": 18 },
+  "jump_pads": [{ "id": "launch", "position": [0,0,4], "size": [2,2], "launch_speed": 11 }],
   "post": { "ao": 0.9, "outline": 0.65 },
   "lights": [ ... ],
   "zones": [ ... ],
@@ -21,7 +23,7 @@ implementation detail.
 ```
 
 `post` and `zones` are optional (see [Clarity post-pass](#clarity-post-pass-post) and
-[Zones](#zones)). Other optional top-level keys: `schema_version`, `recipe`, `spawns`, `portals`, `interest`,
+[Zones](#zones)). Other optional top-level keys: `schema_version`, `recipe`, `player`, `jump_pads`, `spawns`, `portals`, `interest`,
 `prefabs`, `checks` (`red_engine2 describe scene` lists them all).
 
 ### Strict fields and versioning
@@ -92,6 +94,19 @@ never need to keyframe X, Y, Z separately.
 `fov` is vertical field of view in degrees (default 90, also the live viewer's base FOV). `position`/`target`/`fov`/`roll` are all tracks.
 `target` is the world-space point the camera looks at — orbiting a subject is a `position`
 track around a fixed `target`, not a rotation track on the camera itself.
+
+## Player movement and launch pads
+
+The optional `player` block gives a game its movement profile without forking engine code. `fov`
+is 60–120 degrees; `walk_speed` and `sprint_speed` are metres/second; `crouch_multiplier` scales horizontal
+speed; `jump_speed` and `gravity` control the vertical arc. Sprint speed must not be below walk speed.
+Omitting the block keeps the engine defaults. Human offline play, the server, bots and prediction use
+the same values. The rat character retains its character-specific body profile.
+
+Each `jump_pads` entry is a horizontal rectangle centered at `position.xz`, active when the player's
+feet are at `position.y`. Contact sets vertical velocity to `launch_speed`; normal horizontal input
+continues to apply. Use non-colliding emissive geometry to show the pad. Launch pads are deterministic
+simulation data, not renderer effects, so server and predicted clients agree.
 
 ## Lights
 

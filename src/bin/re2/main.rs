@@ -31,7 +31,7 @@ use red_engine2::player::{BodySpec, Character, FIXED_DT};
 use red_engine2::schema::{Object, ObjectKind, Scene};
 use red_engine2::sim::clock::TickClock;
 use red_engine2::sim::combat::{Cooldown, MeleeSwing, WeaponSwitch};
-use red_engine2::sim::player::{step_player_on, PlayerInput, PlayerState};
+use red_engine2::sim::player::{step_player_on_tuned, PlayerInput, PlayerState};
 use red_engine2::sim::rules::Target;
 use red_engine2::sim::rules_run::{RulePlayer, RulesEngine};
 use red_engine2::sim::spawns::{parse_spawns, Spawn};
@@ -76,7 +76,6 @@ const MOUSE_SENSITIVITY: f32 = 0.0025;
 /// Mouse motion is ignored this long after the cursor is captured (see `App::grabbed_at`).
 const MOUSE_SETTLE_SECS: f32 = 0.35;
 
-const BASE_FOV_DEG: f32 = 90.0;
 /// Firearm aim-down-sights FOV and the time used to blend into/out of it.
 const ADS_FOV_DEG: f32 = 54.0;
 const ADS_TRANSITION_TIME: f32 = 0.14;
@@ -385,12 +384,14 @@ impl App {
         let target = scene.camera.target.sample(0.0);
         let yaw = (target.x - spawn.x).atan2(-(target.z - spawn.z)).to_degrees();
         let mut camera = FpsCamera::new(Vec3::new(spawn.x, body.stand_eye, spawn.z), yaw);
-        camera.fov_deg = BASE_FOV_DEG;
+        camera.fov_deg = scene.player.fov_deg;
+        let player_fov_deg = scene.player.fov_deg;
         // Debug: `RE2_PITCH=<degrees>` starts looking up (+) / down (-), for screenshots.
         if let Some(deg) = std::env::var("RE2_PITCH").ok().and_then(|v| v.parse::<f32>().ok()) {
             camera.pitch = deg.to_radians();
         }
         let scene_ammo = scene.weapons.revolver_ammo;
+        let starting_weapon = scene.weapons.starting_weapon;
         let rules = RulesEngine::new(scene.rules.clone());
         // A validated scene with authored spawns parses here. The camera fallback below also
         // supports animated/offline scenes whose raw camera is not a constant triple.
@@ -461,14 +462,14 @@ impl App {
             vertical_velocity: 0.0,
             last_move_speed: 0.0,
             eye_height: body.stand_eye,
-            fov_deg: BASE_FOV_DEG,
+            fov_deg: player_fov_deg,
             view_mode: ViewMode::FirstPerson,
             player_object_index,
             walk_phase: 0.0,
             hand_prop_transform: Mat4::from_scale(Vec3::splat(HIDDEN_SCALE)),
             audio: Audio::new(),
             hit_sound: synth_bat_hit(),
-            weapon: Weapon::Bat,
+            weapon: starting_weapon,
             switching: None,
             scroll_accum: 0.0,
             ammo: scene_ammo,
