@@ -33,6 +33,7 @@ scripts/red build-all && scripts/red check && scripts/red plan maps/main.json   
 scripts/red serve                                                   # headless multiplayer server; `scripts/red play HOST:PORT` joins
 ```
 Do not fork this repository to make a game (the fork's docs and engine fixes drift; ADR 0024). `$R describe rules` covers game logic as data.
+Not first-person (top-down, strategy, ...)? Keep the rules in the scene and write only a client on `red_engine2::app`: `$R describe custom-client`.
 
 ## Working on maps
 ```bash
@@ -60,5 +61,5 @@ ADRs, then `scripts/dev test`. Before pushing: `scripts/dev affected --full` (= 
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `red_bot`, `red_engine2`, `red_server`.
 - Cargo features: `default`, `gfx`.
-- 27 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 42 ADRs (latest: 0042 proportional verification and unattended runs). Test *counts* are not stated here: run `scripts/dev test`.
+- 28 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 43 ADRs (latest: 0043 a reusable client layer for custom games). Test *counts* are not stated here: run `scripts/dev test`.
 <!-- facts:end -->

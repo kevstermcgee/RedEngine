@@ -13,8 +13,8 @@ impl App {
         let Some(selected) = self.map_selection else { return };
         if let Some(g) = self.gpu.as_mut() {
             if let Some(live) = g.live.as_mut() {
-                let l = red_engine2::project_browser::layout(g.config.width, g.config.height, &self.project_maps, selected);
-                live.overlay.set(&g.device, &g.queue, g.config.width, g.config.height, &l.paint().px);
+                let l = red_engine2::project_browser::layout(g.win.config.width, g.win.config.height, &self.project_maps, selected);
+                live.overlay.set(&g.win.device, &g.win.queue, g.win.config.width, g.win.config.height, &l.paint().px);
             }
         }
     }
@@ -41,7 +41,7 @@ impl App {
     }
     pub(crate) fn map_click(&mut self) {
         let (Some(g), Some(selected)) = (&self.gpu, self.map_selection) else { return };
-        let l = red_engine2::project_browser::layout(g.config.width, g.config.height, &self.project_maps, selected);
+        let l = red_engine2::project_browser::layout(g.win.config.width, g.win.config.height, &self.project_maps, selected);
         let index = l.button_at(self.cursor.0, self.cursor.1).and_then(|id| id.strip_prefix("map")).and_then(|s| s.parse().ok());
         if let Some(index) = index {
             self.travel_to(index);

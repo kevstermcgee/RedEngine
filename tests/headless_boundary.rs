@@ -4,9 +4,25 @@
 
 use std::path::{Path, PathBuf};
 
-/// Modules gated behind `#[cfg(feature = "gfx")]` in `src/lib.rs`, plus the windowed binary.
-const GFX_ONLY: &[&str] =
-    &["audio.rs", "firearms.rs", "gpu.rs", "menu.rs", "mesh.rs", "overlay.rs", "probe.rs", "render.rs", "revolver.rs", "video.rs", "viewer.rs"];
+/// Modules gated behind `#[cfg(feature = "gfx")]` in `src/lib.rs`, plus the windowed binary. Paths with a `/` are gated in their parent
+/// module instead (`app/mod.rs` gates the client layer's window, input, offscreen and shell parts; its camera, session and HUD are headless).
+const GFX_ONLY: &[&str] = &[
+    "audio.rs",
+    "firearms.rs",
+    "gpu.rs",
+    "menu.rs",
+    "mesh.rs",
+    "overlay.rs",
+    "probe.rs",
+    "render.rs",
+    "revolver.rs",
+    "video.rs",
+    "viewer.rs",
+    "app/gpu.rs",
+    "app/input.rs",
+    "app/offscreen.rs",
+    "app/shell.rs",
+];
 /// Directories that are entirely windowed code (`re2` is a directory binary: main.rs, weapons.rs, avatar.rs, window.rs, win.rs).
 const GFX_ONLY_DIRS: &[&str] = &["bin/re2/"];
 const BANNED: &[&str] = &["wgpu::", "winit::", "rodio::", "ffmpeg_sidecar", "pollster::"];
@@ -45,6 +61,17 @@ fn headless_modules_name_no_graphics_or_audio_crates() {
         "these files are built without the `gfx` feature but name a graphics/audio crate:\n  {}\nMove the code into a gfx-gated module (see src/lib.rs) or gate it with #[cfg(feature = \"gfx\")].",
         bad.join("\n  ")
     );
+}
+
+#[test]
+fn the_client_layers_gfx_parts_are_gated_in_app_mod_rs() {
+    let m = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/app/mod.rs")).unwrap().replace("\r\n", "\n");
+    for name in GFX_ONLY.iter().filter_map(|m| m.strip_prefix("app/")).map(|m| m.trim_end_matches(".rs")) {
+        assert!(
+            m.contains(&format!("#[cfg(feature = \"gfx\")]\npub mod {name};")),
+            "src/app/mod.rs must declare `pub mod {name};` behind #[cfg(feature = \"gfx\")]"
+        );
+    }
 }
 
 #[test]

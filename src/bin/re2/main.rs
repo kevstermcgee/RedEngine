@@ -62,7 +62,7 @@ mod online;
 mod project_browser;
 mod weapons;
 mod window;
-use window::acquire_frame;
+use red_engine2::app::{HudPainter, HudState, RecentEvent, WindowGpu};
 #[cfg(windows)]
 mod win;
 
@@ -187,10 +187,8 @@ fn build_player_object(who: Character) -> Object {
 }
 
 struct GpuState {
-    surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
+    /// The window's device, queue and swapchain (the shared `red_engine2::app` context custom clients use too).
+    win: WindowGpu,
     /// Draws the map; built once a character is chosen (its scene includes the player's body).
     live: Option<LiveRenderer>,
     /// Draws the launch menu's 3-D backdrop until then.
@@ -306,10 +304,9 @@ struct App {
     /// Named targets for the rule `teleport` action.
     spawns: Vec<Spawn>,
     /// Most recent non-terminal rule event, shown briefly by the generic rules HUD.
-    rule_event: Option<String>,
-    rule_event_until: u64,
-    /// Last `(width, height, content)` painted into the offline rules HUD.
-    rule_hud_painted: Option<(u32, u32, String)>,
+    rule_event: RecentEvent,
+    /// Repaints the offline rules HUD only when it changes.
+    rule_hud: HudPainter,
     /// Seconds since the last shot (drives the recoil kick); starts settled.
     since_shot: f32,
     /// Seconds of muzzle flash left.
@@ -455,9 +452,8 @@ impl App {
             clock: TickClock::default(),
             rules,
             spawns,
-            rule_event: None,
-            rule_event_until: 0,
-            rule_hud_painted: None,
+            rule_event: RecentEvent::default(),
+            rule_hud: HudPainter::default(),
             swing_timer: None,
             target_index: None,
             physics_pos: Vec2::new(spawn.x, spawn.z),

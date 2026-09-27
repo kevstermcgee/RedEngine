@@ -48,6 +48,7 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0040](0040-shooter-presentation-and-momentum.md) | Shooter sight anchors, automatic fire, pellets and replicated momentum | accepted |
 | [0041](0041-native-input-and-sandbox-workflow.md) | Native controller input, human-rig costumes and the sandbox project workflow | accepted |
 | [0042](0042-proportional-verification-and-unattended-runs.md) | Verification proportional to the change (`affected`), 5-15 KB `context` packets, loopback-only unattended runs | accepted |
+| [0043](0043-a-reusable-client-layer-for-custom-games.md) | A reusable client layer (`app`): any camera, local session over `MatchSim`, window/input/HUD pieces, an external top-down example | accepted |
 
 ## Writing one
 

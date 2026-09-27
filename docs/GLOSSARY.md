@@ -14,6 +14,9 @@ glossary` prints the lot). Terms are grouped; each line says what it *is* and wh
 - **the tools** — everything under `src/tools/`. They call the *same* collision/physics functions as
   `re2` (see ADR 0003), so "the tools say it's walkable" means it is.
 - **MCP server** — `mcp_server.py`, a thin wrapper exposing the CLI commands as MCP tools.
+- **custom client** — a game's own program built on the client layer `red_engine2::app` (`LocalSession`, `ViewCamera`,
+  `InputState`, `LiveRenderer::render_view`, `HudState`) instead of `re2`; gameplay stays in scene rules (ADR 0043,
+  `describe custom-client`, `examples/external/topdown_switch`).
 
 ## Scene language
 

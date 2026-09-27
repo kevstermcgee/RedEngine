@@ -69,6 +69,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0040-shooter-presentation-and-momentum.md", include_str!("../../docs/adr/0040-shooter-presentation-and-momentum.md")),
     ("0041-native-input-and-sandbox-workflow.md", include_str!("../../docs/adr/0041-native-input-and-sandbox-workflow.md")),
     ("0042-proportional-verification-and-unattended-runs.md", include_str!("../../docs/adr/0042-proportional-verification-and-unattended-runs.md")),
+    ("0043-a-reusable-client-layer-for-custom-games.md", include_str!("../../docs/adr/0043-a-reusable-client-layer-for-custom-games.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
@@ -127,6 +128,10 @@ const SYNONYMS: &[(&str, &str)] = &[
     ("level", "map scene floor"),
     ("server", "red_server multiplayer authoritative udp headless host"),
     ("multiplayer", "red_server red_bot server udp online"),
+    ("client", "custom-client app camera renderer window hud input"),
+    ("top-down", "custom-client camera top_down pick_ground"),
+    ("topdown", "custom-client camera top_down pick_ground"),
+    ("renderer", "custom-client render_view liverenderer offscreen"),
     ("online", "multiplayer server connect"),
     ("bot", "red_bot scripted client headless"),
     ("client", "connect re2 red_bot multiplayer"),

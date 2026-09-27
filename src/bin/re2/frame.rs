@@ -99,9 +99,6 @@ impl App {
             return;
         }
         let tick = self.clock.ticks_run();
-        if tick >= self.rule_event_until {
-            self.rule_event = None;
-        }
         if self.rules.ended().is_some() {
             return;
         }
@@ -145,12 +142,8 @@ impl App {
         if !self.rules.collision_disabled().eq(collision_before.iter().map(String::as_str)) {
             self.rebuild_collision_world();
         }
-        for event in self.rules.take_new_events() {
-            if !event.name.starts_with("end:") {
-                self.rule_event = Some(event.name);
-                self.rule_event_until = tick + 120;
-            }
-        }
+        let events = self.rules.take_new_events();
+        self.rule_event.observe(&events, tick);
     }
 
     /// The player's eye at the latest completed tick (the origin of this tick's swings and shots).
@@ -321,13 +314,13 @@ impl App {
         } else {
             live.set_hidden_objects(self.rules.hidden());
         }
-        let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };
+        let Some((surface_tex, reconfigure)) = gpu.win.acquire() else { return };
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
         let opts = FrameOptions { crosshair: true, viewmodel: !carrying, pickup: self.pickup_target.is_some(), weapon: shown_weapon, muzzle_flash };
         live.render_ex(
-            &gpu.device,
-            &gpu.queue,
+            &gpu.win.device,
+            &gpu.win.queue,
             &self.scene,
             t,
             &self.camera,
@@ -337,31 +330,28 @@ impl App {
             self.hand_prop_transform,
             opts,
         );
-        gpu.queue.present(surface_tex);
-        if reconfigure {
-            gpu.surface.configure(&gpu.device, &gpu.config);
-        }
+        gpu.win.present(surface_tex, reconfigure);
     }
 
     /// One frame of the launch menu: the turning models behind, the text and panels over them.
     pub(crate) fn menu_frame(&mut self) {
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(menu_live) = gpu.menu.as_mut() else { return };
-        let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };
-        let (w, h) = (gpu.config.width, gpu.config.height);
+        let Some((surface_tex, reconfigure)) = gpu.win.acquire() else { return };
+        let (w, h) = (gpu.win.config.width, gpu.win.config.height);
         let t = self.start.elapsed().as_secs_f32();
         menu::animate(&mut self.menu_scene, w as f32 / h as f32, t, self.character);
         let key = (w, h, self.character);
         if self.menu_painted != Some(key) {
             let map = self.scene_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-            menu_live.overlay.set(&gpu.device, &gpu.queue, w, h, &menu::paint(w, h, self.character, &map));
+            menu_live.overlay.set(&gpu.win.device, &gpu.win.queue, w, h, &menu::paint(w, h, self.character, &map));
             self.menu_painted = Some(key);
         }
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let hidden = Mat4::from_scale(Vec3::splat(HIDDEN_SCALE));
         menu_live.render_ex(
-            &gpu.device,
-            &gpu.queue,
+            &gpu.win.device,
+            &gpu.win.queue,
             &self.menu_scene,
             t,
             &menu::menu_camera(),
@@ -371,10 +361,7 @@ impl App {
             hidden,
             FrameOptions { crosshair: false, viewmodel: false, pickup: false, ..FrameOptions::default() },
         );
-        gpu.queue.present(surface_tex);
-        if reconfigure {
-            gpu.surface.configure(&gpu.device, &gpu.config);
-        }
+        gpu.win.present(surface_tex, reconfigure);
     }
 
     /// Leaves the menu: adds the chosen character's body to the map, builds everything that
@@ -459,11 +446,11 @@ impl App {
             }
         }
         if let Some(gpu) = self.gpu.as_mut() {
-            gpu.live = Some(LiveRenderer::new(&gpu.device, gpu.config.format, &self.scene, gpu.config.width, gpu.config.height));
+            gpu.live = Some(LiveRenderer::new(&gpu.win.device, gpu.win.config.format, &self.scene, gpu.win.config.width, gpu.win.config.height));
             gpu.menu = None;
         }
         self.phase = Phase::Playing;
-        self.rule_hud_painted = None;
+        self.rule_hud.invalidate();
         println!("Playing as {}.", who.name());
         if let Some(window) = &self.window {
             window.set_title(&format!("Red Engine 2 — {} — {}", self.scene_path.display(), who.name()));

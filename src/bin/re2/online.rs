@@ -46,7 +46,7 @@ impl App {
     }
 
     fn window_size(&self) -> Option<(u32, u32)> {
-        self.gpu.as_ref().map(|g| (g.config.width, g.config.height))
+        self.gpu.as_ref().map(|g| (g.win.config.width, g.win.config.height))
     }
 
     /// What the client knows, in the shape the online screens take (`None` offline, or before the first `Status`).
@@ -119,7 +119,7 @@ impl App {
         self.online.painted = Some(hash);
         if let Some(gpu) = self.gpu.as_mut() {
             if let Some(live) = gpu.live.as_mut() {
-                live.overlay.set(&gpu.device, &gpu.queue, w, h, &layout.paint().px);
+                live.overlay.set(&gpu.win.device, &gpu.win.queue, w, h, &layout.paint().px);
             }
         }
     }
@@ -131,40 +131,20 @@ impl App {
             return;
         }
         let Some((w, h)) = self.window_size() else { return };
-        let vars = self.rules.vars();
-        let event = self.rule_event.as_deref();
-        let outcome = self.rules.ended();
+        // The same `HudState` a custom client gets from `app::LocalSession::hud`, plus re2's project-browser strip.
+        let hud = HudState::from_rules(&self.rules, self.rule_event.current(self.clock.ticks_run()));
         let inspected = self.target_index.and_then(|i| self.scene.objects.get(i)).map(|o| o.id.as_str()).unwrap_or("look at an asset to inspect its id");
-        let fingerprint = format!("{:?}|{:?}|{:?}|{}", vars, event, outcome, inspected);
-        if self.rule_hud_painted.as_ref().is_some_and(|(pw, ph, old)| (*pw, *ph) == (w, h) && old == &fingerprint) {
-            return;
-        }
-        let mut layout = rules_hud_layout(w, h, &vars, event, outcome);
-        if !self.project_maps.is_empty() {
-            let s = (h as i32 / 540).max(1);
-            layout.panel("project_help", (0, h as i32 - 32 * s, w as i32, h as i32), None, Some([12, 18, 28, 200]), None);
-            layout.label_fit("inspect", None, w as i32 / 2, h as i32 - 28 * s, inspected, s, w as i32 - 12, [239, 205, 131, 255]);
-            layout.label_fit(
-                "project_controls",
-                None,
-                w as i32 / 2,
-                h as i32 - 13 * s,
-                "M / D-PAD UP: MAPS   Q / BACK: VIEW   E / X: PICK UP   WHEEL / LB-RB: WEAPONS",
-                s,
-                w as i32 - 12,
-                [216, 230, 237, 255],
-            );
-        }
-        self.rule_hud_painted = Some((w, h, fingerprint));
-        if let Some(gpu) = self.gpu.as_mut() {
-            if let Some(live) = gpu.live.as_mut() {
-                if layout.widgets.is_empty() {
-                    live.overlay.hide();
-                } else {
-                    live.overlay.set(&gpu.device, &gpu.queue, w, h, &layout.paint().px);
-                }
+        let key = format!("{}|{}", hud.key(), inspected);
+        let project = !self.project_maps.is_empty();
+        let Some(gpu) = self.gpu.as_mut() else { return };
+        let Some(live) = gpu.live.as_mut() else { return };
+        self.rule_hud.show(&mut live.overlay, &gpu.win.device, &gpu.win.queue, w, h, &key, || {
+            let mut layout = hud.layout(w, h);
+            if project {
+                project_strip(&mut layout, w, h, inspected);
             }
-        }
+            Some(layout)
+        });
     }
 
     /// The layout currently under the pointer (lobby or results), for hit-testing.
@@ -330,17 +310,17 @@ impl App {
         }
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(menu_live) = gpu.menu.as_mut() else { return };
-        let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };
+        let Some((surface_tex, reconfigure)) = gpu.win.acquire() else { return };
         let t = self.start.elapsed().as_secs_f32();
         menu::animate(&mut self.menu_scene, w as f32 / h as f32, t, self.character);
         if repaint {
-            menu_live.overlay.set(&gpu.device, &gpu.queue, w, h, &layout.paint().px);
+            menu_live.overlay.set(&gpu.win.device, &gpu.win.queue, w, h, &layout.paint().px);
         }
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let hidden = Mat4::from_scale(Vec3::splat(HIDDEN_SCALE));
         menu_live.render_ex(
-            &gpu.device,
-            &gpu.queue,
+            &gpu.win.device,
+            &gpu.win.queue,
             &self.menu_scene,
             t,
             &menu::menu_camera(),
@@ -350,14 +330,28 @@ impl App {
             hidden,
             FrameOptions { crosshair: false, viewmodel: false, pickup: false, ..FrameOptions::default() },
         );
-        gpu.queue.present(surface_tex);
-        if reconfigure {
-            gpu.surface.configure(&gpu.device, &gpu.config);
-        }
+        gpu.win.present(surface_tex, reconfigure);
     }
 }
 
 fn cfg_key(form: &ConnectForm) -> Option<String> {
     let k = form.key.trim();
     (!k.is_empty()).then(|| k.to_string())
+}
+
+/// The sandbox project's help strip along the bottom of the rules HUD.
+fn project_strip(layout: &mut Layout, w: u32, h: u32, inspected: &str) {
+    let s = (h as i32 / 540).max(1);
+    layout.panel("project_help", (0, h as i32 - 32 * s, w as i32, h as i32), None, Some([12, 18, 28, 200]), None);
+    layout.label_fit("inspect", None, w as i32 / 2, h as i32 - 28 * s, inspected, s, w as i32 - 12, [239, 205, 131, 255]);
+    layout.label_fit(
+        "project_controls",
+        None,
+        w as i32 / 2,
+        h as i32 - 13 * s,
+        "M / D-PAD UP: MAPS   Q / BACK: VIEW   E / X: PICK UP   WHEEL / LB-RB: WEAPONS",
+        s,
+        w as i32 - 12,
+        [216, 230, 237, 255],
+    );
 }

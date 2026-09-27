@@ -27,6 +27,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("rules", "game logic as data: `vars` + `rules` (when / who / if / once / do), volumes, actions, expressions; run headless"),
     ("sim", "headless play-throughs (`sim`, scenarios in `checks.sim`) and match traces (`replay`, checksums, first divergent tick)"),
     ("multiplayer", "hosting and playing online: keys, lobby and rounds, UPnP, net-test, perf, package"),
+    ("custom-client", "a game that is not first-person: your own crate on `red_engine2::app` (camera, session, input, renderer, HUD)"),
     ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
 
@@ -311,7 +312,7 @@ pub fn brief_json(commands: &Value) -> Value {
         "global_flags": [{"flag": "--json", "about": "wrap any command's result in the stable envelope {schema, command, ok, exit, data, diagnostics, stderr}"}],
         "errors": "`path: message` with a stable code and, where possible, a did-you-mean fix (describe diagnostics)",
         "topics": TOPICS.iter().map(|(n, _)| *n).collect::<Vec<_>>(),
-        "next": ["describe <topic>", "search \"<question>\"", "catalog <word>", "recipe", "SPEC.md (scene language)", "AGENTS.md (workflow)"],
+        "next": ["describe <topic>", "search \"<question>\"", "catalog <word>", "recipe", "SPEC.md (scene language)", "AGENTS.md (workflow)", "describe custom-client (not first-person)"],
     })
 }
 
@@ -330,6 +331,7 @@ fn brief_text(commands: &Value) -> String {
     out.push_str("Errors are `path: message` with a stable code and a did-you-mean fix (`describe diagnostics`).\n");
     out.push_str(&format!("Topics (describe <topic>): {}\n", list("topics")));
     out.push_str("Next: search \"<question>\" | catalog <word> | recipe | SPEC.md (scene language) | AGENTS.md (workflow)\n");
+    out.push_str("Not first-person? describe custom-client: your own crate on red_engine2::app; gameplay stays in scene rules\n");
     out
 }
 
@@ -398,6 +400,32 @@ fn multiplayer_text() -> String {
          \x20 red_engine2 sim scene.json                           scripted headless play-throughs of the rules;  replay trace.json = first divergent tick\n\
          SHIP     red_engine2 package out.zip / package --verify out.zip   reproducible zip + SHA-256 manifest; headless binaries proven graphics-free\n\
          NOT DONE lag compensation for hitscan, payload encryption, spectator camera, teams, kick/ban.\n",
+    )
+}
+
+/// `describe custom-client`: the route for a game that is not the built-in first-person client (ADR 0043).
+fn custom_client_text() -> String {
+    String::from(
+        "A game that is not first-person (top-down, strategy, puzzle, a spectator view) is its own crate that depends on red_engine2\n\
+         and uses the client layer `red_engine2::app`. Gameplay stays in the scene (`vars`/`rules`, `describe rules`), proven with\n\
+         `checks.sim`; the client turns input into movement and draws what the simulation reports. Do not copy re2 or engine source.\n\n\
+         Cargo.toml   [dependencies] red_engine2 = { path = \"../red-engine-2\" }   (glam is re-exported: red_engine2::glam)\n\
+         LOAD + PLAY  app::LocalSession::load(path): strict validation; one player in the authoritative MatchSim (the server's simulation)\n\
+         \x20            .advance(dt, |state| PlayerInput { forward, strafe, yaw, .. }): fixed 60 Hz ticks;  .step(input) = one tick (tests)\n\
+         \x20            .player() .player_feet() (interpolated)  .rules() .hidden() .outcome() .hud()  .scene_mut() = presentation only\n\
+         \x20            app::input_toward(&state, target_xz, arrive) walks to a point (click-to-move, scripts)\n\
+         CAMERA       app::ViewCamera::top_down(focus, height, tilt_deg, yaw_deg) | ::look_at(eye, target) | FpsCamera::view()\n\
+         \x20            .screen_ray(px, py, w, h)  .pick_ground(px, py, w, h, y)  .world_to_screen(p, w, h)   (yaw 0: -Z is up on screen)\n\
+         WINDOW       app::run(game, WindowOptions::default()) with `impl ClientGame`: scene(), update(&InputState, Frame) -> bool,\n\
+         \x20            camera(w, h); optional hidden() (session.hidden()), hud_key() + hud(w, h) (session.hud().key() / .layout(w, h)), title()\n\
+         INPUT        InputState: held(KeyCode::KeyW) pressed(..) wasd() clicked(MouseButton::Left) -> (x, y) wheel(); set_key/click in tests\n\
+         DRAW         app::place_object(scene, id, pos, yaw) moves a marker; objects are uploaded once: move or hide them, do not add new ones\n\
+         CHECK        app::Offscreen::new(scene, w, h)?.render(scene, t, &camera, hidden, Some(&hud)) -> RGBA (or save_png), no window\n\
+         OWN LOOP     app::WindowGpu + InputState + viewer::LiveRenderer::world(..).render_view(.., &camera, .., None) + HudPainter\n\
+         \x20            (what re2 uses; re2 adds viewer::FpsLayers for its weapon and crosshair)\n\n\
+         Worked example, a separate crate with tests: examples/external/topdown_switch (`cargo test` there; `cargo run` plays).\n\
+         NOT YET: app-defined actions into rules (a `use` key), an online custom-client helper (drive net::session::NetSession yourself),\n\
+         orthographic cameras, adding objects after the renderer is built. ADR 0043.\n",
     )
 }
 
@@ -504,6 +532,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             }),
             "sim" => json!({"text": sim_text()}),
             "multiplayer" => json!({"text": multiplayer_text()}),
+            "custom-client" => json!({"text": custom_client_text()}),
             "diagnostics" => {
                 json!({"envelope_schema": crate::tools::envelope::ENVELOPE_SCHEMA, "codes": crate::tools::envelope::CODES.iter().map(|(c, d, f)| json!({"code": c, "about": d, "fix": f})).collect::<Vec<_>>()})
             }
@@ -527,6 +556,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "rules" => out.push_str(&rules_text()),
         "sim" => out.push_str(&sim_text()),
         "multiplayer" => out.push_str(&multiplayer_text()),
+        "custom-client" => out.push_str(&custom_client_text()),
         "overview" => {
             let (props, prefabs) = (crate::props::PropKind::ALL.len(), crate::prefabs::builtin().0.defs.len());
             out.push_str("Red Engine 2: maps are JSON scenes. `re2 <map>` plays one; `red_engine2` validates, analyzes, edits and renders them.\n");

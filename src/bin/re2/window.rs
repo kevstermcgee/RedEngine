@@ -1,4 +1,5 @@
-//! Window and pause-menu plumbing: pause overlay, mouse grab, fullscreen, first/third-person toggle, swap-chain frame acquisition.
+//! Window and pause-menu plumbing: pause overlay, mouse grab, fullscreen, first/third-person toggle (frame acquisition is the shared
+//! `red_engine2::app::WindowGpu`).
 
 use super::*;
 
@@ -18,7 +19,7 @@ impl App {
         self.paused = false;
         self.pause_hover = None;
         self.online.painted = None; // the online overlay (if any) is redrawn next frame
-        self.rule_hud_painted = None; // likewise for the offline rules HUD
+        self.rule_hud.invalidate(); // likewise for the offline rules HUD
         if let Some(live) = self.gpu.as_mut().and_then(|g| g.live.as_mut()) {
             live.overlay.hide();
         }
@@ -31,9 +32,9 @@ impl App {
         let status = self.net.as_ref().map(|n| n.status.clone());
         let hover = self.pause_hover;
         if let Some(gpu) = self.gpu.as_mut() {
-            let (w, h) = (gpu.config.width, gpu.config.height);
+            let (w, h) = (gpu.win.config.width, gpu.win.config.height);
             if let Some(live) = gpu.live.as_mut() {
-                live.overlay.set(&gpu.device, &gpu.queue, w, h, &menu::paint_pause(w, h, &map, status.as_deref(), hover));
+                live.overlay.set(&gpu.win.device, &gpu.win.queue, w, h, &menu::paint_pause(w, h, &map, status.as_deref(), hover));
             }
         }
     }
@@ -81,23 +82,5 @@ impl App {
             ViewMode::FirstPerson => ViewMode::ThirdPerson,
             ViewMode::ThirdPerson => ViewMode::FirstPerson,
         };
-    }
-}
-
-/// Gets the next swapchain frame (reconfiguring the surface if it went stale), plus whether it
-/// should be reconfigured after presenting; `None` when there is no frame to draw this time.
-pub(crate) fn acquire_frame(
-    surface: &wgpu::Surface<'static>,
-    device: &wgpu::Device,
-    config: &wgpu::SurfaceConfiguration,
-) -> Option<(wgpu::SurfaceTexture, bool)> {
-    match surface.get_current_texture() {
-        wgpu::CurrentSurfaceTexture::Success(t) => Some((t, false)),
-        wgpu::CurrentSurfaceTexture::Suboptimal(t) => Some((t, true)),
-        wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded | wgpu::CurrentSurfaceTexture::Validation => None,
-        wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-            surface.configure(device, config);
-            None
-        }
     }
 }

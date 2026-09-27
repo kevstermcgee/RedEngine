@@ -24,45 +24,13 @@ impl ApplicationHandler for App {
             _ => attrs,
         };
         let window = Arc::new(event_loop.create_window(attrs).expect("failed to create window"));
-
-        let instance = wgpu::Instance::default();
-        let surface = instance.create_surface(window.clone()).expect("failed to create GPU surface");
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: Some(&surface),
-            ..Default::default()
-        }))
-        .expect("no compatible GPU adapter found (Red Engine 2 needs Vulkan, DX12, or Metal)");
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("red-engine-device"),
-            required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::default(),
-            experimental_features: wgpu::ExperimentalFeatures::disabled(),
-            memory_hints: wgpu::MemoryHints::Performance,
-            trace: wgpu::Trace::Off,
-        }))
-        .expect("failed to create GPU device");
-
-        let size = window.inner_size();
-        let caps = surface.get_capabilities(&adapter);
-        let format = caps.formats.iter().copied().find(|f| f.is_srgb()).unwrap_or(caps.formats[0]);
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
-            color_space: wgpu::SurfaceColorSpace::Auto,
-            width: size.width.max(1),
-            height: size.height.max(1),
-            present_mode: wgpu::PresentMode::AutoVsync,
-            desired_maximum_frame_latency: 2,
-            alpha_mode: caps.alpha_modes[0],
-            view_formats: vec![],
-        };
-        surface.configure(&device, &config);
+        let win = WindowGpu::new(window.clone()).unwrap_or_else(|e| panic!("{e:#}"));
 
         // With a forced character the game starts at once; otherwise the launch menu (whose
         // 3-D backdrop is its own tiny scene) shows first.
-        let menu = self.forced_character.is_none().then(|| LiveRenderer::new(&device, format, &self.menu_scene, config.width, config.height));
-        self.gpu = Some(GpuState { surface, device, queue, config, live: None, menu });
+        let (w, h) = win.size();
+        let menu = self.forced_character.is_none().then(|| LiveRenderer::new(&win.device, win.format(), &self.menu_scene, w, h));
+        self.gpu = Some(GpuState { win, live: None, menu });
         self.window = Some(window);
         self.last_frame = Instant::now();
         if let Some(who) = self.forced_character {
@@ -83,18 +51,16 @@ impl ApplicationHandler for App {
             }
             WindowEvent::Resized(size) => {
                 if let Some(gpu) = self.gpu.as_mut() {
-                    gpu.config.width = size.width.max(1);
-                    gpu.config.height = size.height.max(1);
-                    gpu.surface.configure(&gpu.device, &gpu.config);
+                    gpu.win.resize(size.width, size.height);
                     for r in [gpu.live.as_mut(), gpu.menu.as_mut()].into_iter().flatten() {
-                        r.resize(&gpu.device, gpu.config.width, gpu.config.height);
+                        r.resize(&gpu.win.device, gpu.win.config.width, gpu.win.config.height);
                     }
                 }
                 if self.paused {
                     self.repaint_pause();
                 }
                 self.online.painted = None;
-                self.rule_hud_painted = None;
+                self.rule_hud.invalidate();
                 self.repaint_maps();
             }
             WindowEvent::KeyboardInput { event, .. } if self.map_selection.is_some() => {
@@ -130,12 +96,12 @@ impl ApplicationHandler for App {
                 self.cursor_x = position.x as f32;
                 self.cursor_y = position.y as f32;
                 if let Some(gpu) = &self.gpu {
-                    self.character = menu::character_at(gpu.config.width, self.cursor_x);
+                    self.character = menu::character_at(gpu.win.config.width, self.cursor_x);
                 }
             }
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.phase == Phase::Menu => {
                 if let Some(gpu) = &self.gpu {
-                    let (w, h) = (gpu.config.width, gpu.config.height);
+                    let (w, h) = (gpu.win.config.width, gpu.win.config.height);
                     // The PLAY ONLINE button sits over the launch screen; anything else picks the character under the cursor.
                     let on_button = menu::menu_layout(w, h, self.character, "").button_at(self.cursor_x, self.cursor_y) == Some("online");
                     if on_button {
@@ -147,7 +113,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::CursorMoved { position, .. } if self.paused => {
                 self.cursor = (position.x as f32, position.y as f32);
-                let hover = self.gpu.as_ref().and_then(|g| menu::pause_action_at(g.config.width, g.config.height, self.cursor.0, self.cursor.1));
+                let hover = self.gpu.as_ref().and_then(|g| menu::pause_action_at(g.win.config.width, g.win.config.height, self.cursor.0, self.cursor.1));
                 if hover != self.pause_hover {
                     self.pause_hover = hover;
                     self.repaint_pause();
@@ -213,7 +179,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } => {
                 if self.paused {
-                    let hit = self.gpu.as_ref().and_then(|g| menu::pause_action_at(g.config.width, g.config.height, self.cursor.0, self.cursor.1));
+                    let hit = self.gpu.as_ref().and_then(|g| menu::pause_action_at(g.win.config.width, g.win.config.height, self.cursor.0, self.cursor.1));
                     match hit {
                         Some(PauseAction::Resume) => self.leave_pause(),
                         Some(PauseAction::Quit) => event_loop.exit(),

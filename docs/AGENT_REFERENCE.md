@@ -319,6 +319,31 @@ Cargo feature `gfx` (default) = everything that draws or plays sound; without it
 - Commit hygiene: `cargo test --release` before committing; scene files are rewritten in a
   canonical layout by the edit tools, so diffs after the first edit of an old file are noisy once.
 
+## Custom clients: games that are not first-person (`src/app/`, ADR 0043)
+
+`re2` is one client (first person, weapons, character picker). Another genre writes its own small client in its own crate and keeps
+gameplay in the scene's rules. `describe custom-client` is the one-screen API; the pieces:
+
+| piece | what it does | build |
+|---|---|---|
+| `app::LocalSession` | strict `load`, one player in the authoritative `MatchSim`, `advance(dt, input_fn)` on the 60 Hz clock, `player_feet()`, `rules()`, `hidden()`, `outcome()`, `hud()`; `scene_mut()` is presentation only | headless |
+| `app::ViewCamera` | `top_down`, `look_at`, `view_proj`, `screen_ray`, `pick_ground`, `world_to_screen`; `FpsCamera::view()` is re2's policy | headless |
+| `app::HudState`, `RecentEvent` | rule vars / recent event / outcome as data; `layout(w, h)` is the audited rules HUD | headless |
+| `app::InputState` | held and pressed keys, clicks with positions, wheel, focus-loss clearing; `set_key`/`click` for tests | gfx |
+| `viewer::LiveRenderer::world` + `render_view` | the world from any camera, rule-hidden objects removed, overlay on top; no weapon meshes | gfx |
+| `app::run` + `ClientGame` | a whole window loop: `scene`, `update`, `camera` (+ optional `hidden`, `hud_key`/`hud`, `title`) | gfx |
+| `app::WindowGpu`, `HudPainter` | build your own loop (re2 does) | gfx |
+| `app::Offscreen` | render world + HUD to RGBA/PNG without a window: presentation tests | gfx |
+
+`examples/external/topdown_switch` (own `Cargo.toml` and `[workspace]`, engine by path): top-down camera that turns (Q/E) and zooms
+(wheel), WASD relative to the view, click-to-move through `pick_ground` + `input_toward`, two switch plates and a gate that the rules
+hide and make passable, an exit that ends the match, and the outcome banner. Its tests drive the real input path and check rendered
+pixels; CI's `external-client` stage runs them. Static `lint` reports its exit as unreachable because the gate starts closed; the
+scene's `checks.sim` scenarios prove the rule-opened route instead.
+
+Limits today: no application-defined rule events (a `use` key needs a declared, recorded and networked action), no online helper for
+custom clients (use `net::session::NetSession` directly), perspective cameras only, and the renderer uploads the scene's objects once.
+
 ## Characters, the launch menu, hit-testing (`re2`)
 
 The roster now includes human, rat, wizard, cowboy, alien and robot. Costumes share human physics;

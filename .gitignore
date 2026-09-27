@@ -3,3 +3,7 @@
 !/out/.gitkeep
 __pycache__/
 *.pyc
+
+# The external custom-client example's own build and screenshots
+/examples/external/*/target
+/examples/external/*/out
