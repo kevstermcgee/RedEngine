@@ -51,7 +51,7 @@ fn the_front_door_docs_state_nothing_the_engine_disproves() {
         "no on-screen 2d text/ui overlay",
         "that's the next thing planned on top of this fork",
     ];
-    for f in ["README.md", "SPEC.md", "AGENTS.md", "CLAUDE.md"] {
+    for f in ["README.md", "SPEC.md", "AGENTS.md", "CLAUDE.md", "docs/AGENT_REFERENCE.md"] {
         let text = read(Path::new(f)).to_lowercase();
         for b in banned {
             assert!(!text.contains(b), "{f} still says `{b}`, which is no longer true (see ADR 0016, 0022, 0026)");

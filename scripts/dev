@@ -5,6 +5,10 @@
 # runs from the repo root, never prints colour codes, puts a timeout on everything, and prints how long each step took.
 #
 #   scripts/dev doctor                 what toolchain / binaries / git state does this machine have? (`doctor-full`: the engine's own probe)
+#   scripts/dev affected [--quick|--full]  verify ONLY what your change can affect (alias: check). --quick = owning features (edit loop, seconds),
+#                                      default = plus dependents (before "done"), --full = CI (before pushing); boundary files escalate by themselves.
+#                                      A green run is remembered by file content: asking again with nothing edited is free.
+#   scripts/dev context <feature|file|words>   a 5-15 KB work packet for one change (files, public API, tests, ADR pointers)
 #   scripts/dev fast                   unit tests only (seconds): `cargo test --lib`
 #   scripts/dev test [filter]          the whole suite (or tests whose name matches filter); prints a summary, full log in out/logs/
 #   scripts/dev build [--headless]     debug build of the CLI, server, bot (and the game unless --headless)
@@ -16,7 +20,7 @@
 #   scripts/dev status [...]           `red_engine2 status` (handoff: what is done / in flight / next)
 #
 # Env: RED_TIMEOUT=seconds per command (default 900), RED_PROFILE=debug|release (default debug; the dev profile is
-# already opt-level 1 so it is fast enough for maps and tests).
+# already opt-level 1 so it is fast enough for maps and tests). CARGO_TARGET_DIR is honoured (put build output on another drive).
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
@@ -28,6 +32,7 @@ done
 case ":$PATH:" in *":$HOME/.cargo/bin:"*) ;; *) PATH="$HOME/.cargo/bin:$PATH" ;; esac
 export PATH CARGO_TERM_COLOR=never RUST_BACKTRACE="${RUST_BACKTRACE:-1}"
 
+TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 PROFILE="${RED_PROFILE:-debug}"
 PFLAG=""; [ "$PROFILE" = "release" ] && PFLAG="--release"
 TMO="${RED_TIMEOUT:-900}"
@@ -69,8 +74,8 @@ need_cargo() {
 }
 
 needs_build() { # binary name + build mode: missing, forced, mode-changed, or older than an input
-  local exe="$ROOT/target/$PROFILE/$1"
-  local mode="${2:-default}" stamp="$ROOT/target/$PROFILE/.red-dev-$1.mode"
+  local exe="$TARGET_DIR/$PROFILE/$1"
+  local mode="${2:-default}" stamp="$TARGET_DIR/$PROFILE/.red-dev-$1.mode"
   [ -f "$exe" ] || exe="$exe.exe"
   [ "${RED_REBUILD:-0}" = "1" ] || [ ! -f "$exe" ] && return 0
   [ -f "$stamp" ] || return 0
@@ -81,13 +86,24 @@ needs_build() { # binary name + build mode: missing, forced, mode-changed, or ol
   return 1
 }
 
+planner() { # the CLI for `affected`/`context`: a stale binary plans identically unless the index or the planner changed, so skip the rebuild
+  local exe="$TARGET_DIR/$PROFILE/red_engine2"
+  [ -f "$exe" ] || exe="$exe.exe"
+  if [ -f "$exe" ] && [ "${RED_REBUILD:-0}" != "1" ]; then
+    local f stale=0
+    for f in docs/features.json src/tools/affected.rs src/tools/features.rs src/tools/context.rs src/cli/args.rs; do [ "$f" -nt "$exe" ] && stale=1; done
+    [ $stale -eq 0 ] && { echo "$exe"; return; }
+  fi
+  cli
+}
+
 cli() { # path of the CLI binary, building it if needed
   need_cargo
   if needs_build red_engine2 default; then
     run "build red_engine2" cargo build $PFLAG --bin red_engine2 --quiet || exit $?
-    printf '%s' default > "$ROOT/target/$PROFILE/.red-dev-red_engine2.mode"
+    printf '%s' default > "$TARGET_DIR/$PROFILE/.red-dev-red_engine2.mode"
   fi
-  local exe="$ROOT/target/$PROFILE/red_engine2"
+  local exe="$TARGET_DIR/$PROFILE/red_engine2"
   [ -x "$exe" ] || exe="$exe.exe"
   echo "$exe"
 }
@@ -99,7 +115,7 @@ case "$cmd" in
     echo "os        $(uname -sm 2>/dev/null || echo unknown)"
     if command -v cargo >/dev/null 2>&1; then echo "cargo     $(cargo --version)"; echo "rustc     $(rustc --version)"; else echo "cargo     NOT FOUND (install Rust: https://rustup.rs)"; fi
     for b in red_engine2 red_server red_bot re2; do
-      p="$ROOT/target/$PROFILE/$b"; { [ -f "$p" ] || [ -f "$p.exe" ]; } && echo "built     $b ($PROFILE)" || echo "not built $b"
+      p="$TARGET_DIR/$PROFILE/$b"; { [ -f "$p" ] || [ -f "$p.exe" ]; } && echo "built     $b ($PROFILE)" || echo "not built $b"
     done
     command -v git >/dev/null 2>&1 && echo "git       $(git rev-parse --abbrev-ref HEAD 2>/dev/null) @ $(git rev-parse --short HEAD 2>/dev/null), $(git status --short 2>/dev/null | wc -l | tr -d ' ') changed file(s)"
     command -v python3 >/dev/null 2>&1 && echo "python3   $(python3 --version 2>&1)" || echo "python3   not found (only needed for benches/check.py and mcp_server.py)"
@@ -122,10 +138,12 @@ case "$cmd" in
     need_cargo
     if needs_build red_server headless; then
       run "build red_server" cargo build $PFLAG --no-default-features --bin red_server --quiet || exit $?
-      printf '%s' headless > "$ROOT/target/$PROFILE/.red-dev-red_server.mode"
+      printf '%s' headless > "$TARGET_DIR/$PROFILE/.red-dev-red_server.mode"
     fi
-    exe="$ROOT/target/$PROFILE/red_server"; [ -x "$exe" ] || exe="$exe.exe"
+    exe="$TARGET_DIR/$PROFILE/red_server"; [ -x "$exe" ] || exe="$exe.exe"
     exec "$exe" --map "$@" ;;
+  affected|check) need_cargo; exe="$(planner)" || exit $?; exec "$exe" affected "$@" ;;
+  context) need_cargo; exe="$(planner)" || exit $?; exec "$exe" context "$@" ;;
   ci)     need_cargo; logged ci bash scripts/ci.sh ;;
   doctor-full) exe="$(cli)" || exit $?; "$exe" doctor ;;
   help|-h|--help) sed -n '2,25p' "$0" ;;

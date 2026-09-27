@@ -134,6 +134,10 @@ fn run(command: Command) -> Result<(), String> {
         Command::NetTest { scene, profile, players, secs, seed } => run_net_test(&scene, &profile, players, secs, seed),
         Command::Features { query, check } => run_features(&query, check),
         Command::Impact { files, git } => run_impact(&files, git.as_deref()),
+        Command::Context { query, git, budget } => run_context(&query, git, budget),
+        Command::Affected { files, base, quick, full, dry_run, keep_going, no_cache } => {
+            run_affected(&files, base.as_deref(), quick, full, dry_run, keep_going, no_cache)
+        }
         Command::Package { zip, verify, allow_dirty, no_build } => run_package(&zip, verify, allow_dirty, no_build),
         Command::Portmap { action, port, lease, router, allow_permanent } => run_portmap(&action, port, lease, router, allow_permanent),
         Command::Perf { scene, players, secs, windows, budget } => run_perf(&scene, players, secs, windows, budget.as_deref()),

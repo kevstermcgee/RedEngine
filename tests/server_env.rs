@@ -50,3 +50,30 @@ fn a_flag_beats_the_environment_and_a_bad_value_is_an_error() {
         .expect("run red_server");
     assert!(out.status.success(), "--map must override RED_MAP: {}", String::from_utf8_lossy(&out.stderr));
 }
+
+#[test]
+fn the_server_listens_on_loopback_unless_told_otherwise() {
+    // No --bind, no RED_BIND: an unattended run must never open a public socket (an OS firewall prompt would block it until a person clicks).
+    let out = server()
+        .args(["--map", concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_lab.json"), "--port", "0", "--stats-secs", "0", "--run-for", "0.3"])
+        .output()
+        .expect("run red_server");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{text}\n{}", String::from_utf8_lossy(&out.stderr));
+    assert!(text.contains("LISTENING 127.0.0.1:"), "loopback by default: {text}");
+    assert!(text.contains("--public"), "the output says how to host for other machines: {text}");
+}
+
+#[test]
+fn public_hosting_is_an_explicit_choice() {
+    for (args, env_bind) in [(vec!["--public"], None), (vec![], Some("0.0.0.0"))] {
+        let mut c = server();
+        c.args(["--map", concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_lab.json"), "--port", "0", "--stats-secs", "0", "--run-for", "0.3"]).args(&args);
+        if let Some(b) = env_bind {
+            c.env("RED_BIND", b);
+        }
+        let out = c.output().expect("run red_server");
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(out.status.success() && text.contains("LISTENING 0.0.0.0:"), "{args:?} / {env_bind:?}: {text}");
+    }
+}

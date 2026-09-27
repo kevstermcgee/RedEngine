@@ -16,7 +16,7 @@ fn read(rel: &str) -> String {
 }
 
 /// The docs an agent reads first.
-const AI_DOCS: &[&str] = &["CLAUDE.md", "AGENTS.md"];
+const AI_DOCS: &[&str] = &["CLAUDE.md", "AGENTS.md", "docs/AGENT_REFERENCE.md"];
 
 #[test]
 fn claude_md_facts_block_matches_the_repo() {
@@ -95,7 +95,7 @@ fn every_cli_command_is_mentioned_in_agents_md() {
     let commands: Vec<String> =
         v["data"]["commands"].as_array().expect("describe brief lists the commands").iter().filter_map(|c| c.as_str().map(str::to_string)).collect();
     assert!(commands.len() > 25, "{commands:?}");
-    let agents = read("AGENTS.md");
+    let agents = format!("{}\n{}", read("AGENTS.md"), read("docs/AGENT_REFERENCE.md"));
     let missing: Vec<&String> = commands.iter().filter(|c| !agents.contains(&format!("`{c}")) && !agents.contains(&format!("| `{c}"))).collect();
-    assert!(missing.is_empty(), "AGENTS.md does not mention these commands (add them to the tool table): {missing:?}");
+    assert!(missing.is_empty(), "AGENTS.md / docs/AGENT_REFERENCE.md do not mention these commands (add them to the tool table in the reference): {missing:?}");
 }

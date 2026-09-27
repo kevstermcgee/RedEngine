@@ -1,6 +1,7 @@
 {
   "format": 1,
-  "notes": "Which parts of the engine exist, who owns which file, and what must pass when a file changes. `red_engine2 features` lists it, `red_engine2 impact --git` turns a working tree into the exact commands to run, `red_engine2 features --check` (and tests/features_index.rs) keep it true: every listed file/suite/doc must exist and every source file must belong to a feature. tests: `lib:<module::path>` = library unit tests under that module, anything else = tests/<name>.rs. depends_on = features whose change can break this one.",
+  "notes": "Which parts of the engine exist, who owns which file, and what must pass when a file changes. `red_engine2 features` lists it, `red_engine2 impact --git` turns a working tree into the exact commands to run, `red_engine2 features --check` (and tests/features_index.rs) keep it true: every listed file/suite/doc must exist and every source file must belong to a feature. tests: `lib:<module::path>` = library unit tests under that module, anything else = tests/<name>.rs. depends_on = features whose change can break this one. serial_suites = suites that use real-time UDP or spawn servers: `affected` and CI run them one test at a time; every other suite runs on parallel threads.",
+  "serial_suites": ["net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_sim", "sim_replay", "server_env", "ai_tasks"],
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, authored player tuning and jump pads, wall/fence sugar, prefabs, tracks and easing, colours.",
@@ -179,15 +180,15 @@
       "depends_on": ["verification", "match_flow"]
     },
     "self_description": {
-      "summary": "The engine describing itself: describe, search, src navigation, catalog, doctor, status, the JSON envelope and the MCP wrapper.",
-      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py"],
-      "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "cli_envelope", "docs_fresh", "features_index"],
-      "commands": ["red_engine2 describe --brief", "red_engine2 features --check"],
-      "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md"]
+      "summary": "The engine describing itself and choosing its own verification: describe, search, src navigation, context work packets, impact/affected (minimal verification), catalog, doctor, status, the JSON envelope and the MCP wrapper.",
+      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py"],
+      "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context", "cli_envelope", "docs_fresh", "features_index"],
+      "commands": ["red_engine2 describe --brief", "red_engine2 features --check", "red_engine2 affected --dry-run"],
+      "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md"]
     },
     "docs_and_adrs": {
       "summary": "The docs an outsider or an agent reads first, kept true by tests: README, SPEC, AGENTS, CLAUDE, LICENSE, glossary, decisions.",
-      "files": ["README.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "docs/GLOSSARY.md", "docs/adr/", "docs/analysis/", "docs/features.json", "rustfmt.toml"],
+      "files": ["README.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "docs/GLOSSARY.md", "docs/adr/", "docs/analysis/", "docs/AGENT_REFERENCE.md", "docs/features.json", "rustfmt.toml"],
       "tests": ["docs_fresh", "repo_hygiene"],
       "docs": ["docs/adr/0007-docs-cannot-drift.md"]
     },

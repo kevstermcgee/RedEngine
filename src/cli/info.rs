@@ -50,11 +50,28 @@ pub(crate) fn run_search(query: &str, kind: Option<&str>, limit: usize) -> Resul
     Ok(())
 }
 
+pub(crate) fn run_context(query: &[String], git: bool, budget: usize) -> Result<(), String> {
+    use red_engine2::tools::{context, features};
+    let root = symbols::find_root().ok_or("cannot find the source tree (run inside the repo or set RE2_SRC=<repo path>)")?;
+    let all = features::load()?;
+    let mut query = query.to_vec();
+    if git {
+        let changed = features::changed_files(&root, "HEAD")?;
+        query.extend(features::impact(&all, &changed).direct.keys().cloned());
+    }
+    if query.is_empty() {
+        return Err("name a feature, a file or words (`features` lists the features); with --git, some changed file must belong to one".to_string());
+    }
+    let ix = symbols::Index::build(&root);
+    print!("{}", context::build(&all, &ix, &query, budget.clamp(1500, 60_000))?);
+    Ok(())
+}
+
 pub(crate) fn run_src(cmd: SrcCmd) -> Result<(), String> {
     let root = symbols::find_root().ok_or("cannot find the source tree (run inside the repo or set RE2_SRC=<repo path>)")?;
     let ix = symbols::Index::build(&root);
     match cmd {
-        SrcCmd::Map => print!("{}", symbols::render_map(&ix)),
+        SrcCmd::Map { prefix } => print!("{}", symbols::render_map_for(&ix, prefix.as_deref())),
         SrcCmd::Find { query, kind, file, tests, limit } => {
             let rows = symbols::find(&ix, &query.join(" "), kind.as_deref(), file.as_deref(), tests, limit);
             print!("{}", symbols::render_symbols(&rows));

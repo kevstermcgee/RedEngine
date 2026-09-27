@@ -79,11 +79,12 @@ fn probe_udp() -> Check {
     match loop_ok {
         Ok(true) => {
             let port = crate::net::DEFAULT_PORT;
-            match UdpSocket::bind(("0.0.0.0", port)) {
+            // Loopback probe: a wildcard bind would raise the OS firewall prompt just to ask whether the port is free.
+            match UdpSocket::bind(("127.0.0.1", port)) {
                 Ok(_) => check(
                     "udp",
                     Status::Ok,
-                    format!("loopback works and the default server port {port} is free (players outside your network also need it forwarded/allowed)"),
+                    format!("loopback works and the default server port {port} is free (`red_server` listens on loopback unless you pass --public/--bind; players outside your network also need it forwarded/allowed)"),
                 ),
                 Err(e) => check(
                     "udp",

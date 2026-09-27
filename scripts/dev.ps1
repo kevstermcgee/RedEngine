@@ -1,6 +1,7 @@
 # scripts/dev.ps1 — the Windows-native twin of scripts/dev (same commands). Run from any directory:
 #   powershell -File scripts\dev.ps1 doctor | fast | test [filter] | build [--headless] | red <args> | verify <scene> [...]
 #                                    walk <scene> [...] | server <scene> [...] | ci | status [...]
+#                                    affected|check [--quick|--full] | context <feature|file|words>   (verify only what a change can affect; a work packet)
 # Env: RED_PROFILE = debug | release (default debug). (The bash twin also takes RED_TIMEOUT; PowerShell relies on the tool's own timeout.)
 param([Parameter(Position = 0)][string]$Cmd = 'help', [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
 $ErrorActionPreference = 'Stop'
@@ -10,29 +11,40 @@ $env:CARGO_TERM_COLOR = 'never'
 if (-not $env:RUST_BACKTRACE) { $env:RUST_BACKTRACE = '1' }
 $cargoBin = Join-Path $HOME '.cargo\bin'
 if (($env:PATH -split ';') -notcontains $cargoBin -and (Test-Path $cargoBin)) { $env:PATH = "$cargoBin;$env:PATH" }
+$TargetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $Root 'target' }
 $Profile_ = if ($env:RED_PROFILE) { $env:RED_PROFILE } else { 'debug' }
 $PFlag = if ($Profile_ -eq 'release') { @('--release') } else { @() }
 
 function Need-Cargo {
     if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { Write-Error 'dev: cargo not found. Install Rust from https://rustup.rs'; exit 127 }
 }
-function Exe([string]$Name) { Join-Path $Root "target\$Profile_\$Name.exe" }
+function Exe([string]$Name) { Join-Path $TargetDir "$Profile_\$Name.exe" }
 function Needs-Build([string]$Name, [string]$Mode = 'default') {
     $out = Exe $Name
     if ($env:RED_REBUILD -eq '1' -or -not (Test-Path $out)) { return $true }
-    $stamp = Join-Path $Root "target\$Profile_\.red-dev-$Name.mode"
+    $stamp = Join-Path $TargetDir "$Profile_\.red-dev-$Name.mode"
     if (-not (Test-Path $stamp) -or (Get-Content $stamp -Raw) -ne $Mode) { return $true }
     $inputs = @((Join-Path $Root 'Cargo.toml'), (Join-Path $Root 'Cargo.lock'), (Join-Path $Root 'build.rs'))
     $inputs += Get-ChildItem (Join-Path $Root 'src'), (Join-Path $Root 'assets') -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
     $built = (Get-Item $out).LastWriteTimeUtc
     return $null -ne ($inputs | Where-Object { (Test-Path $_) -and (Get-Item $_).LastWriteTimeUtc -gt $built } | Select-Object -First 1)
 }
+# The CLI for `affected`/`context`: a stale binary plans identically unless the index or the planner changed, so skip the rebuild.
+function Planner {
+    $exe = Exe 'red_engine2'
+    if ((Test-Path $exe) -and $env:RED_REBUILD -ne '1') {
+        $built = (Get-Item $exe).LastWriteTimeUtc
+        $inputs = 'docs\features.json', 'src\tools\affected.rs', 'src\tools\features.rs', 'src\tools\context.rs', 'src\cli\args.rs'
+        if (-not ($inputs | Where-Object { (Test-Path $_) -and (Get-Item $_).LastWriteTimeUtc -gt $built })) { return $exe }
+    }
+    return (Cli)
+}
 function Cli {
     Need-Cargo
     if (Needs-Build 'red_engine2') {
         & cargo build @PFlag --bin red_engine2 --quiet
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        Set-Content -NoNewline -Path (Join-Path $Root "target\$Profile_\.red-dev-red_engine2.mode") -Value 'default'
+        Set-Content -NoNewline -Path (Join-Path $TargetDir "$Profile_\.red-dev-red_engine2.mode") -Value 'default'
     }
     return (Exe 'red_engine2')
 }
@@ -57,12 +69,14 @@ switch ($Cmd) {
     'verify' { $e = Cli; & $e verify @Rest; exit $LASTEXITCODE }
     'walk' { $e = Cli; & $e walk @Rest; exit $LASTEXITCODE }
     'status' { $e = Cli; & $e status @Rest; exit $LASTEXITCODE }
+    { $_ -in 'affected', 'check' } { Need-Cargo; $e = Planner; & $e affected @Rest; exit $LASTEXITCODE }
+    'context' { Need-Cargo; $e = Planner; & $e context @Rest; exit $LASTEXITCODE }
     'server' {
         Need-Cargo
         if (Needs-Build 'red_server' 'headless') {
             & cargo build @PFlag --no-default-features --bin red_server --quiet
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Set-Content -NoNewline -Path (Join-Path $Root "target\$Profile_\.red-dev-red_server.mode") -Value 'headless'
+            Set-Content -NoNewline -Path (Join-Path $TargetDir "$Profile_\.red-dev-red_server.mode") -Value 'headless'
         }
         & (Exe 'red_server') --map @Rest; exit $LASTEXITCODE
     }

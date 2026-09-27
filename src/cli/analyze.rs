@@ -439,6 +439,129 @@ pub(crate) fn run_impact(files: &[String], git: Option<&str>) -> Result<(), Stri
     Ok(())
 }
 
+/// Windows cannot delete or overwrite a running `.exe`, and the steps of a plan rebuild `red_engine2.exe` (the integration tests run it), which would
+/// fail with "failed to remove file". A running exe *can* be renamed, so move ours out of cargo's way; [`restore_exe`] puts it back when cargo did not
+/// rebuild it. Only done for a binary inside the cargo target directory.
+fn move_exe_aside(root: &Path) -> Option<(PathBuf, PathBuf)> {
+    let me = std::env::current_exe().ok()?;
+    let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from).unwrap_or_else(|| root.join("target"));
+    let inside = |p: &Path, t: &Path| std::fs::canonicalize(p).ok().zip(std::fs::canonicalize(t).ok()).is_some_and(|(p, t)| p.starts_with(t));
+    if !inside(&me, &target) {
+        return None;
+    }
+    let dir = me.parent()?;
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            if e.file_name().to_string_lossy().contains(".running-") {
+                let _ = std::fs::remove_file(e.path()); // left by an earlier run; refused by the OS while that run is alive
+            }
+        }
+    }
+    let aside = dir.join(format!("{}.running-{}.exe", me.file_stem()?.to_string_lossy(), std::process::id()));
+    std::fs::rename(&me, &aside).ok()?;
+    Some((me, aside))
+}
+
+/// Undoes [`move_exe_aside`] unless cargo already produced a new binary at the original path.
+fn restore_exe(moved: Option<(PathBuf, PathBuf)>) {
+    if let Some((orig, aside)) = moved {
+        if !orig.exists() {
+            let _ = std::fs::rename(&aside, &orig);
+        }
+    }
+}
+
+pub(crate) fn run_affected(
+    files: &[String],
+    base: Option<&str>,
+    quick: bool,
+    full: bool,
+    dry_run: bool,
+    keep_going: bool,
+    no_cache: bool,
+) -> Result<(), String> {
+    use red_engine2::tools::{affected, features, symbols};
+    let all = features::load()?;
+    let serial = features::serial_suites();
+    let root = symbols::find_root().ok_or("`affected` needs the engine's source tree: run it inside a red-engine-2 checkout (or set RE2_SRC)")?;
+    let changed: Vec<String> = if files.is_empty() {
+        let base = base.map(str::to_string).unwrap_or_else(|| features::default_base(&root));
+        features::changed_files(&root, &base)?
+    } else {
+        files.to_vec()
+    };
+    let opts = affected::Options { quick, full, ..Default::default() };
+    let mut plan = affected::plan(&all, &serial, &changed, &opts);
+    affected::prune_doc_step(&mut plan, &root);
+    let json = envelope::capturing();
+    if dry_run {
+        if json {
+            println!("{}", affected::plan_json(&plan));
+        } else {
+            print!("{}", affected::render_plan(&plan));
+        }
+        return Ok(());
+    }
+    if plan.steps.is_empty() {
+        if json {
+            println!("{}", serde_json::json!({"verified": true, "plan": affected::plan_json(&plan), "results": []}));
+        } else {
+            print!("{}", affected::render_plan(&plan));
+            println!("nothing to run");
+        }
+        return Ok(());
+    }
+    if !no_cache {
+        if let Some(scope) = affected::already_green(&root, &plan.changed, plan.scope) {
+            if json {
+                println!("{}", serde_json::json!({"verified": true, "cached": true, "scope": scope.name(), "plan": affected::plan_json(&plan), "results": []}));
+            } else {
+                println!("already verified ({} scope, identical file contents): nothing to run. `--no-cache` forces a re-run.", scope.name());
+            }
+            return Ok(());
+        }
+    }
+    if !json {
+        print!("{}", affected::render_plan(&plan));
+    }
+    let started = std::time::Instant::now();
+    let moved = if cfg!(windows) { move_exe_aside(&root) } else { None };
+    let results = affected::run(&plan, &root, &root.join("out").join("logs"), keep_going, &mut |r| {
+        if json {
+            return;
+        }
+        println!("{} {:<13} {:>6.1}s{}", if r.ok { "ok  " } else { "FAIL" }, r.name, r.secs, r.tally.as_ref().map(|t| format!("  {t}")).unwrap_or_default());
+        for l in &r.failures {
+            println!("     | {l}");
+        }
+        if !r.ok {
+            println!("     full log: {}", r.log.display());
+        }
+    });
+    restore_exe(moved);
+    let ok = results.len() == plan.steps.len() && results.iter().all(|r| r.ok);
+    if ok && !no_cache {
+        affected::record_green(&root, &plan.changed, plan.scope);
+    }
+    if json {
+        let rs: Vec<_> = results
+            .iter()
+            .map(|r| serde_json::json!({"name": r.name, "ok": r.ok, "secs": r.secs, "tally": r.tally, "failures": r.failures, "log": r.log.display().to_string()}))
+            .collect();
+        println!("{}", serde_json::json!({"verified": ok, "scope": plan.scope.name(), "plan": affected::plan_json(&plan), "results": rs}));
+    } else if ok {
+        println!("verified ({} scope) in {:.0}s", plan.scope.name(), started.elapsed().as_secs_f64());
+        if plan.scope != affected::Scope::Full {
+            println!("integration boundary (before pushing): `red_engine2 affected --full` (= scripts/ci.sh)");
+        }
+    }
+    if ok {
+        Ok(())
+    } else {
+        Err("verification failed (the failing lines are above; the full logs are under out/logs/)".to_string())
+    }
+}
+
 pub(crate) fn run_package(zip: &Path, verify: bool, allow_dirty: bool, no_build: bool) -> Result<(), String> {
     use red_engine2::tools::package;
     if verify {

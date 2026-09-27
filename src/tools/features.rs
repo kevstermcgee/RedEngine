@@ -68,6 +68,28 @@ pub fn parse(text: &str) -> Result<Vec<Feature>, String> {
     Ok(out)
 }
 
+/// The suites that must run one test at a time (real-time UDP, spawned servers): `serial_suites` in the index. Every other suite may use parallel threads.
+pub fn serial_suites() -> Vec<String> {
+    serial_suites_of(INDEX)
+}
+
+/// [`serial_suites`] for any index text.
+pub fn serial_suites_of(text: &str) -> Vec<String> {
+    serde_json::from_str::<Value>(text)
+        .ok()
+        .and_then(|v| v.get("serial_suites").and_then(Value::as_array).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()))
+        .unwrap_or_default()
+}
+
+/// The ref `affected` compares against by default: the merge base with `origin/main` (so a committed-but-unpushed change still counts as
+/// "changed"), else `HEAD`.
+pub fn default_base(root: &Path) -> String {
+    match Command::new("git").args(["merge-base", "HEAD", "origin/main"]).current_dir(root).output() {
+        Ok(o) if o.status.success() && !o.stdout.iter().all(u8::is_ascii_whitespace) => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        _ => "HEAD".to_string(),
+    }
+}
+
 /// Glob match of `path` against `pattern`: `*` matches within one path segment, `**` any number of whole segments, a trailing `/` a whole directory.
 pub fn glob_match(pattern: &str, path: &str) -> bool {
     fn seg(p: &[u8], s: &[u8]) -> bool {
@@ -259,6 +281,11 @@ pub fn check(features: &[Feature], root: &Path) -> Vec<String> {
         }
         if f.files.is_empty() {
             problems.push(format!("feature '{}' owns no files", f.name));
+        }
+    }
+    for t in serial_suites() {
+        if !root.join("tests").join(format!("{t}.rs")).exists() {
+            problems.push(format!("serial_suites: '{t}' has no tests/{t}.rs"));
         }
     }
     // Every source file, test suite and bench belongs to a feature (otherwise `impact` cannot say what a change there affects).

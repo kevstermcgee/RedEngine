@@ -8,6 +8,8 @@ Type=simple
 User=red
 WorkingDirectory=/opt/red
 # RED_MAP, RED_PORT, RED_BIND, RED_SPAWN_GROUP, ... (see deploy/server.env.example); a missing file is fine (defaults apply)
+# A service exists to be reached: public bind by default (the binary itself defaults to loopback); server.env may narrow it.
+Environment=RED_BIND=0.0.0.0
 EnvironmentFile=-/etc/red/server.env
 ExecStart=/usr/local/bin/red_server
 Restart=on-failure

@@ -6,6 +6,8 @@ It speaks UDP on one port (default **27015**) and is configured by flags or envi
 `RED_COUNTDOWN_SECS`, `RED_ROUND_SECS`, `RED_RESULTS_SECS`, `RED_SCORE_TO_WIN`; a flag beats a variable). It stops cleanly on Ctrl-C and on
 SIGTERM (`docker stop`, systemd): clients are told, and a `--record` trace is written.
 
+**Loopback by default.** With no `--bind`/`RED_BIND`, `--public` or `--upnp`, `red_server` listens on `127.0.0.1` only. That is what tests, bots, `play-local`, `net-test`, `perf` and `scripts/red serve` need, and a loopback socket never triggers the OS firewall prompt (a Windows "allow access?" dialog blocks an unattended run until someone clicks it). To host for other machines say so: `--public` (= `--bind 0.0.0.0`), `--bind IP`, or `--upnp` (implies public). The container image and the systemd unit set `RED_BIND=0.0.0.0` themselves. A client connecting to a loopback server also binds loopback (`NetClient`).
+
 Not sure your machine can do it? `red_engine2 doctor` probes UDP loopback, the default port, and the output directory.
 
 ## Pick one

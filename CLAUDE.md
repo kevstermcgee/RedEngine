@@ -2,7 +2,18 @@
 
 JSON-scene 3D engine (Rust; wgpu for graphics) with authoritative UDP multiplayer, a headless server, game rules as data and a
 self-describing CLI. **You never read engine source, and you never guess:** the engine describes itself, checks your work and
-explains its failures. Workflow and tool reference: @AGENTS.md.
+explains its failures. Workflow: `AGENTS.md` (short; read it, do not import it). Everything longer is in `docs/AGENT_REFERENCE.md` and
+`SPEC.md`, reached through `$R search "<question>"`, not by opening them whole (an `@`-import of either costs 10k+ tokens every session).
+
+## Cheap by default (context and time)
+```bash
+$R context <feature|file|words>  # 5-15 KB work packet for a Rust change: files, public API, tests, ADR pointers (instead of `src map`, file reads)
+scripts/dev affected --quick     # verify only the features that own your change (seconds); the dependents it skipped are listed
+scripts/dev affected             # + every feature built on them: before you say "done" (a green run is remembered by file content)
+scripts/dev affected --full      # = scripts/ci.sh: only at integration boundaries (before pushing; Cargo.*, src/lib.rs, CI files escalate by themselves)
+```
+Do not run the whole suite (`scripts/dev test`, bare `cargo test`) as an edit-loop habit. Servers, bots and tests listen on loopback only
+(no OS firewall prompt to wait on); `red_server --public`/`--bind IP`/`--upnp` is the explicit way to face other machines.
 
 ## First 60 seconds
 ```bash
@@ -36,18 +47,18 @@ $R sim my.json                   # headless scripted play-throughs of the rules;
 $R ui-shot pause out/p.png --size 1280x720 ; $R ui-check           # see and audit the 2-D screens without a window
 $R --json <any command>          # one stable envelope {schema, command, ok, exit, data, diagnostics, stderr}
 $R src find <words>              # only if you must touch Rust: find/show/refs/deps, no file reads
-scripts/dev fast | test          # unit tests | everything; prints a summary, the full log is in out/logs/
+scripts/dev fast | test          # all unit tests | the WHOLE suite (prefer `affected`); prints a summary, the full log is in out/logs/
 ```
 
-Map: `SPEC.md` scene + blueprint language · `AGENTS.md` workflow · `src/` engine (`$R src map`) · `assets/*.json` prefabs · `recipes/`, `examples/` ·
+Map: `SPEC.md` scene + blueprint language · `AGENTS.md` workflow (+ `docs/AGENT_REFERENCE.md`) · `src/` engine (`$R src map`) · `assets/*.json` prefabs · `recipes/`, `examples/` ·
 `docs/` glossary, ADRs (`$R describe decisions`), `HOSTING.md` · `mcp_server.py` MCP wrapper · `Dockerfile`, `deploy/` hosting.
 
 When you change Rust: `//!` on new modules, `///` on pub items (`$R src coverage`), simulation logic as pure functions (not in `App`), decisions as
-ADRs, then `scripts/dev test`. Before pushing: `scripts/ci.sh`. Record progress at every checkpoint: `$R status --note "..." --section done|now|next`.
+ADRs, then `scripts/dev test`. Before pushing: `scripts/dev affected --full` (= `scripts/ci.sh`). Record progress at every checkpoint: `$R status --note "..." --section done|now|next`.
 
 ## Facts (derived from the repo: `red_engine2 status --sync-docs CLAUDE.md` rewrites this block; a test fails if it is stale)
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `red_bot`, `red_engine2`, `red_server`.
 - Cargo features: `default`, `gfx`.
-- 27 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 41 ADRs (latest: 0041 native input and sandbox workflow). Test *counts* are not stated here: run `scripts/dev test`.
+- 27 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 42 ADRs (latest: 0042 proportional verification and unattended runs). Test *counts* are not stated here: run `scripts/dev test`.
 <!-- facts:end -->

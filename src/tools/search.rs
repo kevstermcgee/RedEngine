@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 
 const SPEC: &str = include_str!("../../SPEC.md");
 const AGENTS: &str = include_str!("../../AGENTS.md");
+const AGENT_REFERENCE: &str = include_str!("../../docs/AGENT_REFERENCE.md");
 /// `docs/GLOSSARY.md`, embedded (`describe glossary`, `search --kind glossary`).
 pub const GLOSSARY: &str = include_str!("../../docs/GLOSSARY.md");
 /// The ADR index table (`describe decisions`).
@@ -67,6 +68,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0039-authored-player-tuning-and-jump-pads.md", include_str!("../../docs/adr/0039-authored-player-tuning-and-jump-pads.md")),
     ("0040-shooter-presentation-and-momentum.md", include_str!("../../docs/adr/0040-shooter-presentation-and-momentum.md")),
     ("0041-native-input-and-sandbox-workflow.md", include_str!("../../docs/adr/0041-native-input-and-sandbox-workflow.md")),
+    ("0042-proportional-verification-and-unattended-runs.md", include_str!("../../docs/adr/0042-proportional-verification-and-unattended-runs.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
@@ -203,11 +205,17 @@ fn chunk_markdown(file: &str, kind: &'static str, text: &str, out: &mut Vec<Doc>
     flush(&heading, start, &mut sec, out);
 }
 
+/// The title line of the embedded ADR whose file name is `file` (`0029-match-flow-lobby-rounds-rematch.md`), without the leading `#`.
+pub fn adr_title(file: &str) -> Option<String> {
+    ADRS.iter().find(|(f, _)| *f == file).and_then(|(_, t)| t.lines().next()).map(|l| l.trim_start_matches('#').trim().to_string())
+}
+
 /// Builds the whole search corpus (docs, glossary, ADRs, assets, lint codes, recipes, commands, public symbols).
 pub fn corpus(commands: &Value) -> Vec<Doc> {
     let mut docs = Vec::new();
     chunk_markdown("SPEC.md", "doc", SPEC, &mut docs);
     chunk_markdown("AGENTS.md", "doc", AGENTS, &mut docs);
+    chunk_markdown("docs/AGENT_REFERENCE.md", "doc", AGENT_REFERENCE, &mut docs);
     chunk_markdown("docs/GLOSSARY.md", "glossary", GLOSSARY, &mut docs);
     for (file, text) in ADRS {
         // One doc per ADR (they are short): the title line names the decision, the rest is the body.

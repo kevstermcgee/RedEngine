@@ -1,11 +1,15 @@
 //! `red_server` — the authoritative, headless Red multiplayer server.
 //!
 //! ```text
-//! red_server [--map examples/test_lab.json] [--port 27015] [--bind 0.0.0.0]
+//! red_server [--map examples/test_lab.json] [--port 27015] [--bind 127.0.0.1 | --public]
 //!            [--spawn-group NAME] [--demo-kick OBJECT_ID] [--snapshot-every 2]
 //!            [--timeout-ms 3000] [--stats-secs 5] [--run-for SECS] [--record TRACE.json] [--record-every 6] [--no-interest]
 //!            [--key JOIN_KEY|auto] [--lobby] [--upnp] [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]
 //! ```
+//!
+//! **Loopback by default.** Without `--bind`, `--public`, `RED_BIND` or `--upnp` the server listens on `127.0.0.1` only: it is reachable from this
+//! machine (tests, bots, `play-local`, `red_engine2 net-test`) and never asks the OS firewall for permission, so unattended runs cannot stall on
+//! a Windows "allow access?" prompt. Hosting for other machines is an explicit choice: `--public` (= `--bind 0.0.0.0`), `--bind IP`, or `--upnp`.
 //!
 //! `--upnp` opens the UDP port on the home router (UPnP, see `red_engine2 portmap`), renews it while the server runs and removes it on exit.
 //! `--key` makes joining need a key: clients prove they know it without sending it, and every datagram is authenticated (ADR 0028).
@@ -36,7 +40,7 @@ use std::time::Duration;
 
 fn usage() -> ! {
     eprintln!(
-        "usage: red_server [--map FILE] [--port N] [--bind IP] [--spawn-group NAME] [--demo-kick OBJECT_ID]\n                  [--snapshot-every N] [--timeout-ms N] [--stats-secs N] [--run-for SECS]
+        "usage: red_server [--map FILE] [--port N] [--bind IP | --public] [--spawn-group NAME] [--demo-kick OBJECT_ID]\n                  [--snapshot-every N] [--timeout-ms N] [--stats-secs N] [--run-for SECS]
                   [--record TRACE.json] [--record-every N] [--no-interest] [--key K|auto] [--lobby] [--upnp]
                   [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]"
     );
@@ -57,7 +61,9 @@ fn env<T: std::str::FromStr>(name: &str) -> Option<T> {
 
 fn main() {
     let mut map = env::<PathBuf>("RED_MAP").unwrap_or_else(|| PathBuf::from("examples/test_lab.json"));
-    let (mut port, mut bind): (u16, IpAddr) = (env("RED_PORT").unwrap_or(DEFAULT_PORT), env("RED_BIND").unwrap_or_else(|| "0.0.0.0".parse().unwrap()));
+    let mut port: u16 = env("RED_PORT").unwrap_or(DEFAULT_PORT);
+    // Loopback unless the operator asked to be reachable: a listening socket on a public address is what raises the OS firewall prompt.
+    let mut bind_choice: Option<IpAddr> = env("RED_BIND");
     let (mut group, mut kick, mut every, mut timeout_ms, mut stats_secs, mut run_for) = (
         env::<String>("RED_SPAWN_GROUP").unwrap_or_default(),
         None::<String>,
@@ -82,7 +88,8 @@ fn main() {
         match a.as_str() {
             "--map" => map = PathBuf::from(val()),
             "--port" => port = val().parse().unwrap_or_else(|_| usage()),
-            "--bind" => bind = val().parse().unwrap_or_else(|_| usage()),
+            "--bind" => bind_choice = Some(val().parse().unwrap_or_else(|_| usage())),
+            "--public" => bind_choice = Some(IpAddr::from([0, 0, 0, 0])),
             "--spawn-group" => group = val(),
             "--demo-kick" => kick = Some(val()),
             "--snapshot-every" => every = val().parse().unwrap_or_else(|_| usage()),
@@ -103,6 +110,9 @@ fn main() {
             _ => usage(),
         }
     }
+
+    // `--upnp` exists to be reachable from the internet, so it implies a public bind unless the operator chose an address.
+    let bind = bind_choice.unwrap_or_else(|| if upnp { IpAddr::from([0, 0, 0, 0]) } else { IpAddr::from([127, 0, 0, 1]) });
 
     let text = std::fs::read_to_string(&map).unwrap_or_else(|e| {
         eprintln!("cannot read {}: {e}", map.display());
@@ -235,6 +245,9 @@ fn main() {
     raise_timer_resolution();
     let local = server.local_addr().expect("bound");
     println!("LISTENING {local}");
+    if bind.is_loopback() {
+        println!("loopback only: reachable from this machine; add --public (or --bind IP) to host for other machines");
+    }
     println!(
         "map {} ({} objects, hash {:08x}), {} loose props, 60 Hz tick, snapshots every {} ticks",
         map.display(),

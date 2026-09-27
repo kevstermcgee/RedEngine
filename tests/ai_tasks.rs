@@ -77,14 +77,15 @@ fn read_json(p: &str) -> Value {
 
 /// The two big docs an agent would otherwise read whole.
 fn docs_bytes() -> usize {
-    ["AGENTS.md", "SPEC.md"].iter().map(|f| std::fs::metadata(root().join(f)).unwrap().len() as usize).sum()
+    ["AGENTS.md", "docs/AGENT_REFERENCE.md", "SPEC.md"].iter().map(|f| std::fs::metadata(root().join(f)).unwrap().len() as usize).sum()
 }
 
 #[test]
 fn the_first_read_is_a_small_fraction_of_the_docs() {
     let mut a = Agent::new("orientation");
     let overview = a.run(&["describe"]).1;
-    assert!(overview.len() < 7_000, "`describe` overview is {} bytes", overview.len());
+    // 7 KB before `context`/`affected` existed; two more commands and their hints are worth a few hundred bytes, not more.
+    assert!(overview.len() < 7_300, "`describe` overview is {} bytes", overview.len());
     assert!(a.context * 8 < docs_bytes(), "orientation costs {} bytes vs {} bytes of AGENTS.md + SPEC.md", a.context, docs_bytes());
     a.within(9_500);
 }
@@ -330,4 +331,32 @@ fn task_change_a_movement_rule_safely() {
         std::fs::metadata(root().join("src/player.rs")).unwrap().len() as usize + std::fs::metadata(root().join("src/sim/player.rs")).unwrap().len() as usize;
     assert!(a.context * 2 < player_rs + 12_000, "the whole task read {} bytes; the two player files alone are {player_rs}", a.context);
     a.within(9_000);
+}
+
+#[test]
+fn task_change_the_engine_from_a_small_work_packet_and_verify_only_what_it_affects() {
+    let mut a = Agent::new("engine_change");
+    // One call replaces `src map` + outlines + doc reads: the feature, its files, API, tests and ADR pointers.
+    let packet = a.run(&["context", "match_flow"]).1;
+    assert!(packet.len() < 15_000, "a work packet stays within 15 KB ({} bytes)", packet.len());
+    for must in ["src/sim/flow.rs", "pub struct Flow", "net_flow", "affected", "docs/adr/0029"] {
+        assert!(packet.contains(must), "the packet names `{must}`:\n{packet}");
+    }
+    // A file path and free words find the same feature.
+    assert!(a.run(&["context", "src/sim/flow.rs"]).1.contains("== match_flow"));
+    assert!(a.run(&["context", "lobby", "countdown"]).1.contains("== match_flow"));
+    // The plan for that change is the owners' checks plus dependents, not the whole suite.
+    let plan = a.json(&["affected", "--dry-run", "src/sim/flow.rs"]);
+    let data = &plan["data"];
+    assert_eq!(data["scope"], "closure", "{plan}");
+    let commands: Vec<&str> = data["steps"].as_array().unwrap().iter().filter_map(|s| s["command"].as_str()).collect();
+    assert!(commands.iter().any(|c| c.contains("--lib") && c.contains("sim::flow")), "{commands:?}");
+    assert!(commands.iter().any(|c| c.starts_with("RUST_TEST_THREADS=1 cargo test") && c.contains("--test net_flow")), "{commands:?}");
+    assert!(!commands.iter().any(|c| c.contains("scripts/ci.sh")), "one file in one feature does not need the whole of CI: {commands:?}");
+    let quick = a.json(&["affected", "--dry-run", "--quick", "src/sim/flow.rs"]);
+    assert!(!quick["data"]["deferred"].as_array().unwrap().is_empty(), "quick names the dependents it did not run: {quick}");
+    // A file that changes how everything builds cannot be vouched for by a subset.
+    let boundary = a.json(&["affected", "--dry-run", "Cargo.toml", "src/sim/flow.rs"]);
+    assert_eq!(boundary["data"]["scope"], "full", "{boundary}");
+    a.within(30_000);
 }

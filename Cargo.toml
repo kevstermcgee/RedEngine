@@ -45,11 +45,17 @@ opt-level = 3
 
 # Plain `cargo test` runs rapier and 900-tick physics tests: unoptimized they are ~20x slower and the
 # per-step timing assertions get flaky. Light optimization everywhere, more for dependencies.
+#
+# Debug info is the biggest build cost after codegen: with full debuginfo every one of the ~27 test binaries writes a PDB/DWARF for the whole
+# dependency tree (about twice the disk, slower links; on a nearly full disk the MSVC linker fails with LNK1140). `line-tables-only` keeps
+# file:line in panics and backtraces, which is all the tests and tools need; dependencies get none. Set `debug = true` locally to step in a debugger.
 [profile.dev]
 opt-level = 1
+debug = "line-tables-only"
 
 [profile.dev.package."*"]
 opt-level = 2
+debug = false
 
 [dev-dependencies]
 criterion = "0.8.2"

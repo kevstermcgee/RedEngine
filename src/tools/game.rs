@@ -235,6 +235,71 @@ pub fn build_all(cfg: &GameConfig) -> Vec<Line> {
     out
 }
 
+/// Remembers which maps already passed their `checks` (`out/cache/check-<hash>`), so `game check` re-verifies only what changed. A map's key is
+/// the hash of: the running engine binary (size + mtime, so any rebuild invalidates), the map's own bytes, and every *other* `.json` file in the
+/// project (blueprints, local prefab libraries, `game.json`). Only passes are stored, so a failure always re-runs and prints its evidence.
+/// Views (golden images) are never cached: they depend on the renderer.
+struct CheckCache {
+    dir: PathBuf,
+    shared: crate::crypto::Sha256,
+}
+
+impl CheckCache {
+    fn new(cfg: &GameConfig) -> CheckCache {
+        let mut h = crate::crypto::Sha256::new();
+        h.update(b"game-check-cache-v1|");
+        h.update(env!("CARGO_PKG_VERSION").as_bytes());
+        if let Some(meta) = std::env::current_exe().ok().and_then(|e| std::fs::metadata(e).ok()) {
+            let mtime = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos()).unwrap_or(0);
+            h.update(format!("|engine {} {mtime}|", meta.len()).as_bytes());
+        }
+        let maps: Vec<PathBuf> = cfg.maps.iter().map(|m| cfg.dir.join(m)).collect();
+        let mut files = Vec::new();
+        collect_json(&cfg.dir, &mut files);
+        files.sort();
+        for f in files.iter().filter(|f| !maps.contains(f)) {
+            h.update(f.strip_prefix(&cfg.dir).unwrap_or(f).to_string_lossy().replace('\\', "/").as_bytes());
+            h.update(&std::fs::read(f).map(|b| crate::crypto::sha256(&b).to_vec()).unwrap_or_default());
+        }
+        CheckCache { dir: cfg.dir.join("out").join("cache"), shared: h }
+    }
+
+    fn file_for(&self, map: &Path) -> Option<PathBuf> {
+        let bytes = std::fs::read(map).ok()?;
+        let mut h = self.shared.clone();
+        h.update(&crate::crypto::sha256(&bytes));
+        Some(self.dir.join(format!("check-{}", &crate::crypto::hex(&h.finish())[..32])))
+    }
+
+    /// The number of checks that passed last time for these exact inputs.
+    fn passed(&self, map: &Path) -> Option<usize> {
+        std::fs::read_to_string(self.file_for(map)?).ok()?.trim().parse().ok()
+    }
+
+    fn record(&self, map: &Path, checks: usize) {
+        if let Some(f) = self.file_for(map) {
+            let _ = std::fs::create_dir_all(&self.dir);
+            let _ = std::fs::write(f, checks.to_string());
+        }
+    }
+}
+
+/// Every `.json` file under `dir`, skipping build output, caches and VCS metadata.
+fn collect_json(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    for e in rd.flatten() {
+        let p = e.path();
+        let name = e.file_name().to_string_lossy().to_string();
+        if p.is_dir() {
+            if !matches!(name.as_str(), "out" | "target" | ".git" | "node_modules") {
+                collect_json(&p, out);
+            }
+        } else if name.ends_with(".json") {
+            out.push(p);
+        }
+    }
+}
+
 /// The project health check: blueprints build and equal their maps, maps pass their `checks`, handoff exists.
 pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
     let mut lines = Vec::new();
@@ -258,12 +323,22 @@ pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
             }
         }
     }
+    let cache = (!views && std::env::var_os("RED_NO_CACHE").is_none()).then(|| CheckCache::new(cfg));
     for m in &cfg.maps {
         let path = cfg.dir.join(m);
+        if let Some(n) = cache.as_ref().and_then(|c| c.passed(&path)) {
+            lines.push(Line { failed: false, text: format!("map {m}: {n} check(s), 0 failed (cached: this map, the project's other JSON and the engine binary are unchanged since it last passed; RED_NO_CACHE=1 re-runs)") });
+            continue;
+        }
         match verify::run(&path, &verify::Options { skip_views: !views, out_dir: Some(cfg.dir.join("out/verify")), ..Default::default() }) {
             Err(e) => lines.push(Line { failed: true, text: format!("map {m}: {e}") }),
             Ok(r) => {
                 let failed = r.failed();
+                if failed == 0 {
+                    if let Some(c) = &cache {
+                        c.record(&path, r.results.len());
+                    }
+                }
                 let mut text = format!("map {m}: {} check(s), {failed} failed", r.results.len());
                 for c in r.results.iter().filter(|c| !c.ok) {
                     text.push_str(&format!("\n     FAIL {}  {}", c.name, c.detail));

@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 pub const TOPICS: &[(&str, &str)] = &[
     ("brief", "a ~1 KB summary: binaries, workflow, commands, where to look next (the cheapest first read)"),
     ("overview", "what the engine is + the topics below"),
-    ("commands", "every CLI command and its flags (generated from the real CLI)"),
+    ("commands", "every CLI command and its flags (11 KB; one command: `search <name>`)"),
     ("objects", "every object `type` with its fields and a working example"),
     ("scene", "top-level scene keys: meta, camera, lights, zones, prefabs, checks, ..."),
     ("lint", "every lint code: what it means and how to fix it"),
@@ -27,7 +27,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("rules", "game logic as data: `vars` + `rules` (when / who / if / once / do), volumes, actions, expressions; run headless"),
     ("sim", "headless play-throughs (`sim`, scenarios in `checks.sim`) and match traces (`replay`, checksums, first divergent tick)"),
     ("multiplayer", "hosting and playing online: keys, lobby and rounds, UPnP, net-test, perf, package"),
-    ("all", "everything above as one JSON document (use with --json)"),
+    ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
 
 /// Description of one object `type`: summary, fields and a working example (test-parsed).
@@ -306,6 +306,7 @@ pub fn brief_json(commands: &Value) -> Value {
         "engine": "Red Engine 2: maps are JSON scenes; you never need to read Rust",
         "binaries": BINARIES.iter().map(|(n, d)| json!({"name": n, "about": d})).collect::<Vec<_>>(),
         "workflow": "recipe/catalog -> add/set/move (validated) -> lint -> plan/tour (look) -> verify",
+        "engine_changes": "context <feature|file|words> (5-15 KB work packet) -> edit -> affected --quick (owners, seconds) -> affected (+dependents) -> affected --full (= CI) before pushing",
         "commands": names,
         "global_flags": [{"flag": "--json", "about": "wrap any command's result in the stable envelope {schema, command, ok, exit, data, diagnostics, stderr}"}],
         "errors": "`path: message` with a stable code and, where possible, a did-you-mean fix (describe diagnostics)",
@@ -323,6 +324,7 @@ fn brief_text(commands: &Value) -> String {
         out.push_str(&format!("  {n:<12} {d}\n"));
     }
     out.push_str(&format!("Workflow: {}\n", b["workflow"].as_str().unwrap_or("")));
+    out.push_str(&format!("Changing the engine (Rust): {}\n", b["engine_changes"].as_str().unwrap_or("")));
     out.push_str(&format!("Commands: {}\n", list("commands")));
     out.push_str("Every command takes --json: one stable envelope {schema, command, ok, exit, data, diagnostics, stderr}.\n");
     out.push_str("Errors are `path: message` with a stable code and a did-you-mean fix (`describe diagnostics`).\n");

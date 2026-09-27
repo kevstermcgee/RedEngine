@@ -29,8 +29,11 @@ pub(crate) struct EditFlags {
 
 #[derive(Subcommand)]
 pub(crate) enum SrcCmd {
-    /// Every module: purpose, size, public items.
-    Map,
+    /// Every module: purpose, size, public items. `src map net` lists only the modules under that prefix (much cheaper).
+    Map {
+        /// Only modules whose name starts with this (`net`, `tools::`, `sim`).
+        prefix: Option<String>,
+    },
     /// Where is X defined? Ranked matches with signature and doc.
     Find {
         query: Vec<String>,
@@ -501,6 +504,45 @@ pub(crate) enum Command {
         /// Use `git diff --name-only REF` (default HEAD) plus untracked files instead of listing files.
         #[arg(long, num_args = 0..=1, default_missing_value = "HEAD")]
         git: Option<String>,
+    },
+    /// A 5-15 KB work packet for one Rust change. It holds the feature's summary and neighbours, its source files with purpose and public API, the tests that cover it,
+    /// the verification command and pointers to the relevant ADRs. Name a feature (`features` lists them), a file (`context src/net/server.rs`) or words
+    /// (`context lobby countdown`). Use it instead of `src map` + several `src outline`s + reading docs.
+    Context {
+        /// A feature name, a file path, or words.
+        query: Vec<String>,
+        /// Also use the features that own the files changed in the working tree (git diff + untracked).
+        #[arg(long)]
+        git: bool,
+        /// Maximum size of the packet in bytes.
+        #[arg(long, default_value_t = 12000)]
+        budget: usize,
+    },
+    /// Verify only what a change can affect. Maps the changed files to the features that own them (and are built on them), then runs only
+    /// their formatting/lint/unit/integration checks, real-time network suites one at a time, everything else in parallel. Boundary changes
+    /// (Cargo.*, src/lib.rs, CI files, huge diffs) escalate to `scripts/ci.sh`. A passing run is remembered by content hash: asking again with nothing edited
+    /// costs nothing. `--quick` = only the owning features (edit loop); default = plus dependents (before "done"); `--full` = CI (before pushing). Logs: out/logs/.
+    Affected {
+        /// Changed files (default: everything changed since the merge base with origin/main, plus the working tree).
+        files: Vec<String>,
+        /// Compare with this git ref instead of the merge base with origin/main.
+        #[arg(long)]
+        base: Option<String>,
+        /// Only the features that own the changed files (seconds); the dependents are listed as not run.
+        #[arg(long)]
+        quick: bool,
+        /// Run everything CI runs (`scripts/ci.sh`).
+        #[arg(long)]
+        full: bool,
+        /// Print the plan and stop.
+        #[arg(long)]
+        dry_run: bool,
+        /// Do not stop at the first failing step.
+        #[arg(long)]
+        keep_going: bool,
+        /// Ignore and do not write the green stamp (`out/.affected-green.json`).
+        #[arg(long)]
+        no_cache: bool,
     },
     /// A release you can prove. Builds the client + CLI (default features) and the dedicated server + bot (`--no-default-features`, its own
     /// target directory so no graphics stack can leak in), and writes one reproducible zip of the tracked source and the binaries with a

@@ -528,9 +528,20 @@ pub fn modules(ix: &Index) -> Vec<ModInfo> {
 
 /// Renders `src map`.
 pub fn render_map(ix: &Index) -> String {
-    let mods = modules(ix);
+    render_map_for(ix, None)
+}
+
+/// Renders `src map`, restricted to the modules whose name starts with `prefix` (`net`, `tools::`, `sim`): about 1 KB instead of the whole 17 KB.
+pub fn render_map_for(ix: &Index, prefix: Option<&str>) -> String {
+    let mut mods = modules(ix);
+    if let Some(p) = prefix {
+        mods.retain(|m| m.name.starts_with(p) || m.file.contains(p));
+    }
     let mut out =
         format!("{} source files, {} symbols. `src outline <mod>` lists a file, `src show <symbol>` prints one item.\n\n", ix.files.len(), ix.symbols.len());
+    if mods.is_empty() {
+        out.push_str("no module matches that prefix: `src map` lists them all\n");
+    }
     let w = mods.iter().map(|m| m.name.len()).max().unwrap_or(8);
     for m in &mods {
         out.push_str(&format!("{:<w$} {:>5}L {:>3}pub  {}\n", m.name, m.lines, m.pub_items, m.purpose.chars().take(96).collect::<String>(), w = w));

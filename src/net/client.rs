@@ -154,6 +154,18 @@ pub struct NetClient {
     pub lobby_interval: Duration,
 }
 
+/// The local address a client socket binds to in order to talk to `server`: loopback when the server is on loopback (tests, bots, `play-local`,
+/// `net-test`), the wildcard otherwise. A loopback socket never raises the OS firewall prompt, so unattended runs cannot stall on it.
+pub fn local_bind_for(server: SocketAddr) -> SocketAddr {
+    let ip: std::net::IpAddr = match (server.ip().is_loopback(), server.is_ipv4()) {
+        (true, true) => Ipv4Addr::LOCALHOST.into(),
+        (true, false) => Ipv6Addr::LOCALHOST.into(),
+        (false, true) => Ipv4Addr::UNSPECIFIED.into(),
+        (false, false) => Ipv6Addr::UNSPECIFIED.into(),
+    };
+    SocketAddr::new(ip, 0)
+}
+
 impl NetClient {
     /// Opens a socket and starts joining `server`. `resume_token` is `0` for a fresh join, or a token
     /// from an earlier session to get that player back.
@@ -163,8 +175,7 @@ impl NetClient {
 
     /// Like [`NetClient::connect`], with a join key and a name.
     pub fn connect_with(cfg: ClientConfig) -> io::Result<NetClient> {
-        let bind = SocketAddr::new(if cfg.server.is_ipv4() { Ipv4Addr::UNSPECIFIED.into() } else { Ipv6Addr::UNSPECIFIED.into() }, 0);
-        let socket = UdpSocket::bind(bind)?;
+        let socket = UdpSocket::bind(local_bind_for(cfg.server))?;
         socket.set_nonblocking(true)?;
         let now = Instant::now();
         let mut c = NetClient {
@@ -599,3 +610,25 @@ impl NetClient {
 
 /// Seconds per simulation tick (what a client paces its input sending by).
 pub const TICK_SECS: f64 = TICK_DT as f64;
+
+#[cfg(test)]
+mod bind_tests {
+    use super::local_bind_for;
+    use std::net::SocketAddr;
+
+    fn bind(server: &str) -> SocketAddr {
+        local_bind_for(server.parse().unwrap())
+    }
+
+    #[test]
+    fn a_loopback_server_gets_a_loopback_socket() {
+        assert_eq!(bind("127.0.0.1:27015"), "127.0.0.1:0".parse().unwrap());
+        assert_eq!(bind("[::1]:27015"), "[::1]:0".parse().unwrap());
+    }
+
+    #[test]
+    fn a_remote_server_gets_the_wildcard() {
+        assert_eq!(bind("203.0.113.9:27015"), "0.0.0.0:0".parse().unwrap());
+        assert_eq!(bind("[2001:db8::1]:27015"), "[::]:0".parse().unwrap());
+    }
+}
