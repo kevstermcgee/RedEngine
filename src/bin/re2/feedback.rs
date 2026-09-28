@@ -94,6 +94,10 @@ impl App {
         }
         if let Some(view) = self.online_view() {
             self.feel.observe_match(view.phase, view.secs_left, view.winner == view.me);
+            let rungs = self.scene.weapons.ladder().len() as u32;
+            let rival =
+                (rungs > 0 && view.phase == red_engine2::sim::flow::Phase::Playing).then(|| red_engine2::ui::online::final_rung_rival(&view, rungs)).flatten();
+            self.feel.observe_threat(rival.map(|e| e.id));
         }
         if let Some(what) = &self.debug_feel {
             self.feel.hold(what);

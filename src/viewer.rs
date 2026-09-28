@@ -481,11 +481,13 @@ pub struct FrameOptions {
     pub muzzle_flash: f32,
     /// Screen effects over the frame: damage vignette and arc, flashes, the hit marker (nothing by default).
     pub fx: FxParams,
+    /// An enemy is under the crosshair: it turns red (over the pick-up green and the gold "in reach").
+    pub enemy: bool,
 }
 
 impl Default for FrameOptions {
     fn default() -> Self {
-        FrameOptions { crosshair: true, viewmodel: true, pickup: false, weapon: Weapon::Bat, muzzle_flash: 0.0, fx: FxParams::default() }
+        FrameOptions { crosshair: true, viewmodel: true, pickup: false, weapon: Weapon::Bat, muzzle_flash: 0.0, fx: FxParams::default(), enemy: false }
     }
 }
 
@@ -954,15 +956,19 @@ impl LiveRenderer {
             }
         }
 
-        let crosshair_color = if opts.pickup {
+        let crosshair_color = if opts.enemy {
+            [1.0, 0.22, 0.18, 1.0]
+        } else if opts.pickup {
             [0.35, 1.0, 0.45, 1.0]
         } else if crosshair_highlighted {
             [1.0, 0.85, 0.2, 1.0]
         } else {
             [1.0, 1.0, 1.0, 0.85]
         };
-        let crosshair_uniform =
-            CrosshairUniform { color: crosshair_color, to_ndc: [2.0 / self.targets.width.max(1) as f32, 2.0 / self.targets.height.max(1) as f32, 0.0, 0.0] };
+        let crosshair_uniform = CrosshairUniform {
+            color: crosshair_color,
+            to_ndc: [2.0 / self.targets.width.max(1) as f32, 2.0 / self.targets.height.max(1) as f32, (self.targets.height as f32 / 720.0).max(1.0), 0.0],
+        };
         queue.write_buffer(&self.crosshair_buf, 0, bytemuck::bytes_of(&crosshair_uniform));
         {
             let mut crosshair_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -985,7 +991,7 @@ impl LiveRenderer {
             if opts.crosshair {
                 crosshair_pass.set_pipeline(&self.crosshair.pipeline);
                 crosshair_pass.set_bind_group(0, &self.crosshair_bind_group, &[]);
-                crosshair_pass.draw(0..12, 0..1);
+                crosshair_pass.draw(0..48, 0..1);
             }
             self.overlay.draw(&mut crosshair_pass);
         }

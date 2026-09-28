@@ -17,7 +17,7 @@ const GOLD: [u8; 4] = [255, 210, 74, 255];
 
 /// Screens `ui-shot` / `ui-check` know, in display order.
 pub fn all() -> &'static [&'static str] {
-    &["menu", "pause", "connect", "lobby", "countdown", "hud", "death", "rules", "results"]
+    &["menu", "pause", "connect", "lobby", "countdown", "hud", "final", "death", "rules", "results"]
 }
 
 /// Window sizes `ui-check` audits every screen at: small, common, portrait and large.
@@ -51,6 +51,11 @@ pub fn build(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Option<Layout> {
         "lobby" => Some(lobby_layout(w, h, &demo(Phase::Waiting, opts), opts.hover_id.as_deref())),
         "countdown" => Some(hud_layout(w, h, &demo(Phase::Countdown, opts))),
         "hud" => Some(hud_layout(w, h, &demo(Phase::Playing, opts))),
+        "final" => {
+            let mut v = demo(Phase::Playing, opts);
+            v.roster[5].score = 11; // Fay is one kill from winning
+            Some(hud_layout(w, h, &v))
+        }
         "death" => {
             let mut v = demo(Phase::Playing, opts);
             v.combat = Some(CombatView::demo_dead());

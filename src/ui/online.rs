@@ -489,6 +489,11 @@ pub fn hud_layout(w: u32, h: u32, v: &OnlineView) -> Layout {
     l
 }
 
+/// The player other than us who is on the last rung of a ladder of `rungs` (one kill from winning), the highest scorer if several.
+pub fn final_rung_rival(v: &OnlineView, rungs: u32) -> Option<&RosterEntry> {
+    v.roster.iter().filter(|e| e.id != v.me && e.score as u32 + 1 == rungs).max_by_key(|e| e.score)
+}
+
 /// The shooter's part of the HUD: a health bar (bottom left), the weapon and the ladder rungs (bottom right), who is winning (under the
 /// timer), and the "eliminated" banner while waiting to respawn.
 fn combat_hud(l: &mut Layout, v: &OnlineView, c: &CombatView) {
@@ -573,6 +578,15 @@ fn combat_hud(l: &mut Layout, v: &OnlineView, c: &CombatView) {
                 if best.id == v.me { format!("YOU LEAD  {}/{}", best.score, rungs) } else { format!("LEADER {}  {}/{}", upper(&best.name), best.score, rungs) };
             let color = if best.id == v.me { GOLD } else { DIM };
             l.label_fit("leader", None, wi / 2, 3 * s + text_height(s * 3 / 2) + 2 * s, &line, s, wi / 3, color);
+        }
+    }
+    // The drama of a ladder: one kill from winning is said out loud, whether it is us or someone else.
+    if let Some((rung, rungs)) = c.rung.filter(|_| !c.dead) {
+        let line_y = 3 * s + text_height(s * 3 / 2) + 2 * s + text_height(s) + 2 * s;
+        if rung >= rungs {
+            l.label_fit("final", None, wi / 2, line_y, "FINAL WEAPON - ONE KILL TO WIN", s * 3 / 2, wi / 2, GOLD);
+        } else if let Some(e) = final_rung_rival(v, rungs) {
+            l.label_fit("final", None, wi / 2, line_y, &format!("{} IS ON THE FINAL WEAPON", upper(&e.name)), s * 3 / 2, wi / 2, RED);
         }
     }
     if c.protected && !c.dead {
@@ -882,6 +896,25 @@ mod tests {
         let mut v = OnlineView::demo(Phase::Playing);
         v.me = 5;
         assert_eq!(text(&hud_layout(1280, 720, &v), "leader").as_deref(), Some("YOU LEAD  9/12"));
+    }
+
+    #[test]
+    fn the_hud_says_out_loud_when_someone_is_one_kill_from_winning() {
+        let text = |l: &Layout, id: &str| l.widgets.iter().find(|w| w.id == id).and_then(|w| w.text.clone());
+        let mut v = OnlineView::demo(Phase::Playing);
+        assert!(text(&hud_layout(1280, 720, &v), "final").is_none(), "nobody is on the last rung in the demo (Fay leads with 9 of 12)");
+        v.roster[5].score = 11;
+        assert_eq!(text(&hud_layout(1280, 720, &v), "final").as_deref(), Some("FAY IS ON THE FINAL WEAPON"));
+        assert_eq!(final_rung_rival(&v, 12).map(|e| e.id), Some(5));
+        // On the last rung ourselves, it is a call to arms instead.
+        v.combat.as_mut().unwrap().rung = Some((12, 12));
+        v.combat.as_mut().unwrap().next_weapon = None;
+        assert_eq!(text(&hud_layout(1280, 720, &v), "final").as_deref(), Some("FINAL WEAPON - ONE KILL TO WIN"));
+        // Nothing while dead, and we are never our own rival.
+        v.combat.as_mut().unwrap().dead = true;
+        assert!(text(&hud_layout(1280, 720, &v), "final").is_none());
+        v.me = 5;
+        assert!(final_rung_rival(&v, 12).is_none());
     }
 
     #[test]

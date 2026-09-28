@@ -12,8 +12,29 @@ impl App {
                 let dps = rate.trim_start_matches(':').parse::<f32>().unwrap_or(40.0);
                 self.camera.yaw += dps.to_radians() * FIXED_DT;
             }
-            let attack = self.autofire && self.clock.ticks_run() % 12 < 6;
-            return PlayerInput { forward: 1, sprint: false, yaw: self.camera.yaw, pitch: self.camera.pitch, attack, ..Default::default() };
+            if self.autoaim {
+                // The nearest other player with nothing solid in between: a sentry that stands still and turns until it sees one.
+                let eye = self.tick_eye();
+                let bodies = self.net.as_ref().map(|n| n.bodies().to_vec()).unwrap_or_default();
+                let visible = bodies.into_iter().filter(|b| !b.dead).filter(|b| {
+                    let d = b.pos + Vec3::Y - eye;
+                    raycast_shapes(eye, d.normalize_or_zero(), d.length(), &self.hit_shapes).is_none()
+                });
+                if let Some(b) = visible.min_by(|a, c| (a.pos - eye).length().total_cmp(&(c.pos - eye).length())) {
+                    let d = b.pos + Vec3::Y - eye;
+                    self.camera.yaw = d.x.atan2(-d.z);
+                    self.camera.pitch = d.y.atan2(Vec2::new(d.x, d.z).length()).clamp(-1.2, 1.2);
+                }
+            }
+            let attack = (self.autofire || self.autoaim) && self.clock.ticks_run() % 12 < 6;
+            return PlayerInput {
+                forward: i8::from(!self.autoaim),
+                sprint: false,
+                yaw: self.camera.yaw,
+                pitch: self.camera.pitch,
+                attack,
+                ..Default::default()
+            };
         }
         let held = |a: KeyCode, b: KeyCode| self.keys.contains(&a) || self.keys.contains(&b);
         let axis = |pos: bool, neg: bool| pos as i8 - neg as i8;
@@ -313,7 +334,16 @@ impl App {
         // starts at the player's eye (`anchor`), not the camera: in third person the camera hangs
         // metres behind the player, and testing from there "hit" things behind them.
         let reach = self.shown_weapon().firearm().map_or(MELEE_REACH, |s| s.range);
-        self.target_index = if self.body.has_bat && !self.carrying() { self.probe(anchor, reach).map(|(o, _, _)| o) } else { None };
+        // Online with a firearm the crosshair means something else: red when an enemy is in the sights and nothing solid is in front of them (gold on
+        // any wall within 80 m would be on nearly all the time).
+        let online_gun = self.net.is_some() && self.shown_weapon().is_firearm();
+        self.target_index = if self.body.has_bat && !self.carrying() && !online_gun { self.probe(anchor, reach).map(|(o, _, _)| o) } else { None };
+        self.aim_enemy = false;
+        if online_gun && !self.carrying() && !self.own_dead() {
+            let dir = self.camera.forward();
+            let wall = raycast_shapes(anchor, dir, reach, &self.hit_shapes).map_or(f32::INFINITY, |h| h.distance);
+            self.aim_enemy = self.net.as_ref().and_then(|n| n.player_in_sight(anchor, dir, reach)).is_some_and(|(_, d)| d < wall);
+        }
 
         if let Some(t) = self.freeze_shot {
             self.since_shot = t;
@@ -335,6 +365,7 @@ impl App {
         let shown_weapon = self.shown_weapon();
         let muzzle_flash = (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0);
         let fx = self.feel.fx(self.camera.yaw);
+        let enemy = self.aim_enemy;
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(live) = gpu.live.as_mut() else { return };
         if let Some(net) = &self.net {
@@ -346,8 +377,15 @@ impl App {
         let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
-        let opts =
-            FrameOptions { crosshair: true, viewmodel: !carrying && !dead, pickup: self.pickup_target.is_some(), weapon: shown_weapon, muzzle_flash, fx };
+        let opts = FrameOptions {
+            crosshair: true,
+            viewmodel: !carrying && !dead,
+            pickup: self.pickup_target.is_some(),
+            weapon: shown_weapon,
+            muzzle_flash,
+            fx,
+            enemy,
+        };
         live.render_ex(
             &gpu.device,
             &gpu.queue,

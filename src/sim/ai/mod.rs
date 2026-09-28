@@ -468,7 +468,7 @@ impl Brain {
                 && (dist < POINT_BLANK_M || matches!(sim.probe(eye, dir, dist + 0.6, slot), Some(RayHit { target: RayTarget::Player(t), .. }) if t == s));
             if visible {
                 self.memory[s] = Some(Memory { pos: feet, tick: now });
-                let human_bonus = if sim.is_bot(s) { 1.0 } else { 1.5 };
+                let human_bonus = if sim.is_bot(s) { 1.0 } else { 1.2 };
                 let sticky = if self.target == Some(s) { 1.6 } else { 1.0 };
                 let score = human_bonus * sticky / (dist + 4.0);
                 if best.is_none_or(|(_, b)| score > b) {

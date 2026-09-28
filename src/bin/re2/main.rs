@@ -371,10 +371,14 @@ struct App {
     pad_launch: Option<f32>,
     /// Debug: `RE2_FEEL=hit|kill|hurt|dead|low|protected|flash` holds that screen effect (for screenshots).
     debug_feel: Option<String>,
+    /// Online with a firearm: an enemy is under the crosshair (it turns red).
+    aim_enemy: bool,
     /// Debug: `RE2_LOG_CUES=1` prints every sound cue as it plays (to check what the feedback does without listening).
     log_cues: bool,
     /// Debug: `RE2_AUTOFIRE=1` (with `RE2_AUTOWALK`) pulls the trigger five times a second.
     autofire: bool,
+    /// Debug: `RE2_AUTOAIM=1` (with `RE2_AUTOWALK`) turns to the nearest other player and fires (through walls: it does not look).
+    autoaim: bool,
     /// Debug: `RE2_VIEW=third` starts in third person (for screenshots).
     debug_third_person: bool,
     /// Debug: `RE2_FREEZE_SHOT=<seconds since the shot>` holds the revolver's recoil/flash there.
@@ -509,6 +513,8 @@ impl App {
             pad_launch,
             debug_feel: std::env::var("RE2_FEEL").ok().filter(|v| !v.is_empty()),
             autofire: std::env::var_os("RE2_AUTOFIRE").is_some(),
+            autoaim: std::env::var_os("RE2_AUTOAIM").is_some(),
+            aim_enemy: false,
             log_cues: std::env::var_os("RE2_LOG_CUES").is_some(),
             weapon: starting_weapon,
             switching: None,

@@ -69,6 +69,8 @@ pub enum Cue {
     Heartbeat,
     /// A weapon was raised.
     Draw,
+    /// Someone else reached the last rung of the weapon ladder: one more kill and they win.
+    Alert,
 }
 
 /// Our own state as the server last told us.
@@ -150,6 +152,7 @@ pub struct Feel {
     was_airborne: bool,
     fall_speed: f32,
     walked: f32,
+    threat: Option<u8>,
 }
 
 impl Feel {
@@ -272,6 +275,14 @@ impl Feel {
     /// We swung the bat.
     pub fn own_swing(&mut self) {
         self.cue(Cue::Swing);
+    }
+
+    /// Notes who, if anyone but us, is on the last rung of the weapon ladder (one kill from winning): a siren the moment someone gets there.
+    pub fn observe_threat(&mut self, threat: Option<u8>) {
+        if threat.is_some() && threat != self.threat {
+            self.cue(Cue::Alert);
+        }
+        self.threat = threat;
     }
 
     /// Advances the timers by `dt` seconds.
@@ -558,6 +569,21 @@ mod tests {
         assert!(f.take_cues().is_empty(), "not yet");
         f.tick(REMOTE_SOUND_DELAY_SECS);
         assert_eq!(f.take_cues(), vec![Cue::Shot { weapon: 9, at: Vec3::new(4.0, 0.0, -6.0), own: false }]);
+    }
+
+    #[test]
+    fn a_siren_sounds_once_when_someone_else_reaches_the_last_rung() {
+        let mut f = Feel::new();
+        f.observe_threat(None);
+        assert!(f.take_cues().is_empty());
+        f.observe_threat(Some(3));
+        f.observe_threat(Some(3));
+        assert_eq!(f.take_cues(), vec![Cue::Alert], "once, not every frame");
+        f.observe_threat(None);
+        f.observe_threat(Some(3));
+        assert_eq!(f.take_cues(), vec![Cue::Alert], "again if they fall back and return");
+        f.observe_threat(Some(5));
+        assert_eq!(f.take_cues(), vec![Cue::Alert], "a different player is a new threat");
     }
 
     #[test]

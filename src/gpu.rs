@@ -450,7 +450,11 @@ pub fn create_crosshair_pipeline(device: &wgpu::Device, color_format: wgpu::Text
             module: &shader,
             entry_point: Some("fs_crosshair"),
             compilation_options: Default::default(),
-            targets: &[Some(color_format.into())],
+            targets: &[Some(wgpu::ColorTargetState {
+                format: color_format,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,

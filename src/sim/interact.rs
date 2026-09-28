@@ -161,8 +161,8 @@ fn eye_and_look(state: &PlayerState, crouching: bool) -> (Vec3, Vec3) {
     (eye, Vec3::new(sy * cp, sp, -cy * cp).normalize_or_zero())
 }
 
-/// Distance along a unit ray to a player's vertical cylinder, if within `reach`.
-fn ray_cylinder(origin: Vec3, dir: Vec3, reach: f32, centre: glam::Vec2, radius: f32, foot: f32, height: f32) -> Option<f32> {
+/// Distance along a unit ray to a player's vertical cylinder (centre on the ground plane, `foot` to `foot + height`), if within `reach`.
+pub fn ray_cylinder(origin: Vec3, dir: Vec3, reach: f32, centre: glam::Vec2, radius: f32, foot: f32, height: f32) -> Option<f32> {
     let (ox, oz) = (origin.x - centre.x, origin.z - centre.y);
     let a = dir.x * dir.x + dir.z * dir.z;
     if a < 1e-8 {

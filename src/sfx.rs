@@ -311,6 +311,22 @@ pub fn pad_launch() -> Vec<f32> {
     finish(clip, 0.5)
 }
 
+/// A siren: three swells alternating between two tones, for "someone is one kill from winning".
+pub fn alert() -> Vec<f32> {
+    let n = samples(1.0);
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            let pulse = (t / 0.32).floor();
+            let u = t - pulse * 0.32;
+            let f = if pulse as i32 % 2 == 0 { 660.0 } else { 880.0 };
+            let env = (u / 0.02).min(1.0) * decay(u, 3.0) * if t < 0.96 { 1.0 } else { (1.0 - t) / 0.04 };
+            ((TAU * f * t).sin() * 0.6 + (TAU * f * 2.0 * t).sin() * 0.15) * env
+        })
+        .collect();
+    finish(clip, 0.5)
+}
+
 /// A short beep of `freq` Hz lasting `seconds` (the countdown's 3, 2, 1).
 pub fn beep(freq: f32, seconds: f32) -> Vec<f32> {
     let n = samples(seconds);
@@ -491,6 +507,8 @@ pub struct SoundBank {
     pub jump: Vec<f32>,
     /// A weapon being raised.
     pub draw: Vec<f32>,
+    /// Someone is one kill from winning.
+    pub alert: Vec<f32>,
 }
 
 impl SoundBank {
@@ -517,6 +535,7 @@ impl SoundBank {
             land: landing(),
             jump: jump(),
             draw: crate::audio::synth_weapon_click(),
+            alert: alert(),
         }
     }
 
@@ -557,6 +576,7 @@ impl SoundBank {
             Cue::Defeat => centred(&self.defeat, 0.7),
             Cue::Heartbeat => centred(&self.heartbeat, 0.6),
             Cue::Draw => centred(&self.draw, 0.5),
+            Cue::Alert => centred(&self.alert, 0.75),
         }
     }
 }
@@ -623,6 +643,7 @@ mod tests {
             ("land".to_string(), &bank.land),
             ("jump".to_string(), &bank.jump),
             ("draw".to_string(), &bank.draw),
+            ("alert".to_string(), &bank.alert),
         ]);
         for (name, clip) in all {
             assert!(clip.iter().all(|s| s.is_finite() && s.abs() <= 1.0), "{name}: samples must be finite and within -1..1");
@@ -709,6 +730,7 @@ mod tests {
             Cue::Defeat,
             Cue::Heartbeat,
             Cue::Draw,
+            Cue::Alert,
         ];
         for cue in cues {
             let p = bank.play(&cue, me, 0);

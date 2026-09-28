@@ -33,6 +33,31 @@ struct Avatar {
     anim: AvatarAnim,
 }
 
+/// A remote player as drawn this frame: enough to tell whether the crosshair is on them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RemoteBody {
+    /// Their player id.
+    pub id: u8,
+    /// Where they stand (x, foot_y, z), as drawn (interpolated).
+    pub pos: Vec3,
+    /// Dead, waiting to respawn.
+    pub dead: bool,
+    /// What they look like (sets the size of their body).
+    pub character: Character,
+}
+
+/// The nearest living body a ray from `eye` along the unit vector `dir` meets within `reach`, and how far along it: `(player id, distance)`.
+pub fn nearest_body_on_ray(bodies: &[RemoteBody], eye: Vec3, dir: Vec3, reach: f32) -> Option<(u8, f32)> {
+    bodies
+        .iter()
+        .filter(|b| !b.dead)
+        .filter_map(|b| {
+            let body = b.character.body();
+            crate::sim::interact::ray_cylinder(eye, dir, reach, Vec2::new(b.pos.x, b.pos.z), body.radius, b.pos.y, body.body_height).map(|d| (b.id, d))
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+}
+
 /// A connection to a server plus everything the client keeps for it.
 pub struct NetSession {
     /// The connection.
@@ -57,6 +82,7 @@ pub struct NetSession {
     happened: Vec<crate::net::happenings::Happenings>,
     /// The weapons other players hold this frame (set by [`update_scene`](Self::update_scene)): where each is and how it is held.
     remote_hands: Vec<RemoteHand>,
+    bodies: Vec<RemoteBody>,
 }
 
 impl NetSession {
@@ -84,6 +110,7 @@ impl NetSession {
             joined: false,
             happened: Vec::new(),
             remote_hands: Vec::new(),
+            bodies: Vec::new(),
         })
     }
 
@@ -95,6 +122,17 @@ impl NetSession {
     /// The weapons other players hold (for the renderer to draw), as of the last [`update_scene`](Self::update_scene).
     pub fn remote_hands(&self) -> &[RemoteHand] {
         &self.remote_hands
+    }
+
+    /// The other players as drawn this frame.
+    pub fn bodies(&self) -> &[RemoteBody] {
+        &self.bodies
+    }
+
+    /// The nearest living remote player a ray from `eye` along `dir` meets within `reach`, as they are drawn, and how far: what the crosshair turns
+    /// red for. The shot itself is the server's call (it judges it against the same picture, ADR 0053).
+    pub fn player_in_sight(&self, eye: Vec3, dir: Vec3, reach: f32) -> Option<(u8, f32)> {
+        nearest_body_on_ray(&self.bodies, eye, dir, reach)
     }
 
     /// Adds hidden avatars for every allowed character; fixed-character games allocate only that body.
@@ -242,6 +280,7 @@ impl NetSession {
         let view = self.client.view(now);
         let idle_t = now.duration_since(self.started).as_secs_f32();
         self.remote_hands.clear();
+        self.bodies.clear();
         // Free avatars whose player left.
         for a in &mut self.avatars {
             if let Some(id) = a.used_by {
@@ -264,6 +303,7 @@ impl NetSession {
                     None => continue,
                 },
             };
+            self.bodies.push(RemoteBody { id: *id, pos: pose.pos, dead: pose.dead, character: ch });
             let a = &mut self.avatars[idx];
             if let Some(hand) = animate(&mut scene.objects[a.object_index], ch, pose, &mut a.anim, dt, idle_t) {
                 self.remote_hands.push(hand);
@@ -306,6 +346,24 @@ mod tests {
     /// The graphical client's whole networked path, minus the window: it joins a real server, sees
     /// another client's avatar appear in the scene (and disappear when they leave), and the other
     /// client's moving prop shows up posed in the scene.
+    #[test]
+    fn the_crosshair_finds_the_nearest_living_body_on_the_ray() {
+        let body = |id, x, z, dead| RemoteBody { id, pos: Vec3::new(x, 0.0, z), dead, character: Character::Human };
+        let bodies = [body(1, 0.0, -10.0, false), body(2, 0.0, -5.0, false), body(3, 0.0, -3.0, true), body(4, 4.0, -5.0, false)];
+        let eye = Vec3::new(0.0, 1.7, 0.0);
+        assert_eq!(
+            nearest_body_on_ray(&bodies, eye, Vec3::NEG_Z, 80.0).map(|(id, _)| id),
+            Some(2),
+            "the nearer of two in line, and the dead one does not count"
+        );
+        let (_, d) = nearest_body_on_ray(&bodies, eye, Vec3::NEG_Z, 80.0).unwrap();
+        assert!((4.0..5.5).contains(&d), "the front of a body 5 m away: {d}");
+        assert_eq!(nearest_body_on_ray(&bodies, eye, Vec3::NEG_Z, 4.0), None, "out of reach");
+        assert_eq!(nearest_body_on_ray(&bodies, eye, Vec3::X, 80.0), None, "looking at nobody");
+        // A shot that skims high over a head misses; the body is 1.8 m tall.
+        assert_eq!(nearest_body_on_ray(&bodies, Vec3::new(0.0, 2.5, 0.0), Vec3::NEG_Z, 80.0), None);
+    }
+
     #[test]
     fn a_networked_session_draws_the_other_player_and_moved_props_into_the_scene() {
         use crate::net::bot::{Behavior, Bot};
