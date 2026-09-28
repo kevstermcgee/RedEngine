@@ -145,7 +145,11 @@ impl OnlineView {
             map: "test_lab".to_string(),
             reconnecting: false,
             message: None,
-            combat: (phase == Phase::Playing).then(CombatView::demo),
+            combat: match phase {
+                Phase::Playing => Some(CombatView::demo()),
+                Phase::Countdown => Some(CombatView { notice: None, ..CombatView::demo() }),
+                _ => None,
+            },
         }
     }
 }
@@ -492,7 +496,23 @@ pub fn hud_layout(w: u32, h: u32, v: &OnlineView) -> Layout {
         let secs = v.secs_left.unwrap_or(0).to_string();
         let big = l.label("count", None, wi / 2, hi * 30 / 100, &secs, s * 8, GOLD);
         l.widgets[big].shadow = false; // a shadow offset by one big pixel reads as a glitch at this size
-        l.label_fit("count_hint", None, wi / 2, hi * 30 / 100 + text_height(s * 8) + 6 * s, "GET READY", s * 2, wi - 8, TEXT);
+        let hint_y = hi * 30 / 100 + text_height(s * 8) + 6 * s;
+        l.label_fit("count_hint", None, wi / 2, hint_y, "GET READY", s * 2, wi - 8, TEXT);
+        // What the round is about, for someone who has not read anything, and the keys.
+        if let Some((_, rungs)) = v.combat.as_ref().and_then(|c| c.rung) {
+            let text = format!("FIRST TO {rungs} KILLS WINS - EVERY KILL GIVES YOU THE NEXT GUN");
+            l.label_fit("objective", None, wi / 2, hint_y + text_height(s * 2) + 6 * s, &text, s, wi - 8, GOLD);
+        }
+        l.label_fit(
+            "controls",
+            None,
+            wi / 2,
+            hi * 80 / 100,
+            "WASD MOVE   MOUSE AIM   CLICK FIRE   RIGHT CLICK SIGHTS   SPACE JUMP   SHIFT SPRINT",
+            s,
+            wi - 8,
+            DIM,
+        );
     } else if !v.in_round {
         l.label_fit("banner", None, wi / 2, hi - text_height(s * 2) - 8 * s, "ROUND IN PROGRESS - YOU JOIN THE NEXT ONE", s * 2, wi - 8, GOLD);
     }
@@ -868,6 +888,19 @@ mod tests {
         v.end_text = "victory".into();
         let l = results_layout(1280, 720, &v, None);
         assert_eq!(l.widgets.iter().find(|w| w.id == "headline").and_then(|w| w.text.clone()).unwrap(), "VICTORY");
+    }
+
+    #[test]
+    fn the_countdown_says_what_the_round_is_about_and_shows_the_keys() {
+        let text = |l: &Layout, id: &str| l.widgets.iter().find(|w| w.id == id).and_then(|w| w.text.clone());
+        let l = hud_layout(1280, 720, &OnlineView::demo(Phase::Countdown));
+        assert_eq!(text(&l, "objective").as_deref(), Some("FIRST TO 12 KILLS WINS - EVERY KILL GIVES YOU THE NEXT GUN"));
+        assert!(text(&l, "controls").is_some_and(|t| t.contains("WASD") && t.contains("CLICK FIRE")));
+        let mut no_ladder = OnlineView::demo(Phase::Countdown);
+        no_ladder.combat = None;
+        let l = hud_layout(1280, 720, &no_ladder);
+        assert!(text(&l, "objective").is_none() && text(&l, "controls").is_some(), "the keys always show, the objective only for a ladder");
+        assert!(text(&hud_layout(1280, 720, &OnlineView::demo(Phase::Playing)), "controls").is_none(), "and only during the countdown");
     }
 
     #[test]
