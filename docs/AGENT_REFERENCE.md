@@ -30,7 +30,7 @@ Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`
 weapon logic (the online path uses the server's). Offline and online both use the shared generic presentation for rule variables,
 recent events, hidden objects and outcome; online receives repeated complete rule-state snapshots (ADR 0036).
 
-**Joining and the lobby (protocol v<!--fact:protocol-->8<!--/fact-->).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
+**Joining and the lobby (protocol v<!--fact:protocol-->9<!--/fact-->).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
 response, the key is never sent) and every datagram after the handshake is authenticated, so forged, replayed or injected packets are dropped
 (ADR 0028; authentication, **not** encryption; use `--key auto`, not a short word). `--lobby` (or a scene `"match"` block, see `describe
 scene`) turns on the flow lobby -> ready-up -> countdown -> timed round -> results -> rematch (`sim::flow`, ADR 0029; `--min-players
@@ -123,6 +123,7 @@ Play a map: `cargo run --release --bin re2 -- examples/house.json` (`RE2_STATS=1
 | `preflight` | The repository's bookkeeping in about a second, nothing compiled: ADR records and index, `docs/features.json` owning every file, derived doc facts (protocol version), the headless boundary, hand-written test counts and stale claims, missing paths, every command in this table, the `describe` byte budgets, rustfmt | every problem prints the exact edit; `--fix` makes the mechanical ones; `--no-fmt`; run it before every commit (ADR 2026-09-28-generated-bookkeeping) |
 | `adr new "Title"` / `adr list` / `adr index --check\|--write` | Decision records: `new` creates `docs/adr/<today>-<slug>.md` (a dated id cannot collide with another branch's) and refreshes the generated index; nothing else is registered by hand | `--summary "one sentence"` (the index row), `--status proposed`, `--slug` |
 | `analysis new "Title" [--from file]` / `analysis list` | Analysis notes in `docs/analysis/`: what a builder reported and what was done about it (a pasted report becomes a note) | embedded, so `search <words> --kind analysis` finds them |
+| `playtest` | Play a map in the real client with no window and look at it: pictures, a sheet, a report. Runs `re2 --playtest` (host + a scripted player: a spin, a walk, a fight; pictures from the player's eyes, third person, above the map and behind another player, rendered offscreen so no focus or visible desktop is needed), then prints the verdict: how many other players were drawn, undrawn, stood in for or hidden by interest management, what was heard, where the contact sheet is. Exit 1 when a player was left undrawn or an expectation failed. `--script play.json` plays your own script instead (`describe playtest`) | |
 
 **Every command accepts the global `--json`**: one document `{schema, command, ok, exit, data, diagnostics:[{code, path, message, fix?}], stderr}`
 (`data` is what the command printed, as JSON when it has a JSON form). Scene errors are `path: message` with a stable code and a did-you-mean;
