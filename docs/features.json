@@ -95,7 +95,7 @@
     },
     "net_server": {
       "summary": "The authoritative UDP server: sessions, handshake, snapshots with per-client acks, status, rounds, rate limits; `red_server`.",
-      "files": ["src/net/server.rs", "src/net/sessions.rs", "src/net/snapshots.rs", "src/bin/red_server.rs"],
+      "files": ["src/net/server.rs", "src/net/host.rs", "src/net/sessions.rs", "src/net/snapshots.rs", "src/bin/red_server.rs"],
       "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_bots", "server_env"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md"],

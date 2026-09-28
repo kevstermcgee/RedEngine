@@ -7,6 +7,7 @@
 //!   `sessions` (who is connected, resume tokens), `snapshots` (what each client is sent), [`limits`] (packet budgets).
 //! - [`client`]: `NetClient` = handshake, redundant input sending, snapshot receiving, reconnect.
 //! - [`interp`]: smooth rendering of remote players and props from snapshots.
+//! - [`host`]: a server on a thread of the current process (`re2 --host`: play against a map's bots with nothing else to start).
 //! - [`bot`]: a headless scripted client (how multiplayer is proved without a window).
 //! - [`session`]: the graphical client's glue (prediction + scene updates), window-free and tested.
 //! - [`predict`]: client-side prediction and reconciliation of the local player.
@@ -21,6 +22,7 @@ pub mod auth;
 pub mod bot;
 pub mod client;
 pub mod happenings;
+pub mod host;
 pub mod interp;
 pub mod limits;
 pub mod netsim;

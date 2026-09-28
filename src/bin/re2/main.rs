@@ -26,6 +26,7 @@ use red_engine2::easing::Ease;
 use red_engine2::hit::{collect_hit_shapes_where, raycast_shapes, HitShape};
 use red_engine2::menu::{self, PauseAction};
 use red_engine2::net::bot::ClientWorld;
+use red_engine2::net::host::{HostOptions, LocalHost};
 use red_engine2::net::session::NetSession;
 use red_engine2::physics::PropWorld;
 use red_engine2::player::{BodySpec, Character, FIXED_DT};
@@ -534,6 +535,9 @@ struct Args {
     connect: Option<SocketAddr>,
     key: Option<String>,
     name: Option<String>,
+    host: bool,
+    fill: Option<usize>,
+    bot_skill: Option<String>,
 }
 
 /// Red Engine 2 real-time game client.
@@ -541,7 +545,7 @@ struct Args {
 #[command(
     version,
     about,
-    after_help = "Controls: WASD/arrow keys move, mouse looks, Shift sprints, Space jumps, Ctrl crouches, Q changes view, F toggles fullscreen."
+    after_help = "Controls: WASD/arrow keys move, mouse looks, Shift sprints, Space jumps, Ctrl crouches, Q changes view, F toggles fullscreen. --host plays against the map's bots on this machine."
 )]
 struct CliArgs {
     /// Scene/map JSON to play.
@@ -559,6 +563,15 @@ struct CliArgs {
     /// Multiplayer display name.
     #[arg(long)]
     name: Option<String>,
+    /// Host the match on this machine and join it: the map's bots (or `--fill`) are the opponents, and nothing else has to be started.
+    #[arg(long)]
+    host: bool,
+    /// With `--host`: how many players (you included) the match aims for; empty places are filled with bots (`0` = none).
+    #[arg(long, value_name = "N")]
+    fill: Option<usize>,
+    /// With `--host`: the bots' level: rookie, easy, normal, hard, nightmare, or a number from 0 to 1.
+    #[arg(long, value_name = "LEVEL")]
+    bot_skill: Option<String>,
 }
 
 fn parse_character_arg(value: &str) -> Result<Character, String> {
@@ -582,7 +595,7 @@ fn parse_args() -> Args {
         let c = if c.contains(':') { c } else { format!("{c}:{}", red_engine2::net::DEFAULT_PORT) };
         c.to_socket_addrs().ok().and_then(|mut i| i.next()).unwrap_or_else(|| fail_online(&format!("'{c}' is not a valid HOST:PORT")))
     });
-    Args { scene: cli.scene, who, connect, key, name }
+    Args { scene: cli.scene, who, connect, key, name, host: cli.host, fill: cli.fill, bot_skill: cli.bot_skill }
 }
 
 /// Reports a fatal online-mode problem (message box when there is no console) and exits.
@@ -595,7 +608,19 @@ fn fail_online(msg: &str) -> ! {
 
 fn main() {
     env_logger::init();
-    let Args { scene: scene_path, who: requested_character, connect, key, name } = parse_args();
+    let Args { scene: scene_path, who: requested_character, mut connect, key, name, host, fill, bot_skill } = parse_args();
+    // `--host`: serve the map from a thread of this process and join it; the server stops when the game closes (it drops after `app`).
+    let mut local_host = None;
+    if host {
+        match LocalHost::start(&scene_path, &HostOptions { fill, bot_skill, ..Default::default() }) {
+            Ok(h) => {
+                println!("Hosting a match on {} (the map's bots fill the empty places).", h.addr());
+                connect = Some(h.addr());
+                local_host = Some(h);
+            }
+            Err(e) => fail_online(&e),
+        }
+    }
     // Online, the client's map is loaded together with its hash and static collision (what the server has).
     let mut net_world = None;
     let loaded = if connect.is_some() {
@@ -650,6 +675,8 @@ fn main() {
         app.player_name = n;
     }
     event_loop.run_app(&mut app).expect("event loop error");
+    drop(app);
+    drop(local_host);
 }
 
 #[cfg(test)]

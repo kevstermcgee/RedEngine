@@ -52,6 +52,7 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0051](0051-shooter-feedback-on-the-wire.md) | Shooter feedback on the wire (protocol v8): shot, hit, hurt and kill counters, damage bearing, respawn countdown; the client turns them into events | accepted |
 | [0052](0052-shooter-feel-in-the-client.md) | Shooter feel in the client: a headless `feel` state machine, a synthesized sound bank, a screen-effects pass and a combat HUD | accepted |
 | [0053](0053-lag-compensation.md) | Lag compensation: the server rewinds the players a shot can hit by the shooter's view lag (interpolation delay plus round trip), recorded in traces | accepted |
+| [0054](0054-hosting-from-the-client.md) | Hosting from inside the client: `re2 --host` serves the map on a thread of the game and joins it, so bots need no second process | accepted |
 
 ## Writing one
 
