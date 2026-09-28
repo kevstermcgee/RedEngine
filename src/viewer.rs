@@ -5,6 +5,9 @@
 //! surface every frame instead of an offscreen texture read back to PNG/MP4, and the camera
 //! is driven by player input ([`FpsCamera`]) instead of the scene's `camera` track.
 
+use crate::avatar::RemoteHand;
+use crate::feel::FxParams;
+use crate::fx::FxPipeline;
 use crate::gpu::{
     create_crosshair_pipeline, create_pipelines, create_post_pipeline, make_shadow_sampler, post_uniform, CrosshairPipeline, CrosshairUniform, GlobalUniform,
     GpuMesh, ObjectUniform, Pipelines, PostFx, MSAA_SAMPLES, SHADOW_SIZE,
@@ -16,6 +19,24 @@ use crate::schema::Scene;
 use crate::weapons::Weapon;
 use glam::{Mat4, Quat, Vec3, Vec4};
 use std::collections::HashSet;
+
+/// Other players' weapons drawn at once (one per possible remote player).
+pub const REMOTE_HANDS: usize = crate::sim::match_sim::MAX_PLAYERS;
+
+/// The world transform of the weapon a remote player holds: at their wrist, pointing the way they look (a firearm's grip sits in the hand and
+/// kicks up with recoil), or the bat at the angle of its swing. The same construction as the local player's third-person hand prop.
+pub fn remote_hand_transform(h: &RemoteHand) -> Mat4 {
+    let (sy, cy) = h.yaw.sin_cos();
+    let basis = Mat4::from_cols(Vec4::new(cy, 0.0, sy, 0.0), Vec4::Y, Vec4::new(sy, 0.0, -cy, 0.0), Vec4::new(0.0, 0.0, 0.0, 1.0));
+    if h.weapon.is_firearm() {
+        Mat4::from_translation(h.wrist)
+            * basis
+            * Mat4::from_rotation_x(-h.pitch - 0.30 * h.kick)
+            * Mat4::from_translation(-crate::firearms::grip_anchor(h.weapon))
+    } else {
+        Mat4::from_translation(h.wrist) * basis * Mat4::from_rotation_z(IDLE_ROLL_DEG.to_radians()) * Mat4::from_rotation_x(h.bat_pitch_deg.to_radians())
+    }
+}
 
 fn align_up(value: u64, alignment: u64) -> u64 {
     value.div_ceil(alignment) * alignment
@@ -99,7 +120,7 @@ pub fn viewmodel_transform(camera: &FpsCamera, local_offset: Vec3, local_rotatio
 /// Idle held pose of the bat viewmodel (a pitch about the camera's right axis, then a roll about
 /// the view axis) — shared with `re2` (swing/third-person poses) and with [`build_held_parts`],
 /// which aims the forearm so it leaves the bottom-right of the screen from this exact pose.
-pub const IDLE_PITCH_DEG: f32 = -66.0;
+pub const IDLE_PITCH_DEG: f32 = crate::avatar::BAT_IDLE_PITCH_DEG;
 pub const IDLE_ROLL_DEG: f32 = -20.0;
 
 /// Ash-wood bat (linear RGB of ~#b98a52), the player's skin-tone hand, and the slate sleeve that
@@ -420,11 +441,15 @@ pub struct LiveRenderer {
     /// Scene object ids suppressed by a game rule or application.
     hidden_objects: HashSet<String>,
     held: Vec<HeldGpu>,
+    /// The weapons other players hold this frame (set with [`LiveRenderer::set_remote_hands`]).
+    remote_hands: Vec<RemoteHand>,
     crosshair: CrosshairPipeline,
     crosshair_buf: wgpu::Buffer,
     crosshair_bind_group: wgpu::BindGroup,
     post: PostFx,
     post_bind_group: wgpu::BindGroup,
+    /// Damage vignette, flashes and the hit marker, drawn over the finished frame.
+    fx: FxPipeline,
     /// A 2-D image drawn over the finished frame (the launch menu); hidden during play.
     pub overlay: Overlay,
 }
@@ -454,11 +479,13 @@ pub struct FrameOptions {
     pub weapon: Weapon,
     /// Muzzle-flash brightness, 0 (off) .. 1 (full); the flash piece is drawn only when > 0.
     pub muzzle_flash: f32,
+    /// Screen effects over the frame: damage vignette and arc, flashes, the hit marker (nothing by default).
+    pub fx: FxParams,
 }
 
 impl Default for FrameOptions {
     fn default() -> Self {
-        FrameOptions { crosshair: true, viewmodel: true, pickup: false, weapon: Weapon::Bat, muzzle_flash: 0.0 }
+        FrameOptions { crosshair: true, viewmodel: true, pickup: false, weapon: Weapon::Bat, muzzle_flash: 0.0, fx: FxParams::default() }
     }
 }
 
@@ -492,7 +519,7 @@ impl LiveRenderer {
         // instance of the same bat mesh rigidly attached to the third-person body's hand
         // bone (drawn as an ordinary world object, shadowed/occluded like any prop). Both are
         // written and bound (via a dynamic offset) alongside the scene meshes each frame.
-        let draw_count = meshes.len() as u64 + 2 * held.len() as u64;
+        let draw_count = meshes.len() as u64 + (2 + REMOTE_HANDS as u64) * held.len() as u64;
 
         let global_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("live-global-uniform"),
@@ -565,11 +592,13 @@ impl LiveRenderer {
             mesh_object_paths,
             hidden_objects: HashSet::new(),
             held,
+            remote_hands: Vec::new(),
             crosshair,
             crosshair_buf,
             crosshair_bind_group,
             post,
             post_bind_group,
+            fx: FxPipeline::new(device, color_format),
             overlay: Overlay::new(device, color_format),
         }
     }
@@ -593,6 +622,13 @@ impl LiveRenderer {
                 wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&make_shadow_sampler(device)) },
             ],
         });
+    }
+
+    /// Sets the weapons other players hold this frame (at most [`REMOTE_HANDS`] are drawn): each is drawn like the third-person copy of ours,
+    /// with its muzzle flash while `flash` is above zero.
+    pub fn set_remote_hands(&mut self, hands: &[RemoteHand]) {
+        self.remote_hands.clear();
+        self.remote_hands.extend(hands.iter().copied().take(REMOTE_HANDS));
     }
 
     /// Replaces the set of scene object ids omitted from both the colour and shadow passes.
@@ -679,7 +715,9 @@ impl LiveRenderer {
         // stride width and each uniform's bytes are copied into its slot, padding left as-is.
         // Each held part owns two slots: `[first-person, third-person]`.
         let held_slot = |k: usize, third: bool| self.meshes.len() as u64 + 2 * k as u64 + third as u64;
-        let mut object_data = vec![0u8; (self.object_stride * (self.meshes.len() as u64 + 2 * self.held.len() as u64)) as usize];
+        // Other players' weapons follow the local ones: one group of slots per player.
+        let remote_slot = |r: usize, k: usize| self.meshes.len() as u64 + 2 * self.held.len() as u64 + (r * self.held.len() + k) as u64;
+        let mut object_data = vec![0u8; (self.object_stride * (self.meshes.len() as u64 + (2 + REMOTE_HANDS as u64) * self.held.len() as u64)) as usize];
         let stage = |data: &mut [u8], slot: u64, stride: u64, uniform: &ObjectUniform| {
             let start = (slot * stride) as usize;
             let bytes = bytemuck::bytes_of(uniform);
@@ -715,6 +753,16 @@ impl LiveRenderer {
             let glow = if h.flash { opts.muzzle_flash } else { 1.0 };
             stage(&mut object_data, held_slot(k, false), self.object_stride, &held_uniform(weapon_transform, h, glow));
             stage(&mut object_data, held_slot(k, true), self.object_stride, &held_uniform(hand_prop_transform, h, glow));
+        }
+        for (r, hand) in self.remote_hands.iter().enumerate() {
+            let world = remote_hand_transform(hand);
+            for (k, h) in self.held.iter().enumerate() {
+                if h.weapon != hand.weapon || h.fp_only || (h.flash && hand.flash <= 0.0) {
+                    continue;
+                }
+                let glow = if h.flash { hand.flash } else { 1.0 };
+                stage(&mut object_data, remote_slot(r, k), self.object_stride, &held_uniform(world, h, glow));
+            }
         }
         queue.write_buffer(&self.object_buf, 0, &object_data);
 
@@ -754,6 +802,17 @@ impl LiveRenderer {
                 shadow_pass.set_vertex_buffer(0, h.mesh.vertex_buf.slice(..));
                 shadow_pass.set_index_buffer(h.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                 shadow_pass.draw_indexed(0..h.mesh.index_count, 0, 0..1);
+            }
+            for (r, hand) in self.remote_hands.iter().enumerate() {
+                for (k, h) in self.held.iter().enumerate() {
+                    if h.weapon != hand.weapon || h.fp_only || h.flash {
+                        continue;
+                    }
+                    shadow_pass.set_bind_group(1, &self.object_bind_group, &[(remote_slot(r, k) * self.object_stride) as u32]);
+                    shadow_pass.set_vertex_buffer(0, h.mesh.vertex_buf.slice(..));
+                    shadow_pass.set_index_buffer(h.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    shadow_pass.draw_indexed(0..h.mesh.index_count, 0, 0..1);
+                }
             }
         }
 
@@ -815,6 +874,18 @@ impl LiveRenderer {
                 main_pass.set_vertex_buffer(0, h.mesh.vertex_buf.slice(..));
                 main_pass.set_index_buffer(h.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                 main_pass.draw_indexed(0..h.mesh.index_count, 0, 0..1);
+            }
+            // Other players' weapons, with a muzzle flash only while it is up.
+            for (r, hand) in self.remote_hands.iter().enumerate() {
+                for (k, h) in self.held.iter().enumerate() {
+                    if h.weapon != hand.weapon || h.fp_only || (h.flash && hand.flash <= 0.0) {
+                        continue;
+                    }
+                    main_pass.set_bind_group(1, &self.object_bind_group, &[(remote_slot(r, k) * self.object_stride) as u32]);
+                    main_pass.set_vertex_buffer(0, h.mesh.vertex_buf.slice(..));
+                    main_pass.set_index_buffer(h.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    main_pass.draw_indexed(0..h.mesh.index_count, 0, 0..1);
+                }
             }
         }
 
@@ -907,6 +978,10 @@ impl LiveRenderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            if opts.fx.active() {
+                self.fx.update(queue, &opts.fx, self.targets.width, self.targets.height);
+                self.fx.draw(&mut crosshair_pass);
+            }
             if opts.crosshair {
                 crosshair_pass.set_pipeline(&self.crosshair.pipeline);
                 crosshair_pass.set_bind_group(0, &self.crosshair_bind_group, &[]);

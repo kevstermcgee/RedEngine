@@ -41,7 +41,7 @@ fn main() -> anyhow::Result<()> {
                 false,
                 viewmodel_transform(&camera, offset, rotation),
                 Mat4::from_scale(Vec3::splat(0.00001)),
-                FrameOptions { weapon, crosshair: true, viewmodel: true, pickup: false, muzzle_flash: 0.0 },
+                FrameOptions { weapon, crosshair: true, viewmodel: true, pickup: false, muzzle_flash: 0.0, ..FrameOptions::default() },
             );
             let mut encoder = gpu.device.create_command_encoder(&Default::default());
             encoder.copy_texture_to_buffer(

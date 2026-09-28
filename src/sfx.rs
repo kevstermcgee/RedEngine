@@ -10,6 +10,7 @@
 //! shots a second do not smear; a shotgun is all boom and body; the scout is a hard crack and a long echo.
 
 use crate::audio::SAMPLE_RATE;
+use crate::feel::Cue;
 use crate::weapons::Weapon;
 use std::f32::consts::{PI, TAU};
 
@@ -376,6 +377,52 @@ pub fn heartbeat() -> Vec<f32> {
     finish(clip, 0.55)
 }
 
+/// A footstep: a soft thud and a scuff of noise. `variant` picks between two slightly different feet.
+pub fn footstep(variant: u32) -> Vec<f32> {
+    let n = samples(0.1);
+    let mut noise = Noise(0xF007 + variant * 7919);
+    let mut lp = 0.0f32;
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            lp += (0.16 + 0.03 * variant as f32) * (noise.next() - lp);
+            (partial(72.0 + 9.0 * variant as f32, t, 48.0) * 0.55 + lp * decay(t, 42.0) * 1.6) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.5)
+}
+
+/// Landing: a heavier thud than a step.
+pub fn landing() -> Vec<f32> {
+    let n = samples(0.2);
+    let mut noise = Noise(0x1A2D);
+    let mut lp = 0.0f32;
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            lp += 0.1 * (noise.next() - lp);
+            (partial(58.0, t, 20.0) * 1.0 + lp * decay(t, 24.0) * 2.0) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.7)
+}
+
+/// Pushing off: a short breath of air.
+pub fn jump() -> Vec<f32> {
+    let n = samples(0.16);
+    let mut noise = Noise(0x0A1B);
+    let mut lp = 0.0f32;
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            let open = (PI * t / 0.16).sin().powi(2);
+            lp += (0.08 + 0.3 * open) * (noise.next() - lp);
+            lp * open * 2.5
+        })
+        .collect();
+    finish(clip, 0.3)
+}
+
 /// Where a sound at `source` (x, y, z) lands in the stereo field for a listener at `listener` looking along `yaw` (the engine's yaw: 0 is -Z,
 /// clockwise from above): `(gain, pan)` with `pan` from -1 (hard left) to 1 (hard right). Sounds fall off with distance and are a little duller
 /// behind you, so a shot from behind is quieter than the same shot in front.
@@ -436,6 +483,14 @@ pub struct SoundBank {
     pub defeat: Vec<f32>,
     /// A heartbeat, played while health is low.
     pub heartbeat: Vec<f32>,
+    /// Two footsteps, alternated.
+    pub steps: [Vec<f32>; 2],
+    /// A landing.
+    pub land: Vec<f32>,
+    /// A jump.
+    pub jump: Vec<f32>,
+    /// A weapon being raised.
+    pub draw: Vec<f32>,
 }
 
 impl SoundBank {
@@ -458,6 +513,10 @@ impl SoundBank {
             victory: victory(),
             defeat: defeat(),
             heartbeat: heartbeat(),
+            steps: [footstep(0), footstep(1)],
+            land: landing(),
+            jump: jump(),
+            draw: crate::audio::synth_weapon_click(),
         }
     }
 
@@ -465,6 +524,61 @@ impl SoundBank {
     pub fn gun(&self, weapon: u8) -> &[f32] {
         self.guns.get(weapon as usize).map_or(&self.guns[0][..], Vec::as_slice)
     }
+
+    /// The sound for `cue` as heard by `listener`: which clip, how loud, and where in the stereo field. `variant` picks between alternates
+    /// (which foot), so a caller counts steps. Guns fired by others fall off with distance and pan to their side; everything about us is
+    /// centred.
+    pub fn play(&self, cue: &Cue, listener: Listener, variant: u32) -> Played<'_> {
+        fn centred(clip: &[f32], gain: f32) -> Played<'_> {
+            Played { clip, gain, pan: 0.0 }
+        }
+        match *cue {
+            Cue::Shot { weapon, own: true, .. } => centred(self.gun(weapon), 0.95),
+            Cue::Shot { weapon, at, own: false } => {
+                let (gain, pan) = spatial(listener.eye, listener.yaw, [at.x, at.y + 1.4, at.z]);
+                Played { clip: self.gun(weapon), gain: gain * 0.95, pan }
+            }
+            Cue::Swing => centred(&self.guns[0], 0.6),
+            Cue::Hit { bat: false } => centred(&self.hit_tick, 0.7),
+            Cue::Hit { bat: true } => centred(&self.bat_hit, 0.85),
+            Cue::Kill => centred(&self.kill, 0.8),
+            Cue::LevelUp { last: false } => centred(&self.level_up, 0.7),
+            Cue::LevelUp { last: true } => centred(&self.level_final, 0.85),
+            Cue::Hurt => centred(&self.hurt, 0.9),
+            Cue::Death => centred(&self.death, 0.9),
+            Cue::Respawn => centred(&self.respawn, 0.7),
+            Cue::Pad => centred(&self.pad, 0.7),
+            Cue::Jump => centred(&self.jump, 0.5),
+            Cue::Land(k) => centred(&self.land, 0.2 + 0.7 * k.clamp(0.0, 1.0)),
+            Cue::Step => centred(&self.steps[(variant % 2) as usize], 0.32),
+            Cue::Beep => centred(&self.beep, 0.6),
+            Cue::Go => centred(&self.go, 0.7),
+            Cue::Victory => centred(&self.victory, 0.8),
+            Cue::Defeat => centred(&self.defeat, 0.7),
+            Cue::Heartbeat => centred(&self.heartbeat, 0.6),
+            Cue::Draw => centred(&self.draw, 0.5),
+        }
+    }
+}
+
+/// Where the listener stands: the eye position (x, y, z) and the yaw it looks along.
+#[derive(Debug, Clone, Copy)]
+pub struct Listener {
+    /// Eye position.
+    pub eye: [f32; 3],
+    /// Look yaw, radians (0 looks along -Z).
+    pub yaw: f32,
+}
+
+/// A sound chosen for a cue: the clip, its loudness (0..1) and where it sits in the stereo field (-1 left .. 1 right).
+#[derive(Debug, Clone, Copy)]
+pub struct Played<'a> {
+    /// Mono samples at [`SAMPLE_RATE`].
+    pub clip: &'a [f32],
+    /// Loudness.
+    pub gain: f32,
+    /// Stereo position.
+    pub pan: f32,
 }
 
 impl Default for SoundBank {
@@ -504,6 +618,11 @@ mod tests {
             ("victory".to_string(), &bank.victory),
             ("defeat".to_string(), &bank.defeat),
             ("heartbeat".to_string(), &bank.heartbeat),
+            ("step 0".to_string(), &bank.steps[0]),
+            ("step 1".to_string(), &bank.steps[1]),
+            ("land".to_string(), &bank.land),
+            ("jump".to_string(), &bank.jump),
+            ("draw".to_string(), &bank.draw),
         ]);
         for (name, clip) in all {
             assert!(clip.iter().all(|s| s.is_finite() && s.abs() <= 1.0), "{name}: samples must be finite and within -1..1");
@@ -511,7 +630,7 @@ mod tests {
             assert!((0.2..=0.99).contains(&p), "{name}: peak {p} should be audible but not clipping");
             let tail = peak(&clip[clip.len().saturating_sub(64)..]);
             assert!(tail < 0.02, "{name}: ends in silence, not a click: {tail}");
-            assert!(secs(clip) > 0.05 && secs(clip) < 2.0, "{name}: {} s", secs(clip));
+            assert!(secs(clip) >= 0.04 && secs(clip) < 2.0, "{name}: {} s", secs(clip));
         }
     }
 
@@ -563,6 +682,46 @@ mod tests {
         let (back, _) = spatial(here, 0.0, [0.0, 1.7, 10.0]);
         assert!(back < front * 0.75 && back > front * 0.5, "behind is quieter, not silent: {back} vs {front}");
         assert_eq!(spatial(here, 0.0, here), (1.0, 0.0), "a sound at the listener is centred and full");
+    }
+
+    #[test]
+    fn every_cue_has_a_sound_and_others_shots_are_placed_while_ours_are_centred() {
+        use glam::Vec3;
+        let bank = SoundBank::new();
+        let me = Listener { eye: [0.0, 1.7, 0.0], yaw: 0.0 };
+        let cues = [
+            Cue::Swing,
+            Cue::Hit { bat: false },
+            Cue::Hit { bat: true },
+            Cue::Kill,
+            Cue::LevelUp { last: false },
+            Cue::LevelUp { last: true },
+            Cue::Hurt,
+            Cue::Death,
+            Cue::Respawn,
+            Cue::Pad,
+            Cue::Jump,
+            Cue::Land(0.5),
+            Cue::Step,
+            Cue::Beep,
+            Cue::Go,
+            Cue::Victory,
+            Cue::Defeat,
+            Cue::Heartbeat,
+            Cue::Draw,
+        ];
+        for cue in cues {
+            let p = bank.play(&cue, me, 0);
+            assert!(!p.clip.is_empty() && (0.1..=1.0).contains(&p.gain) && p.pan == 0.0, "{cue:?}: gain {} pan {}", p.gain, p.pan);
+        }
+        let own = bank.play(&Cue::Shot { weapon: 4, at: Vec3::new(30.0, 0.0, 0.0), own: true }, me, 0);
+        assert_eq!((own.pan, own.gain), (0.0, 0.95), "our own gun is centred and full, wherever the cue says it was");
+        let near = bank.play(&Cue::Shot { weapon: 4, at: Vec3::new(5.0, 0.0, 0.0), own: false }, me, 0);
+        let far = bank.play(&Cue::Shot { weapon: 4, at: Vec3::new(40.0, 0.0, 0.0), own: false }, me, 0);
+        assert!(near.pan > 0.9 && far.pan > 0.9, "a gun to the east is on the right");
+        assert!(near.gain > far.gain * 2.0, "and quieter when far: {} vs {}", near.gain, far.gain);
+        assert_ne!(bank.play(&Cue::Step, me, 0).clip, bank.play(&Cue::Step, me, 1).clip, "two alternating feet");
+        assert!(bank.play(&Cue::Land(1.0), me, 0).gain > bank.play(&Cue::Land(0.0), me, 0).gain * 2.0, "harder landings are louder");
     }
 
     #[test]

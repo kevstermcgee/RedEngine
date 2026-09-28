@@ -69,6 +69,15 @@ pub enum Entry {
         /// The (sanitised) input.
         input: PlayerInput,
     },
+    /// A player's view lag changed (see `MatchSim::set_view_lag`).
+    ViewLag {
+        /// Tick.
+        tick: u64,
+        /// Slot.
+        slot: usize,
+        /// Ticks behind the present.
+        lag: u8,
+    },
     /// The server shoved a prop.
     Impulse {
         /// Tick.
@@ -88,7 +97,9 @@ impl Entry {
     /// The tick this entry was applied before.
     pub fn tick(&self) -> u64 {
         match self {
-            Entry::Join { tick, .. } | Entry::Leave { tick, .. } | Entry::Input { tick, .. } | Entry::Impulse { tick, .. } => *tick,
+            Entry::Join { tick, .. } | Entry::Leave { tick, .. } | Entry::Input { tick, .. } | Entry::ViewLag { tick, .. } | Entry::Impulse { tick, .. } => {
+                *tick
+            }
         }
     }
 }
@@ -200,6 +211,7 @@ impl Trace {
                 Entry::Input { tick, slot, input: i } => {
                     json!(["i", tick, slot, i.seq, i.forward, i.strafe, i.flags(), i.yaw.to_bits(), i.pitch.to_bits()])
                 }
+                Entry::ViewLag { tick, slot, lag } => json!(["v", tick, slot, lag]),
                 Entry::Impulse { tick, prop, dir, at, impulse } => json!(["p", tick, prop, dir, at, impulse]),
             })
             .collect();
@@ -322,6 +334,7 @@ fn parse_entry(e: &Value) -> Option<Entry> {
                 .with_flags(flags as u8),
             })
         }
+        "v" => Some(Entry::ViewLag { tick: u(1)?, slot: u(2)? as usize, lag: u(3)? as u8 }),
         "p" => Some(Entry::Impulse { tick: u(1)?, prop: u(2)? as usize, dir: bits3(a.get(3)?)?, at: bits3(a.get(4)?)?, impulse: u(5)? as u32 }),
         _ => None,
     }
@@ -433,6 +446,7 @@ mod tests {
                 switch_weapon: true,
             },
         });
+        t.entries.push(Entry::ViewLag { tick: 3, slot: 0, lag: 7 });
         t.entries.push(Entry::Impulse { tick: 4, prop: 2, dir: [1, 2, 3], at: [4, 5, 6], impulse: 7 });
         t.entries.push(Entry::Leave { tick: 9, slot: 0 });
         t.checkpoints.push(Checkpoint { tick: 1, players: u64::MAX, props: 0, rules: 0x1234, coarse: 99 });

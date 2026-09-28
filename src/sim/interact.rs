@@ -188,6 +188,12 @@ impl MatchSim {
     /// The nearest thing a ray from `origin` along `dir` meets within `reach`, ignoring player `ignore` (the shooter):
     /// fixed geometry (exact shapes), a loose prop, or another living player.
     pub fn probe(&self, origin: Vec3, dir: Vec3, reach: f32, ignore: usize) -> Option<RayHit> {
+        self.probe_lagged(origin, dir, reach, ignore, 0)
+    }
+
+    /// [`probe`](Self::probe) with the other players where they were `lag` ticks ago: what a shooter whose screen is that far behind the
+    /// server actually aimed at (lag compensation, ADR 0053). Fixed geometry and props are judged as they are now.
+    pub fn probe_lagged(&self, origin: Vec3, dir: Vec3, reach: f32, ignore: usize, lag: usize) -> Option<RayHit> {
         let dir = dir.normalize_or_zero();
         if dir == Vec3::ZERO {
             return None;
@@ -203,7 +209,8 @@ impl MatchSim {
         }
         for (slot, p) in self.players().filter(|(s, p)| *s != ignore && !p.combat.is_dead()) {
             let body = p.state.character.body();
-            if let Some(d) = ray_cylinder(origin, dir, reach, p.state.pos, body.radius, p.state.foot_y, body.body_height) {
+            let (pos, foot) = self.rewound(slot, lag).unwrap_or((p.state.pos, p.state.foot_y));
+            if let Some(d) = ray_cylinder(origin, dir, reach, pos, body.radius, foot, body.body_height) {
                 consider(RayHit { target: RayTarget::Player(slot), distance: d });
             }
         }
@@ -376,12 +383,13 @@ impl MatchSim {
                 }
                 p.combat.cooldown.start(spec.cooldown_ticks);
                 p.combat.shots = p.combat.shots.wrapping_add(1);
+                let lag = p.view_lag as usize;
                 let (eye, look) = eye_and_look(&p.state, p.crouching);
                 self.rules.inject(self.tick, "shot", Some(slot));
                 let mut landed = false;
                 for pellet in 0..firearm.pellets() {
                     let dir = firearm.shot_direction(look, pellet);
-                    if let Some(hit) = self.probe(eye, dir, spec.range, slot) {
+                    if let Some(hit) = self.probe_lagged(eye, dir, spec.range, slot, lag) {
                         match hit.target {
                             RayTarget::Prop(prop) => self.apply_impulse(prop, dir, eye + dir * hit.distance, spec.impulse / firearm.pellets() as f32),
                             RayTarget::Player(target) => landed |= self.damage(target, firearm.pellet_damage(self.weapons.damage(firearm), pellet), slot),
@@ -401,7 +409,8 @@ impl MatchSim {
     fn melee_strike(&mut self, slot: usize) {
         let Some(p) = self.players[slot].as_ref() else { return };
         let (eye, look) = eye_and_look(&p.state, p.crouching);
-        let Some(hit) = self.probe(eye, look, BAT_REACH, slot) else { return };
+        let lag = p.view_lag as usize;
+        let Some(hit) = self.probe_lagged(eye, look, BAT_REACH, slot, lag) else { return };
         match hit.target {
             RayTarget::Prop(prop) => {
                 let mass = self.props.mass(prop);

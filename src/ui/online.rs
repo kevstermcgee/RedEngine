@@ -50,6 +50,53 @@ pub struct OnlineView {
     pub reconnecting: bool,
     /// A refusal or other message to show (`None` = nothing).
     pub message: Option<String>,
+    /// Our own combat state, for the shooter HUD (`None` = draw no health or weapon).
+    pub combat: Option<CombatView>,
+}
+
+/// What the shooter HUD shows about us: health, the weapon in hand and where it sits on the weapon ladder, and whether we are waiting to respawn.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CombatView {
+    /// Hit points.
+    pub hp: u32,
+    /// Full health.
+    pub max_hp: u32,
+    /// Name of the weapon in hand.
+    pub weapon: String,
+    /// `(rung, rungs)`: our 1-based position on the weapon ladder and its length (`None` = no ladder).
+    pub rung: Option<(u32, u32)>,
+    /// The weapon the next kill hands us (`None` on the last rung or with no ladder).
+    pub next_weapon: Option<String>,
+    /// Waiting to respawn.
+    pub dead: bool,
+    /// Whole seconds until we respawn (while dead).
+    pub respawn_secs: u32,
+    /// Spawn protection is active.
+    pub protected: bool,
+    /// A short line to flash (a level-up), if any.
+    pub notice: Option<String>,
+}
+
+impl CombatView {
+    /// A sample for `ui-shot` / `ui-check`: mid-ladder with a long weapon name, hurt.
+    pub fn demo() -> CombatView {
+        CombatView {
+            hp: 62,
+            max_hp: 100,
+            weapon: "Longbow marksman rifle".into(),
+            rung: Some((9, 12)),
+            next_weapon: Some("Breach shotgun".into()),
+            dead: false,
+            respawn_secs: 0,
+            protected: false,
+            notice: Some("RUNG 9 - LONGBOW MARKSMAN RIFLE".into()),
+        }
+    }
+
+    /// The same sample, dead and about to respawn.
+    pub fn demo_dead() -> CombatView {
+        CombatView { hp: 0, dead: true, respawn_secs: 2, notice: None, ..CombatView::demo() }
+    }
 }
 
 impl OnlineView {
@@ -98,6 +145,7 @@ impl OnlineView {
             map: "test_lab".to_string(),
             reconnecting: false,
             message: None,
+            combat: (phase == Phase::Playing).then(CombatView::demo),
         }
     }
 }
@@ -425,6 +473,9 @@ pub fn hud_layout(w: u32, h: u32, v: &OnlineView) -> Layout {
         l.label_right(&format!("sb{i}_name"), None, wi - m - col_w / 3 - 2 * s, y, &upper(&e.name), s, col_w * 2 / 3, col);
         y += text_height(s) + 2 * s;
     }
+    if let Some(c) = &v.combat {
+        combat_hud(&mut l, v, c);
+    }
     if v.reconnecting {
         l.label_fit("banner", None, wi / 2, hi / 2 - text_height(s * 2) / 2, "CONNECTION LOST - RECONNECTING...", s * 2, wi - 8, RED);
     } else if v.phase == Phase::Countdown {
@@ -436,6 +487,106 @@ pub fn hud_layout(w: u32, h: u32, v: &OnlineView) -> Layout {
         l.label_fit("banner", None, wi / 2, hi - text_height(s * 2) - 8 * s, "ROUND IN PROGRESS - YOU JOIN THE NEXT ONE", s * 2, wi - 8, GOLD);
     }
     l
+}
+
+/// The shooter's part of the HUD: a health bar (bottom left), the weapon and the ladder rungs (bottom right), who is winning (under the
+/// timer), and the "eliminated" banner while waiting to respawn.
+fn combat_hud(l: &mut Layout, v: &OnlineView, c: &CombatView) {
+    let (wi, hi) = (l.w, l.h);
+    let s = (hi / 240).max(1);
+    let m = 3 * s;
+    let backdrop = [8, 10, 18, 165];
+
+    // Health: a framed bar with the number inside it, green then gold then red.
+    let (bw, bh) = ((72 * s).min(wi / 3), 12 * s);
+    let bar = (m, hi - m - bh, m + bw, hi - m);
+    let frame = l.panel("hp_bar", bar, None, Some([10, 12, 20, 210]), Some((EDGE, (s / 2).max(1))));
+    let inner = (bar.0 + s, bar.1 + s, bar.2 - s, bar.3 - s);
+    let frac = if c.max_hp == 0 { 0.0 } else { (c.hp as f32 / c.max_hp as f32).clamp(0.0, 1.0) };
+    let fill_w = ((inner.2 - inner.0) as f32 * frac).round() as i32;
+    if fill_w > 0 {
+        let color = if frac > 0.5 {
+            [70, 190, 100, 240]
+        } else if frac > 0.25 {
+            [235, 185, 60, 240]
+        } else {
+            [225, 65, 55, 240]
+        };
+        l.panel("hp_fill", (inner.0, inner.1, inner.0 + fill_w, inner.3), Some(frame), Some(color), None);
+    }
+    let hp_scale = (s * 3 / 2).max(1);
+    l.label("hp_text", Some(frame), (bar.0 + bar.2) / 2, bar.1 + (bh - text_height(hp_scale)) / 2, &c.hp.to_string(), hp_scale, TEXT);
+
+    // The weapon in hand, and the ladder: one pip per rung, gold up to ours, on a dark backdrop so it reads over any scene.
+    let right = wi - m;
+    let max_w = (wi / 2 - m).max(40 * s);
+    let name = upper(&c.weapon);
+    let name_scale = fit_scale(&name, max_w, s * 3 / 2);
+    let mut sub = String::new();
+    if let Some((rung, rungs)) = c.rung {
+        sub = format!("RUNG {rung}/{rungs}");
+    }
+    if let Some(next) = &c.next_weapon {
+        sub = format!("{sub}  NEXT: {}", upper(next));
+    }
+    let sub = ellipsize(sub.trim(), max_w, s);
+    let (pip_w, pip_h, gap) = (5 * s, 3 * s, s);
+    let rungs = c.rung.map_or(0, |(_, n)| n.clamp(1, 16) as i32);
+    let pips_w = if rungs > 0 { rungs * (pip_w + gap) - gap } else { 0 };
+    let block_w = text_width(&name, name_scale).max(text_width(&sub, s)).max(pips_w);
+    let mut block_h = text_height(name_scale);
+    if !sub.is_empty() {
+        block_h += text_height(s) + 2 * s;
+    }
+    if rungs > 0 {
+        block_h += pip_h + 3 * s;
+    }
+    let (px1, py1) = (right + m / 2, hi - m / 2);
+    l.panel("weapon_panel", (right - block_w - m, py1 - block_h - m - m / 2, px1, py1), None, Some(backdrop), None);
+    let mut y = hi - m - m / 2;
+    if rungs > 0 {
+        let (rung, _) = c.rung.unwrap_or((0, 0));
+        y -= pip_h;
+        let x0 = right - pips_w;
+        for i in 0..rungs {
+            let (color, lift) = match (i + 1).cmp(&(rung as i32)) {
+                std::cmp::Ordering::Less => ([205, 160, 45, 255], 0),
+                std::cmp::Ordering::Equal => ([255, 244, 180, 255], s),
+                std::cmp::Ordering::Greater => ([64, 70, 94, 255], 0),
+            };
+            let px = x0 + i * (pip_w + gap);
+            l.panel(&format!("rung_{i}"), (px, y - lift, px + pip_w, y + pip_h), None, Some(color), None);
+        }
+        y -= 3 * s;
+    }
+    y -= text_height(name_scale);
+    l.label_right("weapon", None, right, y, &name, name_scale, max_w, TEXT);
+    if !sub.is_empty() {
+        y -= 2 * s + text_height(s);
+        l.label_right("rung_text", None, right, y, &sub, s, max_w, GOLD);
+    }
+
+    // Who is winning, under the timer.
+    if let Some((_, rungs)) = c.rung {
+        if let Some(best) = v.roster.iter().max_by(|a, b| a.score.cmp(&b.score).then(b.id.cmp(&a.id))) {
+            let line =
+                if best.id == v.me { format!("YOU LEAD  {}/{}", best.score, rungs) } else { format!("LEADER {}  {}/{}", upper(&best.name), best.score, rungs) };
+            let color = if best.id == v.me { GOLD } else { DIM };
+            l.label_fit("leader", None, wi / 2, 3 * s + text_height(s * 3 / 2) + 2 * s, &line, s, wi / 3, color);
+        }
+    }
+    if c.protected && !c.dead {
+        l.label_fit("protected", None, wi / 2, hi - m - text_height(s), "SPAWN PROTECTED", s, wi / 3, [140, 220, 255, 255]);
+    }
+    if let (Some(text), false) = (&c.notice, c.dead) {
+        l.label_fit("notice", None, wi / 2, hi * 62 / 100, text, s * 2, wi * 6 / 10, GOLD);
+    }
+    if c.dead {
+        let title = l.label_fit("dead_title", None, wi / 2, hi * 34 / 100, "ELIMINATED", s * 4, wi - 8, RED);
+        let below = l.widgets[title].rect.3 + 4 * s;
+        let text = if c.respawn_secs > 0 { format!("RESPAWNING IN {}", c.respawn_secs) } else { "RESPAWNING".to_string() };
+        l.label_fit("dead_hint", None, wi / 2, below, &text, s * 2, wi - 8, TEXT);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -701,6 +852,54 @@ mod tests {
         spectator.in_round = false;
         assert!(has(&hud_layout(1280, 720, &spectator), "banner"));
         assert_eq!(clock(95), "1:35");
+    }
+
+    #[test]
+    fn the_shooter_hud_shows_health_weapon_ladder_and_who_leads() {
+        let text = |l: &Layout, id: &str| l.widgets.iter().find(|w| w.id == id).and_then(|w| w.text.clone());
+        let v = OnlineView::demo(Phase::Playing);
+        let l = hud_layout(1280, 720, &v);
+        assert_eq!(text(&l, "hp_text").as_deref(), Some("62"));
+        assert_eq!(text(&l, "weapon").as_deref(), Some("LONGBOW MARKSMAN RIFLE"));
+        assert_eq!(text(&l, "rung_text").as_deref(), Some("RUNG 9/12  NEXT: BREACH SHOTGUN"));
+        assert_eq!(text(&l, "leader").as_deref(), Some("LEADER FAY  9/12"), "Fay has the most kills in the demo");
+        assert_eq!(l.widgets.iter().filter(|w| w.id.starts_with("rung_") && w.id != "rung_text").count(), 12, "one pip per rung");
+        assert!(text(&l, "dead_title").is_none() && text(&l, "notice").is_some());
+        // The fill is proportional to health and changes colour as it falls.
+        let fill = |hp: u32| {
+            let mut v = OnlineView::demo(Phase::Playing);
+            v.combat.as_mut().unwrap().hp = hp;
+            let l = hud_layout(1280, 720, &v);
+            l.widgets.iter().find(|w| w.id == "hp_fill").map(|w| (w.rect.2 - w.rect.0, w.fill.unwrap()))
+        };
+        let (full, green) = fill(100).unwrap();
+        let (half, _) = fill(50).unwrap();
+        let (low, red) = fill(10).unwrap();
+        assert!((half * 2 - full).abs() <= 2 && low < half, "{full} {half} {low}");
+        assert!(green[1] > green[0] && red[0] > red[1], "green when healthy, red when nearly dead");
+        assert!(fill(0).is_none(), "an empty bar draws no fill");
+        // If we lead, it says so.
+        let mut v = OnlineView::demo(Phase::Playing);
+        v.me = 5;
+        assert_eq!(text(&hud_layout(1280, 720, &v), "leader").as_deref(), Some("YOU LEAD  9/12"));
+    }
+
+    #[test]
+    fn the_dead_hud_says_eliminated_and_counts_down_the_respawn() {
+        let text = |l: &Layout, id: &str| l.widgets.iter().find(|w| w.id == id).and_then(|w| w.text.clone());
+        let mut v = OnlineView::demo(Phase::Playing);
+        v.combat = Some(CombatView::demo_dead());
+        let l = hud_layout(1280, 720, &v);
+        assert_eq!(text(&l, "dead_title").as_deref(), Some("ELIMINATED"));
+        assert_eq!(text(&l, "dead_hint").as_deref(), Some("RESPAWNING IN 2"));
+        assert!(text(&l, "notice").is_none(), "no level-up chatter over the banner");
+        v.combat.as_mut().unwrap().respawn_secs = 0;
+        assert_eq!(text(&hud_layout(1280, 720, &v), "dead_hint").as_deref(), Some("RESPAWNING"));
+        let mut v = OnlineView::demo(Phase::Playing);
+        v.combat.as_mut().unwrap().protected = true;
+        assert_eq!(text(&hud_layout(1280, 720, &v), "protected").as_deref(), Some("SPAWN PROTECTED"));
+        v.combat = None;
+        assert!(text(&hud_layout(1280, 720, &v), "hp_text").is_none(), "no combat state, no shooter HUD");
     }
 
     #[test]

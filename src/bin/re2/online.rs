@@ -53,7 +53,7 @@ impl App {
     pub(crate) fn online_view(&self) -> Option<OnlineView> {
         let c = &self.net.as_ref()?.client;
         let st = c.status()?;
-        Some(OnlineView {
+        let mut view = OnlineView {
             phase: st.phase,
             round: st.round,
             secs_left: (st.ticks_left != u32::MAX).then(|| st.ticks_left.div_ceil(60)),
@@ -68,7 +68,10 @@ impl App {
             map: self.map_stem(),
             reconnecting: matches!(c.state(), ConnState::Reconnecting | ConnState::Connecting),
             message: None,
-        })
+            combat: None,
+        };
+        view.combat = self.combat_view(view.me, &view.roster);
+        Some(view)
     }
 
     /// Whether the local body is held still (a lobby, a countdown, the results, or watching a round in progress).
@@ -99,7 +102,7 @@ impl App {
             OnlineScreen::Results => results_layout(w, h, &view, hover.as_deref()),
             OnlineScreen::Hud => hud_layout(w, h, &view),
         };
-        if screen == OnlineScreen::Hud {
+        if screen == OnlineScreen::Hud && self.rules.has_rules() {
             if let Some(state) = self.net.as_ref().and_then(|n| n.client.rule_state()) {
                 let vars: Vec<(&str, f64)> = state.vars.iter().map(|v| (v.name.as_str(), v.value)).collect();
                 let event = (!state.event.is_empty() && state.server_tick.saturating_sub(state.event_tick) <= 120).then_some(state.event.as_str());

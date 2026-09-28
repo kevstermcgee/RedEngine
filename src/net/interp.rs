@@ -78,6 +78,14 @@ pub struct PlayerPose {
     pub protected: bool,
 }
 
+/// How many server ticks behind the present a client's picture of the other players is when its round trip takes `rtt_ms`: the interpolation
+/// delay it draws them at plus the time the news took to arrive and the shot takes to get back. The server rewinds the players a shooter can
+/// hit by this much (capped at 200 ms, and a client cannot claim a round trip above 100 ms), so a shot lands where it was aimed on screen.
+pub fn view_lag_ticks(rtt_ms: u16) -> u8 {
+    let secs = INTERP_DELAY + rtt_ms.min(100) as f64 / 1000.0;
+    (secs * crate::sim::clock::TICK_RATE_HZ as f64).round().min(12.0) as u8
+}
+
 /// Shortest-arc blend of two angles (radians).
 pub fn lerp_angle(a: f32, b: f32, t: f32) -> f32 {
     let mut d = (b - a) % std::f32::consts::TAU;
@@ -365,6 +373,15 @@ impl RemoteWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_clients_view_lag_is_the_interpolation_delay_plus_its_round_trip_and_is_capped() {
+        assert_eq!(view_lag_ticks(0), 6, "100 ms of interpolation is six ticks on a loopback");
+        assert_eq!(view_lag_ticks(40), 8, "a 40 ms round trip adds two and a half ticks (140 ms is 8.4)");
+        assert_eq!(view_lag_ticks(100), 12);
+        assert_eq!(view_lag_ticks(9_999), 12, "a client cannot claim a longer round trip to be rewound further");
+        assert!((view_lag_ticks(9_999) as usize) < crate::sim::match_sim::HISTORY_TICKS, "the sim remembers that far back");
+    }
 
     fn snap(tick: u32, x: f32) -> Snapshot {
         Snapshot {

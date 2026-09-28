@@ -17,7 +17,7 @@
 
 use clap::Parser;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
-use red_engine2::audio::{synth_bat_hit, synth_revolver_shot, synth_weapon_click, Audio};
+use red_engine2::audio::{synth_bat_hit, synth_weapon_click, Audio};
 use red_engine2::characters::HUMAN_HEIGHT;
 use red_engine2::collide::{
     collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, colliders_on_floor, resolve_collision, Collider2D, GroundCandidates,
@@ -57,6 +57,7 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 mod avatar;
 mod controller;
 mod events;
+mod feedback;
 mod frame;
 mod online;
 mod project_browser;
@@ -98,8 +99,8 @@ const FOV_TRANSITION_TIME: f32 = 0.15;
 const VM_RIGHT: f32 = 0.10;
 const VM_DOWN: f32 = 0.125;
 const VM_FORWARD: f32 = 0.30;
-const WINDUP_PITCH_DEG: f32 = -128.0;
-const STRIKE_PITCH_DEG: f32 = 42.0;
+const WINDUP_PITCH_DEG: f32 = red_engine2::avatar::WINDUP_PITCH_DEG;
+const STRIKE_PITCH_DEG: f32 = red_engine2::avatar::STRIKE_PITCH_DEG;
 const STRIKE_LUNGE: f32 = 0.16;
 
 // Swing phase durations (seconds) and the melee reach used for the hit-detection raycast fired
@@ -119,17 +120,17 @@ const PLAYER_HEIGHT: f32 = HUMAN_HEIGHT;
 const PLAYER_BUILD: f32 = 1.0;
 const HIDDEN_SCALE: f32 = 0.0005;
 /// Cheddar's gait phase advances this many radians per metre travelled (a quick scurry).
-const RAT_GAIT_RAD_PER_M: f32 = 5.0;
+const RAT_GAIT_RAD_PER_M: f32 = red_engine2::avatar::RAT_GAIT_RAD_PER_M;
 
 // Procedural walk cycle for the player body: leg/arm swing amplitude and a cycle rate defined
 // relative to WALK_SPEED so sprinting/crouch-walking scale the animation's tempo with actual
 // speed instead of playing at a fixed rate regardless of how fast the player is moving.
-const WALK_CYCLES_PER_SEC_AT_WALK_SPEED: f32 = 1.6;
-const HIP_SWING_DEG: f32 = 28.0;
-const KNEE_LIFT_DEG: f32 = 45.0;
-const KNEE_REST_DEG: f32 = 4.0;
-const SHOULDER_SWING_DEG: f32 = 20.0;
-const IDLE_SWAY_DEG: f32 = 1.4;
+const WALK_CYCLES_PER_SEC_AT_WALK_SPEED: f32 = red_engine2::avatar::WALK_CYCLES_PER_SEC_AT_WALK_SPEED;
+const HIP_SWING_DEG: f32 = red_engine2::avatar::HIP_SWING_DEG;
+const KNEE_LIFT_DEG: f32 = red_engine2::avatar::KNEE_LIFT_DEG;
+const KNEE_REST_DEG: f32 = red_engine2::avatar::KNEE_REST_DEG;
+const SHOULDER_SWING_DEG: f32 = red_engine2::avatar::SHOULDER_SWING_DEG;
+const IDLE_SWAY_DEG: f32 = red_engine2::avatar::IDLE_SWAY_DEG;
 
 // Third-person camera: pulled back and up from the player's eye point, orbiting with the same
 // yaw/pitch mouse look as first person. `THIRD_PERSON_CAM_RADIUS` is only pushed out of wall
@@ -145,16 +146,16 @@ const THIRD_PERSON_CAM_RADIUS: f32 = 0.25;
 // and the swing; the bat's *orientation* is built from the body's yaw plus the very same
 // pitch/roll the first-person viewmodel uses, so both views show one motion (the bone's own roll
 // about its length is arbitrary, so it can't be used for orientation).
-const BAT_FOREARM_PART: usize = 3;
+const BAT_FOREARM_PART: usize = red_engine2::avatar::HAND_FOREARM_PART;
 
 // Swing pose for the bat arm in third person (shoulder raise/swing on the local
 // right axis, elbow bend), driven by the same windup/strike/recover phases as the first-person
 // viewmodel's pitch (see `weapon_transform`) so both views read as the same motion.
-const ARM_WINDUP_SHOULDER_X: f32 = 55.0;
-const ARM_STRIKE_SHOULDER_X: f32 = -95.0;
-const ARM_IDLE_ELBOW_DEG: f32 = 8.0;
-const ARM_WINDUP_ELBOW_DEG: f32 = 60.0;
-const ARM_STRIKE_ELBOW_DEG: f32 = 12.0;
+const ARM_WINDUP_SHOULDER_X: f32 = red_engine2::avatar::ARM_WINDUP_SHOULDER_X;
+const ARM_STRIKE_SHOULDER_X: f32 = red_engine2::avatar::ARM_STRIKE_SHOULDER_X;
+const ARM_IDLE_ELBOW_DEG: f32 = red_engine2::avatar::ARM_IDLE_ELBOW_DEG;
+const ARM_WINDUP_ELBOW_DEG: f32 = red_engine2::avatar::ARM_WINDUP_ELBOW_DEG;
+const ARM_STRIKE_ELBOW_DEG: f32 = red_engine2::avatar::ARM_STRIKE_ELBOW_DEG;
 /// Seconds the lower-and-raise animation takes when scrolling between the bat and the revolver
 /// (whole ticks in the simulation, `weapons::SWITCH_TICKS`).
 const SWITCH_TIME: f32 = SWITCH_SECS;
@@ -164,8 +165,8 @@ const SCROLL_LINES_PER_SWITCH: f32 = 1.0;
 /// the press, and the redundant input packets make three ticks robust against a lost datagram).
 const NET_PULSE_TICKS: u8 = 3;
 /// Arm pose for aiming the revolver in third person (shoulder raised to level, elbow nearly straight).
-const AIM_SHOULDER_X: f32 = -84.0;
-const AIM_ELBOW_DEG: f32 = 6.0;
+const AIM_SHOULDER_X: f32 = red_engine2::avatar::AIM_SHOULDER_X;
+const AIM_ELBOW_DEG: f32 = red_engine2::avatar::AIM_ELBOW_DEG;
 /// Arm pose while carrying a prop (both arms forward, elbows bent).
 const CARRY_SHOULDER_X: f32 = -72.0;
 const CARRY_ELBOW_DEG: f32 = 38.0;
@@ -316,7 +317,6 @@ struct App {
     flash_left: f32,
     /// The player's eye this frame (the origin of swings and shots).
     eye: Vec3,
-    shot_sound: Vec<f32>,
     click_sound: Vec<f32>,
     /// Seconds into the current bat swing (incl. the fraction of the next tick), or `None` when idle/holding.
     /// Recomputed every frame from `swing`; only the animation reads it.
@@ -352,6 +352,28 @@ struct App {
     /// Synthesized once at startup and replayed on every hit rather than re-synthesized each
     /// time (cheap either way at this length, but there's no reason to redo fixed work).
     hit_sound: Vec<f32>,
+    /// Every other synthesized sound of the game: guns, feedback cues, movement (see `feedback.rs`).
+    sounds: red_engine2::sfx::SoundBank,
+    /// The presentation of a fight: sound cues and screen effects.
+    feel: red_engine2::feel::Feel,
+    /// Footsteps played so far (picks the foot).
+    step_count: u32,
+    /// Online: whether the attack button was down on the previous tick (the server acts on the press).
+    pred_prev_attack: bool,
+    /// Whether the server had us dead last frame (to notice coming back to life).
+    was_dead: bool,
+    /// A line to flash on the HUD (a level-up) and the seconds it has left.
+    notice: Option<(String, f32)>,
+    /// Online: the weapon in hand has been synced from the server once (the first sync must not animate a switch).
+    net_weapon_synced: bool,
+    /// The smallest launch speed of the map's jump pads, if it has any (to tell a pad from a jump).
+    pad_launch: Option<f32>,
+    /// Debug: `RE2_FEEL=hit|kill|hurt|dead|low|protected|flash` holds that screen effect (for screenshots).
+    debug_feel: Option<String>,
+    /// Debug: `RE2_LOG_CUES=1` prints every sound cue as it plays (to check what the feedback does without listening).
+    log_cues: bool,
+    /// Debug: `RE2_AUTOFIRE=1` (with `RE2_AUTOWALK`) pulls the trigger five times a second.
+    autofire: bool,
     /// Debug: `RE2_VIEW=third` starts in third person (for screenshots).
     debug_third_person: bool,
     /// Debug: `RE2_FREEZE_SHOT=<seconds since the shot>` holds the revolver's recoil/flash there.
@@ -390,6 +412,7 @@ impl App {
             camera.pitch = deg.to_radians();
         }
         let scene_ammo = scene.weapons.revolver_ammo;
+        let pad_launch = scene.jump_pads.iter().map(|p| p.launch_speed).reduce(f32::min);
         let starting_weapon = scene.weapons.starting_weapon;
         let rules = RulesEngine::new(scene.rules.clone());
         // A validated scene with authored spawns parses here. The camera fallback below also
@@ -475,6 +498,17 @@ impl App {
             hand_prop_transform: Mat4::from_scale(Vec3::splat(HIDDEN_SCALE)),
             audio: Audio::new(),
             hit_sound: synth_bat_hit(),
+            sounds: red_engine2::sfx::SoundBank::new(),
+            feel: red_engine2::feel::Feel::new(),
+            step_count: 0,
+            pred_prev_attack: false,
+            was_dead: false,
+            notice: None,
+            net_weapon_synced: false,
+            pad_launch,
+            debug_feel: std::env::var("RE2_FEEL").ok().filter(|v| !v.is_empty()),
+            autofire: std::env::var_os("RE2_AUTOFIRE").is_some(),
+            log_cues: std::env::var_os("RE2_LOG_CUES").is_some(),
             weapon: starting_weapon,
             switching: None,
             scroll_accum: 0.0,
@@ -482,7 +516,6 @@ impl App {
             since_shot: RECOIL_TIME,
             flash_left: 0.0,
             eye: Vec3::ZERO,
-            shot_sound: synth_revolver_shot(),
             click_sound: synth_weapon_click(),
             debug_third_person: std::env::var("RE2_VIEW").is_ok_and(|v| v == "third"),
             freeze_shot: std::env::var("RE2_FREEZE_SHOT").ok().and_then(|v| v.parse().ok()),

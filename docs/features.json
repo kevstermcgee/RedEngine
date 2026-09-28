@@ -103,7 +103,7 @@
     },
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
-      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs"],
+      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs"],
       "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md"],
@@ -150,7 +150,7 @@
     },
     "graphical_client": {
       "summary": "The `re2` game: window, input, live rendering, avatars, weapons, rule-state presentation, launch/connect and online lobby/HUD wiring.",
-      "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/sfx.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
+      "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/sfx.rs", "src/feel.rs", "src/fx.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
       "tests": ["lib:viewer"],
       "commands": ["powershell -File scripts/lobby_demo.ps1"],
       "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md"],

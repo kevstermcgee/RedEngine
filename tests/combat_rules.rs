@@ -257,3 +257,61 @@ fn ladder_and_combat_rules_replay_bit_for_bit() {
     spawns.retain(|s| s.group == "duel");
     assert!(replay(&trace, &scene, &spawns).unwrap().is_clean());
 }
+
+/// A fast strafer and a shooter whose screen shows the world `view_lag` ticks late. The shooter aims at where the strafer was `aim_back`
+/// frames ago (1 = the newest position the server has, 6 = what a six-tick-late screen shows) and fires once. Returns the shooter's hits
+/// and, when recording, the trace with the scene it ran on.
+fn strafer_shot(aim_back: usize, view_lag: u8, record: bool) -> (u32, Option<red_engine2::sim::trace::Trace>, Value) {
+    use red_engine2::sim::trace::Header;
+    let extra = json!({"weapons": {"starting": "smg"}, "player": {"walk_speed": 9.0, "sprint_speed": 9.0}});
+    let mut r = Rig::new(extra.clone());
+    if record {
+        r.sim.start_recording(Header::new(0, 0, "duel", 1, 0)).unwrap();
+    }
+    let (a, b) = (r.join(), r.join());
+    r.sim.set_view_lag(a, view_lag);
+    r.idle(3);
+    let mut trail = Vec::new();
+    for _ in 0..12 {
+        r.push(a, |_| {});
+        r.push(b, |i| i.strafe = 1);
+        r.sim.tick_once();
+        trail.push(r.sim.player(b).unwrap().state.pos);
+    }
+    let aim = trail[trail.len() - aim_back];
+    let d = aim - r.sim.player(a).unwrap().state.pos;
+    r.yaw[a] = d.x.atan2(-d.y);
+    r.pitch[a] = (1.0 - 1.7f32).atan2(d.length());
+    r.push(a, |i| i.attack = true);
+    r.push(b, |i| i.strafe = 1);
+    r.sim.tick_once();
+    (r.sim.player(a).unwrap().combat.hits, r.sim.take_trace(), extra)
+}
+
+#[test]
+fn a_shot_is_judged_against_the_world_its_shooter_saw() {
+    // b crosses 0.15 m a tick, so a screen six ticks late shows him 0.9 m behind where he really is (a body is 0.3 m wide).
+    assert_eq!(strafer_shot(6, 6, false).0, 1, "aimed at what a six-tick-late screen shows, with the lag known: a hit");
+    assert_eq!(strafer_shot(6, 0, false).0, 0, "the same aim judged against the present misses, as it did before lag compensation");
+    assert_eq!(strafer_shot(1, 0, false).0, 1, "aimed at the present, judged against the present: a hit");
+    assert_eq!(strafer_shot(1, 6, false).0, 0, "the rewind is real: aiming at the present spot on a late screen misses");
+}
+
+#[test]
+fn view_lag_is_clamped_recorded_and_replays_bit_for_bit() {
+    use red_engine2::sim::match_sim::HISTORY_TICKS;
+    use red_engine2::sim::replay::replay;
+    use red_engine2::sim::trace::Entry;
+    let (hits, trace, extra) = strafer_shot(6, 6, true);
+    assert_eq!(hits, 1);
+    let trace = trace.unwrap();
+    assert!(trace.entries.iter().any(|e| matches!(e, Entry::ViewLag { slot: 0, lag: 6, .. })), "the lag is part of the recording");
+    let (scene, mut spawns) = lab_with(extra);
+    spawns.retain(|s| s.group == "duel");
+    assert!(replay(&trace, &scene, &spawns).unwrap().is_clean(), "a replay judges the shot the same way");
+    // Nobody can ask to be rewound further than the sim remembers.
+    let mut r = Rig::new(json!({}));
+    let a = r.join();
+    r.sim.set_view_lag(a, 200);
+    assert_eq!(r.sim.player(a).unwrap().view_lag as usize, HISTORY_TICKS - 1);
+}

@@ -489,6 +489,7 @@ impl Server {
         }
         if s.in_round && accepts {
             let slot = s.slot;
+            self.sim.set_view_lag(slot, super::interp::view_lag_ticks(s.rtt_ms));
             for input in p.inputs {
                 self.sim.push_input(slot, input);
             }

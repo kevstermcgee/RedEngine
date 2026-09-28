@@ -12,7 +12,8 @@ impl App {
                 let dps = rate.trim_start_matches(':').parse::<f32>().unwrap_or(40.0);
                 self.camera.yaw += dps.to_radians() * FIXED_DT;
             }
-            return PlayerInput { forward: 1, sprint: false, yaw: self.camera.yaw, pitch: self.camera.pitch, ..Default::default() };
+            let attack = self.autofire && self.clock.ticks_run() % 12 < 6;
+            return PlayerInput { forward: 1, sprint: false, yaw: self.camera.yaw, pitch: self.camera.pitch, attack, ..Default::default() };
         }
         let held = |a: KeyCode, b: KeyCode| self.keys.contains(&a) || self.keys.contains(&b);
         let axis = |pos: bool, neg: bool| pos as i8 - neg as i8;
@@ -53,6 +54,9 @@ impl App {
         // authoritative server and a client's prediction all run it). Online, the predictor owns the state
         // and also sends the input to the server.
         let input = self.build_input();
+        // Dead: the body lies where it fell. The server ignores our movement then, and predicting it would only pull us back.
+        let input = if self.own_dead() { PlayerInput { yaw: input.yaw, pitch: input.pitch, ..Default::default() } } else { input };
+        let attack_now = input.attack;
         let mut st = PlayerState {
             pos: self.physics_pos,
             foot_y: self.foot_y,
@@ -86,7 +90,8 @@ impl App {
             props.step();
         }
 
-        self.fixed_step_combat();
+        self.feel.observe_motion(self.last_move_speed, FIXED_DT, self.vertical_velocity, self.vertical_velocity == 0.0, self.pad_launch, self.sprint_held);
+        self.fixed_step_combat(attack_now);
         if self.net.is_none() {
             self.fixed_step_rules();
         }
@@ -198,12 +203,19 @@ impl App {
             }
         }
 
+        self.feedback_frame(dt);
         self.sync_online_ui();
         self.sync_rule_hud();
 
         // Online, the weapon in hand is whatever the server says (it owns weapons, health and pick-ups).
         if let Some(w) = server_weapon {
+            if w != self.weapon && self.net_weapon_synced {
+                // The server changed it (a rung up the ladder, a respawn): lower the old weapon and raise the new one.
+                self.switch.start(self.weapon);
+                self.swing.cancel();
+            }
             self.weapon = w;
+            self.net_weapon_synced = true;
         }
 
         // Accumulate real time and drain it in fixed-size chunks (the standard "fix your
@@ -232,8 +244,15 @@ impl App {
 
         // Crouch: blend the eye height toward its target instead of snapping, so the camera
         // doesn't jump-cut when Ctrl is pressed/released.
-        let target_eye_height = if crouching { self.body.crouch_eye } else { self.body.stand_eye };
-        let blend = (dt / CROUCH_TRANSITION_TIME).min(1.0);
+        let dead = self.own_dead();
+        let target_eye_height = if dead {
+            feedback::DEAD_EYE_HEIGHT
+        } else if crouching {
+            self.body.crouch_eye
+        } else {
+            self.body.stand_eye
+        };
+        let blend = (dt / if dead { 0.4 } else { CROUCH_TRANSITION_TIME }).min(1.0);
         self.eye_height += (target_eye_height - self.eye_height) * blend;
 
         // Update the player's own body (position/facing/pose) from the interpolated
@@ -312,19 +331,23 @@ impl App {
     pub(crate) fn draw(&mut self) {
         let weapon_transform = self.weapon_transform();
         let carrying = self.carrying();
+        let dead = self.own_dead();
         let shown_weapon = self.shown_weapon();
         let muzzle_flash = (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0);
+        let fx = self.feel.fx(self.camera.yaw);
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(live) = gpu.live.as_mut() else { return };
         if let Some(net) = &self.net {
             live.set_hidden_objects(net.hidden_objects());
+            live.set_remote_hands(net.remote_hands());
         } else {
             live.set_hidden_objects(self.rules.hidden());
         }
         let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
-        let opts = FrameOptions { crosshair: true, viewmodel: !carrying, pickup: self.pickup_target.is_some(), weapon: shown_weapon, muzzle_flash };
+        let opts =
+            FrameOptions { crosshair: true, viewmodel: !carrying && !dead, pickup: self.pickup_target.is_some(), weapon: shown_weapon, muzzle_flash, fx };
         live.render_ex(
             &gpu.device,
             &gpu.queue,

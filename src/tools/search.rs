@@ -71,6 +71,8 @@ const ADRS: &[(&str, &str)] = &[
     ("0042-proportional-verification-and-unattended-runs.md", include_str!("../../docs/adr/0042-proportional-verification-and-unattended-runs.md")),
     ("0050-bots-weapon-ladder-and-combat-pacing.md", include_str!("../../docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md")),
     ("0051-shooter-feedback-on-the-wire.md", include_str!("../../docs/adr/0051-shooter-feedback-on-the-wire.md")),
+    ("0052-shooter-feel-in-the-client.md", include_str!("../../docs/adr/0052-shooter-feel-in-the-client.md")),
+    ("0053-lag-compensation.md", include_str!("../../docs/adr/0053-lag-compensation.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.

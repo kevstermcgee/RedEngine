@@ -6,16 +6,16 @@
 //! Avatars are pre-created (a fixed pool of hidden humans and rats) before the renderer is built,
 //! because the renderer takes its meshes from the scene at creation; a joining player just claims one.
 
+use crate::avatar::{animate, AvatarAnim, RemoteHand};
 use crate::characters::character_object;
 use crate::net::bot::ClientWorld;
 use crate::net::client::{ClientConfig, ConnState, NetClient, NetEvent};
-use crate::net::interp::PlayerPose;
 use crate::net::predict::Predictor;
 use crate::net::protocol::character_from_wire;
 use crate::net::protocol::{PlayerSnap, MAX_PLAYERS_PER_SNAPSHOT};
 use crate::physics::set_object_pose;
 use crate::player::Character;
-use crate::schema::{Object, ObjectKind, Scene};
+use crate::schema::{Object, Scene};
 use crate::sim::player::{PlayerInput, PlayerState};
 use crate::track::Track;
 use glam::{Vec2, Vec3};
@@ -25,20 +25,12 @@ use std::time::Instant;
 /// Scale that makes an object effectively invisible (the renderer has no per-object visibility flag).
 pub const HIDDEN_SCALE: f32 = 0.0005;
 
-const WALK_CYCLES_PER_SEC_AT_WALK_SPEED: f32 = 1.6;
-const HIP_SWING_DEG: f32 = 28.0;
-const KNEE_LIFT_DEG: f32 = 45.0;
-const KNEE_REST_DEG: f32 = 4.0;
-const SHOULDER_SWING_DEG: f32 = 20.0;
-const IDLE_SWAY_DEG: f32 = 1.4;
-const RAT_GAIT_RAD_PER_M: f32 = 5.0;
-
 struct Avatar {
     object_index: usize,
     character: Character,
     /// Which remote player currently wears it.
     used_by: Option<u8>,
-    phase: f32,
+    anim: AvatarAnim,
 }
 
 /// A connection to a server plus everything the client keeps for it.
@@ -63,6 +55,8 @@ pub struct NetSession {
     pub joined: bool,
     /// Things the snapshots reported since the last [`take_happened`](Self::take_happened): shots heard, hits landed, damage taken, kills.
     happened: Vec<crate::net::happenings::Happenings>,
+    /// The weapons other players hold this frame (set by [`update_scene`](Self::update_scene)): where each is and how it is held.
+    remote_hands: Vec<RemoteHand>,
 }
 
 impl NetSession {
@@ -89,12 +83,18 @@ impl NetSession {
             own: None,
             joined: false,
             happened: Vec::new(),
+            remote_hands: Vec::new(),
         })
     }
 
     /// The happenings reported since the last call, oldest first (a client turns them into sounds, hit markers and damage flashes).
     pub fn take_happened(&mut self) -> Vec<crate::net::happenings::Happenings> {
         std::mem::take(&mut self.happened)
+    }
+
+    /// The weapons other players hold (for the renderer to draw), as of the last [`update_scene`](Self::update_scene).
+    pub fn remote_hands(&self) -> &[RemoteHand] {
+        &self.remote_hands
     }
 
     /// Adds hidden avatars for every allowed character; fixed-character games allocate only that body.
@@ -107,7 +107,7 @@ impl NetSession {
                 let mut o: Object = character_object(who, &format!("net_{who:?}_{k}").to_lowercase());
                 o.scale = Track::constant(Vec3::splat(HIDDEN_SCALE));
                 o.collide = false;
-                self.avatars.push(Avatar { object_index: scene.objects.len(), character: who, used_by: None, phase: 0.0 });
+                self.avatars.push(Avatar { object_index: scene.objects.len(), character: who, used_by: None, anim: AvatarAnim::default() });
                 scene.objects.push(o);
             }
         }
@@ -241,6 +241,7 @@ impl NetSession {
     pub fn update_scene(&mut self, scene: &mut Scene, now: Instant, dt: f32) {
         let view = self.client.view(now);
         let idle_t = now.duration_since(self.started).as_secs_f32();
+        self.remote_hands.clear();
         // Free avatars whose player left.
         for a in &mut self.avatars {
             if let Some(id) = a.used_by {
@@ -257,14 +258,16 @@ impl NetSession {
                 None => match self.avatars.iter().position(|a| a.used_by.is_none() && a.character == ch) {
                     Some(i) => {
                         self.avatars[i].used_by = Some(*id);
-                        self.avatars[i].phase = 0.0;
+                        self.avatars[i].anim = AvatarAnim::default();
                         i
                     }
                     None => continue,
                 },
             };
             let a = &mut self.avatars[idx];
-            pose_avatar(&mut scene.objects[a.object_index], ch, pose, &mut a.phase, dt, idle_t);
+            if let Some(hand) = animate(&mut scene.objects[a.object_index], ch, pose, &mut a.anim, dt, idle_t) {
+                self.remote_hands.push(hand);
+            }
         }
         for (id, pose) in &view.props {
             if let Some(&obj) = self.world.prop_objects.get(*id as usize) {
@@ -282,54 +285,6 @@ impl NetSession {
 impl Drop for NetSession {
     fn drop(&mut self) {
         self.client.disconnect();
-    }
-}
-
-/// Places one avatar object at a remote player's pose and animates it: a walk cycle driven by the
-/// distance covered (`speed`), an idle sway when still.
-fn pose_avatar(o: &mut Object, who: Character, pose: &PlayerPose, phase: &mut f32, dt: f32, idle_t: f32) {
-    // Same convention as the local player's body: rotation = 180 - yaw.
-    let yaw_deg = 180.0 - pose.yaw.to_degrees();
-    o.position = Track::constant(pose.pos);
-    o.rotation = Track::constant(Vec3::new(0.0, yaw_deg, 0.0));
-    o.scale = Track::constant(Vec3::ONE);
-    match (&mut o.kind, who) {
-        (ObjectKind::Humanoid(h), who) if who != Character::Rat => {
-            let walk = crate::player::Character::Human.body().walk_speed;
-            let (spine_x, l_hip, r_hip, l_knee, r_knee, l_sh, r_sh) = if pose.speed > 0.05 {
-                *phase += dt * pose.speed * (WALK_CYCLES_PER_SEC_AT_WALK_SPEED / walk) * std::f32::consts::TAU;
-                let ph = *phase;
-                (
-                    3.0 * (ph * 2.0).sin(),
-                    HIP_SWING_DEG * ph.sin(),
-                    -HIP_SWING_DEG * ph.sin(),
-                    KNEE_REST_DEG + (KNEE_LIFT_DEG * (-ph).sin()).max(0.0),
-                    KNEE_REST_DEG + (KNEE_LIFT_DEG * ph.sin()).max(0.0),
-                    -SHOULDER_SWING_DEG * ph.sin(),
-                    SHOULDER_SWING_DEG * ph.sin(),
-                )
-            } else {
-                (IDLE_SWAY_DEG * (idle_t * 1.1).sin(), 0.0, 0.0, KNEE_REST_DEG, KNEE_REST_DEG, 0.0, 0.0)
-            };
-            h.pose.spine = Track::constant(Vec3::new(spine_x, 0.0, 0.0));
-            h.pose.head = Track::constant(Vec3::new(pose.pitch.to_degrees().clamp(-60.0, 60.0) * -0.5, 0.0, 0.0));
-            h.pose.l_hip = Track::constant(Vec3::new(l_hip, 0.0, 0.0));
-            h.pose.r_hip = Track::constant(Vec3::new(r_hip, 0.0, 0.0));
-            h.pose.l_knee = Track::constant(l_knee);
-            h.pose.r_knee = Track::constant(r_knee);
-            h.pose.l_shoulder = Track::constant(Vec3::new(l_sh, 0.0, -6.0));
-            h.pose.r_shoulder = Track::constant(Vec3::new(r_sh, 0.0, 6.0));
-            h.pose.l_elbow = Track::constant(8.0);
-            h.pose.r_elbow = Track::constant(KNEE_REST_DEG);
-        }
-        (ObjectKind::Rat(r), Character::Rat) => {
-            *phase += dt * pose.speed * RAT_GAIT_RAD_PER_M;
-            let stride = (pose.speed / crate::player::Character::Rat.body().sprint_speed).clamp(0.0, 1.0);
-            r.gait = Track::constant(*phase);
-            r.stride = Track::constant(stride);
-            r.sway = Track::constant(idle_t * 1.3);
-        }
-        _ => {}
     }
 }
 

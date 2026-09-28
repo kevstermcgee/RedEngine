@@ -2,6 +2,7 @@
 
 #[cfg(feature = "gfx")]
 pub mod audio;
+pub mod avatar;
 pub mod characters;
 pub mod collide;
 pub mod color;
@@ -9,8 +10,11 @@ pub mod controller;
 pub mod costumes;
 pub mod crypto;
 pub mod easing;
+pub mod feel;
 #[cfg(feature = "gfx")]
 pub mod firearms;
+#[cfg(feature = "gfx")]
+pub mod fx;
 pub mod geometry;
 #[cfg(feature = "gfx")]
 pub mod gpu;

@@ -31,6 +31,9 @@ pub const MAX_PLAYERS: usize = 8;
 const INPUT_QUEUE_CAP: usize = 8;
 /// With more than this many inputs queued, a player processes two per tick to catch up.
 const INPUT_QUEUE_TARGET: usize = 3;
+/// How many ticks of every player's position are remembered, so a shot can be judged against the world its shooter saw (lag compensation,
+/// ADR 0053). A shooter is never rewound further than `HISTORY_TICKS - 1` (about a quarter of a second).
+pub const HISTORY_TICKS: usize = 16;
 
 /// A connected player as the server sees them.
 #[derive(Debug, Clone)]
@@ -45,6 +48,9 @@ pub struct ServerPlayer {
     pub last_processed_seq: u32,
     /// Weapon, timers, ammo, health and score (see `sim::interact`).
     pub combat: Combat,
+    /// How many ticks behind the present this player's view of the others is (their interpolation delay plus latency): their shots and
+    /// swings are judged against where the others were then. `0` = the present (bots, a local player).
+    pub view_lag: u8,
     newest_received_seq: u32,
     queue: VecDeque<PlayerInput>,
 }
@@ -74,6 +80,8 @@ pub struct MatchSim {
     pub(super) spawns: Vec<Spawn>,
     pub(super) next_spawn: usize,
     pub(super) players: Vec<Option<ServerPlayer>>,
+    /// Where every player stood at the end of each of the last [`HISTORY_TICKS`] ticks (oldest first): `(x/z, foot y)`.
+    history: VecDeque<[Option<(Vec2, f32)>; MAX_PLAYERS]>,
     pub(super) tick: u64,
     /// The scene's game rules, running (see `sim::rules`).
     pub(super) rules: RulesEngine,
@@ -127,6 +135,7 @@ impl MatchSim {
             spawns,
             next_spawn: 0,
             players: (0..MAX_PLAYERS).map(|_| None).collect(),
+            history: VecDeque::with_capacity(HISTORY_TICKS + 1),
             tick: 0,
             rules: RulesEngine::new(scene.rules.clone()),
             object_index: scene.objects.iter().enumerate().map(|(i, o)| (o.id.clone(), i)).collect(),
@@ -225,6 +234,7 @@ impl MatchSim {
                 }
                 combat
             },
+            view_lag: 0,
             newest_received_seq: 0,
             queue: VecDeque::new(),
         });
@@ -247,6 +257,29 @@ impl MatchSim {
             r.entries.push(Entry::Leave { tick: self.tick, slot });
         }
         Some(p.state)
+    }
+
+    /// Sets how many ticks behind the present `slot` sees the others (clamped to what is remembered): the server derives it from the
+    /// client's round-trip time and interpolation delay. Recorded in the trace when it changes, so a replay judges shots the same way.
+    pub fn set_view_lag(&mut self, slot: usize, ticks: u8) {
+        let ticks = ticks.min((HISTORY_TICKS - 1) as u8);
+        let Some(Some(p)) = self.players.get_mut(slot) else { return };
+        if p.view_lag == ticks {
+            return;
+        }
+        p.view_lag = ticks;
+        if let Some(r) = &mut self.recorder {
+            r.entries.push(Entry::ViewLag { tick: self.tick, slot, lag: ticks });
+        }
+    }
+
+    /// Where `slot` stood `lag` ticks ago (`None` for the present, for a `lag` beyond what is remembered, or if nobody was in the slot then).
+    pub(super) fn rewound(&self, slot: usize, lag: usize) -> Option<(Vec2, f32)> {
+        if lag == 0 {
+            return None;
+        }
+        let frame = self.history.get(self.history.len().checked_sub(lag)?)?;
+        *frame.get(slot)?
     }
 
     /// Queues an input for `slot`. Ignored if it is not newer than the newest already received (a
@@ -311,6 +344,14 @@ impl MatchSim {
             self.props.set_player_slot(slot, glam::Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y), body.radius, body.body_height);
         }
         self.props.step();
+        let mut frame = [None; MAX_PLAYERS];
+        for (slot, p) in self.players.iter().enumerate().take(MAX_PLAYERS) {
+            frame[slot] = p.as_ref().map(|p| (p.state.pos, p.state.foot_y));
+        }
+        if self.history.len() >= HISTORY_TICKS {
+            self.history.pop_front();
+        }
+        self.history.push_back(frame);
         self.tick += 1;
         self.run_rules();
         self.record_checkpoint();

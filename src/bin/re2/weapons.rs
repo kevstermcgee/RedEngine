@@ -139,9 +139,7 @@ impl App {
         self.shot_cd.start(spec.cooldown_ticks);
         self.since_shot = 0.0;
         self.flash_left = MUZZLE_FLASH_TIME;
-        if let Some(audio) = &self.audio {
-            audio.play(&self.shot_sound);
-        }
+        self.feel.own_shot(self.weapon.wire(), self.tick_eye());
         let dir = self.camera.forward();
         let eye = self.tick_eye();
         for pellet in 0..self.weapon.pellets() {
@@ -165,13 +163,15 @@ impl App {
 
     /// Weapon logic for one tick: advance the timers (an action queued on tick T first advances on
     /// tick T+1), resolve a landing bat strike, then perform the input queued since the last tick.
-    pub(crate) fn fixed_step_combat(&mut self) {
+    pub(crate) fn fixed_step_combat(&mut self, attack_now: bool) {
         if self.net.is_some() {
-            // Online the server runs the weapons; a click becomes an "attack" press on the next inputs.
+            // Online the server runs the weapons; a click becomes an "attack" press on the next inputs. What we show of it (recoil, flash,
+            // swing, sound) is predicted from the same input so it does not wait for the answer.
             if std::mem::take(&mut self.attack_queued) {
                 self.net_pulse[1] = NET_PULSE_TICKS;
             }
             self.switch_queued = None;
+            self.predict_attack(attack_now);
             return;
         }
         let strike = self.swing.tick();

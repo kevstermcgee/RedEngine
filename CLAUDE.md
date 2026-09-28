@@ -60,5 +60,5 @@ ADRs, then `scripts/dev test`. Before pushing: `scripts/dev affected --full` (= 
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `red_bot`, `red_engine2`, `red_server`.
 - Cargo features: `default`, `gfx`.
-- 29 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 44 ADRs (latest: 0051 shooter feedback on the wire). Test *counts* are not stated here: run `scripts/dev test`.
+- 29 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 46 ADRs (latest: 0053 lag compensation). Test *counts* are not stated here: run `scripts/dev test`.
 <!-- facts:end -->

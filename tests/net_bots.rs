@@ -167,6 +167,20 @@ fn shots_and_damage_reach_a_client_as_events() {
 }
 
 #[test]
+fn a_clients_own_hits_and_kills_reach_it_as_events() {
+    // Two humans in the duel hall, facing each other 4 m apart. Ada holds the trigger of an SMG; Bo stands still and is shot until he dies.
+    let server = TestServer::start(json!({"weapons": {"starting": "smg"}}), None);
+    let mut a = server.human("Ada", false);
+    let mut b = server.human("Bo", false);
+    a.buttons = 16;
+    drive(&mut [&mut a, &mut b], "Ada lands hits and scores a kill, and Bo hears he was hurt", |bs| bs[0].kills_scored >= 1 && bs[1].times_hurt >= 3);
+    assert!(a.landed_hits >= 3, "Ada's hits were reported to her: {}", a.landed_hits);
+    assert!(b.times_hurt >= 3 && b.heard_shots >= 3, "Bo was hurt ({}) and heard Ada shooting ({})", b.times_hurt, b.heard_shots);
+    assert_eq!((a.times_hurt, b.landed_hits, b.kills_scored), (0, 0, 0), "nothing was reported to the one who did nothing");
+    server.finish();
+}
+
+#[test]
 fn with_no_fill_there_are_no_bots_and_the_config_can_switch_them_off() {
     let extra = json!({"bots": {"fill": 0}});
     let server = TestServer::start(extra, None);
