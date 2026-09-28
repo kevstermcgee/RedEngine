@@ -55,6 +55,7 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0054](0054-hosting-from-the-client.md) | Hosting from inside the client: `re2 --host` serves the map on a thread of the game and joins it, so bots need no second process | accepted |
 | [0055](0055-bullet-tracers-and-sparks.md) | Bullet tracers and impact sparks: a pool of glowing boxes in the scene shows where every hitscan shot went | accepted |
 | [0056](0056-music-in-code.md) | Music composed in code: an eight-bar synthwave loop generated at start-up, tested for pitch, rhythm and a seamless wrap | accepted |
+| [0057](0057-avatars-for-every-body.md) | The avatar pool covers every body somebody can wear, bots' included, with a stand-in for any it lacks: no enemy goes undrawn | accepted |
 
 ## Writing one
 

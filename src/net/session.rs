@@ -3,8 +3,8 @@
 //! scene objects used to draw other players, and each frame it updates the *scene* — remote avatars
 //! and props — from the interpolated network view. The graphical binary only has to call it.
 //!
-//! Avatars are pre-created (a fixed pool of hidden humans and rats) before the renderer is built,
-//! because the renderer takes its meshes from the scene at creation; a joining player just claims one.
+//! Avatars are pre-created (a fixed pool of hidden bodies, one set for every body somebody in the game can wear) before the
+//! renderer is built, because the renderer takes its meshes from the scene at creation; a joining player just claims one.
 
 use crate::avatar::{animate, AvatarAnim, RemoteHand};
 use crate::characters::character_object;
@@ -24,6 +24,10 @@ use std::time::Instant;
 
 /// Scale that makes an object effectively invisible (the renderer has no per-object visibility flag).
 pub const HIDDEN_SCALE: f32 = 0.0005;
+
+/// Avatars kept ready for each body that only bots can wear (see [`NetSession::add_avatar_pool`]). A roster seldom repeats a body more than twice and the
+/// pool cannot grow once the renderer is built, so four is a comfortable margin; a fifth wearer gets a stand-in of another costume, never nothing.
+const BOT_BODY_POOL: usize = 4;
 
 struct Avatar {
     object_index: usize,
@@ -135,13 +139,21 @@ impl NetSession {
         nearest_body_on_ray(&self.bodies, eye, dir, reach)
     }
 
-    /// Adds hidden avatars for every allowed character; fixed-character games allocate only that body.
+    /// Adds hidden avatars for every body somebody in this game can wear: the bodies its humans may pick (all of them, or the one `player.character`
+    /// forces) and, when the scene has bots, the fighting bodies they wear whatever the humans are (a roster gives each bot a body of its own: cowboy,
+    /// wizard, alien, robot). A body nobody can wear costs nothing.
     pub fn add_avatar_pool(&mut self, scene: &mut Scene) {
+        let forced = scene.player.character;
+        let has_bots = scene.bots.fill > 0;
         for who in Character::ALL {
-            if scene.player.character.is_some_and(|forced| forced != who) {
-                continue;
-            }
-            for k in 0..MAX_PLAYERS_PER_SNAPSHOT {
+            let count = if forced.is_none_or(|f| f == who) {
+                MAX_PLAYERS_PER_SNAPSHOT
+            } else if has_bots && who != Character::Rat {
+                BOT_BODY_POOL
+            } else {
+                0
+            };
+            for k in 0..count {
                 let mut o: Object = character_object(who, &format!("net_{who:?}_{k}").to_lowercase());
                 o.scale = Track::constant(Vec3::splat(HIDDEN_SCALE));
                 o.collide = false;
@@ -274,6 +286,33 @@ impl NetSession {
             .collect()
     }
 
+    /// The pooled avatar player `id` wears this frame, as an index into the pool. A player keeps theirs while it is of their body; a newcomer (or one who
+    /// changed body) takes a free avatar of their own body, and when the pool holds none, a stand-in: any free avatar of the same rig (the rat's, or the
+    /// people's). That is the last resort for a body the scene did not announce (a server filling the match with bots the map never mentions): another
+    /// costume is better than an enemy nobody can see. `None` when even that is not to be had. Leaving an avatar hides it.
+    fn claim_avatar(&mut self, id: u8, body: Character, scene: &mut Scene) -> Option<usize> {
+        let is_rat = |c: Character| c == Character::Rat;
+        let worn = self.avatars.iter().position(|a| a.used_by == Some(id));
+        let free = |fits: &dyn Fn(Character) -> bool| self.avatars.iter().position(|a| a.used_by.is_none() && fits(a.character));
+        let pick = match worn {
+            Some(i) if self.avatars[i].character == body => Some(i),
+            _ => free(&|c| c == body)
+                .or_else(|| worn.filter(|&i| is_rat(self.avatars[i].character) == is_rat(body)))
+                .or_else(|| free(&|c| is_rat(c) == is_rat(body))),
+        };
+        if worn != pick {
+            if let Some(old) = worn {
+                self.avatars[old].used_by = None;
+                scene.objects[self.avatars[old].object_index].scale = Track::constant(Vec3::splat(HIDDEN_SCALE));
+            }
+            if let Some(new) = pick {
+                self.avatars[new].used_by = Some(id);
+                self.avatars[new].anim = AvatarAnim::default();
+            }
+        }
+        pick
+    }
+
     /// Updates the scene from the interpolated network view: remote players wear pooled avatar
     /// objects (position, facing, walk cycle) and props take the server's poses. Unused avatars are hidden.
     pub fn update_scene(&mut self, scene: &mut Scene, now: Instant, dt: f32) {
@@ -291,21 +330,11 @@ impl NetSession {
             }
         }
         for (id, pose) in &view.players {
-            let ch = character_from_wire(pose.character);
-            let idx = match self.avatars.iter().position(|a| a.used_by == Some(*id) && a.character == ch) {
-                Some(i) => i,
-                None => match self.avatars.iter().position(|a| a.used_by.is_none() && a.character == ch) {
-                    Some(i) => {
-                        self.avatars[i].used_by = Some(*id);
-                        self.avatars[i].anim = AvatarAnim::default();
-                        i
-                    }
-                    None => continue,
-                },
-            };
-            self.bodies.push(RemoteBody { id: *id, pos: pose.pos, dead: pose.dead, character: ch });
+            let body = character_from_wire(pose.character);
+            let Some(idx) = self.claim_avatar(*id, body, scene) else { continue };
+            self.bodies.push(RemoteBody { id: *id, pos: pose.pos, dead: pose.dead, character: body });
             let a = &mut self.avatars[idx];
-            if let Some(hand) = animate(&mut scene.objects[a.object_index], ch, pose, &mut a.anim, dt, idle_t) {
+            if let Some(hand) = animate(&mut scene.objects[a.object_index], a.character, pose, &mut a.anim, dt, idle_t) {
                 self.remote_hands.push(hand);
             }
         }
@@ -343,9 +372,6 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    /// The graphical client's whole networked path, minus the window: it joins a real server, sees
-    /// another client's avatar appear in the scene (and disappear when they leave), and the other
-    /// client's moving prop shows up posed in the scene.
     #[test]
     fn the_crosshair_finds_the_nearest_living_body_on_the_ray() {
         let body = |id, x, z, dead| RemoteBody { id, pos: Vec3::new(x, 0.0, z), dead, character: Character::Human };
@@ -364,6 +390,9 @@ mod tests {
         assert_eq!(nearest_body_on_ray(&bodies, Vec3::new(0.0, 2.5, 0.0), Vec3::NEG_Z, 80.0), None);
     }
 
+    /// The graphical client's whole networked path, minus the window: it joins a real server, sees
+    /// another client's avatar appear in the scene (and disappear when they leave), and the other
+    /// client's moving prop shows up posed in the scene.
     #[test]
     fn a_networked_session_draws_the_other_player_and_moved_props_into_the_scene() {
         use crate::net::bot::{Behavior, Bot};
@@ -429,5 +458,123 @@ mod tests {
         assert!(visible_avatars(&scene).is_empty(), "the avatar of a player who left is hidden");
         stop.store(true, Ordering::Relaxed);
         handle.join().unwrap();
+    }
+
+    /// `examples/test_lab.json` made into the kind of game an arena is: `forced` is the body its humans are given (`player.character`) and `bots`
+    /// the scene's `bots` block. Returns where the variant was written (the temp directory) and its text.
+    fn lab_variant(tag: &str, forced: Option<&str>, bots: Option<serde_json::Value>) -> (std::path::PathBuf, String) {
+        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json");
+        let mut root: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(source).unwrap()).unwrap();
+        if let Some(who) = forced {
+            root["player"]["character"] = who.into();
+        }
+        if let Some(bots) = bots {
+            root["bots"] = bots;
+        }
+        let text = serde_json::to_string(&root).unwrap();
+        let path = std::env::temp_dir().join(format!("re_session_{tag}_{}.json", std::process::id()));
+        std::fs::write(&path, &text).unwrap();
+        (path, text)
+    }
+
+    /// A server for `text` on a free loopback port (the "duel" spawns, room for a few players), run on a thread; `fill` overrides the map's bot fill.
+    fn serve(text: &str, fill: Option<usize>) -> (SocketAddr, Arc<AtomicBool>, std::thread::JoinHandle<Server>) {
+        let scene = crate::schema::parse_scene(text).unwrap();
+        let mut spawns = parse_spawns(text).unwrap();
+        spawns.retain(|s| s.group == "duel");
+        let mut cfg = ServerConfig::new("127.0.0.1:0".parse().unwrap(), crate::net::map_hash(text));
+        cfg.bot_fill = fill;
+        let mut server = Server::bind(cfg, MatchSim::new(&scene, spawns)).unwrap();
+        server.set_logger(|_| {});
+        let addr: SocketAddr = format!("127.0.0.1:{}", server.local_addr().unwrap().port()).parse().unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let stopped = stop.clone();
+        let handle = std::thread::spawn(move || {
+            server.run(&stopped);
+            server
+        });
+        (addr, stop, handle)
+    }
+
+    /// Joins `addr` as the graphical client does (a Human, the pool added before the first frame) and returns the ids of the avatars drawn once
+    /// `expected` of them are up, sorted; it then keeps drawing for a moment, so a player who took a second body would show.
+    fn drawn_avatars(path: &std::path::Path, addr: SocketAddr, expected: usize) -> Vec<String> {
+        let (mut scene, world) = ClientWorld::load(path).unwrap();
+        let mut session = NetSession::connect(addr, Character::Human, world, 0).unwrap();
+        session.add_avatar_pool(&mut scene);
+        session.wait_connected(4.0).expect("joined");
+        let mut frame = |scene: &mut Scene| {
+            let now = Instant::now();
+            session.poll(now);
+            session.update_scene(scene, now, 0.01);
+            std::thread::sleep(Duration::from_millis(4));
+        };
+        let end = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < end && visible_avatars(&scene).len() < expected {
+            frame(&mut scene);
+        }
+        for _ in 0..75 {
+            frame(&mut scene);
+        }
+        let mut ids: Vec<String> = visible_avatars(&scene).iter().map(|o| o.id.clone()).collect();
+        ids.sort();
+        ids
+    }
+
+    #[test]
+    fn bots_in_bodies_the_humans_are_not_forced_to_are_drawn() {
+        // The situation of an arena game: every human is a Human, and the roster's bots are a wizard, a cowboy and a robot.
+        let bots = serde_json::json!({"fill": 4, "roster": [
+            {"name": "Wiz", "character": "wizard"}, {"name": "Cow", "character": "cowboy"}, {"name": "Rob", "character": "robot"}]});
+        let (path, text) = lab_variant("roster", Some("human"), Some(bots));
+        let (addr, stop, handle) = serve(&text, None);
+        let ids = drawn_avatars(&path, addr, 3);
+        stop.store(true, Ordering::Relaxed);
+        handle.join().unwrap();
+        let _ = std::fs::remove_file(&path);
+        let of = |body: &str| ids.iter().filter(|id| id.starts_with(&format!("net_{body}_"))).count();
+        assert_eq!(ids.len(), 3, "the three bots are drawn, one body each: {ids:?}");
+        assert_eq!((of("wizard"), of("cowboy"), of("robot")), (1, 1, 1), "each in its own costume: {ids:?}");
+    }
+
+    #[test]
+    fn a_body_the_pool_lacks_is_stood_in_for_rather_than_left_undrawn() {
+        // A server that fills the match with bots the map never mentions (`red_server --fill`) wears them in bodies this client did not prepare.
+        let (path, text) = lab_variant("standin", Some("human"), None);
+        let (addr, stop, handle) = serve(&text, Some(4));
+        let ids = drawn_avatars(&path, addr, 3);
+        stop.store(true, Ordering::Relaxed);
+        handle.join().unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(ids.len(), 3, "three bots, three bodies: {ids:?}");
+        assert!(ids.iter().all(|id| id.starts_with("net_human_")), "in the one body there is: {ids:?}");
+    }
+
+    #[test]
+    fn the_pool_holds_every_body_somebody_can_wear() {
+        let pool = |forced: Option<&str>, bots: bool| {
+            let bots = bots.then(|| serde_json::json!({"fill": 4}));
+            let (path, _) = lab_variant("pool", forced, bots);
+            let (mut scene, world) = ClientWorld::load(&path).unwrap();
+            let mut session = NetSession::connect("127.0.0.1:9".parse().unwrap(), Character::Human, world, 0).unwrap();
+            session.add_avatar_pool(&mut scene);
+            let _ = std::fs::remove_file(&path);
+            let of = |who: Character| scene.objects.iter().filter(|o| o.id.starts_with(&format!("net_{who:?}_").to_lowercase())).count();
+            Character::ALL.map(of)
+        };
+        let n = MAX_PLAYERS_PER_SNAPSHOT;
+        // [Human, Rat, Wizard, Cowboy, Alien, Robot]
+        assert_eq!(pool(None, false), [n; 6], "nobody is forced: any body can turn up");
+        assert_eq!(pool(Some("human"), false), [n, 0, 0, 0, 0, 0], "everybody is a Human and there are no bots: one body is enough");
+        assert_eq!(
+            pool(Some("human"), true),
+            [n, 0, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL],
+            "bots wear the fighting bodies, never the rat"
+        );
+        assert_eq!(
+            pool(Some("rat"), true),
+            [BOT_BODY_POOL, n, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL],
+            "a rat game's bots still fight as people"
+        );
     }
 }
