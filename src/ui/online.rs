@@ -263,6 +263,13 @@ fn columns(x0: i32, x1: i32) -> Cols {
     Cols { name: (x0, a - 4), what: (a, b - 4), ping: (b, c - 4), state: (c, x1) }
 }
 
+/// The results table has no ping column, so the type of character gets the room instead of being cut to `CO...`.
+fn columns_results(x0: i32, x1: i32) -> Cols {
+    let w = x1 - x0;
+    let (a, b) = (x0 + w * 36 / 100, x0 + w * 72 / 100);
+    Cols { name: (x0, a - 4), what: (a, b - 4), ping: (b, b), state: (b, x1) }
+}
+
 /// The lobby: who is here, who is ready, and buttons to change character, ready up and leave.
 pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layout {
     let (wi, hi) = (w as i32, h as i32);
@@ -394,15 +401,18 @@ pub fn results_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> La
         3 => "EVERYONE LEFT".to_string(),
         _ => String::new(),
     };
+    let i_won = winner.is_some_and(|e| e.id == v.me);
     let headline = match (winner, reason.is_empty()) {
+        (Some(_), true) if i_won => "YOU WIN!".to_string(),
+        (Some(_), false) if i_won => format!("YOU WIN!  ({reason})"),
         (Some(e), true) => format!("WINNER: {}", upper(&e.name)),
         (Some(e), false) => format!("WINNER: {}  ({reason})", upper(&e.name)),
         (None, true) => "DRAW".to_string(),
         (None, false) => reason.clone(),
     };
-    l.label_fit("headline", Some(c), cx, y, &headline, s * 3 / 2, inner, GOLD);
+    l.label_fit("headline", Some(c), cx, y, &headline, s * 3 / 2, inner, if i_won { GREEN } else { GOLD });
     y += text_height(s * 3 / 2) + 6 * s;
-    let cols = columns(x0 + pad, x1 - pad);
+    let cols = columns_results(x0 + pad, x1 - pad);
     l.label_left("h_rank", Some(c), cols.name.0, y, "PLAYER", s, cols.name.1 - cols.name.0, DIM);
     l.label_left("h_what", Some(c), cols.what.0, y, "TYPE", s, cols.what.1 - cols.what.0, DIM);
     l.label_right("h_score", Some(c), cols.state.1, y, "KILLS", s, cols.state.1 - cols.ping.0, DIM);
@@ -845,6 +855,10 @@ mod tests {
         let t = |id: &str| l.widgets.iter().find(|w| w.id == id).and_then(|w| w.text.clone()).unwrap();
         assert_eq!(t("r0_name"), "1. FAY", "Fay has the most kills (9)");
         assert_eq!(t("headline"), "WINNER: FAY  (SCORE REACHED)");
+        let mut mine = OnlineView::demo(Phase::Results);
+        mine.winner = mine.me;
+        let l = results_layout(1280, 720, &mine, None);
+        assert_eq!(l.widgets.iter().find(|w| w.id == "headline").and_then(|w| w.text.clone()).unwrap(), "YOU WIN!  (SCORE REACHED)");
         let mut v = OnlineView::demo(Phase::Results);
         v.winner = 255;
         v.end_code = 1;

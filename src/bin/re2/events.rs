@@ -256,27 +256,40 @@ impl ApplicationHandler for App {
                 let raw_dt = (now - self.last_frame).as_secs_f32();
                 let dt = raw_dt.min(0.1);
                 self.last_frame = now;
+                let pad_t0 = Instant::now();
                 self.poll_controller(dt, event_loop);
+                let pad_ms = pad_t0.elapsed().as_secs_f32() * 1000.0;
                 if let Some(st) = &mut self.stats {
                     st.frames += 1;
                     st.worst_ms = st.worst_ms.max(raw_dt * 1000.0);
+                    st.worst_pad_ms = st.worst_pad_ms.max(pad_ms);
                     let elapsed = st.window_start.elapsed().as_secs_f32();
                     if elapsed >= 2.0 {
                         println!(
-                            "[stats] {:.0} fps  (avg {:.2} ms, worst {:.1} ms)",
+                            "[stats] {:.0} fps  (avg {:.2} ms, worst {:.1} ms; slowest update {:.1} ms, draw {:.1} ms, gamepad poll {:.1} ms)",
                             st.frames as f32 / elapsed,
                             elapsed * 1000.0 / st.frames as f32,
-                            st.worst_ms
+                            st.worst_ms,
+                            st.worst_update_ms,
+                            st.worst_draw_ms,
+                            st.worst_pad_ms
                         );
-                        *st = FrameStats { window_start: Instant::now(), frames: 0, worst_ms: 0.0 };
+                        *st =
+                            FrameStats { window_start: Instant::now(), frames: 0, worst_ms: 0.0, worst_update_ms: 0.0, worst_draw_ms: 0.0, worst_pad_ms: 0.0 };
                     }
                 }
                 match self.phase {
                     Phase::Menu => self.menu_frame(),
                     Phase::Connect => self.connect_frame(),
                     Phase::Playing => {
+                        let t0 = Instant::now();
                         self.update(dt);
+                        let t1 = Instant::now();
                         self.draw();
+                        if let Some(st) = &mut self.stats {
+                            st.worst_update_ms = st.worst_update_ms.max((t1 - t0).as_secs_f32() * 1000.0);
+                            st.worst_draw_ms = st.worst_draw_ms.max(t1.elapsed().as_secs_f32() * 1000.0);
+                        }
                     }
                 }
                 if let Some(window) = &self.window {

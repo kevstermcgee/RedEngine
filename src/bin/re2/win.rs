@@ -1,5 +1,23 @@
 //! Windows message boxes for fatal failures that also print to the attached console.
 
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetConsoleProcessList(list: *mut u32, count: u32) -> u32;
+    fn FreeConsole() -> i32;
+}
+
+/// Started by a double-click or a shortcut, Windows opens a console window just for the game and the game has its own; close that one.
+/// Started from a terminal the console is shared with the shell, so it stays and keeps showing the output.
+pub fn hide_own_console() {
+    let mut pids = [0u32; 4];
+    // SAFETY: `pids` is a valid buffer of the length passed; FreeConsole takes no arguments.
+    unsafe {
+        if GetConsoleProcessList(pids.as_mut_ptr(), pids.len() as u32) == 1 {
+            FreeConsole();
+        }
+    }
+}
+
 #[link(name = "user32")]
 extern "system" {
     fn MessageBoxW(hwnd: isize, text: *const u16, caption: *const u16, kind: u32) -> i32;

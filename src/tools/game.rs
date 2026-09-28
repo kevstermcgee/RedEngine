@@ -370,6 +370,14 @@ pub fn server_args(cfg: &GameConfig) -> Vec<String> {
     a
 }
 
+/// Whether the scene at `map` asks for bots (`bots.fill` above zero): a game whose opponents are bots is played against a server of its own
+/// (`re2 --host`, ADR 0054), because bots live in the server's simulation and not in the offline client.
+pub fn map_has_bots(map: &Path) -> bool {
+    let Ok(text) = std::fs::read_to_string(map) else { return false };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { return false };
+    v.get("bots").and_then(|b| b.get("fill")).and_then(serde_json::Value::as_u64).is_some_and(|n| n > 0)
+}
+
 /// A sibling executable of the running one (`red_server` next to `red_engine2`), if it exists.
 pub fn sibling_exe(name: &str) -> Option<PathBuf> {
     let me = std::env::current_exe().ok()?;
@@ -416,6 +424,19 @@ mod tests {
         let e = parse(Path::new("."), r#"{"game":1}"#).unwrap_err();
         assert!(e.iter().any(|m| m.contains("engine")), "{e:?}");
         assert!(parse(Path::new("."), r#"{"engine":{"path":"x"}}"#).is_err(), "the version key is required");
+    }
+
+    #[test]
+    fn a_map_with_bots_is_played_against_a_host_of_its_own() {
+        let dir = std::env::temp_dir().join(format!("re2_bots_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (with, without, broken) = (dir.join("with.json"), dir.join("without.json"), dir.join("broken.json"));
+        std::fs::write(&with, r#"{"bots":{"fill":4}}"#).unwrap();
+        std::fs::write(&without, r#"{"bots":{"fill":0}}"#).unwrap();
+        std::fs::write(&broken, "not json").unwrap();
+        assert!(map_has_bots(&with));
+        assert!(!map_has_bots(&without) && !map_has_bots(&broken) && !map_has_bots(&dir.join("missing.json")));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

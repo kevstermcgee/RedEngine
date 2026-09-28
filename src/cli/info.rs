@@ -305,7 +305,12 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
         GameCmd::PlayLocal => {
             let exe = game::sibling_exe("re2")
                 .ok_or("re2 (the game client) is not built next to red_engine2 (cargo build --bin re2, or use `scripts/red play-local`)")?;
-            launch(&exe, &[cfg.dir.join(&cfg.server.map).display().to_string()])
+            let map = cfg.dir.join(&cfg.server.map);
+            let mut args = vec![map.display().to_string()];
+            if game::map_has_bots(&map) {
+                args.push("--host".to_string()); // bots live in a server's simulation: the game hosts one on a thread of its own
+            }
+            launch(&exe, &args)
         }
     }
 }

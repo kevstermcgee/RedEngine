@@ -11,6 +11,9 @@ use rodio::{OutputStream, OutputStreamHandle, Source};
 /// Output sample rate of the synthesized clips, in Hz.
 pub const SAMPLE_RATE: u32 = 44100;
 
+/// Overall level of everything played with [`Audio::play_at`]: several guns firing at once add up, and the speakers clip at 1.0.
+const MASTER_GAIN: f32 = 0.75;
+
 /// Fire-and-forget sound-effect player on the default output device.
 pub struct Audio {
     // Must stay alive for `handle` to keep working — never read directly, just held.
@@ -36,7 +39,7 @@ impl Audio {
     /// Plays a mono clip at `gain` (0..1, a sound's loudness) placed by `pan` (-1 left .. 1 right), fire-and-forget like [`play`](Self::play).
     /// Where a sound in the world lands is [`crate::sfx::spatial`]; this only delivers it to the two speakers.
     pub fn play_at(&self, clip: &[f32], gain: f32, pan: f32) {
-        let (left, right) = crate::sfx::pan_gains(gain, pan);
+        let (left, right) = crate::sfx::pan_gains(gain * MASTER_GAIN, pan);
         let mut stereo = Vec::with_capacity(clip.len() * 2);
         for s in clip {
             stereo.push(s * left);

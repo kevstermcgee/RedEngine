@@ -396,6 +396,11 @@ struct FrameStats {
     window_start: Instant,
     frames: u32,
     worst_ms: f32,
+    /// Longest `update` and `draw` of the window, milliseconds: which half a slow frame was spent in.
+    worst_update_ms: f32,
+    worst_draw_ms: f32,
+    /// Longest gamepad poll of the window, milliseconds.
+    worst_pad_ms: f32,
 }
 
 impl App {
@@ -529,7 +534,14 @@ impl App {
             freeze_swing: std::env::var("RE2_FREEZE_SWING").ok().and_then(|v| v.parse().ok()),
             start: Instant::now(),
             last_frame: Instant::now(),
-            stats: std::env::var_os("RE2_STATS").map(|_| FrameStats { window_start: Instant::now(), frames: 0, worst_ms: 0.0 }),
+            stats: std::env::var_os("RE2_STATS").map(|_| FrameStats {
+                window_start: Instant::now(),
+                frames: 0,
+                worst_ms: 0.0,
+                worst_update_ms: 0.0,
+                worst_draw_ms: 0.0,
+                worst_pad_ms: 0.0,
+            }),
         }
     }
 }
@@ -613,6 +625,8 @@ fn fail_online(msg: &str) -> ! {
 }
 
 fn main() {
+    #[cfg(windows)]
+    win::hide_own_console();
     env_logger::init();
     let Args { scene: scene_path, who: requested_character, mut connect, key, name, host, fill, bot_skill } = parse_args();
     // `--host`: serve the map from a thread of this process and join it; the server stops when the game closes (it drops after `app`).
