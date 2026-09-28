@@ -620,7 +620,9 @@ impl Server {
         // Does this player get a body right now?
         let joins_world = match &self.flow {
             None => true,
-            Some(f) => f.phase() == Phase::Playing && f.settings().join_in_progress,
+            // The round's world exists from the start of the countdown (everyone is frozen in it): whoever arrives then, or later if the map allows it,
+            // gets a body at once instead of waiting out the whole round.
+            Some(f) => matches!(f.phase(), Phase::Countdown | Phase::Playing) && f.settings().join_in_progress,
         };
         if joins_world {
             let round = self.current_round();

@@ -226,3 +226,17 @@ fn a_keyed_server_admits_the_right_key_and_refuses_a_missing_one_with_an_explana
     let server = server.finish();
     assert_eq!(server.stats().bad_keys, 1);
 }
+
+#[test]
+fn a_player_who_joins_during_the_countdown_is_in_the_round_not_waiting_for_the_next_one() {
+    // The round's world exists from the start of the countdown, frozen: someone arriving in those seconds must get a body in it.
+    let settings =
+        MatchSettings { min_players: 1, countdown_secs: 1.5, round_secs: 3.0, results_secs: 0.8, score_to_win: 0, join_in_progress: true, ready_check: false };
+    let server = TestServer::start(settings, None);
+    let mut a = bot(server.addr, "Ada", false);
+    drive(&mut [&mut a], "the countdown starts", |bs| phase(bs[0]) == Phase::Countdown);
+    let mut b = bot(server.addr, "Bo", false);
+    drive(&mut [&mut a, &mut b], "Bo has a body in the frozen countdown world", |bs| bs[1].client.state() == ConnState::Connected && bs[1].predictor.is_some());
+    drive(&mut [&mut a, &mut b], "the round starts with both of them in it", |bs| bs.iter().all(|x| phase(x) == Phase::Playing && x.client.in_round()));
+    server.finish();
+}

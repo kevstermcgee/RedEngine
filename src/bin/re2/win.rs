@@ -5,6 +5,8 @@ extern "system" {
     fn GetConsoleProcessList(list: *mut u32, count: u32) -> u32;
     fn FreeConsole() -> i32;
     fn SetStdHandle(which: u32, handle: isize) -> i32;
+    fn GetStdHandle(which: u32) -> isize;
+    fn GetConsoleMode(handle: isize, mode: *mut u32) -> i32;
 }
 
 /// Started by a double-click or a shortcut, Windows opens a console window just for the game and the game has its own; close that one.
@@ -14,11 +16,20 @@ pub fn hide_own_console() {
     // SAFETY: `pids` is a valid buffer of the length passed; FreeConsole takes no arguments.
     unsafe {
         if GetConsoleProcessList(pids.as_mut_ptr(), pids.len() as u32) == 1 {
+            // Which standard handles are the console itself (not a file or pipe the caller redirected them to)?
+            let console: Vec<u32> = [-10i32, -11, -12]
+                .into_iter()
+                .map(|w| w as u32)
+                .filter(|&which| {
+                    let (h, mut mode) = (GetStdHandle(which), 0u32);
+                    h != 0 && h != -1 && GetConsoleMode(h, &mut mode) != 0
+                })
+                .collect();
             FreeConsole();
-            // The standard handles still hold the closed console's numbers, and Windows reuses numbers: a later `println!` (the server thread logs
-            // when a match ends) could write to whatever got that number, and block for ever. Clear them; Rust drops writes to a missing handle.
-            for which in [-10i32, -11, -12] {
-                SetStdHandle(which as u32, 0);
+            // Those now hold the closed console's numbers, and Windows reuses numbers: a later `println!` (the server thread logs when a match ends)
+            // could write to whatever got that number, and block for ever. Clear them; Rust drops writes to a missing handle.
+            for which in console {
+                SetStdHandle(which, 0);
             }
         }
     }
