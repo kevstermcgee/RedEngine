@@ -43,6 +43,7 @@ pub mod schema;
 pub mod sfx;
 pub mod sim;
 pub mod skeleton;
+pub mod streaks;
 pub mod strict;
 pub mod tools;
 pub mod track;

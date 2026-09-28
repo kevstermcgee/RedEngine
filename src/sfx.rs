@@ -553,7 +553,7 @@ impl SoundBank {
         }
         match *cue {
             Cue::Shot { weapon, own: true, .. } => centred(self.gun(weapon), 0.95),
-            Cue::Shot { weapon, at, own: false } => {
+            Cue::Shot { weapon, at, own: false, .. } => {
                 let (gain, pan) = spatial(listener.eye, listener.yaw, [at.x, at.y + 1.4, at.z]);
                 Played { clip: self.gun(weapon), gain: gain * 0.95, pan }
             }
@@ -736,10 +736,10 @@ mod tests {
             let p = bank.play(&cue, me, 0);
             assert!(!p.clip.is_empty() && (0.1..=1.0).contains(&p.gain) && p.pan == 0.0, "{cue:?}: gain {} pan {}", p.gain, p.pan);
         }
-        let own = bank.play(&Cue::Shot { weapon: 4, at: Vec3::new(30.0, 0.0, 0.0), own: true }, me, 0);
+        let own = bank.play(&Cue::Shot { weapon: 4, at: Vec3::new(30.0, 0.0, 0.0), yaw: 0.0, pitch: 0.0, shooter: 0, own: true }, me, 0);
         assert_eq!((own.pan, own.gain), (0.0, 0.95), "our own gun is centred and full, wherever the cue says it was");
-        let near = bank.play(&Cue::Shot { weapon: 4, at: Vec3::new(5.0, 0.0, 0.0), own: false }, me, 0);
-        let far = bank.play(&Cue::Shot { weapon: 4, at: Vec3::new(40.0, 0.0, 0.0), own: false }, me, 0);
+        let near = bank.play(&Cue::Shot { weapon: 4, at: Vec3::new(5.0, 0.0, 0.0), yaw: 0.0, pitch: 0.0, shooter: 1, own: false }, me, 0);
+        let far = bank.play(&Cue::Shot { weapon: 4, at: Vec3::new(40.0, 0.0, 0.0), yaw: 0.0, pitch: 0.0, shooter: 1, own: false }, me, 0);
         assert!(near.pan > 0.9 && far.pan > 0.9, "a gun to the east is on the right");
         assert!(near.gain > far.gain * 2.0, "and quieter when far: {} vs {}", near.gain, far.gain);
         assert_ne!(bank.play(&Cue::Step, me, 0).clip, bank.play(&Cue::Step, me, 1).clip, "two alternating feet");

@@ -33,8 +33,9 @@ pub const REMOTE_SOUND_DELAY_SECS: f32 = crate::net::interp::INTERP_DELAY as f32
 /// Something to hear.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Cue {
-    /// A firearm was fired: `weapon` is `Weapon::wire`, `at` where the shooter stands, `own` when it was us (played centred, not placed).
-    Shot { weapon: u8, at: Vec3, own: bool },
+    /// A firearm was fired: `weapon` is `Weapon::wire`, `at` where the shooter (player `shooter`) stands and `yaw` / `pitch` where they aimed; `own` when it
+    /// was us (played centred, not placed).
+    Shot { weapon: u8, at: Vec3, yaw: f32, pitch: f32, shooter: u8, own: bool },
     /// The bat swung.
     Swing,
     /// Our attack landed on a player (`bat`: the deeper knock).
@@ -181,7 +182,7 @@ impl Feel {
     /// Applies what one snapshot reported. `own` is our state at the same moment.
     pub fn on_happened(&mut self, h: &Happenings, own: &Own) {
         for s in &h.shots {
-            self.cue_later(REMOTE_SOUND_DELAY_SECS, Cue::Shot { weapon: s.weapon, at: s.pos, own: false });
+            self.cue_later(REMOTE_SOUND_DELAY_SECS, Cue::Shot { weapon: s.weapon, at: s.pos, yaw: s.yaw, pitch: s.pitch, shooter: s.id, own: false });
         }
         if h.hits > 0 {
             self.cue(Cue::Hit { bat: own.weapon == 0 });
@@ -269,7 +270,7 @@ impl Feel {
 
     /// We pulled the trigger (predicted locally: the sound must not wait for the server).
     pub fn own_shot(&mut self, weapon: u8, at: Vec3) {
-        self.cue(Cue::Shot { weapon, at, own: true });
+        self.cue(Cue::Shot { weapon, at, yaw: 0.0, pitch: 0.0, shooter: 0, own: true });
     }
 
     /// We swung the bat.
@@ -564,11 +565,11 @@ mod tests {
         f.own_shot(4, Vec3::ZERO);
         f.own_swing();
         // Ours play at once; another player's is heard when their avatar (drawn 100 ms late) fires.
-        assert_eq!(f.take_cues(), vec![Cue::Shot { weapon: 4, at: Vec3::ZERO, own: true }, Cue::Swing]);
+        assert_eq!(f.take_cues(), vec![Cue::Shot { weapon: 4, at: Vec3::ZERO, yaw: 0.0, pitch: 0.0, shooter: 0, own: true }, Cue::Swing]);
         f.tick(REMOTE_SOUND_DELAY_SECS * 0.5);
         assert!(f.take_cues().is_empty(), "not yet");
         f.tick(REMOTE_SOUND_DELAY_SECS);
-        assert_eq!(f.take_cues(), vec![Cue::Shot { weapon: 9, at: Vec3::new(4.0, 0.0, -6.0), own: false }]);
+        assert_eq!(f.take_cues(), vec![Cue::Shot { weapon: 9, at: Vec3::new(4.0, 0.0, -6.0), yaw: 0.0, pitch: 0.0, shooter: 3, own: false }]);
     }
 
     #[test]

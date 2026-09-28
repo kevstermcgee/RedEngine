@@ -60,5 +60,5 @@ ADRs, then `scripts/dev test`. Before pushing: `scripts/dev affected --full` (= 
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `red_bot`, `red_engine2`, `red_server`.
 - Cargo features: `default`, `gfx`.
-- 29 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 47 ADRs (latest: 0054 hosting from the client). Test *counts* are not stated here: run `scripts/dev test`.
+- 29 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 48 ADRs (latest: 0055 bullet tracers and sparks). Test *counts* are not stated here: run `scripts/dev test`.
 <!-- facts:end -->

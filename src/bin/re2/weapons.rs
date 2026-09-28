@@ -140,6 +140,7 @@ impl App {
         self.since_shot = 0.0;
         self.flash_left = MUZZLE_FLASH_TIME;
         self.feel.own_shot(self.weapon.wire(), self.tick_eye());
+        self.draw_own_shot(self.weapon);
         let dir = self.camera.forward();
         let eye = self.tick_eye();
         for pellet in 0..self.weapon.pellets() {

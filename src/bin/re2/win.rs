@@ -4,6 +4,7 @@
 extern "system" {
     fn GetConsoleProcessList(list: *mut u32, count: u32) -> u32;
     fn FreeConsole() -> i32;
+    fn SetStdHandle(which: u32, handle: isize) -> i32;
 }
 
 /// Started by a double-click or a shortcut, Windows opens a console window just for the game and the game has its own; close that one.
@@ -14,6 +15,11 @@ pub fn hide_own_console() {
     unsafe {
         if GetConsoleProcessList(pids.as_mut_ptr(), pids.len() as u32) == 1 {
             FreeConsole();
+            // The standard handles still hold the closed console's numbers, and Windows reuses numbers: a later `println!` (the server thread logs
+            // when a match ends) could write to whatever got that number, and block for ever. Clear them; Rust drops writes to a missing handle.
+            for which in [-10i32, -11, -12] {
+                SetStdHandle(which as u32, 0);
+            }
         }
     }
 }

@@ -356,6 +356,9 @@ impl App {
             // Other players and the server's props, interpolated, into the scene the renderer draws.
             net.update_scene(&mut self.scene, Instant::now(), dt);
         }
+        if let Some(streaks) = self.streaks.as_mut() {
+            streaks.update(&mut self.scene, dt);
+        }
     }
 
     pub(crate) fn draw(&mut self) {
@@ -519,6 +522,8 @@ impl App {
                 }
             }
         }
+        // The pool of glowing boxes that draws tracers and sparks joins the scene now: the renderer takes its meshes from the scene as it is built.
+        self.streaks = Some(red_engine2::streaks::Streaks::new(red_engine2::streaks::add_pool(&mut self.scene)));
         if let Some(gpu) = self.gpu.as_mut() {
             gpu.live = Some(LiveRenderer::new(&gpu.device, gpu.config.format, &self.scene, gpu.config.width, gpu.config.height));
             gpu.menu = None;

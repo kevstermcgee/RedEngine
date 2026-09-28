@@ -100,7 +100,14 @@ impl Drop for LocalHost {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         if let Some(t) = self.thread.take() {
-            let _ = t.join();
+            // The server stops within a tick or two; if it somehow cannot (a blocked write), give up on it rather than hold the program open.
+            for _ in 0..300 {
+                if t.is_finished() {
+                    let _ = t.join();
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
         }
     }
 }

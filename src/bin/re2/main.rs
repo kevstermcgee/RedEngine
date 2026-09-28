@@ -357,6 +357,8 @@ struct App {
     sounds: red_engine2::sfx::SoundBank,
     /// The presentation of a fight: sound cues and screen effects.
     feel: red_engine2::feel::Feel,
+    /// Tracers and sparks (`None` until the game starts and the pool is added to the scene).
+    streaks: Option<red_engine2::streaks::Streaks>,
     /// Footsteps played so far (picks the foot).
     step_count: u32,
     /// Online: whether the attack button was down on the previous tick (the server acts on the press).
@@ -510,6 +512,7 @@ impl App {
             hit_sound: synth_bat_hit(),
             sounds: red_engine2::sfx::SoundBank::new(),
             feel: red_engine2::feel::Feel::new(),
+            streaks: None,
             step_count: 0,
             pred_prev_attack: false,
             was_dead: false,
@@ -695,6 +698,11 @@ fn main() {
         app.player_name = n;
     }
     event_loop.run_app(&mut app).expect("event loop error");
+    // Tearing down the GPU, the audio device and the server should take a moment; if anything wedges, the game still ends.
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(4));
+        std::process::exit(0);
+    });
     drop(app);
     drop(local_host);
 }

@@ -7,6 +7,7 @@
 use super::*;
 use red_engine2::feel::{Cue, Own};
 use red_engine2::net::protocol::{RosterEntry, FLAG_PROTECTED};
+use red_engine2::net::session::{nearest_body_on_ray, RemoteBody};
 use red_engine2::sfx::Listener;
 use red_engine2::ui::online::CombatView;
 
@@ -118,6 +119,9 @@ impl App {
                 self.notice = Some((format!("RUNG {} - {}", rung + 1, weapon.name().to_uppercase()), NOTICE_SECS));
             }
         }
+        if let Cue::Shot { weapon, at, yaw, pitch, shooter, own: false } = *cue {
+            self.draw_remote_shot(Weapon::from_wire(weapon), at, yaw, pitch, shooter);
+        }
         if self.log_cues {
             println!("[cue {:7.2}s] {cue:?}", self.start.elapsed().as_secs_f32());
         }
@@ -162,6 +166,63 @@ impl App {
                 self.since_shot = 0.0;
                 self.flash_left = MUZZLE_FLASH_TIME;
                 self.feel.own_shot(weapon.wire(), self.tick_eye());
+                self.draw_own_shot(weapon);
+            }
+        }
+    }
+
+    /// Draws where our shot went: a tracer from just ahead of the gun to what the crosshair ray met, and a spark there.
+    pub(crate) fn draw_own_shot(&mut self, weapon: Weapon) {
+        let eye = self.tick_eye();
+        let dir = self.camera.forward();
+        let muzzle = eye + dir * 0.55 + self.camera.right() * 0.16 - self.camera.up() * 0.14;
+        let me = self.net.as_ref().and_then(|n| n.client.my_id());
+        self.draw_shots(weapon, muzzle, eye, dir, me, true);
+    }
+
+    /// Draws where another player's shot went, from where they stood and the way they aimed.
+    fn draw_remote_shot(&mut self, weapon: Weapon, at: Vec3, yaw: f32, pitch: f32, shooter: u8) {
+        let (sy, cy) = yaw.sin_cos();
+        let (sp, cp) = pitch.sin_cos();
+        let dir = Vec3::new(sy * cp, sp, -cy * cp);
+        let eye = at + Vec3::Y * 1.65;
+        let muzzle = at + Vec3::Y * 1.3 + dir * 0.7;
+        self.draw_shots(weapon, muzzle, eye, dir, Some(shooter), false);
+    }
+
+    /// A tracer per pellet from `muzzle`, along `dir` from `eye`, to the first wall or player it meets (or a good way into the distance), with a
+    /// spark where it landed: red on a person, warm on a wall. `shooter` cannot be hit by their own shot; when someone else fires we can be.
+    fn draw_shots(&mut self, weapon: Weapon, muzzle: Vec3, eye: Vec3, dir: Vec3, shooter: Option<u8>, own: bool) {
+        let Some(spec) = weapon.firearm() else { return };
+        let reach = spec.range.min(60.0);
+        let mut bodies: Vec<RemoteBody> = self.net.as_ref().map(|n| n.bodies().to_vec()).unwrap_or_default();
+        if !own {
+            if let Some(id) = self.net.as_ref().and_then(|n| n.client.my_id()) {
+                bodies.push(RemoteBody {
+                    id,
+                    pos: Vec3::new(self.physics_pos.x, self.foot_y, self.physics_pos.y),
+                    dead: self.own_dead(),
+                    character: self.character,
+                });
+            }
+        }
+        bodies.retain(|b| Some(b.id) != shooter);
+        let tracer = if own { Vec3::new(1.0, 0.95, 0.65) } else { Vec3::new(1.0, 0.6, 0.3) };
+        let Some(streaks) = self.streaks.as_mut() else { return };
+        for pellet in 0..weapon.pellets() {
+            let d = weapon.shot_direction(dir, pellet);
+            let wall = raycast_shapes(eye, d, reach, &self.hit_shapes).map(|h| h.distance);
+            let body = nearest_body_on_ray(&bodies, eye, d, reach).map(|(_, dist)| dist);
+            let (dist, spark) = match (wall, body) {
+                (Some(w), Some(b)) if b < w => (b, Some(Vec3::new(1.0, 0.15, 0.1))),
+                (Some(w), _) => (w, Some(Vec3::new(1.0, 0.85, 0.4))),
+                (None, Some(b)) => (b, Some(Vec3::new(1.0, 0.15, 0.1))),
+                (None, None) => (reach, None),
+            };
+            let end = eye + d * dist;
+            streaks.tracer(muzzle, end, tracer);
+            if let Some(color) = spark {
+                streaks.spark(end, color);
             }
         }
     }
