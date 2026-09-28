@@ -31,6 +31,9 @@ pub struct Feature {
     pub docs: Vec<String>,
     /// Features this one is built on: a change there can break this one.
     pub depends_on: Vec<String>,
+    /// The smallest maintained examples of the pattern (a test suite, recipe or example map CI already runs): imitate these before reading
+    /// internals. `features --check` requires each to exist and to be exercised.
+    pub canonical: Vec<String>,
 }
 
 /// Parses the compiled-in index.
@@ -63,6 +66,7 @@ pub fn parse(text: &str) -> Result<Vec<Feature>, String> {
             commands: strings(f, "commands", name)?,
             docs: strings(f, "docs", name)?,
             depends_on: strings(f, "depends_on", name)?,
+            canonical: strings(f, "canonical", name)?,
         });
     }
     Ok(out)
@@ -274,6 +278,18 @@ pub fn check(features: &[Feature], root: &Path) -> Vec<String> {
                 problems.push(format!("feature '{}': doc '{d}' does not exist", f.name));
             }
         }
+        for c in &f.canonical {
+            let suite = c.strip_prefix("tests/").and_then(|s| s.strip_suffix(".rs"));
+            let exercised = match suite {
+                Some(s) => features.iter().any(|g| g.tests.iter().any(|t| t == s)),
+                None => c.starts_with("recipes/") || c.starts_with("examples/"), // `tests/examples_validate.rs` and the recipe tests load every one
+            };
+            if !root.join(c).exists() {
+                problems.push(format!("feature '{}': canonical example '{c}' does not exist", f.name));
+            } else if !exercised {
+                problems.push(format!("feature '{}': canonical example '{c}' is not run by any test suite in the index", f.name));
+            }
+        }
         for d in &f.depends_on {
             if !names.contains(d.as_str()) {
                 problems.push(format!("feature '{}': depends_on unknown feature '{d}'", f.name));
@@ -403,6 +419,7 @@ mod tests {
             commands: vec![format!("verify {name}")],
             docs: vec![],
             depends_on: deps.iter().map(|s| s.to_string()).collect(),
+            canonical: vec![],
         }
     }
 

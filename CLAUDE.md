@@ -7,7 +7,8 @@ explains its failures. Workflow: `AGENTS.md` (short; read it, do not import it).
 
 ## Cheap by default (context and time)
 ```bash
-$R context <feature|file|words>  # 5-15 KB work packet for a Rust change: files, public API, tests, ADR pointers (instead of `src map`, file reads)
+$R context "<task in words>"    # 2-5 KB task packet: owners, files/symbols to read, invariants, traps, verification, scope, when to stop
+$R context HEADLESS-001          # any ID a failing check prints: the fix;  `context <feature|file> --full` widens
 scripts/dev affected --quick     # verify only the features that own your change (seconds); the dependents it skipped are listed
 scripts/dev affected             # + every feature built on them: before you say "done" (a green run is remembered by file content)
 scripts/dev affected --full      # = scripts/ci.sh: only at integration boundaries (before pushing; Cargo.*, src/lib.rs, CI files escalate by themselves)
@@ -60,5 +61,5 @@ ADRs, then `scripts/dev test`. Before pushing: `scripts/dev affected --full` (= 
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `red_bot`, `red_engine2`, `red_server`.
 - Cargo features: `default`, `gfx`.
-- 27 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 42 ADRs (latest: 0042 proportional verification and unattended runs). Test *counts* are not stated here: run `scripts/dev test`.
+- 27 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 43 ADRs (latest: 0045 task packets knowledge ids and annotations). Test *counts* are not stated here: run `scripts/dev test`.
 <!-- facts:end -->

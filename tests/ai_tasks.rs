@@ -360,3 +360,65 @@ fn task_change_the_engine_from_a_small_work_packet_and_verify_only_what_it_affec
     assert_eq!(boundary["data"]["scope"], "full", "{boundary}");
     a.within(30_000);
 }
+
+/// Plain-language engine tasks and the features that own them (any of the `|` alternatives). `context "<task>"` must route most of
+/// them first try, always within the task-packet budget. Measured when this was added (ADR 0045): 17 of 20 first, 19 of 20 among the owners
+/// listed, mean 3.2 KB; the tool before it answered 0 of 20 quoted tasks and 13 of 20 unquoted, at 9.2 KB per packet.
+const ROUTING: &[(&str, &str)] = &[
+    ("add replicated doors", "net_server|net_protocol|game_rules"),
+    ("fix client prediction jitter", "net_client"),
+    ("add a new lint check for floating lamps", "map_analysis"),
+    ("add a new prefab", "scene_format"),
+    ("change snapshot packet size", "net_protocol|net_server"),
+    ("add a rule action that plays a sound", "game_rules"),
+    ("headless server fails to build", "build_and_ci"),
+    ("make the lobby countdown configurable", "match_flow"),
+    ("add a new weapon", "combat_weapons"),
+    ("speed up the physics tick", "prop_physics|player_physics|sim_core"),
+    ("replay diverges at a tick", "replay"),
+    ("join key authentication", "net_auth"),
+    ("upnp port mapping fails", "home_hosting"),
+    ("ui button overlaps text at 720p", "ui_kit"),
+    ("blueprint doors between rooms", "blueprints_and_games"),
+    ("package zip manifest", "release_packaging"),
+    ("net-test bandwidth check", "net_test"),
+    ("golden image view check", "verification"),
+    ("scatter bushes in a zone", "map_editing"),
+    ("describe output too long", "self_description"),
+];
+
+#[test]
+fn task_context_routes_plain_language_engine_tasks_to_their_owners() {
+    let mut a = Agent::new("task_routing");
+    let (mut first, mut listed) = (0, 0);
+    let mut misses = Vec::new();
+    for (task, want) in ROUTING {
+        let (ok, packet) = a.run(&["context", task]);
+        assert!(ok, "{task}: {packet}");
+        assert!(packet.len() <= 5_000, "{task}: task packet is {} bytes (budget 5000)", packet.len());
+        for must in ["ROUTE confidence", "READ FIRST", "VERIFY", "DONE WHEN"] {
+            assert!(packet.contains(must), "{task}: packet lacks {must}:\n{packet}");
+        }
+        let owners: Vec<&str> = packet.lines().filter_map(|l| l.strip_prefix("== ")).map(|l| l.split(' ').next().unwrap_or("")).collect();
+        let good = |o: &&str| want.split('|').any(|w| w == *o);
+        if owners.first().is_some_and(good) {
+            first += 1;
+        } else {
+            misses.push(format!("{task} -> {owners:?} (want {want})"));
+        }
+        if owners.iter().any(good) {
+            listed += 1;
+        }
+    }
+    println!("  routing: {first}/{} first, {listed}/{} listed; misses: {misses:?}", ROUTING.len(), ROUTING.len());
+    assert!(first >= 16, "routing regressed: {first}/{} first\n  {}", ROUTING.len(), misses.join("\n  "));
+    assert!(listed >= 19, "routing regressed: only {listed}/{} list the owner", ROUTING.len());
+    // A failing guard test names an ID; the ID is one call away from the fix.
+    let entry = a.run(&["context", "HEADLESS-001"]).1;
+    assert!(entry.contains("headless_boundary") && entry.contains("fix / look at"), "{entry}");
+    // Structured mode is smaller than the text, not larger.
+    let text = a.run(&["context", "make the lobby countdown configurable"]).1;
+    let json = a.json(&["context", "make the lobby countdown configurable"]);
+    assert_eq!(json["data"]["owners"][0]["feature"], "match_flow", "{json}");
+    assert!(serde_json::to_string(&json["data"]).unwrap().len() <= text.len() + 200);
+}

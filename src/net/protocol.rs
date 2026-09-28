@@ -25,6 +25,7 @@ use std::fmt;
 /// First two bytes of every datagram ("RD").
 pub const MAGIC: u16 = 0x5244;
 /// Bumped on any incompatible change; a mismatched client is rejected.
+// AI-COMPAT: bump on any change to the wire format; peers with another version are rejected (`Version`), never misparsed.
 pub const PROTOCOL_VERSION: u16 = 7;
 /// Largest datagram either side sends or accepts (under a typical 1500-byte MTU).
 pub const MAX_PACKET: usize = 1400;
@@ -621,6 +622,7 @@ impl ClientMsg {
     }
 
     /// Decodes one datagram.
+    // AI-SECURITY: every client datagram is decoded here: counts are bounded before allocating, garbage is an error, never a panic.
     pub fn decode(bytes: &[u8]) -> Result<ClientMsg, DecodeError> {
         let (kind, mut r) = open(bytes)?;
         let msg = match kind {

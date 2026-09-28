@@ -12,7 +12,11 @@ fn root() -> PathBuf {
 fn the_feature_index_is_true() {
     let all = features::load().expect("docs/features.json parses");
     let problems = features::check(&all, &root());
-    assert!(problems.is_empty(), "docs/features.json is out of date (fix the index, or run `red_engine2 features --check`):\n  {}", problems.join("\n  "));
+    assert!(
+        problems.is_empty(),
+        "FEAT-001 docs/features.json is out of date (fix the index, or run `red_engine2 features --check`; `red_engine2 context FEAT-001`):\n  {}",
+        problems.join("\n  ")
+    );
 }
 
 #[test]
@@ -47,6 +51,6 @@ fn nothing_in_the_repository_is_orphaned_from_the_index() {
     for f in
         ["src/net/upnp.rs", "src/tools/perf.rs", "src/tools/package.rs", "src/tools/nettest.rs", "src/ui/online.rs", "src/bin/re2/online.rs", "src/crypto.rs"]
     {
-        assert!(!features::owners(&all, f).is_empty(), "{f} has no owner");
+        assert!(!features::owners(&all, f).is_empty(), "FEAT-001 {f} has no owner (`red_engine2 context FEAT-001`)");
     }
 }

@@ -52,6 +52,7 @@ use anyhow::{Context, Result};
 use std::path::Path;
 
 /// Reads and fully validates a scene file (macros and prefabs expanded); `Err` is a list of `object.field: message` strings.
+// AI-COMPAT: games built on the engine call this; keep the signature and the strict validation.
 pub fn load_scene(path: &Path) -> Result<schema::Scene, Vec<String>> {
     let text = std::fs::read_to_string(path).map_err(|e| vec![format!("io: {e}")])?;
     schema::parse_scene(&text)

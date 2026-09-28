@@ -113,6 +113,42 @@ impl Index {
     }
 }
 
+/// The source annotation vocabulary: a `//` comment starting with one of these and a colon records something expensive to rediscover
+/// (`// AI-BOUNDARY: graphics-free: the server builds this`). Deliberately small; used only where it matters. `context` lists the ones in
+/// the files a task touches, `search` finds them, `src annotations` lists them all.
+pub const ANNOTATION_KINDS: &[&str] = &["AI-INVARIANT", "AI-BOUNDARY", "AI-WARNING", "AI-HOTPATH", "AI-COMPAT", "AI-SECURITY", "AI-DEPRECATED", "AI-CANONICAL"];
+
+/// One `// AI-KIND: text` annotation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Annotation {
+    pub file: String,
+    pub line: usize,
+    pub kind: &'static str,
+    pub text: String,
+}
+
+impl Annotation {
+    /// `KIND file:line text`, one line.
+    pub fn line(&self) -> String {
+        format!("{} {}:{} {}", self.kind, self.file, self.line, self.text)
+    }
+}
+
+/// Every annotation in the scanned tree (test code included: a test can be `AI-CANONICAL`).
+pub fn annotations(ix: &Index) -> Vec<Annotation> {
+    let mut out = Vec::new();
+    for f in &ix.files {
+        for (n, l) in f.lines.iter().enumerate() {
+            let t = l.trim_start();
+            let Some(body) = t.strip_prefix("//").map(|b| b.trim_start_matches(['/', '!']).trim_start()) else { continue };
+            let Some(kind) = ANNOTATION_KINDS.iter().find(|k| body.strip_prefix(**k).is_some_and(|r| r.starts_with(':'))) else { continue };
+            let text = body[kind.len() + 1..].trim().to_string();
+            out.push(Annotation { file: f.rel.clone(), line: n + 1, kind, text });
+        }
+    }
+    out
+}
+
 /// Net brace depth change of `line`, ignoring braces inside strings, chars and `//` comments.
 fn brace_delta(line: &str) -> i32 {
     let b: Vec<char> = line.chars().collect();

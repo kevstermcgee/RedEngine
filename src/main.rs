@@ -134,7 +134,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::NetTest { scene, profile, players, secs, seed } => run_net_test(&scene, &profile, players, secs, seed),
         Command::Features { query, check } => run_features(&query, check),
         Command::Impact { files, git } => run_impact(&files, git.as_deref()),
-        Command::Context { query, git, budget } => run_context(&query, git, budget),
+        Command::Context { query, git, budget, full } => run_context(&query, git, budget, full),
         Command::Affected { files, base, quick, full, dry_run, keep_going, no_cache } => {
             run_affected(&files, base.as_deref(), quick, full, dry_run, keep_going, no_cache)
         }

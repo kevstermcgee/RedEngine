@@ -42,7 +42,7 @@ fn headless_modules_name_no_graphics_or_audio_crates() {
     }
     assert!(
         bad.is_empty(),
-        "these files are built without the `gfx` feature but name a graphics/audio crate:\n  {}\nMove the code into a gfx-gated module (see src/lib.rs) or gate it with #[cfg(feature = \"gfx\")].",
+        "HEADLESS-001 these files are built without the `gfx` feature but name a graphics/audio crate (`red_engine2 context HEADLESS-001`):\n  {}\nMove the code into a gfx-gated module (see src/lib.rs) or gate it with #[cfg(feature = \"gfx\")].",
         bad.join("\n  ")
     );
 }
@@ -53,6 +53,6 @@ fn every_gfx_only_module_is_gated_in_lib_rs() {
     for m in GFX_ONLY.iter().filter(|m| !m.contains('/')) {
         let name = m.trim_end_matches(".rs");
         let gated = lib.contains(&format!("#[cfg(feature = \"gfx\")]\npub mod {name};"));
-        assert!(gated, "src/lib.rs must declare `pub mod {name};` behind #[cfg(feature = \"gfx\")]");
+        assert!(gated, "HEADLESS-001 src/lib.rs must declare `pub mod {name};` behind #[cfg(feature = \"gfx\")] (`red_engine2 context HEADLESS-001`)");
     }
 }

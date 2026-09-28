@@ -5,6 +5,7 @@
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, authored player tuning and jump pads, wall/fence sugar, prefabs, tracks and easing, colours.",
+      "canonical": ["examples/hello_world.json"],
       "files": ["src/schema.rs", "src/strict.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/**", "SPEC.md"],
       "tests": ["lib:schema", "lib:strict", "lib:prefabs", "lib:macros", "lib:track", "examples_validate"],
       "commands": ["red_engine2 validate examples/test_lab.json"],
@@ -20,6 +21,7 @@
     },
     "player_physics": {
       "summary": "One shared, scene-tunable player movement and jump-pad simulation used by the game, server, client prediction and map tools.",
+      "canonical": ["tests/house_walk.rs"],
       "files": ["src/player.rs", "src/controller.rs", "src/collide.rs", "src/sim/player.rs"],
       "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
@@ -28,6 +30,7 @@
     },
     "prop_physics": {
       "summary": "Rapier rigid-body props that stay dormant until touched; pick-up, drop, knock-over; exact hit shapes.",
+      "canonical": ["tests/prop_physics.rs"],
       "files": ["src/physics/**", "src/hit.rs"],
       "tests": ["lib:physics", "lib:hit", "prop_physics", "melee_hits"],
       "docs": ["docs/adr/0012-rapier-prop-physics-dormant-until-disturbed.md", "docs/adr/0011-two-characters-and-exact-melee-hits.md"],
@@ -35,6 +38,7 @@
     },
     "combat_weapons": {
       "summary": "Bat plus an eleven-firearm arsenal: tick-based swings/cooldowns, hitscan, health, death, respawn and authoritative pick-up contention.",
+      "canonical": ["tests/interactions.rs"],
       "files": ["src/weapons.rs", "src/sim/combat.rs", "src/sim/interact.rs"],
       "tests": ["lib:weapons", "lib:sim::combat", "lib:sim::interact", "interactions", "net_interactions"],
       "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
@@ -42,6 +46,7 @@
     },
     "sim_core": {
       "summary": "The headless, renderer-free simulation: fixed tick clock, scratch buffers, change tracking, entities, static props, the authoritative MatchSim, spawns, interest management.",
+      "canonical": ["tests/test_lab.rs"],
       "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs"],
       "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest"],
       "commands": ["cargo bench --bench sim", "red_engine2 perf examples/test_lab.json"],
@@ -50,6 +55,7 @@
     },
     "game_rules": {
       "summary": "Game rules as data: vars, rules, the expression language, scripted headless scenarios (`sim`), and standard-client presentation.",
+      "canonical": ["recipes/coin_run.json", "tests/net_rule_state.rs"],
       "files": ["src/sim/rules.rs", "src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "recipes/coin_run.json"],
       "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks", "net_rule_state"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
@@ -58,6 +64,7 @@
     },
     "replay": {
       "summary": "Deterministic traces, replay without a renderer, state checksums, first-divergent-tick reports.",
+      "canonical": ["tests/sim_replay.rs"],
       "files": ["src/sim/trace.rs", "src/sim/replay.rs", "src/sim/checksum.rs", "tests/fixtures/**"],
       "tests": ["lib:sim::trace", "lib:sim::replay", "sim_replay"],
       "commands": ["red_engine2 replay tests/fixtures/coin_run.trace.json"],
@@ -66,6 +73,7 @@
     },
     "match_flow": {
       "summary": "Lobby, ready-up, countdown, timed rounds, results and rematch as a pure state machine, configured by the scene's `match` block.",
+      "canonical": ["tests/net_flow.rs"],
       "files": ["src/sim/flow.rs"],
       "tests": ["lib:sim::flow", "net_flow"],
       "commands": ["red_server --lobby --min-players 2"],
@@ -73,7 +81,8 @@
       "depends_on": ["sim_core"]
     },
     "net_protocol": {
-      "summary": "The wire format (bounded, fuzz-tested), abuse limits, sizes.",
+      "summary": "The wire format: every message (hello, input, snapshot, status, rule state), bounded and fuzz-tested decoding, packet sizes and budgets, abuse limits.",
+      "canonical": ["tests/net_budget.rs"],
       "files": ["src/net/protocol.rs", "src/net/limits.rs", "src/net/mod.rs"],
       "tests": ["lib:net::protocol", "lib:net::limits", "net_abuse", "net_budget", "net_rule_state"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0036-repeated-bounded-online-rule-state.md"],
@@ -81,12 +90,14 @@
     },
     "net_auth": {
       "summary": "Join keys proven by challenge/response, stateless address cookies, HMAC tags on every datagram; the SHA-256/HMAC primitives.",
+      "canonical": ["tests/net_auth.rs"],
       "files": ["src/net/auth.rs", "src/crypto.rs"],
       "tests": ["lib:net::auth", "lib:crypto", "net_auth", "net_abuse"],
       "docs": ["docs/adr/0028-authenticated-datagrams-and-join-keys.md"]
     },
     "net_server": {
       "summary": "The authoritative UDP server: sessions, handshake, snapshots with per-client acks, status, rounds, rate limits; `red_server`.",
+      "canonical": ["tests/net_e2e.rs"],
       "files": ["src/net/server.rs", "src/net/sessions.rs", "src/net/snapshots.rs", "src/bin/red_server.rs"],
       "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "server_env"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
@@ -95,6 +106,7 @@
     },
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
+      "canonical": ["tests/net_e2e.rs"],
       "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs"],
       "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
@@ -103,6 +115,7 @@
     },
     "net_test": {
       "summary": "The bad-network simulator (seeded bursty loss, jitter, duplication) and `net-test`, which judges a game on what a player would notice.",
+      "canonical": ["tests/net_sim.rs"],
       "files": ["src/net/netsim.rs", "src/tools/nettest.rs"],
       "tests": ["lib:net::netsim", "net_sim"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
@@ -150,6 +163,7 @@
     },
     "map_analysis": {
       "summary": "lint, reach, walk (incl. auto-planned routes), plan, tour, ray, ls/info, diff: what the map will do, answered with the game's own physics.",
+      "canonical": ["examples/test_lab.json", "tests/maps_verify.rs"],
       "files": ["src/tools/lint.rs", "src/tools/reach.rs", "src/tools/walk.rs", "src/tools/pathing.rs", "src/tools/plan.rs", "src/tools/sight.rs", "src/tools/world.rs", "src/tools/shots.rs", "src/tools/inspect.rs", "src/tools/diff.rs", "src/cli/analyze.rs", "src/cli/render_cmds.rs"],
       "tests": ["lib:tools::lint", "lib:tools::reach", "lib:tools::walk", "lib:tools::plan", "house_walk", "maps_verify", "test_lab"],
       "commands": ["red_engine2 lint examples/test_lab.json", "red_engine2 verify examples/test_lab.json --no-views"],
@@ -158,6 +172,7 @@
     },
     "map_editing": {
       "summary": "Atomic edits and generators: set/move/add/rm/clone/array/rename/fmt, patch, scatter and line.",
+      "canonical": ["tests/ai_tasks.rs"],
       "files": ["src/tools/edit.rs", "src/tools/patch.rs", "src/tools/gen.rs", "src/cli/editing.rs"],
       "tests": ["lib:tools::edit", "lib:tools::patch", "lib:tools::gen", "ai_tasks"],
       "docs": ["AGENTS.md"],
@@ -173,6 +188,7 @@
     },
     "blueprints_and_games": {
       "summary": "Blueprints compile rooms/doors/spawns into complete self-checking maps; `new-game` scaffolds a game project that pins the engine; recipes.",
+      "canonical": ["recipes/rooms_and_door.json"],
       "files": ["src/tools/blueprint.rs", "src/tools/newgame.rs", "src/tools/game.rs", "src/project_browser.rs", "src/tools/recipes.rs", "recipes/**"],
       "tests": ["lib:tools::blueprint", "lib:tools::newgame", "lib:tools::game", "lib:project_browser", "lib:tools::recipes", "ai_tasks", "docs_fresh"],
       "commands": ["red_engine2 build --example"],
@@ -181,10 +197,17 @@
     },
     "self_description": {
       "summary": "The engine describing itself and choosing its own verification: describe, search, src navigation, context work packets, impact/affected (minimal verification), catalog, doctor, status, the JSON envelope and the MCP wrapper.",
-      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py"],
-      "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context", "cli_envelope", "docs_fresh", "features_index"],
+      "canonical": ["tests/ai_tasks.rs"],
+      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs",
+        "src/tools/task.rs",
+        "src/tools/knowledge.rs",
+        "docs/KNOWLEDGE.md", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py"],
+      "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context",
+        "lib:tools::task",
+        "lib:tools::knowledge", "cli_envelope", "docs_fresh", "features_index"],
       "commands": ["red_engine2 describe --brief", "red_engine2 features --check", "red_engine2 affected --dry-run"],
-      "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md"]
+      "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md",
+        "docs/adr/0045-task-packets-knowledge-ids-and-annotations.md"]
     },
     "docs_and_adrs": {
       "summary": "The docs an outsider or an agent reads first, kept true by tests: README, SPEC, AGENTS, CLAUDE, LICENSE, glossary, decisions.",
@@ -194,6 +217,7 @@
     },
     "build_and_ci": {
       "summary": "Cargo features (the headless build), CI script, dev scripts, the dependency boundary.",
+      "canonical": ["tests/headless_boundary.rs"],
       "files": ["Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
       "tests": ["headless_boundary"],
       "commands": ["scripts/ci.sh"],

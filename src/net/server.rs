@@ -616,6 +616,7 @@ impl Server {
     }
 
     /// Runs one simulation tick and does everything due after it: timeouts, the match flow, the demo kick, snapshots, status.
+    // AI-HOTPATH: 60 times a second with every client; per-tick allocations are budgeted by tests/alloc_budget.rs.
     pub fn tick(&mut self, now: Instant) {
         let t0 = Instant::now();
         let running = self.accepts_input();

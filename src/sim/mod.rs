@@ -23,6 +23,7 @@
 
 // Nothing reachable from a UDP packet may panic the process. Test code is exempt; a genuine invariant is written
 // as a `let ... else` / `?` with a message, not an `unwrap`.
+// AI-BOUNDARY: graphics-free and deterministic: the server, `sim`, `replay` and the map tools run this tree (check SIM-001).
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
 
 pub mod change;
@@ -60,7 +61,11 @@ mod tests {
                 let text = std::fs::read_to_string(&path).unwrap();
                 for line in text.lines().filter(|l| !l.trim_start().starts_with("//")) {
                     for b in banned {
-                        assert!(!line.contains(b), "{} mentions `{b}`: the sim tree must be renderer-free", path.display());
+                        assert!(
+                            !line.contains(b),
+                            "SIM-001 {} mentions `{b}`: the sim tree must be renderer-free (`red_engine2 context SIM-001`)",
+                            path.display()
+                        );
                     }
                 }
             }

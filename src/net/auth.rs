@@ -78,6 +78,7 @@ impl SessionKey {
 }
 
 /// The proof a client sends to show it knows `join_key` without sending it.
+// AI-SECURITY: the join key is proven, never sent; compare proofs with `ct_eq` only.
 pub fn join_proof(join_key: &[u8], client_nonce: u64, cookie: u64, map_hash: u32, version: u16) -> [u8; PROOF_LEN] {
     let mut m = Vec::with_capacity(32);
     m.extend_from_slice(b"red-join-v3");

@@ -5,22 +5,34 @@ Red Engine 2 is a Rust + wgpu engine whose maps are **JSON scene files** — and
 server; `red_engine2` (the CLI) validates, renders, **analyzes, edits and plays scripted matches** on maps. You almost
 never need to read Rust to change a map or a game: read [`SPEC.md`](SPEC.md) for the scene language, then use the tools below.
 
-**Read `red_engine2 describe --brief` first (about 1 KB)**, then ask `search "<your question>"`; open SPEC/AGENTS only for a topic
-you cannot get from `describe <topic>`. Every command takes the global `--json` for one stable envelope (`describe diagnostics`).
+## The route (read this, then follow it)
 
-> **The one rule:** never trust a map edit you haven't run through `lint`, and never judge a
-> layout you haven't *looked at* (`plan` / `tour`). The tools use the game's real collision code, so
-> "lint is clean and the walk test passes" means the level is playable.
+```
+describe --brief          what exists (1 KB)                      search "<question>"   where a fact lives
+context "<task in words>" a 2-5 KB task packet: owners + confidence, files and symbols to read first, invariants, traps,
+                          canonical examples, verification, what probably does not matter, expected scope, when to stop
+edit                      one focused change                      scripts/dev affected --quick   while editing
+scripts/dev affected      before you say done                     STOP
+```
+
+`context HEADLESS-001` (any ID a failing check prints) gives the fix; `context <feature|file> [--full]` or `src outline|show|refs` widen the
+packet when the evidence says it is incomplete. Every command takes `--json` (`describe diagnostics`).
+
+**Done when** the requested behaviour works, a regression test covers it where one can, `scripts/dev affected` passes, and docs changed only
+if a public contract did. Then stop: no refactoring of code you merely read, no redesign of unrelated systems, no speculative abstractions.
+**Scope:** a feature change is usually 1-4 files, a subsystem change 3-8; a "local" task crossing 10 files or unrelated subsystems means
+re-run `context`/`affected` and ask whether the change belongs in a lower shared layer. Known traps and rejected approaches:
+`docs/KNOWLEDGE.md` (via `context <ID>` / `search`); source notes that are expensive to rediscover are `// AI-INVARIANT|BOUNDARY|WARNING|
+HOTPATH|COMPAT|SECURITY|DEPRECATED|CANONICAL:` comments, listed by `context`.
+
+> **Maps:** never trust an edit you haven't run through `lint`, and never judge a layout you haven't *looked at* (`plan` / `tour`).
+> The tools use the game's real collision code, so "lint is clean and the walk test passes" means the level is playable.
 
 ## Spend context and time like they cost money
 
-Most of the cost of working on this engine is reading things and running things you did not need. The tools exist to make both small:
-
-- **Ask the engine, do not read it.** `search "<question>"` returns the best few fragments (docs, ADRs, assets, lint codes, recipes, Rust symbols); `describe <topic>`,
-  `catalog`, `recipe` answer the rest. Do not open SPEC.md, this file's reference (`docs/AGENT_REFERENCE.md`) or `describe all` (80 KB) whole.
-- **Changing Rust? Start with `context <feature | file | words>`**: one 5-15 KB work packet with the feature's files, public API (signature + doc line), the tests that
-  cover it, the verification command and pointers to the relevant ADRs. It replaces `src map` (17 KB; `src map <prefix>` is the cheap form),
-  `describe commands` (11 KB; `search <name> --kind command` for one command) and opening files. Drill down with `src outline`, `src show <symbol>`, `src refs <symbol>`.
+- **Ask the engine, do not read it.** `search`, `describe <topic>`, `catalog`, `recipe` answer most questions. Do not open SPEC.md, this file's
+  reference (`docs/AGENT_REFERENCE.md`) or `describe all` (80 KB) whole; `src map` (17 KB) and `describe commands` (11 KB) have cheap forms
+  (`src map <prefix>`, `search <name> --kind command`).
 - **Verify what your change can affect, not everything.** `scripts/dev affected` maps the changed files to the features that own them and the features built on those
   (`docs/features.json`, ADR 0033) and runs only their fmt, clippy, unit and integration checks. Real-time network suites run one test at a time; the rest run in parallel.
 

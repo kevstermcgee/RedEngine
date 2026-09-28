@@ -238,6 +238,7 @@ impl RulesEngine {
 
     /// Advances the rules one tick (`tick` = ticks completed so far) given where the players are; returns the
     /// effects the world must apply. Deterministic: rules run in declaration order, players in slot order.
+    // AI-INVARIANT: deterministic (declaration order, slot order); its state is in the match checksum, so replays detect any change.
     pub fn step(&mut self, tick: u64, players: &[RulePlayer]) -> Vec<Effect> {
         let mut effects = Vec::new();
         if self.ended.is_some() || self.set.rules.is_empty() {

@@ -20,7 +20,7 @@ pub const GLOSSARY: &str = include_str!("../../docs/GLOSSARY.md");
 pub const ADR_INDEX: &str = include_str!("../../docs/adr/README.md");
 /// Every ADR, embedded so `search` needs no files at runtime. A new `docs/adr/NNNN-*.md` must be added
 /// here; `tests::every_adr_is_registered` fails otherwise.
-const ADRS: &[(&str, &str)] = &[
+pub(crate) const ADRS: &[(&str, &str)] = &[
     ("0001-json-scenes-and-self-describing-cli.md", include_str!("../../docs/adr/0001-json-scenes-and-self-describing-cli.md")),
     ("0002-props-in-rust-prefabs-in-json.md", include_str!("../../docs/adr/0002-props-in-rust-prefabs-in-json.md")),
     ("0003-one-physics-shared-by-game-and-tools.md", include_str!("../../docs/adr/0003-one-physics-shared-by-game-and-tools.md")),
@@ -69,6 +69,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0040-shooter-presentation-and-momentum.md", include_str!("../../docs/adr/0040-shooter-presentation-and-momentum.md")),
     ("0041-native-input-and-sandbox-workflow.md", include_str!("../../docs/adr/0041-native-input-and-sandbox-workflow.md")),
     ("0042-proportional-verification-and-unattended-runs.md", include_str!("../../docs/adr/0042-proportional-verification-and-unattended-runs.md")),
+    ("0045-task-packets-knowledge-ids-and-annotations.md", include_str!("../../docs/adr/0045-task-packets-knowledge-ids-and-annotations.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
@@ -82,12 +83,12 @@ pub struct Doc {
     pub extra: String,
 }
 
-const STOP: &[&str] = &[
+pub(crate) const STOP: &[&str] = &[
     "the", "a", "an", "of", "to", "in", "is", "it", "and", "or", "for", "on", "how", "do", "i", "can", "what", "with", "my", "be", "are", "does", "make",
     "get", "use", "add", "want", "need",
 ];
 
-const SYNONYMS: &[(&str, &str)] = &[
+pub(crate) const SYNONYMS: &[(&str, &str)] = &[
     ("collide", "collision collider blocks block solid"),
     ("collision", "collide collider blocks solid walk-through"),
     ("block", "collision collider solid"),
@@ -127,6 +128,13 @@ const SYNONYMS: &[(&str, &str)] = &[
     ("level", "map scene floor"),
     ("server", "red_server multiplayer authoritative udp headless host"),
     ("multiplayer", "red_server red_bot server udp online"),
+    ("replicate", "snapshot server client network online authoritative"),
+    ("replicated", "snapshot server client network online authoritative"),
+    ("sync", "snapshot replicate network"),
+    ("door", "wall opening doorway"),
+    ("headless", "gfx feature boundary server build"),
+    ("jitter", "interpolation prediction correction"),
+    ("lag", "prediction interpolation rtt"),
     ("online", "multiplayer server connect"),
     ("bot", "red_bot scripted client headless"),
     ("client", "connect re2 red_bot multiplayer"),
@@ -300,8 +308,26 @@ pub fn corpus(commands: &Value) -> Vec<Doc> {
             extra: name.to_string(),
         });
     }
+    for e in super::knowledge::entries() {
+        docs.push(Doc {
+            kind: "trap",
+            title: format!("{} {} ({})", e.id, e.title, e.kind),
+            body: e.fields.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join("\n"),
+            loc: format!("red_engine2 context {}", e.id),
+            extra: format!("{} {}", e.id.replace('-', " "), e.features.join(" ").replace('_', " ")),
+        });
+    }
     if let Some(root) = symbols::find_root() {
         let ix = symbols::Index::build(&root);
+        for a in symbols::annotations(&ix) {
+            docs.push(Doc {
+                kind: "rule",
+                title: format!("{} {}", a.kind, a.text),
+                body: String::new(),
+                loc: format!("{}:{}", a.file, a.line),
+                extra: a.kind.to_lowercase().replace('-', " "),
+            });
+        }
         for s in ix.symbols.iter().filter(|s| !s.in_tests && s.public && !matches!(s.kind, "impl" | "mod")) {
             docs.push(Doc {
                 kind: "src",
@@ -491,8 +517,11 @@ mod tests {
             if !name.ends_with(".md") || name == "README.md" {
                 continue;
             }
-            assert!(ADRS.iter().any(|(f, _)| *f == name), "docs/adr/{name} is not in search.rs ADRS (add it, and a row in docs/adr/README.md)");
-            assert!(ADR_INDEX.contains(&name), "docs/adr/{name} is not listed in docs/adr/README.md");
+            assert!(
+                ADRS.iter().any(|(f, _)| *f == name),
+                "DOCS-002 docs/adr/{name} is not in search.rs ADRS (add it, and a row in docs/adr/README.md; `red_engine2 context DOCS-002`)"
+            );
+            assert!(ADR_INDEX.contains(&name), "DOCS-002 docs/adr/{name} is not listed in docs/adr/README.md (`red_engine2 context DOCS-002`)");
         }
         for (f, text) in ADRS {
             assert!(text.contains("\nStatus: "), "{f}: needs a `Status:` line");

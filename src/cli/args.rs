@@ -509,14 +509,17 @@ pub(crate) enum Command {
     /// the verification command and pointers to the relevant ADRs. Name a feature (`features` lists them), a file (`context src/net/server.rs`) or words
     /// (`context lobby countdown`). Use it instead of `src map` + several `src outline`s + reading docs.
     Context {
-        /// A feature name, a file path, or words.
+        /// A task in plain words (`"add replicated doors"`), a feature name, a file path, or a knowledge ID (`HEADLESS-001`).
         query: Vec<String>,
         /// Also use the features that own the files changed in the working tree (git diff + untracked).
         #[arg(long)]
         git: bool,
-        /// Maximum size of the packet in bytes.
-        #[arg(long, default_value_t = 12000)]
-        budget: usize,
+        /// Maximum size of the packet in bytes (default: 5000 for a task, 12000 for a feature or file).
+        #[arg(long)]
+        budget: Option<usize>,
+        /// For a task: the full feature packets (every public item) of the features it routes to, instead of the compact task packet.
+        #[arg(long)]
+        full: bool,
     },
     /// Verify only what a change can affect. Maps the changed files to the features that own them (and are built on them), then runs only
     /// their formatting/lint/unit/integration checks, real-time network suites one at a time, everything else in parallel. Boundary changes

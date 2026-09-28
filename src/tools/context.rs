@@ -1,4 +1,6 @@
-//! `red_engine2 context <feature | file | words>`: a **work packet** for one change, sized to a byte budget (default 12 KB, about 3k tokens).
+//! `red_engine2 context <feature | file | words | ID>`: a **work packet** for one change. Plain words (a task: `context "add replicated doors"`)
+//! get the compact task packet of [`super::task`] (default 5 KB); a feature name or a file gets the feature packet below (default 12 KB,
+//! about 3k tokens), as does `--full` for a task; a knowledge ID (`context HEADLESS-001`) prints that trap/check/decision.
 //!
 //! An agent that must touch the engine otherwise pays for `src map` (17 KB), `describe commands` (11 KB), several `search` calls and a few `src outline`s
 //! before it can start. The packet answers "what do I need to know to change *this*?" in one call, from the same index `impact` uses (`docs/features.json`)
@@ -162,8 +164,53 @@ fn adr_title(path: &str) -> String {
     super::search::adr_title(file).unwrap_or_default()
 }
 
-/// The full packet for a query: one section per matched feature (at most three), the budget split between them.
-pub fn build(all: &[Feature], ix: &Index, query: &[String], budget: usize) -> Result<String, String> {
+/// How a query is answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    /// A knowledge ID: the entry.
+    Knowledge,
+    /// Feature names or files: the feature packets.
+    Features,
+    /// Plain words: the task packet.
+    Task,
+}
+
+/// Which [`Mode`] answers `query`.
+pub fn mode(all: &[Feature], query: &[String]) -> Mode {
+    if query.len() == 1 && super::knowledge::looks_like_id(query[0].trim()) && super::knowledge::find(&query[0]).is_some() {
+        Mode::Knowledge
+    } else if !query.is_empty() && query.iter().all(|q| all.iter().any(|f| f.name == *q) || q.contains('/') || q.ends_with(".rs") || q.ends_with(".json")) {
+        Mode::Features
+    } else {
+        Mode::Task
+    }
+}
+
+/// The packet for a query. `budget` `None` = the mode's default; `full` gives a task the feature packets of its routed owners.
+pub fn build(all: &[Feature], ix: &Index, query: &[String], budget: Option<usize>, full: bool) -> Result<String, String> {
+    match mode(all, query) {
+        Mode::Knowledge => Ok(super::knowledge::find(&query[0]).map(|e| e.render()).unwrap_or_default()),
+        Mode::Task if !full => {
+            let p = super::task::plan(all, ix, &query.join(" "))?;
+            Ok(p.render(budget.unwrap_or(super::task::TASK_BUDGET).clamp(1500, 60_000)))
+        }
+        Mode::Task => {
+            let p = super::task::plan(all, ix, &query.join(" "))?;
+            let names: Vec<String> = p.owners.iter().map(|o| o.name.clone()).collect();
+            feature_packets(all, ix, &names, budget.unwrap_or(DEFAULT_BUDGET))
+        }
+        Mode::Features => feature_packets(all, ix, query, budget.unwrap_or(DEFAULT_BUDGET)),
+    }
+}
+
+/// The task packet as JSON (`--json`), when `query` is a task; `None` otherwise.
+pub fn build_json(all: &[Feature], ix: &Index, query: &[String]) -> Option<Result<serde_json::Value, String>> {
+    (mode(all, query) == Mode::Task).then(|| super::task::plan(all, ix, &query.join(" ")).map(|p| p.to_json()))
+}
+
+/// One section per matched feature (at most three), the budget split between them.
+fn feature_packets(all: &[Feature], ix: &Index, query: &[String], budget: usize) -> Result<String, String> {
+    let budget = budget.clamp(1500, 60_000);
     let hits = resolve(all, query);
     if hits.is_empty() {
         return Err(format!("no feature matches '{}': `features` lists them, or name a file (`context src/net/server.rs`)", query.join(" ")));
@@ -191,6 +238,7 @@ mod tests {
             commands: vec![],
             docs: vec![],
             depends_on: vec![],
+            canonical: vec![],
         }
     }
 

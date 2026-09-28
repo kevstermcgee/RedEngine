@@ -15,6 +15,7 @@
 
 // Nothing reachable from a UDP packet may panic the process. Test code is exempt; a genuine invariant is written
 // as a `let ... else` / `?` with a message, not an `unwrap`.
+// AI-SECURITY: bytes from the network reach this tree; nothing reachable from a packet may panic (enforced below by clippy denies).
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
 
 pub mod auth;

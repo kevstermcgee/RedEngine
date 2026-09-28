@@ -50,7 +50,7 @@ pub(crate) fn run_search(query: &str, kind: Option<&str>, limit: usize) -> Resul
     Ok(())
 }
 
-pub(crate) fn run_context(query: &[String], git: bool, budget: usize) -> Result<(), String> {
+pub(crate) fn run_context(query: &[String], git: bool, budget: Option<usize>, full: bool) -> Result<(), String> {
     use red_engine2::tools::{context, features};
     let root = symbols::find_root().ok_or("cannot find the source tree (run inside the repo or set RE2_SRC=<repo path>)")?;
     let all = features::load()?;
@@ -63,7 +63,13 @@ pub(crate) fn run_context(query: &[String], git: bool, budget: usize) -> Result<
         return Err("name a feature, a file or words (`features` lists the features); with --git, some changed file must belong to one".to_string());
     }
     let ix = symbols::Index::build(&root);
-    print!("{}", context::build(&all, &ix, &query, budget.clamp(1500, 60_000))?);
+    if red_engine2::tools::envelope::capturing() && !full {
+        if let Some(v) = context::build_json(&all, &ix, &query) {
+            println!("{}", v?);
+            return Ok(());
+        }
+    }
+    print!("{}", context::build(&all, &ix, &query, budget, full)?);
     Ok(())
 }
 

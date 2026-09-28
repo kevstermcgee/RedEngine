@@ -23,7 +23,7 @@ fn claude_md_facts_block_matches_the_repo() {
     let doc = read("CLAUDE.md");
     let have = status::current_facts(&doc).expect("CLAUDE.md needs a <!-- facts:begin --> ... <!-- facts:end --> block");
     let want = status::facts_block(&root()).trim().to_string();
-    assert_eq!(have, want, "CLAUDE.md's derived facts are stale: run `red_engine2 status --sync-docs CLAUDE.md`");
+    assert_eq!(have, want, "DOCS-002 CLAUDE.md's derived facts are stale: run `red_engine2 status --sync-docs CLAUDE.md` (`red_engine2 context DOCS-002`)");
 }
 
 #[test]
@@ -97,5 +97,5 @@ fn every_cli_command_is_mentioned_in_agents_md() {
     assert!(commands.len() > 25, "{commands:?}");
     let agents = format!("{}\n{}", read("AGENTS.md"), read("docs/AGENT_REFERENCE.md"));
     let missing: Vec<&String> = commands.iter().filter(|c| !agents.contains(&format!("`{c}")) && !agents.contains(&format!("| `{c}"))).collect();
-    assert!(missing.is_empty(), "AGENTS.md / docs/AGENT_REFERENCE.md do not mention these commands (add them to the tool table in the reference): {missing:?}");
+    assert!(missing.is_empty(), "DOCS-001 AGENTS.md / docs/AGENT_REFERENCE.md do not mention these commands (add them to the tool table in the reference; `red_engine2 context DOCS-001`): {missing:?}");
 }

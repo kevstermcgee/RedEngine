@@ -135,6 +135,7 @@ pub fn step_player_on(state: &mut PlayerState, input: &PlayerInput, colliders: &
 }
 
 /// [`step_player_on`] with scene-authored human movement and jump pads.
+// AI-INVARIANT: the one movement step: single-player, the server, client prediction and the map tools all call it (trap NET-001).
 pub fn step_player_on_tuned(
     state: &mut PlayerState,
     input: &PlayerInput,

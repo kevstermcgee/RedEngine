@@ -649,6 +649,7 @@ mod tests {
             commands: vec![format!("red_engine2 verify {name}")],
             docs: vec![],
             depends_on: deps.iter().map(|s| s.to_string()).collect(),
+            canonical: vec![],
         }
     }
 
