@@ -5,6 +5,7 @@
 //!            [--spawn-group NAME] [--demo-kick OBJECT_ID] [--snapshot-every 2]
 //!            [--timeout-ms 3000] [--stats-secs 5] [--run-for SECS] [--record TRACE.json] [--record-every 6] [--no-interest]
 //!            [--key JOIN_KEY|auto] [--lobby] [--upnp] [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]
+//!            [--fill N] [--bot-skill LEVEL]
 //! ```
 //!
 //! **Loopback by default.** Without `--bind`, `--public`, `RED_BIND` or `--upnp` the server listens on `127.0.0.1` only: it is reachable from this
@@ -13,7 +14,9 @@
 //!
 //! `--upnp` opens the UDP port on the home router (UPnP, see `red_engine2 portmap`), renews it while the server runs and removes it on exit.
 //! `--key` makes joining need a key: clients prove they know it without sending it, and every datagram is authenticated (ADR 0028).
-//! `--key auto` invents a random 128-bit key and prints it. `--lobby` turns on the match flow (lobby, ready-up, countdown, rounds,
+//! `--fill N` aims for N players in the match, humans included, and fills the empty slots with AI bots (a joining human takes a bot's place;
+//! `--fill 0` means no bots even if the map asks for them); `--bot-skill` sets their level (`rookie`, `easy`, `normal`, `hard`, `nightmare` or 0 to 1).
+//! A map's own `"bots"` block does the same. `--key auto` invents a random 128-bit key and prints it. `--lobby` turns on the match flow (lobby, ready-up, countdown, rounds,
 //! results, rematch; ADR 0029) with default settings; a map's own `"match"` block turns it on with the map's settings; the `--min-players`,
 //! `--countdown-secs`, `--round-secs`, `--results-secs` and `--score-to-win` flags (or `RED_MIN_PLAYERS` ...) override either and also turn
 //! it on. With `--record`,
@@ -26,7 +29,7 @@
 //!
 //! Every setting can also come from the environment (a flag wins over a variable), which is what containers and
 //! process managers want: `RED_MAP`, `RED_PORT`, `RED_BIND`, `RED_SPAWN_GROUP`, `RED_SNAPSHOT_EVERY`, `RED_TIMEOUT_MS`,
-//! `RED_STATS_SECS`, `RED_RUN_FOR`, `RED_KEY`, `RED_LOBBY` (1 = on), `RED_MIN_PLAYERS`, `RED_COUNTDOWN_SECS`, `RED_ROUND_SECS`, `RED_RESULTS_SECS`, `RED_SCORE_TO_WIN`. SIGTERM (`docker stop`, systemd) and Ctrl-C both stop it cleanly.
+//! `RED_STATS_SECS`, `RED_RUN_FOR`, `RED_KEY`, `RED_LOBBY` (1 = on), `RED_MIN_PLAYERS`, `RED_COUNTDOWN_SECS`, `RED_ROUND_SECS`, `RED_RESULTS_SECS`, `RED_SCORE_TO_WIN`, `RED_FILL`, `RED_BOT_SKILL`. SIGTERM (`docker stop`, systemd) and Ctrl-C both stop it cleanly.
 
 use red_engine2::net::server::{raise_timer_resolution, Server, ServerConfig};
 use red_engine2::net::{map_hash, DEFAULT_PORT};
@@ -42,7 +45,8 @@ fn usage() -> ! {
     eprintln!(
         "usage: red_server [--map FILE] [--port N] [--bind IP | --public] [--spawn-group NAME] [--demo-kick OBJECT_ID]\n                  [--snapshot-every N] [--timeout-ms N] [--stats-secs N] [--run-for SECS]
                   [--record TRACE.json] [--record-every N] [--no-interest] [--key K|auto] [--lobby] [--upnp]
-                  [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]"
+                  [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]
+                  [--fill N] [--bot-skill LEVEL]"
     );
     std::process::exit(2);
 }
@@ -75,6 +79,7 @@ fn main() {
     let (mut record, mut record_every, mut no_interest) = (None::<PathBuf>, 6u32, false);
     let (mut key, mut lobby) = (env::<String>("RED_KEY"), env::<u8>("RED_LOBBY").unwrap_or(0) != 0);
     let mut upnp = env::<u8>("RED_UPNP").unwrap_or(0) != 0;
+    let (mut fill, mut bot_skill) = (env::<usize>("RED_FILL"), env::<String>("RED_BOT_SKILL"));
     let (mut ov_min, mut ov_count, mut ov_round, mut ov_results, mut ov_score) = (
         env::<u8>("RED_MIN_PLAYERS"),
         env::<f32>("RED_COUNTDOWN_SECS"),
@@ -100,6 +105,8 @@ fn main() {
             "--key" => key = Some(val()),
             "--lobby" => lobby = true,
             "--upnp" => upnp = true,
+            "--fill" => fill = Some(val().parse().unwrap_or_else(|_| usage())),
+            "--bot-skill" => bot_skill = Some(val()),
             "--min-players" => ov_min = Some(val().parse().unwrap_or_else(|_| usage())),
             "--countdown-secs" => ov_count = Some(val().parse().unwrap_or_else(|_| usage())),
             "--round-secs" => ov_round = Some(val().parse().unwrap_or_else(|_| usage())),
@@ -176,6 +183,13 @@ fn main() {
         println!("join key (generated): {}", key.as_deref().unwrap_or(""));
     }
     cfg.join_key = key.clone().filter(|k| !k.is_empty());
+    cfg.bot_fill = fill;
+    cfg.bot_level = bot_skill.as_deref().map(|s| {
+        red_engine2::sim::ai::skill::level_from_name(s).unwrap_or_else(|| {
+            eprintln!("--bot-skill: '{s}' is not a level (rookie, easy, normal, hard, nightmare, or a number from 0 to 1)");
+            std::process::exit(2);
+        })
+    });
     cfg.snapshot_every = every.max(1);
     cfg.client_timeout = Duration::from_millis(timeout_ms);
     cfg.stats_every = (stats_secs > 0).then(|| Duration::from_secs(stats_secs));

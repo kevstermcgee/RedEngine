@@ -34,6 +34,9 @@ pub const ROOT_KEYS: &[&str] = &[
     "jump_pads",
     "weapons",
     "match",
+    "combat",
+    "bots",
+    "nav",
     "objects",
 ];
 /// `meta` keys.

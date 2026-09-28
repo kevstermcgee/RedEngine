@@ -11,17 +11,22 @@
 //! - **Bat** (`attack`, humans): a swing whose strike lands after the windup ticks; it shoves a prop or damages a player.
 //! - **Revolver** (`attack` with the revolver out): a hitscan shot with a cooldown and ammo (`weapons.revolver.ammo`);
 //!   `reload` refills from the reserve; an empty click is a short cooldown.
-//! - **Health**: hits damage a player; at 0 they die (dropping what they carry), and respawn after
-//!   [`RESPAWN_TICKS`]. `pickup`, `drop`, `shot`, `hit`, `kill` and `respawn` are raised as engine events so scene
-//!   `rules` can react (score a kill, end a round). Numbers are data: `weapons` in the scene.
+//! - **Health**: hits damage a player; at 0 they die (dropping what they carry), and respawn after the scene's respawn delay
+//!   ([`RESPAWN_TICKS`](crate::weapons::RESPAWN_TICKS) by default). `pickup`, `drop`, `shot`, `hit`, `kill` and `respawn` are raised as engine events so scene
+//!   `rules` can react (score a kill, end a round). Numbers are data: `weapons` and `combat` in the scene.
+//! - **Ladder** (`weapons.ladder`, Gun Game): a player carries `ladder[kills]`; a kill hands the killer the next rung at once, a respawn
+//!   restores the rung they were on, and weapons cannot be switched by hand.
+//! - **Pacing** (`combat`): spawn protection, health regeneration and where the dead reappear (farthest from every living opponent).
 
 use super::combat::{Cooldown, MeleeSwing, WeaponSwitch};
+use super::combat_cfg::{SpawnPolicy, REGEN_UNIT};
 use super::match_sim::MatchSim;
 use super::player::{PlayerInput, PlayerState};
+use super::spawns::Spawn;
 use crate::hit::raycast_shapes;
 use crate::player::Character;
-use crate::weapons::{Ammo, Weapon, WeaponConfig, BAT_REACH, DRY_FIRE_COOLDOWN_TICKS, PLAYER_MAX_HP, RESPAWN_TICKS};
-use glam::Vec3;
+use crate::weapons::{Ammo, Weapon, WeaponConfig, BAT_REACH, DRY_FIRE_COOLDOWN_TICKS, PLAYER_MAX_HP};
+use glam::{Vec2, Vec3};
 
 /// What a ray met first.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -61,6 +66,20 @@ pub struct Combat {
     pub kills: u32,
     /// Times this player has died.
     pub deaths: u32,
+    /// The tick spawn protection ends (damage is ignored before it); `0` = not protected.
+    pub protected_until: u64,
+    /// The tick this player last took damage (`0` = never): health regeneration starts a while after it.
+    pub last_hurt_tick: u64,
+    regen_acc: u32,
+    /// Feedback counters (wrapping, never reset): shots fired, attacks that damaged someone, times damaged. A client turns increments into
+    /// sounds, hit markers and the damage flash; they do not affect play.
+    pub shots: u32,
+    /// See [`Combat::shots`].
+    pub hits: u32,
+    /// See [`Combat::shots`].
+    pub hurt: u32,
+    /// World bearing (yaw convention, radians) from this player toward whoever damaged them last.
+    pub hurt_bearing: f32,
     /// Button state on the previous processed input (buttons act on their rising edge): interact, attack, reload, switch.
     prev: [bool; 4],
 }
@@ -69,7 +88,7 @@ impl Combat {
     /// A fresh, alive player carrying the bat.
     pub fn new(cfg: &WeaponConfig) -> Combat {
         Combat {
-            weapon: cfg.starting_weapon,
+            weapon: cfg.weapon_for_kills(0),
             swing: MeleeSwing::default(),
             cooldown: Cooldown::default(),
             switch: WeaponSwitch::default(),
@@ -78,6 +97,13 @@ impl Combat {
             dead_until: None,
             kills: 0,
             deaths: 0,
+            protected_until: 0,
+            last_hurt_tick: 0,
+            regen_acc: 0,
+            shots: 0,
+            hits: 0,
+            hurt: 0,
+            hurt_bearing: 0.0,
             prev: [false; 4],
         }
     }
@@ -110,6 +136,9 @@ impl Combat {
             !self.cooldown.ready() as u64,
             self.swing.is_idle() as u64,
             self.switch.is_active() as u64,
+            self.protected_until,
+            self.last_hurt_tick,
+            self.regen_acc as u64,
         ] {
             h ^= v;
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
@@ -178,28 +207,82 @@ impl MatchSim {
 
     /// Advances player `slot`'s combat timers one tick: cooldowns, the bat swing (resolving its strike), and the respawn clock.
     pub(super) fn combat_tick(&mut self, slot: usize) {
+        let (now, rules) = (self.tick, self.combat_cfg);
         let Some(p) = self.players[slot].as_mut() else { return };
         p.combat.cooldown.tick();
         p.combat.switch.tick();
         if let Some(t) = p.combat.dead_until {
-            if self.tick >= t {
+            if now >= t {
                 self.respawn(slot);
             }
             return;
+        }
+        if rules.regen_per_sec > 0 && p.combat.hp < PLAYER_MAX_HP && now >= p.combat.last_hurt_tick + rules.regen_delay_ticks {
+            p.combat.regen_acc += rules.regen_per_sec;
+            while p.combat.regen_acc >= REGEN_UNIT {
+                p.combat.regen_acc -= REGEN_UNIT;
+                p.combat.hp = (p.combat.hp + 1).min(PLAYER_MAX_HP);
+            }
         }
         if p.combat.swing.tick() {
             self.melee_strike(slot);
         }
     }
 
-    fn respawn(&mut self, slot: usize) {
-        let s = self.spawns[self.next_spawn % self.spawns.len()].clone();
+    /// The spawn point for a player entering the world in `slot` (`usize::MAX` = a slot nobody holds yet), and advances the round-robin cursor.
+    ///
+    /// `round_robin` walks the list. `farthest` scores every spawn by its distance to the nearest living opponent (a floor apart counts
+    /// extra), minus a penalty when any opponent has a clear line to it, and takes the best; ties keep the round-robin order, so a match
+    /// with nobody else in it still rotates through the list.
+    pub(super) fn pick_spawn(&mut self, slot: usize) -> Spawn {
+        let n = self.spawns.len();
+        let start = self.next_spawn % n;
         self.next_spawn += 1;
-        let cfg = self.weapons;
+        if self.combat_cfg.spawn != SpawnPolicy::Farthest {
+            return self.spawns[start].clone();
+        }
+        let others: Vec<(usize, Vec3, Vec3)> = self
+            .players()
+            .filter(|(s, p)| *s != slot && !p.combat.is_dead())
+            .map(|(s, p)| {
+                let body = p.state.character.body();
+                (s, Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y), Vec3::new(p.state.pos.x, p.state.foot_y + body.stand_eye, p.state.pos.y))
+            })
+            .collect();
+        if others.is_empty() {
+            return self.spawns[start].clone();
+        }
+        let mut best = (f32::NEG_INFINITY, start);
+        for k in 0..n {
+            let i = (start + k) % n;
+            let at = Vec3::from(self.spawns[i].position);
+            let (mut nearest, mut seen) = (f32::INFINITY, false);
+            for (other, feet, eye) in &others {
+                nearest = nearest.min(Vec2::new(feet.x - at.x, feet.z - at.z).length() + (feet.y - at.y).abs() * 2.0);
+                if !seen {
+                    let to = at + Vec3::Y * 1.5;
+                    let (d, dist) = (to - *eye, (to - *eye).length());
+                    seen = dist < 70.0 && dist > 0.01 && self.probe(*eye, d / dist, dist, *other).is_none();
+                }
+            }
+            let score = nearest - if seen { 25.0 } else { 0.0 };
+            if score > best.0 {
+                best = (score, i);
+            }
+        }
+        self.spawns[best.1].clone()
+    }
+
+    fn respawn(&mut self, slot: usize) {
+        let s = self.pick_spawn(slot);
+        let (cfg, protect, now) = (self.weapons, self.combat_cfg.protect_ticks, self.tick);
         let Some(p) = self.players[slot].as_mut() else { return };
         let character = p.state.character;
         p.state = PlayerState::spawn(s.position[0], s.position[2], s.position[1], s.yaw_deg, character);
-        p.combat = Combat { kills: p.combat.kills, deaths: p.combat.deaths, ..Combat::new(&cfg) };
+        let old = &p.combat;
+        let (kills, deaths, shots, hits, hurt, hurt_bearing) = (old.kills, old.deaths, old.shots, old.hits, old.hurt, old.hurt_bearing);
+        p.combat = Combat { kills, deaths, shots, hits, hurt, hurt_bearing, weapon: cfg.weapon_for_kills(kills), ..Combat::new(&cfg) };
+        p.combat.protected_until = if protect > 0 { now + protect } else { 0 };
         let body = character.body();
         let foot = Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y);
         self.props.set_player_slot(slot, foot, body.radius, body.body_height);
@@ -253,6 +336,9 @@ impl MatchSim {
     }
 
     fn switch_weapon(&mut self, slot: usize) {
+        if self.weapons.has_ladder() {
+            return; // on a ladder the weapon in your hands is the one you earned
+        }
         let carrying = self.props.held_by(slot).is_some();
         let Some(p) = self.players[slot].as_mut() else { return };
         if !p.state.character.body().has_bat || carrying || p.combat.switch.is_active() {
@@ -269,6 +355,7 @@ impl MatchSim {
         if !p.state.character.body().has_bat || carrying || p.combat.switch.is_active() {
             return;
         }
+        p.combat.protected_until = 0; // raising a weapon ends spawn protection
         match p.combat.weapon {
             Weapon::Bat => {
                 p.combat.swing.start();
@@ -283,16 +370,23 @@ impl MatchSim {
                     return;
                 }
                 p.combat.cooldown.start(spec.cooldown_ticks);
+                p.combat.shots = p.combat.shots.wrapping_add(1);
                 let (eye, look) = eye_and_look(&p.state, p.crouching);
                 self.rules.inject(self.tick, "shot", Some(slot));
+                let mut landed = false;
                 for pellet in 0..firearm.pellets() {
                     let dir = firearm.shot_direction(look, pellet);
                     if let Some(hit) = self.probe(eye, dir, spec.range, slot) {
                         match hit.target {
                             RayTarget::Prop(prop) => self.apply_impulse(prop, dir, eye + dir * hit.distance, spec.impulse / firearm.pellets() as f32),
-                            RayTarget::Player(target) => self.damage(target, firearm.pellet_damage(self.weapons.damage(firearm), pellet), slot),
+                            RayTarget::Player(target) => landed |= self.damage(target, firearm.pellet_damage(self.weapons.damage(firearm), pellet), slot),
                             RayTarget::Static => {}
                         }
+                    }
+                }
+                if landed {
+                    if let Some(p) = self.players[slot].as_mut() {
+                        p.combat.hits = p.combat.hits.wrapping_add(1);
                     }
                 }
             }
@@ -308,27 +402,59 @@ impl MatchSim {
                 let mass = self.props.mass(prop);
                 self.apply_impulse(prop, look, eye + look * hit.distance, 6.0 * mass.min(4.0));
             }
-            RayTarget::Player(target) => self.damage(target, self.weapons.bat_damage, slot),
+            RayTarget::Player(target) => {
+                if self.damage(target, self.weapons.bat_damage, slot) {
+                    if let Some(p) = self.players[slot].as_mut() {
+                        p.combat.hits = p.combat.hits.wrapping_add(1);
+                    }
+                }
+            }
             RayTarget::Static => {}
         }
     }
 
-    /// `by` damages `target`; at 0 hit points the target dies (dropping what it carries) and `by` scores a kill.
-    fn damage(&mut self, target: usize, amount: u32, by: usize) {
-        let Some(t) = self.players[target].as_mut().filter(|t| !t.combat.is_dead()) else { return };
-        t.combat.hp = t.combat.hp.saturating_sub(amount);
-        self.rules.inject(self.tick, "hit", Some(by));
-        if t.combat.hp > 0 {
-            return;
+    /// `by` damages `target`; at 0 hit points the target dies (dropping what it carries) and `by` scores a kill (and, on a weapon
+    /// ladder, climbs a rung). Returns whether any damage landed: `false` for a dead target or one under spawn protection.
+    fn damage(&mut self, target: usize, amount: u32, by: usize) -> bool {
+        let (now, respawn_ticks, cfg) = (self.tick, self.combat_cfg.respawn_ticks, self.weapons);
+        let bearing = match (self.players.get(by).and_then(Option::as_ref), self.players[target].as_ref()) {
+            (Some(a), Some(v)) => {
+                let d = a.state.pos - v.state.pos;
+                libm::atan2f(d.x, -d.y)
+            }
+            _ => 0.0,
+        };
+        let Some(t) = self.players[target].as_mut().filter(|t| !t.combat.is_dead()) else { return false };
+        if now < t.combat.protected_until {
+            return false;
         }
-        t.combat.dead_until = Some(self.tick + RESPAWN_TICKS);
+        t.combat.hp = t.combat.hp.saturating_sub(amount);
+        t.combat.last_hurt_tick = now;
+        t.combat.regen_acc = 0;
+        t.combat.hurt = t.combat.hurt.wrapping_add(1);
+        t.combat.hurt_bearing = bearing;
+        self.rules.inject(now, "hit", Some(by));
+        if t.combat.hp > 0 {
+            return true;
+        }
+        t.combat.dead_until = Some(now + respawn_ticks);
         t.combat.deaths += 1;
         t.combat.swing.cancel();
         self.props.drop_held_by(target, Vec3::ZERO);
         if let Some(killer) = self.players.get_mut(by).and_then(Option::as_mut) {
             killer.combat.kills += 1;
+            if cfg.has_ladder() {
+                let (old, next) = (killer.combat.weapon, cfg.weapon_for_kills(killer.combat.kills));
+                if next != old {
+                    killer.combat.swing.cancel();
+                    killer.combat.switch.start(old);
+                    killer.combat.weapon = next;
+                    killer.combat.ammo = cfg.revolver_ammo;
+                }
+            }
         }
-        self.rules.inject(self.tick, "kill", Some(by));
+        self.rules.inject(now, "kill", Some(by));
+        true
     }
 
     /// Keeps the prop `slot` carries in front of them (called every tick, before the physics step).

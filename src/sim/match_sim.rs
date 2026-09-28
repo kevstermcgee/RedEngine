@@ -61,6 +61,14 @@ pub struct MatchSim {
     pub(super) hit_shapes: Vec<HitShape>,
     /// The scene's weapon numbers.
     pub(super) weapons: crate::weapons::WeaponConfig,
+    /// Respawn delay, spawn policy, spawn protection and regeneration (the scene's `combat` block).
+    pub(super) combat_cfg: crate::sim::combat_cfg::CombatConfig,
+    /// The brain of every bot slot (`None` for humans and empty slots): see [`crate::sim::ai`].
+    pub(super) bots: Vec<Option<Box<crate::sim::ai::Brain>>>,
+    /// The scene's `bots` block (who the server should fill empty slots with).
+    bots_cfg: crate::sim::ai::BotsConfig,
+    /// The scene's waypoint graph, if any.
+    nav: Option<crate::sim::ai::nav::Nav>,
     pub(super) player_tuning: crate::player::PlayerTuning,
     pub(super) jump_pads: Vec<crate::player::JumpPad>,
     pub(super) spawns: Vec<Spawn>,
@@ -109,6 +117,10 @@ impl MatchSim {
             collision_object_ids: scene.objects.iter().map(|object| object.id.clone()).collect(),
             hit_shapes: collect_hit_shapes_where(scene, |i| !loose.contains(&i)),
             weapons: scene.weapons,
+            combat_cfg: scene.combat,
+            bots: (0..MAX_PLAYERS).map(|_| None).collect(),
+            bots_cfg: scene.bots.clone(),
+            nav: scene.nav.clone(),
             player_tuning: scene.player,
             jump_pads: scene.jump_pads.clone(),
             props,
@@ -159,10 +171,19 @@ impl MatchSim {
         &self.spawns
     }
 
+    /// The scene's waypoint graph, if it has one.
+    pub fn nav(&self) -> Option<&crate::sim::ai::nav::Nav> {
+        self.nav.as_ref()
+    }
+
+    /// The scene's `bots` block.
+    pub fn bots_config(&self) -> &crate::sim::ai::BotsConfig {
+        &self.bots_cfg
+    }
+
     /// Adds a player at the next spawn point (round robin). `None` when the match is full.
     pub fn add_player(&mut self, character: Character) -> Option<usize> {
-        let s = self.spawns[self.next_spawn % self.spawns.len()].clone();
-        self.next_spawn += 1;
+        let s = self.pick_spawn(usize::MAX);
         self.add_player_with(PlayerState::spawn(s.position[0], s.position[2], s.position[1], s.yaw_deg, character))
     }
 
@@ -178,8 +199,7 @@ impl MatchSim {
         if self.players.get(slot).is_none_or(Option::is_some) {
             return false;
         }
-        let s = self.spawns[self.next_spawn % self.spawns.len()].clone();
-        self.next_spawn += 1;
+        let s = self.pick_spawn(slot);
         self.add_player_at(slot, PlayerState::spawn(s.position[0], s.position[2], s.position[1], s.yaw_deg, character))
     }
 
@@ -193,7 +213,13 @@ impl MatchSim {
             speed: 0.0,
             crouching: false,
             last_processed_seq: 0,
-            combat: Combat::new(&self.weapons),
+            combat: {
+                let mut combat = Combat::new(&self.weapons);
+                if self.combat_cfg.protect_ticks > 0 {
+                    combat.protected_until = self.tick + self.combat_cfg.protect_ticks;
+                }
+                combat
+            },
             newest_received_seq: 0,
             queue: VecDeque::new(),
         });
@@ -210,6 +236,7 @@ impl MatchSim {
     /// Removes a player, returning their last state.
     pub fn remove_player(&mut self, slot: usize) -> Option<PlayerState> {
         let p = self.players.get_mut(slot)?.take()?;
+        self.bots[slot] = None;
         self.props.remove_player_slot(slot);
         if let Some(r) = &mut self.recorder {
             r.entries.push(Entry::Leave { tick: self.tick, slot });
@@ -254,6 +281,7 @@ impl MatchSim {
     /// Advances the whole match one tick: process queued inputs, move the player bodies through the
     /// props, step the physics, run the scene's rules (which may teleport players or shove props).
     pub fn tick_once(&mut self) {
+        self.run_bots();
         for slot in 0..self.players.len() {
             self.combat_tick(slot);
             let Some(p) = self.players[slot].as_mut() else { continue };

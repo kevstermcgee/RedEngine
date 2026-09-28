@@ -354,7 +354,7 @@ pub struct Snapshot {
 pub struct RosterEntry {
     /// Player id (the slot used in snapshots).
     pub id: u8,
-    /// [`ROSTER_READY`] | [`ROSTER_IN_ROUND`].
+    /// [`ROSTER_READY`] | [`ROSTER_IN_ROUND`] | [`ROSTER_BOT`].
     pub flags: u8,
     /// `0` human, `1` rat.
     pub character: u8,
@@ -370,6 +370,8 @@ pub struct RosterEntry {
 pub const ROSTER_READY: u8 = 1;
 /// [`RosterEntry::flags`]: the player is part of the running round.
 pub const ROSTER_IN_ROUND: u8 = 2;
+/// [`RosterEntry::flags`]: an AI player (always ready, never has a ping).
+pub const ROSTER_BOT: u8 = 4;
 
 /// Where the match is and who is in it. The server sends it to every client a few times a second and whenever something changes; a client
 /// keeps the newest (by `seq`). Losing one costs a fifth of a second of staleness, nothing else.

@@ -63,6 +63,12 @@ pub struct Scene {
     pub rules: crate::sim::rules::RuleSet,
     /// The demo weapons' numbers (`weapons` block): damage and the revolver's ammo.
     pub weapons: crate::weapons::WeaponConfig,
+    /// How fights are paced (`combat` block): respawn delay, spawn policy, spawn protection, health regeneration.
+    pub combat: crate::sim::combat_cfg::CombatConfig,
+    /// The bots the match wants (`bots` block).
+    pub bots: crate::sim::ai::BotsConfig,
+    /// The waypoint graph bots route along (`nav` block), if the scene has one.
+    pub nav: Option<crate::sim::ai::nav::Nav>,
 }
 
 /// Sky: a flat color or a vertical gradient.
@@ -952,6 +958,29 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         }
     };
 
+    let combat = match crate::sim::combat_cfg::parse_combat(root) {
+        Ok(c) => c,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            Default::default()
+        }
+    };
+
+    let bots = match crate::sim::ai::parse_bots(root) {
+        Ok(b) => b,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            Default::default()
+        }
+    };
+    let nav = match crate::sim::ai::nav::parse_nav(root) {
+        Ok(n) => n,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            None
+        }
+    };
+
     if !ctx.errors.is_empty() {
         return Err(ctx.errors);
     }
@@ -972,6 +1001,9 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         objects,
         rules,
         weapons,
+        combat,
+        bots,
+        nav,
     })
 }
 

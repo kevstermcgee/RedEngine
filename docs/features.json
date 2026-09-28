@@ -1,7 +1,7 @@
 {
   "format": 1,
   "notes": "Which parts of the engine exist, who owns which file, and what must pass when a file changes. `red_engine2 features` lists it, `red_engine2 impact --git` turns a working tree into the exact commands to run, `red_engine2 features --check` (and tests/features_index.rs) keep it true: every listed file/suite/doc must exist and every source file must belong to a feature. tests: `lib:<module::path>` = library unit tests under that module, anything else = tests/<name>.rs. depends_on = features whose change can break this one. serial_suites = suites that use real-time UDP or spawn servers: `affected` and CI run them one test at a time; every other suite runs on parallel threads.",
-  "serial_suites": ["net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_sim", "sim_replay", "server_env", "ai_tasks"],
+  "serial_suites": ["net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_sim", "sim_replay", "server_env", "ai_tasks", "net_bots"],
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, authored player tuning and jump pads, wall/fence sugar, prefabs, tracks and easing, colours.",
@@ -35,9 +35,9 @@
     },
     "combat_weapons": {
       "summary": "Bat plus an eleven-firearm arsenal: tick-based swings/cooldowns, hitscan, health, death, respawn and authoritative pick-up contention.",
-      "files": ["src/weapons.rs", "src/sim/combat.rs", "src/sim/interact.rs"],
-      "tests": ["lib:weapons", "lib:sim::combat", "lib:sim::interact", "interactions", "net_interactions"],
-      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
+      "files": ["src/weapons.rs", "src/sim/combat.rs", "src/sim/combat_cfg.rs", "src/sim/interact.rs"],
+      "tests": ["lib:weapons", "lib:sim::combat", "lib:sim::combat_cfg", "lib:sim::interact", "interactions", "combat_rules", "net_interactions"],
+      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md"],
       "depends_on": ["prop_physics", "sim_core"]
     },
     "sim_core": {
@@ -64,6 +64,14 @@
       "docs": ["docs/adr/0021-deterministic-traces-replay-and-checksums.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
       "depends_on": ["sim_core", "game_rules"]
     },
+    "bots": {
+      "summary": "AI players: brains that drive ordinary player inputs inside the match (perceive, aim with human-like error, fire, move, hunt), difficulty and personality data, the nav waypoint graph, and the server filling empty slots.",
+      "files": ["src/sim/ai/mod.rs", "src/sim/ai/skill.rs", "src/sim/ai/nav.rs", "examples/bot_match.rs"],
+      "tests": ["lib:sim::ai", "net_bots"],
+      "commands": ["cargo run --release --example bot_match -- examples/test_lab.json --bots 6 --weapon smg", "red_server --fill 8 --bot-skill normal"],
+      "docs": ["docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md"],
+      "depends_on": ["sim_core", "combat_weapons", "player_physics"]
+    },
     "match_flow": {
       "summary": "Lobby, ready-up, countdown, timed rounds, results and rematch as a pure state machine, configured by the scene's `match` block.",
       "files": ["src/sim/flow.rs"],
@@ -88,7 +96,7 @@
     "net_server": {
       "summary": "The authoritative UDP server: sessions, handshake, snapshots with per-client acks, status, rounds, rate limits; `red_server`.",
       "files": ["src/net/server.rs", "src/net/sessions.rs", "src/net/snapshots.rs", "src/bin/red_server.rs"],
-      "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "server_env"],
+      "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_bots", "server_env"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md"],
       "depends_on": ["net_protocol", "net_auth", "sim_core", "match_flow"]

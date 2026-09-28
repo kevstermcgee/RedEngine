@@ -69,6 +69,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0040-shooter-presentation-and-momentum.md", include_str!("../../docs/adr/0040-shooter-presentation-and-momentum.md")),
     ("0041-native-input-and-sandbox-workflow.md", include_str!("../../docs/adr/0041-native-input-and-sandbox-workflow.md")),
     ("0042-proportional-verification-and-unattended-runs.md", include_str!("../../docs/adr/0042-proportional-verification-and-unattended-runs.md")),
+    ("0050-bots-weapon-ladder-and-combat-pacing.md", include_str!("../../docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.

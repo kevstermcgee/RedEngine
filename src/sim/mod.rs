@@ -3,7 +3,8 @@
 //! test (`sim::tests::sim_tree_has_no_renderer_imports`) enforces it.
 //!
 //! - [`clock`]: the fixed 60 Hz tick ([`clock::TickClock`]) and tick/second conversion.
-//! - [`combat`]: weapon timing in whole ticks (melee swing, shot cooldown, weapon switch).
+//! - [`ai`]: bots: AI players inside the match, driven by ordinary [`player::PlayerInput`]s ([`ai::skill`], [`ai::nav`]).
+//! - [`combat`]: weapon timing in whole ticks (melee swing, shot cooldown, weapon switch); [`combat_cfg`]: the scene's `combat` pacing block.
 //! - [`change`] + [`components`]: generational change tracking (`changed_since(gen)`) on plain components
 //!   ([`components::Transform`], [`components::Health`]).
 //! - [`entities`] + [`statics`]: dynamic entities, and props as cheap static instances until promoted.
@@ -25,10 +26,12 @@
 // as a `let ... else` / `?` with a message, not an `unwrap`.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
 
+pub mod ai;
 pub mod change;
 pub mod checksum;
 pub mod clock;
 pub mod combat;
+pub mod combat_cfg;
 pub mod components;
 pub mod entities;
 pub mod flow;

@@ -58,6 +58,10 @@ pub struct ServerConfig {
     pub stats_every: Option<Duration>,
     /// The join key clients must prove they know (`None` = an open server).
     pub join_key: Option<String>,
+    /// Players (humans included) the match aims for; empty slots are filled with bots. `None` = the scene's `bots.fill`, `Some(0)` = no bots.
+    pub bot_fill: Option<usize>,
+    /// Skill level for bots, overriding the scene's (`0.0` rookie ... `1.0` nightmare).
+    pub bot_level: Option<f32>,
 }
 
 impl ServerConfig {
@@ -71,6 +75,8 @@ impl ServerConfig {
             map_hash,
             stats_every: None,
             join_key: None,
+            bot_fill: None,
+            bot_level: None,
         }
     }
 }
@@ -183,6 +189,8 @@ pub struct Server {
     round_hook: Option<Box<dyn FnMut(RoundRecord) + Send>>,
     last_result: Option<LastResult>,
     status_dirty: bool,
+    /// Bots added this round so far (indexes the roster, so every round starts with the same fighters).
+    bots_spawned: u32,
 }
 
 impl Server {
@@ -192,7 +200,7 @@ impl Server {
         socket.set_nonblocking(true)?;
         let entropy = RandomState::new();
         let mut counter = 0u64;
-        Ok(Server {
+        let mut server = Server {
             socket,
             cfg,
             sim,
@@ -221,7 +229,10 @@ impl Server {
             round_hook: None,
             last_result: None,
             status_dirty: false,
-        })
+            bots_spawned: 0,
+        };
+        server.sync_bots();
+        Ok(server)
     }
 
     /// Replaces where log lines go (tests silence it or collect it).
@@ -308,6 +319,55 @@ impl Server {
     /// The current round (`0` in open play and before the first countdown).
     pub fn round(&self) -> u16 {
         self.flow.as_ref().map_or(0, Flow::round)
+    }
+
+    /// The number of players (humans included) the match aims for: the config override, else the scene's `bots.fill`.
+    fn bot_fill(&self) -> usize {
+        self.cfg.bot_fill.unwrap_or(self.sim.bots_config().fill).min(MAX_PLAYERS)
+    }
+
+    /// Whether the world has bodies in it right now: always in open play, and from the countdown until the lobby returns in a match flow.
+    fn world_exists(&self) -> bool {
+        self.flow.is_none() || matches!(self.phase(), Phase::Countdown | Phase::Playing | Phase::Results)
+    }
+
+    /// Makes the number of bots match the target: empty slots fill with bots (from the top slot down, so humans keep the small ids), and
+    /// when humans take the room the weakest bots (fewest kills; on a tie the last one added, which holds the lowest bot slot) leave. Bots never take a slot a session holds or that
+    /// a dropped player may still resume.
+    fn sync_bots(&mut self) {
+        if !self.world_exists() {
+            return;
+        }
+        let fill = self.bot_fill();
+        let humans = self.sessions.iter().filter(|s| s.in_round).count();
+        let want = if fill == 0 { 0 } else { fill.saturating_sub(humans) };
+        while self.sim.bot_count() > want {
+            let weakest = (0..MAX_PLAYERS).filter(|s| self.sim.is_bot(*s)).min_by_key(|s| (self.sim.player(*s).map_or(0, |p| p.combat.kills), *s));
+            match weakest {
+                Some(slot) => {
+                    self.sim.remove_player(slot);
+                    self.status_dirty = true;
+                }
+                None => break,
+            }
+        }
+        while self.sim.bot_count() < want {
+            let mut cfg = self.sim.bots_config().clone();
+            if let Some(level) = self.cfg.bot_level {
+                cfg.level = level;
+                cfg.roster.iter_mut().for_each(|b| b.level = level);
+            }
+            let free = (0..MAX_PLAYERS)
+                .rev()
+                .find(|s| self.sim.player(*s).is_none() && !self.sessions.iter().any(|x| x.slot == *s) && !self.parked.iter().any(|p| p.slot == *s));
+            let Some(slot) = free else { break };
+            let spec = cfg.spec(self.bots_spawned as usize);
+            self.bots_spawned += 1;
+            if !self.sim.add_bot_in_slot(slot, &spec) {
+                break;
+            }
+            self.status_dirty = true;
+        }
     }
 
     fn say(&mut self, s: String) {
@@ -563,6 +623,9 @@ impl Server {
         };
         if joins_world {
             let round = self.current_round();
+            if self.sim.is_bot(slot) {
+                self.sim.remove_player(slot); // a person takes a bot place
+            }
             let placed = match resumed.as_ref().and_then(|p| (p.round == round).then_some(p.state).flatten()) {
                 Some(state) => self.sim.add_player_at(slot, state),
                 None => self.sim.add_player_in_slot(slot, character_from_wire(character)),
@@ -578,6 +641,7 @@ impl Server {
         };
         session.round_ack = if session.in_round { 0 } else { w.round };
         self.sessions.push(session);
+        self.sync_bots();
         let last = self.sessions.len() - 1;
         if fresh {
             self.stats.joins += 1;
@@ -612,6 +676,7 @@ impl Server {
             self.stats.timeouts += 1;
         }
         self.status_dirty = true;
+        self.sync_bots();
         self.say(format!("{} {} (player {}); {} connected", if timed_out { "timeout" } else { "leave" }, s.addr, s.slot, self.sessions.len()));
     }
 
@@ -638,6 +703,9 @@ impl Server {
         self.parked.retain(|p| p.expires > now);
 
         self.step_flow();
+        if self.stats.ticks.is_multiple_of(TICK_RATE_HZ as u64) {
+            self.sync_bots();
+        }
 
         if running {
             if let Some(k) = &mut self.kick {
@@ -689,7 +757,13 @@ impl Server {
         let connected = self.sessions.len();
         let ready = self.sessions.iter().filter(|s| s.ready).count();
         let in_round = self.sessions.iter().filter(|s| s.in_round).count();
-        let best_score = self.sessions.iter().filter(|s| s.in_round).filter_map(|s| self.sim.player(s.slot)).map(|p| p.combat.kills).max().unwrap_or(0);
+        let best_score = self
+            .sim
+            .players()
+            .filter(|(slot, _)| self.sim.is_bot(*slot) || self.sessions.iter().any(|s| s.in_round && s.slot == *slot))
+            .map(|(_, p)| p.combat.kills)
+            .max()
+            .unwrap_or(0);
         let rules_outcome = (flow.phase() == Phase::Playing).then(|| self.sim.rules().ended().map(str::to_string)).flatten();
         let input = FlowInput { connected, ready, in_round, rules_outcome, best_score };
         let Some(event) = self.flow.as_mut().and_then(|f| f.step(&input)) else { return };
@@ -733,6 +807,8 @@ impl Server {
             s.in_round = placed;
             s.forget_world();
         }
+        self.bots_spawned = 0;
+        self.sync_bots();
         if let Some(h) = self.round_header.clone() {
             if let Err(e) = self.sim.start_recording(h) {
                 self.say(format!("cannot record round {round}: {e}"));
@@ -750,12 +826,21 @@ impl Server {
                 s.in_round = false;
             }
         }
+        for slot in 0..MAX_PLAYERS {
+            if self.sim.is_bot(slot) {
+                self.sim.remove_player(slot);
+            }
+        }
     }
 
     fn finish_round(&mut self, reason: EndReason) {
         let round = self.round();
-        let mut scores: Vec<(u8, u32)> =
-            self.sessions.iter().filter(|s| s.in_round).filter_map(|s| self.sim.player(s.slot).map(|p| (s.slot as u8, p.combat.kills))).collect();
+        let mut scores: Vec<(u8, u32)> = self
+            .sim
+            .players()
+            .filter(|(slot, _)| self.sim.is_bot(*slot) || self.sessions.iter().any(|s| s.in_round && s.slot == *slot))
+            .map(|(slot, p)| (slot as u8, p.combat.kills))
+            .collect();
         scores.sort_unstable();
         let top = scores.iter().map(|s| s.1).max().unwrap_or(0);
         let winner = if top > 0 && scores.iter().filter(|s| s.1 == top).count() == 1 { scores.iter().find(|s| s.1 == top).map(|s| s.0) } else { None };
@@ -798,6 +883,37 @@ impl Server {
                 name: s.name.clone(),
             })
             .collect();
+        let humans = r.len();
+        for (slot, p) in self.sim.players() {
+            if let Some(name) = self.sim.bot_name(slot) {
+                r.push(RosterEntry {
+                    id: slot as u8,
+                    flags: ROSTER_READY | ROSTER_IN_ROUND | ROSTER_BOT,
+                    character: character_to_wire(p.state.character),
+                    ping_ms: 0,
+                    score: p.combat.kills.min(u16::MAX as u32) as u16,
+                    name: name.to_string(),
+                });
+            }
+        }
+        if !self.world_exists() {
+            // The lobby has no bodies yet: show who the bots will be.
+            let mut cfg = self.sim.bots_config().clone();
+            if let Some(level) = self.cfg.bot_level {
+                cfg.level = level;
+            }
+            for i in 0..self.bot_fill().saturating_sub(humans) {
+                let spec = cfg.spec(i);
+                r.push(RosterEntry {
+                    id: (MAX_PLAYERS - 1 - i) as u8,
+                    flags: ROSTER_READY | ROSTER_BOT,
+                    character: character_to_wire(spec.character),
+                    ping_ms: 0,
+                    score: 0,
+                    name: spec.name,
+                });
+            }
+        }
         r.sort_by_key(|e| e.id);
         r.truncate(MAX_ROSTER);
         r

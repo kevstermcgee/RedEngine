@@ -233,6 +233,9 @@ pub const REVOLVER_DAMAGE: u32 = 25;
 /// How long a dead player waits before respawning, ticks (3 s).
 pub const RESPAWN_TICKS: u64 = crate::sim::clock::secs_to_ticks(3.0) as u64;
 
+/// Most rungs a weapon ladder may have.
+pub const MAX_LADDER: usize = 16;
+
 /// The per-scene weapon numbers (`weapons` in the scene; defaults are the numbers above).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WeaponConfig {
@@ -244,11 +247,21 @@ pub struct WeaponConfig {
     pub revolver_damage: u32,
     /// What the revolver starts with.
     pub revolver_ammo: Ammo,
+    /// The weapon ladder (Gun Game): the first `ladder_len` entries. A player carries `ladder[kills]`; empty = ordinary play.
+    ladder: [Weapon; MAX_LADDER],
+    ladder_len: usize,
 }
 
 impl Default for WeaponConfig {
     fn default() -> Self {
-        WeaponConfig { starting_weapon: Weapon::Bat, bat_damage: BAT_DAMAGE, revolver_damage: REVOLVER_DAMAGE, revolver_ammo: REVOLVER_AMMO }
+        WeaponConfig {
+            starting_weapon: Weapon::Bat,
+            bat_damage: BAT_DAMAGE,
+            revolver_damage: REVOLVER_DAMAGE,
+            revolver_ammo: REVOLVER_AMMO,
+            ladder: [Weapon::Bat; MAX_LADDER],
+            ladder_len: 0,
+        }
     }
 }
 
@@ -261,9 +274,34 @@ impl WeaponConfig {
             other => other.firearm().map_or(0, |s| s.damage),
         }
     }
+
+    /// The ladder, first rung first (empty when the scene has none).
+    pub fn ladder(&self) -> &[Weapon] {
+        &self.ladder[..self.ladder_len]
+    }
+
+    /// Whether a weapon ladder is in force (weapons then follow kills and cannot be switched by hand).
+    pub fn has_ladder(&self) -> bool {
+        self.ladder_len > 0
+    }
+
+    /// The weapon a player with `kills` kills carries: their rung on the ladder (the last one once past the top), else the starting weapon.
+    pub fn weapon_for_kills(&self, kills: u32) -> Weapon {
+        match self.ladder().get((kills as usize).min(self.ladder_len.saturating_sub(1))) {
+            Some(w) => *w,
+            None => self.starting_weapon,
+        }
+    }
+
+    /// A configuration whose ladder is `rungs` (at most [`MAX_LADDER`]; extra entries are ignored): for tests and code-built matches.
+    pub fn with_ladder(mut self, rungs: &[Weapon]) -> Self {
+        self.ladder_len = rungs.len().min(MAX_LADDER);
+        self.ladder[..self.ladder_len].copy_from_slice(&rungs[..self.ladder_len]);
+        self
+    }
 }
 
-const WEAPONS_KEYS: &[&str] = &["starting", "bat", "revolver"];
+const WEAPONS_KEYS: &[&str] = &["starting", "bat", "revolver", "ladder"];
 const BAT_KEYS: &[&str] = &["damage"];
 const REVOLVER_KEYS: &[&str] = &["damage", "ammo"];
 const AMMO_KEYS: &[&str] = &["loaded", "capacity", "reserve"];
@@ -297,6 +335,28 @@ pub fn parse_weapons(root: &JsonMap) -> Result<WeaponConfig, Vec<String>> {
             None => errs.push(
                 "weapons.starting: expected bat, revolver, pistol, machine-pistol, smg, carbine, rifle, bullpup, marksman, shotgun, lmg, or scout".to_string(),
             ),
+        }
+    }
+    if let Some(value) = w.get("ladder") {
+        match value.as_array() {
+            Some(rungs) if !rungs.is_empty() && rungs.len() <= MAX_LADDER => {
+                let mut parsed = Vec::with_capacity(rungs.len());
+                for (i, rung) in rungs.iter().enumerate() {
+                    match rung.as_str().and_then(Weapon::parse) {
+                        Some(weapon) => parsed.push(weapon),
+                        None => errs.push(format!(
+                            "weapons.ladder[{i}]: expected a weapon name (bat, revolver, pistol, machine-pistol, smg, carbine, rifle, bullpup, marksman, shotgun, lmg, scout)"
+                        )),
+                    }
+                }
+                if parsed.len() == rungs.len() {
+                    cfg = cfg.with_ladder(&parsed);
+                    if !w.contains_key("starting") {
+                        cfg.starting_weapon = parsed[0];
+                    }
+                }
+            }
+            _ => errs.push(format!("weapons.ladder: must be a list of 1 to {MAX_LADDER} weapon names, first rung first, e.g. [\"pistol\", \"smg\", \"bat\"]")),
         }
     }
     if let Some(b) = w.get("bat").and_then(Value::as_object) {
@@ -443,6 +503,23 @@ mod tests {
         assert_eq!(parse_weapons(&root).unwrap().starting_weapon, Weapon::Shotgun);
         let bad = serde_json::from_str::<serde_json::Value>(r#"{"weapons":{"starting":"rocket-sock"}}"#).unwrap().as_object().unwrap().clone();
         assert!(parse_weapons(&bad).unwrap_err()[0].contains("weapons.starting"));
+    }
+
+    #[test]
+    fn a_ladder_maps_kills_to_weapons_and_stops_at_the_top() {
+        let root = |s: &str| serde_json::from_str::<serde_json::Value>(s).unwrap().as_object().unwrap().clone();
+        assert!(!WeaponConfig::default().has_ladder());
+        assert_eq!(WeaponConfig::default().weapon_for_kills(9), Weapon::Bat, "no ladder: the starting weapon");
+        let cfg = parse_weapons(&root(r#"{"weapons":{"ladder":["pistol","smg","Scout","bat"]}}"#)).unwrap();
+        assert_eq!(cfg.ladder(), &[Weapon::Pistol, Weapon::Smg, Weapon::Scout, Weapon::Bat]);
+        assert_eq!(cfg.starting_weapon, Weapon::Pistol, "the first rung is the default starting weapon");
+        assert_eq!([0, 1, 2, 3, 4, 40].map(|k| cfg.weapon_for_kills(k)), [Weapon::Pistol, Weapon::Smg, Weapon::Scout, Weapon::Bat, Weapon::Bat, Weapon::Bat]);
+        let e = parse_weapons(&root(r#"{"weapons":{"ladder":["pistol","water-gun"]}}"#)).unwrap_err().join("\n");
+        assert!(e.contains("weapons.ladder[1]: expected a weapon name"), "{e}");
+        assert!(parse_weapons(&root(r#"{"weapons":{"ladder":[]}}"#)).is_err(), "an empty ladder is a typo, not a setting");
+        assert!(parse_weapons(&root(r#"{"weapons":{"ladder":"pistol"}}"#)).is_err());
+        let seventeen = format!(r#"{{"weapons":{{"ladder":[{}]}}}}"#, vec!["\"pistol\""; MAX_LADDER + 1].join(","));
+        assert!(parse_weapons(&root(&seventeen)).is_err(), "at most {MAX_LADDER} rungs");
     }
 
     #[test]
