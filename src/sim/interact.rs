@@ -136,12 +136,17 @@ impl Combat {
             !self.cooldown.ready() as u64,
             self.swing.is_idle() as u64,
             self.switch.is_active() as u64,
-            self.protected_until,
-            self.last_hurt_tick,
-            self.regen_acc as u64,
         ] {
             h ^= v;
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        // The pacing state joins the fold only while it is in play, so a match that does not use spawn protection or regeneration keeps
+        // exactly the checksums it always had (committed traces stay valid).
+        if self.protected_until != 0 || self.last_hurt_tick != 0 || self.regen_acc != 0 {
+            for v in [self.protected_until, self.last_hurt_tick, self.regen_acc as u64] {
+                h ^= v;
+                h = h.wrapping_mul(0x0000_0100_0000_01b3);
+            }
         }
         h
     }
@@ -416,7 +421,7 @@ impl MatchSim {
     /// `by` damages `target`; at 0 hit points the target dies (dropping what it carries) and `by` scores a kill (and, on a weapon
     /// ladder, climbs a rung). Returns whether any damage landed: `false` for a dead target or one under spawn protection.
     fn damage(&mut self, target: usize, amount: u32, by: usize) -> bool {
-        let (now, respawn_ticks, cfg) = (self.tick, self.combat_cfg.respawn_ticks, self.weapons);
+        let (now, respawn_ticks, cfg, regen) = (self.tick, self.combat_cfg.respawn_ticks, self.weapons, self.combat_cfg.regen_per_sec > 0);
         let bearing = match (self.players.get(by).and_then(Option::as_ref), self.players[target].as_ref()) {
             (Some(a), Some(v)) => {
                 let d = a.state.pos - v.state.pos;
@@ -429,8 +434,10 @@ impl MatchSim {
             return false;
         }
         t.combat.hp = t.combat.hp.saturating_sub(amount);
-        t.combat.last_hurt_tick = now;
-        t.combat.regen_acc = 0;
+        if regen {
+            t.combat.last_hurt_tick = now; // only tracked when it is used, so it stays out of the checksum otherwise
+            t.combat.regen_acc = 0;
+        }
         t.combat.hurt = t.combat.hurt.wrapping_add(1);
         t.combat.hurt_bearing = bearing;
         self.rules.inject(now, "hit", Some(by));

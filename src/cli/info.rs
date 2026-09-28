@@ -416,6 +416,27 @@ pub(crate) fn run_doctor(out_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+pub(crate) fn run_nav(scene: &Path, route: &[String], all: bool) -> Result<(), String> {
+    use red_engine2::tools::nav;
+    let text = std::fs::read_to_string(scene).map_err(|e| format!("{}: {e}", scene.display()))?;
+    if let [from, to] = route {
+        let t = nav::route_text(&text, from, to)?;
+        print!("{t}");
+        return Ok(());
+    }
+    let report = nav::check_text(&text)?;
+    if envelope::capturing() {
+        println!("{}", report.to_json());
+    } else {
+        print!("{}", report.render(all));
+    }
+    if report.failures() == 0 {
+        Ok(())
+    } else {
+        Err(String::new())
+    }
+}
+
 pub(crate) fn run_ray(scene: &Path, from: &str, to: &str, skip: &[String]) -> Result<(), String> {
     use red_engine2::tools::sight;
     let p = |s: &str| -> Result<Vec3, String> {

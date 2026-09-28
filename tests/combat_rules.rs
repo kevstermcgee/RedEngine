@@ -92,14 +92,28 @@ impl Rig {
 
     /// Shoots until `victim` is dead; returns the shots needed.
     fn kill(&mut self, killer: usize, victim: usize) -> u32 {
+        let deaths = self.sim.player(victim).unwrap().combat.deaths;
         for n in 1..=40 {
             self.face(killer, victim);
             self.shoot(killer, 45);
-            if self.sim.player(victim).unwrap().combat.is_dead() {
+            // Counted, not looked for: with a short respawn the victim can be back on their feet by the time the wait is over.
+            if self.sim.player(victim).unwrap().combat.deaths > deaths {
                 return n;
             }
         }
-        panic!("{victim} would not die");
+        let (k, v) = (self.sim.player(killer).unwrap(), self.sim.player(victim).unwrap());
+        panic!(
+            "{victim} would not die: killer at {:?} facing yaw {:.0} deg, victim at {:?} hp {}; killer {:?} shots {} hits {} protected_until {} tick {}",
+            k.state.pos,
+            self.yaw[killer].to_degrees(),
+            v.state.pos,
+            v.combat.hp,
+            k.combat.weapon,
+            k.combat.shots,
+            k.combat.hits,
+            k.combat.protected_until,
+            self.sim.tick()
+        );
     }
 }
 

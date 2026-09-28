@@ -127,7 +127,7 @@ fn parse_path(s: &str) -> Result<Vec<Vec2>, String> {
 }
 
 /// Check groups `--only` may name (a group name, or `group[N]`, or any text from one check's name).
-const GROUPS: [&str; 7] = ["lint", "reach", "walk", "objects", "views", "sim", "perf"];
+const GROUPS: [&str; 8] = ["lint", "reach", "walk", "objects", "views", "sim", "perf", "nav"];
 
 /// The `--only` text minus a trailing `[N]`: `walk[2]` -> `walk`.
 fn only_base(o: &str) -> &str {
@@ -162,7 +162,10 @@ fn unknown_check_keys(checks: &Value) -> Vec<String> {
     use crate::strict::check_keys;
     let mut errs = Vec::new();
     let Some(root) = checks.as_object() else { return errs };
-    check_keys(&mut errs, "checks", root, &["lint", "reach", "walk", "objects", "views", "sim", "perf"]);
+    check_keys(&mut errs, "checks", root, &["lint", "reach", "walk", "objects", "views", "sim", "perf", "nav"]);
+    if let Some(n) = root.get("nav").and_then(Value::as_object) {
+        check_keys(&mut errs, "checks.nav", n, &["max_failures"]);
+    }
     if let Some(p) = root.get("perf").and_then(Value::as_object) {
         check_keys(&mut errs, "checks.perf", p, super::perf::PERF_KEYS);
     }
@@ -301,6 +304,16 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
         match super::simrun::verify_checks(path, None) {
             Ok(rows) => results.extend(rows.into_iter().map(|(name, ok, detail)| if ok { pass(name, detail) } else { fail(name, detail) })),
             Err(e) => results.push(fail("sim", e)),
+        }
+        stamp(&mut results[first..], t0);
+    }
+
+    if let Some(block) = checks.get("nav").filter(|_| selected(opts, "nav")) {
+        let t0 = std::time::Instant::now();
+        let first = results.len();
+        match super::nav::verify_checks(path, block) {
+            Ok(rows) => results.extend(rows.into_iter().map(|(name, ok, detail)| if ok { pass(name, detail) } else { fail(name, detail) })),
+            Err(e) => results.push(fail("nav", e)),
         }
         stamp(&mut results[first..], t0);
     }

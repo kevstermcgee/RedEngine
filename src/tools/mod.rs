@@ -21,6 +21,7 @@ pub mod game;
 pub mod gen;
 pub mod inspect;
 pub mod lint;
+pub mod nav;
 pub mod nettest;
 pub mod newgame;
 pub mod package;

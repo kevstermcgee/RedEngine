@@ -171,6 +171,11 @@ impl MatchSim {
         &self.spawns
     }
 
+    /// The movement profile every player of this match moves with: the scene's tuning and its jump pads (tools replay routes with it).
+    pub fn movement(&self) -> (crate::player::PlayerTuning, &[crate::player::JumpPad]) {
+        (self.player_tuning, &self.jump_pads)
+    }
+
     /// The scene's waypoint graph, if it has one.
     pub fn nav(&self) -> Option<&crate::sim::ai::nav::Nav> {
         self.nav.as_ref()

@@ -92,6 +92,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Reach { scene, from, to, cell } => run_reach(&scene, from.as_deref(), to.as_deref(), cell, envelope::capturing()),
         Command::Doctor { out_dir } => run_doctor(&out_dir),
         Command::Ray { scene, from, to, skip } => run_ray(&scene, &from, &to, &skip),
+        Command::Nav { scene, route, all } => run_nav(&scene, &route, all),
         Command::Patch { scene, json, file, flags } => {
             let text = match (json.as_deref(), file.as_deref()) {
                 (Some(j), None) => j.to_string(),

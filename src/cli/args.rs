@@ -372,6 +372,19 @@ pub(crate) enum Command {
         #[arg(long)]
         skip: Vec<String>,
     },
+    /// Prove a scene's `nav` waypoint graph (what bots route along) with the game's own movement: every edge is travelled with the real
+    /// tuned physics and jump pads (`walk` and `drop` both ways, `jump` jumping, `pad` from a real pad through the air), every node must stand on a
+    /// floor outside solid geometry and connect to the first node. `nav scene.json` exits 1 on any problem; `--route FROM TO` prints the route
+    /// bots would take; `--all` lists the edges that work too.
+    Nav {
+        scene: PathBuf,
+        /// Print the bots' route between two node ids instead of checking: `--route hall deck`.
+        #[arg(long, num_args = 2, value_names = ["FROM", "TO"])]
+        route: Vec<String>,
+        /// List every edge that passed, with its travel time, not just the failures.
+        #[arg(long)]
+        all: bool,
+    },
     /// Apply many edits atomically (add/set/move/rm/clone/rename) from a JSON list, validated once: it lands completely or not at all.
     /// `patch scene.json --file ops.json` or `patch scene.json '[{"op":"move","id":"lamp_a","by":[0,-0.2,0]}]'`.
     Patch {

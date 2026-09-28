@@ -20,8 +20,10 @@
 //! brain, [`BotSpec`]/[`BotsConfig`] and the `MatchSim` methods that add, name and run bots).
 
 pub mod nav;
+pub mod route;
 pub mod skill;
 
+use self::route::{Route, Steer};
 use self::skill::{level_from_name, Skill, Style, WeaponProfile};
 use super::interact::{RayHit, RayTarget};
 use super::match_sim::{MatchSim, ServerPlayer, MAX_PLAYERS};
@@ -318,6 +320,8 @@ pub struct Brain {
     escape: Vec2,
     /// The last wish direction (diagnostics).
     last_want: Vec2,
+    /// The path being followed along the scene's nav graph.
+    route: Route,
 }
 
 impl Brain {
@@ -354,6 +358,7 @@ impl Brain {
             stuck_until: 0,
             escape: Vec2::ZERO,
             last_want: Vec2::ZERO,
+            route: Route::default(),
         }
     }
 
@@ -402,6 +407,7 @@ impl Brain {
         self.probe_tick = now;
         self.last_hp = me.combat.hp;
         self.strafe_until = 0;
+        self.route.clear();
     }
 
     /// One tick of thinking: the input this bot sends for the world as `sim` shows it now.
@@ -592,14 +598,18 @@ impl Brain {
 
     fn movement(&mut self, sim: &MatchSim, slot: usize, me: &ServerPlayer, now: u64, profile: &WeaponProfile, input: &mut PlayerInput) {
         let pos = me.state.pos;
+        let (_, ground) = sim.static_world();
+        let floor = crate::collide::ground_height_at(ground, pos, me.state.foot_y);
+        let grounded = me.state.vy <= 0.0 && (me.state.foot_y - floor).abs() < 0.05;
         // Stuck detection: asked to move, barely moved in a second.
         if now >= self.probe_tick + 45 {
             let moved = (pos - self.probe_pos).length();
-            if moved < 0.5 && self.heading.length_squared() > 0.01 && now >= self.stuck_until {
+            if moved < 0.5 && self.heading.length_squared() > 0.01 && now >= self.stuck_until && grounded {
                 self.stuck_until = now + 40;
                 self.escape = rotate(self.heading, self.rng.sign() * self.rng.range(1.2, 2.4));
                 self.avoid_side = -self.avoid_side;
                 self.jump_at = now;
+                self.route.clear();
             }
             self.probe_pos = pos;
             self.probe_tick = now;
@@ -607,6 +617,7 @@ impl Brain {
         let target = self.target.filter(|_| self.target_visible).and_then(|t| sim.player(t).map(|p| (t, p)));
         let mut want = Vec2::ZERO;
         let mut in_fight = false;
+        let mut steer: Option<Steer> = None;
         if now < self.stuck_until {
             want = self.escape;
         } else if let Some((_, p)) = target {
@@ -641,15 +652,32 @@ impl Brain {
             };
             let lateral = if profile.melee && dist < 3.0 { 0.25 } else { 0.9 };
             want = n * radial + perp * self.strafe * lateral;
+            // The enemy is up on another level, or a long way off: getting to them matters more than the perfect firing position, and the
+            // way there is the route, not the straight line. Keep shooting while moving.
+            let high = (p.state.foot_y - me.state.foot_y).abs() > 2.4;
+            if high || dist > 34.0 {
+                if let Some(nav) = sim.nav() {
+                    let goal = Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y);
+                    steer = self.route.steer(nav, &me.state, grounded, goal, now);
+                    if let Some(s) = steer {
+                        want = s.dir + perp * self.strafe * 0.2;
+                    }
+                }
+            }
         } else if let Some(goal) = self.hunt_target(sim, slot, me, now) {
             let to = Vec2::new(goal.x - pos.x, goal.z - pos.y);
-            if to.length() > 1.5 {
-                want = to.normalize_or_zero();
+            if to.length() > 1.5 || (goal.y - me.state.foot_y).abs() > 1.5 {
+                if let Some(nav) = sim.nav() {
+                    steer = self.route.steer(nav, &me.state, grounded, goal, now);
+                }
+                want = steer.map_or_else(|| to.normalize_or_zero(), |s| s.dir);
             } else {
                 self.hunt_goal = None;
             }
         }
-        // Nobody stands inside anybody else (players pass through each other, so bots must make room themselves).
+        // Nobody stands inside anybody else (players pass through each other, so bots must make room themselves), but a committed
+        // launch or fall is not nudged off its line.
+        let committed = steer.is_some_and(|s| s.airborne_leg);
         let mut apart = Vec2::ZERO;
         for (s, p) in sim.players() {
             if s == slot || p.combat.is_dead() || (p.state.foot_y - me.state.foot_y).abs() > 1.5 {
@@ -662,14 +690,18 @@ impl Brain {
                 apart += push * (PERSONAL_SPACE_M - d) / PERSONAL_SPACE_M;
             }
         }
-        if apart.length_squared() > 0.0 {
+        if apart.length_squared() > 0.0 && !committed {
             want = if want.length_squared() > 0.001 { want.normalize() + apart * 1.5 } else { apart };
         }
         self.last_want = want;
-        // Choose the actual heading by rolling the real movement forward: the first candidate that gets somewhere.
         if want.length_squared() > 0.001 {
             let base = want.normalize();
-            if now >= self.heading_until {
+            if steer.is_some() {
+                // The graph has been proven with the real movement: follow it exactly rather than second-guessing with rollouts.
+                self.heading = base;
+                self.heading_until = now;
+            } else if now >= self.heading_until {
+                // Roll the real movement forward for a few headings and take the first that gets somewhere.
                 self.heading = self.choose_heading(sim, me, base);
                 self.heading_until = now + 5 + (self.rng.f32() * 3.0) as u64;
             } else {
@@ -689,14 +721,14 @@ impl Brain {
         } else {
             self.heading = Vec2::ZERO;
         }
-        // Jumping: dodge in fights, hop over what blocks, never while there is nothing to do.
+        // Jumping: dodge in fights, hop over what blocks, jump where the route says; never while there is nothing to do.
         let airborne = me.state.vy.abs() > 0.5;
         if !airborne {
-            let dodge = in_fight && self.rng.chance(self.skill.jump_per_sec * self.spec.style.jumpiness() * FIXED_DT);
+            let dodge = in_fight && steer.is_none() && self.rng.chance(self.skill.jump_per_sec * self.spec.style.jumpiness() * FIXED_DT);
             let unstick = now < self.stuck_until && now >= self.jump_at && now < self.jump_at + 3;
-            input.jump = dodge || unstick;
+            input.jump = dodge || unstick || steer.is_some_and(|s| s.jump);
         }
-        input.crouch = in_fight && self.spec.style == Style::Sniper && profile.semi_auto && !profile.melee && !airborne;
+        input.crouch = in_fight && self.spec.style == Style::Sniper && profile.semi_auto && !profile.melee && !airborne && steer.is_none();
         if input.crouch {
             input.sprint = false;
         }
@@ -735,9 +767,10 @@ impl Brain {
         let mut best = (f32::NEG_INFINITY, base);
         for angle in [0.0, 0.6, -0.6, 1.3, -1.3, 2.2, -2.2] {
             let d = rotate(base, angle * side);
-            let (moved, fell) = self.rollout(sim, me, d);
-            let score = moved - if fell { nominal * 2.0 } else { 0.0 } - angle.abs() * 0.15;
-            if moved >= nominal && !fell {
+            let (moved, fell, launched) = self.rollout(sim, me, d);
+            let bad = fell || launched;
+            let score = moved - if bad { nominal * 2.0 } else { 0.0 } - angle.abs() * 0.15;
+            if moved >= nominal && !bad {
                 return d;
             }
             if score > best.0 {
@@ -747,8 +780,9 @@ impl Brain {
         best.1
     }
 
-    /// Rolls the movement forward [`ROLLOUT_TICKS`] ticks heading `dir`: `(distance covered, whether it ends well below where it started)`.
-    fn rollout(&self, sim: &MatchSim, me: &ServerPlayer, dir: Vec2) -> (f32, bool) {
+    /// Rolls the movement forward [`ROLLOUT_TICKS`] ticks heading `dir`: `(distance covered, ends well below where it started, gets launched into the air)`.
+    /// A bot that is not following the route does not walk off ledges or onto jump pads by accident.
+    fn rollout(&self, sim: &MatchSim, me: &ServerPlayer, dir: Vec2) -> (f32, bool, bool) {
         let (colliders, ground) = sim.static_world();
         let mut st: PlayerState = me.state;
         let yaw = yaw_of(dir);
@@ -758,7 +792,7 @@ impl Brain {
         for _ in 0..ROLLOUT_TICKS {
             step_player_tuned(&mut st, &input, colliders, ground, sim.player_tuning, &sim.jump_pads);
         }
-        ((st.pos - start).length(), st.foot_y < y0 - 1.1)
+        ((st.pos - start).length(), st.foot_y < y0 - 1.1, st.vy > 4.0 || st.foot_y > y0 + 1.6)
     }
 }
 
