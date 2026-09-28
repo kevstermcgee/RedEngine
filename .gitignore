@@ -3,3 +3,8 @@
 !/out/.gitkeep
 __pycache__/
 *.pyc
+
+# Server identities (ADR 0044): private keys never enter the repository
+key.pem
+*.key.pem
+/identity/

@@ -69,6 +69,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0040-shooter-presentation-and-momentum.md", include_str!("../../docs/adr/0040-shooter-presentation-and-momentum.md")),
     ("0041-native-input-and-sandbox-workflow.md", include_str!("../../docs/adr/0041-native-input-and-sandbox-workflow.md")),
     ("0042-proportional-verification-and-unattended-runs.md", include_str!("../../docs/adr/0042-proportional-verification-and-unattended-runs.md")),
+    ("0044-encrypted-quic-transport-and-dev-udp.md", include_str!("../../docs/adr/0044-encrypted-quic-transport-and-dev-udp.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
@@ -127,6 +128,10 @@ const SYNONYMS: &[(&str, &str)] = &[
     ("level", "map scene floor"),
     ("server", "red_server multiplayer authoritative udp headless host"),
     ("multiplayer", "red_server red_bot server udp online"),
+    ("encryption", "quic tls transport fingerprint identity net-identity"),
+    ("encrypt", "quic tls transport fingerprint identity"),
+    ("tls", "quic transport fingerprint identity certificate"),
+    ("certificate", "net-identity fingerprint tls quic"),
     ("online", "multiplayer server connect"),
     ("bot", "red_bot scripted client headless"),
     ("client", "connect re2 red_bot multiplayer"),

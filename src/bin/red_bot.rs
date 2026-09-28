@@ -7,7 +7,12 @@
 //!         [--behavior idle | forward:YAW | circle:DEG_PER_SEC | route:x,z;x,z;...] [--sprint]
 //!         [--duration 5] [--report-every 0.5] [--token N] [--leave-after SECS] [--rejoin-after SECS]
 //!         [--key JOIN_KEY] [--name NAME] [--ready]
+//!         [--server-fingerprint sha256:HEX | --server-ca CA.pem [--server-name NAME] | --dev-udp]
 //! ```
+//!
+//! Transport (ADR 0044): `--server-fingerprint` (what `red_server` prints) or `--server-ca` joins over QUIC + TLS 1.3 and refuses a server
+//! whose identity does not verify. A loopback server with neither is joined over development UDP; any other server needs one of them or
+//! an explicit `--dev-udp`. Environment: `RED_SERVER_FINGERPRINT`.
 //!
 //! `--key` is the server's join key (or set `RED_KEY`); `--name` is the name shown in the lobby; `--ready` makes the bot press Ready
 //! whenever the match is in the lobby or showing results, so it takes part in a lobby / round / rematch flow.
@@ -16,7 +21,7 @@
 //! `{"report":...}` periodically, and a final `{"summary":...}`.
 
 use red_engine2::net::bot::{Behavior, Bot, BotFrame, ClientWorld};
-use red_engine2::net::client::{ClientConfig, NetClient};
+use red_engine2::net::client::{ClientConfig, ClientTransportConfig, NetClient};
 use red_engine2::player::Character;
 use serde_json::json;
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -24,7 +29,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 fn usage() -> ! {
-    eprintln!("usage: red_bot --server HOST:PORT [--map FILE] [--as human|rat|wizard|cowboy|alien|robot] [--behavior idle|forward:YAW|circle:DPS|route:x,z;x,z] [--sprint] [--duration S] [--report-every S] [--token N] [--leave-after S] [--rejoin-after S] [--key K] [--name N] [--ready]");
+    eprintln!("usage: red_bot --server HOST:PORT [--map FILE] [--as human|rat|wizard|cowboy|alien|robot] [--behavior idle|forward:YAW|circle:DPS|route:x,z;x,z] [--sprint] [--duration S] [--report-every S] [--token N] [--leave-after S] [--rejoin-after S] [--key K] [--name N] [--ready] [--server-fingerprint F | --server-ca FILE [--server-name N] | --dev-udp]");
     std::process::exit(2);
 }
 
@@ -63,6 +68,8 @@ fn main() {
         (None::<SocketAddr>, PathBuf::from("examples/test_lab.json"), Character::Human, "idle".to_string(), false);
     let (mut duration, mut every, mut token, mut leave_after, mut rejoin_after) = (5.0f64, 0.5f64, 0u64, None::<f64>, None::<f64>);
     let (mut key, mut name, mut ready) = (std::env::var("RED_KEY").ok().filter(|k| !k.is_empty()), String::new(), false);
+    let mut fingerprint = std::env::var("RED_SERVER_FINGERPRINT").ok().filter(|f| !f.is_empty());
+    let (mut ca, mut server_name, mut dev_udp) = (None::<PathBuf>, None::<String>, false);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut val = || args.next().unwrap_or_else(|| usage());
@@ -80,10 +87,18 @@ fn main() {
             "--key" => key = Some(val()),
             "--name" => name = val(),
             "--ready" => ready = true,
+            "--server-fingerprint" => fingerprint = Some(val()),
+            "--server-ca" => ca = Some(PathBuf::from(val())),
+            "--server-name" => server_name = Some(val()),
+            "--dev-udp" => dev_udp = true,
             _ => usage(),
         }
     }
     let server = server.unwrap_or_else(|| usage());
+    let transport = ClientTransportConfig::choose(server, fingerprint.as_deref(), ca.as_deref(), server_name.as_deref(), dev_udp).unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(2);
+    });
     let mk = |token: u64| {
         let (_scene, world) = ClientWorld::load(&map).unwrap_or_else(|e| {
             eprintln!("{e}");
@@ -92,6 +107,7 @@ fn main() {
         let mut cfg = ClientConfig::new(server, if who == Character::Rat { 1 } else { 0 }, world.map_hash, token);
         cfg.join_key = key.clone();
         cfg.name = name.clone();
+        cfg.transport = transport.clone();
         let client = NetClient::connect_with(cfg).unwrap_or_else(|e| {
             eprintln!("cannot open a socket: {e}");
             std::process::exit(1);
@@ -168,6 +184,8 @@ fn main() {
             "snapshots": stats.snapshots,
             "snapshots_missed": stats.snapshots_missed,
             "connects": stats.connects,
+            "transport": bot.client.security().name(),
+            "transport_error": bot.client.transport_error(),
             "rtt_ms": stats.rtt_ms,
             "worst_rtt_ms": worst_rtt,
             "worst_prediction_correction_m": bot.predictor.as_ref().map_or(0.0, |p| p.worst_correction),

@@ -12,7 +12,7 @@ fn lab() -> PathBuf {
 
 fn run(profiles: &[&str], players: usize, secs: f64) -> Vec<nettest::ProfileReport> {
     let profiles = profiles.iter().map(|p| netsim::profile(p).expect("a built-in profile")).collect();
-    nettest::run(&lab(), &Options { profiles, players, secs, seed: 3 }).expect("net-test runs")
+    nettest::run(&lab(), &Options { profiles, players, secs, seed: 3, quic: false }).expect("net-test runs")
 }
 
 fn assert_all_pass(reports: &[nettest::ProfileReport]) {

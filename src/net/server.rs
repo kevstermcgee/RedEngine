@@ -8,18 +8,23 @@
 //! player is remembered for [`ServerConfig::resume_grace`] so a returning client (same token) gets
 //! back where it was. Clients only ever send *inputs*; nothing a client says can set a position.
 //!
+//! **Transport** (ADR 0044): the datagrams travel over a [`ServerTransport`]: QUIC + TLS 1.3 in production ([`super::quic`],
+//! encrypted, with a verified server identity), or development UDP ([`Server::bind`], loopback tools and tests).
+//!
 //! **Joining** is a challenge/response (ADR 0028): a `Hello` without a valid address cookie is answered with a `Challenge`; the second
-//! `Hello` carries the cookie and, on a server started with a join key, a proof of the key. Every datagram after that is tagged with a
-//! per-session HMAC and dropped unread if the tag is wrong ([`super::auth`]).
+//! `Hello` carries the cookie and, on a server started with a join key, a proof of the key (bound to the TLS connection on QUIC). On
+//! development UDP every datagram after that is tagged with a per-session HMAC and dropped unread if the tag is wrong
+//! ([`super::auth`]); on QUIC the connection itself authenticates every datagram.
 //!
 //! **The match flow** (ADR 0029): with [`Server::enable_flow`] the server runs lobby → countdown → round → results → rematch
 //! ([`crate::sim::flow`]). The world is rebuilt from a factory at each countdown, so a rematch starts from the authored map; players keep
 //! their id across rounds. Without it the server is in *open play*: join = play, exactly as before.
 
-use super::auth::{proof_matches, CookieJar, Direction, SessionKey};
+use super::auth::{proof_matches, CookieJar, Direction, SessionKey, TAG_LEN};
 use super::limits::{TokenBucket, HELLOS_PER_SEC, HELLO_BURST, MAX_PARKED};
 use super::sessions::{Parked, Session, TokenSource};
 use super::snapshots::{player_snaps, props_to_send, room_of_player, visible_players};
+use super::transport::{Security, ServerTransport, TransportStats, UdpServer};
 use crate::net::protocol::*;
 use crate::sim::clock::TICK_RATE_HZ;
 use crate::sim::flow::{EndReason, Flow, FlowEvent, FlowInput, MatchSettings, Phase};
@@ -27,10 +32,8 @@ use crate::sim::interest::InterestMap;
 use crate::sim::match_sim::{MatchSim, MAX_PLAYERS};
 use crate::sim::trace::{Header, Trace};
 use glam::Vec3;
-use std::collections::hash_map::RandomState;
-use std::hash::BuildHasher;
-use std::io::{self, ErrorKind};
-use std::net::{SocketAddr, UdpSocket};
+use std::io;
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -158,7 +161,9 @@ struct LastResult {
 
 /// The server. See the module docs.
 pub struct Server {
-    socket: UdpSocket,
+    transport: Box<dyn ServerTransport>,
+    /// The transport encrypts and authenticates every datagram (QUIC): no Red tags are added or expected.
+    secure: bool,
     cfg: ServerConfig,
     sim: MatchSim,
     sessions: Vec<Session>,
@@ -186,14 +191,21 @@ pub struct Server {
 }
 
 impl Server {
-    /// Binds the socket and takes ownership of the world.
+    /// Listens with the **development UDP** transport (authenticated, not encrypted) and takes ownership of the world. Tests and
+    /// loopback tools use this; production hosting uses [`Server::with_transport`] with a [`super::quic::QuicServer`]. The caller
+    /// decides where it may listen (`transport::dev_udp_allowed`).
     pub fn bind(cfg: ServerConfig, sim: MatchSim) -> io::Result<Server> {
-        let socket = UdpSocket::bind(cfg.bind)?;
-        socket.set_nonblocking(true)?;
-        let entropy = RandomState::new();
-        let mut counter = 0u64;
+        let transport = UdpServer::bind(cfg.bind)?;
+        Self::with_transport(cfg, sim, Box::new(transport))
+    }
+
+    /// A server on any transport (`cfg.bind` is informational here: the transport is already listening).
+    pub fn with_transport(cfg: ServerConfig, sim: MatchSim, transport: Box<dyn ServerTransport>) -> io::Result<Server> {
+        let cookies = CookieJar::new().map_err(io::Error::other)?;
+        let secure = transport.security().is_secure();
         Ok(Server {
-            socket,
+            transport,
+            secure,
             cfg,
             sim,
             sessions: Vec::new(),
@@ -208,10 +220,7 @@ impl Server {
             sent_scratch: Vec::new(),
             interest: None,
             tokens: TokenSource::new(),
-            cookies: CookieJar::new(move || {
-                counter = counter.wrapping_add(1);
-                entropy.hash_one(counter)
-            }),
+            cookies,
             hello_bucket: TokenBucket::new(HELLOS_PER_SEC, HELLO_BURST, Instant::now()),
             started: Instant::now(),
             log: Box::new(|s| println!("{s}")),
@@ -224,6 +233,16 @@ impl Server {
         })
     }
 
+    /// Which transport protects this server's traffic.
+    pub fn security(&self) -> Security {
+        self.transport.security()
+    }
+
+    /// What the transport refused or rerouted (connection limit, full queues, oversized messages sent on streams).
+    pub fn transport_stats(&self) -> TransportStats {
+        self.transport.stats()
+    }
+
     /// Replaces where log lines go (tests silence it or collect it).
     pub fn set_logger(&mut self, f: impl FnMut(&str) + Send + 'static) {
         self.log = Box::new(f);
@@ -231,7 +250,7 @@ impl Server {
 
     /// The address actually bound (useful with port 0).
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.socket.local_addr()
+        self.transport.local_addr()
     }
 
     /// The authoritative world (read-only).
@@ -316,11 +335,9 @@ impl Server {
     }
 
     fn raw_send(&mut self, to: SocketAddr) {
-        match self.socket.send_to(&self.out, to) {
-            Ok(n) => self.stats.bytes_out += n as u64,
-            Err(e) if e.kind() == ErrorKind::WouldBlock => {}
-            Err(_) => {} // unreachable peer: the timeout will collect it
-        }
+        if let Ok(n) = self.transport.send(to, &self.out) {
+            self.stats.bytes_out += n as u64;
+        } // else an unreachable peer, or a full send budget: the timeout will collect it, repeated state resends it
     }
 
     /// Sends a message that carries no tag (`Challenge`, `Reject`, `NoSession`).
@@ -335,7 +352,9 @@ impl Server {
         self.out.clear();
         msg.encode(&mut self.out);
         let s = &self.sessions[i];
-        s.key.sign(Direction::ToClient, &mut self.out);
+        if let Some(key) = &s.key {
+            key.sign(Direction::ToClient, &mut self.out);
+        }
         let addr = s.addr;
         self.raw_send(addr);
     }
@@ -343,21 +362,19 @@ impl Server {
     /// Reads every datagram waiting on the socket and acts on it.
     pub fn pump(&mut self, now: Instant) {
         let mut buf = [0u8; 2048];
-        loop {
-            match self.socket.recv_from(&mut buf) {
-                Ok((n, addr)) => {
-                    self.stats.packets_in += 1;
-                    self.stats.bytes_in += n as u64;
-                    if n > MAX_PACKET {
-                        self.stats.bad_packets += 1;
-                        continue;
-                    }
-                    self.handle(addr, &buf[..n], now);
-                }
-                Err(e) if e.kind() == ErrorKind::WouldBlock => break,
-                // Windows reports a previous send to a closed port as an error on the *next* receive.
-                Err(e) if e.kind() == ErrorKind::ConnectionReset => continue,
-                Err(_) => break,
+        while let Some((addr, n)) = self.transport.recv(&mut buf) {
+            self.stats.packets_in += 1;
+            self.stats.bytes_in += n as u64;
+            if n > MAX_PACKET {
+                self.stats.bad_packets += 1;
+                continue;
+            }
+            self.handle(addr, &buf[..n], now);
+        }
+        // A QUIC connection that closed (the client quit, or its connection died) ends its session at once instead of at the timeout.
+        for addr in self.transport.take_closed() {
+            if let Some(i) = self.sessions.iter().position(|s| s.addr == addr) {
+                self.drop_session(i, now, false);
             }
         }
     }
@@ -382,9 +399,15 @@ impl Server {
             }
             return;
         };
-        let Some(body) = self.sessions[i].key.verify(Direction::ToServer, bytes) else {
-            self.stats.bad_tags += 1;
-            return;
+        let body = match &self.sessions[i].key {
+            Some(key) => match key.verify(Direction::ToServer, bytes) {
+                Some(body) => body,
+                None => {
+                    self.stats.bad_tags += 1;
+                    return;
+                }
+            },
+            None => bytes, // QUIC: the connection already authenticated it
         };
         let msg = match ClientMsg::decode(body) {
             Ok(m) => m,
@@ -398,7 +421,10 @@ impl Server {
             ClientMsg::Hello(_) => self.stats.bad_packets += 1, // a Hello never carries a tag
             ClientMsg::Input(p) => self.on_input(i, p, now),
             ClientMsg::Lobby(l) => self.on_lobby(i, l, now),
-            ClientMsg::Bye => self.drop_session(i, now, false),
+            ClientMsg::Bye => {
+                self.drop_session(i, now, false);
+                self.transport.close_peer(addr, "bye");
+            }
         }
     }
 
@@ -515,7 +541,11 @@ impl Server {
         }
         // 2. Prove the join key (never sent, only its HMAC).
         let key_bytes = self.cfg.join_key.clone().unwrap_or_default();
-        if self.cfg.join_key.is_some() && !proof_matches(key_bytes.as_bytes(), h.client_nonce, h.cookie, h.map_hash, h.version, &h.proof) {
+        let binding = self.transport.channel_binding(addr);
+        if self.secure && binding.is_none() {
+            return; // the connection is already gone
+        }
+        if self.cfg.join_key.is_some() && !proof_matches(key_bytes.as_bytes(), binding.as_ref(), h.client_nonce, h.cookie, h.map_hash, h.version, &h.proof) {
             self.stats.bad_keys += 1;
             return self.send_plain(addr, &ServerMsg::Reject(RejectReason::BadKey));
         }
@@ -549,11 +579,14 @@ impl Server {
             return self.send_plain(addr, &ServerMsg::Reject(RejectReason::Full));
         };
         let fresh = resumed.is_none();
-        let token = resumed.as_ref().map_or_else(|| self.tokens.next(), |p| p.token);
+        let Some(token) = resumed.as_ref().map(|p| p.token).or_else(|| self.tokens.next()) else {
+            self.say("the operating system's random number generator failed: join refused".to_string());
+            return self.send_plain(addr, &ServerMsg::Reject(RejectReason::Full));
+        };
         let requested_character = resumed.as_ref().map_or(h.character.min(5), |p| p.character);
         let character = apply_character_policy(self.sim.forced_character(), requested_character);
         let name = if h.name.trim().is_empty() { resumed.as_ref().map_or_else(|| sanitize_name(""), |p| p.name.clone()) } else { sanitize_name(&h.name) };
-        let key = SessionKey::derive(key_bytes.as_bytes(), h.client_nonce, h.cookie);
+        let key = (!self.secure).then(|| SessionKey::derive(key_bytes.as_bytes(), h.client_nonce, h.cookie));
         let mut session = Session::new(addr, slot, token, key, h.client_nonce, h.cookie, name, character, now);
 
         // Does this player get a body right now?
@@ -633,7 +666,9 @@ impl Server {
 
         let timeout = self.cfg.client_timeout;
         while let Some(i) = self.sessions.iter().position(|s| now.duration_since(s.last_heard) > timeout) {
+            let addr = self.sessions[i].addr;
             self.drop_session(i, now, true);
+            self.transport.close_peer(addr, "timed out");
         }
         self.parked.retain(|p| p.expires > now);
 
@@ -868,8 +903,13 @@ impl Server {
             let slot = self.sessions[i].slot;
             let room = room_of_player(&self.sim, self.interest.as_ref(), slot);
             visible_players(&self.sim, self.interest.as_ref(), slot, &self.players_scratch, &mut self.visible_scratch);
+            // Size the snapshot to the transport's datagram budget for this client (ADR 0044): QUIC's is smaller than UDP's and changes
+            // with the path MTU. Props that do not fit stay unconfirmed and go in the next snapshot, oldest first.
+            let tag = if self.secure { 0 } else { TAG_LEN };
+            let budget = self.transport.max_datagram(self.sessions[i].addr).saturating_sub(tag);
+            let max_props = snapshot_prop_budget(budget, self.visible_scratch.len());
             let s = &mut self.sessions[i];
-            props_to_send(&self.sim, self.interest.as_ref(), room, &s.known, &mut self.changed, &mut self.props_scratch, &mut self.sent_scratch);
+            props_to_send(&self.sim, self.interest.as_ref(), room, &s.known, &mut self.changed, &mut self.props_scratch, &mut self.sent_scratch, max_props);
             s.snapshot_seq = s.snapshot_seq.wrapping_add(1);
             let seq = s.snapshot_seq;
             let entry = &mut s.sent[seq as usize % 64];
@@ -923,10 +963,12 @@ impl Server {
                 std::thread::yield_now();
             }
         }
-        // Tell everyone, so clients know at once instead of waiting for a timeout.
+        // Tell everyone, so clients know at once instead of waiting for a timeout, then close the transport (QUIC sends each client a
+        // CONNECTION_CLOSE and waits briefly for it to leave).
         for i in 0..self.sessions.len() {
             self.send_signed(i, &ServerMsg::Bye);
         }
+        self.transport.shutdown();
     }
 }
 

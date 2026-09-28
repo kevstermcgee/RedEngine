@@ -297,6 +297,13 @@ impl App {
         let key = self.online.form.key.trim().to_string();
         cfg.join_key = (!key.is_empty()).then_some(key);
         cfg.name = self.online.form.name.clone();
+        cfg.transport = match self.transport.for_server(addr) {
+            Ok(t) => t,
+            Err(e) => {
+                self.online.form.message = Some(e);
+                return;
+            }
+        };
         let mut session = match NetSession::connect_with(cfg, world) {
             Ok(s) => s,
             Err(e) => {

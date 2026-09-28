@@ -1,12 +1,28 @@
 # Hosting a Red server
 
 The dedicated server (`red_server`) is one small headless binary: no window, GPU or audio libraries (`--no-default-features`, ADR 0017).
-It speaks UDP on one port (default **27015**) and is configured by flags or environment variables (`RED_MAP`, `RED_PORT`, `RED_BIND`,
+It speaks QUIC (UDP) on one port (default **27015**) and is configured by flags or environment variables (`RED_MAP`, `RED_PORT`, `RED_BIND`,
+`RED_TLS_CERT`, `RED_TLS_KEY`, `RED_MAX_CONNECTIONS`,
 `RED_SPAWN_GROUP`, `RED_TIMEOUT_MS`, `RED_STATS_SECS`, `RED_RUN_FOR`, `RED_KEY`, `RED_LOBBY`, `RED_UPNP`, `RED_MIN_PLAYERS`,
 `RED_COUNTDOWN_SECS`, `RED_ROUND_SECS`, `RED_RESULTS_SECS`, `RED_SCORE_TO_WIN`; a flag beats a variable). It stops cleanly on Ctrl-C and on
 SIGTERM (`docker stop`, systemd): clients are told, and a `--record` trace is written.
 
 **Loopback by default.** With no `--bind`/`RED_BIND`, `--public` or `--upnp`, `red_server` listens on `127.0.0.1` only. That is what tests, bots, `play-local`, `net-test`, `perf` and `scripts/red serve` need, and a loopback socket never triggers the OS firewall prompt (a Windows "allow access?" dialog blocks an unattended run until someone clicks it). To host for other machines say so: `--public` (= `--bind 0.0.0.0`), `--bind IP`, or `--upnp` (implies public). The container image and the systemd unit set `RED_BIND=0.0.0.0` themselves. A client connecting to a loopback server also binds loopback (`NetClient`).
+
+**Encrypted when it faces the network (ADR 0044).** A server reachable from other machines speaks QUIC + TLS 1.3 with the deployment's own
+identity. Make it once, keep `key.pem` private and out of version control:
+
+```bash
+red_engine2 net-identity --out /etc/red/identity        # writes cert.pem + key.pem, prints the fingerprint
+red_server --public --tls-cert /etc/red/identity/cert.pem --tls-key /etc/red/identity/key.pem --key auto
+re2 --connect HOST:27015 --server-fingerprint sha256:... map.json      # players pin the printed fingerprint (or RE2_SERVER_FINGERPRINT)
+```
+
+The server prints its fingerprint at every start; give it to players with the join key. The fingerprint says *which server* (a client
+refuses any other, and never falls back to plain UDP); the join key says *who may play*: they are separate. A CA-issued certificate works
+too (`--server-ca ca.pem --server-name host`). Without an identity the server speaks *development UDP* (authenticated, not encrypted), which it
+does only on loopback, or on another address with the explicit `--insecure-public-udp` (a trusted LAN); a public server with neither refuses
+to start. Threat model, budgets and measurements: `docs/analysis/2026-09-27-transport-threat-model.md`.
 
 Not sure your machine can do it? `red_engine2 doctor` probes UDP loopback, the default port, and the output directory.
 
@@ -14,8 +30,8 @@ Not sure your machine can do it? `red_engine2 doctor` probes UDP loopback, the d
 
 | Where | How |
 |---|---|
-| Any machine with Docker | `docker compose up --build` (maps from `./maps`, `RED_MAP=/maps/main.json`), or `docker build -t red-server . && docker run --rm -p 27015:27015/udp red-server` |
-| A Linux box or VPS | build headless: `cargo build --release --no-default-features --bin red_server`; install to `/usr/local/bin`; copy `deploy/red-server.service` to `/etc/systemd/system/`, `deploy/server.env.example` to `/etc/red/server.env`, then `systemctl enable --now red-server` |
+| Any machine with Docker | make the identity once: `docker compose run --rm --entrypoint red_engine2 red-server net-identity --out /identity`, then `docker compose up --build` (maps from `./maps`, `RED_MAP=/maps/main.json`; identity from `./identity`) |
+| A Linux box or VPS | build headless: `cargo build --release --no-default-features --bin red_server`; install to `/usr/local/bin`; copy `deploy/red-server.service` to `/etc/systemd/system/`, `deploy/server.env.example` to `/etc/red/server.env`, make `/etc/red/identity` with `red_engine2 net-identity` (key readable by the `red` user only), then `systemctl enable --now red-server` |
 | Your own PC (Windows/macOS/Linux) | `scripts/dev server maps/main.json` (or `scripts/red serve` in a game project) |
 | A game project | `scripts/red serve`: the map, port and spawn group come from `game.json` |
 
@@ -42,10 +58,10 @@ line endings, so a Windows and a Linux checkout of the same map agree.
   open UDP 27015 for this machine only, renews the lease while the server runs and removes it on exit, and prints the address to give a
   friend (ADR 0031: it refuses to touch a mapping that is not its own and warns when your ISP gives you a carrier-grade NAT address, which
   no mapping can fix; tested against a fake router, not a real one); or forwarding UDP 27015 by hand.
-* **Authenticated, not encrypted.** With a `--key`, strangers cannot join and nobody can forge, inject or replay datagrams (ADR 0028), and
-  rate limits, size limits and hostile-packet tests (`tests/net_abuse.rs`, `tests/net_auth.rs`) protect the server. The traffic itself is
-  readable by anyone on the path, and an *open* server (no key) authenticates only against blind attackers. Do not send anything through it
-  you would not say on a shared Wi-Fi. There is no lag compensation for hitscan yet.
+* **Encrypted and authenticated on QUIC.** Traffic is confidential, the server is verified by its fingerprint, and with a `--key` strangers
+  cannot join (the proof is bound to the TLS connection). Connection limits, a bounded inbound queue, rate limits, size limits and
+  hostile-packet tests (`tests/net_quic.rs`, `tests/net_abuse.rs`, `tests/net_auth.rs`) protect the server. On *development UDP* the traffic is
+  readable and an open server authenticates only against blind attackers. Tested, not independently audited. No lag compensation for hitscan yet.
 * Test reachability from *outside* your network (a phone hotspot is enough): a connection from the server machine to its own public
   address proves nothing about the router. `red_bot --server HOST:PORT --behavior forward:0 --duration 3` is a fine probe.
 

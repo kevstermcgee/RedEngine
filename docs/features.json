@@ -1,7 +1,7 @@
 {
   "format": 1,
   "notes": "Which parts of the engine exist, who owns which file, and what must pass when a file changes. `red_engine2 features` lists it, `red_engine2 impact --git` turns a working tree into the exact commands to run, `red_engine2 features --check` (and tests/features_index.rs) keep it true: every listed file/suite/doc must exist and every source file must belong to a feature. tests: `lib:<module::path>` = library unit tests under that module, anything else = tests/<name>.rs. depends_on = features whose change can break this one. serial_suites = suites that use real-time UDP or spawn servers: `affected` and CI run them one test at a time; every other suite runs on parallel threads.",
-  "serial_suites": ["net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_sim", "sim_replay", "server_env", "ai_tasks"],
+  "serial_suites": ["net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_sim", "sim_replay", "server_env", "ai_tasks", "net_quic"],
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, authored player tuning and jump pads, wall/fence sugar, prefabs, tracks and easing, colours.",
@@ -80,10 +80,18 @@
       "depends_on": ["match_flow"]
     },
     "net_auth": {
-      "summary": "Join keys proven by challenge/response, stateless address cookies, HMAC tags on every datagram; the SHA-256/HMAC primitives.",
+      "summary": "Join keys proven by challenge/response (bound to TLS on QUIC), stateless address cookies, HMAC tags on development UDP; the maintained SHA-256/HMAC/CSPRNG wrappers.",
       "files": ["src/net/auth.rs", "src/crypto.rs"],
       "tests": ["lib:net::auth", "lib:crypto", "net_auth", "net_abuse"],
       "docs": ["docs/adr/0028-authenticated-datagrams-and-join-keys.md"]
+    },
+    "net_transport": {
+      "summary": "The transport boundary and the production QUIC + TLS 1.3 backend: server identity and pinning, fail-closed clients, datagram budgets, the stream path for oversized messages, connection and queue limits; development UDP; `net-identity`.",
+      "files": ["src/net/transport.rs", "src/net/quic.rs", "tests/net_quic.rs"],
+      "tests": ["lib:net::transport", "lib:net::quic", "net_quic"],
+      "commands": ["red_engine2 net-test examples/test_lab.json --profile bad --transport quic", "red_engine2 net-identity --out out/identity"],
+      "docs": ["docs/adr/0044-encrypted-quic-transport-and-dev-udp.md", "docs/analysis/2026-09-27-transport-threat-model.md", "docs/HOSTING.md"],
+      "depends_on": ["net_protocol", "net_auth"]
     },
     "net_server": {
       "summary": "The authoritative UDP server: sessions, handshake, snapshots with per-client acks, status, rounds, rate limits; `red_server`.",
@@ -91,7 +99,7 @@
       "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "server_env"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md"],
-      "depends_on": ["net_protocol", "net_auth", "sim_core", "match_flow"]
+      "depends_on": ["net_protocol", "net_auth", "net_transport", "sim_core", "match_flow"]
     },
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
@@ -99,7 +107,7 @@
       "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md"],
-      "depends_on": ["net_protocol", "net_auth"]
+      "depends_on": ["net_protocol", "net_auth", "net_transport"]
     },
     "net_test": {
       "summary": "The bad-network simulator (seeded bursty loss, jitter, duplication) and `net-test`, which judges a game on what a player would notice.",

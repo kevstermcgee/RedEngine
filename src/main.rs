@@ -131,7 +131,8 @@ fn run(command: Command) -> Result<(), String> {
             run_sim(&scene, scenario.as_deref(), only.as_deref(), trace.as_deref(), checkpoint_every, dump_every)
         }
         Command::Replay { trace, scene, against } => run_replay(&trace, scene.as_deref(), against.as_deref()),
-        Command::NetTest { scene, profile, players, secs, seed } => run_net_test(&scene, &profile, players, secs, seed),
+        Command::NetIdentity { out, names } => run_net_identity(&out, &names),
+        Command::NetTest { scene, profile, players, secs, seed, transport } => run_net_test(&scene, &profile, players, secs, seed, &transport),
         Command::Features { query, check } => run_features(&query, check),
         Command::Impact { files, git } => run_impact(&files, git.as_deref()),
         Command::Context { query, git, budget } => run_context(&query, git, budget),

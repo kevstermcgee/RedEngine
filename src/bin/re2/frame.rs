@@ -399,6 +399,7 @@ impl App {
                     let (Some(addr), Some(world)) = (self.net_server, self.net_world.take()) else { fail_online("no server to join") };
                     let mut cfg = red_engine2::net::client::ClientConfig::new(addr, red_engine2::net::protocol::character_to_wire(who), world.map_hash, 0);
                     cfg.join_key = self.join_key.clone();
+                    cfg.transport = self.transport.for_server(addr).unwrap_or_else(|e| fail_online(&e));
                     cfg.name = self.player_name.clone();
                     let mut s = match NetSession::connect_with(cfg, world) {
                         Ok(s) => s,

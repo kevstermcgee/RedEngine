@@ -600,6 +600,17 @@ pub(crate) enum Command {
         #[arg(long)]
         budget: Option<PathBuf>,
     },
+    /// Make a QUIC server identity. A self-signed certificate and private key (ADR 0044) go to `DIR/cert.pem` and `DIR/key.pem`, and the
+    /// SHA-256 fingerprint clients pin (`--server-fingerprint`) is printed. Never commit the key; an existing key is never overwritten.
+    /// `red_server --tls-cert DIR/cert.pem --tls-key DIR/key.pem` uses it.
+    NetIdentity {
+        /// Directory to write into (created; must not already hold a key.pem).
+        #[arg(long)]
+        out: PathBuf,
+        /// DNS names or IP addresses clients will connect to (repeatable; default localhost). Only matters for CA-style verification.
+        #[arg(long = "name")]
+        names: Vec<String>,
+    },
     /// Test the game on a bad connection. A real server and real clients (prediction, interpolation, reconnect) run in-process
     /// behind a seeded, bursty-lossy, laggy UDP proxy and are judged on what a player would notice: disconnects, prediction ending on the
     /// server's position, other players gliding instead of teleporting, corrections, bandwidth. `net-test scene.json --profile bad` or
@@ -618,6 +629,9 @@ pub(crate) enum Command {
         /// Seed for the simulated losses.
         #[arg(long, default_value_t = 1)]
         seed: u64,
+        /// Transport: `udp` (development, the default) or `quic` (production: TLS 1.3 with a throwaway identity for the run).
+        #[arg(long, default_value = "udp")]
+        transport: String,
     },
     /// Replay a recorded match trace with no renderer or socket and report the first tick where it stops
     /// agreeing with the recording (or `--against` another trace). Exit 1 on divergence.

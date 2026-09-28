@@ -379,25 +379,29 @@ fn rules_text() -> String {
 fn multiplayer_text() -> String {
     String::from(
         "HOST     red_server --map maps/main.json [--port 27015] [--key SECRET|auto] [--lobby] [--upnp] [--record trace.json]\n\
+         \x20         [--tls-cert DIR/cert.pem --tls-key DIR/key.pem] [--max-connections 16]      (identity: red_engine2 net-identity --out DIR)\n\
+         \x20 TRANSPORT with --tls-cert/--tls-key: QUIC + TLS 1.3, encrypted, the server verified by its printed fingerprint (ADR 0044). Without:\n\
+         \x20           development UDP (authenticated, NOT encrypted), loopback only unless --insecure-public-udp; a public bind refuses to start.\n\
          \x20 --key     joining needs the key: clients PROVE they know it (HMAC challenge/response), it is never sent, and every datagram after the\n\
          \x20           handshake carries an authentication tag, so forged / replayed / injected packets are dropped (ADR 0028). `auto` makes 128 random\n\
-         \x20           bits and prints them. NOT encrypted: traffic is readable; use a long random key, not a short word.\n\
+         \x20           bits and prints them. On QUIC the proof is bound to the TLS connection; on development UDP use a long random key.\n\
          \x20 --lobby   the lobby flow with defaults; a scene `\"match\": {min_players, countdown_secs, round_secs, results_secs, score_to_win,\n\
          \x20           join_in_progress, ready_check}` turns it on with the map's own settings; `--min-players --countdown-secs --round-secs\n\
          \x20           --results-secs --score-to-win` override either. Without any of these: open play (join = play).\n\
          \x20 --upnp    open the UDP port on a home router (UPnP), renew it, remove it on exit. `red_engine2 portmap status|enable|remove|keep`.\n\
          \x20 Every setting is also an env var (RED_KEY, RED_LOBBY, RED_UPNP, RED_ROUND_SECS, ...); docs/HOSTING.md has Docker and systemd.\n\
-         PLAY     re2 --connect HOST:PORT [--key K] [--name N] map.json      (or `re2 map.json`, then PLAY ONLINE / the O key opens the connect form)\n\
+         PLAY     re2 --connect HOST:PORT --server-fingerprint sha256:... [--key K] [--name N] map.json   (a loopback server needs no fingerprint;\n\
+         \x20         --server-ca ca.pem --server-name host for a CA certificate; --dev-udp joins a development server elsewhere, in plaintext)\n\
          \x20 The lobby shows the roster (names, character, ping, ready); R ready, C character, Esc leave. Countdown -> round (HUD: ping, timer,\n\
          \x20 scoreboard) -> results -> everyone pressing Ready again is a rematch. Late joiners play at once or watch until the next round.\n\
          BOT      red_bot --server HOST:PORT [--key K] [--name N] [--ready]   (a scripted headless client that also readies up)\n\
          PROVE IT\n\
-         \x20 red_engine2 net-test scene.json --profile bad|all   real server + clients behind a seeded bursty-lossy laggy proxy; judged on what a\n\
+         \x20 red_engine2 net-test scene.json --profile bad|all [--transport quic]   real server + clients behind a seeded bursty-lossy laggy proxy; judged on what a\n\
          \x20                                                    player notices (disconnects, prediction, remote players gliding, bandwidth)\n\
          \x20 red_engine2 perf scene.json                          sim/server tick percentiles, bytes per client, promoted props vs `checks.perf`\n\
          \x20 red_engine2 sim scene.json                           scripted headless play-throughs of the rules;  replay trace.json = first divergent tick\n\
          SHIP     red_engine2 package out.zip / package --verify out.zip   reproducible zip + SHA-256 manifest; headless binaries proven graphics-free\n\
-         NOT DONE lag compensation for hitscan, payload encryption, spectator camera, teams, kick/ban.\n",
+         NOT DONE lag compensation for hitscan, client certificates, server key rotation, spectator camera, teams, kick/ban.\n",
     )
 }
 

@@ -107,8 +107,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t red-server .
-      - name: starts, listens, stops cleanly
+      - name: refuses to start without an identity (fail closed)
         run: |
-          docker run --rm red-server --run-for 3 --stats-secs 0 | tee out.txt
+          if docker run --rm red-server --run-for 3 --stats-secs 0; then echo "started without a server identity"; exit 1; fi
+      - name: starts on QUIC with a throwaway identity, listens, stops cleanly
+        run: |
+          mkdir -m 777 identity
+          docker run --rm -v "$PWD/identity:/identity" --entrypoint red_engine2 red-server net-identity --out /identity
+          docker run --rm -v "$PWD/identity:/identity:ro" red-server --run-for 3 --stats-secs 0 | tee out.txt
           grep -q '^LISTENING 0.0.0.0:27015' out.txt
+          grep -q '^transport: quic' out.txt
           grep -q '^stopped:' out.txt

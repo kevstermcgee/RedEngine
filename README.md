@@ -345,13 +345,14 @@ light (point lights don't cast shadows).
 Multiplayer exists (ADR 0016, 0022, 0028): an authoritative headless UDP server (`red_server`), a
 graphical client (`re2 --connect`), a scripted bot (`red_bot`), client prediction, interpolation, per-client
 acknowledged deltas and spatial interest management. What it does **not** have: lag compensation for
-hitscan, and payload confidentiality (join keys are proven by challenge-response and every datagram is
-authenticated, but not encrypted). See "Known limits" in `SPEC.md` and `docs/HOSTING.md`.
+hitscan. Hosted servers speak QUIC + TLS 1.3 with a pinned server identity (ADR 0044); loopback development uses plain authenticated UDP.
+See "Known limits" in `SPEC.md` and `docs/HOSTING.md`.
 
 ## Hosting, testing and shipping a multiplayer game
 
 `red_server` is one small headless binary (no graphics crates). `--key auto` makes joining need a key that clients prove without sending it,
-and every datagram is authenticated (ADR 0028: authenticated, **not** encrypted). `--lobby` (or a scene `"match"` block) adds a lobby, ready-up,
+and, on the production QUIC transport, every datagram is encrypted and the server verified by its fingerprint (`red_engine2 net-identity`,
+`--tls-cert/--tls-key`, clients `--server-fingerprint`; ADR 0044). `--lobby` (or a scene `"match"` block) adds a lobby, ready-up,
 countdown, timed rounds, results and rematch, which the `re2` client shows as a connect form, lobby, HUD and results screen (ADR 0029).
 `--upnp` opens the port on a home router (ADR 0031). Before you ship: `red_engine2 net-test map.json --profile bad` (does it play on a bad
 connection?), `red_engine2 perf map.json` (does it hold N players inside its `checks.perf` budget?), `red_engine2 impact --git` (which

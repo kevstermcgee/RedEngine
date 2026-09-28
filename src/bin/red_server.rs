@@ -5,7 +5,13 @@
 //!            [--spawn-group NAME] [--demo-kick OBJECT_ID] [--snapshot-every 2]
 //!            [--timeout-ms 3000] [--stats-secs 5] [--run-for SECS] [--record TRACE.json] [--record-every 6] [--no-interest]
 //!            [--key JOIN_KEY|auto] [--lobby] [--upnp] [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]
+//!            [--tls-cert CERT.pem --tls-key KEY.pem] [--max-connections N] [--dev-udp] [--insecure-public-udp]
 //! ```
+//!
+//! **Transport (ADR 0044).** With `--tls-cert`/`--tls-key` (a deployment's own identity: `red_engine2 net-identity`) the server speaks QUIC +
+//! TLS 1.3: every datagram is encrypted and authenticated and clients verify the server's certificate. Without them it speaks
+//! *development UDP* (authenticated, **not encrypted**, no server identity), which it only does on a loopback address, or on another
+//! address when the operator adds `--insecure-public-udp`. A network-facing server with neither refuses to start.
 //!
 //! **Loopback by default.** Without `--bind`, `--public`, `RED_BIND` or `--upnp` the server listens on `127.0.0.1` only: it is reachable from this
 //! machine (tests, bots, `play-local`, `red_engine2 net-test`) and never asks the OS firewall for permission, so unattended runs cannot stall on
@@ -42,7 +48,8 @@ fn usage() -> ! {
     eprintln!(
         "usage: red_server [--map FILE] [--port N] [--bind IP | --public] [--spawn-group NAME] [--demo-kick OBJECT_ID]\n                  [--snapshot-every N] [--timeout-ms N] [--stats-secs N] [--run-for SECS]
                   [--record TRACE.json] [--record-every N] [--no-interest] [--key K|auto] [--lobby] [--upnp]
-                  [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]"
+                  [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]
+                  [--tls-cert CERT.pem --tls-key KEY.pem] [--max-connections N] [--dev-udp] [--insecure-public-udp]"
     );
     std::process::exit(2);
 }
@@ -57,6 +64,12 @@ fn env<T: std::str::FromStr>(name: &str) -> Option<T> {
             std::process::exit(2);
         }
     }
+}
+
+/// Prints why the server cannot start and exits (every refusal is fail-closed: nothing listens).
+fn fail(msg: &str) -> ! {
+    eprintln!("{msg}");
+    std::process::exit(1);
 }
 
 fn main() {
@@ -75,6 +88,10 @@ fn main() {
     let (mut record, mut record_every, mut no_interest) = (None::<PathBuf>, 6u32, false);
     let (mut key, mut lobby) = (env::<String>("RED_KEY"), env::<u8>("RED_LOBBY").unwrap_or(0) != 0);
     let mut upnp = env::<u8>("RED_UPNP").unwrap_or(0) != 0;
+    let (mut tls_cert, mut tls_key) = (env::<PathBuf>("RED_TLS_CERT"), env::<PathBuf>("RED_TLS_KEY"));
+    let mut dev_udp = env::<u8>("RED_DEV_UDP").unwrap_or(0) != 0;
+    let mut insecure_public = env::<u8>("RED_INSECURE_PUBLIC_UDP").unwrap_or(0) != 0;
+    let mut max_connections: usize = env("RED_MAX_CONNECTIONS").unwrap_or(red_engine2::net::quic::QuicServerOptions::default().max_connections);
     let (mut ov_min, mut ov_count, mut ov_round, mut ov_results, mut ov_score) = (
         env::<u8>("RED_MIN_PLAYERS"),
         env::<f32>("RED_COUNTDOWN_SECS"),
@@ -107,6 +124,11 @@ fn main() {
             "--score-to-win" => ov_score = Some(val().parse().unwrap_or_else(|_| usage())),
             "--record" => record = Some(PathBuf::from(val())),
             "--record-every" => record_every = val().parse().unwrap_or_else(|_| usage()),
+            "--tls-cert" => tls_cert = Some(PathBuf::from(val())),
+            "--tls-key" => tls_key = Some(PathBuf::from(val())),
+            "--dev-udp" => dev_udp = true,
+            "--insecure-public-udp" => insecure_public = true,
+            "--max-connections" => max_connections = val().parse().unwrap_or_else(|_| usage()),
             _ => usage(),
         }
     }
@@ -167,11 +189,9 @@ fn main() {
     });
     let mut cfg = ServerConfig::new(SocketAddr::new(bind, port), map_hash(&text));
     if key.as_deref() == Some("auto") {
-        let entropy = std::collections::hash_map::RandomState::new();
-        let mut n = 0u64;
-        key = Some(red_engine2::net::auth::random_key(|| {
-            n += 1;
-            std::hash::BuildHasher::hash_one(&entropy, n)
+        key = Some(red_engine2::net::auth::random_key().unwrap_or_else(|e| {
+            eprintln!("--key auto: {e}");
+            std::process::exit(1);
         }));
         println!("join key (generated): {}", key.as_deref().unwrap_or(""));
     }
@@ -179,10 +199,35 @@ fn main() {
     cfg.snapshot_every = every.max(1);
     cfg.client_timeout = Duration::from_millis(timeout_ms);
     cfg.stats_every = (stats_secs > 0).then(|| Duration::from_secs(stats_secs));
-    let mut server = Server::bind(cfg, sim).unwrap_or_else(|e| {
-        eprintln!("cannot listen on {bind}:{port}: {e}");
-        std::process::exit(1);
-    });
+    // The transport: QUIC with the deployment's identity, or development UDP where that is allowed. Never both, never a fallback.
+    let addr = SocketAddr::new(bind, port);
+    let transport: Box<dyn red_engine2::net::transport::ServerTransport> = match (tls_cert, tls_key, dev_udp) {
+        (Some(_), Some(_), true) => fail("--dev-udp cannot be combined with --tls-cert/--tls-key: choose one transport"),
+        (Some(cert), Some(key_file), false) => {
+            let identity = red_engine2::net::quic::ServerIdentity::load(&cert, &key_file).unwrap_or_else(|e| {
+                fail(&format!("server identity: {e}\nmake one with `red_engine2 net-identity --out DIR` (then --tls-cert DIR/cert.pem --tls-key DIR/key.pem)"))
+            });
+            let opts = red_engine2::net::quic::QuicServerOptions { max_connections: max_connections.max(1) };
+            let t = red_engine2::net::quic::QuicServer::bind(addr, &identity, opts).unwrap_or_else(|e| fail(&format!("cannot listen on {addr} (QUIC): {e}")));
+            println!("transport: quic (TLS 1.3, encrypted); server identity {}", t.fingerprint());
+            println!("clients verify it with:  --server-fingerprint {}", t.fingerprint());
+            Box::new(t)
+        }
+        (Some(_), None, _) | (None, Some(_), _) => fail("--tls-cert and --tls-key go together"),
+        (None, None, _) => {
+            if let Err(e) = red_engine2::net::transport::dev_udp_allowed(addr, insecure_public) {
+                fail(&e);
+            }
+            let t = red_engine2::net::transport::UdpServer::bind(addr).unwrap_or_else(|e| fail(&format!("cannot listen on {addr}: {e}")));
+            if bind.is_loopback() {
+                println!("transport: dev-udp (loopback development: authenticated, NOT encrypted; host with --tls-cert/--tls-key)");
+            } else {
+                println!("WARNING transport: dev-udp on {addr} (--insecure-public-udp): traffic is NOT encrypted and clients cannot verify this server");
+            }
+            Box::new(t)
+        }
+    };
+    let mut server = Server::with_transport(cfg, sim, transport).unwrap_or_else(|e| fail(&format!("cannot start the server: {e}")));
     if let Some(p) = kick_prop {
         server.set_demo_kick(p);
     }
@@ -256,7 +301,12 @@ fn main() {
         server.sim().props().props().len(),
         every.max(1)
     );
-    println!("join with:  re2 --connect 127.0.0.1:{} {}", local.port(), map.display());
+    match server.security() {
+        red_engine2::net::transport::Security::Quic => {
+            println!("join with:  re2 --connect HOST:{} --server-fingerprint <the fingerprint above> {}", local.port(), map.display())
+        }
+        red_engine2::net::transport::Security::DevUdp => println!("join with:  re2 --connect 127.0.0.1:{} {}", local.port(), map.display()),
+    }
 
     let stop = Arc::new(AtomicBool::new(false));
     // UPnP: map the port on the home router, keep it alive from a small thread, remove it when the server stops.
@@ -315,8 +365,9 @@ fn main() {
         }
     }
     let s = server.stats();
+    let t = server.transport_stats();
     println!(
-        "stopped: {} ticks, {} snapshots, {} joins, {} resumes, {} leaves ({} timeouts), {} bad packets",
-        s.ticks, s.snapshots_sent, s.joins, s.resumes, s.leaves, s.timeouts, s.bad_packets
+        "stopped: {} ticks, {} snapshots, {} joins, {} resumes, {} leaves ({} timeouts), {} bad packets; transport: {} connections, {} refused, {} failed handshakes, {} queue drops, {} stream messages",
+        s.ticks, s.snapshots_sent, s.joins, s.resumes, s.leaves, s.timeouts, s.bad_packets, t.connections_accepted, t.connections_refused, t.handshakes_failed, t.queue_dropped, t.sent_on_stream
     );
 }

@@ -24,9 +24,11 @@ use std::fmt;
 
 /// First two bytes of every datagram ("RD").
 pub const MAGIC: u16 = 0x5244;
-/// Bumped on any incompatible change; a mismatched client is rejected.
-pub const PROTOCOL_VERSION: u16 = 7;
-/// Largest datagram either side sends or accepts (under a typical 1500-byte MTU).
+/// Bumped on any incompatible change; a mismatched client is rejected. v8 (ADR 0044): join proofs use the v8 domain (bound to the TLS
+/// exporter on QUIC), and a snapshot carries only as many props as the client's transport datagram budget allows.
+pub const PROTOCOL_VERSION: u16 = 8;
+/// Largest message either side accepts, and the development UDP datagram budget (under a typical 1500-byte MTU). On QUIC the budget is
+/// the connection's current `max_datagram_size` (about 1150 bytes on a fresh 1200-byte path MTU); messages above it travel on a stream.
 pub const MAX_PACKET: usize = 1400;
 /// Most inputs one packet carries (the newest is last).
 pub const MAX_INPUTS_PER_PACKET: usize = 4;
@@ -154,6 +156,9 @@ pub enum RejectReason {
     NeedsKey,
     /// The client has a join key but the server asks for none, so the client refuses to trust it (decided by the client).
     ServerIsOpen,
+    /// The server's TLS identity did not verify against the pinned fingerprint or CA (decided by the client; never retried, never
+    /// downgraded to an insecure transport).
+    ServerIdentity,
 }
 
 impl RejectReason {
@@ -165,6 +170,7 @@ impl RejectReason {
             RejectReason::BadKey => 4,
             RejectReason::NeedsKey => 5,
             RejectReason::ServerIsOpen => 6,
+            RejectReason::ServerIdentity => 7,
         }
     }
     fn from_u8(v: u8) -> Result<Self, DecodeError> {
@@ -175,6 +181,7 @@ impl RejectReason {
             4 => Ok(RejectReason::BadKey),
             5 => Ok(RejectReason::NeedsKey),
             6 => Ok(RejectReason::ServerIsOpen),
+            7 => Ok(RejectReason::ServerIdentity),
             _ => Err(DecodeError::OutOfRange),
         }
     }
@@ -188,6 +195,9 @@ impl RejectReason {
             RejectReason::BadKey => "The join key is wrong.",
             RejectReason::NeedsKey => "This server needs a join key. Ask its host for it.",
             RejectReason::ServerIsOpen => "You entered a join key but this server does not ask for one, so it may not be the server you meant.",
+            RejectReason::ServerIdentity => {
+                "The server's identity does not match the fingerprint or certificate authority you were given. Not connecting: ask its host."
+            }
         }
     }
 }
@@ -912,6 +922,35 @@ pub const fn snapshot_bytes(players: usize, props: usize) -> usize {
     5 + 16 + 2 + 2 + players * 43 + props * 30
 }
 
+/// How many props a snapshot with `players` players may carry within a datagram budget of `budget` bytes (the transport's
+/// `max_datagram` minus any tag), never more than [`MAX_PROPS_PER_SNAPSHOT`]. Props left out stay unconfirmed and go next time.
+pub const fn snapshot_prop_budget(budget: usize, players: usize) -> usize {
+    let room = budget.saturating_sub(snapshot_bytes(players, 0)) / (snapshot_bytes(0, 1) - snapshot_bytes(0, 0));
+    if room < MAX_PROPS_PER_SNAPSHOT {
+        room
+    } else {
+        MAX_PROPS_PER_SNAPSHOT
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+
+    #[test]
+    fn snapshots_are_sized_to_the_transport_budget() {
+        // UDP (1400 minus the 8-byte tag): the old full snapshot fits.
+        assert_eq!(snapshot_prop_budget(1400 - 8, MAX_PLAYERS_PER_SNAPSHOT), MAX_PROPS_PER_SNAPSHOT);
+        // QUIC at its guaranteed 1200-byte path (~1150-byte datagrams): 8 players and fewer props, and the result fits.
+        for budget in [1100usize, 1150, 1162, 1200] {
+            let n = snapshot_prop_budget(budget, MAX_PLAYERS_PER_SNAPSHOT);
+            assert!(n < MAX_PROPS_PER_SNAPSHOT && snapshot_bytes(MAX_PLAYERS_PER_SNAPSHOT, n) <= budget, "{budget}: {n}");
+            assert!(snapshot_bytes(MAX_PLAYERS_PER_SNAPSHOT, n + 1) > budget);
+        }
+        assert_eq!(snapshot_prop_budget(0, 8), 0, "no connection, no props");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1087,7 +1126,15 @@ mod tests {
             round: 4,
             in_round: true,
         }));
-        for r in [RejectReason::Version, RejectReason::WrongMap, RejectReason::Full, RejectReason::BadKey, RejectReason::NeedsKey, RejectReason::ServerIsOpen] {
+        for r in [
+            RejectReason::Version,
+            RejectReason::WrongMap,
+            RejectReason::Full,
+            RejectReason::BadKey,
+            RejectReason::NeedsKey,
+            RejectReason::ServerIsOpen,
+            RejectReason::ServerIdentity,
+        ] {
             roundtrip_s(ServerMsg::Reject(r));
         }
         roundtrip_s(ServerMsg::Bye);
