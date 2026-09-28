@@ -29,7 +29,7 @@ Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`
 weapon logic (the online path uses the server's). Offline and online both use the shared generic presentation for rule variables,
 recent events, hidden objects and outcome; online receives repeated complete rule-state snapshots (ADR 0036).
 
-**Joining and the lobby (protocol v7).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
+**Joining and the lobby (protocol v8).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
 response, the key is never sent) and every datagram after the handshake is authenticated, so forged, replayed or injected packets are dropped
 (ADR 0028; authentication, **not** encryption; use `--key auto`, not a short word). `--lobby` (or a scene `"match"` block, see `describe
 scene`) turns on the flow lobby -> ready-up -> countdown -> timed round -> results -> rematch (`sim::flow`, ADR 0029; `--min-players
@@ -391,5 +391,5 @@ Sight anchors and grip anchors are shared by procedural geometry and the client.
 `cargo run --example weapon_poses -- out/weapon-poses` to inspect all firearms through the live renderer.
 Automatic weapons fire while held; shotgun pellets share the same pattern online and offline.
 Optional `player.acceleration`, `air_acceleration`, `friction`, and `max_speed` enable momentum.
-Protocol v7 replicates horizontal velocity; trace v2 records it. Rebuild client and server together.
+Protocol v7 and later replicate horizontal velocity; trace v2 records it. Rebuild client and server together.
 See ADR 0040. Per-weapon magazines, timed reloads, team rules and projectiles remain future work.

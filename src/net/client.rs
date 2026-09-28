@@ -17,6 +17,7 @@
 //! reconnect and late join without replaying transient commands.
 
 use crate::net::auth::{join_proof, Direction, SessionKey};
+use crate::net::happenings::{Happenings, Watcher};
 use crate::net::interp::{RemoteWorld, View};
 use crate::net::protocol::*;
 use crate::sim::clock::TICK_DT;
@@ -69,6 +70,8 @@ pub enum NetEvent {
     Rejected(RejectReason),
     /// The server told us it is shutting down or does not know us.
     ServerBye,
+    /// A snapshot reported something new: shots other players fired, and what we did and suffered (hits landed, damage taken, kills).
+    Happened(Happenings),
 }
 
 /// Connection statistics.
@@ -138,6 +141,10 @@ pub struct NetClient {
     recent_inputs: VecDeque<PlayerInput>,
     latest_snapshot_seq: u32,
     world: RemoteWorld,
+    /// Turns the counters in consecutive snapshots into [`NetEvent::Happened`].
+    watcher: Watcher,
+    /// Tenths of a second until we respawn, from the newest snapshot (`0` = alive).
+    respawn_tenths: u8,
     stats: ClientStats,
     out: Vec<u8>,
     status: Option<Status>,
@@ -200,6 +207,8 @@ impl NetClient {
             recent_inputs: VecDeque::new(),
             latest_snapshot_seq: 0,
             world: RemoteWorld::default(),
+            watcher: Watcher::default(),
+            respawn_tenths: 0,
             stats: ClientStats::default(),
             out: Vec::with_capacity(MAX_PACKET),
             status: None,
@@ -262,6 +271,11 @@ impl NetClient {
     /// Newest complete authoritative rule presentation state.
     pub fn rule_state(&self) -> Option<&RuleState> {
         self.rule_state.as_ref()
+    }
+
+    /// Seconds until we respawn (`0.0` while alive), as of the newest snapshot.
+    pub fn respawn_in_secs(&self) -> f32 {
+        self.respawn_tenths as f32 * 0.1
     }
 
     /// The phase (`Playing` until the server says otherwise, which is what an open-play server means).
@@ -516,6 +530,8 @@ impl NetClient {
                 self.round_ack = w.round;
                 self.recent_inputs.clear();
                 self.world.reset();
+                self.watcher.reset(); // counters restart with a new world: the next snapshot is a baseline
+                self.respawn_tenths = 0;
                 if first {
                     self.latest_snapshot_seq = 0;
                     self.stats.connects += 1;
@@ -544,7 +560,12 @@ impl NetClient {
                 self.note_rtt(now, s.echo_time_ms, s.echo_hold_ms, s.ack_input_seq != 0);
                 let me = self.my_id();
                 let own = s.players.iter().find(|p| Some(p.id) == me).copied();
+                self.respawn_tenths = s.fx.respawn;
+                let happened = self.watcher.observe(&s, me);
                 events.push(NetEvent::Snapshot { own, ack_input_seq: s.ack_input_seq });
+                if !happened.is_empty() {
+                    events.push(NetEvent::Happened(happened));
+                }
             }
             ServerMsg::Status(st) => {
                 self.last_heard = now;

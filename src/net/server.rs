@@ -19,7 +19,7 @@
 use super::auth::{proof_matches, CookieJar, Direction, SessionKey};
 use super::limits::{TokenBucket, HELLOS_PER_SEC, HELLO_BURST, MAX_PARKED};
 use super::sessions::{Parked, Session, TokenSource};
-use super::snapshots::{player_snaps, props_to_send, room_of_player, visible_players};
+use super::snapshots::{feedback_of, player_snaps, props_to_send, room_of_player, visible_players};
 use crate::net::protocol::*;
 use crate::sim::clock::TICK_RATE_HZ;
 use crate::sim::flow::{EndReason, Flow, FlowEvent, FlowInput, MatchSettings, Phase};
@@ -998,6 +998,7 @@ impl Server {
                 ack_input_seq: self.sim.player(slot).map_or(0, |p| p.last_processed_seq),
                 echo_time_ms: s.last_client_time_ms,
                 echo_hold_ms: now.duration_since(s.last_client_packet_at).as_millis().min(65_535) as u16,
+                fx: feedback_of(&self.sim, slot),
                 players: std::mem::take(&mut self.visible_scratch),
                 props: std::mem::take(&mut self.props_scratch),
             };

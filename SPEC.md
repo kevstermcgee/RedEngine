@@ -110,7 +110,7 @@ Optional momentum fields: `acceleration` (0–100, default 0) enables accelerati
 (at least sprint speed, at most 50 m/s, default max(20, sprint speed)) tune that profile.
 Ground friction slows released input; air movement preserves momentum and adds velocity along the
 wish direction up to the speed cap. Zero acceleration retains immediate legacy movement.
-Horizontal velocity is part of protocol v7 and replay format v2; older clients/traces are rejected.
+Horizontal velocity is part of protocol v7 and later and replay format v2; older clients/traces are rejected.
 
 Firearm presentation uses per-model sight/grip anchors. Iron sights have open rear notches, optics
 have open housings, and aiming removes hip yaw/pitch. Mouse sensitivity follows the tangent ratio
@@ -491,7 +491,7 @@ did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mea
 authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state is part of the
 match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport and impulse, feeds its pickup/drop/shot/hit
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
-state remains server-authoritative; protocol v7 repeatedly sends the complete bounded presentation state (16 variables, 256 hidden
+state remains server-authoritative; protocol v7 and later repeatedly send the complete bounded presentation state (16 variables, 256 hidden
 objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. `red_engine2 describe rules` prints this with a
 runnable example; `recipe coin_run` is a complete game.
 
@@ -606,7 +606,7 @@ problems (stairs that lead nowhere, unreachable rooms, overlaps, ...).
 
 The graphics client polls native gamepads through gilrs. Left-stick movement retains analog
 strength; right-stick look is time-based and FOV-compensated. Input flag bit 7 selects signed
--127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v7.
+-127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v8.
 Headless builds do not pull in gilrs. Focus loss, disconnect and menu transitions require
 neutral controls before gameplay resumes. See docs/CONTROLLERS_AND_SANDBOX.md for bindings.
 

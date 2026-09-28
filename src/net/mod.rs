@@ -20,6 +20,7 @@
 pub mod auth;
 pub mod bot;
 pub mod client;
+pub mod happenings;
 pub mod interp;
 pub mod limits;
 pub mod netsim;

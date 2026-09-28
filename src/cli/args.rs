@@ -372,8 +372,8 @@ pub(crate) enum Command {
         #[arg(long)]
         skip: Vec<String>,
     },
-    /// Prove a scene's `nav` waypoint graph (what bots route along) with the game's own movement: every edge is travelled with the real
-    /// tuned physics and jump pads (`walk` and `drop` both ways, `jump` jumping, `pad` from a real pad through the air), every node must stand on a
+    /// Prove a scene's `nav` graph (what bots route along) by travelling every edge with the real movement. Edges use the real tuned physics and
+    /// jump pads (`walk` and `drop` both ways, `jump` jumping, `pad` from a real pad through the air), and every node must stand on a
     /// floor outside solid geometry and connect to the first node. `nav scene.json` exits 1 on any problem; `--route FROM TO` prints the route
     /// bots would take; `--all` lists the edges that work too.
     Nav {

@@ -32,6 +32,19 @@ impl Audio {
         let source = rodio::buffer::SamplesBuffer::new(1, SAMPLE_RATE, clip.to_vec());
         let _ = self.handle.play_raw(source.convert_samples());
     }
+
+    /// Plays a mono clip at `gain` (0..1, a sound's loudness) placed by `pan` (-1 left .. 1 right), fire-and-forget like [`play`](Self::play).
+    /// Where a sound in the world lands is [`crate::sfx::spatial`]; this only delivers it to the two speakers.
+    pub fn play_at(&self, clip: &[f32], gain: f32, pan: f32) {
+        let (left, right) = crate::sfx::pan_gains(gain, pan);
+        let mut stereo = Vec::with_capacity(clip.len() * 2);
+        for s in clip {
+            stereo.push(s * left);
+            stereo.push(s * right);
+        }
+        let source = rodio::buffer::SamplesBuffer::new(2, SAMPLE_RATE, stereo);
+        let _ = self.handle.play_raw(source.convert_samples());
+    }
 }
 
 /// A tiny xorshift PRNG so a one-off noise burst doesn't need a `rand` dependency.

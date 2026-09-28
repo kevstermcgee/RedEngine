@@ -85,7 +85,7 @@ fn main() {
     for _ in 0..ticks {
         sim.tick_once();
         if let Some(slot) = trace {
-            if sim.tick() % trace_every == 0 && sim.tick() as f32 / 60.0 >= from_secs {
+            if sim.tick().is_multiple_of(trace_every) && sim.tick() as f32 / 60.0 >= from_secs {
                 if let (Some(p), Some(b)) = (sim.player(slot), sim.brain(slot)) {
                     println!(
                         "t={:>6.2}s pos ({:>6.1},{:>6.1}) y {:.2} vy {:>5.1} v ({:>5.1},{:>5.1}) hp {} | {}",

@@ -72,6 +72,10 @@ pub struct PlayerPose {
     pub held: u16,
     /// Hit points.
     pub hp: u8,
+    /// Firearm shots fired so far (wrapping; see [`PlayerSnap::shots`]).
+    pub shots: u8,
+    /// Under spawn protection.
+    pub protected: bool,
 }
 
 /// Shortest-arc blend of two angles (radians).
@@ -99,6 +103,8 @@ impl Blend for PlayerPose {
             weapon: o.weapon,
             held: o.held,
             hp: o.hp,
+            shots: o.shots,
+            protected: o.protected,
         }
     }
 
@@ -146,6 +152,8 @@ impl From<&PlayerSnap> for PlayerPose {
             weapon: p.weapon,
             held: p.held,
             hp: p.hp,
+            shots: p.shots,
+            protected: p.flags & crate::net::protocol::FLAG_PROTECTED != 0,
         }
     }
 }
@@ -365,6 +373,7 @@ mod tests {
             ack_input_seq: 0,
             echo_time_ms: 0,
             echo_hold_ms: 0,
+            fx: Default::default(),
             players: vec![PlayerSnap {
                 id: 1,
                 character: 0,
@@ -378,6 +387,7 @@ mod tests {
                 weapon: 0,
                 held: crate::net::protocol::NO_PROP,
                 hp: 100,
+                shots: 0,
             }],
             props: vec![],
         }
@@ -405,6 +415,8 @@ mod tests {
             weapon: 0,
             held: u16::MAX,
             hp: 100,
+            shots: 0,
+            protected: false,
         };
         h.push(1.0, pose(0.0));
         h.push(2.0, pose(10.0));
@@ -428,6 +440,8 @@ mod tests {
             weapon: 0,
             held: u16::MAX,
             hp: 100,
+            shots: 0,
+            protected: false,
         }
     }
 

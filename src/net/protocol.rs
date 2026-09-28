@@ -24,15 +24,15 @@ use std::fmt;
 
 /// First two bytes of every datagram ("RD").
 pub const MAGIC: u16 = 0x5244;
-/// Bumped on any incompatible change; a mismatched client is rejected.
-pub const PROTOCOL_VERSION: u16 = 7;
+/// Bumped on any incompatible change; a mismatched client is rejected. v8: `PlayerSnap::shots` + the per-client [`Feedback`] counters.
+pub const PROTOCOL_VERSION: u16 = 8;
 /// Largest datagram either side sends or accepts (under a typical 1500-byte MTU).
 pub const MAX_PACKET: usize = 1400;
 /// Most inputs one packet carries (the newest is last).
 pub const MAX_INPUTS_PER_PACKET: usize = 4;
 /// Most players in one snapshot.
 pub const MAX_PLAYERS_PER_SNAPSHOT: usize = 8;
-/// Most props in one snapshot (30 bytes each: fits players of at most 43 bytes each).
+/// Most props in one snapshot (30 bytes each: fits players of at most 44 bytes each).
 pub const MAX_PROPS_PER_SNAPSHOT: usize = 29;
 
 /// Longest player name, bytes.
@@ -314,7 +314,12 @@ pub struct PlayerSnap {
     pub held: u16,
     /// Hit points.
     pub hp: u8,
+    /// Firearm shots this player has fired (wrapping): a client that sees it grow plays the shot (a sound, a muzzle flash) at their position.
+    pub shots: u8,
 }
+
+/// [`PlayerSnap::flags`] bit: the player is under spawn protection (cannot be hurt yet).
+pub const FLAG_PROTECTED: u8 = 8;
 
 /// `PlayerSnap::held` when the player carries nothing.
 pub const NO_PROP: u16 = u16::MAX;
@@ -343,10 +348,39 @@ pub struct Snapshot {
     pub echo_time_ms: u32,
     /// How long the server held that packet before sending this snapshot, ms (subtract for RTT).
     pub echo_hold_ms: u16,
+    /// What the server saw the receiving client do and suffer (wrapping counters a client turns into hit markers, damage flashes, sounds).
+    pub fx: Feedback,
     /// Every connected player.
     pub players: Vec<PlayerSnap>,
     /// Props changed since the client's last acknowledged snapshot (possibly a subset; the rest follow).
     pub props: Vec<PropSnap>,
+}
+
+/// Per-client feedback carried by every [`Snapshot`]: counters that only ever grow (wrapping), so a lost snapshot loses nothing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Feedback {
+    /// Attacks of the client's that damaged someone.
+    pub hits: u8,
+    /// Times the client was damaged.
+    pub hurt: u8,
+    /// Kills the client scored.
+    pub kills: u8,
+    /// Where the last damage to the client came from: a world yaw in 1/256 turns (0 = -Z, clockwise from above).
+    pub bearing: u8,
+    /// While the client is dead: tenths of a second until it respawns (`0` = alive), saturating.
+    pub respawn: u8,
+}
+
+impl Feedback {
+    /// [`Feedback::bearing`] as radians (the yaw convention of the rest of the engine).
+    pub fn bearing_rad(&self) -> f32 {
+        self.bearing as f32 * (std::f32::consts::TAU / 256.0)
+    }
+
+    /// Encodes a world yaw (radians) as a [`Feedback::bearing`] byte.
+    pub fn bearing_from_rad(yaw: f32) -> u8 {
+        (yaw.rem_euclid(std::f32::consts::TAU) / std::f32::consts::TAU * 256.0) as u32 as u8
+    }
 }
 
 /// One line of the roster in a [`Status`].
@@ -752,6 +786,9 @@ impl ServerMsg {
                 w.u32(s.ack_input_seq);
                 w.u32(s.echo_time_ms);
                 w.u16(s.echo_hold_ms);
+                for b in [s.fx.hits, s.fx.hurt, s.fx.kills, s.fx.bearing, s.fx.respawn] {
+                    w.u8(b);
+                }
                 let np = s.players.len().min(MAX_PLAYERS_PER_SNAPSHOT);
                 w.u8(np as u8);
                 let nq = s.props.len().min(MAX_PROPS_PER_SNAPSHOT);
@@ -776,6 +813,7 @@ impl ServerMsg {
                     w.u8(p.weapon);
                     w.u16(p.held);
                     w.u8(p.hp);
+                    w.u8(p.shots);
                 }
                 for q in &s.props[..nq] {
                     w.u16(q.id);
@@ -871,6 +909,7 @@ impl ServerMsg {
             KIND_SNAPSHOT => {
                 let (seq, server_tick, ack_input_seq, echo_time_ms) = (r.u32()?, r.u32()?, r.u32()?, r.u32()?);
                 let echo_hold_ms = r.u16()?;
+                let fx = Feedback { hits: r.u8()?, hurt: r.u8()?, kills: r.u8()?, bearing: r.u8()?, respawn: r.u8()? };
                 let (np, nq) = (r.u8()? as usize, r.u8()? as usize);
                 if np > MAX_PLAYERS_PER_SNAPSHOT || nq > MAX_PROPS_PER_SNAPSHOT {
                     return Err(DecodeError::OutOfRange);
@@ -893,13 +932,14 @@ impl ServerMsg {
                         weapon: r.u8()?,
                         held: r.u16()?,
                         hp: r.u8()?,
+                        shots: r.u8()?,
                     });
                 }
                 let mut props = Vec::with_capacity(nq);
                 for _ in 0..nq {
                     props.push(PropSnap { id: r.u16()?, pos: [r.f32()?, r.f32()?, r.f32()?], rot: [r.f32()?, r.f32()?, r.f32()?, r.f32()?] });
                 }
-                ServerMsg::Snapshot(Snapshot { seq, server_tick, ack_input_seq, echo_time_ms, echo_hold_ms, players, props })
+                ServerMsg::Snapshot(Snapshot { seq, server_tick, ack_input_seq, echo_time_ms, echo_hold_ms, fx, players, props })
             }
             KIND_S_BYE => ServerMsg::Bye,
             k => return Err(DecodeError::UnknownKind(k)),
@@ -911,7 +951,7 @@ impl ServerMsg {
 
 /// Maximum encoded bytes with `players` players and `props` props (zero velocity saves eight bytes).
 pub const fn snapshot_bytes(players: usize, props: usize) -> usize {
-    5 + 16 + 2 + 2 + players * 43 + props * 30
+    5 + 16 + 2 + 5 + 2 + players * 44 + props * 30
 }
 
 #[cfg(test)]
@@ -1111,10 +1151,12 @@ mod tests {
                 weapon: 1,
                 held: 7,
                 hp: 80,
+                shots: 200 + i,
             })
             .collect();
         let props = (0..MAX_PROPS_PER_SNAPSHOT as u16).map(|i| PropSnap { id: i, pos: [1.0, 2.0, 3.0], rot: [0.0, 0.0, 0.0, 1.0] }).collect();
-        roundtrip_s(ServerMsg::Snapshot(Snapshot { seq: 5, server_tick: 100, ack_input_seq: 90, echo_time_ms: 77, echo_hold_ms: 12, players, props }));
+        let fx = Feedback { hits: 250, hurt: 3, kills: 255, bearing: 128, respawn: 27 };
+        roundtrip_s(ServerMsg::Snapshot(Snapshot { seq: 5, server_tick: 100, ack_input_seq: 90, echo_time_ms: 77, echo_hold_ms: 12, fx, players, props }));
     }
 
     #[test]
@@ -1125,6 +1167,7 @@ mod tests {
             ack_input_seq: 1,
             echo_time_ms: 1,
             echo_hold_ms: 0,
+            fx: Feedback::default(),
             players: vec![
                 PlayerSnap {
                     id: 0,
@@ -1138,7 +1181,8 @@ mod tests {
                     velocity: [1.0; 2],
                     weapon: 0,
                     held: NO_PROP,
-                    hp: 100
+                    hp: 100,
+                    shots: 0
                 };
                 MAX_PLAYERS_PER_SNAPSHOT
             ],
@@ -1173,6 +1217,7 @@ mod tests {
             ack_input_seq: 3,
             echo_time_ms: 4,
             echo_hold_ms: 5,
+            fx: Feedback::default(),
             players: vec![],
             props: vec![PropSnap { id: 1, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }],
         })
@@ -1201,6 +1246,9 @@ mod tests {
             w.u32(0);
         }
         w.u16(0);
+        for _ in 0..5 {
+            w.u8(0); // the feedback counters
+        }
         w.u8(255);
         w.u8(255);
         assert_eq!(ServerMsg::decode(&b), Err(DecodeError::OutOfRange));

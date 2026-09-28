@@ -35,6 +35,8 @@ pub mod render;
 #[cfg(feature = "gfx")]
 pub mod revolver;
 pub mod schema;
+#[cfg(feature = "gfx")]
+pub mod sfx;
 pub mod sim;
 pub mod skeleton;
 pub mod strict;

@@ -167,6 +167,14 @@ pub struct Bot {
     pub pitch: f32,
     /// Press Ready whenever the match is in the lobby or showing results (how a bot takes part in a match flow and asks for a rematch).
     pub auto_ready: bool,
+    /// Shots other players fired that the snapshots reported (what a client would play a sound for).
+    pub heard_shots: u32,
+    /// Attacks of this bot's that damaged someone, as the server reported them.
+    pub landed_hits: u32,
+    /// Times this bot was damaged, as the server reported them.
+    pub times_hurt: u32,
+    /// Kills this bot scored, as the server reported them.
+    pub kills_scored: u32,
 }
 
 impl Bot {
@@ -194,6 +202,10 @@ impl Bot {
             buttons: 0,
             pitch: 0.0,
             auto_ready: false,
+            heard_shots: 0,
+            landed_hits: 0,
+            times_hurt: 0,
+            kills_scored: 0,
         })
     }
 
@@ -278,6 +290,12 @@ impl Bot {
                 NetEvent::Disconnected => self.events.push((t, "disconnected (server silent)".into())),
                 NetEvent::Rejected(r) => self.events.push((t, format!("rejected: {r:?}"))),
                 NetEvent::ServerBye => self.events.push((t, "server said bye".into())),
+                NetEvent::Happened(h) => {
+                    self.heard_shots += h.shots.iter().map(|s| s.shots as u32).sum::<u32>();
+                    self.landed_hits += h.hits as u32;
+                    self.times_hurt += h.hurt as u32;
+                    self.kills_scored += h.kills as u32;
+                }
             }
         }
         let collision_disabled = self.client.rule_state().map(|state| state.collision_disabled.clone()).unwrap_or_default();

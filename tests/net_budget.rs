@@ -21,9 +21,9 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 /// The worst snapshot a client is ever sent (8 players and 30 prop updates) must fit one datagram with room to spare.
-const WORST_SNAPSHOT_BUDGET: usize = 1250;
+const WORST_SNAPSHOT_BUDGET: usize = 1260; // v8 added 13 bytes (5 feedback counters, 1 shot counter per player)
 /// Steady-state bandwidth per client, bytes/s, at 30 snapshots/s: 8 idle players in view, nothing else moving.
-const IDLE_BYTES_PER_SEC_PER_CLIENT: f64 = 10_500.0;
+const IDLE_BYTES_PER_SEC_PER_CLIENT: f64 = 11_200.0; // v8: +13 bytes per snapshot (feedback counters + a shot counter per player) = +390 B/s
 /// The same with the worst case (every snapshot full of prop updates).
 const WORST_BYTES_PER_SEC_PER_CLIENT: f64 = 40_000.0;
 /// Average server tick (all simulation, 8 walking players in the Test Lab), microseconds. 60 Hz allows 16 667; the
@@ -43,6 +43,7 @@ fn worst_snapshot() -> Snapshot {
         ack_input_seq: 1,
         echo_time_ms: 1,
         echo_hold_ms: 0,
+        fx: Default::default(),
         players: vec![
             PlayerSnap {
                 id: 0,
@@ -56,7 +57,8 @@ fn worst_snapshot() -> Snapshot {
                 velocity: [3.0, 1.0],
                 weapon: 0,
                 held: NO_PROP,
-                hp: 100
+                hp: 100,
+                shots: 0
             };
             MAX_PLAYERS_PER_SNAPSHOT
         ],

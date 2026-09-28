@@ -188,6 +188,7 @@ fn net_codec(c: &mut Criterion) {
         ack_input_seq: 1,
         echo_time_ms: 1,
         echo_hold_ms: 0,
+        fx: Default::default(),
         players: vec![
             PlayerSnap {
                 id: 0,
@@ -201,7 +202,8 @@ fn net_codec(c: &mut Criterion) {
                 velocity: [0.0; 2],
                 weapon: 0,
                 held: NO_PROP,
-                hp: 100
+                hp: 100,
+                shots: 0
             };
             MAX_PLAYERS_PER_SNAPSHOT
         ],

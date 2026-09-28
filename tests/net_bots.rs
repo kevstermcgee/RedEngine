@@ -155,6 +155,18 @@ fn a_server_fills_empty_slots_with_bots_a_human_takes_a_place_and_gives_it_back(
 }
 
 #[test]
+fn shots_and_damage_reach_a_client_as_events() {
+    // Three SMG bots and one idle human in the duel hall: the bots shoot, the human hears it and is hurt, and the counters on the wire say so.
+    let server = TestServer::start(CREW(), None);
+    let mut a = server.human("Ada", false);
+    drive(&mut [&mut a], "Ada hears the fighting and is shot at", |bs| bs[0].heard_shots >= 5 && bs[0].times_hurt >= 1);
+    assert!(a.heard_shots >= 5, "shots fired by other players were reported: {}", a.heard_shots);
+    assert!(a.times_hurt >= 1, "damage taken was reported: {}", a.times_hurt);
+    assert_eq!(a.landed_hits, 0, "an idle client hits nobody");
+    server.finish();
+}
+
+#[test]
 fn with_no_fill_there_are_no_bots_and_the_config_can_switch_them_off() {
     let extra = json!({"bots": {"fill": 0}});
     let server = TestServer::start(extra, None);

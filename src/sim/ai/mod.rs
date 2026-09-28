@@ -443,7 +443,7 @@ impl Brain {
     // ---- perception -------------------------------------------------------------------------------------------------------------
 
     fn perceive(&mut self, sim: &MatchSim, slot: usize, eye: Vec3, now: u64, hurt: bool) {
-        if (now + slot as u64) % LOOK_EVERY != 0 && !hurt {
+        if !(now + slot as u64).is_multiple_of(LOOK_EVERY) && !hurt {
             return;
         }
         let look = look_vec(self.aim_yaw, self.aim_pitch);
@@ -489,13 +489,7 @@ impl Brain {
                 self.target = Some(s);
                 self.target_visible = true;
             }
-            None => {
-                if current_visible {
-                    self.target_visible = true;
-                } else {
-                    self.target_visible = false;
-                }
-            }
+            None => self.target_visible = current_visible,
         }
         // Shot at by someone unseen: notice the nearest living enemy and turn to face where they are.
         if hurt && !self.target_visible {
@@ -566,7 +560,7 @@ impl Brain {
 
     fn fire(&mut self, sim: &MatchSim, me: &ServerPlayer, now: u64, profile: &WeaponProfile, aligned: bool, input: &mut PlayerInput) {
         if me.combat.weapon.is_firearm() && me.combat.ammo.is_empty() {
-            input.reload = self.seq % 2 == 0;
+            input.reload = self.seq.is_multiple_of(2);
         }
         let Some((_, p)) = self.target.filter(|_| self.target_visible).and_then(|t| sim.player(t).map(|p| (t, p))) else {
             self.burst_ticks = 0;
@@ -579,7 +573,7 @@ impl Brain {
             return;
         }
         if profile.semi_auto {
-            input.attack = self.seq % 2 == 0;
+            input.attack = self.seq.is_multiple_of(2);
         } else if self.burst_ticks > 0 {
             self.burst_ticks -= 1;
             input.attack = true;

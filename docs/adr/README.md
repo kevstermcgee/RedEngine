@@ -49,6 +49,7 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0041](0041-native-input-and-sandbox-workflow.md) | Native controller input, human-rig costumes and the sandbox project workflow | accepted |
 | [0042](0042-proportional-verification-and-unattended-runs.md) | Verification proportional to the change (`affected`), 5-15 KB `context` packets, loopback-only unattended runs | accepted |
 | [0050](0050-bots-weapon-ladder-and-combat-pacing.md) | Bots (AI players with a brain), the server fills empty slots, a nav graph, the weapon ladder (Gun Game), the `combat` pacing block | accepted |
+| [0051](0051-shooter-feedback-on-the-wire.md) | Shooter feedback on the wire (protocol v8): shot, hit, hurt and kill counters, damage bearing, respawn countdown; the client turns them into events | accepted |
 
 ## Writing one
 

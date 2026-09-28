@@ -38,7 +38,7 @@ There is no rumble or in-game remapping UI in this version.
 Human, wizard, cowboy, alien and robot share human physics and weapons. Cheddar retains rat physics.
 Use humanoid.style in scene JSON for model exhibits, or re2 --as wizard/cowboy/alien/robot to play one.
 All six choices appear in the character picker and have distinct replicated identities.
-Protocol v7 is required on both client and server.
+Protocol v8 is required on both client and server (v7 added the analog axes; v8 adds shooter feedback, ADR 0051).
 
 The map browser discovers game.json and loads only declared files within that project.
 Travel is local-only and resets the destination map's props/rules. It keeps the current character

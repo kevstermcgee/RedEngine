@@ -61,6 +61,8 @@ pub struct NetSession {
     pub own: Option<PlayerSnap>,
     /// Whether a `Welcome` has arrived (also true in a lobby, where there is no body to place yet).
     pub joined: bool,
+    /// Things the snapshots reported since the last [`take_happened`](Self::take_happened): shots heard, hits landed, damage taken, kills.
+    happened: Vec<crate::net::happenings::Happenings>,
 }
 
 impl NetSession {
@@ -86,7 +88,13 @@ impl NetSession {
             last_speed: 0.0,
             own: None,
             joined: false,
+            happened: Vec::new(),
         })
+    }
+
+    /// The happenings reported since the last call, oldest first (a client turns them into sounds, hit markers and damage flashes).
+    pub fn take_happened(&mut self) -> Vec<crate::net::happenings::Happenings> {
+        std::mem::take(&mut self.happened)
     }
 
     /// Adds hidden avatars for every allowed character; fixed-character games allocate only that body.
@@ -181,6 +189,7 @@ impl NetSession {
                     }
                     self.own = Some(own);
                 }
+                NetEvent::Happened(h) if self.happened.len() < 64 => self.happened.push(h),
                 _ => {}
             }
         }

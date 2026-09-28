@@ -7,7 +7,7 @@
 //! management cheap and exact: a prop that changed while out of earshot is simply still "unconfirmed" when the client walks
 //! into the room, and is sent then; nothing is ever sent twice once acknowledged.
 
-use super::protocol::{character_to_wire, PlayerSnap, PropSnap, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROPS_PER_SNAPSHOT, NO_PROP};
+use super::protocol::{character_to_wire, Feedback, PlayerSnap, PropSnap, FLAG_PROTECTED, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROPS_PER_SNAPSHOT, NO_PROP};
 use crate::sim::change::Generation;
 use crate::sim::interest::InterestMap;
 use crate::sim::match_sim::MatchSim;
@@ -18,7 +18,10 @@ pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
     out.extend(sim.players().take(MAX_PLAYERS_PER_SNAPSHOT).map(|(slot, p)| PlayerSnap {
         id: slot as u8,
         character: character_to_wire(p.state.character),
-        flags: (p.crouching as u8) | ((p.combat.is_swinging() as u8) << 1) | ((p.combat.is_dead() as u8) << 2),
+        flags: (p.crouching as u8)
+            | ((p.combat.is_swinging() as u8) << 1)
+            | ((p.combat.is_dead() as u8) << 2)
+            | if sim.tick() < p.combat.protected_until { FLAG_PROTECTED } else { 0 },
         pos: [p.state.pos.x, p.state.foot_y, p.state.pos.y],
         yaw: p.state.yaw,
         pitch: p.state.pitch,
@@ -28,7 +31,17 @@ pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
         weapon: p.combat.weapon.wire(),
         held: sim.props().held_by(slot).map_or(NO_PROP, |h| h as u16),
         hp: p.combat.hp.min(255) as u8,
+        shots: p.combat.shots as u8,
     }));
+}
+
+/// What the server saw player `slot` do and suffer: the counters a client turns into hit markers, damage flashes and sounds.
+pub(super) fn feedback_of(sim: &MatchSim, slot: usize) -> Feedback {
+    let Some(p) = sim.player(slot) else { return Feedback::default() };
+    let c = &p.combat;
+    // Ticks to tenths of a second, rounded up so a player never reads 0 (alive) while still dead.
+    let respawn = c.dead_until.map_or(0, |t| t.saturating_sub(sim.tick()).div_ceil(6).min(255) as u8);
+    Feedback { hits: c.hits as u8, hurt: c.hurt as u8, kills: c.kills as u8, bearing: Feedback::bearing_from_rad(c.hurt_bearing), respawn }
 }
 
 /// The room a player stands in, if the map has rooms.
