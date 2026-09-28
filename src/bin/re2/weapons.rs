@@ -1,4 +1,4 @@
-//! Weapons and interaction in the windowed game: the bat swing, the revolver, weapon switching, pick-up/drop (E), what the crosshair
+//! Weapons and interaction in the windowed game: the bat swing, the firearms, weapon switching, pick-up/drop (E), what the crosshair
 //! probes, and (online) the action-button pulses sent to the server, which owns weapons there (ADR 0016).
 
 use super::*;
@@ -85,7 +85,7 @@ impl App {
         (1.0 - f) * (1.0 - f)
     }
 
-    /// Scroll wheel: switch between the bat and the revolver (human only, not while carrying).
+    /// Scroll wheel: switch through the weapons, the bat first (human only, not while carrying).
     pub(crate) fn on_scroll(&mut self, lines: f32) {
         if self.net.is_some() {
             // Online the server owns weapons: turn enough scrolling into one "switch" press.
@@ -123,7 +123,7 @@ impl App {
         }
     }
 
-    /// Simulation tick: one revolver shot at the crosshair (hitscan) from the tick's eye. Infinite ammo for now.
+    /// Simulation tick: one shot of the firearm in hand at the crosshair (hitscan; nine rays for the shotgun) from the tick's eye.
     pub(crate) fn fire_firearm(&mut self) {
         let Some(spec) = self.weapon.firearm() else { return };
         if !self.shot_cd.ready() || self.switch.is_active() || self.carrying() {

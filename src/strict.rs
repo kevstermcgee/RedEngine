@@ -51,6 +51,7 @@ pub const POST_KEYS: &[&str] = &["enabled", "ao", "outline", "ao_radius"];
 pub const CAMERA_KEYS: &[&str] = &["fov", "near", "far", "position", "target", "roll"];
 /// Live-player tuning keys.
 pub const PLAYER_KEYS: &[&str] = &[
+    "humans_play_as",
     "character",
     "fov",
     "walk_speed",

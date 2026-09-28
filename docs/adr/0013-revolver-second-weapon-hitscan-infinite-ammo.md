@@ -1,5 +1,5 @@
 # 0013. The silver revolver: a second human weapon, hitscan, infinite ammo (for now)
-Status: accepted
+Status: superseded by 2026-09-28-remove-the-revolver (the revolver left the engine; the mouse-wheel switch, hitscan and `Ammo` it introduced live on in the firearm arsenal)
 Summary: Silver revolver: mouse-wheel second weapon, hitscan, infinite ammo for now
 
 ## Context

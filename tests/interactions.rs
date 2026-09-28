@@ -1,4 +1,4 @@
-//! Authoritative interactions on the real simulation, no window and no socket: pick-up contention, the bat, the revolver
+//! Authoritative interactions on the real simulation, no window and no socket: pick-up contention, the bat, the firearms
 //! (cooldown, ammo, reload), damage, death and respawn, engine events reaching scene rules, and a recorded fight replaying
 //! bit for bit. The Test Lab's spawn groups were laid out for exactly this: `props` has two players aiming at the same
 //! barrel, `duel` has two players facing each other across a hall.
@@ -9,9 +9,14 @@ use red_engine2::sim::player::PlayerInput;
 use red_engine2::sim::replay::replay;
 use red_engine2::sim::spawns::{parse_spawns, Spawn};
 use red_engine2::sim::trace::Header;
-use red_engine2::weapons::{Ammo, Weapon, BAT_DAMAGE, RESPAWN_TICKS, REVOLVER_DAMAGE, SWITCH_TICKS};
+use red_engine2::weapons::{Ammo, Weapon, BAT_DAMAGE, RESPAWN_TICKS, SWITCH_TICKS};
 use serde_json::{json, Value};
 use std::path::PathBuf;
+
+/// What one pistol hit takes off a player (the first weapon after the bat in scroll order).
+fn pistol_damage() -> u32 {
+    Weapon::Pistol.firearm().expect("the pistol is a firearm").damage
+}
 
 fn lab_text() -> String {
     std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap()
@@ -239,17 +244,17 @@ fn the_bat_hurts_a_player_in_reach_and_only_in_reach() {
 }
 
 #[test]
-fn the_revolver_has_a_cooldown_damages_kills_and_the_victim_respawns() {
+fn the_pistol_has_a_cooldown_damages_kills_and_the_victim_respawns() {
     let mut r = Rig::new("duel", json!({}));
     let (a, b) = (r.join(Character::Human), r.join(Character::Human));
     r.idle(5);
     r.press(a, |i| i.switch_weapon = true);
-    assert_eq!(r.sim.player(a).unwrap().combat.weapon, Weapon::Revolver);
+    assert_eq!(r.sim.player(a).unwrap().combat.weapon, Weapon::Pistol);
     r.press(a, |i| i.attack = true);
     assert_eq!(r.count("shot"), 0, "cannot fire while the weapon is being raised");
     r.idle(SWITCH_TICKS);
     r.press(a, |i| i.attack = true);
-    assert_eq!((r.count("shot"), r.hp(b)), (1, 100 - REVOLVER_DAMAGE));
+    assert_eq!((r.count("shot"), r.hp(b)), (1, 100 - pistol_damage()));
     r.press(a, |i| i.attack = true);
     assert_eq!(r.count("shot"), 1, "the cooldown blocks a second shot two ticks later");
     r.idle(30);
@@ -257,7 +262,7 @@ fn the_revolver_has_a_cooldown_damages_kills_and_the_victim_respawns() {
         r.press(a, |i| i.attack = true);
         r.idle(30);
     }
-    assert_eq!(r.hp(b), 100 - 3 * REVOLVER_DAMAGE);
+    assert_eq!(r.hp(b), 100 - 3 * pistol_damage());
     r.press(a, |i| i.attack = true);
     assert!(r.sim.player(b).unwrap().combat.is_dead(), "hp {}", r.hp(b));
     assert_eq!((r.count("kill"), r.sim.player(a).unwrap().combat.kills, r.sim.player(b).unwrap().combat.deaths), (1, 1, 1));
@@ -279,7 +284,7 @@ fn the_revolver_has_a_cooldown_damages_kills_and_the_victim_respawns() {
 
 #[test]
 fn limited_ammo_from_the_scene_runs_dry_clicks_and_reloads_from_the_reserve() {
-    let mut r = Rig::new("duel", json!({"weapons": {"revolver": {"ammo": {"loaded": 2, "reserve": 3}}}}));
+    let mut r = Rig::new("duel", json!({"weapons": {"ammo": {"loaded": 2, "capacity": 6, "reserve": 3}}}));
     let (a, _b) = (r.join(Character::Human), r.join(Character::Human));
     r.idle(5);
     r.press(a, |i| i.switch_weapon = true);
@@ -288,7 +293,7 @@ fn limited_ammo_from_the_scene_runs_dry_clicks_and_reloads_from_the_reserve() {
         r.press(a, |i| i.attack = true);
         r.idle(30);
     }
-    assert_eq!(r.count("shot"), 2, "two rounds in the cylinder: the third click is dry");
+    assert_eq!(r.count("shot"), 2, "two rounds in the magazine: the third click is dry");
     assert_eq!(r.sim.player(a).unwrap().combat.ammo, Ammo::Limited { loaded: 0, capacity: 6, reserve: 3 });
     r.press(a, |i| i.reload = true);
     assert_eq!(r.sim.player(a).unwrap().combat.ammo, Ammo::Limited { loaded: 3, capacity: 6, reserve: 0 }, "the reserve went in");
@@ -356,7 +361,7 @@ fn a_scenario_can_fight_with_the_hold_step() {
     let ids: Vec<String> = scene.objects.iter().map(|o| o.id.clone()).collect();
     let s = parse(
         &json!({
-            "name": "revolver duel", "spawn_group": "duel",
+            "name": "pistol duel", "spawn_group": "duel",
             "players": [{"id": "a", "spawn": "spawn_a"}, {"id": "b", "spawn": "spawn_b"}],
             "script": [
                 {"player": "a", "hold": {"switch": true, "seconds": 0.05}},

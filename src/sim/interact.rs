@@ -9,8 +9,8 @@
 //!   allow, never one somebody else already holds (contention is settled in slot order, deterministically). The carried prop
 //!   follows the holder's look each tick and is published like any moving prop, so every client sees it move.
 //! - **Bat** (`attack`, humans): a swing whose strike lands after the windup ticks; it shoves a prop or damages a player.
-//! - **Revolver** (`attack` with the revolver out): a hitscan shot with a cooldown and ammo (`weapons.revolver.ammo`);
-//!   `reload` refills from the reserve; an empty click is a short cooldown.
+//! - **Firearms** (`attack` with a firearm out): a hitscan shot (nine rays for the shotgun) with the firearm's own cooldown and the player's
+//!   ammunition (`weapons.ammo`, one supply for every firearm); `reload` refills from the reserve; an empty click is a short cooldown.
 //! - **Health**: hits damage a player; at 0 they die (dropping what they carry), and respawn after the scene's respawn delay
 //!   ([`RESPAWN_TICKS`](crate::weapons::RESPAWN_TICKS) by default). `pickup`, `drop`, `shot`, `hit`, `kill` and `respawn` are raised as engine events so scene
 //!   `rules` can react (score a kill, end a round). Numbers are data: `weapons` and `combat` in the scene.
@@ -56,7 +56,7 @@ pub struct Combat {
     swing: MeleeSwing,
     cooldown: Cooldown,
     switch: WeaponSwitch,
-    /// The revolver's ammunition.
+    /// The player's ammunition (one supply for every firearm they carry).
     pub ammo: Ammo,
     /// Hit points.
     pub hp: u32,
@@ -92,7 +92,7 @@ impl Combat {
             swing: MeleeSwing::default(),
             cooldown: Cooldown::default(),
             switch: WeaponSwitch::default(),
-            ammo: cfg.revolver_ammo,
+            ammo: cfg.ammo,
             hp: PLAYER_MAX_HP,
             dead_until: None,
             kills: 0,
@@ -465,7 +465,7 @@ impl MatchSim {
                     killer.combat.swing.cancel();
                     killer.combat.switch.start(old);
                     killer.combat.weapon = next;
-                    killer.combat.ammo = cfg.revolver_ammo;
+                    killer.combat.ammo = cfg.ammo;
                 }
             }
         }

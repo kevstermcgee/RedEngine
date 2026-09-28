@@ -45,8 +45,9 @@ impl App {
         self.scene_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default()
     }
 
-    fn window_size(&self) -> Option<(u32, u32)> {
-        self.gpu.as_ref().map(|g| (g.config.width, g.config.height))
+    /// The size of the frame: the window's, or in a headless run the size it was asked to pretend (so the HUD lays out the same with no GPU at all).
+    pub(crate) fn window_size(&self) -> Option<(u32, u32)> {
+        self.gpu.as_ref().map(|g| (g.config.width, g.config.height)).or(self.virtual_size)
     }
 
     /// What the client knows, in the shape the online screens take (`None` offline, or before the first `Status`).
@@ -113,6 +114,14 @@ impl App {
                     widget.container = widget.container.map(|i| i + offset);
                 }
                 layout.widgets.extend(rules.widgets);
+            }
+        }
+        // What the player can read, kept for the state dump (a headless run has no screen to look at).
+        self.hud_lines = layout.widgets.iter().filter_map(|w| w.text.as_ref().filter(|t| !t.is_empty()).map(|t| (w.id.clone(), t.clone()))).collect();
+        if self.debug_hud {
+            let scale = (h as i32 / 540).max(1);
+            for (i, line) in self.debug_text.iter().enumerate() {
+                layout.label_left(&format!("debug_{i}"), None, 6 * scale, (44 + 10 * i as i32) * scale, line, scale, w as i32 - 12, [255, 230, 120, 255]);
             }
         }
         let hash = layout_hash(&layout);
@@ -333,7 +342,8 @@ impl App {
         }
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(menu_live) = gpu.menu.as_mut() else { return };
-        let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };
+        let Some(surface) = gpu.surface.as_ref() else { return };
+        let Some((surface_tex, reconfigure)) = acquire_frame(surface, &gpu.device, &gpu.config) else { return };
         let t = self.start.elapsed().as_secs_f32();
         menu::animate(&mut self.menu_scene, w as f32 / h as f32, t, self.character);
         if repaint {
@@ -355,7 +365,7 @@ impl App {
         );
         gpu.queue.present(surface_tex);
         if reconfigure {
-            gpu.surface.configure(&gpu.device, &gpu.config);
+            surface.configure(&gpu.device, &gpu.config);
         }
     }
 }

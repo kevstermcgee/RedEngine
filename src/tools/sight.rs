@@ -2,7 +2,7 @@
 //!
 //! For a hide-and-seek game "can the seeker see the hiding spot from the spawn?" is a design question worth a
 //! command: it answers with the first thing in the way (id, kind, distance, point) or "clear". It uses the same
-//! exact-shape ray test as the bat and revolver ([`crate::hit`]), so the answer matches what the game will do.
+//! exact-shape ray test as the bat and the firearms ([`crate::hit`]), so the answer matches what the game will do.
 
 use super::world::MapWorld;
 use crate::hit::{collect_hit_shapes_where, raycast_shapes};

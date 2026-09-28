@@ -62,7 +62,8 @@ impl ApplicationHandler for App {
         // With a forced character the game starts at once; otherwise the launch menu (whose
         // 3-D backdrop is its own tiny scene) shows first.
         let menu = self.forced_character.is_none().then(|| LiveRenderer::new(&device, format, &self.menu_scene, config.width, config.height));
-        self.gpu = Some(GpuState { surface, device, queue, config, live: None, menu });
+        self.gpu = Some(GpuState { surface: Some(surface), device, queue, config, live: None, menu });
+        self.gpu_kind = "window".to_string();
         self.window = Some(window);
         self.last_frame = Instant::now();
         if let Some(who) = self.forced_character {
@@ -85,7 +86,9 @@ impl ApplicationHandler for App {
                 if let Some(gpu) = self.gpu.as_mut() {
                     gpu.config.width = size.width.max(1);
                     gpu.config.height = size.height.max(1);
-                    gpu.surface.configure(&gpu.device, &gpu.config);
+                    if let Some(surface) = &gpu.surface {
+                        surface.configure(&gpu.device, &gpu.config);
+                    }
                     for r in [gpu.live.as_mut(), gpu.menu.as_mut()].into_iter().flatten() {
                         r.resize(&gpu.device, gpu.config.width, gpu.config.height);
                     }
@@ -191,6 +194,14 @@ impl ApplicationHandler for App {
                     if code == KeyCode::KeyN && event.state == ElementState::Pressed && !self.keys.contains(&code) {
                         self.toggle_music();
                     }
+                    if code == KeyCode::F3 && event.state == ElementState::Pressed && !self.keys.contains(&code) {
+                        self.debug_hud = !self.debug_hud;
+                        self.online.painted = None; // repaint the overlay with (or without) the debug lines
+                        self.debug_text = self.debug_lines();
+                    }
+                    if code == KeyCode::F12 && event.state == ElementState::Pressed && !self.keys.contains(&code) {
+                        self.shots.request("key", red_engine2::playscript::CameraSpec::First);
+                    }
                     if code == KeyCode::KeyE && event.state == ElementState::Pressed && !self.keys.contains(&code) && self.grabbed {
                         self.interact();
                     }
@@ -266,6 +277,18 @@ impl ApplicationHandler for App {
                 let pad_t0 = Instant::now();
                 self.poll_controller(dt, event_loop);
                 let pad_ms = pad_t0.elapsed().as_secs_f32() * 1000.0;
+                // Online, the same line says how the other players fared: drawn, undrawn, stood in for, left out by interest management.
+                let remote_summary = self
+                    .net
+                    .as_ref()
+                    .map(|n| {
+                        let s = n.stats();
+                        format!(
+                            "  | remote: {} drawn of {} in view, {} undrawn, {} stand-in, {} hidden by interest, {} unposed",
+                            s.drawn, s.in_view, s.undrawn, s.standins, s.hidden_by_interest, s.unposed
+                        )
+                    })
+                    .unwrap_or_default();
                 if let Some(st) = &mut self.stats {
                     st.frames += 1;
                     st.worst_ms = st.worst_ms.max(raw_dt * 1000.0);
@@ -273,13 +296,14 @@ impl ApplicationHandler for App {
                     let elapsed = st.window_start.elapsed().as_secs_f32();
                     if elapsed >= 2.0 {
                         println!(
-                            "[stats] {:.0} fps  (avg {:.2} ms, worst {:.1} ms; slowest update {:.1} ms, draw {:.1} ms, gamepad poll {:.1} ms)",
+                            "[stats] {:.0} fps  (avg {:.2} ms, worst {:.1} ms; slowest update {:.1} ms, draw {:.1} ms, gamepad poll {:.1} ms){}",
                             st.frames as f32 / elapsed,
                             elapsed * 1000.0 / st.frames as f32,
                             st.worst_ms,
                             st.worst_update_ms,
                             st.worst_draw_ms,
-                            st.worst_pad_ms
+                            st.worst_pad_ms,
+                            remote_summary
                         );
                         *st =
                             FrameStats { window_start: Instant::now(), frames: 0, worst_ms: 0.0, worst_update_ms: 0.0, worst_draw_ms: 0.0, worst_pad_ms: 0.0 };

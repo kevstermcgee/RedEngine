@@ -57,12 +57,21 @@ pub fn add_pool(scene: &mut Scene) -> usize {
 pub struct Streaks {
     first: usize,
     live: Vec<Streak>,
+    /// How many boxes the last [`update`](Streaks::update) placed (the rest are hidden).
+    shown: usize,
 }
 
 impl Streaks {
     /// Drives the pool that starts at scene object `first` (the value [`add_pool`] returned).
     pub fn new(first: usize) -> Streaks {
-        Streaks { first, live: Vec::with_capacity(POOL) }
+        Streaks { first, live: Vec::with_capacity(POOL), shown: 0 }
+    }
+
+    /// The ids of the pool's boxes that show nothing as of the last [`update`](Streaks::update): the renderer must not draw them (a box scaled to a
+    /// speck is still a draw call, and there are [`POOL`] of them).
+    pub fn hidden_ids<'a>(&self, scene: &'a Scene) -> impl Iterator<Item = &'a str> + 'a {
+        let first = self.first;
+        (self.shown..POOL).filter_map(move |i| scene.objects.get(first + i).map(|o| o.id.as_str()))
     }
 
     fn add(&mut self, kind: Kind, color: Vec3, life: f32) {
@@ -100,6 +109,7 @@ impl Streaks {
             s.age += dt;
         }
         self.live.retain(|s| s.age < s.life);
+        self.shown = self.live.len().min(POOL);
         for i in 0..POOL {
             let Some(o) = scene.objects.get_mut(self.first + i) else { return };
             let Some(s) = self.live.get(i) else {
@@ -152,6 +162,23 @@ mod tests {
         let first = add_pool(&mut s);
         assert_eq!((first, s.objects.len()), (1, 1 + POOL));
         assert!(s.objects[first..].iter().all(|o| o.scale.sample(0.0).x < 0.01 && !o.collide && o.id.starts_with("fx_streak_")));
+    }
+
+    #[test]
+    fn the_boxes_that_show_nothing_are_listed_for_the_renderer_to_skip() {
+        let mut s = scene();
+        let first = add_pool(&mut s);
+        let mut fx = Streaks::new(first);
+        fx.update(&mut s, 0.0);
+        assert_eq!(fx.hidden_ids(&s).count(), POOL, "nothing is showing");
+        fx.tracer(Vec3::ZERO, Vec3::new(0.0, 0.0, -5.0), Vec3::ONE);
+        fx.spark(Vec3::ONE, Vec3::ONE);
+        fx.update(&mut s, 0.0);
+        let hidden: Vec<&str> = fx.hidden_ids(&s).collect();
+        assert_eq!(hidden.len(), POOL - 2);
+        assert!(!hidden.contains(&"fx_streak_0") && !hidden.contains(&"fx_streak_1") && hidden.contains(&"fx_streak_2"), "{:?}", &hidden[..3]);
+        fx.update(&mut s, TRACER_SECS + SPARK_SECS);
+        assert_eq!(fx.hidden_ids(&s).count(), POOL, "and they are all back when the streaks are over");
     }
 
     #[test]

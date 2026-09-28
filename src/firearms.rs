@@ -10,18 +10,11 @@ use glam::{Mat4, Quat, Vec3};
 
 /// Sight height above the model origin, shared by geometry and camera alignment.
 pub fn sight_height(weapon: Weapon) -> f32 {
-    if weapon == Weapon::Revolver {
-        0.074
-    } else {
-        0.04 + shape(weapon).body_h * 0.5 + 0.045
-    }
+    0.04 + shape(weapon).body_h * 0.5 + 0.045
 }
 
 /// Primary grip anchor used to attach the weapon to a third-person wrist.
 pub fn grip_anchor(weapon: Weapon) -> Vec3 {
-    if weapon == Weapon::Revolver {
-        return Vec3::new(0.0, -0.046, -0.026);
-    }
     let s = shape(weapon);
     Vec3::new(0.0, -0.065, 0.10 + s.stock + (s.length - s.stock - s.barrel) * 0.5 - 0.03)
 }
@@ -69,7 +62,7 @@ fn shape(w: Weapon) -> Shape {
         Weapon::Shotgun => Shape { length: 0.82, stock: 0.25, barrel: 0.48, body_h: 0.075, body_w: 0.052, magazine: 0.0, optic: false, color: red },
         Weapon::Lmg => Shape { length: 0.84, stock: 0.23, barrel: 0.38, body_h: 0.13, body_w: 0.072, magazine: 0.22, optic: true, color: slate },
         Weapon::Scout => Shape { length: 0.94, stock: 0.27, barrel: 0.50, body_h: 0.07, body_w: 0.045, magazine: 0.10, optic: true, color: red },
-        _ => unreachable!("firearms.rs only builds the non-revolver firearm library"),
+        Weapon::Bat => unreachable!("the bat is built by viewer::build_held_parts, not the firearm library"),
     }
 }
 
@@ -188,8 +181,8 @@ mod tests {
     }
 
     #[test]
-    fn every_non_revolver_firearm_has_a_visible_model_and_one_flash() {
-        for weapon in Weapon::FIREARMS.into_iter().filter(|w| *w != Weapon::Revolver) {
+    fn every_firearm_has_a_visible_model_and_one_flash() {
+        for weapon in Weapon::FIREARMS {
             let parts = build_firearm_parts(weapon);
             assert!(parts.iter().all(|p| p.weapon == weapon));
             assert_eq!(parts.iter().filter(|p| p.muzzle_flash).count(), 1, "{}", weapon.name());

@@ -25,7 +25,8 @@ use std::fmt;
 /// First two bytes of every datagram ("RD").
 pub const MAGIC: u16 = 0x5244;
 /// Bumped on any incompatible change; a mismatched client is rejected. v8: `PlayerSnap::shots` + the per-client [`Feedback`] counters.
-pub const PROTOCOL_VERSION: u16 = 8;
+/// v9: the weapon numbers on the wire (indices of `weapons::Weapon::ALL`) changed when the silver revolver left the list.
+pub const PROTOCOL_VERSION: u16 = 9;
 /// Largest datagram either side sends or accepts (under a typical 1500-byte MTU).
 pub const MAX_PACKET: usize = 1400;
 /// Most inputs one packet carries (the newest is last).

@@ -41,6 +41,8 @@ pub struct InterestMap {
     pub hops: u32,
     /// `near[a][b]`: room `b` is within `hops` open portals of room `a`.
     near: Vec<Vec<bool>>,
+    /// `adj[a]`: the rooms an open portal joins directly to room `a`.
+    adj: Vec<Vec<usize>>,
 }
 
 impl InterestMap {
@@ -108,7 +110,64 @@ impl InterestMap {
                 frontier = next;
             }
         }
-        Some(InterestMap { rooms, hops, near })
+        Some(InterestMap { rooms, hops, near, adj })
+    }
+
+    /// The fewest open portals between rooms `a` and `b` (`Some(0)` for the same room, `None` when no chain of open portals joins them).
+    pub fn portal_distance(&self, a: usize, b: usize) -> Option<u32> {
+        let mut seen = vec![false; self.rooms.len()];
+        let mut frontier = vec![a];
+        seen[a] = true;
+        for d in 0..=self.rooms.len() as u32 {
+            if frontier.contains(&b) {
+                return Some(d);
+            }
+            let mut next = Vec::new();
+            for r in frontier {
+                for &o in &self.adj[r] {
+                    if !seen[o] {
+                        seen[o] = true;
+                        next.push(o);
+                    }
+                }
+            }
+            if next.is_empty() {
+                return None;
+            }
+            frontier = next;
+        }
+        None
+    }
+
+    /// The groups of rooms joined by chains of open portals (room indices, each group in declaration order). One group = the whole map is connected.
+    pub fn components(&self) -> Vec<Vec<usize>> {
+        let mut comp = vec![usize::MAX; self.rooms.len()];
+        let mut out: Vec<Vec<usize>> = Vec::new();
+        for start in 0..self.rooms.len() {
+            if comp[start] != usize::MAX {
+                continue;
+            }
+            let (id, mut stack) = (out.len(), vec![start]);
+            comp[start] = id;
+            let mut members = Vec::new();
+            while let Some(r) = stack.pop() {
+                members.push(r);
+                for &o in &self.adj[r] {
+                    if comp[o] == usize::MAX {
+                        comp[o] = id;
+                        stack.push(o);
+                    }
+                }
+            }
+            members.sort_unstable();
+            out.push(members);
+        }
+        out
+    }
+
+    /// The rooms no open portal leads to or from.
+    pub fn isolated(&self) -> Vec<usize> {
+        (0..self.rooms.len()).filter(|&r| self.adj[r].is_empty()).collect()
     }
 
     /// The room a point stands in: among zones whose rectangle contains `(x, z)`, the highest whose floor is at or below
@@ -230,6 +289,16 @@ mod tests {
         assert_eq!(m.rooms[ground.unwrap()].id, "a");
         assert_eq!(m.rooms[loft.unwrap()].id, "loft");
         assert!(m.room_at(-5.0, 0.0, 5.0).is_none());
+    }
+
+    #[test]
+    fn portal_distances_components_and_isolated_rooms() {
+        let m = map("");
+        let (a, b, c, d, loft) = (0, 1, 2, 3, 4);
+        assert_eq!((m.portal_distance(a, a), m.portal_distance(a, b), m.portal_distance(a, c)), (Some(0), Some(1), Some(2)));
+        assert_eq!(m.portal_distance(a, d), None, "the portal to d is closed");
+        assert_eq!(m.components(), vec![vec![a, b, c], vec![d], vec![loft]]);
+        assert_eq!(m.isolated(), vec![d, loft]);
     }
 
     #[test]

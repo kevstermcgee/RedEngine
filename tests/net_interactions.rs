@@ -133,7 +133,7 @@ fn a_shot_fired_by_one_client_hurts_another_and_four_kill_them() {
         }
     };
     run_phase(&mut [&mut a, &mut b], 0.4, &watch);
-    a.buttons = 64; // switch to the revolver
+    a.buttons = 64; // switch from the bat to the pistol
     run_phase(&mut [&mut a, &mut b], 0.1, &watch);
     a.buttons = 0;
     run_phase(&mut [&mut a, &mut b], 0.6, &watch); // the raise takes 0.34 s
@@ -141,7 +141,7 @@ fn a_shot_fired_by_one_client_hurts_another_and_four_kill_them() {
         a.buttons = 16; // fire
         run_phase(&mut [&mut a, &mut b], 0.1, &watch);
         a.buttons = 0;
-        run_phase(&mut [&mut a, &mut b], 0.55, &watch); // the cooldown is 0.42 s
+        run_phase(&mut [&mut a, &mut b], 0.55, &watch); // the pistol's cooldown is 0.28 s
     }
     let server = server.finish();
     let hist = server.sim().rules().history();
@@ -150,7 +150,7 @@ fn a_shot_fired_by_one_client_hurts_another_and_four_kill_them() {
     assert_eq!(count("hit"), 4);
     assert_eq!(count("kill"), 1, "the fourth hit killed");
     let seen = victim_hp.lock().unwrap().clone();
-    assert!(seen.iter().any(|(hp, _)| *hp == 75), "the shooter's client saw the victim at 75 hp: {seen:?}");
+    assert!(seen.iter().any(|(hp, _)| *hp == 74), "the shooter's client saw the victim at 74 hp after one 26-damage pistol hit: {seen:?}");
     assert!(seen.iter().any(|(_, dead)| *dead), "and saw them die");
     assert!(seen.first().is_some_and(|(hp, _)| *hp == 100));
 }

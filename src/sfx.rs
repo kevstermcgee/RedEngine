@@ -110,17 +110,14 @@ fn voice(weapon: Weapon) -> Option<GunVoice> {
         Weapon::Shotgun => GunVoice { pump: true, ..v(0.85, 200.0, 95.0, 45.0, 9.0, 1.1, 0.9, 0.14, 16.0, 0.60, 4.0, 0.95, 0.68) },
         Weapon::Lmg => v(0.95, 340.0, 100.0, 60.0, 17.0, 0.85, 0.6, 0.17, 28.0, 0.25, 9.0, 0.40, 0.50),
         Weapon::Scout => v(1.0, 220.0, 90.0, 40.0, 8.0, 1.0, 0.6, 0.15, 20.0, 0.80, 3.2, 1.20, 0.62),
-        // The bat swings and the revolver keeps the engine's original tuned shot; neither is built from a voice.
-        Weapon::Bat | Weapon::Revolver => return None,
+        // The bat swings; it is not built from a gun voice.
+        Weapon::Bat => return None,
     })
 }
 
-/// The report of `weapon` being fired: its own voice, except the revolver (the engine's original synth) and the bat (whose "shot" is the
-/// swing, see [`bat_swing`] and [`bat_hit`]).
+/// The report of `weapon` being fired: its own voice, except the bat (whose "shot" is the swing, see [`bat_swing`] and [`bat_hit`]).
 pub fn gun_shot(weapon: Weapon) -> Vec<f32> {
-    let Some(g) = voice(weapon) else {
-        return if weapon == Weapon::Bat { bat_swing() } else { crate::audio::synth_revolver_shot() };
-    };
+    let Some(g) = voice(weapon) else { return bat_swing() };
     let n = samples(g.seconds);
     let mut noise = Noise(0x9E37_79B9 ^ (weapon.wire() as u32 + 1).wrapping_mul(0x85EB_CA6B));
     let (mut lp_body, mut lp_tail, mut hp_lp) = (0.0f32, 0.0f32, 0.0f32);

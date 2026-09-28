@@ -143,7 +143,6 @@ impl WeaponProfile {
         match weapon {
             Weapon::Bat => WeaponProfile { ideal: 1.4, reach: 2.0, semi_auto: true, burst: (1, 1), steadiness: 1.0, melee: true },
             Weapon::Pistol => p(13.0, 40.0, true, (1, 1), 0.9),
-            Weapon::Revolver => p(14.0, 45.0, true, (1, 1), 0.85),
             Weapon::MachinePistol => p(8.0, 24.0, false, (4, 9), 1.15),
             Weapon::Smg => p(8.5, 28.0, false, (5, 12), 1.1),
             Weapon::Carbine => p(15.0, 55.0, false, (3, 6), 0.9),

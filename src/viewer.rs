@@ -166,11 +166,10 @@ pub fn flip_winding_for_viewmodel(parts: &mut [HeldPart]) {
     }
 }
 
-/// Every held weapon's parts (bat first, then the revolver), ready to upload.
+/// Every held weapon's parts (the bat first, then each firearm of [`Weapon::FIREARMS`]), ready to upload.
 pub fn build_all_held_parts() -> Vec<HeldPart> {
     let mut parts = build_held_parts();
-    parts.extend(crate::revolver::build_revolver_parts());
-    for weapon in Weapon::FIREARMS.into_iter().filter(|w| *w != Weapon::Revolver) {
+    for weapon in Weapon::FIREARMS {
         parts.extend(crate::firearms::build_firearm_parts(weapon));
     }
     parts
@@ -440,6 +439,8 @@ pub struct LiveRenderer {
     mesh_object_paths: Vec<Vec<String>>,
     /// Scene object ids suppressed by a game rule or application.
     hidden_objects: HashSet<String>,
+    /// Whether each scene mesh is under a hidden object (same order as `meshes`; recomputed only when the hidden set changes).
+    mesh_hidden: Vec<bool>,
     held: Vec<HeldGpu>,
     /// The weapons other players hold this frame (set with [`LiveRenderer::set_remote_hands`]).
     remote_hands: Vec<RemoteHand>,
@@ -590,6 +591,7 @@ impl LiveRenderer {
             object_stride,
             object_bind_group,
             targets,
+            mesh_hidden: vec![false; meshes.len()],
             meshes,
             mesh_object_paths,
             hidden_objects: HashSet::new(),
@@ -636,10 +638,25 @@ impl LiveRenderer {
     /// Replaces the set of scene object ids omitted from both the colour and shadow passes.
     /// Hiding a group also hides every descendant mesh. This is intentionally renderer state:
     /// it does not mutate authored transforms or collision, and accepts the output of
-    /// [`crate::sim::rules_run::RulesEngine::hidden`] directly.
+    /// [`crate::sim::rules_run::RulesEngine::hidden`] directly. It is the way to switch a pooled object off ([`crate::scene_pool::ScenePool::hidden_ids`]): a mesh
+    /// scaled to a speck is still a draw call in both passes, a hidden one is none. Cheap to call every frame: an unchanged set costs no allocation and no
+    /// recomputation.
     pub fn set_hidden_objects<'a>(&mut self, ids: impl IntoIterator<Item = &'a str>) {
+        let mut ids: Vec<&str> = ids.into_iter().collect();
+        ids.sort_unstable();
+        ids.dedup();
+        if ids.len() == self.hidden_objects.len() && ids.iter().all(|id| self.hidden_objects.contains(*id)) {
+            return;
+        }
         self.hidden_objects.clear();
         self.hidden_objects.extend(ids.into_iter().map(str::to_owned));
+        let hidden = &self.hidden_objects;
+        self.mesh_hidden = self.mesh_object_paths.iter().map(|path| path.iter().any(|id| hidden.contains(id))).collect();
+    }
+
+    /// How many scene meshes are skipped because their object is hidden (for statistics and tests).
+    pub fn hidden_mesh_count(&self) -> usize {
+        self.mesh_hidden.iter().filter(|h| **h).count()
     }
 
     /// Renders one frame: `t` is the scene animation time (seconds, for any keyframed objects
@@ -702,7 +719,7 @@ impl LiveRenderer {
         let mut main_visible = Vec::with_capacity(self.meshes.len());
         let mut shadow_visible = Vec::with_capacity(self.meshes.len());
         for (i, mesh) in self.meshes.iter().enumerate() {
-            let shown = !self.mesh_object_paths[i].iter().any(|id| self.hidden_objects.contains(id));
+            let shown = !self.mesh_hidden[i];
             let (center, half) = world_aabb(transforms[i].0, mesh.local_min, mesh.local_max);
             main_visible.push(shown && !aabb_outside_frustum(center, half, &cam_planes));
             shadow_visible.push(match &light_planes {

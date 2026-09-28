@@ -77,7 +77,7 @@ impl App {
         let aiming = !carrying && self.shown_weapon().is_firearm();
         let kick = self.recoil_kick();
         // Carrying: both arms forward, elbows bent, holding the prop out in front of the chest.
-        // Aiming the revolver: the gun arm out level (following where the player looks), kicking on a shot.
+        // Aiming a firearm: the gun arm out level (following where the player looks), kicking on a shot.
         let aim_shoulder = (AIM_SHOULDER_X - self.camera.pitch.to_degrees() + 14.0 * kick).clamp(-175.0, -20.0);
         let l_sh_x_final = if carrying {
             CARRY_SHOULDER_X
@@ -141,7 +141,7 @@ impl App {
             let (fwd, right) = (self.camera.forward_flat(), self.camera.right_flat());
             let basis = Mat4::from_cols(right.extend(0.0), Vec3::Y.extend(0.0), fwd.extend(0.0), Vec4::new(0.0, 0.0, 0.0, 1.0));
             if aiming {
-                // The revolver aims where the player looks (pitch tips the barrel, recoil kicks it up).
+                // A firearm aims where the player looks (pitch tips the barrel, recoil kicks it up).
                 Mat4::from_translation(wrist)
                     * basis
                     * Mat4::from_rotation_x((-self.camera.pitch) + (-0.30 * kick))

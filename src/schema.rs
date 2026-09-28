@@ -61,7 +61,7 @@ pub struct Scene {
     pub objects: Vec<Object>,
     /// The scene's game rules (`vars` + `rules`), validated at parse time; empty when the scene declares none.
     pub rules: crate::sim::rules::RuleSet,
-    /// The demo weapons' numbers (`weapons` block): damage and the revolver's ammo.
+    /// The weapons' numbers (`weapons` block): the starting weapon, the ladder, the bat's damage and the players' ammunition.
     pub weapons: crate::weapons::WeaponConfig,
     /// How fights are paced (`combat` block): respawn delay, spawn policy, spawn protection, health regeneration.
     pub combat: crate::sim::combat_cfg::CombatConfig,
@@ -492,17 +492,28 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
     let d = crate::player::PlayerTuning::default();
     let walk_speed = ranged(ctx, obj, "walk_speed", "player", d.walk_speed, 0.5, 20.0);
     let sprint_speed = ranged(ctx, obj, "sprint_speed", "player", d.sprint_speed, walk_speed, 30.0);
-    let character = match obj.get("character") {
+    // `humans_play_as` says what the setting does (the body every *human* wears; bots wear their own, `bots.roster[].character`).
+    // `character` is the older spelling and stays accepted.
+    let (key, raw) = match (obj.get("humans_play_as"), obj.get("character")) {
+        (Some(new), Some(_)) => {
+            ctx.err("player.character", "is the older name of player.humans_play_as: give only one of them");
+            ("humans_play_as", Some(new))
+        }
+        (Some(new), None) => ("humans_play_as", Some(new)),
+        (None, Some(old)) => ("character", Some(old)),
+        (None, None) => ("humans_play_as", None),
+    };
+    let character = match raw {
         None => None,
         Some(Value::String(value)) => match crate::player::Character::parse(value) {
             Some(character) => Some(character),
             None => {
-                ctx.err("player.character", "must be human, rat, wizard, cowboy, alien or robot");
+                ctx.err(&format!("player.{key}"), "must be human, rat, wizard, cowboy, alien or robot");
                 None
             }
         },
         Some(_) => {
-            ctx.err("player.character", "must be a string: human, rat, wizard, cowboy, alien or robot");
+            ctx.err(&format!("player.{key}"), "must be a string: human, rat, wizard, cowboy, alien or robot");
             None
         }
     };
@@ -1132,6 +1143,18 @@ mod tests {
 
         let errors = parse_scene(r#"{"camera":{},"player":{"character":"unknown-creature"},"objects":[]}"#).unwrap_err();
         assert!(errors.iter().any(|e| e.contains("player.character") && e.contains("human")), "{errors:?}");
+    }
+
+    #[test]
+    fn humans_play_as_is_the_clear_name_for_player_character() {
+        let who = |player: &str| parse_scene(&format!(r#"{{"camera":{{}},"player":{player},"objects":[]}}"#)).map(|s| s.player.character);
+        assert_eq!(who(r#"{"humans_play_as":"robot"}"#), Ok(Some(crate::player::Character::Robot)));
+        assert_eq!(who(r#"{"character":"robot"}"#), Ok(Some(crate::player::Character::Robot)), "the old spelling still works");
+        assert_eq!(who(r#"{}"#), Ok(None));
+        let errors = who(r#"{"humans_play_as":"robot","character":"robot"}"#).unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("player.character") && e.contains("humans_play_as") && e.contains("only one")), "{errors:?}");
+        let errors = who(r#"{"humans_play_as":"unknown-creature"}"#).unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("player.humans_play_as") && e.contains("human")), "{errors:?}");
     }
 
     #[test]

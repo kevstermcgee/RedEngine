@@ -22,6 +22,8 @@
 //! | `z-fight`      | two coplanar overlapping planes that will flicker                           |
 //! | `door`         | a connection between zones narrower than a comfortable doorway              |
 //! | `door-blocked` | a door/arch opening you can't actually walk through (furniture in front of it)|
+//! | `interest`     | a multiplayer map (it has `spawns`) whose zones are not linked by `portals`: players vanish |
+//! | `jump-clearance` | an overhead slab out of reach standing but within a jump: it shoves a jumper sideways  |
 
 use super::reach::{Reach, DROP_THRESHOLD};
 use super::world::{Item, ItemKind, MapWorld};
@@ -29,6 +31,7 @@ use crate::collide::ground_height_at;
 use crate::player::{MIN_COMFORTABLE_DOOR_WIDTH, PLAYER_HEADROOM};
 use crate::props::PropKind;
 use crate::schema::LightKind;
+use crate::sim::interest::InterestMap;
 use glam::{Vec2, Vec3};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -106,6 +109,8 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
     check_lights(world, &mut out);
     check_z_fight(world, &mut out);
     check_openings(world, &mut out);
+    check_jump_clearance(world, reach, &mut out);
+    check_interest(world, &mut out);
     out.sort_by(|a, b| b.sev.cmp(&a.sev).then(a.code.cmp(b.code)));
     out
 }
@@ -410,6 +415,152 @@ fn check_headroom(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
             ),
             Some(at),
             &[&id],
+        ));
+    }
+}
+
+/// How high a jump lifts the feet, from the map's own `player` tuning (`jump_speed^2 / 2 gravity`; the engine default is 0.4 m).
+fn jump_apex(world: &MapWorld) -> f32 {
+    let p = world.scene.player;
+    if p.gravity > 0.0 {
+        p.jump_speed * p.jump_speed / (2.0 * p.gravity)
+    } else {
+        0.0
+    }
+}
+
+/// A slab, ceiling or beam whose underside is out of reach when standing (over 2.05 m) but within reach of a jump is a wall to a player who jumps under it: the body band
+/// (`collide::PLAYER_BAND_MAX_Y`, 2.0 m above the feet) rises with the feet, the slab enters it, and the player is shoved sideways out from under it. Found the hard way
+/// in Trigger Happy (a bot thrown through the arena wall), and computed from the map's own jump: `jump_speed`, `gravity`.
+fn check_jump_clearance(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
+    let apex = jump_apex(world);
+    let need = crate::collide::PLAYER_BAND_MAX_Y + apex + 0.03;
+    if need <= PLAYER_HEADROOM {
+        return; // the jump is too small to bring anything into the band
+    }
+    let ceilings: Vec<&Item> = world.items.iter().filter(|i| i.is_solid() && !matches!(i.kind, ItemKind::Stairs)).collect();
+    let mut worst: HashMap<String, (f32, Vec3)> = HashMap::new();
+    let stride = ((0.4 / reach.cell).round() as usize).max(1);
+    for (i, levels) in reach.levels.iter().enumerate() {
+        if levels.is_empty() || !(i % reach.nx).is_multiple_of(stride) || !(i / reach.nx).is_multiple_of(stride) {
+            continue;
+        }
+        let p = reach.cell_center(i);
+        for &y in levels {
+            for c in ceilings.iter().filter(|c| !c.ignores("jump-clearance")) {
+                for (mn, mx) in &c.volumes {
+                    if contains_xz(*mn, *mx, p) && mn.y > y + PLAYER_HEADROOM && mn.y < y + need {
+                        let e = worst.entry(c.top_id.clone()).or_insert((f32::INFINITY, Vec3::ZERO));
+                        if mn.y - y < e.0 {
+                            *e = (mn.y - y, Vec3::new(p.x, y, p.y));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let mut ids: Vec<&String> = worst.keys().collect();
+    ids.sort();
+    for id in ids {
+        let (clearance, at) = worst[id];
+        out.push(finding(
+            Severity::Warn,
+            "jump-clearance",
+            format!(
+                "'{id}' hangs {clearance:.2} m over the floor at ({:.1}, {:.1}), y={:.1}: out of reach standing, but this map's jump lifts the feet {apex:.2} m, so a player who jumps there is shoved \
+                 sideways out from under it. Raise its underside to {need:.2} m (2.0 m body + {apex:.2} m jump) or lower it under {PLAYER_HEADROOM:.2} m, or set the jump lower in `player`",
+                at.x, at.z, at.y
+            ),
+            Some(at),
+            &[id.as_str()],
+        ));
+    }
+}
+
+/// A multiplayer map (one with `spawns`) whose zones are not linked by `portals` hides its players from each other: the server tells a client only about its own room and
+/// the rooms `interest.hops` open portals away, so a player in another room is invisible to them. That was a whole game's worth of "where did everybody go" in Trigger Happy.
+fn check_interest(world: &MapWorld, out: &mut Vec<Finding>) {
+    // Only a map that declares `spawns` is a multiplayer map: without them `parse_spawns` falls back to the camera, one spawn for a single-player map.
+    if !world.raw.get("spawns").and_then(Value::as_array).is_some_and(|s| !s.is_empty()) {
+        return;
+    }
+    let text = world.raw.to_string();
+    let Ok(Some(map)) = InterestMap::parse(&text) else { return };
+    let Ok(spawns) = crate::sim::spawns::parse_spawns(&text) else { return };
+    if spawns.is_empty() || map.rooms.len() < 2 {
+        return;
+    }
+    let rooms: Vec<Option<usize>> = spawns.iter().map(|s| map.room_at(s.position[0], s.position[1], s.position[2])).collect();
+    let mut occupied: Vec<usize> = rooms.iter().flatten().copied().collect();
+    occupied.sort_unstable();
+    occupied.dedup();
+    let name = |r: usize| map.rooms[r].id.clone();
+    let has_portals = world.raw.get("portals").and_then(Value::as_array).is_some_and(|p| !p.is_empty());
+    if !has_portals {
+        out.push(finding(
+            Severity::Error,
+            "interest",
+            format!(
+                "the map has {} zones and spawn points but no `portals`: the server tells a player only about their own room, so players in different rooms never see each other \
+                 (invisible enemies). Add a portal for each doorway (`portals: [{{\"id\", \"between\": [zone, zone]}}]`), or link every zone to one central zone and set `interest.hops` to 2",
+                map.rooms.len()
+            ),
+            None,
+            &[],
+        ));
+        return;
+    }
+    for &r in occupied.iter().filter(|r| map.isolated().contains(r)) {
+        out.push(finding(
+            Severity::Warn,
+            "interest",
+            format!("zone '{}' holds spawn points but has no open portal: nobody in it is seen by anybody outside it, and it sees nobody. Add a portal to a neighbouring zone", name(r)),
+            None,
+            &[],
+        ));
+    }
+    let comps = map.components();
+    let comp_of = |r: usize| comps.iter().position(|c| c.contains(&r)).unwrap_or(0);
+    let mut used: Vec<usize> = occupied.iter().map(|&r| comp_of(r)).collect();
+    used.sort_unstable();
+    used.dedup();
+    if used.len() > 1 {
+        let groups: Vec<String> = used.iter().map(|&c| occupied.iter().filter(|&&r| comp_of(r) == c).map(|&r| name(r)).collect::<Vec<_>>().join("+")).collect();
+        out.push(finding(
+            Severity::Error,
+            "interest",
+            format!(
+                "spawn points stand in zones that no chain of open portals joins ({}): players in different groups never see each other. Link the groups with a portal",
+                groups.join(" | ")
+            ),
+            None,
+            &[],
+        ));
+        return;
+    }
+    let mut far: Vec<(u32, usize, usize)> = Vec::new();
+    for (i, &a) in occupied.iter().enumerate() {
+        for &b in &occupied[i + 1..] {
+            if let Some(d) = map.portal_distance(a, b).filter(|d| *d > map.hops) {
+                far.push((d, a, b));
+            }
+        }
+    }
+    far.sort_unstable_by(|x, y| y.cmp(x));
+    if let Some(&(d, a, b)) = far.first() {
+        out.push(finding(
+            Severity::Warn,
+            "interest",
+            format!(
+                "players in zones '{}' and '{}' are {d} portals apart but `interest.hops` is {}: they can walk to each other and never see each other ({} such pair(s)). Raise `interest.hops` to {d}, \
+                 or add a portal that shortens the way (linking every zone to a central one keeps every pair within 2)",
+                name(a),
+                name(b),
+                map.hops,
+                far.len()
+            ),
+            None,
+            &[],
         ));
     }
 }
@@ -864,6 +1015,97 @@ mod tests {
 {}",
             format_report(&f)
         );
+    }
+}
+
+#[cfg(test)]
+mod silent_failure_tests {
+    use super::*;
+    use crate::tools::reach::{compute, ReachParams};
+    use std::path::Path;
+
+    fn run(json: &str) -> Vec<Finding> {
+        let w = MapWorld::from_text(json, Path::new("t.json")).unwrap();
+        lint(&w, &compute(&w, &ReachParams { cell: 0.2, ..Default::default() }))
+    }
+
+    /// A walled room 20 m wide with `extra` objects, `player` tuning and any other top-level keys.
+    fn room(player: &str, extra_objects: &str, top: &str) -> String {
+        format!(
+            r##"{{"camera":{{"position":[0,1.7,0]}},{player}{top}"objects":[
+            {{"id":"n","type":"wall","from":[-10,-10],"to":[10,-10]}},{{"id":"s","type":"wall","from":[-10,10],"to":[10,10]}},
+            {{"id":"e","type":"wall","from":[10,-10],"to":[10,10]}},{{"id":"w","type":"wall","from":[-10,-10],"to":[-10,10]}}{extra_objects}]}}"##
+        )
+    }
+
+    const HIGH_JUMP: &str = r#""player":{"jump_speed":8.0,"gravity":22.0},"#;
+
+    fn codes(f: &[Finding], code: &str) -> Vec<String> {
+        f.iter().filter(|x| x.code == code).map(|x| x.message.clone()).collect()
+    }
+
+    #[test]
+    fn a_slab_a_jump_reaches_is_flagged_using_the_maps_own_jump_and_a_higher_one_is_not() {
+        // Apex 8^2 / 44 = 1.45 m: an underside must clear 2.0 + 1.45 = 3.45 m. This deck's is 3.0 m.
+        let low = run(&room(HIGH_JUMP, r##",{"id":"deck","type":"box","size":[6,0.2,6],"position":[0,3.1,0]}"##, ""));
+        let found = codes(&low, "jump-clearance");
+        assert_eq!(found.len(), 1, "{}", format_report(&low));
+        assert!(found[0].contains("'deck'") && found[0].contains("3.00 m") && found[0].contains("1.45 m") && found[0].contains("3.48 m"), "{}", found[0]);
+        let high = run(&room(HIGH_JUMP, r##",{"id":"deck","type":"box","size":[6,0.2,6],"position":[0,3.7,0]}"##, ""));
+        assert!(codes(&high, "jump-clearance").is_empty(), "{}", format_report(&high));
+        // With the engine's ordinary jump (0.4 m) the same low deck is fine: the rule is computed from the map, not fixed.
+        let ordinary = run(&room("", r##",{"id":"deck","type":"box","size":[6,0.2,6],"position":[0,3.1,0]}"##, ""));
+        assert!(codes(&ordinary, "jump-clearance").is_empty(), "{}", format_report(&ordinary));
+        // And a ceiling that blocks walking is another rule's business (here the player spawn ends up inside it), not this one's.
+        let walking = run(&room(HIGH_JUMP, r##",{"id":"beam","type":"box","size":[6,0.2,6],"position":[0,2.0,0]}"##, ""));
+        assert!(codes(&walking, "jump-clearance").is_empty() && walking.iter().any(|f| f.sev == Severity::Error), "{}", format_report(&walking));
+        let silenced = run(&room(HIGH_JUMP, r##",{"id":"deck","type":"box","size":[6,0.2,6],"position":[0,3.1,0],"lint_ignore":["jump-clearance"]}"##, ""));
+        assert!(codes(&silenced, "jump-clearance").is_empty());
+    }
+
+    const TWO_ZONES: &str = r#""zones":[{"id":"west","rect":[-10,-10,0,10],"y":0},{"id":"east","rect":[0,-10,10,10],"y":0}],"#;
+    const SPAWNS: &str = r#""spawns":[{"id":"a","position":[-5,0,0],"yaw_deg":0,"group":"arena"},{"id":"b","position":[5,0,0],"yaw_deg":0,"group":"arena"}],"#;
+
+    #[test]
+    fn zones_without_portals_are_an_error_on_a_map_with_spawns_and_nothing_on_one_without() {
+        let f = run(&room("", "", &format!("{TWO_ZONES}{SPAWNS}")));
+        let found = codes(&f, "interest");
+        assert_eq!(found.len(), 1, "{}", format_report(&f));
+        assert!(found[0].contains("no `portals`") && found[0].contains("never see each other"), "{}", found[0]);
+        assert!(f.iter().any(|x| x.code == "interest" && x.sev == Severity::Error));
+        // A single-player map with zones (rooms for `plan`) and no spawn points is not a multiplayer map.
+        let solo = run(&room("", "", TWO_ZONES));
+        assert!(codes(&solo, "interest").is_empty(), "{}", format_report(&solo));
+    }
+
+    #[test]
+    fn linked_zones_are_clean_and_disconnected_ones_or_too_few_hops_are_named() {
+        let linked = r#""portals":[{"id":"p","between":["west","east"]}],"#;
+        let f = run(&room("", "", &format!("{TWO_ZONES}{SPAWNS}{linked}")));
+        assert!(codes(&f, "interest").is_empty(), "{}", format_report(&f));
+        // Four rooms in a row, spawns at both ends, the default one hop: they walk to each other and never see each other.
+        let row = r#""zones":[{"id":"a","rect":[-10,-10,-5,10]},{"id":"b","rect":[-5,-10,0,10]},{"id":"c","rect":[0,-10,5,10]},{"id":"d","rect":[5,-10,10,10]}],
+            "portals":[{"id":"ab","between":["a","b"]},{"id":"bc","between":["b","c"]},{"id":"cd","between":["c","d"]}],
+            "spawns":[{"id":"s1","position":[-8,0,0],"yaw_deg":0},{"id":"s2","position":[8,0,0],"yaw_deg":0}],"#;
+        let far = run(&room("", "", row));
+        let found = codes(&far, "interest");
+        assert_eq!(found.len(), 1, "{}", format_report(&far));
+        assert!(
+            found[0].contains("'a' and 'd' are 3 portals apart")
+                && found[0].contains("`interest.hops` is 1")
+                && found[0].contains("Raise `interest.hops` to 3"),
+            "{}",
+            found[0]
+        );
+        let widened = run(&room("", "", &row.replace("\"zones\"", "\"interest\":{\"hops\":3},\"zones\"")));
+        assert!(codes(&widened, "interest").is_empty(), "{}", format_report(&widened));
+        // Two halves nobody joins.
+        let split =
+            r#""zones":[{"id":"a","rect":[-10,-10,0,10]},{"id":"b","rect":[0,-10,10,10]}],"portals":[{"id":"closed","between":["a","b"],"open":false}],"#;
+        let cut = run(&room("", "", &format!("{split}{SPAWNS}")));
+        let found = codes(&cut, "interest");
+        assert!(found.iter().any(|m| m.contains("no chain of open portals") && m.contains("a | b")), "{}", format_report(&cut));
+        assert!(found.iter().any(|m| m.contains("has no open portal")), "each half is also reported as isolated: {}", format_report(&cut));
     }
 }
 

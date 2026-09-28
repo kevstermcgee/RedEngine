@@ -131,11 +131,12 @@ the bat**: a raycast from the player's eye against the objects' *real shapes* fi
 within bat reach, the crosshair turns gold when something is in range, and only a swing that
 actually connects plays a thunk and flashes the object (a swing through air is silent).
 
-**The revolver (mouse wheel).** The human's primary weapon is the bat; **scroll the mouse wheel** to
-draw the silver revolver (scroll again to go back). **Left-click fires**: a hitscan shot along the
-crosshair (80 m), with a muzzle flash, recoil kick, a gunshot, a hit flash on whatever it strikes and a
-punch for loose props. Ammo is **infinite by default**; a scene turns on limited ammo with
-`"weapons": {"revolver": {"ammo": {"loaded": 6, "reserve": 24}}}` (**R** reloads). Cheddar has no weapons. Online, weapons,
+**The firearms (mouse wheel).** The human's primary weapon is the bat; **scroll the mouse wheel** to
+draw the next of ten firearms (pistol, machine pistol, SMG, carbine, rifle, bullpup, marksman rifle, shotgun, LMG, scout rifle; scroll
+past the last to get the bat back). **Left-click fires**: a hitscan shot along the crosshair with the
+gun's own range, damage and cadence, a muzzle flash, recoil kick, a gunshot, a hit flash on whatever it strikes and a
+punch for loose props. Ammo is **infinite by default**; a scene turns on limited ammo for every firearm with
+`"weapons": {"ammo": {"loaded": 12, "capacity": 12, "reserve": 48}}` (**R** reloads). Cheddar has no weapons. Online, weapons,
 damage, death/respawn and pick-ups run on the server (`sim::interact`).
 
 **Loose props (E).** Both characters can pick up a small prop with **E** (the crosshair turns
@@ -193,6 +194,15 @@ so route hallways as one-way approaches to a staircase rather than a through-pat
 any wall meant to block the far end of a stairwell needs to be built at the *upper* floor's
 height, not the lower one's, since wall collision is also height-band-relative to the player's
 current floor.
+
+### Looking at a game without a screen
+
+The real client can be run, played and photographed by a program. `red_engine2 playtest MAP` hosts the map, joins it with the real client loop (no window), lets a
+scripted player spin, walk, aim and fire, and writes pictures from the player's eyes, third person, above the map and behind another player (rendered offscreen: no focus,
+no visible desktop) with a labelled contact sheet and a JSON report of what was drawn. `re2 MAP --host --headless --script play.json --dump state.json` is the same loop with your
+own script, whose `expect` steps assert on the dumped state (`"8 fighters means 7 drawn"` is one line), and `re2 --debug-help` lists every `RE2_*` switch. Every way a remote
+player can silently fail to be drawn is counted (F3 overlay, `RE2_STATS`), `game check` verifies that every body a map's bots wear has an avatar, and `lint` reports zones without portals and
+slabs a jump shoves the player under. See `red_engine2 describe playtest` and `docs/adr/2026-09-28-seeing-what-the-player-sees.md`.
 
 ## Setup
 

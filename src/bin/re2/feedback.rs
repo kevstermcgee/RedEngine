@@ -154,6 +154,13 @@ impl App {
         if let Cue::Shot { weapon, at, yaw, pitch, shooter, own: false } = *cue {
             self.draw_remote_shot(Weapon::from_wire(weapon), at, yaw, pitch, shooter);
         }
+        // What was heard, for the state dump: the last cues, and a count of each kind (`Shot`, `Hurt`, ...), whether or not there is a sound device.
+        let text = format!("{cue:?}");
+        *self.cue_counts.entry(text.split(|c: char| !c.is_alphanumeric()).next().unwrap_or("").to_string()).or_default() += 1;
+        self.cue_log.push_back((self.play_secs, text));
+        while self.cue_log.len() > 64 {
+            self.cue_log.pop_front();
+        }
         if self.log_cues {
             println!("[cue {:7.2}s] {cue:?}", self.start.elapsed().as_secs_f32());
         }

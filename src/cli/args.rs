@@ -552,6 +552,38 @@ pub(crate) enum Command {
         #[arg(long)]
         root: Option<PathBuf>,
     },
+    /// Play a map in the real client with no window and look at it: pictures, a sheet, a report. Runs `re2 --playtest` (host + a scripted player: a spin, a walk, a fight;
+    /// pictures from the player's eyes, third person, above the map and behind another player, rendered offscreen so no focus or visible desktop is needed), then prints the
+    /// verdict: how many other players were drawn, undrawn, stood in for or hidden by interest management, what was heard, where the contact sheet is. Exit 1 when a player
+    /// was left undrawn or an expectation failed. `--script play.json` plays your own script instead (`describe playtest`).
+    Playtest {
+        /// The map.
+        scene: PathBuf,
+        /// Seconds of game time to play.
+        #[arg(long)]
+        secs: Option<f32>,
+        /// Pictures to take.
+        #[arg(long)]
+        shots: Option<usize>,
+        /// Where the pictures, `contact-sheet.png` and `playtest.json` go.
+        #[arg(long, default_value = "out/playtest")]
+        out: PathBuf,
+        /// Play this script instead of the generated one.
+        #[arg(long)]
+        script: Option<PathBuf>,
+        /// Join a running server instead of hosting the match here.
+        #[arg(long, value_name = "HOST:PORT")]
+        connect: Option<String>,
+        /// Players the match aims for; empty places are filled with bots.
+        #[arg(long, value_name = "N")]
+        fill: Option<usize>,
+        /// The bots' level: rookie, easy, normal, hard, nightmare, or 0 to 1.
+        #[arg(long, value_name = "LEVEL")]
+        bot_skill: Option<String>,
+        /// Picture size, WxH.
+        #[arg(long, value_name = "WxH")]
+        size: Option<String>,
+    },
     /// Architecture decision records: `adr new "Title"` (a dated file, the index refreshed), `adr list`, `adr index --check|--write`.
     Adr {
         #[command(subcommand)]

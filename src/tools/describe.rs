@@ -32,6 +32,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("rules", "game logic as data: `vars` + `rules` (when / who / if / once / do), volumes, actions, expressions; run headless"),
     ("sim", "headless play-throughs (`sim`, scenarios in `checks.sim`) and match traces (`replay`, checksums, first divergent tick)"),
     ("multiplayer", "hosting and playing online: keys, lobby and rounds, UPnP, net-test, perf, package"),
+    ("playtest", "look at the game without a screen: `playtest`, headless scripts, pictures, the state dump, `expect`"),
     ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
 
@@ -202,7 +203,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("interest", "{cell_size, note} network-interest settings (roadmap; rooms are the cells)"),
     ("vars", "{name: number|bool} game variables rules read and write (`describe rules`); built-ins: time, tick, players"),
     ("rules", "[{id, when, who, if, once, cooldown, do}] game logic as data: triggers, conditions, actions (`describe rules`)"),
-    ("weapons", "{starting, ladder: [weapon, ...], bat: {damage}, revolver: {damage, ammo: \"infinite\" | {loaded, capacity, reserve}}}; starting accepts bat or any built-in firearm; ladder = Gun Game: you carry ladder[kills] and cannot switch by hand"),
+    ("weapons", "{starting, ladder: [weapon, ...], bat: {damage}, ammo: \"infinite\" | {loaded, capacity, reserve}}; starting accepts bat or any built-in firearm (pistol machine-pistol smg carbine rifle bullpup marksman shotgun lmg scout); ammo is one supply for every firearm; ladder = Gun Game: you carry ladder[kills] and cannot switch by hand"),
     ("combat", "{respawn_secs, spawn: round_robin|farthest, spawn_protect_secs, regen_delay_secs, regen_per_sec} how fights are paced: respawn delay, where the dead return, spawn protection, health regeneration"),
     ("bots", "{fill, skill, roster: [{name, character, skill, style}]} AI players: the server fills empty slots up to `fill` players (humans included); skill = rookie|easy|normal|hard|nightmare or 0..1; style = balanced|rusher|sniper|acrobat (`describe bots`)"),
     ("nav", "{nodes: [{id, pos:[x,y,z]}], edges: [[from, to, kind?]]} the waypoint graph bots route along; kind = walk (default, both ways) | jump | pad | drop; `red_engine2 nav check` replays every edge with the real movement"),
@@ -235,6 +236,16 @@ pub const LINT_CODES: &[(&str, &str, &str)] = &[
     ("z-fight", "warn", "coplanar overlapping planes flicker -> offset one by 0.01 or shrink"),
     ("duplicate-id", "error", "two objects share an id -> rename one"),
     ("reach", "error", "the flood-fill from spawn failed (spawn enclosed) -> see spawn"),
+    (
+        "interest",
+        "error",
+        "a map with spawns whose zones have no portals (or whose spawn zones no portal chain joins): players in other rooms are invisible -> add portals; warns when spawn zones are more portals apart than interest.hops",
+    ),
+    (
+        "jump-clearance",
+        "warn",
+        "an overhead slab out of reach standing but within this map's jump shoves a jumper sideways -> raise its underside to 2.0 m + jump apex (jump_speed^2 / 2 gravity from `player`), or lower it under 2.05 m",
+    ),
 ];
 
 fn physics() -> Vec<(&'static str, String, &'static str)> {
@@ -251,7 +262,7 @@ fn physics() -> Vec<(&'static str, String, &'static str)> {
         (
             "scene_player_tuning",
             "player{...}".to_string(),
-            "a scene may lock one character and override human FOV, walk/sprint, crouch, jump and gravity; omission keeps selection and defaults",
+            "a scene may lock the body every human wears (`humans_play_as`; bots wear their own) and override human FOV, walk/sprint, crouch, jump and gravity; omission keeps selection and defaults",
         ),
         (
             "jump_pads",
@@ -406,9 +417,54 @@ fn multiplayer_text() -> String {
          \x20                                                    player notices (disconnects, prediction, remote players gliding, bandwidth)\n\
          \x20 red_engine2 perf scene.json                          sim/server tick percentiles, bytes per client, promoted props vs `checks.perf`\n\
          \x20 red_engine2 sim scene.json                           scripted headless play-throughs of the rules;  replay trace.json = first divergent tick\n\
+         SEE IT   red_engine2 playtest MAP                    the real client, no window: pictures, a contact sheet, what was drawn (`describe playtest`)\n\
          SHIP     red_engine2 package out.zip / package --verify out.zip   reproducible zip + SHA-256 manifest; headless binaries proven graphics-free\n\
-         NOT DONE lag compensation for hitscan, payload encryption, spectator camera, teams, kick/ban.\n",
+         LAG      the server rewinds the players a hitscan shot can hit by the shooter's view lag (ADR 0053); `--lag-comp-ms` caps it.\n\
+         NOT DONE payload encryption, a spectator seat (the playtest's camera is client-side), teams, kick/ban.\n",
     )
+}
+
+fn playtest_text() -> String {
+    let mut s = String::from(
+        "Look at the game, and assert on what the player sees, without a screen (ADR 2026-09-28-seeing-what-the-player-sees).\n\n\
+         red_engine2 playtest MAP [--secs 60] [--shots 12] [--out out/playtest] [--script play.json] [--fill N] [--bot-skill L]\n\
+         \x20 The real client with no window, hosting its own match: a scripted player spins, walks, aims and fires; pictures come from the player's eyes, third\n\
+         \x20 person, above the map and behind another player (rendered OFFSCREEN: no focus, no visible desktop, nothing to photograph by accident). Writes\n\
+         \x20 <out>/NN-name.png, <out>/contact-sheet.png and <out>/playtest.json (the state dump); exit 1 when a player was undrawn or an expectation failed.\n\
+         re2 MAP --host --headless --script play.json --dump state.json      the same loop with your own script (add --shot-dir out/ for pictures)\n\
+         re2 MAP --shot-at 5,10,20 --shot-dir out/                          pictures from a normal windowed session; F12 takes one now; F3 shows the counters\n\
+         re2 --debug-help                                                    every RE2_* switch and hotkey\n\n\
+         SCRIPT   {\"policy\": \"idle|sentry|walker\", \"steps\": [ ... ]} - one action per step, run in order; timed steps take their time\n",
+    );
+    for (action, what) in [
+        ("wait: secs", "do nothing"),
+        ("look: {yaw, pitch}", "face a direction (degrees; yaw 0 looks along -Z, clockwise from above)"),
+        ("turn: deg, over: secs", "turn by an angle over a time (a spin is 360)"),
+        ("hold: [keys], secs", "hold forward back left right sprint crouch (policy idle)"),
+        ("jump / interact / switch: n", "tap Space, tap E, scroll the wheel"),
+        ("fire: n | {clicks, every} | {secs}", "click n times / hold the trigger; track: true keeps aiming at the nearest visible enemy"),
+        ("aim_at: \"nearest\"", "turn to the nearest remote player in line of sight"),
+        ("view / policy", "first|third person; idle (still), sentry (turns and fires), walker (circles and fires)"),
+        ("shot: name, camera", "save a picture: first, third, overview, follow, follow:ID, or {eye, at, fov}"),
+        ("snapshot: name", "store the state dump under that name"),
+        (
+            "expect: {at, eq|ne|min|max|contains|exists, within?, msg?}",
+            "assert on the state (a JSON pointer); within waits up to that many seconds; wait_for = the same, 20 s",
+        ),
+        ("say: text", "print a line"),
+    ] {
+        s.push_str(&format!("  {action:<58} {what}\n"));
+    }
+    s.push_str(
+        "\nSTATE    /remote/{in_view,drawn,undrawn,standins,unposed,roster_others,hidden_by_interest,players[],pool,counters}   every way another player can fail to be drawn\n\
+         \x20        /online/{connected,id,ping_ms,phase,in_round,round,roster[]}  /player/{pos,yaw_deg,pitch_deg,weapon,hp,dead}  /view  /streaks\n\
+         \x20        /hud/lines[{id,text}]  /cues/{counts,recent[]}  /crosshair/{state,enemy,pickup,in_reach}  /shots[]  /snapshots  /failures[]\n\
+         EXAMPLE  {\"steps\":[{\"wait_for\":{\"at\":\"/online/in_round\",\"eq\":true}},{\"expect\":{\"at\":\"/remote/drawn\",\"eq\":7,\"msg\":\"8 fighters means 7 drawn\"}},\n\
+         \x20         {\"turn\":360,\"over\":6},{\"shot\":\"spin\"},{\"expect\":{\"at\":\"/remote/undrawn\",\"eq\":0}}]}\n\
+         LOUD     an undrawn player also prints `warning: player N wears BODY ...` once, counts in RE2_STATS and the F3 overlay, and `game check` verifies every\n\
+         \x20        body a map's bots wear has an avatar; `lint` reports zones without portals (`interest`) and slabs a jump shoves you under (`jump-clearance`).\n",
+    );
+    s
 }
 
 fn sim_text() -> String {
@@ -534,6 +590,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             }),
             "sim" => json!({"text": sim_text()}),
             "multiplayer" => json!({"text": multiplayer_text()}),
+            "playtest" => json!({"text": playtest_text()}),
             "diagnostics" => {
                 json!({"envelope_schema": crate::tools::envelope::ENVELOPE_SCHEMA, "codes": crate::tools::envelope::CODES.iter().map(|(c, d, f)| json!({"code": c, "about": d, "fix": f})).collect::<Vec<_>>()})
             }
@@ -557,6 +614,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "rules" => out.push_str(&rules_text()),
         "sim" => out.push_str(&sim_text()),
         "multiplayer" => out.push_str(&multiplayer_text()),
+        "playtest" => out.push_str(&playtest_text()),
         "overview" => {
             let (props, prefabs) = (crate::props::PropKind::ALL.len(), crate::prefabs::builtin().0.defs.len());
             out.push_str("Red Engine 2: maps are JSON scenes. `re2 <map>` plays one; `red_engine2` validates, analyzes, edits and renders them.\n");

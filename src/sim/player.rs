@@ -60,7 +60,7 @@ pub struct PlayerInput {
     pub pitch: f32,
     /// Interact held (`E`): picks up the prop under the crosshair, or drops the carried one. Acts on the press (rising edge).
     pub interact: bool,
-    /// Primary action held (left click): swing the bat / fire the revolver. Acts on the press.
+    /// Primary action held (left click): swing the bat / fire the firearm in hand. Acts on the press.
     pub attack: bool,
     /// Reload held (`R`). Acts on the press.
     pub reload: bool,

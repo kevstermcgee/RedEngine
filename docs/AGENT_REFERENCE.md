@@ -18,7 +18,7 @@ powershell -File scripts/play_multiplayer.ps1        # server + two tiled window
 `red_server` listens on **loopback only** unless you pass `--public` (= `--bind 0.0.0.0`), `--bind IP` or `--upnp`, so tests, bots, `net-test`, `perf` and `scripts/red serve` never raise an OS firewall prompt (ADR 0042, `docs/HOSTING.md`).
 
 The server is authoritative for **everything**: movement (`sim::player::step_player`, shared with single-player and prediction),
-props, **pick-up/drop** (per-player carry; a contested prop goes to exactly one player), **bat and revolver** (cooldown, ammo,
+props, **pick-up/drop** (per-player carry; a contested prop goes to exactly one player), **bat and firearms** (cooldown, ammo,
 damage, death, respawn: `sim::interact`, numbers in the scene's `weapons` block) and the scene's **rules**. Clients send inputs
 and buttons only. **Interest management** (`sim::interest`): a client hears about its own room and rooms one open portal away
 (zones + portals in the scene; `--no-interest` turns it off); the server acknowledges moving props per client, so a prop that
@@ -286,7 +286,7 @@ src/props.rs      prop library: parts, `collision()` policy, `lifted()` for orig
 src/strict.rs     unknown-field detection with did-you-mean; the extension namespace (`x-`, `_`, notes)
 src/collide.rs    static-world collision + ground height (stairs ramp, box tops), interactables — renderer-free (was in viewer.rs)
 src/geometry.rs   `trs` + stair treads, shared by renderer, physics and tools
-src/weapons.rs    the demo weapons as data (`weapons` in the scene: damage, revolver ammo) + timings
+src/weapons.rs    the weapons as data (`weapons` in the scene: starting weapon, ladder, bat damage, the ammunition every firearm draws on) + timings
 src/physics/      loose props on rapier: `mod.rs` (world, step), `classify.rs` (what is loose/carriable), `interact.rs` (per-player carry, strikes), `fixed.rs`
 src/net/          UDP multiplayer: protocol, server (+ sessions, snapshots, limits), client, interpolation, prediction, headless bot (ADR 0016)
 src/sim/          headless sim core (no wgpu/winit): clock, `match_sim` (authoritative world), `interact` (pick-up/combat), `interest` (rooms/portals),
@@ -341,16 +341,16 @@ them offline — put a `humanoid`/`rat` in a scene to look at them). Swings use 
 shapes, not bounding boxes): no hit -> no thunk. `tests/melee_hits.rs` guards it. Debug: `RE2_VIEW=third`
 starts in third person. See ADR 0011.
 
-## Weapons (bat + reusable firearm arsenal) — `weapons.rs`, `revolver.rs`, `firearms.rs`
+## Weapons (bat + reusable firearm arsenal) — `weapons.rs`, `firearms.rs`
 
 Mouse wheel switches (human only); left-click swings the bat or fires the active firearm (hitscan, `probe(eye, reach)`
-in `bin/re2/weapons.rs` merges exact static shapes with `PropWorld::ray_props`). Ammo is the scene's `weapons.revolver.ammo`
-(`"infinite"` by default, or `{loaded, capacity, reserve}`; `R` reloads; an empty weapon clicks). Eleven firearms ship with distinct authoritative damage/range/cadence/impulse tuning; right mouse smoothly aims down sights. Online, the same weapons run on the server (`sim::interact`). Held models are `HeldPart`s tagged with
+in `bin/re2/weapons.rs` merges exact static shapes with `PropWorld::ray_props`). Ammo is the scene's `weapons.ammo`
+(`"infinite"` by default, or `{loaded, capacity, reserve}`; `R` reloads; an empty weapon clicks; one setting for every firearm). Ten firearms ship with distinct authoritative damage/range/cadence/impulse tuning; right mouse smoothly aims down sights. Online, the same weapons run on the server (`sim::interact`). Held models are `HeldPart`s tagged with
 their `weapon` (and `muzzle_flash`/`emissive`); `FrameOptions.weapon/muzzle_flash` pick what draws. Debug env:
-`RE2_WEAPON=revolver`, `RE2_FREEZE_SHOT=<s since shot>` (0.02 = flash + kick) for screenshots. A scene can
+`RE2_WEAPON=smg`, `RE2_FREEZE_SHOT=<s since shot>` (0.02 = flash + kick) for screenshots. A scene can
 select the equipped spawn weapon with `weapons.starting`. Arena-style games can author a shared `player`
-movement/FOV profile and deterministic `jump_pads`; `player.character` locks a single-character game and
-bypasses the generic picker. Offline, server and prediction use the same values. ADR 0013, 0039.
+movement/FOV profile and deterministic `jump_pads`; `player.humans_play_as` locks a single-character game and
+bypasses the generic picker. Offline, server and prediction use the same values. ADR 0038, 0039, 2026-09-28-remove-the-revolver.
 
 ## Loose props (pick up / drop / knock over) — `src/physics/`
 

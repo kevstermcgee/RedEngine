@@ -106,35 +106,7 @@ pub fn synth_bat_hit() -> Vec<f32> {
     out
 }
 
-/// A revolver shot: a sharp noise crack, a chest-thumping low boom that sweeps down, a mid-range
-/// body, and a short room tail. Purely synthesized (ADR 0008).
-pub fn synth_revolver_shot() -> Vec<f32> {
-    let duration_s = 0.85_f32;
-    let n = (SAMPLE_RATE as f32 * duration_s) as usize;
-    let mut noise = Xorshift(0x1234ABCD);
-    let (mut lp_mid, mut lp_tail, mut hp_lp) = (0.0f32, 0.0f32, 0.0f32);
-    let mut out = Vec::with_capacity(n);
-    for i in 0..n {
-        let t = i as f32 / SAMPLE_RATE as f32;
-        let white = noise.next_f32();
-        // High-passed noise: the crack (white minus its own low-pass).
-        hp_lp += 0.5 * (white - hp_lp);
-        let crack = (white - hp_lp) * (-t * 110.0).exp();
-        let boom = (2.0 * std::f32::consts::PI * (150.0 - 95.0 * (t * 6.0).min(1.0)) * t).sin() * (-t * 13.0).exp();
-        lp_mid += 0.16 * (white - lp_mid);
-        let body = lp_mid * (-t * 28.0).exp();
-        lp_tail += 0.04 * (white - lp_tail);
-        let tail = lp_tail * (-t * 4.5).exp() * (1.0 - (-t * 60.0).exp());
-        let sample = crack * 0.75 + boom * 0.9 + body * 1.1 + tail * 2.2;
-        out.push((sample * 1.1).tanh() * REVOLVER_LEVEL);
-    }
-    out
-}
-
-/// Overall level of a revolver shot, 0..1 (the raw synth peaks near 0.95; this is about a third lower, roughly 4 dB).
-const REVOLVER_LEVEL: f32 = 0.6;
-
-/// A dry metallic click: the hammer falling on an empty chamber, or drawing the revolver.
+/// A dry metallic click: the hammer falling on an empty magazine, or raising a firearm.
 pub fn synth_weapon_click() -> Vec<f32> {
     let n = (SAMPLE_RATE as f32 * 0.05) as usize;
     let mut noise = Xorshift(0xC11C4B);
@@ -153,14 +125,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn revolver_shot_is_loud_longer_than_the_bat_and_decays() {
-        let clip = synth_revolver_shot();
-        assert!(clip.len() > synth_bat_hit().len() * 2, "a shot rings out longer than a thunk");
-        let peak = clip.iter().fold(0.0f32, |m, s| m.max(s.abs()));
-        assert!(peak > 0.4 && peak < 0.7, "a shot is clearly audible but not overpowering: peak {peak}");
-        let tail = clip[clip.len() - 300..].iter().fold(0.0f32, |m, s| m.max(s.abs()));
-        assert!(tail < 0.02, "should have decayed: {tail}");
-        assert!(synth_weapon_click().len() < 3000);
+    fn the_weapon_click_is_short_and_audible() {
+        let click = synth_weapon_click();
+        assert!(click.len() < 3000, "a click, not a sound effect: {} samples", click.len());
+        assert!(click.iter().fold(0.0f32, |m, s| m.max(s.abs())) > 0.3);
     }
 
     #[test]

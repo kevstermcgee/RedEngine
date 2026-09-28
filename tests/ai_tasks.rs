@@ -213,12 +213,12 @@ fn task_make_a_collectible_and_a_win_condition_and_prove_it() {
 fn task_add_a_replicated_interaction_and_prove_it() {
     let mut a = Agent::new("shoot");
     let hits = a.run(&["search", "player", "shoots", "another", "player", "damage", "health", "--limit", "3"]).1;
-    assert!(hits.contains("interact") || hits.contains("weapons") || hits.contains("revolver") || hits.contains("Multiplayer"), "{hits}");
+    assert!(hits.contains("interact") || hits.contains("weapons") || hits.contains("firearm") || hits.contains("Multiplayer"), "{hits}");
     let topic = a.run(&["describe", "sim"]).1;
     assert!(topic.contains("scenario = {") && topic.contains("hold"), "the `sim` topic explains scenarios and the hold step");
-    // A duel in the Test Lab: switch to the revolver, fire twice, expect two hits and no kill.
+    // A duel in the Test Lab: switch to the pistol, fire twice, expect two hits and no kill.
     let scenario = json!({
-        "name": "revolver duel", "spawn_group": "duel",
+        "name": "pistol duel", "spawn_group": "duel",
         "players": [{"id": "a", "spawn": "spawn_a"}, {"id": "b", "spawn": "spawn_b"}],
         "script": [
             {"player": "a", "hold": {"switch": true, "seconds": 0.05}}, {"player": "a", "wait": 0.5},

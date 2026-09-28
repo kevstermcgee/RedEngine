@@ -350,6 +350,11 @@ pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
             }
         }
     }
+    for m in &cfg.maps {
+        if let Some(line) = std::fs::read_to_string(cfg.dir.join(m)).ok().and_then(|text| avatar_line(m, &text)) {
+            lines.push(line);
+        }
+    }
     if !cfg.maps.contains(&cfg.server.map) {
         lines.push(Line { failed: true, text: format!("server.map '{}' is not one of the project's maps", cfg.server.map) });
     }
@@ -357,6 +362,49 @@ pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
         lines.push(Line { failed: false, text: "no STATUS.md yet (the handoff file): `red_engine2 status --init`".into() });
     }
     CheckReport { lines }
+}
+
+/// A map with bots or spawn points is played online, where every other player is drawn with an avatar the client prepared before its renderer existed. This line checks
+/// that the client will have one for every body the map's people and bots wear (the bug that shipped Trigger Happy with invisible enemies: a pool sized for the humans'
+/// body only). `None` for a map that is not played online. The check builds the pool the way the client does ([`crate::net::session::avatars_made`]).
+pub fn avatar_line(map: &str, text: &str) -> Option<Line> {
+    let scene = crate::schema::parse_scene(text).ok()?;
+    let has_spawns = crate::sim::spawns::parse_spawns(text).is_ok_and(|s| !s.is_empty());
+    if scene.bots.fill == 0 && !has_spawns {
+        return None;
+    }
+    let made = match crate::net::session::avatars_made(text) {
+        Ok(m) => m,
+        Err(e) => return Some(Line { failed: true, text: format!("map {map}: avatars: {}", e.join("; ")) }),
+    };
+    let index = |who: crate::player::Character| crate::player::Character::ALL.iter().position(|c| *c == who).unwrap_or(0);
+    let mut missing: Vec<String> = Vec::new();
+    for k in 0..scene.bots.fill {
+        let spec = scene.bots.spec(k);
+        if made[index(spec.character)] == 0 {
+            missing.push(format!(
+                "bot '{}' wears {} and the client prepares no {} avatar: it would be invisible",
+                spec.name,
+                spec.character.name(),
+                spec.character.name()
+            ));
+        }
+    }
+    let plan = crate::net::session::avatar_plan(&scene);
+    for who in plan.short() {
+        missing.push(format!(
+            "a match can field {} {} at once but the client prepares {}: the rest are drawn in another costume",
+            plan.needed[index(who)],
+            who.name(),
+            plan.pool[index(who)]
+        ));
+    }
+    let held: Vec<String> = crate::player::Character::ALL.iter().zip(made).filter(|(_, n)| *n > 0).map(|(c, n)| format!("{} x{n}", c.name())).collect();
+    Some(if missing.is_empty() {
+        Line { failed: false, text: format!("map {map}: avatars: every body in play is drawn ({})", held.join(", ")) }
+    } else {
+        Line { failed: true, text: format!("map {map}: avatars: {}", missing.join("\n     ")) }
+    })
 }
 
 /// Arguments for `red_server` from the project's `server` block.
@@ -464,5 +512,25 @@ mod tests {
         let other = dir.join("blueprints/other.blueprint.json");
         std::fs::write(&other, "{}").unwrap();
         assert_eq!(destination_for_blueprint(&other).unwrap(), None);
+    }
+
+    /// `examples/test_lab.json` with the arena game's shape: Humans forced, a roster of four other bodies.
+    fn arena_text(bots: &str) -> String {
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json");
+        let mut root: Value = serde_json::from_str(&std::fs::read_to_string(source).unwrap()).unwrap();
+        root["player"]["character"] = "human".into();
+        root["bots"] = serde_json::from_str(bots).unwrap();
+        root.to_string()
+    }
+
+    #[test]
+    fn game_check_confirms_the_client_will_draw_every_body_the_bots_wear() {
+        let roster = r#"{"fill":8,"roster":[{"name":"Cow","character":"cowboy"},{"name":"Wiz","character":"wizard"},{"name":"Ali","character":"alien"},{"name":"Rob","character":"robot"}]}"#;
+        let line = avatar_line("arena.json", &arena_text(roster)).expect("a map with bots is played online");
+        assert!(!line.failed, "{}", line.text);
+        assert!(line.text.contains("Cowboy x4") && line.text.contains("Robot x4") && line.text.contains("Human x8"), "{}", line.text);
+        // A map nobody plays online (no bots, no spawn points) is not this check's business.
+        let quiet = r#"{"camera":{"position":[0,1.7,0]},"objects":[]}"#;
+        assert!(avatar_line("quiet.json", quiet).is_none());
     }
 }

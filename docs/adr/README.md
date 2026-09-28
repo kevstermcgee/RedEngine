@@ -21,7 +21,7 @@ The table is **generated** from the files (`red_engine2 adr index --write`, also
 | [0010](0010-headless-match-server.md) | Headless multiplayer match server (historical proposal; built as 0016/0017) | superseded by 0016 and 0017 |
 | [0011](0011-two-characters-and-exact-melee-hits.md) | Human + Cheddar the rat, a launch menu, exact melee hit-testing | accepted |
 | [0012](0012-rapier-prop-physics-dormant-until-disturbed.md) | Loose props run on rapier and stay dormant until disturbed | accepted |
-| [0013](0013-revolver-second-weapon-hitscan-infinite-ammo.md) | Silver revolver: mouse-wheel second weapon, hitscan, infinite ammo for now | accepted |
+| [0013](0013-revolver-second-weapon-hitscan-infinite-ammo.md) | Silver revolver: mouse-wheel second weapon, hitscan, infinite ammo for now | superseded by 2026-09-28-remove-the-revolver |
 | [0014](0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md) | Sim foundations: 60 Hz tick + tick-based weapons, scratch buffers, change tracking, static props | accepted |
 | [0015](0015-engine-first-refocus-test-lab-and-legacy-maps.md) | Engine-first refocus: the Red Test Lab is the dev map, the four maps are legacy, roadmap | accepted |
 | [0016](0016-authoritative-udp-multiplayer.md) | Authoritative UDP multiplayer: server, delta snapshots, prediction, interpolation, reconnect | accepted |
@@ -46,7 +46,7 @@ The table is **generated** from the files (`red_engine2 adr index --write`, also
 | [0035](0035-rule-state-in-the-standard-client.md) | Shared rule state drives standard-client visibility, effects and a generic HUD | accepted |
 | [0036](0036-repeated-bounded-online-rule-state.md) | Repeated bounded rule-state snapshots give online clients loss/reconnect/late-join recovery | accepted |
 | [0037](0037-core-assets-are-a-growing-api.md) | Core assets are a growing API, not an exhaustive inventory | accepted |
-| [0038](0038-reusable-firearm-arsenal-and-ads.md) | Reusable eleven-firearm arsenal, procedural models and smooth aim-down-sights | accepted |
+| [0038](0038-reusable-firearm-arsenal-and-ads.md) | Reusable firearm arsenal (eleven guns when written, ten since the revolver left), procedural models and smooth aim-down-sights | accepted |
 | [0039](0039-authored-player-tuning-and-jump-pads.md) | Scene-authored player tuning, starting weapon and deterministic jump pads | accepted |
 | [0040](0040-shooter-presentation-and-momentum.md) | Shooter sight anchors, automatic fire, pellets and replicated momentum | accepted |
 | [0041](0041-native-input-and-sandbox-workflow.md) | Native controller input, human-rig costumes and the sandbox project workflow | accepted |
@@ -60,6 +60,8 @@ The table is **generated** from the files (`red_engine2 adr index --write`, also
 | [0056](0056-music-in-code.md) | Music composed in code: an eight-bar synthwave loop generated at start-up, tested for pitch, rhythm and a seamless wrap | accepted |
 | [0057](0057-avatars-for-every-body.md) | The avatar pool covers every body somebody can wear, bots' included, with a stand-in for any it lacks: no enemy goes undrawn | accepted |
 | [2026-09-28-generated-bookkeeping](2026-09-28-generated-bookkeeping.md) | Every registry CI bounced on is generated or derived, and `red_engine2 preflight` finds the rest in a second and prints the exact edit. | accepted |
+| [2026-09-28-remove-the-revolver](2026-09-28-remove-the-revolver.md) | The silver revolver, the one weapon with its own model file, constants, sound and scene key, is gone; ten data-driven firearms remain and `weapons.ammo` replaces `weapons.revolver.ammo`. | accepted |
+| [2026-09-28-seeing-what-the-player-sees](2026-09-28-seeing-what-the-player-sees.md) | The real client can be stepped without a window, photographed offscreen, played by a script and asked what it draws; every "skip it and carry on" now counts itself and `lint`/`game check` catch the classic causes. | accepted |
 <!-- adr-index:end -->
 
 ## Writing one

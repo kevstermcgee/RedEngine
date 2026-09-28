@@ -32,7 +32,7 @@ use std::collections::{HashMap, HashSet};
 pub const BUILTIN_VARS: &[&str] = &["time", "tick", "players"];
 
 /// Events the engine itself raises (a rule can react with `when: {event: name}` without any rule emitting them):
-/// `pickup` / `drop` (a player took / released a prop), `shot` (a revolver was fired), `hit` (a player was damaged),
+/// `pickup` / `drop` (a player took / released a prop), `shot` (a firearm was fired), `hit` (a player was damaged),
 /// `kill` (a player was killed; the player is the killer), `respawn` (a dead player came back).
 pub const ENGINE_EVENTS: &[&str] = &["pickup", "drop", "shot", "hit", "kill", "respawn"];
 

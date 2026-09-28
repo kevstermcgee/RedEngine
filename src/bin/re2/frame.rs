@@ -2,6 +2,34 @@
 //! variable-rate `update` (camera, avatar, scene sync), drawing, and starting a game from the menu.
 
 use super::*;
+use red_engine2::streaks::Streaks;
+
+/// The ids of the scene objects the renderer must not draw this frame: what the game rules (or, online, the server's rule state) hide, the avatars nobody wears, the
+/// tracer boxes showing nothing, and `own_body` (the player's own body in first person). A pooled object scaled to a speck is still a draw call in both passes; a hidden
+/// one is none. A free function over the fields it reads so the caller can hold the list while it borrows the GPU state.
+pub(crate) fn hidden_ids<'a>(
+    net: &'a Option<NetSession>,
+    rules: &'a RulesEngine,
+    streaks: &'a Option<Streaks>,
+    scene: &'a Scene,
+    own_body: Option<usize>,
+) -> Vec<&'a str> {
+    let mut ids: Vec<&str> = Vec::new();
+    match net {
+        Some(net) => {
+            ids.extend(net.hidden_objects());
+            ids.extend(net.hidden_avatar_ids(scene));
+        }
+        None => ids.extend(rules.hidden()),
+    }
+    if let Some(s) = streaks {
+        ids.extend(s.hidden_ids(scene));
+    }
+    if let Some(o) = own_body.and_then(|i| scene.objects.get(i)) {
+        ids.push(o.id.as_str());
+    }
+    ids
+}
 
 impl App {
     /// What the player is asking for this tick, from the held keys (or the `RE2_AUTOWALK` debug script).
@@ -14,17 +42,7 @@ impl App {
             }
             if self.autoaim {
                 // The nearest other player with nothing solid in between: a sentry that stands still and turns until it sees one.
-                let eye = self.tick_eye();
-                let bodies = self.net.as_ref().map(|n| n.bodies().to_vec()).unwrap_or_default();
-                let visible = bodies.into_iter().filter(|b| !b.dead).filter(|b| {
-                    let d = b.pos + Vec3::Y - eye;
-                    raycast_shapes(eye, d.normalize_or_zero(), d.length(), &self.hit_shapes).is_none()
-                });
-                if let Some(b) = visible.min_by(|a, c| (a.pos - eye).length().total_cmp(&(c.pos - eye).length())) {
-                    let d = b.pos + Vec3::Y - eye;
-                    self.camera.yaw = d.x.atan2(-d.z);
-                    self.camera.pitch = d.y.atan2(Vec2::new(d.x, d.z).length()).clamp(-1.2, 1.2);
-                }
+                self.aim_at_nearest_visible();
             }
             let attack = (self.autofire || self.autoaim) && self.clock.ticks_run() % 12 < 6;
             return PlayerInput {
@@ -191,6 +209,12 @@ impl App {
         if !self.grabbed && self.net.is_none() {
             return;
         }
+        self.frame_no += 1;
+        self.play_secs += dt;
+        self.fps_avg += (1.0 / dt.max(1e-4) - self.fps_avg) * 0.1;
+        if self.debug_hud && self.frame_no % 15 == 1 {
+            self.debug_text = self.debug_lines(); // four times a second: the overlay is repainted only when its text changes
+        }
         let mut server_weapon = None;
         if let Some(net) = self.net.as_mut() {
             let now = Instant::now();
@@ -355,6 +379,11 @@ impl App {
         if let Some(net) = self.net.as_mut() {
             // Other players and the server's props, interpolated, into the scene the renderer draws.
             net.update_scene(&mut self.scene, Instant::now(), dt);
+            // A player nobody can see is a bug to report at once, in words, not one to find by looking at a screenshot.
+            for warning in net.take_warnings() {
+                eprintln!("warning: {warning}");
+                self.failures.push(warning);
+            }
         }
         if let Some(streaks) = self.streaks.as_mut() {
             streaks.update(&mut self.scene, dt);
@@ -362,6 +391,9 @@ impl App {
     }
 
     pub(crate) fn draw(&mut self) {
+        // Pictures asked for (`--shot-at`, F12, a script) are drawn first, offscreen: they need neither a visible window nor focus, and the window's own frame below
+        // may well not be presented at all (a minimised or occluded window).
+        self.take_due_shots();
         let weapon_transform = self.weapon_transform();
         let carrying = self.carrying();
         let dead = self.own_dead();
@@ -369,15 +401,16 @@ impl App {
         let muzzle_flash = (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0);
         let fx = self.feel.fx(self.camera.yaw);
         let enemy = self.aim_enemy;
+        let hidden =
+            hidden_ids(&self.net, &self.rules, &self.streaks, &self.scene, (self.view_mode == ViewMode::FirstPerson).then_some(self.player_object_index));
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(live) = gpu.live.as_mut() else { return };
+        live.set_hidden_objects(hidden);
         if let Some(net) = &self.net {
-            live.set_hidden_objects(net.hidden_objects());
             live.set_remote_hands(net.remote_hands());
-        } else {
-            live.set_hidden_objects(self.rules.hidden());
         }
-        let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };
+        let Some(surface) = gpu.surface.as_ref() else { return }; // a headless run has nothing to present
+        let Some((surface_tex, reconfigure)) = acquire_frame(surface, &gpu.device, &gpu.config) else { return };
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
         let opts = FrameOptions {
@@ -403,7 +436,7 @@ impl App {
         );
         gpu.queue.present(surface_tex);
         if reconfigure {
-            gpu.surface.configure(&gpu.device, &gpu.config);
+            surface.configure(&gpu.device, &gpu.config);
         }
     }
 
@@ -411,7 +444,8 @@ impl App {
     pub(crate) fn menu_frame(&mut self) {
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(menu_live) = gpu.menu.as_mut() else { return };
-        let Some((surface_tex, reconfigure)) = acquire_frame(&gpu.surface, &gpu.device, &gpu.config) else { return };
+        let Some(surface) = gpu.surface.as_ref() else { return };
+        let Some((surface_tex, reconfigure)) = acquire_frame(surface, &gpu.device, &gpu.config) else { return };
         let (w, h) = (gpu.config.width, gpu.config.height);
         let t = self.start.elapsed().as_secs_f32();
         menu::animate(&mut self.menu_scene, w as f32 / h as f32, t, self.character);
@@ -437,7 +471,7 @@ impl App {
         );
         gpu.queue.present(surface_tex);
         if reconfigure {
-            gpu.surface.configure(&gpu.device, &gpu.config);
+            surface.configure(&gpu.device, &gpu.config);
         }
     }
 

@@ -6,7 +6,7 @@
 //! move, the mouse to look, Shift to sprint forward, Space for a small jump, Ctrl to crouch,
 //! F to toggle borderless fullscreen / maximized, click to (re)capture the mouse, Escape to
 //! release it, Q to toggle between first- and third-person view. Unless a scene locks a character
-//! with `player.character`, a launch menu asks whether to play the Human or Cheddar the rat
+//! with `player.humans_play_as`, a launch menu asks whether to play the Human or Cheddar the rat
 //! (`--as human|rat` or `RE2_CHARACTER` also skips it). The human
 //! holds a bat; left-click swings it, and anything the swing actually touches gets logged, thunks
 //! and flashes — a swing through empty air is silent. Hitting things is the seeker's primary
@@ -57,11 +57,15 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 
 mod avatar;
 mod controller;
+mod dump;
 mod events;
 mod feedback;
 mod frame;
+mod headless;
+mod help;
 mod online;
 mod project_browser;
+mod shots;
 mod weapons;
 mod window;
 use window::acquire_frame;
@@ -119,7 +123,7 @@ const MELEE_REACH: f32 = red_engine2::weapons::BAT_REACH;
 // renderer has no per-object visibility flag to hide it in first person instead.
 const PLAYER_HEIGHT: f32 = HUMAN_HEIGHT;
 const PLAYER_BUILD: f32 = 1.0;
-const HIDDEN_SCALE: f32 = 0.0005;
+use red_engine2::scene_pool::HIDDEN_SCALE;
 /// Cheddar's gait phase advances this many radians per metre travelled (a quick scurry).
 const RAT_GAIT_RAD_PER_M: f32 = red_engine2::avatar::RAT_GAIT_RAD_PER_M;
 
@@ -157,7 +161,7 @@ const ARM_STRIKE_SHOULDER_X: f32 = red_engine2::avatar::ARM_STRIKE_SHOULDER_X;
 const ARM_IDLE_ELBOW_DEG: f32 = red_engine2::avatar::ARM_IDLE_ELBOW_DEG;
 const ARM_WINDUP_ELBOW_DEG: f32 = red_engine2::avatar::ARM_WINDUP_ELBOW_DEG;
 const ARM_STRIKE_ELBOW_DEG: f32 = red_engine2::avatar::ARM_STRIKE_ELBOW_DEG;
-/// Seconds the lower-and-raise animation takes when scrolling between the bat and the revolver
+/// Seconds the lower-and-raise animation takes when scrolling between weapons
 /// (whole ticks in the simulation, `weapons::SWITCH_TICKS`).
 const SWITCH_TIME: f32 = SWITCH_SECS;
 /// Scroll lines needed to change weapon (a notch of a wheel is one line; touchpads send fractions).
@@ -165,7 +169,7 @@ const SCROLL_LINES_PER_SWITCH: f32 = 1.0;
 /// Online: how many ticks an action button (E, click, wheel, R) is held on the input sent to the server (the server acts on
 /// the press, and the redundant input packets make three ticks robust against a lost datagram).
 const NET_PULSE_TICKS: u8 = 3;
-/// Arm pose for aiming the revolver in third person (shoulder raised to level, elbow nearly straight).
+/// Arm pose for aiming a firearm in third person (shoulder raised to level, elbow nearly straight).
 const AIM_SHOULDER_X: f32 = red_engine2::avatar::AIM_SHOULDER_X;
 const AIM_ELBOW_DEG: f32 = red_engine2::avatar::AIM_ELBOW_DEG;
 /// Arm pose while carrying a prop (both arms forward, elbows bent).
@@ -189,7 +193,8 @@ fn build_player_object(who: Character) -> Object {
 }
 
 struct GpuState {
-    surface: wgpu::Surface<'static>,
+    /// The window's swap chain (`None` in a headless run, which only draws offscreen).
+    surface: Option<wgpu::Surface<'static>>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
@@ -292,7 +297,7 @@ struct App {
     switching: Option<(Weapon, f32)>,
     /// Scroll-wheel lines accumulated toward the next switch.
     scroll_accum: f32,
-    /// The revolver's ammunition (infinite for now, see `weapons::REVOLVER_AMMO`).
+    /// The player's ammunition, one supply for every firearm (infinite unless the scene's `weapons.ammo` says otherwise).
     ammo: Ammo,
     /// Shot-to-shot delay, in ticks.
     shot_cd: Cooldown,
@@ -387,7 +392,7 @@ struct App {
     autoaim: bool,
     /// Debug: `RE2_VIEW=third` starts in third person (for screenshots).
     debug_third_person: bool,
-    /// Debug: `RE2_FREEZE_SHOT=<seconds since the shot>` holds the revolver's recoil/flash there.
+    /// Debug: `RE2_FREEZE_SHOT=<seconds since the shot>` holds the firearm's recoil/flash there.
     freeze_shot: Option<f32>,
     /// Debug: `RE2_FREEZE_SWING=<seconds>` holds the swing animation at that time (for screenshots).
     freeze_swing: Option<f32>,
@@ -396,6 +401,30 @@ struct App {
     /// `RE2_STATS=1`: print average frame time / FPS every couple of seconds (for measuring
     /// how a map performs without attaching a profiler).
     stats: Option<FrameStats>,
+    /// `--headless`: no window; a script (or nothing) plays, the loop is `headless::run`.
+    headless: bool,
+    /// The frame size of a headless run (there is no window to ask); the HUD lays out at this size even with no GPU at all.
+    virtual_size: Option<(u32, u32)>,
+    /// What draws: `none`, `window` or `offscreen`.
+    gpu_kind: String,
+    /// Seconds of game time since the game started, and frames updated (a script's clock; screenshots are named by it).
+    play_secs: f32,
+    frame_no: u64,
+    /// Screenshots asked for and taken (`shots.rs`).
+    shots: shots::Shots,
+    /// The HUD's text as of the last layout, `(widget id, text)`: what the player can read.
+    hud_lines: Vec<(String, String)>,
+    /// The last sound cues played `(game seconds, cue)` and how many of each kind so far.
+    cue_log: std::collections::VecDeque<(f32, String)>,
+    cue_counts: std::collections::BTreeMap<String, u32>,
+    /// States stored by a script's `snapshot` steps.
+    snapshots: Vec<(String, serde_json::Value)>,
+    /// Everything that went wrong that a person would only notice by looking: warnings from the session, failed expectations, shots that could not be taken.
+    failures: Vec<String>,
+    /// `F3`: the debug overlay (frame rate, ping, the remote-player counters), its lines and the smoothed frame rate.
+    debug_hud: bool,
+    debug_text: Vec<String>,
+    fps_avg: f32,
 }
 
 struct FrameStats {
@@ -427,7 +456,7 @@ impl App {
         if let Some(deg) = std::env::var("RE2_PITCH").ok().and_then(|v| v.parse::<f32>().ok()) {
             camera.pitch = deg.to_radians();
         }
-        let scene_ammo = scene.weapons.revolver_ammo;
+        let scene_ammo = scene.weapons.ammo;
         let pad_launch = scene.jump_pads.iter().map(|p| p.launch_speed).reduce(f32::min);
         let starting_weapon = scene.weapons.starting_weapon;
         let rules = RulesEngine::new(scene.rules.clone());
@@ -551,6 +580,20 @@ impl App {
                 worst_draw_ms: 0.0,
                 worst_pad_ms: 0.0,
             }),
+            headless: false,
+            virtual_size: None,
+            gpu_kind: "none".to_string(),
+            play_secs: 0.0,
+            frame_no: 0,
+            shots: shots::Shots::default(),
+            hud_lines: Vec::new(),
+            cue_log: Default::default(),
+            cue_counts: Default::default(),
+            snapshots: Vec::new(),
+            failures: Vec::new(),
+            debug_hud: false,
+            debug_text: Vec::new(),
+            fps_avg: 60.0,
         }
     }
 }
@@ -565,6 +608,8 @@ struct Args {
     host: bool,
     fill: Option<usize>,
     bot_skill: Option<String>,
+    headless: headless::Options,
+    debug_help: bool,
 }
 
 /// Red Engine 2 real-time game client.
@@ -599,6 +644,39 @@ struct CliArgs {
     /// With `--host`: the bots' level: rookie, easy, normal, hard, nightmare, or a number from 0 to 1.
     #[arg(long, value_name = "LEVEL")]
     bot_skill: Option<String>,
+    /// Run without a window: the real client loop, played by `--script` or `--playtest`, with no renderer unless pictures are asked for.
+    #[arg(long)]
+    headless: bool,
+    /// What the player does, as a JSON script (`red_engine2 describe playtest`); implies `--headless`.
+    #[arg(long, value_name = "FILE")]
+    script: Option<PathBuf>,
+    /// Write the client's final state as JSON: the players drawn, the HUD's text, the sounds played, the crosshair, every failure counter.
+    #[arg(long, value_name = "FILE")]
+    dump: Option<PathBuf>,
+    /// Save pictures at these seconds of game time (`--shot-at 5,10,20`); drawn offscreen, so no visible window or focus is needed.
+    #[arg(long, value_name = "SECS", value_delimiter = ',')]
+    shot_at: Vec<f32>,
+    /// Where pictures go.
+    #[arg(long, value_name = "DIR", default_value = "out/shots")]
+    shot_dir: PathBuf,
+    /// The frame size of a headless run.
+    #[arg(long, value_name = "WxH", default_value = "1280x720")]
+    size: String,
+    /// A scripted session of the map (hosted here unless `--connect`): a spin, a walk, a fight, pictures from four camera positions, a contact sheet and a report.
+    #[arg(long)]
+    playtest: bool,
+    /// With `--playtest`: how long to play, seconds.
+    #[arg(long, value_name = "SECS")]
+    secs: Option<f32>,
+    /// With `--playtest`: how many pictures.
+    #[arg(long, value_name = "N")]
+    shots: Option<usize>,
+    /// With `--playtest`: the folder for pictures, the contact sheet and the report.
+    #[arg(long, value_name = "DIR")]
+    out: Option<PathBuf>,
+    /// Print the RE2_* debug switches and hotkeys, and exit.
+    #[arg(long)]
+    debug_help: bool,
 }
 
 fn parse_character_arg(value: &str) -> Result<Character, String> {
@@ -622,7 +700,30 @@ fn parse_args() -> Args {
         let c = if c.contains(':') { c } else { format!("{c}:{}", red_engine2::net::DEFAULT_PORT) };
         c.to_socket_addrs().ok().and_then(|mut i| i.next()).unwrap_or_else(|| fail_online(&format!("'{c}' is not a valid HOST:PORT")))
     });
-    Args { scene: cli.scene, who, connect, key, name, host: cli.host, fill: cli.fill, bot_skill: cli.bot_skill }
+    let size = cli
+        .size
+        .split_once(['x', 'X'])
+        .and_then(|(w, h)| Some((w.trim().parse::<u32>().ok()?, h.trim().parse::<u32>().ok()?)))
+        .filter(|(w, h)| (64..=7680).contains(w) && (64..=4320).contains(h))
+        .unwrap_or_else(|| {
+            eprintln!("--size '{}' is not WxH between 64x64 and 7680x4320", cli.size);
+            std::process::exit(2)
+        });
+    let headless = headless::Options {
+        enabled: cli.headless || cli.script.is_some() || cli.playtest,
+        script: cli.script,
+        dump: cli.dump,
+        shot_at: cli.shot_at,
+        shot_dir: cli.shot_dir,
+        size,
+        playtest: cli.playtest,
+        secs: cli.secs,
+        shots: cli.shots,
+        out: cli.out,
+    };
+    // A playtest hosts its own match unless it was told where to connect.
+    let host = cli.host || (cli.playtest && connect.is_none());
+    Args { scene: cli.scene, who, connect, key, name, host, fill: cli.fill, bot_skill: cli.bot_skill, headless, debug_help: cli.debug_help }
 }
 
 /// Reports a fatal online-mode problem (message box when there is no console) and exits.
@@ -635,9 +736,14 @@ fn fail_online(msg: &str) -> ! {
 
 fn main() {
     #[cfg(windows)]
-    win::hide_own_console();
+    win::install_crash_box(&win::init(win::wants_terminal(&std::env::args().collect::<Vec<_>>())));
     env_logger::init();
-    let Args { scene: scene_path, who: requested_character, mut connect, key, name, host, fill, bot_skill } = parse_args();
+    let Args { scene: scene_path, who: requested_character, mut connect, key, name, host, fill, bot_skill, headless: headless_options, debug_help } =
+        parse_args();
+    if debug_help {
+        print!("{}", help::text());
+        return;
+    }
     // `--host`: serve the map from a thread of this process and join it; the server stops when the game closes (it drops after `app`).
     let mut local_host = None;
     if host {
@@ -675,7 +781,7 @@ fn main() {
 
     println!("Red Engine 2 — {}", scene_path.display());
     if let Some(character) = scene.player.character {
-        println!("This game starts as {} (set by player.character).", character.name());
+        println!("This game starts as {} (set by player.humans_play_as).", character.name());
     } else {
         println!("Choose a character with 1-6, arrows + Enter, or D-pad + A. --as CHARACTER skips selection.");
     }
@@ -690,10 +796,8 @@ fn main() {
     println!("Q to toggle first-/third-person view, F to toggle fullscreen / maximized.");
     println!("Click the window to capture the mouse, Escape to release it.");
 
-    let event_loop = EventLoop::new().expect("failed to create event loop");
-    event_loop.set_control_flow(ControlFlow::Poll);
     if let Some(addr) = connect {
-        println!("Online: will join {addr}{}.", if forced_character.is_some() { "" } else { " once you pick a character" });
+        println!("Online: will join {addr}{}.", if forced_character.is_some() || headless_options.enabled { "" } else { " once you pick a character" });
     }
     let mut app = App::new(scene, scene_path, forced_character, connect, net_world);
     app.host_pause = local_host.as_ref().map(|h| h.pause_flag());
@@ -704,6 +808,16 @@ fn main() {
         app.online.form.name = n.clone();
         app.player_name = n;
     }
+    if headless_options.enabled {
+        // No window and no event loop: the same `App` is stepped by hand (`headless.rs`). The exit code says whether every expectation held.
+        let code = headless::run(&mut app, headless_options);
+        drop(app);
+        drop(local_host);
+        std::process::exit(code);
+    }
+    let event_loop = EventLoop::new().expect("failed to create event loop");
+    event_loop.set_control_flow(ControlFlow::Poll);
+    app.shots = shots::Shots::new(headless_options.shot_dir.clone(), headless_options.shot_at.clone());
     event_loop.run_app(&mut app).expect("event loop error");
     // Tearing down the GPU, the audio device and the server should take a moment; if anything wedges, the game still ends.
     std::thread::spawn(|| {

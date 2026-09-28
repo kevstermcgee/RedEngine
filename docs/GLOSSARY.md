@@ -115,12 +115,11 @@ without asking.
 
 ## Weapons
 
-- **Weapon** — `weapons::Weapon`: the legacy bat plus eleven hitscan firearms; the mouse wheel cycles (human only).
+- **Weapon** — `weapons::Weapon`: the legacy bat plus ten hitscan firearms; the mouse wheel cycles (human only). A weapon's number on the wire is its index in `Weapon::ALL`.
 - **starting weapon** — `weapons.starting`: the built-in weapon equipped at spawn; defaults to the bat.
-- **firearm spec** — `weapons::FirearmSpec`: authoritative damage, tick cadence, range and prop impulse plus visual recoil. The library includes pistol, revolver, machine pistol, SMG, carbine, rifle, bullpup, marksman rifle, shotgun, LMG and scout rifle.
+- **firearm spec** — `weapons::FirearmSpec`: authoritative damage, tick cadence, range and prop impulse plus visual recoil. The library includes pistol, machine pistol, SMG, carbine, rifle, bullpup, marksman rifle, shotgun, LMG and scout rifle. (The silver revolver was removed: ADR 2026-09-28-remove-the-revolver.)
 - **ADS / aim down sights** — hold right mouse to smoothly align a firearm and narrow FOV; presentation only, so the authoritative shot still follows the player's replicated look direction.
-- **revolver** — the silver six-shooter: hitscan, 0.42 s between shots, 80 m, infinite ammo by default; a scene's
-  `weapons.revolver.ammo` caps it (`Ammo::Limited`, `R` reloads). Model in `revolver.rs`. ADR 0013.
+- **ammo** — `weapons.ammo`: `"infinite"` (the default) or `{loaded, capacity, reserve}` (`Ammo::Limited`, `R` reloads). One setting for every firearm; each player has one ammunition state shared by their guns.
 - **hitscan / muzzle flash** — a shot is an instant ray from the eye; the flash is an emissive held part shown
   for 0.06 s (`HeldPart::muzzle_flash`).
 

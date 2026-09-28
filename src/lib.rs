@@ -3,6 +3,8 @@
 #[cfg(feature = "gfx")]
 pub mod audio;
 pub mod avatar;
+#[cfg(feature = "gfx")]
+pub mod capture;
 pub mod characters;
 pub mod collide;
 pub mod color;
@@ -31,6 +33,7 @@ pub mod net;
 pub mod overlay;
 pub mod physics;
 pub mod player;
+pub mod playscript;
 pub mod prefabs;
 #[cfg(feature = "gfx")]
 pub mod probe;
@@ -38,8 +41,7 @@ pub mod project_browser;
 pub mod props;
 #[cfg(feature = "gfx")]
 pub mod render;
-#[cfg(feature = "gfx")]
-pub mod revolver;
+pub mod scene_pool;
 pub mod schema;
 #[cfg(feature = "gfx")]
 pub mod sfx;

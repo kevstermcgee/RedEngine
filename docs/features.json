@@ -12,8 +12,8 @@
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
-      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/revolver.rs", "src/firearms.rs", "src/shaders/**"],
-      "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms", "lib:revolver"],
+      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**"],
+      "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms"],
       "commands": ["red_engine2 frame examples/test_lab.json out/frame.png", "red_engine2 tour examples/test_lab.json out/tour.png"],
       "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md"],
       "depends_on": ["scene_format"]
@@ -34,10 +34,10 @@
       "depends_on": ["player_physics"]
     },
     "combat_weapons": {
-      "summary": "Bat plus an eleven-firearm arsenal: tick-based swings/cooldowns, hitscan, health, death, respawn and authoritative pick-up contention.",
+      "summary": "Bat plus a ten-firearm arsenal: tick-based swings/cooldowns, hitscan, health, death, respawn and authoritative pick-up contention.",
       "files": ["src/weapons.rs", "src/sim/combat.rs", "src/sim/combat_cfg.rs", "src/sim/interact.rs"],
       "tests": ["lib:weapons", "lib:sim::combat", "lib:sim::combat_cfg", "lib:sim::interact", "interactions", "combat_rules", "net_interactions"],
-      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md"],
+      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md"],
       "depends_on": ["prop_physics", "sim_core"]
     },
     "sim_core": {
@@ -69,7 +69,7 @@
       "files": ["src/sim/ai/mod.rs", "src/sim/ai/skill.rs", "src/sim/ai/nav.rs", "src/sim/ai/route.rs", "src/tools/nav.rs", "examples/bot_match.rs"],
       "tests": ["lib:sim::ai", "lib:tools::nav", "net_bots"],
       "commands": ["cargo run --release --example bot_match -- examples/test_lab.json --bots 6 --weapon smg", "red_server --fill 8 --bot-skill normal", "red_engine2 nav scene.json"],
-      "docs": ["docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md"],
+      "docs": ["docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md"],
       "depends_on": ["sim_core", "combat_weapons", "player_physics"]
     },
     "match_flow": {
@@ -135,8 +135,8 @@
     },
     "release_packaging": {
       "summary": "`package`: a reproducible zip with a SHA-256 manifest, provenance, feature-isolated binaries and `--verify`.",
-      "files": ["src/tools/package.rs"],
-      "tests": ["lib:tools::package"],
+      "files": ["src/tools/package.rs", "src/tools/pe.rs"],
+      "tests": ["lib:tools::package", "lib:tools::pe"],
       "commands": ["red_engine2 package out/release.zip", "red_engine2 package --verify out/release.zip"],
       "docs": ["docs/adr/0032-provable-releases.md"]
     },
@@ -155,6 +155,14 @@
       "commands": ["powershell -File scripts/lobby_demo.ps1"],
       "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md"],
       "depends_on": ["net_client", "ui_kit", "player_physics", "prop_physics", "offline_renderer", "game_rules"]
+    },
+    "playtest": {
+      "summary": "Seeing what the player sees without a person: offscreen frame capture, the scripted player, pooled scene objects, contact sheets and `playtest`; the headless client itself is `src/bin/re2/headless.rs` (`graphical_client`).",
+      "files": ["src/capture.rs", "src/playscript.rs", "src/scene_pool.rs", "src/cli/playtest.rs", "src/tools/sheet.rs"],
+      "tests": ["lib:playscript", "lib:scene_pool", "lib:tools::sheet"],
+      "commands": ["red_engine2 playtest examples/test_lab.json --secs 20 --shots 6"],
+      "docs": ["docs/adr/2026-09-28-seeing-what-the-player-sees.md"],
+      "depends_on": ["graphical_client", "net_client", "net_server", "offline_renderer"]
     },
     "map_analysis": {
       "summary": "lint, reach, walk (incl. auto-planned routes), plan, tour, ray, ls/info, diff: what the map will do, answered with the game's own physics.",

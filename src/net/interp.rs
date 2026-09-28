@@ -345,6 +345,11 @@ impl RemoteWorld {
         self.clock.server_time(local_secs).map(|t| t - INTERP_DELAY)
     }
 
+    /// How many players other than `me` the snapshots have mentioned, whether or not there is a pose to draw for them yet (compare with `view().players`).
+    pub fn present_others(&self, me: Option<u8>) -> usize {
+        (0..MAX_PLAYERS_PER_SNAPSHOT).filter(|&i| self.present[i] && Some(i as u8) != me).count()
+    }
+
     /// The remote world at client time `local_secs`, without player `me`.
     pub fn view(&self, local_secs: f64, me: Option<u8>) -> View {
         let Some(rt) = self.render_time(local_secs) else { return View::default() };
