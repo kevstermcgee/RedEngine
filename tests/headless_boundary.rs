@@ -12,6 +12,7 @@ const GFX_ONLY: &[&str] = &[
     "gpu.rs",
     "menu.rs",
     "mesh.rs",
+    "music.rs",
     "overlay.rs",
     "probe.rs",
     "render.rs",

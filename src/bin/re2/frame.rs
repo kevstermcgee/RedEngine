@@ -530,6 +530,7 @@ impl App {
         }
         self.phase = Phase::Playing;
         self.rule_hud_painted = None;
+        self.start_music();
         println!("Playing as {}.", who.name());
         if let Some(window) = &self.window {
             window.set_title(&format!("Red Engine 2 — {} — {}", self.scene_path.display(), who.name()));

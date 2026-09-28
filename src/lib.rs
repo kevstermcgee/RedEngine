@@ -24,6 +24,8 @@ pub mod macros;
 pub mod menu;
 #[cfg(feature = "gfx")]
 pub mod mesh;
+#[cfg(feature = "gfx")]
+pub mod music;
 pub mod net;
 #[cfg(feature = "gfx")]
 pub mod overlay;

@@ -15,6 +15,8 @@ use red_engine2::ui::online::CombatView;
 const FLAG_DEAD: u8 = 4;
 /// How long the level-up line stays on screen, seconds.
 const NOTICE_SECS: f32 = 1.8;
+/// How loud the music is under the sound effects (0..1).
+const MUSIC_VOLUME: f32 = 0.17;
 /// Eye height of the camera lying where we fell, metres.
 pub(crate) const DEAD_EYE_HEIGHT: f32 = 0.3;
 
@@ -68,6 +70,36 @@ impl App {
             protected: own.flags & FLAG_PROTECTED != 0,
             notice: self.notice.as_ref().map(|(text, _)| text.clone()),
         })
+    }
+
+    /// Starts the music loop (generated in a few hundredths of a second) unless `RE2_MUSIC=0`.
+    pub(crate) fn start_music(&mut self) {
+        if std::env::var("RE2_MUSIC").is_ok_and(|v| v == "0") {
+            return;
+        }
+        if let Some(audio) = self.audio.as_mut() {
+            if !audio.has_music() {
+                let started = Instant::now();
+                let samples = red_engine2::music::loop_samples();
+                if self.stats.is_some() {
+                    println!("[stats] the music loop was composed in {:.0} ms", started.elapsed().as_secs_f32() * 1000.0);
+                }
+                audio.start_music(samples, MUSIC_VOLUME);
+            }
+            self.music_on = true;
+        }
+    }
+
+    /// `N`: music on or off (the loop keeps its place while it is silent).
+    pub(crate) fn toggle_music(&mut self) {
+        if !self.audio.as_ref().is_some_and(|a| a.has_music()) {
+            self.start_music();
+            return;
+        }
+        self.music_on = !self.music_on;
+        if let Some(audio) = &self.audio {
+            audio.set_music_volume(if self.music_on { MUSIC_VOLUME } else { 0.0 });
+        }
     }
 
     /// Once per rendered frame: turns what the network reported into sounds and screen effects, and lets the effects age.

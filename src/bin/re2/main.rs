@@ -359,6 +359,8 @@ struct App {
     feel: red_engine2::feel::Feel,
     /// Tracers and sparks (`None` until the game starts and the pool is added to the scene).
     streaks: Option<red_engine2::streaks::Streaks>,
+    /// Whether the music is audible (`N` toggles it; `RE2_MUSIC=0` starts without).
+    music_on: bool,
     /// Footsteps played so far (picks the foot).
     step_count: u32,
     /// Online: whether the attack button was down on the previous tick (the server acts on the press).
@@ -513,6 +515,7 @@ impl App {
             sounds: red_engine2::sfx::SoundBank::new(),
             feel: red_engine2::feel::Feel::new(),
             streaks: None,
+            music_on: false,
             step_count: 0,
             pred_prev_attack: false,
             was_dead: false,

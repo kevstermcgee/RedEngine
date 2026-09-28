@@ -188,6 +188,9 @@ impl ApplicationHandler for App {
                     if code == KeyCode::KeyQ && event.state == ElementState::Pressed && !self.keys.contains(&code) {
                         self.toggle_view_mode();
                     }
+                    if code == KeyCode::KeyN && event.state == ElementState::Pressed && !self.keys.contains(&code) {
+                        self.toggle_music();
+                    }
                     if code == KeyCode::KeyE && event.state == ElementState::Pressed && !self.keys.contains(&code) && self.grabbed {
                         self.interact();
                     }

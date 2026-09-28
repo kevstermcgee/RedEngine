@@ -75,6 +75,7 @@ const ADRS: &[(&str, &str)] = &[
     ("0053-lag-compensation.md", include_str!("../../docs/adr/0053-lag-compensation.md")),
     ("0054-hosting-from-the-client.md", include_str!("../../docs/adr/0054-hosting-from-the-client.md")),
     ("0055-bullet-tracers-and-sparks.md", include_str!("../../docs/adr/0055-bullet-tracers-and-sparks.md")),
+    ("0056-music-in-code.md", include_str!("../../docs/adr/0056-music-in-code.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.

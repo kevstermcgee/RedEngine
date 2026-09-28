@@ -19,13 +19,35 @@ pub struct Audio {
     // Must stay alive for `handle` to keep working — never read directly, just held.
     _stream: OutputStream,
     handle: OutputStreamHandle,
+    /// The looping music, if any is playing (dropping the sink stops it).
+    music: Option<rodio::Sink>,
 }
 
 impl Audio {
     /// Opens the default output device; `None` (never an error) when there isn't one, so audio can never take the game down.
     pub fn new() -> Option<Self> {
         let (stream, handle) = OutputStream::try_default().ok()?;
-        Some(Audio { _stream: stream, handle })
+        Some(Audio { _stream: stream, handle, music: None })
+    }
+
+    /// Starts `samples` (interleaved stereo at [`SAMPLE_RATE`]) playing on repeat at `volume` (0 silent, 1 full), replacing any music already playing.
+    pub fn start_music(&mut self, samples: Vec<f32>, volume: f32) {
+        let Ok(sink) = rodio::Sink::try_new(&self.handle) else { return };
+        sink.set_volume(volume);
+        sink.append(rodio::buffer::SamplesBuffer::new(2, SAMPLE_RATE, samples).repeat_infinite());
+        self.music = Some(sink);
+    }
+
+    /// Sets the music's volume (no effect when none is playing).
+    pub fn set_music_volume(&self, volume: f32) {
+        if let Some(sink) = &self.music {
+            sink.set_volume(volume);
+        }
+    }
+
+    /// Whether music has been started.
+    pub fn has_music(&self) -> bool {
+        self.music.is_some()
     }
 
     /// Plays a synthesized mono clip once, fire-and-forget (mixed in automatically alongside
