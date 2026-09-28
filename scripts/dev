@@ -19,7 +19,7 @@
 #   scripts/dev ci                     what CI runs (fmt, clippy -D warnings, tests, headless build)
 #   scripts/dev status [...]           `red_engine2 status` (handoff: what is done / in flight / next)
 #
-# Env: RED_TIMEOUT=seconds per command (default 900), RED_PROFILE=debug|release (default debug; the dev profile is
+# Env: RED_TIMEOUT=seconds per command (default 900), RED_PROFILE=debug|release|fast (default debug; the dev profile is
 # already opt-level 1 so it is fast enough for maps and tests). CARGO_TARGET_DIR is honoured (put build output on another drive).
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,7 +34,7 @@ export PATH CARGO_TERM_COLOR=never RUST_BACKTRACE="${RUST_BACKTRACE:-1}"
 
 TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 PROFILE="${RED_PROFILE:-debug}"
-PFLAG=""; [ "$PROFILE" = "release" ] && PFLAG="--release"
+case "$PROFILE" in debug) PFLAG="" ;; release) PFLAG="--release" ;; *) PFLAG="--profile $PROFILE" ;; esac   # fast = [profile.fast] in Cargo.toml
 TMO="${RED_TIMEOUT:-900}"
 
 run() { # run <label> <cmd...>: timeout + elapsed

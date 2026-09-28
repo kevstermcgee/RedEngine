@@ -16,6 +16,8 @@ scripts/dev affected --full      # = scripts/ci.sh: only at integration boundari
 ```
 Do not run the whole suite (`scripts/dev test`, bare `cargo test`) as an edit-loop habit. Servers, bots and tests listen on loopback only
 (no OS firewall prompt to wait on); `red_server --public`/`--bind IP`/`--upnp` is the explicit way to face other machines.
+Build profiles: `dev` (the default; tests), `fast` (`RED_PROFILE=fast scripts/dev build` or `cargo build --profile fast --bins`: optimized without LTO, a fraction of the release build; iterate on a
+game with it) and `release` (LTO, 4+ minutes: ship with it). Put build output on another drive with `CARGO_TARGET_DIR` (every script honours it); C: filling up is the usual failure.
 
 ## First 60 seconds
 ```bash

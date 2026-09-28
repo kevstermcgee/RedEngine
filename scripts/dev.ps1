@@ -2,7 +2,7 @@
 #   powershell -File scripts\dev.ps1 doctor | fast | test [filter] | build [--headless] | red <args> | verify <scene> [...]
 #                                    walk <scene> [...] | server <scene> [...] | ci | status [...]
 #                                    affected|check [--quick|--full] | context <feature|file|words>   (verify only what a change can affect; a work packet)
-# Env: RED_PROFILE = debug | release (default debug). (The bash twin also takes RED_TIMEOUT; PowerShell relies on the tool's own timeout.)
+# Env: RED_PROFILE = debug | release | fast (default debug). (The bash twin also takes RED_TIMEOUT; PowerShell relies on the tool's own timeout.)
 param([Parameter(Position = 0)][string]$Cmd = 'help', [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -13,7 +13,7 @@ $cargoBin = Join-Path $HOME '.cargo\bin'
 if (($env:PATH -split ';') -notcontains $cargoBin -and (Test-Path $cargoBin)) { $env:PATH = "$cargoBin;$env:PATH" }
 $TargetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $Root 'target' }
 $Profile_ = if ($env:RED_PROFILE) { $env:RED_PROFILE } else { 'debug' }
-$PFlag = if ($Profile_ -eq 'release') { @('--release') } else { @() }
+$PFlag = if ($Profile_ -eq 'release') { @('--release') } elseif ($Profile_ -ne 'debug') { @('--profile', $Profile_) } else { @() }   # fast = [profile.fast] in Cargo.toml
 
 function Need-Cargo {
     if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { Write-Error 'dev: cargo not found. Install Rust from https://rustup.rs'; exit 127 }

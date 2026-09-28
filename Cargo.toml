@@ -43,6 +43,16 @@ lto = true
 codegen-units = 1
 opt-level = 3
 
+# `--profile fast` (`RED_PROFILE=fast scripts/dev build`): an optimized build to iterate on a game or the client without waiting for the release
+# profile's full LTO (4+ minutes; this one takes a fraction of that after the first build). Same speed to play; use `--release` to ship.
+# codegen-units is 4 on purpose: rustc crashed compiling the `wide` crate (a physics dependency) at 16 on one machine (STATUS_STACK_BUFFER_OVERRUN).
+# Artifacts land in `target/fast/` (or `$CARGO_TARGET_DIR/fast/`).
+[profile.fast]
+inherits = "release"
+lto = false
+codegen-units = 4
+incremental = false
+
 # Plain `cargo test` runs rapier and 900-tick physics tests: unoptimized they are ~20x slower and the
 # per-step timing assertions get flaky. Light optimization everywhere, more for dependencies.
 #
