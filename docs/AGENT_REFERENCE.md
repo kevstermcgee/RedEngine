@@ -10,6 +10,7 @@ cargo build --release --bin re2 --bin red_server --bin red_bot        # everythi
 cargo build --release --no-default-features --bin red_server --bin red_bot   # the server on a bare box: no graphics/audio crates
 target/release/red_server --map examples/test_lab.json [--spawn-group duel] [--record out/match.json] [--no-interest]
 target/release/re2 --connect 127.0.0.1:27015 examples/test_lab.json     # graphical client (run two); E pick up/drop, click, wheel, R reload
+target/release/re2 --host --fill 4 examples/test_lab.json               # host on this machine and join it: bots (the map's `bots` block or --fill) are the opponents
 target/release/red_bot --server 127.0.0.1:27015 --behavior forward:0    # headless scripted client (JSON output)
 red_engine2 replay out/match.json                                        # replay a recorded match: first divergent tick + state diff
 powershell -File scripts/play_multiplayer.ps1        # server + two tiled windows      (Windows)

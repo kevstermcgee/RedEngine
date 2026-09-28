@@ -391,6 +391,8 @@ fn multiplayer_text() -> String {
          \x20 --upnp    open the UDP port on a home router (UPnP), renew it, remove it on exit. `red_engine2 portmap status|enable|remove|keep`.\n\
          \x20 Every setting is also an env var (RED_KEY, RED_LOBBY, RED_UPNP, RED_ROUND_SECS, ...); docs/HOSTING.md has Docker and systemd.\n\
          PLAY     re2 --connect HOST:PORT [--key K] [--name N] map.json      (or `re2 map.json`, then PLAY ONLINE / the O key opens the connect form)\n\
+                  re2 --host [--fill N] [--bot-skill L] map.json      hosts the map on a thread of the game (bots and flow from the map's blocks) and joins it (ADR 0054)
+\
          \x20 The lobby shows the roster (names, character, ping, ready); R ready, C character, Esc leave. Countdown -> round (HUD: ping, timer,\n\
          \x20 scoreboard) -> results -> everyone pressing Ready again is a rematch. Late joiners play at once or watch until the next round.\n\
          BOT      red_bot --server HOST:PORT [--key K] [--name N] [--ready]   (a scripted headless client that also readies up)\n\
