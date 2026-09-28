@@ -23,7 +23,7 @@
       "summary": "One shared, scene-tunable player movement and jump-pad simulation used by the game, server, client prediction and map tools.",
       "canonical": ["tests/house_walk.rs"],
       "files": ["src/player.rs", "src/controller.rs", "src/collide.rs", "src/sim/player.rs"],
-      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab"],
+      "tests": ["lib:controller", "lib:collide", "lib:sim::player", "house_walk", "test_lab"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
       "depends_on": ["scene_format"]
@@ -40,7 +40,7 @@
       "summary": "Bat plus an eleven-firearm arsenal: tick-based swings/cooldowns, hitscan, health, death, respawn and authoritative pick-up contention.",
       "canonical": ["tests/interactions.rs"],
       "files": ["src/weapons.rs", "src/sim/combat.rs", "src/sim/interact.rs"],
-      "tests": ["lib:weapons", "lib:sim::combat", "lib:sim::interact", "interactions", "net_interactions"],
+      "tests": ["lib:weapons", "lib:sim::combat", "interactions", "net_interactions"],
       "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
       "depends_on": ["prop_physics", "sim_core"]
     },
@@ -66,7 +66,7 @@
       "summary": "Deterministic traces, replay without a renderer, state checksums, first-divergent-tick reports.",
       "canonical": ["tests/sim_replay.rs"],
       "files": ["src/sim/trace.rs", "src/sim/replay.rs", "src/sim/checksum.rs", "tests/fixtures/**"],
-      "tests": ["lib:sim::trace", "lib:sim::replay", "sim_replay"],
+      "tests": ["lib:sim::trace", "sim_replay"],
       "commands": ["red_engine2 replay tests/fixtures/coin_run.trace.json"],
       "docs": ["docs/adr/0021-deterministic-traces-replay-and-checksums.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
       "depends_on": ["sim_core", "game_rules"]
@@ -165,7 +165,7 @@
       "summary": "lint, reach, walk (incl. auto-planned routes), plan, tour, ray, ls/info, diff: what the map will do, answered with the game's own physics.",
       "canonical": ["examples/test_lab.json", "tests/maps_verify.rs"],
       "files": ["src/tools/lint.rs", "src/tools/reach.rs", "src/tools/walk.rs", "src/tools/pathing.rs", "src/tools/plan.rs", "src/tools/sight.rs", "src/tools/world.rs", "src/tools/shots.rs", "src/tools/inspect.rs", "src/tools/diff.rs", "src/cli/analyze.rs", "src/cli/render_cmds.rs"],
-      "tests": ["lib:tools::lint", "lib:tools::reach", "lib:tools::walk", "lib:tools::plan", "house_walk", "maps_verify", "test_lab"],
+      "tests": ["lib:tools::lint", "lib:tools::reach", "lib:tools::walk", "house_walk", "maps_verify", "test_lab"],
       "commands": ["red_engine2 lint examples/test_lab.json", "red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["AGENTS.md", "docs/adr/0023-walk-failures-name-their-blocker-routes-are-planned.md"],
       "depends_on": ["player_physics", "scene_format"]
@@ -207,7 +207,8 @@
         "lib:tools::knowledge", "cli_envelope", "docs_fresh", "features_index"],
       "commands": ["red_engine2 describe --brief", "red_engine2 features --check", "red_engine2 affected --dry-run"],
       "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md",
-        "docs/adr/0045-task-packets-knowledge-ids-and-annotations.md"]
+        "docs/adr/0045-task-packets-knowledge-ids-and-annotations.md",
+        "docs/adr/0046-verification-that-says-what-it-did-not-prove.md"]
     },
     "docs_and_adrs": {
       "summary": "The docs an outsider or an agent reads first, kept true by tests: README, SPEC, AGENTS, CLAUDE, LICENSE, glossary, decisions.",
@@ -218,7 +219,8 @@
     "build_and_ci": {
       "summary": "Cargo features (the headless build), CI script, dev scripts, the dependency boundary.",
       "canonical": ["tests/headless_boundary.rs"],
-      "files": ["Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
+      "files": ["Cargo.toml", "Cargo.lock", "scripts/ci.sh",
+        "scripts/ci_summary.awk", "scripts/dev", "scripts/dev.ps1", ".github/**"],
       "tests": ["headless_boundary"],
       "commands": ["scripts/ci.sh"],
       "docs": ["docs/adr/0017-headless-build-gfx-feature.md"]

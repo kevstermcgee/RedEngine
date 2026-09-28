@@ -64,11 +64,14 @@ pub struct Step {
     pub env: Vec<(String, String)>,
     /// Why this step is in the plan (one line).
     pub why: String,
+    /// Library filters guessed from a changed path (`src/sim/interact.rs` -> `sim::interact`) that no feature claims. Selecting nothing is
+    /// then a fact worth saying (the module has no unit tests), not a failed check; a filter the index *claims* must select tests.
+    pub optional: Vec<String>,
 }
 
 impl Step {
     fn new(name: &str, argv: &[&str], why: impl Into<String>) -> Step {
-        Step { name: name.to_string(), argv: argv.iter().map(|s| s.to_string()).collect(), env: Vec::new(), why: why.into() }
+        Step { name: name.to_string(), argv: argv.iter().map(|s| s.to_string()).collect(), env: Vec::new(), why: why.into(), optional: Vec::new() }
     }
     /// The command as one shell-looking line.
     pub fn command_line(&self) -> String {
@@ -241,6 +244,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
 
     // Tests from the owning features, plus what the changed paths say directly (a feature entry may be too coarse or missing).
     let mut lib_filters: BTreeSet<String> = BTreeSet::new();
+    let mut guessed: BTreeSet<String> = BTreeSet::new();
     let mut suites: BTreeSet<String> = BTreeSet::new();
     let mut deferred: BTreeSet<String> = BTreeSet::new();
     for f in names_of(&wanted) {
@@ -275,7 +279,9 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
             targets.insert(t);
         }
         if let Some(m) = lib_filter(c) {
-            lib_filters.insert(m.clone());
+            if lib_filters.insert(m.clone()) {
+                guessed.insert(m.clone()); // not claimed by any feature: a guess from the path
+            }
             doc_filters.insert(m);
         }
         if imp.unowned.contains(c) && (c.starts_with("src/") || c.starts_with("tests/") || c.starts_with("benches/")) {
@@ -324,6 +330,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
             argv,
             env: Vec::new(),
             why: "warnings are errors in CI; only the changed targets (test-module lints run in the full tier)".into(),
+            optional: Vec::new(),
         });
     }
 
@@ -332,7 +339,8 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
     if !lib_filters.is_empty() {
         let mut argv: Vec<String> = ["cargo", "test", "--locked", "--lib", "--"].iter().map(|s| s.to_string()).collect();
         argv.extend(lib_filters.iter().cloned());
-        plan.steps.push(Step { name: "unit".into(), argv, env: Vec::new(), why: format!("unit tests of {}", lib_filters.join(", ")) });
+        let optional = lib_filters.iter().filter(|f| guessed.contains(*f)).cloned().collect();
+        plan.steps.push(Step { name: "unit".into(), argv, env: Vec::new(), why: format!("unit tests of {}", lib_filters.join(", ")), optional });
     }
     for t in &targets {
         if let Target::Bin(b) = t {
@@ -342,7 +350,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
     if targets.contains(&Target::Lib) && !doc_filters.is_empty() {
         let mut argv: Vec<String> = ["cargo", "test", "--locked", "--doc", "--"].iter().map(|s| s.to_string()).collect();
         argv.extend(doc_filters.iter().cloned());
-        plan.steps.push(Step { name: "doc".into(), argv, env: Vec::new(), why: "doc examples of the changed modules".into() });
+        plan.steps.push(Step { name: "doc".into(), argv, env: Vec::new(), why: "doc examples of the changed modules".into(), optional: Vec::new() });
     }
     let (serial_suites, parallel_suites): (Vec<&String>, Vec<&String>) = suites.iter().partition(|s| serial.contains(s));
     let suite_argv = |list: &[&String]| -> Vec<String> {
@@ -359,6 +367,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
             argv: suite_argv(&parallel_suites),
             env: Vec::new(),
             why: format!("integration suites: {}", list.join(", ")),
+            optional: Vec::new(),
         });
     }
     if !serial_suites.is_empty() {
@@ -368,6 +377,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
             argv: suite_argv(&serial_suites),
             env: vec![("RUST_TEST_THREADS".into(), "1".into())],
             why: format!("real-time network suites, one test at a time: {}", list.join(", ")),
+            optional: Vec::new(),
         });
     }
     plan.deferred = deferred.into_iter().collect();
@@ -401,8 +411,12 @@ pub fn prune_doc_step(plan: &mut Plan, root: &Path) {
 pub struct StepResult {
     /// The step's name.
     pub name: String,
-    /// Whether it exited 0.
+    /// Whether it passed: exited 0 **and** ran what it was asked to run (see [`empty_selections`]).
     pub ok: bool,
+    /// Why it failed, when it did: `tool-missing`, `compile`, `format`, `lint`, `test`, `empty-selection` or `other`.
+    pub category: Option<&'static str>,
+    /// `false` when the step never ran (an earlier step failed and `--keep-going` was off).
+    pub ran: bool,
     /// Wall-clock seconds.
     pub secs: f64,
     /// `N passed, F failed, I ignored` summed over the `test result:` lines, when there were any.
@@ -424,6 +438,135 @@ pub fn tally(log: &str) -> Option<String> {
         i += num(" ignored");
     }
     any.then(|| format!("{p} passed, {f} failed, {i} ignored"))
+}
+
+/// The test binary a cargo test log section belongs to, as the flag that selects it again: `--lib`, `--test net_flow`, `--bin re2`, `--doc`.
+fn log_target(line: &str) -> Option<String> {
+    let t = line.trim_start();
+    if t.starts_with("Doc-tests ") {
+        return Some("--doc".to_string());
+    }
+    let rest = t.strip_prefix("Running ")?;
+    let path = rest.split_whitespace().find(|w| w.ends_with(".rs"))?.replace('\\', "/");
+    if let Some(name) = path.strip_prefix("tests/").and_then(|p| p.strip_suffix(".rs")) {
+        return Some(format!("--test {name}"));
+    }
+    if path == "src/lib.rs" {
+        return Some("--lib".to_string());
+    }
+    if path == "src/main.rs" {
+        return Some("--bin red_engine2".to_string());
+    }
+    let bin = path.strip_prefix("src/bin/")?.trim_end_matches(".rs").trim_end_matches("/main");
+    Some(format!("--bin {bin}"))
+}
+
+/// Requested test selections that ran **no** test, from the step's arguments and its log: a `--test X` whose binary ran 0 tests (or never
+/// ran), or a library filter (`cargo test --lib -- sim::flow`) that matched no test name. An empty selection is not a pass: the metadata
+/// that asked for it is wrong, or the tests it meant are gone.
+pub fn empty_selections(argv: &[String], log: &str) -> Vec<String> {
+    if argv.first().map(String::as_str) != Some("cargo") || !argv.iter().any(|a| a == "test") || argv.iter().any(|a| a == "--no-run") {
+        return Vec::new();
+    }
+    // Tests that ran, per target.
+    let mut ran: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let mut cur = String::new();
+    for l in log.lines() {
+        if let Some(t) = log_target(l) {
+            cur = t;
+            counts.entry(cur.clone()).or_insert(0);
+            continue;
+        }
+        if let Some(rest) = l.strip_prefix("test ") {
+            if let Some((name, _)) = rest.split_once(" ... ") {
+                ran.entry(cur.clone()).or_default().push(name.trim().to_string());
+                *counts.entry(cur.clone()).or_insert(0) += 1;
+            }
+        }
+    }
+    let mut out = Vec::new();
+    let mut i = 0;
+    let dashdash = argv.iter().position(|a| a == "--");
+    while i < argv.len() && dashdash.is_none_or(|d| i < d) {
+        if argv[i] == "--test" {
+            if let Some(name) = argv.get(i + 1) {
+                let key = format!("--test {name}");
+                if counts.get(&key).copied().unwrap_or(0) == 0 {
+                    out.push(format!("suite `{name}` ran no tests"));
+                }
+            }
+            i += 1;
+        }
+        i += 1;
+    }
+    if let (true, Some(d)) = (argv.iter().any(|a| a == "--lib"), dashdash) {
+        let lib = ran.get("--lib").cloned().unwrap_or_default();
+        for f in argv[d + 1..].iter().filter(|a| !a.starts_with('-')) {
+            if !lib.iter().any(|t| t.contains(f.as_str())) {
+                out.push(format!("library filter `{f}` matched no test"));
+            }
+        }
+    }
+    out
+}
+
+/// What kind of failure a log shows (the first that applies).
+pub fn categorize(step: &str, log: &str) -> &'static str {
+    if log.starts_with("error: cannot run") {
+        "tool-missing"
+    } else if log.contains("error[E") || log.contains("error: could not compile") {
+        "compile"
+    } else if log.contains("Diff in ") {
+        "format"
+    } else if step.contains("clippy") {
+        "lint"
+    } else if log.lines().any(|l| l.starts_with("test ") && l.ends_with("FAILED")) || log.contains("panicked at") {
+        "test"
+    } else {
+        "other"
+    }
+}
+
+/// Each failed test with where it failed and the exact command that runs it alone:
+/// `FAILED --test docs_fresh every_cli_command_is_mentioned`, `  at tests/docs_fresh.rs:100:5: DOCS-001 ...`, `  repro: cargo test --test docs_fresh -- ... --exact`.
+pub fn failed_tests(argv: &[String], log: &str, max: usize) -> Vec<String> {
+    let features: Vec<String> = argv
+        .iter()
+        .zip(argv.iter().skip(1))
+        .filter(|(a, _)| *a == "--features" || *a == "--no-default-features")
+        .map(|(a, b)| if a == "--features" { format!("{a} {b}") } else { a.clone() })
+        .collect();
+    let extra = if argv.iter().any(|a| a == "--no-default-features") {
+        " --no-default-features".to_string()
+    } else {
+        features.iter().filter(|f| f.starts_with("--features")).map(|f| format!(" {f}")).collect()
+    };
+    let lines: Vec<&str> = log.lines().collect();
+    let mut cur = String::new();
+    let mut failed: Vec<(String, String)> = Vec::new();
+    for l in &lines {
+        if let Some(t) = log_target(l) {
+            cur = t;
+        } else if let Some(name) = l.strip_prefix("test ").and_then(|r| r.strip_suffix(" ... FAILED")) {
+            failed.push((cur.clone(), name.trim().to_string()));
+        }
+    }
+    let mut out = Vec::new();
+    for (target, name) in failed {
+        out.push(format!("FAILED {target} {name}"));
+        // The panic for this test: `thread '<name>' ... panicked at LOC:` then the message line.
+        if let Some(n) = lines.iter().position(|l| l.contains(&format!("'{name}'")) && l.contains("panicked at")) {
+            let loc = lines[n].split("panicked at").nth(1).unwrap_or("").trim().trim_end_matches(':');
+            let msg = lines.get(n + 1).map(|m| m.trim()).unwrap_or("");
+            out.push(format!("  at {loc}: {}", msg.chars().take(160).collect::<String>()));
+        }
+        out.push(format!("  repro: cargo test{extra} {target} -- {name} --exact"));
+        if out.len() >= max {
+            break;
+        }
+    }
+    out
 }
 
 /// The lines of a failed step's log that say what went wrong (compiler errors with locations, failed tests, panics, formatting diffs), bounded.
@@ -527,18 +670,41 @@ pub fn run(plan: &Plan, root: &Path, log_dir: &Path, keep_going: bool, on_step: 
             }
         };
         let text = std::fs::read_to_string(&log).unwrap_or_default();
-        let r = StepResult {
-            name: step.name.clone(),
-            ok,
-            secs: t0.elapsed().as_secs_f64(),
-            tally: tally(&text),
-            failures: if ok { Vec::new() } else { failure_lines(&text, 40) },
-            log,
+        // Exit status alone is not a verdict: a selection that ran nothing passed nothing.
+        let (notes, empty): (Vec<String>, Vec<String>) =
+            empty_selections(&step.argv, &text).into_iter().partition(|e| step.optional.iter().any(|o| e.contains(&format!("`{o}`"))));
+        let passed = ok && empty.is_empty();
+        let category = (!passed).then(|| if ok { "empty-selection" } else { categorize(&step.name, &text) });
+        let failures = if passed {
+            notes.iter().map(|n| format!("note: {n}: the module has no unit tests, so only the suites vouch for it")).collect()
+        } else if !empty.is_empty() {
+            empty.iter().map(|e| format!("{e}: an empty selection is not a pass (`red_engine2 context VERIFY-001`)")).collect()
+        } else {
+            let tests = failed_tests(&step.argv, &text, 24);
+            if tests.is_empty() {
+                failure_lines(&text, 20)
+            } else {
+                tests
+            }
         };
+        let r = StepResult { name: step.name.clone(), ok: passed, category, ran: true, secs: t0.elapsed().as_secs_f64(), tally: tally(&text), failures, log };
         on_step(&r);
         let failed = !r.ok;
         results.push(r);
         if failed && !keep_going {
+            // Say what was not run, never leave it silent.
+            for rest in &plan.steps[n + 1..] {
+                results.push(StepResult {
+                    name: rest.name.clone(),
+                    ok: false,
+                    category: None,
+                    ran: false,
+                    secs: 0.0,
+                    tally: None,
+                    failures: Vec::new(),
+                    log: PathBuf::new(),
+                });
+            }
             break;
         }
     }
@@ -837,7 +1003,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let exe = std::env::current_exe().unwrap().to_string_lossy().to_string();
         // The test binary itself is a portable command: `--help` exits 0, an unknown flag exits non-zero.
-        let mk = |name: &str, arg: &str| Step { name: name.into(), argv: vec![exe.clone(), arg.into()], env: vec![], why: String::new() };
+        let mk = |name: &str, arg: &str| Step { name: name.into(), argv: vec![exe.clone(), arg.into()], env: vec![], why: String::new(), optional: vec![] };
         let p = Plan {
             scope: Scope::Closure,
             changed: vec![],
@@ -849,11 +1015,53 @@ mod tests {
         };
         let mut seen = Vec::new();
         let r = run(&p, &dir, &dir.join("logs"), false, &mut |s| seen.push((s.name.clone(), s.ok)));
-        assert_eq!(seen, [("good".to_string(), true), ("bad".to_string(), false)]);
-        assert_eq!(r.len(), 2);
-        assert!(r[1].log.exists() && !r[1].failures.is_empty());
+        assert_eq!(seen, [("good".to_string(), true), ("bad".to_string(), false)], "the callback sees steps that ran");
+        assert_eq!(r.len(), 3, "the step after the failure is reported, not dropped");
+        assert!(r[1].ran && r[1].log.exists() && !r[1].failures.is_empty() && r[1].category.is_some());
+        assert!(!r[2].ran && !r[2].ok, "a step that did not run is never a pass");
         let all = run(&p, &dir, &dir.join("logs"), true, &mut |_| {});
         assert_eq!(all.len(), 3, "--keep-going runs every step");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Log lines in the exact shape `cargo test` prints on Windows (backslashes) and Linux.
+    const LIB_LOG: &str = "     Running unittests src\\lib.rs (target\\debug\\deps\\red_engine2-1.exe)\n\nrunning 3 tests\ntest sim::combat::tests::a ... ok\ntest weapons::tests::b ... ok\ntest sim::flow::tests::c ... FAILED\n\nfailures:\n\n---- sim::flow::tests::c stdout ----\n\nthread 'sim::flow::tests::c' (123) panicked at src\\sim\\flow.rs:40:9:\nassertion `left == right` failed\n\ntest result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 380 filtered out\n\n     Running tests/net_flow.rs (target/debug/deps/net_flow-2)\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
+
+    fn argv(s: &str) -> Vec<String> {
+        s.split_whitespace().map(str::to_string).collect()
+    }
+
+    #[test]
+    fn a_selection_that_ran_nothing_is_reported_not_passed() {
+        let empty = empty_selections(&argv("cargo test --locked --lib --test net_flow -- sim::combat sim::interact weapons"), LIB_LOG);
+        assert_eq!(empty, ["suite `net_flow` ran no tests", "library filter `sim::interact` matched no test"]);
+        assert!(empty_selections(&argv("cargo test --locked --lib -- sim::combat weapons"), LIB_LOG).is_empty());
+        assert_eq!(empty_selections(&argv("cargo test --locked --test net_auth"), LIB_LOG), ["suite `net_auth` ran no tests"], "a suite that never ran at all");
+        assert!(empty_selections(&argv("cargo clippy --lib"), "").is_empty(), "only test steps select tests");
+    }
+
+    #[test]
+    fn failed_tests_name_their_binary_location_message_and_repro() {
+        let f = failed_tests(&argv("cargo test --locked --no-default-features --lib -- sim::flow"), LIB_LOG, 10);
+        assert_eq!(f[0], "FAILED --lib sim::flow::tests::c");
+        assert_eq!(f[1], "  at src\\sim\\flow.rs:40:9: assertion `left == right` failed");
+        assert_eq!(f[2], "  repro: cargo test --no-default-features --lib -- sim::flow::tests::c --exact");
+        assert_eq!(categorize("unit", LIB_LOG), "test");
+        assert_eq!(categorize("unit", "error[E0308]: mismatched types\n --> src/a.rs:1:1"), "compile");
+        assert_eq!(categorize("fmt", "Diff in src/a.rs at line 3:"), "format");
+        assert_eq!(categorize("unit", "error: cannot run `cargo`: not found"), "tool-missing");
+    }
+
+    #[test]
+    fn a_filter_guessed_from_the_path_is_optional_and_a_claimed_one_is_required() {
+        let mut all = world();
+        all.push(feature("combat", &["src/sim/interact.rs", "src/sim/combat.rs"], &["lib:sim::combat", "interactions"], &[]));
+        let p = plan(&all, &[], &["src/sim/interact.rs".to_string()], &Options::default());
+        let unit = p.steps.iter().find(|s| s.name == "unit").unwrap();
+        assert_eq!(unit.optional, ["sim::interact"], "{:?}", unit.argv);
+        let mut claimed = world();
+        claimed.push(feature("combat", &["src/sim/interact.rs"], &["lib:sim::interact"], &[]));
+        let p = plan(&claimed, &[], &["src/sim/interact.rs".to_string()], &Options::default());
+        assert!(p.steps.iter().find(|s| s.name == "unit").unwrap().optional.is_empty(), "the index claims it: it must select tests");
     }
 }

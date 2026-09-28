@@ -224,6 +224,26 @@ fn walk(root: &Path, dir: &str, ext: &str, out: &mut Vec<String>) {
     }
 }
 
+/// Whether the module at `src/<head>` (a file, `mod.rs`, or a directory of them) contains a `#[test]`.
+fn module_has_tests(src: &Path, head: &str) -> bool {
+    let has = |p: &Path| std::fs::read_to_string(p).is_ok_and(|t| t.contains("#[test]"));
+    let dir = src.join(head);
+    if has(&src.join(format!("{head}.rs"))) || has(&dir.join("mod.rs")) {
+        return true;
+    }
+    fn walk(d: &Path, has: &dyn Fn(&Path) -> bool) -> bool {
+        std::fs::read_dir(d).into_iter().flatten().flatten().any(|e| {
+            let p = e.path();
+            if p.is_dir() {
+                walk(&p, has)
+            } else {
+                p.extension().is_some_and(|x| x == "rs") && has(&p)
+            }
+        })
+    }
+    dir.is_dir() && walk(&dir, &has)
+}
+
 /// Problems with the index: a listed thing that does not exist, or a source file no feature owns. Empty = the index is true.
 pub fn check(features: &[Feature], root: &Path) -> Vec<String> {
     let mut problems = Vec::new();
@@ -264,6 +284,12 @@ pub fn check(features: &[Feature], root: &Path) -> Vec<String> {
                     let exists = ["", ".rs", "/mod.rs"].iter().any(|suffix| root.join("src").join(format!("{head}{suffix}")).exists());
                     if !exists {
                         problems.push(format!("feature '{}': library test filter '{filter}' is not a module under src/", f.name));
+                    } else if !module_has_tests(&root.join("src"), head) {
+                        // `cargo test --lib -- <filter>` would select nothing, and an empty selection is not evidence (FEAT-001).
+                        problems.push(format!(
+                            "feature '{}': library test filter '{filter}' selects no test (the module has no #[test]); list the suites that cover it instead",
+                            f.name
+                        ));
                     }
                 }
                 None => {
@@ -465,5 +491,17 @@ mod tests {
         assert_eq!(find(&fs, "summary").len(), 2);
         assert_eq!(find(&fs, "zzz").len(), 0);
         assert!(render_list(&fs).contains("match_flow") && render_one(&fs[0]).contains("src/sim/flow.rs"));
+    }
+
+    #[test]
+    fn a_library_filter_must_name_a_module_that_has_tests() {
+        let dir = std::env::temp_dir().join(format!("red-features-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("src/sim")).unwrap();
+        std::fs::write(dir.join("src/sim/flow.rs"), "fn f() {}\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() {}\n}\n").unwrap();
+        std::fs::write(dir.join("src/sim/interact.rs"), "pub fn f() {}\n").unwrap();
+        assert!(module_has_tests(&dir.join("src"), "sim/flow"));
+        assert!(!module_has_tests(&dir.join("src"), "sim/interact"), "no #[test]: `cargo test -- sim::interact` would select nothing");
+        assert!(module_has_tests(&dir.join("src"), "sim"), "a directory counts when any file in it has tests");
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

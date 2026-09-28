@@ -70,6 +70,7 @@ pub(crate) const ADRS: &[(&str, &str)] = &[
     ("0041-native-input-and-sandbox-workflow.md", include_str!("../../docs/adr/0041-native-input-and-sandbox-workflow.md")),
     ("0042-proportional-verification-and-unattended-runs.md", include_str!("../../docs/adr/0042-proportional-verification-and-unattended-runs.md")),
     ("0045-task-packets-knowledge-ids-and-annotations.md", include_str!("../../docs/adr/0045-task-packets-knowledge-ids-and-annotations.md")),
+    ("0046-verification-that-says-what-it-did-not-prove.md", include_str!("../../docs/adr/0046-verification-that-says-what-it-did-not-prove.md")),
 ];
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.

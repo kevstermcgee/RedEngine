@@ -530,7 +530,15 @@ pub(crate) fn run_affected(
         if json {
             return;
         }
-        println!("{} {:<13} {:>6.1}s{}", if r.ok { "ok  " } else { "FAIL" }, r.name, r.secs, r.tally.as_ref().map(|t| format!("  {t}")).unwrap_or_default());
+        if !r.ran {
+            return; // listed once, below
+        }
+        let tag = match (r.ok, r.category) {
+            (true, _) => "ok  ".to_string(),
+            (false, Some(c)) => format!("FAIL [{c}]"),
+            (false, None) => "FAIL".to_string(),
+        };
+        println!("{tag} {:<13} {:>6.1}s{}", r.name, r.secs, r.tally.as_ref().map(|t| format!("  {t}")).unwrap_or_default());
         for l in &r.failures {
             println!("     | {l}");
         }
@@ -538,15 +546,21 @@ pub(crate) fn run_affected(
             println!("     full log: {}", r.log.display());
         }
     });
+    let not_run: Vec<&str> = results.iter().filter(|r| !r.ran).map(|r| r.name.as_str()).collect();
+    if !json && !not_run.is_empty() {
+        println!("NOT RUN (after the first failure; `--keep-going` runs them): {}", not_run.join(", "));
+    }
     restore_exe(moved);
-    let ok = results.len() == plan.steps.len() && results.iter().all(|r| r.ok);
+    let ok = results.len() == plan.steps.len() && results.iter().all(|r| r.ok && r.ran);
     if ok && !no_cache {
         affected::record_green(&root, &plan.changed, plan.scope);
     }
     if json {
         let rs: Vec<_> = results
             .iter()
-            .map(|r| serde_json::json!({"name": r.name, "ok": r.ok, "secs": r.secs, "tally": r.tally, "failures": r.failures, "log": r.log.display().to_string()}))
+            .map(|r| {
+                serde_json::json!({"name": r.name, "ok": r.ok, "ran": r.ran, "category": r.category, "secs": r.secs, "tally": r.tally, "failures": r.failures, "log": r.log.display().to_string()})
+            })
             .collect();
         println!("{}", serde_json::json!({"verified": ok, "scope": plan.scope.name(), "plan": affected::plan_json(&plan), "results": rs}));
     } else if ok {

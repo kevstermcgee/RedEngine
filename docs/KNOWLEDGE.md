@@ -52,6 +52,14 @@ Fields: `features` (owners in docs/features.json), then `symptom`/`cause`/`dont`
 - look: add the README row and the `include_str!` line; run `red_engine2 status --sync-docs CLAUDE.md`
 - verify: `cargo test --test docs_fresh`
 
+## VERIFY-001 — a check that ran nothing is not a pass
+- kind: check
+- features: self_description, build_and_ci
+- symptom: `affected` prints `FAIL [empty-selection]` (a `--test X` that ran no tests, or a library filter that matched none), or `features --check` says a library test filter selects no test
+- cause: `docs/features.json` names a test module or suite that has no tests (or lost them); before this check such steps exited 0 and counted as verification
+- dont: add a dummy test to make the selection non-empty
+- look: list the suites that really cover the module (`context <file>`), or write the missing unit test; cargo filters are substrings, so name the module exactly
+- verify: `red_engine2 features --check` then `scripts/dev affected --quick`
 ## SPAWN-001 — a scene with no `spawns` starts at the camera
 - kind: trap
 - features: scene_format, map_analysis
