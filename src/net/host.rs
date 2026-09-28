@@ -40,6 +40,7 @@ impl Default for HostOptions {
 pub struct LocalHost {
     addr: SocketAddr,
     stop: Arc<AtomicBool>,
+    pause: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -78,6 +79,8 @@ impl LocalHost {
                 MatchSim::try_new(&scene, spawns2.clone())
             })?;
         }
+        let pause = Arc::new(AtomicBool::new(false));
+        server.set_pause_flag(pause.clone());
         let bound = server.local_addr().map_err(|e| format!("cannot read the server address: {e}"))?;
         // A server bound to every interface is still reached from this machine by the loopback.
         let addr = SocketAddr::new(if opts.bind.is_unspecified() { IpAddr::from([127, 0, 0, 1]) } else { opts.bind }, bound.port());
@@ -86,12 +89,17 @@ impl LocalHost {
         let flag = stop.clone();
         let thread =
             std::thread::Builder::new().name("red-host".into()).spawn(move || server.run(&flag)).map_err(|e| format!("cannot start the server thread: {e}"))?;
-        Ok(LocalHost { addr, stop, thread: Some(thread) })
+        Ok(LocalHost { addr, stop, pause, thread: Some(thread) })
     }
 
     /// The address a client on this machine joins.
     pub fn addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    /// A switch that freezes the match while it is set: the world and the round clock stop, the connection stays up (a game pauses with it).
+    pub fn pause_flag(&self) -> Arc<AtomicBool> {
+        self.pause.clone()
     }
 }
 
@@ -142,6 +150,30 @@ mod tests {
         let started = Instant::now();
         drop(host);
         assert!(started.elapsed() < Duration::from_secs(3), "dropping the host stops its thread promptly: {:?}", started.elapsed());
+    }
+
+    #[test]
+    fn a_paused_host_keeps_everyone_connected_and_sending_snapshots() {
+        let host = LocalHost::start(&lab(), &HostOptions { fill: Some(0), spawn_group: "duel".into(), ..Default::default() }).unwrap();
+        let (_s, world) = ClientWorld::load(&lab()).unwrap();
+        let mut me = Bot::new(host.addr(), Character::Human, world, Behavior::Idle, 0).unwrap();
+        let pump_for = |me: &mut Bot, secs: f64| {
+            let end = Instant::now() + Duration::from_secs_f64(secs);
+            while Instant::now() < end {
+                me.pump(Instant::now());
+                std::thread::sleep(Duration::from_millis(3));
+            }
+        };
+        pump_for(&mut me, 1.0);
+        assert_eq!(me.client.state(), crate::net::client::ConnState::Connected);
+        let before = me.client.stats().snapshots;
+        host.pause_flag().store(true, Ordering::Relaxed);
+        pump_for(&mut me, 4.0); // longer than the 3 s a silent server would be timed out after
+        assert_eq!(me.client.state(), crate::net::client::ConnState::Connected, "a paused match does not drop its players");
+        assert!(me.client.stats().snapshots > before + 60, "the server keeps sending snapshots while paused: {} -> {}", before, me.client.stats().snapshots);
+        host.pause_flag().store(false, Ordering::Relaxed);
+        pump_for(&mut me, 0.5);
+        assert_eq!(me.client.state(), crate::net::client::ConnState::Connected);
     }
 
     #[test]

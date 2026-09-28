@@ -13,6 +13,8 @@ dropped. `re2 --host [--fill N] [--bot-skill LEVEL] MAP` starts one and joins it
 
 `red_server` is unchanged (it has recording, UPnP, keys and signal handling that a game does not need); the two share the server, not the start-up.
 
+**Pausing.** A match that belongs to one person can wait for them. `Server::set_pause_flag` gives another thread a switch that freezes the simulation and the match clock while the server keeps ticking, answering and sending snapshots, so clients stay connected (`LocalHost::pause_flag`). The pause menu (Escape) sets it, and so does losing focus in a hosted game; resuming clears it. The world, the bots, health regeneration and the round timer all stand still.
+
 ## Consequences
 - One executable and one click start a game against bots: `re2.exe arena.json --host`. A game's launcher is a shortcut to that command.
 - The map alone decides the fight (`bots`, `match`, `combat`, `weapons` blocks), and `--fill` / `--bot-skill` are the player's difficulty and crowd knobs.

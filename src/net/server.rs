@@ -32,6 +32,7 @@ use std::hash::BuildHasher;
 use std::io::{self, ErrorKind};
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 fn apply_character_policy(policy: Option<crate::player::Character>, requested: u8) -> u8 {
@@ -191,6 +192,8 @@ pub struct Server {
     status_dirty: bool,
     /// Bots added this round so far (indexes the roster, so every round starts with the same fighters).
     bots_spawned: u32,
+    /// Set from another thread to freeze the world (see [`Server::set_pause_flag`]).
+    pause: Option<Arc<AtomicBool>>,
 }
 
 impl Server {
@@ -230,6 +233,7 @@ impl Server {
             last_result: None,
             status_dirty: false,
             bots_spawned: 0,
+            pause: None,
         };
         server.sync_bots();
         Ok(server)
@@ -238,6 +242,12 @@ impl Server {
     /// Replaces where log lines go (tests silence it or collect it).
     pub fn set_logger(&mut self, f: impl FnMut(&str) + Send + 'static) {
         self.log = Box::new(f);
+    }
+
+    /// Gives another thread a switch that freezes the world: while `flag` is set the simulation and the match clock stand still, but the server keeps
+    /// answering, sending snapshots and timing sessions out, so clients stay connected. It is how a game that hosts its own match pauses.
+    pub fn set_pause_flag(&mut self, flag: Arc<AtomicBool>) {
+        self.pause = Some(flag);
     }
 
     /// The address actually bound (useful with port 0).
@@ -686,7 +696,8 @@ impl Server {
     /// Runs one simulation tick and does everything due after it: timeouts, the match flow, the demo kick, snapshots, status.
     pub fn tick(&mut self, now: Instant) {
         let t0 = Instant::now();
-        let running = self.accepts_input();
+        let paused = self.pause.as_ref().is_some_and(|f| f.load(Ordering::Relaxed));
+        let running = self.accepts_input() && !paused;
         if running {
             self.sim.tick_once();
             for e in self.sim.take_events() {
@@ -705,7 +716,9 @@ impl Server {
         }
         self.parked.retain(|p| p.expires > now);
 
-        self.step_flow();
+        if !paused {
+            self.step_flow(); // the match clock stops with the world
+        }
         if self.stats.ticks.is_multiple_of(TICK_RATE_HZ as u64) {
             self.sync_bots();
         }
@@ -1062,6 +1075,41 @@ pub fn raise_timer_resolution() {
         unsafe {
             timeBeginPeriod(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod pause_tests {
+    use super::*;
+    use crate::sim::spawns::parse_spawns;
+
+    #[test]
+    fn a_pause_flag_stops_the_simulation_and_nothing_else() {
+        let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap();
+        let scene = crate::schema::parse_scene(&text).unwrap();
+        let mut spawns = parse_spawns(&text).unwrap();
+        spawns.retain(|s| s.group == "duel");
+        let mut server =
+            Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), crate::net::map_hash(&text)), crate::sim::match_sim::MatchSim::new(&scene, spawns))
+                .unwrap();
+        server.set_logger(|_| {});
+        let flag = Arc::new(AtomicBool::new(false));
+        server.set_pause_flag(flag.clone());
+        let now = Instant::now();
+        for _ in 0..10 {
+            server.tick(now);
+        }
+        assert_eq!((server.sim().tick(), server.stats().ticks), (10, 10));
+        flag.store(true, Ordering::Relaxed);
+        for _ in 0..10 {
+            server.tick(now);
+        }
+        assert_eq!((server.sim().tick(), server.stats().ticks), (10, 20), "the world stands still while the server carries on ticking");
+        flag.store(false, Ordering::Relaxed);
+        for _ in 0..5 {
+            server.tick(now);
+        }
+        assert_eq!(server.sim().tick(), 15, "and runs on from where it stopped");
     }
 }
 

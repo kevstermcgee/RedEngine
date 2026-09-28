@@ -361,6 +361,8 @@ struct App {
     streaks: Option<red_engine2::streaks::Streaks>,
     /// Whether the music is audible (`N` toggles it; `RE2_MUSIC=0` starts without).
     music_on: bool,
+    /// When this game hosts its own match: the switch that freezes it (the pause menu and losing focus set it).
+    host_pause: Option<Arc<std::sync::atomic::AtomicBool>>,
     /// Footsteps played so far (picks the foot).
     step_count: u32,
     /// Online: whether the attack button was down on the previous tick (the server acts on the press).
@@ -516,6 +518,7 @@ impl App {
             feel: red_engine2::feel::Feel::new(),
             streaks: None,
             music_on: false,
+            host_pause: None,
             step_count: 0,
             pred_prev_attack: false,
             was_dead: false,
@@ -693,6 +696,7 @@ fn main() {
         println!("Online: will join {addr}{}.", if forced_character.is_some() { "" } else { " once you pick a character" });
     }
     let mut app = App::new(scene, scene_path, forced_character, connect, net_world);
+    app.host_pause = local_host.as_ref().map(|h| h.pause_flag());
     if key.is_some() {
         app.join_key = key;
     }

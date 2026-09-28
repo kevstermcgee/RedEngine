@@ -245,6 +245,10 @@ impl ApplicationHandler for App {
             }
             WindowEvent::Focused(false) => {
                 self.focused = false;
+                // A match this game hosts waits for you: switching away opens the pause menu, which freezes it.
+                if self.host_pause.is_some() && self.phase == Phase::Playing && !self.paused && !self.online.takeover {
+                    self.enter_pause();
+                }
                 self.pad = Default::default();
                 self.controller.reset();
                 // No key-release events arrive while unfocused: forget held keys so we do not walk on alone.

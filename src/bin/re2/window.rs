@@ -6,6 +6,7 @@ impl App {
     /// Escape: free the mouse and show the pause menu (Resume / Quit).
     pub(crate) fn enter_pause(&mut self) {
         self.paused = true;
+        self.set_host_paused(true);
         self.pause_hover = None;
         self.keys.clear(); // no key-release events arrive while the menu has the mouse
         self.sprint_held = false;
@@ -16,6 +17,7 @@ impl App {
     /// Hides the pause menu and takes the mouse back.
     pub(crate) fn leave_pause(&mut self) {
         self.paused = false;
+        self.set_host_paused(false);
         self.pause_hover = None;
         self.online.painted = None; // the online overlay (if any) is redrawn next frame
         self.rule_hud_painted = None; // likewise for the offline rules HUD
@@ -23,6 +25,13 @@ impl App {
             live.overlay.hide();
         }
         self.set_grab(!self.online.takeover);
+    }
+
+    /// Freezes or thaws the match this game hosts (nothing to do when it plays on another machine's server).
+    fn set_host_paused(&self, paused: bool) {
+        if let Some(flag) = &self.host_pause {
+            flag.store(paused, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 
     /// Redraws the pause menu overlay (after it opens, the window resizes or the hover changes).
