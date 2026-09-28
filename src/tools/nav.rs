@@ -4,7 +4,7 @@
 //! real per-tick movement function (`step_player_tuned`: the scene's speeds, momentum, jump pads and colliders), steering straight at the
 //! far node the way a bot does:
 //!
-//! - `walk` edges are travelled in both directions; `jump` edges jump when close to the far node; `pad` edges must start on a jump pad and are
+//! - `walk` edges are travelled in both directions and `climb` edges (stairs) up only; `jump` edges jump when close to the far node; `pad` edges must start on a jump pad and are
 //!   steered through the air; `drop` edges walk off and land.
 //! - Every node must stand on a floor (within 0.25 m of the authored height) and outside solid geometry.
 //! - Every node must be reachable from the first one, and able to get back to it.
@@ -129,6 +129,8 @@ fn travel(sim: &MatchSim, kind: EdgeKind, a: Vec3, b: Vec3) -> Result<Trial, Str
     if kind == EdgeKind::Pad && !pads.iter().any(|p| p.touches(Vec2::new(a.x, a.z), a.y)) {
         return Err(format!("a pad edge must start on a jump pad, but there is none at ({:.1}, {:.1}) at height {:.1}", a.x, a.z, a.y));
     }
+    // An edge that ends on a jump pad ends the moment the pad is touched (it launches you, so you never "arrive").
+    let target_pad = pads.iter().any(|p| p.touches(Vec2::new(b.x, b.z), b.y));
     let mut st = PlayerState::spawn(a.x, a.z, a.y, 0.0, Character::Human);
     let (mut metres, mut jumped_at) = (0.0f32, None::<u32>);
     let (mut last_check, mut last_pos) = (0u32, st.pos);
@@ -138,6 +140,9 @@ fn travel(sim: &MatchSim, kind: EdgeKind, a: Vec3, b: Vec3) -> Result<Trial, Str
         let floor = ground_height_at(ground, st.pos, st.foot_y);
         let grounded = st.vy <= 0.0 && (st.foot_y - floor).abs() < 0.05;
         if tick > 2 && grounded && dist < ARRIVE_M && (st.foot_y - b.y).abs() < 0.7 {
+            return Ok(Trial { ticks: tick, metres });
+        }
+        if target_pad && tick > 2 && pads.iter().any(|p| p.touches(st.pos, st.foot_y)) {
             return Ok(Trial { ticks: tick, metres });
         }
         let jump = kind == EdgeKind::Jump && grounded && dist < 3.5 && jumped_at.is_none_or(|t| tick > t + 30);

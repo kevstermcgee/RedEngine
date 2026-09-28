@@ -8,7 +8,8 @@
 //! ```
 //!
 //! A node is a spot on a floor (`pos.y` is the height of the feet there). An edge is `[from, to]` or `[from, to, kind]`:
-//! - `walk` (default): walk in a straight line; usable both ways. Stairs and ramps are walk edges.
+//! - `walk` (default): walk in a straight line; usable both ways.
+//! - `climb`: walk in a straight line, one way: a staircase (which can only be entered from its bottom end).
 //! - `jump`: the bot jumps near `from` to reach `to` (a ledge, a gap); one way.
 //! - `pad`: `from` is on a jump pad; step on it, then steer through the air to `to`; one way.
 //! - `drop`: step off a ledge and fall to `to`; one way.
@@ -32,6 +33,8 @@ pub const MAX_EDGES: usize = 4096;
 pub enum EdgeKind {
     /// A straight walk; usable in both directions.
     Walk,
+    /// A straight walk in one direction only (stairs are entered from the bottom).
+    Climb,
     /// Jump near the start; one way.
     Jump,
     /// Ride the jump pad at the start, steer to the end; one way.
@@ -44,6 +47,7 @@ impl EdgeKind {
     fn parse(s: &str) -> Option<EdgeKind> {
         match s {
             "walk" => Some(EdgeKind::Walk),
+            "climb" => Some(EdgeKind::Climb),
             "jump" => Some(EdgeKind::Jump),
             "pad" => Some(EdgeKind::Pad),
             "drop" => Some(EdgeKind::Drop),
@@ -55,6 +59,7 @@ impl EdgeKind {
     pub fn name(self) -> &'static str {
         match self {
             EdgeKind::Walk => "walk",
+            EdgeKind::Climb => "climb",
             EdgeKind::Jump => "jump",
             EdgeKind::Pad => "pad",
             EdgeKind::Drop => "drop",
@@ -158,6 +163,7 @@ impl Nav {
         let dy = (a.y - b.y).abs();
         match edge.kind {
             EdgeKind::Walk => flat + dy * 1.5,
+            EdgeKind::Climb => flat + dy * 1.2,
             EdgeKind::Jump => flat * 1.3 + dy * 2.0 + 1.5,
             EdgeKind::Pad => 3.0 + flat * 0.4,
             EdgeKind::Drop => flat + dy * 0.5 + 1.0,
@@ -270,7 +276,7 @@ pub fn parse_nav(root: &Map<String, Value>) -> Result<Option<Nav>, Vec<String>> 
                         Some(k) => match k.as_str().and_then(EdgeKind::parse) {
                             Some(k) => k,
                             None => {
-                                errs.push(format!("{path}: kind must be walk, jump, pad or drop"));
+                                errs.push(format!("{path}: kind must be walk, climb, jump, pad or drop"));
                                 continue;
                             }
                         },
@@ -310,6 +316,10 @@ mod tests {
         assert_eq!(nav.edge_between(1, 0).map(|e| e.kind), Some(EdgeKind::Walk), "walk edges work both ways");
         assert_eq!(nav.edge_between(2, 3).map(|e| e.kind), Some(EdgeKind::Jump));
         assert!(nav.edge_between(3, 2).is_none(), "a jump is one way");
+        let stairs = parse_nav(&root(r#"{"nav":{"nodes":[{"id":"foot","pos":[0,0,0]},{"id":"top","pos":[9,3.6,0]}],"edges":[["foot","top","climb"]]}}"#))
+            .unwrap()
+            .unwrap();
+        assert!(stairs.edge_between(0, 1).is_some() && stairs.edge_between(1, 0).is_none(), "stairs are climbed from the bottom only");
         assert_eq!(nav.index_of("deck"), Some(3));
     }
 

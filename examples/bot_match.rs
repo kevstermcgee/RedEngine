@@ -19,6 +19,7 @@ fn main() {
     let mut path = String::from("examples/test_lab.json");
     let (mut bots, mut secs, mut skill, mut quiet) = (None::<usize>, 300.0f32, None::<f32>, false);
     let (mut trace, mut weapon) = (None::<usize>, None::<String>);
+    let (mut trace_every, mut from_secs) = (30u64, 0.0f32);
     let mut first = true;
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -27,6 +28,8 @@ fn main() {
             "--skill" => skill = args.next().and_then(|v| level_from_name(&v)),
             "--quiet" => quiet = true,
             "--trace" => trace = args.next().and_then(|v| v.parse().ok()),
+            "--trace-every" => trace_every = args.next().and_then(|v| v.parse().ok()).unwrap_or(30),
+            "--from" => from_secs = args.next().and_then(|v| v.parse().ok()).unwrap_or(0.0),
             "--weapon" => weapon = args.next(),
             other if first && !other.starts_with("--") => path = other.to_string(),
             other => {
@@ -82,20 +85,17 @@ fn main() {
     for _ in 0..ticks {
         sim.tick_once();
         if let Some(slot) = trace {
-            if sim.tick() % 30 == 0 {
+            if sim.tick() % trace_every == 0 && sim.tick() as f32 / 60.0 >= from_secs {
                 if let (Some(p), Some(b)) = (sim.player(slot), sim.brain(slot)) {
-                    let others: Vec<String> = sim
-                        .players()
-                        .filter(|(s, _)| *s != slot)
-                        .map(|(s, q)| format!("{s}:({:.1},{:.1}){}", q.state.pos.x, q.state.pos.y, if q.combat.is_dead() { "x" } else { "" }))
-                        .collect();
-                    println!("   others {}", others.join(" "));
                     println!(
-                        "t={:>6.1}s pos ({:>6.1},{:>6.1}) y {:.1} hp {} | {}",
+                        "t={:>6.2}s pos ({:>6.1},{:>6.1}) y {:.2} vy {:>5.1} v ({:>5.1},{:>5.1}) hp {} | {}",
                         sim.tick() as f32 / 60.0,
                         p.state.pos.x,
                         p.state.pos.y,
                         p.state.foot_y,
+                        p.state.vy,
+                        p.state.velocity.x,
+                        p.state.velocity.y,
                         p.combat.hp,
                         b.debug_line(sim.tick())
                     );
