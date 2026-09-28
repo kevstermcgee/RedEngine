@@ -80,6 +80,46 @@ pub(crate) enum SrcCmd {
 }
 
 #[derive(Subcommand)]
+pub(crate) enum AdrCmd {
+    /// Create `docs/adr/<today>-<slug>.md` from the template and refresh the index.
+    New {
+        /// The decision, as a short title.
+        title: String,
+        /// The one sentence that becomes the index row.
+        #[arg(long)]
+        summary: Option<String>,
+        /// accepted (default) or proposed.
+        #[arg(long, default_value = "accepted")]
+        status: String,
+        /// File-name slug (default: made from the title).
+        #[arg(long)]
+        slug: Option<String>,
+    },
+    /// One line per ADR: id, status, summary.
+    List,
+    /// Check that the generated table in `docs/adr/README.md` is current (`--check`, default) or rewrite it (`--write`).
+    Index {
+        /// Rewrite the table.
+        #[arg(long)]
+        write: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum AnalysisCmd {
+    /// Create `docs/analysis/<today>-<slug>.md`; with `--from FILE` the file's text becomes the body.
+    New {
+        /// The note's title.
+        title: String,
+        /// Take the body from this file (a pasted report) instead of the template.
+        #[arg(long)]
+        from: Option<PathBuf>,
+    },
+    /// One line per note: date, title, first sentence.
+    List,
+}
+
+#[derive(Subcommand)]
 pub(crate) enum GameCmd {
     /// Project health: every blueprint builds and equals its committed map, every map passes its own `checks`. Exit 1 on any problem.
     Check {
@@ -498,6 +538,35 @@ pub(crate) enum Command {
         /// State-dump interval for `--trace`, in ticks (the readable diff a divergence prints).
         #[arg(long, default_value_t = 60)]
         dump_every: u32,
+    },
+    /// Repository bookkeeping in about a second, nothing compiled: ADR index, feature ownership, generated docs facts, headless boundary, doc claims, `describe`
+    /// budgets, rustfmt. Every problem prints the exact edit; `--fix` makes the mechanical ones. Run it before every commit (the checks CI bounced on, found early).
+    Preflight {
+        /// Apply the mechanical edits (index, ownership, facts, tool-table rows, `cargo fmt`).
+        #[arg(long)]
+        fix: bool,
+        /// Skip `cargo fmt --check`.
+        #[arg(long)]
+        no_fmt: bool,
+        /// Repository root (default: found from the current directory).
+        #[arg(long)]
+        root: Option<PathBuf>,
+    },
+    /// Architecture decision records: `adr new "Title"` (a dated file, the index refreshed), `adr list`, `adr index --check|--write`.
+    Adr {
+        #[command(subcommand)]
+        cmd: AdrCmd,
+        /// Repository root (default: found from the current directory).
+        #[arg(long, global = true)]
+        root: Option<PathBuf>,
+    },
+    /// Analysis notes (`docs/analysis/`): what a builder reported and what was done about it. `analysis new "Title" [--from file]`, `analysis list`; `search --kind analysis`.
+    Analysis {
+        #[command(subcommand)]
+        cmd: AnalysisCmd,
+        /// Repository root (default: found from the current directory).
+        #[arg(long, global = true)]
+        root: Option<PathBuf>,
     },
     /// The feature index: what exists and who owns which file. `docs/features.json` is compiled in: `features` lists them, `features NAME` shows
     /// one, `features WORDS` searches, `features --check` fails when the index names something that does not exist or a source file belongs

@@ -1,5 +1,6 @@
 # 0029. The match flow: lobby, ready-up, countdown, rounds, results, rematch
 Status: accepted
+Summary: The match flow: lobby, ready-up, countdown, rounds, results, rematch; the online screens
 
 ## Context
 Until now a joined client was in the world at once, forever. A game needs a front end: connect with a key, a lobby with character

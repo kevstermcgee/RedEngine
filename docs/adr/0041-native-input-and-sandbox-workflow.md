@@ -1,5 +1,6 @@
 # 0041. Native input and a reusable sandbox workflow
 Status: accepted
+Summary: Native controller input, human-rig costumes and the sandbox project workflow
 
 ## Context
 Keyboard-only movement prevented controller testing, and assets and reference maps were difficult to inspect together.

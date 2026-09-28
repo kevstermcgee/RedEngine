@@ -1,5 +1,6 @@
 # 0004. Floors work by "highest reachable surface", not floor bookkeeping
 Status: accepted
+Summary: Floors work by "highest reachable surface", not floor bookkeeping
 
 ## Context
 Gravity used to target a hardcoded y=0 and wall colliders were gated by a fixed absolute Y band.

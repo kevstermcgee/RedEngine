@@ -1,5 +1,6 @@
 # 0052. Shooter feel in the client: sounds, screen effects, a combat HUD
 Status: accepted
+Summary: Shooter feel in the client: a headless `feel` state machine, a synthesized sound bank, a screen-effects pass and a combat HUD
 
 ## Context
 ADR 0051 put the facts of a fight on the wire. The graphical client did nothing with them: another player's gun made no sound, a hit gave no sign, being shot showed nothing but a

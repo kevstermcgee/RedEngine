@@ -1,5 +1,6 @@
 # 0019. Strict scene fields, a schema version, and one JSON envelope for every command
 Status: accepted
+Summary: Unknown scene fields are errors, a schema version, and one `--json` envelope for every command
 
 ## Context
 The commonest AI mistake in a JSON scene is a plausible field that does nothing: `"pos"` for `"position"`, `"color"` on an

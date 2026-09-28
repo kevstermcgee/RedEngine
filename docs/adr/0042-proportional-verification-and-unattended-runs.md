@@ -1,5 +1,6 @@
 # 0042. Proportional verification, small context, and runs nobody has to babysit
 Status: accepted
+Summary: Verification proportional to the change (`affected`), 5-15 KB `context` packets, loopback-only unattended runs
 
 ## Context
 Projects built with Red Engine were slow and token-hungry for three separate reasons, all of them *fixed costs paid by every change*:

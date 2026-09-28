@@ -5,3 +5,5 @@
 *.png binary
 *.ico binary
 *.jpg binary
+# The ADR index is a generated table (red_engine2 adr index --write): two branches that each add a row both keep theirs
+docs/adr/README.md merge=union

@@ -1,8 +1,12 @@
 # Architecture Decision Records
 
 Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives intent from code.
-`red_engine2 search <topic>` indexes them (kind `adr`). Read the one-line summaries first.
+`red_engine2 search <topic>` indexes them (kind `adr`); `red_engine2 adr list` prints the table below. Read the one-line summaries first.
 
+The table is **generated** from the files (`red_engine2 adr index --write`, also done by `adr new` and `preflight --fix`); a test fails when it is stale. Edit an ADR's
+`Summary:` line, never the table.
+
+<!-- adr-index:begin -->
 | # | Decision | Status |
 |---|---|---|
 | [0001](0001-json-scenes-and-self-describing-cli.md) | Maps are JSON; the engine describes itself so AIs never read Rust | accepted |
@@ -14,7 +18,7 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0007](0007-docs-cannot-drift.md) | Docs are generated or test-checked; source index is on demand | accepted |
 | [0008](0008-procedural-assets-only.md) | Meshes and sounds are generated in code, nothing imported | accepted |
 | [0009](0009-four-maps-one-asset-library.md) | Four maps (house, school, office, store) share one library | accepted |
-| [0010](0010-headless-match-server.md) | Headless multiplayer match server (historical proposal; built as 0016/0017) | superseded by 0016, 0017 |
+| [0010](0010-headless-match-server.md) | Headless multiplayer match server (historical proposal; built as 0016/0017) | superseded by 0016 and 0017 |
 | [0011](0011-two-characters-and-exact-melee-hits.md) | Human + Cheddar the rat, a launch menu, exact melee hit-testing | accepted |
 | [0012](0012-rapier-prop-physics-dormant-until-disturbed.md) | Loose props run on rapier and stay dormant until disturbed | accepted |
 | [0013](0013-revolver-second-weapon-hitscan-infinite-ammo.md) | Silver revolver: mouse-wheel second weapon, hitscan, infinite ammo for now | accepted |
@@ -44,7 +48,6 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0037](0037-core-assets-are-a-growing-api.md) | Core assets are a growing API, not an exhaustive inventory | accepted |
 | [0038](0038-reusable-firearm-arsenal-and-ads.md) | Reusable eleven-firearm arsenal, procedural models and smooth aim-down-sights | accepted |
 | [0039](0039-authored-player-tuning-and-jump-pads.md) | Scene-authored player tuning, starting weapon and deterministic jump pads | accepted |
-
 | [0040](0040-shooter-presentation-and-momentum.md) | Shooter sight anchors, automatic fire, pellets and replicated momentum | accepted |
 | [0041](0041-native-input-and-sandbox-workflow.md) | Native controller input, human-rig costumes and the sandbox project workflow | accepted |
 | [0042](0042-proportional-verification-and-unattended-runs.md) | Verification proportional to the change (`affected`), 5-15 KB `context` packets, loopback-only unattended runs | accepted |
@@ -56,16 +59,23 @@ Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives
 | [0055](0055-bullet-tracers-and-sparks.md) | Bullet tracers and impact sparks: a pool of glowing boxes in the scene shows where every hitscan shot went | accepted |
 | [0056](0056-music-in-code.md) | Music composed in code: an eight-bar synthwave loop generated at start-up, tested for pitch, rhythm and a seamless wrap | accepted |
 | [0057](0057-avatars-for-every-body.md) | The avatar pool covers every body somebody can wear, bots' included, with a stand-in for any it lacks: no enemy goes undrawn | accepted |
+| [2026-09-28-generated-bookkeeping](2026-09-28-generated-bookkeeping.md) | Every registry CI bounced on is generated or derived, and `red_engine2 preflight` finds the rest in a second and prints the exact edit. | accepted |
+<!-- adr-index:end -->
 
 ## Writing one
 
-Copy the shape below, take the next number, add a row above (a test fails if a file is missing from
-the table or from the search index). Keep it under ~60 lines; link code by symbol name
-(`red_engine2 src show <symbol>`), not line number.
+```bash
+red_engine2 adr new "Lag compensation" --summary "The server rewinds the players a shot can hit by the shooter's view lag."
+```
+
+That creates `docs/adr/2026-09-28-lag-compensation.md` (today's date, so an ADR written on another branch at the same moment cannot take its number: the four-digit
+numbers of 0001-0057 are legacy) and refreshes the index. Nothing else is registered by hand: the library embeds the folder at build time. Fill in the three sections and keep it
+under ~60 lines; link code by symbol name (`red_engine2 src show <symbol>`), not line number. Refer to it in code and docs by its id (`0057`, or the whole `2026-09-28-lag-compensation`).
 
 ```
-# NNNN. Title
-Status: accepted | proposed | superseded by NNNN
+# 2026-09-28. Title
+Status: accepted | proposed | superseded by <id>
+Summary: one sentence; it is the row in the index above.
 ## Context      what forced a decision
 ## Decision     what we do
 ## Consequences what gets easier / harder; how to undo it

@@ -1,5 +1,6 @@
 # 0033. A feature index that cannot rot, and `impact`
 Status: accepted
+Summary: A feature index that cannot rot, and `impact`
 
 ## Context
 BlueEngine keeps `tools/FEATURES.json`, a hand-written map of feature -> files -> checks. It answers "where is X?" but nothing keeps it

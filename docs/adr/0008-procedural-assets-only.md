@@ -1,5 +1,6 @@
 # 0008. Meshes and sounds are generated in code, nothing imported
 Status: accepted
+Summary: Meshes and sounds are generated in code, nothing imported
 
 ## Context
 The engine is meant to be a small, auditable surface an AI can hold in context and edit without

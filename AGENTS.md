@@ -26,6 +26,7 @@ Most of the cost of working on this engine is reading things and running things 
 
   | command | when | what runs |
   |---|---|---|
+  | `red_engine2 preflight [--fix]` | before each commit (about a second, compiles nothing) | the repository's paperwork: ADR records and index, `docs/features.json` ownership of every file, derived doc facts, the headless boundary, doc claims, `describe` budgets, rustfmt; each problem prints the exact edit (ADR 2026-09-28-generated-bookkeeping) |
   | `scripts/dev affected --quick` | the edit loop | owners of the changed files only (seconds); the dependents it skipped are listed |
   | `scripts/dev affected` | before you say "done" | owners plus every feature built on them |
   | `scripts/dev affected --full` (= `scripts/ci.sh`) | before pushing / any integration boundary | everything CI runs |

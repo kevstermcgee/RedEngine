@@ -1,5 +1,6 @@
 # 0018. The self-describing engine pattern (a reusable design)
 Status: accepted (rationale for ADR 0001 and 0007, written so another project can port it)
+Summary: The self-describing engine pattern (describe/search/catalog/verify): a reusable design
 
 ## Context
 An AI working on a codebase spends most of its context window *finding* things: reading files to learn what

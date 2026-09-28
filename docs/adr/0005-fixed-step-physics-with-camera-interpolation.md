@@ -1,5 +1,6 @@
 # 0005. Fixed 1/60 s player physics, interpolated camera
 Status: accepted
+Summary: Fixed 1/60 s player physics, interpolated camera
 
 ## Context
 Variable-`dt` movement tunnelled through walls on frame hitches and made the tools' replay differ

@@ -1,5 +1,6 @@
 # 0054. Hosting from inside the client: `re2 --host`
 Status: accepted
+Summary: Hosting from inside the client: `re2 --host` serves the map on a thread of the game and joins it, so bots need no second process
 
 ## Context
 A game built on the engine with bots for opponents is single-player in spirit but multiplayer in machinery: to play it you started `red_server`, waited for it, then started `re2 --connect`,

@@ -1,5 +1,6 @@
 # 0006. `wall`/`fence`/`prefab` expand to plain objects at parse time
 Status: accepted
+Summary: `wall`/`fence`/`prefab` expand to plain objects at parse time
 
 ## Context
 Authoring 280 raw boxes for a house is unreadable, but adding new object kinds to the renderer,

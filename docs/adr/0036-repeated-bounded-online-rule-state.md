@@ -1,5 +1,6 @@
 # 0036. Repeated bounded online rule state (protocol v5)
 Status: accepted
+Summary: Repeated bounded rule-state snapshots give online clients loss/reconnect/late-join recovery
 
 ## Context
 The authoritative server ran data-authored rules, but network clients only received ordinary world snapshots and match-flow status.

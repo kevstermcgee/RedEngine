@@ -195,9 +195,9 @@
       "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md"]
     },
     "docs_and_adrs": {
-      "summary": "The docs an outsider or an agent reads first, kept true by tests: README, SPEC, AGENTS, CLAUDE, LICENSE, glossary, decisions.",
-      "files": ["README.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "docs/GLOSSARY.md", "docs/adr/", "docs/analysis/", "docs/AGENT_REFERENCE.md", "docs/features.json", "rustfmt.toml"],
-      "tests": ["docs_fresh", "repo_hygiene"],
+      "summary": "The docs an outsider or an agent reads first, kept true by tests, and the bookkeeping that keeps them so: README, SPEC, AGENTS, CLAUDE, LICENSE, glossary, decisions (generated index, dated ids), analysis notes, `preflight`.",
+      "files": ["README.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "docs/GLOSSARY.md", "docs/adr/", "docs/analysis/", "docs/AGENT_REFERENCE.md", "docs/features.json", "rustfmt.toml", "build.rs", ".gitattributes", "src/tools/adr.rs", "src/tools/analysis.rs", "src/tools/preflight.rs", "src/cli/repo.rs"],
+      "tests": ["docs_fresh", "repo_hygiene", "lib:tools::adr", "lib:tools::analysis", "lib:tools::preflight"],
       "docs": ["docs/adr/0007-docs-cannot-drift.md"]
     },
     "build_and_ci": {

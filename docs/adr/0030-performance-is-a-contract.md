@@ -1,5 +1,6 @@
 # 0030. Performance is a contract: `perf` and `checks.perf`
 Status: accepted
+Summary: Performance is a contract: `perf` and `checks.perf`
 
 ## Context
 Performance was checked by criterion benches (`benches/sim.rs`, compared by `benches/check.py`) and by budget constants in

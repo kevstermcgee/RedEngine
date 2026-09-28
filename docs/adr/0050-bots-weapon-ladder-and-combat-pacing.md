@@ -1,5 +1,6 @@
 # 0050. Bots, the weapon ladder and combat pacing
 Status: accepted
+Summary: Bots (AI players with a brain), the server fills empty slots, a nav graph, the weapon ladder (Gun Game), the `combat` pacing block
 
 ## Context
 The engine had twelve authoritative weapons, momentum movement, jump pads, lobby/rounds/results and prop physics, but nobody to shoot at unless other people joined,

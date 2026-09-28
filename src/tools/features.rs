@@ -220,9 +220,8 @@ fn walk(root: &Path, dir: &str, ext: &str, out: &mut Vec<String>) {
     }
 }
 
-/// Problems with the index: a listed thing that does not exist, or a source file no feature owns. Empty = the index is true.
-pub fn check(features: &[Feature], root: &Path) -> Vec<String> {
-    let mut problems = Vec::new();
+/// Every file the index is about: the directories it covers and the top-level project files, as paths relative to `root` using `/`.
+pub fn repo_files(root: &Path) -> Vec<String> {
     let mut all_files = Vec::new();
     for dir in ["src", "tests", "benches", "docs", "assets", "recipes", "examples", "scripts", "deploy", ".github"] {
         walk(root, dir, "", &mut all_files);
@@ -230,6 +229,7 @@ pub fn check(features: &[Feature], root: &Path) -> Vec<String> {
     for top in [
         "Cargo.toml",
         "Cargo.lock",
+        "build.rs",
         "Dockerfile",
         "docker-compose.yml",
         "mcp_server.py",
@@ -239,11 +239,134 @@ pub fn check(features: &[Feature], root: &Path) -> Vec<String> {
         "CLAUDE.md",
         "LICENSE",
         "rustfmt.toml",
+        ".gitattributes",
     ] {
         if root.join(top).exists() {
             all_files.push(top.to_string());
         }
     }
+    all_files
+}
+
+/// The source files, test suites and benches (of `files`) that no feature owns: `impact` cannot say what a change there affects.
+pub fn unowned(features: &[Feature], files: &[String]) -> Vec<String> {
+    files
+        .iter()
+        .filter(|f| {
+            (f.starts_with("src/") && f.ends_with(".rs"))
+                || (f.starts_with("tests/") && f.ends_with(".rs"))
+                || (f.starts_with("benches/") && f.ends_with(".rs"))
+        })
+        .filter(|f| owners(features, f).is_empty())
+        .cloned()
+        .collect()
+}
+
+/// Where an unowned file most likely belongs, and the edit that puts it there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnerSuggestion {
+    /// The feature to add it to.
+    pub feature: String,
+    /// The array to add it to: `files`, or `tests` for a new integration suite.
+    pub key: &'static str,
+    /// What to add: the path, or the suite name.
+    pub item: String,
+    /// Why this feature (shown to the person deciding whether the guess is right).
+    pub because: String,
+}
+
+/// The feature that most probably owns the unowned `path`: for a source file, the feature owning most of the files beside it; for an integration test suite, the
+/// feature owning most of the modules it imports (`red_engine2::sim::flow::...`). `None` when there is nothing to go on: name the feature by hand.
+pub fn suggest_owner(features: &[Feature], root: &Path, path: &str, all_files: &[String]) -> Option<OwnerSuggestion> {
+    let path = path.replace('\\', "/");
+    let mut votes: BTreeMap<String, usize> = BTreeMap::new();
+    let (key, item, because_of) = if let Some(suite) = path.strip_prefix("tests/").and_then(|p| p.strip_suffix(".rs")).filter(|s| !s.contains('/')) {
+        let text = std::fs::read_to_string(root.join(&path)).unwrap_or_default();
+        let mut modules = 0;
+        for chunk in text.split("red_engine2::").skip(1) {
+            let segs: Vec<&str> = chunk
+                .split("::")
+                .map(|s| s.split(|c: char| !(c.is_alphanumeric() || c == '_')).next().unwrap_or(""))
+                .take_while(|s| !s.is_empty())
+                .take(2)
+                .collect();
+            let mut candidates: Vec<String> = Vec::new();
+            if segs.len() == 2 {
+                candidates.push(format!("src/{}/{}.rs", segs[0], segs[1]));
+            }
+            if let Some(first) = segs.first() {
+                candidates.push(format!("src/{first}.rs"));
+                candidates.push(format!("src/{first}/mod.rs"));
+            }
+            if let Some(c) = candidates.iter().find(|c| all_files.contains(c)) {
+                modules += 1;
+                for f in owners(features, c) {
+                    *votes.entry(f.name.clone()).or_default() += 1;
+                }
+            }
+        }
+        ("tests", suite.to_string(), format!("it imports {modules} module(s) of the engine, most owned by this feature"))
+    } else {
+        let dir = path.rsplit_once('/').map_or("", |(d, _)| d);
+        let mut siblings = 0;
+        for other in all_files.iter().filter(|o| o.rsplit_once('/').map_or("", |(d, _)| d) == dir && **o != path) {
+            let owned = owners(features, other);
+            if !owned.is_empty() {
+                siblings += 1;
+            }
+            for f in owned {
+                *votes.entry(f.name.clone()).or_default() += 1;
+            }
+        }
+        ("files", path.clone(), format!("most of the {siblings} owned file(s) beside it in {dir}/ belong to this feature"))
+    };
+    let best = votes.iter().max_by(|a, b| a.1.cmp(b.1).then(b.0.cmp(a.0)))?;
+    Some(OwnerSuggestion { feature: best.0.clone(), key, item, because: because_of })
+}
+
+/// Appends `item` to the string array `key` of feature `feature` in the text of `docs/features.json`, keeping its layout (a one-line array stays one line).
+pub fn add_to_array(text: &str, feature: &str, key: &str, item: &str) -> Result<String, String> {
+    let head = format!("\"{feature}\": {{");
+    let start = text.find(&head).ok_or_else(|| format!("features.json has no feature `{feature}`"))?;
+    let after_head = start + head.len();
+    let limit = text[after_head..].find("\n    \"").map_or(text.len(), |n| after_head + n);
+    let key_at = text[after_head..limit]
+        .find(&format!("\"{key}\": ["))
+        .ok_or_else(|| format!("feature `{feature}` has no `{key}` array to add to: add the array by hand"))?
+        + after_head;
+    let open = key_at + text[key_at..].find('[').unwrap_or(0);
+    let close = open + text[open..].find(']').ok_or("features.json: an array is not closed")?;
+    let body = &text[open + 1..close];
+    let quoted = format!("\"{item}\"");
+    if body.contains(&quoted) {
+        return Ok(text.to_string());
+    }
+    let insert = if body.trim().is_empty() {
+        quoted
+    } else if body.contains('\n') {
+        let indent: String = body
+            .lines()
+            .rev()
+            .find(|l| l.trim_start().starts_with('"'))
+            .map(|l| l.chars().take_while(|c| c.is_whitespace()).collect())
+            .unwrap_or_else(|| "      ".into());
+        let trimmed_end = body.trim_end().len();
+        return Ok(format!("{},\n{indent}{quoted}{}", &text[..open + 1 + trimmed_end], &text[open + 1 + trimmed_end..]));
+    } else {
+        format!("{}, {quoted}", body.trim_end())
+    };
+    Ok(format!("{}{}{}", &text[..open + 1], insert, &text[close..]))
+}
+
+/// Problems with the index: a listed thing that does not exist, or a source file no feature owns. Empty = the index is true.
+pub fn check(features: &[Feature], root: &Path) -> Vec<String> {
+    check_with(features, &serial_suites(), root)
+}
+
+/// [`check`] for an index whose `serial_suites` are `serial` (the on-disk `docs/features.json` of some repository, not the compiled-in one).
+pub fn check_with(features: &[Feature], serial: &[String], root: &Path) -> Vec<String> {
+    let mut problems = Vec::new();
+    let all_files = repo_files(root);
     let names: BTreeSet<&str> = features.iter().map(|f| f.name.as_str()).collect();
     for f in features {
         for p in &f.files {
@@ -283,18 +406,14 @@ pub fn check(features: &[Feature], root: &Path) -> Vec<String> {
             problems.push(format!("feature '{}' owns no files", f.name));
         }
     }
-    for t in serial_suites() {
+    for t in serial {
         if !root.join("tests").join(format!("{t}.rs")).exists() {
             problems.push(format!("serial_suites: '{t}' has no tests/{t}.rs"));
         }
     }
     // Every source file, test suite and bench belongs to a feature (otherwise `impact` cannot say what a change there affects).
-    for file in all_files.iter().filter(|f| {
-        (f.starts_with("src/") && f.ends_with(".rs")) || (f.starts_with("tests/") && f.ends_with(".rs")) || (f.starts_with("benches/") && f.ends_with(".rs"))
-    }) {
-        if owners(features, file).is_empty() {
-            problems.push(format!("{file} belongs to no feature: add it to docs/features.json"));
-        }
+    for file in unowned(features, &all_files) {
+        problems.push(format!("{file} belongs to no feature: add it to docs/features.json (`red_engine2 preflight --fix` guesses the feature and does it)"));
     }
     problems
 }
@@ -448,5 +567,55 @@ mod tests {
         assert_eq!(find(&fs, "summary").len(), 2);
         assert_eq!(find(&fs, "zzz").len(), 0);
         assert!(render_list(&fs).contains("match_flow") && render_one(&fs[0]).contains("src/sim/flow.rs"));
+    }
+
+    const SAMPLE: &str = "{\n  \"serial_suites\": [\"a\"],\n  \"features\": {\n    \"sim\": {\n      \"summary\": \"s\",\n      \"files\": [\"src/sim/a.rs\", \"src/sim/b.rs\"],\n      \"tests\": []\n    },\n    \"net\": {\n      \"summary\": \"n\",\n      \"files\": [\n        \"src/net/a.rs\",\n        \"src/net/b.rs\"\n      ],\n      \"tests\": [\"net_e2e\"]\n    }\n  }\n}\n";
+
+    #[test]
+    fn adding_to_an_array_keeps_the_layout_and_the_json_valid() {
+        let one_line = add_to_array(SAMPLE, "sim", "files", "src/sim/c.rs").unwrap();
+        assert!(one_line.contains("\"files\": [\"src/sim/a.rs\", \"src/sim/b.rs\", \"src/sim/c.rs\"],"), "{one_line}");
+        let multi = add_to_array(SAMPLE, "net", "files", "src/net/c.rs").unwrap();
+        assert!(multi.contains("\"src/net/b.rs\",\n        \"src/net/c.rs\"\n      ],"), "{multi}");
+        let empty = add_to_array(SAMPLE, "sim", "tests", "lib:sim").unwrap();
+        assert!(empty.contains("\"tests\": [\"lib:sim\"]"), "{empty}");
+        for text in [&one_line, &multi, &empty] {
+            let fs = parse(text).unwrap();
+            assert_eq!(fs.len(), 2, "still a valid index");
+        }
+        assert_eq!(add_to_array(&one_line, "sim", "files", "src/sim/c.rs").unwrap(), one_line, "idempotent");
+        assert!(add_to_array(SAMPLE, "nope", "files", "x").unwrap_err().contains("no feature"));
+        assert!(add_to_array(SAMPLE, "sim", "docs", "x").unwrap_err().contains("no `docs` array"));
+        let net_only = add_to_array(SAMPLE, "net", "tests", "net_flow").unwrap();
+        assert!(
+            net_only.contains("\"tests\": [\"net_e2e\", \"net_flow\"]") && net_only.contains("\"tests\": []"),
+            "only the named feature changes: {net_only}"
+        );
+    }
+
+    #[test]
+    fn an_unowned_file_is_suggested_to_the_feature_that_owns_its_neighbours_or_imports() {
+        let root = std::env::temp_dir().join(format!("re2_features_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("tests")).unwrap();
+        std::fs::write(
+            root.join("tests/new_suite.rs"),
+            "use red_engine2::net::server::Server;\nuse red_engine2::net::client::NetClient;\nuse red_engine2::sim::a::X;\n",
+        )
+        .unwrap();
+        let fs = parse(SAMPLE).unwrap();
+        let files: Vec<String> =
+            ["src/sim/a.rs", "src/sim/b.rs", "src/sim/new.rs", "src/net/a.rs", "src/net/b.rs", "src/net/server.rs", "src/net/client.rs", "tests/new_suite.rs"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+        assert_eq!(unowned(&fs, &files), vec!["src/sim/new.rs", "src/net/server.rs", "src/net/client.rs", "tests/new_suite.rs"]);
+        let s = suggest_owner(&fs, &root, "src/sim/new.rs", &files).unwrap();
+        assert_eq!((s.feature.as_str(), s.key, s.item.as_str()), ("sim", "files", "src/sim/new.rs"));
+        assert!(s.because.contains("beside it"), "{s:?}");
+        let t = suggest_owner(&fs, &root, "tests/new_suite.rs", &files).unwrap();
+        assert_eq!((t.feature.as_str(), t.key, t.item.as_str()), ("sim", "tests", "new_suite"), "one owned import (sim::a) beats two unowned ones: {t:?}");
+        assert!(suggest_owner(&fs, &root, "docs/x/none.md", &files).is_none(), "nothing beside it, nothing to go on");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

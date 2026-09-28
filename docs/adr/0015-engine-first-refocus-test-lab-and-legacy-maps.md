@@ -1,5 +1,6 @@
 # 0015. Engine-first refocus: the Red Test Lab, legacy maps, and the roadmap
 Status: accepted
+Summary: Engine-first refocus: the Red Test Lab is the dev map, the four maps are legacy, roadmap
 
 ## Context
 Red Engine 2 grew map-first: four polished maps (house, school, office, store) before there was a headless

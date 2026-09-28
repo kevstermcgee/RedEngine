@@ -1,5 +1,6 @@
 # 0010. Headless multiplayer match server (historical: built as ADR 0016, split by ADR 0017)
 Status: superseded by 0016 (the server, protocol and prediction) and 0017 (the graphics-free build)
+Summary: Headless multiplayer match server (historical proposal; built as 0016/0017)
 
 > **This record is history.** It described the constraints before any networking existed. Everything it proposes
 > now exists: `sim::match_sim::MatchSim` + `net::server` (0016), the collision/geometry extraction and the

@@ -1,5 +1,6 @@
 # 0023. Walk failures name their blocker; routes are planned, not guessed
 Status: accepted
+Summary: Walk failures name their blocker (id, gap, passage width); routes are planned (`walk --auto`), not guessed
 
 ## Context
 An AI building the Cheddar game on this engine reported its costliest loop: a `verify` walk check failed with

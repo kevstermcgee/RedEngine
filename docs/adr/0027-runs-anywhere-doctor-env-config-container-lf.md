@@ -1,5 +1,6 @@
 # 0027. Runs anywhere: `doctor`, environment config, a container image, software GPU fallback, LF everywhere
 Status: accepted
+Summary: Runs anywhere: `doctor`, env-var server config, container image, software GPU fallback, LF
 
 ## Context
 Red has to run on a Windows dev PC, a Linux CI runner with no GPU, a container and a small VPS. The pieces existed (the `gfx`

@@ -18,66 +18,13 @@ const AGENT_REFERENCE: &str = include_str!("../../docs/AGENT_REFERENCE.md");
 pub const GLOSSARY: &str = include_str!("../../docs/GLOSSARY.md");
 /// The ADR index table (`describe decisions`).
 pub const ADR_INDEX: &str = include_str!("../../docs/adr/README.md");
-/// Every ADR, embedded so `search` needs no files at runtime. A new `docs/adr/NNNN-*.md` must be added
-/// here; `tests::every_adr_is_registered` fails otherwise.
-const ADRS: &[(&str, &str)] = &[
-    ("0001-json-scenes-and-self-describing-cli.md", include_str!("../../docs/adr/0001-json-scenes-and-self-describing-cli.md")),
-    ("0002-props-in-rust-prefabs-in-json.md", include_str!("../../docs/adr/0002-props-in-rust-prefabs-in-json.md")),
-    ("0003-one-physics-shared-by-game-and-tools.md", include_str!("../../docs/adr/0003-one-physics-shared-by-game-and-tools.md")),
-    ("0004-reachable-ground-height-for-floors.md", include_str!("../../docs/adr/0004-reachable-ground-height-for-floors.md")),
-    ("0005-fixed-step-physics-with-camera-interpolation.md", include_str!("../../docs/adr/0005-fixed-step-physics-with-camera-interpolation.md")),
-    ("0006-parse-time-expansion-for-sugar.md", include_str!("../../docs/adr/0006-parse-time-expansion-for-sugar.md")),
-    ("0007-docs-cannot-drift.md", include_str!("../../docs/adr/0007-docs-cannot-drift.md")),
-    ("0008-procedural-assets-only.md", include_str!("../../docs/adr/0008-procedural-assets-only.md")),
-    ("0009-four-maps-one-asset-library.md", include_str!("../../docs/adr/0009-four-maps-one-asset-library.md")),
-    ("0010-headless-match-server.md", include_str!("../../docs/adr/0010-headless-match-server.md")),
-    ("0011-two-characters-and-exact-melee-hits.md", include_str!("../../docs/adr/0011-two-characters-and-exact-melee-hits.md")),
-    ("0012-rapier-prop-physics-dormant-until-disturbed.md", include_str!("../../docs/adr/0012-rapier-prop-physics-dormant-until-disturbed.md")),
-    ("0013-revolver-second-weapon-hitscan-infinite-ammo.md", include_str!("../../docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md")),
-    (
-        "0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md",
-        include_str!("../../docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md"),
-    ),
-    ("0015-engine-first-refocus-test-lab-and-legacy-maps.md", include_str!("../../docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md")),
-    ("0016-authoritative-udp-multiplayer.md", include_str!("../../docs/adr/0016-authoritative-udp-multiplayer.md")),
-    ("0017-headless-build-gfx-feature.md", include_str!("../../docs/adr/0017-headless-build-gfx-feature.md")),
-    ("0018-self-describing-engine-pattern.md", include_str!("../../docs/adr/0018-self-describing-engine-pattern.md")),
-    ("0019-strict-fields-versioning-and-json-envelope.md", include_str!("../../docs/adr/0019-strict-fields-versioning-and-json-envelope.md")),
-    ("0020-game-rules-as-data-and-headless-scenarios.md", include_str!("../../docs/adr/0020-game-rules-as-data-and-headless-scenarios.md")),
-    ("0021-deterministic-traces-replay-and-checksums.md", include_str!("../../docs/adr/0021-deterministic-traces-replay-and-checksums.md")),
-    (
-        "0022-authoritative-interactions-per-prop-acks-and-interest.md",
-        include_str!("../../docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md"),
-    ),
-    ("0023-walk-failures-name-their-blocker-routes-are-planned.md", include_str!("../../docs/adr/0023-walk-failures-name-their-blocker-routes-are-planned.md")),
-    ("0024-the-framework-layer-blueprints-and-game-projects.md", include_str!("../../docs/adr/0024-the-framework-layer-blueprints-and-game-projects.md")),
-    ("0025-handoff-status-and-derived-doc-facts.md", include_str!("../../docs/adr/0025-handoff-status-and-derived-doc-facts.md")),
-    ("0026-a-headless-audited-ui-kit.md", include_str!("../../docs/adr/0026-a-headless-audited-ui-kit.md")),
-    ("0027-runs-anywhere-doctor-env-config-container-lf.md", include_str!("../../docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md")),
-    ("0028-authenticated-datagrams-and-join-keys.md", include_str!("../../docs/adr/0028-authenticated-datagrams-and-join-keys.md")),
-    ("0029-match-flow-lobby-rounds-rematch.md", include_str!("../../docs/adr/0029-match-flow-lobby-rounds-rematch.md")),
-    ("0030-performance-is-a-contract.md", include_str!("../../docs/adr/0030-performance-is-a-contract.md")),
-    ("0031-home-hosting-with-upnp.md", include_str!("../../docs/adr/0031-home-hosting-with-upnp.md")),
-    ("0032-provable-releases.md", include_str!("../../docs/adr/0032-provable-releases.md")),
-    ("0033-feature-index-and-impact.md", include_str!("../../docs/adr/0033-feature-index-and-impact.md")),
-    ("0034-net-test-and-bad-network-resilience.md", include_str!("../../docs/adr/0034-net-test-and-bad-network-resilience.md")),
-    ("0035-rule-state-in-the-standard-client.md", include_str!("../../docs/adr/0035-rule-state-in-the-standard-client.md")),
-    ("0036-repeated-bounded-online-rule-state.md", include_str!("../../docs/adr/0036-repeated-bounded-online-rule-state.md")),
-    ("0037-core-assets-are-a-growing-api.md", include_str!("../../docs/adr/0037-core-assets-are-a-growing-api.md")),
-    ("0038-reusable-firearm-arsenal-and-ads.md", include_str!("../../docs/adr/0038-reusable-firearm-arsenal-and-ads.md")),
-    ("0039-authored-player-tuning-and-jump-pads.md", include_str!("../../docs/adr/0039-authored-player-tuning-and-jump-pads.md")),
-    ("0040-shooter-presentation-and-momentum.md", include_str!("../../docs/adr/0040-shooter-presentation-and-momentum.md")),
-    ("0041-native-input-and-sandbox-workflow.md", include_str!("../../docs/adr/0041-native-input-and-sandbox-workflow.md")),
-    ("0042-proportional-verification-and-unattended-runs.md", include_str!("../../docs/adr/0042-proportional-verification-and-unattended-runs.md")),
-    ("0050-bots-weapon-ladder-and-combat-pacing.md", include_str!("../../docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md")),
-    ("0051-shooter-feedback-on-the-wire.md", include_str!("../../docs/adr/0051-shooter-feedback-on-the-wire.md")),
-    ("0052-shooter-feel-in-the-client.md", include_str!("../../docs/adr/0052-shooter-feel-in-the-client.md")),
-    ("0053-lag-compensation.md", include_str!("../../docs/adr/0053-lag-compensation.md")),
-    ("0054-hosting-from-the-client.md", include_str!("../../docs/adr/0054-hosting-from-the-client.md")),
-    ("0055-bullet-tracers-and-sparks.md", include_str!("../../docs/adr/0055-bullet-tracers-and-sparks.md")),
-    ("0056-music-in-code.md", include_str!("../../docs/adr/0056-music-in-code.md")),
-    ("0057-avatars-for-every-body.md", include_str!("../../docs/adr/0057-avatars-for-every-body.md")),
-];
+/// Every ADR, embedded so `search` needs no files at runtime. Generated by `build.rs` from `docs/adr/`: adding a file there is all it takes.
+pub const ADRS: &[(&str, &str)] = ADR_FILES;
+/// Every analysis note (`docs/analysis/*.md`: what earlier builders reported and what was done about it), embedded the same way.
+pub const ANALYSES: &[(&str, &str)] = ANALYSIS_FILES;
+
+include!(concat!(env!("OUT_DIR"), "/adr_files.rs"));
+include!(concat!(env!("OUT_DIR"), "/analysis_files.rs"));
 
 /// One searchable fragment: kind, title, body, where to read more, and boosted tokens.
 pub struct Doc {
@@ -235,6 +182,9 @@ pub fn corpus(commands: &Value) -> Vec<Doc> {
             loc: format!("docs/adr/{file}"),
             extra: title.to_string(),
         });
+    }
+    for (file, text) in ANALYSES {
+        chunk_markdown(&format!("docs/analysis/{file}"), "analysis", text, &mut docs);
     }
     for e in catalog::entries() {
         docs.push(Doc {
@@ -491,45 +441,28 @@ mod tests {
         assert!(t.contains("ground snap") || t.contains("body band"), "{t}");
     }
 
+    /// The decision records are files, nothing else: `build.rs` embeds the folder, `docs/adr/README.md` holds an index generated from it, and
+    /// [`crate::tools::adr::check`] (also `red_engine2 preflight`) says what a file lacks: the title line, `Status:`, `Summary:`, the three sections, a
+    /// unique id, an existing superseder, a fresh index.
     #[test]
-    fn every_adr_is_registered() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/adr");
-        for e in std::fs::read_dir(&dir).expect("docs/adr exists") {
-            let name = e.unwrap().file_name().to_string_lossy().to_string();
-            if !name.ends_with(".md") || name == "README.md" {
-                continue;
-            }
-            assert!(ADRS.iter().any(|(f, _)| *f == name), "docs/adr/{name} is not in search.rs ADRS (add it, and a row in docs/adr/README.md)");
-            assert!(ADR_INDEX.contains(&name), "docs/adr/{name} is not listed in docs/adr/README.md");
-        }
-        for (f, text) in ADRS {
-            assert!(text.contains("\nStatus: "), "{f}: needs a `Status:` line");
-            for h in ["## Context", "## Decision", "## Consequences"] {
-                assert!(text.contains(h), "{f}: missing `{h}`");
-            }
+    fn the_decision_records_are_well_formed_and_embedded_and_indexed() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let problems = crate::tools::adr::check(root);
+        assert!(problems.is_empty(), "fix these (`red_engine2 adr index --write` refreshes the index):\n  {}", problems.join("\n  "));
+        let on_disk = crate::tools::adr::load_dir(root);
+        assert_eq!(ADRS.len(), on_disk.len(), "every file in docs/adr is embedded (build.rs)");
+        assert!(ADRS.iter().all(|(f, t)| on_disk.iter().any(|(g, u)| g == f && u.replace("\r\n", "\n") == t.replace("\r\n", "\n"))));
+        for (f, _) in ADRS {
+            let id = crate::tools::adr::id_of(f).unwrap_or_else(|| panic!("{f}: not a valid ADR file name"));
+            assert!(ADR_INDEX.contains(&format!("[{id}]({f})")), "{f} is not in the index");
         }
     }
 
-    /// The index table and each file's own `Status:` line must agree, and a superseded ADR must name a
-    /// replacement that exists — so "proposed / not built" can never linger next to working code (ADR 0010 did).
     #[test]
-    fn adr_statuses_agree_between_the_table_and_the_files_and_superseders_exist() {
-        for (f, text) in ADRS {
-            let number = &f[..4];
-            let status = text.lines().find_map(|l| l.strip_prefix("Status: ")).unwrap_or_else(|| panic!("{f}: no Status line"));
-            let word = status.split(|c: char| !c.is_alphabetic()).next().unwrap_or("");
-            assert!(["accepted", "proposed", "superseded"].contains(&word), "{f}: unknown status `{status}`");
-            let row = ADR_INDEX.lines().find(|l| l.contains(&format!("[{number}]"))).unwrap_or_else(|| panic!("{f}: no row in docs/adr/README.md"));
-            let row_status = row.rsplit('|').nth(1).unwrap_or("").trim();
-            assert!(row_status.starts_with(word), "{f}: the file says `{status}` but the README row says `{row_status}`");
-            if word == "superseded" {
-                let by: Vec<&str> = status.split(|c: char| !c.is_ascii_digit()).filter(|s| s.len() == 4).collect();
-                assert!(!by.is_empty(), "{f}: `superseded` must say by which ADR number(s): `{status}`");
-                for n in by {
-                    assert!(ADRS.iter().any(|(g, _)| g.starts_with(n)), "{f}: superseded by {n}, which does not exist");
-                }
-            }
-        }
+    fn analysis_notes_are_searchable() {
+        assert!(!ANALYSES.is_empty(), "docs/analysis holds the reports of earlier builders");
+        let docs = corpus(&cmds());
+        assert!(docs.iter().any(|d| d.kind == "analysis" && d.loc.starts_with("docs/analysis/")), "the notes are in the corpus");
     }
 
     #[test]

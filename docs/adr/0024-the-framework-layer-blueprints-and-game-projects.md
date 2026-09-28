@@ -1,5 +1,6 @@
 # 0024. The framework layer: blueprints and game projects (games use Red, they do not fork it)
 Status: accepted
+Summary: The framework layer: blueprints compile to complete self-checking maps; games are projects that pin the engine, not forks
 
 ## Context
 The Cheddar game was built by copying this whole repository. That worked at first and then failed twice: engine

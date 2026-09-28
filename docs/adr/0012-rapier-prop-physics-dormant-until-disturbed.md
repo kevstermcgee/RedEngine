@@ -1,5 +1,6 @@
 # 0012. Loose props run on rapier and stay dormant until disturbed
 Status: accepted (the "dormant fixed body" mechanism was replaced by static instances in ADR 0014; the rest stands)
+Summary: Loose props run on rapier and stay dormant until disturbed
 
 ## Context
 Both characters can pick things up with E and drop them; a dropped prop must fall, bounce, tumble and

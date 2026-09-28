@@ -1,5 +1,6 @@
 # 0016. Authoritative UDP multiplayer: server, snapshots, prediction, interpolation
 Status: accepted
+Summary: Authoritative UDP multiplayer: server, delta snapshots, prediction, interpolation, reconnect
 
 ## Context
 Roadmap items 3-5 (ADR 0015): make the simulation authoritative in a headless process, put a real

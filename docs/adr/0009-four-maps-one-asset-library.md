@@ -1,5 +1,6 @@
 # 0009. Four maps (house, school, office, store) share one library
 Status: accepted
+Summary: Four maps (house, school, office, store) share one library
 
 ## Context
 The prop-hunt game needs varied maps, but a hider disguises as a prop, so the prop set matters as

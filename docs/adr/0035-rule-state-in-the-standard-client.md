@@ -1,5 +1,6 @@
 # 0035. Rule state in the standard single-player client
 Status: accepted
+Summary: Shared rule state drives standard-client visibility, effects and a generic HUD
 
 ## Context
 Scenes could declare and headlessly prove complete gameplay with `vars`, `rules` and `checks.sim`, while the normal `re2` client

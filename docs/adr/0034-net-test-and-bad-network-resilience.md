@@ -1,5 +1,6 @@
 # 0034. `net-test` and bad-network resilience
 Status: accepted
+Summary: `net-test` and bad-network resilience (bursty loss, bounded extrapolation)
 
 ## Context
 Network code is easy to make pass on loopback and hard to make good on Wi-Fi. BlueEngine's `net-test` runs 120 ticks of a prediction

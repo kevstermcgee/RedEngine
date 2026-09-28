@@ -1,5 +1,6 @@
 # 0051. Shooter feedback on the wire (protocol v8)
 Status: accepted
+Summary: Shooter feedback on the wire (protocol v8): shot, hit, hurt and kill counters, damage bearing, respawn countdown; the client turns them into events
 
 ## Context
 ADR 0050 made the server's combat produce the facts a shooter needs to *feel* like one: how many shots a player fired, which of ours landed, how often we were hurt and from where.

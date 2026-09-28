@@ -1,5 +1,6 @@
 # 0011. Two playable characters, a launch menu, and exact melee hit-testing
 Status: accepted
+Summary: Human + Cheddar the rat, a launch menu, exact melee hit-testing
 
 ## Context
 Prop hunt needs a hider that is not a person: a small lab rat, **Cheddar**, next to the human

@@ -1,5 +1,6 @@
 # 0028. Authenticated datagrams and join keys (protocol v3)
 Status: accepted
+Summary: Authenticated datagrams and join keys: challenge/response, HMAC tags (protocol v3)
 
 ## Context
 Protocol v2 identified a client by its source address alone and accepted a `Hello` from anyone. On a public UDP port that means:

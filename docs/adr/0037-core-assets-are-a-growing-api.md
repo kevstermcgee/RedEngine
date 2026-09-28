@@ -1,5 +1,6 @@
 # 0037. Core assets are a growing API, not an exhaustive inventory
 Status: accepted
+Summary: Core assets are a growing API, not an exhaustive inventory
 
 ## Context
 Agents need reliable visual and gameplay vocabulary, but predicting every future asset creates a

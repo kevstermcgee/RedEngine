@@ -1,5 +1,6 @@
 # 0020. Game rules as data, proven by headless scenarios
 Status: accepted
+Summary: Game rules as data (`vars`/`rules`), proven by headless scenarios (`sim`, `checks.sim`)
 
 ## Context
 The engine described a *world* in JSON but every *game rule* (pick-ups, goals, traps, scoring) was Rust in `re2.rs`, so an AI

@@ -1,5 +1,6 @@
 # 0039. Authored player tuning and deterministic jump pads
 Status: accepted
+Summary: Scene-authored player tuning, starting weapon and deterministic jump pads
 
 ## Context
 

@@ -6,7 +6,9 @@
 /// The message every render-dependent command returns in a build without the `gfx` feature.
 pub const NO_GFX: &str = "this build has no renderer (built with --no-default-features); rebuild with `cargo build --release` (feature `gfx`, on by default) to use frame/tour/render/storyboard, catalog --sheet and golden-view checks";
 
+pub mod adr;
 pub mod affected;
+pub mod analysis;
 pub mod blueprint;
 pub mod catalog;
 pub mod context;
@@ -30,6 +32,7 @@ pub mod pathing;
 pub mod perf;
 pub mod plan;
 pub mod portmap;
+pub mod preflight;
 pub mod reach;
 pub mod recipes;
 pub mod search;

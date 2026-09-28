@@ -1,5 +1,6 @@
 # 0022. Authoritative interactions, per-prop acknowledgement, and spatial interest management
 Status: accepted (extends ADR 0016; completes the online part of ADR 0015 roadmap items 3, 5, 7 and 8)
+Summary: Authoritative pick-up/combat, per-prop acknowledgement, rooms-and-portals interest management
 
 ## Context
 ADR 0016 made movement and prop pushing authoritative but left pick-up, weapons and damage single-player only, sent every player and

@@ -1,5 +1,6 @@
 # 0032. Provable releases: `package` and `package --verify`
 Status: accepted
+Summary: Provable releases: `package` and `package --verify`
 
 ## Context
 A release should answer "is this the build I think it is?" mechanically. BlueEngine's `be2.py package` zips tracked files plus

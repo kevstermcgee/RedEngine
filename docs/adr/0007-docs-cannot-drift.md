@@ -1,5 +1,6 @@
 # 0007. Docs are generated or test-checked; the source index is on demand
 Status: accepted
+Summary: Docs are generated or test-checked; source index is on demand
 
 ## Context
 Documentation that an AI trusts must not lie. Hand-written tables of commands, lint codes and

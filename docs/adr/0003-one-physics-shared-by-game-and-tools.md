@@ -1,5 +1,6 @@
 # 0003. The game and the analysis tools run the same physics functions
 Status: accepted
+Summary: The game and the analysis tools run the same physics functions
 
 ## Context
 `lint`/`reach`/`walk` must answer "can the player actually get there?". A separate approximation

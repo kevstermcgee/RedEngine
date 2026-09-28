@@ -1,5 +1,6 @@
 # 0040. Shooter presentation and momentum
 Status: accepted
+Summary: Shooter sight anchors, automatic fire, pellets and replicated momentum
 
 ## Context
 Generic revolver placement made the firearm library float away from its sleeve and retain hip

@@ -1,5 +1,6 @@
 # 0055. Bullet tracers and impact sparks
 Status: accepted
+Summary: Bullet tracers and impact sparks: a pool of glowing boxes in the scene shows where every hitscan shot went
 
 ## Context
 Every weapon here is hitscan: a shot happens in one tick and leaves nothing behind. On screen that reads as nothing at all: no sense of where a burst went, no way to see that the

@@ -1,5 +1,6 @@
 # 0053. Lag compensation: a shot lands where it was aimed on screen
 Status: accepted
+Summary: Lag compensation: the server rewinds the players a shot can hit by the shooter's view lag (interpolation delay plus round trip), recorded in traces
 
 ## Context
 A client draws the other players slightly in the past (ADR 0016: 100 ms of interpolation so motion is smooth across 30 snapshots a second), and the shot then takes half a round trip to

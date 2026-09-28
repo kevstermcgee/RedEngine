@@ -1,5 +1,6 @@
 # 0038. A reusable firearm arsenal and aim-down-sights presentation
 Status: accepted
+Summary: Reusable eleven-firearm arsenal, procedural models and smooth aim-down-sights
 
 ## Context
 

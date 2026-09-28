@@ -74,26 +74,33 @@ fn count_files(dir: &Path, ext: &str) -> usize {
     std::fs::read_dir(dir).map(|rd| rd.flatten().filter(|e| e.path().extension().is_some_and(|x| x == ext)).count()).unwrap_or(0)
 }
 
-/// `(count, latest "NNNN title")` of the ADRs in `docs/adr/`.
+/// `(count, latest "id title")` of the ADRs in `docs/adr/` (numbered ones first, then dated ones: the latest is the last of the dated ones).
 fn adrs(root: &Path) -> (usize, String) {
     let mut names: Vec<String> = std::fs::read_dir(root.join("docs/adr"))
         .map(|rd| {
             rd.flatten()
                 .map(|e| e.file_name().to_string_lossy().to_string())
-                .filter(|n| n.len() > 5 && n[..4].chars().all(|c| c.is_ascii_digit()) && n.ends_with(".md"))
+                .filter(|n| n.ends_with(".md") && n != "README.md" && super::adr::id_of(n).is_some())
                 .collect()
         })
         .unwrap_or_default();
-    names.sort();
+    names.sort_by_key(|n| (super::adr::id_of(n).is_some_and(|id| id.len() > 4), n.clone()));
     let latest = names.last().map(|n| n.trim_end_matches(".md").replacen('-', " ", 1).replace('-', " ")).unwrap_or_default();
     (names.len(), latest)
 }
 
-/// The derived, deterministic facts block (no git, no clock): what a doc may safely state about the repo.
+/// The wire protocol version in `src/net/protocol.rs` (`pub const PROTOCOL_VERSION: u16 = 8;`), if the repo has one.
+pub fn protocol_version(root: &Path) -> Option<u32> {
+    read(&root.join("src/net/protocol.rs"))
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("pub const PROTOCOL_VERSION: u16 = ")?.trim_end_matches(';').trim().parse().ok())
+}
+
+/// The derived, deterministic facts block (no git, no clock): what a doc may safely state about the repo. It holds only what changes rarely (binaries, features, the wire
+/// protocol): a line that changed with every new test or decision made every parallel branch conflict on it. The counts are in `status` ([`counts`]).
 pub fn facts_block(root: &Path) -> String {
     let (name, _, features) = parse_cargo(&read(&root.join("Cargo.toml")));
     let bins = binaries(root);
-    let (n_adr, latest_adr) = adrs(root);
     let mut s = String::new();
     s.push_str(&format!(
         "- Crate `{}`; binaries: {}.\n",
@@ -103,15 +110,73 @@ pub fn facts_block(root: &Path) -> String {
     if !features.is_empty() {
         s.push_str(&format!("- Cargo features: {}.\n", features.iter().map(|f| format!("`{f}`")).collect::<Vec<_>>().join(", ")));
     }
-    s.push_str(&format!(
-        "- {} integration test suites (`tests/`), {} recipes (`recipes/`), {} example maps (`examples/`); {} ADRs (latest: {}). Test *counts* are not stated here: run `scripts/dev test`.\n",
+    if let Some(v) = protocol_version(root) {
+        s.push_str(&format!("- Wire protocol v{v} (`src/net/protocol.rs`): a client and a server must be built from the same version. Counts (suites, maps, ADRs) and test totals: `red_engine2 status`, `scripts/dev test`.\n"));
+    }
+    s
+}
+
+/// Counts that change with almost every feature, so no document states them: `status` prints them instead.
+pub fn counts(root: &Path) -> String {
+    let (n_adr, latest_adr) = adrs(root);
+    format!(
+        "{} integration test suites (`tests/`), {} recipes (`recipes/`), {} example maps (`examples/`); {} ADRs (latest: {})\n",
         count_files(&root.join("tests"), "rs"),
         count_files(&root.join("recipes"), "json"),
         count_files(&root.join("examples"), "json"),
         n_adr,
         if latest_adr.is_empty() { "-".to_string() } else { latest_adr }
-    ));
-    s
+    )
+}
+
+/// Opens an inline derived fact: `<!--fact:protocol-->8<!--/fact-->` (invisible in rendered markdown) holds the current value between the markers.
+pub const INLINE_OPEN: &str = "<!--fact:";
+/// Closes an inline derived fact.
+pub const INLINE_CLOSE: &str = "<!--/fact-->";
+
+/// The current value of the inline fact `name` (`protocol`), if this repo has it.
+pub fn inline_fact(root: &Path, name: &str) -> Option<String> {
+    match name {
+        "protocol" => protocol_version(root).map(|v| v.to_string()),
+        _ => None,
+    }
+}
+
+/// Every inline fact in `doc` as `(name, value in the doc, current value)`; `current` is `None` for a name this repo cannot derive.
+pub fn inline_facts(root: &Path, doc: &str) -> Vec<(String, String, Option<String>)> {
+    let mut out = Vec::new();
+    let mut rest = doc;
+    while let Some(i) = rest.find(INLINE_OPEN) {
+        rest = &rest[i + INLINE_OPEN.len()..];
+        let Some(end_name) = rest.find("-->") else { break };
+        let name = rest[..end_name].to_string();
+        let after = &rest[end_name + 3..];
+        let Some(close) = after.find(INLINE_CLOSE) else { break };
+        out.push((name.clone(), after[..close].to_string(), inline_fact(root, &name)));
+        rest = &after[close + INLINE_CLOSE.len()..];
+    }
+    out
+}
+
+/// `doc` with every inline fact rewritten to its current value (unknown names are left alone).
+pub fn sync_inline_facts(root: &Path, doc: &str) -> String {
+    let mut out = String::new();
+    let mut rest = doc;
+    while let Some(i) = rest.find(INLINE_OPEN) {
+        let head = &rest[..i + INLINE_OPEN.len()];
+        let tail = &rest[i + INLINE_OPEN.len()..];
+        let Some(end_name) = tail.find("-->") else { break };
+        let name = &tail[..end_name];
+        let after = &tail[end_name + 3..];
+        let Some(close) = after.find(INLINE_CLOSE) else { break };
+        out.push_str(head);
+        out.push_str(name);
+        out.push_str("-->");
+        out.push_str(&inline_fact(root, name).unwrap_or_else(|| after[..close].to_string()));
+        rest = &after[close..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// Replaces the region between the facts markers of `doc` with `block`. `Err` if the markers are missing.
@@ -207,6 +272,7 @@ pub fn add_note(root: &Path, section: &str, text: &str) -> Result<PathBuf, Strin
 pub fn render(root: &Path) -> String {
     let mut s = String::from("== facts ==\n");
     s.push_str(&facts_block(root));
+    s.push_str(&counts(root));
     if let Some(branch) = git(root, &["rev-parse", "--abbrev-ref", "HEAD"]) {
         let head = git(root, &["rev-parse", "--short", "HEAD"]).unwrap_or_default();
         let dirty = git(root, &["status", "--short"]).unwrap_or_default();
@@ -261,12 +327,40 @@ mod tests {
     }
 
     #[test]
-    fn facts_come_from_the_files() {
+    fn facts_come_from_the_files_and_hold_only_what_changes_rarely() {
         let d = tmp("facts");
         let f = facts_block(&d);
         assert!(f.contains("`demo`") && f.contains("`gamebin`") && f.contains("`server`"), "{f}");
         assert!(f.contains("`default`") && f.contains("`gfx`"), "{f}");
-        assert!(f.contains("1 integration test suites") && f.contains("2 ADRs (latest: 0002 second thing)"), "{f}");
+        assert!(!f.contains("ADRs") && !f.contains("suites"), "counts are not in a doc's facts: they made every branch conflict\n{f}");
+        assert!(!f.contains("protocol"), "no protocol file, no protocol fact");
+        std::fs::create_dir_all(d.join("src/net")).unwrap();
+        std::fs::write(d.join("src/net/protocol.rs"), "/// doc\npub const PROTOCOL_VERSION: u16 = 12;\n").unwrap();
+        assert!(facts_block(&d).contains("Wire protocol v12"), "{}", facts_block(&d));
+        let c = counts(&d);
+        assert!(c.contains("1 integration test suites") && c.contains("2 ADRs (latest: 0002 second thing)"), "{c}");
+        std::fs::write(d.join("docs/adr/2026-09-28-newer.md"), "# x").unwrap();
+        assert!(counts(&d).contains("3 ADRs (latest: 2026 09 28 newer)"), "a dated ADR is the latest: {}", counts(&d));
+    }
+
+    #[test]
+    fn inline_facts_are_rewritten_to_the_current_value_and_nothing_else() {
+        let d = tmp("inline");
+        std::fs::create_dir_all(d.join("src/net")).unwrap();
+        std::fs::write(d.join("src/net/protocol.rs"), "pub const PROTOCOL_VERSION: u16 = 9;\n").unwrap();
+        let doc =
+            "Network protocol is v<!--fact:protocol-->8<!--/fact-->, and (v<!--fact:protocol-->3<!--/fact-->) again; <!--fact:unknown-->keep<!--/fact--> tail";
+        let stale = inline_facts(&d, doc);
+        assert_eq!(stale.len(), 3);
+        assert_eq!((stale[0].0.as_str(), stale[0].1.as_str(), stale[0].2.as_deref()), ("protocol", "8", Some("9")));
+        assert_eq!(stale[2].2, None, "a name this repo cannot derive");
+        let fixed = sync_inline_facts(&d, doc);
+        assert_eq!(
+            fixed,
+            "Network protocol is v<!--fact:protocol-->9<!--/fact-->, and (v<!--fact:protocol-->9<!--/fact-->) again; <!--fact:unknown-->keep<!--/fact--> tail"
+        );
+        assert_eq!(sync_inline_facts(&d, &fixed), fixed, "idempotent");
+        assert_eq!(sync_inline_facts(&d, "no facts here"), "no facts here");
     }
 
     #[test]

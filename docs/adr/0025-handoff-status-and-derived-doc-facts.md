@@ -1,5 +1,6 @@
 # 0025. Handoff and honest docs: `status`, STATUS.md and derived facts
 Status: accepted
+Summary: Handoff (`status`, STATUS.md) and doc facts derived from the repo, checked by a test
 
 ## Context
 Two costs recurred for an AI resuming work: (1) after its terminal closed, the only record of "done / in flight / failing / next"

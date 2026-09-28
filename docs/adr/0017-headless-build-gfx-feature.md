@@ -1,5 +1,6 @@
 # 0017. The dedicated server builds without graphics: the `gfx` feature
 Status: accepted (implements the plan in ADR 0010; makes ADR 0016's "not yet split" caveat obsolete)
+Summary: The dedicated server builds without graphics: the `gfx` feature, `collide`/`geometry` extraction, CI-enforced
 
 ## Context
 `red_server` and `red_bot` need no window, GPU or audio, but the crate linked wgpu/winit/rodio/ffmpeg

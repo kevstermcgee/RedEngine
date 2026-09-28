@@ -1,5 +1,6 @@
 # 0026. A headless, audited UI kit: `ui-shot` and `ui-check`
 Status: accepted
+Summary: A headless, audited UI kit: one layout drives painting, clicks and the audit; `ui-shot`, `ui-check`
 
 ## Context
 The game UI is a CPU-painted 2-D overlay using the engine's 5x7 bitmap font, laid out with magic numbers

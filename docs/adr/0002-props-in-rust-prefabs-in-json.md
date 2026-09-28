@@ -1,5 +1,6 @@
 # 0002. Props (custom collision) are Rust; everything else is JSON prefabs
 Status: accepted
+Summary: Props (custom collision) are Rust; everything else is JSON prefabs
 
 ## Context
 The asset library must grow fast (apples to vending machines) and be extendable by AIs without

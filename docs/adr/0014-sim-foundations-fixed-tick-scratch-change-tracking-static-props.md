@@ -1,5 +1,6 @@
 # 0014. Sim foundations: fixed tick, scratch buffers, change tracking, static props
 Status: accepted
+Summary: Sim foundations: 60 Hz tick + tick-based weapons, scratch buffers, change tracking, static props
 
 ## Context
 Groundwork for a headless 1v1 match server (ADR 0010) with a sub-50 ms latency goal. Five increments,

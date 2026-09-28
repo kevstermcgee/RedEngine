@@ -1,5 +1,6 @@
 # 0057. The avatar pool covers every body somebody can wear
 Status: accepted
+Summary: The avatar pool covers every body somebody can wear, bots' included, with a stand-in for any it lacks: no enemy goes undrawn
 
 ## Context
 A client draws the other players with avatars taken from a pool of hidden bodies that is built before the renderer exists (the renderer takes its meshes from the scene at creation, ADR 0052). The

@@ -1,5 +1,6 @@
 # 0021. Deterministic traces, replay, and split checksums
 Status: accepted
+Summary: Deterministic traces, replay, and split checksums: the first divergent tick
 
 ## Context
 A multiplayer bug that appears once in a hundred matches is unfixable unless the match can be reproduced without the network, the

@@ -8,6 +8,8 @@ explains its failures. Workflow: `AGENTS.md` (short; read it, do not import it).
 ## Cheap by default (context and time)
 ```bash
 $R context <feature|file|words>  # 5-15 KB work packet for a Rust change: files, public API, tests, ADR pointers (instead of `src map`, file reads)
+$R preflight [--fix]             # ~1 s, compiles nothing: ADR index, feature ownership, doc facts, headless boundary, describe budgets, fmt; prints the exact edit for each problem
+$R adr new "Title" --summary "one sentence"   # a decision record: dated id, index refreshed (no list to edit); an unfinished Summary fails preflight
 scripts/dev affected --quick     # verify only the features that own your change (seconds); the dependents it skipped are listed
 scripts/dev affected             # + every feature built on them: before you say "done" (a green run is remembered by file content)
 scripts/dev affected --full      # = scripts/ci.sh: only at integration boundaries (before pushing; Cargo.*, src/lib.rs, CI files escalate by themselves)
@@ -60,5 +62,5 @@ ADRs, then `scripts/dev test`. Before pushing: `scripts/dev affected --full` (= 
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `red_bot`, `red_engine2`, `red_server`.
 - Cargo features: `default`, `gfx`.
-- 29 integration test suites (`tests/`), 5 recipes (`recipes/`), 9 example maps (`examples/`); 50 ADRs (latest: 0057 avatars for every body). Test *counts* are not stated here: run `scripts/dev test`.
+- Wire protocol v8 (`src/net/protocol.rs`): a client and a server must be built from the same version. Counts (suites, maps, ADRs) and test totals: `red_engine2 status`, `scripts/dev test`.
 <!-- facts:end -->

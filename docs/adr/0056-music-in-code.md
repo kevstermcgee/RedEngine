@@ -1,5 +1,6 @@
 # 0056. Music composed in code
 Status: accepted
+Summary: Music composed in code: an eight-bar synthwave loop generated at start-up, tested for pitch, rhythm and a seamless wrap
 
 ## Context
 Sound effects give a game feedback; a sustained musical bed gives it a pulse. The engine's rule since ADR 0008 is that nothing is imported: no sample files to license, ship or lose, so the

@@ -1,5 +1,6 @@
 # 0001. Maps are JSON; the engine describes itself so AIs never read Rust
 Status: accepted
+Summary: Maps are JSON; the engine describes itself so AIs never read Rust
 
 ## Context
 The maps and the tools around them are built mostly by AI agents. Every session that has to explore

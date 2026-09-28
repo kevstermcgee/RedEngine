@@ -1,5 +1,6 @@
 # 0031. Home hosting with UPnP: `portmap` and `red_server --upnp`
 Status: accepted
+Summary: Home hosting with UPnP: `portmap` and `red_server --upnp`
 
 ## Context
 The realistic first host is a friend's home PC. That needs the game's UDP port opened on the router. BlueEngine ships a Python helper

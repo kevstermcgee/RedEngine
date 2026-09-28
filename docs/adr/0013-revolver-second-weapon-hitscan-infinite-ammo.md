@@ -1,5 +1,6 @@
 # 0013. The silver revolver: a second human weapon, hitscan, infinite ammo (for now)
 Status: accepted
+Summary: Silver revolver: mouse-wheel second weapon, hitscan, infinite ammo for now
 
 ## Context
 The human's primary weapon stays the bat. A silver revolver is added, chosen with the mouse wheel.

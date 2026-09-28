@@ -11,6 +11,11 @@ use super::search;
 use crate::player;
 use serde_json::{json, Value};
 
+/// The most bytes `describe --brief` may take: it is the first thing every session reads (`tests/ai_tasks.rs` and `preflight` enforce it).
+pub const BRIEF_BUDGET: usize = 2_500;
+/// The most bytes the `describe` overview may take. A new command adds a line: keep its `about` short and put the detail in `docs/AGENT_REFERENCE.md`.
+pub const OVERVIEW_BUDGET: usize = 7_300;
+
 /// Topic names and one-line descriptions for `describe`; a test renders every one.
 pub const TOPICS: &[(&str, &str)] = &[
     ("brief", "a ~1 KB summary: binaries, workflow, commands, where to look next (the cheapest first read)"),
@@ -460,13 +465,33 @@ pub fn all_json(commands: &Value) -> Value {
     })
 }
 
+/// The first sentence of a command's `about`, cut at a word boundary to `max` characters (an abbreviation such as `e.g.` does not end it). The overview lists every
+/// command on a line of its own; the whole text is `describe commands` / `search <name>`.
+pub fn first_sentence(about: &str, max: usize) -> String {
+    let mut end = about.len();
+    for (i, _) in about.match_indices(". ") {
+        let last_word = about[..i].rsplit(' ').next().unwrap_or("");
+        if ["e.g", "i.e", "incl", "etc", "vs"].contains(&last_word) {
+            continue;
+        }
+        end = i;
+        break;
+    }
+    let s = about[..end].trim_end_matches('.').trim();
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let cut: String = s.chars().take(max).collect();
+    format!("{}...", cut.rsplit_once(' ').map_or(cut.as_str(), |(head, _)| head).trim_end_matches([',', ':', ';', '(']))
+}
+
 fn commands_text(commands: &Value, brief: bool) -> String {
     let mut out = String::new();
     for c in commands.as_array().into_iter().flatten() {
         let name = c["name"].as_str().unwrap_or("?");
         let about = c["about"].as_str().unwrap_or("");
         if brief {
-            out.push_str(&format!("  {name:<11} {}\n", about.split(". ").next().unwrap_or(about).trim_end_matches('.')));
+            out.push_str(&format!("  {name:<11} {}\n", first_sentence(about, 96)));
             continue;
         }
         let args: Vec<String> = c["args"]
@@ -692,5 +717,17 @@ mod tests {
             assert!(render(t, &cmds, true).is_ok(), "topic {t} json");
         }
         assert!(render("nope", &cmds, false).is_err());
+    }
+
+    #[test]
+    fn a_command_line_is_its_first_sentence_capped_at_a_word() {
+        assert_eq!(first_sentence("Render the full scene to an MP4. Needs ffmpeg.", 96), "Render the full scene to an MP4");
+        assert_eq!(first_sentence("Search everything, e.g. docs and assets. More.", 96), "Search everything, e.g. docs and assets");
+        assert_eq!(first_sentence("No full stop at all", 96), "No full stop at all");
+        let long =
+            "Static map checker: overlaps, floating props, stairs that lead nowhere, low ceilings, unprotected drops, perimeter leaks, unreachable rooms";
+        let cut = first_sentence(long, 60);
+        assert!(cut.ends_with("...") && cut.len() <= 63 && long.starts_with(cut.trim_end_matches("...")), "{cut}");
+        assert!(!cut.trim_end_matches("...").ends_with(' ') && !cut.contains("unpro"), "cut between words: {cut}");
     }
 }

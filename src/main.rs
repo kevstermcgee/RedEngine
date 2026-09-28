@@ -41,6 +41,8 @@ mod editing;
 mod info;
 #[path = "cli/render_cmds.rs"]
 mod render_cmds;
+#[path = "cli/repo.rs"]
+mod repo;
 #[path = "cli/util.rs"]
 mod util;
 
@@ -49,6 +51,7 @@ use args::*;
 use editing::*;
 use info::*;
 use render_cmds::*;
+use repo::*;
 use util::*;
 
 fn main() {
@@ -133,6 +136,9 @@ fn run(command: Command) -> Result<(), String> {
         }
         Command::Replay { trace, scene, against } => run_replay(&trace, scene.as_deref(), against.as_deref()),
         Command::NetTest { scene, profile, players, secs, seed } => run_net_test(&scene, &profile, players, secs, seed),
+        Command::Preflight { fix, no_fmt, root } => run_preflight(fix, no_fmt, root.as_deref()),
+        Command::Adr { cmd, root } => run_adr(cmd, root.as_deref()),
+        Command::Analysis { cmd, root } => run_analysis(cmd, root.as_deref()),
         Command::Features { query, check } => run_features(&query, check),
         Command::Impact { files, git } => run_impact(&files, git.as_deref()),
         Command::Context { query, git, budget } => run_context(&query, git, budget),

@@ -31,7 +31,12 @@ impl Agent {
         let mut a = Agent { context: 0, log: Vec::new(), dir };
         // Step zero of every task: the compact orientation.
         let brief = a.run(&["describe", "--brief"]).1;
-        assert!(brief.len() < 2_500, "`describe --brief` must stay a cheap first read ({} bytes)", brief.len());
+        let budget = red_engine2::tools::describe::BRIEF_BUDGET;
+        assert!(
+            brief.len() < budget,
+            "`describe --brief` must stay a cheap first read ({} bytes, budget {budget}; `red_engine2 preflight` reports it too)",
+            brief.len()
+        );
         a
     }
 
@@ -85,7 +90,13 @@ fn the_first_read_is_a_small_fraction_of_the_docs() {
     let mut a = Agent::new("orientation");
     let overview = a.run(&["describe"]).1;
     // 7 KB before `context`/`affected` existed; two more commands and their hints are worth a few hundred bytes, not more.
-    assert!(overview.len() < 7_300, "`describe` overview is {} bytes", overview.len());
+    let budget = red_engine2::tools::describe::OVERVIEW_BUDGET;
+    assert!(
+        overview.len() < budget,
+        "`describe` overview is {} bytes, budget {budget} ({} over; `red_engine2 preflight` reports it too)",
+        overview.len(),
+        overview.len().saturating_sub(budget)
+    );
     assert!(a.context * 8 < docs_bytes(), "orientation costs {} bytes vs {} bytes of AGENTS.md + SPEC.md", a.context, docs_bytes());
     a.within(9_500);
 }
