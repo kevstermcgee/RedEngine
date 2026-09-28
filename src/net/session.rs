@@ -455,7 +455,7 @@ impl NetSession {
         }
         let free_of = |pools: &[AvatarPool], fits: &dyn Fn(Character) -> bool| pools.iter().position(|a| fits(a.body) && a.used_by.iter().any(|u| u.is_none()));
         if let Some(p) = free_of(&self.avatars, &|c| c == body) {
-            return Some(self.wear(id, p, worn, scene));
+            return self.wear(id, p, worn, scene);
         }
         if let Some((p, _)) = worn {
             if is_rat(self.avatars[p].body) == is_rat(body) {
@@ -463,7 +463,7 @@ impl NetSession {
             }
         }
         if let Some(p) = free_of(&self.avatars, &|c| is_rat(c) == is_rat(body)) {
-            return Some(self.wear(id, p, worn, scene));
+            return self.wear(id, p, worn, scene);
         }
         if let Some(w) = worn {
             self.release_avatar(w, scene);
@@ -480,16 +480,17 @@ impl NetSession {
         a.pool.release(scene, s);
     }
 
-    /// Makes `id` wear a free avatar of pool `p`, freeing the one they wore before.
-    fn wear(&mut self, id: u8, p: usize, worn: Option<(usize, usize)>, scene: &mut Scene) -> (usize, usize) {
+    /// Makes `id` wear a free avatar of pool `p`, freeing the one they wore before. `None` if the pool turns out to have no free slot after all: the
+    /// caller always checks first, so this is a defensive fallback, not an expected outcome.
+    fn wear(&mut self, id: u8, p: usize, worn: Option<(usize, usize)>, scene: &mut Scene) -> Option<(usize, usize)> {
         if let Some(w) = worn {
             self.release_avatar(w, scene);
         }
         let a = &mut self.avatars[p];
-        let slot = a.pool.claim().expect("the pool has a free slot: the caller checked");
+        let slot = a.pool.claim()?;
         a.used_by[slot] = Some(id);
         a.anim[slot] = AvatarAnim::default();
-        (p, slot)
+        Some((p, slot))
     }
 
     /// Updates the scene from the interpolated network view: remote players wear pooled avatar

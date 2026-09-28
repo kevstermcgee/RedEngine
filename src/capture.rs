@@ -97,7 +97,7 @@ impl Capture {
         drop(mapped);
         self.staging.unmap();
         if swap {
-            for px in pixels.chunks_exact_mut(4) {
+            for px in pixels.as_chunks_mut::<4>().0 {
                 px.swap(0, 2);
             }
         }
