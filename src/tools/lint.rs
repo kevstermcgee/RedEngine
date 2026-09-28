@@ -494,6 +494,11 @@ fn check_interest(world: &MapWorld, out: &mut Vec<Finding>) {
     let mut occupied: Vec<usize> = rooms.iter().flatten().copied().collect();
     occupied.sort_unstable();
     occupied.dedup();
+    // A single occupied room cannot show the "different rooms never see each other" bug: every spawn (so every human and bot) lands in the same room. A
+    // recipe like `coin_run` declares zones for its rules (a trap volume, an exit) and one spawn point; that is not a multiplayer map.
+    if occupied.len() < 2 {
+        return;
+    }
     let name = |r: usize| map.rooms[r].id.clone();
     let has_portals = world.raw.get("portals").and_then(Value::as_array).is_some_and(|p| !p.is_empty());
     if !has_portals {
@@ -501,9 +506,9 @@ fn check_interest(world: &MapWorld, out: &mut Vec<Finding>) {
             Severity::Error,
             "interest",
             format!(
-                "the map has {} zones and spawn points but no `portals`: the server tells a player only about their own room, so players in different rooms never see each other \
+                "the map's spawn points span {} zones but there are no `portals`: the server tells a player only about their own room, so players in different rooms never see each other \
                  (invisible enemies). Add a portal for each doorway (`portals: [{{\"id\", \"between\": [zone, zone]}}]`), or link every zone to one central zone and set `interest.hops` to 2",
-                map.rooms.len()
+                occupied.len()
             ),
             None,
             &[],

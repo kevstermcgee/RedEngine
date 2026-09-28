@@ -126,3 +126,5 @@ Every task should be doable from `describe`/`search`/`src show`, not by reading 
 `docs/AGENT_REFERENCE.md` holds the long-form reference that used to live here: multiplayer, game rules and replay, walk failures, setup, the **tool reference table**
 and lint codes, the map-building checklist, prefabs and recipes, lessons learned, the reference maps, **engine internals**, characters, weapons, loose props and viewer
 debugging. It is indexed by `search` (each heading is a fragment); read a section only when `search` points at it.
+Two end-to-end walks answer "why does this fight look wrong": `docs/LIFE_OF_A_SHOT.md` (one trigger pull, click to hit marker) and `docs/LIFE_OF_A_REMOTE_PLAYER.md` (another player on your
+screen, Hello to avatar); each step names the function to open, the tuning key, how to see it without a screen and how it fails silently.

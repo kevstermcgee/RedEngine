@@ -52,9 +52,11 @@ pub fn subsystem(image: &[u8]) -> Result<Subsystem, String> {
     }
 }
 
-/// Rewrites the subsystem of `image` in place. Windows does not verify the image checksum of an ordinary program, so nothing else changes; an image that was
-/// signed with Authenticode would need signing again.
+/// Rewrites the subsystem of `image` in place. Refuses an image whose current subsystem is not already console or GUI (a native driver, say), the same as
+/// [`subsystem`] would. Windows does not verify the image checksum of an ordinary program, so nothing else changes; an image that was signed with
+/// Authenticode would need signing again.
 pub fn set_subsystem(image: &mut [u8], to: Subsystem) -> Result<(), String> {
+    subsystem(image)?;
     let at = subsystem_offset(image)?;
     let value = match to {
         Subsystem::Gui => IMAGE_SUBSYSTEM_WINDOWS_GUI,

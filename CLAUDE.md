@@ -55,7 +55,7 @@ scripts/dev fast | test          # all unit tests | the WHOLE suite (prefer `aff
 ```
 
 Map: `SPEC.md` scene + blueprint language · `AGENTS.md` workflow (+ `docs/AGENT_REFERENCE.md`) · `src/` engine (`$R src map`) · `assets/*.json` prefabs · `recipes/`, `examples/` ·
-`docs/` glossary, ADRs (`$R describe decisions`), `HOSTING.md` · `mcp_server.py` MCP wrapper · `Dockerfile`, `deploy/` hosting.
+`docs/` glossary, ADRs (`$R describe decisions`), `HOSTING.md`, `docs/LIFE_OF_A_SHOT.md` + `docs/LIFE_OF_A_REMOTE_PLAYER.md` (one shot / one remote player, end to end: read when a fight looks wrong) · `mcp_server.py` MCP wrapper · `Dockerfile`, `deploy/` hosting.
 
 When you change Rust: `//!` on new modules, `///` on pub items (`$R src coverage`), simulation logic as pure functions (not in `App`), decisions as
 ADRs, then `scripts/dev test`. Before pushing: `scripts/dev affected --full` (= `scripts/ci.sh`). Record progress at every checkpoint: `$R status --note "..." --section done|now|next`.

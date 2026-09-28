@@ -98,7 +98,7 @@
       "files": ["src/net/server.rs", "src/net/host.rs", "src/net/sessions.rs", "src/net/snapshots.rs", "src/bin/red_server.rs"],
       "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_bots", "server_env"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
-      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md"],
+      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md"],
       "depends_on": ["net_protocol", "net_auth", "sim_core", "match_flow"]
     },
     "net_client": {
@@ -106,7 +106,7 @@
       "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs"],
       "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
-      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md"],
+      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md"],
       "depends_on": ["net_protocol", "net_auth"]
     },
     "net_test": {
@@ -159,7 +159,7 @@
     "playtest": {
       "summary": "Seeing what the player sees without a person: offscreen frame capture, the scripted player, pooled scene objects, contact sheets and `playtest`; the headless client itself is `src/bin/re2/headless.rs` (`graphical_client`).",
       "files": ["src/capture.rs", "src/playscript.rs", "src/scene_pool.rs", "src/cli/playtest.rs", "src/tools/sheet.rs"],
-      "tests": ["lib:playscript", "lib:scene_pool", "lib:tools::sheet"],
+      "tests": ["lib:playscript", "lib:scene_pool", "lib:tools::sheet", "client_headless"],
       "commands": ["red_engine2 playtest examples/test_lab.json --secs 20 --shots 6"],
       "docs": ["docs/adr/2026-09-28-seeing-what-the-player-sees.md"],
       "depends_on": ["graphical_client", "net_client", "net_server", "offline_renderer"]
