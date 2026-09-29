@@ -40,6 +40,7 @@ pub mod interest;
 pub mod kart;
 pub mod match_sim;
 pub mod player;
+pub mod race;
 pub mod replay;
 pub mod rules;
 pub mod rules_expr;

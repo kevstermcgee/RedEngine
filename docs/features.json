@@ -57,9 +57,9 @@
       "depends_on": ["sim_core"]
     },
     "karts": {
-      "summary": "Kart driving for Great Outdoors: one pure kart step (steering, throttle, drift and hop, boost, spin-out, walls), the eight-driver spec table, kart-to-kart bumps and slipstream. A movement mode of the player, shared by server, prediction and bots.",
-      "files": ["src/sim/kart.rs"],
-      "tests": ["lib:sim::kart"],
+      "summary": "Kart driving and racing for Great Outdoors: the scene's `race` block and per-player race progress (ordered gates, laps, standings, countdown), one pure kart step (steering, throttle, drift and hop, boost, spin-out, walls), the eight-driver spec table, kart-to-kart bumps and slipstream. A movement mode of the player, shared by server, prediction and bots.",
+      "files": ["src/sim/kart.rs", "src/sim/race.rs"],
+      "tests": ["lib:sim::kart", "lib:sim::race"],
       "docs": ["docs/adr/2026-09-29-great-outdoors-karts-as-a-first-class-engine-feature.md"],
       "depends_on": ["player_physics"]
     },

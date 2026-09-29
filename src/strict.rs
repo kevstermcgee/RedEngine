@@ -34,6 +34,7 @@ pub const ROOT_KEYS: &[&str] = &[
     "jump_pads",
     "weapons",
     "match",
+    "race",
     "combat",
     "bots",
     "nav",
@@ -190,6 +191,11 @@ pub fn check_sections(errs: &mut Vec<String>, root: &Map<String, Value>) {
     }
     if let Some(m) = root.get("match") {
         if let Err(e) = crate::sim::flow::MatchSettings::from_json(m) {
+            errs.push(e);
+        }
+    }
+    if root.contains_key("race") {
+        if let Err(e) = crate::sim::race::RaceCourse::from_scene_json(root) {
             errs.push(e);
         }
     }

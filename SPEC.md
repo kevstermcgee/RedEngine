@@ -546,6 +546,26 @@ compares two traces of the same match (a desync between two machines). Exact che
 the simulation's maths uses `libm`, so Windows and Linux are expected to agree, and a millimetre-quantised `coarse` checksum tells
 float noise from a real divergence when they do not. See ADR 0021.
 
+## Races (`race`)
+
+A kart race (Great Outdoors; ADR 2026-09-29-great-outdoors-karts-as-a-first-class-engine-feature) is a scene zone list plus a `race` block. Per-player laps and
+positions cannot be written as rules (a rule variable is one number for everybody), so the simulation tracks them natively (`sim::race`).
+
+```json
+"zones": [{"id": "line", "rect": [-6, -1, 6, 1]}, {"id": "bend", "rect": [30, 40, 40, 44]}, {"id": "back", "rect": [-6, 79, 6, 81]}],
+"race": {"laps": 3, "gates": ["line", "bend", "back"], "countdown_secs": 3, "finish_grace_secs": 30}
+```
+
+- **`gates`**: zone ids across the track, in driving order, at least 3 and each listed once; the first is the start/finish line. The grid sits just *before* the
+  line: everyone starts with gate 1 as their next gate, so crossing the line at the start earns nothing, and a lap is gates 1..N-1 and then the line again.
+- **Direction**: a gate faces from the previous gate's centre towards the next one's (so it holds on bends). Only a crossing in that direction counts, a fast
+  kart cannot step over a thin gate (the test is the segment from last tick's position), and a skipped gate is still owed.
+- **`laps`** 1..20 (default 3). **`countdown_secs`** 0..600 (default 3): karts are held until the light. **`finish_grace_secs`** (default 30): once the first
+  kart finishes, the others have this long before the race ends and they are ranked as they stand.
+- **`line`** (optional): `[[x, z], ...]` racing-line points for bots on tight corners; empty = the gate centres.
+- **Standings**: finishers by finish time, then by gates passed in total, then by distance to the next gate, then by slot. A player who joined and left is
+  ranked as not finished; a slot that never joined is not listed. State is part of the match checksum.
+
 ## Physics rules a map author must know
 
 - **Releasing a carried prop** gives it your own horizontal and vertical velocity plus `player.throw_speed` (default 1 m/s) along your look,
