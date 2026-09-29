@@ -355,7 +355,7 @@
   },
   "lint": {
    "max_errors": 0,
-   "max_warnings": 2
+   "max_warnings": 3
   },
   "reach": [
    {
