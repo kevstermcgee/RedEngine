@@ -140,6 +140,18 @@ pub(crate) enum GameCmd {
     Play { addr: Option<String> },
     /// Start the project's map directly in local single-player, with no server or network connection.
     PlayLocal,
+    /// Ship a version: pin the engine in game.json to the exact commit of an engine checkout (default: the project's local engine path, else the checkout
+    /// this binary was built from), so the release's clients and server are built from the same engine. Refuses uncommitted or unpushed engine commits.
+    Pin {
+        /// The engine checkout to read the commit from.
+        #[arg(long)]
+        engine: Option<PathBuf>,
+        /// Pin HEAD even though tracked files are modified.
+        #[arg(long)]
+        allow_dirty: bool,
+    },
+    /// Develop again: point game.json at a local engine checkout (a path relative to the project) instead of a pinned commit.
+    Unpin { path: String },
 }
 
 #[derive(Subcommand)]

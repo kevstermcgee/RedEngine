@@ -455,6 +455,71 @@ pub fn info(cfg: &GameConfig) -> String {
     s
 }
 
+/// The engine commit a release is pinned to: where to clone it from and exactly which commit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnginePin {
+    /// The clone URL (`origin` of the checkout).
+    pub url: String,
+    /// The full commit hash.
+    pub sha: String,
+}
+
+/// Rewrites `game.json` text so the engine is pinned to `git` at commit `sha` (a release: its client and server are built from exactly that
+/// engine). Every other key keeps its place; the result is checked to still parse as a project.
+pub fn pin_text(game_json: &str, git: &str, sha: &str) -> Result<String, String> {
+    with_engine(game_json, serde_json::json!({"git": git, "ref": sha}))
+}
+
+/// Rewrites `game.json` text so the engine is the local checkout at `path` (relative to the project): development follows that checkout.
+pub fn unpin_text(game_json: &str, path: &str) -> Result<String, String> {
+    with_engine(game_json, serde_json::json!({"path": path}))
+}
+
+fn with_engine(game_json: &str, engine: Value) -> Result<String, String> {
+    let mut v: Value = serde_json::from_str(game_json).map_err(|e| format!("game.json: not valid JSON: {e}"))?;
+    v.as_object_mut().ok_or("game.json: expected an object")?.insert("engine".into(), engine);
+    let out = serde_json::to_string_pretty(&v).map_err(|e| e.to_string())? + "\n";
+    parse(Path::new("."), &out).map_err(|e| e.join("; "))?;
+    Ok(out)
+}
+
+/// The engine checkout `game pin` reads: `explicit`, else the project's local `engine.path` (relative to the project), else the checkout this
+/// binary was built from.
+pub fn engine_checkout(cfg: &GameConfig, explicit: Option<&Path>) -> Result<PathBuf, String> {
+    let dir = match (explicit, &cfg.engine.path) {
+        (Some(e), _) => e.to_path_buf(),
+        (None, Some(p)) => cfg.dir.join(p),
+        (None, None) => PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+    };
+    if dir.join(".git").exists() {
+        Ok(dir)
+    } else {
+        Err(format!("{} is not a git checkout of the engine: pass --engine <dir>", dir.display()))
+    }
+}
+
+/// Reads the pin from an engine checkout: its HEAD commit and `origin` URL. Refuses what could not be reproduced: uncommitted changes to tracked
+/// files (unless `allow_dirty`) and a commit no remote branch contains (a clone of the pin would not find it; push first).
+pub fn engine_pin(checkout: &Path, allow_dirty: bool) -> Result<EnginePin, String> {
+    let git = |args: &[&str]| -> Result<String, String> {
+        let out = std::process::Command::new("git").arg("-C").arg(checkout).args(args).output().map_err(|e| format!("git: {e}"))?;
+        if out.status.success() {
+            Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+        } else {
+            Err(format!("git {}: {}", args.join(" "), String::from_utf8_lossy(&out.stderr).trim()))
+        }
+    };
+    let sha = git(&["rev-parse", "HEAD"])?;
+    let url = git(&["remote", "get-url", "origin"]).map_err(|e| format!("{e} (the pin needs an `origin` remote to clone from)"))?;
+    if !allow_dirty && !git(&["status", "--porcelain", "--untracked-files=no"])?.is_empty() {
+        return Err(format!("{} has uncommitted changes, so HEAD is not what you built: commit them (or --allow-dirty)", checkout.display()));
+    }
+    if git(&["branch", "-r", "--contains", &sha])?.is_empty() {
+        return Err(format!("commit {} is on no remote branch, so a clone could not fetch it: push it first", &sha[..sha.len().min(12)]));
+    }
+    Ok(EnginePin { url, sha })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -532,5 +597,50 @@ mod tests {
         // A map nobody plays online (no bots, no spawn points) is not this check's business.
         let quiet = r#"{"camera":{"position":[0,1.7,0]},"objects":[]}"#;
         assert!(avatar_line("quiet.json", quiet).is_none());
+    }
+
+    #[test]
+    fn pin_and_unpin_rewrite_only_the_engine_block() {
+        let pinned = pin_text(GOOD, "https://example.com/red.git", "d96b6c009d2027aec4efdc0acdb4d1f7fd6f91db").unwrap();
+        let c = parse(Path::new("."), &pinned).unwrap();
+        assert_eq!(c.engine.git.as_deref(), Some("https://example.com/red.git"));
+        assert_eq!(c.engine.git_ref.as_deref(), Some("d96b6c009d2027aec4efdc0acdb4d1f7fd6f91db"));
+        assert_eq!(c.engine.path, None);
+        assert_eq!((c.name.as_str(), c.server.port, c.maps.len()), ("t", 28000, 1), "everything else is untouched");
+        assert!(info(&c).contains("d96b6c009d"), "the pin is visible in `game info`");
+        let back = parse(Path::new("."), &unpin_text(&pinned, "../RedEngine").unwrap()).unwrap();
+        assert_eq!((back.engine.path.as_deref(), back.engine.git.as_deref()), (Some("../RedEngine"), None));
+        assert!(pin_text("[1]", "u", "s").is_err() && pin_text("nope", "u", "s").is_err(), "not a game.json: refuse, never write");
+    }
+
+    #[test]
+    fn engine_pin_refuses_what_a_clone_could_not_reproduce() {
+        let dir = std::env::temp_dir().join(format!("re2_pin_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let bare = dir.join("remote.git");
+        let work = dir.join("work");
+        std::fs::create_dir_all(&work).unwrap();
+        let git = |cwd: &Path, args: &[&str]| {
+            let mut cmd = std::process::Command::new("git");
+            cmd.current_dir(cwd).args(["-c", "user.name=t", "-c", "user.email=t@example.com"]).args(args);
+            assert!(cmd.output().unwrap().status.success(), "git {args:?}");
+        };
+        git(&work, &["init", "-q", "-b", "main"]);
+        std::fs::write(work.join("a.txt"), "1").unwrap();
+        git(&work, &["add", "."]);
+        git(&work, &["commit", "-q", "-m", "one"]);
+        let e = engine_pin(&work, false).unwrap_err();
+        assert!(e.contains("origin"), "no remote: {e}");
+        git(&dir, &["init", "-q", "--bare", "remote.git"]);
+        git(&work, &["remote", "add", "origin", bare.to_str().unwrap()]);
+        let e = engine_pin(&work, false).unwrap_err();
+        assert!(e.contains("no remote branch"), "unpushed commit: {e}");
+        git(&work, &["push", "-q", "-u", "origin", "main"]);
+        let pin = engine_pin(&work, false).unwrap();
+        assert_eq!((pin.sha.len(), pin.url.as_str()), (40, bare.to_str().unwrap()));
+        std::fs::write(work.join("a.txt"), "2").unwrap();
+        assert!(engine_pin(&work, false).unwrap_err().contains("uncommitted"), "a dirty tree is not what was built");
+        assert!(engine_pin(&work, true).is_ok(), "--allow-dirty is the explicit way past that");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

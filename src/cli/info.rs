@@ -302,6 +302,25 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             let addr = addr.unwrap_or_else(|| format!("127.0.0.1:{}", cfg.server.port));
             launch(&exe, &["--connect".to_string(), addr, cfg.dir.join(&cfg.server.map).display().to_string()])
         }
+        GameCmd::Pin { engine, allow_dirty } => {
+            let checkout = game::engine_checkout(&cfg, engine.as_deref())?;
+            let pin = game::engine_pin(&checkout, allow_dirty)?;
+            let file = cfg.dir.join("game.json");
+            let text = std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+            std::fs::write(&file, game::pin_text(&text, &pin.url, &pin.sha)?).map_err(|e| format!("{}: {e}", file.display()))?;
+            println!("pinned '{}' to engine {} ({}); commit game.json", cfg.name, &pin.sha[..12], pin.url);
+            println!("this release's clients and its server must both be built from that commit;");
+            println!("`scripts/red serve` builds the pinned engine's server (the first build is cold, several minutes)");
+            println!("to develop again: red_engine2 game unpin <path to your engine checkout>");
+            Ok(())
+        }
+        GameCmd::Unpin { path } => {
+            let file = cfg.dir.join("game.json");
+            let text = std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+            std::fs::write(&file, game::unpin_text(&text, &path)?).map_err(|e| format!("{}: {e}", file.display()))?;
+            println!("'{}' now follows the engine checkout at {path}", cfg.name);
+            Ok(())
+        }
         GameCmd::PlayLocal => {
             let exe = game::sibling_exe("re2")
                 .ok_or("re2 (the game client) is not built next to red_engine2 (cargo build --bin re2, or use `scripts/red play-local`)")?;
