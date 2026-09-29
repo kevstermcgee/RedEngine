@@ -31,7 +31,7 @@ Not sure your machine can do it? `red_engine2 doctor` probes UDP loopback, the d
 | Where | How |
 |---|---|
 | Any machine with Docker | make the identity once: `docker compose run --rm --entrypoint red_engine2 red-server net-identity --out /identity`, then `docker compose up --build` (maps from `./maps`, `RED_MAP=/maps/main.json`; identity from `./identity`) |
-| A Linux box or VPS | build headless: `cargo build --release --no-default-features --bin red_server`; install to `/usr/local/bin`; copy `deploy/red-server.service` to `/etc/systemd/system/`, `deploy/server.env.example` to `/etc/red/server.env`, make `/etc/red/identity` with `red_engine2 net-identity` (key readable by the `red` user only), then `systemctl enable --now red-server` |
+| A Linux box or VPS | build headless: `cargo build --profile fast --no-default-features --bin red_server` (about half the rebuild time of `--release`; for up to 8 players the server tick is under 1 ms either way, see `benches/history/build-times.json`; `--release` is still what `package` ships); install `target/fast/red_server` to `/usr/local/bin`; copy `deploy/red-server.service` to `/etc/systemd/system/`, `deploy/server.env.example` to `/etc/red/server.env`, make `/etc/red/identity` with `red_engine2 net-identity` (key readable by the `red` user only), then `systemctl enable --now red-server` |
 | Your own PC (Windows/macOS/Linux) | `scripts/dev server maps/main.json` (or `scripts/red serve` in a game project) |
 | A game project | `scripts/red serve`: the map, port and spawn group come from `game.json` |
 

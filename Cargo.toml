@@ -56,13 +56,19 @@ opt-level = 3
 
 # `--profile fast` (`RED_PROFILE=fast scripts/dev build`): an optimized build to iterate on a game or the client without waiting for the release
 # profile's full LTO (4+ minutes; this one takes a fraction of that after the first build). Same speed to play; use `--release` to ship.
-# codegen-units is 4 on purpose: rustc crashed compiling the `wide` crate (a physics dependency) at 16 on one machine (STATUS_STACK_BUFFER_OVERRUN).
+# codegen-units is 4 on purpose for the dependencies: rustc crashed compiling the `wide` crate (a physics dependency) at 16 on one machine (STATUS_STACK_BUFFER_OVERRUN).
+# The engine crate alone gets 256 and incremental compilation (which only ever applies to it, never to registry dependencies): incremental reuses
+# whole codegen units, so with 4 an edit recompiled a quarter of the crate. Measured on the 4-core dev/server box (benches/history/build-times.json):
+# the edit loop went 57 s -> 4-5 s with no change in server tick times. Optimization level is unchanged.
 # Artifacts land in `target/fast/` (or `$CARGO_TARGET_DIR/fast/`).
 [profile.fast]
 inherits = "release"
 lto = false
 codegen-units = 4
-incremental = false
+incremental = true
+
+[profile.fast.package.red_engine2]
+codegen-units = 256
 
 # Plain `cargo test` runs rapier and 900-tick physics tests: unoptimized they are ~20x slower and the
 # per-step timing assertions get flaky. Light optimization everywhere, more for dependencies.

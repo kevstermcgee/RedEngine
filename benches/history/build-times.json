@@ -1,0 +1,382 @@
+{
+  "schema": "red-build-times/1",
+  "purpose": "Wall-clock build and test-compile costs, one record per measurement run, so later sessions can compare before/after a build-speed change. Append a new object to `runs`; never edit an old one. Narrative and caveats: docs/analysis/2026-09-29-build-time-baseline.md",
+  "how_to_measure": {
+    "rules": [
+      "Use a REAL edit for incremental timings (append a fn to the file, build, restore). `touch` only changes the mtime; rustc's incremental cache then reuses everything and reports 3-4 s, which is not a real edit.",
+      "Nothing else CPU-heavy may run during a measurement (4 low-power cores): timings are wall clock.",
+      "Cold = no target/ directory. Warm = dependencies already built, only red_engine2 changes.",
+      "Record `cargo build --timings` HTML units (per-crate start and duration) for cold runs: the critical path is in there."
+    ],
+    "edit_probe": "printf '\\n#[allow(dead_code)]\\npub fn __probe_edit() -> u32 { 42 }\\n' >> src/sim/rules.rs   (restore the file afterwards)"
+  },
+  "runs": [
+    {
+      "id": "2026-09-29-n97-baseline",
+      "date": "2026-09-29",
+      "engine_commit": "3a516f0",
+      "working_tree": "clean (probe edits restored)",
+      "machine": {
+        "cpu": "Intel N97 (4 cores, low power)",
+        "ram_gb": 15,
+        "os": "Ubuntu, Linux 7.0.0-34-generic",
+        "disk": "SSD (LVM), 184 GB free",
+        "role": "dev/test box and the online game server"
+      },
+      "toolchain": {
+        "cargo": "1.98.1",
+        "rustc": "stable, LLVM 22.1.8",
+        "linker": "rustc default (rust-lld via cc); mold, ccache, clang, ninja are installed but unused",
+        "config": "no .cargo/config.toml, no sccache"
+      },
+      "environment_gotcha": "RESOLVED on 2026-09-29 after the measurements: ~/.local/bin/cc (the user's Claude tmux launcher) shadowed /usr/bin/cc and broke every link; the user renamed it to `ccl`. Baseline runs up to and including the fast profile used PATH=/usr/bin:$HOME/.cargo/bin:/usr/local/bin:/bin TERM=dumb; the release runs used the default PATH after the rename. Same compiler either way.",
+      "code_size": {
+        "rust_lines_src_tests_benches": 70278,
+        "lib_crate_lines": 65000,
+        "src_tools_lines": 16936,
+        "src_net_lines": 8656,
+        "src_sim_lines": 9602,
+        "unit_test_lines_in_src": 10485,
+        "integration_test_binaries": 35,
+        "cargo_lock_packages": 464,
+        "headless_normal_deps": 170,
+        "gfx_normal_deps": 303
+      },
+      "measurements": [
+        {
+          "scenario": "cold dev, headless (--no-default-features) red_server + red_engine2",
+          "seconds": 199,
+          "cmd": "cargo build --timings --no-default-features --bin red_server --bin red_engine2",
+          "notes": "195 units, 634 unit-seconds (about 3.2x parallel). red_engine2 lib is 43.7 s but starts at 142 s: dependencies are the critical path. Slowest deps: syn 35, rustls 30, parry3d 29, moxcms 27, image 24, serde_derive 22, clap_derive 22, rapier3d 20, quinn-proto 20."
+        },
+        {
+          "scenario": "cold dev, all bins incl. graphics (added on top of the headless build)",
+          "seconds": 234,
+          "cmd": "cargo build --timings --bins",
+          "notes": "355 units, 753 unit-seconds. Extra weight is the graphics stack: naga 62, wgpu-core 60, x11rb-protocol 51, wgpu-hal 28, wayland-protocols 28, winit 26. red_engine2 lib 49.8 s starting at 165 s."
+        },
+        {
+          "scenario": "warm dev, real edit in src/sim/rules.rs, build all bins",
+          "seconds": 4.5,
+          "cmd": "cargo build --bins"
+        },
+        {
+          "scenario": "warm dev, real edit in src/schema.rs (central module), build all bins",
+          "seconds": 7.6,
+          "cmd": "cargo build --bins"
+        },
+        {
+          "scenario": "warm dev, no-op",
+          "seconds": 1,
+          "cmd": "cargo build --bins"
+        },
+        {
+          "scenario": "warm dev, touch only (mtime, no content change)",
+          "seconds": 3.5,
+          "cmd": "cargo build --bins",
+          "notes": "NOT representative of an edit; listed so nobody mistakes it for one."
+        },
+        {
+          "scenario": "cold, compile lib unit tests (no run)",
+          "seconds": 135,
+          "cmd": "cargo test --lib --no-run"
+        },
+        {
+          "scenario": "cold, compile all remaining test targets (no run)",
+          "seconds": 88,
+          "cmd": "cargo test --no-run",
+          "notes": "35 integration test binaries."
+        },
+        {
+          "scenario": "warm, real edit in rules.rs, rebuild every test target",
+          "seconds": 14.2,
+          "cmd": "cargo test --no-run"
+        },
+        {
+          "scenario": "cold fast profile (release, no LTO, codegen-units 4), all bins",
+          "seconds": 270,
+          "cmd": "cargo build --timings --profile fast --bins",
+          "notes": "356 units, 925 unit-seconds. red_engine2 lib 44.7 s starting at 208 s."
+        },
+        {
+          "scenario": "warm fast profile, real edit in rules.rs, all bins",
+          "seconds": 57,
+          "cmd": "cargo build --profile fast --bins",
+          "notes": "13x the dev-profile edit. [profile.fast] sets incremental=false, so the whole lib recompiles and links every time."
+        },
+        {
+          "scenario": "cold release (lto=true, codegen-units=1), headless red_server + red_bot",
+          "seconds": 154,
+          "cmd": "cargo build --timings --release --no-default-features --bin red_server --bin red_bot",
+          "notes": "This is the binary that is deployed on the server."
+        },
+        {
+          "scenario": "warm release, real edit in rules.rs, headless red_server + red_bot",
+          "seconds": 87,
+          "cmd": "cargo build --release --no-default-features --bin red_server --bin red_bot"
+        },
+        {
+          "scenario": "release all bins incl. graphics, built on top of the warm headless release build",
+          "seconds": 329,
+          "cmd": "cargo build --timings --release --bins",
+          "notes": "Not a fully cold build: shared dependencies were already compiled by the headless run."
+        },
+        {
+          "scenario": "warm release, real edit in rules.rs, all bins",
+          "seconds": 219,
+          "cmd": "cargo build --release --bins",
+          "notes": "Slowest edit loop measured: 49x the dev-profile edit. Full LTO relinks the whole program including wgpu/winit for every edit."
+        }
+      ],
+      "not_measured_yet": [
+        "warm fast-profile edit with incremental turned on",
+        "a cold build with mold or with a shared compiler cache (sccache/ccache) enabled",
+        "scripts/ci.sh end to end, and scripts/dev affected --quick/closure wall time",
+        "docker build (Dockerfile does COPY . . then a cold release build: no layer cache)",
+        "test RUN time (only compile time was measured), including the serial real-UDP suites",
+        "token cost of an idea-to-game session (tests/ai_tasks.rs budgets tool-output bytes for canonical tasks; no end-to-end session has been recorded here)"
+      ],
+      "server_headroom": {
+        "what": "red_engine2 perf examples/test_lab.json (release build, in-process server, N walking players, best of 3 windows of 1 s). The tick budget at 60 Hz is 16667 us.",
+        "idle_machine": [
+          {
+            "players": 4,
+            "sim_tick_us": {
+              "mean": 10,
+              "p50": 10,
+              "p95": 12,
+              "p99": 14,
+              "max": 26
+            },
+            "server_tick_us": {
+              "mean": 20,
+              "p50": 22,
+              "p95": 44,
+              "p99": 48,
+              "max": 86
+            },
+            "bytes_per_client_sec": 7182,
+            "largest_datagram": 214
+          },
+          {
+            "players": 8,
+            "sim_tick_us": {
+              "mean": 29,
+              "p50": 31,
+              "p95": 42,
+              "p99": 44,
+              "max": 71
+            },
+            "server_tick_us": {
+              "mean": 97,
+              "p50": 51,
+              "p95": 478,
+              "p99": 579,
+              "max": 666
+            },
+            "bytes_per_client_sec": 13750,
+            "largest_datagram": 450,
+            "notes": "1 prop promoted; server tick p99 is 12x the 4-player figure, so scaling from 4 to 8 players is worse than linear (cause not investigated)."
+          }
+        ],
+        "under_build_load": {
+          "condition": "a cold dev headless cargo build (4 rustc processes) running at the same time, measured about 60 s into it",
+          "results": [
+            {
+              "players": 4,
+              "sim_tick_us": {
+                "mean": 14,
+                "p50": 13,
+                "p95": 18,
+                "p99": 25,
+                "max": 49
+              },
+              "server_tick_us": {
+                "mean": 34,
+                "p50": 32,
+                "p95": 75,
+                "p99": 76,
+                "max": 137
+              }
+            },
+            {
+              "players": 8,
+              "sim_tick_us": {
+                "mean": 93,
+                "p50": 43,
+                "p95": 87,
+                "p99": 125,
+                "max": 2846
+              },
+              "server_tick_us": {
+                "mean": 265,
+                "p50": 96,
+                "p95": 846,
+                "p99": 3172,
+                "max": 3929
+              }
+            }
+          ],
+          "notes": "Best-of-3 windows filters noise, so this understates the worst case. At 8 players a tick took up to 3.9 ms (24% of the 16.7 ms budget): still inside it, but 6x the idle p99. A build plus a full server on this box eats real headroom."
+        },
+        "caveats": [
+          "In-process loopback: does not measure the NIC, the router, QUIC crypto over a real link or client-side rendering.",
+          "Test Lab has 25 loose props; a prop-heavy game map will cost more (see benches/baseline.json: tick/16_awake/1000 is about 130 us on the blessed Windows machine).",
+          "An earlier attempt to measure under load silently ran on an idle machine (the build failed to start); those numbers are the idle rows above and the mistake is not in this data.",
+          "The perf binary was the last release build, which included the probe edit (one unused `#[allow(dead_code)]` function in src/sim/rules.rs); the source was restored afterwards without rebuilding. Functionally identical to commit 3a516f0."
+        ]
+      }
+    },
+    {
+      "id": "2026-09-29-phase1-build-speed-experiments",
+      "date": "2026-09-29",
+      "engine_commit": "3a516f0 (+ the Cargo.toml [profile.fast] change made at the end of this run)",
+      "machine": "same as 2026-09-29-n97-baseline",
+      "purpose": "Which build-speed levers actually work on this box. Every edit timing is a REAL probe edit in src/sim/rules.rs (an unused fn appended, then restored).",
+      "measurements": [
+        {
+          "scenario": "fast profile, incremental ON (env override), all bins, real edit",
+          "seconds": [
+            36,
+            32,
+            31
+          ],
+          "baseline_seconds": 57,
+          "verdict": "helps, not enough: -44%"
+        },
+        {
+          "scenario": "fast profile, headless red_server+red_engine2, incremental off, real edit",
+          "seconds": 45,
+          "baseline_seconds": 87,
+          "notes": "baseline is the release headless server+bot edit; -48%."
+        },
+        {
+          "scenario": "fast profile, headless red_server+red_engine2, incremental ON, real edit",
+          "seconds": 27
+        },
+        {
+          "scenario": "fast + incremental + mold linker (separate target dir, cold build 276 s)",
+          "seconds": [
+            38,
+            33,
+            32
+          ],
+          "verdict": "NO GAIN vs the same without mold (36,32,31). rustc 1.98 already links with lld on Linux and linking is not the bottleneck. Do not pursue mold."
+        },
+        {
+          "scenario": "per-crate timing of one fast+incremental edit",
+          "notes": "red_engine2 lib 35.2 s; the four bins ~1 s each. The whole edit cost is one crate; the other 355 units are up to date."
+        },
+        {
+          "scenario": "fast + incremental, engine crate opt-level 1 (deps stay 3), via --config",
+          "seconds": [
+            29,
+            25,
+            25
+          ],
+          "verdict": "-20% but superseded by the codegen-units result; opt-level is not the lever"
+        },
+        {
+          "scenario": "fast + incremental, engine crate opt-level 2",
+          "seconds": [
+            35,
+            31,
+            30
+          ],
+          "verdict": "no gain"
+        },
+        {
+          "scenario": "INVALID: same opt-level experiment using CARGO_PROFILE_FAST_PACKAGE_RED_ENGINE2_OPT_LEVEL",
+          "notes": "The per-package environment variable is silently ignored by cargo (identical times, the second build did nothing). Use `--config profile.fast.package.<crate>.opt-level=N`, and confirm with `cargo build -v` that rustc got the flag."
+        },
+        {
+          "scenario": "fast + incremental, engine crate codegen-units=256 (deps stay 4), opt-level 3, via --config",
+          "seconds": [
+            4,
+            4,
+            5
+          ],
+          "baseline_seconds": 57,
+          "verdict": "THE LEVER. Incremental reuses whole codegen units; with 4 an edit recompiled a quarter of the crate. Same 4-5 s at opt-level 1."
+        },
+        {
+          "scenario": "same, with the change committed to Cargo.toml (no env, no --config), cold rebuild then 3 edits",
+          "seconds": {
+            "first_build": 63,
+            "edits": [
+              4,
+              5,
+              4
+            ]
+          },
+          "verdict": "confirmed: 57 s -> 4-5 s"
+        },
+        {
+          "scenario": "sccache 0.7.7 (RUSTC_WRAPPER) cold builds into different target dirs, fast profile all bins",
+          "seconds": {
+            "empty_cache": 298,
+            "same_source_other_target_dir": 300,
+            "older_commit_clone_other_path": 292
+          },
+          "verdict": "NO GAIN: 89 hits vs 245 new misses on the second build; timing identical. The cache did not transfer between target dirs. Not investigated further (path-remap flags may fix it). Not enabled; cache deleted."
+        },
+        {
+          "scenario": "dev profile binary, headless perf (opt-level 1 engine, opt-level 2 deps)",
+          "server_tick_us_8_players": {
+            "p50": 56,
+            "p95": 428,
+            "p99": 503,
+            "max": 584
+          },
+          "verdict": "as fast as release for the server; the hot path lives in rapier/glam (dependencies)"
+        }
+      ],
+      "server_tick_us_8_players_by_profile": {
+        "release_lto": {
+          "p50": 51,
+          "p95": 478,
+          "p99": 579,
+          "max": 666
+        },
+        "fast_cgu4": {
+          "p50": 53,
+          "p95": 521,
+          "p99": 692,
+          "max": 795
+        },
+        "fast_engine_cgu256": {
+          "p50": 54,
+          "p95": 533,
+          "p99": 694,
+          "max": 801
+        },
+        "dev": {
+          "p50": 56,
+          "p95": 428,
+          "p99": 503,
+          "max": 584
+        },
+        "budget_at_60hz": 16667,
+        "notes": "Single runs, best of 3 windows each; differences under about 20% are noise. All are about 4% of the tick budget."
+      },
+      "determinism_check": "red_engine2 replay tests/fixtures/coin_run.trace.json (recorded on Windows): 404 ticks, 67 checkpoints, every checksum matched under the debug, release and fast profile binaries.",
+      "changes_made": [
+        "Cargo.toml [profile.fast]: incremental = true; [profile.fast.package.red_engine2] codegen-units = 256",
+        "docs/HOSTING.md: Linux server build uses --profile fast"
+      ],
+      "findings_about_the_project": [
+        "RedEngineGames projects pin the engine two ways: reddm uses {path: ../../../RedEngine} (shares this checkout's target dir, no per-game rebuild); gravity-gauntlet uses {git, ref: d96b6c0...} (scripts/red clones it into .red/engine and builds it cold, about 5 min, and it is an OLDER engine than main).",
+        "A shared CARGO_TARGET_DIR across projects pinned to different engine commits is unsafe: the final binaries (target/<profile>/red_engine2) overwrite each other and scripts/red's staleness check (find src -newer binary) would treat the wrong binary as current. It needs copy-out to a per-project bin dir first.",
+        "Clients are built by RedEngineGames CI on a Windows runner from the cataloged RedEngine commit, so the shared Ubuntu server must be built from the same engine commit / wire protocol as the clients of the game it serves."
+      ],
+      "not_measured_yet": [
+        "scripts/ci.sh and scripts/dev affected wall time",
+        "Docker build",
+        "test RUN time",
+        "real-network server behaviour",
+        "token cost of an idea-to-game session",
+        "a real (non-probe) edit that touches a widely used type: dev showed schema.rs costing 7.6 s vs rules.rs 4.5 s, so expect the fast profile to vary the same way"
+      ]
+    }
+  ]
+}
