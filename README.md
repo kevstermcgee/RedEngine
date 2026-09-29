@@ -122,7 +122,7 @@ opens on.
 Scenes with `vars` and `rules` are playable here, not only in the headless simulator. Offline `re2` runs the shared rule state
 machine at 60 Hz: `hide`/`show` changes rendered object visibility, `collision` can open or close authored static geometry,
 teleport and prop impulse effects reach the live world, and
-pickup/drop/shot/hit events can trigger rules. A compact generic HUD shows scene variables, recent events and an `end` outcome.
+pickup/drop/shot/hit/kill/respawn/swing/prop_hit events can trigger rules, and rules see loose props (`prop_enter`, `tilt(id)`, `reset`). A compact generic HUD shows scene variables, recent events and an `end` outcome.
 Online uses the same presentation: protocol v5 repeats a bounded authoritative rule-state snapshot (up to 16 variables, 256 hidden
 object indices and 64 collision-disabled objects, plus the recent event and outcome). Packet loss, reconnects and late joins recover current truth without replaying events.
 

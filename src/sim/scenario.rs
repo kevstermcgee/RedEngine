@@ -19,12 +19,12 @@
 use super::match_sim::MatchSim;
 use super::player::{PlayerInput, PlayerState};
 use super::rules::RuleSet;
-use super::rules_run::GameEvent;
+use super::rules_run::{prop_inside, GameEvent};
 use super::spawns::Spawn;
 use super::trace::{Header, Trace};
 use crate::player::Character;
 use crate::strict::check_keys;
-use glam::Vec2;
+use glam::{Vec2, Vec3};
 use serde_json::{json, Map, Value};
 
 const SCENARIO_KEYS: &[&str] = &["name", "spawn_group", "players", "script", "max_seconds", "settle_seconds", "expect"];
@@ -54,7 +54,21 @@ const EXPECT_KEYS: &[&str] = &[
     "near",
     "tol",
     "y",
+    "prop",
+    "in_zone",
+    "not_in_zone",
+    "below_y",
+    "y_lt",
+    "y_gt",
+    "tilt_gt",
+    "tilt_lt",
+    "moved",
+    "held_by",
 ];
+/// The checks a `{prop: id, ...}` expectation may make (exactly one).
+const PROP_CHECK_KEYS: &[&str] = &["in_zone", "not_in_zone", "below_y", "y_lt", "y_gt", "tilt_gt", "tilt_lt", "moved", "near", "held_by"];
+/// A prop counts as moved once its origin is this far from where the map put it.
+const MOVED_M: f32 = 0.05;
 /// A walk leg is abandoned (and the scenario fails) after this many ticks without getting 0.2 m closer.
 const STUCK_TICKS: u32 = 120;
 const REACHED: f32 = 0.25;
@@ -170,6 +184,54 @@ pub enum Expect {
         /// Floor height, if it matters.
         y: Option<f32>,
     },
+    /// A loose prop ended in a given state (ADR 2026-09-29-prop-aware-rules-and-scenarios).
+    Prop {
+        /// The prop's object id.
+        id: String,
+        /// What about it.
+        check: PropCheck,
+    },
+}
+
+/// What a `{prop: id, ...}` expectation checks about the prop's rest state.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PropCheck {
+    /// Its origin is inside (`true`) / not inside the zone (see [`prop_inside`]).
+    InZone(String, bool),
+    /// Its origin height compares as given (`below_y` / `y_lt`: less than; `y_gt`: greater than).
+    Y(Cmp, f32),
+    /// Its tilt from the authored orientation, degrees, compares as given.
+    Tilt(Cmp, f32),
+    /// It moved (`true`: origin more than 5 cm from where the map put it) or did not.
+    Moved(bool),
+    /// Its origin is within `tol` m (x/z) of a point, optionally at a height (within 0.2 m).
+    Near {
+        /// Point.
+        at: Vec2,
+        /// Distance allowed.
+        tol: f32,
+        /// Height, if it matters.
+        y: Option<f32>,
+    },
+    /// A player carries it (`None`: nobody does).
+    HeldBy(Option<String>),
+}
+
+/// Where a loose prop ended (`sim` reports every loose prop, like `finals` for players).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PropFinal {
+    /// Object id.
+    pub id: String,
+    /// Its origin, world space.
+    pub pos: Vec3,
+    /// Degrees from its authored orientation.
+    pub tilt_deg: f32,
+    /// Metres from where the map put it.
+    pub moved: f32,
+    /// At rest (or never disturbed).
+    pub asleep: bool,
+    /// The scenario player carrying it, if any.
+    pub held_by: Option<String>,
 }
 
 /// A parsed scenario.
@@ -221,6 +283,8 @@ pub struct ScenarioResult {
     pub ended: Option<String>,
     /// Where each player ended `(id, x, z, foot_y)`.
     pub finals: Vec<(String, f32, f32, f32)>,
+    /// Where every loose prop ended.
+    pub props: Vec<PropFinal>,
     /// The exact checksum at the end (compare two runs).
     pub checksum: u64,
     /// The recording, when one was requested.
@@ -239,6 +303,7 @@ impl ScenarioResult {
             "checksum": format!("{:016x}", self.checksum),
             "vars": self.vars.iter().map(|(n, v)| json!({"name": n, "value": v})).collect::<Vec<_>>(),
             "players": self.finals.iter().map(|(id, x, z, y)| json!({"id": id, "pos": [x, z], "foot_y": y})).collect::<Vec<_>>(),
+            "props": self.props.iter().map(|p| json!({"id": p.id, "pos": [p.pos.x, p.pos.y, p.pos.z], "tilt_deg": p.tilt_deg, "moved": p.moved, "asleep": p.asleep, "held_by": p.held_by})).collect::<Vec<_>>(),
             "events": self.events.iter().map(|e| json!({"tick": e.tick, "rule": e.rule, "name": e.name, "player": e.slot})).collect::<Vec<_>>(),
             "checks": self.outcomes.iter().map(|o| json!({"label": o.label, "ok": o.ok, "detail": o.detail})).collect::<Vec<_>>(),
         })
@@ -266,6 +331,28 @@ impl ScenarioResult {
         }
         for (id, x, z, y) in &self.finals {
             out.push_str(&format!("  {id} ended at ({x:.2}, {z:.2}) y={y:.2}\n"));
+        }
+        // Props that did something: the rest stayed where the map put them (all of them are in `to_json`).
+        let moved: Vec<&PropFinal> = self.props.iter().filter(|p| p.moved > MOVED_M || p.held_by.is_some() || p.tilt_deg > 5.0).collect();
+        for p in moved.iter().take(12) {
+            out.push_str(&format!(
+                "  prop {} at ({:.2}, {:.2}, {:.2}), tilt {:.0} deg, moved {:.2} m{}{}\n",
+                p.id,
+                p.pos.x,
+                p.pos.y,
+                p.pos.z,
+                p.tilt_deg,
+                p.moved,
+                match (&p.held_by, p.asleep) {
+                    (Some(_), _) => ", carried",
+                    (None, true) => ", at rest",
+                    (None, false) => ", still moving",
+                },
+                p.held_by.as_ref().map(|h| format!(" by {h}")).unwrap_or_default()
+            ));
+        }
+        if moved.len() > 12 {
+            out.push_str(&format!("  ... and {} more props moved (`--json` lists every prop)\n", moved.len() - 12));
         }
         out
     }
@@ -441,13 +528,13 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
 }
 
 fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: &[String], players: &[PlayerSpec], errs: &mut Vec<String>) -> Option<Expect> {
-    let main: Vec<&str> = ["event", "no_event", "var", "ended", "not_ended", "hidden", "shown", "collision_disabled", "collision_enabled", "player"]
+    let main: Vec<&str> = ["event", "no_event", "var", "ended", "not_ended", "hidden", "shown", "collision_disabled", "collision_enabled", "player", "prop"]
         .into_iter()
         .filter(|k| eo.contains_key(*k))
         .collect();
     if main.len() != 1 {
         errs.push(format!(
-            "{ep}: give exactly one of event, no_event, var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player (got {})",
+            "{ep}: give exactly one of event, no_event, var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop (got {})",
             if main.is_empty() { "none".to_string() } else { main.join(" + ") }
         ));
         return None;
@@ -513,6 +600,86 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
                 return None;
             }
             Some(Expect::CollisionDisabled(text, key == "collision_disabled"))
+        }
+        "prop" => {
+            if !rules.prop_ids.contains(&text) {
+                let known = if rules.prop_ids.is_empty() { "none in this scene".to_string() } else { rules.prop_ids.join(", ") };
+                errs.push(format!("{ep}.prop: no loose prop `{text}`{} (loose props: {known})", near_names(&text, rules.prop_ids.iter().cloned())));
+                return None;
+            }
+            let kinds: Vec<&str> = PROP_CHECK_KEYS.iter().copied().filter(|k| eo.contains_key(*k)).collect();
+            let [kind] = kinds.as_slice() else {
+                errs.push(format!(
+                    "{ep}: a `prop` check needs exactly one of {} (got {})",
+                    PROP_CHECK_KEYS.join(", "),
+                    if kinds.is_empty() { "none".to_string() } else { kinds.join(" + ") }
+                ));
+                return None;
+            };
+            let check = match *kind {
+                k @ ("in_zone" | "not_in_zone") => {
+                    let zone = eo[k].as_str().unwrap_or("").to_string();
+                    if !rules.zone_ids.contains(&zone) {
+                        errs.push(format!(
+                            "{ep}.{k}: no zone `{zone}`{} (zones: {})",
+                            near_names(&zone, rules.zone_ids.iter().cloned()),
+                            rules.zone_ids.join(", ")
+                        ));
+                        return None;
+                    }
+                    PropCheck::InZone(zone, k == "in_zone")
+                }
+                k @ ("below_y" | "y_lt" | "y_gt" | "tilt_gt" | "tilt_lt") => {
+                    let Some(v) = eo[k].as_f64() else {
+                        errs.push(format!("{ep}.{k}: must be a number ({})", if k.starts_with("tilt") { "degrees" } else { "metres" }));
+                        return None;
+                    };
+                    match k {
+                        "y_gt" => PropCheck::Y(Cmp::Gt, v as f32),
+                        "tilt_gt" => PropCheck::Tilt(Cmp::Gt, v as f32),
+                        "tilt_lt" => PropCheck::Tilt(Cmp::Lt, v as f32),
+                        _ => PropCheck::Y(Cmp::Lt, v as f32),
+                    }
+                }
+                "moved" => {
+                    let Some(b) = eo["moved"].as_bool() else {
+                        errs.push(format!("{ep}.moved: must be true or false"));
+                        return None;
+                    };
+                    PropCheck::Moved(b)
+                }
+                "near" => {
+                    let at = eo
+                        .get("near")
+                        .and_then(Value::as_array)
+                        .filter(|a| a.len() == 2)
+                        .and_then(|a| Some(Vec2::new(a[0].as_f64()? as f32, a[1].as_f64()? as f32)));
+                    let Some(at) = at else {
+                        errs.push(format!("{ep}.near: must be [x, z]"));
+                        return None;
+                    };
+                    PropCheck::Near {
+                        at,
+                        tol: eo.get("tol").and_then(Value::as_f64).unwrap_or(0.5) as f32,
+                        y: eo.get("y").and_then(Value::as_f64).map(|y| y as f32),
+                    }
+                }
+                _ => {
+                    let who = eo["held_by"].as_str().unwrap_or("").to_string();
+                    if who == "none" {
+                        PropCheck::HeldBy(None)
+                    } else if players.iter().any(|q| q.id == who) {
+                        PropCheck::HeldBy(Some(who))
+                    } else {
+                        errs.push(format!(
+                            "{ep}.held_by: no player `{who}`{} (a player id, or \"none\")",
+                            near_names(&who, players.iter().map(|q| q.id.clone()))
+                        ));
+                        return None;
+                    }
+                }
+            };
+            Some(Expect::Prop { id: text, check })
         }
         _ => {
             if !players.iter().any(|q| q.id == text) {
@@ -699,9 +866,23 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
         .zip(&slots)
         .filter_map(|(p, s)| sim.player(*s).map(|pl| (p.id.clone(), pl.state.pos.x, pl.state.pos.y, pl.state.foot_y)))
         .collect();
+    let player_id = |slot: usize| slots.iter().position(|s| *s == slot).map(|pi| scenario.players[pi].id.clone());
+    let props: Vec<PropFinal> = (0..sim.props().props().len())
+        .map(|k| {
+            let v = sim.prop_view(k);
+            PropFinal {
+                id: scene.objects[sim.props().props()[k].object_index].id.clone(),
+                pos: v.origin,
+                tilt_deg: v.tilt_deg,
+                moved: v.moved,
+                asleep: sim.props().is_asleep(k),
+                held_by: v.held_by.and_then(player_id),
+            }
+        })
+        .collect();
     let ticks = sim.tick();
     let trace = sim.take_trace();
-    Ok(ScenarioResult { name: scenario.name.clone(), passed, ticks, outcomes, events: history, vars, ended, finals, checksum, trace })
+    Ok(ScenarioResult { name: scenario.name.clone(), passed, ticks, outcomes, events: history, vars, ended, finals, props, checksum, trace })
 }
 
 fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], history: &[GameEvent]) -> Outcome {
@@ -766,6 +947,36 @@ fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], histo
                 d <= *tol && y_ok,
                 format!("at ({:.2}, {:.2}) y={:.2}, {:.2} m away (tol {tol})", pl.state.pos.x, pl.state.pos.y, pl.state.foot_y, d),
             )
+        }
+        Expect::Prop { id, check } => {
+            let Some(prop) = sim.prop_named(id) else { return done(format!("prop {id}"), false, "no such loose prop".into()) };
+            let v = sim.prop_view(prop);
+            let holder = v.held_by.and_then(|s| slots.iter().position(|x| *x == s)).map(|pi| scenario.players[pi].id.clone());
+            let state = format!(
+                "{id} at ({:.2}, {:.2}, {:.2}), tilt {:.0} deg, moved {:.2} m{}",
+                v.origin.x,
+                v.origin.y,
+                v.origin.z,
+                v.tilt_deg,
+                v.moved,
+                holder.as_ref().map(|h| format!(", held by {h}")).unwrap_or_default()
+            );
+            match check {
+                PropCheck::InZone(zone, want) => {
+                    let set = sim.rules().set();
+                    let inside = set.zone_ids.iter().position(|z| z == zone).and_then(|i| set.zone_volumes.get(i)).is_some_and(|vol| prop_inside(vol, &v));
+                    done(format!("{id} {} zone {zone}", if *want { "in" } else { "not in" }), inside == *want, state)
+                }
+                PropCheck::Y(cmp, y) => done(format!("{id} y {} {y}", cmp.word()), cmp.holds(v.origin.y as f64, *y as f64), state),
+                PropCheck::Tilt(cmp, t) => done(format!("{id} tilt {} {t} deg", cmp.word()), cmp.holds(v.tilt_deg as f64, *t as f64), state),
+                PropCheck::Moved(want) => done(format!("{id} {}", if *want { "moved" } else { "unmoved" }), (v.moved > MOVED_M) == *want, state),
+                PropCheck::Near { at, tol, y } => {
+                    let d = (Vec2::new(v.origin.x, v.origin.z) - *at).length();
+                    let y_ok = y.is_none_or(|y| (v.origin.y - y).abs() <= 0.2);
+                    done(format!("{id} near ({:.1}, {:.1})", at.x, at.y), d <= *tol && y_ok, format!("{state}, {d:.2} m away (tol {tol})"))
+                }
+                PropCheck::HeldBy(want) => done(format!("{id} held by {}", want.as_deref().unwrap_or("nobody")), holder == *want, state),
+            }
         }
     }
 }

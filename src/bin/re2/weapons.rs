@@ -143,16 +143,21 @@ impl App {
         self.draw_own_shot(self.weapon);
         let dir = self.camera.forward();
         let eye = self.tick_eye();
+        let mut struck_prop = false;
         for pellet in 0..self.weapon.pellets() {
             let dir = self.weapon.shot_direction(dir, pellet);
             if let Some((object_index, distance, loose)) = self.probe_direction(eye, dir, spec.range) {
                 if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
                     props.strike_impulse(prop, dir, eye + dir * distance, spec.impulse / self.weapon.pellets() as f32);
+                    struck_prop = true;
                 }
                 println!("Shot '{}' at {:.1} m", self.scene.objects[object_index].id, distance);
             }
         }
         self.rules.inject(self.clock.ticks_run(), "shot", Some(0));
+        if struck_prop {
+            self.rules.inject(self.clock.ticks_run(), "prop_hit", Some(0));
+        }
     }
 
     /// Whether action button `i` is still held this tick (online pulses count down; offline they are never set).
@@ -186,6 +191,7 @@ impl App {
                 if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
                     let dir = self.camera.forward();
                     props.strike(prop, dir, eye + dir * distance);
+                    self.rules.inject(self.clock.ticks_run(), "prop_hit", Some(0));
                 }
                 self.hit_with(object_index);
             }
@@ -200,6 +206,7 @@ impl App {
             match self.weapon {
                 Weapon::Bat => {
                     self.swing.start();
+                    self.rules.inject(self.clock.ticks_run(), "swing", Some(0));
                 }
                 _ => self.fire_firearm(),
             }

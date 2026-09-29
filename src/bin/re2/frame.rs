@@ -157,7 +157,12 @@ impl App {
             character: self.character,
         };
         let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
-        for effect in self.rules.step(tick, &[player]) {
+        // The same prop view the authoritative simulation feeds its rules (built only when a rule looks at props).
+        let mut prop_views: Vec<red_engine2::sim::rules_run::RuleProp> = Vec::new();
+        if let (true, Some(props)) = (self.rules.needs_props(), self.props.as_ref()) {
+            prop_views.extend((0..props.props().len()).map(|k| red_engine2::sim::rules_run::RuleProp::of(props, k)));
+        }
+        for effect in self.rules.step_props(tick, &[player], &prop_views) {
             match effect {
                 red_engine2::sim::rules_run::Effect::Teleport { slot: 0, target } => {
                     let target = match target {
@@ -182,6 +187,16 @@ impl App {
                             let impulse = props.mass(prop) * speed;
                             props.strike_impulse(prop, dir.normalize_or_zero(), at, impulse);
                         }
+                    }
+                }
+                red_engine2::sim::rules_run::Effect::Reset { prop } => {
+                    if let Some(props) = self.props.as_mut() {
+                        props.reset_prop(prop);
+                    }
+                }
+                red_engine2::sim::rules_run::Effect::Place { prop, at } => {
+                    if let Some(props) = self.props.as_mut() {
+                        props.place_prop(prop, at);
                     }
                 }
             }
@@ -527,6 +542,8 @@ impl App {
         } else {
             let props = PropWorld::new(&self.scene, Some(self.player_object_index));
             let loose = props.movable_indices();
+            // The rules name props by object id; bind them to this world's prop numbers once, as `MatchSim` does.
+            self.rules.bind_props(|id| self.scene.objects.iter().position(|o| o.id == id).and_then(|i| props.prop_of_object(i)));
             println!("{} loose props (pick up with E).", loose.len());
             self.collider_groups = collect_box_colliders_grouped_except(&self.scene, &loose);
             self.ground_groups = collect_ground_candidates_grouped_except(&self.scene, &loose);

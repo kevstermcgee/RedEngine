@@ -62,6 +62,7 @@ The table is **generated** from the files (`red_engine2 adr index --write`, also
 | [2026-09-28-generated-bookkeeping](2026-09-28-generated-bookkeeping.md) | Every registry CI bounced on is generated or derived, and `red_engine2 preflight` finds the rest in a second and prints the exact edit. | accepted |
 | [2026-09-28-remove-the-revolver](2026-09-28-remove-the-revolver.md) | The silver revolver, the one weapon with its own model file, constants, sound and scene key, is gone; ten data-driven firearms remain and `weapons.ammo` replaces `weapons.revolver.ammo`. | accepted |
 | [2026-09-28-seeing-what-the-player-sees](2026-09-28-seeing-what-the-player-sees.md) | The real client can be stepped without a window, photographed offscreen, played by a script and asked what it draws; every "skip it and carry on" now counts itself and `lint`/`game check` catch the classic causes. | accepted |
+| [2026-09-29-prop-aware-rules-and-scenarios](2026-09-29-prop-aware-rules-and-scenarios.md) | Rules and sim expectations see loose props: prop_enter/prop_exit/prop_below triggers, prop_y/tilt/held/mass/moved/props_in built-ins, reset/place actions, swing/prop_hit events, and {prop: ...} expectations with prop rest poses in the report. | accepted |
 | [2026-09-29-replay-applies-each-shove-once](2026-09-29-replay-applies-each-shove-once.md) | A trace records inputs and external pushes only; strikes, bullets and rule impulses are outputs the replay re-derives, so it applies each shove exactly once. | accepted |
 <!-- adr-index:end -->
 

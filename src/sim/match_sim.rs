@@ -85,6 +85,8 @@ pub struct MatchSim {
     pub(super) tick: u64,
     /// The scene's game rules, running (see `sim::rules`).
     pub(super) rules: RulesEngine,
+    /// Every loose prop as the rules see it this tick, rebuilt in place (only when a rule looks at props).
+    prop_views: Vec<crate::sim::rules_run::RuleProp>,
     /// Top-level object id to index, to find the prop an `impulse` rule names.
     object_index: HashMap<String, usize>,
     /// Any-depth object id to the shared compact dictionary used by network rule presentation.
@@ -117,6 +119,9 @@ impl MatchSim {
         for group in &ground_groups {
             ground.append(group);
         }
+        let object_index: HashMap<String, usize> = scene.objects.iter().enumerate().map(|(i, o)| (o.id.clone(), i)).collect();
+        let mut rules = RulesEngine::new(scene.rules.clone());
+        rules.bind_props(|id| object_index.get(id).and_then(|i| props.prop_of_object(*i)));
         Ok(MatchSim {
             colliders,
             ground,
@@ -137,8 +142,9 @@ impl MatchSim {
             players: (0..MAX_PLAYERS).map(|_| None).collect(),
             history: VecDeque::with_capacity(HISTORY_TICKS + 1),
             tick: 0,
-            rules: RulesEngine::new(scene.rules.clone()),
-            object_index: scene.objects.iter().enumerate().map(|(i, o)| (o.id.clone(), i)).collect(),
+            rules,
+            prop_views: Vec::new(),
+            object_index,
             rule_object_index: crate::schema::object_ids(&scene.objects)
                 .into_iter()
                 .take(u16::MAX as usize + 1)
@@ -374,8 +380,16 @@ impl MatchSim {
                 }
             })
             .collect();
+        if self.rules.needs_props() {
+            self.prop_views.clear();
+            for k in 0..self.props.props().len() {
+                let view = crate::sim::rules_run::RuleProp::of(&self.props, k);
+                self.prop_views.push(view);
+            }
+        }
         let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
-        for effect in self.rules.step(self.tick, &views) {
+        let effects = self.rules.step_props(self.tick, &views, &self.prop_views);
+        for effect in effects {
             match effect {
                 Effect::Teleport { slot, target } => self.teleport(slot, &target),
                 Effect::Impulse { object, dir, speed } => {
@@ -383,6 +397,12 @@ impl MatchSim {
                     let at = self.props.prop_pose(prop).w_axis.truncate();
                     let impulse = self.props.mass(prop) * speed;
                     self.shove(prop, dir.normalize_or_zero(), at, impulse);
+                }
+                Effect::Reset { prop } => {
+                    self.props.reset_prop(prop);
+                }
+                Effect::Place { prop, at } => {
+                    self.props.place_prop(prop, at);
                 }
             }
         }
@@ -459,6 +479,16 @@ impl MatchSim {
     /// The scene's rules state (variables, hidden objects, outcome, event history).
     pub fn rules(&self) -> &RulesEngine {
         &self.rules
+    }
+
+    /// The physics prop of top-level object `id`, if it is a loose prop.
+    pub fn prop_named(&self, id: &str) -> Option<usize> {
+        self.object_index.get(id).and_then(|i| self.props.prop_of_object(*i))
+    }
+
+    /// Loose prop `prop` as the rules (and `sim` expectations) see it right now.
+    pub fn prop_view(&self, prop: usize) -> crate::sim::rules_run::RuleProp {
+        crate::sim::rules_run::RuleProp::of(&self.props, prop)
     }
 
     /// Shared presentation-dictionary index for an authored object id at any nesting depth.

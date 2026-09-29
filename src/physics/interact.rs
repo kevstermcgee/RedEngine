@@ -161,6 +161,40 @@ impl PropWorld {
         Some(h.prop)
     }
 
+    /// Puts `prop` back where the map author placed it, at rest and asleep, taking it from whoever carries it (the rule
+    /// action `reset`). A prop nothing has disturbed yet is already there. Returns whether anything changed.
+    pub fn reset_prop(&mut self, prop: usize) -> bool {
+        let pose = self.props[prop].spawn;
+        self.settle_at(prop, pose)
+    }
+
+    /// Moves `prop`'s origin to `position`, keeping its authored orientation, at rest and asleep (the rule action
+    /// `place`); a still-static prop is promoted first. Taken from whoever carries it.
+    pub fn place_prop(&mut self, prop: usize, position: Vec3) -> bool {
+        let (_, rotation, _) = self.props[prop].spawn.to_scale_rotation_translation();
+        self.activate(prop);
+        self.settle_at(prop, Mat4::from_rotation_translation(rotation, position))
+    }
+
+    /// Releases `prop` from any holder and parks its body at `pose` with no velocity, asleep, so it stays until
+    /// something disturbs it. `false` for a static instance (nothing to move: it is still where it was authored).
+    fn settle_at(&mut self, prop: usize, pose: Mat4) -> bool {
+        if let Some(i) = self.held.iter().position(|h| h.prop == prop) {
+            self.held.remove(i);
+            if let Some(body) = self.body_of(prop) {
+                self.world.bodies[body].set_enabled(true);
+            }
+        }
+        let Some(body) = self.body_of(prop) else { return false };
+        let b = &mut self.world.bodies[body];
+        b.set_position(pose_of(pose), true);
+        b.set_linvel(Vec3::ZERO, true);
+        b.set_angvel(Vec3::ZERO, true);
+        b.sleep();
+        self.set_settled(prop, false); // the next step publishes the new pose once
+        true
+    }
+
     /// Distance to the nearest fixed surface along a horizontal ray, up to `max` (for keeping a
     /// carried object out of walls).
     pub fn wall_distance(&self, origin: Vec3, dir: Vec3, max: f32) -> f32 {

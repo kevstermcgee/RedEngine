@@ -473,23 +473,33 @@ condition holds, and then **does** its actions:
 ```
 
 - **`when`** (exactly one): `{enter: VOLUME}`, `{exit: VOLUME}` (a player crosses the boundary), `{event: "name"}` (another
-  rule `emit`ted it; chains are bounded to 4 per tick), `{every: secs}`, `{after: secs}`, `{start: true}`.
+  rule `emit`ted it; chains are bounded to 4 per tick), `{every: secs}`, `{after: secs}`, `{start: true}`,
+  `{prop_enter: VOLUME}` / `{prop_exit: VOLUME}` (a loose prop's origin crosses in or out; `"prop": id` beside it restricts
+  the rule to one prop), `{prop_below: [prop_id, y]}` (its origin drops below `y` metres). A prop is *inside* when its origin
+  is inside in x/z and its height band overlaps in y. Prop triggers fire with no triggering player (`teleport` does nothing).
 - **VOLUME** (exactly one): `{zone: id [, height]}` (a `zones` rect from its floor `y` up 3 m, or `height`),
   `{object: id [, pad]}` (a top-level object's world box, grown by `pad` m — how a coin becomes a trigger), or
   `{box: [x0,y0,z0,x1,y1,z1]}`. A player is *inside* when its body circle overlaps the volume in x/z and its body height overlaps in y.
 - **`who`**: `any` (default), `human`, `rat`. **`once`**: at most once per match. **`cooldown`**: seconds between firings.
 - **`if`**: an expression over the `vars` and the built-ins `time` (s), `tick`, `players`: numbers, `true`/`false`,
-  `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`.
+  `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`. Built-in functions read the loose props:
+  `prop_y(id)` (origin height, m), `tilt(id)` (degrees from how the map placed it: 0 upright, ~90 on its side), `held(id)`
+  (1 while carried), `mass(id)` (kg), `moved(id)` (metres from the authored spot), `props_in(zone)` (loose props inside a
+  zone). The argument is a bare id; a prop that is not loose (`movable: false`, a fixture) is a validate error.
 - **`do`** (in order): `{set: [var, value]}`, `{add: [var, n]}` (value/n is a number, bool or expression string), `{emit: name}`,
   `{hide: id}` / `{show: id}` (the standard single-player client omits that object tree from rendering),
   `{collision: [top_level_id, bool]}` (enable/disable its authored static collision and standable surfaces),
   `{teleport: [x,y,z] | spawn_id}` (the triggering player),
-  `{end: outcome}` (the match ends; rules stop), `{impulse: {object, dir: [x,y,z], speed}}` (shove a loose prop).
+  `{end: outcome}` (the match ends; rules stop), `{impulse: {object, dir: [x,y,z], speed}}` (shove a loose prop),
+  `{reset: id | [ids] | {zone: id}}` (put loose props back where the map placed them, at rest; a carried one is taken from its
+  holder), `{place: [id, [x,y,z]]}` (move a loose prop's origin to a point, upright as authored, at rest).
+- **Engine events** a rule can react to with `{event: name}`: `pickup`, `drop`, `shot`, `hit`, `kill`, `respawn`, `swing` (a bat
+  swing started), `prop_hit` (a bat or a bullet struck a loose prop; the player is the striker).
 
-Everything a rule names — variables, objects, zones, spawn points, events — is checked when the scene loads, with a
+Everything a rule names — variables, objects, loose props, zones, spawn points, events — is checked when the scene loads, with a
 did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mean `score`?`). Rules run inside the
-authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state is part of the
-match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport and impulse, feeds its pickup/drop/shot/hit
+authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state (prop occupancy
+included) is part of the match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport, impulse, reset and place, feeds the engine
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
 state remains server-authoritative; protocol v7 and later repeatedly send the complete bounded presentation state (16 variables, 256 hidden
 objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. `red_engine2 describe rules` prints this with a
@@ -509,9 +519,15 @@ checks the outcome. They live in `checks.sim` (so `verify` runs them) or a file 
 ```
 
 Script steps per player run in order (players in parallel): `walk "x,z; x,z"` (steered with the real movement; a walk that gets stuck
-fails the scenario), `wait secs`, `hold {forward, strafe, sprint, crouch, jump, yaw_deg, seconds}`, each with optional
-`until_event: name`. The run ends when a rule ends the match, when all scripts finish (plus `settle_seconds`, default 0.5), or at
-`max_seconds` (default 30). No window, GPU or socket is involved.
+fails the scenario), `wait secs`, `hold {forward, strafe, sprint, crouch, jump, yaw_deg, pitch_deg, interact, attack, reload, switch,
+seconds}` (buttons act on the tick they go down: `interact: true` picks up / drops what the view points at within 2.3 m, `attack: true`
+swings the bat, its strike landing after the windup), each with optional `until_event: name`. The run ends when a rule ends the match,
+when all scripts finish (plus `settle_seconds`, default 0.5), or at `max_seconds` (default 30). No window, GPU or socket is involved.
+
+Expectations on loose props: `{prop: id, in_zone: zone}` / `not_in_zone`, `below_y` (= `y_lt`) / `y_gt: metres`, `tilt_gt` / `tilt_lt:
+degrees`, `moved: true|false`, `near: [x, z], tol?, y?`, `held_by: player_id | "none"`. The report prints where every player ended
+and every prop that moved, tilted or is carried; `--json` lists every loose prop with its position, tilt, distance moved, whether it is
+at rest and who holds it.
 
 ### Traces and replay (`sim --trace`, `replay`, `red_server --record`)
 

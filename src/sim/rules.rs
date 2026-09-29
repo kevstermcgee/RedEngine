@@ -19,10 +19,15 @@
 //! deterministic (it is part of [`super::match_sim::MatchSim`] and of its checksum).
 //!
 //! Actions: `set [var, value]`, `add [var, n]`, `emit name`, `hide id`, `show id`, `collision [id, bool]`,
-//! `teleport [x,y,z] | spawn_id`, `end reason`, `impulse {object, dir, speed}`.
+//! `teleport [x,y,z] | spawn_id`, `end reason`, `impulse {object, dir, speed}`, `reset id | [ids] | {zone}`,
+//! `place [id, [x,y,z]]`.
+//!
+//! Rules see **loose props** too (ADR 2026-09-29-prop-aware-rules-and-scenarios): triggers `{prop_enter: VOLUME}` /
+//! `{prop_exit: VOLUME}` (any loose prop, or one named by `prop: id` next to it) and `{prop_below: [id, y]}`, and the
+//! expression built-ins `prop_y(id)`, `tilt(id)`, `held(id)`, `mass(id)`, `moved(id)`, `props_in(zone)` in `if` and values.
 
 use super::clock::secs_to_ticks;
-use super::rules_expr::{self, Expr, Op};
+use super::rules_expr::{self, Expr, Op, Scope};
 use crate::strict::check_keys;
 use glam::Vec3;
 use serde_json::{Map, Value};
@@ -33,8 +38,9 @@ pub const BUILTIN_VARS: &[&str] = &["time", "tick", "players"];
 
 /// Events the engine itself raises (a rule can react with `when: {event: name}` without any rule emitting them):
 /// `pickup` / `drop` (a player took / released a prop), `shot` (a firearm was fired), `hit` (a player was damaged),
-/// `kill` (a player was killed; the player is the killer), `respawn` (a dead player came back).
-pub const ENGINE_EVENTS: &[&str] = &["pickup", "drop", "shot", "hit", "kill", "respawn"];
+/// `kill` (a player was killed; the player is the killer), `respawn` (a dead player came back), `swing` (a bat swing
+/// started), `prop_hit` (a bat or a bullet struck a loose prop; the player is the striker).
+pub const ENGINE_EVENTS: &[&str] = &["pickup", "drop", "shot", "hit", "kill", "respawn", "swing", "prop_hit"];
 
 /// The action names, for error messages and `describe rules`.
 pub const ACTIONS: &[(&str, &str)] = &[
@@ -47,6 +53,8 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("teleport", "[x,y,z] | spawn_id   move the player that triggered the rule"),
     ("end", "reason        end the match with this outcome; rules stop firing"),
     ("impulse", "{object, dir:[x,y,z], speed}   shove a loose prop (a physics prop), speed in m/s"),
+    ("reset", "id | [ids] | {zone: id}   put loose props back where the map placed them, at rest (a carried one is taken from its holder)"),
+    ("place", "[id, [x,y,z]]   move a loose prop's origin to a point, upright as authored, at rest"),
 ];
 
 /// An axis-aligned box in world space.
@@ -84,6 +92,36 @@ pub enum When {
     Every(u64),
     /// Once, this many ticks after the start.
     After(u64),
+    /// A loose prop's origin comes to lie inside the volume (`prop`: only that one, an index into [`RuleSet::prop_ids`]).
+    PropEnter {
+        /// The volume.
+        volume: Volume,
+        /// Only this prop, or any loose prop.
+        prop: Option<usize>,
+    },
+    /// A loose prop leaves the volume.
+    PropExit {
+        /// The volume.
+        volume: Volume,
+        /// Only this prop, or any loose prop.
+        prop: Option<usize>,
+    },
+    /// A loose prop's origin drops below a height (index into [`RuleSet::prop_ids`]).
+    PropBelow {
+        /// The prop.
+        prop: usize,
+        /// The height, m.
+        y: f32,
+    },
+}
+
+/// What a `reset` puts back.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ResetTarget {
+    /// These props (indexes into [`RuleSet::prop_ids`]).
+    Props(Vec<usize>),
+    /// Every loose prop inside this zone (index into [`RuleSet::zone_ids`]) when the rule fires.
+    Zone(usize),
 }
 
 /// Where a `teleport` sends the player.
@@ -131,6 +169,15 @@ pub enum Action {
         /// Speed given, m/s.
         speed: f32,
     },
+    /// Put loose props back where the map author placed them, at rest.
+    Reset(ResetTarget),
+    /// Move a loose prop to a point, upright as authored, at rest.
+    Place {
+        /// Index into [`RuleSet::prop_ids`].
+        prop: usize,
+        /// Where its origin goes.
+        at: Vec3,
+    },
 }
 
 /// One rule.
@@ -161,11 +208,36 @@ pub struct RuleSet {
     pub var_init: Vec<f64>,
     /// The rules, in evaluation order.
     pub rules: Vec<Rule>,
+    /// Every loose prop of the scene, by object id, sorted: prop triggers, `reset`/`place` and the expression
+    /// built-ins refer to a prop by its index here (the runtime binds each to a physics prop once).
+    pub prop_ids: Vec<String>,
+    /// Every zone id, sorted (`props_in(zone)` and `reset {zone}` index this).
+    pub zone_ids: Vec<String>,
+    /// The zones' volumes, parallel to [`zone_ids`](Self::zone_ids) (floor `y` up 3 m, like an `enter {zone}` volume).
+    pub zone_volumes: Vec<Volume>,
+    /// Whether any rule looks at loose props (a trigger, a built-in function, a `reset` or `place`): if not, the
+    /// simulation need not describe its props to the rules every tick.
+    pub needs_props: bool,
 }
 
 impl Default for RuleSet {
     fn default() -> Self {
-        RuleSet { var_names: BUILTIN_VARS.iter().map(|s| s.to_string()).collect(), var_init: vec![0.0; BUILTIN_VARS.len()], rules: Vec::new() }
+        RuleSet {
+            var_names: BUILTIN_VARS.iter().map(|s| s.to_string()).collect(),
+            var_init: vec![0.0; BUILTIN_VARS.len()],
+            rules: Vec::new(),
+            prop_ids: Vec::new(),
+            zone_ids: Vec::new(),
+            zone_volumes: Vec::new(),
+            needs_props: false,
+        }
+    }
+}
+
+impl RuleSet {
+    /// The expression scope: the loose props and zones a built-in function may name.
+    pub fn scope(&self) -> Scope<'_> {
+        Scope { props: &self.prop_ids, zones: &self.zone_ids }
     }
 }
 
@@ -174,6 +246,9 @@ impl Default for RuleSet {
 pub struct Refs {
     /// Every object id (any depth), for `hide`/`show`.
     pub object_ids: HashSet<String>,
+    /// Top-level objects that are loose props (rigid bodies a player can move), for prop triggers, `reset`/`place`
+    /// and the expression built-ins.
+    pub prop_ids: HashSet<String>,
     /// Top-level object ids, for collision state changes.
     pub top_level_ids: HashSet<String>,
     /// Top-level objects and their world bounds, for `{object}` volumes and `impulse`.
@@ -185,7 +260,10 @@ pub struct Refs {
 }
 
 const RULE_KEYS: &[&str] = &["id", "when", "who", "if", "once", "cooldown", "do"];
-const WHEN_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after"];
+/// The trigger keys (exactly one per `when`).
+const TRIGGER_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below"];
+/// Everything a `when` may contain: a trigger plus the optional `prop` filter of `prop_enter` / `prop_exit`.
+const WHEN_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "prop"];
 const VOLUME_KEYS: &[&str] = &["zone", "object", "box", "pad", "height"];
 const ZONE_HEIGHT: f32 = 3.0;
 
@@ -268,23 +346,44 @@ fn parse_volume(v: &Value, refs: &Refs, path: &str, errs: &mut Vec<String>) -> O
     }
 }
 
-fn parse_when(v: &Value, refs: &Refs, path: &str, errs: &mut Vec<String>) -> Option<When> {
+/// The index of loose prop `name` in `prop_ids`, or an error naming the fix.
+fn prop_index(name: Option<&str>, prop_ids: &[String], path: &str, errs: &mut Vec<String>) -> Option<usize> {
+    let name = name.unwrap_or("");
+    match prop_ids.iter().position(|p| p == name) {
+        Some(i) => Some(i),
+        None => {
+            let known = if prop_ids.is_empty() {
+                "none in this scene: a `prop` object or a floor prefab that is not a fixture".to_string()
+            } else {
+                sorted(prop_ids.iter())
+            };
+            errs.push(format!("{path}: no loose prop `{name}`{} (loose props: {known})", near(name, prop_ids.iter().cloned())));
+            None
+        }
+    }
+}
+
+fn parse_when(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<String>) -> Option<When> {
     let Some(o) = v.as_object() else {
-        errs.push(format!("{path}: must be an object with one of {}", WHEN_KEYS.join(", ")));
+        errs.push(format!("{path}: must be an object with one of {}", TRIGGER_KEYS.join(", ")));
         return None;
     };
     check_keys(errs, path, o, WHEN_KEYS);
-    let present: Vec<&str> = WHEN_KEYS.iter().copied().filter(|k| o.contains_key(*k)).collect();
+    let present: Vec<&str> = TRIGGER_KEYS.iter().copied().filter(|k| o.contains_key(*k)).collect();
     if present.len() != 1 {
         errs.push(format!(
             "{path}: give exactly one of {} (got {})",
-            WHEN_KEYS.join(", "),
+            TRIGGER_KEYS.join(", "),
             if present.is_empty() { "none".to_string() } else { present.join(" + ") }
         ));
         return None;
     }
     let key = present[0];
     let sub = format!("{path}.{key}");
+    if o.contains_key("prop") && !matches!(key, "prop_enter" | "prop_exit") {
+        errs.push(format!("{path}.prop: only `prop_enter` / `prop_exit` take a `prop` filter"));
+        return None;
+    }
     match key {
         "start" => Some(When::Start),
         "enter" => parse_volume(&o[key], refs, &sub, errs).map(When::Enter),
@@ -297,16 +396,37 @@ fn parse_when(v: &Value, refs: &Refs, path: &str, errs: &mut Vec<String>) -> Opt
             }
         },
         "every" => Some(When::Every(secs(&o[key], &sub, errs))),
-        _ => Some(When::After(secs(&o[key], &sub, errs))),
+        "after" => Some(When::After(secs(&o[key], &sub, errs))),
+        "prop_enter" | "prop_exit" => {
+            let volume = parse_volume(&o[key], refs, &sub, errs)?;
+            let prop = match o.get("prop") {
+                None => None,
+                Some(p) => Some(prop_index(p.as_str(), &set.prop_ids, &format!("{path}.prop"), errs)?),
+            };
+            Some(if key == "prop_enter" { When::PropEnter { volume, prop } } else { When::PropExit { volume, prop } })
+        }
+        _ => {
+            let (id, y) = match &o[key] {
+                Value::Array(a) if a.len() == 2 => (a[0].as_str(), a[1].as_f64()),
+                Value::Object(m) => (m.get("prop").or_else(|| m.get("object")).and_then(Value::as_str), m.get("y").and_then(Value::as_f64)),
+                _ => (None, None),
+            };
+            let (Some(id), Some(y)) = (id, y) else {
+                errs.push(format!("{sub}: must be [prop_id, y] (fires once the prop's origin drops below y metres)"));
+                return None;
+            };
+            let prop = prop_index(Some(id), &set.prop_ids, &format!("{sub}[0]"), errs)?;
+            Some(When::PropBelow { prop, y: y as f32 })
+        }
     }
 }
 
-/// A number, a bool, or an expression string, compiled against `names`.
-fn parse_value(v: &Value, names: &[String], path: &str, errs: &mut Vec<String>) -> Option<Expr> {
+/// A number, a bool, or an expression string, compiled against the set's variables, loose props and zones.
+fn parse_value(v: &Value, set: &RuleSet, path: &str, errs: &mut Vec<String>) -> Option<Expr> {
     match v {
         Value::Number(n) => n.as_f64().map(Expr::Num),
         Value::Bool(x) => Some(Expr::Num(if *x { 1.0 } else { 0.0 })),
-        Value::String(s) => match rules_expr::parse(s, names) {
+        Value::String(s) => match rules_expr::parse_in(s, &set.var_names, set.scope()) {
             Ok(e) => Some(e),
             Err(e) => {
                 errs.push(format!("{path}: {e}"));
@@ -335,7 +455,8 @@ fn var_index(name: Option<&str>, names: &[String], path: &str, errs: &mut Vec<St
     }
 }
 
-fn parse_action(v: &Value, names: &[String], refs: &Refs, path: &str, errs: &mut Vec<String>) -> Option<Action> {
+fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<String>) -> Option<Action> {
+    let names = &set.var_names;
     let Some(o) = v.as_object() else {
         errs.push(format!("{path}: must be an object with one action, e.g. {{\"emit\": \"coin\"}}"));
         return None;
@@ -355,7 +476,7 @@ fn parse_action(v: &Value, names: &[String], refs: &Refs, path: &str, errs: &mut
                 return None;
             };
             let var = var_index(p[0].as_str(), names, &format!("{sub}[0]"), errs)?;
-            let value = parse_value(&p[1], names, &format!("{sub}[1]"), errs)?;
+            let value = parse_value(&p[1], set, &format!("{sub}[1]"), errs)?;
             let value = if key.as_str() == "add" { Expr::Bin(Op::Add, Box::new(Expr::Var(var)), Box::new(value)) } else { value };
             Some(Action::Set { var, value })
         }
@@ -421,6 +542,40 @@ fn parse_action(v: &Value, names: &[String], refs: &Refs, path: &str, errs: &mut
             let speed = io.get("speed").and_then(Value::as_f64).unwrap_or(4.0) as f32;
             Some(Action::Impulse { object: object.to_string(), dir, speed })
         }
+        "reset" => match val {
+            Value::String(id) => prop_index(Some(id), &set.prop_ids, &sub, errs).map(|p| Action::Reset(ResetTarget::Props(vec![p]))),
+            Value::Array(a) if !a.is_empty() => {
+                let props: Vec<usize> = a.iter().enumerate().filter_map(|(k, v)| prop_index(v.as_str(), &set.prop_ids, &format!("{sub}[{k}]"), errs)).collect();
+                (props.len() == a.len()).then_some(Action::Reset(ResetTarget::Props(props)))
+            }
+            Value::Object(m) => {
+                check_keys(errs, &sub, m, &["zone"]);
+                let id = m.get("zone").and_then(Value::as_str).unwrap_or("");
+                match set.zone_ids.iter().position(|z| z == id) {
+                    Some(z) => Some(Action::Reset(ResetTarget::Zone(z))),
+                    None => {
+                        errs.push(format!("{sub}.zone: no zone `{id}`{} (zones: {})", near(id, set.zone_ids.iter().cloned()), sorted(set.zone_ids.iter())));
+                        None
+                    }
+                }
+            }
+            _ => {
+                errs.push(format!("{sub}: must be a loose prop id, [ids] or {{\"zone\": id}}"));
+                None
+            }
+        },
+        "place" => {
+            let Some(p) = pair() else {
+                errs.push(format!("{sub}: must be [prop_id, [x, y, z]]"));
+                return None;
+            };
+            let prop = prop_index(p[0].as_str(), &set.prop_ids, &format!("{sub}[0]"), errs)?;
+            let Some(at) = vec3(&p[1]) else {
+                errs.push(format!("{sub}[1]: must be [x, y, z]"));
+                return None;
+            };
+            Some(Action::Place { prop, at })
+        }
         other => {
             let names: Vec<String> = ACTIONS.iter().map(|a| a.0.to_string()).collect();
             errs.push(format!("{sub}: unknown action `{other}`{} (actions: {})", near(other, names.iter().cloned()), names.join(", ")));
@@ -440,6 +595,14 @@ fn sorted<'a>(it: impl Iterator<Item = &'a String>) -> String {
 pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Vec<String>> {
     let mut errs = Vec::new();
     let mut set = RuleSet::default();
+    set.prop_ids = refs.prop_ids.iter().cloned().collect();
+    set.prop_ids.sort();
+    let mut zones: Vec<(&String, &(Vec3, Vec3))> = refs.zones.iter().collect();
+    zones.sort_by(|a, b| a.0.cmp(b.0));
+    for (id, (lo, hi)) in zones {
+        set.zone_ids.push(id.clone());
+        set.zone_volumes.push(Volume { min: *lo, max: Vec3::new(hi.x, lo.y + ZONE_HEIGHT, hi.z) });
+    }
     if let Some(vars) = root.get("vars") {
         match vars.as_object() {
             None => errs.push("vars: must be an object like {\"score\": 0, \"has_key\": false}".to_string()),
@@ -489,9 +652,9 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             errs.push(format!("{p}.id: duplicate rule id `{id}`"));
         }
         let when = match ro.get("when") {
-            Some(w) => parse_when(w, refs, &format!("{p}.when"), &mut errs),
+            Some(w) => parse_when(w, &set, refs, &format!("{p}.when"), &mut errs),
             None => {
-                errs.push(format!("{p}.when: missing (one of {})", WHEN_KEYS.join(", ")));
+                errs.push(format!("{p}.when: missing (one of {})", TRIGGER_KEYS.join(", ")));
                 None
             }
         };
@@ -504,14 +667,14 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
                 Who::Any
             }
         };
-        let cond = ro.get("if").and_then(|c| parse_value(c, &set.var_names, &format!("{p}.if"), &mut errs));
+        let cond = ro.get("if").and_then(|c| parse_value(c, &set, &format!("{p}.if"), &mut errs));
         let cooldown_ticks = ro.get("cooldown").map_or(0, |c| secs(c, &format!("{p}.cooldown"), &mut errs));
         let once = ro.get("once").and_then(Value::as_bool).unwrap_or(false);
         let mut actions = Vec::new();
         match ro.get("do").and_then(Value::as_array) {
             Some(arr) if !arr.is_empty() => {
                 for (k, av) in arr.iter().enumerate() {
-                    if let Some(a) = parse_action(av, &set.var_names, refs, &format!("{p}.do[{k}]"), &mut errs) {
+                    if let Some(a) = parse_action(av, &set, refs, &format!("{p}.do[{k}]"), &mut errs) {
                         actions.push(a);
                     }
                 }
@@ -539,6 +702,15 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             }
         }
     }
+    set.needs_props = set.rules.iter().any(|r| {
+        matches!(r.when, When::PropEnter { .. } | When::PropExit { .. } | When::PropBelow { .. })
+            || r.cond.as_ref().is_some_and(Expr::reads_world)
+            || r.actions.iter().any(|a| match a {
+                Action::Set { value, .. } => value.reads_world(),
+                Action::Reset(_) | Action::Place { .. } => true,
+                _ => false,
+            })
+    });
     if errs.is_empty() {
         Ok(set)
     } else {
@@ -553,10 +725,14 @@ mod tests {
 
     fn refs() -> Refs {
         let mut r = Refs::default();
-        r.object_ids.extend(["coin_1".to_string(), "door".to_string()]);
-        r.top_level_ids.extend(["coin_1".to_string(), "door".to_string()]);
+        r.object_ids.extend(["coin_1".to_string(), "door".to_string(), "crate".to_string(), "bell".to_string()]);
+        r.top_level_ids.extend(["coin_1".to_string(), "door".to_string(), "crate".to_string(), "bell".to_string()]);
         r.bounds.insert("coin_1".into(), (Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.4, 0.4, 1.4)));
+        r.bounds.insert("crate".into(), (Vec3::new(3.0, 0.0, 3.0), Vec3::new(3.6, 0.6, 3.6)));
+        r.bounds.insert("bell".into(), (Vec3::new(5.0, 1.0, 5.0), Vec3::new(5.3, 1.4, 5.3)));
+        r.prop_ids.extend(["crate".to_string(), "bell".to_string()]);
         r.zones.insert("exit".into(), (Vec3::new(8.0, 0.0, 0.0), Vec3::new(10.0, 0.0, 2.0)));
+        r.zones.insert("pit".into(), (Vec3::new(0.0, -3.0, 4.0), Vec3::new(6.0, -3.0, 8.0)));
         r.spawn_ids.insert("spawn_a".into());
         r
     }
@@ -587,6 +763,54 @@ mod tests {
         assert_eq!((z.min.y, z.max.y), (0.0, ZONE_HEIGHT));
         assert_eq!(set.rules[2].cooldown_ticks, secs_to_ticks(0.5) as u64);
         assert_eq!(set.rules[2].who, Who::Human);
+        assert!(!set.needs_props, "nothing here looks at a prop");
+        assert_eq!(set.prop_ids, ["bell", "crate"]);
+        assert_eq!(set.zone_ids, ["exit", "pit"]);
+    }
+
+    #[test]
+    fn prop_triggers_built_ins_and_reset_place_parse_against_the_loose_props_and_zones() {
+        let set = parse(json!({
+            "vars": {"score": 0, "fallen": 0},
+            "rules": [
+                {"id": "score", "when": {"prop_enter": {"zone": "pit"}}, "do": [{"add": ["score", 1]}]},
+                {"id": "only_crate", "when": {"prop_exit": {"box": [0,0,0,1,1,1]}, "prop": "crate"}, "do": [{"emit": "left"}]},
+                {"id": "bell_down", "when": {"prop_below": ["bell", 0.5]}, "if": "tilt(bell) > 60 || !held(bell)", "do": [{"set": ["fallen", "props_in(pit) + moved(crate)"]}]},
+                {"id": "again", "when": {"event": "left"}, "do": [{"reset": "bell"}, {"reset": ["crate", "bell"]}, {"reset": {"zone": "pit"}}, {"place": ["crate", [1, 2, 3]]}]}
+            ]
+        }))
+        .unwrap();
+        assert!(set.needs_props);
+        let When::PropEnter { volume, prop: None } = &set.rules[0].when else { panic!("{:?}", set.rules[0].when) };
+        assert_eq!((volume.min.y, volume.max.y), (-3.0, 0.0));
+        assert!(matches!(set.rules[1].when, When::PropExit { prop: Some(1), .. }), "crate is prop_ids[1]");
+        assert!(matches!(set.rules[2].when, When::PropBelow { prop: 0, y } if y == 0.5));
+        assert_eq!(
+            set.rules[3].actions,
+            [
+                Action::Reset(ResetTarget::Props(vec![0])),
+                Action::Reset(ResetTarget::Props(vec![1, 0])),
+                Action::Reset(ResetTarget::Zone(1)),
+                Action::Place { prop: 1, at: Vec3::new(1.0, 2.0, 3.0) }
+            ]
+        );
+        let e = parse(json!({"vars": {}, "rules": [
+            {"id": "a", "when": {"prop_enter": {"zone": "pit"}, "prop": "crat"}, "do": [{"emit": "x"}]},
+            {"id": "b", "when": {"enter": {"zone": "pit"}, "prop": "crate"}, "do": [{"emit": "x"}]},
+            {"id": "c", "when": {"prop_below": ["coin_1", 1]}, "if": "prop_y(coin_1) < 1", "do": [{"reset": {"zone": "pitt"}}, {"place": ["crate", 3]}]}
+        ]}))
+        .unwrap_err()
+        .join("\n");
+        for needle in [
+            "rules[0] (a).when.prop: no loose prop `crat` — did you mean `crate`?",
+            "rules[1] (b).when.prop: only `prop_enter` / `prop_exit` take a `prop` filter",
+            "rules[2] (c).when.prop_below[0]: no loose prop `coin_1`",
+            "rules[2] (c).if: `prop_y(coin_1)`: no loose prop `coin_1`",
+            "rules[2] (c).do[0].reset.zone: no zone `pitt` — did you mean `pit`?",
+            "rules[2] (c).do[1].place[1]: must be [x, y, z]",
+        ] {
+            assert!(e.contains(needle), "missing `{needle}` in:\n{e}");
+        }
     }
 
     #[test]
@@ -632,6 +856,10 @@ mod tests {
 
     #[test]
     fn no_rules_is_the_default_and_valid() {
-        assert_eq!(parse(json!({})).unwrap(), RuleSet::default());
+        let set = parse(json!({})).unwrap();
+        let default = RuleSet::default();
+        assert_eq!((&set.var_names, &set.var_init, &set.rules, set.needs_props), (&default.var_names, &default.var_init, &default.rules, false));
+        assert_eq!(set.prop_ids, ["bell", "crate"], "the scene's loose props and zones are always in scope");
+        assert!(parse_rules(json!({}).as_object().unwrap(), &Refs::default()).unwrap() == default, "no scene, no tables");
     }
 }

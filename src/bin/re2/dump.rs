@@ -130,6 +130,24 @@ impl App {
             "online": online,
             "remote": remote,
             "hud": {"lines": self.hud_lines.iter().map(|(id, text)| json!({"id": id, "text": text})).collect::<Vec<_>>()},
+            "rules": {
+                "vars": self.rules.vars().iter().map(|(n, v)| json!({"name": n, "value": v})).collect::<Vec<_>>(),
+                "ended": self.rules.ended(),
+                "last_event": self.rule_event,
+                "hidden": self.rules.hidden().collect::<Vec<_>>(),
+            },
+            // Every loose prop of the offline world (online the server owns them: null); the same view the rules get.
+            "props": self.props.as_ref().map(|p| {
+                (0..p.props().len())
+                    .map(|k| {
+                        let v = red_engine2::sim::rules_run::RuleProp::of(p, k);
+                        json!({
+                            "id": self.scene.objects[p.props()[k].object_index].id, "pos": vec3(v.origin), "tilt_deg": round2(v.tilt_deg),
+                            "moved": round2(v.moved), "asleep": p.is_asleep(k), "held_by": v.held_by,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            }),
             "cues": {
                 "counts": self.cue_counts,
                 "recent": self.cue_log.iter().map(|(t, cue)| json!({"t": round2(*t), "cue": cue})).collect::<Vec<_>>(),

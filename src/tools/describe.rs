@@ -371,7 +371,9 @@ fn rules_text() -> String {
         "Game rules are data in the scene: `vars` (numbers/bools) and `rules`. Everything a rule names is validated when the scene loads.\n\n\
          rule = { id, when, who?, if?, once?, cooldown?, do }\n\
          \x20 when      exactly one of: {enter: VOLUME} {exit: VOLUME} {event: name} {every: secs} {after: secs} {start: true}\n\
-         \x20 who       any (default) | human | rat\n\
+         \x20           {prop_enter: VOLUME} {prop_exit: VOLUME} (a loose prop's origin crosses in/out; add `prop: id` beside it for one prop)\n\
+         \x20           {prop_below: [prop_id, y]} (its origin drops below y metres)\n\
+         \x20 who       any (default) | human | rat   (player triggers only)\n\
          \x20 if        expression over the vars (and built-ins time, tick, players): `score >= 3 && !has_key`\n\
          \x20 once      fire at most once per match;  cooldown: minimum seconds between firings\n\
          \x20 do        actions, in order:\n",
@@ -382,13 +384,21 @@ fn rules_text() -> String {
     out.push_str(
         "VOLUME = {zone: id [, height]} | {object: top-level id [, pad]} | {box: [x0,y0,z0,x1,y1,z1]}   (pad grows it, metres)\n\
          Expressions: numbers, true/false, variables, + - * / %, < <= > >= == !=, && || !, parentheses. x/0 = 0 (never NaN).\n\
-         An unknown variable/zone/object/spawn/event is a validate error with a did-you-mean.\n\
-         Rules run in the authoritative simulation (server, `sim`), deterministically; state (vars, hidden objects, outcome) is\n\
-         part of the match checksum. Offline `re2` runs the same rule state machine: hide/show changes rendering, collision changes\n\
-         static movement/ground collision for a top-level object, and teleport/impulse\n\
-         are applied, pickup/drop/shot/hit are injected, and vars/events/outcome appear in a generic HUD. Online clients use the same\n\
-         HUD from a repeated bounded authoritative state, so loss, reconnect and late join recover it. Prove a rule with `checks.sim`\n\
-         (see `describe sim`).\n\nExample scene:\n",
+         Built-in functions read the loose props (a prop's id, or a zone's, as the argument; a prop that is not loose is a validate error):\n",
+    );
+    for (_, _, help) in crate::sim::rules_expr::Func::ALL {
+        out.push_str(&format!("      {help}\n"));
+    }
+    out.push_str(
+        "Engine events a rule can react to (`when: {event}`): pickup, drop, shot, hit, kill, respawn, swing (a bat swing started),\n\
+         prop_hit (a bat or bullet struck a loose prop). A prop is inside a volume when its origin is inside in x/z and its height\n\
+         band overlaps in y; `tilt` is measured from how the map placed it. An unknown variable/zone/object/prop/spawn/event is a\n\
+         validate error with a did-you-mean.\n\
+         Rules run in the authoritative simulation (server, `sim`), deterministically; state (vars, hidden objects, outcome, prop\n\
+         occupancy) is part of the match checksum. Offline `re2` runs the same rule state machine: hide/show changes rendering, collision\n\
+         changes static movement/ground collision for a top-level object, teleport/impulse/reset/place are applied, the engine events\n\
+         are injected, and vars/events/outcome appear in a generic HUD. Online clients use the same HUD from a repeated bounded\n\
+         authoritative state, so loss, reconnect and late join recover it. Prove a rule with `checks.sim` (see `describe sim`).\n\nExample scene:\n",
     );
     out.push_str(RULES_EXAMPLE);
     out.push('\n');
@@ -459,6 +469,7 @@ fn playtest_text() -> String {
         "\nSTATE    /remote/{in_view,drawn,undrawn,standins,unposed,roster_others,hidden_by_interest,players[],pool,counters}   every way another player can fail to be drawn\n\
          \x20        /online/{connected,id,ping_ms,phase,in_round,round,roster[]}  /player/{pos,yaw_deg,pitch_deg,weapon,hp,dead}  /view  /streaks\n\
          \x20        /hud/lines[{id,text}]  /cues/{counts,recent[]}  /crosshair/{state,enemy,pickup,in_reach}  /shots[]  /snapshots  /failures[]\n\
+         \x20        /rules/{vars[{name,value}],ended,last_event,hidden[]}  /props[{id,pos,tilt_deg,moved,asleep,held_by}] (offline only; null online)\n\
          EXAMPLE  {\"steps\":[{\"wait_for\":{\"at\":\"/online/in_round\",\"eq\":true}},{\"expect\":{\"at\":\"/remote/drawn\",\"eq\":7,\"msg\":\"8 fighters means 7 drawn\"}},\n\
          \x20         {\"turn\":360,\"over\":6},{\"shot\":\"spin\"},{\"expect\":{\"at\":\"/remote/undrawn\",\"eq\":0}}]}\n\
          LOUD     an undrawn player also prints `warning: player N wears BODY ...` once, counts in RE2_STATS and the F3 overlay, and `game check` verifies every\n\
@@ -474,12 +485,17 @@ fn sim_text() -> String {
          \x20 Scenarios live in the scene's `checks.sim` (so `verify` runs them) or in a file. Exit 1 if any fails.\n\n\
          scenario = { name, players, script, expect, spawn_group?, max_seconds? (30), settle_seconds? (0.5) }\n\
          \x20 players  [{id, character: human|rat|wizard|cowboy|alien|robot, spawn?: spawn id}]\n\
-         \x20 script   [{player, walk: \"x,z; x,z\" | wait: secs | hold: {forward, strafe, sprint, crouch, jump, yaw_deg, seconds}, until_event?: name}]\n\
-         \x20          each player's steps run in order; players run in parallel; a walk that gets stuck fails the scenario\n\
+         \x20 script   [{player, walk: \"x,z; x,z\" | wait: secs | hold: {forward, strafe, sprint, crouch, jump, yaw_deg, pitch_deg,\n\
+         \x20          interact, attack, reload, switch, seconds}, until_event?: name}]\n\
+         \x20          each player's steps run in order; players run in parallel; a walk that gets stuck fails the scenario.\n\
+         \x20          Pick up / drop = `hold: {yaw_deg, pitch_deg, interact: true, seconds: 0.2}` aimed at the prop (reach 2.3 m; look first\n\
+         \x20          for ~0.15 s so the view is set); a bat swing = `hold: {attack: true, seconds: 0.3}` (strike lands after the windup).\n\
          \x20 expect   [{event: name, count|min|max} {no_event: name} {var: name, eq|ne: number|bool, gt|gte|lt|lte: number}\n\
          \x20           {ended: outcome} {not_ended: true} {hidden|shown: object id} {collision_disabled|collision_enabled: object id}\n\
-         \x20           {player: id, near: [x,z], tol?, y?}]\n\
-         The run ends when a rule `end`s the match, when every script is done (+ settle), or at max_seconds.\n\n\
+         \x20           {player: id, near: [x,z], tol?, y?}\n\
+         \x20           {prop: id, in_zone|not_in_zone: zone | below_y|y_lt|y_gt: m | tilt_gt|tilt_lt: deg | moved: bool | near: [x,z], tol?, y? | held_by: player|none}]\n\
+         The run ends when a rule `end`s the match, when every script is done (+ settle), or at max_seconds. The report lists where\n\
+         every player ended and every loose prop that moved (`--json`: all props, with tilt / moved / asleep / held_by).\n\n\
          red_engine2 replay <trace.json> [--scene map.json] [--against other.json]\n\
          \x20 A trace records a match: header (engine, tick rate, map hash, seed, platform), every join/leave/input and external push in order (a strike or a rule impulse is re-derived, not recorded), game events,\n\
          \x20 a checksum of players / props / rules after every N ticks, and periodic state dumps. `replay` re-runs it with no renderer or\n\

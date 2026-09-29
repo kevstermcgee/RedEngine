@@ -5,8 +5,77 @@
 //! Division and remainder by zero give `0` (never NaN or infinity), so a rule can never poison the simulation state.
 //! Identifiers must be **declared variables** (or the built-ins `time`, `tick`, `players`): an unknown name is a
 //! parse error with a did-you-mean, which is how a typo in a rule is caught by `validate` instead of at play time.
+//! Built-in **functions** read the world: `prop_y(crate)`, `tilt(domino_3) > 60`, `held(parcel)`, `mass(barrel)`,
+//! `moved(bell)`, `props_in(pit)`; their argument is a loose prop's (or a zone's) id from the [`Scope`] the expression
+//! is compiled in, and a [`World`] answers them at evaluation time (ADR 2026-09-29-prop-aware-rules-and-scenarios).
 
 use std::fmt;
+
+/// A built-in function over the world. The prop functions take a loose prop's object id; `props_in` takes a zone id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Func {
+    /// `prop_y(id)`: height of the prop's origin, m.
+    PropY,
+    /// `tilt(id)`: degrees the prop's up axis leans from vertical (0 upright, 90 on its side).
+    Tilt,
+    /// `held(id)`: 1 while a player carries it, else 0.
+    Held,
+    /// `mass(id)`: kg.
+    Mass,
+    /// `moved(id)`: metres its origin is from where the map author put it.
+    Moved,
+    /// `props_in(zone)`: how many loose props are inside the zone.
+    PropsIn,
+}
+
+impl Func {
+    /// Every built-in: `(name, function, help line)`, for the parser and `describe rules`.
+    pub const ALL: &[(&str, Func, &str)] = &[
+        ("prop_y", Func::PropY, "prop_y(id)      height of a loose prop's origin, m"),
+        ("tilt", Func::Tilt, "tilt(id)        degrees its up axis leans from vertical (0 upright, 90 on its side)"),
+        ("held", Func::Held, "held(id)        1 while a player carries it"),
+        ("mass", Func::Mass, "mass(id)        its mass, kg"),
+        ("moved", Func::Moved, "moved(id)       metres its origin is from where the map put it"),
+        ("props_in", Func::PropsIn, "props_in(zone)  how many loose props have their origin inside the zone"),
+    ];
+
+    fn by_name(name: &str) -> Option<Func> {
+        Func::ALL.iter().find(|(n, _, _)| *n == name).map(|(_, f, _)| *f)
+    }
+
+    /// The function's name in the language.
+    pub fn name(self) -> &'static str {
+        Func::ALL.iter().find(|(_, f, _)| *f == self).map_or("?", |(n, _, _)| n)
+    }
+
+    /// True when the argument is a zone id rather than a loose prop id.
+    pub fn takes_zone(self) -> bool {
+        matches!(self, Func::PropsIn)
+    }
+}
+
+/// What a function call may name: the loose props and the zones of the scene, by id. A call is compiled to an index
+/// into the matching list, so evaluating it never touches a string.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Scope<'a> {
+    /// Loose prop object ids (`Func` prop arguments resolve to an index into this).
+    pub props: &'a [String],
+    /// Zone ids (`props_in` resolves to an index into this).
+    pub zones: &'a [String],
+}
+
+/// Answers the built-in functions at evaluation time: `index` is the position in the [`Scope`] the expression was
+/// compiled against (a prop for the prop functions, a zone for `props_in`). `()` answers 0 to everything.
+pub trait World {
+    /// The value of `f` for the prop or zone at `index`.
+    fn call(&self, f: Func, index: usize) -> f64;
+}
+
+impl World for () {
+    fn call(&self, _: Func, _: usize) -> f64 {
+        0.0
+    }
+}
 
 /// A binary operator.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,24 +121,32 @@ pub enum Expr {
     Not(Box<Expr>),
     /// A binary operation.
     Bin(Op, Box<Expr>, Box<Expr>),
+    /// A built-in function of the prop (or zone) at this index of the [`Scope`] it was compiled in.
+    Call(Func, usize),
 }
 
 impl Expr {
-    /// Evaluates against `vars` (indexes out of range read as `0`).
+    /// Evaluates against `vars` with no world (every function call reads as `0`); see [`eval_in`](Self::eval_in).
     pub fn eval(&self, vars: &[f64]) -> f64 {
+        self.eval_in(vars, &())
+    }
+
+    /// Evaluates against `vars` (indexes out of range read as `0`), asking `world` for the built-in functions.
+    pub fn eval_in(&self, vars: &[f64], world: &dyn World) -> f64 {
         match self {
             Expr::Num(n) => *n,
             Expr::Var(i) => vars.get(*i).copied().unwrap_or(0.0),
-            Expr::Neg(e) => -e.eval(vars),
-            Expr::Not(e) => b(e.eval(vars) == 0.0),
+            Expr::Call(f, i) => world.call(*f, *i),
+            Expr::Neg(e) => -e.eval_in(vars, world),
+            Expr::Not(e) => b(e.eval_in(vars, world) == 0.0),
             Expr::Bin(op, l, r) => {
-                let a = l.eval(vars);
+                let a = l.eval_in(vars, world);
                 match op {
-                    Op::Or => return b(a != 0.0 || r.eval(vars) != 0.0),
-                    Op::And => return b(a != 0.0 && r.eval(vars) != 0.0),
+                    Op::Or => return b(a != 0.0 || r.eval_in(vars, world) != 0.0),
+                    Op::And => return b(a != 0.0 && r.eval_in(vars, world) != 0.0),
                     _ => {}
                 }
-                let c = r.eval(vars);
+                let c = r.eval_in(vars, world);
                 match op {
                     Op::Eq => b(a == c),
                     Op::Ne => b(a != c),
@@ -100,9 +177,24 @@ impl Expr {
         }
     }
 
-    /// True when the value is non-zero.
+    /// True when the value is non-zero (no world: function calls read as `0`).
     pub fn truthy(&self, vars: &[f64]) -> bool {
         self.eval(vars) != 0.0
+    }
+
+    /// True when the value is non-zero, asking `world` for the built-in functions.
+    pub fn truthy_in(&self, vars: &[f64], world: &dyn World) -> bool {
+        self.eval_in(vars, world) != 0.0
+    }
+
+    /// Whether the expression calls any built-in function (so evaluating it needs a real [`World`]).
+    pub fn reads_world(&self) -> bool {
+        match self {
+            Expr::Num(_) | Expr::Var(_) => false,
+            Expr::Call(..) => true,
+            Expr::Neg(e) | Expr::Not(e) => e.reads_world(),
+            Expr::Bin(_, l, r) => l.reads_world() || r.reads_world(),
+        }
     }
 }
 
@@ -204,6 +296,7 @@ struct Parser<'a> {
     toks: Vec<(Tok, usize)>,
     pos: usize,
     names: &'a [String],
+    scope: Scope<'a>,
     end: usize,
 }
 
@@ -251,6 +344,9 @@ impl Parser<'_> {
             }
             Some(Tok::Ident(name)) => {
                 self.pos += 1;
+                if self.peek() == Some(&Tok::LParen) {
+                    return self.call(&name, at);
+                }
                 match name.as_str() {
                     "true" => Ok(Expr::Num(1.0)),
                     "false" => Ok(Expr::Num(0.0)),
@@ -274,6 +370,36 @@ impl Parser<'_> {
             None => Err(ParseError { message: "the expression ends too soon".to_string(), at }),
         }
     }
+
+    /// `name(` was read: parse `id )` and resolve the call against the scope.
+    fn call(&mut self, name: &str, at: usize) -> Result<Expr, ParseError> {
+        let Some(f) = Func::by_name(name) else {
+            let known: Vec<&str> = Func::ALL.iter().map(|(n, _, _)| *n).collect();
+            let hint = crate::prefabs::suggest(name, known.iter().copied()).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
+            return Err(ParseError { message: format!("unknown function `{name}`{hint} (built-ins: {})", known.join(", ")), at });
+        };
+        self.pos += 1; // the `(`
+        let arg_at = self.at();
+        let Some(Tok::Ident(arg)) = self.toks.get(self.pos).map(|t| t.0.clone()) else {
+            return Err(ParseError { message: format!("`{name}(` needs a {} id, then `)`", if f.takes_zone() { "zone" } else { "loose prop" }), at: arg_at });
+        };
+        self.pos += 1;
+        if self.peek() != Some(&Tok::RParen) {
+            return Err(ParseError { message: format!("missing `)` after `{name}({arg}`"), at: self.at() });
+        }
+        self.pos += 1;
+        let (kind, list) = if f.takes_zone() { ("zone", self.scope.zones) } else { ("loose prop", self.scope.props) };
+        match list.iter().position(|n| *n == arg) {
+            Some(i) => Ok(Expr::Call(f, i)),
+            None => {
+                let hint =
+                    crate::prefabs::suggest(&arg, list.iter().map(String::as_str)).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
+                let known =
+                    if list.is_empty() { "none in this scene".to_string() } else { list.iter().take(12).map(String::as_str).collect::<Vec<_>>().join(", ") };
+                Err(ParseError { message: format!("`{name}({arg})`: no {kind} `{arg}`{hint} ({kind}s: {known})"), at: arg_at })
+            }
+        }
+    }
 }
 
 /// The message for a name that is not a declared variable, with a did-you-mean when one is close.
@@ -283,13 +409,20 @@ pub fn unknown_var(name: &str, names: &[String]) -> String {
     format!("unknown variable `{name}`{hint} (declare it in `vars`; known: {})", names.join(", "))
 }
 
-/// Compiles `src` against the variable `names` (a variable's index is its position in `names`).
+/// Compiles `src` against the variable `names` (a variable's index is its position in `names`) with no props or zones
+/// in scope: any function call is an error. See [`parse_in`].
 pub fn parse(src: &str, names: &[String]) -> Result<Expr, ParseError> {
+    parse_in(src, names, Scope::default())
+}
+
+/// Compiles `src` against the variable `names` and the loose props / zones of `scope` (a call's index is the id's
+/// position in the scope's list).
+pub fn parse_in(src: &str, names: &[String], scope: Scope<'_>) -> Result<Expr, ParseError> {
     let toks = lex(src)?;
     if toks.is_empty() {
         return Err(ParseError { message: "the expression is empty".to_string(), at: 0 });
     }
-    let mut p = Parser { toks, pos: 0, names, end: src.chars().count() };
+    let mut p = Parser { toks, pos: 0, names, scope, end: src.chars().count() };
     let e = p.binary(0)?;
     if p.pos < p.toks.len() {
         return Err(ParseError { message: "unexpected trailing text (missing an operator?)".to_string(), at: p.at() });
@@ -348,5 +481,49 @@ mod tests {
         let e = parse("score > 0 && time / score > 2", &names()).unwrap();
         assert_eq!(e.eval(&[0.0, 0.0, 9.0]), 0.0);
         assert_eq!(e.eval(&[2.0, 0.0, 9.0]), 1.0);
+    }
+
+    struct Fake;
+    impl World for Fake {
+        fn call(&self, f: Func, index: usize) -> f64 {
+            match (f, index) {
+                (Func::PropY, 1) => -2.5,
+                (Func::Tilt, 0) => 72.0,
+                (Func::Held, 0) => 1.0,
+                (Func::Mass, 1) => 21.0,
+                (Func::Moved, 1) => 3.2,
+                (Func::PropsIn, 0) => 2.0,
+                _ => 0.0,
+            }
+        }
+    }
+
+    #[test]
+    fn built_in_functions_resolve_ids_in_scope_and_read_the_world() {
+        let props = vec!["bell".to_string(), "crate".to_string()];
+        let zones = vec!["pit".to_string()];
+        let scope = Scope { props: &props, zones: &zones };
+        let e = |src: &str| parse_in(src, &names(), scope).unwrap_or_else(|e| panic!("{src}: {e}"));
+        assert_eq!(e("prop_y(crate)").eval_in(&[0.0; 3], &Fake), -2.5);
+        assert_eq!(e("tilt(bell) > 60 && held(bell)").eval_in(&[0.0; 3], &Fake), 1.0);
+        assert_eq!(e("mass(crate) * 2 + props_in(pit)").eval_in(&[0.0; 3], &Fake), 44.0);
+        assert_eq!(e("moved(crate) > 1 && score == 3").eval_in(&[3.0, 0.0, 0.0], &Fake), 1.0);
+        assert_eq!(e("prop_y(crate)").eval(&[0.0; 3]), 0.0, "without a world every call reads as 0");
+        assert!(e("prop_y(crate) < 0").reads_world() && !e("score > 1").reads_world());
+        assert_eq!(e("prop_y(crate)"), Expr::Call(Func::PropY, 1));
+    }
+
+    #[test]
+    fn a_bad_function_call_names_the_fix() {
+        let props = vec!["bell".to_string()];
+        let zones = vec!["pit".to_string()];
+        let scope = Scope { props: &props, zones: &zones };
+        let err = |src: &str| parse_in(src, &names(), scope).unwrap_err().message;
+        assert!(err("prop_y(bel)").contains("no loose prop `bel` — did you mean `bell`?"), "{}", err("prop_y(bel)"));
+        assert!(err("props_in(bell)").contains("no zone `bell`"), "{}", err("props_in(bell)"));
+        assert!(err("tilted(bell)").contains("unknown function `tilted` — did you mean `tilt`?"), "{}", err("tilted(bell)"));
+        assert!(err("tilt(bell").contains("missing `)`"), "{}", err("tilt(bell"));
+        assert!(err("tilt()").contains("needs a loose prop id"), "{}", err("tilt()"));
+        assert!(parse("prop_y(bell)", &names()).unwrap_err().message.contains("none in this scene"), "no scope: nothing to call");
     }
 }

@@ -349,6 +349,23 @@ impl PropWorld {
         }
     }
 
+    /// Where the map author placed `prop` (its origin frame), world space: what `reset` restores.
+    pub fn spawn_pose(&self, prop: usize) -> Mat4 {
+        self.props[prop].spawn
+    }
+
+    /// Degrees `prop`'s up axis leans from how the map author placed it: 0 upright, about 90 on its side.
+    pub fn tilt_deg(&self, prop: usize) -> f32 {
+        let authored = self.props[prop].spawn.transform_vector3(Vec3::Y).normalize_or_zero();
+        let now = self.prop_pose(prop).transform_vector3(Vec3::Y).normalize_or_zero();
+        libm::acosf(authored.dot(now).clamp(-1.0, 1.0)).to_degrees()
+    }
+
+    /// Metres `prop`'s origin is from where the map author put it.
+    pub fn moved(&self, prop: usize) -> f32 {
+        (self.prop_pose(prop).w_axis.truncate() - self.props[prop].spawn.w_axis.truncate()).length()
+    }
+
     /// How many props are awake right now.
     pub fn awake_count(&self) -> usize {
         self.dynamic.iter().filter(|&&p| !self.is_asleep(p)).count()

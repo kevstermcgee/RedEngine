@@ -1037,6 +1037,7 @@ fn rule_refs(root: &Map<String, Value>, objects: &[Object]) -> crate::sim::rules
     let mut refs = crate::sim::rules::Refs::default();
     refs.object_ids.extend(object_ids(objects));
     refs.top_level_ids.extend(objects.iter().map(|object| object.id.clone()));
+    refs.prop_ids.extend(objects.iter().filter(|o| crate::physics::classify(o).is_some()).map(|o| o.id.clone()));
     for it in crate::collide::interactables_of(objects) {
         refs.bounds.insert(it.id, (it.min, it.max));
     }

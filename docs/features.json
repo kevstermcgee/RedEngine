@@ -51,9 +51,9 @@
     "game_rules": {
       "summary": "Game rules as data: vars, rules, the expression language, scripted headless scenarios (`sim`), and standard-client presentation.",
       "files": ["src/sim/rules.rs", "src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "recipes/coin_run.json"],
-      "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks", "net_rule_state"],
+      "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks", "net_rule_state", "prop_rules"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
-      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md"],
+      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md"],
       "depends_on": ["sim_core"]
     },
     "replay": {
