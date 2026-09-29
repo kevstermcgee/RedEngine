@@ -133,9 +133,11 @@ mod tests {
                     held: NO_PROP,
                     hp: 100,
                     shots,
+                    kart: None,
                 })
                 .collect(),
             props: vec![],
+            race: None,
         }
     }
 

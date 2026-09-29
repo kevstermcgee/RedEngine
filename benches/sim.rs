@@ -203,11 +203,13 @@ fn net_codec(c: &mut Criterion) {
                 weapon: 0,
                 held: NO_PROP,
                 hp: 100,
-                shots: 0
+                shots: 0,
+                kart: None
             };
             MAX_PLAYERS_PER_SNAPSHOT
         ],
         props: vec![PropSnap { id: 0, pos: [1.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }; MAX_PROPS_PER_SNAPSHOT],
+        race: None,
     };
     let msg = ServerMsg::Snapshot(snap);
     let mut buf = Vec::with_capacity(1400);

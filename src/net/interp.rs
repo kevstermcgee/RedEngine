@@ -430,8 +430,10 @@ mod tests {
                 held: crate::net::protocol::NO_PROP,
                 hp: 100,
                 shots: 0,
+                kart: None,
             }],
             props: vec![],
+            race: None,
         }
     }
 

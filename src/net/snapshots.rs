@@ -7,7 +7,7 @@
 //! management cheap and exact: a prop that changed while out of earshot is simply still "unconfirmed" when the client walks
 //! into the room, and is sent then; nothing is ever sent twice once acknowledged.
 
-use super::protocol::{character_to_wire, Feedback, PlayerSnap, PropSnap, FLAG_PROTECTED, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROPS_PER_SNAPSHOT, NO_PROP};
+use super::protocol::{character_to_wire, Feedback, KartSnap, PlayerSnap, PropSnap, FLAG_PROTECTED, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROPS_PER_SNAPSHOT, NO_PROP};
 use crate::sim::change::Generation;
 use crate::sim::interest::InterestMap;
 use crate::sim::match_sim::MatchSim;
@@ -15,6 +15,8 @@ use crate::sim::match_sim::MatchSim;
 /// Every connected player as a snapshot record (at most [`MAX_PLAYERS_PER_SNAPSHOT`]).
 pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
     out.clear();
+    // In a race match every player also carries their kart and their place (one standings sort per snapshot build, not per player).
+    let standings = sim.race().map(|race| race.standings());
     out.extend(sim.players().take(MAX_PLAYERS_PER_SNAPSHOT).map(|(slot, p)| PlayerSnap {
         id: slot as u8,
         character: character_to_wire(p.state.character),
@@ -32,6 +34,23 @@ pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
         held: sim.props().held_by(slot).map_or(NO_PROP, |h| h as u16),
         hp: p.combat.hp.min(255) as u8,
         shots: p.combat.shots as u8,
+        kart: sim.race().map(|race| {
+            let k = sim.kart(slot).copied().unwrap_or_default();
+            let progress = race.progress(slot).unwrap_or(crate::sim::race::Progress { lap: 0, next: 1, finished_at: None });
+            KartSnap {
+                driver: sim.driver(slot).map_or(0, |d| d.wire()),
+                boost_ticks: k.boost_ticks.min(255) as u8,
+                spin_ticks: k.spin_ticks.min(255) as u8,
+                drift_dir: k.drift_dir,
+                jump_held: k.jump_held,
+                finished: progress.finished_at.is_some(),
+                drift_charge_ms: (k.drift_charge * 1000.0).round().clamp(0.0, 65535.0) as u16,
+                slip: (k.slip_charge * 200.0).round().clamp(0.0, 200.0) as u8,
+                lap: progress.lap,
+                next_gate: progress.next,
+                place: standings.as_ref().and_then(|s| s.iter().position(|row| row.player == slot)).map_or(0, |i| i as u8 + 1),
+            }
+        }),
     }));
 }
 

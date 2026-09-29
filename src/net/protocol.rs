@@ -28,7 +28,7 @@ pub const MAGIC: u16 = 0x5244;
 /// v9: the weapon numbers on the wire (indices of `weapons::Weapon::ALL`) changed when the silver revolver left the list.
 /// v10 (ADR 0044): join proofs use a new domain (bound to the TLS exporter on QUIC), and a snapshot carries only as many props as the
 /// client's transport datagram budget allows.
-pub const PROTOCOL_VERSION: u16 = 10;
+pub const PROTOCOL_VERSION: u16 = 11;
 /// Largest message either side accepts, and the development UDP datagram budget (under a typical 1500-byte MTU). On QUIC the budget is
 /// the connection's current `max_datagram_size` (about 1150 bytes on a fresh 1200-byte path MTU); messages above it travel on a stream.
 pub const MAX_PACKET: usize = 1400;
@@ -328,6 +328,8 @@ pub struct PlayerSnap {
     pub hp: u8,
     /// Firearm shots this player has fired (wrapping): a client that sees it grow plays the shot (a sound, a muzzle flash) at their position.
     pub shots: u8,
+    /// The player's kart, in a race match; `None` everywhere else.
+    pub kart: Option<KartSnap>,
 }
 
 /// [`PlayerSnap::flags`] bit: the player is under spawn protection (cannot be hurt yet).
@@ -335,6 +337,55 @@ pub const FLAG_PROTECTED: u8 = 8;
 
 /// `PlayerSnap::held` when the player carries nothing.
 pub const NO_PROP: u16 = u16::MAX;
+
+/// Wire-only bit of a player's flags byte: a [`KartSnap`] follows the player record (race matches only; other matches cost nothing).
+const WIRE_KART: u8 = 0x40;
+/// Wire-only bit of the player-count byte: a [`RaceSnap`] follows the counts (race matches only).
+const WIRE_RACE: u8 = 0x80;
+/// Bytes a kart block adds to each player in a race snapshot.
+pub const KART_BYTES: usize = 10;
+/// Bytes the race header adds to a race snapshot.
+pub const RACE_HEADER_BYTES: usize = 7;
+
+/// A kart's own state in a snapshot (race matches): everything the driver's client needs to predict the kart exactly, and what every client needs to
+/// draw and rank it. Boost and spin-out are in ticks, the drift charge in milliseconds, so the values are exact enough that a replay of unacknowledged
+/// inputs on top of them reproduces the server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct KartSnap {
+    /// Which of the eight drivers (`sim::kart::Driver::wire`).
+    pub driver: u8,
+    /// Ticks of boost left.
+    pub boost_ticks: u8,
+    /// Ticks of spin-out left.
+    pub spin_ticks: u8,
+    /// `-1` drifting left, `0` not, `1` right.
+    pub drift_dir: i8,
+    /// Whether the hop/drift button was held on the last processed input.
+    pub jump_held: bool,
+    /// Whether they have finished the race.
+    pub finished: bool,
+    /// Drift charge banked, milliseconds.
+    pub drift_charge_ms: u16,
+    /// Slipstream banked, 0..=200 (a Wolf's bar; 200 = full).
+    pub slip: u8,
+    /// Laps completed.
+    pub lap: u8,
+    /// The next gate they must cross.
+    pub next_gate: u8,
+    /// Their place in the standings, from 1 (`0` = not ranked).
+    pub place: u8,
+}
+
+/// The race as of one snapshot: where it is in its life and the clock.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RaceSnap {
+    /// `0` countdown, `1` racing, `2` finished.
+    pub phase: u8,
+    /// Ticks of countdown left.
+    pub countdown_ticks: u16,
+    /// Ticks since the light went green.
+    pub race_tick: u32,
+}
 
 /// One prop's pose in a snapshot.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -366,6 +417,8 @@ pub struct Snapshot {
     pub players: Vec<PlayerSnap>,
     /// Props changed since the client's last acknowledged snapshot (possibly a subset; the rest follow).
     pub props: Vec<PropSnap>,
+    /// The race, in a race match; `None` everywhere else.
+    pub race: Option<RaceSnap>,
 }
 
 /// Per-client feedback carried by every [`Snapshot`]: counters that only ever grow (wrapping), so a lost snapshot loses nothing.
@@ -802,15 +855,20 @@ impl ServerMsg {
                     w.u8(b);
                 }
                 let np = s.players.len().min(MAX_PLAYERS_PER_SNAPSHOT);
-                w.u8(np as u8);
+                w.u8(np as u8 | if s.race.is_some() { WIRE_RACE } else { 0 });
                 let nq = s.props.len().min(MAX_PROPS_PER_SNAPSHOT);
                 w.u8(nq as u8);
+                if let Some(race) = &s.race {
+                    w.u8(race.phase);
+                    w.u16(race.countdown_ticks);
+                    w.u32(race.race_tick);
+                }
                 for p in &s.players[..np] {
                     let moving = p.velocity != [0.0; 2];
                     w.u8(p.id);
                     w.u8(p.character);
-                    // Bit 7 is a wire-only velocity-presence flag.
-                    w.u8((p.flags & 0x7f) | if moving { 0x80 } else { 0 });
+                    // Bit 7 is a wire-only velocity-presence flag, bit 6 a wire-only kart-block flag.
+                    w.u8((p.flags & 0x3f) | if moving { 0x80 } else { 0 } | if p.kart.is_some() { WIRE_KART } else { 0 });
                     for v in p.pos {
                         w.f32(v);
                     }
@@ -826,6 +884,17 @@ impl ServerMsg {
                     w.u16(p.held);
                     w.u8(p.hp);
                     w.u8(p.shots);
+                    if let Some(k) = &p.kart {
+                        w.u8(k.driver);
+                        w.u8(k.boost_ticks);
+                        w.u8(k.spin_ticks);
+                        w.u8((k.drift_dir.signum() + 1) as u8 | (k.jump_held as u8) << 2 | (k.finished as u8) << 3);
+                        w.u16(k.drift_charge_ms);
+                        w.u8(k.slip);
+                        w.u8(k.lap);
+                        w.u8(k.next_gate);
+                        w.u8(k.place);
+                    }
                 }
                 for q in &s.props[..nq] {
                     w.u16(q.id);
@@ -922,10 +991,20 @@ impl ServerMsg {
                 let (seq, server_tick, ack_input_seq, echo_time_ms) = (r.u32()?, r.u32()?, r.u32()?, r.u32()?);
                 let echo_hold_ms = r.u16()?;
                 let fx = Feedback { hits: r.u8()?, hurt: r.u8()?, kills: r.u8()?, bearing: r.u8()?, respawn: r.u8()? };
-                let (np, nq) = (r.u8()? as usize, r.u8()? as usize);
+                let (np_byte, nq) = (r.u8()?, r.u8()? as usize);
+                let (np, has_race) = ((np_byte & !WIRE_RACE) as usize, np_byte & WIRE_RACE != 0);
                 if np > MAX_PLAYERS_PER_SNAPSHOT || nq > MAX_PROPS_PER_SNAPSHOT {
                     return Err(DecodeError::OutOfRange);
                 }
+                let race = if has_race {
+                    let (phase, countdown_ticks, race_tick) = (r.u8()?, r.u16()?, r.u32()?);
+                    if phase > 2 {
+                        return Err(DecodeError::OutOfRange);
+                    }
+                    Some(RaceSnap { phase, countdown_ticks, race_tick })
+                } else {
+                    None
+                };
                 let mut players = Vec::with_capacity(np);
                 for _ in 0..np {
                     let id = r.u8()?;
@@ -934,7 +1013,7 @@ impl ServerMsg {
                     players.push(PlayerSnap {
                         id,
                         character,
-                        flags: flags & 0x7f,
+                        flags: flags & 0x3f,
                         pos: [r.f32()?, r.f32()?, r.f32()?],
                         yaw: r.f32()?,
                         pitch: r.f32()?,
@@ -945,13 +1024,35 @@ impl ServerMsg {
                         held: r.u16()?,
                         hp: r.u8()?,
                         shots: r.u8()?,
+                        kart: if flags & WIRE_KART != 0 {
+                            let (driver, boost_ticks, spin_ticks, status) = (r.u8()?, r.u8()?, r.u8()?, r.u8()?);
+                            let (drift_charge_ms, slip, lap, next_gate, place) = (r.u16()?, r.u8()?, r.u8()?, r.u8()?, r.u8()?);
+                            if status & 3 > 2 || driver > 7 || slip > 200 {
+                                return Err(DecodeError::OutOfRange);
+                            }
+                            Some(KartSnap {
+                                driver,
+                                boost_ticks,
+                                spin_ticks,
+                                drift_dir: (status & 3) as i8 - 1,
+                                jump_held: status & 4 != 0,
+                                finished: status & 8 != 0,
+                                drift_charge_ms,
+                                slip,
+                                lap,
+                                next_gate,
+                                place,
+                            })
+                        } else {
+                            None
+                        },
                     });
                 }
                 let mut props = Vec::with_capacity(nq);
                 for _ in 0..nq {
                     props.push(PropSnap { id: r.u16()?, pos: [r.f32()?, r.f32()?, r.f32()?], rot: [r.f32()?, r.f32()?, r.f32()?, r.f32()?] });
                 }
-                ServerMsg::Snapshot(Snapshot { seq, server_tick, ack_input_seq, echo_time_ms, echo_hold_ms, fx, players, props })
+                ServerMsg::Snapshot(Snapshot { seq, server_tick, ack_input_seq, echo_time_ms, echo_hold_ms, fx, players, props, race })
             }
             KIND_S_BYE => ServerMsg::Bye,
             k => return Err(DecodeError::UnknownKind(k)),
@@ -1201,11 +1302,22 @@ mod tests {
                 held: 7,
                 hp: 80,
                 shots: 200 + i,
+                kart: None,
             })
             .collect();
         let props = (0..MAX_PROPS_PER_SNAPSHOT as u16).map(|i| PropSnap { id: i, pos: [1.0, 2.0, 3.0], rot: [0.0, 0.0, 0.0, 1.0] }).collect();
         let fx = Feedback { hits: 250, hurt: 3, kills: 255, bearing: 128, respawn: 27 };
-        roundtrip_s(ServerMsg::Snapshot(Snapshot { seq: 5, server_tick: 100, ack_input_seq: 90, echo_time_ms: 77, echo_hold_ms: 12, fx, players, props }));
+        roundtrip_s(ServerMsg::Snapshot(Snapshot {
+            seq: 5,
+            server_tick: 100,
+            ack_input_seq: 90,
+            echo_time_ms: 77,
+            echo_hold_ms: 12,
+            fx,
+            players,
+            props,
+            race: None,
+        }));
     }
 
     #[test]
@@ -1231,16 +1343,100 @@ mod tests {
                     weapon: 0,
                     held: NO_PROP,
                     hp: 100,
-                    shots: 0
+                    shots: 0,
+                    kart: None
                 };
                 MAX_PLAYERS_PER_SNAPSHOT
             ],
             props: vec![PropSnap { id: 0, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }; MAX_PROPS_PER_SNAPSHOT],
+            race: None,
         };
         let mut b = Vec::new();
         ServerMsg::Snapshot(s).encode(&mut b);
         assert_eq!(b.len(), snapshot_bytes(MAX_PLAYERS_PER_SNAPSHOT, MAX_PROPS_PER_SNAPSHOT));
         assert!(b.len() < MAX_PACKET, "{}", b.len());
+    }
+
+    fn race_snapshot(props: usize) -> Snapshot {
+        let players = (0..MAX_PLAYERS_PER_SNAPSHOT as u8)
+            .map(|i| PlayerSnap {
+                id: i,
+                character: 0,
+                flags: 0,
+                pos: [i as f32, 0.0, -3.0],
+                yaw: 1.5,
+                pitch: 0.0,
+                speed: 20.0,
+                vy: 0.0,
+                velocity: [20.0, 1.0],
+                weapon: 0,
+                held: NO_PROP,
+                hp: 100,
+                shots: 0,
+                kart: Some(KartSnap {
+                    driver: i,
+                    boost_ticks: 30 + i,
+                    spin_ticks: i * 5,
+                    drift_dir: i as i8 % 3 - 1,
+                    jump_held: i % 2 == 0,
+                    finished: i == 7,
+                    drift_charge_ms: 3200 + i as u16,
+                    slip: 200 - i,
+                    lap: i % 3,
+                    next_gate: i,
+                    place: i + 1,
+                }),
+            })
+            .collect();
+        Snapshot {
+            seq: 9,
+            server_tick: 1234,
+            ack_input_seq: 1200,
+            echo_time_ms: 5,
+            echo_hold_ms: 1,
+            fx: Feedback::default(),
+            players,
+            props: vec![PropSnap { id: 0, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }; props],
+            race: Some(RaceSnap { phase: 1, countdown_ticks: 0, race_tick: 4_000_000_000 }),
+        }
+    }
+
+    #[test]
+    fn a_race_snapshot_carries_every_kart_and_the_race_and_costs_nothing_elsewhere() {
+        roundtrip_s(ServerMsg::Snapshot(race_snapshot(0)));
+        roundtrip_s(ServerMsg::Snapshot(race_snapshot(MAX_PROPS_PER_SNAPSHOT)));
+        let mut race = Vec::new();
+        ServerMsg::Snapshot(race_snapshot(0)).encode(&mut race);
+        let mut plain_snapshot = race_snapshot(0);
+        plain_snapshot.race = None;
+        plain_snapshot.players.iter_mut().for_each(|p| p.kart = None);
+        let mut plain = Vec::new();
+        ServerMsg::Snapshot(plain_snapshot).encode(&mut plain);
+        assert_eq!(race.len() - plain.len(), RACE_HEADER_BYTES + MAX_PLAYERS_PER_SNAPSHOT * KART_BYTES, "exactly the documented overhead");
+        assert_eq!(plain.len(), snapshot_bytes(MAX_PLAYERS_PER_SNAPSHOT, 0), "a match without a race is byte for byte what it was");
+        // The server takes the overhead out of the props' room, so a race snapshot always fits the transport's datagram.
+        for budget in [1200usize, 1252, 1400] {
+            let overhead = RACE_HEADER_BYTES + KART_BYTES * MAX_PLAYERS_PER_SNAPSHOT;
+            let props = snapshot_prop_budget(budget - overhead, MAX_PLAYERS_PER_SNAPSHOT);
+            let mut b = Vec::new();
+            ServerMsg::Snapshot(race_snapshot(props)).encode(&mut b);
+            assert!(b.len() <= budget, "budget {budget}: {} bytes with {props} props", b.len());
+        }
+        assert!(race.len() < MAX_PACKET);
+    }
+
+    #[test]
+    fn a_kart_block_with_impossible_values_is_rejected() {
+        let bad = |edit: &dyn Fn(&mut Snapshot)| {
+            let mut s = race_snapshot(0);
+            edit(&mut s);
+            let mut b = Vec::new();
+            ServerMsg::Snapshot(s).encode(&mut b);
+            assert!(ServerMsg::decode(&b).is_err());
+        };
+        bad(&|s| s.players[0].kart.as_mut().unwrap().driver = 8);
+        bad(&|s| s.players[0].kart.as_mut().unwrap().slip = 201);
+        bad(&|s| s.race.as_mut().unwrap().phase = 3);
     }
 
     #[test]
@@ -1269,6 +1465,7 @@ mod tests {
             fx: Feedback::default(),
             players: vec![],
             props: vec![PropSnap { id: 1, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }],
+            race: None,
         })
         .encode(&mut valid);
         for cut in 0..valid.len() {

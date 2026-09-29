@@ -1039,7 +1039,9 @@ impl Server {
             // with the path MTU. Props that do not fit stay unconfirmed and go in the next snapshot, oldest first.
             let tag = if self.secure { 0 } else { TAG_LEN };
             let budget = self.transport.max_datagram(self.sessions[i].addr).saturating_sub(tag);
-            let max_props = snapshot_prop_budget(budget, self.visible_scratch.len());
+            // A race snapshot also carries the race header and a kart block per player: take them out of the room props may use.
+            let race_bytes = if self.sim.race().is_some() { RACE_HEADER_BYTES + KART_BYTES * self.visible_scratch.len() } else { 0 };
+            let max_props = snapshot_prop_budget(budget.saturating_sub(race_bytes), self.visible_scratch.len());
             let s = &mut self.sessions[i];
             props_to_send(&self.sim, self.interest.as_ref(), room, &s.known, &mut self.changed, &mut self.props_scratch, &mut self.sent_scratch, max_props);
             s.snapshot_seq = s.snapshot_seq.wrapping_add(1);
@@ -1057,6 +1059,15 @@ impl Server {
                 fx: feedback_of(&self.sim, slot),
                 players: std::mem::take(&mut self.visible_scratch),
                 props: std::mem::take(&mut self.props_scratch),
+                race: self.sim.race().map(|r| RaceSnap {
+                    phase: match r.phase() {
+                        crate::sim::race::Phase::Countdown => 0,
+                        crate::sim::race::Phase::Racing => 1,
+                        crate::sim::race::Phase::Finished => 2,
+                    },
+                    countdown_ticks: r.countdown_ticks_left().min(65_535) as u16,
+                    race_tick: r.race_tick(),
+                }),
             };
             self.stats.players_sent += snap.players.len() as u64;
             self.stats.props_sent += snap.props.len() as u64;
