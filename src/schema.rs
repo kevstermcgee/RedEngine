@@ -78,6 +78,8 @@ pub struct Scene {
     pub sky: Option<crate::atmosphere::Sky>,
     /// The endless water plane (`ocean` block), if the scene has one.
     pub ocean: Option<crate::atmosphere::Ocean>,
+    /// The kart race (`race` block), if the scene has one: its presence turns every player into a kart driver (`sim::kart`, `sim::race`).
+    pub race: Option<std::sync::Arc<crate::sim::race::RaceCourse>>,
 }
 
 /// Sky: a flat color or a vertical gradient.
@@ -1130,6 +1132,9 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         }
     };
 
+    // A bad `race` block is reported by the strict section check (`strict::check_sections`) with the same message; here it only has to be read.
+    let race = crate::sim::race::RaceCourse::from_scene_json(root).ok().flatten().map(std::sync::Arc::new);
+
     if !ctx.errors.is_empty() {
         return Err(ctx.errors);
     }
@@ -1157,6 +1162,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         music,
         sky,
         ocean,
+        race,
     })
 }
 

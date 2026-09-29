@@ -50,7 +50,21 @@ impl MatchSim {
                 props.f(f);
             }
         }
-        (players.0, props.0, self.rules.checksum())
+        // A kart race adds its own state to the rules part; a match without one hashes exactly as before, so older traces still replay.
+        let mut rules = self.rules.checksum();
+        if let Some(race) = &self.race {
+            let mut karts = Hasher::new();
+            karts.mix(race.checksum());
+            for (slot, _) in self.players() {
+                let k = &self.karts[slot];
+                karts.mix(slot as u64 | (self.drivers[slot].wire() as u64) << 8);
+                karts.mix(k.boost_ticks as u64 | (k.drift_dir as u8 as u64) << 16 | (k.spin_ticks as u64) << 24 | (k.jump_held as u64) << 40);
+                karts.f(k.drift_charge);
+                karts.f(k.slip_charge);
+            }
+            rules ^= karts.0.rotate_left(17);
+        }
+        (players.0, props.0, rules)
     }
 
     /// A 64-bit checksum of the whole simulation state (players, promoted props' poses, rules), bit-exact.

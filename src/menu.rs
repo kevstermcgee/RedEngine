@@ -108,6 +108,7 @@ pub fn menu_scene() -> Scene {
         music: false,
         sky: None,
         ocean: None,
+        race: None,
         lights: vec![
             point_light("key", Vec3::new(-2.5, 3.2, 3.0), "#ffe6c4", 26.0, 14.0),
             point_light("rim", Vec3::new(2.8, 2.6, -1.5), "#9cc0ff", 20.0, 12.0),

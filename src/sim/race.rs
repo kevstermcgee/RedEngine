@@ -418,7 +418,7 @@ mod tests {
     const CORNERS: [Vec2; 4] = [Vec2::new(0.0, -40.0), Vec2::new(40.0, 0.0), Vec2::new(0.0, 40.0), Vec2::new(-40.0, 0.0)];
 
     /// Drives player `i` from wherever it is through `points` at `step` metres per tick, ticking the race with everyone else held at `others`.
-    fn drive(race: &mut RaceState, positions: &mut Vec<Option<Vec2>>, i: usize, points: &[Vec2], step: f32) {
+    fn drive(race: &mut RaceState, positions: &mut [Option<Vec2>], i: usize, points: &[Vec2], step: f32) {
         for &target in points {
             loop {
                 let here = positions[i].unwrap();
@@ -544,7 +544,7 @@ mod tests {
         pos[1] = Some(Vec2::new(0.0, -46.0));
         pos[2] = Some(Vec2::new(0.0, -46.0));
         // Player 2 clears the east gate; player 1 gets near it; player 0 stays on the grid.
-        let mut only = |i: usize, points: &[Vec2], race: &mut RaceState, pos: &mut Vec<Option<Vec2>>| drive(race, pos, i, points, 0.4);
+        let only = |i: usize, points: &[Vec2], race: &mut RaceState, pos: &mut [Option<Vec2>]| drive(race, pos, i, points, 0.4);
         only(2, &[Vec2::new(0.0, -34.0), CORNERS[1], Vec2::new(40.0, 5.0)], &mut race, &mut pos);
         only(1, &[Vec2::new(0.0, -34.0), Vec2::new(30.0, -5.0)], &mut race, &mut pos);
         let order: Vec<usize> = race.standings().iter().map(|s| s.player).collect();
@@ -564,7 +564,7 @@ mod tests {
         let mut pos = vec![grid, grid, None]; // slot 2 never connected
         race.tick(&pos);
         drive(&mut race, &mut pos, 0, &[Vec2::new(0.0, -34.0), CORNERS[1], CORNERS[2], CORNERS[3], CORNERS[0], Vec2::new(4.0, -34.0)], 0.4);
-        assert_eq!(race.progress(0).unwrap().finished_at.is_some(), true);
+        assert!(race.progress(0).unwrap().finished_at.is_some());
         assert_eq!(race.phase(), Phase::Racing, "player 1 is on the grid and still has their second");
         let finished = race.progress(0).unwrap().finished_at.unwrap();
         while race.race_tick() < finished + 59 {

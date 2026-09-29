@@ -17,7 +17,9 @@ use crate::physics::PropWorld;
 use crate::player::Character;
 use crate::schema::Scene;
 use crate::sim::interact::Combat;
+use crate::sim::kart::{kart_bump, step_kart, Driver, KartState, Surface};
 use crate::sim::player::{step_player_tuned, PlayerInput, PlayerState};
+use crate::sim::race::RaceState;
 use crate::sim::rules::Target;
 use crate::sim::rules_run::{Effect, GameEvent, RulePlayer, RulesEngine};
 use crate::sim::spawns::Spawn;
@@ -93,6 +95,12 @@ pub struct MatchSim {
     rule_object_index: HashMap<String, u16>,
     recorder: Option<Trace>,
     events_out: Vec<GameEvent>,
+    /// The kart race (the scene's `race` block), if this match is one: every player then drives a kart (`sim::kart`) and progress is tracked here.
+    pub(super) race: Option<RaceState>,
+    /// Every slot's kart memory (boost, drift, spin-out); untouched outside a race.
+    pub(super) karts: Vec<KartState>,
+    /// Every slot's driver, which decides its kart's numbers.
+    pub(super) drivers: Vec<Driver>,
 }
 
 impl MatchSim {
@@ -153,7 +161,36 @@ impl MatchSim {
                 .collect(),
             recorder: None,
             events_out: Vec::new(),
+            race: scene.race.clone().map(|course| RaceState::new(course, MAX_PLAYERS)),
+            karts: vec![KartState::default(); MAX_PLAYERS],
+            drivers: (0..MAX_PLAYERS).map(|slot| Driver::ALL[slot % Driver::ALL.len()]).collect(),
         })
+    }
+
+    /// The race, if this match is one: its phase, countdown, laps and standings.
+    pub fn race(&self) -> Option<&RaceState> {
+        self.race.as_ref()
+    }
+
+    /// A slot's kart memory (boost, drift, spin-out), if it has a player.
+    pub fn kart(&self, slot: usize) -> Option<&KartState> {
+        self.players.get(slot)?.as_ref().map(|_| &self.karts[slot])
+    }
+
+    /// The driver a slot drives as (the default is one animal per slot, in order; the lobby's character choice replaces it).
+    pub fn driver(&self, slot: usize) -> Option<Driver> {
+        self.drivers.get(slot).copied()
+    }
+
+    /// Chooses a slot's driver. Only meaningful before the light goes green.
+    pub fn set_driver(&mut self, slot: usize, driver: Driver) -> bool {
+        match self.drivers.get_mut(slot) {
+            Some(d) => {
+                *d = driver;
+                true
+            }
+            None => false,
+        }
     }
 
     /// Ticks run so far.
@@ -244,6 +281,7 @@ impl MatchSim {
             newest_received_seq: 0,
             queue: VecDeque::new(),
         });
+        self.karts[slot] = KartState::default();
         let body = state.character.body();
         self.props.set_player_slot(slot, glam::Vec3::new(state.pos.x, state.foot_y, state.pos.y), body.radius, body.body_height);
         if let Some(r) = &mut self.recorder {
@@ -326,8 +364,12 @@ impl MatchSim {
     /// props, step the physics, run the scene's rules (which may teleport players or shove props).
     pub fn tick_once(&mut self) {
         self.run_bots();
+        // In a race every player is a kart driver: no weapons, no carrying, and the countdown holds the karts on the grid.
+        let racing = self.race.as_ref().map(RaceState::can_drive);
         for slot in 0..self.players.len() {
-            self.combat_tick(slot);
+            if racing.is_none() {
+                self.combat_tick(slot);
+            }
             let Some(p) = self.players[slot].as_mut() else { continue };
             let dead = p.combat.is_dead();
             let budget = if p.queue.len() > INPUT_QUEUE_TARGET { 2 } else { 1 };
@@ -337,6 +379,14 @@ impl MatchSim {
             }
             for input in inputs.into_iter().flatten() {
                 let Some(p) = self.players[slot].as_mut() else { break };
+                if let Some(green) = racing {
+                    let input = if green { input } else { PlayerInput { seq: input.seq, ..Default::default() } };
+                    let spec = self.drivers[slot].spec();
+                    p.speed = step_kart(&mut p.state, &mut self.karts[slot], &input, &spec, Surface::Road, &self.colliders, &self.ground);
+                    p.crouching = false;
+                    p.last_processed_seq = input.seq;
+                    continue;
+                }
                 if !dead {
                     p.speed = step_player_tuned(&mut p.state, &input, &self.colliders, &self.ground, self.player_tuning, &self.jump_pads);
                     p.crouching = input.crouch;
@@ -344,10 +394,15 @@ impl MatchSim {
                 p.last_processed_seq = input.seq;
                 self.handle_actions(slot, &input);
             }
-            self.update_held(slot);
+            if racing.is_none() {
+                self.update_held(slot);
+            }
             let Some(p) = self.players[slot].as_ref() else { continue };
             let body = p.state.character.body();
             self.props.set_player_slot(slot, glam::Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y), body.radius, body.body_height);
+        }
+        if self.race.is_some() {
+            self.kart_bumps_and_race();
         }
         self.props.step();
         let mut frame = [None; MAX_PLAYERS];
@@ -361,6 +416,30 @@ impl MatchSim {
         self.tick += 1;
         self.run_rules();
         self.record_checkpoint();
+    }
+
+    /// Karts touching each other trade momentum (a Bear spins the other out), then the race counts gates from where everyone ended up.
+    fn kart_bumps_and_race(&mut self) {
+        for a in 0..self.players.len() {
+            for b in a + 1..self.players.len() {
+                let (Some(pa), Some(pb)) = (&self.players[a], &self.players[b]) else { continue };
+                let bump = kart_bump(pa.state.pos, pa.state.velocity, &self.drivers[a].spec(), pb.state.pos, pb.state.velocity, &self.drivers[b].spec());
+                let Some(bump) = bump else { continue };
+                for (slot, push, dv, spin) in [(a, bump.push_a, bump.dv_a, bump.spin_a), (b, bump.push_b, bump.dv_b, bump.spin_b)] {
+                    if let Some(p) = self.players[slot].as_mut() {
+                        p.state.pos += push;
+                        p.state.velocity += dv;
+                    }
+                    if spin > 0 {
+                        self.karts[slot].spin_out(spin);
+                    }
+                }
+            }
+        }
+        let positions: Vec<Option<Vec2>> = self.players.iter().map(|p| p.as_ref().map(|p| p.state.pos)).collect();
+        if let Some(race) = self.race.as_mut() {
+            race.tick(&positions);
+        }
     }
 
     fn run_rules(&mut self) {
