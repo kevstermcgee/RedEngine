@@ -218,16 +218,25 @@ impl App {
         self.props.as_ref().is_some_and(|p| p.held().is_some())
     }
 
-    /// E: drop what is carried (it keeps the player's momentum), else pick up the prop under the crosshair.
+    /// E: drop what is carried (the same release velocity the server gives: the player's own motion plus `player.throw_speed`
+    /// along the look), else pick up the prop under the crosshair.
     pub(crate) fn interact(&mut self) {
         if self.net.is_some() {
             self.net_pulse[0] = NET_PULSE_TICKS; // the server picks up / drops
             return;
         }
-        let toss = self.camera.forward_flat() * 1.0;
         let Some(props) = self.props.as_mut() else { return };
         if props.held().is_some() {
-            props.drop_held(self.player_vel + toss);
+            let state = PlayerState {
+                pos: self.physics_pos,
+                foot_y: self.foot_y,
+                vy: self.vertical_velocity,
+                velocity: self.horizontal_velocity,
+                yaw: self.camera.yaw,
+                pitch: self.camera.pitch,
+                character: self.character,
+            };
+            props.drop_held(red_engine2::sim::player::release_velocity(&state, self.camera.forward(), self.scene.player.throw_speed));
             self.rules.inject(self.clock.ticks_run(), "drop", Some(0));
         } else if let Some(p) = self.pickup_target {
             props.pick_up(p);

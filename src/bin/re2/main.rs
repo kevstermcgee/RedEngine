@@ -231,8 +231,6 @@ struct App {
     props: Option<PropWorld>,
     /// The loose prop under the crosshair that this character can pick up.
     pickup_target: Option<usize>,
-    /// The player's planar velocity, m/s (a dropped prop inherits it).
-    player_vel: Vec3,
     camera: FpsCamera,
     phase: Phase,
     /// Who the player is (and, in the menu, which card is highlighted).
@@ -479,7 +477,6 @@ impl App {
             hit_shapes: Vec::new(),
             props: None,
             pickup_target: None,
-            player_vel: Vec3::ZERO,
             camera,
             phase: Phase::Menu,
             character,

@@ -333,8 +333,8 @@ impl MatchSim {
         let (eye, look) = eye_and_look(&p.state, p.crouching);
         let body = p.state.character.body();
         if self.props.held_by(slot).is_some() {
-            let flat = Vec3::new(look.x, 0.0, look.z).normalize_or_zero();
-            if self.props.drop_held_by(slot, flat).is_some() {
+            let velocity = crate::sim::player::release_velocity(&p.state, look, self.player_tuning.throw_speed);
+            if self.props.drop_held_by(slot, velocity).is_some() {
                 self.rules.inject(self.tick, "drop", Some(slot));
             }
         } else if let Some(prop) = self.props.pick_target_for(slot, eye, look, body.pickup_reach, &body.carry) {

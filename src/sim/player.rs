@@ -8,7 +8,15 @@
 
 use crate::collide::{Collider2D, GroundCandidates};
 use crate::player::{step_horizontal_band, vertical_step_on, vertical_step_on_tuned, BodySpec, Character, JumpPad, PlayerTuning, CROUCH_SPEED_MULT, FIXED_DT};
-use glam::Vec2;
+use glam::{Vec2, Vec3};
+
+/// The velocity a carried prop leaves the hand with: the holder's own motion (horizontal `velocity` and vertical `vy`)
+/// plus `throw_speed` (the scene's `player.throw_speed`, 1 m/s by default) along the look direction, pitch included. The
+/// offline client and the authoritative server both call this, so a throw is the same game everywhere
+/// (ADR 2026-09-29-one-release-velocity). Standing still it is a plain toss; sprinting and looking up it is a throw.
+pub fn release_velocity(state: &PlayerState, look: Vec3, throw_speed: f32) -> Vec3 {
+    Vec3::new(state.velocity.x, state.vy, state.velocity.y) + look.normalize_or_zero() * throw_speed
+}
 
 /// Everything about a player the simulation owns.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -386,5 +394,25 @@ mod tests {
         assert_eq!(a, b, "authored movement stays bit-identical");
         assert!(a.pos.x > -18.0, "fast profile moved {:.2} m", a.pos.x + 22.0);
         assert!(a.foot_y > 1.0, "jump pad launched to y={}", a.foot_y);
+    }
+
+    #[test]
+    fn a_released_prop_inherits_the_holders_motion_plus_a_throw_along_the_look() {
+        use super::{release_velocity, PlayerState};
+        use glam::{Vec2, Vec3};
+        let mut state = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, crate::player::Character::Human);
+        let level = Vec3::X;
+        // Standing still: a plain toss of `throw_speed` along the look.
+        assert_eq!(release_velocity(&state, level, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        // Sprinting at 8 m/s: the prop keeps that momentum, plus the toss.
+        state.velocity = Vec2::new(8.0, 0.0);
+        assert_eq!(release_velocity(&state, level, 1.0), Vec3::new(9.0, 0.0, 0.0));
+        // Jumping adds the vertical velocity; looking up 45 degrees at throw speed 6 gives a real upward throw.
+        state.vy = 2.0;
+        let up45 = Vec3::new(0.5f32.sqrt(), 0.5f32.sqrt(), 0.0);
+        let v = release_velocity(&state, up45, 6.0);
+        assert!((v.x - (8.0 + 6.0 * 0.5f32.sqrt())).abs() < 1e-5 && (v.y - (2.0 + 6.0 * 0.5f32.sqrt())).abs() < 1e-5 && v.z == 0.0, "{v}");
+        // The look direction is normalised, so a long vector is not a stronger throw.
+        assert_eq!(release_velocity(&state, level * 50.0, 1.0), release_velocity(&state, level, 1.0));
     }
 }

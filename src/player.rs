@@ -35,6 +35,9 @@ pub struct PlayerTuning {
     pub friction: f32,
     /// Maximum accumulated horizontal speed for momentum movement, m/s.
     pub max_speed: f32,
+    /// Speed a released prop gets along the look direction on top of the holder's own velocity, m/s
+    /// (`sim::player::release_velocity`).
+    pub throw_speed: f32,
 }
 
 impl Default for PlayerTuning {
@@ -51,6 +54,7 @@ impl Default for PlayerTuning {
             air_acceleration: 1.0,
             friction: 6.0,
             max_speed: 20.0,
+            throw_speed: THROW_SPEED,
         }
     }
 }
@@ -83,6 +87,8 @@ pub const FIXED_DT: f32 = crate::sim::clock::TICK_DT;
 
 /// Walking speed, m/s.
 pub const WALK_SPEED: f32 = 3.2;
+/// Speed a released prop gets along the look on top of the holder's own velocity, m/s (`player.throw_speed`).
+pub const THROW_SPEED: f32 = 1.0;
 /// Sprint speed, m/s.
 pub const SPRINT_SPEED: f32 = 6.5;
 /// Multiplier applied to speed while crouching.

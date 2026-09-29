@@ -122,8 +122,6 @@ impl App {
         self.horizontal_velocity = st.velocity;
 
         // Loose props: the player's body shoves what it walks into, then the world steps.
-        let d = (self.physics_pos - self.prev_physics_pos) / FIXED_DT;
-        self.player_vel = Vec3::new(d.x, 0.0, d.y);
         if let Some(props) = &mut self.props {
             props.set_player(Vec3::new(self.physics_pos.x, self.foot_y, self.physics_pos.y), self.body.radius, self.body.body_height);
             props.step();

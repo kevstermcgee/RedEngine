@@ -29,8 +29,8 @@
     "prop_physics": {
       "summary": "Rapier rigid-body props that stay dormant until touched; pick-up, drop, knock-over; exact hit shapes.",
       "files": ["src/physics/**", "src/hit.rs"],
-      "tests": ["lib:physics", "lib:hit", "prop_physics", "melee_hits"],
-      "docs": ["docs/adr/0012-rapier-prop-physics-dormant-until-disturbed.md", "docs/adr/0011-two-characters-and-exact-melee-hits.md"],
+      "tests": ["lib:physics", "lib:hit", "prop_physics", "melee_hits", "throw"],
+      "docs": ["docs/adr/0012-rapier-prop-physics-dormant-until-disturbed.md", "docs/adr/0011-two-characters-and-exact-melee-hits.md", "docs/adr/2026-09-29-one-release-velocity.md"],
       "depends_on": ["player_physics"]
     },
     "combat_weapons": {

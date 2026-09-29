@@ -123,6 +123,7 @@ impl PropWorld {
         }
         // Whatever rests on it starts to fall the moment it is lifted away.
         self.activate(prop);
+        self.end_grace(prop);
         let Some(body) = self.body_of(prop) else { return false };
         let pose = self.world.bodies[body].position().to_mat4();
         self.world.bodies[body].set_enabled(false);
@@ -147,7 +148,9 @@ impl PropWorld {
         self.drop_held_by(0, velocity)
     }
 
-    /// `holder` lets go: the prop re-enters the simulation where it is, moving at `velocity`.
+    /// `holder` lets go: the prop re-enters the simulation where it is, moving at `velocity` (see
+    /// `sim::player::release_velocity` for what a player gives it), and for [`RELEASE_GRACE_TICKS`](super::RELEASE_GRACE_TICKS)
+    /// the holder's body ignores it, so the velocity and not a shove from the body decides where it goes.
     pub fn drop_held_by(&mut self, holder: usize, velocity: Vec3) -> Option<usize> {
         let i = self.held.iter().position(|h| h.holder == holder)?;
         let h = self.held.remove(i);
@@ -158,6 +161,7 @@ impl PropWorld {
         b.set_linvel(velocity, true);
         b.set_angvel(Vec3::ZERO, true);
         self.set_settled(h.prop, false);
+        self.start_grace(h.prop, holder);
         Some(h.prop)
     }
 
@@ -203,10 +207,11 @@ impl PropWorld {
     }
 
     /// Where to hold `prop` so it sits in front of a player at `eye` looking along `look`: upright,
-    /// pulled in if a wall is close. Looking **up** lifts it (overhead when looking straight up, kept
-    /// under any ceiling); looking down lowers it toward the floor. At level gaze it sits `drop` metres
-    /// below eye level, like a carried box. Returns the object's origin-frame transform. `radius` is the
-    /// player's collision radius, `floor_y` their feet.
+    /// pulled in if its own box would enter fixed geometry (the box is swept ahead at the height it will
+    /// be held, so a wall lower than the eye counts too). Looking **up** lifts it (overhead when looking
+    /// straight up, kept under any ceiling); looking down lowers it toward the floor. At level gaze it
+    /// sits `drop` metres below eye level, like a carried box. Returns the object's origin-frame
+    /// transform. `radius` is the player's collision radius, `floor_y` their feet.
     pub fn hold_pose(&self, prop: usize, eye: Vec3, look: Vec3, radius: f32, drop: f32, floor_y: f32) -> Mat4 {
         let s = self.props[prop].shape;
         let look = look.normalize_or_zero();
@@ -215,11 +220,13 @@ impl PropWorld {
         let (sin_p, cos_p) = (look.y.clamp(-1.0, 1.0), (1.0 - look.y * look.y).max(0.0).sqrt());
         let reach_r = 0.5 * s.extents.x.max(s.extents.z);
         let wanted = radius + reach_r + 0.12;
-        let clear = self.wall_distance(eye, flat, wanted + reach_r + 0.05);
-        let dist = wanted.min((clear - reach_r - 0.03).max(reach_r * 0.5));
-        // Horizontal reach shrinks as the gaze rises (overhead is right above you); the vertical part
-        // follows the pitch, and the level-gaze `drop` fades out as you look up.
-        let mut c = eye + flat * dist * cos_p.max(0.2) + Vec3::Y * (wanted * sin_p) - Vec3::Y * drop * (1.0 - sin_p.max(0.0));
+        // The vertical part follows the pitch, and the level-gaze `drop` fades out as you look up.
+        let lift = wanted * sin_p - drop * (1.0 - sin_p.max(0.0));
+        let centre_y = (eye.y + lift).max(floor_y + s.extents.y * 0.5 + 0.02);
+        let clear = self.box_clearance(Vec3::new(eye.x, centre_y, eye.z), Vec3::new(reach_r, s.extents.y * 0.5, reach_r), flat, wanted + 0.05);
+        let dist = wanted.min((clear - 0.03).max(reach_r * 0.5));
+        // Horizontal reach shrinks as the gaze rises (overhead is right above you).
+        let mut c = eye + flat * dist * cos_p.max(0.2) + Vec3::Y * lift;
         // Never through a ceiling; never below the floor (the floor wins).
         let up_room = self.wall_distance(eye, Vec3::Y, 3.0);
         c.y = c.y.min(eye.y + up_room - s.extents.y * 0.5 - 0.03);

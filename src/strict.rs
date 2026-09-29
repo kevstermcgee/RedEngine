@@ -63,6 +63,7 @@ pub const PLAYER_KEYS: &[&str] = &[
     "air_acceleration",
     "friction",
     "max_speed",
+    "throw_speed",
 ];
 /// One `jump_pads` entry.
 pub const JUMP_PAD_KEYS: &[&str] = &["id", "position", "size", "launch_speed"];

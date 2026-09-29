@@ -529,6 +529,7 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
         air_acceleration: ranged(ctx, obj, "air_acceleration", "player", d.air_acceleration, 0.0, 30.0),
         friction: ranged(ctx, obj, "friction", "player", d.friction, 0.0, 30.0),
         max_speed: ranged(ctx, obj, "max_speed", "player", d.max_speed.max(sprint_speed), sprint_speed, 50.0),
+        throw_speed: ranged(ctx, obj, "throw_speed", "player", d.throw_speed, 0.0, 30.0),
     }
 }
 

@@ -103,7 +103,10 @@ the authoritative server enforces that body. Omit it for games that intentionall
 is 60–120 degrees; `walk_speed` and `sprint_speed` are metres/second; `crouch_multiplier` scales horizontal
 speed; `jump_speed` and `gravity` control the vertical arc. Sprint speed must not be below walk speed.
 Omitting the movement fields keeps the engine defaults. Human offline play, the server, bots and prediction use
-the same values. The rat character retains its character-specific body profile.
+the same values. The rat character retains its character-specific body profile. `throw_speed` (0–30, default 1) is
+the speed a released prop gets along the look direction (pitch included) on top of the player's own horizontal and
+vertical velocity; the same release function runs offline and on the server, and for 10 ticks after a release the
+holder's body ignores the prop, so the arc decides where it lands (`red_engine2 describe physics`).
 
 Optional momentum fields: `acceleration` (0–100, default 0) enables acceleration/friction when positive;
 `air_acceleration` (0–30, default 1), `friction` (0–30, default 6), and `max_speed`
@@ -540,6 +543,11 @@ the simulation's maths uses `libm`, so Windows and Linux are expected to agree, 
 float noise from a real divergence when they do not. See ADR 0021.
 
 ## Physics rules a map author must know
+
+- **Releasing a carried prop** gives it your own horizontal and vertical velocity plus `player.throw_speed` (default 1 m/s) along your look,
+  identical offline and online, and your body ignores it for 10 ticks. Measured on `tests/fixtures/throw.json` (crate, walk 4.2 / sprint 8 m/s):
+  a standing release is a short toss (about 0.2 m of travel), walk-and-stop lands it about 1.7 m past the release point, sprint-and-stop about 4 m;
+  looking up 45 degrees with `throw_speed` 6 clears a 1.2 m ledge 2 m away. A body that keeps running into the landed prop still pushes it.
 
 The live viewer's player is a 0.35 m-radius circle, 2.0 m tall, that walks at 3.2 m/s:
 

@@ -34,7 +34,26 @@ use crate::sim::scratch::ScratchVec;
 use crate::sim::statics::{DynamicProp, PropState, StaticInstance};
 use crate::track::Track;
 use glam::{EulerRot, Mat4, Quat, Vec3};
-use rapier3d::prelude::{Aabb, ColliderBuilder, ColliderHandle, PhysicsWorld, Pose, QueryFilter, Ray, RigidBodyBuilder, RigidBodyHandle, SharedShape};
+use rapier3d::parry::query::ShapeCastOptions;
+use rapier3d::prelude::{
+    Aabb, ColliderBuilder, ColliderHandle, Cuboid, Group, InteractionGroups, InteractionTestMode, PhysicsWorld, Pose, QueryFilter, Ray, RigidBodyBuilder,
+    RigidBodyHandle, SharedShape,
+};
+
+/// Ticks after a release during which the holder's body ignores the prop it let go of, so the release velocity (not a shove
+/// from the body still moving into it) decides the arc (ADR 2026-09-29-one-release-velocity).
+pub const RELEASE_GRACE_TICKS: u32 = 10;
+
+/// The collision group of player `slot`'s body: a released prop filters its former holder out for [`RELEASE_GRACE_TICKS`].
+fn player_group(slot: usize) -> Group {
+    Group::from_bits_truncate(1u32 << slot.min(31))
+}
+
+/// A prop recently released: its colliders ignore `holder`'s body until `ticks_left` runs out.
+struct Grace {
+    prop: usize,
+    ticks_left: u32,
+}
 use std::collections::HashSet;
 
 mod classify;
@@ -110,6 +129,8 @@ pub struct PropWorld {
     players: Vec<Option<PlayerBody>>,
     /// Props being carried, one per player at most.
     held: Vec<Held>,
+    /// Props just released, still ignoring their former holder's body.
+    grace: Vec<Grace>,
     scratch: PropScratch,
 }
 
@@ -259,6 +280,7 @@ impl PropWorld {
             render_cursor: ChangeCursor::default(),
             players: vec![Some(PlayerBody { last_center: None, body: player, collider: None, dims: (0.0, 0.0) })],
             held: Vec::new(),
+            grace: Vec::new(),
             scratch: PropScratch::default(),
         }
     }
@@ -392,7 +414,12 @@ impl PropWorld {
             if let Some(c) = pb.collider.take() {
                 self.world.remove_collider(c);
             }
-            pb.collider = Some(self.world.insert_collider(ColliderBuilder::cylinder(height * 0.5, radius).friction(0.3).user_data(PLAYER_TAG), Some(pb.body)));
+            let groups = InteractionGroups::new(player_group(slot), Group::ALL, InteractionTestMode::And);
+            pb.collider =
+                Some(self.world.insert_collider(
+                    ColliderBuilder::cylinder(height * 0.5, radius).friction(0.3).user_data(PLAYER_TAG).collision_groups(groups),
+                    Some(pb.body),
+                ));
             pb.dims = (radius, height);
         }
         let center = foot + Vec3::new(0.0, height * 0.5, 0.0);
@@ -418,6 +445,17 @@ impl PropWorld {
     /// Advances the simulation one fixed step ([`crate::player::FIXED_DT`]). Only promoted props are
     /// visited; their new poses are published to their tracked transforms.
     pub fn step(&mut self) {
+        // A just-released prop becomes solid to its former holder again once the grace window has run out.
+        let mut i = 0;
+        while i < self.grace.len() {
+            self.grace[i].ticks_left = self.grace[i].ticks_left.saturating_sub(1);
+            if self.grace[i].ticks_left == 0 {
+                let g = self.grace.remove(i);
+                self.set_prop_groups(g.prop, InteractionGroups::all());
+            } else {
+                i += 1;
+            }
+        }
         self.wake_disturbed();
         self.world.step();
         for h in 0..self.held.len() {
@@ -462,6 +500,48 @@ impl PropWorld {
     fn set_settled(&mut self, prop: usize, settled: bool) {
         if let PropState::Dynamic(d) = &mut self.props[prop].state {
             d.settled = settled;
+        }
+    }
+
+    /// Sets the collision groups of every collider of promoted prop `prop` (a static instance keeps the default: it is never in a grace window).
+    fn set_prop_groups(&mut self, prop: usize, groups: InteractionGroups) {
+        let Some(body) = self.body_of(prop) else { return };
+        let handles: Vec<ColliderHandle> = self.world.bodies[body].colliders().to_vec();
+        for h in handles {
+            if let Some(c) = self.world.colliders.get_mut(h) {
+                c.set_collision_groups(groups);
+            }
+        }
+    }
+
+    /// Starts (or restarts) the grace window in which `holder`'s body ignores `prop`.
+    fn start_grace(&mut self, prop: usize, holder: usize) {
+        self.grace.retain(|g| g.prop != prop);
+        self.set_prop_groups(prop, InteractionGroups::new(Group::ALL, Group::ALL & !player_group(holder), InteractionTestMode::And));
+        self.grace.push(Grace { prop, ticks_left: RELEASE_GRACE_TICKS });
+    }
+
+    /// Ends any grace window of `prop` (it was picked up again, or reset).
+    fn end_grace(&mut self, prop: usize) {
+        if self.grace.iter().any(|g| g.prop == prop) {
+            self.grace.retain(|g| g.prop != prop);
+            self.set_prop_groups(prop, InteractionGroups::all());
+        }
+    }
+
+    /// How far an upright box (`half` half-extents, centred at `from`) can travel along `dir` before touching fixed geometry, up to
+    /// `max`. Falls back to a ray from `from` when the box already overlaps something where it starts (a wide prop in a tight spot),
+    /// so that case behaves as it always did instead of snapping the prop to the chest.
+    fn box_clearance(&self, from: Vec3, half: Vec3, dir: Vec3, max: f32) -> f32 {
+        let dir = dir.normalize_or_zero();
+        let options = ShapeCastOptions { max_time_of_impact: max, ..Default::default() };
+        match self.world.cast_shape(&Pose::from_translation(from), dir, &Cuboid::new(half), options, QueryFilter::only_fixed()) {
+            Some((_, hit)) if hit.time_of_impact > 0.0 => hit.time_of_impact,
+            Some(_) => {
+                let r = half.x.max(half.z);
+                (self.wall_distance(from, dir, max + r) - r).max(0.0)
+            }
+            None => max,
         }
     }
 
