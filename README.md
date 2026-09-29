@@ -23,7 +23,9 @@ you shouldn't need to read the engine's source to build or change a map.
 **Building a game on Red?** Do not fork this repository. Run `red_engine2 new-game ../mygame --name mygame --engine-path ../red-engine-2`
 (a project that pins the engine, with a blueprint, map, linked `assets/gameplay.json` incubator,
 `scripts/red`, `STATUS.md` and CI; ADR 0024/0037), read [`CLAUDE.md`](CLAUDE.md) (4 KB) and
-`red_engine2 describe --brief` (1 KB) first, and host it with [`docs/HOSTING.md`](docs/HOSTING.md). Why the tooling looks the way it does:
+`red_engine2 describe --brief` (1 KB) first, and host it with [`docs/HOSTING.md`](docs/HOSTING.md). A game that is not
+first-person writes its own small client on `red_engine2::app` (`describe custom-client`, ADR 0043); see the top-down example in
+[`examples/external/topdown_switch`](examples/external/topdown_switch/README.md). Why the tooling looks the way it does:
 [`docs/analysis/2026-09-24-cheddar-feedback.md`](docs/analysis/2026-09-24-cheddar-feedback.md).
 
 Curated games, prototypes, test content, and demos are copied automatically to
@@ -296,7 +298,8 @@ src/
   gpu.rs        # wgpu device/pipelines/bind-group-layouts (shadow pass, background, main pass)
   render.rs     # scene -> per-frame GPU draws -> RGB pixels (2x supersampled, then downsampled)
   video.rs      # RGB frames -> ffmpeg -> mp4
-  viewer.rs     # Red Engine 2: same pipeline, drawn live into a window surface; player-driven camera + multi-floor collision/ground-height + stairs
+  viewer.rs     # the live renderer: `render_view` draws the world from any camera; re2's weapon/crosshair layers are optional
+  app/          # the client layer for custom games: ViewCamera + picking, LocalSession (MatchSim), input, window GPU, HUD, offscreen checks
   props.rs      # prop library: primitive-composed meshes + per-prop collision policy
   macros.rs     # `wall` / `fence` sugar: expands to plain boxes at parse time
   player.rs     # player constants + the movement step shared by re2 and the analysis tools

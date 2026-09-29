@@ -90,6 +90,10 @@ seals a door, and a `checks` block that already passes (lint, reach per room, au
 data (`vars`/`rules`, `describe rules`) and is proven with `checks.sim`. `build --check` and `game check` fail when a committed map no longer equals what
 its blueprint builds. Put custom Rust in a crate that depends on `red_engine2` as a library, never a copy of it.
 
+**Not a first-person game?** (top-down, strategy, a spectator view) Keep the gameplay in scene rules and write only a client: `describe custom-client`
+(ADR 0043). `red_engine2::app` gives a `LocalSession` over the real simulation, any `ViewCamera` with pointer picking, input, the world renderer, the
+rules HUD and offscreen presentation checks; `examples/external/topdown_switch` is a complete one in its own crate.
+
 ## The editing loop
 
 ```

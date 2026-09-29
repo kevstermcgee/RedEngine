@@ -82,6 +82,10 @@ jobs:
       # `cargo bench --bench sim && python benches/check.py` locally (benches/README.md). The deterministic performance guards
       # (tests/alloc_budget.rs, body/entity counts) run in the tests stage.
       - run: bash scripts/ci.sh clippy tests benches
+      # Hosted runners may have no GPU adapter at all: the external client's offscreen presentation check is skipped there, not faked.
+      - run: bash scripts/ci.sh external-client
+        env:
+          RED_OFFSCREEN_OPTIONAL: "1"
 
   # The dedicated server on a bare Linux box: no window, GPU, audio or ffmpeg libraries installed, and none may
   # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS.

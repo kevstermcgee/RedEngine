@@ -180,14 +180,24 @@ fn check_facts(root: &Path) -> Vec<Problem> {
 /// the directory or file of each `[[bin]]` that `required-features` gfx.
 pub fn gfx_only_paths(root: &Path) -> Vec<String> {
     let mut out = Vec::new();
-    let lib = read(root, "src/lib.rs");
-    let mut lines = lib.lines();
-    while let Some(l) = lines.next() {
-        if l.trim() == "#[cfg(feature = \"gfx\")]" {
-            if let Some(next) = lines.next() {
-                if let Some(name) = next.trim().strip_prefix("pub mod ").or_else(|| next.trim().strip_prefix("mod ")).and_then(|n| n.strip_suffix(';')) {
-                    out.push(format!("{name}.rs"));
-                    out.push(format!("{name}/"));
+    // `src/lib.rs` gates top-level modules; a module directory's `mod.rs` gates its own parts the same way (`src/app/mod.rs`
+    // keeps the client layer's window, input, offscreen and shell parts behind `gfx` while its camera, session and HUD stay headless).
+    let mut declaring: Vec<(String, String)> = vec![(String::new(), "src/lib.rs".to_string())];
+    for f in features::repo_files(root) {
+        if let Some(dir) = f.strip_prefix("src/").and_then(|r| r.strip_suffix("mod.rs")) {
+            declaring.push((dir.to_string(), f.clone()));
+        }
+    }
+    for (prefix, file) in declaring {
+        let text = read(root, &file);
+        let mut lines = text.lines();
+        while let Some(l) = lines.next() {
+            if l.trim() == "#[cfg(feature = \"gfx\")]" {
+                if let Some(next) = lines.next() {
+                    if let Some(name) = next.trim().strip_prefix("pub mod ").or_else(|| next.trim().strip_prefix("mod ")).and_then(|n| n.strip_suffix(';')) {
+                        out.push(format!("{prefix}{name}.rs"));
+                        out.push(format!("{prefix}{name}/"));
+                    }
                 }
             }
         }
@@ -212,7 +222,7 @@ pub fn gfx_only_paths(root: &Path) -> Vec<String> {
 const BANNED_CRATES: &[&str] = &["wgpu::", "winit::", "rodio::", "ffmpeg_sidecar", "pollster::"];
 
 /// Source files that are built without the `gfx` feature but name a graphics or audio crate (`file:line: crate`): they would break the headless server build
-/// that CI does on a bare Linux box. Which files are graphics-only is read from `src/lib.rs` and `Cargo.toml`, never listed by hand.
+/// that CI does on a bare Linux box. Which files are graphics-only is read from `src/lib.rs`, every `mod.rs` under `src/` and `Cargo.toml`, never listed by hand.
 pub fn headless_violations(root: &Path) -> Vec<String> {
     let gated = gfx_only_paths(root);
     let files: Vec<String> = features::repo_files(root).into_iter().filter(|f| f.starts_with("src/") && f.ends_with(".rs")).collect();

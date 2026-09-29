@@ -1,5 +1,6 @@
 //! Library root: module list plus the scene-loading and offline render entry points (`render_frame_png`, `render_video`).
 
+pub mod app;
 #[cfg(feature = "gfx")]
 pub mod audio;
 pub mod avatar;
@@ -57,6 +58,10 @@ pub mod video;
 #[cfg(feature = "gfx")]
 pub mod viewer;
 pub mod weapons;
+
+/// The maths library every public type uses (`Vec3`, `Mat4`, ...), re-exported so a game built on the engine uses the
+/// exact same version.
+pub use glam;
 
 #[cfg(feature = "gfx")]
 use anyhow::{Context, Result};

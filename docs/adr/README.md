@@ -51,6 +51,7 @@ The table is **generated** from the files (`red_engine2 adr index --write`, also
 | [0040](0040-shooter-presentation-and-momentum.md) | Shooter sight anchors, automatic fire, pellets and replicated momentum | accepted |
 | [0041](0041-native-input-and-sandbox-workflow.md) | Native controller input, human-rig costumes and the sandbox project workflow | accepted |
 | [0042](0042-proportional-verification-and-unattended-runs.md) | Verification proportional to the change (`affected`), 5-15 KB `context` packets, loopback-only unattended runs | accepted |
+| [0043](0043-a-reusable-client-layer-for-custom-games.md) | A reusable client layer (`red_engine2::app`: view camera, local session, HUD state, window/GPU/input, offscreen checks, a small shell) for games that are not first-person, proven by an external top-down example crate. | accepted |
 | [0050](0050-bots-weapon-ladder-and-combat-pacing.md) | Bots (AI players with a brain), the server fills empty slots, a nav graph, the weapon ladder (Gun Game), the `combat` pacing block | accepted |
 | [0051](0051-shooter-feedback-on-the-wire.md) | Shooter feedback on the wire (protocol v8): shot, hit, hurt and kill counters, damage bearing, respawn countdown; the client turns them into events | accepted |
 | [0052](0052-shooter-feel-in-the-client.md) | Shooter feel in the client: a headless `feel` state machine, a synthesized sound bank, a screen-effects pass and a combat HUD | accepted |
@@ -68,6 +69,7 @@ The table is **generated** from the files (`red_engine2 adr index --write`, also
 | [2026-09-29-replay-applies-each-shove-once](2026-09-29-replay-applies-each-shove-once.md) | A trace records inputs and external pushes only; strikes, bullets and rule impulses are outputs the replay re-derives, so it applies each shove exactly once. | accepted |
 | [2026-09-29-verification-honours-the-map](2026-09-29-verification-honours-the-map.md) | lint, reach, walk, build and offline play start at the first spawn at its height, walks use the scene's player tuning and jump pads, and an unconditional start rule that disables collision is open to the tools too. | accepted |
 <!-- adr-index:end -->
+| [0043](0043-a-reusable-client-layer-for-custom-games.md) | A reusable client layer (`app`): any camera, local session over `MatchSim`, window/input/HUD pieces, an external top-down example | accepted |
 
 ## Writing one
 

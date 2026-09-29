@@ -2,7 +2,7 @@
 # The exact steps CI runs (.github/workflows/ci.yml). Run before pushing; green here = green there
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
-#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests
+#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client
 #
 # Tests run in two groups, because only one kind needs to be slow:
 #   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers): one test at a time, as before;
@@ -54,9 +54,16 @@ stage_headless_build() {
 }
 stage_headless_clippy() { echo "== headless clippy =="; cargo clippy --locked --no-default-features --all-targets -- -D warnings; }
 stage_headless_tests() { echo "== headless tests (incl. real-UDP server tests) =="; run_tests --no-default-features; }
+# A game outside the engine crate that uses only the public client layer (`red_engine2::app`, ADR 0043): if the API breaks it, CI says so.
+# Its presentation test renders offscreen; a runner with no GPU adapter at all sets RED_OFFSCREEN_OPTIONAL=1 to skip just that check.
+stage_external_client() {
+  echo "== external custom client (examples/external/topdown_switch) =="
+  cargo clippy --locked --manifest-path examples/external/topdown_switch/Cargo.toml --all-targets -- -D warnings
+  cargo test --locked --manifest-path examples/external/topdown_switch/Cargo.toml
+}
 
 stages=("$@")
-[ ${#stages[@]} -gt 0 ] || stages=(fmt clippy tests benches headless-tree headless-build headless-clippy headless-tests)
+[ ${#stages[@]} -gt 0 ] || stages=(fmt clippy tests benches headless-tree headless-build headless-clippy headless-tests external-client)
 for s in "${stages[@]}"; do
   fn="stage_${s//-/_}"
   if ! declare -F "$fn" >/dev/null; then echo "ci.sh: unknown stage '$s'" >&2; exit 2; fi

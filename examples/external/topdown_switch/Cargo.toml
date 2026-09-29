@@ -1,0 +1,22 @@
+# A game built OUTSIDE the engine crate, using only its public client layer (`red_engine2::app`). It depends on the
+# engine by path the way a game project pins it; nothing from the engine's source is copied here.
+[package]
+name = "topdown_switch"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+
+# Its own workspace root: building it never touches the engine's manifest.
+[workspace]
+
+[dependencies]
+red_engine2 = { path = "../../.." }
+
+[profile.dev]
+opt-level = 1
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false

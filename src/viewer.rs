@@ -1,9 +1,14 @@
-//! Real-time first-person rendering: the "Red Engine 2" viewer.
+//! Real-time rendering: the "Red Engine 2" viewer.
 //!
 //! This reuses the offline engine's scene schema, mesh generation, and shader pipelines
 //! (see [`crate::render`] / [`crate::gpu`]) but draws directly into a window's swapchain
 //! surface every frame instead of an offscreen texture read back to PNG/MP4, and the camera
-//! is driven by player input ([`FpsCamera`]) instead of the scene's `camera` track.
+//! is driven by the application instead of the scene's `camera` track.
+//!
+//! Two layers: [`LiveRenderer::render_view`] draws the world (shadows, lighting, clarity pass, rule-hidden objects, the
+//! 2-D overlay) from any [`ViewCamera`] — what a custom client uses (`crate::app`). The first-person game adds its
+//! optional [`FpsLayers`] on top (held weapon viewmodel, third-person hand copy, crosshair) through
+//! [`LiveRenderer::render_ex`]; a renderer built with [`LiveRenderer::world`] never loads the weapon meshes at all.
 
 use crate::avatar::RemoteHand;
 use crate::feel::FxParams;
@@ -42,71 +47,9 @@ fn align_up(value: u64, alignment: u64) -> u64 {
     value.div_ceil(alignment) * alignment
 }
 
-/// A free-look camera driven by player input rather than a scene keyframe track. Yaw/pitch are
-/// radians; yaw 0 / pitch 0 looks down `-Z` (matching the offline engine's default camera
-/// convention), yaw increases turning right, pitch increases looking up.
-pub struct FpsCamera {
-    pub position: Vec3,
-    pub yaw: f32,
-    pub pitch: f32,
-    pub fov_deg: f32,
-    pub near: f32,
-    pub far: f32,
-}
-
-impl FpsCamera {
-    pub const PITCH_LIMIT: f32 = 89.0_f32.to_radians() - 0.001;
-
-    pub fn new(position: Vec3, yaw_deg: f32) -> Self {
-        FpsCamera { position, yaw: yaw_deg.to_radians(), pitch: 0.0, fov_deg: 90.0, near: 0.05, far: 200.0 }
-    }
-
-    /// Full look direction, pitch included (used for the view matrix).
-    pub fn forward(&self) -> Vec3 {
-        let (sy, cy) = self.yaw.sin_cos();
-        let (sp, cp) = self.pitch.sin_cos();
-        Vec3::new(sy * cp, sp, -cy * cp).normalize()
-    }
-
-    /// Horizontal-only look direction (used for walking, so looking up/down doesn't fly you
-    /// into the ceiling or floor).
-    pub fn forward_flat(&self) -> Vec3 {
-        let (sy, cy) = self.yaw.sin_cos();
-        Vec3::new(sy, 0.0, -cy)
-    }
-
-    /// Horizontal-only right vector, perpendicular to `forward_flat`.
-    pub fn right_flat(&self) -> Vec3 {
-        let f = self.forward_flat();
-        Vec3::new(-f.z, 0.0, f.x)
-    }
-
-    /// Right vector for the *full* (pitch-included) look direction. Since this viewer never
-    /// rolls the camera, it's identical to `right_flat` — exposed under this name for viewmodel
-    /// placement, where it naturally pairs with `forward`/`up` rather than the walk-only
-    /// `*_flat` vectors.
-    pub fn right(&self) -> Vec3 {
-        self.right_flat()
-    }
-
-    /// Up vector orthogonal to `forward` and `right`, so a held item tips with the player's
-    /// pitch (looking down tilts it down) instead of staying screen-locked.
-    pub fn up(&self) -> Vec3 {
-        self.right().cross(self.forward()).normalize()
-    }
-
-    pub fn look(&mut self, dyaw: f32, dpitch: f32) {
-        self.yaw += dyaw;
-        self.pitch = (self.pitch + dpitch).clamp(-Self::PITCH_LIMIT, Self::PITCH_LIMIT);
-    }
-
-    fn view_proj(&self, aspect: f32) -> Mat4 {
-        let proj = glam::camera::rh::proj::directx::perspective(self.fov_deg.to_radians(), aspect, self.near, self.far);
-        let target = self.position + self.forward();
-        let view = glam::camera::rh::view::look_at_mat4(self.position, target, Vec3::Y);
-        proj * view
-    }
-}
+/// The first-person camera policy lives with the other cameras in [`crate::app::camera`] (graphics-free); re-exported
+/// here where `re2` and the examples have always found it.
+pub use crate::app::camera::{FpsCamera, ViewCamera};
 
 /// Builds the world transform for something held in the player's hand (a viewmodel), given a
 /// pose expressed in the camera's own local frame: local `+X` = camera right, `+Y` = camera up,
@@ -492,8 +435,33 @@ impl Default for FrameOptions {
     }
 }
 
+/// The first-person game's layers over the world (see [`LiveRenderer::render_ex`] for what each one is).
+#[derive(Clone, Copy)]
+pub struct FpsLayers {
+    /// The crosshair shows its gold "something is in reach" state.
+    pub crosshair_highlighted: bool,
+    /// World transform of the camera-attached viewmodel ([`viewmodel_transform`]).
+    pub weapon_transform: Mat4,
+    /// World transform of the weapon copy held by the third-person body's hand.
+    pub hand_prop_transform: Mat4,
+    /// Which optional layers to draw.
+    pub opts: FrameOptions,
+}
+
 impl LiveRenderer {
+    /// A renderer for the first-person game: the world plus every held weapon's meshes (see [`FpsLayers`]).
     pub fn new(device: &wgpu::Device, color_format: wgpu::TextureFormat, scene: &Scene, width: u32, height: u32) -> Self {
+        Self::build(device, color_format, scene, width, height, build_all_held_parts())
+    }
+
+    /// A renderer for the world alone (any camera, no weapons, no crosshair): what a custom client draws with through
+    /// [`Self::render_view`]. The scene's leaf objects are uploaded once, here; afterwards move, re-colour or hide them
+    /// (their tracks are sampled every frame), but adding or removing objects needs a new renderer.
+    pub fn world(device: &wgpu::Device, color_format: wgpu::TextureFormat, scene: &Scene, width: u32, height: u32) -> Self {
+        Self::build(device, color_format, scene, width, height, Vec::new())
+    }
+
+    fn build(device: &wgpu::Device, color_format: wgpu::TextureFormat, scene: &Scene, width: u32, height: u32, held_parts: Vec<HeldPart>) -> Self {
         let pipelines = create_pipelines(device, color_format, MSAA_SAMPLES);
         let shadow_sampler = make_shadow_sampler(device);
         let targets = LiveTargets::new(device, color_format, width, height);
@@ -504,7 +472,7 @@ impl LiveRenderer {
         collect_leaf_object_paths(&scene.objects, &[], &mut mesh_object_paths);
         debug_assert_eq!(raw_meshes.len(), mesh_object_paths.len());
         let meshes: Vec<GpuMesh> = raw_meshes.iter().map(|m| GpuMesh::upload(device, m)).collect();
-        let held: Vec<HeldGpu> = build_all_held_parts()
+        let held: Vec<HeldGpu> = held_parts
             .into_iter()
             .map(|p| HeldGpu {
                 mesh: GpuMesh::upload(device, &p.mesh),
@@ -522,7 +490,7 @@ impl LiveRenderer {
         // instance of the same bat mesh rigidly attached to the third-person body's hand
         // bone (drawn as an ordinary world object, shadowed/occluded like any prop). Both are
         // written and bound (via a dynamic offset) alongside the scene meshes each frame.
-        let draw_count = meshes.len() as u64 + (2 + REMOTE_HANDS as u64) * held.len() as u64;
+        let draw_count = (meshes.len() as u64 + (2 + REMOTE_HANDS as u64) * held.len() as u64).max(1);
 
         let global_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("live-global-uniform"),
@@ -699,9 +667,31 @@ impl LiveRenderer {
         hand_prop_transform: Mat4,
         opts: FrameOptions,
     ) {
+        let layers = FpsLayers { crosshair_highlighted, weapon_transform, hand_prop_transform, opts };
+        self.render_view(device, queue, scene, t, &camera.view(), target_view, Some(layers));
+    }
+
+    /// Draws one frame of `scene` at animation time `t` from `camera` into `target_view`: shadows, the lit world
+    /// without objects hidden by [`Self::set_hidden_objects`], the clarity pass, then `self.overlay` (a HUD) on top.
+    /// `fps` adds the first-person game's layers; a custom client passes `None`.
+    pub fn render_view(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        scene: &Scene,
+        t: f32,
+        camera: &ViewCamera,
+        target_view: &wgpu::TextureView,
+        fps: Option<FpsLayers>,
+    ) {
+        let (crosshair_highlighted, weapon_transform, hand_prop_transform, opts) = match fps {
+            Some(l) => (l.crosshair_highlighted, l.weapon_transform, l.hand_prop_transform, l.opts),
+            None => (false, Mat4::IDENTITY, Mat4::IDENTITY, FrameOptions { crosshair: false, viewmodel: false, ..FrameOptions::default() }),
+        };
+        let draw_held = fps.is_some();
         let aspect = self.targets.width.max(1) as f32 / self.targets.height.max(1) as f32;
         let view_proj = camera.view_proj(aspect);
-        let globals = build_globals_common(scene, t, camera.position, view_proj);
+        let globals = build_globals_common(scene, t, camera.eye, view_proj);
         queue.write_buffer(&self.global_buf, 0, bytemuck::bytes_of(&globals));
 
         let mut transforms = Vec::with_capacity(self.meshes.len());
@@ -767,7 +757,7 @@ impl LiveRenderer {
             }
         };
         // Only the active weapon's pieces are drawn (a muzzle flash only while it is up).
-        let held_visible: Vec<bool> = self.held.iter().map(|h| h.weapon == opts.weapon && (!h.flash || opts.muzzle_flash > 0.0)).collect();
+        let held_visible: Vec<bool> = self.held.iter().map(|h| draw_held && h.weapon == opts.weapon && (!h.flash || opts.muzzle_flash > 0.0)).collect();
         for (k, h) in self.held.iter().enumerate() {
             let glow = if h.flash { opts.muzzle_flash } else { 1.0 };
             stage(&mut object_data, held_slot(k, false), self.object_stride, &held_uniform(weapon_transform, h, glow));
