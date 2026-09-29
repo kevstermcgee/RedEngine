@@ -44,9 +44,17 @@ stage_tests() { echo "== tests (lib, integration, doctests) =="; run_tests; }
 stage_benches() { echo "== benches compile =="; cargo bench --locked --no-run; }
 stage_headless_tree() {
   echo "== headless server: no graphics/audio crates in the dependency tree =="
-  if cargo tree --locked --no-default-features -e normal --prefix none | grep -E '^(wgpu|winit|rodio|cpal|alsa|pollster|ffmpeg-sidecar|naga|ash) '; then
+  # The tree is captured first, then searched: piped straight into grep, a *failing* `cargo tree` (a stale Cargo.lock under
+  # --locked, a broken registry) matched nothing and the stage passed with nothing checked.
+  local tree
+  if ! tree="$(cargo tree --locked --no-default-features -e normal --prefix none)"; then
+    echo "cargo tree failed: the headless dependency tree could not be checked (a stale Cargo.lock? run cargo update -p <crate> or regenerate it)"; exit 1
+  fi
+  if [ -z "$tree" ]; then echo "cargo tree printed nothing: the dependency check ran on an empty tree"; exit 1; fi
+  if grep -E '^(wgpu|winit|rodio|cpal|alsa|pollster|ffmpeg-sidecar|naga|ash) ' <<<"$tree"; then
     echo "a graphics/audio crate leaked into the headless build"; exit 1
   fi
+  echo "$(grep -c . <<<"$tree") crates checked, no graphics/audio crate among them"
 }
 stage_headless_build() {
   echo "== headless server builds without the gfx feature =="
@@ -58,6 +66,13 @@ stage_headless_tests() { echo "== headless tests (incl. real-UDP server tests) =
 # Its presentation test renders offscreen; a runner with no GPU adapter at all sets RED_OFFSCREEN_OPTIONAL=1 to skip just that check.
 stage_external_client() {
   echo "== external custom client (examples/external/topdown_switch) =="
+  # The example has its own Cargo.lock (it is a separate crate that uses the engine by path): whenever the engine's dependencies
+  # change it must be refreshed and committed, or --locked refuses it below with a message that does not say so.
+  if ! cargo metadata --locked --manifest-path examples/external/topdown_switch/Cargo.toml --format-version 1 >/dev/null 2>&1; then
+    echo "examples/external/topdown_switch/Cargo.lock is behind the engine's dependencies: run"
+    echo "  cargo metadata --manifest-path examples/external/topdown_switch/Cargo.toml --format-version 1 >/dev/null"
+    echo "and commit the updated lock."; exit 1
+  fi
   cargo clippy --locked --manifest-path examples/external/topdown_switch/Cargo.toml --all-targets -- -D warnings
   cargo test --locked --manifest-path examples/external/topdown_switch/Cargo.toml
 }
