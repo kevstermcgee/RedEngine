@@ -1,0 +1,79 @@
+{
+  "schema": "red-flows/1",
+  "runs": [
+    {
+      "schema": "red-flows/1",
+      "flow": "hello_game",
+      "label": "baseline: scaffolded starter game, dev-profile CLI, idle 4-core N97",
+      "date": "2026-09-29T15:11:03-07:00",
+      "engine_commit": "7ac3dcc",
+      "profile": "debug",
+      "machine": {
+        "cpu": "Intel(R) N97",
+        "cores": 4,
+        "os": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39"
+      },
+      "load_avg_1m_at_start": 0.02,
+      "ok": true,
+      "total_seconds": 5.11,
+      "total_output_bytes": 2421,
+      "total_approx_tokens": 605,
+      "steps": [
+        {
+          "id": "new-game",
+          "seconds": 0.05,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 460,
+          "approx_tokens": 115,
+          "first_line": "created game project 'hello' in /tmp/flow_bench_7b2bpi_3/hello (12 files)"
+        },
+        {
+          "id": "build-all",
+          "seconds": 0.05,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 165,
+          "approx_tokens": 41,
+          "first_line": "ok   blueprints/main.blueprint.json -> maps/main.json (blueprint 'hello': 3 room(s), 2 door(s), 2 spawn(s) in group(s) duel, 24 objects (15 fill props), 7 check"
+        },
+        {
+          "id": "check",
+          "seconds": 0.12,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 295,
+          "approx_tokens": 73,
+          "first_line": "ok   blueprint blueprints/main.blueprint.json builds and matches maps/main.json (0 lint error(s))"
+        },
+        {
+          "id": "lint",
+          "seconds": 0.04,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 127,
+          "approx_tokens": 31,
+          "first_line": "maps/main.json: 24 objects, 25 solid pieces, 3 zone(s); walkable 253 m^2 across 1 floor(s)"
+        },
+        {
+          "id": "perf",
+          "seconds": 0.03,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 602,
+          "approx_tokens": 150,
+          "first_line": "perf: 4 walking player(s), best of 1 window(s) of 1.0 s (14 loose props, 0 promoted, world built in 1 ms)"
+        },
+        {
+          "id": "net-test",
+          "seconds": 4.82,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 772,
+          "approx_tokens": 193,
+          "first_line": "PASS link 'lan': 0% loss in bursts of 1.0, 0 ms +- 0 ms each way"
+        }
+      ]
+    }
+  ]
+}

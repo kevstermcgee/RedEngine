@@ -1,0 +1,74 @@
+{
+  "name": "hello_game",
+  "description": "The smallest complete game an agent makes: scaffold a project from the built-in template, build its maps, run its own checks and rules, measure the server and try it over a simulated network. The baseline every larger game flow is compared against. Known gap, not a step: the scaffolded map has no checks.sim scenario, so `sim` reports 'no scenarios' until the author writes one.",
+  "steps": [
+    {
+      "id": "new-game",
+      "cmd": [
+        "{RED}",
+        "new-game",
+        "{WORK}/hello",
+        "--name",
+        "hello",
+        "--engine-path",
+        "{ENGINE}"
+      ]
+    },
+    {
+      "id": "build-all",
+      "cmd": [
+        "{RED}",
+        "game",
+        "build-all"
+      ],
+      "cwd": "{WORK}/hello"
+    },
+    {
+      "id": "check",
+      "cmd": [
+        "{RED}",
+        "game",
+        "check"
+      ],
+      "cwd": "{WORK}/hello"
+    },
+    {
+      "id": "lint",
+      "cmd": [
+        "{RED}",
+        "lint",
+        "maps/main.json"
+      ],
+      "cwd": "{WORK}/hello"
+    },
+    {
+      "id": "perf",
+      "cmd": [
+        "{RED}",
+        "perf",
+        "maps/main.json",
+        "--secs",
+        "1",
+        "--windows",
+        "1"
+      ],
+      "cwd": "{WORK}/hello"
+    },
+    {
+      "id": "net-test",
+      "cmd": [
+        "{RED}",
+        "net-test",
+        "maps/main.json",
+        "--profile",
+        "lan",
+        "--players",
+        "2",
+        "--secs",
+        "3"
+      ],
+      "cwd": "{WORK}/hello",
+      "timeout": 120
+    }
+  ]
+}

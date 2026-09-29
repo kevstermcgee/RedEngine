@@ -23,3 +23,19 @@ assertions in `physics::tests` / `tests/prop_physics.rs`. Prefer adding those wh
 
 `benches/history/` keeps dated before/after tables for significant changes (e.g. static-prop promotion).
 Add a bench: write it in `benches/sim.rs` with a stable id, run, `--bless`.
+
+## Idea-to-game flows (`flow_bench.py`)
+
+Not a micro-benchmark: how long each step of making a whole game takes, and how much output an agent would read doing it. A flow
+(`benches/flows/*.json`) is a list of CLI steps (scaffold, build, check, prove the rules, measure the server, try the network); the runner
+records wall time, exit code and output bytes per step, plus `approx_tokens` (bytes / 4, an estimate: nothing here calls a model, so a run
+costs no API tokens).
+
+```bash
+python3 benches/flow_bench.py run benches/flows/hello_game.json --label "what changed"   # appends to benches/history/flows.json
+python3 benches/flow_bench.py compare hello_game                                          # last two runs, step by step
+python3 benches/flow_bench.py list
+```
+
+Build the CLI first (`--profile fast|release` selects `target/fast|release`). The load average at the start is recorded; compare runs taken under
+similar load, and treat differences under about 20% as noise. A failed flow is printed but never recorded.
