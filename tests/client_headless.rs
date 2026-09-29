@@ -2,6 +2,9 @@
 //! so "the bots are invisible" is a failing test instead of a bug report. These tests start the real binary, so they cover the glue that decides who gets a body
 //! (`bin/re2` and `net::session`), which unit tests of the pure parts cannot.
 
+// `re2` needs the gfx feature; cargo still sets CARGO_BIN_EXE_re2 without it, pointing at a binary that was never built.
+#![cfg(feature = "gfx")]
+
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
