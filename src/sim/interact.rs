@@ -391,7 +391,7 @@ impl MatchSim {
                     let dir = firearm.shot_direction(look, pellet);
                     if let Some(hit) = self.probe_lagged(eye, dir, spec.range, slot, lag) {
                         match hit.target {
-                            RayTarget::Prop(prop) => self.apply_impulse(prop, dir, eye + dir * hit.distance, spec.impulse / firearm.pellets() as f32),
+                            RayTarget::Prop(prop) => self.shove(prop, dir, eye + dir * hit.distance, spec.impulse / firearm.pellets() as f32),
                             RayTarget::Player(target) => landed |= self.damage(target, firearm.pellet_damage(self.weapons.damage(firearm), pellet), slot),
                             RayTarget::Static => {}
                         }
@@ -414,7 +414,7 @@ impl MatchSim {
         match hit.target {
             RayTarget::Prop(prop) => {
                 let mass = self.props.mass(prop);
-                self.apply_impulse(prop, look, eye + look * hit.distance, 6.0 * mass.min(4.0));
+                self.shove(prop, look, eye + look * hit.distance, 6.0 * mass.min(4.0));
             }
             RayTarget::Player(target) => {
                 if self.damage(target, self.weapons.bat_damage, slot) {

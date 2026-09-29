@@ -121,6 +121,87 @@ fn the_committed_fixture_trace_replays_on_this_platform() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Pushes the simulation derives itself (a bat strike, a rule `impulse`) replay exactly once
+// ---------------------------------------------------------------------------------------------
+
+fn strike_fixture() -> PathBuf {
+    root().join("tests/fixtures/strike_replay.json")
+}
+
+/// Records the strike fixture's `checks.sim` scenario whose name contains `only`, with a checkpoint and a dump every tick.
+fn strike_trace(only: &str) -> Trace {
+    let opts = RecordOptions { map_hash: 0, checkpoint_every: 1, dump_every: 1 };
+    let (report, trace) = simrun::run(&strike_fixture(), None, Some(only), Some(opts)).expect("run scenario");
+    assert!(report.all_passed(), "{}", report.render());
+    trace.expect("a trace was recorded")
+}
+
+/// How far prop `id` of the strike fixture is from its authored spot in the last recorded dump (0 if it never woke).
+fn prop_travel(trace: &Trace, id: &str) -> f64 {
+    let loaded = simrun::load(&strike_fixture()).expect("load");
+    let sim = MatchSim::new(&loaded.scene, loaded.spawns.clone());
+    let object = loaded.scene.objects.iter().position(|o| o.id == id).expect("the fixture names the prop");
+    let prop = sim.props().prop_of_object(object).expect("a loose prop");
+    let authored = sim.props().prop_pose(prop).w_axis.truncate().as_dvec3();
+    let last = trace.dumps.last().expect("a dump");
+    let Some(row) = last.props.iter().find(|p| p[0] == prop as f64) else { return 0.0 };
+    (glam::DVec3::new(row[1], row[2], row[3]) - authored).length()
+}
+
+fn assert_replays_clean(trace: &Trace) {
+    let loaded = simrun::load(&strike_fixture()).expect("load");
+    let report = replay(trace, &loaded.scene, &loaded.spawns).expect("replay");
+    assert_eq!(report.compared as u64, trace.final_tick, "every tick was checkpointed and compared");
+    assert!(
+        report.is_clean(),
+        "a push the simulation derives from its inputs and rules must be applied exactly once by the replay:\n{}",
+        report.exact.as_ref().or(report.coarse.as_ref()).map(describe).unwrap_or_else(|| format!("{report:?}"))
+    );
+}
+
+#[test]
+fn a_bat_strike_on_a_dormant_prop_replays_exactly_once() {
+    let trace = strike_trace("bat swing");
+    assert!(!trace.entries.iter().any(|e| matches!(e, Entry::Impulse { .. })), "a strike is an output of the recorded input, not an entry of its own");
+    let moved = prop_travel(&trace, "crate_near");
+    assert!(moved > 0.05, "the swing must really have shoved the crate (it travelled {moved:.3} m)");
+    assert_replays_clean(&trace);
+}
+
+#[test]
+fn a_rule_impulse_replays_exactly_once() {
+    let trace = strike_trace("rule impulse");
+    assert_eq!(trace.events.iter().filter(|e| e.name == "kicked").count(), 1, "the rule fired once while recording");
+    assert!(!trace.entries.iter().any(|e| matches!(e, Entry::Impulse { .. })), "a rule impulse is an output of the recorded rules, not an entry of its own");
+    let moved = prop_travel(&trace, "crate_far");
+    assert!(moved > 0.5, "the rule must really have shoved the crate (it travelled {moved:.3} m)");
+    assert_replays_clean(&trace);
+}
+
+#[test]
+fn an_external_push_is_still_recorded_and_replayed() {
+    // The server's demo kick is the one push nothing in the recording explains, so it must stay in the trace.
+    let loaded = simrun::load(&strike_fixture()).expect("load");
+    let mut sim = MatchSim::new(&loaded.scene, loaded.spawns.clone());
+    sim.start_recording(Header::new(0, 0, "solo", 1, 1)).unwrap();
+    let object = loaded.scene.objects.iter().position(|o| o.id == "crate_far").unwrap();
+    let prop = sim.props().prop_of_object(object).unwrap();
+    for _ in 0..30 {
+        sim.tick_once();
+    }
+    let at = sim.props().prop_pose(prop).w_axis.truncate();
+    let impulse = sim.props().mass(prop) * 4.0;
+    sim.apply_impulse(prop, glam::Vec3::X, at + glam::Vec3::Y * 0.2, impulse);
+    for _ in 0..90 {
+        sim.tick_once();
+    }
+    let trace = sim.take_trace().expect("recorded");
+    assert_eq!(trace.entries.iter().filter(|e| matches!(e, Entry::Impulse { .. })).count(), 1);
+    assert!(prop_travel(&trace, "crate_far") > 0.5);
+    assert_replays_clean(&trace);
+}
+
+// ---------------------------------------------------------------------------------------------
 // A real multiplayer server session, recorded and replayed
 // ---------------------------------------------------------------------------------------------
 

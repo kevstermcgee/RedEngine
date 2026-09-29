@@ -10,7 +10,7 @@ renderer or the people. `MatchSim::checksum()` existed but nothing recorded inpu
 - A **trace** (`sim/trace.rs`) records what determines a match: the header (engine version, tick rate, map hash, seed, spawn group,
   platform), every join / leave / input / server-applied impulse in the order applied (stamped with the tick), the rule events,
   a checksum triple (**players, props, rules**) plus a coarse one every N ticks, and periodic readable state dumps. Floats are
-  stored as bits so they round-trip exactly. Every server-side push goes through `MatchSim::apply_impulse` so it is recorded.
+  stored as bits so they round-trip exactly. Every *external* push goes through `MatchSim::apply_impulse` so it is recorded (strikes and rule impulses are re-derived instead: ADR 2026-09-29-replay-applies-each-shove-once).
 - `replay` (`sim/replay.rs`) rebuilds the sim, applies the entries at their ticks, and compares checkpoints: the report names the
   **first divergent tick**, which component differs, and a state diff from the nearest dump (`--dump-every 1` for the exact tick).
   `--against` compares two traces (a desync between machines). `red_server --record` and `sim --trace` produce traces.

@@ -382,7 +382,7 @@ impl MatchSim {
                     let Some(prop) = self.object_index.get(&object).and_then(|i| self.props.prop_of_object(*i)) else { continue };
                     let at = self.props.prop_pose(prop).w_axis.truncate();
                     let impulse = self.props.mass(prop) * speed;
-                    self.apply_impulse(prop, dir.normalize_or_zero(), at, impulse);
+                    self.shove(prop, dir.normalize_or_zero(), at, impulse);
                 }
             }
         }
@@ -431,8 +431,11 @@ impl MatchSim {
         self.props.set_player_slot(slot, to, body.radius, body.body_height);
     }
 
-    /// Shoves prop `prop` along `dir` at `point` with impulse `magnitude` (N·s). Every server-side push goes through
-    /// here so a recording captures it and a replay reproduces it.
+    /// An **external** push of prop `prop` along `dir` at `point` with impulse `magnitude` (N·s): something outside the
+    /// simulation decided it (the server's demo kick, an operator command), so it is recorded like an input and a replay
+    /// applies it at the same tick. A push the simulation derives itself from recorded inputs and rules (a bat strike, a
+    /// bullet, a rule `impulse`) must use [`shove`](Self::shove) instead: a replay re-derives those, and recording them
+    /// too would apply them twice (ADR 2026-09-29-replay-applies-each-shove-once).
     pub fn apply_impulse(&mut self, prop: usize, dir: Vec3, point: Vec3, magnitude: f32) {
         if let Some(r) = &mut self.recorder {
             r.entries.push(Entry::Impulse {
@@ -443,6 +446,13 @@ impl MatchSim {
                 impulse: magnitude.to_bits(),
             });
         }
+        self.shove(prop, dir, point, magnitude);
+    }
+
+    /// Shoves prop `prop` along `dir` at `point` with impulse `magnitude` (N·s) **without recording it**: the push is an
+    /// output of this tick (a strike resolved from an input, a rule action), which a replay reproduces by re-running the
+    /// same inputs and rules. Recording it as well would double it; see [`apply_impulse`](Self::apply_impulse).
+    pub(crate) fn shove(&mut self, prop: usize, dir: Vec3, point: Vec3, magnitude: f32) {
         self.props.strike_impulse(prop, dir, point, magnitude);
     }
 

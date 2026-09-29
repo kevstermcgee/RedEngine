@@ -62,6 +62,7 @@ The table is **generated** from the files (`red_engine2 adr index --write`, also
 | [2026-09-28-generated-bookkeeping](2026-09-28-generated-bookkeeping.md) | Every registry CI bounced on is generated or derived, and `red_engine2 preflight` finds the rest in a second and prints the exact edit. | accepted |
 | [2026-09-28-remove-the-revolver](2026-09-28-remove-the-revolver.md) | The silver revolver, the one weapon with its own model file, constants, sound and scene key, is gone; ten data-driven firearms remain and `weapons.ammo` replaces `weapons.revolver.ammo`. | accepted |
 | [2026-09-28-seeing-what-the-player-sees](2026-09-28-seeing-what-the-player-sees.md) | The real client can be stepped without a window, photographed offscreen, played by a script and asked what it draws; every "skip it and carry on" now counts itself and `lint`/`game check` catch the classic causes. | accepted |
+| [2026-09-29-replay-applies-each-shove-once](2026-09-29-replay-applies-each-shove-once.md) | A trace records inputs and external pushes only; strikes, bullets and rule impulses are outputs the replay re-derives, so it applies each shove exactly once. | accepted |
 <!-- adr-index:end -->
 
 ## Writing one

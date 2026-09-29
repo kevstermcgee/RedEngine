@@ -481,7 +481,7 @@ fn sim_text() -> String {
          \x20           {player: id, near: [x,z], tol?, y?}]\n\
          The run ends when a rule `end`s the match, when every script is done (+ settle), or at max_seconds.\n\n\
          red_engine2 replay <trace.json> [--scene map.json] [--against other.json]\n\
-         \x20 A trace records a match: header (engine, tick rate, map hash, seed, platform), every join/leave/input/impulse in order, game events,\n\
+         \x20 A trace records a match: header (engine, tick rate, map hash, seed, platform), every join/leave/input and external push in order (a strike or a rule impulse is re-derived, not recorded), game events,\n\
          \x20 a checksum of players / props / rules after every N ticks, and periodic state dumps. `replay` re-runs it with no renderer or\n\
          \x20 socket and reports the FIRST tick where players, props or rules differ, with a compact state diff. Exact (bit) checksums are\n\
          \x20 compared on the same platform; across platforms a millimetre-quantised `coarse` checksum separates float noise from a real desync.\n\

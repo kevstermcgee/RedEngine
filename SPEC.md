@@ -516,7 +516,7 @@ fails the scenario), `wait secs`, `hold {forward, strafe, sprint, crouch, jump, 
 ### Traces and replay (`sim --trace`, `replay`, `red_server --record`)
 
 A **trace** is a recording of a match: header (engine version, tick rate, map hash, seed, platform), every join / leave / input /
-server impulse in order, the game events, a checksum of *players*, *props* and *rules* every N ticks, and periodic state dumps.
+external push (a server kick; a strike or a rule `impulse` is re-derived by the replay, not recorded) in order, the game events, a checksum of *players*, *props* and *rules* every N ticks, and periodic state dumps.
 `red_engine2 replay trace.json` re-runs it with no renderer or socket and reports the **first divergent tick**, which
 component differs, and a compact state diff (`--dump-every 1` when recording gives it at the exact tick); `--against other.json`
 compares two traces of the same match (a desync between two machines). Exact checksums are bit-for-bit on the same platform;
