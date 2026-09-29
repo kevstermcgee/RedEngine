@@ -182,9 +182,9 @@
     "verification": {
       "summary": "`verify`: a scene's own checks (lint budget, reach, walks, objects, golden views, sim scenarios, perf) in one command.",
       "files": ["src/tools/verify.rs", "src/tools/simrun.rs"],
-      "tests": ["lib:tools::verify", "maps_verify"],
+      "tests": ["lib:tools::verify", "maps_verify", "verify_map"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
-      "docs": ["docs/adr/0001-json-scenes-and-self-describing-cli.md"],
+      "docs": ["docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/2026-09-29-verification-honours-the-map.md"],
       "depends_on": ["map_analysis", "game_rules", "performance_contract"]
     },
     "blueprints_and_games": {

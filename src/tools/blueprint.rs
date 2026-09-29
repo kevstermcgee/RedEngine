@@ -24,7 +24,7 @@ use super::reach::{self, ColliderGrid, ReachParams};
 use super::world::MapWorld;
 use crate::props::PropKind;
 use crate::strict::check_keys;
-use glam::Vec2;
+use glam::{Vec2, Vec3};
 use serde_json::{json, Map, Value};
 use std::path::Path;
 
@@ -645,6 +645,23 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
             scene.insert(k.clone(), v.clone());
         }
     }
+    // A blueprint with no spawns of its own whose `scene` block brings them: the self-check, the generated checks and the camera
+    // start from that first spawn (at its height), not from the first room's centre.
+    let merged_spawn = scene_merge
+        .get("spawns")
+        .and_then(Value::as_array)
+        .and_then(|a| a.first())
+        .and_then(|s| s.get("position"))
+        .and_then(Value::as_array)
+        .filter(|p| p.len() == 3)
+        .map(|p| Vec3::new(p[0].as_f64().unwrap_or(0.0) as f32, p[1].as_f64().unwrap_or(0.0) as f32, p[2].as_f64().unwrap_or(0.0) as f32));
+    let (first, first_y) = match (spawns.is_empty(), merged_spawn) {
+        (true, Some(p)) => {
+            scene.insert("camera".into(), json!({"fov": 75, "position": [r3(p.x), r3(p.y + 1.7), r3(p.z)], "target": [r3(look.x), r3(p.y + 1.5), r3(look.y)]}));
+            (Vec2::new(p.x, p.z), p.y)
+        }
+        _ => (first, 0.0),
+    };
 
     // ---- self-check: build the world, find real anchors, lint, and write checks that pass today
     let text0 = serde_json::to_string(&Value::Object(scene.clone())).map_err(|e| vec![e.to_string()])?;
@@ -653,7 +670,7 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
             .map(|m| format!("the compiled scene did not validate (this is a compiler bug or a `scene`/`extra` block problem): {m}"))
             .collect::<Vec<_>>()
     })?;
-    let rr = reach::compute(&world, &ReachParams { start: Some(first), ..Default::default() });
+    let rr = reach::compute(&world, &ReachParams { start: Some(first), start_y: Some(first_y), ..Default::default() });
     let grid = ColliderGrid::new(&world.colliders, rr.min, rr.min + Vec2::new(rr.nx as f32, rr.nz as f32) * rr.cell);
     let mut anchors: Vec<Option<Vec2>> = Vec::new();
     for r in &rooms {
@@ -694,9 +711,15 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
     for (i, r) in rooms.iter().enumerate() {
         match anchors[i] {
             Some(a) => {
-                reach_checks.push(json!({"to": [r3(a.x), r3(a.y)], "from": pt(first), "why": format!("room {} is reachable", r.id)}));
+                let mut reach = json!({"to": [r3(a.x), r3(a.y)], "from": pt(first), "why": format!("room {} is reachable", r.id)});
+                let mut walk = json!({"name": format!("first spawn to {}", r.id), "from": pt(first), "to": pt(a), "auto": true});
+                if first_y.abs() > 0.01 {
+                    reach["from_y"] = json!(r3(first_y));
+                    walk["from_y"] = json!(r3(first_y));
+                }
+                reach_checks.push(reach);
                 if (a - first).length() > 0.5 {
-                    walk_checks.push(json!({"name": format!("first spawn to {}", r.id), "from": pt(first), "to": pt(a), "auto": true}));
+                    walk_checks.push(walk);
                 }
             }
             None => notes.push(format!("room '{}' has no reachable open floor from the first spawn: no doors connect it, or a fill/extra blocks it", r.id)),

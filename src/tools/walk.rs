@@ -1,14 +1,15 @@
 //! `red_engine2 walk`: replay a walking route with the game's real per-tick physics.
 //!
 //! [`super::reach`] answers "can the player get there?" with a grid flood-fill; this answers
-//! "does *this exact route* work?" by driving the very same `player::step_horizontal` /
-//! `player::vertical_step` the live viewer runs, at the same 60 Hz, steering straight at each
-//! waypoint in turn. It reports where the player actually ends up (position and foot height), so
-//! a route through a door, up a staircase, or around furniture is verified rather than assumed —
-//! and if the player gets stuck, where.
+//! "does *this exact route* work?" by driving the very same `sim::player::step_player_tuned` the
+//! live viewer, the server and `sim` run, at the same 60 Hz, with the scene's own `player` tuning and
+//! `jump_pads`, steering straight at each waypoint in turn. It reports where the player actually ends
+//! up (position and foot height), so a route through a door, up a staircase, over a launch pad or
+//! around furniture is verified rather than assumed — and if the player gets stuck, where.
 
 use super::world::MapWorld;
-use crate::player::{step_horizontal, vertical_step, FIXED_DT, WALK_SPEED};
+use crate::player::Character;
+use crate::sim::player::{step_player_tuned, PlayerInput, PlayerState};
 use glam::Vec2;
 
 /// One leg of a replayed route: target, whether it was reached, and where the player ended (position and floor height).
@@ -44,37 +45,35 @@ const REACHED_DIST: f32 = 0.2;
 const STUCK_TICKS: u32 = 120;
 const MAX_LEG_TICKS: u32 = 60 * 60;
 
-/// Walks from `start` (feet on the floor at the spawn's ground height) through each waypoint.
+/// Walks from `start` (feet on the floor at the scene's spawn height) through each waypoint.
 /// Stops at the first leg that fails.
 pub fn walk(world: &MapWorld, start: Vec2, path: &[Vec2]) -> Vec<WalkStep> {
-    walk_from(world, start, 0.0, path)
+    walk_from(world, start, world.spawn_y, path)
 }
 
 /// [`walk`] for a route that begins on an upper floor: `start_y` is a foot height near the wanted floor (the ground under
-/// `start` is the highest surface reachable from it, so `0.0` means the ground floor).
+/// `start` is the highest surface reachable from it, so `0.0` means the ground floor). The walker is a human player driven
+/// by the real per-tick movement with the scene's `player` tuning and `jump_pads`, walking (never sprinting or jumping).
 pub fn walk_from(world: &MapWorld, start: Vec2, start_y: f32, path: &[Vec2]) -> Vec<WalkStep> {
-    let mut pos = start;
-    let mut foot_y = crate::collide::ground_height_at(&world.ground, start, start_y);
-    let mut vy = 0.0f32;
+    let foot_y = crate::collide::ground_height_at(&world.ground, start, start_y);
+    let mut state = PlayerState::spawn(start.x, start.y, foot_y, 0.0, Character::Human);
+    let (tuning, pads) = (world.scene.player, &world.scene.jump_pads);
     let mut out = Vec::new();
     for &target in path {
-        let mut best = (pos - target).length();
+        let mut best = (state.pos - target).length();
         let mut since_progress = 0u32;
         let mut ticks = 0u32;
         let mut reached = false;
         while ticks < MAX_LEG_TICKS {
-            let to = target - pos;
+            let to = target - state.pos;
             if to.length() <= REACHED_DIST {
                 reached = true;
                 break;
             }
-            let step = to.normalize() * (WALK_SPEED * FIXED_DT).min(to.length());
-            pos = step_horizontal(&world.colliders, pos, foot_y, step);
-            let (y, v) = vertical_step(&world.ground, pos, foot_y, vy, false);
-            foot_y = y;
-            vy = v;
+            let input = PlayerInput { forward: 1, yaw: libm::atan2f(to.x, -to.y), ..Default::default() };
+            step_player_tuned(&mut state, &input, &world.colliders, &world.ground, tuning, pads);
             ticks += 1;
-            let d = (pos - target).length();
+            let d = (state.pos - target).length();
             if d < best - 0.2 {
                 best = d;
                 since_progress = 0;
@@ -85,7 +84,7 @@ pub fn walk_from(world: &MapWorld, start: Vec2, start_y: f32, path: &[Vec2]) -> 
                 }
             }
         }
-        out.push(WalkStep { target, reached, pos, foot_y, ticks });
+        out.push(WalkStep { target, reached, pos: state.pos, foot_y: state.foot_y, ticks });
         if !reached {
             break;
         }

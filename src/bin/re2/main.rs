@@ -444,10 +444,19 @@ impl App {
         let character = forced_character.unwrap_or(Character::Human);
         let body = character.body();
 
-        let spawn = scene.camera.position.sample(0.0);
+        let cam = scene.camera.position.sample(0.0);
         let target = scene.camera.target.sample(0.0);
-        let yaw = (target.x - spawn.x).atan2(-(target.z - spawn.z)).to_degrees();
-        let mut camera = FpsCamera::new(Vec3::new(spawn.x, body.stand_eye, spawn.z), yaw);
+        let cam_yaw = (target.x - cam.x).atan2(-(target.z - cam.z)).to_degrees();
+        // A validated scene with authored spawns parses here. The camera fallback below also
+        // supports animated/offline scenes whose raw camera is not a constant triple.
+        let spawns = std::fs::read_to_string(&scene_path)
+            .ok()
+            .and_then(|text| parse_spawns(&text).ok())
+            .unwrap_or_else(|| vec![Spawn { id: "camera".into(), position: [cam.x, 0.0, cam.z], yaw_deg: cam_yaw, group: String::new() }]);
+        // Offline play starts where a match would: at the first spawn, at its height, facing its way (ADR 2026-09-29-verification-honours-the-map).
+        let spawn = spawns.first().map(|s| Vec3::from(s.position)).unwrap_or(Vec3::new(cam.x, 0.0, cam.z));
+        let yaw = spawns.first().map_or(cam_yaw, |s| s.yaw_deg);
+        let mut camera = FpsCamera::new(Vec3::new(spawn.x, spawn.y + body.stand_eye, spawn.z), yaw);
         camera.fov_deg = scene.player.fov_deg;
         let player_fov_deg = scene.player.fov_deg;
         // Debug: `RE2_PITCH=<degrees>` starts looking up (+) / down (-), for screenshots.
@@ -458,12 +467,6 @@ impl App {
         let pad_launch = scene.jump_pads.iter().map(|p| p.launch_speed).reduce(f32::min);
         let starting_weapon = scene.weapons.starting_weapon;
         let rules = RulesEngine::new(scene.rules.clone());
-        // A validated scene with authored spawns parses here. The camera fallback below also
-        // supports animated/offline scenes whose raw camera is not a constant triple.
-        let spawns = std::fs::read_to_string(&scene_path)
-            .ok()
-            .and_then(|text| parse_spawns(&text).ok())
-            .unwrap_or_else(|| vec![Spawn { id: "camera".into(), position: [spawn.x, 0.0, spawn.z], yaw_deg: yaw, group: String::new() }]);
         App {
             window: None,
             gpu: None,
@@ -527,8 +530,8 @@ impl App {
             target_index: None,
             physics_pos: Vec2::new(spawn.x, spawn.z),
             prev_physics_pos: Vec2::new(spawn.x, spawn.z),
-            foot_y: 0.0,
-            prev_foot_y: 0.0,
+            foot_y: spawn.y,
+            prev_foot_y: spawn.y,
             vertical_velocity: 0.0,
             horizontal_velocity: Vec2::ZERO,
             last_move_speed: 0.0,

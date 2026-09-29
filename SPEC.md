@@ -579,7 +579,11 @@ runs them all with the real engine code and prints PASS/FAIL with evidence (exit
 }
 ```
 
-`walk` replays the route with the per-tick player physics (see [Physics rules](#physics-rules-a-map-author-must-know)). An entry with
+`walk` replays the route with the per-tick player physics (see [Physics rules](#physics-rules-a-map-author-must-know)), using the scene's
+`player` tuning and `jump_pads` (a pad on the route launches the walker like it launches a player). Without `from` a walk starts at the first
+`spawns` entry, on that spawn's floor (a spawn on a 3 m deck starts on the deck); `from: [x, z]` starts elsewhere on the ground floor and
+`from_y` picks the floor there, for `reach` entries too. Lint and `reach` seed their flood-fill the same way, and a top-level object that an
+unconditional `start` rule switches collision off for is open to every tool, as it is to the game from its first tick. An entry with
 `"to": [x, z]` and `"auto": true` (no `path`) plans its own route on every run and prints it (`from_y` / `to_y` pick floors); a failing entry
 names the object that blocked it and writes `out/verify/<scene>_walk<N>_explain.png`;
 `views` are golden-image regression tests (`golden/<scene>/<name>.png` beside the scene; recorded on

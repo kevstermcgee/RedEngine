@@ -651,7 +651,7 @@ mod tests {
         assert!(hit.iter().any(|s| s.name == "lint" && s.file == "src/tools/lint.rs"), "{hit:?}");
         let shown = show(&ix, "ground_height_at", 12).unwrap();
         assert!(shown.contains("fn ground_height_at"), "{shown}");
-        let r = refs(&ix, "step_horizontal", 20);
+        let r = refs(&ix, "step_player_tuned", 20);
         assert!(r.contains("src/tools/walk.rs"), "{r}");
         let deps = render_deps(&ix, Some("tools::lint")).unwrap();
         assert!(deps.contains("tools::world"), "{deps}");

@@ -179,7 +179,7 @@ fn unknown_check_keys(checks: &Value) -> Vec<String> {
     if let Some(l) = root.get("lint").and_then(Value::as_object) {
         check_keys(&mut errs, "checks.lint", l, &["max_errors", "max_warnings", "forbid"]);
     }
-    each(&mut errs, "reach", &["to", "from", "why"]);
+    each(&mut errs, "reach", &["to", "from", "from_y", "why"]);
     each(&mut errs, "walk", &["name", "path", "from", "from_y", "to", "to_y", "auto", "ends_near", "tol", "floor_y"]);
     each(&mut errs, "views", &["name", "eye", "at", "fov", "max_diff"]);
     if let Some(o) = root.get("objects").and_then(Value::as_object) {
@@ -215,7 +215,7 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
     let t_base = std::time::Instant::now();
     let base = (wants_lint || wants_reach).then(|| reach::compute(&world, &ReachParams::default()));
     let mut pending_ms = t_base.elapsed().as_millis() as u64; // charged to the first check that uses it
-    let mut from_cache: Vec<(Vec2, reach::Reach)> = Vec::new();
+    let mut from_cache: Vec<((Vec2, Option<u32>), reach::Reach)> = Vec::new();
 
     if let Some(l) = checks.get("lint").filter(|_| wants_lint) {
         let t0 = std::time::Instant::now();
@@ -247,13 +247,15 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
                 continue;
             };
             let t0 = std::time::Instant::now();
-            // Entries without `from` share the base grid; each distinct `from` is computed once.
+            // Entries without `from` share the base grid; each distinct `from` (and `from_y`) is computed once.
             let rr: &reach::Reach = match c.get("from").and_then(v2) {
                 Some(start) => {
-                    let idx = match from_cache.iter().position(|(p, _)| *p == start) {
+                    let from_y = c.get("from_y").and_then(Value::as_f64).map(|f| f as f32);
+                    let key = (start, from_y.map(f32::to_bits));
+                    let idx = match from_cache.iter().position(|(p, _)| *p == key) {
                         Some(i) => i,
                         None => {
-                            from_cache.push((start, reach::compute(&world, &ReachParams { start: Some(start), ..Default::default() })));
+                            from_cache.push((key, reach::compute(&world, &ReachParams { start: Some(start), start_y: from_y, ..Default::default() })));
                             from_cache.len() - 1
                         }
                     };
@@ -349,22 +351,24 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
 /// One `checks.walk` entry: replay `path` (or plan a route with `auto`), and on failure say which object stopped it.
 fn check_walk(world: &MapWorld, c: &Value, name: String, explain_out: &Path) -> CheckResult {
     use super::pathing;
+    let from_spawn = c.get("from").is_none();
     let start = c.get("from").and_then(v2).unwrap_or(world.spawn);
-    let from_y = c.get("from_y").and_then(Value::as_f64).map(|f| f as f32);
+    // Without `from` the walk starts at the spawn, on the spawn's own floor; a `from` without `from_y` starts on the ground floor.
+    let from_y = c.get("from_y").and_then(Value::as_f64).map(|f| f as f32).unwrap_or(if from_spawn { world.spawn_y } else { 0.0 });
     let auto = c.get("auto").and_then(Value::as_bool).unwrap_or(false) || (c.get("path").is_none() && c.get("to").is_some());
     let mut route_note = String::new();
     let wps = if auto {
         let Some(to) = c.get("to").and_then(v2) else {
             return fail(name, "\"auto\": true needs \"to\": [x,z]");
         };
-        let opts = pathing::RouteOptions { to_y: c.get("to_y").and_then(Value::as_f64).map(|f| f as f32), from_y, ..Default::default() };
+        let opts = pathing::RouteOptions { to_y: c.get("to_y").and_then(Value::as_f64).map(|f| f as f32), from_y: Some(from_y), ..Default::default() };
         match pathing::plan_route(world, start, to, &opts) {
             Ok(route) => {
                 route_note = format!("; route {}", route.path_string());
                 route.waypoints
             }
             Err(e) => {
-                let steps = super::walk::walk_from(world, start, from_y.unwrap_or(0.0), &[to]);
+                let steps = super::walk::walk_from(world, start, from_y, &[to]);
                 let why =
                     steps.last().filter(|s| !s.reached).map(|s| format!(" ({})", pathing::diagnose(world, s.pos, s.foot_y, to).one_line())).unwrap_or_default();
                 return fail(name, format!("no route to ({:.1}, {:.1}): {e}{why}", to.x, to.y));
@@ -380,11 +384,11 @@ fn check_walk(world: &MapWorld, c: &Value, name: String, explain_out: &Path) -> 
             Err(e) => return fail(name, e),
         }
     };
-    let steps = super::walk::walk_from(world, start, from_y.unwrap_or(0.0), &wps);
+    let steps = super::walk::walk_from(world, start, from_y, &wps);
     if steps.len() < wps.len() || steps.last().is_some_and(|l| !l.reached) {
         let Some(l) = steps.last() else { return fail(name, "could not start") };
         // One flood from the stop point serves both the diagnosis and the picture (it is the slow part on a big map).
-        let rr = super::reach::compute(world, &super::reach::ReachParams { start: Some(l.pos), ..Default::default() });
+        let rr = super::reach::compute(world, &super::reach::ReachParams { start: Some(l.pos), start_y: Some(l.foot_y), ..Default::default() });
         let diag = pathing::diagnose_with(world, l.pos, l.foot_y, l.target, &rr);
         // Full diagnosis under the headline (indented like lint findings), plus a picture of the stop.
         let mut detail = format!(
@@ -396,6 +400,13 @@ fn check_walk(world: &MapWorld, c: &Value, name: String, explain_out: &Path) -> 
             l.pos.y,
             l.foot_y
         );
+        // The classic surprise: a `path` whose first point was meant as the start (the walk always starts at the spawn).
+        if from_spawn && !auto && steps.len() == 1 && wps.first().is_some_and(|w| (*w - start).length() > 2.0) {
+            detail.push_str(&format!(
+                "; note: a walk starts at the spawn ({:.1}, {:.1}), not at the first point of `path` — add \"from\": [x, z] (and \"from_y\" on an upper floor) to start elsewhere",
+                start.x, start.y
+            ));
+        }
         for line in diag.render().lines().skip(1) {
             detail.push_str("\n     ");
             detail.push_str(line.trim_start());

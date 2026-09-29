@@ -134,12 +134,12 @@ fn the_offline_client_runs_the_prop_rules_too() {
     let dir = scratch("client");
     let script = dir.join("play.json");
     let dump = dir.join("state.json");
-    // The offline client starts at the camera's x/z (-6, 4) facing the camera target; the kick pad is centred on (-3.25, 0):
-    // yaw 0 faces -Z and 90 faces +X, so head about 34 degrees right of -Z for 5 m, then wait for the crate to land.
+    // The offline client starts at the first spawn, (-3.2, 3) facing +Z; the kick pad is centred on (-3.25, 0): yaw 0 faces -Z, so
+    // turn round and walk 3 m onto the pad, then wait for the crate to land.
     std::fs::write(
         &script,
         serde_json::json!({"steps": [
-            {"wait": 0.3}, {"look": {"yaw": 34.5, "pitch": 0}}, {"hold": ["forward"], "secs": 1.6}, {"wait": 3.5},
+            {"wait": 0.3}, {"look": {"yaw": 0, "pitch": 0}}, {"hold": ["forward"], "secs": 1.0}, {"wait": 3.5},
             {"expect": {"at": "/phase", "eq": "playing"}}, {"snapshot": "kicked"}]})
         .to_string(),
     )

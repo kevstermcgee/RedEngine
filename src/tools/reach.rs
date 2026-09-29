@@ -116,15 +116,17 @@ impl<'a> ColliderGrid<'a> {
 pub struct ReachParams {
     /// Grid resolution in meters. 0.1 is fast; 0.05 resolves tight gaps more faithfully.
     pub cell: f32,
-    /// Where to start (XZ). Default: the scene camera / player spawn.
+    /// Where to start (XZ). Default: the scene's first spawn (or its camera).
     pub start: Option<Vec2>,
+    /// A foot height near the floor to start on. Default: the spawn's own height when `start` is `None`, else the ground floor.
+    pub start_y: Option<f32>,
     /// Extra room around the map's solid bounds to flood into (the perimeter-leak test).
     pub margin: f32,
 }
 
 impl Default for ReachParams {
     fn default() -> Self {
-        ReachParams { cell: 0.1, start: None, margin: 3.0 }
+        ReachParams { cell: 0.1, start: None, start_y: None, margin: 3.0 }
     }
 }
 
@@ -160,7 +162,9 @@ pub fn compute(world: &MapWorld, params: &ReachParams) -> Reach {
     // Starting state: the spawn, or the nearest unblocked cell within a meter of it.
     let sx = ((start.x - bmin.x) / cell).round() as isize;
     let sz = ((start.y - bmin.y) / cell).round() as isize;
-    let y0 = ground_height_at(&world.ground, start, 0.0);
+    // A spawn on a deck starts on the deck: the seed floor is looked up near the spawn's authored height.
+    let seed_y = params.start_y.unwrap_or(if start == world.spawn { world.spawn_y } else { 0.0 });
+    let y0 = ground_height_at(&world.ground, start, seed_y);
     let mut seed: Option<(usize, usize, f32)> = None;
     let search = (1.0 / cell).ceil() as isize;
     'find: for ring in 0..=search {

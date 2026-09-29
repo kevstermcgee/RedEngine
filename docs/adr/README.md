@@ -65,6 +65,7 @@ The table is **generated** from the files (`red_engine2 adr index --write`, also
 | [2026-09-29-one-release-velocity](2026-09-29-one-release-velocity.md) | A carried prop leaves the hand with the holder's own velocity plus player.throw_speed along the look, through one function on the client and the server; the holder's body ignores it for 10 ticks and the hold pose sweeps the prop's box, not a ray. | accepted |
 | [2026-09-29-prop-aware-rules-and-scenarios](2026-09-29-prop-aware-rules-and-scenarios.md) | Rules and sim expectations see loose props: prop_enter/prop_exit/prop_below triggers, prop_y/tilt/held/mass/moved/props_in built-ins, reset/place actions, swing/prop_hit events, and {prop: ...} expectations with prop rest poses in the report. | accepted |
 | [2026-09-29-replay-applies-each-shove-once](2026-09-29-replay-applies-each-shove-once.md) | A trace records inputs and external pushes only; strikes, bullets and rule impulses are outputs the replay re-derives, so it applies each shove exactly once. | accepted |
+| [2026-09-29-verification-honours-the-map](2026-09-29-verification-honours-the-map.md) | lint, reach, walk, build and offline play start at the first spawn at its height, walks use the scene's player tuning and jump pads, and an unconditional start rule that disables collision is open to the tools too. | accepted |
 <!-- adr-index:end -->
 
 ## Writing one

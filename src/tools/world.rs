@@ -6,13 +6,17 @@
 //! builds, plus the optional authoring metadata that lives in the raw JSON but not in the
 //! compiled scene (`zones`, per-object `lint_ignore`).
 
-use crate::collide::{collect_box_colliders, collect_ground_candidates, Collider2D, GroundCandidates};
+use crate::collide::{
+    collect_box_colliders, collect_box_colliders_grouped_except, collect_ground_candidates, collect_ground_candidates_grouped_except, Collider2D,
+    GroundCandidates,
+};
 use crate::geometry::trs;
 use crate::props::{collision, collision_box, local_bounds, prop_parts, Collision, PropKind};
 use crate::schema::{Object, ObjectKind, PrimKind, Scene};
+use crate::sim::rules::{Action, When};
 use glam::{Mat4, Vec2, Vec3};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// An oriented rectangle in the XZ plane (rotation about Y only).
@@ -175,8 +179,13 @@ pub struct MapWorld {
     pub colliders: Vec<Collider2D>,
     pub ground: GroundCandidates,
     pub zones: Vec<Zone>,
-    /// Where the player spawns (the scene camera's XZ), feet on the floor at y = 0.
+    /// Where the player spawns: the first `spawns` entry's XZ, or the scene camera's XZ when the scene has no spawns.
     pub spawn: Vec2,
+    /// The spawn's foot height (the first `spawns` entry's y; 0 for a camera spawn): reach, lint and walks start on that floor.
+    pub spawn_y: f32,
+    /// Top-level objects an unconditional `start` rule switches collision off for: the analysis tools treat them as open,
+    /// the way the game does from its first tick (ADR 2026-09-29-verification-honours-the-map).
+    pub collision_disabled: Vec<String>,
 }
 
 impl MapWorld {
@@ -191,22 +200,41 @@ impl MapWorld {
         let scene = crate::schema::parse_scene(text)?;
         let raw: Value = serde_json::from_str(text).map_err(|e| vec![format!("json: {e}")])?;
         let ignores = collect_ignores(&raw);
+        // What an unconditional `start` rule opens on the first tick is open to the tools too (a gate a game keeps closed until
+        // something happens stays solid: the tools cannot know when).
+        let collision_disabled: Vec<String> = scene
+            .rules
+            .rules
+            .iter()
+            .filter(|r| matches!(r.when, When::Start) && r.cond.is_none())
+            .flat_map(|r| r.actions.iter())
+            .filter_map(|a| match a {
+                Action::Collision { object, enabled: false } => Some(object.clone()),
+                _ => None,
+            })
+            .collect();
+        let disabled_indices: HashSet<usize> = scene.objects.iter().enumerate().filter(|(_, o)| collision_disabled.contains(&o.id)).map(|(i, _)| i).collect();
         let mut items = Vec::new();
         for o in &scene.objects {
-            flatten_object(o, &o.id, Mat4::IDENTITY, true, &ignores, &mut items);
+            flatten_object(o, &o.id, Mat4::IDENTITY, !collision_disabled.contains(&o.id), &ignores, &mut items);
         }
         let zones = parse_zones(&raw);
         let cam = scene.camera.position.sample(0.0);
-        Ok(MapWorld {
-            path: path.to_path_buf(),
-            colliders: collect_box_colliders(&scene),
-            ground: collect_ground_candidates(&scene),
-            scene,
-            raw,
-            items,
-            zones,
-            spawn: Vec2::new(cam.x, cam.z),
-        })
+        // The first authored spawn is where a match (and the offline client) really starts; the camera is the fallback.
+        let (spawn, spawn_y) = match crate::sim::spawns::parse_spawns(text).ok().and_then(|s| s.into_iter().next()) {
+            Some(s) => (Vec2::new(s.position[0], s.position[2]), s.position[1]),
+            None => (Vec2::new(cam.x, cam.z), 0.0),
+        };
+        let (colliders, ground) = if disabled_indices.is_empty() {
+            (collect_box_colliders(&scene), collect_ground_candidates(&scene))
+        } else {
+            let mut ground = GroundCandidates::default();
+            for g in &collect_ground_candidates_grouped_except(&scene, &disabled_indices) {
+                ground.append(g);
+            }
+            (collect_box_colliders_grouped_except(&scene, &disabled_indices).into_iter().flatten().collect(), ground)
+        };
+        Ok(MapWorld { path: path.to_path_buf(), colliders, ground, scene, raw, items, zones, spawn, spawn_y, collision_disabled })
     }
 
     /// XZ bounds of everything solid (planes excluded, so a giant ground plane doesn't count).

@@ -235,7 +235,7 @@ pub(crate) fn run_walk(
 ) -> Result<(), String> {
     use red_engine2::tools::pathing;
     let world = load_or_report(scene)?;
-    let (start, start_y) = from.map(v2y).transpose()?.unwrap_or((world.spawn, None));
+    let (start, start_y) = from.map(v2y).transpose()?.unwrap_or((world.spawn, Some(world.spawn_y)));
     let json = envelope::capturing();
     let write_explain =
         |wps: &[Vec2], steps: &[red_engine2::tools::walk::WalkStep], diag: Option<&pathing::Diagnosis>, rr: Option<&reach::Reach>| -> Result<(), String> {
