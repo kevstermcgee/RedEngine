@@ -56,6 +56,13 @@
       "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md"],
       "depends_on": ["sim_core"]
     },
+    "karts": {
+      "summary": "Kart driving for Great Outdoors: one pure kart step (steering, throttle, drift and hop, boost, spin-out, walls), the eight-driver spec table, kart-to-kart bumps and slipstream. A movement mode of the player, shared by server, prediction and bots.",
+      "files": ["src/sim/kart.rs"],
+      "tests": ["lib:sim::kart"],
+      "docs": ["docs/adr/2026-09-29-great-outdoors-karts-as-a-first-class-engine-feature.md"],
+      "depends_on": ["player_physics"]
+    },
     "replay": {
       "summary": "Deterministic traces, replay without a renderer, state checksums, first-divergent-tick reports.",
       "files": ["src/sim/trace.rs", "src/sim/replay.rs", "src/sim/checksum.rs", "tests/fixtures/**"],

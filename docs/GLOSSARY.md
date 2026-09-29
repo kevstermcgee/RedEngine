@@ -188,3 +188,5 @@ without asking.
 
 - **sight anchor** — a model-space point on the aiming axis, aligned with the camera ray in ADS.
 - **horizontal momentum** — persistent x/z velocity, controlled by scene acceleration, air acceleration, friction and max_speed; replicated for prediction (ADR 0040).
+- **kart / driver** — Great Outdoors' vehicle and its eight animals (`sim::kart`, ADR 2026-09-29-great-outdoors-karts-as-a-first-class-engine-feature): a movement mode of the player, one `KartSpec` row of numbers per driver, driven by the same `PlayerInput` (forward = throttle/brake, strafe = steering, jump = hop and drift).
+- **drift boost / spin-out / slipstream** — holding hop while steering at speed banks charge that pays a boost tier when released; a hit takes the wheel for a few ticks; a Wolf behind a leader banks a boost bar.

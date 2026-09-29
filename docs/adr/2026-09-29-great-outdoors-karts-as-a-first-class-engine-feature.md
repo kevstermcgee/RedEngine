@@ -41,6 +41,13 @@ Karts are a movement mode of the existing player, not a second game engine.
   test rig: an eight-bot race proves the track can be finished, and lap time per animal is the balance measurement recorded in `flows.json`.
 - **Camera and client.** A third-person chase camera (`ViewCamera` through the `app` layer, ADR 0043) with a speed-based follow distance; a HUD for lap,
   position and speed; gamepad steering through `controller`.
+- **Controller support is a requirement, not a nice-to-have** (the user asked for it explicitly): the whole game is playable on a gamepad, from the menus and
+  lobby to driving. Today `controller::Sample` has the sticks and digital buttons only; the triggers are on/off (`AIM`, `FIRE`), which is wrong for a kart. So
+  `Sample` gains the two analog triggers, and a pure, headless-testable `kart_input(sample) -> PlayerInput` maps them: left stick X steers (analog),
+  right trigger minus left trigger is throttle and brake (analog), the face buttons hop/drift, use the pickup and fire the driver's ability, a shoulder button
+  looks behind. A pad without analog triggers falls back to A (accelerate) and B (brake or reverse), and the keyboard has the same actions (WASD or arrows,
+  Space, E, Q). Menus, character choice and the lobby are driven by the existing pad navigation (`project_browser`, `ui`) and are tested with synthetic
+  samples, as ADR 0041 does; what a synthetic test cannot show, feel on a physical pad, is said so in the phase's notes.
 - **Each phase is measured.** `benches/flow_bench.py` gets a flow per phase (build, check, sim scenarios, `perf` with 8 karts, `net-test`), so what each step
   costs in time and output is recorded as the game is made; friction found on the way goes in `docs/analysis/` for the engine's benefit.
 

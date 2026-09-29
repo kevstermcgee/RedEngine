@@ -37,6 +37,7 @@ pub mod entities;
 pub mod flow;
 pub mod interact;
 pub mod interest;
+pub mod kart;
 pub mod match_sim;
 pub mod player;
 pub mod replay;
