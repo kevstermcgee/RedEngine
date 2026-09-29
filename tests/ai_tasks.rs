@@ -111,11 +111,14 @@ fn task_create_a_room_and_a_spawn_group() {
     assert!(a.run(&["recipe", "rooms_and_door", "--new", &file]).0);
     let mut scene = read_json(&file);
     scene["spawns"] = json!([{"id": "s1", "position": [-2.0, 0.0, 0.0], "yaw_deg": 90, "group": "arena"}, {"id": "s2", "position": [2.0, 0.0, 0.0], "yaw_deg": 270, "group": "arena"}]);
+    // The recipe's two rooms ("living", "kitchen") share a physical door, but a door alone does not make the server tell one room's players about the other's
+    // (`interest` lint): a `portals` entry is the part that does, and two spawn groups in different rooms with none is exactly the "invisible enemies" bug.
+    scene["portals"] = json!([{"id": "door_0", "between": ["living", "kitchen"]}]);
     a.write("room.json", &scene);
     let (ok, out) = a.run(&["validate", &file]);
     assert!(ok, "{out}");
     let (ok, out) = a.run(&["lint", &file]);
-    assert!(ok, "the recipe plus two spawns lints clean: {out}");
+    assert!(ok, "the recipe plus two spawns and a portal between their rooms lints clean: {out}");
     let text = std::fs::read_to_string(&file).unwrap();
     let spawns = red_engine2::sim::spawns::parse_spawns(&text).unwrap();
     assert_eq!(spawns.iter().filter(|s| s.group == "arena").count(), 2, "the spawn group exists as data");
