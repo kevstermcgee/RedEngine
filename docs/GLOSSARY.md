@@ -135,6 +135,7 @@ without asking.
   (`attack_queued`, `switch_queued`, `jump_queued`); actions started on tick T first advance on T+1.
 
 ## Multiplayer (ADR 0016)
+- **transport** / **QUIC** / **development UDP** — how Red's datagrams travel (`net::transport`, ADR 0044): production is QUIC + TLS 1.3 (`net::quic`: encrypted, the server verified by a pinned `sha256:` **fingerprint** from `red_engine2 net-identity`); development UDP is plain authenticated UDP for loopback tools and tests, refused on a public address unless `--insecure-public-udp`. The fingerprint says which server; the join key says who may play.
 
 - **authoritative server** — `red_server` / `net::server`: the only place players and props are simulated online.
   Clients send *inputs* (never positions) and draw what the server says.

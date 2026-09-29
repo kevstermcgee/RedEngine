@@ -137,7 +137,8 @@ fn run(command: Command) -> Result<(), String> {
             run_sim(&scene, scenario.as_deref(), only.as_deref(), trace.as_deref(), checkpoint_every, dump_every)
         }
         Command::Replay { trace, scene, against } => run_replay(&trace, scene.as_deref(), against.as_deref()),
-        Command::NetTest { scene, profile, players, secs, seed } => run_net_test(&scene, &profile, players, secs, seed),
+        Command::NetIdentity { out, names } => run_net_identity(&out, &names),
+        Command::NetTest { scene, profile, players, secs, seed, transport } => run_net_test(&scene, &profile, players, secs, seed, &transport),
         Command::Preflight { fix, no_fmt, root } => run_preflight(fix, no_fmt, root.as_deref()),
         Command::Playtest { scene, secs, shots, out, script, connect, fill, bot_skill, size } => playtest::run_playtest(&playtest::PlaytestArgs {
             scene: &scene,

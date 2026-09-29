@@ -16,18 +16,18 @@
 //! [`RuleState`] is likewise a repeated complete presentation snapshot: variables, visibility, recent event and outcome recover after loss,
 //! reconnect and late join without replaying transient commands.
 
-use crate::net::auth::{join_proof, Direction, SessionKey};
+use crate::net::auth::{join_proof, join_proof_bound, Direction, SessionKey};
 use crate::net::happenings::{Happenings, Watcher};
 use crate::net::interp::{RemoteWorld, View};
 use crate::net::protocol::*;
+use crate::net::quic::{QuicClient, ServerTrust};
+use crate::net::transport::{ClientTransport, Security, TransportStatus, UdpClient};
 use crate::sim::clock::TICK_DT;
 use crate::sim::flow::Phase;
 use crate::sim::player::PlayerInput;
-use std::collections::hash_map::RandomState;
 use std::collections::VecDeque;
-use std::hash::BuildHasher;
-use std::io::{self, ErrorKind};
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
+use std::io;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::{Duration, Instant};
 
 /// Where the connection is.
@@ -93,6 +93,57 @@ pub struct ClientStats {
     pub bad_packets: u64,
 }
 
+/// Which transport a client uses (ADR 0044). There is no automatic choice and no fallback: a QUIC client that cannot verify the server
+/// stops; it never retries over UDP.
+#[derive(Clone)]
+pub enum ClientTransportConfig {
+    /// Development UDP: authenticated, **not encrypted**, no server identity. Loopback tools, tests, trusted LANs.
+    DevUdp,
+    /// QUIC + TLS 1.3, the server verified by `trust` for `server_name`.
+    Quic {
+        /// How the server's certificate is checked.
+        trust: ServerTrust,
+        /// The name the certificate is for (any name works with a pinned fingerprint).
+        server_name: String,
+    },
+}
+
+impl ClientTransportConfig {
+    /// The transport a command line asked for (`--server-fingerprint`, `--server-ca` + `--server-name`, `--dev-udp`). With none of them a
+    /// loopback server gets development UDP (what local tools and `play-local` run) and any other server is refused: a client never
+    /// talks plaintext to the network unless told to, and never falls back from QUIC.
+    pub fn choose(
+        server: SocketAddr,
+        fingerprint: Option<&str>,
+        ca: Option<&std::path::Path>,
+        server_name: Option<&str>,
+        dev_udp: bool,
+    ) -> Result<Self, String> {
+        let name = server_name.map(str::to_string).unwrap_or_else(|| server.ip().to_string());
+        match (fingerprint, ca, dev_udp) {
+            (Some(_), Some(_), _) => Err("give either --server-fingerprint or --server-ca, not both".to_string()),
+            (Some(_), _, true) | (_, Some(_), true) => Err("--dev-udp cannot be combined with a server identity: choose one transport".to_string()),
+            (Some(f), None, false) => Ok(ClientTransportConfig::Quic { trust: ServerTrust::fingerprint(f)?, server_name: name }),
+            (None, Some(path), false) => Ok(ClientTransportConfig::Quic { trust: ServerTrust::roots_file(path)?, server_name: name }),
+            (None, None, true) => Ok(ClientTransportConfig::DevUdp),
+            (None, None, false) if server.ip().is_loopback() => Ok(ClientTransportConfig::DevUdp),
+            (None, None, false) => Err(format!(
+                "{server} is not on this machine: pass the server's --server-fingerprint (it prints one at start) or --server-ca, so the \
+                 connection is encrypted and the server verified; --dev-udp joins a development server in plaintext (trusted LAN only)"
+            )),
+        }
+    }
+}
+
+impl std::fmt::Debug for ClientTransportConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientTransportConfig::DevUdp => f.write_str("DevUdp"),
+            ClientTransportConfig::Quic { server_name, .. } => write!(f, "Quic {{ server_name: {server_name:?} }}"),
+        }
+    }
+}
+
 /// Everything needed to join a server.
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
@@ -108,18 +159,36 @@ pub struct ClientConfig {
     pub join_key: Option<String>,
     /// The name to show in the lobby.
     pub name: String,
+    /// The transport. [`ClientConfig::new`] picks development UDP (loopback tools and tests); production clients set
+    /// [`ClientTransportConfig::Quic`] ([`ClientConfig::quic`]).
+    pub transport: ClientTransportConfig,
 }
 
 impl ClientConfig {
-    /// A config for a keyless join with the default name.
+    /// A config for a keyless join with the default name over **development UDP** (not encrypted).
     pub fn new(server: SocketAddr, character: u8, map_hash: u32, resume_token: u64) -> Self {
-        ClientConfig { server, character, map_hash, resume_token, join_key: None, name: String::new() }
+        ClientConfig { server, character, map_hash, resume_token, join_key: None, name: String::new(), transport: ClientTransportConfig::DevUdp }
+    }
+
+    /// A config for a keyless join over QUIC, the server verified by `trust`.
+    pub fn quic(server: SocketAddr, character: u8, map_hash: u32, trust: ServerTrust, server_name: &str) -> Self {
+        ClientConfig {
+            transport: ClientTransportConfig::Quic { trust, server_name: server_name.to_string() },
+            ..ClientConfig::new(server, character, map_hash, 0)
+        }
     }
 }
 
 /// The client. See the module docs.
 pub struct NetClient {
-    socket: UdpSocket,
+    transport: Box<dyn ClientTransport>,
+    /// The transport encrypts and authenticates every datagram (QUIC): no Red tags.
+    secure: bool,
+    /// Why the transport gave up (a server identity that did not verify).
+    transport_error: Option<String>,
+    /// The Challenge arrived: messages after the handshake may be sent.
+    session_ready: bool,
+    last_reconnect: Option<Instant>,
     server: SocketAddr,
     character: u8,
     map_hash: u32,
@@ -136,8 +205,6 @@ pub struct NetClient {
     cookie: u64,
     requires_key: bool,
     key: Option<SessionKey>,
-    entropy: RandomState,
-    entropy_counter: u64,
     recent_inputs: VecDeque<PlayerInput>,
     latest_snapshot_seq: u32,
     world: RemoteWorld,
@@ -174,19 +241,26 @@ pub fn local_bind_for(server: SocketAddr) -> SocketAddr {
 }
 
 impl NetClient {
-    /// Opens a socket and starts joining `server`. `resume_token` is `0` for a fresh join, or a token
-    /// from an earlier session to get that player back.
+    /// Opens a **development UDP** socket and starts joining `server` (loopback tools and tests; production uses
+    /// [`NetClient::connect_with`] and [`ClientConfig::quic`]). `resume_token` is `0` for a fresh join, or a token from an earlier
+    /// session to get that player back.
     pub fn connect(server: SocketAddr, character: u8, map_hash: u32, resume_token: u64) -> io::Result<NetClient> {
         Self::connect_with(ClientConfig::new(server, character, map_hash, resume_token))
     }
 
     /// Like [`NetClient::connect`], with a join key and a name.
     pub fn connect_with(cfg: ClientConfig) -> io::Result<NetClient> {
-        let socket = UdpSocket::bind(local_bind_for(cfg.server))?;
-        socket.set_nonblocking(true)?;
+        let transport: Box<dyn ClientTransport> = match &cfg.transport {
+            ClientTransportConfig::DevUdp => Box::new(UdpClient::connect(cfg.server)?),
+            ClientTransportConfig::Quic { trust, server_name } => Box::new(QuicClient::connect(cfg.server, server_name, trust.clone())?),
+        };
         let now = Instant::now();
         let mut c = NetClient {
-            socket,
+            secure: transport.security().is_secure(),
+            transport,
+            transport_error: None,
+            session_ready: false,
+            last_reconnect: None,
             server: cfg.server,
             character: cfg.character.min(5),
             map_hash: cfg.map_hash,
@@ -202,8 +276,6 @@ impl NetClient {
             cookie: 0,
             requires_key: false,
             key: None,
-            entropy: RandomState::new(),
-            entropy_counter: 0,
             recent_inputs: VecDeque::new(),
             latest_snapshot_seq: 0,
             world: RemoteWorld::default(),
@@ -224,13 +296,36 @@ impl NetClient {
         Ok(c)
     }
 
-    /// Starts a fresh handshake: a new nonce, no cookie, no session key.
+    /// Starts a fresh handshake: a new nonce, no cookie, no session key. The nonce is a freshness value, not a secret; it still comes
+    /// from the OS CSPRNG (with a clock-derived fallback only if the OS has none, which cannot make a proof weaker: the key is the secret).
     fn new_attempt(&mut self) {
-        self.entropy_counter = self.entropy_counter.wrapping_add(1);
-        self.nonce = self.entropy.hash_one((self.entropy_counter, self.started.elapsed().as_nanos())).max(1);
+        self.nonce = crate::crypto::random_u64().unwrap_or_else(|_| (self.started.elapsed().as_nanos() as u64).max(1));
         self.cookie = 0;
         self.key = None;
+        self.session_ready = false;
         self.last_hello = None;
+    }
+
+    /// A fresh handshake on a fresh transport connection (the server went silent, restarted or said goodbye).
+    fn restart(&mut self, now: Instant) {
+        self.new_attempt();
+        self.transport.reconnect();
+        self.last_reconnect = Some(now);
+    }
+
+    /// The server this client talks to.
+    pub fn server(&self) -> SocketAddr {
+        self.server
+    }
+
+    /// Which transport protects this connection.
+    pub fn security(&self) -> Security {
+        self.transport.security()
+    }
+
+    /// Why the transport refused to connect (a server identity that did not verify), if it did.
+    pub fn transport_error(&self) -> Option<&str> {
+        self.transport_error.as_deref()
     }
 
     /// Where the connection is.
@@ -336,24 +431,39 @@ impl NetClient {
     }
 
     fn raw_send(&mut self) {
-        if let Ok(n) = self.socket.send_to(&self.out, self.server) {
+        if let Ok(n) = self.transport.send(&self.out) {
             self.stats.bytes_out += n as u64;
         }
     }
 
-    /// Sends a tagged message; dropped silently while there is no session key yet.
+    /// Sends a message of the session (tagged on development UDP); dropped silently before the handshake's Challenge.
     fn send_signed(&mut self, msg: &ClientMsg) {
-        let Some(key) = self.key.clone() else { return };
+        if !self.session_ready {
+            return;
+        }
         self.out.clear();
         msg.encode(&mut self.out);
-        key.sign(Direction::ToServer, &mut self.out);
+        if let Some(key) = &self.key {
+            key.sign(Direction::ToServer, &mut self.out);
+        }
         self.raw_send();
     }
 
     fn send_hello(&mut self, now: Instant) {
+        if self.transport.status() != TransportStatus::Ready {
+            return; // QUIC still handshaking: the Hello goes once the connection (and its identity) is established
+        }
         self.last_hello = Some(now);
         let proof = match (&self.join_key, self.cookie) {
-            (Some(k), c) if c != 0 => join_proof(k.as_bytes(), self.nonce, c, self.map_hash, PROTOCOL_VERSION),
+            (Some(k), c) if c != 0 => {
+                if self.secure {
+                    // Bound to this TLS connection: useless if captured or relayed to another one.
+                    let Some(binding) = self.transport.channel_binding() else { return };
+                    join_proof_bound(k.as_bytes(), &binding, self.nonce, c, self.map_hash, PROTOCOL_VERSION)
+                } else {
+                    join_proof(k.as_bytes(), self.nonce, c, self.map_hash, PROTOCOL_VERSION)
+                }
+            }
             _ => [0; crate::net::auth::PROOF_LEN],
         };
         let h = Hello {
@@ -412,6 +522,7 @@ impl NetClient {
                 self.send_signed(&ClientMsg::Bye);
             }
         }
+        self.transport.close(); // QUIC: CONNECTION_CLOSE, so the server ends the session at once even if the Bye datagrams are lost
         self.state = ConnState::Closed;
     }
 
@@ -421,23 +532,36 @@ impl NetClient {
         if self.state == ConnState::Closed || matches!(self.state, ConnState::Rejected(_)) {
             return events;
         }
-        let mut buf = [0u8; 2048];
-        loop {
-            match self.socket.recv_from(&mut buf) {
-                Ok((n, from)) => {
-                    if from != self.server || n > MAX_PACKET {
-                        continue;
-                    }
-                    self.stats.bytes_in += n as u64;
-                    self.on_datagram(&buf[..n], now, &mut events);
-                }
-                Err(e) if e.kind() == ErrorKind::WouldBlock => break,
-                Err(e) if e.kind() == ErrorKind::ConnectionReset => continue, // Windows: an earlier send bounced
-                Err(_) => break,
+        // Fail closed: a server whose identity did not verify is never retried, and never retried over another transport.
+        if let TransportStatus::Failed(why) = self.transport.status() {
+            self.transport_error = Some(why);
+            self.state = ConnState::Rejected(RejectReason::ServerIdentity);
+            events.push(NetEvent::Rejected(RejectReason::ServerIdentity));
+            return events;
+        }
+        // QUIC told us the connection closed (the server shut down or dropped us): rejoin now instead of waiting for the timeout.
+        if self.state == ConnState::Connected && self.secure && self.transport.status() == TransportStatus::Connecting {
+            self.state = ConnState::Reconnecting;
+            self.restart(now);
+            self.last_heard = now;
+            events.push(NetEvent::ServerBye);
+        }
+        let mut buf = vec![0u8; crate::net::quic::MAX_STREAM_MESSAGE];
+        while let Some(n) = self.transport.recv(&mut buf) {
+            if n > crate::net::quic::MAX_STREAM_MESSAGE {
+                continue;
             }
+            self.stats.bytes_in += n as u64;
+            self.on_datagram(&buf[..n], now, &mut events);
         }
         match self.state {
             ConnState::Connecting | ConnState::Reconnecting => {
+                // A QUIC connection that dropped while (re)joining gets a new one every couple of seconds (UDP: nothing to do).
+                if self.transport.status() == TransportStatus::Connecting && self.last_reconnect.is_none_or(|t| now.duration_since(t) >= Duration::from_secs(2))
+                {
+                    self.transport.reconnect();
+                    self.last_reconnect = Some(now);
+                }
                 if self.last_hello.is_none_or(|t| now.duration_since(t) >= self.hello_interval) {
                     // A cookie is only good for about 20 s: a handshake that has not finished by then starts over.
                     if self.cookie != 0 && now.duration_since(self.last_heard) > Duration::from_secs(8) {
@@ -449,7 +573,7 @@ impl NetClient {
             ConnState::Connected => {
                 if now.duration_since(self.last_heard) > self.timeout {
                     self.state = ConnState::Reconnecting;
-                    self.new_attempt();
+                    self.restart(now);
                     self.last_heard = now;
                     events.push(NetEvent::Disconnected);
                 } else if !self.in_round() && self.last_lobby.is_none_or(|t| now.duration_since(t) >= self.lobby_interval) {
@@ -466,7 +590,7 @@ impl NetClient {
             self.stats.bad_packets += 1;
             return;
         };
-        let msg = if is_signed(kind) {
+        let msg = if is_signed(kind) && !self.secure {
             // Only a datagram whose tag verifies is ever parsed.
             let body = self.key.as_ref().and_then(|k| k.verify(Direction::ToClient, bytes));
             match body.map(ServerMsg::decode) {
@@ -509,7 +633,9 @@ impl NetClient {
                 self.cookie = cookie;
                 self.last_heard = now;
                 let key = self.join_key.clone().unwrap_or_default();
-                self.key = Some(SessionKey::derive(key.as_bytes(), self.nonce, cookie));
+                // Development UDP tags every datagram with a session key; QUIC's connection already protects them.
+                self.key = (!self.secure).then(|| SessionKey::derive(key.as_bytes(), self.nonce, cookie));
+                self.session_ready = true;
                 self.send_hello(now); // straight away: the second Hello, carrying the cookie and the proof
             }
             ServerMsg::Welcome(w) => {
@@ -603,7 +729,7 @@ impl NetClient {
                 // Unauthenticated, so only believed when a live session has gone quiet (a forger cannot make a healthy one restart).
                 if self.state == ConnState::Connected && now.duration_since(self.last_heard) > Duration::from_millis(500) {
                     self.state = ConnState::Reconnecting;
-                    self.new_attempt();
+                    self.restart(now);
                     events.push(NetEvent::ServerBye);
                 }
             }
@@ -612,7 +738,7 @@ impl NetClient {
                 self.last_heard = now;
                 if self.state == ConnState::Connected {
                     self.state = ConnState::Reconnecting;
-                    self.new_attempt();
+                    self.restart(now);
                 }
                 events.push(NetEvent::ServerBye);
             }

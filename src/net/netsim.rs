@@ -54,6 +54,8 @@ pub struct ProxyCounters {
     pub dropped: [AtomicU64; 2],
     /// Extra copies delivered.
     pub duplicated: [AtomicU64; 2],
+    /// UDP payload bytes received (what the wire carried, transport overhead included).
+    pub bytes: [AtomicU64; 2],
 }
 
 /// What a finished proxy saw. Index 0 is client to server, 1 is server to client.
@@ -65,6 +67,8 @@ pub struct ProxyReport {
     pub dropped: [u64; 2],
     /// Datagrams delivered a second time.
     pub duplicated: [u64; 2],
+    /// UDP payload bytes received, per direction (wire bytes: QUIC or Red headers and tags included).
+    pub bytes: [u64; 2],
 }
 
 impl ProxyReport {
@@ -119,6 +123,7 @@ pub struct LossyProxy {
     stop: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
     counters: Arc<ProxyCounters>,
+    blackhole: Arc<AtomicBool>,
 }
 
 impl LossyProxy {
@@ -131,7 +136,8 @@ impl LossyProxy {
         let addr = front.local_addr()?;
         let stop = Arc::new(AtomicBool::new(false));
         let counters = Arc::new(ProxyCounters::default());
-        let (stop2, counters2) = (stop.clone(), counters.clone());
+        let blackhole = Arc::new(AtomicBool::new(false));
+        let (stop2, counters2, blackhole2) = (stop.clone(), counters.clone(), blackhole.clone());
         let handle = std::thread::spawn(move || {
             let mut rng = Rng(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
             let mut loss = [Loss::new(&profile), Loss::new(&profile)];
@@ -146,7 +152,8 @@ impl LossyProxy {
                             client = Some(from);
                         }
                         counters2.received[dir].fetch_add(1, Ordering::Relaxed);
-                        if loss[dir].drops(&mut rng) {
+                        counters2.bytes[dir].fetch_add(n as u64, Ordering::Relaxed);
+                        if loss[dir].drops(&mut rng) || blackhole2.load(Ordering::Relaxed) {
                             counters2.dropped[dir].fetch_add(1, Ordering::Relaxed);
                             continue;
                         }
@@ -177,7 +184,12 @@ impl LossyProxy {
                 std::thread::sleep(Duration::from_micros(400));
             }
         });
-        Ok(LossyProxy { addr, stop, handle: Some(handle), counters })
+        Ok(LossyProxy { addr, stop, handle: Some(handle), counters, blackhole })
+    }
+
+    /// While `on`, every datagram in both directions is dropped (a network outage: Wi-Fi gone, a cable pulled).
+    pub fn set_blackhole(&self, on: bool) {
+        self.blackhole.store(on, Ordering::Relaxed);
     }
 
     /// Stops the proxy and returns what it saw.
@@ -187,7 +199,12 @@ impl LossyProxy {
             let _ = h.join();
         }
         let get = |a: &[AtomicU64; 2]| [a[0].load(Ordering::Relaxed), a[1].load(Ordering::Relaxed)];
-        ProxyReport { received: get(&self.counters.received), dropped: get(&self.counters.dropped), duplicated: get(&self.counters.duplicated) }
+        ProxyReport {
+            received: get(&self.counters.received),
+            dropped: get(&self.counters.dropped),
+            duplicated: get(&self.counters.duplicated),
+            bytes: get(&self.counters.bytes),
+        }
     }
 }
 

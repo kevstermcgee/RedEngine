@@ -66,14 +66,32 @@ fn the_server_listens_on_loopback_unless_told_otherwise() {
 
 #[test]
 fn public_hosting_is_an_explicit_choice() {
-    for (args, env_bind) in [(vec!["--public"], None), (vec![], Some("0.0.0.0"))] {
+    // A throwaway identity for this run (ADR 0044): no key is stored in the repository.
+    let dir = std::env::temp_dir().join(format!("red-server-env-{}", red_engine2::crypto::random_u64().unwrap()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let gen = red_engine2::net::quic::ServerIdentity::generate(&["localhost".into()]).unwrap();
+    std::fs::write(dir.join("cert.pem"), &gen.cert_pem).unwrap();
+    std::fs::write(dir.join("key.pem"), &gen.key_pem).unwrap();
+    let (cert, key) = (dir.join("cert.pem").display().to_string(), dir.join("key.pem").display().to_string());
+    let run = |args: &[&str], env_bind: Option<&str>| {
         let mut c = server();
-        c.args(["--map", concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_lab.json"), "--port", "0", "--stats-secs", "0", "--run-for", "0.3"]).args(&args);
+        c.args(["--map", concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_lab.json"), "--port", "0", "--stats-secs", "0", "--run-for", "0.3"]).args(args);
         if let Some(b) = env_bind {
             c.env("RED_BIND", b);
         }
         let out = c.output().expect("run red_server");
-        let text = String::from_utf8_lossy(&out.stdout);
-        assert!(out.status.success() && text.contains("LISTENING 0.0.0.0:"), "{args:?} / {env_bind:?}: {text}");
+        (out.status.success(), String::from_utf8_lossy(&out.stdout).to_string(), String::from_utf8_lossy(&out.stderr).to_string())
+    };
+    // Facing the network is explicit (--public or RED_BIND), and it is QUIC with an identity...
+    for (args, env_bind) in [(vec!["--public", "--tls-cert", &cert, "--tls-key", &key], None), (vec!["--tls-cert", &cert, "--tls-key", &key], Some("0.0.0.0"))]
+    {
+        let (ok, text, err) = run(&args, env_bind);
+        assert!(ok && text.contains("LISTENING 0.0.0.0:") && text.contains("transport: quic"), "{args:?} / {env_bind:?}: {text}{err}");
     }
+    // ...or it refuses to start (fail closed), unless plaintext is explicitly accepted.
+    let (ok, text, err) = run(&["--public"], None);
+    assert!(!ok && !text.contains("LISTENING") && err.contains("refusing development UDP"), "{text}{err}");
+    let (ok, text, _) = run(&["--public", "--insecure-public-udp"], None);
+    assert!(ok && text.contains("LISTENING 0.0.0.0:") && text.contains("NOT encrypted"), "{text}");
+    let _ = std::fs::remove_dir_all(dir);
 }

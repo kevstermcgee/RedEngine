@@ -31,6 +31,8 @@ pub struct Options {
     pub secs: f64,
     /// Seed for the proxies' randomness.
     pub seed: u64,
+    /// Run over the production QUIC transport (a throwaway identity generated for the run) instead of development UDP.
+    pub quic: bool,
 }
 
 /// One pass/fail line of a report.
@@ -76,8 +78,10 @@ pub struct ProfileReport {
     pub clients: Vec<ClientReport>,
     /// What the proxies did, summed over all clients.
     pub proxy: ProxyReport,
-    /// Server bytes sent per client per second.
+    /// Server bytes sent per client per second (application messages, before transport overhead).
     pub server_bytes_per_client_sec: f64,
+    /// Bytes on the wire, server to clients, per client per second (what the proxies carried: transport overhead included).
+    pub wire_bytes_per_client_sec: f64,
     /// The verdicts.
     pub checks: Vec<Check>,
 }
@@ -109,7 +113,15 @@ fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, 
     let sim = MatchSim::try_new(&scene, spawns)?;
     let mut cfg = ServerConfig::new("127.0.0.1:0".parse().map_err(|e| format!("{e}"))?, crate::net::map_hash(text));
     cfg.client_timeout = Duration::from_millis(3000);
-    let mut server = Server::bind(cfg, sim).map_err(|e| format!("cannot bind: {e}"))?;
+    let identity = if opts.quic { Some(crate::net::quic::ServerIdentity::generate(&["localhost".to_string()])?.identity) } else { None };
+    let mut server = match &identity {
+        None => Server::bind(cfg, sim).map_err(|e| format!("cannot bind: {e}"))?,
+        Some(id) => {
+            let t = crate::net::quic::QuicServer::bind(cfg.bind, id, crate::net::quic::QuicServerOptions::default())
+                .map_err(|e| format!("cannot bind (QUIC): {e}"))?;
+            Server::with_transport(cfg, sim, Box::new(t)).map_err(|e| e.to_string())?
+        }
+    };
     server.set_logger(|_| {});
     let server_addr = SocketAddr::new("127.0.0.1".parse().map_err(|e| format!("{e}"))?, server.local_addr().map_err(|e| e.to_string())?.port());
     let stop = Arc::new(AtomicBool::new(false));
@@ -126,7 +138,18 @@ fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, 
         let proxy = LossyProxy::start(server_addr, profile, seed.wrapping_add(k as u64 * 104_729)).map_err(|e| e.to_string())?;
         let (_scene, world) = ClientWorld::load(scene_path)?;
         let who = if k % 2 == 0 { Character::Human } else { Character::Rat };
-        let mut bot = Bot::new(proxy.addr, who, world, Behavior::Circle { turn_deg_per_sec: 40.0 + 15.0 * k as f32 }, 0).map_err(|e| e.to_string())?;
+        let behavior = Behavior::Circle { turn_deg_per_sec: 40.0 + 15.0 * k as f32 };
+        let mut bot = match &identity {
+            None => Bot::new(proxy.addr, who, world, behavior, 0).map_err(|e| e.to_string())?,
+            Some(id) => {
+                let trust = crate::net::quic::ServerTrust::fingerprint(&id.fingerprint())?;
+                let code = crate::net::protocol::character_to_wire(who);
+                let client =
+                    crate::net::client::NetClient::connect_with(crate::net::client::ClientConfig::quic(proxy.addr, code, world.map_hash, trust, "localhost"))
+                        .map_err(|e| e.to_string())?;
+                Bot::with_client(client, who, world, behavior).map_err(|e| e.to_string())?
+            }
+        };
         // Join one at a time so spawn order is stable and a slow handshake is attributed to its link.
         bot.run(Duration::from_secs(8), |f| f.conn != ConnState::Connected || f.me_state.is_none());
         if bot.client.state() != ConnState::Connected {
@@ -172,22 +195,25 @@ fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, 
     let states: Vec<ConnState> = bots.iter().map(|b| b.client.state()).collect();
     let predicted: Vec<Option<Vec2>> = bots.iter().map(|b| b.predictor.as_ref().map(|p| p.state.pos)).collect();
     let worst_corrections: Vec<f32> = bots.iter().map(|b| b.predictor.as_ref().map_or(0.0, |p| p.worst_correction)).collect();
-    drop(bots);
     let proxy_report = proxies.into_iter().map(LossyProxy::finish).fold(ProxyReport::default(), |mut a, r| {
         for d in 0..2 {
             a.received[d] += r.received[d];
             a.dropped[d] += r.dropped[d];
             a.duplicated[d] += r.duplicated[d];
+            a.bytes[d] += r.bytes[d];
         }
         a
     });
     stop.store(true, Ordering::Relaxed);
     let server = server_thread.join().map_err(|_| "the server thread panicked".to_string())?;
+    // Only now: a QUIC client closing its connection ends its session at once, and the final positions are read from the server below.
+    drop(bots);
     if let Some(f) = failure {
         return Err(f);
     }
     let secs_total = opts.secs + 1.8;
     let server_bytes_per_client_sec = server.stats().bytes_out as f64 / secs_total / opts.players as f64;
+    let wire_bytes_per_client_sec = proxy_report.bytes[1] as f64 / secs_total / opts.players as f64;
 
     let clients: Vec<ClientReport> = (0..ids.len())
         .map(|k| {
@@ -250,7 +276,11 @@ fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, 
             format!("worst drawn jump {worst_step:.3} m beyond {catch_up_speed} m/s (limit 0.15)"),
         );
     }
-    add("bandwidth stays modest", server_bytes_per_client_sec <= 24_000.0, format!("{server_bytes_per_client_sec:.0} B/s per client (limit 24000)"));
+    add(
+        "bandwidth stays modest",
+        server_bytes_per_client_sec <= 24_000.0 && wire_bytes_per_client_sec <= 24_000.0,
+        format!("{server_bytes_per_client_sec:.0} B/s per client in messages, {wire_bytes_per_client_sec:.0} B/s on the wire (limit 24000)"),
+    );
     if profile.loss > 0.0 {
         add(
             "the simulated link really was lossy",
@@ -263,7 +293,7 @@ fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, 
             ),
         );
     }
-    Ok(ProfileReport { profile, clients, proxy: proxy_report, server_bytes_per_client_sec, checks })
+    Ok(ProfileReport { profile, clients, proxy: proxy_report, server_bytes_per_client_sec, wire_bytes_per_client_sec, checks })
 }
 
 /// The reports as JSON.
@@ -275,7 +305,8 @@ pub fn to_json(reports: &[ProfileReport]) -> Value {
             "link": {"loss": r.profile.loss, "burst": r.profile.burst, "delay_ms": r.profile.delay_ms, "jitter_ms": r.profile.jitter_ms, "duplicate": r.profile.duplicate},
             "ok": r.ok(),
             "server_bytes_per_client_sec": r.server_bytes_per_client_sec.round(),
-            "proxy": {"received": r.proxy.received, "dropped": r.proxy.dropped, "duplicated": r.proxy.duplicated},
+            "wire_bytes_per_client_sec": r.wire_bytes_per_client_sec.round(),
+            "proxy": {"received": r.proxy.received, "dropped": r.proxy.dropped, "duplicated": r.proxy.duplicated, "bytes": r.proxy.bytes},
             "clients": r.clients.iter().map(|c| json!({
                 "id": c.id, "rtt_ms": c.rtt_ms.round(), "snapshots": c.snapshots, "missed": c.missed, "connects": c.connects,
                 "worst_correction_m": c.worst_correction_m, "final_error_m": c.final_error_m, "worst_remote_step_m": c.worst_remote_step_m, "connected": c.connected,

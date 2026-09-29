@@ -5,8 +5,6 @@ use super::auth::SessionKey;
 use super::limits::{TokenBucket, INPUT_BURST, INPUT_PACKETS_PER_SEC, LOBBY_BURST, LOBBY_PACKETS_PER_SEC};
 use crate::sim::change::Generation;
 use crate::sim::player::PlayerState;
-use std::collections::hash_map::RandomState;
-use std::hash::BuildHasher;
 use std::net::SocketAddr;
 use std::time::Instant;
 
@@ -25,8 +23,9 @@ pub(super) struct Session {
     /// The player id: stable from the lobby through every round and across a reconnect.
     pub slot: usize,
     pub token: u64,
-    /// Authenticates every datagram of this session (see `net::auth`).
-    pub key: SessionKey,
+    /// Authenticates every datagram of this session on the development UDP transport (see `net::auth`). `None` on QUIC, whose
+    /// connection already encrypts and authenticates every datagram.
+    pub key: Option<SessionKey>,
     /// The nonce and cookie this session's key was derived from (a retransmitted Hello carries the same pair).
     pub client_nonce: u64,
     pub cookie: u64,
@@ -57,7 +56,17 @@ pub(super) struct Session {
 
 impl Session {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(addr: SocketAddr, slot: usize, token: u64, key: SessionKey, client_nonce: u64, cookie: u64, name: String, character: u8, now: Instant) -> Self {
+    pub fn new(
+        addr: SocketAddr,
+        slot: usize,
+        token: u64,
+        key: Option<SessionKey>,
+        client_nonce: u64,
+        cookie: u64,
+        name: String,
+        character: u8,
+        now: Instant,
+    ) -> Self {
         Session {
             addr,
             slot,
@@ -106,23 +115,19 @@ pub(super) struct Parked {
     pub expires: Instant,
 }
 
-/// Resume-token generator. Each process gets random SipHash keys from the OS (`RandomState`), so a token is
-/// not guessable from the join order or the clock — knowing one player's token says nothing about another's.
-/// (Datagram authentication is separate: `net::auth`, ADR 0028.)
-pub(super) struct TokenSource {
-    keys: RandomState,
-    counter: u64,
-}
+/// Resume-token generator: every token is 64 bits from the operating system's CSPRNG (`crypto::random_u64`), so knowing one player's
+/// token says nothing about another's. (Datagram protection is separate: the transport, ADR 0044, or `net::auth` on development UDP.)
+pub(super) struct TokenSource;
 
 impl TokenSource {
     pub fn new() -> Self {
-        TokenSource { keys: RandomState::new(), counter: 0 }
+        TokenSource
     }
 
-    /// A fresh non-zero token (`0` means "no token" on the wire).
-    pub fn next(&mut self) -> u64 {
-        self.counter = self.counter.wrapping_add(1);
-        self.keys.hash_one(self.counter).max(1)
+    /// A fresh non-zero token (`0` means "no token" on the wire), or `None` if the OS has no randomness to give (the join is refused
+    /// rather than handed a guessable token).
+    pub fn next(&mut self) -> Option<u64> {
+        crate::crypto::random_u64().ok()
     }
 }
 
@@ -133,7 +138,7 @@ mod tests {
     #[test]
     fn tokens_are_distinct_nonzero_and_not_a_counter() {
         let mut a = TokenSource::new();
-        let toks: Vec<u64> = (0..1000).map(|_| a.next()).collect();
+        let toks: Vec<u64> = (0..1000).map(|_| a.next().unwrap()).collect();
         let set: std::collections::HashSet<_> = toks.iter().collect();
         assert_eq!(set.len(), toks.len());
         assert!(toks.iter().all(|t| *t != 0));

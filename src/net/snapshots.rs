@@ -62,7 +62,8 @@ pub(super) fn visible_players(sim: &MatchSim, interest: Option<&InterestMap>, vi
 }
 
 /// The moving props `viewer_room` should be told about: those that changed after the generation the client last confirmed
-/// (`known[entity slot]`) and lie in a relevant room, oldest-unconfirmed first, at most [`MAX_PROPS_PER_SNAPSHOT`]. `sent`
+/// (`known[entity slot]`) and lie in a relevant room, oldest-unconfirmed first, at most `max_props` (itself at most
+/// [`MAX_PROPS_PER_SNAPSHOT`]: the server sizes it to the client's datagram budget). `sent`
 /// receives `(entity slot, generation)` for each so a later acknowledgement can confirm them. `scratch` is a reusable buffer.
 pub(super) fn props_to_send(
     sim: &MatchSim,
@@ -72,6 +73,7 @@ pub(super) fn props_to_send(
     scratch: &mut Vec<(Generation, usize)>,
     out: &mut Vec<PropSnap>,
     sent: &mut Vec<(usize, Generation)>,
+    max_props: usize,
 ) {
     scratch.clear();
     out.clear();
@@ -92,7 +94,7 @@ pub(super) fn props_to_send(
         scratch.push((confirmed, slot));
     }
     scratch.sort_unstable();
-    for &(_, slot) in scratch.iter().take(MAX_PROPS_PER_SNAPSHOT) {
+    for &(_, slot) in scratch.iter().take(max_props.min(MAX_PROPS_PER_SNAPSHOT)) {
         let t = entities.transforms.get(slot);
         out.push(PropSnap { id: sim.props().prop_of_entity(slot) as u16, pos: t.position.to_array(), rot: t.rotation.to_array() });
         sent.push((slot, entities.transforms.changed_at(slot)));

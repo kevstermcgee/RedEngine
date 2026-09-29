@@ -692,7 +692,41 @@ pub(crate) fn run_perf(scene: &Path, players: Option<usize>, secs: Option<f64>, 
     }
 }
 
-pub(crate) fn run_net_test(scene: &Path, profile: &[String], players: usize, secs: f64, seed: u64) -> Result<(), String> {
+pub(crate) fn run_net_identity(out: &Path, names: &[String]) -> Result<(), String> {
+    let key_path = out.join("key.pem");
+    if key_path.exists() {
+        return Err(format!("{} already exists: not overwriting a server identity (delete it deliberately to replace it)", key_path.display()));
+    }
+    std::fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let gen = red_engine2::net::quic::ServerIdentity::generate(names)?;
+    std::fs::write(out.join("cert.pem"), &gen.cert_pem).map_err(|e| format!("cert.pem: {e}"))?;
+    write_private(&key_path, &gen.key_pem)?;
+    println!("wrote {} and {} (keep the key private; never commit it)", out.join("cert.pem").display(), key_path.display());
+    println!("fingerprint: {}", gen.identity.fingerprint());
+    println!("serve:  red_server --tls-cert {} --tls-key {} --public", out.join("cert.pem").display(), key_path.display());
+    println!("join:   re2 --connect HOST:PORT --server-fingerprint {} MAP.json", gen.identity.fingerprint());
+    Ok(())
+}
+
+/// Writes a secret file readable by its owner only (Unix mode 0600; on Windows the file inherits the directory's ACL).
+fn write_private(path: &Path, text: &str) -> Result<(), String> {
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    std::io::Write::write_all(&mut f, text.as_bytes()).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+pub(crate) fn run_net_test(scene: &Path, profile: &[String], players: usize, secs: f64, seed: u64, transport: &str) -> Result<(), String> {
+    let quic = match transport {
+        "quic" => true,
+        "udp" => false,
+        other => return Err(format!("--transport must be udp or quic, not '{other}'")),
+    };
     use red_engine2::net::netsim::{self, LinkProfile};
     use red_engine2::tools::nettest;
     let mut profiles: Vec<LinkProfile> = Vec::new();
@@ -705,7 +739,7 @@ pub(crate) fn run_net_test(scene: &Path, profile: &[String], players: usize, sec
             })?);
         }
     }
-    let reports = nettest::run(scene, &nettest::Options { profiles, players, secs, seed })?;
+    let reports = nettest::run(scene, &nettest::Options { profiles, players, secs, seed, quic })?;
     if envelope::capturing() {
         println!("{}", nettest::to_json(&reports));
     } else {

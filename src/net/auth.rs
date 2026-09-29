@@ -1,20 +1,22 @@
-//! Who may join and who sent this datagram (ADR 0028). Authentication, **not encryption**: a Red datagram is readable on the wire, but it
-//! cannot be forged, replayed into another session or injected by someone who is not in the conversation.
+//! Who may join and who sent this datagram (ADR 0028, ADR 0044).
 //!
+//! **Permission to join** is the join key (`red_server --key`), on both transports: the client proves it knows the key with an HMAC and
+//! never sends it. On QUIC the proof also covers TLS exporter keying material ([`join_proof_bound`]), so it is only valid on the
+//! connection it was made for. **Server identity** is a separate matter: the QUIC transport verifies the server's certificate
+//! (`net::quic`); knowing the join key says nothing about which server you reached.
+//!
+//! On the **development UDP transport** only (authenticated, not encrypted):
 //! 1. **Address cookie.** A `Hello` with no valid cookie is answered with a small `Challenge` carrying one. The cookie is
-//!    `HMAC(server secret, source address ‖ client nonce ‖ epoch)`, so the server keeps *no state* for someone who has only said
+//!    `HMAC(server secret, source address || client nonce || epoch)`, so the server keeps *no state* for someone who has only said
 //!    Hello, and a spoofed source address gets a reply smaller than its request (no amplification) that it cannot answer.
-//! 2. **Join key.** A server started with a key (`--key`) makes the client prove it knows it: the `Hello` carries
-//!    `HMAC(key, client nonce ‖ cookie ‖ map hash ‖ version)`, never the key. A wrong or missing key is a `BadKey` rejection.
-//! 3. **Session key + tags.** Both sides derive `HMAC(key, client nonce ‖ cookie)` and append an 8-byte tag (truncated HMAC of the
-//!    direction and the whole datagram) to every datagram after the handshake. A forged `Input`, `Bye` or `Snapshot`, or a packet
-//!    captured from another session, fails the tag and is dropped before it reaches the simulation.
+//! 2. **Session key + tags.** Both sides derive `HMAC(key, client nonce || cookie)` and append an 8-byte tag (truncated HMAC of the
+//!    direction and the whole datagram) to every datagram after the handshake.
 //!
-//! What it does not do: hide the traffic, or protect a join key that is a short word from an eavesdropper who records the handshake and
-//! guesses offline. Use a long random key (`red_server --key auto` makes one). On an *open* server the session key is derivable by anyone
-//! who sees the handshake, so tags then only stop blind (off-path) attackers, which is still most of them.
+//! Development UDP does not hide traffic, and a short join key can be guessed offline by someone who recorded its handshake. QUIC removes
+//! both problems (the handshake is encrypted; the proof is bound to a key exchange the eavesdropper does not have). Primitives are the
+//! maintained ones in `crate::crypto`; secrets come from the OS CSPRNG.
 
-use crate::crypto::{ct_eq, hmac_sha256, Digest};
+use crate::crypto::{ct_eq, hmac_sha256, hmac_sha256_parts, Digest};
 use std::net::SocketAddr;
 
 /// Bytes of tag appended to every authenticated datagram.
@@ -47,7 +49,7 @@ impl SessionKey {
     /// The key both sides derive once they hold `client_nonce` and the server's `cookie`.
     pub fn derive(join_key: &[u8], client_nonce: u64, cookie: u64) -> SessionKey {
         let mut m = Vec::with_capacity(32);
-        m.extend_from_slice(b"red-session-v3");
+        m.extend_from_slice(b"red-session-v8");
         m.extend_from_slice(&client_nonce.to_le_bytes());
         m.extend_from_slice(&cookie.to_le_bytes());
         SessionKey(hmac_sha256(join_key, &m))
@@ -77,23 +79,45 @@ impl SessionKey {
     }
 }
 
-/// The proof a client sends to show it knows `join_key` without sending it.
+/// The proof a client sends on development UDP to show it knows `join_key` without sending it.
 pub fn join_proof(join_key: &[u8], client_nonce: u64, cookie: u64, map_hash: u32, version: u16) -> [u8; PROOF_LEN] {
-    let mut m = Vec::with_capacity(32);
-    m.extend_from_slice(b"red-join-v3");
-    m.extend_from_slice(&client_nonce.to_le_bytes());
-    m.extend_from_slice(&cookie.to_le_bytes());
-    m.extend_from_slice(&map_hash.to_le_bytes());
-    m.extend_from_slice(&version.to_le_bytes());
-    let full = hmac_sha256(join_key, &m);
+    truncate(hmac_sha256_parts(
+        join_key,
+        &[b"red-join-v8", &client_nonce.to_le_bytes(), &cookie.to_le_bytes(), &map_hash.to_le_bytes(), &version.to_le_bytes()],
+    ))
+}
+
+/// The proof on QUIC: as [`join_proof`], plus the connection's TLS exporter keying material (`binding`), so a proof captured or
+/// relayed from one connection is worthless on another.
+pub fn join_proof_bound(join_key: &[u8], binding: &[u8; 32], client_nonce: u64, cookie: u64, map_hash: u32, version: u16) -> [u8; PROOF_LEN] {
+    truncate(hmac_sha256_parts(
+        join_key,
+        &[b"red-join-v8-quic", binding, &client_nonce.to_le_bytes(), &cookie.to_le_bytes(), &map_hash.to_le_bytes(), &version.to_le_bytes()],
+    ))
+}
+
+fn truncate(full: Digest) -> [u8; PROOF_LEN] {
     let mut p = [0u8; PROOF_LEN];
     p.copy_from_slice(&full[..PROOF_LEN]);
     p
 }
 
-/// Whether `given` is the right proof.
-pub fn proof_matches(join_key: &[u8], client_nonce: u64, cookie: u64, map_hash: u32, version: u16, given: &[u8; PROOF_LEN]) -> bool {
-    ct_eq(&join_proof(join_key, client_nonce, cookie, map_hash, version), given)
+/// Whether `given` is the right proof (`binding` = the QUIC connection's exporter, `None` on development UDP).
+#[allow(clippy::too_many_arguments)]
+pub fn proof_matches(
+    join_key: &[u8],
+    binding: Option<&[u8; 32]>,
+    client_nonce: u64,
+    cookie: u64,
+    map_hash: u32,
+    version: u16,
+    given: &[u8; PROOF_LEN],
+) -> bool {
+    let want = match binding {
+        Some(b) => join_proof_bound(join_key, b, client_nonce, cookie, map_hash, version),
+        None => join_proof(join_key, client_nonce, cookie, map_hash, version),
+    };
+    ct_eq(&want, given)
 }
 
 /// Makes and checks the stateless address cookies.
@@ -102,12 +126,15 @@ pub struct CookieJar {
 }
 
 impl CookieJar {
-    /// A jar with a fresh secret made from `entropy` (the server's per-process random source).
-    pub fn new(mut entropy: impl FnMut() -> u64) -> CookieJar {
+    /// A jar with a fresh 256-bit secret from the OS CSPRNG. `Err` when the OS cannot provide one (the server then refuses to start).
+    pub fn new() -> Result<CookieJar, String> {
         let mut secret = [0u8; 32];
-        for chunk in secret.chunks_mut(8) {
-            chunk.copy_from_slice(&entropy().to_le_bytes());
-        }
+        crate::crypto::fill_random(&mut secret)?;
+        Ok(CookieJar { secret })
+    }
+
+    /// A jar with a given secret (tests).
+    pub fn with_secret(secret: [u8; 32]) -> CookieJar {
         CookieJar { secret }
     }
 
@@ -136,12 +163,11 @@ impl CookieJar {
     }
 }
 
-/// A random 32-hex-digit join key (128 bits) from the OS-seeded hasher; what `--key auto` prints.
-pub fn random_key(mut entropy: impl FnMut() -> u64) -> String {
+/// A random 32-hex-digit join key (128 bits from the OS CSPRNG); what `--key auto` prints.
+pub fn random_key() -> Result<String, String> {
     let mut bytes = [0u8; 16];
-    bytes[..8].copy_from_slice(&entropy().to_le_bytes());
-    bytes[8..].copy_from_slice(&entropy().to_le_bytes());
-    crate::crypto::hex(&bytes)
+    crate::crypto::fill_random(&mut bytes)?;
+    Ok(crate::crypto::hex(&bytes))
 }
 
 #[cfg(test)]
@@ -150,14 +176,6 @@ mod tests {
 
     fn addr(port: u16) -> SocketAddr {
         SocketAddr::from(([203, 0, 113, 9], port))
-    }
-
-    fn counter() -> impl FnMut() -> u64 {
-        let mut n = 0x9e37_79b9_7f4a_7c15u64;
-        move || {
-            n = n.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-            n
-        }
     }
 
     #[test]
@@ -182,17 +200,24 @@ mod tests {
     #[test]
     fn the_join_proof_needs_the_key_and_is_bound_to_this_handshake() {
         let good = join_proof(b"k", 10, 20, 0xabcd, 3);
-        assert!(proof_matches(b"k", 10, 20, 0xabcd, 3, &good));
-        assert!(!proof_matches(b"K", 10, 20, 0xabcd, 3, &good), "wrong key");
-        assert!(!proof_matches(b"k", 11, 20, 0xabcd, 3, &good), "replayed with another client nonce");
-        assert!(!proof_matches(b"k", 10, 21, 0xabcd, 3, &good), "replayed with another cookie");
-        assert!(!proof_matches(b"k", 10, 20, 0xabce, 3, &good), "another map");
-        assert!(!proof_matches(b"k", 10, 20, 0xabcd, 4, &good), "another protocol version");
+        assert!(proof_matches(b"k", None, 10, 20, 0xabcd, 3, &good));
+        assert!(!proof_matches(b"K", None, 10, 20, 0xabcd, 3, &good), "wrong key");
+        assert!(!proof_matches(b"k", None, 11, 20, 0xabcd, 3, &good), "replayed with another client nonce");
+        assert!(!proof_matches(b"k", None, 10, 21, 0xabcd, 3, &good), "replayed with another cookie");
+        assert!(!proof_matches(b"k", None, 10, 20, 0xabce, 3, &good), "another map");
+        assert!(!proof_matches(b"k", None, 10, 20, 0xabcd, 4, &good), "another protocol version");
+        // Bound to a QUIC connection: only that connection's exporter verifies it, and an unbound proof does not pass as a bound one.
+        let (b1, b2) = ([1u8; 32], [2u8; 32]);
+        let bound = join_proof_bound(b"k", &b1, 10, 20, 0xabcd, 3);
+        assert!(proof_matches(b"k", Some(&b1), 10, 20, 0xabcd, 3, &bound));
+        assert!(!proof_matches(b"k", Some(&b2), 10, 20, 0xabcd, 3, &bound), "relayed to another connection");
+        assert!(!proof_matches(b"k", Some(&b1), 10, 20, 0xabcd, 3, &good), "an unbound proof on QUIC");
+        assert!(!proof_matches(b"k", None, 10, 20, 0xabcd, 3, &bound));
     }
 
     #[test]
     fn cookies_belong_to_an_address_a_nonce_and_a_time() {
-        let jar = CookieJar::new(counter());
+        let jar = CookieJar::new().unwrap();
         let c = jar.make(addr(1000), 77, 5);
         assert_ne!(c, 0);
         assert!(jar.valid(addr(1000), 77, c, 5));
@@ -201,20 +226,13 @@ mod tests {
         assert!(!jar.valid(addr(1001), 77, c, 5), "another source port (a spoofer)");
         assert!(!jar.valid(addr(1000), 78, c, 5), "another client nonce");
         assert!(!jar.valid(addr(1000), 77, 0, 5), "0 is never a cookie");
-        let other = CookieJar::new({
-            let mut n = 1u64;
-            move || {
-                n = n.wrapping_mul(31).wrapping_add(7);
-                n
-            }
-        });
+        let other = CookieJar::with_secret([9; 32]);
         assert!(!other.valid(addr(1000), 77, c, 5), "another server's secret");
     }
 
     #[test]
     fn random_keys_are_32_hex_digits_and_differ() {
-        let mut e = counter();
-        let (a, b) = (random_key(&mut e), random_key(&mut e));
+        let (a, b) = (random_key().unwrap(), random_key().unwrap());
         assert_eq!(a.len(), 32);
         assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
         assert_ne!(a, b);

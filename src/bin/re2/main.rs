@@ -284,6 +284,8 @@ struct App {
     join_key: Option<String>,
     /// `--name` / `RE2_NAME`: the name shown in the lobby.
     player_name: String,
+    /// How the server's identity is checked when joining (ADR 0044).
+    transport: TransportChoice,
     /// Debug: `RE2_AUTOWALK=forward|circle[:deg/s]` walks by itself (for unattended multi-window demos).
     autowalk: Option<String>,
     net_title_at: Instant,
@@ -514,6 +516,7 @@ impl App {
             pending_net: None,
             join_key: std::env::var("RE2_KEY").ok().filter(|k| !k.is_empty()),
             player_name: std::env::var("RE2_NAME").unwrap_or_default(),
+            transport: TransportChoice::default(),
             autowalk: std::env::var("RE2_AUTOWALK").ok().filter(|v| !v.is_empty()),
             net_title_at: Instant::now(),
             switch_queued: None,
@@ -598,6 +601,28 @@ impl App {
     }
 }
 
+/// The transport options from the command line: a pinned fingerprint or CA (QUIC), or explicit development UDP.
+#[derive(Default, Clone)]
+struct TransportChoice {
+    fingerprint: Option<String>,
+    ca: Option<PathBuf>,
+    server_name: Option<String>,
+    dev_udp: bool,
+}
+
+impl TransportChoice {
+    /// The client transport for `addr`, or why it will not connect (never a silent plaintext fallback).
+    fn for_server(&self, addr: SocketAddr) -> Result<red_engine2::net::client::ClientTransportConfig, String> {
+        red_engine2::net::client::ClientTransportConfig::choose(
+            addr,
+            self.fingerprint.as_deref(),
+            self.ca.as_deref(),
+            self.server_name.as_deref(),
+            self.dev_udp,
+        )
+    }
+}
+
 /// What the resolved command line asked for.
 struct Args {
     scene: PathBuf,
@@ -610,6 +635,7 @@ struct Args {
     bot_skill: Option<String>,
     headless: headless::Options,
     debug_help: bool,
+    transport: TransportChoice,
 }
 
 /// Red Engine 2 real-time game client.
@@ -677,6 +703,18 @@ struct CliArgs {
     /// Print the RE2_* debug switches and hotkeys, and exit.
     #[arg(long)]
     debug_help: bool,
+    /// The server's identity fingerprint (`sha256:...`, printed by `red_server`): join over QUIC + TLS 1.3 (or RE2_SERVER_FINGERPRINT).
+    #[arg(long, value_name = "SHA256")]
+    server_fingerprint: Option<String>,
+    /// A CA bundle (PEM) the server's certificate must chain to: join over QUIC + TLS 1.3.
+    #[arg(long, value_name = "PEM")]
+    server_ca: Option<PathBuf>,
+    /// The name in the server's certificate (with --server-ca; default: the address).
+    #[arg(long)]
+    server_name: Option<String>,
+    /// Join a development server over plain UDP (not encrypted; trusted LAN only). Loopback servers use it without the flag.
+    #[arg(long)]
+    dev_udp: bool,
 }
 
 fn parse_character_arg(value: &str) -> Result<Character, String> {
@@ -723,7 +761,13 @@ fn parse_args() -> Args {
     };
     // A playtest hosts its own match unless it was told where to connect.
     let host = cli.host || (cli.playtest && connect.is_none());
-    Args { scene: cli.scene, who, connect, key, name, host, fill: cli.fill, bot_skill: cli.bot_skill, headless, debug_help: cli.debug_help }
+    let transport = TransportChoice {
+        fingerprint: cli.server_fingerprint.or_else(|| std::env::var("RE2_SERVER_FINGERPRINT").ok().filter(|v| !v.is_empty())),
+        ca: cli.server_ca,
+        server_name: cli.server_name,
+        dev_udp: cli.dev_udp,
+    };
+    Args { scene: cli.scene, who, connect, key, name, host, fill: cli.fill, bot_skill: cli.bot_skill, headless, debug_help: cli.debug_help, transport }
 }
 
 /// Reports a fatal online-mode problem (message box when there is no console) and exits.
@@ -738,7 +782,7 @@ fn main() {
     #[cfg(windows)]
     win::install_crash_box(&win::init(win::wants_terminal(&std::env::args().collect::<Vec<_>>())));
     env_logger::init();
-    let Args { scene: scene_path, who: requested_character, mut connect, key, name, host, fill, bot_skill, headless: headless_options, debug_help } =
+    let Args { scene: scene_path, who: requested_character, mut connect, key, name, host, fill, bot_skill, headless: headless_options, debug_help, transport } =
         parse_args();
     if debug_help {
         print!("{}", help::text());
@@ -754,6 +798,12 @@ fn main() {
                 local_host = Some(h);
             }
             Err(e) => fail_online(&e),
+        }
+    }
+    // A server elsewhere needs a pinned identity (or an explicit development transport); a hosted or loopback match needs nothing.
+    if let Some(addr) = connect {
+        if let Err(e) = transport.for_server(addr) {
+            fail_online(&e);
         }
     }
     // Online, the client's map is loaded together with its hash and static collision (what the server has).
@@ -801,6 +851,7 @@ fn main() {
     }
     let mut app = App::new(scene, scene_path, forced_character, connect, net_world);
     app.host_pause = local_host.as_ref().map(|h| h.pause_flag());
+    app.transport = transport;
     if key.is_some() {
         app.join_key = key;
     }

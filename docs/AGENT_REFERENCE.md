@@ -30,9 +30,12 @@ Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`
 weapon logic (the online path uses the server's). Offline and online both use the shared generic presentation for rule variables,
 recent events, hidden objects and outcome; online receives repeated complete rule-state snapshots (ADR 0036).
 
-**Joining and the lobby (protocol v<!--fact:protocol-->9<!--/fact-->).** `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC challenge /
-response, the key is never sent) and every datagram after the handshake is authenticated, so forged, replayed or injected packets are dropped
-(ADR 0028; authentication, **not** encryption; use `--key auto`, not a short word). `--lobby` (or a scene `"match"` block, see `describe
+**Transport and joining (protocol v<!--fact:protocol-->10<!--/fact-->, ADR 0044).** Production traffic is QUIC + TLS 1.3 (`net::quic` behind `net::transport`): the server has a
+deployment identity (`red_engine2 net-identity`, `red_server --tls-cert/--tls-key`) that clients pin (`--server-fingerprint`) and never downgrade
+from; loopback tools and tests use development UDP (`Server::bind`, `NetClient::connect`), which a public bind refuses without
+`--insecure-public-udp`. `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC, bound to the TLS exporter on QUIC;
+the key is never sent). Snapshots are sized to the transport's datagram budget (`protocol::snapshot_prop_budget`); oversized repeated state
+goes on a QUIC stream. `net-test --transport quic` measures it. `--lobby` (or a scene `"match"` block, see `describe
 scene`) turns on the flow lobby -> ready-up -> countdown -> timed round -> results -> rematch (`sim::flow`, ADR 0029; `--min-players
 --countdown-secs --round-secs --results-secs --score-to-win` override). The graphical client shows the connect form (`re2`, then the O key or
 PLAY ONLINE), the lobby, the HUD and the results (`src/ui/online.rs`, audited by `ui-check`); `re2 --connect HOST:PORT --key K --name N`
@@ -101,7 +104,8 @@ Play a map: `cargo run --release --bin re2 -- examples/house.json` (`RE2_STATS=1
 | `verify <scene>` | Run the scene's `checks` block (lint, reach, walk incl. auto routes, objects, views, **sim**, **perf**); PASS/FAIL with evidence and timings; exit 1 on failure | `--bless` (record golden views), `--no-views`, `--only walk[1]` / `--only "name text"` |
 | `sim <scene>` | Play scripted players through the real simulation, headless: the scene's `checks.sim` or `--scenario file.json` | `--only name`, `--trace out.json` (record), `--dump-every 1` |
 | `perf <scene>` | Real players walk the scene in an in-process server: tick p50/p95/p99/worst, bytes per client, largest datagram, promoted props, judged against `checks.perf` (or `--budget file`) | `--players N --secs S --windows N`; best-of windows because noise only adds time; failing output gives advice |
-| `net-test <scene>` | Real server + clients behind a seeded bursty-lossy laggy UDP proxy, judged on what a player notices | `--profile lan\|wifi\|4g\|bad\|awful\|all --players N --secs S --seed N`; exit 1 on a failed check |
+| `net-test <scene>` | Real server + clients behind a seeded bursty-lossy laggy UDP proxy, judged on what a player notices | `--profile lan\|wifi\|4g\|bad\|awful\|all --players N --secs S --seed N --transport udp\|quic`; exit 1 on a failed check |
+| `net-identity --out DIR` | A server identity for the QUIC transport: `cert.pem`, `key.pem` (owner-only, never overwritten, never committed) and the fingerprint clients pin | `--name HOST` (repeatable); then `red_server --tls-cert DIR/cert.pem --tls-key DIR/key.pem` |
 | `portmap status\|enable\|remove\|keep` | Open the game's UDP port on a home router via UPnP (SSDP discovery, safe ownership rules, lease renewal) | `--port --lease --router IP --allow-permanent`; also `red_server --upnp` |
 | `package <out.zip>` / `package --verify <zip>` | Reproducible release zip with SHA-256 manifest, commit, dirty files; headless binaries proven graphics-free | `--allow-dirty`, `--no-build`; never overwrites |
 | `features [name\|words]` / `features --check` | The feature index (`docs/features.json`): what exists, who owns which file; `--check` fails if it drifted | also a test |

@@ -28,11 +28,13 @@ pub mod limits;
 pub mod netsim;
 pub mod predict;
 pub mod protocol;
+pub mod quic;
 pub mod server;
 pub mod session;
 mod sessions;
 mod snapshots;
 pub mod testkit;
+pub mod transport;
 pub mod upnp;
 
 /// The default UDP port of a Red server.

@@ -7,3 +7,7 @@ __pycache__/
 # The external custom-client example's own build and screenshots
 /examples/external/*/target
 /examples/external/*/out
+# Server identities (ADR 0044): private keys never enter the repository
+key.pem
+*.key.pem
+/identity/
