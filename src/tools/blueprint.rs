@@ -641,8 +641,23 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
     }
     scene.insert("objects".into(), Value::Array(objects));
     for (k, v) in &scene_merge {
-        if k != "checks" {
-            scene.insert(k.clone(), v.clone());
+        match k.as_str() {
+            "checks" => {}
+            // Zones merge by id (a game adds an altar zone without losing the rooms its portals refer to); every other key replaces.
+            "zones" => {
+                let mut zones = scene.get("zones").and_then(Value::as_array).cloned().unwrap_or_default();
+                for z in v.as_array().into_iter().flatten() {
+                    let id = z.get("id").and_then(Value::as_str);
+                    match id.and_then(|id| zones.iter().position(|q| q.get("id").and_then(Value::as_str) == Some(id))) {
+                        Some(i) => zones[i] = z.clone(),
+                        None => zones.push(z.clone()),
+                    }
+                }
+                scene.insert("zones".into(), Value::Array(zones));
+            }
+            _ => {
+                scene.insert(k.clone(), v.clone());
+            }
         }
     }
     // A blueprint with no spawns of its own whose `scene` block brings them: the self-check, the generated checks and the camera
@@ -921,5 +936,19 @@ mod tests {
         assert_eq!(b.scene["vars"]["score"], 0);
         assert_eq!(b.scene["checks"]["objects"]["exist"][0], "floor_a");
         assert!(b.scene["checks"]["objects"]["min_count"].is_number(), "user keys merge into, not replace, the generated object");
+    }
+
+    #[test]
+    fn scene_zones_merge_by_id_so_generated_portals_keep_their_rooms() {
+        let bp: Value = serde_json::from_str(
+            r##"{"blueprint":1,"rooms":[{"id":"a","rect":[-8,-6,0,6]},{"id":"b","rect":[0,-6,8,6]}],"doors":[{"between":["a","b"],"width":1.4}],
+                "scene":{"zones":[{"id":"altar","rect":[5,-2,7,2],"y":0,"kind":"goal"},{"id":"a","rect":[-7.5,-5.5,-0.5,5.5],"y":0,"kind":"room"}]}}"##,
+        )
+        .unwrap();
+        let b = compile_in(&bp, None).unwrap();
+        assert_eq!(b.errors(), 0, "{:?}", b.findings);
+        let ids: Vec<&str> = b.scene["zones"].as_array().unwrap().iter().map(|z| z["id"].as_str().unwrap()).collect();
+        assert_eq!(ids, ["a", "b", "altar"], "generated zones stay (`a` replaced by id), the new one is appended");
+        assert_eq!(b.scene["zones"][0]["rect"][0], -7.5, "the scene's `a` replaced the generated one");
     }
 }

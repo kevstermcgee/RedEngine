@@ -177,7 +177,7 @@ fn unknown_check_keys(checks: &Value) -> Vec<String> {
         }
     };
     if let Some(l) = root.get("lint").and_then(Value::as_object) {
-        check_keys(&mut errs, "checks.lint", l, &["max_errors", "max_warnings", "forbid"]);
+        check_keys(&mut errs, "checks.lint", l, &["max_errors", "max_warnings", "forbid", "ignore"]);
     }
     each(&mut errs, "reach", &["to", "from", "from_y", "why"]);
     each(&mut errs, "walk", &["name", "path", "from", "from_y", "to", "to_y", "auto", "ends_near", "tol", "floor_y"]);
@@ -219,15 +219,24 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
 
     if let Some(l) = checks.get("lint").filter(|_| wants_lint) {
         let t0 = std::time::Instant::now();
-        let findings = base.as_ref().map(|r| lint::lint(&world, r)).unwrap_or_default();
+        let all = base.as_ref().map(|r| lint::lint(&world, r)).unwrap_or_default();
         let max_e = l.get("max_errors").and_then(Value::as_u64).unwrap_or(0) as usize;
         let max_w = l.get("max_warnings").and_then(Value::as_u64);
         let forbid: Vec<&str> = l.get("forbid").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
-        let errs: Vec<&lint::Finding> = findings.iter().filter(|f| f.sev == Severity::Error).collect();
+        // `ignore`: lint codes this map accepts everywhere (a pit's `drop` edges, props lint calls `unreachable` on purpose).
+        let ignore: Vec<&str> = l.get("ignore").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+        let findings: Vec<&lint::Finding> = all.iter().filter(|f| !ignore.contains(&f.code)).collect();
+        let ignored = all.len() - findings.len();
+        let errs: Vec<&lint::Finding> = findings.iter().copied().filter(|f| f.sev == Severity::Error).collect();
         let warns = findings.iter().filter(|f| f.sev == Severity::Warn).count();
-        let forbidden: Vec<&lint::Finding> = findings.iter().filter(|f| forbid.contains(&f.code)).collect();
+        let forbidden: Vec<&lint::Finding> = findings.iter().copied().filter(|f| forbid.contains(&f.code)).collect();
         let ok = errs.len() <= max_e && max_w.is_none_or(|m| warns as u64 <= m) && forbidden.is_empty();
-        let mut detail = format!("{} error(s) (max {max_e}), {warns} warning(s){}", errs.len(), max_w.map(|m| format!(" (max {m})")).unwrap_or_default());
+        let mut detail = format!(
+            "{} error(s) (max {max_e}), {warns} warning(s){}{}",
+            errs.len(),
+            max_w.map(|m| format!(" (max {m})")).unwrap_or_default(),
+            if ignored > 0 { format!(", {ignored} ignored ({})", ignore.join(", ")) } else { String::new() }
+        );
         if !ok {
             for f in errs.iter().chain(forbidden.iter()).take(6) {
                 detail.push_str(&format!("\n     [{}] {}", f.code, f.message));

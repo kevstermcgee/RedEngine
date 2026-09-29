@@ -498,6 +498,10 @@ condition holds, and then **does** its actions:
   holder), `{place: [id, [x,y,z]]}` (move a loose prop's origin to a point, upright as authored, at rest).
 - **Engine events** a rule can react to with `{event: name}`: `pickup`, `drop`, `shot`, `hit`, `kill`, `respawn`, `swing` (a bat
   swing started), `prop_hit` (a bat or a bullet struck a loose prop; the player is the striker).
+- **Edges, measured**: rules run in declaration order each tick, but a body walking from one volume into the next overlaps both for a
+  moment, so the next volume's `enter` fires before the previous volume's `exit`; an `exit` rule that resets a variable undoes the
+  `enter` rule's work (key on `enter`, or use one variable per volume). A player or prop that starts inside a volume gets no `enter`
+  (use a `start` rule). A variable whose name starts with `_` is internal: the generic HUD does not show it.
 
 Everything a rule names — variables, objects, loose props, zones, spawn points, events — is checked when the scene loads, with a
 did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mean `score`?`). Rules run inside the
@@ -522,8 +526,8 @@ checks the outcome. They live in `checks.sim` (so `verify` runs them) or a file 
 ```
 
 Script steps per player run in order (players in parallel): `walk "x,z; x,z"` (steered with the real movement; a walk that gets stuck
-fails the scenario), `wait secs`, `hold {forward, strafe, sprint, crouch, jump, yaw_deg, pitch_deg, interact, attack, reload, switch,
-seconds}` (buttons act on the tick they go down: `interact: true` picks up / drops what the view points at within 2.3 m, `attack: true`
+fails the scenario), `wait secs`, `hold {forward, strafe, sprint, crouch, jump, yaw_deg, pitch_deg, look_at: [x,y,z], interact, attack, reload, switch,
+seconds}` (`look_at` aims at a world point from the eye every tick; buttons act on the tick they go down: `interact: true` picks up / drops what the view points at within 2.3 m, `attack: true`
 swings the bat, its strike landing after the windup), each with optional `until_event: name`. The run ends when a rule ends the match,
 when all scripts finish (plus `settle_seconds`, default 0.5), or at `max_seconds` (default 30). No window, GPU or socket is involved.
 
@@ -589,6 +593,7 @@ names the object that blocked it and writes `out/verify/<scene>_walk<N>_explain.
 `views` are golden-image regression tests (`golden/<scene>/<name>.png` beside the scene; recorded on
 first run or with `--bless`; on failure a `golden | now | diff` image is written under `out/verify/`).
 `verify --no-views` skips rendering (no GPU), `--only walk` / `--only walk[2]` / `--only "front door"` runs a subset (every check is timed); add the global `--json` for the machine-readable envelope.
+`checks.lint` takes `ignore: [codes]` for findings a map accepts everywhere (a pit's `drop` edges) beside `forbid` and the budgets.
 `checks.sim` holds headless gameplay scenarios (see [Game rules as data](#game-rules-as-data-vars-rules)).
 
 ## Blueprints (`red_engine2 build`)
@@ -610,7 +615,7 @@ document with `"blueprint": 1`; unknown keys are errors with a did-you-mean. Coo
 | `keep_clear` | Extra `[x0, z0, x1, z1]` rectangles fill must leave empty. |
 | `extra` | Raw scene objects appended verbatim (prefabs, stairs, anything the blueprint cannot say). |
 | `prefab_files` | Paths (relative to the blueprint) of prefab libraries in the `assets/*.json` format, merged into the built scene's `prefabs`. A game ships its own props this way without touching the engine (place instances with `extra`); the map stays self-contained for the server. |
-| `scene` | Raw top-level scene keys merged into the result (`vars`, `rules`, `weapons`, `checks.sim`, ...); a `checks` object merges into the generated one. |
+| `scene` | Raw top-level scene keys merged into the result (`vars`, `rules`, `weapons`, `checks.sim`, ...). A `checks` object merges key by key into the generated one and `zones` merge by id (a zone with a generated room's id replaces it, a new id is added, so the generated portals keep their rooms); every other key, `spawns` and `camera` included, **replaces** the generated value. |
 
 What comes out: a `floor_<room>` plane per room; `wall_ext_N` (0.24 thick) around free edges and `part_N` (0.15) on shared ones, with the
 door openings; a `sun` and one lamp per 8 x 8 m of room; `zones`, `spawns`, `portals` and `interest`; a camera at the first spawn; and `checks`:

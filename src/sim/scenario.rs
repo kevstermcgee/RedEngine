@@ -30,7 +30,8 @@ use serde_json::{json, Map, Value};
 const SCENARIO_KEYS: &[&str] = &["name", "spawn_group", "players", "script", "max_seconds", "settle_seconds", "expect"];
 const PLAYER_KEYS: &[&str] = &["id", "character", "spawn"];
 const STEP_KEYS: &[&str] = &["player", "walk", "wait", "hold", "until_event"];
-const HOLD_KEYS: &[&str] = &["forward", "strafe", "sprint", "crouch", "jump", "yaw_deg", "pitch_deg", "interact", "attack", "reload", "switch", "seconds"];
+const HOLD_KEYS: &[&str] =
+    &["forward", "strafe", "sprint", "crouch", "jump", "yaw_deg", "pitch_deg", "look_at", "interact", "attack", "reload", "switch", "seconds"];
 const EXPECT_KEYS: &[&str] = &[
     "event",
     "no_event",
@@ -130,6 +131,8 @@ pub enum Action {
         keep_yaw: bool,
         /// No `pitch_deg` was given: keep the current pitch.
         keep_pitch: bool,
+        /// Aim at this world point every tick (yaw and pitch from the player's eye), instead of `yaw_deg` / `pitch_deg`.
+        look_at: Option<Vec3>,
     },
 }
 
@@ -476,6 +479,19 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                 let yaw = h.get("yaw_deg").and_then(Value::as_f64).unwrap_or(0.0) as f32;
                 let ticks = h.get("seconds").map_or(1, |s| ticks_of(s, &format!("{hp}.seconds"), &mut errs));
                 let pitch = h.get("pitch_deg").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                let look_at = match h.get("look_at") {
+                    None => None,
+                    Some(v) => {
+                        let p = v
+                            .as_array()
+                            .filter(|a| a.len() == 3)
+                            .and_then(|a| Some(Vec3::new(a[0].as_f64()? as f32, a[1].as_f64()? as f32, a[2].as_f64()? as f32)));
+                        if p.is_none() {
+                            errs.push(format!("{hp}.look_at: must be [x, y, z], a world point to aim at (a prop's origin plus about half its height)"));
+                        }
+                        p
+                    }
+                };
                 let input = PlayerInput {
                     seq: 0,
                     analog: false,
@@ -491,7 +507,11 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                     reload: flag("reload"),
                     switch_weapon: flag("switch"),
                 };
-                script.push((pi, Action::Hold { input, ticks, keep_yaw: !h.contains_key("yaw_deg"), keep_pitch: !h.contains_key("pitch_deg") }, until));
+                script.push((
+                    pi,
+                    Action::Hold { input, ticks, keep_yaw: !h.contains_key("yaw_deg"), keep_pitch: !h.contains_key("pitch_deg"), look_at },
+                    until,
+                ));
             }
         }
     }
@@ -780,7 +800,7 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                             }
                             cur.ticks_in_step += 1;
                         }
-                        Action::Hold { input: held, ticks, keep_yaw, keep_pitch } => {
+                        Action::Hold { input: held, ticks, keep_yaw, keep_pitch, look_at } => {
                             if cur.ticks_in_step >= *ticks {
                                 (cur.step, cur.ticks_in_step) = (cur.step + 1, 0);
                                 continue;
@@ -792,6 +812,13 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                                 input.yaw = yaw;
                             }
                             input.pitch = if *keep_pitch { pitch } else { input.pitch };
+                            if let Some(at) = look_at {
+                                // Aim from the standing eye: what a player looking at that point would send this tick.
+                                let eye = Vec3::new(state.pos.x, state.foot_y + state.character.body().stand_eye, state.pos.y);
+                                let d = *at - eye;
+                                input.yaw = libm::atan2f(d.x, -d.z);
+                                input.pitch = libm::atan2f(d.y, libm::sqrtf(d.x * d.x + d.z * d.z));
+                            }
                         }
                         Action::Walk(wps) => {
                             let Some(target) = wps.get(cur.leg) else {

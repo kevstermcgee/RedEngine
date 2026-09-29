@@ -19,10 +19,12 @@ fn value(v: f64) -> String {
     }
 }
 
-/// Builds the standard in-game rules HUD. All scene-defined variables are shown (up to eight),
-/// the newest event may be supplied transiently, and an ended match gets a central banner.
-/// Empty state produces an empty transparent layout.
+/// Builds the standard in-game rules HUD. Scene-defined variables are shown (up to eight) except those whose name
+/// starts with `_` (a game's internal state: timers, phase flags), the newest event may be supplied transiently, and an
+/// ended match gets a central banner. Empty state produces an empty transparent layout.
 pub fn hud_layout(w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outcome: Option<&str>) -> Layout {
+    let shown_vars: Vec<(&str, f64)> = vars.iter().filter(|(name, _)| !name.starts_with('_')).copied().collect();
+    let vars = shown_vars.as_slice();
     let mut l = Layout::new(w, h);
     let (wi, hi) = (w as i32, h as i32);
     let s = (hi / 240).max(1);
@@ -87,5 +89,13 @@ mod tests {
         assert_eq!(value(3.0), "3");
         assert_eq!(value(1.25), "1.25");
         assert!(hud_layout(640, 360, &[], None, None).widgets.is_empty());
+    }
+
+    #[test]
+    fn variables_named_with_a_leading_underscore_are_internal_and_stay_off_the_hud() {
+        assert!(hud_layout(640, 360, &[("_t_start", 12.0), ("_phase", 1.0)], None, None).widgets.is_empty(), "only internal vars: nothing to show");
+        let l = hud_layout(640, 360, &[("_t_start", 12.0), ("score", 3.0)], None, None);
+        let texts: Vec<&str> = l.widgets.iter().filter_map(|w| w.text.as_deref()).collect();
+        assert!(texts.contains(&"SCORE: 3") && !texts.iter().any(|t| t.contains("T_START")), "{texts:?}");
     }
 }

@@ -284,6 +284,11 @@ fn physics() -> Vec<(&'static str, String, &'static str)> {
             "box sweep".to_string(),
             "a carried prop sits in front of the eye and is pulled in when its own box, swept ahead at the held height, would enter fixed geometry (walls lower than the eye count); looking up lifts it, looking down lowers it about 0.4 m",
         ),
+        (
+            "topple_direction",
+            "front = local +Z".to_string(),
+            "a tall loose prop struck from the front falls toward its local -Z: with rotation yaw Y it falls toward (-sin Y, -cos Y), so a domino line along +X needs yaw -90 and each next piece sits along the previous piece's fall direction; measured (Domino Halls): sculpture_monolith lines topple at 0.8-1.8 m spacing, a 90 degree corner needs a fan of three 30 degree pieces, crates/barrels/cones slide and never topple",
+        ),
         ("eye_height_m", format!("{}", player::STAND_EYE_HEIGHT), "camera height when standing (crouch: 1.05)"),
         ("jump_height_m", format!("{:.2}", player::JUMP_HEIGHT), "can hop onto low props"),
         ("step_up_m", "0.35".to_string(), "colliders whose top is <= 0.35 above the feet are stepped ONTO (slab edges, low props); taller ones block"),
@@ -409,6 +414,10 @@ fn rules_text() -> String {
          prop_hit (a bat or bullet struck a loose prop). A prop is inside a volume when its origin is inside in x/z and its height\n\
          band overlaps in y; `tilt` is measured from how the map placed it. An unknown variable/zone/object/prop/spawn/event is a\n\
          validate error with a did-you-mean.\n\
+         Edges, measured: rules run in declaration order each tick, but a body walking from one volume into the next overlaps both for\n\
+         a moment, so the next volume's `enter` fires a tick or more BEFORE the previous volume's `exit`: an `exit` rule that resets a\n\
+         var undoes the `enter` rule's work (key on `enter`, or use one var per volume). A player or prop that starts inside a volume\n\
+         gets no `enter` (use a `start` rule). A var whose name starts with `_` is internal: the generic HUD does not show it.\n\
          Rules run in the authoritative simulation (server, `sim`), deterministically; state (vars, hidden objects, outcome, prop\n\
          occupancy) is part of the match checksum. Offline `re2` runs the same rule state machine: hide/show changes rendering, collision\n\
          changes static movement/ground collision for a top-level object, teleport/impulse/reset/place are applied, the engine events\n\
@@ -501,10 +510,13 @@ fn sim_text() -> String {
          scenario = { name, players, script, expect, spawn_group?, max_seconds? (30), settle_seconds? (0.5) }\n\
          \x20 players  [{id, character: human|rat|wizard|cowboy|alien|robot, spawn?: spawn id}]\n\
          \x20 script   [{player, walk: \"x,z; x,z\" | wait: secs | hold: {forward, strafe, sprint, crouch, jump, yaw_deg, pitch_deg,\n\
-         \x20          interact, attack, reload, switch, seconds}, until_event?: name}]\n\
+         \x20          look_at: [x,y,z], interact, attack, reload, switch, seconds}, until_event?: name}]\n\
          \x20          each player's steps run in order; players run in parallel; a walk that gets stuck fails the scenario.\n\
-         \x20          Pick up / drop = `hold: {yaw_deg, pitch_deg, interact: true, seconds: 0.2}` aimed at the prop (reach 2.3 m; look first\n\
-         \x20          for ~0.15 s so the view is set); a bat swing = `hold: {attack: true, seconds: 0.3}` (strike lands after the windup).\n\
+         \x20          `walk` steers straight at each waypoint (forward only, no strafing) and counts it reached within 0.25 m: put waypoints\n\
+         \x20          at the foot and head of stairs, not beside a flank. `look_at` aims yaw and pitch at a world point from the eye every\n\
+         \x20          tick (a prop's origin plus about half its height), instead of hand-computed yaw_deg/pitch_deg.\n\
+         \x20          Pick up / drop = `hold: {look_at: [x,y,z], interact: true, seconds: 0.2}` at the prop (reach 2.3 m; a `hold` of ~0.15 s\n\
+         \x20          with the same aim first sets the view); a bat swing = `hold: {attack: true, seconds: 0.3}` (strike lands after the windup).\n\
          \x20 expect   [{event: name, count|min|max} {no_event: name} {var: name, eq|ne: number|bool, gt|gte|lt|lte: number}\n\
          \x20           {ended: outcome} {not_ended: true} {hidden|shown: object id} {collision_disabled|collision_enabled: object id}\n\
          \x20           {player: id, near: [x,z], tol?, y?}\n\
@@ -614,7 +626,9 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "brief" => brief_json(commands),
             "rules" => json!({
                 "actions": crate::sim::rules::ACTIONS.iter().map(|(n, h)| json!({"action": n, "help": h})).collect::<Vec<_>>(),
-                "when": ["enter", "exit", "event", "every", "after", "start"],
+                "when": ["enter", "exit", "event", "every", "after", "start", "prop_enter", "prop_exit", "prop_below"],
+                "functions": crate::sim::rules_expr::Func::ALL.iter().map(|(n, _, h)| json!({"function": n, "help": h})).collect::<Vec<_>>(),
+                "engine_events": crate::sim::rules::ENGINE_EVENTS,
                 "volumes": ["zone", "object", "box"],
                 "builtin_vars": crate::sim::rules::BUILTIN_VARS,
                 "example": serde_json::from_str::<Value>(RULES_EXAMPLE).unwrap_or(Value::Null),
@@ -721,6 +735,18 @@ fn unknown(t: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_sim_and_rules_topics_list_every_hold_key_trigger_and_built_in() {
+        let sim = super::sim_text();
+        for key in ["pitch_deg", "look_at", "interact", "attack", "reload", "switch", "held_by", "tilt_gt"] {
+            assert!(sim.contains(key), "describe sim must mention `{key}`");
+        }
+        let rules = super::rules_text();
+        for key in ["prop_enter", "prop_below", "props_in(zone)", "reset", "place", "swing", "prop_hit", "starts with `_`"] {
+            assert!(rules.contains(key), "describe rules must mention `{key}`");
+        }
+    }
+
     /// Every key the strict parser accepts at the scene root is described (and vice versa), so the doc cannot drift.
     #[test]
     fn describe_scene_lists_exactly_the_strict_root_keys() {

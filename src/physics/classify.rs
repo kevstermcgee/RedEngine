@@ -117,3 +117,26 @@ pub fn classify(o: &Object) -> Option<PropShape> {
     let shape = local_bounds(o)?;
     (o.movable == Some(true) || shape.carriable(&HUMAN_CARRY)).then_some(shape)
 }
+
+/// Why [`classify`] said no for `o`, in the words a map author needs (`red_engine2 info <id>` prints it).
+pub fn why_not_loose(o: &Object) -> String {
+    if o.movable == Some(false) {
+        return "pinned with `movable: false`".to_string();
+    }
+    if !(is_constant(&o.position) && is_constant(&o.rotation) && is_constant(&o.scale)) {
+        return "animated: a keyframed position, rotation or scale makes it scenery".to_string();
+    }
+    match &o.kind {
+        ObjectKind::Prop(p) if o.movable != Some(true) && FIXTURE_PROPS.contains(&p.kind.name()) => {
+            format!("`{}` is a fixture prop (furniture that stays put): add `movable: true` to make it loose", p.kind.name())
+        }
+        ObjectKind::Group(_) if o.movable != Some(true) && !o.prefab.as_ref().is_some_and(|t| t.mount == "floor") => {
+            "a prefab that is not floor-mounted (wall art and hanging lamps stay put): add `movable: true` to make it loose".to_string()
+        }
+        ObjectKind::Prop(_) | ObjectKind::Group(_) => match local_bounds(o) {
+            None => "it has no collision shape to move".to_string(),
+            Some(_) => "too big or heavy for a human to carry: add `movable: true` to make it loose anyway".to_string(),
+        },
+        _ => "not a `prop` or a prefab: boxes, walls, planes and stairs are the map itself".to_string(),
+    }
+}

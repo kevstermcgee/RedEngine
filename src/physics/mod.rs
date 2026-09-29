@@ -61,7 +61,7 @@ mod fixed;
 mod interact;
 
 use classify::object_scale;
-pub use classify::{classify, local_bounds, CarryLimits, PropShape, HUMAN_CARRY, RAT_CARRY};
+pub use classify::{classify, local_bounds, why_not_loose, CarryLimits, PropShape, HUMAN_CARRY, RAT_CARRY};
 use fixed::add_static;
 
 /// Gravity acting on loose props, m/s^2 (a little brisker than 9.81 so drops feel snappy, like the

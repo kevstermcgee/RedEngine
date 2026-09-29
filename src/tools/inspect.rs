@@ -105,6 +105,21 @@ pub fn object_info(world: &MapWorld, id: &str, findings: &[Finding]) -> Result<S
     out.push_str(&format!("pieces: {}   kind: {}\n", items.len(), items[0].kind.label()));
     out.push_str(&format!("world bounds: min ({})  max ({})  size {:.2} x {:.2} x {:.2}\n", fmt3(min), fmt3(max), max.x - min.x, max.y - min.y, max.z - min.z));
     out.push_str(&format!("origin: ({})\n", fmt3(items[0].origin)));
+    // Loose or not, and why: the question every physics game asked the source.
+    if let Some(o) = world.scene.objects.iter().find(|o| o.id == id) {
+        match crate::physics::classify(o) {
+            Some(shape) => {
+                let volume: f32 = items.iter().filter(|i| i.is_solid()).map(|i| (i.max.x - i.min.x) * (i.max.y - i.min.y) * (i.max.z - i.min.z)).sum();
+                out.push_str(&format!(
+                    "loose: yes (a player can move it; about {:.0} kg at {} kg/m^3; a human can carry it: {}; `movable: false` pins it)\n",
+                    volume * crate::physics::PROP_DENSITY,
+                    crate::physics::PROP_DENSITY,
+                    if shape.carriable(&crate::physics::HUMAN_CARRY) { "yes" } else { "no, too big" }
+                ));
+            }
+            None => out.push_str(&format!("loose: no ({})\n", crate::physics::why_not_loose(o))),
+        }
+    }
     // Neighbours within 1.5 m (footprint gap), excluding itself.
     let mut near: Vec<(f32, &str)> = Vec::new();
     for o in world.items.iter().filter(|o| o.top_id != id && o.is_solid()) {

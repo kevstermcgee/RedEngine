@@ -1,131 +1,923 @@
 {
- "meta": { "fps": 30, "duration": 4, "resolution": [960, 540] },
- "background": { "sky_top": "#8fc7ff", "sky_bottom": "#eef6ff" },
- "ambient": { "color": "#ffffff", "intensity": 0.5 },
- "camera": { "fov": 70, "position": [-6, 2.5, 4], "target": [0, 1, 0] },
+ "meta": {
+  "fps": 30,
+  "duration": 4,
+  "resolution": [
+   960,
+   540
+  ]
+ },
+ "background": {
+  "sky_top": "#8fc7ff",
+  "sky_bottom": "#eef6ff"
+ },
+ "ambient": {
+  "color": "#ffffff",
+  "intensity": 0.5
+ },
+ "camera": {
+  "fov": 70,
+  "position": [
+   -6,
+   2.5,
+   4
+  ],
+  "target": [
+   0,
+   1,
+   0
+  ]
+ },
  "lights": [
-  { "id": "lamp_w", "type": "point", "position": [-4, 3.6, 0], "color": "#fff0d0", "intensity": 12, "range": 12 },
-  { "id": "lamp_e", "type": "point", "position": [4, 3.6, 4], "color": "#fff0d0", "intensity": 12, "range": 12 }
+  {
+   "id": "lamp_w",
+   "type": "point",
+   "position": [
+    -4,
+    3.6,
+    0
+   ],
+   "color": "#fff0d0",
+   "intensity": 12,
+   "range": 12
+  },
+  {
+   "id": "lamp_e",
+   "type": "point",
+   "position": [
+    4,
+    3.6,
+    4
+   ],
+   "color": "#fff0d0",
+   "intensity": 12,
+   "range": 12
+  }
  ],
  "zones": [
-  { "id": "hall", "rect": [-7.88, -7.88, 7.88, 7.88], "y": 0, "kind": "room" },
-  { "id": "pit", "rect": [1.5, -2, 5.5, 2], "y": 0, "kind": "hazard" },
-  { "id": "kick_pad", "rect": [-4, -1, -2.5, 1], "y": 0, "kind": "goal" },
-  { "id": "place_pad", "rect": [-4, -6, -2.5, -4.5], "y": 0, "kind": "goal" },
-  { "id": "reset_pad", "rect": [-1, 5, 0.5, 7], "y": 0, "kind": "goal" }
+  {
+   "id": "hall",
+   "rect": [
+    -7.88,
+    -7.88,
+    7.88,
+    7.88
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "pit",
+   "rect": [
+    1.5,
+    -2,
+    5.5,
+    2
+   ],
+   "y": 0,
+   "kind": "hazard"
+  },
+  {
+   "id": "kick_pad",
+   "rect": [
+    -4,
+    -1,
+    -2.5,
+    1
+   ],
+   "y": 0,
+   "kind": "goal"
+  },
+  {
+   "id": "place_pad",
+   "rect": [
+    -4,
+    -6,
+    -2.5,
+    -4.5
+   ],
+   "y": 0,
+   "kind": "goal"
+  },
+  {
+   "id": "reset_pad",
+   "rect": [
+    -1,
+    5,
+    0.5,
+    7
+   ],
+   "y": 0,
+   "kind": "goal"
+  }
  ],
  "spawns": [
-  { "id": "start", "position": [-3.2, 0, 3], "yaw_deg": 180, "group": "solo" },
-  { "id": "swing", "position": [1.4, 0, 6], "yaw_deg": 90, "group": "solo" }
+  {
+   "id": "start",
+   "position": [
+    -3.2,
+    0,
+    3
+   ],
+   "yaw_deg": 180,
+   "group": "solo"
+  },
+  {
+   "id": "swing",
+   "position": [
+    1.4,
+    0,
+    6
+   ],
+   "yaw_deg": 90,
+   "group": "solo"
+  }
  ],
- "vars": { "score": 0, "down": 0, "carried": 0 },
+ "vars": {
+  "score": 0,
+  "down": 0,
+  "carried": 0
+ },
  "rules": [
   {
    "id": "kick",
-   "when": { "enter": { "zone": "kick_pad" } },
+   "when": {
+    "enter": {
+     "zone": "kick_pad"
+    }
+   },
    "once": true,
-   "do": [{ "impulse": { "object": "crate", "dir": [1, 0.35, 0], "speed": 5 } }, { "emit": "kicked" }]
+   "do": [
+    {
+     "impulse": {
+      "object": "crate",
+      "dir": [
+       1,
+       0.35,
+       0
+      ],
+      "speed": 5
+     }
+    },
+    {
+     "emit": "kicked"
+    }
+   ]
   },
-  { "id": "score", "when": { "prop_enter": { "zone": "pit" } }, "do": [{ "add": ["score", 1] }, { "emit": "in_pit" }] },
-  { "id": "line_down", "when": { "every": 0.1 }, "if": "tilt(d3) > 60 && down == 0", "do": [{ "set": ["down", 1] }, { "emit": "line_down" }] },
-  { "id": "reset_line", "when": { "enter": { "zone": "reset_pad" } }, "do": [{ "reset": ["d1", "d2", "d3"] }, { "set": ["down", 0] }, { "emit": "line_reset" }] },
-  { "id": "place_crate", "when": { "enter": { "zone": "place_pad" } }, "once": true, "do": [{ "place": ["crate", [-3, 0, -6]] }, { "emit": "placed" }] },
-  { "id": "carried", "when": { "event": "pickup" }, "do": [{ "set": ["carried", "held(crate_b)"] }] }
+  {
+   "id": "score",
+   "when": {
+    "prop_enter": {
+     "zone": "pit"
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "score",
+      1
+     ]
+    },
+    {
+     "emit": "in_pit"
+    }
+   ]
+  },
+  {
+   "id": "line_down",
+   "when": {
+    "every": 0.1
+   },
+   "if": "tilt(d3) > 60 && down == 0",
+   "do": [
+    {
+     "set": [
+      "down",
+      1
+     ]
+    },
+    {
+     "emit": "line_down"
+    }
+   ]
+  },
+  {
+   "id": "reset_line",
+   "when": {
+    "enter": {
+     "zone": "reset_pad"
+    }
+   },
+   "do": [
+    {
+     "reset": [
+      "d1",
+      "d2",
+      "d3"
+     ]
+    },
+    {
+     "set": [
+      "down",
+      0
+     ]
+    },
+    {
+     "emit": "line_reset"
+    }
+   ]
+  },
+  {
+   "id": "place_crate",
+   "when": {
+    "enter": {
+     "zone": "place_pad"
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "place": [
+      "crate",
+      [
+       -3,
+       0,
+       -6
+      ]
+     ]
+    },
+    {
+     "emit": "placed"
+    }
+   ]
+  },
+  {
+   "id": "carried",
+   "when": {
+    "event": "pickup"
+   },
+   "do": [
+    {
+     "set": [
+      "carried",
+      "held(crate_b)"
+     ]
+    }
+   ]
+  }
  ],
  "checks": {
-  "lint": { "max_errors": 0, "max_warnings": 0 },
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0
+  },
   "sim": [
    {
     "name": "crate: stepping on the kick pad launches the crate off the deck into the pit and scores",
     "spawn_group": "solo",
-    "players": [{ "id": "p1", "character": "human", "spawn": "start" }],
-    "script": [{ "player": "p1", "walk": "-3.2,0" }, { "player": "p1", "wait": 4 }],
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-3.2,0"
+     },
+     {
+      "player": "p1",
+      "wait": 4
+     }
+    ],
     "expect": [
-     { "event": "kicked", "count": 1 },
-     { "event": "in_pit", "count": 1 },
-     { "var": "score", "eq": 1 },
-     { "prop": "crate", "in_zone": "pit" },
-     { "prop": "crate", "moved": true },
-     { "prop": "crate", "y_lt": 1 },
-     { "prop": "crate", "held_by": "none" },
-     { "not_ended": true }
+     {
+      "event": "kicked",
+      "count": 1
+     },
+     {
+      "event": "in_pit",
+      "count": 1
+     },
+     {
+      "var": "score",
+      "eq": 1
+     },
+     {
+      "prop": "crate",
+      "in_zone": "pit"
+     },
+     {
+      "prop": "crate",
+      "moved": true
+     },
+     {
+      "prop": "crate",
+      "y_lt": 1
+     },
+     {
+      "prop": "crate",
+      "held_by": "none"
+     },
+     {
+      "not_ended": true
+     }
     ]
    },
    {
     "name": "dominoes: one bat swing topples the line of three",
     "spawn_group": "solo",
-    "players": [{ "id": "p1", "character": "human", "spawn": "swing" }],
-    "script": [{ "player": "p1", "hold": { "yaw_deg": 90, "pitch_deg": -10, "attack": true, "seconds": 0.3 } }, { "player": "p1", "wait": 4 }],
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "swing"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 90,
+       "pitch_deg": -10,
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 4
+     }
+    ],
     "expect": [
-     { "event": "swing", "count": 1 },
-     { "event": "prop_hit", "count": 1 },
-     { "event": "line_down", "count": 1 },
-     { "prop": "d1", "tilt_gt": 60 },
-     { "prop": "d3", "tilt_gt": 60 },
-     { "prop": "d3", "moved": true },
-     { "var": "score", "eq": 0 }
+     {
+      "event": "swing",
+      "count": 1
+     },
+     {
+      "event": "prop_hit",
+      "count": 1
+     },
+     {
+      "event": "line_down",
+      "count": 1
+     },
+     {
+      "prop": "d1",
+      "tilt_gt": 60
+     },
+     {
+      "prop": "d3",
+      "tilt_gt": 60
+     },
+     {
+      "prop": "d3",
+      "moved": true
+     },
+     {
+      "var": "score",
+      "eq": 0
+     }
     ]
    },
    {
     "name": "dominoes: without the swing nothing falls",
     "spawn_group": "solo",
-    "players": [{ "id": "p1", "character": "human", "spawn": "swing" }],
-    "script": [{ "player": "p1", "wait": 2 }],
-    "expect": [{ "no_event": "swing" }, { "no_event": "line_down" }, { "prop": "d1", "tilt_lt": 5 }, { "prop": "d3", "moved": false }, { "prop": "d3", "near": [5, 6], "tol": 0.1 }]
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "swing"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "wait": 2
+     }
+    ],
+    "expect": [
+     {
+      "no_event": "swing"
+     },
+     {
+      "no_event": "line_down"
+     },
+     {
+      "prop": "d1",
+      "tilt_lt": 5
+     },
+     {
+      "prop": "d3",
+      "moved": false
+     },
+     {
+      "prop": "d3",
+      "near": [
+       5,
+       6
+      ],
+      "tol": 0.1
+     }
+    ]
    },
    {
     "name": "reset: after the line has fallen, the reset pad stands it up again and a second swing topples it again",
     "spawn_group": "solo",
-    "players": [{ "id": "p1", "character": "human", "spawn": "swing" }],
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "swing"
+     }
+    ],
     "script": [
-     { "player": "p1", "hold": { "yaw_deg": 90, "pitch_deg": -10, "attack": true, "seconds": 0.3 } },
-     { "player": "p1", "wait": 6, "until_event": "line_down" },
-     { "player": "p1", "walk": "-0.3,6", "until_event": "line_reset" },
-     { "player": "p1", "walk": "1.4,6" },
-     { "player": "p1", "hold": { "yaw_deg": 90, "pitch_deg": -10, "seconds": 0.2 } },
-     { "player": "p1", "hold": { "yaw_deg": 90, "pitch_deg": -10, "attack": true, "seconds": 0.3 } },
-     { "player": "p1", "wait": 4 }
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 90,
+       "pitch_deg": -10,
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 6,
+      "until_event": "line_down"
+     },
+     {
+      "player": "p1",
+      "walk": "-0.3,6",
+      "until_event": "line_reset"
+     },
+     {
+      "player": "p1",
+      "walk": "1.4,6"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 90,
+       "pitch_deg": -10,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 90,
+       "pitch_deg": -10,
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 4
+     }
     ],
     "max_seconds": 40,
-    "expect": [{ "event": "line_reset", "count": 1 }, { "event": "line_down", "count": 2 }, { "event": "swing", "count": 2 }, { "prop": "d1", "tilt_gt": 60 }, { "prop": "d3", "tilt_gt": 60 }]
+    "expect": [
+     {
+      "event": "line_reset",
+      "count": 1
+     },
+     {
+      "event": "line_down",
+      "count": 2
+     },
+     {
+      "event": "swing",
+      "count": 2
+     },
+     {
+      "prop": "d1",
+      "tilt_gt": 60
+     },
+     {
+      "prop": "d3",
+      "tilt_gt": 60
+     }
+    ]
    },
    {
     "name": "place: the place pad moves the crate to the far corner, upright and at rest",
     "spawn_group": "solo",
-    "players": [{ "id": "p1", "character": "human", "spawn": "start" }],
-    "script": [{ "player": "p1", "walk": "-5.2,2; -5.2,-5.2; -3.2,-5.2" }, { "player": "p1", "wait": 1 }],
-    "expect": [{ "event": "placed", "count": 1 }, { "prop": "crate", "near": [-3, -6], "tol": 0.1, "y": 0 }, { "prop": "crate", "not_in_zone": "pit" }, { "prop": "crate", "tilt_lt": 1 }, { "var": "score", "eq": 0 }]
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-5.2,2; -5.2,-5.2; -3.2,-5.2"
+     },
+     {
+      "player": "p1",
+      "wait": 1
+     }
+    ],
+    "expect": [
+     {
+      "event": "placed",
+      "count": 1
+     },
+     {
+      "prop": "crate",
+      "near": [
+       -3,
+       -6
+      ],
+      "tol": 0.1,
+      "y": 0
+     },
+     {
+      "prop": "crate",
+      "not_in_zone": "pit"
+     },
+     {
+      "prop": "crate",
+      "tilt_lt": 1
+     },
+     {
+      "var": "score",
+      "eq": 0
+     }
+    ]
    },
    {
     "name": "pickup: the rules see who holds the floor crate",
     "spawn_group": "solo",
-    "players": [{ "id": "p1", "character": "human", "spawn": "start" }],
-    "script": [
-     { "player": "p1", "walk": "-5.2,2; -6.5,-0.7" },
-     { "player": "p1", "hold": { "yaw_deg": 0, "pitch_deg": -40, "seconds": 0.2 } },
-     { "player": "p1", "hold": { "yaw_deg": 0, "pitch_deg": -40, "interact": true, "seconds": 0.2 } },
-     { "player": "p1", "wait": 0.5 }
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
     ],
-    "expect": [{ "event": "pickup", "count": 1 }, { "prop": "crate_b", "held_by": "p1" }, { "var": "carried", "eq": 1 }, { "prop": "crate", "held_by": "none" }]
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-5.2,2; -6.5,-0.7"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 0,
+       "pitch_deg": -40,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 0,
+       "pitch_deg": -40,
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "event": "pickup",
+      "count": 1
+     },
+     {
+      "prop": "crate_b",
+      "held_by": "p1"
+     },
+     {
+      "var": "carried",
+      "eq": 1
+     },
+     {
+      "prop": "crate",
+      "held_by": "none"
+     }
+    ]
+   },
+   {
+    "name": "pickup with look_at: aim at the floor crate's middle instead of hand-computed yaw and pitch",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-5.2,2; -6.5,-0.7"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -6.5,
+        0.3,
+        -2
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -6.5,
+        0.3,
+        -2
+       ],
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "event": "pickup",
+      "count": 1
+     },
+     {
+      "prop": "crate_b",
+      "held_by": "p1"
+     },
+     {
+      "var": "carried",
+      "eq": 1
+     }
+    ]
    }
   ]
  },
  "objects": [
-  { "id": "floor", "type": "plane", "size": [16, 16], "position": [0, 0.01, 0], "material": { "color": "#c8c0b0", "roughness": 0.9 } },
-  { "id": "ceiling", "type": "box", "size": [16, 0.2, 16], "position": [0, 4.1, 0], "material": { "color": "#e8e4dc" } },
-  { "id": "wall_n", "type": "wall", "from": [-8, -8], "to": [8, -8], "height": 4, "thickness": 0.24 },
-  { "id": "wall_s", "type": "wall", "from": [-8, 8], "to": [8, 8], "height": 4, "thickness": 0.24 },
-  { "id": "wall_w", "type": "wall", "from": [-8, -8], "to": [-8, 8], "height": 4, "thickness": 0.24 },
-  { "id": "wall_e", "type": "wall", "from": [8, -8], "to": [8, 8], "height": 4, "thickness": 0.24 },
-  { "id": "deck", "type": "box", "size": [2, 2, 2], "position": [0, 1, 0], "material": { "color": "#8a8a90", "roughness": 0.8 } },
-  { "id": "pit_floor", "type": "plane", "size": [4, 4], "position": [3.5, 0.02, 0], "material": { "color": "#c44a3a", "emissive": "#5a1a10", "roughness": 0.6 } },
-  { "id": "kick_pad_floor", "type": "plane", "size": [1.5, 2], "position": [-3.25, 0.02, 0], "material": { "color": "#3fbf6a", "emissive": "#1a5a30" } },
-  { "id": "place_pad_floor", "type": "plane", "size": [1.5, 1.5], "position": [-3.25, 0.02, -5.25], "material": { "color": "#3f8fbf", "emissive": "#1a3a5a" } },
-  { "id": "reset_pad_floor", "type": "plane", "size": [1.5, 2], "position": [-0.25, 0.02, 6], "material": { "color": "#bfaf3f", "emissive": "#5a4a1a" } },
-  { "id": "crate", "type": "prop", "prop": "crate", "position": [0, 2, 0], "material": { "color": "#4a7fb0" } },
-  { "id": "crate_b", "type": "prop", "prop": "crate", "position": [-6.5, 0, -2], "material": { "color": "#b07f4a" } },
-  { "id": "d1", "type": "prefab", "prefab": "sculpture_monolith", "movable": true, "rotation": [0, -90, 0], "position": [3, 0, 6] },
-  { "id": "d2", "type": "prefab", "prefab": "sculpture_monolith", "movable": true, "rotation": [0, -90, 0], "position": [4, 0, 6] },
-  { "id": "d3", "type": "prefab", "prefab": "sculpture_monolith", "movable": true, "rotation": [0, -90, 0], "position": [5, 0, 6] }
+  {
+   "id": "floor",
+   "type": "plane",
+   "size": [
+    16,
+    16
+   ],
+   "position": [
+    0,
+    0.01,
+    0
+   ],
+   "material": {
+    "color": "#c8c0b0",
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": "ceiling",
+   "type": "box",
+   "size": [
+    16,
+    0.2,
+    16
+   ],
+   "position": [
+    0,
+    4.1,
+    0
+   ],
+   "material": {
+    "color": "#e8e4dc"
+   }
+  },
+  {
+   "id": "wall_n",
+   "type": "wall",
+   "from": [
+    -8,
+    -8
+   ],
+   "to": [
+    8,
+    -8
+   ],
+   "height": 4,
+   "thickness": 0.24
+  },
+  {
+   "id": "wall_s",
+   "type": "wall",
+   "from": [
+    -8,
+    8
+   ],
+   "to": [
+    8,
+    8
+   ],
+   "height": 4,
+   "thickness": 0.24
+  },
+  {
+   "id": "wall_w",
+   "type": "wall",
+   "from": [
+    -8,
+    -8
+   ],
+   "to": [
+    -8,
+    8
+   ],
+   "height": 4,
+   "thickness": 0.24
+  },
+  {
+   "id": "wall_e",
+   "type": "wall",
+   "from": [
+    8,
+    -8
+   ],
+   "to": [
+    8,
+    8
+   ],
+   "height": 4,
+   "thickness": 0.24
+  },
+  {
+   "id": "deck",
+   "type": "box",
+   "size": [
+    2,
+    2,
+    2
+   ],
+   "position": [
+    0,
+    1,
+    0
+   ],
+   "material": {
+    "color": "#8a8a90",
+    "roughness": 0.8
+   }
+  },
+  {
+   "id": "pit_floor",
+   "type": "plane",
+   "size": [
+    4,
+    4
+   ],
+   "position": [
+    3.5,
+    0.02,
+    0
+   ],
+   "material": {
+    "color": "#c44a3a",
+    "emissive": "#5a1a10",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "kick_pad_floor",
+   "type": "plane",
+   "size": [
+    1.5,
+    2
+   ],
+   "position": [
+    -3.25,
+    0.02,
+    0
+   ],
+   "material": {
+    "color": "#3fbf6a",
+    "emissive": "#1a5a30"
+   }
+  },
+  {
+   "id": "place_pad_floor",
+   "type": "plane",
+   "size": [
+    1.5,
+    1.5
+   ],
+   "position": [
+    -3.25,
+    0.02,
+    -5.25
+   ],
+   "material": {
+    "color": "#3f8fbf",
+    "emissive": "#1a3a5a"
+   }
+  },
+  {
+   "id": "reset_pad_floor",
+   "type": "plane",
+   "size": [
+    1.5,
+    2
+   ],
+   "position": [
+    -0.25,
+    0.02,
+    6
+   ],
+   "material": {
+    "color": "#bfaf3f",
+    "emissive": "#5a4a1a"
+   }
+  },
+  {
+   "id": "crate",
+   "type": "prop",
+   "prop": "crate",
+   "position": [
+    0,
+    2,
+    0
+   ],
+   "material": {
+    "color": "#4a7fb0"
+   }
+  },
+  {
+   "id": "crate_b",
+   "type": "prop",
+   "prop": "crate",
+   "position": [
+    -6.5,
+    0,
+    -2
+   ],
+   "material": {
+    "color": "#b07f4a"
+   }
+  },
+  {
+   "id": "d1",
+   "type": "prefab",
+   "prefab": "sculpture_monolith",
+   "movable": true,
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "position": [
+    3,
+    0,
+    6
+   ]
+  },
+  {
+   "id": "d2",
+   "type": "prefab",
+   "prefab": "sculpture_monolith",
+   "movable": true,
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "position": [
+    4,
+    0,
+    6
+   ]
+  },
+  {
+   "id": "d3",
+   "type": "prefab",
+   "prefab": "sculpture_monolith",
+   "movable": true,
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "position": [
+    5,
+    0,
+    6
+   ]
+  }
  ]
 }

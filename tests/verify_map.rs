@@ -205,3 +205,41 @@ fn a_path_walk_that_meant_its_first_point_as_the_start_is_told_so() {
     assert!(!verify.status.success(), "{t}");
     assert!(t.contains("a walk starts at the spawn (-5.0, 0.0), not at the first point of `path`"), "{t}");
 }
+
+#[test]
+fn a_map_can_ignore_lint_codes_it_accepts_everywhere() {
+    let dir = scratch("ignore");
+    let mut strict = deck_scene();
+    strict["checks"]["lint"] = json!({"max_errors": 0, "max_warnings": 0});
+    let map = write(&dir, "strict.json", &strict);
+    let verify = cli(&["verify", &map, "--no-views", "--only", "lint"]);
+    let t = text(&verify);
+    assert!(
+        !verify.status.success() && t.contains("warning(s)"),
+        "the deck's open edges are `drop` warnings:
+{t}"
+    );
+    let mut lenient = deck_scene();
+    lenient["checks"]["lint"] = json!({"max_errors": 0, "max_warnings": 0, "ignore": ["drop"]});
+    let map = write(&dir, "lenient.json", &lenient);
+    let verify = cli(&["verify", &map, "--no-views", "--only", "lint"]);
+    let t = text(&verify);
+    assert!(
+        verify.status.success() && t.contains("ignored (drop)"),
+        "with `ignore: [\"drop\"]` the same map passes and says what it skipped:
+{t}"
+    );
+}
+
+#[test]
+fn info_says_whether_an_object_is_loose_and_why() {
+    let dir = scratch("info");
+    let map = write(&dir, "deck.json", &deck_scene());
+    let t = text(&cli(&["info", &map, "deck"]));
+    assert!(t.contains("loose: no (not a `prop` or a prefab"), "{t}");
+    let props = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/prop_rules.json");
+    let t = text(&cli(&["info", props, "crate"]));
+    assert!(t.contains("loose: yes") && t.contains("kg") && t.contains("a human can carry it: yes"), "{t}");
+    let t = text(&cli(&["info", props, "d1"]));
+    assert!(t.contains("loose: yes"), "a monolith with `movable: true`: {t}");
+}

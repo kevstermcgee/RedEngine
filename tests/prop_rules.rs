@@ -44,7 +44,7 @@ fn every_scenario_of_the_fixture_passes_and_the_report_lists_the_props() {
     let (report, _) = simrun::run(&fixture(), None, None, None).expect("run");
     let text = report.render();
     assert!(report.all_passed(), "{text}");
-    assert_eq!(report.results.len(), 6, "{text}");
+    assert_eq!(report.results.len(), 7, "{text}");
     let crate_run = &report.results[0];
     let crate_final = crate_run.props.iter().find(|p| p.id == "crate").expect("every loose prop is reported");
     assert!(crate_final.moved > 2.0 && crate_final.pos.x > 1.5 && crate_final.asleep, "the crate rests in the pit: {crate_final:?}");
