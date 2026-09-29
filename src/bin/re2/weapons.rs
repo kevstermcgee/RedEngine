@@ -202,7 +202,7 @@ impl App {
         }
         let attack =
             std::mem::take(&mut self.attack_queued) || ((self.attack_held || self.pad.down(red_engine2::controller::button::FIRE)) && self.weapon.automatic());
-        if attack && self.body.has_bat && !self.carrying() && !self.switch.is_active() {
+        if attack && self.body.has_bat && !self.scene.player.mode.is_peaceful() && !self.carrying() && !self.switch.is_active() {
             match self.weapon {
                 Weapon::Bat => {
                     self.swing.start();
@@ -218,31 +218,50 @@ impl App {
         self.props.as_ref().is_some_and(|p| p.held().is_some())
     }
 
+    /// The primary button (left click, trigger). In an arena scene it queues an attack; in a `peaceful` one there is nothing to swing, so it
+    /// is the same as `E`: pick up, drop, or (over nothing) an `interact` rule event.
+    pub(crate) fn press_primary(&mut self) {
+        if self.scene.player.mode.is_peaceful() {
+            self.interact();
+        } else {
+            self.attack_queued = true;
+            self.attack_held = true;
+        }
+    }
+
     /// E: drop what is carried (the same release velocity the server gives: the player's own motion plus `player.throw_speed`
-    /// along the look), else pick up the prop under the crosshair.
+    /// along the look), else pick up the prop under the crosshair. A peaceful scene also gets an `interact` rule event when the press
+    /// found nothing to pick up or drop, so a rule can make anything interactive.
     pub(crate) fn interact(&mut self) {
         if self.net.is_some() {
             self.net_pulse[0] = NET_PULSE_TICKS; // the server picks up / drops
             return;
         }
-        let Some(props) = self.props.as_mut() else { return };
-        if props.held().is_some() {
-            let state = PlayerState {
-                pos: self.physics_pos,
-                foot_y: self.foot_y,
-                vy: self.vertical_velocity,
-                velocity: self.horizontal_velocity,
-                yaw: self.camera.yaw,
-                pitch: self.camera.pitch,
-                character: self.character,
-            };
-            props.drop_held(red_engine2::sim::player::release_velocity(&state, self.camera.forward(), self.scene.player.throw_speed));
-            self.rules.inject(self.clock.ticks_run(), "drop", Some(0));
-        } else if let Some(p) = self.pickup_target {
-            props.pick_up(p);
-            self.swing.cancel();
-            self.swing_timer = None;
-            self.rules.inject(self.clock.ticks_run(), "pickup", Some(0));
+        let mut acted = false;
+        if let Some(props) = self.props.as_mut() {
+            if props.held().is_some() {
+                let state = PlayerState {
+                    pos: self.physics_pos,
+                    foot_y: self.foot_y,
+                    vy: self.vertical_velocity,
+                    velocity: self.horizontal_velocity,
+                    yaw: self.camera.yaw,
+                    pitch: self.camera.pitch,
+                    character: self.character,
+                };
+                props.drop_held(red_engine2::sim::player::release_velocity(&state, self.camera.forward(), self.scene.player.throw_speed));
+                self.rules.inject(self.clock.ticks_run(), "drop", Some(0));
+                acted = true;
+            } else if let Some(p) = self.pickup_target {
+                props.pick_up(p);
+                self.swing.cancel();
+                self.swing_timer = None;
+                self.rules.inject(self.clock.ticks_run(), "pickup", Some(0));
+                acted = true;
+            }
+        }
+        if !acted && self.scene.player.mode.is_peaceful() {
+            self.rules.inject(self.clock.ticks_run(), "interact", Some(0));
         }
     }
 

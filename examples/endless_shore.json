@@ -1,0 +1,74 @@
+{
+  "recipe": {
+    "title": "Endless shore",
+    "summary": "A peaceful beach that never ends: a looping coast, real terrain, an ocean to the horizon and a sun that sets behind it.",
+    "teaches": ["world.wrap (an endless axis)", "world.bounds (the invisible edge of the other axes)", "terrain generator + palette", "ocean", "sky.sun", "player.mode = peaceful", "hud.enabled = false"],
+    "tips": ["Author one period; the seam is invisible.", "The terrain must span exactly the wrap range.", "Keep slopes under 45 degrees where players walk (lint: terrain-slope)."]
+  },
+  "meta": { "fps": 30, "duration": 8, "resolution": [1280, 720] },
+  "music": false,
+  "background": { "sky_top": "#2a1436", "sky_bottom": "#ff9a5a" },
+  "sky": {
+    "gradient_power": 0.5,
+    "sun": { "direction": [-1.0, 0.055, 0.05], "size_deg": 2.6, "color": "#fff1c8", "glow": 0.9 }
+  },
+  "ambient": { "color": "#f0bd9a", "intensity": 0.55 },
+  "post": { "ao": 0.55, "outline": 0.2 },
+  "camera": { "fov": 82, "near": 0.05, "far": 300, "position": [8, 1.7, 0], "target": [-60, 1.2, 0] },
+  "world": { "wrap": { "axis": "z", "min": -120, "max": 120 }, "bounds": { "x": [-30, 55] } },
+  "player": { "mode": "peaceful", "humans_play_as": "human", "walk_speed": 4.5, "sprint_speed": 7.0, "jump_speed": 5.0, "gravity": 17.0, "fov": 84 },
+  "hud": { "enabled": false },
+  "spawns": [{ "id": "start", "position": [8, 0.8, 0], "yaw_deg": 270 }],
+  "lights": [
+    { "id": "sun", "type": "directional", "direction": [0.96, -0.2, -0.1], "color": "#ffb572", "intensity": 1.25, "cast_shadows": true, "shadow_radius": 42, "shadow_follow": true },
+    { "id": "sky_fill", "type": "directional", "direction": [0.3, -0.9, 0.2], "color": "#ff8a5a", "intensity": 0.35 }
+  ],
+  "ocean": {
+    "y": 0.0,
+    "color_deep": "#0c2a3d",
+    "color_shallow": "#3aa0a4",
+    "foam_color": "#ffffff",
+    "wave_amplitude": 0.06,
+    "wave_frequency": 0.8,
+    "wave_speed": 1.0,
+    "roughness": 0.14,
+    "depth_scale": 4.0,
+    "haze_distance": 280
+  },
+  "checks": {
+    "lint": { "max_errors": 0, "max_warnings": 0 },
+    "sim": [
+      {
+        "name": "walk over the seam and keep going: the coast is endless",
+        "players": [{ "id": "p1", "character": "human", "spawn": "start" }],
+        "script": [{ "player": "p1", "walk": "8,60; 8,116; 8,-116; 8,-60; 8,-2" }],
+        "max_seconds": 120,
+        "expect": [{ "player": "p1", "near": [8, -2], "tol": 1.0 }]
+      },
+      {
+        "name": "the sea's edge is a wall: wading west stops at the bounds",
+        "players": [{ "id": "p1", "character": "human", "spawn": "start" }],
+        "script": [{ "player": "p1", "hold": { "forward": 1, "yaw_deg": 270, "seconds": 20 } }],
+        "max_seconds": 30,
+        "expect": [{ "player": "p1", "near": [-30, 0], "tol": 0.5 }]
+      }
+    ]
+  },
+  "objects": [
+    {
+      "id": "shore",
+      "type": "terrain",
+      "position": [10, 0, 0],
+      "size": [130, 240],
+      "cell": 1.0,
+      "generator": {
+        "seed": 11,
+        "profile": [[-55, -3.2], [-30, -1.3], [-12, -0.4], [-2, 0.04], [12, 0.9], [30, 2.2], [52, 4.0], [75, 7.5]],
+        "noise": { "amplitude": 0.75, "wavelength": [26, 44], "octaves": 3, "seed": 5, "fade_x": [-14, 8] }
+      },
+      "palette": [[-3.2, "#33505c"], [-0.5, "#8b7a5e"], [0.12, "#b39c76"], [0.7, "#e6d2a6"], [3.0, "#d8c38f"], [5.5, "#8a9a58"]],
+      "grain": 0.06,
+      "material": { "roughness": 0.95 }
+    }
+  ]
+}

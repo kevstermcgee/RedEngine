@@ -24,7 +24,17 @@ fn value(v: f64) -> String {
 /// ended match gets a central banner. Empty state produces an empty transparent layout.
 pub fn hud_layout(w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outcome: Option<&str>) -> Layout {
     let shown_vars: Vec<(&str, f64)> = vars.iter().filter(|(name, _)| !name.starts_with('_')).copied().collect();
-    let vars = shown_vars.as_slice();
+    panel_layout(w, h, &shown_vars, event, outcome)
+}
+
+/// [`hud_layout`] as the scene's `hud` block asks: which variables (all, or a whitelist), whether the event line shows, or nothing but
+/// the outcome banner when the HUD is disabled.
+pub fn hud_layout_for(w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outcome: Option<&str>, cfg: &crate::hud_config::HudConfig) -> Layout {
+    let shown = cfg.visible_vars(vars);
+    panel_layout(w, h, &shown, event.filter(|_| cfg.shows_events()), outcome)
+}
+
+fn panel_layout(w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outcome: Option<&str>) -> Layout {
     let mut l = Layout::new(w, h);
     let (wi, hi) = (w as i32, h as i32);
     let s = (hi / 240).max(1);

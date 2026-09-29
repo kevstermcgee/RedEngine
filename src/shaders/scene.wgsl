@@ -6,11 +6,13 @@
 struct VsIn {
     @location(0) pos: vec3<f32>,
     @location(1) normal: vec3<f32>,
+    @location(2) color: vec3<f32>,
 };
 struct VsOut {
     @builtin(position) clip_pos: vec4<f32>,
     @location(0) world_pos: vec3<f32>,
     @location(1) world_normal: vec3<f32>,
+    @location(2) vertex_color: vec3<f32>,
 };
 
 @vertex
@@ -20,6 +22,7 @@ fn vs_main(in: VsIn) -> VsOut {
     out.clip_pos = globals.view_proj * world;
     out.world_pos = world.xyz;
     out.world_normal = normalize((obj.normal_mat * vec4<f32>(in.normal, 0.0)).xyz);
+    out.vertex_color = in.color;
     return out;
 }
 
@@ -71,7 +74,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // ceiling reads darker than a floor), which separates the planes of a room even where no
     // light reaches them directly.
     let hemi = mix(0.80, 1.10, n.y * 0.5 + 0.5);
-    var color = (globals.ambient.rgb + vec3<f32>(AMBIENT_FLOOR)) * obj.base_color.rgb * hemi;
+    let albedo = obj.base_color.rgb * in.vertex_color;
+    var color = (globals.ambient.rgb + vec3<f32>(AMBIENT_FLOOR)) * albedo * hemi;
 
     let metallic = obj.material.x;
     let roughness = max(obj.material.y, 0.04);
@@ -80,7 +84,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // roughness->shininess mapping tends to.
     let smoothness = 1.0 - roughness;
     let shininess = mix(8.0, 160.0, smoothness * smoothness);
-    let diffuse_color = obj.base_color.rgb * (1.0 - metallic);
+    let diffuse_color = albedo * (1.0 - metallic);
     // Fresnel-ish rim term: grazing angles reflect more than head-on ones on any real surface,
     // metal or not. Cheap Schlick approximation reusing the existing view/normal vectors, no
     // extra per-light cost since it only depends on view angle.

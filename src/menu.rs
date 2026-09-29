@@ -56,6 +56,7 @@ fn point_light(id: &str, pos: Vec3, color: &str, intensity: f32, range: f32) -> 
         cast_shadows: false,
         shadow_radius: 10.0,
         shadow_center: Vec3::ZERO,
+        shadow_follow: false,
     }
 }
 
@@ -103,6 +104,10 @@ pub fn menu_scene() -> Scene {
         combat: Default::default(),
         bots: Default::default(),
         nav: None,
+        hud: Default::default(),
+        music: false,
+        sky: None,
+        ocean: None,
         lights: vec![
             point_light("key", Vec3::new(-2.5, 3.2, 3.0), "#ffe6c4", 26.0, 14.0),
             point_light("rim", Vec3::new(2.8, 2.6, -1.5), "#9cc0ff", 20.0, 12.0),

@@ -48,5 +48,15 @@ pub(super) fn add_static(world: &mut PhysicsWorld, o: &Object, parent: Mat4) {
                 }
             }
         }
+        // The ground: loose props rest on the very triangles that are drawn (a trimesh at the object's own position).
+        ObjectKind::Terrain(td) => {
+            let at = o.position.sample(0.0);
+            let mesh = td.terrain.build_mesh(glam::Vec2::new(at.x, at.z), at.y);
+            let vertices: Vec<Vec3> = mesh.vertices.iter().map(|v| Vec3::from_array(v.pos)).collect();
+            let triangles: Vec<[u32; 3]> = mesh.indices.as_chunks::<3>().0.to_vec();
+            if let Ok(shape) = SharedShape::trimesh(vertices, triangles) {
+                world.insert_collider(ColliderBuilder::new(shape).position(pose_of(Mat4::from_translation(at))).friction(0.9), None);
+            }
+        }
     }
 }

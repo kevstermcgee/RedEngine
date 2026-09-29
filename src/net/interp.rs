@@ -9,7 +9,7 @@
 
 use crate::net::protocol::{PlayerSnap, PropSnap, Snapshot, MAX_PLAYERS_PER_SNAPSHOT};
 use crate::sim::clock::TICK_DT;
-use glam::{Quat, Vec3};
+use glam::{Quat, Vec2, Vec3};
 use std::cell::Cell;
 use std::collections::VecDeque;
 
@@ -223,6 +223,11 @@ impl<T: Blend> History<T> {
         self.samples.back().map(|s| s.0)
     }
 
+    /// The newest sample.
+    pub fn newest(&self) -> Option<&T> {
+        self.samples.back().map(|s| &s.1)
+    }
+
     /// Number of samples held.
     pub fn len(&self) -> usize {
         self.samples.len()
@@ -292,6 +297,8 @@ fn limit_catch_up(last: &mut Option<(f64, Vec3)>, now: f64, target: Vec3, speed:
 #[derive(Debug, Default)]
 pub struct RemoteWorld {
     motion_limit: f32,
+    /// The scene's looping axis, if any: positions are kept continuous across the seam while interpolating and wrapped back for drawing.
+    wrap: Option<crate::expanse::Wrap>,
     clock: ServerClock,
     players: [Option<History<PlayerPose>>; MAX_PLAYERS_PER_SNAPSHOT],
     present: [bool; MAX_PLAYERS_PER_SNAPSHOT],
@@ -306,6 +313,7 @@ impl RemoteWorld {
     /// Set the map's legal motion envelope before receiving snapshots.
     pub fn set_movement_profile(&mut self, tuning: crate::player::PlayerTuning, pads: &[crate::player::JumpPad]) {
         self.motion_limit = catch_up_speed(tuning, pads);
+        self.wrap = tuning.expanse.wrap;
     }
     /// Applies a snapshot that arrived at client time `local_secs`.
     pub fn apply(&mut self, snap: &Snapshot, local_secs: f64) {
@@ -318,7 +326,14 @@ impl RemoteWorld {
                 continue;
             }
             self.present[id] = true;
-            self.players[id].get_or_insert_with(History::default).push(t, PlayerPose::from(p));
+            let mut pose = PlayerPose::from(p);
+            // Across the seam of a looping world a player's position jumps a whole period; keep the stored track continuous (it may run
+            // past the period) so blending and extrapolation see the short move, and wrap the result back when drawing (`view`).
+            if let (Some(w), Some(last)) = (self.wrap, self.players[id].as_ref().and_then(History::newest)) {
+                let near = w.nearest_image(Vec2::new(last.pos.x, last.pos.z), Vec2::new(pose.pos.x, pose.pos.z));
+                pose.pos = Vec3::new(near.x, pose.pos.y, near.y);
+            }
+            self.players[id].get_or_insert_with(History::default).push(t, pose);
         }
         // Someone who is no longer listed has left: forget them so a newcomer in the same slot does not
         // glide in from the previous player's last position.
@@ -359,6 +374,10 @@ impl RemoteWorld {
             .filter_map(|i| {
                 let mut pose = self.players[i].as_ref().and_then(|h| h.sample(rt))?;
                 pose.pos = limit_catch_up(&mut drawn[i], local_secs, pose.pos, self.motion_limit.max(CATCH_UP_SPEED));
+                if let Some(w) = self.wrap {
+                    let at = w.wrap_pos(Vec2::new(pose.pos.x, pose.pos.z));
+                    pose.pos = Vec3::new(at.x, pose.pos.y, at.y);
+                }
                 Some((i as u8, pose))
             })
             .collect();
@@ -369,9 +388,10 @@ impl RemoteWorld {
 
     /// Forgets everything (after a reconnect).
     pub fn reset(&mut self) {
-        let motion_limit = self.motion_limit;
+        let (motion_limit, wrap) = (self.motion_limit, self.wrap);
         *self = RemoteWorld::default();
         self.motion_limit = motion_limit;
+        self.wrap = wrap;
     }
 }
 

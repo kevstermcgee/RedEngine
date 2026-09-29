@@ -37,6 +37,11 @@ pub const ROOT_KEYS: &[&str] = &[
     "combat",
     "bots",
     "nav",
+    "music",
+    "hud",
+    "world",
+    "sky",
+    "ocean",
     "objects",
 ];
 /// `meta` keys.
@@ -64,6 +69,7 @@ pub const PLAYER_KEYS: &[&str] = &[
     "friction",
     "max_speed",
     "throw_speed",
+    "mode",
 ];
 /// One `jump_pads` entry.
 pub const JUMP_PAD_KEYS: &[&str] = &["id", "position", "size", "launch_speed"];
@@ -72,7 +78,8 @@ pub const MATERIAL_KEYS: &[&str] = &["color", "metallic", "roughness", "emissive
 /// Point-light keys.
 pub const POINT_LIGHT_KEYS: &[&str] = &["id", "type", "position", "color", "intensity", "range"];
 /// Directional-light keys.
-pub const DIRECTIONAL_LIGHT_KEYS: &[&str] = &["id", "type", "direction", "color", "intensity", "cast_shadows", "shadow_radius", "shadow_center"];
+pub const DIRECTIONAL_LIGHT_KEYS: &[&str] =
+    &["id", "type", "direction", "color", "intensity", "cast_shadows", "shadow_radius", "shadow_center", "shadow_follow"];
 /// Keys of a humanoid's `pose`.
 pub const HUMANOID_POSE_KEYS: &[&str] = &["spine", "head", "l_shoulder", "r_shoulder", "l_elbow", "r_elbow", "l_hip", "r_hip", "l_knee", "r_knee"];
 /// Keys of a rat's `pose`.
@@ -84,10 +91,11 @@ pub const BASEBOARD_KEYS: &[&str] = &["color", "height"];
 /// Keys of one fence `gaps` entry.
 pub const GAP_KEYS: &[&str] = &["at", "width"];
 /// Keys of a prefab instance.
-pub const PREFAB_INSTANCE_KEYS: &[&str] = &["id", "type", "prefab", "params", "material", "position", "rotation", "scale", "collide", "movable", "lint_ignore"];
+pub const PREFAB_INSTANCE_KEYS: &[&str] =
+    &["id", "type", "prefab", "params", "material", "position", "rotation", "scale", "collide", "movable", "lint_ignore", "on_terrain"];
 
 /// Keys every ordinary object may carry.
-const COMMON: &[&str] = &["id", "type", "position", "rotation", "scale", "collide", "movable", "lint_ignore"];
+const COMMON: &[&str] = &["id", "type", "position", "rotation", "scale", "collide", "movable", "lint_ignore", "on_terrain"];
 
 /// The keys allowed on an object of `ty` (`None` for a type this module does not know: the parser reports that itself).
 pub fn object_keys(ty: &str) -> Option<Vec<&'static str>> {
@@ -102,6 +110,7 @@ pub fn object_keys(ty: &str) -> Option<Vec<&'static str>> {
         "rat" => &["material", "pose"],
         "prop" => &["prop", "material"],
         "stairs" => &["width", "run", "rise", "steps", "material"],
+        "terrain" => crate::terrain::TERRAIN_KEYS,
         "wall" => &["from", "to", "y", "height", "thickness", "material", "openings", "trim", "baseboard", "extend"],
         "fence" => &["points", "closed", "y", "height", "post_spacing", "style", "material", "post_color", "gaps"],
         "prefab" => return Some(PREFAB_INSTANCE_KEYS.to_vec()),

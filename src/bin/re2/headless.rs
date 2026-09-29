@@ -97,8 +97,7 @@ impl Driver for App {
 
     fn fire(&mut self, down: bool) {
         if down {
-            self.attack_queued = true;
-            self.attack_held = true;
+            self.press_primary();
         } else {
             self.attack_held = false;
         }

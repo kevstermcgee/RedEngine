@@ -71,17 +71,39 @@ impl App {
         }
     }
 
-    /// Toggles borderless fullscreen (covers the whole monitor, no taskbar/decorations) against
-    /// the maximized windowed state the app launches in. Not exclusive fullscreen — that
-    /// involves a display video-mode switch, which is unnecessary here and would fight the
-    /// "fit whatever screen it's on" launch behavior.
-    pub(crate) fn toggle_fullscreen(&self) {
+    /// Whether the window is in borderless fullscreen right now (asked of the window, not remembered, so it cannot drift from what the
+    /// desktop actually did: Windows can leave fullscreen by itself on a monitor change or Alt-Tab).
+    pub(crate) fn is_fullscreen(&self) -> bool {
+        self.window.as_ref().is_some_and(|w| w.fullscreen().is_some())
+    }
+
+    /// `F` / `F11` / the pause menu's button: borderless fullscreen (covers the whole monitor it is on, no taskbar or decorations) against
+    /// the maximized windowed state the game opens in. Not exclusive fullscreen: that switches the display's video mode, which is
+    /// unnecessary here and fights the "fit whatever screen it is on" launch behavior.
+    pub(crate) fn toggle_fullscreen(&mut self) {
+        self.set_fullscreen(!self.is_fullscreen());
+    }
+
+    /// Enters or leaves borderless fullscreen (a no-op when already there). Changing the window mode makes Windows drop the cursor grab,
+    /// so a grabbed game is flagged to take the mouse back as soon as the resize that follows arrives (`regrab`, see `Resized`).
+    pub(crate) fn set_fullscreen(&mut self, on: bool) {
         let Some(window) = &self.window else { return };
-        if window.fullscreen().is_some() {
+        if window.fullscreen().is_some() == on {
+            return;
+        }
+        if on {
+            window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(window.current_monitor())));
+        } else {
             window.set_fullscreen(None);
             window.set_maximized(true);
-        } else {
-            window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+        }
+        if self.grabbed {
+            self.regrab = true;
+        }
+        self.online.painted = None;
+        self.rule_hud_painted = None;
+        if self.paused {
+            self.repaint_pause();
         }
     }
 

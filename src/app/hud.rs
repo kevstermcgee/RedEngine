@@ -63,6 +63,12 @@ impl HudState {
         format!("{:?}|{:?}|{:?}", self.vars, self.event, self.outcome)
     }
 
+    /// [`Self::layout`] as the scene's `hud` block asks (whitelisted variables, no event line, or nothing but the outcome banner).
+    pub fn layout_for(&self, w: u32, h: u32, cfg: &crate::hud_config::HudConfig) -> Layout {
+        let vars: Vec<(&str, f64)> = self.vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();
+        crate::ui::rules::hud_layout_for(w, h, &vars, self.event.as_deref(), self.outcome.as_deref(), cfg)
+    }
+
     /// The standard rules HUD for a `w` x `h` window ([`crate::ui::rules::hud_layout`]); audit it with `Layout::check`.
     pub fn layout(&self, w: u32, h: u32) -> Layout {
         let vars: Vec<(&str, f64)> = self.vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();

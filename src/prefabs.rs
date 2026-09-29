@@ -602,7 +602,7 @@ pub fn expand_instance(lib: &Library, inst: &Map<String, Value>, id: &str, depth
         return Err(errs);
     }
     let mut g = json!({ "id": id, "type": "group", "children": children });
-    for k in ["position", "rotation", "scale"] {
+    for k in ["position", "rotation", "scale", "on_terrain"] {
         if let Some(v) = inst.get(k) {
             g[k] = v.clone();
         }

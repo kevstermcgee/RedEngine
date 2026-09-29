@@ -463,21 +463,26 @@ pub fn results_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> La
 
 /// The in-game HUD: ping (top left), round and timer (top centre), a compact scoreboard (top right), a big countdown or a "watching"
 /// banner. The crosshair is drawn by the renderer; this layout adds only what a round needs, and stays out of the middle of the screen
-/// except for the countdown.
-pub fn hud_layout(w: u32, h: u32, v: &OnlineView) -> Layout {
+/// except for the countdown. `cfg` (the scene's `hud` block) turns the ping, the round clock, the scoreboard and the combat readout
+/// on and off; the countdown and connection banners are never suppressed (they are how a player learns what the game is doing).
+pub fn hud_layout(w: u32, h: u32, v: &OnlineView, cfg: &crate::hud_config::HudConfig) -> Layout {
     let mut l = Layout::new(w, h);
     let (wi, hi) = (w as i32, h as i32);
     let s = (hi / 240).max(1);
     let m = 3 * s;
-    l.label_left("ping", None, m, m, &format!("PING {:.0} MS", v.ping_ms), s, wi / 4, if v.ping_ms > 150.0 { RED } else { DIM });
+    if cfg.enabled && cfg.show_ping {
+        l.label_left("ping", None, m, m, &format!("PING {:.0} MS", v.ping_ms), s, wi / 4, if v.ping_ms > 150.0 { RED } else { DIM });
+    }
     let head = match (v.phase, v.secs_left) {
         (Phase::Playing, Some(t)) => format!("ROUND {}  {}", v.round, clock(t)),
         (Phase::Playing, None) => format!("ROUND {}", v.round),
         _ => format!("ROUND {}", v.round),
     };
-    l.label_fit("timer", None, wi / 2, m, &head, s * 3 / 2, wi / 3, TEXT);
+    if cfg.enabled && cfg.show_round {
+        l.label_fit("timer", None, wi / 2, m, &head, s * 3 / 2, wi / 3, TEXT);
+    }
     // Scoreboard: name and kills, top right, best first.
-    let mut ranked: Vec<&RosterEntry> = v.roster.iter().take(8).collect();
+    let mut ranked: Vec<&RosterEntry> = if cfg.enabled && cfg.show_scoreboard { v.roster.iter().take(8).collect() } else { Vec::new() };
     ranked.sort_by(|a, b| b.score.cmp(&a.score).then(a.id.cmp(&b.id)));
     let col_w = (wi / 5).max(40 * s);
     let mut y = m;
@@ -487,7 +492,7 @@ pub fn hud_layout(w: u32, h: u32, v: &OnlineView) -> Layout {
         l.label_right(&format!("sb{i}_name"), None, wi - m - col_w / 3 - 2 * s, y, &upper(&e.name), s, col_w * 2 / 3, col);
         y += text_height(s) + 2 * s;
     }
-    if let Some(c) = &v.combat {
+    if let Some(c) = v.combat.as_ref().filter(|_| cfg.shows_combat()) {
         combat_hud(&mut l, v, c);
     }
     if v.reconnecting {
@@ -814,6 +819,11 @@ pub fn connect_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> L
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The arena look (every element on): what these tests are about.
+    fn hud_layout(w: u32, h: u32, v: &OnlineView) -> Layout {
+        super::hud_layout(w, h, v, &crate::hud_config::HudConfig::default())
+    }
 
     #[test]
     fn the_screen_follows_the_phase() {

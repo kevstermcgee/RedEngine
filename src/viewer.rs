@@ -128,7 +128,7 @@ pub(crate) fn append_transformed(dst: &mut Mesh, src: &Mesh, transform: Mat4) {
     for v in &src.vertices {
         let p = transform.transform_point3(Vec3::from_array(v.pos));
         let n = normal_mat.transform_vector3(Vec3::from_array(v.normal)).normalize_or_zero();
-        dst.vertices.push(Vertex { pos: p.to_array(), normal: n.to_array() });
+        dst.vertices.push(Vertex::new(p.to_array(), n.to_array()));
     }
     dst.indices.extend(src.indices.iter().map(|&i| base + i));
 }
@@ -147,7 +147,7 @@ pub(crate) fn lathe(profile: &[(f32, f32)], segments: u32) -> Mesh {
         for s in 0..=segments {
             let a = s as f32 / segments as f32 * std::f32::consts::TAU;
             let (sn, cs) = a.sin_cos();
-            m.vertices.push(Vertex { pos: [r * cs, r * sn, z], normal: Vec3::new(cs * nr, sn * nr, nz).normalize_or_zero().to_array() });
+            m.vertices.push(Vertex::new([r * cs, r * sn, z], Vec3::new(cs * nr, sn * nr, nz).normalize_or_zero().to_array()));
         }
     }
     let row = segments + 1;
@@ -380,6 +380,10 @@ pub struct LiveRenderer {
     meshes: Vec<GpuMesh>,
     /// Object ancestry for each scene mesh, in exactly the same order as `meshes`.
     mesh_object_paths: Vec<Vec<String>>,
+    /// The scene's ocean, when it has one (drawn last in the main pass; see [`crate::ocean_pass`]).
+    ocean: Option<crate::ocean_pass::OceanPass>,
+    /// Drives the water's animation (it must not loop with the scene's `duration`).
+    clock: std::time::Instant,
     /// Scene object ids suppressed by a game rule or application.
     hidden_objects: HashSet<String>,
     /// Whether each scene mesh is under a hidden object (same order as `meshes`; recomputed only when the hidden set changes).
@@ -490,7 +494,8 @@ impl LiveRenderer {
         // instance of the same bat mesh rigidly attached to the third-person body's hand
         // bone (drawn as an ordinary world object, shadowed/occluded like any prop). Both are
         // written and bound (via a dynamic offset) alongside the scene meshes each frame.
-        let draw_count = (meshes.len() as u64 + (2 + REMOTE_HANDS as u64) * held.len() as u64).max(1);
+        let images = crate::render::wrap_offsets(scene).len();
+        let draw_count = ((meshes.len() * images) as u64 + (2 + REMOTE_HANDS as u64) * held.len() as u64).max(1);
 
         let global_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("live-global-uniform"),
@@ -536,6 +541,7 @@ impl LiveRenderer {
 
         let post = create_post_pipeline(device, color_format, MSAA_SAMPLES);
         let post_bind_group = post.bind(device, &targets.depth_view);
+        let ocean = crate::ocean_pass::OceanPass::new(device, color_format, MSAA_SAMPLES, scene, &pipelines.layouts.global_uniform);
         let crosshair = create_crosshair_pipeline(device, color_format);
         let crosshair_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("live-crosshair-uniform"),
@@ -562,6 +568,8 @@ impl LiveRenderer {
             mesh_hidden: vec![false; meshes.len()],
             meshes,
             mesh_object_paths,
+            ocean,
+            clock: std::time::Instant::now(),
             hidden_objects: HashSet::new(),
             held,
             remote_hands: Vec::new(),
@@ -706,16 +714,22 @@ impl LiveRenderer {
         let cam_planes = frustum_planes(view_proj);
         let shadow_active = globals.counts[1] >= 0.0;
         let light_planes = shadow_active.then(|| frustum_planes(Mat4::from_cols_array_2d(&globals.light_view_proj)));
-        let mut main_visible = Vec::with_capacity(self.meshes.len());
-        let mut shadow_visible = Vec::with_capacity(self.meshes.len());
-        for (i, mesh) in self.meshes.iter().enumerate() {
-            let shown = !self.mesh_hidden[i];
-            let (center, half) = world_aabb(transforms[i].0, mesh.local_min, mesh.local_max);
-            main_visible.push(shown && !aabb_outside_frustum(center, half, &cam_planes));
-            shadow_visible.push(match &light_planes {
-                Some(planes) => shown && !aabb_outside_frustum(center, half, planes),
-                None => false,
-            });
+        // One entry per (image, mesh): slot `image * meshes + mesh`. Image 0 is the scene itself; on a looping world the others are its
+        // neighbours one period away along the loop axis.
+        let offsets = crate::render::wrap_offsets(scene);
+        let n_meshes = self.meshes.len();
+        let mut main_visible = Vec::with_capacity(n_meshes * offsets.len());
+        let mut shadow_visible = Vec::with_capacity(n_meshes * offsets.len());
+        for offset in &offsets {
+            for (i, mesh) in self.meshes.iter().enumerate() {
+                let shown = !self.mesh_hidden[i];
+                let (center, half) = world_aabb(Mat4::from_translation(*offset) * transforms[i].0, mesh.local_min, mesh.local_max);
+                main_visible.push(shown && !aabb_outside_frustum(center, half, &cam_planes));
+                shadow_visible.push(match &light_planes {
+                    Some(planes) => shown && !aabb_outside_frustum(center, half, planes),
+                    None => false,
+                });
+            }
         }
 
         // Every object's uniform data is staged into one contiguous byte buffer and uploaded
@@ -723,26 +737,30 @@ impl LiveRenderer {
         // alignment-padded past ObjectUniform's own size, so the staging buffer is built at full
         // stride width and each uniform's bytes are copied into its slot, padding left as-is.
         // Each held part owns two slots: `[first-person, third-person]`.
-        let held_slot = |k: usize, third: bool| self.meshes.len() as u64 + 2 * k as u64 + third as u64;
+        let scene_slots = (n_meshes * offsets.len()) as u64;
+        let held_slot = |k: usize, third: bool| scene_slots + 2 * k as u64 + third as u64;
         // Other players' weapons follow the local ones: one group of slots per player.
-        let remote_slot = |r: usize, k: usize| self.meshes.len() as u64 + 2 * self.held.len() as u64 + (r * self.held.len() + k) as u64;
-        let mut object_data = vec![0u8; (self.object_stride * (self.meshes.len() as u64 + (2 + REMOTE_HANDS as u64) * self.held.len() as u64)) as usize];
+        let remote_slot = |r: usize, k: usize| scene_slots + 2 * self.held.len() as u64 + (r * self.held.len() + k) as u64;
+        let mut object_data = vec![0u8; (self.object_stride * (scene_slots + (2 + REMOTE_HANDS as u64) * self.held.len() as u64)) as usize];
         let stage = |data: &mut [u8], slot: u64, stride: u64, uniform: &ObjectUniform| {
             let start = (slot * stride) as usize;
             let bytes = bytemuck::bytes_of(uniform);
             data[start..start + bytes.len()].copy_from_slice(bytes);
         };
 
-        for (i, (world, mat)) in transforms.iter().enumerate() {
-            let normal_mat = world.inverse().transpose();
-            let obj_uniform = ObjectUniform {
-                model: world.to_cols_array_2d(),
-                normal_mat: normal_mat.to_cols_array_2d(),
-                base_color: [mat.color.x, mat.color.y, mat.color.z, 1.0],
-                material: [mat.metallic, mat.roughness, 0.0, 0.0],
-                emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
-            };
-            stage(&mut object_data, i as u64, self.object_stride, &obj_uniform);
+        for (image, offset) in offsets.iter().enumerate() {
+            for (i, (world, mat)) in transforms.iter().enumerate() {
+                let world = Mat4::from_translation(*offset) * *world;
+                let normal_mat = world.inverse().transpose();
+                let obj_uniform = ObjectUniform {
+                    model: world.to_cols_array_2d(),
+                    normal_mat: normal_mat.to_cols_array_2d(),
+                    base_color: [mat.color.x, mat.color.y, mat.color.z, 1.0],
+                    material: [mat.metallic, mat.roughness, 0.0, 0.0],
+                    emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
+                };
+                stage(&mut object_data, (image * n_meshes + i) as u64, self.object_stride, &obj_uniform);
+            }
         }
 
         let held_uniform = |world: Mat4, h: &HeldGpu, glow: f32| {
@@ -775,6 +793,9 @@ impl LiveRenderer {
         }
         queue.write_buffer(&self.object_buf, 0, &object_data);
 
+        if let Some(ocean) = &self.ocean {
+            ocean.update(queue, self.clock.elapsed().as_secs_f32());
+        }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("live-frame-encoder") });
 
         if globals.counts[1] >= 0.0 {
@@ -792,14 +813,17 @@ impl LiveRenderer {
             });
             shadow_pass.set_pipeline(&self.pipelines.shadow);
             shadow_pass.set_bind_group(0, &self.global_bind_group_uniform, &[]);
-            for (i, mesh) in self.meshes.iter().enumerate() {
-                if !shadow_visible[i] {
-                    continue;
+            for image in 0..offsets.len() {
+                for (i, mesh) in self.meshes.iter().enumerate() {
+                    let slot = image * n_meshes + i;
+                    if !shadow_visible[slot] {
+                        continue;
+                    }
+                    shadow_pass.set_bind_group(1, &self.object_bind_group, &[(slot as u64 * self.object_stride) as u32]);
+                    shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
+                    shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    shadow_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
-                shadow_pass.set_bind_group(1, &self.object_bind_group, &[(i as u64 * self.object_stride) as u32]);
-                shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
-                shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                shadow_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
             }
             // The hand-held (third-person) bat is an ordinary world object, so it casts a
             // shadow like any other prop — unlike the always-on-top first-person viewmodel.
@@ -864,14 +888,17 @@ impl LiveRenderer {
             });
             main_pass.set_pipeline(&self.pipelines.main);
             main_pass.set_bind_group(0, &self.global_bind_group_full, &[]);
-            for (i, mesh) in self.meshes.iter().enumerate() {
-                if !main_visible[i] {
-                    continue;
+            for image in 0..offsets.len() {
+                for (i, mesh) in self.meshes.iter().enumerate() {
+                    let slot = image * n_meshes + i;
+                    if !main_visible[slot] {
+                        continue;
+                    }
+                    main_pass.set_bind_group(1, &self.object_bind_group, &[(slot as u64 * self.object_stride) as u32]);
+                    main_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
+                    main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
-                main_pass.set_bind_group(1, &self.object_bind_group, &[(i as u64 * self.object_stride) as u32]);
-                main_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
-                main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
             }
             // Hand-held (third-person) bat instance: normal depth test against the world,
             // so a wall between the camera and the player correctly occludes it like any prop.
@@ -895,6 +922,10 @@ impl LiveRenderer {
                     main_pass.set_index_buffer(h.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                     main_pass.draw_indexed(0..h.mesh.index_count, 0, 0..1);
                 }
+            }
+            // The water goes last: it is depth-tested against everything opaque above and blends over the seabed under it.
+            if let Some(ocean) = &self.ocean {
+                ocean.draw(&mut main_pass, &self.global_bind_group_uniform);
             }
         }
 

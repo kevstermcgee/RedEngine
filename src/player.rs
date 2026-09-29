@@ -38,6 +38,37 @@ pub struct PlayerTuning {
     /// Speed a released prop gets along the look direction on top of the holder's own velocity, m/s
     /// (`sim::player::release_velocity`).
     pub throw_speed: f32,
+    /// Whether the scene is an arena (weapons, combat) or a peaceful one (empty hands, no fighting, a click interacts).
+    pub mode: PlayerMode,
+    /// How far the world reaches: the looping axis and the walkable limits (the scene's `world` block).
+    pub expanse: crate::expanse::Expanse,
+}
+
+/// The scene's stance on fighting (`player.mode`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlayerMode {
+    /// The classic game: a weapon in hand, a click attacks, combat and its HUD exist.
+    #[default]
+    Arena,
+    /// Empty hands. No weapon is allocated or drawn, no attack, recoil or swing sound, no crosshair or viewmodel, and the primary click
+    /// means `interact` (pick up / drop / activate) instead of swinging. The server ignores attack, reload and weapon-switch input.
+    Peaceful,
+}
+
+impl PlayerMode {
+    /// Parses `arena` / `peaceful`.
+    pub fn parse(s: &str) -> Option<PlayerMode> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "arena" | "combat" => Some(PlayerMode::Arena),
+            "peaceful" | "peace" => Some(PlayerMode::Peaceful),
+            _ => None,
+        }
+    }
+
+    /// Whether weapons exist in this scene.
+    pub fn is_peaceful(self) -> bool {
+        self == PlayerMode::Peaceful
+    }
 }
 
 impl Default for PlayerTuning {
@@ -55,6 +86,8 @@ impl Default for PlayerTuning {
             friction: 6.0,
             max_speed: 20.0,
             throw_speed: THROW_SPEED,
+            mode: PlayerMode::Arena,
+            expanse: crate::expanse::Expanse::default(),
         }
     }
 }

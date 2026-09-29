@@ -167,14 +167,16 @@ impl App {
     fn render_capture(&mut self, cam: &FpsCamera, first: bool) -> Result<image::RgbaImage, String> {
         let (weapon_transform, hand, carrying, dead, weapon) =
             (self.weapon_transform(), self.hand_prop_transform, self.carrying(), self.own_dead(), self.shown_weapon());
+        let hud = &self.scene.hud;
+        let peaceful = self.scene.player.mode.is_peaceful();
         let opts = FrameOptions {
-            crosshair: first,
-            viewmodel: first && !carrying && !dead,
+            crosshair: first && hud.shows_crosshair(),
+            viewmodel: first && !peaceful && !carrying && !dead,
             pickup: self.pickup_target.is_some(),
             weapon,
             muzzle_flash: (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0),
-            fx: self.feel.fx(self.camera.yaw),
-            enemy: self.aim_enemy,
+            fx: if hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() },
+            enemy: self.aim_enemy && hud.shows_combat(),
         };
         let highlighted = self.target_index.is_some();
         let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
@@ -192,7 +194,7 @@ impl App {
         }
         let capture = self.shots.capture.as_ref().ok_or("no capture target")?;
         live.set_hidden_objects(hidden);
-        if let Some(net) = &self.net {
+        if let Some(net) = self.net.as_ref().filter(|_| !peaceful) {
             live.set_remote_hands(net.remote_hands());
         }
         live.render_ex(&gpu.device, &gpu.queue, &self.scene, t, cam, capture.view(), highlighted, weapon_transform, hand, opts);

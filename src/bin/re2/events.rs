@@ -66,6 +66,9 @@ impl ApplicationHandler for App {
         self.gpu_kind = "window".to_string();
         self.window = Some(window);
         self.last_frame = Instant::now();
+        if self.start_fullscreen {
+            self.set_fullscreen(true);
+        }
         if let Some(who) = self.forced_character {
             self.start_game(who);
         }
@@ -75,6 +78,16 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
+        // Fullscreen is a property of the window, not of a screen of the game: `F11` everywhere, and `F` everywhere the keyboard is not
+        // typing (the connect form). It used to be handled only while playing, so the launch menu, the pause menu and the lobby ignored it.
+        if let WindowEvent::KeyboardInput { event: key, .. } = &event {
+            if let (PhysicalKey::Code(code), ElementState::Pressed, false) = (key.physical_key, key.state, key.repeat) {
+                if code == KeyCode::F11 || (code == KeyCode::KeyF && self.phase != Phase::Connect) {
+                    self.toggle_fullscreen();
+                    return;
+                }
+            }
+        }
         match event {
             WindowEvent::CloseRequested => {
                 if let Some(net) = self.net.as_mut() {
@@ -99,6 +112,10 @@ impl ApplicationHandler for App {
                 self.online.painted = None;
                 self.rule_hud_painted = None;
                 self.repaint_maps();
+                // A mode change (fullscreen on or off) released the mouse: take it back now that the window has settled.
+                if std::mem::take(&mut self.regrab) && !self.paused && self.phase == Phase::Playing && !self.online.takeover {
+                    self.set_grab(true);
+                }
             }
             WindowEvent::KeyboardInput { event, .. } if self.map_selection.is_some() => {
                 if let (PhysicalKey::Code(code), ElementState::Pressed) = (event.physical_key, event.state) {
@@ -185,9 +202,6 @@ impl ApplicationHandler for App {
                     if code == KeyCode::Space && event.state == ElementState::Pressed && !self.keys.contains(&code) {
                         self.jump_queued = true;
                     }
-                    if code == KeyCode::KeyF && event.state == ElementState::Pressed && !self.keys.contains(&code) {
-                        self.toggle_fullscreen();
-                    }
                     if code == KeyCode::KeyQ && event.state == ElementState::Pressed && !self.keys.contains(&code) {
                         self.toggle_view_mode();
                     }
@@ -230,15 +244,15 @@ impl ApplicationHandler for App {
                     let hit = self.gpu.as_ref().and_then(|g| menu::pause_action_at(g.config.width, g.config.height, self.cursor.0, self.cursor.1));
                     match hit {
                         Some(PauseAction::Resume) => self.leave_pause(),
+                        Some(PauseAction::Fullscreen) => self.toggle_fullscreen(),
                         Some(PauseAction::Quit) => event_loop.exit(),
                         None => {}
                     }
                 } else if !self.grabbed {
                     self.set_grab(true);
                 } else {
-                    // Acted on by the next simulation tick (`fixed_step_combat`).
-                    self.attack_queued = true;
-                    self.attack_held = true;
+                    // Acted on by the next simulation tick (`fixed_step_combat`); in a peaceful scene it is an interaction instead.
+                    self.press_primary();
                 }
             }
             WindowEvent::MouseInput { state: ElementState::Released, button: MouseButton::Left, .. } => {

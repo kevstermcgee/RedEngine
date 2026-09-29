@@ -75,6 +75,8 @@ fn leaves_of(o: &Object, parent: Mat4, is_root: bool, out: &mut Vec<(PrimKind, M
                 out.push((part.shape, world * part.local_transform));
             }
         }
+        // Terrain is not a hit shape: a swing or a bullet passes over it (it has no primitive leaves to intersect).
+        ObjectKind::Terrain(_) => {}
         ObjectKind::Stairs(s) => {
             for (shape, local) in build_stairs_parts(s) {
                 out.push((shape, world * local));

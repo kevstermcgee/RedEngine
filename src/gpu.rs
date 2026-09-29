@@ -29,6 +29,14 @@ pub struct GlobalUniform {
     pub counts: [f32; 4],
     pub bg_top: [f32; 4],
     pub bg_bottom: [f32; 4],
+    /// Inverse of `view_proj`: turns a pixel into a world-space view ray (the sky dome and the ocean).
+    pub inv_view_proj: [[f32; 4]; 4],
+    /// Direction toward the sun (xyz, unit) and its angular radius in radians (w).
+    pub sun_dir: [f32; 4],
+    /// Sun colour (rgb) and glow strength (w).
+    pub sun_color: [f32; 4],
+    /// x: 1 when the scene has a `sky` (view-direction gradient), y: gradient exponent, z: 1 when the sky has a sun.
+    pub sky: [f32; 4],
 }
 
 /// Per-object uniform block (transform and material); one slot per mesh.
@@ -235,7 +243,9 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
     });
     let bg_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("background-shader"),
-        source: wgpu::ShaderSource::Wgsl(concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/background.wgsl")).into()),
+        source: wgpu::ShaderSource::Wgsl(
+            concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/sky.wgsl"), include_str!("shaders/background.wgsl")).into(),
+        ),
     });
 
     let main_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -582,10 +592,12 @@ mod tests {
     use super::*;
 
     const COMMON: &str = include_str!("shaders/common.wgsl");
-    const SHADERS: [(&str, &str); 3] = [
+    const SHADERS: [(&str, &str); 5] = [
         ("scene.wgsl", include_str!("shaders/scene.wgsl")),
         ("shadow.wgsl", include_str!("shaders/shadow.wgsl")),
         ("background.wgsl", include_str!("shaders/background.wgsl")),
+        ("sky.wgsl", include_str!("shaders/sky.wgsl")),
+        ("ocean.wgsl", include_str!("shaders/ocean.wgsl")),
     ];
 
     /// `(size, alignment)` of a WGSL type as used in uniform structs (no `vec3`: pad to `vec4` instead).

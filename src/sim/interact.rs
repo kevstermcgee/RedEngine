@@ -308,12 +308,15 @@ impl MatchSim {
             p.combat.prev = [false; 4];
             return;
         }
-        let now = [input.interact, input.attack, input.reload, input.switch_weapon];
+        // A peaceful scene has no weapons: the primary button *is* interact, and reload / switch do nothing.
+        let peaceful = self.player_tuning.mode.is_peaceful();
+        let now =
+            if peaceful { [input.interact || input.attack, false, false, false] } else { [input.interact, input.attack, input.reload, input.switch_weapon] };
         let edge: [bool; 4] = std::array::from_fn(|i| now[i] && !p.combat.prev[i]);
         p.combat.prev = now;
         let repeating = input.attack && p.combat.weapon.automatic();
-        if edge[0] {
-            self.interact(slot);
+        if edge[0] && !self.interact(slot) && peaceful {
+            self.rules.inject(self.tick, "interact", Some(slot));
         }
         if edge[3] {
             self.switch_weapon(slot);
@@ -328,14 +331,16 @@ impl MatchSim {
         }
     }
 
-    fn interact(&mut self, slot: usize) {
-        let Some(p) = self.players[slot].as_ref() else { return };
+    /// `E` (or a peaceful scene's primary button): drop what is carried, else pick up what is aimed at. True when something happened.
+    fn interact(&mut self, slot: usize) -> bool {
+        let Some(p) = self.players[slot].as_ref() else { return false };
         let (eye, look) = eye_and_look(&p.state, p.crouching);
         let body = p.state.character.body();
         if self.props.held_by(slot).is_some() {
             let velocity = crate::sim::player::release_velocity(&p.state, look, self.player_tuning.throw_speed);
             if self.props.drop_held_by(slot, velocity).is_some() {
                 self.rules.inject(self.tick, "drop", Some(slot));
+                return true;
             }
         } else if let Some(prop) = self.props.pick_target_for(slot, eye, look, body.pickup_reach, &body.carry) {
             if self.props.pick_up_by(slot, prop) {
@@ -343,8 +348,10 @@ impl MatchSim {
                     p.combat.swing.cancel();
                 }
                 self.rules.inject(self.tick, "pickup", Some(slot));
+                return true;
             }
         }
+        false
     }
 
     fn switch_weapon(&mut self, slot: usize) {

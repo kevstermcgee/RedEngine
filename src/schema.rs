@@ -69,6 +69,15 @@ pub struct Scene {
     pub bots: crate::sim::ai::BotsConfig,
     /// The waypoint graph bots route along (`nav` block), if the scene has one.
     pub nav: Option<crate::sim::ai::nav::Nav>,
+    /// Which on-screen display the standard client draws (`hud` block; the defaults follow `player.mode`).
+    pub hud: crate::hud_config::HudConfig,
+    /// Whether the standard client starts the built-in music loop (root `"music"`, default true for older maps; new games say `false`;
+    /// the `N` key still toggles it).
+    pub music: bool,
+    /// The sky dome and its sun (`sky` block), if the scene has one; without it `background` is a screen-space gradient.
+    pub sky: Option<crate::atmosphere::Sky>,
+    /// The endless water plane (`ocean` block), if the scene has one.
+    pub ocean: Option<crate::atmosphere::Ocean>,
 }
 
 /// Sky: a flat color or a vertical gradient.
@@ -108,6 +117,9 @@ pub struct Light {
     /// World point the shadow map is centered on (default: the origin). Move it onto the middle
     /// of a map that isn't centered at 0,0,0 so the whole thing falls inside the shadow frustum.
     pub shadow_center: Vec3,
+    /// `"shadow_follow": true`: the shadow map is centred under the camera instead of on `shadow_center` (snapped to texels so shadows do
+    /// not crawl), for open worlds far larger than one shadow map can cover.
+    pub shadow_follow: bool,
 }
 
 /// Surface material: base color, metallic, roughness, emissive.
@@ -215,7 +227,15 @@ pub struct StairsDef {
     pub material: Material,
 }
 
-/// What an object is: a primitive, `Group`, `Humanoid`, `Rat`, `Prop`, `Stairs` (macros and prefabs are already expanded away).
+/// A heightfield terrain (see `crate::terrain`): the shared ground data plus its material (the vertex colours multiply the material colour).
+#[derive(Debug)]
+pub struct TerrainDef {
+    /// The heights, shared with the collision and ground queries built from the scene.
+    pub terrain: std::sync::Arc<crate::terrain::Terrain>,
+    pub material: Material,
+}
+
+/// What an object is: a primitive, `Group`, `Humanoid`, `Rat`, `Prop`, `Stairs`, `Terrain` (macros and prefabs are already expanded away).
 #[derive(Debug)]
 pub enum ObjectKind {
     Prim(PrimKind),
@@ -224,6 +244,7 @@ pub enum ObjectKind {
     Rat(Box<RatDef>),
     Prop(Box<PropDef>),
     Stairs(Box<StairsDef>),
+    Terrain(Box<TerrainDef>),
 }
 
 /// One scene object: unique id, position/rotation/scale tracks, and its `ObjectKind`.
@@ -261,6 +282,13 @@ pub struct PrefabTag {
 #[derive(Default)]
 struct Ctx {
     errors: Vec<String>,
+    /// The scene's looping axis (`world.wrap`), which a terrain has to tile across.
+    wrap: Option<crate::expanse::Wrap>,
+}
+
+thread_local! {
+    /// The folder a scene's relative asset paths (a terrain `heightmap`) resolve against, set for the duration of [`parse_scene_in`].
+    static ASSET_DIR: std::cell::RefCell<Option<std::path::PathBuf>> = const { std::cell::RefCell::new(None) };
 }
 
 impl Ctx {
@@ -517,6 +545,17 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
             None
         }
     };
+    let mode = match obj.get("mode") {
+        None => d.mode,
+        Some(Value::String(name)) => crate::player::PlayerMode::parse(name).unwrap_or_else(|| {
+            ctx.err("player.mode", "must be \"arena\" (weapons and combat, the default) or \"peaceful\" (empty hands, a click interacts)");
+            d.mode
+        }),
+        Some(_) => {
+            ctx.err("player.mode", "must be a string: \"arena\" or \"peaceful\"");
+            d.mode
+        }
+    };
     crate::player::PlayerTuning {
         character,
         fov_deg: ranged(ctx, obj, "fov", "player", d.fov_deg, 60.0, 120.0),
@@ -530,6 +569,8 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
         friction: ranged(ctx, obj, "friction", "player", d.friction, 0.0, 30.0),
         max_speed: ranged(ctx, obj, "max_speed", "player", d.max_speed.max(sprint_speed), sprint_speed, 50.0),
         throw_speed: ranged(ctx, obj, "throw_speed", "player", d.throw_speed, 0.0, 30.0),
+        mode,
+        expanse: crate::expanse::Expanse::default(),
     }
 }
 
@@ -614,7 +655,8 @@ fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
         LightKind::Directional { .. } => 2.0,
         LightKind::Point { .. } => 12.0,
     };
-    Light { id, kind, color, intensity: float_field(ctx, obj, "intensity", path, intensity_default), cast_shadows, shadow_radius, shadow_center }
+    let shadow_follow = obj.get("shadow_follow").and_then(Value::as_bool).unwrap_or(false);
+    Light { id, kind, color, intensity: float_field(ctx, obj, "intensity", path, intensity_default), cast_shadows, shadow_radius, shadow_center, shadow_follow }
 }
 
 fn parse_prim(ctx: &mut Ctx, ty: &str, obj: &Map<String, Value>, path: &str) -> PrimKind {
@@ -799,11 +841,23 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
         Some("rat") => (ObjectKind::Rat(Box::new(parse_rat(ctx, obj, &id))), None),
         Some("prop") => (ObjectKind::Prop(Box::new(parse_prop(ctx, obj, &id))), None),
         Some("stairs") => (ObjectKind::Stairs(Box::new(parse_stairs(ctx, obj, &id))), None),
+        Some("terrain") => {
+            let centre = position.sample(0.0);
+            let base = ASSET_DIR.with(|d| d.borrow().clone());
+            let tctx = crate::terrain::TerrainContext { wrap: ctx.wrap, base_dir: base.as_deref() };
+            match crate::terrain::parse_terrain(obj, &id, centre, &tctx) {
+                Ok(t) => (ObjectKind::Terrain(Box::new(TerrainDef { terrain: std::sync::Arc::new(t), material: parse_material(ctx, obj, &id) })), None),
+                Err(errs) => {
+                    ctx.errors.extend(errs);
+                    (ObjectKind::Group(Vec::new()), None)
+                }
+            }
+        }
         Some(other) => {
             ctx.err(
                 &format!("{id}.type"),
                 format!(
-                    "unknown type '{other}' (expected box, sphere, cylinder, cone, capsule, plane, group, humanoid, rat, prop, stairs, wall, fence, or prefab)"
+                    "unknown type '{other}' (expected box, sphere, cylinder, cone, capsule, plane, group, humanoid, rat, prop, stairs, terrain, wall, fence, or prefab)"
                 ),
             );
             (ObjectKind::Prim(PrimKind::Sphere { radius: 0.5 }), Some(Material::default_gray()))
@@ -825,6 +879,18 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
 
 /// Parses scene JSON text into a `Scene`, expanding prefabs and macros first; `Err` lists every `path: message` problem found.
 pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
+    parse_scene_in(text, None)
+}
+
+/// [`parse_scene`] for a scene that lives in `base_dir` (what a terrain `heightmap` path is relative to).
+pub fn parse_scene_in(text: &str, base_dir: Option<&std::path::Path>) -> Result<Scene, Vec<String>> {
+    ASSET_DIR.with(|d| *d.borrow_mut() = base_dir.map(std::path::Path::to_path_buf));
+    let result = parse_scene_text(text);
+    ASSET_DIR.with(|d| *d.borrow_mut() = None);
+    result
+}
+
+fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
     let mut value: Value = serde_json::from_str(text).map_err(|e| vec![format!("json: {e}")])?;
     // Prefab instances (`"type": "prefab"`) expand into plain groups before anything else sees them.
     crate::prefabs::expand_scene(&mut value)?;
@@ -876,6 +942,25 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         }
     };
 
+    let (bg_top, bg_bottom) = match &background {
+        Background::Flat(c) => (*c, *c),
+        Background::Gradient { top, bottom } => (*top, *bottom),
+    };
+    let sky = match crate::atmosphere::parse_sky(root, bg_top, bg_bottom) {
+        Ok(s) => s,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            None
+        }
+    };
+    let ocean = match crate::atmosphere::parse_ocean(root) {
+        Ok(o) => o,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            None
+        }
+    };
+
     let ambient = root.get("ambient").and_then(Value::as_object);
     if let Some(a) = ambient {
         check_keys(&mut ctx.errors, "ambient", a, strict::AMBIENT_KEYS);
@@ -916,7 +1001,31 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         }
         Some(c) => parse_camera(&mut ctx, c),
     };
-    let player = parse_player(&mut ctx, root);
+    let music = match root.get("music") {
+        None => true,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => {
+            ctx.err("music", "must be true or false (false starts the game silent)");
+            true
+        }
+    };
+    let mut player = parse_player(&mut ctx, root);
+    match crate::expanse::parse_world(root) {
+        Ok(expanse) => player.expanse = expanse,
+        Err(errs) => ctx.errors.extend(errs),
+    }
+    ctx.wrap = player.expanse.wrap;
+    let hud = match crate::hud_config::parse_hud(root, player.mode.is_peaceful()) {
+        Ok(h) => h,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            Default::default()
+        }
+    };
+    let declared: Vec<&str> = root.get("vars").and_then(Value::as_object).map(|o| o.keys().map(String::as_str).collect()).unwrap_or_default();
+    for name in crate::hud_config::unknown_custom_vars(&hud, &declared) {
+        ctx.err("hud.custom_vars", format!("`{name}` is not one of the scene's `vars` (a typo would draw nothing)"));
+    }
     let jump_pads = parse_jump_pads(&mut ctx, root);
 
     let mut lights = Vec::new();
@@ -951,6 +1060,34 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
             }
         }
         None => ctx.err("objects", "missing (must be an array, may be empty)"),
+    }
+
+    // `"on_terrain": true` puts a top-level object on the ground: its `y` becomes a height above the terrain under its x/z (so a shell, a
+    // rock or a hut sits on a dune without anyone computing the dune's height).
+    if let Some(arr) = root.get("objects").and_then(Value::as_array) {
+        let terrains: Vec<std::sync::Arc<crate::terrain::Terrain>> = objects
+            .iter()
+            .filter_map(|o| match &o.kind {
+                ObjectKind::Terrain(t) => Some(t.terrain.clone()),
+                _ => None,
+            })
+            .collect();
+        for (i, raw) in arr.iter().enumerate() {
+            if raw.get("on_terrain").and_then(Value::as_bool) != Some(true) {
+                continue;
+            }
+            let Some(o) = objects.get_mut(i) else { continue };
+            if raw.get("position").is_some_and(|p| p.is_object()) {
+                ctx.err(&format!("{}.on_terrain", o.id), "needs a plain position [x, y, z] (not animated keyframes)");
+                continue;
+            }
+            let p = o.position.sample(0.0);
+            let ground = terrains.iter().filter_map(|t| t.height_at(p.x, p.z)).fold(None, |a: Option<f32>, h| Some(a.map_or(h, |m| m.max(h))));
+            match ground {
+                Some(h) => o.position = Track::constant(Vec3::new(p.x, p.y + h, p.z)),
+                None => ctx.err(&format!("{}.on_terrain", o.id), format!("there is no terrain under ({:.1}, {:.1})", p.x, p.z)),
+            }
+        }
     }
 
     // Game rules: validated against the objects, zones and spawn points just parsed.
@@ -1016,6 +1153,10 @@ pub fn parse_scene(text: &str) -> Result<Scene, Vec<String>> {
         combat,
         bots,
         nav,
+        hud,
+        music,
+        sky,
+        ocean,
     })
 }
 

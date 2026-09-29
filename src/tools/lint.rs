@@ -111,6 +111,7 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
     check_openings(world, &mut out);
     check_jump_clearance(world, reach, &mut out);
     check_interest(world, &mut out);
+    check_terrain(world, &mut out);
     out.sort_by(|a, b| b.sev.cmp(&a.sev).then(a.code.cmp(b.code)));
     out
 }
@@ -291,9 +292,48 @@ fn placed_things(world: &MapWorld) -> Vec<Placed<'_>> {
     out
 }
 
+/// `terrain-slope`: a player climbs any slope instantly (the terrain *is* the ground), so ground steeper than the limit where players can
+/// walk reads as a ramp where it should be a wall. Only the walkable region is judged: inside `world.bounds`, or the whole terrain.
+fn check_terrain(world: &MapWorld, out: &mut Vec<Finding>) {
+    let bounds = world.scene.player.expanse.bounds;
+    let lo = Vec2::new(bounds.x.map_or(f32::NEG_INFINITY, |b| b.0), bounds.z.map_or(f32::NEG_INFINITY, |b| b.0));
+    let hi = Vec2::new(bounds.x.map_or(f32::INFINITY, |b| b.1), bounds.z.map_or(f32::INFINITY, |b| b.1));
+    for it in world.items.iter().filter(|i| i.is_terrain) {
+        if it.ignores("terrain-slope") {
+            continue;
+        }
+        let terrain = world.scene.objects.iter().find_map(|o| match &o.kind {
+            crate::schema::ObjectKind::Terrain(t) if o.id == it.top_id => Some(t.terrain.clone()),
+            _ => None,
+        });
+        let Some(terrain) = terrain else { continue };
+        let (slope, at) = terrain.steepest_slope(Some((lo, hi)));
+        if slope > crate::terrain::MAX_WALK_SLOPE {
+            out.push(finding(
+                Severity::Error,
+                "terrain-slope",
+                format!(
+                    "terrain '{}' is {:.0}% steep (rise over run {:.2}) near ({:.0}, {:.0}) where players can walk; the limit is {:.0}% — soften the profile/noise there, or put it outside `world.bounds`",
+                    it.top_id,
+                    slope * 100.0,
+                    slope,
+                    at.x,
+                    at.y,
+                    crate::terrain::MAX_WALK_SLOPE * 100.0
+                ),
+                Some(Vec3::new(at.x, 0.0, at.y)),
+                &[&it.top_id],
+            ));
+        }
+    }
+}
+
 fn check_support(world: &MapWorld, out: &mut Vec<Finding>) {
     let mut surfaces: Vec<Surface> = Vec::new();
     for it in &world.items {
+        if it.is_terrain {
+            continue; // the ground under a prop is read from `world.ground` below
+        }
         match it.kind {
             ItemKind::Box | ItemKind::Other => surfaces.push(Surface { top: it.max.y, min: it.min, max: it.max, owner: it }),
             ItemKind::Plane => surfaces.push(Surface { top: it.max.y, min: it.min, max: it.max, owner: it }),
@@ -312,7 +352,9 @@ fn check_support(world: &MapWorld, out: &mut Vec<Finding>) {
         let base = it.base;
         let center = it.center;
         // Highest surface directly under the footprint center that is at or below the prop's base.
-        let mut best: (f32, Option<&Item>) = (0.0, None);
+        // Where terrain exists it is the ground (`y = 0` only where it does not).
+        let floor_h = world.ground.terrain_height_at(center).unwrap_or(0.0);
+        let mut best: (f32, Option<&Item>) = (floor_h, None);
         for s in &surfaces {
             if s.owner.top_id == it.top_id {
                 continue;
@@ -339,7 +381,7 @@ fn check_support(world: &MapWorld, out: &mut Vec<Finding>) {
         if it.ignores("sunk") {
             continue;
         }
-        if base < -0.08 {
+        if base < floor_h - 0.08 {
             out.push(finding(
                 Severity::Warn,
                 "sunk",
@@ -660,8 +702,10 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
         out.push(finding(Severity::Warn, "reach", "reachability search hit its state limit; results are partial (try a larger --cell)".to_string(), None, &[]));
     }
 
-    // Perimeter leaks: group border cells into ~4 m clusters.
-    if !reach.leaks.is_empty() {
+    // Perimeter leaks: group border cells into ~4 m clusters. A world with its own edge (`world.bounds`, a looping axis) has no perimeter
+    // to seal: its limit is the clamp in the player step, not a wall the flood fill could find.
+    let open_world = !world.scene.player.expanse.is_plain();
+    if !reach.leaks.is_empty() && !open_world {
         let mut clusters: Vec<(Vec2, usize)> = Vec::new();
         for p in &reach.leaks {
             match clusters.iter_mut().find(|c| (c.0 - *p).length() < 4.0) {
@@ -684,7 +728,7 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
         ));
     }
 
-    for (p, from, to, n) in reach.drop_clusters() {
+    for (p, from, to, n) in reach.drop_clusters().into_iter().filter(|_| !open_world) {
         out.push(finding(
             Severity::Warn,
             "drop",
@@ -906,7 +950,7 @@ fn check_lights(world: &MapWorld, out: &mut Vec<Finding>) {
 }
 
 fn check_z_fight(world: &MapWorld, out: &mut Vec<Finding>) {
-    let planes: Vec<&Item> = world.items.iter().filter(|i| i.kind == ItemKind::Plane).collect();
+    let planes: Vec<&Item> = world.items.iter().filter(|i| i.kind == ItemKind::Plane && !i.is_terrain).collect();
     for (i, a) in planes.iter().enumerate() {
         for b in planes.iter().skip(i + 1) {
             if (a.max.y - b.max.y).abs() < 0.004 {

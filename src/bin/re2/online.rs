@@ -8,7 +8,7 @@ use red_engine2::ui::online::{
     action_at, connect_action_for, connect_layout, hud_layout, lobby_layout, results_layout, screen_for, ConnectAction, ConnectForm, OnlineAction,
     OnlineScreen, OnlineView,
 };
-use red_engine2::ui::rules::hud_layout as rules_hud_layout;
+use red_engine2::ui::rules::hud_layout_for as rules_hud_layout;
 use red_engine2::ui::Layout;
 use std::hash::{Hash, Hasher};
 
@@ -101,14 +101,14 @@ impl App {
         let mut layout = match screen {
             OnlineScreen::Lobby => lobby_layout(w, h, &view, hover.as_deref()),
             OnlineScreen::Results => results_layout(w, h, &view, hover.as_deref()),
-            OnlineScreen::Hud => hud_layout(w, h, &view),
+            OnlineScreen::Hud => hud_layout(w, h, &view, &self.scene.hud),
         };
         if screen == OnlineScreen::Hud && self.rules.has_rules() {
             if let Some(state) = self.net.as_ref().and_then(|n| n.client.rule_state()) {
                 let vars: Vec<(&str, f64)> = state.vars.iter().map(|v| (v.name.as_str(), v.value)).collect();
                 let event = (!state.event.is_empty() && state.server_tick.saturating_sub(state.event_tick) <= 120).then_some(state.event.as_str());
                 let outcome = (!state.outcome.is_empty()).then_some(state.outcome.as_str());
-                let mut rules = rules_hud_layout(w, h, &vars, event, outcome);
+                let mut rules = rules_hud_layout(w, h, &vars, event, outcome, &self.scene.hud);
                 let offset = layout.widgets.len();
                 for widget in &mut rules.widgets {
                     widget.container = widget.container.map(|i| i + offset);
@@ -151,8 +151,8 @@ impl App {
         if self.rule_hud_painted.as_ref().is_some_and(|(pw, ph, old)| (*pw, *ph) == (w, h) && old == &fingerprint) {
             return;
         }
-        let mut layout = rules_hud_layout(w, h, &vars, event, outcome);
-        if !self.project_maps.is_empty() {
+        let mut layout = rules_hud_layout(w, h, &vars, event, outcome, &self.scene.hud);
+        if !self.project_maps.is_empty() && self.scene.hud.shows_help() {
             let s = (h as i32 / 540).max(1);
             layout.panel("project_help", (0, h as i32 - 32 * s, w as i32, h as i32), None, Some([12, 18, 28, 200]), None);
             layout.label_fit("inspect", None, w as i32 / 2, h as i32 - 28 * s, inspected, s, w as i32 - 12, [239, 205, 131, 255]);
@@ -233,7 +233,6 @@ impl App {
             KeyCode::KeyR | KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space => self.online_action(OnlineAction::ToggleReady, event_loop),
             KeyCode::KeyC => self.online_action(OnlineAction::ToggleCharacter, event_loop),
             KeyCode::Escape => self.online_action(OnlineAction::Leave, event_loop),
-            KeyCode::KeyF => self.toggle_fullscreen(),
             _ => {}
         }
     }

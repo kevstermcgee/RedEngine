@@ -95,7 +95,8 @@ impl Predictor {
         for input in self.pending.iter() {
             step_player_tuned(&mut self.state, input, colliders, ground, tuning, jump_pads);
         }
-        let err = before.pos - self.state.pos;
+        // The short way round: on a looping world the two states can straddle the seam, a whole period apart on paper and centimetres in fact.
+        let err = tuning.expanse.delta(self.state.pos, before.pos);
         let mag = err.length();
         if mag > 0.001 {
             self.corrections += 1;

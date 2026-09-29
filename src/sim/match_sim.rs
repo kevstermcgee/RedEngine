@@ -120,7 +120,7 @@ impl MatchSim {
             ground.append(group);
         }
         let object_index: HashMap<String, usize> = scene.objects.iter().enumerate().map(|(i, o)| (o.id.clone(), i)).collect();
-        let mut rules = RulesEngine::new(scene.rules.clone());
+        let mut rules = RulesEngine::new(scene.rules.clone()).with_wrap(scene.player.expanse.wrap);
         rules.bind_props(|id| object_index.get(id).and_then(|i| props.prop_of_object(*i)));
         Ok(MatchSim {
             colliders,

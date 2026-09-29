@@ -125,6 +125,8 @@ fn collect_object_colliders(objects: &[Object], parent: Mat4, out: &mut Vec<Coll
             ObjectKind::Group(children) => collect_object_colliders(children, world, out),
             ObjectKind::Humanoid(_) | ObjectKind::Rat(_) => {}
             ObjectKind::Stairs(st) => push_stairs_colliders(world, st, out),
+            // Terrain is ground, not a wall: it contributes to `ground_height_at`, never a 2-D collider.
+            ObjectKind::Terrain(_) => {}
             ObjectKind::Prop(p) => {
                 for (lmin, lmax) in game_collision_boxes(p.kind) {
                     push_box_collider(world * Mat4::from_translation((lmin + lmax) * 0.5), (lmax - lmin) * 0.5, out);
@@ -137,6 +139,7 @@ fn collect_object_colliders(objects: &[Object], parent: Mat4, out: &mut Vec<Coll
 /// Static colliders grouped by top-level scene object. Ownership is retained so live game rules
 /// can disable one object's collision without rebuilding its geometry.
 pub fn collect_box_colliders_grouped_except(scene: &Scene, skip: &std::collections::HashSet<usize>) -> Vec<Vec<Collider2D>> {
+    let wrap = scene.player.expanse.wrap;
     scene
         .objects
         .iter()
@@ -145,10 +148,65 @@ pub fn collect_box_colliders_grouped_except(scene: &Scene, skip: &std::collectio
             let mut out = Vec::new();
             if !skip.contains(&i) {
                 collect_object_colliders(std::slice::from_ref(object), Mat4::IDENTITY, &mut out);
+                if let Some(w) = wrap {
+                    add_collider_images(&mut out, w);
+                }
             }
             out
         })
         .collect()
+}
+
+/// How close to the seam of a looping world a collider or a ground surface is copied to the other side of it, m: a body (radius 0.35) and
+/// everything near it that can matter.
+const SEAM_MARGIN: f32 = 4.0;
+
+fn shifted(c: &Collider2D, wrap: crate::expanse::Wrap, by: f32) -> Collider2D {
+    let d = wrap.axis.offset(by);
+    Collider2D { min: c.min + d, max: c.max + d, min_y: c.min_y, max_y: c.max_y }
+}
+
+/// On a looping world, near the seam every collider also exists one period away, so a player standing just past the edge collides with
+/// what is just past the *other* edge. Colliders that straddle or touch the seam get both copies.
+fn add_collider_images(out: &mut Vec<Collider2D>, wrap: crate::expanse::Wrap) {
+    let period = wrap.period();
+    let n = out.len();
+    for i in 0..n {
+        let c = out[i];
+        let (lo, hi) = (wrap.axis.of(c.min), wrap.axis.of(c.max));
+        if hi > wrap.max - SEAM_MARGIN {
+            out.push(shifted(&c, wrap, -period));
+        }
+        if lo < wrap.min + SEAM_MARGIN {
+            out.push(shifted(&c, wrap, period));
+        }
+    }
+}
+
+/// The ground twin of [`add_collider_images`]: box tops and stairs near the seam exist on both sides of it.
+fn add_ground_images(g: &mut GroundCandidates, wrap: crate::expanse::Wrap) {
+    let period = wrap.period();
+    add_collider_images(&mut g.box_tops, wrap);
+    let n = g.stairs.len();
+    for i in 0..n {
+        let s = g.stairs[i].clone();
+        // The ramp's footprint in the looping coordinate, from its own frame: the four extents around its origin.
+        let centre = s.world_to_local.inverse().transform_point3(Vec3::ZERO);
+        let reach = s.half_width.max(s.half_run) * 1.5 + 0.5;
+        let c = wrap.axis.of(glam::Vec2::new(centre.x, centre.z));
+        for by in [-period, period] {
+            let near_edge = if by < 0.0 { c + reach > wrap.max - SEAM_MARGIN } else { c - reach < wrap.min + SEAM_MARGIN };
+            if near_edge {
+                let offset = match wrap.axis {
+                    crate::expanse::Axis::X => Vec3::new(by, 0.0, 0.0),
+                    crate::expanse::Axis::Z => Vec3::new(0.0, 0.0, by),
+                };
+                let mut copy = s.clone();
+                copy.world_to_local *= Mat4::from_translation(-offset);
+                g.stairs.push(copy);
+            }
+        }
+    }
 }
 
 /// [`collect_box_colliders`] leaving out the top-level objects in `skip` — loose physics props
@@ -244,6 +302,10 @@ impl StairsRamp {
 pub struct GroundCandidates {
     box_tops: Vec<Collider2D>,
     stairs: Vec<StairsRamp>,
+    /// Heightfield terrains: where one exists it is the ground (no invisible floor at `y = 0` beneath it).
+    terrains: Vec<std::sync::Arc<crate::terrain::Terrain>>,
+    /// The scene's looping axis: ground queries are brought into the period first.
+    wrap: Option<crate::expanse::Wrap>,
 }
 
 impl GroundCandidates {
@@ -260,6 +322,14 @@ impl GroundCandidates {
     pub fn append(&mut self, other: &GroundCandidates) {
         self.box_tops.extend_from_slice(&other.box_tops);
         self.stairs.extend_from_slice(&other.stairs);
+        self.terrains.extend(other.terrains.iter().cloned());
+        self.wrap = self.wrap.or(other.wrap);
+    }
+
+    /// Height of the terrain under `xz`, if any terrain covers it (the highest, if several overlap).
+    pub fn terrain_height_at(&self, xz: glam::Vec2) -> Option<f32> {
+        let xz = self.wrap.map_or(xz, |w| w.wrap_pos(xz));
+        self.terrains.iter().filter_map(|t| t.height_at(xz.x, xz.y)).fold(None, |a, h| Some(a.map_or(h, |m: f32| m.max(h))))
     }
 }
 
@@ -288,6 +358,7 @@ fn collect_object_ground(objects: &[Object], parent: Mat4, out: &mut GroundCandi
                     }
                 }
             }
+            ObjectKind::Terrain(td) => out.terrains.push(td.terrain.clone()),
             ObjectKind::Stairs(s) => out.stairs.push(StairsRamp {
                 world_to_local: world.inverse(),
                 half_width: s.width * 0.5,
@@ -307,9 +378,12 @@ pub fn collect_ground_candidates_grouped_except(scene: &Scene, skip: &std::colle
         .iter()
         .enumerate()
         .map(|(i, object)| {
-            let mut out = GroundCandidates::default();
+            let mut out = GroundCandidates { wrap: scene.player.expanse.wrap, ..Default::default() };
             if !skip.contains(&i) {
                 collect_object_ground(std::slice::from_ref(object), Mat4::IDENTITY, &mut out);
+                if let Some(w) = scene.player.expanse.wrap {
+                    add_ground_images(&mut out, w);
+                }
             }
             out
         })
@@ -340,7 +414,10 @@ const GROUND_SNAP_EPS: f32 = 0.35;
 /// reachability rule layered on top of that for every other candidate.
 pub fn ground_height_at(candidates: &GroundCandidates, xz: glam::Vec2, current_foot_y: f32) -> f32 {
     let limit = current_foot_y + GROUND_SNAP_EPS;
-    let mut best = 0.0f32;
+    // Terrain *is* the ground where it exists: it replaces the `y = 0` fallback (a seabed below sea level is walkable), and boxes and
+    // stairs may still stand on top of it.
+    let xz = candidates.wrap.map_or(xz, |w| w.wrap_pos(xz));
+    let mut best = candidates.terrain_height_at(xz).unwrap_or(0.0);
     for b in &candidates.box_tops {
         if b.max_y <= limit && xz.x >= b.min.x && xz.x <= b.max.x && xz.y >= b.min.y && xz.y <= b.max.y {
             best = best.max(b.max_y);
@@ -441,6 +518,12 @@ fn accumulate_world_bounds(o: &Object, parent: Mat4, min: &mut Vec3, max: &mut V
         ObjectKind::Stairs(s) => {
             expand(world, Vec3::new(0.0, s.rise * 0.5, 0.0), Vec3::new(s.width * 0.5, s.rise * 0.5, s.run * 0.5));
         }
+        ObjectKind::Terrain(td) => {
+            let (lo, hi) = td.terrain.height_range();
+            let size = td.terrain.size();
+            let y0 = o.position.sample(0.0).y;
+            expand(world, Vec3::new(0.0, (lo + hi) * 0.5 - y0, 0.0), Vec3::new(size.x * 0.5, ((hi - lo) * 0.5).max(0.01), size.y * 0.5));
+        }
     }
 }
 
@@ -517,7 +600,7 @@ mod ground_tests {
     #[test]
     fn stairs_ramp_climbs_smoothly_bottom_to_top() {
         let ramp = StairsRamp { world_to_local: Mat4::IDENTITY, half_width: 1.0, half_run: 2.0, base_y: 0.0, rise: 3.0, steps: 16 };
-        let candidates = GroundCandidates { box_tops: vec![], stairs: vec![ramp] };
+        let candidates = GroundCandidates { box_tops: vec![], stairs: vec![ramp], ..Default::default() };
         // ~WALK_SPEED (3.2 m/s) at FIXED_DT (1/60s) — the real per-tick horizontal step size.
         let foot_y = walk(&candidates, straight_line(glam::Vec2::new(0.0, -2.0), glam::Vec2::new(0.0, 2.0), 3.2 / 60.0));
         assert!(foot_y > 2.9, "expected to reach near the top of a rise-3.0 ramp, got {foot_y}");
@@ -550,7 +633,7 @@ mod ground_tests {
     #[test]
     fn stairs_ramp_descends_smoothly_top_to_bottom() {
         let ramp = StairsRamp { world_to_local: Mat4::IDENTITY, half_width: 1.0, half_run: 2.0, base_y: 0.0, rise: 3.0, steps: 16 };
-        let candidates = GroundCandidates { box_tops: vec![], stairs: vec![ramp] };
+        let candidates = GroundCandidates { box_tops: vec![], stairs: vec![ramp], ..Default::default() };
         let mut foot_y = 3.0; // start already on top, as if having just climbed up
         for xz in straight_line(glam::Vec2::new(0.0, 2.0), glam::Vec2::new(0.0, -2.0), 3.2 / 60.0) {
             let ground = ground_height_at(&candidates, xz, foot_y);
@@ -568,7 +651,7 @@ mod ground_tests {
     #[test]
     fn stairs_ramp_tall_end_is_unreachable_from_ground_level() {
         let ramp = StairsRamp { world_to_local: Mat4::IDENTITY, half_width: 1.0, half_run: 2.0, base_y: 0.0, rise: 3.0, steps: 16 };
-        let candidates = GroundCandidates { box_tops: vec![], stairs: vec![ramp] };
+        let candidates = GroundCandidates { box_tops: vec![], stairs: vec![ramp], ..Default::default() };
         // Standing right at the tall end (local z = +2, height = 3.0) with feet still at 0.
         let ground = ground_height_at(&candidates, glam::Vec2::new(0.0, 2.0), 0.0);
         assert_eq!(ground, 0.0, "the tall end of a ramp must be rejected as unreachable from ground level");
@@ -580,7 +663,7 @@ mod ground_tests {
     #[test]
     fn elevated_box_top_is_gated_by_current_height() {
         let deck = Collider2D { min: glam::Vec2::new(-5.0, -5.0), max: glam::Vec2::new(5.0, 5.0), min_y: 2.8, max_y: 3.0 };
-        let candidates = GroundCandidates { box_tops: vec![deck], stairs: vec![] };
+        let candidates = GroundCandidates { box_tops: vec![deck], stairs: vec![], ..Default::default() };
         let xz = glam::Vec2::new(0.0, 0.0);
         assert_eq!(ground_height_at(&candidates, xz, 0.0), 0.0, "deck must be unreachable from ground level");
         assert_eq!(ground_height_at(&candidates, xz, 2.9), 3.0, "deck must become reachable once already close to its height");

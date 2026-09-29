@@ -1,6 +1,7 @@
 //! Library root: module list plus the scene-loading and offline render entry points (`render_frame_png`, `render_video`).
 
 pub mod app;
+pub mod atmosphere;
 #[cfg(feature = "gfx")]
 pub mod audio;
 pub mod avatar;
@@ -13,6 +14,7 @@ pub mod controller;
 pub mod costumes;
 pub mod crypto;
 pub mod easing;
+pub mod expanse;
 pub mod feel;
 #[cfg(feature = "gfx")]
 pub mod firearms;
@@ -22,6 +24,7 @@ pub mod geometry;
 #[cfg(feature = "gfx")]
 pub mod gpu;
 pub mod hit;
+pub mod hud_config;
 pub mod macros;
 #[cfg(feature = "gfx")]
 pub mod menu;
@@ -30,6 +33,8 @@ pub mod mesh;
 #[cfg(feature = "gfx")]
 pub mod music;
 pub mod net;
+#[cfg(feature = "gfx")]
+pub mod ocean_pass;
 #[cfg(feature = "gfx")]
 pub mod overlay;
 pub mod physics;
@@ -50,6 +55,7 @@ pub mod sim;
 pub mod skeleton;
 pub mod streaks;
 pub mod strict;
+pub mod terrain;
 pub mod tools;
 pub mod track;
 pub mod ui;
@@ -70,7 +76,8 @@ use std::path::Path;
 /// Reads and fully validates a scene file (macros and prefabs expanded); `Err` is a list of `object.field: message` strings.
 pub fn load_scene(path: &Path) -> Result<schema::Scene, Vec<String>> {
     let text = std::fs::read_to_string(path).map_err(|e| vec![format!("io: {e}")])?;
-    schema::parse_scene(&text)
+    // A terrain's `heightmap` is a path relative to the scene file.
+    schema::parse_scene_in(&text, path.parent())
 }
 
 /// Validates a scene file without rendering (`red_engine2 validate`).

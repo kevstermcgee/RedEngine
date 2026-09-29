@@ -212,6 +212,20 @@ pub fn step_player_on_tuned(
             state.velocity[axis] = actual[axis] / FIXED_DT;
         }
     }
+    // The edge of the world: the walkable limits stop the player (and the momentum into them), and a looping axis carries them across
+    // the seam. This is the one place the loop and the limits are applied, so the single-player game, the authoritative server and a
+    // client's prediction cannot disagree about where the world ends.
+    let mut actual = actual;
+    if !tuning.expanse.is_plain() {
+        let (bounded, hit) = tuning.expanse.clamp_bounds(state.pos);
+        for axis in 0..2 {
+            if hit[axis] {
+                state.velocity[axis] = 0.0;
+                actual[axis] = bounded[axis] - before[axis];
+            }
+        }
+        state.pos = bounded;
+    }
     if tuning.acceleration > 0.0 {
         speed_now = actual.length() / FIXED_DT;
     }
@@ -227,11 +241,46 @@ pub fn step_player_on_tuned(
     }
     state.foot_y = foot_y;
     state.vy = vy;
+    // Wrap last: the vertical step above looked the ground up at the pre-wrap position, which is the same ground (it is periodic).
+    state.pos = tuning.expanse.wrap_pos(state.pos);
     speed_now
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_wrapped_axis_carries_the_player_across_and_bounds_stop_them() {
+        use crate::expanse::{Axis, Bounds, Expanse, Wrap};
+        let expanse = Expanse { wrap: Some(Wrap { axis: Axis::Z, min: -100.0, max: 100.0 }), bounds: Bounds { x: Some((-10.0, 10.0)), z: None } };
+        let tuning = PlayerTuning { expanse, acceleration: 12.0, walk_speed: 9.0, sprint_speed: 9.0, max_speed: 20.0, ..Default::default() };
+        let ground = GroundCandidates::default();
+        // Walk +Z (yaw 180 degrees looks along +Z) for 30 s: 270 m is more than one loop, and the position never leaves the period.
+        let mut s = PlayerState::spawn(0.0, 90.0, 0.0, 180.0, Character::Human);
+        let mut crossed = false;
+        for k in 0..1800 {
+            let before = s.pos.y;
+            step_player_on_tuned(&mut s, &PlayerInput { seq: k, forward: 1, yaw: 180f32.to_radians(), ..Default::default() }, &[], &ground, None, tuning, &[]);
+            assert!((-100.0..100.0).contains(&s.pos.y), "z stays in the period: {}", s.pos.y);
+            crossed |= s.pos.y < before - 100.0;
+        }
+        assert!(crossed, "the player crossed the seam");
+        assert!(s.velocity.length() > 8.0, "and kept their speed through it: {}", s.velocity.length());
+        // Walk +X into the limit: stopped at 10, no momentum banked into the invisible wall.
+        let mut w = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
+        for k in 0..600 {
+            step_player_on_tuned(&mut w, &PlayerInput { seq: k, forward: 1, yaw: 90f32.to_radians(), ..Default::default() }, &[], &ground, None, tuning, &[]);
+        }
+        assert!((w.pos.x - 10.0).abs() < 1e-4 && w.velocity.x.abs() < 1e-4, "{:?} {:?}", w.pos, w.velocity);
+        // Identical inputs, identical result (server and prediction must agree bit for bit).
+        let (mut a, mut b) = (PlayerState::spawn(0.0, 99.0, 0.0, 180.0, Character::Human), PlayerState::spawn(0.0, 99.0, 0.0, 180.0, Character::Human));
+        for k in 0..200 {
+            let input = PlayerInput { seq: k, forward: 1, strafe: (k % 3) as i8 - 1, yaw: 180f32.to_radians(), ..Default::default() };
+            step_player_on_tuned(&mut a, &input, &[], &ground, None, tuning, &[]);
+            step_player_on_tuned(&mut b, &input, &[], &ground, None, tuning, &[]);
+        }
+        assert_eq!(a, b);
+    }
+
     #[test]
     fn analog_strength_and_diagonal_speed_are_bounded() {
         let tuning = PlayerTuning::default();

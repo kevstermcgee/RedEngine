@@ -49,17 +49,17 @@ pub fn build(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Option<Layout> {
             Some(connect_layout(w, h, &f, opts.hover_id.as_deref()))
         }
         "lobby" => Some(lobby_layout(w, h, &demo(Phase::Waiting, opts), opts.hover_id.as_deref())),
-        "countdown" => Some(hud_layout(w, h, &demo(Phase::Countdown, opts))),
-        "hud" => Some(hud_layout(w, h, &demo(Phase::Playing, opts))),
+        "countdown" => Some(hud_layout(w, h, &demo(Phase::Countdown, opts), &crate::hud_config::HudConfig::default())),
+        "hud" => Some(hud_layout(w, h, &demo(Phase::Playing, opts), &crate::hud_config::HudConfig::default())),
         "final" => {
             let mut v = demo(Phase::Playing, opts);
             v.roster[5].score = 11; // Fay is one kill from winning
-            Some(hud_layout(w, h, &v))
+            Some(hud_layout(w, h, &v, &crate::hud_config::HudConfig::default()))
         }
         "death" => {
             let mut v = demo(Phase::Playing, opts);
             v.combat = Some(CombatView::demo_dead());
-            Some(hud_layout(w, h, &v))
+            Some(hud_layout(w, h, &v, &crate::hud_config::HudConfig::default()))
         }
         "rules" => Some(rules_hud_layout(w, h, &[("score", 3.0), ("coins_left", 1.0)], Some("coin"), opts.message.as_deref())),
         "results" => Some(results_layout(w, h, &demo(Phase::Results, opts), opts.hover_id.as_deref())),
@@ -160,6 +160,8 @@ pub fn menu_layout(w: u32, h: u32, selected: Character, map: &str) -> Layout {
 pub enum PauseAction {
     /// Back to the game.
     Resume,
+    /// Toggle borderless fullscreen (the `F` key does the same).
+    Fullscreen,
     /// Close the window.
     Quit,
 }
@@ -171,14 +173,15 @@ pub fn pause_layout(w: u32, h: u32, map: &str, message: Option<&str>, hover: Opt
     let (wi, hi) = (w as i32, h as i32);
     let s = (hi / 240).max(1);
     let pw = (190 * s).min(wi - 8);
-    let base_h = 126 * s;
+    let base_h = 150 * s;
     let (x0, y0) = ((wi - pw) / 2, ((hi - base_h) / 2).max(0));
     let cx = x0 + pw / 2;
     let inner = pw - 12 * s;
     let bx = (x0 + 14 * s, x0 + pw - 14 * s);
     let bh = 20 * s;
     let resume_y = y0 + 42 * s;
-    let quit_y = resume_y + bh + 8 * s;
+    let full_y = resume_y + bh + 8 * s;
+    let quit_y = full_y + bh + 8 * s;
     let hint_y = quit_y + bh + 7 * s;
 
     // Status lines (at most three) decide how far the panel extends below its base height.
@@ -191,7 +194,11 @@ pub fn pause_layout(w: u32, h: u32, map: &str, message: Option<&str>, hover: Opt
     let panel = l.panel("panel", (x0, y0, x0 + pw, panel_bottom), None, Some([14, 17, 28, 235]), Some(([90, 98, 130, 255], (s / 2).max(2))));
     l.label_fit("title", Some(panel), cx, y0 + 8 * s, "PAUSED", s * 2, inner, TEXT);
     l.label_fit("map", Some(panel), cx, y0 + 28 * s, &format!("MAP: {}", map.to_uppercase()), s, inner, DIM);
-    for (id, y, label, action) in [("resume", resume_y, "RESUME", PauseAction::Resume), ("quit", quit_y, "QUIT GAME", PauseAction::Quit)] {
+    for (id, y, label, action) in [
+        ("resume", resume_y, "RESUME", PauseAction::Resume),
+        ("fullscreen", full_y, "FULLSCREEN  (F)", PauseAction::Fullscreen),
+        ("quit", quit_y, "QUIT GAME", PauseAction::Quit),
+    ] {
         let hot = hover == Some(action);
         let scale = fit_scale(label, bx.1 - bx.0 - 6 * s, s * 3 / 2);
         l.button(
@@ -216,6 +223,7 @@ pub fn pause_layout(w: u32, h: u32, map: &str, message: Option<&str>, hover: Opt
 pub fn pause_action_at(w: u32, h: u32, x: f32, y: f32) -> Option<PauseAction> {
     match pause_layout(w, h, "", None, None).button_at(x, y) {
         Some("resume") => Some(PauseAction::Resume),
+        Some("fullscreen") => Some(PauseAction::Fullscreen),
         Some("quit") => Some(PauseAction::Quit),
         _ => None,
     }
@@ -253,6 +261,8 @@ mod tests {
             let mid = |r: (i32, i32, i32, i32)| (((r.0 + r.2) / 2) as f32, ((r.1 + r.3) / 2) as f32);
             let (rx, ry) = mid(l.rect_of("resume").unwrap());
             let (qx, qy) = mid(l.rect_of("quit").unwrap());
+            let (fx, fy) = mid(l.rect_of("fullscreen").unwrap());
+            assert_eq!(pause_action_at(w, h, fx, fy), Some(PauseAction::Fullscreen), "{w}x{h}");
             assert_eq!(pause_action_at(w, h, rx, ry), Some(PauseAction::Resume), "{w}x{h}");
             assert_eq!(pause_action_at(w, h, qx, qy), Some(PauseAction::Quit), "{w}x{h}");
             assert_eq!(pause_action_at(w, h, 2.0, 2.0), None, "outside the panel");

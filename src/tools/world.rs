@@ -132,6 +132,8 @@ pub struct Item {
     /// Lint checks to skip for this item (`"lint_ignore": ["floating", ...]` in the JSON).
     pub ignore: Vec<String>,
     pub stairs: Option<StairsInfo>,
+    /// True for a `terrain` object: ground, not a floor slab (its heights are read through `MapWorld::ground`).
+    pub is_terrain: bool,
 }
 
 impl Item {
@@ -197,7 +199,7 @@ impl MapWorld {
 
     /// Builds a `MapWorld` from scene JSON text; `path` is only for messages and `checks` lookups.
     pub fn from_text(text: &str, path: &Path) -> Result<Self, Vec<String>> {
-        let scene = crate::schema::parse_scene(text)?;
+        let scene = crate::schema::parse_scene_in(text, path.parent())?;
         let raw: Value = serde_json::from_str(text).map_err(|e| vec![format!("json: {e}")])?;
         let ignores = collect_ignores(&raw);
         // What an unconditional `start` rule opens on the first tick is open to the tools too (a gate a game keeps closed until
@@ -362,6 +364,7 @@ fn flatten_object(o: &Object, top_id: &str, parent: Mat4, collide: bool, ignores
             color,
             ignore: ignore.clone(),
             stairs: None,
+            is_terrain: false,
         });
     };
     match &o.kind {
@@ -391,6 +394,18 @@ fn flatten_object(o: &Object, top_id: &str, parent: Mat4, collide: bool, ignores
         ObjectKind::Rat(_) => {
             let (min, max) = aabb_of(world, Vec3::new(0.0, 0.09, 0.0), Vec3::new(0.12, 0.09, 0.3));
             push(ItemKind::Rat, min, max, vec![], None);
+        }
+        // Ground, not a solid: a footprint like a floor plane, with no volume (players walk on it, `lint` reads its heights separately).
+        ObjectKind::Terrain(td) => {
+            let (lo, hi) = td.terrain.height_range();
+            let size = td.terrain.size();
+            let y0 = world.transform_point3(Vec3::ZERO).y;
+            let half = Vec3::new(size.x * 0.5, ((hi - lo) * 0.5).max(0.01), size.y * 0.5);
+            let (min, max) = aabb_of(world, Vec3::new(0.0, (lo + hi) * 0.5 - y0, 0.0), half);
+            push(ItemKind::Plane, min, max, vec![], Some(footprint_of(world, Vec3::ZERO, Vec3::new(size.x * 0.5, 0.0, size.y * 0.5))));
+            if let Some(last) = out.last_mut() {
+                last.is_terrain = true;
+            }
         }
         ObjectKind::Stairs(s) => {
             let half = Vec3::new(s.width * 0.5, s.rise * 0.5, s.run * 0.5);

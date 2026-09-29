@@ -178,6 +178,8 @@ pub struct RulesEngine {
     pending: Vec<GameEvent>,
     /// Engine-raised events waiting to trigger `when: {event}` rules on the next step.
     injected: Vec<(String, Option<usize>)>,
+    /// The scene's looping axis: a player near the seam is inside a volume just past the other edge (see `expanse`).
+    wrap: Option<crate::expanse::Wrap>,
 }
 
 impl RulesEngine {
@@ -200,7 +202,14 @@ impl RulesEngine {
             dropped: 0,
             pending: Vec::new(),
             injected: Vec::new(),
+            wrap: None,
         }
+    }
+
+    /// Measures `enter` / `exit` volumes the short way round a looping world (the scene's `world.wrap`).
+    pub fn with_wrap(mut self, wrap: Option<crate::expanse::Wrap>) -> Self {
+        self.wrap = wrap;
+        self
     }
 
     /// True when the scene declared any rule (a match without rules never ends and has no events).
@@ -273,11 +282,19 @@ impl RulesEngine {
         std::mem::take(&mut self.pending)
     }
 
-    fn inside(v: &Volume, p: &RulePlayer) -> bool {
-        let cx = p.pos.x.clamp(v.min.x, v.max.x);
-        let cz = p.pos.z.clamp(v.min.z, v.max.z);
-        let (dx, dz) = (p.pos.x - cx, p.pos.z - cz);
-        dx * dx + dz * dz <= p.radius * p.radius && p.pos.y + p.height >= v.min.y && p.pos.y <= v.max.y
+    fn inside(v: &Volume, p: &RulePlayer, wrap: Option<crate::expanse::Wrap>) -> bool {
+        let mut pos = p.pos;
+        if let Some(w) = wrap {
+            // The copy of the player nearest to the volume: across the seam of a looping world it is one period away.
+            let centre = glam::Vec2::new((v.min.x + v.max.x) * 0.5, (v.min.z + v.max.z) * 0.5);
+            let near = w.nearest_image(centre, glam::Vec2::new(pos.x, pos.z));
+            pos.x = near.x;
+            pos.z = near.y;
+        }
+        let cx = pos.x.clamp(v.min.x, v.max.x);
+        let cz = pos.z.clamp(v.min.z, v.max.z);
+        let (dx, dz) = (pos.x - cx, pos.z - cz);
+        dx * dx + dz * dz <= p.radius * p.radius && pos.y + p.height >= v.min.y && pos.y <= v.max.y
     }
 
     fn who_ok(who: Who, c: Character) -> bool {
@@ -405,7 +422,7 @@ impl RulesEngine {
                 When::Enter(v) | When::Exit(v) => {
                     let entering = matches!(rule.when, When::Enter(_));
                     for p in players.iter().filter(|p| Self::who_ok(rule.who, p.character)) {
-                        let now = Self::inside(v, p);
+                        let now = Self::inside(v, p, self.wrap);
                         let was = self.inside.insert((ri, p.slot), now);
                         if let Some(was) = was {
                             if (entering && now && !was) || (!entering && !now && was) {

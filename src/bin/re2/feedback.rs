@@ -74,9 +74,16 @@ impl App {
 
     /// Starts the music loop (generated in a few hundredths of a second) unless `RE2_MUSIC=0`.
     pub(crate) fn start_music(&mut self) {
-        if std::env::var("RE2_MUSIC").is_ok_and(|v| v == "0") {
+        // A scene says `"music": false` to start silent (`N` still turns it on); `RE2_MUSIC=0` silences any scene, `RE2_MUSIC=1` starts any.
+        let env = std::env::var("RE2_MUSIC").ok();
+        if env.as_deref() == Some("0") || (!self.scene.music && env.as_deref() != Some("1")) {
             return;
         }
+        self.begin_music();
+    }
+
+    /// Composes and starts the loop (or brings it back), whatever the scene asked for.
+    fn begin_music(&mut self) {
         if let Some(audio) = self.audio.as_mut() {
             if !audio.has_music() {
                 let started = Instant::now();
@@ -93,7 +100,7 @@ impl App {
     /// `N`: music on or off (the loop keeps its place while it is silent).
     pub(crate) fn toggle_music(&mut self) {
         if !self.audio.as_ref().is_some_and(|a| a.has_music()) {
-            self.start_music();
+            self.begin_music();
             return;
         }
         self.music_on = !self.music_on;

@@ -284,7 +284,8 @@ impl App {
             self.fixed_step_physics();
         }
         let alpha = self.clock.alpha();
-        let mut planar_pos = self.prev_physics_pos.lerp(self.physics_pos, alpha);
+        // Between two physics states, the short way round (a looping world's seam is crossed between two ticks now and then).
+        let mut planar_pos = self.prev_physics_pos + self.scene.player.expanse.delta(self.prev_physics_pos, self.physics_pos) * alpha;
         if let Some(net) = &self.net {
             planar_pos += net.visual_offset();
         }
@@ -412,14 +413,17 @@ impl App {
         let dead = self.own_dead();
         let shown_weapon = self.shown_weapon();
         let muzzle_flash = (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0);
-        let fx = self.feel.fx(self.camera.yaw);
-        let enemy = self.aim_enemy;
+        let hud = &self.scene.hud;
+        let peaceful = self.scene.player.mode.is_peaceful();
+        let fx = if hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() };
+        let enemy = self.aim_enemy && hud.shows_combat();
+        let (show_crosshair, show_viewmodel) = (hud.shows_crosshair(), !peaceful);
         let hidden =
             hidden_ids(&self.net, &self.rules, &self.streaks, &self.scene, (self.view_mode == ViewMode::FirstPerson).then_some(self.player_object_index));
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(live) = gpu.live.as_mut() else { return };
         live.set_hidden_objects(hidden);
-        if let Some(net) = &self.net {
+        if let Some(net) = self.net.as_ref().filter(|_| !peaceful) {
             live.set_remote_hands(net.remote_hands());
         }
         let Some(surface) = gpu.surface.as_ref() else { return }; // a headless run has nothing to present
@@ -427,8 +431,8 @@ impl App {
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
         let opts = FrameOptions {
-            crosshair: true,
-            viewmodel: !carrying && !dead,
+            crosshair: show_crosshair,
+            viewmodel: show_viewmodel && !carrying && !dead,
             pickup: self.pickup_target.is_some(),
             weapon: shown_weapon,
             muzzle_flash,
@@ -575,7 +579,12 @@ impl App {
         // The pool of glowing boxes that draws tracers and sparks joins the scene now: the renderer takes its meshes from the scene as it is built.
         self.streaks = Some(red_engine2::streaks::Streaks::new(red_engine2::streaks::add_pool(&mut self.scene)));
         if let Some(gpu) = self.gpu.as_mut() {
-            gpu.live = Some(LiveRenderer::new(&gpu.device, gpu.config.format, &self.scene, gpu.config.width, gpu.config.height));
+            // A peaceful scene has no weapons: none of their meshes are built or uploaded.
+            gpu.live = Some(if self.scene.player.mode.is_peaceful() {
+                LiveRenderer::world(&gpu.device, gpu.config.format, &self.scene, gpu.config.width, gpu.config.height)
+            } else {
+                LiveRenderer::new(&gpu.device, gpu.config.format, &self.scene, gpu.config.width, gpu.config.height)
+            });
             gpu.menu = None;
         }
         self.phase = Phase::Playing;

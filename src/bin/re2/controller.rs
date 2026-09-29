@@ -70,10 +70,12 @@ impl App {
                 self.repaint_pause();
             }
             if p.hit(b::DOWN) {
-                self.pause_hover = Some(PauseAction::Quit);
+                self.pause_hover = Some(if self.pause_hover == Some(PauseAction::Resume) { PauseAction::Fullscreen } else { PauseAction::Quit });
                 self.repaint_pause();
             }
-            if p.hit(b::JUMP) && self.pause_hover == Some(PauseAction::Quit) {
+            if p.hit(b::JUMP) && self.pause_hover == Some(PauseAction::Fullscreen) {
+                self.toggle_fullscreen();
+            } else if p.hit(b::JUMP) && self.pause_hover == Some(PauseAction::Quit) {
                 event_loop.exit();
             } else if p.hit(b::PAUSE) || p.hit(b::CROUCH) || p.hit(b::JUMP) {
                 self.leave_pause();
@@ -118,8 +120,12 @@ impl App {
             self.jump_queued = true;
         }
         if p.hit(b::FIRE) {
-            self.attack_queued = true;
-            self.net_pulse[1] = NET_PULSE_TICKS;
+            if self.scene.player.mode.is_peaceful() {
+                self.interact();
+            } else {
+                self.attack_queued = true;
+                self.net_pulse[1] = NET_PULSE_TICKS;
+            }
         }
         if p.hit(b::INTERACT) {
             self.interact();

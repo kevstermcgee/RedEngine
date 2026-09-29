@@ -82,6 +82,11 @@ pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
                     out.push(build_prim_mesh(&shape));
                 }
             }
+            ObjectKind::Terrain(td) => {
+                let at = o.position.sample(0.0);
+                let tm = td.terrain.build_mesh(glam::Vec2::new(at.x, at.z), at.y);
+                out.push(Mesh { vertices: tm.vertices.iter().map(|v| crate::mesh::Vertex::colored(v.pos, v.normal, v.color)).collect(), indices: tm.indices });
+            }
         }
     }
 }
@@ -103,6 +108,7 @@ pub(crate) fn collect_leaf_object_paths(objects: &[Object], parents: &[String], 
             ObjectKind::Rat(_) => rat_parts(&RatPose::default()).len(),
             ObjectKind::Prop(p) => prop_parts(p.kind).len(),
             ObjectKind::Stairs(s) => build_stairs_parts(s).len(),
+            ObjectKind::Terrain(_) => 1,
         };
         out.extend(std::iter::repeat_n(path, count));
     }
@@ -151,12 +157,30 @@ pub(crate) fn collect_leaf_transforms(objects: &[Object], t: f32, parent: Mat4, 
                     out.push((world * local_transform, mat));
                 }
             }
+            ObjectKind::Terrain(td) => out.push((world, sample_material(&td.material, t))),
         }
     }
 }
 
 fn align_up(value: u64, alignment: u64) -> u64 {
     value.div_ceil(alignment) * alignment
+}
+
+/// The translations at which the scene is drawn: `[0]`, or on a looping world (`world.wrap`) the scene itself plus its two neighbours
+/// one period away along the loop axis, so what lies past the seam is drawn where the player expects it and the seam cannot be seen.
+/// Index 0 is always the scene as authored.
+pub fn wrap_offsets(scene: &Scene) -> Vec<Vec3> {
+    match scene.player.expanse.wrap {
+        None => vec![Vec3::ZERO],
+        Some(w) => {
+            let p = w.period();
+            let dir = match w.axis {
+                crate::expanse::Axis::X => Vec3::X,
+                crate::expanse::Axis::Z => Vec3::Z,
+            };
+            vec![Vec3::ZERO, -dir * p, dir * p]
+        }
+    }
 }
 
 /// Everything needed to render many frames of one scene without re-initializing the GPU.
@@ -173,6 +197,8 @@ pub struct Renderer {
     post: PostFx,
     post_bind_group: wgpu::BindGroup,
     meshes: Vec<GpuMesh>,
+    /// The scene's ocean, when it has one.
+    ocean: Option<crate::ocean_pass::OceanPass>,
     out_width: u32,
     out_height: u32,
 }
@@ -186,11 +212,12 @@ impl Renderer {
         let targets = FrameTargets::new(&gpu.device, scene.width, scene.height);
         let post = create_post_pipeline(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
         let post_bind_group = post.bind(&gpu.device, &targets.depth_view);
+        let ocean = crate::ocean_pass::OceanPass::new(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1, scene, &pipelines.layouts.global_uniform);
 
         let mut raw_meshes = Vec::new();
         collect_leaf_meshes(&scene.objects, &mut raw_meshes);
         let meshes: Vec<GpuMesh> = raw_meshes.iter().map(|m| GpuMesh::upload(&gpu.device, m)).collect();
-        let draw_count = meshes.len().max(1) as u64;
+        let draw_count = (meshes.len() * wrap_offsets(scene).len()).max(1) as u64;
 
         let global_buf = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("global-uniform"),
@@ -248,6 +275,7 @@ impl Renderer {
             post,
             post_bind_group,
             meshes,
+            ocean,
             out_width: scene.width,
             out_height: scene.height,
         })
@@ -280,18 +308,26 @@ impl Renderer {
         collect_leaf_transforms(&scene.objects, t, Mat4::IDENTITY, &mut transforms);
         debug_assert_eq!(transforms.len(), self.meshes.len());
 
-        for (i, (world, mat)) in transforms.iter().enumerate() {
-            let normal_mat = world.inverse().transpose();
-            let obj_uniform = ObjectUniform {
-                model: world.to_cols_array_2d(),
-                normal_mat: normal_mat.to_cols_array_2d(),
-                base_color: [mat.color.x, mat.color.y, mat.color.z, 1.0],
-                material: [mat.metallic, mat.roughness, 0.0, 0.0],
-                emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
-            };
-            self.gpu.queue.write_buffer(&self.object_buf, i as u64 * self.object_stride, bytemuck::bytes_of(&obj_uniform));
+        let offsets = wrap_offsets(scene);
+        let n_meshes = self.meshes.len();
+        for (image, offset) in offsets.iter().enumerate() {
+            for (i, (world, mat)) in transforms.iter().enumerate() {
+                let world = Mat4::from_translation(*offset) * *world;
+                let normal_mat = world.inverse().transpose();
+                let obj_uniform = ObjectUniform {
+                    model: world.to_cols_array_2d(),
+                    normal_mat: normal_mat.to_cols_array_2d(),
+                    base_color: [mat.color.x, mat.color.y, mat.color.z, 1.0],
+                    material: [mat.metallic, mat.roughness, 0.0, 0.0],
+                    emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
+                };
+                self.gpu.queue.write_buffer(&self.object_buf, (image * n_meshes + i) as u64 * self.object_stride, bytemuck::bytes_of(&obj_uniform));
+            }
         }
 
+        if let Some(ocean) = &self.ocean {
+            ocean.update(&self.gpu.queue, t);
+        }
         let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame-encoder") });
 
         if globals.counts[1] >= 0.0 {
@@ -309,11 +345,13 @@ impl Renderer {
             });
             shadow_pass.set_pipeline(&self.pipelines.shadow);
             shadow_pass.set_bind_group(0, &self.global_bind_group_uniform, &[]);
-            for (i, mesh) in self.meshes.iter().enumerate() {
-                shadow_pass.set_bind_group(1, &self.object_bind_group, &[(i as u64 * self.object_stride) as u32]);
-                shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
-                shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                shadow_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            for image in 0..offsets.len() {
+                for (i, mesh) in self.meshes.iter().enumerate() {
+                    shadow_pass.set_bind_group(1, &self.object_bind_group, &[((image * n_meshes + i) as u64 * self.object_stride) as u32]);
+                    shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
+                    shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    shadow_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                }
             }
         }
 
@@ -356,11 +394,16 @@ impl Renderer {
             });
             main_pass.set_pipeline(&self.pipelines.main);
             main_pass.set_bind_group(0, &self.global_bind_group_full, &[]);
-            for (i, mesh) in self.meshes.iter().enumerate() {
-                main_pass.set_bind_group(1, &self.object_bind_group, &[(i as u64 * self.object_stride) as u32]);
-                main_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
-                main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            for image in 0..offsets.len() {
+                for (i, mesh) in self.meshes.iter().enumerate() {
+                    main_pass.set_bind_group(1, &self.object_bind_group, &[((image * n_meshes + i) as u64 * self.object_stride) as u32]);
+                    main_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
+                    main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                }
+            }
+            if let Some(ocean) = &self.ocean {
+                ocean.draw(&mut main_pass, &self.global_bind_group_uniform);
             }
         }
 
@@ -456,7 +499,12 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
                 if light.cast_shadows {
                     shadow_idx = i as i32;
                     let r = light.shadow_radius.max(0.5);
-                    let center = light.shadow_center;
+                    let mut center = light.shadow_center;
+                    if light.shadow_follow {
+                        // Centred under the camera, snapped to shadow-map texels so the shadows stay put as you walk.
+                        let texel = (2.0 * r) / crate::gpu::SHADOW_SIZE as f32;
+                        center = Vec3::new((cam_pos.x / texel).round() * texel, light.shadow_center.y, (cam_pos.z / texel).round() * texel);
+                    }
                     let light_pos = center - d * (r * 1.6);
                     let up = if d.y.abs() > 0.98 { Vec3::Z } else { Vec3::Y };
                     let view_l = glam::camera::rh::view::look_at_mat4(light_pos, center, up);
@@ -478,6 +526,15 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
         Background::Gradient { top, bottom } => (*top, *bottom, 1.0f32),
     };
 
+    // The sky: a view-direction gradient (zenith over horizon) and a sun at infinity, when the scene has a `sky` block.
+    let (bg_top, bg_bottom, bg_mode, sky_flags) = match &scene.sky {
+        Some(sky) => (sky.zenith, sky.horizon, 1.0f32, [1.0, sky.gradient_power, if sky.sun.is_some() { 1.0 } else { 0.0 }, 0.0]),
+        None => (bg_top, bg_bottom, bg_mode, [0.0; 4]),
+    };
+    let sun = scene.sky.and_then(|s| s.sun);
+    let sun_dir = sun.map_or([0.0, 1.0, 0.0, 0.0], |s| [s.direction.x, s.direction.y, s.direction.z, s.radius_deg.to_radians()]);
+    let sun_color = sun.map_or([0.0; 4], |s| [s.color.x, s.color.y, s.color.z, s.glow]);
+
     GlobalUniform {
         view_proj: view_proj.to_cols_array_2d(),
         light_view_proj: light_view_proj.to_cols_array_2d(),
@@ -488,6 +545,10 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
         counts: [n as f32, shadow_idx as f32, 0.0, 0.0],
         bg_top: [bg_top.x, bg_top.y, bg_top.z, bg_mode],
         bg_bottom: [bg_bottom.x, bg_bottom.y, bg_bottom.z, 0.0],
+        inv_view_proj: view_proj.inverse().to_cols_array_2d(),
+        sun_dir,
+        sun_color,
+        sky: sky_flags,
     }
 }
 

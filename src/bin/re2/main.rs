@@ -250,6 +250,10 @@ struct App {
     project_maps: Vec<red_engine2::project_browser::MapEntry>,
     map_selection: Option<usize>,
     grabbed: bool,
+    /// Take the mouse back after the next resize (a fullscreen change released it).
+    regrab: bool,
+    /// `--fullscreen`: enter borderless fullscreen as soon as the window exists.
+    start_fullscreen: bool,
     /// When the mouse was last captured. Capturing recenters the cursor, which delivers one big
     /// spurious motion delta — without ignoring input briefly the camera spins away from the
     /// spawn heading the moment the window opens.
@@ -468,7 +472,7 @@ impl App {
         let scene_ammo = scene.weapons.ammo;
         let pad_launch = scene.jump_pads.iter().map(|p| p.launch_speed).reduce(f32::min);
         let starting_weapon = scene.weapons.starting_weapon;
-        let rules = RulesEngine::new(scene.rules.clone());
+        let rules = RulesEngine::new(scene.rules.clone()).with_wrap(scene.player.expanse.wrap);
         App {
             window: None,
             gpu: None,
@@ -498,6 +502,8 @@ impl App {
             project_maps,
             map_selection: None,
             grabbed: false,
+            regrab: false,
+            start_fullscreen: false,
             grabbed_at: Instant::now(),
             sprint_held: false,
             jump_queued: false,
@@ -636,6 +642,7 @@ struct Args {
     headless: headless::Options,
     debug_help: bool,
     transport: TransportChoice,
+    fullscreen: bool,
 }
 
 /// Red Engine 2 real-time game client.
@@ -703,6 +710,9 @@ struct CliArgs {
     /// Print the RE2_* debug switches and hotkeys, and exit.
     #[arg(long)]
     debug_help: bool,
+    /// Open in borderless fullscreen (F or F11 toggles it while playing; the pause menu has a button).
+    #[arg(long)]
+    fullscreen: bool,
     /// The server's identity fingerprint (`sha256:...`, printed by `red_server`): join over QUIC + TLS 1.3 (or RE2_SERVER_FINGERPRINT).
     #[arg(long, value_name = "SHA256")]
     server_fingerprint: Option<String>,
@@ -767,7 +777,20 @@ fn parse_args() -> Args {
         server_name: cli.server_name,
         dev_udp: cli.dev_udp,
     };
-    Args { scene: cli.scene, who, connect, key, name, host, fill: cli.fill, bot_skill: cli.bot_skill, headless, debug_help: cli.debug_help, transport }
+    Args {
+        scene: cli.scene,
+        who,
+        connect,
+        key,
+        name,
+        host,
+        fill: cli.fill,
+        bot_skill: cli.bot_skill,
+        headless,
+        debug_help: cli.debug_help,
+        transport,
+        fullscreen: cli.fullscreen,
+    }
 }
 
 /// Reports a fatal online-mode problem (message box when there is no console) and exits.
@@ -782,8 +805,20 @@ fn main() {
     #[cfg(windows)]
     win::install_crash_box(&win::init(win::wants_terminal(&std::env::args().collect::<Vec<_>>())));
     env_logger::init();
-    let Args { scene: scene_path, who: requested_character, mut connect, key, name, host, fill, bot_skill, headless: headless_options, debug_help, transport } =
-        parse_args();
+    let Args {
+        scene: scene_path,
+        who: requested_character,
+        mut connect,
+        key,
+        name,
+        host,
+        fill,
+        bot_skill,
+        headless: headless_options,
+        debug_help,
+        transport,
+        fullscreen,
+    } = parse_args();
     if debug_help {
         print!("{}", help::text());
         return;
@@ -852,6 +887,7 @@ fn main() {
     let mut app = App::new(scene, scene_path, forced_character, connect, net_world);
     app.host_pause = local_host.as_ref().map(|h| h.pause_flag());
     app.transport = transport;
+    app.start_fullscreen = fullscreen;
     if key.is_some() {
         app.join_key = key;
     }

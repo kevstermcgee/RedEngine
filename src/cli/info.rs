@@ -351,6 +351,7 @@ pub(crate) fn run_ui_shot(
     let (hover, hover_id) = match hover {
         None => (None, None),
         Some("resume") => (Some(PauseAction::Resume), None),
+        Some("fullscreen") => (Some(PauseAction::Fullscreen), None),
         Some("quit") => (Some(PauseAction::Quit), None),
         Some(o) => (None, Some(o.to_string())),
     };

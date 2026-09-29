@@ -272,6 +272,8 @@ pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBu
     let mut blueprint: serde_json::Value =
         serde_json::from_str(&super::blueprint::example().replace("three_rooms", name)).map_err(|e| format!("internal starter blueprint is invalid: {e}"))?;
     blueprint["prefab_files"] = serde_json::json!(["../assets/gameplay.json"]);
+    // New games start silent: music is something a game asks for (`"music": true`), never a default.
+    blueprint["scene"]["music"] = serde_json::json!(false);
     let blueprint = serde_json::to_string_pretty(&blueprint).map_err(|e| e.to_string())? + "\n";
     write(dir, "assets/gameplay.json", "[]\n", &mut out)?;
     write(dir, "assets/README.md", LOCAL_ASSETS_README, &mut out)?;

@@ -4,17 +4,29 @@ use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
 use std::f32::consts::PI;
 
-/// One mesh vertex: position and normal.
+/// One mesh vertex: position, normal and a colour that multiplies the object's material colour (white for every primitive;
+/// a `terrain` paints its dunes, wet sand and grass through it).
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Vertex {
     pub pos: [f32; 3],
     pub normal: [f32; 3],
+    pub color: [f32; 3],
 }
 
 impl Vertex {
-    /// Vertex attribute layout matching `Vertex` (location 0 position, 1 normal).
-    pub const ATTRS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+    /// Vertex attribute layout matching `Vertex` (location 0 position, 1 normal, 2 colour).
+    pub const ATTRS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3];
+
+    /// A white (uncoloured) vertex.
+    pub fn new(pos: [f32; 3], normal: [f32; 3]) -> Self {
+        Vertex { pos, normal, color: [1.0; 3] }
+    }
+
+    /// A vertex with its own colour (linear RGB multiplier).
+    pub fn colored(pos: [f32; 3], normal: [f32; 3], color: [f32; 3]) -> Self {
+        Vertex { pos, normal, color }
+    }
 
     /// The wgpu vertex-buffer layout for `Vertex`.
     pub fn layout() -> wgpu::VertexBufferLayout<'static> {
@@ -37,7 +49,7 @@ impl Mesh {
     fn quad(a: Vec3, b: Vec3, c: Vec3, d: Vec3, normal: Vec3, out: &mut Mesh) {
         let base = out.vertices.len() as u32;
         for p in [a, b, c, d] {
-            out.vertices.push(Vertex { pos: p.to_array(), normal: normal.to_array() });
+            out.vertices.push(Vertex::new(p.to_array(), normal.to_array()));
         }
         out.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
@@ -70,7 +82,7 @@ impl Mesh {
                 let x = ring_r * theta.cos();
                 let z = ring_r * theta.sin();
                 let n = Vec3::new(x, y, z);
-                m.vertices.push(Vertex { pos: (n * radius).to_array(), normal: n.to_array() });
+                m.vertices.push(Vertex::new((n * radius).to_array(), n.to_array()));
             }
         }
         let stride = segments + 1;
@@ -95,8 +107,8 @@ impl Mesh {
             let n = Vec3::new(theta.cos(), 0.0, theta.sin());
             let top = Vec3::new(n.x * radius, hh, n.z * radius);
             let bot = Vec3::new(n.x * radius, -hh, n.z * radius);
-            m.vertices.push(Vertex { pos: top.to_array(), normal: n.to_array() });
-            m.vertices.push(Vertex { pos: bot.to_array(), normal: n.to_array() });
+            m.vertices.push(Vertex::new(top.to_array(), n.to_array()));
+            m.vertices.push(Vertex::new(bot.to_array(), n.to_array()));
         }
         for s in 0..segments {
             let a = side_base + s * 2;
@@ -112,12 +124,12 @@ impl Mesh {
 
     fn disc_cap(m: &mut Mesh, radius: f32, y: f32, segments: u32, normal: Vec3, winding_ccw_from_above: bool) {
         let center_idx = m.vertices.len() as u32;
-        m.vertices.push(Vertex { pos: [0.0, y, 0.0], normal: normal.to_array() });
+        m.vertices.push(Vertex::new([0.0, y, 0.0], normal.to_array()));
         let ring_base = m.vertices.len() as u32;
         for s in 0..=segments {
             let theta = s as f32 / segments as f32 * 2.0 * PI;
             let p = Vec3::new(theta.cos() * radius, y, theta.sin() * radius);
-            m.vertices.push(Vertex { pos: p.to_array(), normal: normal.to_array() });
+            m.vertices.push(Vertex::new(p.to_array(), normal.to_array()));
         }
         for s in 0..segments {
             let a = ring_base + s;
@@ -148,9 +160,9 @@ impl Mesh {
             let n1 = Vec3::new(t1.cos() * nr, ny, t1.sin() * nr);
             let n_apex = Vec3::new(n_mid_theta.cos() * nr, ny, n_mid_theta.sin() * nr);
             let base = m.vertices.len() as u32;
-            m.vertices.push(Vertex { pos: apex.to_array(), normal: n_apex.to_array() });
-            m.vertices.push(Vertex { pos: p0.to_array(), normal: n0.to_array() });
-            m.vertices.push(Vertex { pos: p1.to_array(), normal: n1.to_array() });
+            m.vertices.push(Vertex::new(apex.to_array(), n_apex.to_array()));
+            m.vertices.push(Vertex::new(p0.to_array(), n0.to_array()));
+            m.vertices.push(Vertex::new(p1.to_array(), n1.to_array()));
             m.indices.extend_from_slice(&[base, base + 2, base + 1]);
         }
         Mesh::disc_cap(&mut m, radius, -hh, segments, -Vec3::Y, false);
@@ -183,7 +195,7 @@ impl Mesh {
                 let nxz = (1.0 - ny * ny).max(0.0).sqrt();
                 let n = Vec3::new(theta.cos() * nxz, ny, theta.sin() * nxz);
                 let p = Vec3::new(theta.cos() * r, y, theta.sin() * r);
-                m.vertices.push(Vertex { pos: p.to_array(), normal: n.to_array() });
+                m.vertices.push(Vertex::new(p.to_array(), n.to_array()));
             }
         }
         for ring in 0..(profile.len() as u32 - 1) {

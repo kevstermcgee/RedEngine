@@ -825,7 +825,8 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                                 (cur.step, cur.leg, cur.best, cur.since_progress) = (cur.step + 1, 0, f32::INFINITY, 0);
                                 continue;
                             };
-                            let to = *target - state.pos;
+                            // The short way round: on a looping world a waypoint past the seam is a few metres ahead, not a lap behind.
+                            let to = sim.movement().0.expanse.delta(state.pos, *target);
                             let dist = to.length();
                             if dist <= REACHED {
                                 (cur.leg, cur.best, cur.since_progress) = (cur.leg + 1, f32::INFINITY, 0);
