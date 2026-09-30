@@ -985,6 +985,7 @@ mod tests {
             shots: 0,
             protected: false,
             kart: None,
+            extra: 0,
         }
     }
 

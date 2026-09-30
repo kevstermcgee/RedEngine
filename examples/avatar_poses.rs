@@ -56,6 +56,7 @@ fn main() -> anyhow::Result<()> {
     let mut hands = Vec::new();
     for (i, (case, who)) in cases.iter().zip(looks).enumerate() {
         let mut pose = PlayerPose {
+            extra: 0,
             pos: Vec3::new(-4.25 + 1.7 * i as f32, 0.0, 0.0),
             yaw: 1.9,
             pitch: 0.0,

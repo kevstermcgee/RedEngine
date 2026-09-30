@@ -453,6 +453,11 @@ impl LiveRenderer {
         Self::build(device, color_format, scene, width, height, build_all_held_parts())
     }
 
+    /// [`new`](Self::new) for a loadout match: every weapon of [`Weapon::ROSTER`] (and both teams' hands) is uploaded, not just the prototype's ten guns.
+    pub fn new_loadout(device: &wgpu::Device, color_format: wgpu::TextureFormat, scene: &Scene, width: u32, height: u32) -> Self {
+        Self::build(device, color_format, scene, width, height, build_all_roster_parts())
+    }
+
     /// A renderer for the world alone (any camera, no weapons, no crosshair): what a custom client draws with through
     /// [`Self::render_view`]. The scene's leaf objects are uploaded once, here; afterwards move, re-colour or hide them
     /// (their tracks are sampled every frame), but adding or removing objects needs a new renderer.

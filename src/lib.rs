@@ -25,6 +25,7 @@ pub mod geometry;
 #[cfg(feature = "gfx")]
 pub mod gpu;
 pub mod hit;
+pub mod killcam;
 pub mod hud_config;
 pub mod kart_camera;
 #[cfg(feature = "gfx")]
@@ -57,9 +58,11 @@ pub mod scene_pool;
 pub mod schema;
 #[cfg(feature = "gfx")]
 pub mod sfx;
+pub mod shooter_world;
 pub mod sim;
 pub mod skeleton;
 pub mod streaks;
+pub mod stats;
 pub mod strict;
 pub mod terrain;
 pub mod tools;

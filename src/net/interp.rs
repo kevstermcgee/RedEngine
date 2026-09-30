@@ -78,6 +78,30 @@ pub struct PlayerPose {
     pub protected: bool,
     /// The player's kart, in a race match (driver, drift, boost, shield, place ...): what the renderer needs to dress and pose it.
     pub kart: Option<crate::net::protocol::KartSnap>,
+    /// The stance byte of a loadout match ([`PlayerSnap::extra`]): team, aiming, reloading, throwing, blinded.
+    pub extra: u8,
+}
+
+impl PlayerPose {
+    /// The team (`0` none, `1`, `2`).
+    pub fn team(&self) -> u8 {
+        self.extra & 3
+    }
+
+    /// Aiming down the sights.
+    pub fn aiming(&self) -> bool {
+        self.extra & 4 != 0
+    }
+
+    /// Reloading the weapon in hand.
+    pub fn reloading(&self) -> bool {
+        self.extra & 8 != 0
+    }
+
+    /// Throwing a grenade.
+    pub fn throwing(&self) -> bool {
+        self.extra & 16 != 0
+    }
 }
 
 /// How many server ticks behind the present a client's picture of the other players is when its round trip takes `rtt_ms`: the interpolation
@@ -116,6 +140,7 @@ impl Blend for PlayerPose {
             shots: o.shots,
             protected: o.protected,
             kart: o.kart,
+            extra: o.extra,
         }
     }
 
@@ -166,6 +191,7 @@ impl From<&PlayerSnap> for PlayerPose {
             shots: p.shots,
             protected: p.flags & crate::net::protocol::FLAG_PROTECTED != 0,
             kart: p.kart,
+            extra: p.extra,
         }
     }
 }
@@ -471,6 +497,7 @@ mod tests {
             shots: 0,
             protected: false,
             kart: None,
+            extra: 0,
         };
         h.push(1.0, pose(0.0));
         h.push(2.0, pose(10.0));
@@ -497,6 +524,7 @@ mod tests {
             shots: 0,
             protected: false,
             kart: None,
+            extra: 0,
         }
     }
 

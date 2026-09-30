@@ -525,7 +525,7 @@ pub struct SoundBank {
 impl SoundBank {
     /// Builds every clip (a few milliseconds of arithmetic).
     pub fn new() -> SoundBank {
-        let guns = Weapon::ALL.iter().map(|w| gun_shot(*w)).collect();
+        let guns = Weapon::ROSTER.iter().map(|w| gun_shot(*w)).collect();
         SoundBank {
             guns,
             bat_hit: bat_hit(),
@@ -618,6 +618,314 @@ impl Default for SoundBank {
     }
 }
 
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// the loadout shooter's sounds
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+/// An explosion: a flat crack, a deep boom falling through the floor, a rolling rumble and debris.
+pub fn explosion() -> Vec<f32> {
+    let n = samples(1.9);
+    let mut noise = Noise(0xB1A57);
+    let (mut lp, mut lp2) = (0.0f32, 0.0f32);
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            lp += 0.25 * (noise.next() - lp);
+            lp2 += 0.02 * (noise.next() - lp2);
+            let crack = noise.next() * decay(t, 70.0) * 0.8;
+            let boom = (TAU * (95.0 * decay(t, 2.2) + 28.0) * t).sin() * decay(t, 4.0) * 1.1;
+            let rumble = lp2 * decay(t, 3.2) * 9.0;
+            let debris = lp * decay(t, 7.0) * 0.5 * (0.6 + 0.4 * (TAU * 23.0 * t).sin());
+            (crack + boom + rumble + debris) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.95)
+}
+
+/// A flashbang: a hard bang and a high ringing that lingers.
+pub fn flash_pop() -> Vec<f32> {
+    let n = samples(2.0);
+    let mut noise = Noise(0xF1A5);
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            let bang = noise.next() * decay(t, 45.0) * 1.0 + partial(180.0, t, 14.0) * 0.6;
+            let ring = (partial(4200.0, t, 1.6) * 0.5 + partial(6300.0, t, 2.2) * 0.25) * (1.0 - decay(t, 60.0));
+            (bang + ring) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.9)
+}
+
+/// A smoke grenade popping and venting: a dull pop, then a hiss.
+pub fn smoke_pop() -> Vec<f32> {
+    let n = samples(1.5);
+    let mut noise = Noise(0x5A0CE);
+    let mut lp = 0.0f32;
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            lp += 0.35 * (noise.next() - lp);
+            let pop = partial(110.0, t, 26.0) * 0.9 + noise.next() * decay(t, 120.0) * 0.4;
+            let hiss = (noise.next() - lp) * 0.35 * (1.0 - decay(t, 20.0)) * decay(t, 2.2);
+            (pop + hiss) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.6)
+}
+
+/// An incendiary bursting: a whump of air and a crackle.
+pub fn fire_burst() -> Vec<f32> {
+    let n = samples(1.4);
+    let mut noise = Noise(0xF1BE);
+    let (mut lp, mut crackle) = (0.0f32, 0.0f32);
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            lp += 0.08 * (noise.next() - lp);
+            if noise.next() > 0.93 {
+                crackle = noise.next().abs();
+            }
+            crackle *= 0.9;
+            let whump = partial(70.0, t, 9.0) * 1.0 + lp * decay(t, 3.0) * 6.0;
+            (whump + crackle * 0.35 * decay(t, 1.6)) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.75)
+}
+
+/// A grenade bouncing off something hard.
+pub fn grenade_bounce() -> Vec<f32> {
+    let n = samples(0.3);
+    let mut noise = Noise(0xB0CE);
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            (partial(1250.0, t, 28.0) * 0.5 + partial(2010.0, t, 40.0) * 0.35 + partial(3330.0, t, 60.0) * 0.15 + noise.next() * decay(t, 400.0) * 0.4) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.5)
+}
+
+/// A magazine coming out and going in: two clicks and a clack.
+pub fn reload_mag() -> Vec<f32> {
+    let n = samples(0.95);
+    let mut noise = Noise(0x3A6);
+    let click = |t: f32, f: f32| partial(f, t, 160.0) * 0.6 + partial(f * 2.7, t, 240.0) * 0.25;
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            let mut v = 0.0;
+            for (at, f, g) in [(0.0, 900.0, 0.7), (0.38, 640.0, 0.9), (0.78, 1300.0, 1.0)] {
+                if t >= at {
+                    let u = t - at;
+                    v += (click(u, f) + noise.next() * decay(u, 500.0) * 0.5) * g;
+                }
+            }
+            v * attack(t)
+        })
+        .collect();
+    finish(clip, 0.5)
+}
+
+/// One shell going into a tube.
+pub fn reload_shell() -> Vec<f32> {
+    let n = samples(0.18);
+    let mut noise = Noise(0x5E11);
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            (partial(520.0, t, 70.0) * 0.6 + partial(1500.0, t, 130.0) * 0.3 + noise.next() * decay(t, 600.0) * 0.4) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.42)
+}
+
+/// A bolt or pump working: clack, clack.
+pub fn bolt_cycle() -> Vec<f32> {
+    let n = samples(0.55);
+    let mut noise = Noise(0xB017);
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            let mut v = 0.0;
+            for (at, f) in [(0.0, 420.0), (0.28, 300.0)] {
+                if t >= at {
+                    let u = t - at;
+                    v += partial(f, u, 55.0) * 0.7 + partial(f * 3.1, u, 120.0) * 0.3 + noise.next() * decay(u, 500.0) * 0.5;
+                }
+            }
+            v * attack(t)
+        })
+        .collect();
+    finish(clip, 0.5)
+}
+
+/// Picking something up: a short, bright double click.
+pub fn pickup() -> Vec<f32> {
+    let n = samples(0.22);
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            let second = if t > 0.06 { partial(1560.0, t - 0.06, 40.0) * 0.6 } else { 0.0 };
+            (partial(1040.0, t, 45.0) * 0.7 + second) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.45)
+}
+
+/// A grenade leaving the hand: a short rush of air.
+pub fn throw_whoosh() -> Vec<f32> {
+    let n = samples(0.3);
+    let mut noise = Noise(0x7A0);
+    let mut lp = 0.0f32;
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            let open = (PI * t / 0.3).sin().powi(2);
+            lp += (0.05 + 0.25 * open) * (noise.next() - lp);
+            lp * open * 2.2
+        })
+        .collect();
+    finish(clip, 0.4)
+}
+
+/// A knife or hatchet through the air: a thin, quick swish.
+pub fn blade_swish() -> Vec<f32> {
+    let n = samples(0.2);
+    let mut noise = Noise(0x51BE);
+    let (mut lp, mut hp) = (0.0f32, 0.0f32);
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            let open = (PI * t / 0.2).sin().powi(2);
+            let x = noise.next();
+            lp += 0.45 * (x - lp);
+            hp += 0.15 * (lp - hp);
+            (lp - hp) * open * 2.2
+        })
+        .collect();
+    finish(clip, 0.36)
+}
+
+/// A blade cutting into a person: a wet-less, dull thud with a short metallic edge (no gore: a clipped knock).
+pub fn blade_hit() -> Vec<f32> {
+    let n = samples(0.18);
+    let mut noise = Noise(0xB1AD);
+    let mut lp = 0.0f32;
+    let clip = (0..n)
+        .map(|i| {
+            let t = time(i);
+            lp += 0.2 * (noise.next() - lp);
+            (partial(130.0, t, 30.0) * 0.9 + partial(2300.0, t, 120.0) * 0.25 + lp * decay(t, 60.0)) * attack(t)
+        })
+        .collect();
+    finish(clip, 0.6)
+}
+
+/// The sounds of the loadout shooter that the prototype's bank does not hold.
+pub struct KitSounds {
+    /// Explosions.
+    pub explosion: Vec<f32>,
+    /// A flashbang.
+    pub flash_pop: Vec<f32>,
+    /// A smoke grenade.
+    pub smoke_pop: Vec<f32>,
+    /// An incendiary.
+    pub fire_burst: Vec<f32>,
+    /// A grenade bouncing.
+    pub bounce: Vec<f32>,
+    /// A magazine reload.
+    pub reload_mag: Vec<f32>,
+    /// A shell loading.
+    pub reload_shell: Vec<f32>,
+    /// A bolt or pump.
+    pub bolt: Vec<f32>,
+    /// Picking something up.
+    pub pickup: Vec<f32>,
+    /// A throw.
+    pub throw: Vec<f32>,
+    /// A blade in the air.
+    pub blade_swish: Vec<f32>,
+    /// A blade landing.
+    pub blade_hit: Vec<f32>,
+}
+
+impl KitSounds {
+    /// Builds every clip.
+    pub fn new() -> KitSounds {
+        KitSounds {
+            explosion: explosion(),
+            flash_pop: flash_pop(),
+            smoke_pop: smoke_pop(),
+            fire_burst: fire_burst(),
+            bounce: grenade_bounce(),
+            reload_mag: reload_mag(),
+            reload_shell: reload_shell(),
+            bolt: bolt_cycle(),
+            pickup: pickup(),
+            throw: throw_whoosh(),
+            blade_swish: blade_swish(),
+            blade_hit: blade_hit(),
+        }
+    }
+}
+
+impl Default for KitSounds {
+    fn default() -> Self {
+        KitSounds::new()
+    }
+}
+
+/// The natural sound of the map: wind that gusts, a far-off machine hum and now and then a distant metal clank, as interleaved stereo at
+/// [`SAMPLE_RATE`]. It loops seamlessly (the end is cross-faded into the start). There is no music in the game; this is the only thing
+/// playing when nobody is shooting.
+pub fn ambience(seconds: f32) -> Vec<f32> {
+    let fade = samples(2.0);
+    let n = samples(seconds) + fade;
+    let mut noise = [Noise(0xA1B1E), Noise(0xA1B2E)];
+    let mut lp = [0.0f32; 2];
+    let mut lp_slow = [0.0f32; 2];
+    let mut buf = vec![0.0f32; n * 2];
+    // Distant clanks at fixed times (deterministic), each a damped, inharmonic ring far away.
+    let clanks = [(seconds * 0.17, 310.0, 0.5), (seconds * 0.46, 420.0, 0.35), (seconds * 0.81, 270.0, 0.45)];
+    for i in 0..n {
+        let t = time(i);
+        let gust = 0.55 + 0.45 * ((TAU * t / seconds * 3.0).sin() * 0.6 + (TAU * t / seconds * 7.0 + 1.3).sin() * 0.4);
+        for ch in 0..2 {
+            let w = noise[ch].next();
+            lp[ch] += 0.03 * (w - lp[ch]);
+            lp_slow[ch] += 0.004 * (w - lp_slow[ch]);
+            let wind = (lp[ch] * 1.4 + lp_slow[ch] * 5.0) * gust;
+            let hum = ((TAU * 50.0 * t).sin() * 0.05 + (TAU * 100.5 * t).sin() * 0.03 + (TAU * 151.0 * t).sin() * 0.015) * (0.8 + 0.2 * (TAU * t / seconds * 5.0).sin());
+            let mut clank = 0.0;
+            for (k, (at, f, g)) in clanks.iter().enumerate() {
+                let u = (t - at).rem_euclid(seconds.max(1.0));
+                if u < 1.6 {
+                    let side = if (k + ch) % 2 == 0 { 1.0 } else { 0.55 };
+                    clank += (partial(*f, u, 4.0) * 0.5 + partial(f * 2.76, u, 6.0) * 0.3) * g * 0.05 * side;
+                }
+            }
+            buf[i * 2 + ch] = wind * 0.55 + hum + clank;
+        }
+    }
+    // Loop: cross-fade the tail (the extra `fade` samples) into the head.
+    let len = n - fade;
+    let mut out = buf[..len * 2].to_vec();
+    for i in 0..fade {
+        let k = i as f32 / fade as f32;
+        for ch in 0..2 {
+            out[i * 2 + ch] = buf[i * 2 + ch] * k + buf[(len + i) * 2 + ch] * (1.0 - k);
+        }
+    }
+    let peak = out.iter().fold(0.0f32, |m, s| m.max(s.abs())).max(1e-6);
+    for s in out.iter_mut() {
+        *s *= 0.6 / peak;
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -687,7 +995,7 @@ mod tests {
         let b = gun_shot(Weapon::Carbine);
         assert_ne!(a.len(), b.len(), "different weapons are different sounds");
         let bank = SoundBank::new();
-        assert_eq!(bank.guns.len(), Weapon::ALL.len());
+        assert_eq!(bank.guns.len(), Weapon::ROSTER.len());
         assert_eq!(bank.gun(Weapon::Shotgun.wire()), &bank.guns[Weapon::Shotgun.wire() as usize][..]);
         assert_eq!(bank.gun(200), &bank.guns[0][..], "an unknown weapon id falls back to the bat");
     }
@@ -767,5 +1075,42 @@ mod tests {
             let (l, r) = pan_gains(0.8, pan);
             assert!(((l * l + r * r).sqrt() - 0.8).abs() < 1e-4, "power is constant at pan {pan}");
         }
+    }
+
+    #[test]
+    fn the_loadout_sounds_are_finite_audible_and_end_in_silence() {
+        let k = KitSounds::new();
+        for (name, clip) in [
+            ("explosion", &k.explosion),
+            ("flash", &k.flash_pop),
+            ("smoke", &k.smoke_pop),
+            ("fire", &k.fire_burst),
+            ("bounce", &k.bounce),
+            ("reload mag", &k.reload_mag),
+            ("reload shell", &k.reload_shell),
+            ("bolt", &k.bolt),
+            ("pickup", &k.pickup),
+            ("throw", &k.throw),
+            ("blade swish", &k.blade_swish),
+            ("blade hit", &k.blade_hit),
+        ] {
+            assert!(clip.iter().all(|s| s.is_finite() && s.abs() <= 1.0), "{name}");
+            assert!((0.2..=0.99).contains(&peak(clip)), "{name}: peak {}", peak(clip));
+            assert!(peak(&clip[clip.len().saturating_sub(64)..]) < 0.02, "{name} ends in silence");
+        }
+        assert!(secs(&k.explosion) > secs(&k.bounce) * 4.0, "an explosion rolls on");
+    }
+
+    #[test]
+    fn the_ambience_is_stereo_quiet_and_loops_without_a_click() {
+        let a = ambience(12.0);
+        assert_eq!(a.len() % 2, 0);
+        assert!((secs(&a[..a.len() / 2]) - 12.0).abs() < 0.01 || (a.len() / 2) as f32 / SAMPLE_RATE as f32 > 11.9);
+        assert!(a.iter().all(|s| s.is_finite() && s.abs() <= 0.7), "never loud enough to cover a footstep");
+        // The join between the last and the first sample is no bigger than the largest step inside the clip.
+        let step = |i: usize| (a[(i + 1) * 2] - a[i * 2]).abs();
+        let worst_inside = (0..a.len() / 2 - 1).map(step).fold(0.0f32, f32::max);
+        let seam = (a[0] - a[a.len() - 2]).abs();
+        assert!(seam <= worst_inside * 1.5 + 0.01, "seam {seam} vs worst step {worst_inside}");
     }
 }

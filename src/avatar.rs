@@ -134,11 +134,12 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
     if let Some(t) = &mut a.since_shot {
         *t += dt;
     }
-    // Swing: the flag rising starts a swing; it runs its own clock.
-    if p.swinging && !a.swinging_before {
+    // Swing: the flag rising starts a swing; it runs its own clock. A grenade throw swings the arm the same way.
+    let swinging = p.swinging || p.throwing();
+    if swinging && !a.swinging_before {
         a.swing = Some(0.0);
     }
-    a.swinging_before = p.swinging;
+    a.swinging_before = swinging;
     if let Some(t) = &mut a.swing {
         *t += dt;
         if *t > SWING_WINDUP_SECS + SWING_STRIKE_SECS + SWING_RECOVER_SECS {
@@ -230,7 +231,7 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
                 bat_pitch_deg: swing_blend(a.swing, BAT_IDLE_PITCH_DEG, WINDUP_PITCH_DEG, STRIKE_PITCH_DEG),
                 kick,
                 flash: a.flash(),
-                skin: 0,
+                skin: p.team(),
             })
         }
         (ObjectKind::Rat(r), Character::Rat) => {
@@ -266,6 +267,7 @@ mod tests {
             shots,
             protected: false,
             kart: None,
+            extra: 0,
         }
     }
 

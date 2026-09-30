@@ -312,6 +312,151 @@ pub fn build_firearm_parts(weapon: Weapon) -> Vec<HeldPart> {
     parts
 }
 
+/// One primitive of a world model.
+fn part(id: String, kind: crate::schema::PrimKind, pos: Vec3, rot_deg: Vec3, color: Vec3, metallic: f32) -> crate::schema::Object {
+    use crate::schema::{Material, Object, ObjectKind};
+    use crate::track::Track;
+    Object {
+        id,
+        position: Track::constant(pos),
+        rotation: Track::constant(rot_deg),
+        scale: Track::constant(Vec3::ONE),
+        material: Some(Material { color: Track::constant(color), metallic, roughness: 0.5, emissive: Vec3::ZERO, opacity: 1.0 }),
+        collide: false,
+        prefab: None,
+        movable: Some(false),
+        kind: ObjectKind::Prim(kind),
+    }
+}
+
+/// The model of a weapon lying on the floor (or a crate of ammunition when `weapon` is `None`): a group of plain primitives, barrel along +Z, the
+/// sights up, its origin under the middle of the weapon. Rotate the group about Y to turn it; lift it a hand's width off the floor.
+pub fn world_model(weapon: Option<Weapon>, id: &str) -> crate::schema::Object {
+    use crate::schema::{ObjectKind, PrimKind};
+    use crate::track::Track;
+    let mut kids: Vec<crate::schema::Object> = Vec::new();
+    let mut n = 0;
+    let mut add = |kind: PrimKind, pos: Vec3, rot: Vec3, color: Vec3, metallic: f32| {
+        n += 1;
+        kids.push(part(format!("{id}_{n}"), kind, pos, rot, color, metallic));
+    };
+    let black = Vec3::new(0.02, 0.022, 0.025);
+    let steel = Vec3::new(0.42, 0.44, 0.47);
+    match weapon {
+        None => {
+            let olive = Vec3::new(0.07, 0.085, 0.035);
+            add(PrimKind::Box { size: Vec3::new(0.46, 0.24, 0.30) }, Vec3::new(0.0, 0.12, 0.0), Vec3::ZERO, olive, 0.1);
+            add(PrimKind::Box { size: Vec3::new(0.48, 0.03, 0.12) }, Vec3::new(0.0, 0.255, 0.0), Vec3::ZERO, Vec3::new(0.45, 0.4, 0.06), 0.0);
+            add(PrimKind::Box { size: Vec3::new(0.06, 0.14, 0.32) }, Vec3::new(0.16, 0.12, 0.0), Vec3::ZERO, Vec3::new(0.12, 0.14, 0.06), 0.0);
+            add(PrimKind::Box { size: Vec3::new(0.06, 0.14, 0.32) }, Vec3::new(-0.16, 0.12, 0.0), Vec3::ZERO, Vec3::new(0.12, 0.14, 0.06), 0.0);
+        }
+        Some(w) if w.is_melee() => match w {
+            Weapon::Hatchet => {
+                add(PrimKind::Box { size: Vec3::new(0.04, 0.04, 0.42) }, Vec3::new(0.0, 0.03, 0.0), Vec3::ZERO, Vec3::new(0.26, 0.13, 0.05), 0.0);
+                add(PrimKind::Box { size: Vec3::new(0.03, 0.14, 0.11) }, Vec3::new(0.0, 0.08, 0.17), Vec3::ZERO, steel, 0.8);
+            }
+            Weapon::Bat => {
+                add(PrimKind::Capsule { radius: 0.035, height: 0.8 }, Vec3::new(0.0, 0.04, 0.0), Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.65, 0.4, 0.2), 0.0);
+            }
+            _ => {
+                add(PrimKind::Box { size: Vec3::new(0.03, 0.03, 0.12) }, Vec3::new(0.0, 0.03, -0.09), Vec3::ZERO, black, 0.0);
+                add(PrimKind::Box { size: Vec3::new(0.008, 0.04, 0.2) }, Vec3::new(0.0, 0.03, 0.08), Vec3::ZERO, steel, 0.9);
+            }
+        },
+        Some(w) if w.is_grenade() => {
+            let (color, r) = match w {
+                Weapon::Frag => (Vec3::new(0.06, 0.08, 0.03), 0.05),
+                Weapon::Flash => (Vec3::new(0.16, 0.17, 0.18), 0.04),
+                Weapon::Smoke => (Vec3::new(0.25, 0.26, 0.27), 0.04),
+                _ => (Vec3::new(0.30, 0.04, 0.03), 0.04),
+            };
+            if w == Weapon::Frag {
+                add(PrimKind::Sphere { radius: r }, Vec3::new(0.0, r, 0.0), Vec3::ZERO, color, 0.2);
+            } else {
+                add(PrimKind::Cylinder { radius: r, height: 0.14 }, Vec3::new(0.0, r, 0.0), Vec3::new(90.0, 0.0, 0.0), color, 0.3);
+            }
+            add(PrimKind::Box { size: Vec3::new(0.02, 0.03, 0.05) }, Vec3::new(0.0, r * 2.0, 0.0), Vec3::ZERO, steel, 0.8);
+        }
+        Some(w) => {
+            let s = shape(w);
+            let receiver_len = (s.length - s.stock - s.barrel).max(0.10);
+            let z0 = -s.length * 0.5;
+            let bore = if s.bore > 0.0 { s.bore } else { s.body_w * 0.20 };
+            add(PrimKind::Box { size: Vec3::new(s.body_w, s.body_h, receiver_len) }, Vec3::new(0.0, 0.05 + s.body_h * 0.5, z0 + s.stock + receiver_len * 0.5), Vec3::ZERO, s.color, 0.4);
+            add(
+                PrimKind::Cylinder { radius: bore.max(0.012), height: s.barrel },
+                Vec3::new(0.0, 0.05 + s.body_h * 0.6, z0 + s.length - s.barrel * 0.5),
+                Vec3::new(90.0, 0.0, 0.0),
+                if s.extra == Extra::Launcher { s.color } else { black },
+                0.6,
+            );
+            if s.stock > 0.0 {
+                add(PrimKind::Box { size: Vec3::new(s.body_w * 0.75, s.body_h * 0.8, s.stock) }, Vec3::new(0.0, 0.05 + s.body_h * 0.45, z0 + s.stock * 0.5), Vec3::ZERO, s.color, 0.1);
+            }
+            if s.magazine > 0.0 {
+                add(PrimKind::Box { size: Vec3::new(s.body_w * 0.65, s.magazine, 0.05) }, Vec3::new(0.0, 0.05 - s.magazine * 0.4, z0 + s.stock + receiver_len * 0.6), Vec3::ZERO, black, 0.2);
+            }
+            if s.scope {
+                add(PrimKind::Cylinder { radius: 0.025, height: 0.3 }, Vec3::new(0.0, 0.05 + s.body_h + 0.04, z0 + s.stock + receiver_len * 0.5), Vec3::new(90.0, 0.0, 0.0), black, 0.5);
+            }
+            if s.extra == Extra::Launcher {
+                add(PrimKind::Cone { radius: bore * 1.45, height: 0.17 }, Vec3::new(0.0, 0.05 + s.body_h * 0.6, z0 + s.length + 0.07), Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.3, 0.3, 0.12), 0.3);
+            }
+            if s.extra == Extra::Drum {
+                add(PrimKind::Cylinder { radius: s.body_h * 0.6, height: s.body_w * 1.5 }, Vec3::new(0.0, 0.05 + s.body_h * 0.5, z0 + s.stock + receiver_len * 0.5), Vec3::new(0.0, 0.0, 90.0), steel, 0.7);
+            }
+        }
+    }
+    crate::schema::Object {
+        id: id.to_string(),
+        position: Track::constant(Vec3::ZERO),
+        rotation: Track::constant(Vec3::ZERO),
+        scale: Track::constant(Vec3::ONE),
+        material: None,
+        collide: false,
+        prefab: None,
+        movable: Some(false),
+        kind: ObjectKind::Group(kids),
+    }
+}
+
+/// The model of a rocket or grenade in flight: a group with +Z as its heading.
+pub fn projectile_model(weapon: Weapon, id: &str) -> crate::schema::Object {
+    use crate::schema::{ObjectKind, PrimKind};
+    use crate::track::Track;
+    let mut kids = Vec::new();
+    match weapon {
+        Weapon::Lancer => {
+            kids.push(part(format!("{id}_body"), PrimKind::Cylinder { radius: 0.045, height: 0.55 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.12, 0.14, 0.07), 0.3));
+            kids.push(part(format!("{id}_nose"), PrimKind::Cone { radius: 0.06, height: 0.2 }, Vec3::new(0.0, 0.0, 0.36), Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.3, 0.3, 0.12), 0.3));
+            let mut flame = part(format!("{id}_flame"), PrimKind::Cone { radius: 0.05, height: 0.35 }, Vec3::new(0.0, 0.0, -0.42), Vec3::new(-90.0, 0.0, 0.0), Vec3::new(1.0, 0.6, 0.2), 0.0);
+            if let Some(m) = flame.material.as_mut() {
+                m.emissive = Vec3::new(4.0, 2.0, 0.5);
+            }
+            kids.push(flame);
+        }
+        Weapon::Thumper => {
+            kids.push(part(format!("{id}_shell"), PrimKind::Cylinder { radius: 0.022, height: 0.1 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.3, 0.26, 0.1), 0.6));
+            kids.push(part(format!("{id}_tip"), PrimKind::Sphere { radius: 0.022 }, Vec3::new(0.0, 0.0, 0.05), Vec3::ZERO, Vec3::new(0.2, 0.2, 0.2), 0.6));
+        }
+        Weapon::Frag => kids.push(part(format!("{id}_body"), PrimKind::Sphere { radius: 0.05 }, Vec3::ZERO, Vec3::ZERO, Vec3::new(0.06, 0.08, 0.03), 0.2)),
+        Weapon::Flash => kids.push(part(format!("{id}_body"), PrimKind::Cylinder { radius: 0.04, height: 0.13 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.16, 0.17, 0.18), 0.3)),
+        Weapon::Smoke => kids.push(part(format!("{id}_body"), PrimKind::Cylinder { radius: 0.04, height: 0.13 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.25, 0.26, 0.27), 0.3)),
+        _ => kids.push(part(format!("{id}_body"), PrimKind::Cylinder { radius: 0.04, height: 0.13 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.3, 0.04, 0.03), 0.3)),
+    }
+    crate::schema::Object {
+        id: id.to_string(),
+        position: Track::constant(Vec3::ZERO),
+        rotation: Track::constant(Vec3::ZERO),
+        scale: Track::constant(Vec3::ONE),
+        material: None,
+        collide: false,
+        prefab: None,
+        movable: Some(false),
+        kind: ObjectKind::Group(kids),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
