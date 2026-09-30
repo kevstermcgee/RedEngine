@@ -30,8 +30,8 @@ use super::interact::{RayHit, RayTarget};
 use super::match_sim::{MatchSim, ServerPlayer, MAX_PLAYERS};
 use super::player::{step_player_tuned, PlayerInput, PlayerState};
 use crate::player::{Character, FIXED_DT};
-use crate::weapons::Weapon;
 use crate::strict::check_keys;
+use crate::weapons::Weapon;
 use glam::{Vec2, Vec3};
 use serde_json::{Map, Value};
 use std::f32::consts::{PI, TAU};
@@ -79,8 +79,8 @@ pub const BOTS_KEYS: &[&str] = &["fill", "skill", "roster"];
 pub const BOT_KEYS: &[&str] = &["name", "character", "skill", "style"];
 
 const NAME_POOL: [&str; 24] = [
-    "Dusty", "Merlot", "Zorp", "R0-B1", "Hex", "Pixel", "Bolt", "Nova", "Gizmo", "Sprocket", "Rook", "Maverick", "Ghost", "Viper", "Anvil", "Cobalt", "Falcon", "Granite", "Harbor", "Iron",
-    "Jackal", "Kestrel", "Lynx", "Onyx",
+    "Dusty", "Merlot", "Zorp", "R0-B1", "Hex", "Pixel", "Bolt", "Nova", "Gizmo", "Sprocket", "Rook", "Maverick", "Ghost", "Viper", "Anvil", "Cobalt", "Falcon",
+    "Granite", "Harbor", "Iron", "Jackal", "Kestrel", "Lynx", "Onyx",
 ];
 const BOT_BODIES: [Character; 4] = [Character::Cowboy, Character::Wizard, Character::Alien, Character::Robot];
 const STYLE_CYCLE: [Style; 4] = [Style::Balanced, Style::Rusher, Style::Sniper, Style::Acrobat];

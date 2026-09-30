@@ -754,7 +754,11 @@ impl LiveRenderer {
 
         let held_uniform = |world: Mat4, h: &HeldGpu, glow: f32| (world, h.color, h.metallic, h.roughness, h.emissive * glow);
         // Only the active weapon's pieces are drawn (a muzzle flash only while it is up), and only drawn pieces are staged.
-        let held_visible: Vec<bool> = self.held.iter().map(|h| draw_held && h.weapon == opts.weapon && (h.skin == ANY_SKIN || h.skin == opts.skin) && (!h.flash || opts.muzzle_flash > 0.0)).collect();
+        let held_visible: Vec<bool> = self
+            .held
+            .iter()
+            .map(|h| draw_held && h.weapon == opts.weapon && (h.skin == ANY_SKIN || h.skin == opts.skin) && (!h.flash || opts.muzzle_flash > 0.0))
+            .collect();
         for (k, h) in self.held.iter().enumerate() {
             if !held_visible[k] {
                 continue;

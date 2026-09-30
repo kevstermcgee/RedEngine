@@ -8,8 +8,8 @@ pub mod audio;
 pub mod avatar;
 #[cfg(feature = "gfx")]
 pub mod capture;
-pub mod clipboard;
 pub mod characters;
+pub mod clipboard;
 pub mod collide;
 pub mod color;
 pub mod controller;
@@ -26,11 +26,11 @@ pub mod geometry;
 #[cfg(feature = "gfx")]
 pub mod gpu;
 pub mod hit;
-pub mod killcam;
 pub mod hud_config;
 pub mod kart_camera;
 #[cfg(feature = "gfx")]
 pub mod kart_sound;
+pub mod killcam;
 pub mod macros;
 #[cfg(feature = "gfx")]
 pub mod menu;
@@ -62,8 +62,8 @@ pub mod sfx;
 pub mod shooter_world;
 pub mod sim;
 pub mod skeleton;
-pub mod streaks;
 pub mod stats;
+pub mod streaks;
 pub mod strict;
 pub mod terrain;
 pub mod tools;

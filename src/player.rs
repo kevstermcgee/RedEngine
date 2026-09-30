@@ -233,28 +233,38 @@ pub struct BodySpec {
 
 impl Character {
     /// Every character, in wire-code order.
-    pub const ALL: [Character; 8] =
-        [Character::Human, Character::Rat, Character::Wizard, Character::Cowboy, Character::Alien, Character::Robot, Character::Ridgeback, Character::Nightfall];
+    pub const ALL: [Character; 8] = [
+        Character::Human,
+        Character::Rat,
+        Character::Wizard,
+        Character::Cowboy,
+        Character::Alien,
+        Character::Robot,
+        Character::Ridgeback,
+        Character::Nightfall,
+    ];
 
     /// The body numbers for this character.
     pub fn body(self) -> BodySpec {
         match self {
-            Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot | Character::Ridgeback | Character::Nightfall => BodySpec {
-                radius: PLAYER_RADIUS,
-                stand_eye: STAND_EYE_HEIGHT,
-                crouch_eye: CROUCH_EYE_HEIGHT,
-                walk_speed: WALK_SPEED,
-                sprint_speed: SPRINT_SPEED,
-                third_person_distance: 3.4,
-                third_person_lift: 0.55,
-                near_plane: 0.05,
-                has_bat: true,
-                body_height: 1.75,
-                band_top: PLAYER_BAND_MAX_Y,
-                pickup_reach: 2.3,
-                carry: crate::physics::HUMAN_CARRY,
-                hold_drop: 0.55,
-            },
+            Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot | Character::Ridgeback | Character::Nightfall => {
+                BodySpec {
+                    radius: PLAYER_RADIUS,
+                    stand_eye: STAND_EYE_HEIGHT,
+                    crouch_eye: CROUCH_EYE_HEIGHT,
+                    walk_speed: WALK_SPEED,
+                    sprint_speed: SPRINT_SPEED,
+                    third_person_distance: 3.4,
+                    third_person_lift: 0.55,
+                    near_plane: 0.05,
+                    has_bat: true,
+                    body_height: 1.75,
+                    band_top: PLAYER_BAND_MAX_Y,
+                    pickup_reach: 2.3,
+                    carry: crate::physics::HUMAN_CARRY,
+                    hold_drop: 0.55,
+                }
+            }
             // Cheddar has one pace, `RAT_SPEED`, and Shift adds nothing.
             Character::Rat => BodySpec {
                 radius: RAT_RADIUS,

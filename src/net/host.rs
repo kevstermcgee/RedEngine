@@ -185,7 +185,12 @@ impl LocalHost {
                             })
                             .ok();
                     }
-                    Err(e) => upnp_note = Some(format!("the router did not open the port ({e}); forward UDP {} to this PC, or friends on your network can still join", bound.port())),
+                    Err(e) => {
+                        upnp_note = Some(format!(
+                            "the router did not open the port ({e}); forward UDP {} to this PC, or friends on your network can still join",
+                            bound.port()
+                        ))
+                    }
                 }
             }
             if let Some(lan) = super::upnp::local_ip_towards(IpAddr::from([8, 8, 8, 8])) {
@@ -217,7 +222,9 @@ impl LocalHost {
     /// The transport settings a client on this machine joins with (pinned to this host's own identity over QUIC, or plain loopback UDP).
     pub fn local_transport(&self) -> Result<super::client::ClientTransportConfig, String> {
         match &self.fingerprint {
-            Some(f) => Ok(super::client::ClientTransportConfig::Quic { trust: super::quic::ServerTrust::fingerprint(f)?, server_name: "localhost".to_string() }),
+            Some(f) => {
+                Ok(super::client::ClientTransportConfig::Quic { trust: super::quic::ServerTrust::fingerprint(f)?, server_name: "localhost".to_string() })
+            }
             None => Ok(super::client::ClientTransportConfig::DevUdp),
         }
     }
@@ -334,7 +341,14 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("re2_host_identity_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let public = PublicOptions { identity_dir: dir.clone(), port: 0, upnp: false, key: Some("sesame".into()) };
-        let opts = HostOptions { fill: Some(0), spawn_group: "duel".into(), kill_limit: Some(5), round_secs: Some(30.0), public: Some(public.clone()), ..Default::default() };
+        let opts = HostOptions {
+            fill: Some(0),
+            spawn_group: "duel".into(),
+            kill_limit: Some(5),
+            round_secs: Some(30.0),
+            public: Some(public.clone()),
+            ..Default::default()
+        };
         let host = LocalHost::start(&lab(), &opts).unwrap();
         let fingerprint = host.fingerprint().expect("QUIC hosts have an identity").to_string();
         assert!(fingerprint.starts_with("sha256:") && dir.join("cert.pem").exists() && dir.join("key.pem").exists());

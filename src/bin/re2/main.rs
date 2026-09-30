@@ -57,13 +57,13 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 
 mod avatar;
 mod controller;
-mod kc;
 mod dump;
 mod events;
 mod feedback;
 mod frame;
 mod headless;
 mod help;
+mod kc;
 mod online;
 mod project_browser;
 mod shots;

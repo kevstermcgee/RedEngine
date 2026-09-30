@@ -5,6 +5,7 @@
 
 use super::game::{Connection, Env, Game, Stage};
 use super::input::Controls;
+use glam::{Mat4, Vec3};
 use red_engine2::audio::Audio;
 use red_engine2::capture::Capture;
 use red_engine2::net::bot::ClientWorld;
@@ -19,7 +20,6 @@ use red_engine2::ui::killchain as ui;
 use red_engine2::ui::online::{ConnectForm, Field};
 use red_engine2::ui::{Canvas, Kind, Layout};
 use red_engine2::viewer::{FpsCamera, FrameOptions, LiveRenderer};
-use glam::{Mat4, Vec3};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
@@ -342,7 +342,11 @@ impl Kc {
 
     fn clean_name(&self) -> String {
         let n = self.setup.name.trim();
-        if n.is_empty() { "Player".to_string() } else { n.to_string() }
+        if n.is_empty() {
+            "Player".to_string()
+        } else {
+            n.to_string()
+        }
     }
 
     /// SOLO and HOST: starts a server on this machine (for friends, too, when hosting) and joins it.
@@ -415,7 +419,8 @@ impl Kc {
         cfg.transport = match red_engine2::net::client::ClientTransportConfig::choose(addr, code.fingerprint.as_deref(), None, Some("localhost"), false) {
             Ok(t) => t,
             Err(_) => {
-                self.join_form.message = Some("That code has no identity part: ask your friend for the whole code (they can copy it from the lobby).".to_string());
+                self.join_form.message =
+                    Some("That code has no identity part: ask your friend for the whole code (they can copy it from the lobby).".to_string());
                 return;
             }
         };
@@ -593,7 +598,8 @@ impl Kc {
                 }
                 KeyCode::KeyV if ctrl => {
                     if let Some(clip) = red_engine2::clipboard::get_text() {
-                        let max = if self.screen == Screen::Join && self.join_form.focus == Field::Address { 200 } else { red_engine2::net::protocol::MAX_NAME };
+                        let max =
+                            if self.screen == Screen::Join && self.join_form.focus == Field::Address { 200 } else { red_engine2::net::protocol::MAX_NAME };
                         if let Some(t) = self.typing_target() {
                             t.extend(clip.chars().filter(|c| !c.is_control()).take(max));
                             t.truncate(max);
@@ -783,7 +789,18 @@ impl Kc {
                 cam.fov_deg = 70.0;
                 cam.far = 600.0;
                 let hidden = Mat4::from_scale(Vec3::splat(0.0005));
-                live.render_ex(&gpu.device, &gpu.queue, &self.menu_scene, angle * 10.0, &cam, target, false, hidden, hidden, FrameOptions { crosshair: false, viewmodel: false, ..FrameOptions::default() });
+                live.render_ex(
+                    &gpu.device,
+                    &gpu.queue,
+                    &self.menu_scene,
+                    angle * 10.0,
+                    &cam,
+                    target,
+                    false,
+                    hidden,
+                    hidden,
+                    FrameOptions { crosshair: false, viewmodel: false, ..FrameOptions::default() },
+                );
             }
         }
     }
@@ -833,10 +850,7 @@ impl ApplicationHandler for Kc {
         if self.win.is_some() {
             return;
         }
-        let attrs = Window::default_attributes()
-            .with_title("Killchain")
-            .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
-            .with_maximized(true);
+        let attrs = Window::default_attributes().with_title("Killchain").with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0)).with_maximized(true);
         let window = Arc::new(event_loop.create_window(attrs).expect("failed to create window"));
         let instance = wgpu::Instance::default();
         let surface = instance.create_surface(window.clone()).expect("failed to create GPU surface");
@@ -1037,7 +1051,10 @@ fn run_script(mut kc: Kc, script_path: &str) {
     if let Some(g) = kc.game.as_ref() {
         println!("stage {:?}, frames {}", g.stage(), g.frames());
     }
-    println!("stats: kills {} deaths {} shots {} hits {} rounds {}", kc.stats.kills, kc.stats.deaths, kc.stats.shots_fired, kc.stats.shots_hit, kc.stats.rounds_played);
+    println!(
+        "stats: kills {} deaths {} shots {} hits {} rounds {}",
+        kc.stats.kills, kc.stats.deaths, kc.stats.shots_fired, kc.stats.shots_hit, kc.stats.rounds_played
+    );
     kc.finish();
 }
 

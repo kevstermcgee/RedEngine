@@ -91,7 +91,9 @@ mod imp {
     use std::process::{Command, Stdio};
 
     pub fn get_text() -> Option<String> {
-        for (cmd, args) in [("wl-paste", &["--no-newline"][..]), ("xclip", &["-selection", "clipboard", "-o"][..]), ("xsel", &["-b", "-o"][..]), ("pbpaste", &[][..])] {
+        for (cmd, args) in
+            [("wl-paste", &["--no-newline"][..]), ("xclip", &["-selection", "clipboard", "-o"][..]), ("xsel", &["-b", "-o"][..]), ("pbpaste", &[][..])]
+        {
             if let Ok(out) = Command::new(cmd).args(args).stderr(Stdio::null()).output() {
                 if out.status.success() {
                     return String::from_utf8(out.stdout).ok();

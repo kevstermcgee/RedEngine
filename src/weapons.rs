@@ -267,7 +267,16 @@ impl Weapon {
     pub fn pellets(self) -> u32 {
         match self {
             Weapon::Shotgun => 9,
-            Weapon::Bat | Weapon::Pistol | Weapon::MachinePistol | Weapon::Smg | Weapon::Carbine | Weapon::Rifle | Weapon::Bullpup | Weapon::Marksman | Weapon::Lmg | Weapon::Scout => 1,
+            Weapon::Bat
+            | Weapon::Pistol
+            | Weapon::MachinePistol
+            | Weapon::Smg
+            | Weapon::Carbine
+            | Weapon::Rifle
+            | Weapon::Bullpup
+            | Weapon::Marksman
+            | Weapon::Lmg
+            | Weapon::Scout => 1,
             other => other.kit().pellets.max(1) as u32,
         }
     }
@@ -304,7 +313,13 @@ impl Weapon {
             Weapon::Scout => FirearmSpec::new(70, 0.85, 180.0, 48.0, 0.95),
             other if other.is_gun() => {
                 let k = other.kit();
-                FirearmSpec { damage: k.damage as u32, cooldown_ticks: k.cooldown_ticks(), range: k.range, impulse: k.damage as f32 * 0.4, recoil: (k.kick / 4.0).clamp(0.3, 1.2) }
+                FirearmSpec {
+                    damage: k.damage as u32,
+                    cooldown_ticks: k.cooldown_ticks(),
+                    range: k.range,
+                    impulse: k.damage as f32 * 0.4,
+                    recoil: (k.kick / 4.0).clamp(0.3, 1.2),
+                }
             }
             _ => return None,
         };

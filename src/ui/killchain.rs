@@ -231,16 +231,24 @@ pub fn setup_layout(w: u32, h: u32, title: &str, o: &Setup, note: Option<&str>, 
     let skills: Vec<_> = SKILLS.iter().enumerate().map(|(i, (label, _))| chip(&format!("skill_{i}"), label, o.skill as usize == i)).collect();
     row(&mut l, y, "BOT SKILL", &skills, !o.bots);
     y += text_height(s) + 2 * s + chip_h + 4 * s;
-    let kills: Vec<_> = KILL_LIMITS.iter().map(|&k| chip(&format!("kills_{k}"), &if k == 0 { "NONE".to_string() } else { k.to_string() }, o.kill_limit == k)).collect();
+    let kills: Vec<_> =
+        KILL_LIMITS.iter().map(|&k| chip(&format!("kills_{k}"), &if k == 0 { "NONE".to_string() } else { k.to_string() }, o.kill_limit == k)).collect();
     row(&mut l, y, "KILL LIMIT", &kills, false);
     y += text_height(s) + 2 * s + chip_h + 4 * s;
-    let times: Vec<_> = TIME_LIMITS.iter().map(|&m| chip(&format!("time_{m}"), &if m == 0 { "NONE".to_string() } else { m.to_string() }, o.minutes == m)).collect();
+    let times: Vec<_> =
+        TIME_LIMITS.iter().map(|&m| chip(&format!("time_{m}"), &if m == 0 { "NONE".to_string() } else { m.to_string() }, o.minutes == m)).collect();
     row(&mut l, y, "TIME LIMIT (MINUTES)", &times, false);
     y += text_height(s) + 2 * s + chip_h + 4 * s;
     // The name field.
     l.label_left("name_caption", Some(p), lx, y, "YOUR NAME", s, inner, DIM);
     y += text_height(s) + 2 * s;
-    let shown = if o.typing { format!("{}_", upper(&o.name)) } else if o.name.is_empty() { "PLAYER".to_string() } else { upper(&o.name) };
+    let shown = if o.typing {
+        format!("{}_", upper(&o.name))
+    } else if o.name.is_empty() {
+        "PLAYER".to_string()
+    } else {
+        upper(&o.name)
+    };
     let name_rect = (lx, y, rx, y + chip_h + 2 * s);
     let name_scale = fit_both("W", name_rect, s * 2);
     let shown = ellipsize(&shown, rx - lx - 8 * s, name_scale);
@@ -305,7 +313,13 @@ pub fn join_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> Layo
         y += text_height(s) + 2 * s;
         let scale = fit_both("W", (lx, y, rx, y + field_h), s * 2).max(1);
         let room = (rx - lx - 8 * s) / ((5 + 1) * scale).max(1);
-        let shown_full = if focused { format!("{}_", upper(value)) } else if value.is_empty() { String::new() } else { upper(value) };
+        let shown_full = if focused {
+            format!("{}_", upper(value))
+        } else if value.is_empty() {
+            String::new()
+        } else {
+            upper(value)
+        };
         let chars: Vec<char> = shown_full.chars().collect();
         // A long value shows its end (where the caret is).
         let shown: String = if chars.len() as i32 > room { chars[chars.len() - room as usize..].iter().collect() } else { shown_full };
@@ -455,7 +469,13 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
         let selected = my_team == team;
         let id = if team == 1 { "team_1" } else { "team_2" };
         let color = team_color(team);
-        let (fill, edge) = if selected { ([color[0] / 4, color[1] / 4, color[2] / 4, 250], color) } else if hot { (BUTTON_HOT, color) } else { (BUTTON, EDGE) };
+        let (fill, edge) = if selected {
+            ([color[0] / 4, color[1] / 4, color[2] / 4, 250], color)
+        } else if hot {
+            (BUTTON_HOT, color)
+        } else {
+            (BUTTON, EDGE)
+        };
         let sc = fit_scale(&label, colw - 6 * s, s * 2);
         l.button(id, (bx0, top, bx0 + colw, top + 16 * s), Some(card), &label, sc, fill, (edge, 1.max(s / 2)), color);
         for k in 0..rows {
@@ -472,7 +492,16 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
                 } else {
                     ""
                 };
-                l.label_left(&format!("t{team}_name_{k}"), Some(card), bx0 + 3 * s, y, &name, s, colw * 66 / 100, if e.id == v.me { [255, 226, 160, 255] } else { TEXT });
+                l.label_left(
+                    &format!("t{team}_name_{k}"),
+                    Some(card),
+                    bx0 + 3 * s,
+                    y,
+                    &name,
+                    s,
+                    colw * 66 / 100,
+                    if e.id == v.me { [255, 226, 160, 255] } else { TEXT },
+                );
                 l.label_right(&format!("t{team}_tag_{k}"), Some(card), bx0 + colw - 3 * s, y, tag, s, colw * 30 / 100, DIM);
             }
         }
@@ -481,7 +510,11 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
     let main = if v.countdown.is_some() {
         format!("STARTING IN {}", v.countdown.unwrap_or(0))
     } else if v.hosting {
-        if v.ready { "WAITING".to_string() } else { "START".to_string() }
+        if v.ready {
+            "WAITING".to_string()
+        } else {
+            "START".to_string()
+        }
     } else if v.ready {
         "READY!".to_string()
     } else {
@@ -749,7 +782,11 @@ pub fn results_layout(w: u32, h: u32, v: &BoardView, hover: Option<&str>) -> Lay
     }
     let by = y0 + ch - 24 * s;
     let again = if v.ready {
-        if v.waiting_for > 0 { format!("WAITING ({})", v.waiting_for) } else { "STARTING".to_string() }
+        if v.waiting_for > 0 {
+            format!("WAITING ({})", v.waiting_for)
+        } else {
+            "STARTING".to_string()
+        }
     } else {
         "PLAY AGAIN".to_string()
     };
@@ -864,7 +901,13 @@ pub fn demo_roster() -> Vec<RosterEntry> {
         .map(|i| RosterEntry {
             id: i,
             team: 1 + i % 2,
-            flags: if i > 3 { ROSTER_BOT | ROSTER_READY } else if i % 3 == 0 { ROSTER_READY } else { 0 },
+            flags: if i > 3 {
+                ROSTER_BOT | ROSTER_READY
+            } else if i % 3 == 0 {
+                ROSTER_READY
+            } else {
+                0
+            },
             character: 6 + i % 2,
             ping_ms: 20 + i as u16,
             score: (12 - i as u16) * 2,
@@ -875,7 +918,17 @@ pub fn demo_roster() -> Vec<RosterEntry> {
 
 /// Builds the named screen at a window size, filled with sample content.
 pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
-    let board = BoardView { roster: demo_roster(), me: 0, team_score: [31, 27], winner_team: 1, reason: "kill limit".into(), team: 1, ready: false, waiting_for: 1, over: true };
+    let board = BoardView {
+        roster: demo_roster(),
+        me: 0,
+        team_score: [31, 27],
+        winner_team: 1,
+        reason: "kill limit".into(),
+        team: 1,
+        ready: false,
+        waiting_for: 1,
+        over: true,
+    };
     let hud = HudView {
         hp: 100,
         loaded: Some(17),
@@ -893,14 +946,32 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
     Some(match name {
         "home" => home_layout(w, h, None, "v1"),
         "solo" => setup_layout(w, h, "solo", &Setup { name: "Kev".into(), ..Default::default() }, Some("Bots fill both teams to six a side."), None),
-        "host" => setup_layout(w, h, "host", &Setup { bots: true, skill: 2, kill_limit: 75, minutes: 15, name: "Kev".into(), typing: true }, Some("Friends join at 203.0.113.9:27015 once the match starts."), Some("start")),
+        "host" => setup_layout(
+            w,
+            h,
+            "host",
+            &Setup { bots: true, skill: 2, kill_limit: 75, minutes: 15, name: "Kev".into(), typing: true },
+            Some("Friends join at 203.0.113.9:27015 once the match starts."),
+            Some("start"),
+        ),
         "join" => {
             let mut f = ConnectForm::new("203.0.113.9:27015", "", "Kev");
             f.message = None;
             join_layout(w, h, &f, None)
         }
         "stats" => {
-            let mut st = Stats { kills: 1423, deaths: 1107, headshots: 388, shots_fired: 21_840, shots_hit: 6_120, rounds_played: 96, rounds_won: 55, rounds_lost: 38, rounds_drawn: 3, ..Default::default() };
+            let mut st = Stats {
+                kills: 1423,
+                deaths: 1107,
+                headshots: 388,
+                shots_fired: 21_840,
+                shots_hit: 6_120,
+                rounds_played: 96,
+                rounds_won: 55,
+                rounds_lost: 38,
+                rounds_drawn: 3,
+                ..Default::default()
+            };
             st.time_in_matches_secs = 91_000.0;
             st.time_in_game_secs = 120_500.0;
             st.best_streak = 14;
@@ -908,14 +979,36 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
             st.add_kill("Redline rifle", true, false, false);
             stats_layout(w, h, &st, None)
         }
-        "lobby" => lobby_layout(w, h, &LobbyView { roster: demo_roster(), me: 0, ready: false, kill_limit: 50, time_limit_secs: 600, countdown: None, join_address: Some("203.0.113.9:27015".into()), message: None, hosting: true, map: "foundry".into() }, None),
+        "lobby" => lobby_layout(
+            w,
+            h,
+            &LobbyView {
+                roster: demo_roster(),
+                me: 0,
+                ready: false,
+                kill_limit: 50,
+                time_limit_secs: 600,
+                countdown: None,
+                join_address: Some("203.0.113.9:27015".into()),
+                message: None,
+                hosting: true,
+                map: "foundry".into(),
+            },
+            None,
+        ),
         "countdown" => hud_layout(w, h, &HudView { center: Some("3".into()), ..hud }),
         "hud" => hud_layout(w, h, &hud),
         "hud-low" => hud_layout(w, h, &HudView { hp: 18, loaded: Some(0), reserve: 34, reloading: true, prompt: Some("Redline rifle".into()), ..hud }),
-        "killcam" => killcam_layout(w, h, &KillcamView { killer: "Cousin Ben".into(), killer_team: 2, weapon: "Sentinel .338".into(), headshot: true, respawn_secs: 5, replay: true }),
+        "killcam" => killcam_layout(
+            w,
+            h,
+            &KillcamView { killer: "Cousin Ben".into(), killer_team: 2, weapon: "Sentinel .338".into(), headshot: true, respawn_secs: 5, replay: true },
+        ),
         "scoreboard" => scoreboard_layout(w, h, &BoardView { over: false, winner_team: 0, ..board }),
         "results" => results_layout(w, h, &board, None),
-        "results-draw" => results_layout(w, h, &BoardView { winner_team: 0, team_score: [40, 40], reason: "time up".into(), ready: true, ..board }, Some("home")),
+        "results-draw" => {
+            results_layout(w, h, &BoardView { winner_team: 0, team_score: [40, 40], reason: "time up".into(), ready: true, ..board }, Some("home"))
+        }
         "pause" => pause_layout(w, h, None, true),
         _ => return None,
     })

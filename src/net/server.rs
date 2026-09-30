@@ -1117,10 +1117,8 @@ impl Server {
         let winner_team = self.last_result.as_ref().map_or(0, |r| r.winner_team);
         let team_kills = self.sim.team_kills();
         let team_score = [team_kills[0].min(u16::MAX as u32) as u16, team_kills[1].min(u16::MAX as u32) as u16];
-        let (kill_limit, time_limit_secs) = self
-            .flow
-            .as_ref()
-            .map_or((0, 0), |f| (f.settings().score_to_win.min(u16::MAX as u32) as u16, f.settings().round_secs.clamp(0.0, 65_535.0) as u16));
+        let (kill_limit, time_limit_secs) =
+            self.flow.as_ref().map_or((0, 0), |f| (f.settings().score_to_win.min(u16::MAX as u32) as u16, f.settings().round_secs.clamp(0.0, 65_535.0) as u16));
         let rules = self.sim.rules();
         let vars: Vec<RuleVar> = rules.vars().into_iter().take(MAX_RULE_VARS).map(|(name, value)| RuleVar { name: name.to_string(), value }).collect();
         let hidden: Vec<u16> = rules.hidden().filter_map(|id| self.sim.rule_object_index(id)).take(MAX_RULE_HIDDEN).collect();

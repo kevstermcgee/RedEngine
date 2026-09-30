@@ -618,7 +618,6 @@ impl Default for SoundBank {
     }
 }
 
-
 // ---------------------------------------------------------------------------------------------------------------------------------
 // the loadout shooter's sounds
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -702,7 +701,8 @@ pub fn grenade_bounce() -> Vec<f32> {
     let clip = (0..n)
         .map(|i| {
             let t = time(i);
-            (partial(1250.0, t, 28.0) * 0.5 + partial(2010.0, t, 40.0) * 0.35 + partial(3330.0, t, 60.0) * 0.15 + noise.next() * decay(t, 400.0) * 0.4) * attack(t)
+            (partial(1250.0, t, 28.0) * 0.5 + partial(2010.0, t, 40.0) * 0.35 + partial(3330.0, t, 60.0) * 0.15 + noise.next() * decay(t, 400.0) * 0.4)
+                * attack(t)
         })
         .collect();
     finish(clip, 0.5)
@@ -898,7 +898,8 @@ pub fn ambience(seconds: f32) -> Vec<f32> {
             lp[ch] += 0.03 * (w - lp[ch]);
             lp_slow[ch] += 0.004 * (w - lp_slow[ch]);
             let wind = (lp[ch] * 1.4 + lp_slow[ch] * 5.0) * gust;
-            let hum = ((TAU * 50.0 * t).sin() * 0.05 + (TAU * 100.5 * t).sin() * 0.03 + (TAU * 151.0 * t).sin() * 0.015) * (0.8 + 0.2 * (TAU * t / seconds * 5.0).sin());
+            let hum = ((TAU * 50.0 * t).sin() * 0.05 + (TAU * 100.5 * t).sin() * 0.03 + (TAU * 151.0 * t).sin() * 0.015)
+                * (0.8 + 0.2 * (TAU * t / seconds * 5.0).sin());
             let mut clank = 0.0;
             for (k, (at, f, g)) in clanks.iter().enumerate() {
                 let u = (t - at).rem_euclid(seconds.max(1.0));

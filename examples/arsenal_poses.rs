@@ -34,7 +34,8 @@ fn main() -> anyhow::Result<()> {
             if ads > 0.0 {
                 camera.fov_deg = (2.0 * (1.0 / weapon.aim_magnification()).atan()).to_degrees();
             }
-            let (offset, rotation) = if weapon == Weapon::Bat { (Vec3::new(0.1, -0.125, 0.3), Mat4::IDENTITY) } else { firearms::held_pose(weapon, ads, 0.0, 0.0) };
+            let (offset, rotation) =
+                if weapon == Weapon::Bat { (Vec3::new(0.1, -0.125, 0.3), Mat4::IDENTITY) } else { firearms::held_pose(weapon, ads, 0.0, 0.0) };
             renderer.render_ex(
                 &gpu.device,
                 &gpu.queue,

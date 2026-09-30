@@ -527,7 +527,14 @@ impl NetSession {
         input.seq = p.next_seq();
         // In a race the light decides whether the input counts (the server ignores it until green, so the prediction must too).
         let can_drive = self.race.as_ref().is_none_or(|r| r.phase == 1);
-        self.last_speed = p.apply_local_auto(input, can_drive, &self.world.colliders, &self.world.ground, scaled_tuning(self.world.player_tuning, self.speed_scale), &self.world.jump_pads);
+        self.last_speed = p.apply_local_auto(
+            input,
+            can_drive,
+            &self.world.colliders,
+            &self.world.ground,
+            scaled_tuning(self.world.player_tuning, self.speed_scale),
+            &self.world.jump_pads,
+        );
         self.client.send_input(input, now);
         Some(p.state)
     }
@@ -967,8 +974,32 @@ mod tests {
         assert!(plan.short().is_empty(), "the pool always covers what the scene needs: {:?}", plan.short());
         // No bots, nothing forced: humans can be anything.
         let open = avatar_plan(&scene_with(None, None));
-        assert_eq!(open.pool, [MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, 0, 0]);
-        assert_eq!(open.needed, [MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, 0, 0]);
+        assert_eq!(
+            open.pool,
+            [
+                MAX_PLAYERS_PER_SNAPSHOT,
+                MAX_PLAYERS_PER_SNAPSHOT,
+                MAX_PLAYERS_PER_SNAPSHOT,
+                MAX_PLAYERS_PER_SNAPSHOT,
+                MAX_PLAYERS_PER_SNAPSHOT,
+                MAX_PLAYERS_PER_SNAPSHOT,
+                0,
+                0
+            ]
+        );
+        assert_eq!(
+            open.needed,
+            [
+                MAX_PLAYERS_PER_SNAPSHOT - 1,
+                MAX_PLAYERS_PER_SNAPSHOT - 1,
+                MAX_PLAYERS_PER_SNAPSHOT - 1,
+                MAX_PLAYERS_PER_SNAPSHOT - 1,
+                MAX_PLAYERS_PER_SNAPSHOT - 1,
+                MAX_PLAYERS_PER_SNAPSHOT - 1,
+                0,
+                0
+            ]
+        );
     }
 
     /// A session with no server, for driving `apply_view` with views made by hand.

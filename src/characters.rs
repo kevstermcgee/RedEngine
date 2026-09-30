@@ -74,7 +74,14 @@ pub struct HumanLook {
 
 impl Default for HumanLook {
     fn default() -> Self {
-        HumanLook { style: crate::player::Character::Human, skin: hex("#d9a684"), hair: hex("#3a281c"), pants: hex("#36445e"), shoes: hex("#2a2622"), glove: None }
+        HumanLook {
+            style: crate::player::Character::Human,
+            skin: hex("#d9a684"),
+            hair: hex("#3a281c"),
+            pants: hex("#36445e"),
+            shoes: hex("#2a2622"),
+            glove: None,
+        }
     }
 }
 

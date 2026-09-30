@@ -8,8 +8,8 @@
 //! into the room, and is sent then; nothing is ever sent twice once acknowledged.
 
 use super::protocol::{
-    character_to_wire, ArenaSnap, DroppedSnap, Feedback, FxSnap, KartSnap, OwnKit, PlayerSnap, ProjSnap, PropSnap, ZoneSnap, FLAG_PROTECTED, MAX_DROPPED_SNAP, MAX_FX_SNAP,
-    MAX_PLAYERS_PER_SNAPSHOT, MAX_PROJ_SNAP, MAX_PROPS_PER_SNAPSHOT, MAX_ZONE_SNAP, NO_PROP, PICKUP_MASK_BYTES,
+    character_to_wire, ArenaSnap, DroppedSnap, Feedback, FxSnap, KartSnap, OwnKit, PlayerSnap, ProjSnap, PropSnap, ZoneSnap, FLAG_PROTECTED, MAX_DROPPED_SNAP,
+    MAX_FX_SNAP, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROJ_SNAP, MAX_PROPS_PER_SNAPSHOT, MAX_ZONE_SNAP, NO_PROP, PICKUP_MASK_BYTES,
 };
 use crate::sim::change::Generation;
 use crate::sim::interest::InterestMap;
@@ -194,6 +194,13 @@ pub(super) fn arena_snap(sim: &MatchSim, viewer: usize) -> Option<ArenaSnap> {
                 left_ticks: z.until.saturating_sub(now).min(u16::MAX as u64) as u16,
             })
             .collect(),
-        fx: arena.fx.iter().rev().take(MAX_FX_SNAP).rev().map(|f| FxSnap { id: f.id, kind: f.kind.to_wire(), pos: f.pos.to_array(), size_dm: (f.size * 10.0).round().clamp(0.0, 255.0) as u8 }).collect(),
+        fx: arena
+            .fx
+            .iter()
+            .rev()
+            .take(MAX_FX_SNAP)
+            .rev()
+            .map(|f| FxSnap { id: f.id, kind: f.kind.to_wire(), pos: f.pos.to_array(), size_dm: (f.size * 10.0).round().clamp(0.0, 255.0) as u8 })
+            .collect(),
     })
 }

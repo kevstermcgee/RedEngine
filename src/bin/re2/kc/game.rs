@@ -533,7 +533,13 @@ impl Game {
         let foot = self.prev_foot_y + (self.foot_y - self.prev_foot_y) * alpha;
         let crouching = controls.crouching() && !self.own_dead();
         let body = red_engine2::player::Character::Human.body();
-        let target_eye = if self.own_dead() { 0.35 } else if crouching { body.crouch_eye } else { body.stand_eye };
+        let target_eye = if self.own_dead() {
+            0.35
+        } else if crouching {
+            body.crouch_eye
+        } else {
+            body.stand_eye
+        };
         self.eye_height += (target_eye - self.eye_height) * (dt / CROUCH_SECS).min(1.0);
         // Timers that only the picture uses.
         self.since_shot += dt;
@@ -697,7 +703,14 @@ impl Game {
 
     fn own_for_feel(&self) -> Option<Own> {
         let own = self.net.own?;
-        Some(Own { hp: own.hp as u32, dead: own.flags & 4 != 0, protected: own.flags & FLAG_PROTECTED != 0, weapon: own.weapon, last_rung: false, ladder: false })
+        Some(Own {
+            hp: own.hp as u32,
+            dead: own.flags & 4 != 0,
+            protected: own.flags & FLAG_PROTECTED != 0,
+            weapon: own.weapon,
+            last_rung: false,
+            ladder: false,
+        })
     }
 
     /// One fixed simulation tick: sends our input and predicts our body and our own shot's look.
@@ -986,7 +999,9 @@ impl Game {
             if k.reload_left > 0 && self.last_reload_left == 0 && self.local_reload_until <= self.clock_secs {
                 self.local_reload_until = self.clock_secs + self.weapon.kit().reload;
             }
-            if (k.reload_left > 0 && self.last_reload_left == 0) || (self.local_reload_until > self.clock_secs && self.reload_blend < 0.05 && k.reload_left == 0) {
+            if (k.reload_left > 0 && self.last_reload_left == 0)
+                || (self.local_reload_until > self.clock_secs && self.reload_blend < 0.05 && k.reload_left == 0)
+            {
                 let spec = self.weapon.kit();
                 audio.play_at(if spec.per_shell { &env.kit_sounds.reload_shell } else { &env.kit_sounds.reload_mag }, 0.55, 0.0);
             }
@@ -1065,7 +1080,9 @@ impl Game {
         let wall = raycast_shapes(eye, dir, reach, &self.hit_shapes).map_or(f32::INFINITY, |h| h.distance);
         let my_team = self.roster().iter().find(|e| Some(e.id) == self.net.client.my_id()).map_or(0, |e| e.team);
         let roster = self.roster();
-        self.net.player_in_sight(eye, dir, reach).is_some_and(|(id, d)| d < wall && roster.iter().find(|e| e.id == id).is_none_or(|e| e.team != my_team || my_team == 0))
+        self.net
+            .player_in_sight(eye, dir, reach)
+            .is_some_and(|(id, d)| d < wall && roster.iter().find(|e| e.id == id).is_none_or(|e| e.team != my_team || my_team == 0))
     }
 
     /// Draws one frame into `target`.
@@ -1076,7 +1093,9 @@ impl Game {
         // The viewmodel: ours, or the killer's in a replay.
         let (weapon, skin, flash, aiming) = if in_replay {
             let kc = self.killcam.as_ref();
-            let shot_weapon = kc.map_or(Weapon::Knife, |k| k.playback.as_ref().and_then(|p| p.at(k.elapsed.min(LENGTH_SECS as f32))).map_or(k.weapon, |s| Weapon::from_wire(s.killer.weapon)));
+            let shot_weapon = kc.map_or(Weapon::Knife, |k| {
+                k.playback.as_ref().and_then(|p| p.at(k.elapsed.min(LENGTH_SECS as f32))).map_or(k.weapon, |s| Weapon::from_wire(s.killer.weapon))
+            });
             let (team, aim) = kc
                 .and_then(|k| k.playback.as_ref().and_then(|p| p.at(k.elapsed.min(LENGTH_SECS as f32))))
                 .map_or((0, false), |s| (s.killer.team(), s.killer.aiming()));
@@ -1092,15 +1111,24 @@ impl Game {
             Class::Melee => {
                 let total = weapon.kit().cooldown.min(0.4);
                 let p = 1.0 - (self.melee_timer / total).clamp(0.0, 1.0);
-                if self.melee_timer > 0.0 { (p * std::f32::consts::PI).sin() } else { 0.0 }
+                if self.melee_timer > 0.0 {
+                    (p * std::f32::consts::PI).sin()
+                } else {
+                    0.0
+                }
             }
             Class::Grenade => {
                 let p = 1.0 - (self.throw_timer / 0.3).clamp(0.0, 1.0);
-                if self.throw_timer > 0.0 { (p * std::f32::consts::PI).sin() } else { 0.0 }
+                if self.throw_timer > 0.0 {
+                    (p * std::f32::consts::PI).sin()
+                } else {
+                    0.0
+                }
             }
             _ => recoil_kick(self.since_shot),
         };
-        let (offset, rotation) = if weapon == Weapon::Bat { (Vec3::new(0.12, -0.14, 0.34), Mat4::IDENTITY) } else { firearms::held_pose(weapon, aiming, kick, dip) };
+        let (offset, rotation) =
+            if weapon == Weapon::Bat { (Vec3::new(0.12, -0.14, 0.34), Mat4::IDENTITY) } else { firearms::held_pose(weapon, aiming, kick, dip) };
         let weapon_tf = viewmodel_transform(&self.camera, offset, rotation);
         let scoped = self.scoped();
         let mut fx: FxParams = if in_replay { FxParams::default() } else { self.feel.fx(self.camera.yaw) };

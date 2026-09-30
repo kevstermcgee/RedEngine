@@ -9,7 +9,7 @@
 use super::interact::RayTarget;
 use super::match_sim::MatchSim;
 use super::player::PlayerInput;
-use super::shooter::{Dropped, MAX_DROPPED, DROP_LIFETIME_SECS};
+use super::shooter::{Dropped, DROP_LIFETIME_SECS, MAX_DROPPED};
 use crate::arsenal::{Class, KitSpec};
 use crate::sim::clock::{secs_to_ticks, TICK_DT};
 use crate::weapons::{Ammo, Weapon};
@@ -507,7 +507,8 @@ impl MatchSim {
                     let tbody = t.state.character.body();
                     let height = if t.crouching { tbody.crouch_eye + 0.12 } else { tbody.body_height };
                     let head = y - t.state.foot_y >= height - HEAD_DEPTH;
-                    let per = spec.damage as f32 / spec.pellets.max(1) as f32 * falloff(&spec, hit.distance) * if head { spec.head_x10 as f32 / 10.0 } else { 1.0 };
+                    let per =
+                        spec.damage as f32 / spec.pellets.max(1) as f32 * falloff(&spec, hit.distance) * if head { spec.head_x10 as f32 / 10.0 } else { 1.0 };
                     match landed.iter_mut().find(|(s, _, _)| *s == target) {
                         Some(entry) => {
                             entry.1 += per;

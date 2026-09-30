@@ -91,7 +91,11 @@ mod tests {
         assert_eq!(JoinCode::parse(&c.format()).unwrap(), c);
         assert_eq!(JoinCode::parse("example.com").unwrap().address, format!("example.com:{DEFAULT_PORT}"));
         assert_eq!(JoinCode::parse("  kc:10.0.0.5:4000  ").unwrap().address, "10.0.0.5:4000");
-        assert_eq!(JoinCode::parse(&format!("10.0.0.5#{}", FP.trim_start_matches("sha256:"))).unwrap().fingerprint.as_deref(), Some(FP), "a bare hash is a fingerprint");
+        assert_eq!(
+            JoinCode::parse(&format!("10.0.0.5#{}", FP.trim_start_matches("sha256:"))).unwrap().fingerprint.as_deref(),
+            Some(FP),
+            "a bare hash is a fingerprint"
+        );
         assert_eq!(JoinCode::parse("[::1]").unwrap().address, format!("[::1]:{DEFAULT_PORT}"));
     }
 

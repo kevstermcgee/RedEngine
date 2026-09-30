@@ -125,16 +125,22 @@ impl ShooterWorld {
             o.position = Track::constant(p.at);
             scene.objects.push(o);
         }
-        let dropped = Weapon::ROSTER
-            .iter()
-            .map(|w| ScenePool::add(scene, DROPPED_PER_KIND, |k| world_model(Some(*w), &format!("drop_{}_{k}", w.wire()))))
-            .collect();
+        let dropped =
+            Weapon::ROSTER.iter().map(|w| ScenePool::add(scene, DROPPED_PER_KIND, |k| world_model(Some(*w), &format!("drop_{}_{k}", w.wire())))).collect();
         let flyer_pools = FLYERS.iter().map(|w| ScenePool::add(scene, FLYERS_PER_KIND, |k| projectile_model(*w, &format!("fly_{}_{k}", w.wire())))).collect();
-        let fireballs = ScenePool::add(scene, BLASTS, |k| solid(format!("fx_fireball_{k}"), PrimKind::Sphere { radius: 1.0 }, Vec3::new(1.0, 0.55, 0.15), Vec3::new(5.0, 2.4, 0.6), 1.0));
-        let dust = ScenePool::add(scene, BLASTS, |k| solid(format!("fx_dust_{k}"), PrimKind::Sphere { radius: 1.0 }, Vec3::new(0.06, 0.06, 0.06), Vec3::ZERO, 0.55));
-        let flash_pool = ScenePool::add(scene, 4, |k| solid(format!("fx_flash_{k}"), PrimKind::Sphere { radius: 1.0 }, Vec3::ONE, Vec3::new(6.0, 6.0, 6.0), 1.0));
-        let smoke = ScenePool::add(scene, MAX_ZONE_SNAP * PUFFS_PER_CLOUD, |k| solid(format!("fx_smoke_{k}"), PrimKind::Sphere { radius: 1.0 }, Vec3::new(0.42, 0.43, 0.44), Vec3::ZERO, 0.94));
-        let fire = ScenePool::add(scene, MAX_ZONE_SNAP * FLAMES_PER_FIRE, |k| solid(format!("fx_flame_{k}"), PrimKind::Cone { radius: 0.5, height: 1.0 }, Vec3::new(1.0, 0.4, 0.05), Vec3::new(3.0, 1.2, 0.2), 0.85));
+        let fireballs = ScenePool::add(scene, BLASTS, |k| {
+            solid(format!("fx_fireball_{k}"), PrimKind::Sphere { radius: 1.0 }, Vec3::new(1.0, 0.55, 0.15), Vec3::new(5.0, 2.4, 0.6), 1.0)
+        });
+        let dust =
+            ScenePool::add(scene, BLASTS, |k| solid(format!("fx_dust_{k}"), PrimKind::Sphere { radius: 1.0 }, Vec3::new(0.06, 0.06, 0.06), Vec3::ZERO, 0.55));
+        let flash_pool =
+            ScenePool::add(scene, 4, |k| solid(format!("fx_flash_{k}"), PrimKind::Sphere { radius: 1.0 }, Vec3::ONE, Vec3::new(6.0, 6.0, 6.0), 1.0));
+        let smoke = ScenePool::add(scene, MAX_ZONE_SNAP * PUFFS_PER_CLOUD, |k| {
+            solid(format!("fx_smoke_{k}"), PrimKind::Sphere { radius: 1.0 }, Vec3::new(0.42, 0.43, 0.44), Vec3::ZERO, 0.94)
+        });
+        let fire = ScenePool::add(scene, MAX_ZONE_SNAP * FLAMES_PER_FIRE, |k| {
+            solid(format!("fx_flame_{k}"), PrimKind::Cone { radius: 0.5, height: 1.0 }, Vec3::new(1.0, 0.4, 0.05), Vec3::new(3.0, 1.2, 0.2), 0.85)
+        });
         Some(ShooterWorld {
             pickup_first,
             pickup_weapons: cfg.pickups.iter().map(|p| p.weapon).collect(),
@@ -470,7 +476,11 @@ mod tests {
         assert_eq!(w.pickup_count(), 3);
         w.update(&mut s, Some(&arena()), 0.016);
         let hidden = w.hidden_ids(&s);
-        assert!(!hidden.contains(&"pickup_0") && hidden.contains(&"pickup_1") && !hidden.contains(&"pickup_2"), "the frag at spot 1 was taken: {:?}", &hidden[..3.min(hidden.len())]);
+        assert!(
+            !hidden.contains(&"pickup_0") && hidden.contains(&"pickup_1") && !hidden.contains(&"pickup_2"),
+            "the frag at spot 1 was taken: {:?}",
+            &hidden[..3.min(hidden.len())]
+        );
         let pos = s.objects.iter().find(|o| o.id == "pickup_0").unwrap().position.sample(0.0);
         assert_eq!(pos, Vec3::new(3.0, 0.3, 0.0), "it stays where the map put it");
     }

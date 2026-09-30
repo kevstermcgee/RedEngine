@@ -621,7 +621,10 @@ pub struct ArenaSnap {
 impl ArenaSnap {
     /// Bytes this block takes on the wire.
     pub fn wire_bytes(&self) -> usize {
-        1 + self.own.map_or(0, |_| OWN_BYTES) + 4 + PICKUP_MASK_BYTES + 4
+        1 + self.own.map_or(0, |_| OWN_BYTES)
+            + 4
+            + PICKUP_MASK_BYTES
+            + 4
             + self.dropped.len().min(MAX_DROPPED_SNAP) * 9
             + self.projectiles.len().min(MAX_PROJ_SNAP) * 16
             + self.zones.len().min(MAX_ZONE_SNAP) * 12
@@ -928,7 +931,8 @@ fn put_arena(w: &mut W, a: &ArenaSnap) {
     w.u16(a.team_kills[0]);
     w.u16(a.team_kills[1]);
     w.0.extend_from_slice(&a.pickups);
-    let (nd, np, nz, nf) = (a.dropped.len().min(MAX_DROPPED_SNAP), a.projectiles.len().min(MAX_PROJ_SNAP), a.zones.len().min(MAX_ZONE_SNAP), a.fx.len().min(MAX_FX_SNAP));
+    let (nd, np, nz, nf) =
+        (a.dropped.len().min(MAX_DROPPED_SNAP), a.projectiles.len().min(MAX_PROJ_SNAP), a.zones.len().min(MAX_ZONE_SNAP), a.fx.len().min(MAX_FX_SNAP));
     for n in [nd, np, nz, nf] {
         w.u8(n as u8);
     }
@@ -967,7 +971,21 @@ fn get_arena(r: &mut R) -> Result<ArenaSnap, DecodeError> {
         let (melee, g0, g1) = (r.u8()?, r.u8()?, r.u8()?);
         let (reload_left, busy, flash_left, flash_total) = (r.u16()?, r.u16()?, r.u16()?, r.u8()?);
         let (killed_by, killed_weapon, killed_head, headshots, team) = (r.u8()?, r.u8()?, r.u8()? != 0, r.u8()?, r.u8()?.min(2));
-        Some(OwnKit { sel, guns, melee, grenades: [g0, g1], reload_left, busy, flash_left, flash_total, killed_by, killed_weapon, killed_head, headshots, team })
+        Some(OwnKit {
+            sel,
+            guns,
+            melee,
+            grenades: [g0, g1],
+            reload_left,
+            busy,
+            flash_left,
+            flash_total,
+            killed_by,
+            killed_weapon,
+            killed_head,
+            headshots,
+            team,
+        })
     } else {
         None
     };
@@ -1078,9 +1096,14 @@ impl ClientMsg {
                     name: r.text(MAX_NAME)?,
                 })
             }
-            KIND_LOBBY => {
-                ClientMsg::Lobby(LobbyCmd { ready: r.u8()? != 0, character: r.u8()?, team: r.u8()?.min(2), round_ack: r.u16()?, client_time_ms: r.u32()?, rtt_ms: r.u16()? })
-            }
+            KIND_LOBBY => ClientMsg::Lobby(LobbyCmd {
+                ready: r.u8()? != 0,
+                character: r.u8()?,
+                team: r.u8()?.min(2),
+                round_ack: r.u16()?,
+                client_time_ms: r.u32()?,
+                rtt_ms: r.u16()?,
+            }),
             KIND_INPUT => {
                 let (snapshot_ack, client_time_ms, round_ack, rtt_ms) = (r.u32()?, r.u32()?, r.u16()?, r.u16()?);
                 let n = r.u8()? as usize;
@@ -1295,7 +1318,15 @@ impl ServerMsg {
                 }
                 let mut roster = Vec::with_capacity(n);
                 for _ in 0..n {
-                    roster.push(RosterEntry { id: r.u8()?, team: r.u8()?.min(2), flags: r.u8()?, character: r.u8()?, ping_ms: r.u16()?, score: r.u16()?, name: r.text(MAX_NAME)? });
+                    roster.push(RosterEntry {
+                        id: r.u8()?,
+                        team: r.u8()?.min(2),
+                        flags: r.u8()?,
+                        character: r.u8()?,
+                        ping_ms: r.u16()?,
+                        score: r.u16()?,
+                        name: r.text(MAX_NAME)?,
+                    });
                 }
                 let team_score = [r.u16()?, r.u16()?];
                 let (kill_limit, time_limit_secs, winner_team) = (r.u16()?, r.u16()?, r.u8()?.min(2));

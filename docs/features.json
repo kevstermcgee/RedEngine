@@ -12,7 +12,7 @@
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
-      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs"],
+      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs", "src/arsenal.rs", "src/stats.rs", "src/killcam.rs", "src/uniforms.rs", "src/shooter_world.rs", "src/clipboard.rs"],
       "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms"],
       "commands": ["red_engine2 frame examples/test_lab.json out/frame.png", "red_engine2 tour examples/test_lab.json out/tour.png"],
       "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md"],
@@ -21,7 +21,7 @@
     "player_physics": {
       "summary": "One shared, scene-tunable player movement and jump-pad simulation used by the game, server, client prediction and map tools.",
       "files": ["src/player.rs", "src/controller.rs", "src/collide.rs", "src/sim/player.rs"],
-      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env"],
+      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env", "loadout"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
       "depends_on": ["scene_format"]
@@ -42,8 +42,8 @@
     },
     "sim_core": {
       "summary": "The headless, renderer-free simulation: fixed tick clock, scratch buffers, change tracking, entities, static props, the authoritative MatchSim, spawns, interest management.",
-      "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs"],
-      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual"],
+      "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs", "src/sim/ordnance.rs", "src/sim/shooter.rs", "src/sim/kit.rs"],
+      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots"],
       "commands": ["cargo bench --bench sim", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0010-headless-match-server.md", "docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", "docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md"],
       "depends_on": ["player_physics", "prop_physics"]
@@ -118,7 +118,7 @@
     },
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
-      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs"],
+      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs", "src/net/join_code.rs"],
       "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md"],

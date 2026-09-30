@@ -173,7 +173,11 @@ pub fn build_thrown_and_melee_parts(weapon: Weapon) -> Vec<HeldPart> {
                 _ => (0.04, 0.15, Vec3::new(0.30, 0.04, 0.03), Vec3::new(0.65, 0.4, 0.05)),
             };
             if weapon == Weapon::Frag {
-                append_transformed(&mut body, &Mesh::uv_sphere(1.0, 12, 16), Mat4::from_translation(Vec3::new(0.0, 0.0, 0.05)) * Mat4::from_scale(Vec3::new(radius, radius * 1.15, radius)));
+                append_transformed(
+                    &mut body,
+                    &Mesh::uv_sphere(1.0, 12, 16),
+                    Mat4::from_translation(Vec3::new(0.0, 0.0, 0.05)) * Mat4::from_scale(Vec3::new(radius, radius * 1.15, radius)),
+                );
             } else {
                 append_transformed(&mut body, &Mesh::cylinder(radius, height, 16), Mat4::from_translation(Vec3::new(0.0, 0.0, 0.05)));
             }
@@ -382,7 +386,13 @@ pub fn world_model(weapon: Option<Weapon>, id: &str) -> crate::schema::Object {
             let receiver_len = (s.length - s.stock - s.barrel).max(0.10);
             let z0 = -s.length * 0.5;
             let bore = if s.bore > 0.0 { s.bore } else { s.body_w * 0.20 };
-            add(PrimKind::Box { size: Vec3::new(s.body_w, s.body_h, receiver_len) }, Vec3::new(0.0, 0.05 + s.body_h * 0.5, z0 + s.stock + receiver_len * 0.5), Vec3::ZERO, s.color, 0.4);
+            add(
+                PrimKind::Box { size: Vec3::new(s.body_w, s.body_h, receiver_len) },
+                Vec3::new(0.0, 0.05 + s.body_h * 0.5, z0 + s.stock + receiver_len * 0.5),
+                Vec3::ZERO,
+                s.color,
+                0.4,
+            );
             add(
                 PrimKind::Cylinder { radius: bore.max(0.012), height: s.barrel },
                 Vec3::new(0.0, 0.05 + s.body_h * 0.6, z0 + s.length - s.barrel * 0.5),
@@ -391,19 +401,49 @@ pub fn world_model(weapon: Option<Weapon>, id: &str) -> crate::schema::Object {
                 0.6,
             );
             if s.stock > 0.0 {
-                add(PrimKind::Box { size: Vec3::new(s.body_w * 0.75, s.body_h * 0.8, s.stock) }, Vec3::new(0.0, 0.05 + s.body_h * 0.45, z0 + s.stock * 0.5), Vec3::ZERO, s.color, 0.1);
+                add(
+                    PrimKind::Box { size: Vec3::new(s.body_w * 0.75, s.body_h * 0.8, s.stock) },
+                    Vec3::new(0.0, 0.05 + s.body_h * 0.45, z0 + s.stock * 0.5),
+                    Vec3::ZERO,
+                    s.color,
+                    0.1,
+                );
             }
             if s.magazine > 0.0 {
-                add(PrimKind::Box { size: Vec3::new(s.body_w * 0.65, s.magazine, 0.05) }, Vec3::new(0.0, 0.05 - s.magazine * 0.4, z0 + s.stock + receiver_len * 0.6), Vec3::ZERO, black, 0.2);
+                add(
+                    PrimKind::Box { size: Vec3::new(s.body_w * 0.65, s.magazine, 0.05) },
+                    Vec3::new(0.0, 0.05 - s.magazine * 0.4, z0 + s.stock + receiver_len * 0.6),
+                    Vec3::ZERO,
+                    black,
+                    0.2,
+                );
             }
             if s.scope {
-                add(PrimKind::Cylinder { radius: 0.025, height: 0.3 }, Vec3::new(0.0, 0.05 + s.body_h + 0.04, z0 + s.stock + receiver_len * 0.5), Vec3::new(90.0, 0.0, 0.0), black, 0.5);
+                add(
+                    PrimKind::Cylinder { radius: 0.025, height: 0.3 },
+                    Vec3::new(0.0, 0.05 + s.body_h + 0.04, z0 + s.stock + receiver_len * 0.5),
+                    Vec3::new(90.0, 0.0, 0.0),
+                    black,
+                    0.5,
+                );
             }
             if s.extra == Extra::Launcher {
-                add(PrimKind::Cone { radius: bore * 1.45, height: 0.17 }, Vec3::new(0.0, 0.05 + s.body_h * 0.6, z0 + s.length + 0.07), Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.3, 0.3, 0.12), 0.3);
+                add(
+                    PrimKind::Cone { radius: bore * 1.45, height: 0.17 },
+                    Vec3::new(0.0, 0.05 + s.body_h * 0.6, z0 + s.length + 0.07),
+                    Vec3::new(90.0, 0.0, 0.0),
+                    Vec3::new(0.3, 0.3, 0.12),
+                    0.3,
+                );
             }
             if s.extra == Extra::Drum {
-                add(PrimKind::Cylinder { radius: s.body_h * 0.6, height: s.body_w * 1.5 }, Vec3::new(0.0, 0.05 + s.body_h * 0.5, z0 + s.stock + receiver_len * 0.5), Vec3::new(0.0, 0.0, 90.0), steel, 0.7);
+                add(
+                    PrimKind::Cylinder { radius: s.body_h * 0.6, height: s.body_w * 1.5 },
+                    Vec3::new(0.0, 0.05 + s.body_h * 0.5, z0 + s.stock + receiver_len * 0.5),
+                    Vec3::new(0.0, 0.0, 90.0),
+                    steel,
+                    0.7,
+                );
             }
         }
     }
@@ -427,22 +467,71 @@ pub fn projectile_model(weapon: Weapon, id: &str) -> crate::schema::Object {
     let mut kids = Vec::new();
     match weapon {
         Weapon::Lancer => {
-            kids.push(part(format!("{id}_body"), PrimKind::Cylinder { radius: 0.045, height: 0.55 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.12, 0.14, 0.07), 0.3));
-            kids.push(part(format!("{id}_nose"), PrimKind::Cone { radius: 0.06, height: 0.2 }, Vec3::new(0.0, 0.0, 0.36), Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.3, 0.3, 0.12), 0.3));
-            let mut flame = part(format!("{id}_flame"), PrimKind::Cone { radius: 0.05, height: 0.35 }, Vec3::new(0.0, 0.0, -0.42), Vec3::new(-90.0, 0.0, 0.0), Vec3::new(1.0, 0.6, 0.2), 0.0);
+            kids.push(part(
+                format!("{id}_body"),
+                PrimKind::Cylinder { radius: 0.045, height: 0.55 },
+                Vec3::ZERO,
+                Vec3::new(90.0, 0.0, 0.0),
+                Vec3::new(0.12, 0.14, 0.07),
+                0.3,
+            ));
+            kids.push(part(
+                format!("{id}_nose"),
+                PrimKind::Cone { radius: 0.06, height: 0.2 },
+                Vec3::new(0.0, 0.0, 0.36),
+                Vec3::new(90.0, 0.0, 0.0),
+                Vec3::new(0.3, 0.3, 0.12),
+                0.3,
+            ));
+            let mut flame = part(
+                format!("{id}_flame"),
+                PrimKind::Cone { radius: 0.05, height: 0.35 },
+                Vec3::new(0.0, 0.0, -0.42),
+                Vec3::new(-90.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.6, 0.2),
+                0.0,
+            );
             if let Some(m) = flame.material.as_mut() {
                 m.emissive = Vec3::new(4.0, 2.0, 0.5);
             }
             kids.push(flame);
         }
         Weapon::Thumper => {
-            kids.push(part(format!("{id}_shell"), PrimKind::Cylinder { radius: 0.022, height: 0.1 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.3, 0.26, 0.1), 0.6));
+            kids.push(part(
+                format!("{id}_shell"),
+                PrimKind::Cylinder { radius: 0.022, height: 0.1 },
+                Vec3::ZERO,
+                Vec3::new(90.0, 0.0, 0.0),
+                Vec3::new(0.3, 0.26, 0.1),
+                0.6,
+            ));
             kids.push(part(format!("{id}_tip"), PrimKind::Sphere { radius: 0.022 }, Vec3::new(0.0, 0.0, 0.05), Vec3::ZERO, Vec3::new(0.2, 0.2, 0.2), 0.6));
         }
         Weapon::Frag => kids.push(part(format!("{id}_body"), PrimKind::Sphere { radius: 0.05 }, Vec3::ZERO, Vec3::ZERO, Vec3::new(0.06, 0.08, 0.03), 0.2)),
-        Weapon::Flash => kids.push(part(format!("{id}_body"), PrimKind::Cylinder { radius: 0.04, height: 0.13 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.16, 0.17, 0.18), 0.3)),
-        Weapon::Smoke => kids.push(part(format!("{id}_body"), PrimKind::Cylinder { radius: 0.04, height: 0.13 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.25, 0.26, 0.27), 0.3)),
-        _ => kids.push(part(format!("{id}_body"), PrimKind::Cylinder { radius: 0.04, height: 0.13 }, Vec3::ZERO, Vec3::new(90.0, 0.0, 0.0), Vec3::new(0.3, 0.04, 0.03), 0.3)),
+        Weapon::Flash => kids.push(part(
+            format!("{id}_body"),
+            PrimKind::Cylinder { radius: 0.04, height: 0.13 },
+            Vec3::ZERO,
+            Vec3::new(90.0, 0.0, 0.0),
+            Vec3::new(0.16, 0.17, 0.18),
+            0.3,
+        )),
+        Weapon::Smoke => kids.push(part(
+            format!("{id}_body"),
+            PrimKind::Cylinder { radius: 0.04, height: 0.13 },
+            Vec3::ZERO,
+            Vec3::new(90.0, 0.0, 0.0),
+            Vec3::new(0.25, 0.26, 0.27),
+            0.3,
+        )),
+        _ => kids.push(part(
+            format!("{id}_body"),
+            PrimKind::Cylinder { radius: 0.04, height: 0.13 },
+            Vec3::ZERO,
+            Vec3::new(90.0, 0.0, 0.0),
+            Vec3::new(0.3, 0.04, 0.03),
+            0.3,
+        )),
     }
     crate::schema::Object {
         id: id.to_string(),

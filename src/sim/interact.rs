@@ -342,7 +342,8 @@ impl MatchSim {
         let character = p.state.character;
         p.state = PlayerState::spawn(s.position[0], s.position[2], s.position[1], s.yaw_deg, character);
         let old = &p.combat;
-        let (kills, deaths, shots, hits, hurt, hurt_bearing, headshots) = (old.kills, old.deaths, old.shots, old.hits, old.hurt, old.hurt_bearing, old.headshots);
+        let (kills, deaths, shots, hits, hurt, hurt_bearing, headshots) =
+            (old.kills, old.deaths, old.shots, old.hits, old.hurt, old.hurt_bearing, old.headshots);
         p.combat = Combat { kills, deaths, shots, hits, hurt, hurt_bearing, headshots, weapon: cfg.weapon_for_kills(kills), ..Combat::new(&cfg) };
         if let Some(arena) = &self.arena {
             p.combat.kit = Some(arena.cfg.start_kit());
