@@ -58,8 +58,8 @@
     },
     "karts": {
       "summary": "Kart driving and racing for Great Outdoors: the scene's `race` block and per-player race progress (ordered gates, laps, standings, countdown), one pure kart step (steering, throttle, drift and hop, boost, spin-out, walls), the eight-driver spec table, kart-to-kart bumps and slipstream. A movement mode of the player, shared by server, prediction and bots.",
-      "files": ["src/sim/kart.rs", "src/sim/race.rs", "src/sim/items.rs", "src/sim/ai/kart.rs", "src/kart_camera.rs", "src/kart_sound.rs", "src/net/fleet.rs", "src/tools/racetest.rs"],
-      "tests": ["lib:sim::kart", "lib:sim::race", "lib:sim::items", "lib:sim::ai::kart", "lib:kart_camera", "lib:kart_sound", "lib:net::fleet", "lib:tools::racetest", "lib:ui::race", "kart_race", "kart_bots", "net_race", "net_race_lobby"],
+      "files": ["src/sim/kart.rs", "src/sim/race.rs", "src/sim/items.rs", "src/sim/ai/kart.rs", "src/kart_camera.rs", "src/kart_sound.rs", "src/net/fleet.rs", "src/tools/racetest.rs", "src/tools/racetrack.rs", "assets/karts.json"],
+      "tests": ["lib:sim::kart", "lib:sim::race", "lib:sim::items", "lib:sim::ai::kart", "lib:kart_camera", "lib:kart_sound", "lib:net::fleet", "lib:tools::racetest", "lib:tools::racetrack", "lib:ui::race", "kart_race", "kart_bots", "net_race", "net_race_lobby"],
       "docs": ["docs/adr/2026-09-29-great-outdoors-karts-as-a-first-class-engine-feature.md"],
       "depends_on": ["player_physics"]
     },
@@ -213,14 +213,14 @@
     "blueprints_and_games": {
       "summary": "Blueprints compile rooms/doors/spawns into complete self-checking maps; `new-game` scaffolds a game project that pins the engine; recipes.",
       "files": ["src/tools/blueprint.rs", "src/tools/newgame.rs", "src/tools/game.rs", "src/project_browser.rs", "src/tools/recipes.rs", "recipes/**"],
-      "tests": ["lib:tools::blueprint", "lib:tools::newgame", "lib:tools::game", "lib:project_browser", "lib:tools::recipes", "ai_tasks", "docs_fresh"],
+      "tests": ["lib:tools::blueprint", "lib:tools::newgame", "lib:tools::game", "lib:tools::gamepublish", "lib:project_browser", "lib:tools::recipes", "ai_tasks", "docs_fresh"],
       "commands": ["red_engine2 build --example"],
       "docs": ["docs/adr/0024-the-framework-layer-blueprints-and-game-projects.md", "docs/adr/0041-native-input-and-sandbox-workflow.md", "SPEC.md"],
       "depends_on": ["verification", "match_flow"]
     },
     "self_description": {
       "summary": "The engine describing itself and choosing its own verification: describe, search, src navigation, context work packets, impact/affected (minimal verification), catalog, doctor, status, the JSON envelope and the MCP wrapper.",
-      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py"],
+      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py", "src/tools/racetrack.rs", "src/tools/gamepublish.rs"],
       "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context", "cli_envelope", "docs_fresh", "features_index"],
       "commands": ["red_engine2 describe --brief", "red_engine2 features --check", "red_engine2 affected --dry-run"],
       "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md"]

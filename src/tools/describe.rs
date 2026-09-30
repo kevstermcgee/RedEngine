@@ -51,7 +51,7 @@ pub struct TypeInfo {
 pub const COMMON_FIELDS: &[(&str, &str, &str)] = &[
     ("id", "string, required, unique", "name every tool refers to; use prefixes (bed_master, bush_west_1) so `rm 'bush_west_*'` works"),
     ("position", "[x,y,z] = [0,0,0]", "meters, +Y up; a keyframed track is allowed"),
-    ("rotation", "[rx,ry,rz] degrees = [0,0,0]", "applied X then Y then Z; only Y (yaw) is meaningful for upright objects"),
+    ("rotation", "[rx,ry,rz] degrees = [0,0,0]", "composed Rx*Ry*Rz (Z acts first, then Y, then X, about the WORLD axes), so [90, yaw, 0] tips a yawed object over the world X axis: a cylinder laid on its side that way points across a heading, not along it. To lay one along a heading nest it: a group with rotation [0,yaw,0] holding the cylinder at [90,0,0]. Only Y (yaw) matters for upright objects"),
     ("scale", "number or [x,y,z] = 1", "uniform or per-axis"),
     ("material", "{color, metallic, roughness, emissive}", "color #rrggbb; metallic/roughness 0..1 (defaults 0/0.6); emissive #hex glows"),
     ("collide", "bool = true", "false = walk-through (no collider, not standable, no lint volume); on a group it covers everything inside"),

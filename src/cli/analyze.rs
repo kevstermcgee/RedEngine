@@ -692,6 +692,17 @@ pub(crate) fn run_perf(scene: &Path, players: Option<usize>, secs: Option<f64>, 
     }
 }
 
+pub(crate) fn run_race_track(out: &Path, spec: red_engine2::tools::racetrack::TrackSpec) -> Result<(), String> {
+    use red_engine2::tools::racetrack;
+    let scene = racetrack::build(&spec)?;
+    if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    std::fs::write(out, serde_json::to_string(&scene).map_err(|e| e.to_string())?).map_err(|e| format!("{}: {e}", out.display()))?;
+    println!("wrote {}: {}", out.display(), racetrack::summary(&spec, &scene));
+    Ok(())
+}
+
 pub(crate) fn run_race_test(scene: &Path, bots: usize, level: f32, secs: f32, drivers: Option<&str>) -> Result<(), String> {
     use red_engine2::tools::racetest;
     let drivers = match drivers {

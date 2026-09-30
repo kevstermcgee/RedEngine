@@ -304,7 +304,7 @@ pub struct Welcome {
 }
 
 /// One player's state in a snapshot.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct PlayerSnap {
     /// Player id (slot).
     pub id: u8,
@@ -451,7 +451,7 @@ pub struct PropSnap {
 }
 
 /// The world as of one server tick.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Snapshot {
     /// Increasing per client; acknowledged by [`InputPacket::snapshot_ack`].
     pub seq: u32,
@@ -1180,6 +1180,14 @@ mod budget_tests {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn snapshots_have_a_default_so_a_new_field_costs_one_line_in_a_test() {
+        // Build test snapshots as `Snapshot { server_tick: 3, players: vec![PlayerSnap { id: 1, ..Default::default() }], ..Default::default() }`: adding a wire field
+        // then needs no edit in the twenty literals that do not care about it (friction found building Great Outdoors).
+        let s = Snapshot { server_tick: 3, players: vec![PlayerSnap { id: 1, ..Default::default() }], ..Default::default() };
+        assert_eq!((s.server_tick, s.players.len(), s.players[0].id, s.players[0].kart.is_none(), s.race.is_none()), (3, 1, 1, true, true));
+    }
+
     use super::*;
 
     fn input(seq: u32) -> PlayerInput {

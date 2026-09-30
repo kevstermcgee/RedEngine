@@ -23,6 +23,14 @@ pub(crate) fn run_frame(
         None => None,
     };
     let opts = FrameOpts { eye: eye.map(v3).transpose()?, at: at.map(v3).transpose()?, fov, hide, cut_above, size, t };
+    if let (Some(eye), Ok(text)) = (opts.eye, std::fs::read_to_string(scene)) {
+        if let Ok(parsed) = red_engine2::schema::parse_scene(&text) {
+            let target = opts.at.unwrap_or_else(|| parsed.camera.target.sample(t));
+            if let Some(w) = far_plane_warning(eye, target, parsed.camera.far) {
+                eprintln!("{w}");
+            }
+        }
+    }
     shots::render_frame(scene, out, &opts)?;
     println!("wrote {} ({:.2}s)", out.display(), started.elapsed().as_secs_f32());
     Ok(())
@@ -83,4 +91,23 @@ pub(crate) fn run_tour(scene: &Path, out: &Path, cols: u32, only: Option<&str>, 
     let labels = shots::tour(scene, out, custom, cols, only)?;
     println!("wrote {} with {} view(s): {} ({:.1}s)", out.display(), labels.len(), labels.join(", "), started.elapsed().as_secs_f32());
     Ok(())
+}
+
+/// A warning when a free camera at `eye` looks at `target` from farther away than the scene's `camera.far`: the far plane clips everything, and the picture is
+/// sky only (found the hard way rendering a 300 m overview of a 900 m circuit).
+fn far_plane_warning(eye: glam::Vec3, target: glam::Vec3, far: f32) -> Option<String> {
+    let d = eye.distance(target);
+    (d > far).then(|| format!("warning: the eye is {d:.0} m from the target but the scene's camera.far is {far:.0} m: things beyond it are not drawn, so this may render as sky only (raise camera.far in the scene)"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_free_camera_beyond_the_far_plane_is_warned_about() {
+        let w = far_plane_warning(glam::Vec3::new(0.0, 300.0, 0.0), glam::Vec3::ZERO, 200.0).expect("farther than far");
+        assert!(w.contains("camera.far") && w.contains("300 m"), "{w}");
+        assert!(far_plane_warning(glam::Vec3::new(0.0, 30.0, 0.0), glam::Vec3::ZERO, 200.0).is_none());
+    }
 }

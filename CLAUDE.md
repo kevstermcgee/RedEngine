@@ -36,6 +36,7 @@ cd ../mygame && scripts/red check                                   # green from
 scripts/red build-all && scripts/red check && scripts/red plan maps/main.json   # build, verify, LOOK
 scripts/red serve                                                   # headless multiplayer server; `scripts/red play HOST:PORT` joins
 ```
+A kart racer: `$R new-game ../mykarts --kind race --engine-path ../red-engine-2` (a generated circuit, the eight animals, bots, a lobby); then `race-test`, `frame`, the scaffolded hosting script (host it), `game publish ../RedEngineGames` (ship it).
 Do not fork this repository to make a game (the fork's docs and engine fixes drift; ADR 0024). `$R describe rules` covers game logic as data.
 
 ## Working on maps

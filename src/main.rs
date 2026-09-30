@@ -111,7 +111,9 @@ fn run(command: Command) -> Result<(), String> {
             run_ui_shot(&screen, &out, &size, hover.as_deref(), message, selected.as_deref(), &map)
         }
         Command::UiCheck { screen, size } => run_ui_check(screen.as_deref(), size.as_deref()),
-        Command::NewGame { dir, name, engine_path, engine_git, engine_ref } => run_new_game(&dir, name.as_deref(), engine_path, engine_git, engine_ref),
+        Command::NewGame { dir, kind, name, engine_path, engine_git, engine_ref } => {
+            run_new_game(&dir, &kind, name.as_deref(), engine_path, engine_git, engine_ref)
+        }
         Command::Game { cmd, dir } => run_game(&dir, cmd),
         Command::Build { blueprint, out, check, example } => run_build(blueprint.as_deref(), out.as_deref(), check, example),
         Command::Status { root, init, note, section, facts, sync_docs } => run_status(&root, init, note.as_deref(), &section, facts, &sync_docs),
@@ -162,6 +164,9 @@ fn run(command: Command) -> Result<(), String> {
         Command::Package { zip, verify, allow_dirty, no_build } => run_package(&zip, verify, allow_dirty, no_build),
         Command::Portmap { action, port, lease, router, allow_permanent } => run_portmap(&action, port, lease, router, allow_permanent),
         Command::Perf { scene, players, secs, windows, budget } => run_perf(&scene, players, secs, windows, budget.as_deref()),
+        Command::RaceTrack { out, half_width, half_height, radius, road, laps, no_terrain, trees } => {
+            run_race_track(&out, red_engine2::tools::racetrack::TrackSpec { half_width, half_height, radius, road, laps, terrain: !no_terrain, trees })
+        }
         Command::RaceTest { scene, bots, level, secs, drivers } => run_race_test(&scene, bots, level, secs, drivers.as_deref()),
         Command::Catalog { query, tag, category, kind, libraries, manifest, long, sheet, cols } => {
             let json = envelope::capturing();

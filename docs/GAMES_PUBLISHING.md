@@ -41,3 +41,11 @@ cataloged RedEngine commit on a Windows runner and creates a permanent GitHub
 Release containing one ZIP per playable. Each ZIP includes the engine and a small
 `Play-<slug>.exe` launcher. Add an entry only after its content is self-contained and
 manually playable with the listed arguments.
+
+## Publishing a game project
+
+A standalone game (made with `new-game`) is published with one command from its directory: `red_engine2 game publish ../RedEngineGames` (or `scripts/red game publish
+../RedEngineGames`). It copies the project to `projects/<name>` without `out/`, `.red`, `deploy/` or anything that looks like a key, points `game.json` at the sibling engine,
+and adds the playable to `.release-games.json` (`--host` in its launcher arguments when the map has bots, since bots live in a server; `--no-host` to open the map directly).
+It never commits or pushes: review `git status` in the games repository and push it yourself; its Windows workflow builds the ZIP. Push the engine first, so the release is
+built from a commit that has your engine changes.

@@ -7,6 +7,58 @@
 use super::game::EngineRef;
 use std::path::{Path, PathBuf};
 
+/// What kind of game to start.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Kind {
+    /// Rooms, doors and people on foot: a blueprint builds the map.
+    #[default]
+    Walk,
+    /// A kart race: `race-track` builds the circuit (the eight animals come with the engine), with a lobby-and-rounds `match` block and bots.
+    Race,
+}
+
+/// The hosting script every project gets as `deploy/install.sh` (a per-user systemd service; `deploy/install.sh --info` says how friends connect).
+const HOST_SH: &str = include_str!("../../deploy/game-host.sh");
+
+const RACE_CLAUDE_MD: &str = r#"# {{NAME}}
+
+A Red Engine 2 **kart race** project. **The engine is not in this repo**: `game.json` pins it (`engine`), and `scripts/red` fetches and builds that version on first use.
+Never copy engine source here; if the engine needs a change, make it in the engine repo.
+
+## First 60 seconds
+```bash
+scripts/red doctor               # which engine, is it built, is the toolchain there? (scripts\red.ps1 on Windows)
+scripts/red status               # resume: facts + git + STATUS.md (what is done / in flight / next)
+scripts/red describe --brief     # the engine's own ~1 KB manual; then `scripts/red search "<question>"`
+```
+
+## The loop
+```bash
+scripts/red race-track maps/main.json --half-width 130 --laps 4   # a whole raceable map from a few numbers (`race-track --help`); re-run to change the shape
+scripts/red race-test maps/main.json                              # 8 bots race it headless: lap times per animal, exit 1 if one cannot finish
+scripts/red check                                                  # lint + the karts audit + the map's own checks
+scripts/red frame maps/main.json out/look.png --eye 60,110,150 --at 0,0,20   # LOOK at it (camera.far must exceed the distance)
+scripts/red playtest maps/main.json --out out/playtest             # a scripted client plays it and takes pictures
+```
+- The eight animals (Duck, Bunny, Deer, Coyote, Hawk, Bear, Wolf, Beaver) are the engine's `karts` pack; the map instances them as `kart_<animal>`. Their stats are in
+  `sim::kart` (`scripts/red search "kart driver stats"`). Terrain, pickups, bots, the lobby animal picker, the HUD and the gamepad mapping are engine features.
+- `race-track` writes the whole map. To customise, edit the JSON's objects (or copy `race-track` output and script your changes, e.g. a Python generator like Great
+  Outdoors'); keep `race.line` (the bots' racing line) in step with any new route, and re-run `race-test`: a bot that did not finish tells you where it stopped.
+- SPEC.md "Races" has every `race` key (surfaces, item boxes, the grid, the line).
+
+## Play and host
+```bash
+scripts/red play-local           # a race against bots on this machine (hosts one and joins it)
+deploy/install.sh                # host it for friends on this Linux box (user systemd service, QUIC + join key); `--info` prints how they connect
+scripts/red game publish ../RedEngineGames   # put it where friends can install it (then commit and push that repo yourself)
+```
+
+## Rules for whoever works here next
+1. `scripts/red check` and `scripts/red race-test maps/main.json` before every commit and before you say "done".
+2. Record progress: `scripts/red status --note "what changed" --section done|now|next|blocked|notes`. Do it at every checkpoint.
+3. Keep this file short and true. Never commit `~/.config/<name>/` (the server identity and join key live there, outside the project).
+"#;
+
 const CLAUDE_MD: &str = r#"# {{NAME}}
 
 A Red Engine 2 game project. **The engine is not in this repo**: `game.json` pins it (`engine`), and `scripts/red` fetches and
@@ -249,6 +301,11 @@ fn write(dir: &Path, rel: &str, text: &str, out: &mut Vec<PathBuf>) -> Result<()
 
 /// Creates a game project in `dir` (which may exist but must not contain any of the files). Returns the files written.
 pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBuf>, String> {
+    scaffold_kind(dir, name, engine, Kind::Walk)
+}
+
+/// [`scaffold`] for a chosen [`Kind`] of game.
+pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> Result<Vec<PathBuf>, String> {
     if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
         return Err(format!("--name '{name}' must be letters, digits, _ or - (it becomes the blueprint and map name)"));
     }
@@ -261,24 +318,40 @@ pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBu
             engine.git_ref.clone().unwrap_or_else(|| "master".into())
         ),
     };
+    let race = kind == Kind::Race;
+    let blueprints = if race { "[]" } else { "[\"blueprints/main.blueprint.json\"]" };
+    let group = if race { "race" } else { "duel" };
     write(
         dir,
         "game.json",
         &format!(
-            "{{\n  \"game\": 1,\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"blueprints\": [\"blueprints/main.blueprint.json\"],\n  \"maps\": [\"maps/main.json\"],\n  \"server\": {{ \"map\": \"maps/main.json\", \"port\": 27015, \"spawn_group\": \"duel\" }}\n}}\n"
+            "{{\n  \"game\": 1,\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"blueprints\": {blueprints},\n  \"maps\": [\"maps/main.json\"],\n  \"server\": {{ \"map\": \"maps/main.json\", \"port\": 27015, \"spawn_group\": \"{group}\" }}\n}}\n"
         ),
         &mut out,
     )?;
-    let mut blueprint: serde_json::Value =
-        serde_json::from_str(&super::blueprint::example().replace("three_rooms", name)).map_err(|e| format!("internal starter blueprint is invalid: {e}"))?;
-    blueprint["prefab_files"] = serde_json::json!(["../assets/gameplay.json"]);
-    // New games start silent: music is something a game asks for (`"music": true`), never a default.
-    blueprint["scene"]["music"] = serde_json::json!(false);
-    let blueprint = serde_json::to_string_pretty(&blueprint).map_err(|e| e.to_string())? + "\n";
     write(dir, "assets/gameplay.json", "[]\n", &mut out)?;
     write(dir, "assets/README.md", LOCAL_ASSETS_README, &mut out)?;
-    write(dir, "blueprints/main.blueprint.json", &blueprint, &mut out)?;
-    write(dir, "CLAUDE.md", &CLAUDE_MD.replace("{{NAME}}", name), &mut out)?;
+    if race {
+        let scene = super::racetrack::build(&super::racetrack::TrackSpec::default())?;
+        write(dir, "maps/main.json", &serde_json::to_string(&scene).map_err(|e| e.to_string())?, &mut out)?;
+        write(dir, "CLAUDE.md", &RACE_CLAUDE_MD.replace("{{NAME}}", name), &mut out)?;
+    } else {
+        let mut blueprint: serde_json::Value = serde_json::from_str(&super::blueprint::example().replace("three_rooms", name))
+            .map_err(|e| format!("internal starter blueprint is invalid: {e}"))?;
+        blueprint["prefab_files"] = serde_json::json!(["../assets/gameplay.json"]);
+        // New games start silent: music is something a game asks for (`"music": true`), never a default.
+        blueprint["scene"]["music"] = serde_json::json!(false);
+        let blueprint = serde_json::to_string_pretty(&blueprint).map_err(|e| e.to_string())? + "\n";
+        write(dir, "blueprints/main.blueprint.json", &blueprint, &mut out)?;
+        write(dir, "CLAUDE.md", &CLAUDE_MD.replace("{{NAME}}", name), &mut out)?;
+    }
+    write(dir, "deploy/install.sh", HOST_SH, &mut out)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let p = dir.join("deploy/install.sh");
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).map_err(|e| format!("{}: {e}", p.display()))?;
+    }
     write(dir, "scripts/red", RED_SH, &mut out)?;
     write(dir, "scripts/red.ps1", RED_PS1, &mut out)?;
     write(dir, ".github/workflows/check.yml", CI_YML, &mut out)?;
@@ -290,7 +363,9 @@ pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBu
     if let Some(l) = built.iter().find(|l| l.failed) {
         return Err(format!("the starter blueprint did not build: {}", l.text));
     }
-    out.push(dir.join("maps/main.json"));
+    if !race {
+        out.push(dir.join("maps/main.json"));
+    }
     out.push(super::status::init(dir)?);
     Ok(out)
 }
@@ -325,6 +400,30 @@ mod tests {
         assert!(guide.contains("scripts/red play-local"), "every new game must document direct local single-player");
         assert!(scaffold(&dir, "cheese", &EngineRef::default()).is_err(), "second run must not clobber");
         assert!(scaffold(&std::env::temp_dir().join("re2_newgame_bad"), "bad name!", &EngineRef::default()).is_err());
+    }
+
+    #[test]
+    fn a_race_project_is_green_raceable_and_has_the_hosting_script() {
+        let dir = std::env::temp_dir().join(format!("re2_newgame_race_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        scaffold_kind(&dir, "kart-town", &EngineRef { path: Some("../RedEngine".into()), ..Default::default() }, Kind::Race).unwrap();
+        for f in ["game.json", "CLAUDE.md", "STATUS.md", "maps/main.json", "deploy/install.sh", "scripts/red"] {
+            assert!(dir.join(f).exists(), "missing {f}");
+        }
+        assert!(!dir.join("blueprints").exists(), "a race is not built from a blueprint");
+        let game = std::fs::read_to_string(dir.join("game.json")).unwrap();
+        assert!(game.contains("\"spawn_group\": \"race\"") && game.contains("\"blueprints\": []"), "{game}");
+        let cfg = super::super::game::load(&dir).unwrap_or_else(|e| panic!("{e:?}"));
+        let report = super::super::game::check(&cfg, false);
+        assert_eq!(report.failed(), 0, "{}", report.render());
+        assert!(report.render().contains("karts: all 8 drivers"), "{}", report.render());
+        let race = super::super::racetest::run(&dir.join("maps/main.json"), 8, 0.8, 300.0, &[]).unwrap();
+        assert!(race.all_finished(), "{}", super::super::racetest::render(&race));
+        let guide = std::fs::read_to_string(dir.join("CLAUDE.md")).unwrap();
+        assert!(guide.starts_with("# kart-town") && guide.contains("race-track") && guide.contains("game publish") && guide.contains("deploy/install.sh"));
+        let script = std::fs::read_to_string(dir.join("deploy/install.sh")).unwrap();
+        assert!(script.contains("game.json") && !script.contains("great-outdoors"), "the hosting script is generic");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

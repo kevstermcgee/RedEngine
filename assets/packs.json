@@ -17,6 +17,7 @@
     {"id": "decor", "file": "assets/decor.json", "description": "General decoration, plants, signs, and small set-dressing", "tags": ["decor", "set-dressing"]},
     {"id": "art", "file": "assets/art.json", "description": "Wall art and sculptures", "tags": ["decor", "visual"]},
     {"id": "lamps", "file": "assets/lamps.json", "description": "Visible lamp fixtures; scene lights remain separate", "tags": ["lighting", "interior"]},
-    {"id": "outdoor", "file": "assets/outdoor.json", "description": "Street, yard, park, and exterior set pieces", "tags": ["exterior", "environment"]}
+    {"id": "outdoor", "file": "assets/outdoor.json", "description": "Street, yard, park, and exterior set pieces", "tags": ["exterior", "environment"]},
+    {"id": "karts", "file": "assets/karts.json", "description": "The eight Great Outdoors animals, each in their own kart (Duck, Bunny, Deer, Coyote, Hawk, Bear, Wolf, Beaver), for kart races; origin at the middle of the base, facing +Z", "tags": ["kart", "race", "animals"]}
   ]
 }

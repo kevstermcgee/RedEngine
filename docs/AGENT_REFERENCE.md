@@ -347,6 +347,7 @@ gameplay in the scene's rules. `describe custom-client` is the one-screen API; t
 | `app::run` + `ClientGame` | a whole window loop: `scene`, `update`, `camera` (+ optional `hidden`, `hud_key`/`hud`, `title`) | gfx |
 | `app::WindowGpu`, `HudPainter` | build your own loop (re2 does) | gfx |
 | `app::Offscreen` | render world + HUD to RGBA/PNG without a window: presentation tests | gfx |
+| `race-track` | Write a complete raceable kart map from a few numbers: circuit, barriers, gates, item boxes, terrain, grid, bot line, the animals, lobby, checks | |
 
 `examples/external/topdown_switch` (own `Cargo.toml` and `[workspace]`, engine by path): top-down camera that turns (Q/E) and zooms
 (wheel), WASD relative to the view, click-to-move through `pick_ground` + `input_toward`, two switch plates and a gate that the rules

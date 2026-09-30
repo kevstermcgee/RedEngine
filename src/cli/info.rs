@@ -233,6 +233,7 @@ pub(crate) fn run_build(blueprint: Option<&Path>, out: Option<&Path>, check: boo
 
 pub(crate) fn run_new_game(
     dir: &Path,
+    kind: &str,
     name: Option<&str>,
     engine_path: Option<String>,
     engine_git: Option<String>,
@@ -248,12 +249,21 @@ pub(crate) fn run_new_game(
             .unwrap_or_else(|| "game".into()),
     };
     let engine = EngineRef { git: engine_git, git_ref: engine_ref, path: engine_path };
-    let files = newgame::scaffold(dir, &name, &engine)?;
+    let kind = match kind {
+        "walk" => newgame::Kind::Walk,
+        "race" => newgame::Kind::Race,
+        other => return Err(format!("--kind '{other}': use walk or race")),
+    };
+    let files = newgame::scaffold_kind(dir, &name, &engine, kind)?;
     println!("created game project '{name}' in {} ({} files)", dir.display(), files.len());
     println!("next:");
     println!("  cd {}", dir.display());
     println!("  scripts/red check            # (scripts\\red.ps1 on Windows) fetches + builds the engine on first use, then verifies the starter map");
-    println!("  scripts/red plan maps/main.json   # look at it; then edit blueprints/main.blueprint.json and `scripts/red build-all`");
+    if kind == newgame::Kind::Race {
+        println!("  scripts/red race-test maps/main.json   # 8 bots race the generated circuit; `scripts/red race-track --help` reshapes it");
+    } else {
+        println!("  scripts/red plan maps/main.json   # look at it; then edit blueprints/main.blueprint.json and `scripts/red build-all`");
+    }
     println!("  scripts/red play-local       # run around locally without a server or network connection");
     Ok(())
 }
@@ -312,6 +322,30 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             println!("this release's clients and its server must both be built from that commit;");
             println!("`scripts/red serve` builds the pinned engine's server (the first build is cold, several minutes)");
             println!("to develop again: red_engine2 game unpin <path to your engine checkout>");
+            Ok(())
+        }
+        GameCmd::Publish { games, host, no_host } => {
+            let done = red_engine2::tools::gamepublish::publish(
+                &cfg,
+                &games,
+                if host {
+                    Some(true)
+                } else if no_host {
+                    Some(false)
+                } else {
+                    None
+                },
+            )?;
+            println!(
+                "published '{}' into {}: {} files, playable '{}' ({})",
+                cfg.name,
+                games.display(),
+                done.files,
+                done.slug,
+                if done.added_entry { "added to .release-games.json" } else { "already in .release-games.json" }
+            );
+            println!("the download's launcher runs: RedEngine.exe {}", done.arguments.join(" "));
+            println!("next: review `git -C {} status`, commit and push it yourself; its Windows workflow builds the ZIP", games.display());
             Ok(())
         }
         GameCmd::Unpin { path } => {

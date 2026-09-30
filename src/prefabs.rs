@@ -42,6 +42,7 @@ pub const BUILTIN_FILES: &[(&str, &str)] = &[
     ("art", include_str!("../assets/art.json")),
     ("lamps", include_str!("../assets/lamps.json")),
     ("outdoor", include_str!("../assets/outdoor.json")),
+    ("karts", include_str!("../assets/karts.json")),
 ];
 
 const MAX_DEPTH: usize = 6;

@@ -39,6 +39,14 @@ The server needs only the map JSON: ship it next to the binary (or bake it into 
 Clients must have the same map: their hello carries a hash of it and the server rejects a mismatch (`WrongMap`). The hash ignores
 line endings, so a Windows and a Linux checkout of the same map agree.
 
+## One command on a Linux box
+
+Every project made by `new-game` has an `install.sh` in its deploy folder (it reads `game.json`): it builds the headless server from the engine `game.json` names (profile `fast`), makes the QUIC
+identity and a join key once, installs a per-user systemd service (no root; `loginctl enable-linger` keeps it up when logged out) and starts it.
+`install.sh --info` prints how friends connect (address, fingerprint, join key), `--uninstall` removes the service and keeps the identity. The fingerprint is
+public; the join key is private (it lives in `~/.config/<name>/server.env`, never in the project). Forward UDP 27015 for friends outside your network. Great Outdoors
+was hosted this way and a QUIC client with the pinned fingerprint and key raced on it.
+
 ## Keys, lobby and rounds
 
 * `--key SECRET` (or `RED_KEY`) makes joining need a key. Clients prove they know it (an HMAC challenge/response: the key is never sent) and every

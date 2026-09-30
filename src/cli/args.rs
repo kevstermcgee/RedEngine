@@ -150,6 +150,17 @@ pub(crate) enum GameCmd {
         #[arg(long)]
         allow_dirty: bool,
     },
+    /// Copy this project into a RedEngineGames checkout and add its playable (never commits; refuses keys).
+    Publish {
+        /// The RedEngineGames checkout (e.g. ../RedEngineGames).
+        games: PathBuf,
+        /// Make the download host a race/match on the player's PC (default: yes when the map has bots).
+        #[arg(long, conflicts_with = "no_host")]
+        host: bool,
+        /// Make the download open the map directly (single-player, or a menu to connect).
+        #[arg(long)]
+        no_host: bool,
+    },
     /// Develop again: point game.json at a local engine checkout (a path relative to the project) instead of a pinned commit.
     Unpin { path: String },
 }
@@ -487,6 +498,9 @@ pub(crate) enum Command {
     NewGame {
         /// Directory to create the project in.
         dir: PathBuf,
+        /// `walk` (rooms and people on foot, built from a blueprint; the default) or `race` (a kart race: a generated circuit, the eight animals, bots, a lobby).
+        #[arg(long, default_value = "walk")]
+        kind: String,
         /// Project name (default: the directory name).
         #[arg(long)]
         name: Option<String>,
@@ -726,7 +740,34 @@ pub(crate) enum Command {
         #[arg(long)]
         budget: Option<PathBuf>,
     },
-    /// Race kart bots on a map, headless, and say whether the track can be finished (Great Outdoors). Fills the grid with bots, one animal each (or the ones you
+    /// Write a raceable kart map from a few numbers.
+    /// A rounded-rectangle circuit with barriers, gates, item boxes, terrain, grid, bot line, the animals, lobby and checks; it lints clean.
+    RaceTrack {
+        /// Where to write the scene (e.g. maps/main.json).
+        out: PathBuf,
+        /// Half the width of the loop, m (the east and west straights are at +-this).
+        #[arg(long, default_value_t = 110.0)]
+        half_width: f64,
+        /// Half the height of the loop, m (the north and south straights are at +-this).
+        #[arg(long, default_value_t = 70.0)]
+        half_height: f64,
+        /// Radius of the four bends, m.
+        #[arg(long, default_value_t = 40.0)]
+        radius: f64,
+        /// Road width, m.
+        #[arg(long, default_value_t = 22.0)]
+        road: f64,
+        /// Laps in the race.
+        #[arg(long, default_value_t = 3)]
+        laps: u8,
+        /// Leave out the mud, ford and dirt patches.
+        #[arg(long)]
+        no_terrain: bool,
+        /// Trees along the track (0 = none).
+        #[arg(long, default_value_t = 160)]
+        trees: u32,
+    },
+    /// Race kart bots on a map, headless: can the track be finished? Fills the grid with bots, one animal each (or the ones you
     /// name), runs the real tick until the race ends or the time is up, and reports every bot's finish time and lap times plus pickups taken and hits landed.
     /// Exit 1 if a bot did not finish: a fence across the racing line, a gate the kart cannot reach or a corner too tight shows up here, before a person finds it.
     RaceTest {

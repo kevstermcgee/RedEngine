@@ -1,0 +1,5367 @@
+[
+ {
+  "name": "kart_duck",
+  "tags": [
+   "vehicle",
+   "character",
+   "great-outdoors",
+   "animal"
+  ],
+  "desc": "Duck: a round yellow duck with an orange bill in a rubber-duck kart. Faces -Z, sits on y = 0.",
+  "collide": false,
+  "meta": {
+   "status": "experimental",
+   "origin": "generated",
+   "revision": 1,
+   "license": "MIT",
+   "provenance": "tools/gen_karts.py"
+  },
+  "objects": [
+   {
+    "id": "b_1",
+    "type": "box",
+    "size": [
+     1.0,
+     0.26,
+     1.8
+    ],
+    "position": [
+     0,
+     0.34,
+     0.0
+    ],
+    "material": {
+     "color": "#ffe9a0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_2",
+    "type": "box",
+    "size": [
+     0.7,
+     0.22,
+     0.7
+    ],
+    "position": [
+     0,
+     0.36,
+     -1.05
+    ],
+    "material": {
+     "color": "#ffd166",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_3",
+    "type": "box",
+    "size": [
+     1.2,
+     0.32,
+     0.4
+    ],
+    "position": [
+     0,
+     0.46,
+     0.88
+    ],
+    "material": {
+     "color": "#ffd166",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_4",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#ffd166",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_5",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     -0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#ffd166",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_6",
+    "type": "box",
+    "size": [
+     0.62,
+     0.3,
+     0.5
+    ],
+    "position": [
+     0,
+     0.6,
+     0.28
+    ],
+    "material": {
+     "color": "#ffe9a0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "c_7",
+    "type": "cylinder",
+    "radius": 0.13,
+    "height": 0.05,
+    "position": [
+     0,
+     0.9,
+     -0.38
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_8",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.34,
+    "position": [
+     0,
+     0.72,
+     -0.36
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_9",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_10",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_11",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_12",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_13",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_14",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_15",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_16",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "s_17",
+    "type": "sphere",
+    "radius": 0.3,
+    "position": [
+     0,
+     0.98,
+     0.22
+    ],
+    "material": {
+     "color": "#ffe27a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_18",
+    "type": "sphere",
+    "radius": 0.21,
+    "position": [
+     0,
+     0.96,
+     0.05499999999999999
+    ],
+    "material": {
+     "color": "#fff6cf",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_19",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     -0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#ffe27a",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "p_20",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#ffe27a",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "s_21",
+    "type": "sphere",
+    "radius": 0.3,
+    "position": [
+     0,
+     1.42,
+     0.1
+    ],
+    "material": {
+     "color": "#ffe27a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_22",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     -0.13,
+     1.48,
+     -0.13
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_23",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     -0.11800000000000001,
+     1.5,
+     -0.17
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_24",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0.13,
+     1.48,
+     -0.13
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_25",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     0.11800000000000001,
+     1.5,
+     -0.17
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_26",
+    "type": "box",
+    "size": [
+     0.26,
+     0.07,
+     0.3
+    ],
+    "position": [
+     0,
+     1.36,
+     -0.27
+    ],
+    "material": {
+     "color": "#ffb35c",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_27",
+    "type": "box",
+    "size": [
+     0.22,
+     0.05,
+     0.22
+    ],
+    "position": [
+     0,
+     1.31,
+     -0.25
+    ],
+    "material": {
+     "color": "#ff9f45",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_28",
+    "type": "sphere",
+    "radius": 0.06,
+    "position": [
+     0,
+     1.42,
+     0.38
+    ],
+    "material": {
+     "color": "#fff2b8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_29",
+    "type": "box",
+    "size": [
+     0.05,
+     0.22,
+     0.34
+    ],
+    "position": [
+     -0.33,
+     1.0,
+     0.3
+    ],
+    "material": {
+     "color": "#ffd84d",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     -18
+    ]
+   },
+   {
+    "id": "b_30",
+    "type": "box",
+    "size": [
+     0.05,
+     0.22,
+     0.34
+    ],
+    "position": [
+     0.33,
+     1.0,
+     0.3
+    ],
+    "material": {
+     "color": "#ffd84d",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     18
+    ]
+   },
+   {
+    "id": "k_31",
+    "type": "cone",
+    "radius": 0.16,
+    "height": 0.3,
+    "position": [
+     0,
+     0.72,
+     1.05
+    ],
+    "material": {
+     "color": "#ffe27a",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -60,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "name": "kart_bunny",
+  "tags": [
+   "vehicle",
+   "character",
+   "great-outdoors",
+   "animal"
+  ],
+  "desc": "Bunny: a pink-white bunny with tall ears and a carrot on the nose of a mint kart. Faces -Z, sits on y = 0.",
+  "collide": false,
+  "meta": {
+   "status": "experimental",
+   "origin": "generated",
+   "revision": 1,
+   "license": "MIT",
+   "provenance": "tools/gen_karts.py"
+  },
+  "objects": [
+   {
+    "id": "b_1",
+    "type": "box",
+    "size": [
+     1.0,
+     0.26,
+     1.8
+    ],
+    "position": [
+     0,
+     0.34,
+     0.0
+    ],
+    "material": {
+     "color": "#c7f0dc",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_2",
+    "type": "box",
+    "size": [
+     0.7,
+     0.22,
+     0.7
+    ],
+    "position": [
+     0,
+     0.36,
+     -1.05
+    ],
+    "material": {
+     "color": "#ffb59a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_3",
+    "type": "box",
+    "size": [
+     1.2,
+     0.32,
+     0.4
+    ],
+    "position": [
+     0,
+     0.46,
+     0.88
+    ],
+    "material": {
+     "color": "#ffb59a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_4",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#ffb59a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_5",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     -0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#ffb59a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_6",
+    "type": "box",
+    "size": [
+     0.62,
+     0.3,
+     0.5
+    ],
+    "position": [
+     0,
+     0.6,
+     0.28
+    ],
+    "material": {
+     "color": "#c7f0dc",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "c_7",
+    "type": "cylinder",
+    "radius": 0.13,
+    "height": 0.05,
+    "position": [
+     0,
+     0.9,
+     -0.38
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_8",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.34,
+    "position": [
+     0,
+     0.72,
+     -0.36
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_9",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_10",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_11",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_12",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_13",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_14",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_15",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_16",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "s_17",
+    "type": "sphere",
+    "radius": 0.3,
+    "position": [
+     0,
+     0.98,
+     0.22
+    ],
+    "material": {
+     "color": "#fdeef4",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_18",
+    "type": "sphere",
+    "radius": 0.21,
+    "position": [
+     0,
+     0.96,
+     0.05499999999999999
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_19",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     -0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#fdeef4",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "p_20",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#fdeef4",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "s_21",
+    "type": "sphere",
+    "radius": 0.3,
+    "position": [
+     0,
+     1.42,
+     0.1
+    ],
+    "material": {
+     "color": "#fdeef4",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_22",
+    "type": "sphere",
+    "radius": 0.055,
+    "position": [
+     -0.13,
+     1.48,
+     -0.14
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_23",
+    "type": "sphere",
+    "radius": 0.01925,
+    "position": [
+     -0.11800000000000001,
+     1.5,
+     -0.18400000000000002
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_24",
+    "type": "sphere",
+    "radius": 0.055,
+    "position": [
+     0.13,
+     1.48,
+     -0.14
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_25",
+    "type": "sphere",
+    "radius": 0.01925,
+    "position": [
+     0.11800000000000001,
+     1.5,
+     -0.18400000000000002
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_26",
+    "type": "sphere",
+    "radius": 0.055,
+    "position": [
+     0,
+     1.4,
+     -0.29
+    ],
+    "material": {
+     "color": "#ffa6c1",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_27",
+    "type": "capsule",
+    "radius": 0.09,
+    "height": 0.68,
+    "position": [
+     -0.13,
+     1.95,
+     0.1
+    ],
+    "material": {
+     "color": "#fdeef4",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     -8
+    ]
+   },
+   {
+    "id": "p_28",
+    "type": "capsule",
+    "radius": 0.045,
+    "height": 0.5,
+    "position": [
+     -0.13,
+     1.95,
+     0.04
+    ],
+    "material": {
+     "color": "#ffc2d6",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     -8
+    ]
+   },
+   {
+    "id": "p_29",
+    "type": "capsule",
+    "radius": 0.09,
+    "height": 0.68,
+    "position": [
+     0.13,
+     1.95,
+     0.1
+    ],
+    "material": {
+     "color": "#fdeef4",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     8
+    ]
+   },
+   {
+    "id": "p_30",
+    "type": "capsule",
+    "radius": 0.045,
+    "height": 0.5,
+    "position": [
+     0.13,
+     1.95,
+     0.04
+    ],
+    "material": {
+     "color": "#ffc2d6",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     8
+    ]
+   },
+   {
+    "id": "s_31",
+    "type": "sphere",
+    "radius": 0.15,
+    "position": [
+     0,
+     0.9,
+     0.8
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "k_32",
+    "type": "cone",
+    "radius": 0.06,
+    "height": 0.22,
+    "position": [
+     0.25,
+     0.62,
+     -1.05
+    ],
+    "material": {
+     "color": "#ff9b54",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -90,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "k_33",
+    "type": "cone",
+    "radius": 0.03,
+    "height": 0.08,
+    "position": [
+     0.25,
+     0.62,
+     -1.2
+    ],
+    "material": {
+     "color": "#8fd694",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -90,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "name": "kart_deer",
+  "tags": [
+   "vehicle",
+   "character",
+   "great-outdoors",
+   "animal"
+  ],
+  "desc": "Deer: a fawn deer with antlers in a leaf-green kart. Faces -Z, sits on y = 0.",
+  "collide": false,
+  "meta": {
+   "status": "experimental",
+   "origin": "generated",
+   "revision": 1,
+   "license": "MIT",
+   "provenance": "tools/gen_karts.py"
+  },
+  "objects": [
+   {
+    "id": "b_1",
+    "type": "box",
+    "size": [
+     1.0,
+     0.26,
+     1.8
+    ],
+    "position": [
+     0,
+     0.34,
+     0.0
+    ],
+    "material": {
+     "color": "#c9edd0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_2",
+    "type": "box",
+    "size": [
+     0.7,
+     0.22,
+     0.7
+    ],
+    "position": [
+     0,
+     0.36,
+     -1.05
+    ],
+    "material": {
+     "color": "#f6d6a8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_3",
+    "type": "box",
+    "size": [
+     1.2,
+     0.32,
+     0.4
+    ],
+    "position": [
+     0,
+     0.46,
+     0.88
+    ],
+    "material": {
+     "color": "#f6d6a8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_4",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#f6d6a8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_5",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     -0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#f6d6a8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_6",
+    "type": "box",
+    "size": [
+     0.62,
+     0.3,
+     0.5
+    ],
+    "position": [
+     0,
+     0.6,
+     0.28
+    ],
+    "material": {
+     "color": "#c9edd0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "c_7",
+    "type": "cylinder",
+    "radius": 0.13,
+    "height": 0.05,
+    "position": [
+     0,
+     0.9,
+     -0.38
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_8",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.34,
+    "position": [
+     0,
+     0.72,
+     -0.36
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_9",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_10",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_11",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_12",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_13",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_14",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_15",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_16",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "s_17",
+    "type": "sphere",
+    "radius": 0.3,
+    "position": [
+     0,
+     0.98,
+     0.22
+    ],
+    "material": {
+     "color": "#e8c39e",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_18",
+    "type": "sphere",
+    "radius": 0.21,
+    "position": [
+     0,
+     0.96,
+     0.05499999999999999
+    ],
+    "material": {
+     "color": "#fff1de",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_19",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     -0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#e8c39e",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "p_20",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#e8c39e",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "s_21",
+    "type": "sphere",
+    "radius": 0.28,
+    "position": [
+     0,
+     1.42,
+     0.1
+    ],
+    "material": {
+     "color": "#e8c39e",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_22",
+    "type": "box",
+    "size": [
+     0.2,
+     0.18,
+     0.28
+    ],
+    "position": [
+     0,
+     1.34,
+     -0.24
+    ],
+    "material": {
+     "color": "#f0d2b0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_23",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0,
+     1.36,
+     -0.39
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_24",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     -0.13,
+     1.5,
+     -0.12
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_25",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     -0.11800000000000001,
+     1.52,
+     -0.16
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_26",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0.13,
+     1.5,
+     -0.12
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_27",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     0.11800000000000001,
+     1.52,
+     -0.16
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "k_28",
+    "type": "cone",
+    "radius": 0.09,
+    "height": 0.28,
+    "position": [
+     -0.3,
+     1.5,
+     0.12
+    ],
+    "material": {
+     "color": "#e8c39e",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     70
+    ]
+   },
+   {
+    "id": "c_29",
+    "type": "cylinder",
+    "radius": 0.028,
+    "height": 0.5,
+    "position": [
+     -0.15,
+     1.9,
+     0.1
+    ],
+    "material": {
+     "color": "#b58863",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "c_30",
+    "type": "cylinder",
+    "radius": 0.022,
+    "height": 0.26,
+    "position": [
+     -0.24,
+     2.0,
+     0.1
+    ],
+    "material": {
+     "color": "#b58863",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     -50
+    ]
+   },
+   {
+    "id": "c_31",
+    "type": "cylinder",
+    "radius": 0.022,
+    "height": 0.22,
+    "position": [
+     -0.21,
+     1.82,
+     0.03
+    ],
+    "material": {
+     "color": "#b58863",
+     "roughness": 0.75
+    },
+    "rotation": [
+     35,
+     0,
+     -30
+    ]
+   },
+   {
+    "id": "k_32",
+    "type": "cone",
+    "radius": 0.09,
+    "height": 0.28,
+    "position": [
+     0.3,
+     1.5,
+     0.12
+    ],
+    "material": {
+     "color": "#e8c39e",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     -70
+    ]
+   },
+   {
+    "id": "c_33",
+    "type": "cylinder",
+    "radius": 0.028,
+    "height": 0.5,
+    "position": [
+     0.15,
+     1.9,
+     0.1
+    ],
+    "material": {
+     "color": "#b58863",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "c_34",
+    "type": "cylinder",
+    "radius": 0.022,
+    "height": 0.26,
+    "position": [
+     0.24,
+     2.0,
+     0.1
+    ],
+    "material": {
+     "color": "#b58863",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     50
+    ]
+   },
+   {
+    "id": "c_35",
+    "type": "cylinder",
+    "radius": 0.022,
+    "height": 0.22,
+    "position": [
+     0.21,
+     1.82,
+     0.03
+    ],
+    "material": {
+     "color": "#b58863",
+     "roughness": 0.75
+    },
+    "rotation": [
+     35,
+     0,
+     30
+    ]
+   },
+   {
+    "id": "s_36",
+    "type": "sphere",
+    "radius": 0.035,
+    "position": [
+     0.12,
+     1.02,
+     0.28
+    ],
+    "material": {
+     "color": "#fff8ee",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_37",
+    "type": "sphere",
+    "radius": 0.035,
+    "position": [
+     -0.14,
+     0.94,
+     0.3
+    ],
+    "material": {
+     "color": "#fff8ee",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_38",
+    "type": "sphere",
+    "radius": 0.035,
+    "position": [
+     0.05,
+     1.12,
+     0.36
+    ],
+    "material": {
+     "color": "#fff8ee",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "k_39",
+    "type": "cone",
+    "radius": 0.13,
+    "height": 0.32,
+    "position": [
+     0,
+     0.62,
+     1.0
+    ],
+    "material": {
+     "color": "#a8d5ba",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -70,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "name": "kart_coyote",
+  "tags": [
+   "vehicle",
+   "character",
+   "great-outdoors",
+   "animal"
+  ],
+  "desc": "Coyote: a sandy coyote with a bushy tail in a terracotta kart on big dirt tyres. Faces -Z, sits on y = 0.",
+  "collide": false,
+  "meta": {
+   "status": "experimental",
+   "origin": "generated",
+   "revision": 1,
+   "license": "MIT",
+   "provenance": "tools/gen_karts.py"
+  },
+  "objects": [
+   {
+    "id": "b_1",
+    "type": "box",
+    "size": [
+     1.0,
+     0.26,
+     1.8
+    ],
+    "position": [
+     0,
+     0.34,
+     0.0
+    ],
+    "material": {
+     "color": "#f4c7b0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_2",
+    "type": "box",
+    "size": [
+     0.7,
+     0.22,
+     0.7
+    ],
+    "position": [
+     0,
+     0.36,
+     -1.05
+    ],
+    "material": {
+     "color": "#e9a98a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_3",
+    "type": "box",
+    "size": [
+     1.2,
+     0.32,
+     0.4
+    ],
+    "position": [
+     0,
+     0.46,
+     0.88
+    ],
+    "material": {
+     "color": "#e9a98a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_4",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#e9a98a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_5",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     -0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#e9a98a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_6",
+    "type": "box",
+    "size": [
+     0.62,
+     0.3,
+     0.5
+    ],
+    "position": [
+     0,
+     0.6,
+     0.28
+    ],
+    "material": {
+     "color": "#f4c7b0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "c_7",
+    "type": "cylinder",
+    "radius": 0.13,
+    "height": 0.05,
+    "position": [
+     0,
+     0.9,
+     -0.38
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_8",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.34,
+    "position": [
+     0,
+     0.72,
+     -0.36
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_9",
+    "type": "cylinder",
+    "radius": 0.36,
+    "height": 0.3,
+    "position": [
+     -0.62,
+     0.36,
+     -0.68
+    ],
+    "material": {
+     "color": "#6e5a55",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_10",
+    "type": "cylinder",
+    "radius": 0.162,
+    "height": 0.32999999999999996,
+    "position": [
+     -0.62,
+     0.36,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_11",
+    "type": "cylinder",
+    "radius": 0.36,
+    "height": 0.3,
+    "position": [
+     -0.62,
+     0.36,
+     0.68
+    ],
+    "material": {
+     "color": "#6e5a55",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_12",
+    "type": "cylinder",
+    "radius": 0.162,
+    "height": 0.32999999999999996,
+    "position": [
+     -0.62,
+     0.36,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_13",
+    "type": "cylinder",
+    "radius": 0.36,
+    "height": 0.3,
+    "position": [
+     0.62,
+     0.36,
+     -0.68
+    ],
+    "material": {
+     "color": "#6e5a55",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_14",
+    "type": "cylinder",
+    "radius": 0.162,
+    "height": 0.32999999999999996,
+    "position": [
+     0.62,
+     0.36,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_15",
+    "type": "cylinder",
+    "radius": 0.36,
+    "height": 0.3,
+    "position": [
+     0.62,
+     0.36,
+     0.68
+    ],
+    "material": {
+     "color": "#6e5a55",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_16",
+    "type": "cylinder",
+    "radius": 0.162,
+    "height": 0.32999999999999996,
+    "position": [
+     0.62,
+     0.36,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "s_17",
+    "type": "sphere",
+    "radius": 0.3,
+    "position": [
+     0,
+     0.98,
+     0.22
+    ],
+    "material": {
+     "color": "#d9b38c",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_18",
+    "type": "sphere",
+    "radius": 0.21,
+    "position": [
+     0,
+     0.96,
+     0.05499999999999999
+    ],
+    "material": {
+     "color": "#f1dcc0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_19",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     -0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#d9b38c",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "p_20",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#d9b38c",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "s_21",
+    "type": "sphere",
+    "radius": 0.28,
+    "position": [
+     0,
+     1.42,
+     0.1
+    ],
+    "material": {
+     "color": "#d9b38c",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_22",
+    "type": "box",
+    "size": [
+     0.2,
+     0.17,
+     0.4
+    ],
+    "position": [
+     0,
+     1.34,
+     -0.34
+    ],
+    "material": {
+     "color": "#e6c8a4",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_23",
+    "type": "sphere",
+    "radius": 0.055,
+    "position": [
+     0,
+     1.38,
+     -0.55
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_24",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     -0.13,
+     1.5,
+     -0.12
+    ],
+    "material": {
+     "color": "#5b3d1e",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_25",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     -0.11800000000000001,
+     1.52,
+     -0.16
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_26",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0.13,
+     1.5,
+     -0.12
+    ],
+    "material": {
+     "color": "#5b3d1e",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_27",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     0.11800000000000001,
+     1.52,
+     -0.16
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "k_28",
+    "type": "cone",
+    "radius": 0.1,
+    "height": 0.34,
+    "position": [
+     -0.15,
+     1.78,
+     0.1
+    ],
+    "material": {
+     "color": "#c49a6c",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     -10
+    ]
+   },
+   {
+    "id": "k_29",
+    "type": "cone",
+    "radius": 0.05,
+    "height": 0.2,
+    "position": [
+     -0.15,
+     1.75,
+     0.04
+    ],
+    "material": {
+     "color": "#f1c7b0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "k_30",
+    "type": "cone",
+    "radius": 0.1,
+    "height": 0.34,
+    "position": [
+     0.15,
+     1.78,
+     0.1
+    ],
+    "material": {
+     "color": "#c49a6c",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     10
+    ]
+   },
+   {
+    "id": "k_31",
+    "type": "cone",
+    "radius": 0.05,
+    "height": 0.2,
+    "position": [
+     0.15,
+     1.75,
+     0.04
+    ],
+    "material": {
+     "color": "#f1c7b0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_32",
+    "type": "capsule",
+    "radius": 0.14,
+    "height": 0.62,
+    "position": [
+     0,
+     0.9,
+     0.98
+    ],
+    "material": {
+     "color": "#c9a37a",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -70,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "s_33",
+    "type": "sphere",
+    "radius": 0.1,
+    "position": [
+     0,
+     0.62,
+     1.32
+    ],
+    "material": {
+     "color": "#f5e9d8",
+     "roughness": 0.75
+    }
+   }
+  ]
+ },
+ {
+  "name": "kart_hawk",
+  "tags": [
+   "vehicle",
+   "character",
+   "great-outdoors",
+   "animal"
+  ],
+  "desc": "Hawk: a brown hawk with spread wings in a sky-blue kart with fins. Faces -Z, sits on y = 0.",
+  "collide": false,
+  "meta": {
+   "status": "experimental",
+   "origin": "generated",
+   "revision": 1,
+   "license": "MIT",
+   "provenance": "tools/gen_karts.py"
+  },
+  "objects": [
+   {
+    "id": "b_1",
+    "type": "box",
+    "size": [
+     1.0,
+     0.26,
+     1.8
+    ],
+    "position": [
+     0,
+     0.34,
+     0.0
+    ],
+    "material": {
+     "color": "#bfe3ff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_2",
+    "type": "box",
+    "size": [
+     0.7,
+     0.22,
+     0.7
+    ],
+    "position": [
+     0,
+     0.36,
+     -1.05
+    ],
+    "material": {
+     "color": "#9cc7f0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_3",
+    "type": "box",
+    "size": [
+     1.2,
+     0.32,
+     0.4
+    ],
+    "position": [
+     0,
+     0.46,
+     0.88
+    ],
+    "material": {
+     "color": "#9cc7f0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_4",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#9cc7f0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_5",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     -0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#9cc7f0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_6",
+    "type": "box",
+    "size": [
+     0.62,
+     0.3,
+     0.5
+    ],
+    "position": [
+     0,
+     0.6,
+     0.28
+    ],
+    "material": {
+     "color": "#bfe3ff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "c_7",
+    "type": "cylinder",
+    "radius": 0.13,
+    "height": 0.05,
+    "position": [
+     0,
+     0.9,
+     -0.38
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_8",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.34,
+    "position": [
+     0,
+     0.72,
+     -0.36
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_9",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_10",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_11",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_12",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_13",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_14",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_15",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_16",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "s_17",
+    "type": "sphere",
+    "radius": 0.3,
+    "position": [
+     0,
+     0.98,
+     0.22
+    ],
+    "material": {
+     "color": "#b08968",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_18",
+    "type": "sphere",
+    "radius": 0.21,
+    "position": [
+     0,
+     0.96,
+     0.05499999999999999
+    ],
+    "material": {
+     "color": "#f3e9dc",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_19",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     -0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#b08968",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "p_20",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#b08968",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "s_21",
+    "type": "sphere",
+    "radius": 0.28,
+    "position": [
+     0,
+     1.42,
+     0.1
+    ],
+    "material": {
+     "color": "#f3e9dc",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_22",
+    "type": "sphere",
+    "radius": 0.06,
+    "position": [
+     -0.13,
+     1.5,
+     -0.14
+    ],
+    "material": {
+     "color": "#7a4d1d",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_23",
+    "type": "sphere",
+    "radius": 0.020999999999999998,
+    "position": [
+     -0.11800000000000001,
+     1.52,
+     -0.188
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_24",
+    "type": "sphere",
+    "radius": 0.06,
+    "position": [
+     0.13,
+     1.5,
+     -0.14
+    ],
+    "material": {
+     "color": "#7a4d1d",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_25",
+    "type": "sphere",
+    "radius": 0.020999999999999998,
+    "position": [
+     0.11800000000000001,
+     1.52,
+     -0.188
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "k_26",
+    "type": "cone",
+    "radius": 0.09,
+    "height": 0.3,
+    "position": [
+     0,
+     1.36,
+     -0.34
+    ],
+    "material": {
+     "color": "#ffd166",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -90,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "k_27",
+    "type": "cone",
+    "radius": 0.05,
+    "height": 0.14,
+    "position": [
+     0,
+     1.3,
+     -0.5
+    ],
+    "material": {
+     "color": "#f0b429",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -120,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "b_28",
+    "type": "box",
+    "size": [
+     0.34,
+     0.05,
+     0.12
+    ],
+    "position": [
+     0,
+     1.66,
+     0.0
+    ],
+    "material": {
+     "color": "#a1795a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_29",
+    "type": "box",
+    "size": [
+     0.09,
+     0.56,
+     0.66
+    ],
+    "position": [
+     -0.36,
+     1.0,
+     0.34
+    ],
+    "material": {
+     "color": "#a1795a",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     10
+    ]
+   },
+   {
+    "id": "b_30",
+    "type": "box",
+    "size": [
+     0.08,
+     0.4,
+     0.5
+    ],
+    "position": [
+     -0.4,
+     0.82,
+     0.56
+    ],
+    "material": {
+     "color": "#8d6e63",
+     "roughness": 0.75
+    },
+    "rotation": [
+     8,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "b_31",
+    "type": "box",
+    "size": [
+     0.05,
+     0.4,
+     0.4
+    ],
+    "position": [
+     -0.62,
+     0.75,
+     0.95
+    ],
+    "material": {
+     "color": "#7fb2e5",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_32",
+    "type": "box",
+    "size": [
+     0.09,
+     0.56,
+     0.66
+    ],
+    "position": [
+     0.36,
+     1.0,
+     0.34
+    ],
+    "material": {
+     "color": "#a1795a",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     -10
+    ]
+   },
+   {
+    "id": "b_33",
+    "type": "box",
+    "size": [
+     0.08,
+     0.4,
+     0.5
+    ],
+    "position": [
+     0.4,
+     0.82,
+     0.56
+    ],
+    "material": {
+     "color": "#8d6e63",
+     "roughness": 0.75
+    },
+    "rotation": [
+     8,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "b_34",
+    "type": "box",
+    "size": [
+     0.05,
+     0.4,
+     0.4
+    ],
+    "position": [
+     0.62,
+     0.75,
+     0.95
+    ],
+    "material": {
+     "color": "#7fb2e5",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_35",
+    "type": "box",
+    "size": [
+     0.1,
+     0.05,
+     0.5
+    ],
+    "position": [
+     -0.264,
+     0.86,
+     1.18
+    ],
+    "material": {
+     "color": "#a1795a",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -14,
+     -24,
+     0
+    ]
+   },
+   {
+    "id": "b_36",
+    "type": "box",
+    "size": [
+     0.1,
+     0.05,
+     0.5
+    ],
+    "position": [
+     0.0,
+     0.86,
+     1.18
+    ],
+    "material": {
+     "color": "#8d6e63",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -14,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "b_37",
+    "type": "box",
+    "size": [
+     0.1,
+     0.05,
+     0.5
+    ],
+    "position": [
+     0.264,
+     0.86,
+     1.18
+    ],
+    "material": {
+     "color": "#a1795a",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -14,
+     24,
+     0
+    ]
+   },
+   {
+    "id": "b_38",
+    "type": "box",
+    "size": [
+     0.5,
+     0.05,
+     0.26
+    ],
+    "position": [
+     0,
+     1.02,
+     1.24
+    ],
+    "material": {
+     "color": "#9cc7f0",
+     "roughness": 0.75
+    }
+   }
+  ]
+ },
+ {
+  "name": "kart_bear",
+  "tags": [
+   "vehicle",
+   "character",
+   "great-outdoors",
+   "animal"
+  ],
+  "desc": "Bear: a big brown bear in a wide honey-coloured kart with a bumper. Faces -Z, sits on y = 0.",
+  "collide": false,
+  "meta": {
+   "status": "experimental",
+   "origin": "generated",
+   "revision": 1,
+   "license": "MIT",
+   "provenance": "tools/gen_karts.py"
+  },
+  "objects": [
+   {
+    "id": "b_1",
+    "type": "box",
+    "size": [
+     1.4152,
+     0.3172,
+     2.196
+    ],
+    "position": [
+     0.0,
+     0.4148,
+     0.0
+    ],
+    "material": {
+     "color": "#ffe3d6",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_2",
+    "type": "box",
+    "size": [
+     1.0492,
+     0.2684,
+     0.854
+    ],
+    "position": [
+     0.0,
+     0.4392,
+     -1.281
+    ],
+    "material": {
+     "color": "#ff9f9a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_3",
+    "type": "box",
+    "size": [
+     1.6592,
+     0.3904,
+     0.488
+    ],
+    "position": [
+     0.0,
+     0.5612,
+     1.0736
+    ],
+    "material": {
+     "color": "#ff9f9a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_4",
+    "type": "box",
+    "size": [
+     0.1708,
+     0.2928,
+     1.586
+    ],
+    "position": [
+     0.8052,
+     0.5368,
+     0.061
+    ],
+    "material": {
+     "color": "#ff9f9a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_5",
+    "type": "box",
+    "size": [
+     0.1708,
+     0.2928,
+     1.586
+    ],
+    "position": [
+     -0.8052,
+     0.5368,
+     0.061
+    ],
+    "material": {
+     "color": "#ff9f9a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_6",
+    "type": "box",
+    "size": [
+     0.7564,
+     0.366,
+     0.61
+    ],
+    "position": [
+     0.0,
+     0.732,
+     0.3416
+    ],
+    "material": {
+     "color": "#ffe3d6",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "c_7",
+    "type": "cylinder",
+    "radius": 0.1586,
+    "height": 0.061,
+    "position": [
+     0.0,
+     1.098,
+     -0.4636
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_8",
+    "type": "cylinder",
+    "radius": 0.0366,
+    "height": 0.4148,
+    "position": [
+     0.0,
+     0.8784,
+     -0.4392
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_9",
+    "type": "cylinder",
+    "radius": 0.4148,
+    "height": 0.3904,
+    "position": [
+     -0.854,
+     0.4148,
+     -0.8296
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_10",
+    "type": "cylinder",
+    "radius": 0.1867,
+    "height": 0.427,
+    "position": [
+     -0.854,
+     0.4148,
+     -0.8296
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_11",
+    "type": "cylinder",
+    "radius": 0.4148,
+    "height": 0.3904,
+    "position": [
+     -0.854,
+     0.4148,
+     0.8296
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_12",
+    "type": "cylinder",
+    "radius": 0.1867,
+    "height": 0.427,
+    "position": [
+     -0.854,
+     0.4148,
+     0.8296
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_13",
+    "type": "cylinder",
+    "radius": 0.4148,
+    "height": 0.3904,
+    "position": [
+     0.854,
+     0.4148,
+     -0.8296
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_14",
+    "type": "cylinder",
+    "radius": 0.1867,
+    "height": 0.427,
+    "position": [
+     0.854,
+     0.4148,
+     -0.8296
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_15",
+    "type": "cylinder",
+    "radius": 0.4148,
+    "height": 0.3904,
+    "position": [
+     0.854,
+     0.4148,
+     0.8296
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_16",
+    "type": "cylinder",
+    "radius": 0.1867,
+    "height": 0.427,
+    "position": [
+     0.854,
+     0.4148,
+     0.8296
+    ],
+    "material": {
+     "color": "#f5f0ff",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "s_17",
+    "type": "sphere",
+    "radius": 0.4636,
+    "position": [
+     0.0,
+     1.1956,
+     0.2684
+    ],
+    "material": {
+     "color": "#8c6b5e",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_18",
+    "type": "sphere",
+    "radius": 0.3245,
+    "position": [
+     0.0,
+     1.1712,
+     0.0134
+    ],
+    "material": {
+     "color": "#c9a898",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_19",
+    "type": "capsule",
+    "radius": 0.0854,
+    "height": 0.5124,
+    "position": [
+     -0.3172,
+     1.22,
+     -0.061
+    ],
+    "material": {
+     "color": "#8c6b5e",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "p_20",
+    "type": "capsule",
+    "radius": 0.0854,
+    "height": 0.5124,
+    "position": [
+     0.3172,
+     1.22,
+     -0.061
+    ],
+    "material": {
+     "color": "#8c6b5e",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "s_21",
+    "type": "sphere",
+    "radius": 0.4392,
+    "position": [
+     0.0,
+     1.8544,
+     0.122
+    ],
+    "material": {
+     "color": "#8c6b5e",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_22",
+    "type": "sphere",
+    "radius": 0.1952,
+    "position": [
+     0.0,
+     1.7446,
+     -0.3416
+    ],
+    "material": {
+     "color": "#d9bfae",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_23",
+    "type": "sphere",
+    "radius": 0.0732,
+    "position": [
+     0.0,
+     1.7934,
+     -0.5124
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_24",
+    "type": "sphere",
+    "radius": 0.061,
+    "position": [
+     -0.2074,
+     1.952,
+     -0.2196
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_25",
+    "type": "sphere",
+    "radius": 0.0213,
+    "position": [
+     -0.1928,
+     1.9764,
+     -0.2684
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_26",
+    "type": "sphere",
+    "radius": 0.061,
+    "position": [
+     0.2074,
+     1.952,
+     -0.2196
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_27",
+    "type": "sphere",
+    "radius": 0.0213,
+    "position": [
+     0.1928,
+     1.9764,
+     -0.2684
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_28",
+    "type": "sphere",
+    "radius": 0.1586,
+    "position": [
+     -0.3416,
+     2.2692,
+     0.122
+    ],
+    "material": {
+     "color": "#8c6b5e",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_29",
+    "type": "sphere",
+    "radius": 0.0854,
+    "position": [
+     -0.3416,
+     2.2692,
+     0.0
+    ],
+    "material": {
+     "color": "#d9bfae",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_30",
+    "type": "sphere",
+    "radius": 0.1586,
+    "position": [
+     0.3416,
+     2.2692,
+     0.122
+    ],
+    "material": {
+     "color": "#8c6b5e",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_31",
+    "type": "sphere",
+    "radius": 0.0854,
+    "position": [
+     0.3416,
+     2.2692,
+     0.0
+    ],
+    "material": {
+     "color": "#d9bfae",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_32",
+    "type": "sphere",
+    "radius": 0.1952,
+    "position": [
+     0.0,
+     1.1956,
+     0.7564
+    ],
+    "material": {
+     "color": "#8c6b5e",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_33",
+    "type": "box",
+    "size": [
+     1.586,
+     0.1952,
+     0.2684
+    ],
+    "position": [
+     0.0,
+     0.4148,
+     -1.525
+    ],
+    "material": {
+     "color": "#ff9f9a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_34",
+    "type": "box",
+    "size": [
+     0.7564,
+     0.4392,
+     0.5368
+    ],
+    "position": [
+     0.0,
+     0.9516,
+     1.1956
+    ],
+    "material": {
+     "color": "#ff8f8f",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_35",
+    "type": "box",
+    "size": [
+     0.7808,
+     0.061,
+     0.5612
+    ],
+    "position": [
+     0.0,
+     1.1956,
+     1.1956
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_36",
+    "type": "box",
+    "size": [
+     0.122,
+     0.4514,
+     0.549
+    ],
+    "position": [
+     -0.244,
+     0.9516,
+     1.1956
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_37",
+    "type": "box",
+    "size": [
+     0.122,
+     0.4514,
+     0.549
+    ],
+    "position": [
+     0.0,
+     0.9516,
+     1.1956
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_38",
+    "type": "box",
+    "size": [
+     0.122,
+     0.4514,
+     0.549
+    ],
+    "position": [
+     0.244,
+     0.9516,
+     1.1956
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "c_39",
+    "type": "cylinder",
+    "radius": 0.0366,
+    "height": 0.488,
+    "position": [
+     0.0,
+     1.2932,
+     1.1956
+    ],
+    "material": {
+     "color": "#c9a173",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_40",
+    "type": "cylinder",
+    "radius": 0.1464,
+    "height": 0.1708,
+    "position": [
+     0.5612,
+     0.9516,
+     0.732
+    ],
+    "material": {
+     "color": "#e8a86a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_41",
+    "type": "sphere",
+    "radius": 0.122,
+    "position": [
+     0.5612,
+     1.098,
+     0.732
+    ],
+    "material": {
+     "color": "#ffd166",
+     "roughness": 0.75
+    }
+   }
+  ]
+ },
+ {
+  "name": "kart_wolf",
+  "tags": [
+   "vehicle",
+   "character",
+   "great-outdoors",
+   "animal"
+  ],
+  "desc": "Wolf: a grey-blue wolf with pointed ears in a lavender kart. Faces -Z, sits on y = 0.",
+  "collide": false,
+  "meta": {
+   "status": "experimental",
+   "origin": "generated",
+   "revision": 1,
+   "license": "MIT",
+   "provenance": "tools/gen_karts.py"
+  },
+  "objects": [
+   {
+    "id": "b_1",
+    "type": "box",
+    "size": [
+     1.0,
+     0.26,
+     1.8
+    ],
+    "position": [
+     0,
+     0.34,
+     0.0
+    ],
+    "material": {
+     "color": "#e3d3f0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_2",
+    "type": "box",
+    "size": [
+     0.7,
+     0.22,
+     0.7
+    ],
+    "position": [
+     0,
+     0.36,
+     -1.05
+    ],
+    "material": {
+     "color": "#cdb4db",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_3",
+    "type": "box",
+    "size": [
+     1.2,
+     0.32,
+     0.4
+    ],
+    "position": [
+     0,
+     0.46,
+     0.88
+    ],
+    "material": {
+     "color": "#cdb4db",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_4",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#cdb4db",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_5",
+    "type": "box",
+    "size": [
+     0.14,
+     0.24,
+     1.3
+    ],
+    "position": [
+     -0.58,
+     0.44,
+     0.05
+    ],
+    "material": {
+     "color": "#cdb4db",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_6",
+    "type": "box",
+    "size": [
+     0.62,
+     0.3,
+     0.5
+    ],
+    "position": [
+     0,
+     0.6,
+     0.28
+    ],
+    "material": {
+     "color": "#e3d3f0",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "c_7",
+    "type": "cylinder",
+    "radius": 0.13,
+    "height": 0.05,
+    "position": [
+     0,
+     0.9,
+     -0.38
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_8",
+    "type": "cylinder",
+    "radius": 0.03,
+    "height": 0.34,
+    "position": [
+     0,
+     0.72,
+     -0.36
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_9",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_10",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#e8ecf5",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_11",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_12",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     -0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#e8ecf5",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_13",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_14",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     -0.68
+    ],
+    "material": {
+     "color": "#e8ecf5",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_15",
+    "type": "cylinder",
+    "radius": 0.3,
+    "height": 0.24,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#5b5470",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_16",
+    "type": "cylinder",
+    "radius": 0.135,
+    "height": 0.27,
+    "position": [
+     0.62,
+     0.3,
+     0.68
+    ],
+    "material": {
+     "color": "#e8ecf5",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "s_17",
+    "type": "sphere",
+    "radius": 0.3,
+    "position": [
+     0,
+     0.98,
+     0.22
+    ],
+    "material": {
+     "color": "#b8c0d8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_18",
+    "type": "sphere",
+    "radius": 0.21,
+    "position": [
+     0,
+     0.96,
+     0.05499999999999999
+    ],
+    "material": {
+     "color": "#eef1f8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_19",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     -0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#b8c0d8",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "p_20",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.42,
+    "position": [
+     0.26,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#b8c0d8",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "s_21",
+    "type": "sphere",
+    "radius": 0.28,
+    "position": [
+     0,
+     1.42,
+     0.1
+    ],
+    "material": {
+     "color": "#b8c0d8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_22",
+    "type": "box",
+    "size": [
+     0.2,
+     0.17,
+     0.42
+    ],
+    "position": [
+     0,
+     1.34,
+     -0.35
+    ],
+    "material": {
+     "color": "#d3d8ea",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_23",
+    "type": "sphere",
+    "radius": 0.055,
+    "position": [
+     0,
+     1.38,
+     -0.57
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_24",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     -0.13,
+     1.5,
+     -0.12
+    ],
+    "material": {
+     "color": "#e0a800",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_25",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     -0.11800000000000001,
+     1.52,
+     -0.16
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_26",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0.13,
+     1.5,
+     -0.12
+    ],
+    "material": {
+     "color": "#e0a800",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_27",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     0.11800000000000001,
+     1.52,
+     -0.16
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "k_28",
+    "type": "cone",
+    "radius": 0.1,
+    "height": 0.36,
+    "position": [
+     -0.16,
+     1.8,
+     0.1
+    ],
+    "material": {
+     "color": "#8e97b5",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     -8
+    ]
+   },
+   {
+    "id": "k_29",
+    "type": "cone",
+    "radius": 0.05,
+    "height": 0.2,
+    "position": [
+     -0.16,
+     1.77,
+     0.04
+    ],
+    "material": {
+     "color": "#f0d0d8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "k_30",
+    "type": "cone",
+    "radius": 0.1,
+    "height": 0.36,
+    "position": [
+     0.16,
+     1.8,
+     0.1
+    ],
+    "material": {
+     "color": "#8e97b5",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     8
+    ]
+   },
+   {
+    "id": "k_31",
+    "type": "cone",
+    "radius": 0.05,
+    "height": 0.2,
+    "position": [
+     0.16,
+     1.77,
+     0.04
+    ],
+    "material": {
+     "color": "#f0d0d8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_32",
+    "type": "capsule",
+    "radius": 0.13,
+    "height": 0.7,
+    "position": [
+     0,
+     0.92,
+     1.0
+    ],
+    "material": {
+     "color": "#a4adc9",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -72,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "s_33",
+    "type": "sphere",
+    "radius": 0.1,
+    "position": [
+     0,
+     0.6,
+     1.36
+    ],
+    "material": {
+     "color": "#eef1f8",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "k_34",
+    "type": "cone",
+    "radius": 0.07,
+    "height": 0.22,
+    "position": [
+     0,
+     1.1,
+     0.5
+    ],
+    "material": {
+     "color": "#c8cfe6",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -30,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "name": "kart_beaver",
+  "tags": [
+   "vehicle",
+   "character",
+   "great-outdoors",
+   "animal"
+  ],
+  "desc": "Beaver: a beaver in a kart made of logs and planks, with a flat tail. Faces -Z, sits on y = 0.",
+  "collide": false,
+  "meta": {
+   "status": "experimental",
+   "origin": "generated",
+   "revision": 1,
+   "license": "MIT",
+   "provenance": "tools/gen_karts.py"
+  },
+  "objects": [
+   {
+    "id": "c_1",
+    "type": "cylinder",
+    "radius": 0.26,
+    "height": 1.9,
+    "position": [
+     -0.34,
+     0.36,
+     0.0
+    ],
+    "material": {
+     "color": "#b8895a",
+     "roughness": 0.95
+    },
+    "rotation": [
+     90,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_2",
+    "type": "cylinder",
+    "radius": 0.2,
+    "height": 0.03,
+    "position": [
+     -0.34,
+     0.36,
+     -0.96
+    ],
+    "material": {
+     "color": "#e6c9a0",
+     "roughness": 0.75
+    },
+    "rotation": [
+     90,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_3",
+    "type": "cylinder",
+    "radius": 0.2,
+    "height": 0.03,
+    "position": [
+     -0.34,
+     0.36,
+     0.96
+    ],
+    "material": {
+     "color": "#e6c9a0",
+     "roughness": 0.75
+    },
+    "rotation": [
+     90,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_4",
+    "type": "cylinder",
+    "radius": 0.26,
+    "height": 1.9,
+    "position": [
+     0.34,
+     0.36,
+     0.0
+    ],
+    "material": {
+     "color": "#b8895a",
+     "roughness": 0.95
+    },
+    "rotation": [
+     90,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_5",
+    "type": "cylinder",
+    "radius": 0.2,
+    "height": 0.03,
+    "position": [
+     0.34,
+     0.36,
+     -0.96
+    ],
+    "material": {
+     "color": "#e6c9a0",
+     "roughness": 0.75
+    },
+    "rotation": [
+     90,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_6",
+    "type": "cylinder",
+    "radius": 0.2,
+    "height": 0.03,
+    "position": [
+     0.34,
+     0.36,
+     0.96
+    ],
+    "material": {
+     "color": "#e6c9a0",
+     "roughness": 0.75
+    },
+    "rotation": [
+     90,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "b_7",
+    "type": "box",
+    "size": [
+     1.1,
+     0.06,
+     0.36
+    ],
+    "position": [
+     0,
+     0.62,
+     -0.6
+    ],
+    "material": {
+     "color": "#d2a679",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_8",
+    "type": "box",
+    "size": [
+     1.1,
+     0.06,
+     0.36
+    ],
+    "position": [
+     0,
+     0.62,
+     -0.1
+    ],
+    "material": {
+     "color": "#a97c50",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_9",
+    "type": "box",
+    "size": [
+     1.1,
+     0.06,
+     0.36
+    ],
+    "position": [
+     0,
+     0.62,
+     0.4
+    ],
+    "material": {
+     "color": "#d2a679",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_10",
+    "type": "box",
+    "size": [
+     1.1,
+     0.06,
+     0.36
+    ],
+    "position": [
+     0,
+     0.62,
+     0.85
+    ],
+    "material": {
+     "color": "#a97c50",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_11",
+    "type": "box",
+    "size": [
+     0.7,
+     0.42,
+     0.14
+    ],
+    "position": [
+     0,
+     0.85,
+     0.72
+    ],
+    "material": {
+     "color": "#a97c50",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_12",
+    "type": "box",
+    "size": [
+     0.08,
+     0.5,
+     0.08
+    ],
+    "position": [
+     0.32,
+     0.8,
+     -0.62
+    ],
+    "material": {
+     "color": "#a97c50",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_13",
+    "type": "box",
+    "size": [
+     0.5,
+     0.05,
+     0.05
+    ],
+    "position": [
+     0,
+     1.02,
+     -0.62
+    ],
+    "material": {
+     "color": "#d2a679",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "c_14",
+    "type": "cylinder",
+    "radius": 0.13,
+    "height": 0.05,
+    "position": [
+     0,
+     0.95,
+     -0.34
+    ],
+    "material": {
+     "color": "#8a6a45",
+     "roughness": 0.75
+    },
+    "rotation": [
+     65,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "c_15",
+    "type": "cylinder",
+    "radius": 0.32,
+    "height": 0.26,
+    "position": [
+     -0.7,
+     0.32,
+     -0.68
+    ],
+    "material": {
+     "color": "#a67c52",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_16",
+    "type": "cylinder",
+    "radius": 0.24,
+    "height": 0.29,
+    "position": [
+     -0.7,
+     0.32,
+     -0.68
+    ],
+    "material": {
+     "color": "#c79a6b",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_17",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.32,
+    "position": [
+     -0.7,
+     0.32,
+     -0.68
+    ],
+    "material": {
+     "color": "#6f4e37",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_18",
+    "type": "cylinder",
+    "radius": 0.32,
+    "height": 0.26,
+    "position": [
+     -0.7,
+     0.32,
+     0.68
+    ],
+    "material": {
+     "color": "#a67c52",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_19",
+    "type": "cylinder",
+    "radius": 0.24,
+    "height": 0.29,
+    "position": [
+     -0.7,
+     0.32,
+     0.68
+    ],
+    "material": {
+     "color": "#c79a6b",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_20",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.32,
+    "position": [
+     -0.7,
+     0.32,
+     0.68
+    ],
+    "material": {
+     "color": "#6f4e37",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_21",
+    "type": "cylinder",
+    "radius": 0.32,
+    "height": 0.26,
+    "position": [
+     0.7,
+     0.32,
+     -0.68
+    ],
+    "material": {
+     "color": "#a67c52",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_22",
+    "type": "cylinder",
+    "radius": 0.24,
+    "height": 0.29,
+    "position": [
+     0.7,
+     0.32,
+     -0.68
+    ],
+    "material": {
+     "color": "#c79a6b",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_23",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.32,
+    "position": [
+     0.7,
+     0.32,
+     -0.68
+    ],
+    "material": {
+     "color": "#6f4e37",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_24",
+    "type": "cylinder",
+    "radius": 0.32,
+    "height": 0.26,
+    "position": [
+     0.7,
+     0.32,
+     0.68
+    ],
+    "material": {
+     "color": "#a67c52",
+     "roughness": 0.95
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_25",
+    "type": "cylinder",
+    "radius": 0.24,
+    "height": 0.29,
+    "position": [
+     0.7,
+     0.32,
+     0.68
+    ],
+    "material": {
+     "color": "#c79a6b",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "c_26",
+    "type": "cylinder",
+    "radius": 0.07,
+    "height": 0.32,
+    "position": [
+     0.7,
+     0.32,
+     0.68
+    ],
+    "material": {
+     "color": "#6f4e37",
+     "roughness": 0.75
+    },
+    "rotation": [
+     0,
+     0,
+     90
+    ]
+   },
+   {
+    "id": "s_27",
+    "type": "sphere",
+    "radius": 0.3,
+    "position": [
+     0,
+     0.98,
+     0.3
+    ],
+    "material": {
+     "color": "#b08560",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "p_28",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.4,
+    "position": [
+     -0.25,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#b08560",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     -12
+    ]
+   },
+   {
+    "id": "p_29",
+    "type": "capsule",
+    "radius": 0.07,
+    "height": 0.4,
+    "position": [
+     0.25,
+     1.0,
+     -0.05
+    ],
+    "material": {
+     "color": "#b08560",
+     "roughness": 0.75
+    },
+    "rotation": [
+     70,
+     0,
+     12
+    ]
+   },
+   {
+    "id": "s_30",
+    "type": "sphere",
+    "radius": 0.29,
+    "position": [
+     0,
+     1.42,
+     0.14
+    ],
+    "material": {
+     "color": "#b08560",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_31",
+    "type": "sphere",
+    "radius": 0.17,
+    "position": [
+     0,
+     1.34,
+     -0.2
+    ],
+    "material": {
+     "color": "#c9a37a",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_32",
+    "type": "sphere",
+    "radius": 0.055,
+    "position": [
+     0,
+     1.4,
+     -0.34
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_33",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     -0.13,
+     1.5,
+     -0.12
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_34",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     -0.11800000000000001,
+     1.52,
+     -0.16
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_35",
+    "type": "sphere",
+    "radius": 0.05,
+    "position": [
+     0.13,
+     1.5,
+     -0.12
+    ],
+    "material": {
+     "color": "#3a3348",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_36",
+    "type": "sphere",
+    "radius": 0.017499999999999998,
+    "position": [
+     0.11800000000000001,
+     1.52,
+     -0.16
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_37",
+    "type": "box",
+    "size": [
+     0.055,
+     0.1,
+     0.03
+    ],
+    "position": [
+     -0.035,
+     1.24,
+     -0.34
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_38",
+    "type": "sphere",
+    "radius": 0.09,
+    "position": [
+     -0.24,
+     1.7,
+     0.14
+    ],
+    "material": {
+     "color": "#9c7350",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_39",
+    "type": "box",
+    "size": [
+     0.055,
+     0.1,
+     0.03
+    ],
+    "position": [
+     0.035,
+     1.24,
+     -0.34
+    ],
+    "material": {
+     "color": "#ffffff",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "s_40",
+    "type": "sphere",
+    "radius": 0.09,
+    "position": [
+     0.24,
+     1.7,
+     0.14
+    ],
+    "material": {
+     "color": "#9c7350",
+     "roughness": 0.75
+    }
+   },
+   {
+    "id": "b_41",
+    "type": "box",
+    "size": [
+     0.55,
+     0.06,
+     0.85
+    ],
+    "position": [
+     0,
+     0.92,
+     1.15
+    ],
+    "material": {
+     "color": "#5a4331",
+     "roughness": 0.75
+    },
+    "rotation": [
+     -15,
+     0,
+     0
+    ]
+   }
+  ]
+ }
+]
