@@ -142,10 +142,10 @@
     },
     "home_hosting": {
       "summary": "UPnP port mapping (`portmap`, `red_server --upnp`), Docker and systemd deployment, the hosting guide.",
-      "files": ["src/net/upnp.rs", "src/tools/portmap.rs", "src/tools/servers.rs", "src/cli/servers.rs", "tests/servers_cli.rs", "Dockerfile", "docker-compose.yml", "deploy/**", "docs/HOSTING.md"],
-      "tests": ["lib:net::upnp", "lib:tools::servers", "server_env", "servers_cli"],
+      "files": ["src/net/upnp.rs", "src/tools/portmap.rs", "src/tools/servers.rs", "src/cli/servers.rs", "tests/servers_cli.rs", "tests/publish_games.rs", "Dockerfile", "docker-compose.yml", "deploy/**", "docs/HOSTING.md"],
+      "tests": ["lib:net::upnp", "lib:tools::servers", "server_env", "servers_cli", "publish_games"],
       "commands": ["red_engine2 portmap status", "red_engine2 servers"],
-      "docs": ["docs/adr/0031-home-hosting-with-upnp.md", "docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md", "docs/adr/2026-09-30-red-engine2-servers-manages-the-game-servers-on-this.md", "docs/HOSTING.md"],
+      "docs": ["docs/adr/0031-home-hosting-with-upnp.md", "docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md", "docs/adr/2026-09-30-red-engine2-servers-manages-the-game-servers-on-this.md", "docs/adr/2026-09-30-publishing-to-redenginegames-never-deletes-what-it-does.md", "docs/GAMES_PUBLISHING.md", "docs/HOSTING.md"],
       "depends_on": ["net_server"]
     },
     "release_packaging": {

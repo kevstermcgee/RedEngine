@@ -170,19 +170,63 @@ def git_revision(root: Path) -> str:
     return result.stdout.strip() if result.returncode == 0 else "working-tree"
 
 
+def previously_published(output: Path) -> set[str]:
+    """The paths the last export wrote, from the catalog it left in `output` (empty when there is none or it cannot be read).
+
+    Only these may ever be deleted: anything else under the managed folders belongs to someone else (hand-added games, for instance) and is left alone.
+    """
+    try:
+        data = json.loads((output / CATALOG_NAME).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    paths: set[str] = set()
+    for item in data.get("files", []) if isinstance(data, dict) else []:
+        value = item.get("path") if isinstance(item, dict) else None
+        if not isinstance(value, str):
+            continue
+        normalized = value.replace("\\", "/")
+        parts = PurePosixPath(normalized).parts
+        if parts and parts[0] in CATEGORIES and len(parts) > 1 and ".." not in parts and not PurePosixPath(normalized).is_absolute():
+            paths.add("/".join(parts))
+    return paths
+
+
+def prune_empty_dirs(start: Path, stop: Path) -> None:
+    """Removes `start` and its parents while they are empty directories, never going above or removing `stop`."""
+    current = start
+    while current != stop and stop in current.parents and current.is_dir() and not any(current.iterdir()):
+        current.rmdir()
+        current = current.parent
+
+
 def publish(root: Path, output: Path, revision: str) -> dict:
+    """Writes what the manifest publishes into `output` and nothing else is touched.
+
+    Files the export produces are written (replacing their old versions). Files a *previous* export published (they are in the catalog it left) that this one no longer
+    produces are removed, and the folders that leaves empty. Every other file under `games/`, `prototypes/`, `tests/` and `demos/` is someone else's and is never
+    deleted: the old behaviour (delete each whole folder, then copy) wiped the hand-added games in `RedEngineGames/games` on the next push to the engine.
+    """
     manifest = load_manifest(root)
     output.mkdir(parents=True, exist_ok=True)
+    for category in CATEGORIES:
+        target = output / category
+        if target.exists() and (target.is_symlink() or not target.is_dir()):
+            raise PublishError(f"managed output is not a directory: {target}")
     with tempfile.TemporaryDirectory(prefix="games-publish-", dir=output.parent) as temp:
         staging = Path(temp)
         catalog = export_tree(root, staging, manifest, revision)
-        for category in CATEGORIES:
-            target = output / category
-            if target.exists():
-                if target.is_symlink() or not target.is_dir():
-                    raise PublishError(f"managed output is not a directory: {target}")
-                shutil.rmtree(target)
-            shutil.move(str(staging / category), str(target))
+        new_paths = {item["path"] for item in catalog["files"]}
+        for relative in sorted(previously_published(output) - new_paths):
+            path = output / relative
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+                prune_empty_dirs(path.parent, output / PurePosixPath(relative).parts[0])
+        for relative in sorted(new_paths):
+            target = output / relative
+            if target.is_symlink() or (target.exists() and not target.is_file()):
+                raise PublishError(f"managed output is not a file: {target}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(staging / relative, target)
         shutil.copy2(staging / CATALOG_NAME, output / CATALOG_NAME)
     return catalog
 

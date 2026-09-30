@@ -22,8 +22,9 @@ python scripts/publish_games.py export --output ../RedEngineGames-preview
 ```
 
 On a push to `main` that changes the engine, a published source, the manifest, or the publisher,
-`.github/workflows/publish-games.yml` checks out `RedEngineGames`, rebuilds the four
-managed collections, and pushes only when the copy changed. It can also be run
+`.github/workflows/publish-games.yml` checks out `RedEngineGames`, writes the files the
+manifest publishes into the four collections (and removes files an earlier export published that the manifest no longer does, as the catalog records), and pushes only when the copy
+changed. **It never deletes anything else**: games added to `RedEngineGames/games` by hand are left alone. It can also be run
 manually. The workflow authenticates with the repository-scoped SSH deploy key in
 the `GAMES_REPO_DEPLOY_KEY` Actions secret. The key can write only to
 `RedEngineGames`.
