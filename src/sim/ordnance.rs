@@ -158,7 +158,7 @@ impl MatchSim {
         let mut goes_off: Vec<(Projectile, Vec3)> = Vec::new();
         let mut i = 0;
         while i < self.arena.as_ref().map_or(0, |a| a.projectiles.len()) {
-            let mut pr = self.arena.as_ref().map(|a| a.projectiles[i]).unwrap_or_else(|| unreachable!());
+            let Some(mut pr) = self.arena.as_ref().and_then(|a| a.projectiles.get(i).copied()) else { break };
             let spec = pr.weapon.kit();
             pr.age = pr.age.saturating_add(1);
             let mut detonate_at = None;

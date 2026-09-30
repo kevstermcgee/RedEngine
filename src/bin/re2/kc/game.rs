@@ -150,8 +150,6 @@ pub struct Game {
     last_throwing: [bool; 12],
     step_count: u32,
     // stats bookkeeping
-    last_kills: Option<u8>,
-    last_hits: Option<u8>,
     last_headshots: Option<u8>,
     last_phase: Option<Phase>,
     streak: u32,
@@ -168,7 +166,6 @@ pub struct Game {
     pub notice: Option<String>,
     /// `Esc` menu open.
     pub paused: bool,
-    my_name: String,
     scoped_now: bool,
     debug_frames: u64,
 }
@@ -249,8 +246,6 @@ impl Game {
             last_kit: None,
             last_throwing: [false; 12],
             step_count: 0,
-            last_kills: None,
-            last_hits: None,
             last_headshots: None,
             last_phase: None,
             streak: 0,
@@ -261,7 +256,6 @@ impl Game {
             join_codes: Vec::new(),
             notice: None,
             paused: false,
-            my_name: name.to_string(),
             scoped_now: false,
             debug_frames: 0,
         };
@@ -434,11 +428,6 @@ impl Game {
             respawn_secs: self.net.client.respawn_in_secs().ceil() as u32,
             replay: kc.playback.is_some(),
         })
-    }
-
-    /// Whether the dead player's replay is showing.
-    pub fn in_killcam(&self) -> bool {
-        self.killcam.is_some()
     }
 
     /// A pickup in reach that pressing use would take.
@@ -1060,14 +1049,6 @@ impl Game {
 
     // ---- drawing ---------------------------------------------------------------------------------------------------------------
 
-    /// Paints `rgba` (a full-window HUD or menu image) over the frame; `None` hides it.
-    pub fn set_overlay(&mut self, gpu: &GpuCtx, rgba: Option<&[u8]>) {
-        match rgba {
-            Some(px) => self.live.overlay.set(&gpu.device, &gpu.queue, gpu.size.0, gpu.size.1, px),
-            None => self.live.overlay.hide(),
-        }
-    }
-
     /// Whether the scope picture is showing.
     pub fn scoped(&self) -> bool {
         self.scoped_now && self.killcam.is_none()
@@ -1167,11 +1148,6 @@ impl Game {
     /// Leaves the match politely.
     pub fn leave(&mut self) {
         self.net.disconnect();
-    }
-
-    /// The name this player uses.
-    pub fn name(&self) -> &str {
-        &self.my_name
     }
 
     /// Points the view somewhere (degrees; a script's `look` step).

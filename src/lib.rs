@@ -59,6 +59,7 @@ pub mod scene_pool;
 pub mod schema;
 #[cfg(feature = "gfx")]
 pub mod sfx;
+#[cfg(feature = "gfx")]
 pub mod shooter_world;
 pub mod sim;
 pub mod skeleton;

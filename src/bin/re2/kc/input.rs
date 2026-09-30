@@ -183,7 +183,7 @@ impl Controls {
             aim,
             ..Default::default()
         };
-        let mut tick_down = |v: &mut u8| {
+        let tick_down = |v: &mut u8| {
             let on = *v > 0;
             *v = v.saturating_sub(1);
             on
