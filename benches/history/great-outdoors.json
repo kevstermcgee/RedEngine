@@ -44,9 +44,25 @@
     },
     {
       "id": "3c-prediction",
-      "commit": "the commit after af0f0e0 (client prediction)",
+      "commit": "158594f",
       "adds": "Predictor kart mode (apply_local_kart, reconcile_kart, reconcile_snapshot), NetEvent::Snapshot.race, session and bot wiring",
       "tests_added": 4
+    },
+    {
+      "id": "4-pickups",
+      "commit": "577cc24",
+      "adds": "sim::items (HazardPool, ItemBoxes, roll_item), kart Item/KartEvents/step_kart_ex, Beaver Build, protocol v12 (KartSnap 13 B, hazards 10 B each)",
+      "tests_added": "3 kart + 7 items + 4 kart_race + 1 net_race + 2 predict"
+    },
+    {
+      "id": "5-kart-bots",
+      "commit": "the commit after 577cc24",
+      "adds": "sim::ai::kart KartBrain (racing line, corner speed, analog steering, drifting, items, plank dodging, stuck recovery); server bots.fill works for races; MatchSim kart_bots",
+      "lines_added": {
+        "src/sim/ai/kart.rs": 251,
+        "tests/kart_bots.rs": 166
+      },
+      "tests_added": "2 unit + 5 kart_bots + 1 net_race"
     }
   ],
   "cost_of_karts_on_the_server": {
@@ -97,5 +113,28 @@
     "prediction over a lossy or laggy link (net-test profiles)",
     "8 real clients on the shared server",
     "feel on a physical gamepad or at a window"
-  ]
+  ],
+  "bot_balance_lap_times": {
+    "scenario": "tests/kart_bots.rs balance_lap_times_per_animal: one level-1.0 bot alone on the plain diamond (radius 40, four 90-degree corners, no walls, no items), three laps, dev-profile CLI",
+    "seconds_for_3_laps": {
+      "Deer": 49.2,
+      "Hawk": 51.1,
+      "Wolf": 51.6,
+      "Coyote": 51.7,
+      "Duck": 53.3,
+      "Bunny": 56.7,
+      "Bear": 57.3,
+      "Beaver": 59.2
+    },
+    "spread": "best 49.2 s, worst 59.2 s: the slowest is 20% behind the fastest",
+    "reading": "On this track top speed dominates. Bunny (best acceleration and handling, top speed 22) is 6% slower than the balanced Duck, and Beaver and Bear (top speed 21-22, slow steering) trail. Nothing here counts pickups, drifting payoffs on real corners, off-road, or the drivers' abilities, so this is a floor for tuning, not a verdict: a track with tight corners and dirt shortcuts should favour Bunny and Coyote."
+  },
+  "bot_race_with_items": {
+    "scenario": "8 bots at level 0.9, 3 laps, four item boxes on the gate points, 3 s respawn",
+    "items_picked_up": 27,
+    "max_hazards_at_once": 2,
+    "hit_spin_outs": 2,
+    "plank_ticks": 0,
+    "reading": "Bots pick up items and use them, but hits are rare (2 in a full race). The Beaver bot laid no planks: it is the slowest kart, so nobody is behind it to punish, which is the correct behaviour of the trigger and a design finding (Build rewards a fast, leading Beaver). Acorn accuracy or a wider 'ahead' window would raise hit counts if the game wants more chaos."
+  }
 }

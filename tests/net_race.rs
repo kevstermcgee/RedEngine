@@ -207,3 +207,27 @@ fn items_shields_cooldowns_and_hazards_reach_the_client() {
     let last = snaps.last().unwrap().players[0].kart.unwrap();
     assert!(last.item != 0, "the item box gave the kart an item, and the client can see which: {}", last.item);
 }
+
+#[test]
+fn the_server_fills_the_grid_with_kart_bots_around_a_human() {
+    // `bots.fill` tops a race up to eight with kart bots, each on an animal nobody else has taken; they race while the human is held on the grid.
+    let text = RACE_SCENE.replace(r#""race":{"#, r#""bots":{"fill":8,"skill":"hard"},"race":{"#);
+    let text = text.replace(
+        r#""spawns":["#,
+        r#""spawns":[{"id":"c","position":[-22,0,-41.5],"yaw_deg":90},{"id":"d","position":[-22,0,-38.5],"yaw_deg":90},{"id":"e","position":[-24,0,-41.5],"yaw_deg":90},{"id":"f","position":[-24,0,-38.5],"yaw_deg":90},{"id":"g","position":[-26,0,-41.5],"yaw_deg":90},{"id":"h","position":[-26,0,-38.5],"yaw_deg":90},"#,
+    );
+    let mut rig = Rig::new(&text);
+    let mut c = rig.join(7004);
+    let mut seq = 0;
+    let snaps = rig.drive(&mut c, &mut seq, 240, 0);
+    let last = snaps.last().expect("snapshots");
+    assert_eq!(last.players.len(), 8, "one human and seven bots");
+    let drivers: std::collections::HashSet<u8> = last.players.iter().map(|p| p.kart.expect("every player is a kart").driver).collect();
+    assert_eq!(drivers.len(), 8, "eight different animals");
+    let human = last.players.iter().find(|p| p.id == 0).unwrap();
+    // The human sent no throttle, so the bots race past them (and some bump them on the way: karts are solid to each other).
+    assert!(human.kart.unwrap().place >= 5, "the idle human is in the back half of the field: place {}", human.kart.unwrap().place);
+    let racers: Vec<f32> = last.players.iter().filter(|p| p.id != 0).map(|p| p.pos[0]).collect();
+    assert!(racers.iter().filter(|x| **x > -10.0).count() >= 5, "and the bots are off and racing: {racers:?}");
+    assert_eq!(last.race.as_ref().unwrap().phase, 1);
+}

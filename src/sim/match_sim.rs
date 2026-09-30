@@ -102,6 +102,8 @@ pub struct MatchSim {
     pub(super) karts: Vec<KartState>,
     /// Every slot's driver, which decides its kart's numbers.
     pub(super) drivers: Vec<Driver>,
+    /// The brain of every kart-bot slot (`None` for humans, fighters and empty slots): see [`crate::sim::ai::kart`].
+    pub(super) kart_bots: Vec<Option<Box<crate::sim::ai::kart::KartBrain>>>,
     /// Acorns in flight and planks on the track (race matches).
     pub(super) hazards: HazardPool,
     /// The track's item boxes and their respawn timers (race matches).
@@ -169,6 +171,7 @@ impl MatchSim {
             race: scene.race.clone().map(|course| RaceState::new(course, MAX_PLAYERS)),
             karts: vec![KartState::default(); MAX_PLAYERS],
             drivers: (0..MAX_PLAYERS).map(|slot| Driver::ALL[slot % Driver::ALL.len()]).collect(),
+            kart_bots: (0..MAX_PLAYERS).map(|_| None).collect(),
             hazards: HazardPool::default(),
             item_boxes: match &scene.race {
                 Some(course) => ItemBoxes::new(
@@ -198,6 +201,17 @@ impl MatchSim {
     /// A slot's kart memory (boost, drift, spin-out), if it has a player.
     pub fn kart(&self, slot: usize) -> Option<&KartState> {
         self.players.get(slot)?.as_ref().map(|_| &self.karts[slot])
+    }
+
+    /// The driver a bot in `slot` should take: the slot's own default animal unless another player already has it, else the first animal nobody has
+    /// (or the default again if all eight are taken). Humans keep the same defaults, so a human joining later never lands on a bot's animal.
+    pub(super) fn free_driver(&self, slot: usize) -> Driver {
+        let taken = |d: Driver| (0..MAX_PLAYERS).any(|s| s != slot && self.players[s].is_some() && self.drivers[s] == d);
+        let own = self.drivers[slot];
+        if !taken(own) {
+            return own;
+        }
+        Driver::ALL.into_iter().find(|d| !taken(*d)).unwrap_or(own)
     }
 
     /// The driver a slot drives as (the default is one animal per slot, in order; the lobby's character choice replaces it).
@@ -329,6 +343,7 @@ impl MatchSim {
     pub fn remove_player(&mut self, slot: usize) -> Option<PlayerState> {
         let p = self.players.get_mut(slot)?.take()?;
         self.bots[slot] = None;
+        self.kart_bots[slot] = None;
         self.props.remove_player_slot(slot);
         if let Some(r) = &mut self.recorder {
             r.entries.push(Entry::Leave { tick: self.tick, slot });

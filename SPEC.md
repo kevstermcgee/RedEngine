@@ -568,6 +568,11 @@ positions cannot be written as rules (a rule variable is one number for everybod
   absorbs the next hit). `attack` uses the item on the press. Which item is rolled from the tick, slot, box and place alone (so a replay draws the same items),
   weighted towards Mushrooms for the tail and Bubbles for the leader. The Beaver's `interact` lays a **plank** behind the kart (4 s cooldown; a full pool of 24
   hazards replaces the oldest plank). A hazard never hits its owner in its first 0.75 s.
+- **Bots** (`bots` block): in a race scene `bots.fill` tops the grid up with kart bots (`skill` is their level, as for fighters). A bot is an ordinary player
+  slot driven by a brain that follows the racing line (`race.line`, else the gate centres), sets its speed from the corner ahead and its skill, steers on the
+  analog stick, drifts long corners once good enough, uses its pickup (Mushroom on a straight, Acorn at a kart ahead in its lane, Bubble when an Acorn is
+  coming), dodges planks, and backs out of a jam. Each bot takes an animal nobody else has. Put `line` points on tight corners and make sure the first is on
+  the start line.
 - **Standings**: finishers by finish time, then by gates passed in total, then by distance to the next gate, then by slot. A player who joined and left is
   ranked as not finished; a slot that never joined is not listed. State is part of the match checksum.
 

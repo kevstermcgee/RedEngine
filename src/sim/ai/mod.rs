@@ -19,6 +19,7 @@
 //! The pieces: [`skill`] (difficulty, personality, per-weapon profiles), [`nav`] (the waypoint graph a scene may carry), and this file (the
 //! brain, [`BotSpec`]/[`BotsConfig`] and the `MatchSim` methods that add, name and run bots).
 
+pub mod kart;
 pub mod nav;
 pub mod route;
 pub mod skill;
@@ -803,6 +804,16 @@ impl MatchSim {
 
     /// Adds a bot in exactly `slot`; `false` when the slot is taken, out of range, or the spec asks for a body that cannot fight.
     pub fn add_bot_in_slot(&mut self, slot: usize, spec: &BotSpec) -> bool {
+        if self.race.is_some() {
+            // A race: the bot is a kart driver, on the first animal no one else has taken.
+            if !self.add_player_in_slot(slot, Character::Human) {
+                return false;
+            }
+            self.drivers[slot] = self.free_driver(slot);
+            let seed = 0xB07 ^ ((slot as u64 + 1) << 8) ^ (self.tick << 16);
+            self.kart_bots[slot] = Some(Box::new(kart::KartBrain::new(spec.name.clone(), spec.level, seed)));
+            return true;
+        }
         if spec.character == Character::Rat || !self.add_player_in_slot(slot, spec.character) {
             return false;
         }
@@ -812,17 +823,20 @@ impl MatchSim {
 
     /// Whether `slot` is driven by a brain.
     pub fn is_bot(&self, slot: usize) -> bool {
-        self.bots.get(slot).is_some_and(Option::is_some)
+        self.bots.get(slot).is_some_and(Option::is_some) || self.kart_bots.get(slot).is_some_and(Option::is_some)
     }
 
     /// A bot's name.
     pub fn bot_name(&self, slot: usize) -> Option<&str> {
+        if let Some(Some(k)) = self.kart_bots.get(slot) {
+            return Some(k.name());
+        }
         self.bots.get(slot)?.as_ref().map(|b| b.spec.name.as_str())
     }
 
     /// Number of bots in the match.
     pub fn bot_count(&self) -> usize {
-        self.bots.iter().flatten().count()
+        self.bots.iter().flatten().count() + self.kart_bots.iter().flatten().count()
     }
 
     /// The brain of `slot`, for inspection (its target, its spec).
@@ -832,6 +846,12 @@ impl MatchSim {
 
     /// Asks every brain for this tick's input and queues it (recorded like any other input).
     pub(super) fn run_bots(&mut self) {
+        for slot in 0..self.kart_bots.len() {
+            let Some(mut brain) = self.kart_bots[slot].take() else { continue };
+            let input = brain.think(self, slot);
+            self.kart_bots[slot] = Some(brain);
+            self.push_input(slot, input);
+        }
         for slot in 0..self.bots.len() {
             let Some(mut brain) = self.bots[slot].take() else { continue };
             let input = brain.think(self, slot);
