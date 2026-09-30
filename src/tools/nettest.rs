@@ -227,13 +227,34 @@ fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, 
             // time that really passed between them*. Judging by elapsed time (not "per 10 ms") means a stalled test thread on a loaded machine is
             // not mistaken for a teleport; a snap of a metre shows as a metre.
             let mut worst_step = 0.0f32;
+            if std::env::var("NETTEST_DEBUG").is_ok() {
+                for w in frames[k].windows(2) {
+                    let d = w[0].me.distance(w[1].me);
+                    if d > 0.6 {
+                        eprintln!("client {k} own kart t={:.3}: {:?} -> {:?} ({d:.2} m in {:.3}s)", w[1].t, w[0].me, w[1].me, w[1].t - w[0].t);
+                    }
+                }
+            }
             let mut last: std::collections::HashMap<u8, (f64, Vec2)> = std::collections::HashMap::new();
             for f in &frames[k] {
                 for (rid, p) in &f.remote {
                     let now = Vec2::new(p.pos.x, p.pos.z);
                     if let Some((t0, prev)) = last.insert(*rid, (f.t, now)) {
-                        let allowed = catch_up_speed * (f.t - t0).max(0.0) as f32;
-                        worst_step = worst_step.max((prev.distance(now) - allowed).max(0.0));
+                        // Fast movers (karts) legitimately cover more than the on-foot limit: allow what the player itself reports, as the renderer does.
+                        let allowed = catch_up_speed.max(p.speed * 1.5) * (f.t - t0).max(0.0) as f32;
+                        let over = (prev.distance(now) - allowed).max(0.0);
+                        if over > 0.15 && std::env::var("NETTEST_DEBUG").is_ok() {
+                            eprintln!(
+                                "client {k} t={:.3} remote {rid}: {:?} -> {:?} ({:.2} m in {:.3}s) kart={:?}",
+                                f.t,
+                                prev,
+                                now,
+                                prev.distance(now),
+                                f.t - t0,
+                                p.kart.map(|k| (k.lap, k.next_gate))
+                            );
+                        }
+                        worst_step = worst_step.max(over);
                     }
                 }
             }

@@ -377,7 +377,10 @@ impl RemoteWorld {
             .filter(|&i| self.present[i] && Some(i as u8) != me)
             .filter_map(|i| {
                 let mut pose = self.players[i].as_ref().and_then(|h| h.sample(rt))?;
-                pose.pos = limit_catch_up(&mut drawn[i], local_secs, pose.pos, self.motion_limit.max(CATCH_UP_SPEED));
+                // The limit must outrun the player's own movement, or a fast one (a kart at 22 m/s+) lags at the on-foot limit until it is a
+                // teleport-distance behind and snaps forward, over and over (the Great Outdoors jitter). Its reported speed says how fast it goes.
+                let cap = self.motion_limit.max(CATCH_UP_SPEED).max(pose.speed * 1.5);
+                pose.pos = limit_catch_up(&mut drawn[i], local_secs, pose.pos, cap);
                 if let Some(w) = self.wrap {
                     let at = w.wrap_pos(Vec2::new(pose.pos.x, pose.pos.z));
                     pose.pos = Vec3::new(at.x, pose.pos.y, at.y);
@@ -603,6 +606,33 @@ mod tests {
         assert!(previous.unwrap() > 70.0, "the renderer must keep up with arena movement");
         world.reset();
         assert_eq!(world.motion_limit, limit, "reconnect retains the map profile");
+    }
+
+    /// Karts are faster than any on-foot movement profile: a remote kart at 30 m/s must be drawn smoothly even when the map's profile
+    /// (`set_movement_profile`) knows only walking speeds. It used to trail at the 10 m/s catch-up limit and snap forward every ~0.3 s.
+    #[test]
+    fn a_fast_remote_player_is_drawn_smoothly_whatever_the_map_profile_says() {
+        let v = 30.0f32;
+        let mut world = RemoteWorld::default();
+        world.set_movement_profile(crate::player::PlayerTuning::default(), &[]);
+        let (frame, mut next_tick, mut last_x, mut worst) = (1.0 / 144.0, 0u32, None::<f32>, 0.0f32);
+        for i in 0..1000 {
+            let now = i as f64 * frame;
+            while next_tick as f64 / 60.0 <= now {
+                let mut s = snap(next_tick, v * next_tick as f32 / 60.0);
+                s.players[0].speed = v;
+                s.players[0].velocity = [v, 0.0];
+                world.apply(&s, next_tick as f64 / 60.0);
+                next_tick += 2;
+            }
+            if let Some((_, p)) = world.view(now, None).players.first() {
+                if let (Some(l), true) = (last_x, now > 1.0) {
+                    worst = worst.max(p.pos.x - l);
+                }
+                last_x = Some(p.pos.x);
+            }
+        }
+        assert!(worst < v * frame as f32 * 1.5, "largest per-frame step {worst} vs ideal {}", v * frame as f32);
     }
 
     /// The smoothness guarantee: a player moving at constant speed, snapshots at 30 Hz arriving with
