@@ -28,7 +28,7 @@ pub const MAGIC: u16 = 0x5244;
 /// v9: the weapon numbers on the wire (indices of `weapons::Weapon::ALL`) changed when the silver revolver left the list.
 /// v10 (ADR 0044): join proofs use a new domain (bound to the TLS exporter on QUIC), and a snapshot carries only as many props as the
 /// client's transport datagram budget allows.
-pub const PROTOCOL_VERSION: u16 = 11;
+pub const PROTOCOL_VERSION: u16 = 12;
 /// Largest message either side accepts, and the development UDP datagram budget (under a typical 1500-byte MTU). On QUIC the budget is
 /// the connection's current `max_datagram_size` (about 1150 bytes on a fresh 1200-byte path MTU); messages above it travel on a stream.
 pub const MAX_PACKET: usize = 1400;
@@ -343,9 +343,13 @@ const WIRE_KART: u8 = 0x40;
 /// Wire-only bit of the player-count byte: a [`RaceSnap`] follows the counts (race matches only).
 const WIRE_RACE: u8 = 0x80;
 /// Bytes a kart block adds to each player in a race snapshot.
-pub const KART_BYTES: usize = 10;
-/// Bytes the race header adds to a race snapshot.
-pub const RACE_HEADER_BYTES: usize = 7;
+pub const KART_BYTES: usize = 13;
+/// Bytes the race header adds to a race snapshot, before its hazards (phase, countdown, clock, hazard count).
+pub const RACE_HEADER_BYTES: usize = 8;
+/// Bytes each hazard adds to a race snapshot.
+pub const HAZARD_BYTES: usize = 10;
+/// Most hazards a race snapshot carries (the simulation's pool size).
+pub const MAX_HAZARDS_PER_SNAPSHOT: usize = 24;
 
 /// A kart's own state in a snapshot (race matches): everything the driver's client needs to predict the kart exactly, and what every client needs to
 /// draw and rank it. Boost and spin-out are in ticks, the drift charge in milliseconds, so the values are exact enough that a replay of unacknowledged
@@ -374,6 +378,27 @@ pub struct KartSnap {
     pub next_gate: u8,
     /// Their place in the standings, from 1 (`0` = not ranked).
     pub place: u8,
+    /// The pickup held (`sim::kart::Item::wire`: 0 none, 1 Mushroom, 2 Acorn, 3 Bubble).
+    pub item: u8,
+    /// Ticks of Bubble shield left.
+    pub shield_ticks: u16,
+    /// Ticks until the driver's ability (the Beaver's Build) is ready again.
+    pub ability_cooldown: u8,
+    /// Whether the item button was held on the last processed input (an item is used on the press).
+    pub attack_held: bool,
+    /// Whether the ability button was held on the last processed input.
+    pub interact_held: bool,
+}
+
+/// One hazard on the track in a race snapshot: an Acorn in flight or a plank.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct HazardSnap {
+    /// `0` Acorn, `1` plank.
+    pub kind: u8,
+    /// The slot that made it.
+    pub owner: u8,
+    /// Where it is (x, z).
+    pub pos: [f32; 2],
 }
 
 impl KartSnap {
@@ -386,12 +411,17 @@ impl KartSnap {
             spin_ticks: self.spin_ticks as u16,
             jump_held: self.jump_held,
             slip_charge: self.slip as f32 / 200.0,
+            item: crate::sim::kart::Item::from_wire(self.item).unwrap_or_default(),
+            shield_ticks: self.shield_ticks,
+            ability_cooldown: self.ability_cooldown as u16,
+            attack_held: self.attack_held,
+            interact_held: self.interact_held,
         }
     }
 }
 
 /// The race as of one snapshot: where it is in its life and the clock.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct RaceSnap {
     /// `0` countdown, `1` racing, `2` finished.
     pub phase: u8,
@@ -399,6 +429,8 @@ pub struct RaceSnap {
     pub countdown_ticks: u16,
     /// Ticks since the light went green.
     pub race_tick: u32,
+    /// The Acorns in flight and planks on the track.
+    pub hazards: Vec<HazardSnap>,
 }
 
 /// One prop's pose in a snapshot.
@@ -876,6 +908,14 @@ impl ServerMsg {
                     w.u8(race.phase);
                     w.u16(race.countdown_ticks);
                     w.u32(race.race_tick);
+                    let nh = race.hazards.len().min(MAX_HAZARDS_PER_SNAPSHOT);
+                    w.u8(nh as u8);
+                    for h in &race.hazards[..nh] {
+                        w.u8(h.kind);
+                        w.u8(h.owner);
+                        w.f32(h.pos[0]);
+                        w.f32(h.pos[1]);
+                    }
                 }
                 for p in &s.players[..np] {
                     let moving = p.velocity != [0.0; 2];
@@ -902,12 +942,19 @@ impl ServerMsg {
                         w.u8(k.driver);
                         w.u8(k.boost_ticks);
                         w.u8(k.spin_ticks);
-                        w.u8((k.drift_dir.signum() + 1) as u8 | (k.jump_held as u8) << 2 | (k.finished as u8) << 3);
+                        w.u8((k.drift_dir.signum() + 1) as u8
+                            | (k.jump_held as u8) << 2
+                            | (k.finished as u8) << 3
+                            | (k.attack_held as u8) << 4
+                            | (k.interact_held as u8) << 5
+                            | (k.item & 3) << 6);
                         w.u16(k.drift_charge_ms);
                         w.u8(k.slip);
                         w.u8(k.lap);
                         w.u8(k.next_gate);
                         w.u8(k.place);
+                        w.u16(k.shield_ticks);
+                        w.u8(k.ability_cooldown);
                     }
                 }
                 for q in &s.props[..nq] {
@@ -1011,11 +1058,19 @@ impl ServerMsg {
                     return Err(DecodeError::OutOfRange);
                 }
                 let race = if has_race {
-                    let (phase, countdown_ticks, race_tick) = (r.u8()?, r.u16()?, r.u32()?);
-                    if phase > 2 {
+                    let (phase, countdown_ticks, race_tick, nh) = (r.u8()?, r.u16()?, r.u32()?, r.u8()? as usize);
+                    if phase > 2 || nh > MAX_HAZARDS_PER_SNAPSHOT {
                         return Err(DecodeError::OutOfRange);
                     }
-                    Some(RaceSnap { phase, countdown_ticks, race_tick })
+                    let mut hazards = Vec::with_capacity(nh);
+                    for _ in 0..nh {
+                        let (kind, owner) = (r.u8()?, r.u8()?);
+                        if kind > 1 {
+                            return Err(DecodeError::OutOfRange);
+                        }
+                        hazards.push(HazardSnap { kind, owner, pos: [r.f32()?, r.f32()?] });
+                    }
+                    Some(RaceSnap { phase, countdown_ticks, race_tick, hazards })
                 } else {
                     None
                 };
@@ -1041,6 +1096,7 @@ impl ServerMsg {
                         kart: if flags & WIRE_KART != 0 {
                             let (driver, boost_ticks, spin_ticks, status) = (r.u8()?, r.u8()?, r.u8()?, r.u8()?);
                             let (drift_charge_ms, slip, lap, next_gate, place) = (r.u16()?, r.u8()?, r.u8()?, r.u8()?, r.u8()?);
+                            let (shield_ticks, ability_cooldown) = (r.u16()?, r.u8()?);
                             if status & 3 > 2 || driver > 7 || slip > 200 {
                                 return Err(DecodeError::OutOfRange);
                             }
@@ -1056,6 +1112,11 @@ impl ServerMsg {
                                 lap,
                                 next_gate,
                                 place,
+                                item: status >> 6,
+                                shield_ticks,
+                                ability_cooldown,
+                                attack_held: status & 16 != 0,
+                                interact_held: status & 32 != 0,
                             })
                         } else {
                             None
@@ -1372,6 +1433,10 @@ mod tests {
     }
 
     fn race_snapshot(props: usize) -> Snapshot {
+        race_snapshot_with(props, 3)
+    }
+
+    fn race_snapshot_with(props: usize, hazards: usize) -> Snapshot {
         let players = (0..MAX_PLAYERS_PER_SNAPSHOT as u8)
             .map(|i| PlayerSnap {
                 id: i,
@@ -1399,6 +1464,11 @@ mod tests {
                     lap: i % 3,
                     next_gate: i,
                     place: i + 1,
+                    item: i % 4,
+                    shield_ticks: 300 - i as u16,
+                    ability_cooldown: 240 - i,
+                    attack_held: i % 3 == 0,
+                    interact_held: i % 2 == 1,
                 }),
             })
             .collect();
@@ -1411,7 +1481,12 @@ mod tests {
             fx: Feedback::default(),
             players,
             props: vec![PropSnap { id: 0, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }; props],
-            race: Some(RaceSnap { phase: 1, countdown_ticks: 0, race_tick: 4_000_000_000 }),
+            race: Some(RaceSnap {
+                phase: 1,
+                countdown_ticks: 0,
+                race_tick: 4_000_000_000,
+                hazards: (0..hazards).map(|i| HazardSnap { kind: (i % 2) as u8, owner: (i % 8) as u8, pos: [i as f32 * 3.5, -40.0 + i as f32] }).collect(),
+            }),
         }
     }
 
@@ -1419,6 +1494,8 @@ mod tests {
     fn a_race_snapshot_carries_every_kart_and_the_race_and_costs_nothing_elsewhere() {
         roundtrip_s(ServerMsg::Snapshot(race_snapshot(0)));
         roundtrip_s(ServerMsg::Snapshot(race_snapshot(MAX_PROPS_PER_SNAPSHOT)));
+        roundtrip_s(ServerMsg::Snapshot(race_snapshot_with(0, 0)));
+        roundtrip_s(ServerMsg::Snapshot(race_snapshot_with(0, MAX_HAZARDS_PER_SNAPSHOT)));
         let mut race = Vec::new();
         ServerMsg::Snapshot(race_snapshot(0)).encode(&mut race);
         let mut plain_snapshot = race_snapshot(0);
@@ -1426,14 +1503,15 @@ mod tests {
         plain_snapshot.players.iter_mut().for_each(|p| p.kart = None);
         let mut plain = Vec::new();
         ServerMsg::Snapshot(plain_snapshot).encode(&mut plain);
-        assert_eq!(race.len() - plain.len(), RACE_HEADER_BYTES + MAX_PLAYERS_PER_SNAPSHOT * KART_BYTES, "exactly the documented overhead");
+        assert_eq!(race.len() - plain.len(), RACE_HEADER_BYTES + MAX_PLAYERS_PER_SNAPSHOT * KART_BYTES + 3 * HAZARD_BYTES, "exactly the documented overhead");
         assert_eq!(plain.len(), snapshot_bytes(MAX_PLAYERS_PER_SNAPSHOT, 0), "a match without a race is byte for byte what it was");
         // The server takes the overhead out of the props' room, so a race snapshot always fits the transport's datagram.
         for budget in [1200usize, 1252, 1400] {
-            let overhead = RACE_HEADER_BYTES + KART_BYTES * MAX_PLAYERS_PER_SNAPSHOT;
+            // The worst case: eight karts and a full pool of hazards.
+            let overhead = RACE_HEADER_BYTES + KART_BYTES * MAX_PLAYERS_PER_SNAPSHOT + HAZARD_BYTES * MAX_HAZARDS_PER_SNAPSHOT;
             let props = snapshot_prop_budget(budget - overhead, MAX_PLAYERS_PER_SNAPSHOT);
             let mut b = Vec::new();
-            ServerMsg::Snapshot(race_snapshot(props)).encode(&mut b);
+            ServerMsg::Snapshot(race_snapshot_with(props, MAX_HAZARDS_PER_SNAPSHOT)).encode(&mut b);
             assert!(b.len() <= budget, "budget {budget}: {} bytes with {props} props", b.len());
         }
         assert!(race.len() < MAX_PACKET);
@@ -1451,6 +1529,7 @@ mod tests {
         bad(&|s| s.players[0].kart.as_mut().unwrap().driver = 8);
         bad(&|s| s.players[0].kart.as_mut().unwrap().slip = 201);
         bad(&|s| s.race.as_mut().unwrap().phase = 3);
+        bad(&|s| s.race.as_mut().unwrap().hazards[0].kind = 2);
     }
 
     #[test]

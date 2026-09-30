@@ -328,7 +328,7 @@ impl Bot {
             input.pitch = self.pitch;
             let Some(p) = self.predictor.as_mut() else { return };
             input.seq = p.next_seq();
-            let can_drive = self.race.is_none_or(|r| r.phase == 1);
+            let can_drive = self.race.as_ref().is_none_or(|r| r.phase == 1);
             p.apply_local_auto(input, can_drive, &self.world.colliders, &self.world.ground, self.world.player_tuning, &self.world.jump_pads);
             self.client.send_input(input, now);
             self.next_tick += tick;

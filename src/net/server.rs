@@ -1040,7 +1040,11 @@ impl Server {
             let tag = if self.secure { 0 } else { TAG_LEN };
             let budget = self.transport.max_datagram(self.sessions[i].addr).saturating_sub(tag);
             // A race snapshot also carries the race header and a kart block per player: take them out of the room props may use.
-            let race_bytes = if self.sim.race().is_some() { RACE_HEADER_BYTES + KART_BYTES * self.visible_scratch.len() } else { 0 };
+            let race_bytes = if self.sim.race().is_some() {
+                RACE_HEADER_BYTES + KART_BYTES * self.visible_scratch.len() + HAZARD_BYTES * self.sim.hazards().len()
+            } else {
+                0
+            };
             let max_props = snapshot_prop_budget(budget.saturating_sub(race_bytes), self.visible_scratch.len());
             let s = &mut self.sessions[i];
             props_to_send(&self.sim, self.interest.as_ref(), room, &s.known, &mut self.changed, &mut self.props_scratch, &mut self.sent_scratch, max_props);
@@ -1067,6 +1071,12 @@ impl Server {
                     },
                     countdown_ticks: r.countdown_ticks_left().min(65_535) as u16,
                     race_tick: r.race_tick(),
+                    hazards: self
+                        .sim
+                        .hazards()
+                        .iter()
+                        .map(|h| HazardSnap { kind: (h.kind == crate::sim::items::HazardKind::Plank) as u8, owner: h.owner, pos: h.pos.to_array() })
+                        .collect(),
                 }),
             };
             self.stats.players_sent += snap.players.len() as u64;

@@ -22,7 +22,7 @@ use serde_json::{Map, Value};
 use std::sync::Arc;
 
 /// Keys of the `race` block.
-pub const RACE_KEYS: &[&str] = &["laps", "gates", "countdown_secs", "finish_grace_secs", "line"];
+pub const RACE_KEYS: &[&str] = &["laps", "gates", "countdown_secs", "finish_grace_secs", "line", "item_boxes", "item_respawn_secs"];
 /// Most laps a race may have.
 pub const MAX_LAPS: u8 = 20;
 /// Fewest gates a course may have (the line and two more, or a kart could cut straight across).
@@ -90,6 +90,21 @@ pub struct RaceCourse {
     pub finish_grace_secs: f32,
     /// Optional racing line (x, z points along the track, in order) for bots to follow on tight corners; empty = the gate centres.
     pub line: Vec<Vec2>,
+    /// Item boxes on the track: the zone id and its rectangle. A kart that touches one gets an item (`sim::items`).
+    pub item_boxes: Vec<(String, Vec2, Vec2)>,
+    /// How long an item box takes to come back after being taken, seconds (default 5).
+    pub item_respawn_secs: f32,
+}
+
+/// The rectangle of the zone called `id`, resolved against a scene's `zones`. `path` names the field being read and `what` the thing a zone is being
+/// used as, for the messages.
+fn zone_rect(zones: &[Value], id: &str, path: &str, what: &str) -> Result<(Vec2, Vec2), String> {
+    let zone = zones.iter().find(|z| z.get("id").and_then(Value::as_str) == Some(id)).ok_or_else(|| format!("{path}: no zone '{id}' ({what})"))?;
+    let r: Vec<f64> = zone.get("rect").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_f64).collect()).unwrap_or_default();
+    if r.len() != 4 || r.iter().any(|n| !n.is_finite()) {
+        return Err(format!("{path}: zone '{id}' needs a rect [x0, z0, x1, z1]"));
+    }
+    Ok((Vec2::new(r[0].min(r[2]) as f32, r[1].min(r[3]) as f32), Vec2::new(r[0].max(r[2]) as f32, r[1].max(r[3]) as f32)))
 }
 
 impl RaceCourse {
@@ -142,15 +157,7 @@ impl RaceCourse {
             if ids[..i].contains(id) {
                 return Err(format!("race.gates: zone '{id}' is listed twice"));
             }
-            let zone = zones
-                .iter()
-                .find(|z| z.get("id").and_then(Value::as_str) == Some(*id))
-                .ok_or_else(|| format!("race.gates[{i}]: no zone '{id}' (a gate is a scene zone laid across the track)"))?;
-            let r: Vec<f64> = zone.get("rect").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_f64).collect()).unwrap_or_default();
-            if r.len() != 4 || r.iter().any(|n| !n.is_finite()) {
-                return Err(format!("race.gates[{i}]: zone '{id}' needs a rect [x0, z0, x1, z1]"));
-            }
-            let (min, max) = (Vec2::new(r[0].min(r[2]) as f32, r[1].min(r[3]) as f32), Vec2::new(r[0].max(r[2]) as f32, r[1].max(r[3]) as f32));
+            let (min, max) = zone_rect(zones, id, &format!("race.gates[{i}]"), "a gate is a scene zone laid across the track")?;
             rects.push((id.to_string(), min, max));
         }
         // Each gate faces along the line from the previous gate's centre to the next one's (a central difference, so it holds on bends).
@@ -174,7 +181,16 @@ impl RaceCourse {
                 line.push(Vec2::new(xz[0] as f32, xz[1] as f32));
             }
         }
-        Ok(Some(RaceCourse { laps, gates, countdown_secs, finish_grace_secs, line }))
+        let mut item_boxes = Vec::new();
+        if let Some(list) = obj.get("item_boxes") {
+            for (i, id) in list.as_array().ok_or("race.item_boxes: must be a list of zone ids")?.iter().enumerate() {
+                let id = id.as_str().ok_or_else(|| format!("race.item_boxes[{i}]: must be a zone id string"))?;
+                let (min, max) = zone_rect(zones, id, &format!("race.item_boxes[{i}]"), "an item box is a scene zone where the box sits")?;
+                item_boxes.push((id.to_string(), min, max));
+            }
+        }
+        let item_respawn_secs = secs("item_respawn_secs", 5.0)?;
+        Ok(Some(RaceCourse { laps, gates, countdown_secs, finish_grace_secs, line, item_boxes, item_respawn_secs }))
     }
 }
 
@@ -462,6 +478,13 @@ mod tests {
         assert!(bad(r#"["line","east","east"]"#).contains("twice"));
         assert!(bad(r#"["line",7,"south"]"#).contains("zone id string"));
         assert!(RaceCourse::from_scene_text(r#"{"race":[]}"#).unwrap_err().contains("object"));
+        let boxes = RaceCourse::from_scene_text(&scene(r#","item_boxes":["east","west"],"item_respawn_secs":8"#)).unwrap().unwrap();
+        assert_eq!((boxes.item_boxes.len(), boxes.item_boxes[0].0.as_str(), boxes.item_respawn_secs), (2, "east", 8.0));
+        assert_eq!(c.item_boxes.len(), 0, "no boxes unless asked for");
+        assert!(err(r#","item_boxes":["nowhere"]"#).contains("race.item_boxes[0]: no zone 'nowhere'"));
+        assert!(err(r#","item_boxes":[3]"#).contains("race.item_boxes[0]"));
+        assert!(err(r#","item_boxes":"east""#).contains("list of zone ids"));
+        assert!(err(r#","item_respawn_secs":-2"#).contains("item_respawn_secs"));
         let with_line = RaceCourse::from_scene_text(&scene(r#","line":[[0,-40],[20,-30]]"#)).unwrap().unwrap();
         assert_eq!(with_line.line, vec![Vec2::new(0.0, -40.0), Vec2::new(20.0, -30.0)]);
     }

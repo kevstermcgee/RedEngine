@@ -17,7 +17,8 @@ use crate::physics::PropWorld;
 use crate::player::Character;
 use crate::schema::Scene;
 use crate::sim::interact::Combat;
-use crate::sim::kart::{kart_bump, step_kart, Driver, KartState, Surface};
+use crate::sim::items::{roll_item, Hazard, HazardPool, ItemBox, ItemBoxes, ACORN_SPEED_BONUS};
+use crate::sim::kart::{kart_bump, step_kart_ex, Driver, Item, KartEvents, KartState, Surface};
 use crate::sim::player::{step_player_tuned, PlayerInput, PlayerState};
 use crate::sim::race::RaceState;
 use crate::sim::rules::Target;
@@ -101,6 +102,10 @@ pub struct MatchSim {
     pub(super) karts: Vec<KartState>,
     /// Every slot's driver, which decides its kart's numbers.
     pub(super) drivers: Vec<Driver>,
+    /// Acorns in flight and planks on the track (race matches).
+    pub(super) hazards: HazardPool,
+    /// The track's item boxes and their respawn timers (race matches).
+    pub(super) item_boxes: ItemBoxes,
 }
 
 impl MatchSim {
@@ -164,12 +169,30 @@ impl MatchSim {
             race: scene.race.clone().map(|course| RaceState::new(course, MAX_PLAYERS)),
             karts: vec![KartState::default(); MAX_PLAYERS],
             drivers: (0..MAX_PLAYERS).map(|slot| Driver::ALL[slot % Driver::ALL.len()]).collect(),
+            hazards: HazardPool::default(),
+            item_boxes: match &scene.race {
+                Some(course) => ItemBoxes::new(
+                    course.item_boxes.iter().map(|(_, min, max)| ItemBox { min: *min, max: *max }).collect(),
+                    (course.item_respawn_secs * crate::sim::clock::TICK_RATE_HZ as f32).round() as u32,
+                ),
+                None => ItemBoxes::new(Vec::new(), 0),
+            },
         })
     }
 
     /// The race, if this match is one: its phase, countdown, laps and standings.
     pub fn race(&self) -> Option<&RaceState> {
         self.race.as_ref()
+    }
+
+    /// The Acorns in flight and planks on the track.
+    pub fn hazards(&self) -> &HazardPool {
+        &self.hazards
+    }
+
+    /// The track's item boxes.
+    pub fn item_boxes(&self) -> &ItemBoxes {
+        &self.item_boxes
     }
 
     /// A slot's kart memory (boost, drift, spin-out), if it has a player.
@@ -190,6 +213,16 @@ impl MatchSim {
                 true
             }
             None => false,
+        }
+    }
+
+    /// Puts `item` in a slot's hand (practice, tests, a scripted start). `false` if there is no player in the slot.
+    pub fn give_item(&mut self, slot: usize, item: Item) -> bool {
+        if self.players.get(slot).is_some_and(Option::is_some) {
+            self.karts[slot].item = item;
+            true
+        } else {
+            false
         }
     }
 
@@ -366,6 +399,7 @@ impl MatchSim {
         self.run_bots();
         // In a race every player is a kart driver: no weapons, no carrying, and the countdown holds the karts on the grid.
         let racing = self.race.as_ref().map(RaceState::can_drive);
+        let mut kart_events = [KartEvents::default(); MAX_PLAYERS];
         for slot in 0..self.players.len() {
             if racing.is_none() {
                 self.combat_tick(slot);
@@ -382,7 +416,10 @@ impl MatchSim {
                 if let Some(green) = racing {
                     let input = if green { input } else { PlayerInput { seq: input.seq, ..Default::default() } };
                     let spec = self.drivers[slot].spec();
-                    p.speed = step_kart(&mut p.state, &mut self.karts[slot], &input, &spec, Surface::Road, &self.colliders, &self.ground);
+                    let (speed, events) = step_kart_ex(&mut p.state, &mut self.karts[slot], &input, &spec, Surface::Road, &self.colliders, &self.ground);
+                    p.speed = speed;
+                    kart_events[slot].throw_acorn |= events.throw_acorn;
+                    kart_events[slot].lay_plank |= events.lay_plank;
                     p.crouching = false;
                     p.last_processed_seq = input.seq;
                     continue;
@@ -402,7 +439,7 @@ impl MatchSim {
             self.props.set_player_slot(slot, glam::Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y), body.radius, body.body_height);
         }
         if self.race.is_some() {
-            self.kart_bumps_and_race();
+            self.kart_bumps_and_race(&kart_events);
         }
         self.props.step();
         let mut frame = [None; MAX_PLAYERS];
@@ -419,7 +456,7 @@ impl MatchSim {
     }
 
     /// Karts touching each other trade momentum (a Bear spins the other out), then the race counts gates from where everyone ended up.
-    fn kart_bumps_and_race(&mut self) {
+    fn kart_bumps_and_race(&mut self, events: &[KartEvents; MAX_PLAYERS]) {
         for a in 0..self.players.len() {
             for b in a + 1..self.players.len() {
                 let (Some(pa), Some(pb)) = (&self.players[a], &self.players[b]) else { continue };
@@ -439,6 +476,46 @@ impl MatchSim {
         let positions: Vec<Option<Vec2>> = self.players.iter().map(|p| p.as_ref().map(|p| p.state.pos)).collect();
         if let Some(race) = self.race.as_mut() {
             race.tick(&positions);
+        }
+        self.hazards_and_boxes(events, &positions);
+    }
+
+    /// Throws what the karts threw, lays what the Beaver laid, lets the hazards hit, and hands out the item boxes.
+    fn hazards_and_boxes(&mut self, events: &[KartEvents; MAX_PLAYERS], positions: &[Option<Vec2>]) {
+        for (slot, ev) in events.iter().enumerate() {
+            let Some(p) = self.players.get(slot).and_then(Option::as_ref) else { continue };
+            let (sin, cos) = libm::sincosf(p.state.yaw);
+            let fwd = Vec2::new(sin, -cos);
+            if ev.throw_acorn {
+                let speed = p.state.velocity.dot(fwd).max(0.0) + ACORN_SPEED_BONUS;
+                self.hazards.spawn(Hazard::acorn(slot as u8, p.state.pos + fwd * 1.2, fwd * speed));
+            }
+            if ev.lay_plank {
+                self.hazards.spawn(Hazard::plank(slot as u8, p.state.pos - fwd * 1.8));
+            }
+        }
+        let karts = &mut self.karts;
+        self.hazards.step(positions, &self.colliders, |slot, spin| {
+            karts[slot].spin_out(spin);
+        });
+        // Boxes: only a kart with a free hand can take one; the roll knows the taker's place.
+        let free: Vec<bool> = (0..positions.len()).map(|slot| self.karts[slot].item == Item::None).collect();
+        let mut grants: [Option<(usize, usize)>; MAX_PLAYERS] = [None; MAX_PLAYERS];
+        let mut n = 0;
+        self.item_boxes.step(
+            positions,
+            |slot| free[slot],
+            |slot, b| {
+                if n < MAX_PLAYERS {
+                    grants[n] = Some((slot, b));
+                    n += 1;
+                }
+            },
+        );
+        let players = self.players.iter().flatten().count();
+        for (slot, b) in grants.into_iter().flatten() {
+            let place = self.race.as_ref().and_then(|r| r.place_of(slot)).unwrap_or(1);
+            self.karts[slot].item = roll_item(self.tick, slot, b, place, players);
         }
     }
 

@@ -563,6 +563,11 @@ positions cannot be written as rules (a rule variable is one number for everybod
 - **`laps`** 1..20 (default 3). **`countdown_secs`** 0..600 (default 3): karts are held until the light. **`finish_grace_secs`** (default 30): once the first
   kart finishes, the others have this long before the race ends and they are ranked as they stand.
 - **`line`** (optional): `[[x, z], ...]` racing-line points for bots on tight corners; empty = the gate centres.
+- **`item_boxes`** (optional): zone ids where an item box sits, and **`item_respawn_secs`** (default 5): the first kart to touch a ready box with a free hand
+  gets a **Mushroom** (a 1.5 s speed burst), an **Acorn** (thrown ahead; spins out the first kart it hits, and shatters on a wall) or a **Bubble** (a shield that
+  absorbs the next hit). `attack` uses the item on the press. Which item is rolled from the tick, slot, box and place alone (so a replay draws the same items),
+  weighted towards Mushrooms for the tail and Bubbles for the leader. The Beaver's `interact` lays a **plank** behind the kart (4 s cooldown; a full pool of 24
+  hazards replaces the oldest plank). A hazard never hits its owner in its first 0.75 s.
 - **Standings**: finishers by finish time, then by gates passed in total, then by distance to the next gate, then by slot. A player who joined and left is
   ranked as not finished; a slot that never joined is not listed. State is part of the match checksum.
 
@@ -659,7 +664,7 @@ problems (stairs that lead nowhere, unreachable rooms, overlaps, ...).
 
 The graphics client polls native gamepads through gilrs. Left-stick movement retains analog
 strength; right-stick look is time-based and FOV-compensated. Input flag bit 7 selects signed
--127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v<!--fact:protocol-->11<!--/fact-->.
+-127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v<!--fact:protocol-->12<!--/fact-->.
 Headless builds do not pull in gilrs. Focus loss, disconnect and menu transitions require
 neutral controls before gameplay resumes. See docs/CONTROLLERS_AND_SANDBOX.md for bindings.
 

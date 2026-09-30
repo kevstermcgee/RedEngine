@@ -49,6 +49,11 @@ pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
                 lap: progress.lap,
                 next_gate: progress.next,
                 place: standings.as_ref().and_then(|s| s.iter().position(|row| row.player == slot)).map_or(0, |i| i as u8 + 1),
+                item: k.item.wire(),
+                shield_ticks: k.shield_ticks,
+                ability_cooldown: k.ability_cooldown.min(255) as u8,
+                attack_held: k.attack_held,
+                interact_held: k.interact_held,
             }
         }),
     }));

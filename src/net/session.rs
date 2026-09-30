@@ -425,7 +425,7 @@ impl NetSession {
         let p = self.predictor.as_mut()?;
         input.seq = p.next_seq();
         // In a race the light decides whether the input counts (the server ignores it until green, so the prediction must too).
-        let can_drive = self.race.is_none_or(|r| r.phase == 1);
+        let can_drive = self.race.as_ref().is_none_or(|r| r.phase == 1);
         self.last_speed = p.apply_local_auto(input, can_drive, &self.world.colliders, &self.world.ground, self.world.player_tuning, &self.world.jump_pads);
         self.client.send_input(input, now);
         Some(p.state)

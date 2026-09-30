@@ -485,4 +485,83 @@ mod tests {
         walker.apply_local_kart(PlayerInput { seq: 1, forward: 1, ..Default::default() }, true, Surface::Road, &[], &ground);
         assert!(walker.kart().is_none() && walker.state.pos != start.pos);
     }
+
+    #[test]
+    fn a_predicted_item_takes_effect_the_moment_the_button_is_pressed_and_the_server_agrees() {
+        use crate::net::protocol::KartSnap;
+        use crate::sim::kart::{Driver, Item};
+        let ground = GroundCandidates::default();
+        for (item, driver) in [(Item::Mushroom, Driver::Wolf), (Item::Bubble, Driver::Bear), (Item::Acorn, Driver::Duck)] {
+            let spec = driver.spec();
+            let start = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
+            // A snapshot's kart block says the box gave this kart an item; that is how a client learns what it holds.
+            let mut predictor = Predictor::new(start);
+            let snap = KartSnap { driver: driver.wire(), item: item.wire(), ..Default::default() };
+            predictor.reconcile_snapshot(start, Some(&snap), 0, &[], &ground, PlayerTuning::default(), &[]);
+            assert_eq!(predictor.kart().unwrap().item, item);
+            let mut server = Server::new(start, spec);
+            server.kart.item = item;
+            let (lag, mut sent) = (5usize, Vec::new());
+            for t in 0..300u32 {
+                let input = PlayerInput { seq: predictor.next_seq(), forward: 1, attack: (150..152).contains(&t), ..Default::default() };
+                predictor.apply_local_kart(input, true, Surface::Road, &[], &ground);
+                sent.push(input);
+                if t == 151 {
+                    match item {
+                        Item::Mushroom => assert!(predictor.kart().unwrap().boost_ticks > 0, "the boost is on screen at once, not a round trip later"),
+                        Item::Bubble => assert!(predictor.kart().unwrap().shield_ticks > 0, "so is the shield"),
+                        _ => assert_eq!(predictor.kart().unwrap().item, Item::None, "the acorn left the hand"),
+                    }
+                }
+                if sent.len() > lag {
+                    let processed = sent[sent.len() - 1 - lag];
+                    server.process(&processed, true, &[], &ground);
+                    if t % 3 == 0 {
+                        predictor.reconcile_kart(server.state, server.kart, processed.seq, Surface::Road, &[], &ground);
+                    }
+                }
+            }
+            assert_eq!(predictor.corrections, 0, "{item:?}: using an item never needs a correction");
+            for input in &sent[sent.len() - lag..] {
+                server.process(input, true, &[], &ground);
+            }
+            assert_eq!(predictor.state, server.state, "{item:?}");
+            assert_eq!(predictor.kart(), Some(&server.kart), "{item:?}");
+        }
+    }
+
+    #[test]
+    fn the_wire_block_round_trips_the_kart_memory_a_client_needs() {
+        use crate::net::protocol::KartSnap;
+        use crate::sim::kart::Item;
+        let k = KartState {
+            boost_ticks: 42,
+            drift_dir: -1,
+            drift_charge: 1.234,
+            spin_ticks: 7,
+            jump_held: true,
+            slip_charge: 0.5,
+            item: Item::Acorn,
+            shield_ticks: 250,
+            ability_cooldown: 200,
+            attack_held: true,
+            interact_held: true,
+        };
+        let snap = KartSnap {
+            driver: 0,
+            boost_ticks: 42,
+            spin_ticks: 7,
+            drift_dir: -1,
+            jump_held: true,
+            drift_charge_ms: 1234,
+            slip: 100,
+            item: Item::Acorn.wire(),
+            shield_ticks: 250,
+            ability_cooldown: 200,
+            attack_held: true,
+            interact_held: true,
+            ..Default::default()
+        };
+        assert_eq!(snap.to_state(), k, "every field a prediction depends on survives the trip");
+    }
 }

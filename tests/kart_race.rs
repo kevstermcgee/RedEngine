@@ -4,7 +4,7 @@
 
 use glam::Vec2;
 use red_engine2::player::Character;
-use red_engine2::sim::kart::Driver;
+use red_engine2::sim::kart::{Driver, Item};
 use red_engine2::sim::match_sim::MatchSim;
 use red_engine2::sim::player::PlayerInput;
 use red_engine2::sim::race::Phase;
@@ -150,4 +150,116 @@ fn the_bear_bulldozes_and_a_scene_without_a_race_is_untouched() {
     }
     let speed = sim.player(slot).unwrap().state.velocity.length();
     assert!((speed - 3.2).abs() < 0.5, "a plain match still walks at walking pace, not kart pace: {speed}");
+}
+
+/// Two karts in a row on the same line, both facing east, `gap` metres apart (slot 0 behind), with the countdown already over.
+fn convoy(gap: f32, behind: Driver, ahead: Driver) -> MatchSim {
+    let text = scene(3, 0.0);
+    let mut sim = sim_for(&text, [behind, ahead]);
+    for (slot, x) in [(0, -30.0), (1, -30.0 + gap)] {
+        let mut state = sim.player(slot).unwrap().state;
+        state.pos = Vec2::new(x, -40.0);
+        state.yaw = 90f32.to_radians();
+        sim.remove_player(slot);
+        assert!(sim.add_player_at(slot, state));
+    }
+    sim.set_driver(0, behind);
+    sim.set_driver(1, ahead);
+    sim
+}
+
+#[test]
+fn a_thrown_acorn_spins_out_the_kart_ahead_and_a_bubble_absorbs_it() {
+    for shielded in [false, true] {
+        let mut sim = convoy(12.0, Driver::Duck, Driver::Duck);
+        sim.give_item(0, Item::Acorn);
+        if shielded {
+            sim.give_item(1, Item::Bubble);
+        }
+        let mut spun = false;
+        for t in 1..=90 {
+            sim.push_input(0, PlayerInput { seq: t, attack: t == 1, ..Default::default() });
+            sim.push_input(1, PlayerInput { seq: t, attack: t == 1, ..Default::default() });
+            sim.tick_once();
+            spun |= sim.kart(1).unwrap().spin_ticks > 0;
+            if t == 2 {
+                assert_eq!(sim.hazards().len(), 1, "the acorn is in flight");
+                assert_eq!(sim.kart(0).unwrap().item, Item::None, "and the item is used up");
+            }
+        }
+        assert_eq!(sim.kart(0).unwrap().spin_ticks, 0, "the thrower is never hit by their own acorn");
+        assert!(sim.hazards().is_empty(), "the acorn was used up");
+        if shielded {
+            assert!(!spun, "the bubble took the hit");
+            assert_eq!(sim.kart(1).unwrap().shield_ticks, 0, "and popped");
+        } else {
+            assert!(spun, "the acorn spun the kart ahead out");
+        }
+    }
+}
+
+#[test]
+fn the_beavers_plank_catches_a_kart_following_too_close() {
+    let mut sim = convoy(10.0, Driver::Duck, Driver::Beaver);
+    let mut spun_at = None;
+    for t in 1..=180 {
+        // The Beaver (slot 1) lays a plank on the first tick and drives on; the Duck (slot 0) chases at full throttle along the same line.
+        sim.push_input(1, PlayerInput { seq: t, forward: 1, interact: t == 1, ..Default::default() });
+        sim.push_input(0, PlayerInput { seq: t, forward: 1, ..Default::default() });
+        sim.tick_once();
+        if t == 2 {
+            assert_eq!(sim.hazards().len(), 1, "the plank is down");
+        }
+        if spun_at.is_none() && sim.kart(0).unwrap().spin_ticks > 0 {
+            spun_at = Some(t);
+        }
+    }
+    assert!(spun_at.is_some(), "the chasing Duck drove into the plank");
+    assert_eq!(sim.kart(1).unwrap().spin_ticks, 0, "the Beaver drove clear of his own plank");
+    assert!(sim.hazards().is_empty(), "the plank broke when it was hit");
+}
+
+#[test]
+fn item_boxes_hand_out_items_once_and_come_back() {
+    let text = scene(3, 0.0)
+        .replace(r#""race":{"#, r#""race":{"item_boxes":["crate"],"item_respawn_secs":2,"#)
+        .replace(r#""zones":["#, r#""zones":[{"id":"crate","rect":[-14,-42,-10,-38]},"#);
+    let mut sim = sim_for(&text, [Driver::Duck, Driver::Duck]);
+    assert_eq!(sim.item_boxes().boxes().len(), 1);
+    assert!(sim.item_boxes().is_ready(0));
+    let mut got = None;
+    for t in 1..=200 {
+        sim.push_input(0, PlayerInput { seq: t, forward: 1, ..Default::default() });
+        sim.tick_once();
+        if got.is_none() && sim.kart(0).unwrap().item != Item::None {
+            got = Some((t, sim.kart(0).unwrap().item));
+        }
+    }
+    let (tick, item) = got.expect("driving through the box gave an item");
+    assert!(tick > 10 && tick < 120, "at about the ten metres it took to reach it: tick {tick}");
+    assert_ne!(item, Item::None);
+    assert_eq!(sim.kart(1).unwrap().item, Item::None, "the kart that stayed on the grid got nothing");
+}
+
+#[test]
+fn a_race_with_items_is_deterministic() {
+    let text = scene(2, 0.5)
+        .replace(r#""race":{"#, r#""race":{"item_boxes":["crate"],"item_respawn_secs":1,"#)
+        .replace(r#""zones":["#, r#""zones":[{"id":"crate","rect":[-14,-42,-10,-38]},"#);
+    let run = || {
+        let mut sim = sim_for(&text, [Driver::Beaver, Driver::Wolf]);
+        let mut sums = Vec::new();
+        for t in 1..=1200 {
+            for slot in 0..2 {
+                let mut input = pursue(&sim, slot, t);
+                input.attack = t % 90 == 0;
+                input.interact = slot == 0 && t % 200 == 0;
+                sim.push_input(slot, input);
+            }
+            sim.tick_once();
+            sums.push(sim.checksum());
+        }
+        sums
+    };
+    assert_eq!(run(), run(), "items, acorns and planks are part of the deterministic state");
 }

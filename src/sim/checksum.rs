@@ -61,7 +61,16 @@ impl MatchSim {
                 karts.mix(k.boost_ticks as u64 | (k.drift_dir as u8 as u64) << 16 | (k.spin_ticks as u64) << 24 | (k.jump_held as u64) << 40);
                 karts.f(k.drift_charge);
                 karts.f(k.slip_charge);
+                karts.mix(
+                    k.item.wire() as u64
+                        | (k.shield_ticks as u64) << 8
+                        | (k.ability_cooldown as u64) << 24
+                        | (k.attack_held as u64) << 40
+                        | (k.interact_held as u64) << 41,
+                );
             }
+            karts.mix(self.hazards.checksum());
+            karts.mix(self.item_boxes.checksum());
             rules ^= karts.0.rotate_left(17);
         }
         (players.0, props.0, rules)

@@ -46,6 +46,68 @@ const WALL_SCRAPE: f32 = 0.9;
 const AIR_STEER: f32 = 0.4;
 /// Gravity multiplier while gliding.
 const GLIDE_GRAVITY: f32 = 0.35;
+/// How long a Mushroom boosts, ticks (1.5 s).
+pub const MUSHROOM_BOOST_TICKS: u16 = 90;
+/// How long a Bubble lasts if nothing hits it, ticks (5 s).
+pub const BUBBLE_TICKS: u16 = 300;
+/// The Beaver's Build cooldown, ticks (4 s).
+pub const BUILD_COOLDOWN_TICKS: u16 = 240;
+
+/// A pickup a kart can hold (one at a time). `attack` uses it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Item {
+    /// Nothing held.
+    #[default]
+    None,
+    /// A speed burst for the holder.
+    Mushroom,
+    /// A nut thrown ahead that spins out the first kart it hits.
+    Acorn,
+    /// A shield that absorbs the next hit.
+    Bubble,
+}
+
+impl Item {
+    /// The item's number on the wire (`0` = nothing).
+    pub fn wire(self) -> u8 {
+        match self {
+            Item::None => 0,
+            Item::Mushroom => 1,
+            Item::Acorn => 2,
+            Item::Bubble => 3,
+        }
+    }
+
+    /// The item for a wire number, if it is one.
+    pub fn from_wire(n: u8) -> Option<Item> {
+        match n {
+            0 => Some(Item::None),
+            1 => Some(Item::Mushroom),
+            2 => Some(Item::Acorn),
+            3 => Some(Item::Bubble),
+            _ => None,
+        }
+    }
+
+    /// The item's name as shown to players.
+    pub fn name(self) -> &'static str {
+        match self {
+            Item::None => "none",
+            Item::Mushroom => "Mushroom",
+            Item::Acorn => "Acorn",
+            Item::Bubble => "Bubble",
+        }
+    }
+}
+
+/// What a kart step asks the simulation to do in the world (the kart step itself only changes the kart): the pool of hazards is the simulation's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct KartEvents {
+    /// Throw an Acorn ahead of the kart.
+    pub throw_acorn: bool,
+    /// Lay a plank behind the kart (the Beaver's Build).
+    pub lay_plank: bool,
+}
 
 /// What a surface under the kart does to it. The caller looks this up from the map (ground type, zone or water).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -260,14 +322,30 @@ pub struct KartState {
     pub jump_held: bool,
     /// Slipstream banked, 0..1 (Wolf): a full bar becomes a boost.
     pub slip_charge: f32,
+    /// The pickup held.
+    pub item: Item,
+    /// Ticks of Bubble shield left.
+    pub shield_ticks: u16,
+    /// Ticks until the driver's ability can be used again (the Beaver's Build).
+    pub ability_cooldown: u16,
+    /// Was `attack` down last tick (an item is used on the press).
+    pub attack_held: bool,
+    /// Was `interact` down last tick (the driver's ability is used on the press).
+    pub interact_held: bool,
 }
 
 impl KartState {
-    /// Starts a spin-out of `ticks` (a hit): the driver loses control, any drift is lost, the boost is not.
-    pub fn spin_out(&mut self, ticks: u16) {
+    /// Starts a spin-out of `ticks` (a hit): the driver loses control, any drift is lost, the boost is not. A Bubble absorbs the hit instead (and
+    /// pops). Returns whether the kart actually spun out.
+    pub fn spin_out(&mut self, ticks: u16) -> bool {
+        if self.shield_ticks > 0 {
+            self.shield_ticks = 0;
+            return false;
+        }
         self.spin_ticks = self.spin_ticks.max(ticks);
         self.drift_dir = 0;
         self.drift_charge = 0.0;
+        true
     }
 
     /// Adds `ticks` of boost (a pickup, a boost pad, a drift), keeping the longer of the two.
@@ -290,6 +368,7 @@ impl KartState {
 
 /// Advances one kart by one fixed tick (`FIXED_DT`): steering, throttle and braking, grip and drifting, hop and glide, boost, spin-out, walls.
 /// `surface` is what is under the kart (the caller looks it up). Returns the speed after the tick, m/s (drives wheel and engine animation).
+/// Items and abilities are handled by [`step_kart_ex`]; this is the same step with their world effects dropped.
 pub fn step_kart(
     state: &mut PlayerState,
     kart: &mut KartState,
@@ -299,7 +378,43 @@ pub fn step_kart(
     colliders: &[Collider2D],
     ground: &GroundCandidates,
 ) -> f32 {
+    step_kart_ex(state, kart, input, spec, surface, colliders, ground).0
+}
+
+/// [`step_kart`] plus the pickups: on the press of `attack` the held item is used (a Mushroom boosts and a Bubble shields the kart itself, right here, so
+/// a client predicts them exactly; an Acorn is returned as an event for the simulation to throw), and on the press of `interact` the Beaver's Build
+/// asks for a plank behind the kart (once its cooldown has run). Nothing is used while spinning out. Returns the speed and those world events.
+pub fn step_kart_ex(
+    state: &mut PlayerState,
+    kart: &mut KartState,
+    input: &PlayerInput,
+    spec: &KartSpec,
+    surface: Surface,
+    colliders: &[Collider2D],
+    ground: &GroundCandidates,
+) -> (f32, KartEvents) {
     let input = input.sanitized();
+    let mut events = KartEvents::default();
+    let attack_pressed = input.attack && !kart.attack_held;
+    let interact_pressed = input.interact && !kart.interact_held;
+    kart.attack_held = input.attack;
+    kart.interact_held = input.interact;
+    if kart.spin_ticks == 0 {
+        if attack_pressed {
+            match std::mem::take(&mut kart.item) {
+                Item::Mushroom => kart.boost(MUSHROOM_BOOST_TICKS),
+                Item::Bubble => kart.shield_ticks = BUBBLE_TICKS,
+                Item::Acorn => events.throw_acorn = true,
+                Item::None => {}
+            }
+        }
+        if interact_pressed && spec.ability == Ability::Build && kart.ability_cooldown == 0 {
+            events.lay_plank = true;
+            kart.ability_cooldown = BUILD_COOLDOWN_TICKS;
+        }
+    }
+    kart.shield_ticks = kart.shield_ticks.saturating_sub(1);
+    kart.ability_cooldown = kart.ability_cooldown.saturating_sub(1);
     let scale = if input.analog { 127.0 } else { 1.0 };
     let mut throttle = input.forward as f32 / scale;
     let mut steer = input.strafe as f32 / scale;
@@ -433,7 +548,7 @@ pub fn step_kart(
         state.foot_y = floor;
         state.vy = 0.0;
     }
-    state.velocity.length()
+    (state.velocity.length(), events)
 }
 
 /// The result of two karts touching: velocity changes and position pushes for each, and how long each spins out.
@@ -775,5 +890,71 @@ mod tests {
             assert_eq!(runs[0], runs[1], "{} is deterministic", d.name());
             assert!(runs[0].0.pos.is_finite() && runs[0].0.velocity.is_finite());
         }
+    }
+
+    fn tick_ex(driver: Driver, kart: &mut KartState, state: &mut PlayerState, input: PlayerInput) -> KartEvents {
+        step_kart_ex(state, kart, &input, &driver.spec(), Surface::Road, &[], &GroundCandidates::default()).1
+    }
+
+    #[test]
+    fn a_pickup_is_used_on_the_press_and_only_once() {
+        let press = PlayerInput { forward: 1, attack: true, ..Default::default() };
+        let release = PlayerInput { forward: 1, ..Default::default() };
+        // Mushroom: boosts the kart itself, right in the step, and is gone.
+        let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState { item: Item::Mushroom, ..Default::default() });
+        assert_eq!(tick_ex(Driver::Duck, &mut k, &mut s, press), KartEvents::default());
+        assert_eq!((k.item, k.boost_ticks), (Item::None, MUSHROOM_BOOST_TICKS - 1));
+        // Holding the button does not use the next one; releasing and pressing again does.
+        k.item = Item::Mushroom;
+        tick_ex(Driver::Duck, &mut k, &mut s, press);
+        assert_eq!(k.item, Item::Mushroom, "still held down from the first press");
+        tick_ex(Driver::Duck, &mut k, &mut s, release);
+        tick_ex(Driver::Duck, &mut k, &mut s, press);
+        assert_eq!(k.item, Item::None);
+        // Bubble: a shield that lasts, and pops on the first hit.
+        let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState { item: Item::Bubble, ..Default::default() });
+        tick_ex(Driver::Duck, &mut k, &mut s, press);
+        assert_eq!((k.item, k.shield_ticks), (Item::None, BUBBLE_TICKS - 1));
+        assert!(!k.spin_out(45), "the bubble absorbs the hit");
+        assert_eq!((k.spin_ticks, k.shield_ticks), (0, 0), "and pops");
+        assert!(k.spin_out(45) && k.spin_ticks == 45, "the next hit lands");
+        // Acorn: the kart asks for a throw; the world does the rest.
+        let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState { item: Item::Acorn, ..Default::default() });
+        assert!(tick_ex(Driver::Duck, &mut k, &mut s, press).throw_acorn);
+        assert_eq!(k.item, Item::None);
+        assert!(!tick_ex(Driver::Duck, &mut k, &mut s, release).throw_acorn);
+        // No item: nothing happens. A shield runs out by itself.
+        let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState::default());
+        assert_eq!(tick_ex(Driver::Duck, &mut k, &mut s, press), KartEvents::default());
+        k.shield_ticks = 2;
+        tick_ex(Driver::Duck, &mut k, &mut s, release);
+        tick_ex(Driver::Duck, &mut k, &mut s, release);
+        assert_eq!(k.shield_ticks, 0);
+    }
+
+    #[test]
+    fn nothing_is_used_while_spinning_out() {
+        let press = PlayerInput { forward: 1, attack: true, ..Default::default() };
+        let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState { item: Item::Mushroom, spin_ticks: 5, ..Default::default() });
+        tick_ex(Driver::Duck, &mut k, &mut s, press);
+        assert_eq!((k.item, k.boost_ticks), (Item::Mushroom, 0), "the press during a spin is lost, and the item is kept");
+    }
+
+    #[test]
+    fn only_the_beaver_builds_and_its_cooldown_limits_it() {
+        let build = PlayerInput { forward: 1, interact: true, ..Default::default() };
+        let release = PlayerInput { forward: 1, ..Default::default() };
+        let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState::default());
+        assert!(!tick_ex(Driver::Bear, &mut k, &mut s, build).lay_plank, "only the Beaver builds");
+        let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState::default());
+        assert!(tick_ex(Driver::Beaver, &mut k, &mut s, build).lay_plank);
+        assert_eq!(k.ability_cooldown, BUILD_COOLDOWN_TICKS - 1);
+        tick_ex(Driver::Beaver, &mut k, &mut s, release);
+        assert!(!tick_ex(Driver::Beaver, &mut k, &mut s, build).lay_plank, "still cooling down");
+        for _ in 0..BUILD_COOLDOWN_TICKS {
+            tick_ex(Driver::Beaver, &mut k, &mut s, release);
+        }
+        assert_eq!(k.ability_cooldown, 0);
+        assert!(tick_ex(Driver::Beaver, &mut k, &mut s, build).lay_plank, "ready again");
     }
 }

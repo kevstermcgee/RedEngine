@@ -32,10 +32,16 @@ struct Rig {
 
 impl Rig {
     fn new(text: &str) -> Rig {
+        Rig::with_driver(text, Driver::Duck)
+    }
+
+    /// A rig whose first slot drives as `driver` (the lobby's choice, until it exists).
+    fn with_driver(text: &str, driver: Driver) -> Rig {
         let scene = red_engine2::schema::parse_scene(text).unwrap();
         let hash = map_hash(text);
-        let mut server =
-            Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), hash), MatchSim::try_new(&scene, parse_spawns(text).unwrap()).unwrap()).unwrap();
+        let mut sim = MatchSim::try_new(&scene, parse_spawns(text).unwrap()).unwrap();
+        sim.set_driver(0, driver);
+        let mut server = Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), hash), sim).unwrap();
         server.set_logger(|_| {});
         let addr = SocketAddr::new("127.0.0.1".parse().unwrap(), server.local_addr().unwrap().port());
         Rig { server, addr, hash, now: Instant::now() }
@@ -54,10 +60,17 @@ impl Rig {
 
     /// Runs `ticks` server ticks; a client holding `forward` throttle sends one input per tick. Returns every snapshot it received, oldest first.
     fn drive(&mut self, c: &mut RawClient, seq: &mut u32, ticks: u32, forward: i8) -> Vec<Snapshot> {
+        self.drive_with(c, seq, ticks, |_, input| input.forward = forward)
+    }
+
+    /// [`drive`](Self::drive) with each tick's input built by `make(tick_within_this_call, &mut input)`.
+    fn drive_with(&mut self, c: &mut RawClient, seq: &mut u32, ticks: u32, make: impl Fn(u32, &mut PlayerInput)) -> Vec<Snapshot> {
         let mut out = Vec::new();
-        for _ in 0..ticks {
+        for t in 0..ticks {
             *seq += 1;
-            c.send(&ClientMsg::Input(InputPacket { inputs: vec![PlayerInput { seq: *seq, forward, ..Default::default() }], ..Default::default() }));
+            let mut input = PlayerInput { seq: *seq, ..Default::default() };
+            make(t, &mut input);
+            c.send(&ClientMsg::Input(InputPacket { inputs: vec![input], ..Default::default() }));
             std::thread::sleep(Duration::from_millis(1));
             self.now += Duration::from_micros(16_667);
             self.server.pump(self.now);
@@ -79,7 +92,7 @@ fn a_race_reaches_the_client_with_its_countdown_karts_and_progress() {
     assert!(!early.is_empty(), "snapshots arrive");
     let start_x = early[0].players[0].pos[0];
     for s in &early {
-        let race = s.race.expect("a race match sends the race header in every snapshot");
+        let race = s.race.as_ref().expect("a race match sends the race header in every snapshot");
         assert_eq!(race.phase, 0, "countdown");
         assert!(race.countdown_ticks > 0);
         assert!((s.players[0].pos[0] - start_x).abs() < 1e-4, "held on the grid");
@@ -89,7 +102,7 @@ fn a_race_reaches_the_client_with_its_countdown_karts_and_progress() {
     // The light goes green (1 s countdown): the kart accelerates east along its heading.
     let later = rig.drive(&mut c, &mut seq, 150, 1);
     let last = later.last().expect("more snapshots");
-    let race = last.race.unwrap();
+    let race = last.race.as_ref().unwrap();
     assert_eq!(race.phase, 1, "racing");
     assert!(race.race_tick > 30, "the race clock runs: {}", race.race_tick);
     assert!(last.players[0].pos[0] > start_x + 20.0, "the kart drove off: {} -> {}", start_x, last.players[0].pos[0]);
@@ -97,8 +110,8 @@ fn a_race_reaches_the_client_with_its_countdown_karts_and_progress() {
     let kart = last.players[0].kart.unwrap();
     assert_eq!(kart.place, 1, "the only one on the grid is first");
     assert!(kart.boost_ticks == 0 && !kart.finished);
-    assert!(later.iter().any(|s| s.race.unwrap().phase == 0 || s.race.unwrap().phase == 1), "phases only ever move forward");
-    assert!(later.windows(2).all(|w| w[0].race.unwrap().phase <= w[1].race.unwrap().phase));
+    assert!(later.iter().any(|s| s.race.as_ref().unwrap().phase == 0 || s.race.as_ref().unwrap().phase == 1), "phases only ever move forward");
+    assert!(later.windows(2).all(|w| w[0].race.as_ref().unwrap().phase <= w[1].race.as_ref().unwrap().phase));
 }
 
 #[test]
@@ -141,7 +154,7 @@ fn a_real_client_predicts_its_kart_and_the_server_agrees_with_it() {
     let mut green_at = None;
     while started.elapsed() < Duration::from_secs(5) {
         bot.pump(Instant::now());
-        if green_at.is_none() && bot.race.is_some_and(|r| r.phase == 1) {
+        if green_at.is_none() && bot.race.as_ref().is_some_and(|r| r.phase == 1) {
             green_at = Some(started.elapsed());
         }
         std::thread::sleep(Duration::from_millis(4));
@@ -168,4 +181,29 @@ fn a_real_client_predicts_its_kart_and_the_server_agrees_with_it() {
         predictor.worst_correction,
         predictor.corrections
     );
+}
+
+#[test]
+fn items_shields_cooldowns_and_hazards_reach_the_client() {
+    // A Beaver (slot 0) drives east through an item box, and once the light is green lays a plank. Everything a client needs to draw and predict it
+    // must arrive: the plank in the race header, the ability cooldown, and the item the box gave.
+    let text = RACE_SCENE
+        .replace(r#""race":{"#, r#""race":{"item_boxes":["crate"],"item_respawn_secs":2,"#)
+        .replace(r#""zones":["#, r#""zones":[{"id":"crate","rect":[-12,-42,-8,-38]},"#);
+    let mut rig = Rig::with_driver(&text, Driver::Beaver);
+    let mut c = rig.join(7003);
+    let mut seq = 0;
+    let snaps = rig.drive_with(&mut c, &mut seq, 200, |t, input| {
+        input.forward = 1;
+        input.interact = t == 100; // one press, well after the green light at tick 60
+    });
+    let plank = snaps.iter().find(|s| s.race.as_ref().is_some_and(|r| !r.hazards.is_empty())).expect("a snapshot showed the plank");
+    let hazards = &plank.race.as_ref().unwrap().hazards;
+    assert_eq!((hazards.len(), hazards[0].kind, hazards[0].owner), (1, 1, 0), "one plank, laid by slot 0");
+    let kart = plank.players[0].kart.unwrap();
+    assert_eq!(kart.driver, Driver::Beaver.wire());
+    assert!(kart.ability_cooldown > 0, "Build is cooling down: {}", kart.ability_cooldown);
+    assert!(hazards[0].pos[0] < plank.players[0].pos[0], "and the plank is behind the kart, not ahead of it");
+    let last = snaps.last().unwrap().players[0].kart.unwrap();
+    assert!(last.item != 0, "the item box gave the kart an item, and the client can see which: {}", last.item);
 }

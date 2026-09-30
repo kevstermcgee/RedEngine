@@ -30,7 +30,7 @@ Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`
 weapon logic (the online path uses the server's). Offline and online both use the shared generic presentation for rule variables,
 recent events, hidden objects and outcome; online receives repeated complete rule-state snapshots (ADR 0036).
 
-**Transport and joining (protocol v<!--fact:protocol-->11<!--/fact-->, ADR 0044).** Production traffic is QUIC + TLS 1.3 (`net::quic` behind `net::transport`): the server has a
+**Transport and joining (protocol v<!--fact:protocol-->12<!--/fact-->, ADR 0044).** Production traffic is QUIC + TLS 1.3 (`net::quic` behind `net::transport`): the server has a
 deployment identity (`red_engine2 net-identity`, `red_server --tls-cert/--tls-key`) that clients pin (`--server-fingerprint`) and never downgrade
 from; loopback tools and tests use development UDP (`Server::bind`, `NetClient::connect`), which a public bind refuses without
 `--insecure-public-udp`. `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC, bound to the TLS exporter on QUIC;
