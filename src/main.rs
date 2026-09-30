@@ -45,6 +45,8 @@ mod playtest;
 mod render_cmds;
 #[path = "cli/repo.rs"]
 mod repo;
+#[path = "cli/servers.rs"]
+mod servers;
 #[path = "cli/util.rs"]
 mod util;
 
@@ -54,6 +56,7 @@ use editing::*;
 use info::*;
 use render_cmds::*;
 use repo::*;
+use servers::*;
 use util::*;
 
 fn main() {
@@ -152,6 +155,7 @@ fn run(command: Command) -> Result<(), String> {
             size: size.as_deref(),
         }),
         Command::Adr { cmd, root } => run_adr(cmd, root.as_deref()),
+        Command::Servers { cmd } => run_servers(cmd),
         Command::Analysis { cmd, root } => run_analysis(cmd, root.as_deref()),
         Command::Features { query, check } => run_features(&query, check),
         Command::Impact { files, git } => run_impact(&files, git.as_deref()),

@@ -29,11 +29,11 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("glossary", "project vocabulary: props vs prefabs, zones, body band, the four maps, the tire-iron naming trap, ..."),
     ("decisions", "the architecture decision records (docs/adr): why the engine is built this way, one line each"),
     ("diagnostics", "the `--json` envelope every command can return, and every stable diagnostic code with its fix"),
-    ("rules", "game logic as data: `vars` + `rules` (when / who / if / once / do), volumes, actions, expressions; run headless"),
-    ("sim", "headless play-throughs (`sim`, scenarios in `checks.sim`) and match traces (`replay`, checksums, first divergent tick)"),
+    ("rules", "game logic as data: `vars` + `rules` (when/who/if/once/do), volumes, actions, expressions"),
+    ("sim", "headless play-throughs (`sim`, `checks.sim`) and match traces (`replay`, checksums)"),
     ("multiplayer", "hosting and playing online: keys, lobby and rounds, UPnP, net-test, perf, package"),
     ("playtest", "look at the game without a screen: `playtest`, headless scripts, pictures, the state dump, `expect`"),
-    ("custom-client", "a game that is not first-person: your own crate on `red_engine2::app` (camera, session, input, renderer, HUD)"),
+    ("custom-client", "a game that is not first-person: your own crate on `red_engine2::app`"),
     ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
 

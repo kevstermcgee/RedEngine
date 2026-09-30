@@ -40,6 +40,7 @@ pub mod racetrack;
 pub mod reach;
 pub mod recipes;
 pub mod search;
+pub mod servers;
 pub mod sheet;
 pub mod shots;
 pub mod sight;

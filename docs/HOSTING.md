@@ -86,3 +86,24 @@ was hosted this way and a QUIC client with the pinned fingerprint and key raced 
 
 `RED_STATS_SECS=30` prints a line per 30 s: players, tick time, props promoted, in/out KB/s, snapshots, bad packets. A healthy small
 match is a few KB/s and tens of microseconds per tick (`tests/net_budget.rs` and `tests/alloc_budget.rs` hold the budgets).
+
+## Managing the servers on this machine
+
+`red_engine2 servers` (Linux, per-user systemd units: what `deploy/game-host.sh` installs) lists, starts, stops and restarts every game server on the box:
+
+```
+red_engine2 servers                        # NAME STATE UPTIME PLAYERS PORT MAP MEM BOOT, plus any stray red_server process
+red_engine2 servers status NAME            # one server in full, and its last log lines
+red_engine2 servers start NAME [--wait 20] # turn it on (waits until it is running)
+red_engine2 servers stop NAME [--yes]      # SIGTERM: the server tells its clients goodbye
+red_engine2 servers restart NAME [--yes] [--wait 20]
+red_engine2 servers logs NAME [-n 50] [--follow]
+red_engine2 --json servers                 # the same, for tools and tests
+```
+
+A server is a user unit whose `ExecStart` is `red_server`; there is no registry. `NAME` is the unit name without `.service` (a unique prefix works). Players come from the server's own
+`stats:` log line (`RED_STATS_SECS` in the unit), with its age; a count older than three intervals, or none, shows as `?` (unknown), never `0`. Stopping or restarting a server that reports
+players needs `--yes`; an unknown count only warns. Starting a server on a UDP port another running server already uses is refused. A stray `red_server` (no unit) is listed and can be
+stopped with `servers stop --pid PID --yes`, not restarted. Secret-looking values (`*KEY*`, `*SECRET*`, `*TOKEN*`, `*PASSWORD*`) are masked in everything it prints, and it reads only
+the unit's inline `Environment=` (port, map, stats interval), never `EnvironmentFile` contents. It operates servers; it does not create them: installing one (the build, the QUIC identity and the private
+join key) stays with `deploy/game-host.sh`.

@@ -79,6 +79,59 @@ pub(crate) enum SrcCmd {
     },
 }
 
+/// What `servers` can do to one server. A server is a systemd user unit whose ExecStart is `red_server` (what `deploy/game-host.sh` installs).
+#[derive(Subcommand)]
+pub(crate) enum ServersCmd {
+    /// A table of every game server: state, uptime, players (from its own stats line), port, map, memory, start-at-boot. Also the default.
+    List,
+    /// Everything about one server, and its last log lines.
+    Status {
+        /// The server (a unit name without `.service`, or a unique prefix).
+        name: String,
+    },
+    /// Turn a server on.
+    Start {
+        /// The server.
+        name: String,
+        /// Wait up to this many seconds for it to be running (fails if it is not).
+        #[arg(long)]
+        wait: Option<u64>,
+    },
+    /// Shut a server down (SIGTERM: the server tells its clients goodbye). With players connected it needs `--yes`.
+    Stop {
+        /// The server. Omit with `--pid` to stop a stray red_server that no unit owns.
+        name: Option<String>,
+        /// A stray (unmanaged) red_server process id, as listed by `servers`.
+        #[arg(long, conflicts_with = "name")]
+        pid: Option<u32>,
+        /// Do it even if players are connected (and required to stop a stray process).
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Stop and start a server again. With players connected it needs `--yes`.
+    Restart {
+        /// The server.
+        name: String,
+        /// Do it even if players are connected.
+        #[arg(long)]
+        yes: bool,
+        /// Wait up to this many seconds for the new process to be running (fails if it is not).
+        #[arg(long)]
+        wait: Option<u64>,
+    },
+    /// A server's recent log lines (secret-looking values masked).
+    Logs {
+        /// The server.
+        name: String,
+        /// How many lines.
+        #[arg(short = 'n', long, default_value_t = 50)]
+        lines: usize,
+        /// Keep printing new lines until interrupted.
+        #[arg(short, long)]
+        follow: bool,
+    },
+}
+
 #[derive(Subcommand)]
 pub(crate) enum AdrCmd {
     /// Create `docs/adr/<today>-<slug>.md` from the template and refresh the index.
@@ -617,6 +670,11 @@ pub(crate) enum Command {
         /// Repository root (default: found from the current directory).
         #[arg(long, global = true)]
         root: Option<PathBuf>,
+    },
+    /// Game servers on this machine (Linux systemd): list, status, start, stop, restart, logs.
+    Servers {
+        #[command(subcommand)]
+        cmd: Option<ServersCmd>,
     },
     /// Analysis notes (`docs/analysis/`): what a builder reported and what was done about it. `analysis new "Title" [--from file]`, `analysis list`; `search --kind analysis`.
     Analysis {
