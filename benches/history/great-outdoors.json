@@ -1,0 +1,101 @@
+{
+  "schema": "red-game-build/1",
+  "game": "great-outdoors",
+  "purpose": "Measured facts from building the first vehicle game on Red, one record per phase, so later sessions can see what a big engine feature costs and what it costs to run. Narrative and engine friction: docs/analysis/2026-09-29-great-outdoors-engine-findings.md",
+  "machine": "Intel N97, 4 cores, dev profile CLI (opt-level 1 engine, opt-level 2 dependencies), idle box",
+  "phases": [
+    {
+      "id": "1-sim-kart",
+      "commit": "0dd3905",
+      "adds": "sim::kart: pure step_kart, eight-driver table, kart_bump, slipstream_gain",
+      "lines_added": {
+        "src/sim/kart.rs": 779
+      },
+      "tests_added": 13
+    },
+    {
+      "id": "2-sim-race",
+      "commit": "b7814ed",
+      "adds": "sim::race: `race` scene block, RaceCourse, RaceState (ordered directional gates, laps, standings, countdown, finish grace)",
+      "lines_added": {
+        "src/sim/race.rs": 608
+      },
+      "tests_added": 8
+    },
+    {
+      "id": "3a-matchsim",
+      "commit": "27d6dd8",
+      "adds": "karts and the race inside MatchSim, checksum, Scene.race",
+      "tests_added": 4,
+      "notes": "tests/kart_race.rs drives two karts through the real tick with pursuit steering",
+      "lines_added": {
+        "tests/kart_race.rs": 153
+      }
+    },
+    {
+      "id": "3b-protocol-v11",
+      "commit": "af0f0e0",
+      "adds": "KartSnap (10 B/kart) and RaceSnap (7 B) on the wire, wire-only flag bits, datagram budget accounting",
+      "tests_added": 5,
+      "notes": "a match without a race encodes byte for byte as before",
+      "lines_added": {
+        "tests/net_race.rs (incl. 3c test)": 171
+      }
+    },
+    {
+      "id": "3c-prediction",
+      "commit": "the commit after af0f0e0 (client prediction)",
+      "adds": "Predictor kart mode (apply_local_kart, reconcile_kart, reconcile_snapshot), NetEvent::Snapshot.race, session and bot wiring",
+      "tests_added": 4
+    }
+  ],
+  "cost_of_karts_on_the_server": {
+    "scenario": "red_engine2 perf, 8 players, 2 s windows, best of 3, same scene with and without the race block",
+    "without_race": {
+      "sim_tick_us": {
+        "mean": 10,
+        "p99": 17
+      },
+      "server_tick_us": {
+        "mean": 31,
+        "p95": 90,
+        "p99": 91,
+        "max": 117
+      },
+      "bytes_per_client_per_s": 12706,
+      "largest_datagram": 390
+    },
+    "with_race": {
+      "sim_tick_us": {
+        "mean": 11,
+        "p99": 19
+      },
+      "server_tick_us": {
+        "mean": 32,
+        "p95": 90,
+        "p99": 93,
+        "max": 118
+      },
+      "bytes_per_client_per_s": 15289,
+      "largest_datagram": 477
+    },
+    "tick_budget_us_at_60hz": 16667,
+    "reading": "Kart driving, bumps and race tracking add about 1-2 us per tick for 8 karts (noise level). The network cost is exact: 87 bytes per snapshot (7 header + 8 x 10) at 30 snapshots per second = +2.6 KB/s per client."
+  },
+  "prediction_over_loopback": {
+    "scenario": "tests/net_race.rs a_real_client_predicts_its_kart_and_the_server_agrees_with_it: real Server thread, real Bot (network client + predictor), 5 s, kart driving straight after a 1 s countdown",
+    "corrections": 1,
+    "worst_correction_m": 0.107,
+    "final_predicted_equals_server": true,
+    "repeatable": "identical over three runs",
+    "reading": "The one correction is the light going green: the server releases the kart a moment before the client hears about it. A client that extrapolates the start from the server tick would remove it.",
+    "unit_level": "net::predict tests: with 6 ticks of lag and reconciliation every 4 ticks, all eight drivers (steering, drifting, hopping, a wall) make ZERO corrections and end bit-identical to the server."
+  },
+  "verification_gates_per_phase": "scripts/ci.sh fmt clippy tests (+ headless-clippy, benches) all green locally before each commit; the full test stage takes several minutes on the 4-core box",
+  "not_measured_yet": [
+    "wall-clock and tokens per phase (no per-phase timing was recorded during the work)",
+    "prediction over a lossy or laggy link (net-test profiles)",
+    "8 real clients on the shared server",
+    "feel on a physical gamepad or at a window"
+  ]
+}

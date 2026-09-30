@@ -149,6 +149,8 @@ pub struct Bot {
     pub client: NetClient,
     /// Local prediction (`None` until welcomed).
     pub predictor: Option<Predictor>,
+    /// The race as of the newest snapshot, in a race match (whether the light is green decides whether input counts).
+    pub race: Option<crate::net::protocol::RaceSnap>,
     /// The static map.
     pub world: ClientWorld,
     /// What it does.
@@ -191,6 +193,7 @@ impl Bot {
         Ok(Bot {
             client,
             predictor: None,
+            race: None,
             world,
             behavior,
             started: now,
@@ -273,11 +276,13 @@ impl Bot {
                     self.events.push((t, format!("connected as player {} at ({:.2}, {:.2})", w.player_id, w.spawn[0], w.spawn[2])));
                 }
                 NetEvent::PhaseChanged { phase, round } => self.events.push((t, format!("phase {} round {round}", phase.name()))),
-                NetEvent::Snapshot { own: Some(own), ack_input_seq } => {
+                NetEvent::Snapshot { own: Some(own), ack_input_seq, race } => {
+                    self.race = race;
                     let server_state = self.own_state(&own);
                     if let Some(p) = &mut self.predictor {
-                        p.reconcile_tuned(
+                        p.reconcile_snapshot(
                             server_state,
+                            own.kart.as_ref(),
                             ack_input_seq,
                             &self.world.colliders,
                             &self.world.ground,
@@ -323,7 +328,8 @@ impl Bot {
             input.pitch = self.pitch;
             let Some(p) = self.predictor.as_mut() else { return };
             input.seq = p.next_seq();
-            p.apply_local_tuned(input, &self.world.colliders, &self.world.ground, self.world.player_tuning, &self.world.jump_pads);
+            let can_drive = self.race.is_none_or(|r| r.phase == 1);
+            p.apply_local_auto(input, can_drive, &self.world.colliders, &self.world.ground, self.world.player_tuning, &self.world.jump_pads);
             self.client.send_input(input, now);
             self.next_tick += tick;
             ran += 1;

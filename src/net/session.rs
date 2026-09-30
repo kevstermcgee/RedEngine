@@ -210,6 +210,8 @@ pub struct NetSession {
     pub last_speed: f32,
     /// The server's latest word about the local player (weapon in hand, hit points, what they carry).
     pub own: Option<PlayerSnap>,
+    /// The race as of the newest snapshot, in a race match (the HUD reads the countdown and clock; the prediction reads whether the light is green).
+    pub race: Option<crate::net::protocol::RaceSnap>,
     /// Whether a `Welcome` has arrived (also true in a lobby, where there is no body to place yet).
     pub joined: bool,
     /// Things the snapshots reported since the last [`take_happened`](Self::take_happened): shots heard, hits landed, damage taken, kills.
@@ -247,6 +249,7 @@ impl NetSession {
             status: "connecting...".into(),
             last_speed: 0.0,
             own: None,
+            race: None,
             joined: false,
             happened: Vec::new(),
             remote_hands: Vec::new(),
@@ -380,10 +383,12 @@ impl NetSession {
                     }
                     self.teleport = Some(st);
                 }
-                NetEvent::Snapshot { own: Some(own), ack_input_seq } => {
+                NetEvent::Snapshot { own: Some(own), ack_input_seq, race } => {
+                    self.race = race;
                     if let Some(p) = &mut self.predictor {
-                        p.reconcile_tuned(
+                        p.reconcile_snapshot(
                             Self::own_state(&own),
+                            own.kart.as_ref(),
                             ack_input_seq,
                             &self.world.colliders,
                             &self.world.ground,
@@ -419,7 +424,9 @@ impl NetSession {
         }
         let p = self.predictor.as_mut()?;
         input.seq = p.next_seq();
-        self.last_speed = p.apply_local_tuned(input, &self.world.colliders, &self.world.ground, self.world.player_tuning, &self.world.jump_pads);
+        // In a race the light decides whether the input counts (the server ignores it until green, so the prediction must too).
+        let can_drive = self.race.is_none_or(|r| r.phase == 1);
+        self.last_speed = p.apply_local_auto(input, can_drive, &self.world.colliders, &self.world.ground, self.world.player_tuning, &self.world.jump_pads);
         self.client.send_input(input, now);
         Some(p.state)
     }

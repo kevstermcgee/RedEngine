@@ -3,6 +3,7 @@
 //! carry the driver and the race progress, the countdown must hold the kart and the light must release it, and a match without a race must stay
 //! exactly as it was (no race header, no kart blocks). Time is under the test's control (`Server::pump(now)` / `tick(now)`), so it is quick.
 
+use red_engine2::net::bot::{Behavior, Bot, ClientWorld};
 use red_engine2::net::map_hash;
 use red_engine2::net::protocol::{ClientMsg, InputPacket, ServerMsg, Snapshot};
 use red_engine2::net::server::{Server, ServerConfig};
@@ -12,6 +13,8 @@ use red_engine2::sim::match_sim::MatchSim;
 use red_engine2::sim::player::PlayerInput;
 use red_engine2::sim::spawns::parse_spawns;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const RACE_SCENE: &str = r#"{"camera":{"position":[0,30,60],"target":[0,0,0]},
@@ -112,4 +115,57 @@ fn a_match_without_a_race_sends_no_race_and_no_kart_blocks() {
         assert!(s.players.iter().all(|p| p.kart.is_none()), "no kart blocks");
     }
     assert!(snaps.last().unwrap().players[0].speed < 4.0, "and the player still walks");
+}
+
+#[test]
+fn a_real_client_predicts_its_kart_and_the_server_agrees_with_it() {
+    // A real Server on its own thread at real speed, and a real client (network client plus predictor), the code a game uses.
+    let path = std::env::temp_dir().join(format!("re2_net_race_{}.json", std::process::id()));
+    std::fs::write(&path, RACE_SCENE).unwrap();
+    let scene = red_engine2::schema::parse_scene(RACE_SCENE).unwrap();
+    let hash = map_hash(RACE_SCENE);
+    let mut server =
+        Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), hash), MatchSim::try_new(&scene, parse_spawns(RACE_SCENE).unwrap()).unwrap()).unwrap();
+    server.set_logger(|_| {});
+    let addr = SocketAddr::new("127.0.0.1".parse().unwrap(), server.local_addr().unwrap().port());
+    let stop = Arc::new(AtomicBool::new(false));
+    let flag = stop.clone();
+    let handle = std::thread::spawn(move || {
+        server.run(&flag);
+        server
+    });
+
+    let (_scene, world) = ClientWorld::load(&path).unwrap();
+    let mut bot = Bot::new(addr, red_engine2::player::Character::Human, world, Behavior::Forward { yaw_deg: 90.0, sprint: false }, 0).unwrap();
+    let started = Instant::now();
+    let mut green_at = None;
+    while started.elapsed() < Duration::from_secs(5) {
+        bot.pump(Instant::now());
+        if green_at.is_none() && bot.race.is_some_and(|r| r.phase == 1) {
+            green_at = Some(started.elapsed());
+        }
+        std::thread::sleep(Duration::from_millis(4));
+    }
+    stop.store(true, Ordering::Relaxed);
+    let server = handle.join().unwrap();
+    let _ = std::fs::remove_file(&path);
+
+    let predictor = bot.predictor.as_ref().expect("the bot was welcomed");
+    assert!(predictor.kart().is_some(), "a kart block in the snapshots put the predictor in kart mode");
+    let server_pos = server.sim().player(0).expect("the bot's kart is on the server").state.pos;
+    assert!(green_at.is_some(), "the light went green: {:?}", bot.race);
+    assert!(predictor.state.pos.x > 20.0, "the predicted kart drove: {:?}", predictor.state.pos);
+    assert!(server_pos.x > 20.0, "and so did the authoritative one: {server_pos:?}");
+    // The client runs ahead of the server by about its latency; on loopback that is a few ticks, well under two metres at kart speed.
+    assert!((predictor.state.pos - server_pos).length() < 6.0, "prediction {:?} vs server {server_pos:?}", predictor.state.pos);
+    println!(
+        "kart prediction over loopback: {} corrections, worst {:.3} m; predicted {:?}, server {:?}, green after {:?}",
+        predictor.corrections, predictor.worst_correction, predictor.state.pos, server_pos, green_at
+    );
+    assert!(
+        predictor.worst_correction < 1.5,
+        "reconciliation never had to move the kart far: {} m over {} corrections",
+        predictor.worst_correction,
+        predictor.corrections
+    );
 }

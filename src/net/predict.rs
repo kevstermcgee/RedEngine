@@ -9,6 +9,7 @@
 
 use crate::collide::{Collider2D, GroundCandidates};
 use crate::player::{JumpPad, PlayerTuning};
+use crate::sim::kart::{step_kart, KartSpec, KartState, Surface};
 use crate::sim::player::{step_player_tuned, PlayerInput, PlayerState};
 use glam::Vec2;
 use std::collections::VecDeque;
@@ -20,11 +21,20 @@ const CORRECTION_DECAY: f32 = 0.8;
 /// Unacknowledged inputs kept (about two seconds).
 const MAX_PENDING: usize = 128;
 
+/// What a predicted kart remembers beyond the [`PlayerState`]: its memory (boost, drift, spin-out) and its driver's numbers.
+#[derive(Debug, Clone)]
+struct KartMode {
+    kart: KartState,
+    spec: KartSpec,
+}
+
 /// The local player's predicted state.
 #[derive(Debug, Clone)]
 pub struct Predictor {
     /// The predicted authoritative-equivalent state (what the server will compute).
     pub state: PlayerState,
+    /// Set in a race match: the player drives a kart, predicted with `sim::kart::step_kart` (the server's own function).
+    kart_mode: Option<KartMode>,
     pending: VecDeque<PlayerInput>,
     next_seq: u32,
     correction: Vec2,
@@ -37,7 +47,7 @@ pub struct Predictor {
 impl Predictor {
     /// Starts predicting from `state` (the spawn the server gave).
     pub fn new(state: PlayerState) -> Self {
-        Predictor { state, pending: VecDeque::new(), next_seq: 1, correction: Vec2::ZERO, corrections: 0, worst_correction: 0.0 }
+        Predictor { state, kart_mode: None, pending: VecDeque::new(), next_seq: 1, correction: Vec2::ZERO, corrections: 0, worst_correction: 0.0 }
     }
 
     /// The sequence number the next input gets.
@@ -107,6 +117,108 @@ impl Predictor {
             self.correction = Vec2::ZERO;
         } else {
             self.correction += err;
+        }
+    }
+
+    /// Starts predicting a kart (a race match): from now on use [`apply_local_kart`](Self::apply_local_kart) and
+    /// [`reconcile_kart`](Self::reconcile_kart). `kart` is the server's kart memory, `spec` the driver's numbers.
+    pub fn enable_kart(&mut self, kart: KartState, spec: KartSpec) {
+        self.kart_mode = Some(KartMode { kart, spec });
+    }
+
+    /// The predicted kart memory (boost, drift, spin-out), in a race match.
+    pub fn kart(&self) -> Option<&KartState> {
+        self.kart_mode.as_ref().map(|k| &k.kart)
+    }
+
+    /// One local tick of kart input, applied immediately and remembered until acknowledged. `can_drive` is whether the race's light is green: until
+    /// then the server ignores the driver's input, so the prediction ignores it too (the remembered input is the one that counted, so a replay
+    /// agrees with the server exactly). Returns the speed after the tick. Without kart mode it predicts a walk.
+    pub fn apply_local_kart(&mut self, input: PlayerInput, can_drive: bool, surface: Surface, colliders: &[Collider2D], ground: &GroundCandidates) -> f32 {
+        let Some(mode) = self.kart_mode.as_mut() else { return self.apply_local(input, colliders, ground) };
+        let effective = if can_drive { input } else { PlayerInput { seq: input.seq, ..Default::default() } };
+        let speed = step_kart(&mut self.state, &mut mode.kart, &effective, &mode.spec, surface, colliders, ground);
+        self.pending.push_back(effective);
+        while self.pending.len() > MAX_PENDING {
+            self.pending.pop_front();
+        }
+        self.correction *= CORRECTION_DECAY;
+        speed
+    }
+
+    /// The server says: after processing input `ack_seq`, the kart is in `server` with memory `server_kart`. Take that, replay what the server has not
+    /// seen yet with the kart step, and smooth any difference from what was on screen.
+    pub fn reconcile_kart(
+        &mut self,
+        server: PlayerState,
+        server_kart: KartState,
+        ack_seq: u32,
+        surface: Surface,
+        colliders: &[Collider2D],
+        ground: &GroundCandidates,
+    ) {
+        let Some(mode) = self.kart_mode.as_mut() else { return self.reconcile(server, ack_seq, colliders, ground) };
+        let before = self.state;
+        while self.pending.front().is_some_and(|i| (i.seq.wrapping_sub(ack_seq) as i32) <= 0) {
+            self.pending.pop_front();
+        }
+        self.state = server;
+        mode.kart = server_kart;
+        for input in self.pending.iter() {
+            step_kart(&mut self.state, &mut mode.kart, input, &mode.spec, surface, colliders, ground);
+        }
+        let err = self.state.pos - before.pos;
+        let mag = err.length();
+        if mag > 0.001 {
+            self.corrections += 1;
+            self.worst_correction = self.worst_correction.max(mag);
+        }
+        // A kart covers up to half a metre a tick: a correction under about a tenth of a second of travel is smoothed, more is a snap.
+        if mag > SNAP_DISTANCE.max(mode.spec.top_speed * 0.12) {
+            self.correction = Vec2::ZERO;
+        } else {
+            self.correction += err;
+        }
+    }
+
+    /// [`reconcile_kart`](Self::reconcile_kart) or [`reconcile_tuned`](Self::reconcile_tuned), whichever the snapshot's record calls for: a record
+    /// with a kart block puts the predictor in kart mode (with that driver's numbers) and reconciles as a kart; one without reconciles as a walker.
+    #[allow(clippy::too_many_arguments)]
+    pub fn reconcile_snapshot(
+        &mut self,
+        server: PlayerState,
+        kart: Option<&crate::net::protocol::KartSnap>,
+        ack_seq: u32,
+        colliders: &[Collider2D],
+        ground: &GroundCandidates,
+        tuning: PlayerTuning,
+        jump_pads: &[JumpPad],
+    ) {
+        match kart.and_then(|k| crate::sim::kart::Driver::from_wire(k.driver).map(|d| (k, d.spec()))) {
+            Some((k, spec)) => {
+                if self.kart_mode.as_ref().is_none_or(|m| m.spec != spec) {
+                    self.enable_kart(k.to_state(), spec);
+                }
+                self.reconcile_kart(server, k.to_state(), ack_seq, Surface::Road, colliders, ground);
+            }
+            None => self.reconcile_tuned(server, ack_seq, colliders, ground, tuning, jump_pads),
+        }
+    }
+
+    /// One local tick as a kart if the predictor is in kart mode (`can_drive`: the light is green), as a walker otherwise.
+    pub fn apply_local_auto(
+        &mut self,
+        input: PlayerInput,
+        can_drive: bool,
+        colliders: &[Collider2D],
+        ground: &GroundCandidates,
+        tuning: PlayerTuning,
+        jump_pads: &[JumpPad],
+    ) -> f32 {
+        if self.kart_mode.is_some() {
+            self.apply_local_kart(input, can_drive, Surface::Road, colliders, ground)
+        } else {
+            self.apply_local_tuned(input, colliders, ground, tuning, jump_pads)
         }
     }
 
@@ -255,5 +367,122 @@ mod tests {
         let predicted = client.state;
         client.reconcile(server, sent[9].seq, &c, &g);
         assert_eq!(client.state, predicted, "mid-jump replay (vy included) is exact");
+    }
+
+    /// A server stand-in: the same kart step, fed the same inputs `lag` ticks late.
+    struct Server {
+        state: PlayerState,
+        kart: KartState,
+        spec: KartSpec,
+    }
+
+    impl Server {
+        fn new(start: PlayerState, spec: KartSpec) -> Server {
+            Server { state: start, kart: KartState::default(), spec }
+        }
+
+        fn process(&mut self, input: &PlayerInput, can_drive: bool, colliders: &[Collider2D], ground: &GroundCandidates) {
+            let input = if can_drive { *input } else { PlayerInput { seq: input.seq, ..Default::default() } };
+            step_kart(&mut self.state, &mut self.kart, &input, &self.spec, Surface::Road, colliders, ground);
+        }
+    }
+
+    fn kart_input(predictor: &mut Predictor, t: u32) -> PlayerInput {
+        PlayerInput { seq: predictor.next_seq(), forward: 1, strafe: ((t / 45) % 3) as i8 - 1, jump: t % 180 < 70, ..Default::default() }
+    }
+
+    #[test]
+    fn a_predicted_kart_agrees_with_the_server_through_lag_drifts_hops_and_a_wall() {
+        use crate::sim::kart::Driver;
+        let wall = [Collider2D { min: Vec2::new(60.0, -50.0), max: Vec2::new(62.0, 50.0), min_y: 0.0, max_y: 3.0 }];
+        let ground = GroundCandidates::default();
+        for driver in Driver::ALL {
+            let spec = driver.spec();
+            let start = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
+            let mut predictor = Predictor::new(start);
+            predictor.enable_kart(KartState::default(), spec);
+            let mut server = Server::new(start, spec);
+            let (lag, mut sent) = (6usize, Vec::new());
+            for t in 0..900u32 {
+                let input = kart_input(&mut predictor, t);
+                predictor.apply_local_kart(input, true, Surface::Road, &wall, &ground);
+                sent.push(input);
+                if sent.len() > lag {
+                    let processed = sent[sent.len() - 1 - lag];
+                    server.process(&processed, true, &wall, &ground);
+                    if t % 4 == 0 {
+                        predictor.reconcile_kart(server.state, server.kart, processed.seq, Surface::Road, &wall, &ground);
+                    }
+                }
+            }
+            assert_eq!(predictor.corrections, 0, "{}: the same function on the same inputs never needs correcting", driver.name());
+            for input in &sent[sent.len() - lag..] {
+                server.process(input, true, &wall, &ground);
+            }
+            assert_eq!(predictor.state, server.state, "{}: once the server catches up they are the same kart", driver.name());
+            assert_eq!(predictor.kart(), Some(&server.kart));
+            assert!(server.state.pos.x > 20.0, "{} drove somewhere: {:?}", driver.name(), server.state.pos);
+        }
+    }
+
+    #[test]
+    fn the_prediction_holds_the_kart_through_the_countdown_like_the_server() {
+        use crate::sim::kart::Driver;
+        let ground = GroundCandidates::default();
+        let spec = Driver::Deer.spec();
+        let start = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
+        let mut predictor = Predictor::new(start);
+        predictor.enable_kart(KartState::default(), spec);
+        let mut server = Server::new(start, spec);
+        let (lag, mut sent) = (5usize, Vec::new());
+        for t in 0..300u32 {
+            let green = t >= 120;
+            let input = kart_input(&mut predictor, t);
+            predictor.apply_local_kart(input, green, Surface::Road, &[], &ground);
+            sent.push(input);
+            if t < 119 {
+                assert!((predictor.state.pos - start.pos).length() < 1e-6, "held on the grid before the light at tick {t}");
+            }
+            if sent.len() > lag {
+                let index = sent.len() - 1 - lag;
+                let processed = sent[index];
+                // The server's light turned green at its own tick 120, which is the same input the client marked green.
+                server.process(&processed, index as u32 >= 120, &[], &ground);
+                if t % 3 == 0 {
+                    predictor.reconcile_kart(server.state, server.kart, processed.seq, Surface::Road, &[], &ground);
+                }
+            }
+        }
+        assert_eq!(predictor.corrections, 0);
+        assert!(predictor.state.pos.x > 10.0, "and it drove once the light went green: {:?}", predictor.state.pos);
+    }
+
+    #[test]
+    fn a_hit_the_client_did_not_predict_is_taken_from_the_server_and_carried_forward() {
+        use crate::sim::kart::Driver;
+        let ground = GroundCandidates::default();
+        let spec = Driver::Bunny.spec();
+        let start = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
+        let mut predictor = Predictor::new(start);
+        predictor.enable_kart(KartState::default(), spec);
+        let input = PlayerInput { forward: 1, ..Default::default() };
+        let mut sent = Vec::new();
+        for _ in 0..30 {
+            let input = PlayerInput { seq: predictor.next_seq(), ..input };
+            predictor.apply_local_kart(input, true, Surface::Road, &[], &ground);
+            sent.push(input);
+        }
+        // The server saw a Bear hit us at input 20: it reports a spin-out and a kart that has lost its way.
+        let mut hit = predictor.kart().copied().unwrap();
+        hit.spin_out(45);
+        let server = PlayerState { yaw: predictor.state.yaw + 1.0, ..predictor.state };
+        predictor.reconcile_kart(server, hit, sent[19].seq, Surface::Road, &[], &ground);
+        assert_eq!(predictor.pending_len(), 10);
+        assert_eq!(predictor.kart().unwrap().spin_ticks, 45 - 10, "the replay carried the spin-out forward by the ten unacknowledged ticks");
+        assert!(predictor.state.yaw > 1.0, "and took the server's heading");
+        // A predictor that was never told it is a kart falls back to walking rather than misbehaving.
+        let mut walker = Predictor::new(start);
+        walker.apply_local_kart(PlayerInput { seq: 1, forward: 1, ..Default::default() }, true, Surface::Road, &[], &ground);
+        assert!(walker.kart().is_none() && walker.state.pos != start.pos);
     }
 }

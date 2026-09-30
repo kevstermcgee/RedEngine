@@ -376,6 +376,20 @@ pub struct KartSnap {
     pub place: u8,
 }
 
+impl KartSnap {
+    /// The kart memory this describes, for a client to predict from (`sim::kart::KartState`).
+    pub fn to_state(&self) -> crate::sim::kart::KartState {
+        crate::sim::kart::KartState {
+            boost_ticks: self.boost_ticks as u16,
+            drift_dir: self.drift_dir,
+            drift_charge: self.drift_charge_ms as f32 / 1000.0,
+            spin_ticks: self.spin_ticks as u16,
+            jump_held: self.jump_held,
+            slip_charge: self.slip as f32 / 200.0,
+        }
+    }
+}
+
 /// The race as of one snapshot: where it is in its life and the clock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RaceSnap {

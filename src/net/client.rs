@@ -56,6 +56,8 @@ pub enum NetEvent {
         own: Option<PlayerSnap>,
         /// Newest input the server has processed for us.
         ack_input_seq: u32,
+        /// The race, in a race match (whether the light is green decides whether our input counts).
+        race: Option<RaceSnap>,
     },
     /// The lobby / round phase or the round number changed (read [`NetClient::status`] for the details).
     PhaseChanged {
@@ -688,7 +690,7 @@ impl NetClient {
                 let own = s.players.iter().find(|p| Some(p.id) == me).copied();
                 self.respawn_tenths = s.fx.respawn;
                 let happened = self.watcher.observe(&s, me);
-                events.push(NetEvent::Snapshot { own, ack_input_seq: s.ack_input_seq });
+                events.push(NetEvent::Snapshot { own, ack_input_seq: s.ack_input_seq, race: s.race });
                 if !happened.is_empty() {
                     events.push(NetEvent::Happened(happened));
                 }
