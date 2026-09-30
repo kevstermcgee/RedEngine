@@ -53,7 +53,6 @@ impl App {
 
     fn phase_name(&self) -> &'static str {
         match self.phase {
-            Phase::Menu => "menu",
             Phase::Connect => "connect",
             Phase::Playing => "playing",
         }

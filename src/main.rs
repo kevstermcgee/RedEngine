@@ -107,9 +107,7 @@ fn run(command: Command) -> Result<(), String> {
             let v: Value = serde_json::from_str(&text).map_err(|e| format!("the patch is not valid JSON: {e}"))?;
             edit(&scene, &flags, |f| red_engine2::tools::patch::apply(f, &v))
         }
-        Command::UiShot { screen, out, size, hover, message, selected, map } => {
-            run_ui_shot(&screen, &out, &size, hover.as_deref(), message, selected.as_deref(), &map)
-        }
+        Command::UiShot { screen, out, size, hover, message, map } => run_ui_shot(&screen, &out, &size, hover.as_deref(), message, &map),
         Command::UiCheck { screen, size } => run_ui_check(screen.as_deref(), size.as_deref()),
         Command::NewGame { dir, kind, name, engine_path, engine_git, engine_ref } => {
             run_new_game(&dir, &kind, name.as_deref(), engine_path, engine_git, engine_ref)

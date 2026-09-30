@@ -387,19 +387,10 @@ fn parse_wh(s: &str) -> Result<(u32, u32), String> {
     Ok((w, h))
 }
 
-pub(crate) fn run_ui_shot(
-    screen: &str,
-    out: &Path,
-    size: &str,
-    hover: Option<&str>,
-    message: Option<String>,
-    selected: Option<&str>,
-    map: &str,
-) -> Result<(), String> {
-    use red_engine2::player::Character;
+pub(crate) fn run_ui_shot(screen: &str, out: &Path, size: &str, hover: Option<&str>, message: Option<String>, map: &str) -> Result<(), String> {
     use red_engine2::ui::screens::{self, PauseAction, ScreenOpts};
     let (w, h) = parse_wh(size)?;
-    // `--hover` names a pause button (`resume`, `quit`) or any button id of an online screen (`ready`, `character`, `leave`,
+    // `--hover` names a pause button (`resume`, `quit`) or any button id of an online screen (`ready`, `leave`,
     // `connect`, `back`, `field_key`, ...).
     let (hover, hover_id) = match hover {
         None => (None, None),
@@ -408,10 +399,7 @@ pub(crate) fn run_ui_shot(
         Some("quit") => (Some(PauseAction::Quit), None),
         Some(o) => (None, Some(o.to_string())),
     };
-    let selected = selected
-        .map(|name| Character::parse(name).ok_or_else(|| format!("--selected must be human, rat, wizard, cowboy, alien or robot, got '{name}'")))
-        .transpose()?;
-    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, selected, hover_id })
+    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, hover_id })
         .ok_or_else(|| format!("unknown screen '{screen}' (screens: {})", screens::all().join(", ")))?;
     if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;

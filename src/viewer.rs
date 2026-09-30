@@ -362,7 +362,7 @@ pub struct LiveRenderer {
     post_bind_group: wgpu::BindGroup,
     /// Damage vignette, flashes and the hit marker, drawn over the finished frame.
     fx: FxPipeline,
-    /// A 2-D image drawn over the finished frame (the launch menu); hidden during play.
+    /// A 2-D image drawn over the finished frame (the connect form, the pause menu, the lobby); hidden during play.
     pub overlay: Overlay,
 }
 

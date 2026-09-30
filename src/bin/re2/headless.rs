@@ -194,7 +194,7 @@ impl App {
             alpha_mode: wgpu::CompositeAlphaMode::Opaque,
             view_formats: vec![],
         };
-        self.gpu = Some(GpuState { surface: None, device: gpu.device, queue: gpu.queue, config, live: None, menu: None });
+        self.gpu = Some(GpuState { surface: None, device: gpu.device, queue: gpu.queue, config, live: None, backdrop: None });
         self.gpu_kind = "offscreen".to_string();
         Ok(())
     }

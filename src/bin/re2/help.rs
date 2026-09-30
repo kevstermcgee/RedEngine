@@ -3,7 +3,7 @@
 
 /// `(name, what it does)` for every `RE2_*` environment variable the client reads.
 pub(crate) const SWITCHES: &[(&str, &str)] = &[
-    ("RE2_CHARACTER", "skip the launch menu: human, rat, wizard, cowboy, alien or robot (`--as` does the same)"),
+    ("RE2_CHARACTER", "play as human, rat, wizard, cowboy, alien or robot (`--as` does the same; a scene's `player.humans_play_as` wins)"),
     ("RE2_CONNECT", "server to join, HOST:PORT (`--connect`)"),
     ("RE2_KEY", "the server's join key (`--key`)"),
     ("RE2_SERVER_FINGERPRINT", "sha256:... the server's TLS identity to pin when joining over QUIC (`--server-fingerprint`; a loopback server needs none)"),

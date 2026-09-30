@@ -174,7 +174,7 @@ pub fn step_horizontal_band(colliders: &[Collider2D], pos: Vec2, foot_y: f32, de
     resolve_collision(p, radius, &active)
 }
 
-/// Who the player is. A scene policy, command-line override, or the launch screen selects it;
+/// Who the player is. A scene policy or a command-line override selects it (there is no in-game picker);
 /// each character has its own body numbers ([`BodySpec`]) and model (`crate::characters`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Character {
@@ -228,7 +228,7 @@ pub struct BodySpec {
 }
 
 impl Character {
-    /// Both characters, in the order the launch screen shows them.
+    /// Every character, in wire-code order.
     pub const ALL: [Character; 6] = [Character::Human, Character::Rat, Character::Wizard, Character::Cowboy, Character::Alien, Character::Robot];
 
     /// The body numbers for this character.

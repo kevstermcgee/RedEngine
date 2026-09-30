@@ -26,30 +26,10 @@ impl App {
             }
             return;
         }
-        if self.phase == Phase::Menu {
-            self.pad = Default::default();
-            if p.hit(b::LEFT) {
-                self.menu_key(KeyCode::ArrowLeft, event_loop);
-            }
-            if p.hit(b::RIGHT) {
-                self.menu_key(KeyCode::ArrowRight, event_loop);
-            }
-            if p.hit(b::JUMP) {
-                self.menu_key(KeyCode::Enter, event_loop);
-                self.controller.reset();
-                self.pad = Default::default();
-            }
-            if p.hit(b::RELOAD) {
-                self.open_connect();
-                self.controller.reset();
-            }
-            return;
-        }
         if self.phase == Phase::Connect {
             self.pad = Default::default();
             if p.hit(b::CROUCH) {
-                self.phase = Phase::Menu;
-                self.menu_painted = None;
+                self.close_connect();
             }
             if p.hit(b::JUMP) {
                 self.try_connect();

@@ -470,15 +470,12 @@ pub(crate) enum Command {
         /// Window size "WxH".
         #[arg(long, default_value = "1280x720")]
         size: String,
-        /// Highlight a button: `resume` / `quit` on the pause menu, or an online-screen button id (`ready`, `character`, `leave`, `connect`, `back`, `field_key`).
+        /// Highlight a button: `resume` / `quit` on the pause menu, or an online-screen button id (`ready`, `leave`, `connect`, `back`, `field_key`).
         #[arg(long)]
         hover: Option<String>,
         /// Pause menu status line (long text wraps).
         #[arg(long)]
         message: Option<String>,
-        /// Launch menu selection: human, rat, wizard, cowboy, alien or robot.
-        #[arg(long)]
-        selected: Option<String>,
         /// Map name shown on the screens.
         #[arg(long, default_value = "test_lab")]
         map: String,

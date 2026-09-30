@@ -161,7 +161,7 @@ impl OnlineView {
 /// Which online screen a view needs right now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OnlineScreen {
-    /// Choosing a character and pressing Ready.
+    /// Waiting for players and pressing Ready (in a race, choosing an animal).
     Lobby,
     /// The round is over.
     Results,
@@ -183,8 +183,6 @@ pub fn screen_for(view: &OnlineView) -> OnlineScreen {
 pub enum OnlineAction {
     /// Press or release Ready (a rematch vote on the results screen).
     ToggleReady,
-    /// Switch between human and rat.
-    ToggleCharacter,
     /// The previous free animal (a race lobby).
     PrevDriver,
     /// The next free animal (a race lobby).
@@ -193,11 +191,10 @@ pub enum OnlineAction {
     Leave,
 }
 
-/// The action for the button with this id (`ready`, `character`, `leave`), if any.
+/// The action for the button with this id (`ready`, `driver_prev`, `driver_next`, `leave`), if any.
 pub fn action_for(button: &str) -> Option<OnlineAction> {
     match button {
         "ready" => Some(OnlineAction::ToggleReady),
-        "character" => Some(OnlineAction::ToggleCharacter),
         "driver_prev" => Some(OnlineAction::PrevDriver),
         "driver" | "driver_next" => Some(OnlineAction::NextDriver),
         "leave" => Some(OnlineAction::Leave),
@@ -306,7 +303,7 @@ fn columns_results(x0: i32, x1: i32) -> Cols {
     Cols { name: (x0, a - 4), what: (a, b - 4), ping: (b, b), state: (b, x1) }
 }
 
-/// The lobby: who is here, who is ready, and buttons to change character, ready up and leave.
+/// The lobby: who is here, who is ready, and buttons to ready up (and, in a race, pick an animal) and leave.
 pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layout {
     let (wi, hi) = (w as i32, h as i32);
     let s = (hi / 240).max(1);
@@ -433,13 +430,10 @@ pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layo
         y += bh + 3 * s;
         l.label_fit("perk", Some(c), cx, y, me_driver.spec().ability.blurb(), s, inner, DIM);
         y += text_height(s) + 3 * s;
-    } else {
-        button(&mut l, "character", y, &format!("PLAY AS: {}", character_name(v.my_character())), false);
-        y += bh + 3 * s;
     }
     button(&mut l, "leave", y, "LEAVE", false);
     y += bh + 6 * s;
-    l.label_fit("hint", Some(c), cx, y, if v.race { "R READY   LEFT RIGHT ANIMAL   ESC LEAVE" } else { "R READY   C CHARACTER   ESC LEAVE" }, s, inner, DIM);
+    l.label_fit("hint", Some(c), cx, y, if v.race { "R READY   LEFT RIGHT ANIMAL   ESC LEAVE" } else { "R READY   ESC LEAVE" }, s, inner, DIM);
     y += text_height(s) + 2 * s;
     if let Some(m) = &v.message {
         for (i, line) in super::wrap(&upper(m), inner, s).iter().take(3).enumerate() {
@@ -789,7 +783,7 @@ pub enum ConnectAction {
     Focus(Field),
     /// Try to join.
     Connect,
-    /// Back to the launch menu.
+    /// Give up on joining a server and play by yourself.
     Back,
 }
 
@@ -860,7 +854,7 @@ pub fn connect_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> L
         y += fh + 4 * s;
     }
     y += 2 * s;
-    for (id, label) in [("connect", "CONNECT"), ("back", "BACK")] {
+    for (id, label) in [("connect", "CONNECT"), ("back", "PLAY SOLO")] {
         let hot = hover == Some(id);
         let scale = fit_scale(label, fx1 - fx0 - 6 * s, s * 3 / 2);
         l.button(
@@ -924,7 +918,7 @@ mod tests {
             let v = OnlineView::demo(Phase::Waiting);
             let l = lobby_layout(w, h, &v, None);
             let mid = |r: Rect| (((r.0 + r.2) / 2) as f32, ((r.1 + r.3) / 2) as f32);
-            for (id, want) in [("ready", OnlineAction::ToggleReady), ("character", OnlineAction::ToggleCharacter), ("leave", OnlineAction::Leave)] {
+            for (id, want) in [("ready", OnlineAction::ToggleReady), ("leave", OnlineAction::Leave)] {
                 let (x, y) = mid(l.rect_of(id).unwrap_or_else(|| panic!("{id} missing at {w}x{h}")));
                 assert_eq!(action_at(&l, x, y), Some(want), "{id} at {w}x{h}");
             }

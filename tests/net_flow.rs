@@ -1,4 +1,4 @@
-//! The match flow end to end over real UDP (ADR 0029): clients join a lobby, choose a character, ready up, watch a countdown, play a
+//! The match flow end to end over real UDP (ADR 0029): clients join a lobby, ready up, watch a countdown, play a
 //! timed round, see the results, and rematch; a late joiner waits for the next round; a leaver aborts a countdown; a keyed server
 //! refuses a client without the key. Timing-based, so assertions are tolerant and every wait has a generous deadline.
 

@@ -1,4 +1,4 @@
-//! A full-screen 2-D image drawn over the finished frame: the launch menu's text and panels.
+//! A full-screen 2-D image drawn over the finished frame: the engine's 2-D screens' text and panels.
 //!
 //! The engine has no text rendering, so 2-D screens are painted on the CPU (see `crate::menu`)
 //! into an RGBA image the size of the window and shown by this one alpha-blended textured

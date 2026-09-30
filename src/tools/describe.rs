@@ -471,7 +471,7 @@ fn multiplayer_text() -> String {
          \x20         or `re2 map.json`, then PLAY ONLINE / the O key opens the connect form)\n\
                   re2 --host [--fill N] [--bot-skill L] map.json      hosts the map on a thread of the game (bots and flow from the map's blocks) and joins it (ADR 0054)
 \
-         \x20 The lobby shows the roster (names, character, ping, ready); R ready, C character, Esc leave. Countdown -> round (HUD: ping, timer,\n\
+         \x20 The lobby shows the roster (names, character, ping, ready); R ready, Esc leave (a race lobby: arrows pick an animal). Countdown -> round (HUD: ping, timer,\n\
          \x20 scoreboard) -> results -> everyone pressing Ready again is a rematch. Late joiners play at once or watch until the next round.\n\
          BOT      red_bot --server HOST:PORT [--key K] [--name N] [--ready]   (a scripted headless client that also readies up)\n\
          PROVE IT\n\

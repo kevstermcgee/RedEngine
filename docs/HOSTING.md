@@ -53,7 +53,7 @@ was hosted this way and a QUIC client with the pinned fingerprint and key raced 
   datagram after the handshake carries an authentication tag, so a stranger cannot join, inject input, kick a player or replay a
   captured packet (ADR 0028). `--key auto` invents a random 128-bit key and prints it: prefer it to a memorable word (a short key can be
   guessed offline by someone who recorded the handshake). Players type it into the connect form or pass `re2 --connect HOST:PORT --key K`.
-* `--lobby` (or a `"match"` block in the map, see `red_engine2 describe scene`) turns on the lobby: players choose a character and press Ready,
+* `--lobby` (or a `"match"` block in the map, see `red_engine2 describe scene`) turns on the lobby: players press Ready,
   a countdown starts when everyone is ready, the round runs for `round_secs` (or until a rule ends it or `score_to_win` is reached), the
   results show, and pressing Ready again is a rematch (ADR 0029). Without it the server is in open play: join = play.
 * Try it: `powershell -File scripts/lobby_demo.ps1` (Windows) starts a keyed lobby server, a bot and a real graphical client and screenshots each stage.

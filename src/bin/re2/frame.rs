@@ -497,42 +497,7 @@ impl App {
         }
     }
 
-    /// One frame of the launch menu: the turning models behind, the text and panels over them.
-    pub(crate) fn menu_frame(&mut self) {
-        let Some(gpu) = self.gpu.as_mut() else { return };
-        let Some(menu_live) = gpu.menu.as_mut() else { return };
-        let Some(surface) = gpu.surface.as_ref() else { return };
-        let Some((surface_tex, reconfigure)) = acquire_frame(surface, &gpu.device, &gpu.config) else { return };
-        let (w, h) = (gpu.config.width, gpu.config.height);
-        let t = self.start.elapsed().as_secs_f32();
-        menu::animate(&mut self.menu_scene, w as f32 / h as f32, t, self.character);
-        let key = (w, h, self.character);
-        if self.menu_painted != Some(key) {
-            let map = self.scene_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-            menu_live.overlay.set(&gpu.device, &gpu.queue, w, h, &menu::paint(w, h, self.character, &map));
-            self.menu_painted = Some(key);
-        }
-        let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let hidden = Mat4::from_scale(Vec3::splat(HIDDEN_SCALE));
-        menu_live.render_ex(
-            &gpu.device,
-            &gpu.queue,
-            &self.menu_scene,
-            t,
-            &menu::menu_camera(),
-            &view,
-            false,
-            hidden,
-            hidden,
-            FrameOptions { crosshair: false, viewmodel: false, pickup: false, ..FrameOptions::default() },
-        );
-        gpu.queue.present(surface_tex);
-        if reconfigure {
-            surface.configure(&gpu.device, &gpu.config);
-        }
-    }
-
-    /// Leaves the menu: adds the chosen character's body to the map, builds everything that
+    /// Leaves the connect form (or skips it): adds the player's body to the map, builds everything that
     /// depends on it (colliders, hit shapes, the renderer) and captures the mouse.
     pub(crate) fn start_game(&mut self, who: Character) {
         self.character = who;
@@ -625,7 +590,7 @@ impl App {
             } else {
                 LiveRenderer::new(&gpu.device, gpu.config.format, &self.scene, gpu.config.width, gpu.config.height)
             });
-            gpu.menu = None;
+            gpu.backdrop = None;
         }
         self.phase = Phase::Playing;
         self.rule_hud_painted = None;

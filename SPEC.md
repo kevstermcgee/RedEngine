@@ -98,8 +98,8 @@ track around a fixed `target`, not a rotation track on the camera itself.
 ## Player movement and launch pads
 
 The optional `player` block gives a game its character policy and movement profile without forking engine code.
-`character` may be `human` or `rat`; when present, the client skips the generic character picker and
-the authoritative server enforces that body. Omit it for games that intentionally let players choose. `fov`
+`character` may be `human` or `rat`; when present the authoritative server enforces that body. Omit it and players are Humans
+(there is no character picker; `re2 --as` is a developer override). `fov`
 is 60–120 degrees; `walk_speed` and `sprint_speed` are metres/second; `crouch_multiplier` scales horizontal
 speed; `jump_speed` and `gravity` control the vertical arc. Sprint speed must not be below walk speed.
 Omitting the movement fields keeps the engine defaults. Human offline play, the server, bots and prediction use

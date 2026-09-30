@@ -59,17 +59,16 @@ impl ApplicationHandler for App {
         };
         surface.configure(&device, &config);
 
-        // With a forced character the game starts at once; otherwise the launch menu (whose
-        // 3-D backdrop is its own tiny scene) shows first.
-        let menu = self.forced_character.is_none().then(|| LiveRenderer::new(&device, format, &self.menu_scene, config.width, config.height));
-        self.gpu = Some(GpuState { surface: Some(surface), device, queue, config, live: None, menu });
+        // A scene policy, `--as` or `--connect` starts the game at once; otherwise the connect form (over its own tiny backdrop scene) shows first.
+        let backdrop = self.start_character().is_none().then(|| LiveRenderer::new(&device, format, &self.backdrop_scene, config.width, config.height));
+        self.gpu = Some(GpuState { surface: Some(surface), device, queue, config, live: None, backdrop });
         self.gpu_kind = "window".to_string();
         self.window = Some(window);
         self.last_frame = Instant::now();
         if self.start_fullscreen {
             self.set_fullscreen(true);
         }
-        if let Some(who) = self.forced_character {
+        if let Some(who) = self.start_character() {
             self.start_game(who);
         }
         if let Some(window) = &self.window {
@@ -79,7 +78,7 @@ impl ApplicationHandler for App {
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         // Fullscreen is a property of the window, not of a screen of the game: `F11` everywhere, and `F` everywhere the keyboard is not
-        // typing (the connect form). It used to be handled only while playing, so the launch menu, the pause menu and the lobby ignored it.
+        // typing (the connect form). It used to be handled only while playing, so the connect form, the pause menu and the lobby ignored it.
         if let WindowEvent::KeyboardInput { event: key, .. } = &event {
             if let (PhysicalKey::Code(code), ElementState::Pressed, false) = (key.physical_key, key.state, key.repeat) {
                 if code == KeyCode::F11 || (code == KeyCode::KeyF && self.phase != Phase::Connect) {
@@ -102,7 +101,7 @@ impl ApplicationHandler for App {
                     if let Some(surface) = &gpu.surface {
                         surface.configure(&gpu.device, &gpu.config);
                     }
-                    for r in [gpu.live.as_mut(), gpu.menu.as_mut()].into_iter().flatten() {
+                    for r in [gpu.live.as_mut(), gpu.backdrop.as_mut()].into_iter().flatten() {
                         r.resize(&gpu.device, gpu.config.width, gpu.config.height);
                     }
                 }
@@ -140,30 +139,6 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved { position, .. } if self.online.takeover && !self.paused => self.online_hover(position.x as f32, position.y as f32),
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.online.takeover && !self.paused => {
                 self.online_click(event_loop)
-            }
-            WindowEvent::KeyboardInput { event, .. } if self.phase == Phase::Menu => {
-                if let (PhysicalKey::Code(code), ElementState::Pressed) = (event.physical_key, event.state) {
-                    self.menu_key(code, event_loop);
-                }
-            }
-            WindowEvent::CursorMoved { position, .. } if self.phase == Phase::Menu => {
-                self.cursor_x = position.x as f32;
-                self.cursor_y = position.y as f32;
-                if let Some(gpu) = &self.gpu {
-                    self.character = menu::character_at(gpu.config.width, self.cursor_x);
-                }
-            }
-            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.phase == Phase::Menu => {
-                if let Some(gpu) = &self.gpu {
-                    let (w, h) = (gpu.config.width, gpu.config.height);
-                    // The PLAY ONLINE button sits over the launch screen; anything else picks the character under the cursor.
-                    let on_button = menu::menu_layout(w, h, self.character, "").button_at(self.cursor_x, self.cursor_y) == Some("online");
-                    if on_button {
-                        self.open_connect();
-                    } else {
-                        self.start_game(menu::character_at(w, self.cursor_x));
-                    }
-                }
             }
             WindowEvent::CursorMoved { position, .. } if self.paused => {
                 self.cursor = (position.x as f32, position.y as f32);
@@ -324,7 +299,6 @@ impl ApplicationHandler for App {
                     }
                 }
                 match self.phase {
-                    Phase::Menu => self.menu_frame(),
                     Phase::Connect => self.connect_frame(),
                     Phase::Playing => {
                         let t0 = Instant::now();
@@ -351,32 +325,6 @@ impl ApplicationHandler for App {
                 let sensitivity = MOUSE_SENSITIVITY * red_engine2::firearms::zoom_sensitivity(self.camera.fov_deg, self.scene.player.fov_deg);
                 self.camera.look(dx as f32 * sensitivity, -dy as f32 * sensitivity);
             }
-        }
-    }
-}
-
-impl App {
-    /// Menu keyboard: 1 / 2 pick and start, arrows / A / D move the highlight, Enter or Space starts.
-    pub(crate) fn menu_key(&mut self, code: KeyCode, event_loop: &ActiveEventLoop) {
-        match code {
-            KeyCode::Digit1 | KeyCode::Numpad1 => self.start_game(Character::Human),
-            KeyCode::Digit2 | KeyCode::Numpad2 => self.start_game(Character::Rat),
-            KeyCode::Digit3 => self.start_game(Character::Wizard),
-            KeyCode::Digit4 => self.start_game(Character::Cowboy),
-            KeyCode::Digit5 => self.start_game(Character::Alien),
-            KeyCode::Digit6 => self.start_game(Character::Robot),
-            KeyCode::ArrowLeft | KeyCode::KeyA => {
-                let i = Character::ALL.iter().position(|c| *c == self.character).unwrap_or(0);
-                self.character = Character::ALL[(i + Character::ALL.len() - 1) % Character::ALL.len()];
-            }
-            KeyCode::ArrowRight | KeyCode::KeyD => {
-                let i = Character::ALL.iter().position(|c| *c == self.character).unwrap_or(0);
-                self.character = Character::ALL[(i + 1) % Character::ALL.len()];
-            }
-            KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space => self.start_game(self.character),
-            KeyCode::KeyO => self.open_connect(),
-            KeyCode::Escape => event_loop.exit(),
-            _ => {}
         }
     }
 }

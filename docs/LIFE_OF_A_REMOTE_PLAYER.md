@@ -35,8 +35,8 @@ Script syntax and the pointers of the state dump (`re2-dump/1`): `red_engine2 de
 
 ## 1. Choosing a body (the Hello)
 
-A human picks a body on the launch menu (keys 1 to 6) or with `--as` / `RE2_CHARACTER`. A scene whose `player.humans_play_as` (older spelling `player.character`) names one forces it on every
-*human*: the client skips the picker (`resolved_character`: the scene beats `--as`) and the server overrides what a Hello or lobby packet asks for (`apply_character_policy`). Bots are not
+A human is the Human unless `--as` / `RE2_CHARACTER` says otherwise (there is no picker). A scene whose `player.humans_play_as` (older spelling `player.character`) names one forces it on every
+*human*: the client uses it (`resolved_character`: the scene beats `--as`) and the server overrides what a Hello or lobby packet asks for (`apply_character_policy`). Bots are not
 humans: they wear `bots.roster[].character` (human, wizard, cowboy, alien or robot, never the rat) and, beyond the roster, a rotation of cowboy, wizard, alien, robot (`BotsConfig::spec`).
 A body travels as one byte (`character_to_wire`, the order of `Character::ALL`) in `Hello`, `Welcome`, every `PlayerSnap` and the roster. In a lobby C cycles bodies unless one is forced.
 

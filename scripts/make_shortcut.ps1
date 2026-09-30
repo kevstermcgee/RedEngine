@@ -6,7 +6,7 @@ if (-not (Test-Path $exe)) { throw "Build first: cargo build --release --bin re2
 $lnk = Join-Path ([Environment]::GetFolderPath("Desktop")) "Red Test Lab.lnk"
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
 $s.TargetPath = $exe
-$s.Arguments = "examples\test_lab.json"      # no --as: the launch menu asks Human or Cheddar the rat
+$s.Arguments = "examples\test_lab.json"      # no --as: the connect form shows first (PLAY SOLO plays as the Human)
 $s.WorkingDirectory = $repo
 $s.IconLocation = (Join-Path $PSScriptRoot "test_lab.ico") + ",0"
 $s.Description = "Red Engine 2 - Test Lab (WASD walk, mouse look, E pick up, click swing/shoot, wheel switches weapon)"

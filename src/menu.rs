@@ -1,27 +1,12 @@
-//! The launch screen: "Human or Cheddar the rat?".
-//!
-//! Two pieces, both free of window/GPU types so they are unit-testable:
-//! * [`menu_scene`] / [`animate`] — a tiny 3-D backdrop (a dark studio with a pedestal under each
-//!   character, both models slowly turning) drawn by the ordinary live renderer, and
-//! * [`paint`] — the 2-D text and panels, painted on the CPU into an RGBA image the size of the
-//!   window with the engine's own 5x7 bitmap font and shown through `crate::overlay`.
-//!
-//! [`character_at`] maps a cursor position to a character so a click picks one.
+//! The backdrop behind the engine's own 2-D screens (the connect form): a dark gradient studio, drawn by the ordinary live renderer, with the
+//! text and panels painted over it through `crate::overlay`. The pause menu's layout lives in `crate::ui::screens` and is re-exported here.
+//! There is no character selection screen: a player is whoever `--as`, `player.humans_play_as` or the default (Human) says.
 
-use crate::characters::character_object;
-use crate::player::Character;
 use crate::schema::{Background, Camera, Light, LightKind, Material, Object, ObjectKind, PostSettings, PrimKind, Scene};
 use crate::track::Track;
 use crate::viewer::FpsCamera;
 use glam::Vec3;
 
-/// The rat is drawn this many times life size so its face reads next to a 1.8 m human.
-pub const RAT_PREVIEW_SCALE: f32 = 3.6;
-/// Height of the podium the enlarged rat stands on, so it sits at a person's chest height.
-const RAT_PODIUM: f32 = 0.55;
-
-const HUMAN_INDEX: usize = 2;
-const RAT_INDEX: usize = 4;
 const CAMERA_DISTANCE: f32 = 5.0;
 const CAMERA_FOV_DEG: f32 = 46.0;
 
@@ -31,20 +16,6 @@ fn hex(s: &str) -> Vec3 {
 
 fn constant_material(color: &str, roughness: f32) -> Material {
     Material { color: Track::constant(hex(color)), metallic: 0.0, roughness, emissive: Vec3::ZERO }
-}
-
-fn pedestal(id: &str, radius: f32, height: f32) -> Object {
-    Object {
-        id: id.to_string(),
-        position: Track::constant(Vec3::new(0.0, height * 0.5, 0.0)),
-        rotation: Track::constant(Vec3::ZERO),
-        scale: Track::constant(Vec3::ONE),
-        material: Some(constant_material("#2c2f3a", 0.5)),
-        collide: false,
-        prefab: None,
-        movable: None,
-        kind: ObjectKind::Prim(PrimKind::Cylinder { radius, height }),
-    }
 }
 
 fn point_light(id: &str, pos: Vec3, color: &str, intensity: f32, range: f32) -> Light {
@@ -60,9 +31,8 @@ fn point_light(id: &str, pos: Vec3, color: &str, intensity: f32, range: f32) -> 
     }
 }
 
-/// The backdrop scene: a dark gradient studio, a pedestal and a model for each character.
-/// Objects: 0 floor, 1/2 human pedestal + human, 3/4 rat pedestal + rat. [`animate`] places them.
-pub fn menu_scene() -> Scene {
+/// The backdrop scene: a dark gradient studio (a floor and three lights).
+pub fn backdrop_scene() -> Scene {
     let floor = Object {
         id: "floor".to_string(),
         position: Track::constant(Vec3::ZERO),
@@ -74,12 +44,7 @@ pub fn menu_scene() -> Scene {
         movable: None,
         kind: ObjectKind::Prim(PrimKind::Plane { size: (40.0, 40.0) }),
     };
-    let mut objects = vec![floor];
-    for who in Character::ALL {
-        objects.push(pedestal(&format!("{who:?}_pedestal"), 0.45, 0.06));
-        objects.push(character_object(who, &format!("{who:?}").to_lowercase()));
-    }
-    debug_assert!(matches!(objects[HUMAN_INDEX].kind, ObjectKind::Humanoid(_)) && matches!(objects[RAT_INDEX].kind, ObjectKind::Rat(_)));
+    let objects = vec![floor];
     Scene {
         fps: 30,
         duration: 0.0,
@@ -118,77 +83,29 @@ pub fn menu_scene() -> Scene {
     }
 }
 
-/// The camera that frames [`menu_scene`].
-pub fn menu_camera() -> FpsCamera {
+/// The camera that frames [`backdrop_scene`].
+pub fn backdrop_camera() -> FpsCamera {
     let mut cam = FpsCamera::new(Vec3::new(0.0, 1.1, CAMERA_DISTANCE), 0.0);
     cam.fov_deg = CAMERA_FOV_DEG;
     cam.pitch = -0.08;
     cam
 }
 
-/// Where a character's model stands for a window of `aspect` (so it sits over its own half of the
-/// screen whatever the window shape): x of the character's centre, in world units.
-fn slot_x(aspect: f32, which: Character) -> f32 {
-    let half_width = CAMERA_DISTANCE * (CAMERA_FOV_DEG.to_radians() * 0.5).tan() * aspect;
-    let index = Character::ALL.iter().position(|c| *c == which).unwrap_or(0);
-    half_width * (2.0 * (index as f32 + 0.5) / Character::ALL.len() as f32 - 1.0)
-}
-
-/// Places and turns the two models: each slowly sways, the `selected` one a little wider and
-/// faster, and the rat trots on the spot while it is the selected one.
-pub fn animate(scene: &mut Scene, aspect: f32, time: f32, selected: Character) {
-    let place = |scene: &mut Scene, ped: usize, model: usize, which: Character, scale: f32, y: f32| {
-        let x = slot_x(aspect, which);
-        let picked = which == selected;
-        let sway = (time * if picked { 0.9 } else { 0.5 }).sin() * if picked { 38.0 } else { 16.0 };
-        scene.objects[ped].position = Track::constant(Vec3::new(x, y * 0.5, 0.0));
-        let m = &mut scene.objects[model];
-        m.position = Track::constant(Vec3::new(x, y, 0.0));
-        m.rotation = Track::constant(Vec3::new(0.0, sway, 0.0));
-        m.scale = Track::constant(Vec3::splat(scale));
-    };
-    for (index, who) in Character::ALL.iter().copied().enumerate() {
-        place(
-            scene,
-            1 + index * 2,
-            2 + index * 2,
-            who,
-            if who == Character::Rat { RAT_PREVIEW_SCALE * 0.7 } else { 0.7 },
-            if who == Character::Rat { RAT_PODIUM } else { 0.20 },
-        );
-    }
-    if let ObjectKind::Rat(r) = &mut scene.objects[RAT_INDEX].kind {
-        let trot = selected == Character::Rat;
-        r.gait = Track::constant(if trot { time * 14.0 } else { 0.0 });
-        r.stride = Track::constant(if trot { 0.55 } else { 0.0 });
-        r.sway = Track::constant(time * 1.3);
-    }
-}
-
 // ---------------------------------------------------------------------------------------------
 // 2-D screens: the text, panels and pause menu live in `crate::ui::screens` (headless, audited at many window
-// sizes by `red_engine2 ui-check`); they are re-exported here so callers keep using `menu::paint` & co.
+// sizes by `red_engine2 ui-check`); they are re-exported here so callers keep using `menu::paint_pause` & co.
 // ---------------------------------------------------------------------------------------------
 
-pub use crate::ui::screens::{character_at, menu_layout, paint, paint_pause, pause_action_at, PauseAction};
+pub use crate::ui::screens::{paint_pause, pause_action_at, PauseAction};
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn scene_has_all_six_models_in_their_selection_slots() {
-        let mut scene = menu_scene();
-        animate(&mut scene, 16.0 / 9.0, 1.0, Character::Rat);
-        assert!(matches!(scene.objects[HUMAN_INDEX].kind, ObjectKind::Humanoid(_)));
-        assert!(matches!(scene.objects[RAT_INDEX].kind, ObjectKind::Rat(_)));
-        assert_eq!(scene.objects.len(), 1 + 2 * Character::ALL.len());
-        for (index, who) in Character::ALL.iter().copied().enumerate() {
-            let x = scene.objects[2 + index * 2].position.sample(0.0).x;
-            assert_eq!(x, slot_x(16.0 / 9.0, who));
-            if index > 0 {
-                assert!(x > scene.objects[index * 2].position.sample(0.0).x);
-            }
-        }
+    fn the_backdrop_is_a_floor_and_lights_only() {
+        let scene = backdrop_scene();
+        assert_eq!(scene.objects.len(), 1, "no models: nothing to choose between");
+        assert_eq!(scene.lights.len(), 3);
     }
 }

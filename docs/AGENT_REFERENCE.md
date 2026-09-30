@@ -334,7 +334,7 @@ Cargo feature `gfx` (default) = everything that draws or plays sound; without it
 
 ## Custom clients: games that are not first-person (`src/app/`, ADR 0043)
 
-`re2` is one client (first person, weapons, character picker). Another genre writes its own small client in its own crate and keeps
+`re2` is one client (first person, weapons). Another genre writes its own small client in its own crate and keeps
 gameplay in the scene's rules. `describe custom-client` is the one-screen API; the pieces:
 
 | piece | what it does | build |
@@ -358,7 +358,7 @@ scene's `checks.sim` scenarios prove the rule-opened route instead.
 Limits today: no application-defined rule events (a `use` key needs a declared, recorded and networked action), no online helper for
 custom clients (use `net::session::NetSession` directly), perspective cameras only, and the renderer uploads the scene's objects once.
 
-## Characters, the launch menu, hit-testing (`re2`)
+## Characters, hit-testing (`re2`)
 
 The roster now includes human, rat, wizard, cowboy, alien and robot. Costumes share human physics;
 only the rat has a distinct body. Scene exhibits use humanoid.style. Native gamepad actions and
@@ -367,8 +367,7 @@ RedEngineSandbox is the central manual inspection project; the Red Test Lab rema
 Sandbox maps come from its scripts/generate.py, and --check detects catalogue/reference-map drift.
 Do not confuse synthetic controller tests with physical-device validation.
 
-`re2 [map.json] [--as human|rat]` — without `--as` (or `RE2_CHARACTER`) a menu asks; keys `1`/`2`, click, or
-arrows + Enter. The human swings the bat; **Cheddar the rat** (`type:"rat"` in a scene too) is tiny, has no
+`re2 [map.json] [--as human|rat]` — there is no character picker (ADR no-character-selector): the Human unless `--as` (or `RE2_CHARACTER`) says otherwise. The human swings the bat; **Cheddar the rat** (`type:"rat"` in a scene too) is tiny, has no
 bat, has one pace of 4.0 m/s (`player::RAT_SPEED`; a human walks 3.2 and sprints 6.5), fits through 0.25 m gaps and runs under anything with a 0.25 m clearance (tables, platforms: `RAT_BAND_TOP`, `props::has_clearance`). Body numbers live in
 `player::Character::body()`; models in `src/characters.rs` (`human_parts`, `rat_parts`; `frame` renders
 them offline — put a `humanoid`/`rat` in a scene to look at them). Swings use `hit::raycast_shapes` (real

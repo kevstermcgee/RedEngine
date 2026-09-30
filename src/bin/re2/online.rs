@@ -219,16 +219,6 @@ impl App {
                 let want = !net.client.is_ready();
                 net.client.set_ready(want, now);
             }
-            OnlineAction::ToggleCharacter => {
-                if self.scene.race.is_some() {
-                    return self.online_action(OnlineAction::NextDriver, event_loop);
-                }
-                if self.forced_character.is_some() {
-                    return;
-                }
-                let other = (net.client.character() + 1) % Character::ALL.len() as u8;
-                net.client.set_character(other, now);
-            }
             OnlineAction::PrevDriver | OnlineAction::NextDriver => {
                 let Some(view) = self.online_view() else { return };
                 if !view.race {
@@ -247,11 +237,10 @@ impl App {
         }
     }
 
-    /// Keys while a lobby or results screen has the window: R / Enter ready, C character, Escape leave.
+    /// Keys while a lobby or results screen has the window: R / Enter ready, (race lobby: arrows pick an animal), Escape leave.
     pub(crate) fn online_key(&mut self, code: KeyCode, event_loop: &ActiveEventLoop) {
         match code {
             KeyCode::KeyR | KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space => self.online_action(OnlineAction::ToggleReady, event_loop),
-            KeyCode::KeyC => self.online_action(OnlineAction::ToggleCharacter, event_loop),
             KeyCode::ArrowLeft | KeyCode::KeyA => self.online_action(OnlineAction::PrevDriver, event_loop),
             KeyCode::ArrowRight | KeyCode::KeyD => self.online_action(OnlineAction::NextDriver, event_loop),
             KeyCode::Escape => self.online_action(OnlineAction::Leave, event_loop),
@@ -261,17 +250,10 @@ impl App {
 
     // ---- the connect form --------------------------------------------------------------------------------------------------------
 
-    /// Opens the connect form over the launch menu's backdrop.
-    pub(crate) fn open_connect(&mut self) {
-        self.phase = Phase::Connect;
-        self.online.form.message = None;
-        self.online.hover = None;
-        self.online.painted = None;
-    }
-
-    fn close_connect(&mut self) {
-        self.phase = Phase::Menu;
-        self.menu_painted = None;
+    /// PLAY SOLO: leave the form and start a local game as the default character.
+    pub(crate) fn close_connect(&mut self) {
+        let who = self.character;
+        self.start_game(who);
     }
 
     pub(crate) fn connect_key(&mut self, event: &winit::event::KeyEvent, event_loop: &ActiveEventLoop) {
@@ -326,7 +308,7 @@ impl App {
                 return;
             }
         };
-        let mut cfg = ClientConfig::new(addr, if self.character == Character::Rat { 1 } else { 0 }, world.map_hash, 0);
+        let mut cfg = ClientConfig::new(addr, red_engine2::net::protocol::character_to_wire(self.character), world.map_hash, 0);
         let key = self.online.form.key.trim().to_string();
         cfg.join_key = (!key.is_empty()).then_some(key);
         cfg.name = self.online.form.name.clone();
@@ -359,7 +341,7 @@ impl App {
         }
     }
 
-    /// One frame of the connect form: the menu's 3-D backdrop, the form over it.
+    /// One frame of the connect form: the backdrop, the form over it.
     pub(crate) fn connect_frame(&mut self) {
         let Some((w, h)) = self.window_size() else { return };
         let layout = connect_layout(w, h, &self.online.form, self.online.hover.as_deref());
@@ -369,11 +351,10 @@ impl App {
             self.online.painted = Some(hash);
         }
         let Some(gpu) = self.gpu.as_mut() else { return };
-        let Some(menu_live) = gpu.menu.as_mut() else { return };
+        let Some(menu_live) = gpu.backdrop.as_mut() else { return };
         let Some(surface) = gpu.surface.as_ref() else { return };
         let Some((surface_tex, reconfigure)) = acquire_frame(surface, &gpu.device, &gpu.config) else { return };
         let t = self.start.elapsed().as_secs_f32();
-        menu::animate(&mut self.menu_scene, w as f32 / h as f32, t, self.character);
         if repaint {
             menu_live.overlay.set(&gpu.device, &gpu.queue, w, h, &layout.paint().px);
         }
@@ -382,9 +363,9 @@ impl App {
         menu_live.render_ex(
             &gpu.device,
             &gpu.queue,
-            &self.menu_scene,
+            &self.backdrop_scene,
             t,
-            &menu::menu_camera(),
+            &menu::backdrop_camera(),
             &view,
             false,
             hidden,

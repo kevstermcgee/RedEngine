@@ -103,10 +103,10 @@ and the current held/third-person model is a **wooden bat** (`build_held_parts` 
 someone says "tire iron", "crowbar" or "bat" they mean the same gameplay item — don't rename code
 without asking.
 
-## Characters and the launch menu
+## Characters
 
-- **Character** — who the player is: `Human` or `Rat` (`player::Character`). Chosen on the launch menu
-  (`--as human|rat` / `RE2_CHARACTER` skips it). Each has a `BodySpec` (radius, eye height, speeds,
+- **Character** — who the player is: `Human` or `Rat` (`player::Character`). There is no picker: the scene's
+  `player.humans_play_as`, else `--as` / `RE2_CHARACTER`, else Human (ADR no-character-selector). Each has a `BodySpec` (radius, eye height, speeds,
   third-person camera, whether it carries the bat) and a model.
 - **Cheddar** — the rat: small (0.43 m + tail, ~0.17 m tall), brownish-grey, pink ears/paws/tail. His
   one pace of 4.0 m/s (`RAT_SPEED`), body reaches 0.25 m up so tables and platforms can be run under; no bat; collides as a 0.12 m circle. `type:"rat"`.
@@ -114,7 +114,7 @@ without asking.
   Built by `characters::human_parts`; part 3 is the left forearm the third-person bat is welded to.
 - **melee hit / hit shape** — a swing connects only if its ray meets real geometry (`hit::raycast_shapes`),
   never merely a bounding box; only a connecting swing thunks and flashes. ADR 0011.
-- **launch menu** — `menu.rs` + `overlay.rs`: a small 3-D backdrop plus a CPU-painted 2-D overlay.
+- **backdrop** — `menu.rs` + `overlay.rs`: a small 3-D studio scene behind the connect form plus a CPU-painted 2-D overlay.
 
 ## Weapons
 

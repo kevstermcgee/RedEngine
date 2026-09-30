@@ -5,9 +5,9 @@
 //! default position, and lets you walk around and look at things: WASD or the arrow keys to
 //! move, the mouse to look, Shift to sprint forward, Space for a small jump, Ctrl to crouch,
 //! F to toggle borderless fullscreen / maximized, click to (re)capture the mouse, Escape to
-//! release it, Q to toggle between first- and third-person view. Unless a scene locks a character
-//! with `player.humans_play_as`, a launch menu asks whether to play the Human or Cheddar the rat
-//! (`--as human|rat` or `RE2_CHARACTER` also skips it). The human
+//! release it, Q to toggle between first- and third-person view. There is no character selection:
+//! a scene's `player.humans_play_as`, else `--as` / `RE2_CHARACTER`, else the Human. Started without `--connect`, `re2` first shows the
+//! connect form (PLAY SOLO skips it). The human
 //! holds a bat; left-click swings it, and anything the swing actually touches gets logged, thunks
 //! and flashes — a swing through empty air is silent. Hitting things is the seeker's primary
 //! action on objects; the crosshair turns gold when something is within bat reach. Cheddar is
@@ -198,17 +198,15 @@ struct GpuState {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    /// Draws the map; built once a character is chosen (its scene includes the player's body).
+    /// Draws the map; built when the game starts (its scene includes the player's body).
     live: Option<LiveRenderer>,
-    /// Draws the launch menu's 3-D backdrop until then.
-    menu: Option<LiveRenderer>,
+    /// Draws the connect form's backdrop until then.
+    backdrop: Option<LiveRenderer>,
 }
 
-/// Whether the launch menu or the game itself is showing.
+/// Whether the connect form or the game itself is showing.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Phase {
-    /// Choosing a character.
-    Menu,
     /// Typing a server address (the online connect form).
     Connect,
     /// In the map.
@@ -233,16 +231,12 @@ struct App {
     pickup_target: Option<usize>,
     camera: FpsCamera,
     phase: Phase,
-    /// Who the player is (and, in the menu, which card is highlighted).
+    /// Who the player is.
     character: Character,
     body: BodySpec,
-    /// `--as` / `RE2_CHARACTER`: skip the menu.
+    /// `--as` / `RE2_CHARACTER` / the scene's policy: start at once.
     forced_character: Option<Character>,
-    menu_scene: Scene,
-    /// What the menu overlay currently shows `(width, height, selected)`, to repaint only on change.
-    menu_painted: Option<(u32, u32, Character)>,
-    cursor_x: f32,
-    cursor_y: f32,
+    backdrop_scene: Scene,
     keys: HashSet<KeyCode>,
     controller: red_engine2::controller::Controller,
     pad: red_engine2::controller::Sample,
@@ -447,6 +441,14 @@ struct FrameStats {
 }
 
 impl App {
+    /// Who to start playing as right away, if the game should skip the connect form: a scene policy or `--as`, or any `--connect`
+    /// (the Human unless one of those says otherwise). `None` shows the form first.
+    fn start_character(&self) -> Option<Character> {
+        self.forced_character.or_else(|| self.net_server.is_some().then_some(Character::Human))
+    }
+}
+
+impl App {
     fn new(scene: Scene, scene_path: PathBuf, forced_character: Option<Character>, net_server: Option<SocketAddr>, net_world: Option<ClientWorld>) -> Self {
         // The player's body is added by `start_game` once the character is chosen.
         let player_object_index = scene.objects.len();
@@ -491,14 +493,11 @@ impl App {
             props: None,
             pickup_target: None,
             camera,
-            phase: Phase::Menu,
+            phase: Phase::Connect,
             character,
             body,
             forced_character,
-            menu_scene: menu::menu_scene(),
-            menu_painted: None,
-            cursor_x: 0.0,
-            cursor_y: 0.0,
+            backdrop_scene: menu::backdrop_scene(),
             keys: HashSet::new(),
             controller: Default::default(),
             pad: Default::default(),
@@ -662,7 +661,7 @@ struct CliArgs {
     /// Scene/map JSON to play.
     #[arg(default_value = "examples/room.json")]
     scene: PathBuf,
-    /// Skip character selection.
+    /// Play as this character (there is no picker; a scene's `player.humans_play_as` wins).
     #[arg(long = "as", alias = "character", value_parser = parse_character_arg, value_name = "CHARACTER")]
     who: Option<Character>,
     /// Join a server (`:27015` is added when no port is given).
@@ -742,8 +741,8 @@ fn resolved_character(requested: Option<Character>, scene_policy: Option<Charact
 }
 
 /// Command line: `re2 [scene.json] [--as human|rat] [--connect HOST:PORT] [--key JOIN_KEY] [--name NAME]` (the character can also
-/// come from `RE2_CHARACTER`, the server from `RE2_CONNECT`, the key from `RE2_KEY`, the name from `RE2_NAME`); without a character the
-/// launch menu asks, and its PLAY ONLINE button (or the O key) opens a form for the server, key and name.
+/// come from `RE2_CHARACTER`, the server from `RE2_CONNECT`, the key from `RE2_KEY`, the name from `RE2_NAME`); without `--connect` the
+/// connect form (server, key and name) shows first, and its PLAY SOLO button starts a local game. Nobody chooses a character.
 fn parse_args() -> Args {
     let cli = CliArgs::parse();
     let who = cli.who.or_else(|| std::env::var("RE2_CHARACTER").ok().and_then(|value| Character::parse(&value)));
@@ -874,7 +873,7 @@ fn main() {
     if let Some(character) = scene.player.character {
         println!("This game starts as {} (set by player.humans_play_as).", character.name());
     } else {
-        println!("Choose a character with 1-6, arrows + Enter, or D-pad + A. --as CHARACTER skips selection.");
+        println!("You play as the Human (--as CHARACTER or RE2_CHARACTER overrides).");
     }
     println!("WASD / arrow keys to walk, mouse to look, Shift to sprint forward, Space to jump, Ctrl to crouch.");
     match scene.player.character {
@@ -888,7 +887,7 @@ fn main() {
     println!("Click the window to capture the mouse, Escape to release it.");
 
     if let Some(addr) = connect {
-        println!("Online: will join {addr}{}.", if forced_character.is_some() || headless_options.enabled { "" } else { " once you pick a character" });
+        println!("Online: will join {addr}.");
     }
     let mut app = App::new(scene, scene_path, forced_character, connect, net_world);
     app.host_pause = local_host.as_ref().map(|h| h.pause_flag());

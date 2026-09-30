@@ -1,4 +1,4 @@
-//! The engine's own 2-D screens (launch menu, pause menu) built on [`super::Layout`], plus the registry `ui-shot` and
+//! The engine's own 2-D screens (pause menu, connect form, lobby, HUDs) built on [`super::Layout`], plus the registry `ui-shot` and
 //! `ui-check` use to render and audit any screen at any window size without a GPU.
 //!
 //! A screen is a pure function `(window size, options) -> Layout`. Painting, click hit-testing and the audit all read
@@ -8,7 +8,6 @@
 use super::online::{connect_layout, hud_layout, lobby_layout, results_layout, CombatView, ConnectForm, OnlineView};
 use super::rules::hud_layout as rules_hud_layout;
 use super::{fit_scale, text_height, wrap, Layout};
-use crate::player::Character;
 use crate::sim::flow::Phase;
 
 const TEXT: [u8; 4] = [236, 238, 245, 255];
@@ -17,7 +16,7 @@ const GOLD: [u8; 4] = [255, 210, 74, 255];
 
 /// Screens `ui-shot` / `ui-check` know, in display order.
 pub fn all() -> &'static [&'static str] {
-    &["menu", "pause", "connect", "lobby", "countdown", "hud", "final", "death", "rules", "results", "race-hud", "race-start", "race-results", "race-lobby"]
+    &["pause", "connect", "lobby", "countdown", "hud", "final", "death", "rules", "results", "race-hud", "race-start", "race-results", "race-lobby"]
 }
 
 /// Window sizes `ui-check` audits every screen at: small, common, portrait and large.
@@ -32,8 +31,6 @@ pub struct ScreenOpts {
     pub message: Option<String>,
     /// Which pause button is hovered.
     pub hover: Option<PauseAction>,
-    /// Launch menu selection.
-    pub selected: Option<Character>,
     /// Which button of the online screens is hovered (`ready`, `character`, `leave`, `connect`, `back`, `field_key`, ...).
     pub hover_id: Option<String>,
 }
@@ -41,7 +38,6 @@ pub struct ScreenOpts {
 /// Builds the named screen for a `w` x `h` window, or `None` for an unknown name.
 pub fn build(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Option<Layout> {
     match name {
-        "menu" => Some(menu_layout(w, h, opts.selected.unwrap_or(Character::Human), &opts.map)),
         "pause" => Some(pause_layout(w, h, &opts.map, opts.message.as_deref(), opts.hover)),
         "connect" => {
             let mut f = ConnectForm::new("play.example-game-server.net:27015", "correct-horse-battery", "Ada");
@@ -94,13 +90,7 @@ pub fn audit_all() -> Vec<(String, (u32, u32), String)> {
     let long = "CANNOT FIND THAT ADDRESS - CHECK IT AND YOUR INTERNET CONNECTION, THEN TRY AGAIN".to_string();
     let variants = [
         ScreenOpts { map: "test_lab".into(), ..Default::default() },
-        ScreenOpts {
-            map: "a_rather_long_map_name_for_the_title".into(),
-            message: Some(long),
-            hover: Some(PauseAction::Quit),
-            selected: Some(Character::Rat),
-            hover_id: Some("ready".into()),
-        },
+        ScreenOpts { map: "a_rather_long_map_name_for_the_title".into(), message: Some(long), hover: Some(PauseAction::Quit), hover_id: Some("ready".into()) },
     ];
     let mut out = Vec::new();
     for name in all() {
@@ -117,53 +107,6 @@ pub fn audit_all() -> Vec<(String, (u32, u32), String)> {
     out.sort();
     out.dedup();
     out
-}
-
-/// Which character is under a cursor at `x` in a `w`-wide window: the left half is the human, the right half the rat.
-pub fn character_at(w: u32, x: f32) -> Character {
-    let index = (x.max(0.0) / w.max(1) as f32 * Character::ALL.len() as f32) as usize;
-    Character::ALL[index.min(Character::ALL.len() - 1)]
-}
-
-/// Six playable bodies/costumes, with matching mouse and controller selection.
-pub fn menu_layout(w: u32, h: u32, selected: Character, map: &str) -> Layout {
-    let mut l = Layout::new(w, h);
-    let (wi, hi) = (w as i32, h as i32);
-    let s = (hi / 240).max(1);
-    let max_w = wi - 8;
-    let top = l.panel("band_top", (0, 0, wi, hi * 22 / 100), None, Some([12, 16, 26, 220]), None);
-    l.panel("band_bottom", (0, hi * 72 / 100, wi, hi), None, Some([12, 16, 26, 220]), None);
-    let (bw, bh, m) = ((98 * s).min(wi / 3), 12 * s, 3 * s);
-    l.button(
-        "online",
-        (wi - bw - m, m, wi - m, m + bh),
-        Some(top),
-        "ONLINE (O/Y)",
-        fit_scale("ONLINE (O/Y)", bw - 4 * s, s),
-        [30, 34, 52, 255],
-        (GOLD, (s / 2).max(1)),
-        GOLD,
-    );
-    l.label_fit("brand", Some(top), wi / 2, hi * 4 / 100, "RED ENGINE 2", s, max_w, DIM);
-    l.label_fit("heading", Some(top), wi / 2, hi * 9 / 100, "CHOOSE YOUR CHARACTER", s * 2, max_w, TEXT);
-    l.label_fit("map", Some(top), wi / 2, hi * 17 / 100, map, s, max_w, DIM);
-    for (index, who) in Character::ALL.iter().copied().enumerate() {
-        let x0 = wi * index as i32 / 6;
-        let x1 = wi * (index as i32 + 1) / 6;
-        let picked = who == selected;
-        let title = format!("{} {}", index + 1, if who == Character::Rat { "RAT" } else { who.name() });
-        l.label_fit(&format!("title_{who:?}"), None, (x0 + x1) / 2, hi * 76 / 100, &title, s, x1 - x0 - 16, if picked { GOLD } else { TEXT });
-        if picked {
-            l.panel("selected", (x0 + 2, hi * 24 / 100, x1 - 2, hi * 71 / 100), None, None, Some((GOLD, 2)));
-        } else {
-            l.panel(&format!("dim_{index}"), (x0, hi * 24 / 100, x1, hi * 71 / 100), None, Some([12, 16, 26, 90]), None);
-        }
-    }
-    let detail =
-        if selected == Character::Rat { "CHEDDAR: SMALL BODY / LOW TUNNELS / QUICK FEET" } else { "HUMAN RIG: WALK / SPRINT / JUMP / CARRY / WEAPONS" };
-    l.label_fit("detail", None, wi / 2, hi * 84 / 100, detail, s, max_w, DIM);
-    l.label_fit("hint", None, wi / 2, hi * 93 / 100, "1-6 / ARROWS + ENTER / D-PAD + A", s, max_w, DIM);
-    l
 }
 
 /// What a click on the pause menu asks for.
@@ -240,11 +183,6 @@ pub fn pause_action_at(w: u32, h: u32, x: f32, y: f32) -> Option<PauseAction> {
     }
 }
 
-/// Paints the launch menu's text and panels as RGBA the size of the window. `map` is the scene's file stem.
-pub fn paint(w: u32, h: u32, selected: Character, map: &str) -> Vec<u8> {
-    menu_layout(w, h, selected, map).paint().px
-}
-
 /// Paints the pause menu as RGBA the size of the window. `hover` highlights a button; `status` is an optional extra line.
 pub fn paint_pause(w: u32, h: u32, map: &str, status: Option<&str>, hover: Option<PauseAction>) -> Vec<u8> {
     pause_layout(w, h, map, status, hover).paint().px
@@ -291,31 +229,5 @@ mod tests {
         assert!(plain.chunks(4).any(|p| p[3] > 200 && p[0] > 200 && p[1] > 200), "bright text pixels");
         assert_ne!(plain, paint_pause(w, h, "test_lab", None, Some(PauseAction::Quit)));
         assert_ne!(paint_pause(w, h, "test_lab", None, None), paint_pause(w, h, "test_lab", Some("online: player 1"), None));
-    }
-
-    #[test]
-    fn clicks_pick_the_side_they_land_on() {
-        assert_eq!(character_at(1000, 100.0), Character::Human);
-        assert_eq!(character_at(1000, 900.0), Character::Robot);
-    }
-
-    #[test]
-    fn paint_draws_text_and_marks_the_selection() {
-        let (w, h) = (640, 360);
-        let human = paint(w, h, Character::Human, "house");
-        let rat = paint(w, h, Character::Rat, "house");
-        assert_eq!(human.len(), (w * h * 4) as usize);
-        assert!(human.chunks(4).any(|p| p[3] > 200 && p[0] > 200 && p[1] > 200), "some bright opaque text pixels");
-        assert_ne!(human, rat, "the selection changes what is painted");
-        // Gold frame pixels appear only on the selected side.
-        let gold_left = |img: &[u8]| {
-            (h * 24 / 100..h * 71 / 100).any(|y| {
-                (0..w / 6).any(|x| {
-                    let p = &img[((y * w + x) * 4) as usize..][..4];
-                    p[0] > 240 && p[1] > 190 && p[2] < 100 && p[3] > 240
-                })
-            })
-        };
-        assert!(gold_left(&human) && !gold_left(&rat));
     }
 }
