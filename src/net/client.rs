@@ -256,7 +256,12 @@ impl NetClient {
             ClientTransportConfig::DevUdp => Box::new(UdpClient::connect(cfg.server)?),
             ClientTransportConfig::Quic { trust, server_name } => Box::new(QuicClient::connect(cfg.server, server_name, trust.clone())?),
         };
-        let now = Instant::now();
+        Ok(Self::with_transport(cfg, transport, Instant::now()))
+    }
+
+    /// A client over a transport the caller built (for instance [`crate::net::memnet`]'s in-memory link), starting its clocks at `now`. `cfg.transport` is ignored:
+    /// the transport *is* the choice. The handshake is the same; only the bytes travel differently.
+    pub fn with_transport(cfg: ClientConfig, transport: Box<dyn ClientTransport>, now: Instant) -> NetClient {
         let mut c = NetClient {
             secure: transport.security().is_secure(),
             transport,
@@ -295,7 +300,7 @@ impl NetClient {
             lobby_interval: Duration::from_millis(200),
         };
         c.new_attempt();
-        Ok(c)
+        c
     }
 
     /// Starts a fresh handshake: a new nonce, no cookie, no session key. The nonce is a freshness value, not a secret; it still comes

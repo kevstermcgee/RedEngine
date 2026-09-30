@@ -26,6 +26,7 @@ pub mod happenings;
 pub mod host;
 pub mod interp;
 pub mod limits;
+pub mod memnet;
 pub mod netsim;
 pub mod predict;
 pub mod protocol;
