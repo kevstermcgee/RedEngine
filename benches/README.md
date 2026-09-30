@@ -39,3 +39,12 @@ python3 benches/flow_bench.py list
 
 Build the CLI first (`--profile fast|release` selects `target/fast|release`). The load average at the start is recorded; compare runs taken under
 similar load, and treat differences under about 20% as noise. A failed flow is printed but never recorded.
+
+## Renderer preparation and long-session scaling (no GPU, printed not gated)
+
+```bash
+cargo bench --bench render_prep      # old rebuild-everything vs cached object staging: p50/p95/p99 us, allocations, upload bytes per frame
+cargo bench --bench settled_world    # step / sync_scene / awake_count / per-client props_to_send after every prop was disturbed and settled
+cargo test --test render_prep        # the deterministic guards: byte-equality with the full rebuild after every mutation kind, 0 allocations
+```
+GPU execution and presentation are not measured by either (needs a real GPU; see the 2026-09-29 note in `benches/history/`).

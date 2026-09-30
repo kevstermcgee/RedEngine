@@ -1,13 +1,13 @@
 //! Offline renderer: builds GPU meshes from a `Scene`, renders frames headlessly (used by frame/tour/catalog/verify).
 
-use crate::characters::{human_parts, rat_parts, RatPose};
+use crate::characters::{human_parts, rat_parts, CharPart, HumanLook, RatPose};
 use crate::geometry::{build_stairs_parts, trs};
 use crate::gpu::{
     create_pipelines, create_post_pipeline, make_shadow_sampler, post_uniform, FrameTargets, GlobalUniform, Gpu, GpuMesh, ObjectUniform, Pipelines, PostFx,
     MAX_LIGHTS,
 };
 use crate::mesh::Mesh;
-use crate::props::prop_parts;
+use crate::props::{prop_parts, PropKind, PropPart};
 use crate::schema::{Background, LightKind, Material, Object, ObjectKind, PrimKind, Scene};
 use crate::skeleton::{HumanoidRig, PoseSample};
 use anyhow::Result;
@@ -114,7 +114,84 @@ pub(crate) fn collect_leaf_object_paths(objects: &[Object], parents: &[String], 
     }
 }
 
+/// Invariant part lists compiled once and reused every frame: a prop kind's parts never change, and a stairs' treads depend only on its four
+/// dimensions. Keyed by value, so an object whose kind or dimensions were edited simply gets (and caches) the new expansion.
+#[derive(Default)]
+pub(crate) struct PartsCache {
+    props: Vec<(PropKind, Vec<PropPart>)>,
+    stairs: Vec<(StairsKey, Vec<(PrimKind, Mat4)>)>,
+    /// Posed characters in traversal order; a character is re-posed only when its sampled inputs changed.
+    chars: Vec<(CharKey, Vec<CharPart>)>,
+    /// Which entry of `chars` the traversal is at.
+    next_char: usize,
+}
+
+/// Everything a posed humanoid's or rat's parts are derived from.
+#[derive(Clone, Copy, PartialEq)]
+enum CharKey {
+    Human { height: f32, build: f32, pose: PoseSample, look: HumanLook },
+    Rat(RatPose),
+}
+
+/// The fields of a `StairsDef` that shape its treads (not its material).
+#[derive(Clone, Copy, PartialEq)]
+struct StairsKey {
+    width: f32,
+    run: f32,
+    rise: f32,
+    steps: u32,
+}
+
+impl PartsCache {
+    fn prop(&mut self, kind: PropKind) -> &[PropPart] {
+        let i = match self.props.iter().position(|(k, _)| *k == kind) {
+            Some(i) => i,
+            None => {
+                self.props.push((kind, prop_parts(kind)));
+                self.props.len() - 1
+            }
+        };
+        &self.props[i].1
+    }
+
+    /// The parts for the next character in traversal order, re-posing them only if `key` differs from last frame's. Keyed by value
+    /// (not identity), so inserting, removing or editing objects can only cause a recompute, never stale parts.
+    fn character(&mut self, key: CharKey, build: impl FnOnce() -> Vec<CharPart>) -> &[CharPart] {
+        let i = self.next_char;
+        self.next_char += 1;
+        match self.chars.get_mut(i) {
+            Some(entry) if entry.0 == key => {}
+            Some(entry) => *entry = (key, build()),
+            None => self.chars.push((key, build())),
+        }
+        &self.chars[i].1
+    }
+
+    fn stairs(&mut self, s: &crate::schema::StairsDef) -> &[(PrimKind, Mat4)] {
+        let key = StairsKey { width: s.width, run: s.run, rise: s.rise, steps: s.steps };
+        let i = match self.stairs.iter().position(|(k, _)| *k == key) {
+            Some(i) => i,
+            None => {
+                self.stairs.push((key, build_stairs_parts(s)));
+                self.stairs.len() - 1
+            }
+        };
+        &self.stairs[i].1
+    }
+}
+
+/// [`collect_leaf_transforms_cached`] with a throwaway cache: the offline renderer samples a handful of frames, so it does not keep one.
 pub(crate) fn collect_leaf_transforms(objects: &[Object], t: f32, parent: Mat4, out: &mut Vec<(Mat4, SampledMaterial)>) {
+    collect_leaf_transforms_cached(objects, t, parent, out, &mut PartsCache::default());
+}
+
+/// Samples every leaf's world matrix and material at `t` into `out` (draw order, see [`collect_leaf_meshes`]), reusing `cache`'s compiled parts.
+pub(crate) fn collect_leaf_transforms_cached(objects: &[Object], t: f32, parent: Mat4, out: &mut Vec<(Mat4, SampledMaterial)>, cache: &mut PartsCache) {
+    cache.next_char = 0;
+    collect_leaf_transforms_inner(objects, t, parent, out, cache);
+}
+
+fn collect_leaf_transforms_inner(objects: &[Object], t: f32, parent: Mat4, out: &mut Vec<(Mat4, SampledMaterial)>, cache: &mut PartsCache) {
     for o in objects {
         let local = trs(o.position.sample(t), o.rotation.sample(t), o.scale.sample(t));
         let world = parent * local;
@@ -123,25 +200,26 @@ pub(crate) fn collect_leaf_transforms(objects: &[Object], t: f32, parent: Mat4, 
                 let mat = sample_material(o.material.as_ref().expect("primitive always has a material"), t);
                 out.push((world, mat));
             }
-            ObjectKind::Group(children) => collect_leaf_transforms(children, t, world, out),
+            ObjectKind::Group(children) => collect_leaf_transforms_inner(children, t, world, out, cache),
             ObjectKind::Humanoid(h) => {
                 let rig = HumanoidRig::new(h.height, h.build);
                 let pose = sample_pose(&h.pose, t);
                 let base = sample_material(&h.material, t);
-                for part in human_parts(&rig, &pose, &h.look) {
-                    out.push((world * part.local, char_material(&base, &part)));
+                let key = CharKey::Human { height: h.height, build: h.build, pose, look: h.look };
+                for part in cache.character(key, || human_parts(&rig, &pose, &h.look)) {
+                    out.push((world * part.local, char_material(&base, part)));
                 }
             }
             ObjectKind::Rat(r) => {
                 let base = sample_material(&r.material, t);
                 let pose = RatPose { gait: r.gait.sample(t), stride: r.stride.sample(t), sway: r.sway.sample(t) };
-                for part in rat_parts(&pose) {
-                    out.push((world * part.local, char_material(&base, &part)));
+                for part in cache.character(CharKey::Rat(pose), || rat_parts(&pose)) {
+                    out.push((world * part.local, char_material(&base, part)));
                 }
             }
             ObjectKind::Prop(p) => {
                 let base = sample_material(&p.material, t);
-                for part in prop_parts(p.kind) {
+                for part in cache.prop(p.kind) {
                     let mat = SampledMaterial {
                         color: part.color_override.unwrap_or(base.color),
                         metallic: (base.metallic + part.metallic_delta).clamp(0.0, 1.0),
@@ -153,8 +231,8 @@ pub(crate) fn collect_leaf_transforms(objects: &[Object], t: f32, parent: Mat4, 
             }
             ObjectKind::Stairs(s) => {
                 let mat = sample_material(&s.material, t);
-                for (_, local_transform) in build_stairs_parts(s) {
-                    out.push((world * local_transform, mat));
+                for (_, local_transform) in cache.stairs(s) {
+                    out.push((world * *local_transform, mat));
                 }
             }
             ObjectKind::Terrain(td) => out.push((world, sample_material(&td.material, t))),

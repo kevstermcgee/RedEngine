@@ -54,7 +54,7 @@ impl HumanoidRig {
 }
 
 /// Joint angles already sampled at a specific time `t` (degrees).
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub struct PoseSample {
     pub spine: Vec3,
     pub head: Vec3,

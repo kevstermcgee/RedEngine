@@ -18,12 +18,14 @@ use crate::gpu::{
     GpuMesh, ObjectUniform, Pipelines, PostFx, MSAA_SAMPLES, SHADOW_SIZE,
 };
 use crate::mesh::{Mesh, Vertex};
+use crate::object_staging::{frustum_planes, SceneStaging};
 use crate::overlay::Overlay;
-use crate::render::{build_globals_common, collect_leaf_meshes, collect_leaf_object_paths, collect_leaf_transforms};
+use crate::render::{build_globals_common, collect_leaf_meshes, collect_leaf_object_paths};
 use crate::schema::Scene;
 use crate::weapons::Weapon;
 use glam::{Mat4, Quat, Vec3, Vec4};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 
 /// Other players' weapons drawn at once (one per possible remote player).
 pub const REMOTE_HANDS: usize = crate::sim::match_sim::MAX_PLAYERS;
@@ -257,50 +259,6 @@ pub fn build_held_parts() -> Vec<HeldPart> {
     parts
 }
 
-/// The six clip-space frustum planes of `view_proj`, each packed as `(A, B, C, D)` such that a
-/// world-space point `p` is inside that plane's half-space when `A*p.x + B*p.y + C*p.z + D >=
-/// 0`. Standard Gribb/Hartmann extraction directly from the combined view-projection matrix —
-/// works identically for the camera's perspective frustum and the shadow light's orthographic
-/// one, so both the main pass and the shadow pass can cull against it with the same code.
-fn frustum_planes(view_proj: Mat4) -> [Vec4; 6] {
-    let (c0, c1, c2, c3) = (view_proj.x_axis, view_proj.y_axis, view_proj.z_axis, view_proj.w_axis);
-    let row0 = Vec4::new(c0.x, c1.x, c2.x, c3.x);
-    let row1 = Vec4::new(c0.y, c1.y, c2.y, c3.y);
-    let row2 = Vec4::new(c0.z, c1.z, c2.z, c3.z);
-    let row3 = Vec4::new(c0.w, c1.w, c2.w, c3.w);
-    [row3 + row0, row3 - row0, row3 + row1, row3 - row1, row2, row3 - row2]
-}
-
-/// World-space AABB (center, half-extent) of a local-space box after `transform` — exact
-/// center, and a conservative half-extent computed from the transform's basis vectors (Ericson,
-/// *Real-Time Collision Detection* §4.2.6) rather than transforming and re-bounding all 8
-/// corners, since this is recomputed for every mesh every frame.
-fn world_aabb(transform: Mat4, local_min: Vec3, local_max: Vec3) -> (Vec3, Vec3) {
-    let local_center = (local_min + local_max) * 0.5;
-    let local_half = (local_max - local_min) * 0.5;
-    let world_center = transform.transform_point3(local_center);
-    let bx = transform.x_axis.truncate().abs();
-    let by = transform.y_axis.truncate().abs();
-    let bz = transform.z_axis.truncate().abs();
-    let world_half = bx * local_half.x + by * local_half.y + bz * local_half.z;
-    (world_center, world_half)
-}
-
-/// True if the AABB (`center`, `half`) is entirely outside at least one of `planes` — the
-/// standard "positive vertex" test: for each plane, the corner most in the box's favor is
-/// `center + half` projected along the plane normal's sign, so if even that corner is outside,
-/// the whole box is.
-fn aabb_outside_frustum(center: Vec3, half: Vec3, planes: &[Vec4; 6]) -> bool {
-    for p in planes {
-        let normal = Vec3::new(p.x, p.y, p.z);
-        let radius = half.x * normal.x.abs() + half.y * normal.y.abs() + half.z * normal.z.abs();
-        if normal.dot(center) + p.w + radius < 0.0 {
-            return true;
-        }
-    }
-    false
-}
-
 struct LiveTargets {
     width: u32,
     height: u32,
@@ -378,6 +336,12 @@ pub struct LiveRenderer {
     object_bind_group: wgpu::BindGroup,
     targets: LiveTargets,
     meshes: Vec<GpuMesh>,
+    /// Each mesh's local AABB (from `meshes`, laid out flat for the per-frame bounds refresh).
+    local_bounds: Vec<(Vec3, Vec3)>,
+    /// The persistent object-uniform staging copy: only slots whose inputs changed are rewritten and uploaded.
+    staging: SceneStaging,
+    /// Scratch for the coalesced upload ranges.
+    upload_ranges: Vec<std::ops::Range<usize>>,
     /// Object ancestry for each scene mesh, in exactly the same order as `meshes`.
     mesh_object_paths: Vec<Vec<String>>,
     /// The scene's ocean, when it has one (drawn last in the main pass; see [`crate::ocean_pass`]).
@@ -475,7 +439,28 @@ impl LiveRenderer {
         let mut mesh_object_paths = Vec::new();
         collect_leaf_object_paths(&scene.objects, &[], &mut mesh_object_paths);
         debug_assert_eq!(raw_meshes.len(), mesh_object_paths.len());
-        let meshes: Vec<GpuMesh> = raw_meshes.iter().map(|m| GpuMesh::upload(device, m)).collect();
+        // Identical geometry (every crate of a kind, every same-size box) shares one pair of GPU buffers: matched by exact vertex/index bytes,
+        // so a shared mesh is indistinguishable from a separate one. Draw calls, per-object uniforms and culling are unchanged.
+        let mut seen: HashMap<u64, Vec<(usize, GpuMesh)>> = HashMap::new();
+        let mut meshes: Vec<GpuMesh> = Vec::with_capacity(raw_meshes.len());
+        for (i, m) in raw_meshes.iter().enumerate() {
+            let (vb, ib): (&[u8], &[u8]) = (bytemuck::cast_slice(&m.vertices), bytemuck::cast_slice(&m.indices));
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            (vb, ib).hash(&mut h);
+            let bucket = seen.entry(h.finish()).or_default();
+            let same = bucket.iter().find(|(j, _)| {
+                let o = &raw_meshes[*j];
+                bytemuck::cast_slice::<_, u8>(&o.vertices) == vb && bytemuck::cast_slice::<_, u8>(&o.indices) == ib
+            });
+            match same {
+                Some((_, g)) => meshes.push(g.clone()),
+                None => {
+                    let g = GpuMesh::upload(device, m);
+                    bucket.push((i, g.clone()));
+                    meshes.push(g);
+                }
+            }
+        }
         let held: Vec<HeldGpu> = held_parts
             .into_iter()
             .map(|p| HeldGpu {
@@ -555,7 +540,12 @@ impl LiveRenderer {
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: crosshair_buf.as_entire_binding() }],
         });
 
+        let local_bounds = meshes.iter().map(|m| (m.local_min, m.local_max)).collect();
+        let staging = SceneStaging::new(meshes.len(), images, (2 + REMOTE_HANDS) * held.len(), object_stride);
         LiveRenderer {
+            local_bounds,
+            staging,
+            upload_ranges: Vec::new(),
             color_format,
             pipelines,
             global_buf,
@@ -702,10 +692,6 @@ impl LiveRenderer {
         let globals = build_globals_common(scene, t, camera.eye, view_proj);
         queue.write_buffer(&self.global_buf, 0, bytemuck::bytes_of(&globals));
 
-        let mut transforms = Vec::with_capacity(self.meshes.len());
-        collect_leaf_transforms(&scene.objects, t, Mat4::IDENTITY, &mut transforms);
-        debug_assert_eq!(transforms.len(), self.meshes.len());
-
         // Per-mesh frustum culling: which scene meshes are worth a draw call this frame, tested
         // against the camera's frustum (main pass) and, when a shadow-casting light is active,
         // the light's own ortho frustum (shadow pass) — skips both the vertex/fragment work and
@@ -718,68 +704,33 @@ impl LiveRenderer {
         // neighbours one period away along the loop axis.
         let offsets = crate::render::wrap_offsets(scene);
         let n_meshes = self.meshes.len();
-        let mut main_visible = Vec::with_capacity(n_meshes * offsets.len());
-        let mut shadow_visible = Vec::with_capacity(n_meshes * offsets.len());
-        for offset in &offsets {
-            for (i, mesh) in self.meshes.iter().enumerate() {
-                let shown = !self.mesh_hidden[i];
-                let (center, half) = world_aabb(Mat4::from_translation(*offset) * transforms[i].0, mesh.local_min, mesh.local_max);
-                main_visible.push(shown && !aabb_outside_frustum(center, half, &cam_planes));
-                shadow_visible.push(match &light_planes {
-                    Some(planes) => shown && !aabb_outside_frustum(center, half, planes),
-                    None => false,
-                });
-            }
-        }
 
-        // Every object's uniform data is staged into one contiguous byte buffer and uploaded
-        // with a single `write_buffer` call instead of one call per mesh — object_stride is
-        // alignment-padded past ObjectUniform's own size, so the staging buffer is built at full
-        // stride width and each uniform's bytes are copied into its slot, padding left as-is.
-        // Each held part owns two slots: `[first-person, third-person]`.
+        // Object uniforms live in a persistent staging copy of the GPU buffer (see `object_staging`): the scene is sampled as before, but
+        // only slots whose world matrix or material changed are rebuilt, and only their (coalesced) byte ranges are uploaded. Bounds are
+        // cached per slot, so a moving camera over a static scene costs the sampling plus the plane tests and no uploads.
+        self.staging.update_scene(scene, t, &offsets, &self.local_bounds);
+        self.staging.cull(&cam_planes, light_planes.as_ref(), &self.mesh_hidden);
         let scene_slots = (n_meshes * offsets.len()) as u64;
         let held_slot = |k: usize, third: bool| scene_slots + 2 * k as u64 + third as u64;
         // Other players' weapons follow the local ones: one group of slots per player.
         let remote_slot = |r: usize, k: usize| scene_slots + 2 * self.held.len() as u64 + (r * self.held.len() + k) as u64;
-        let mut object_data = vec![0u8; (self.object_stride * (scene_slots + (2 + REMOTE_HANDS as u64) * self.held.len() as u64)) as usize];
-        let stage = |data: &mut [u8], slot: u64, stride: u64, uniform: &ObjectUniform| {
-            let start = (slot * stride) as usize;
-            let bytes = bytemuck::bytes_of(uniform);
-            data[start..start + bytes.len()].copy_from_slice(bytes);
-        };
 
-        for (image, offset) in offsets.iter().enumerate() {
-            for (i, (world, mat)) in transforms.iter().enumerate() {
-                let world = Mat4::from_translation(*offset) * *world;
-                let normal_mat = world.inverse().transpose();
-                let obj_uniform = ObjectUniform {
-                    model: world.to_cols_array_2d(),
-                    normal_mat: normal_mat.to_cols_array_2d(),
-                    base_color: [mat.color.x, mat.color.y, mat.color.z, 1.0],
-                    material: [mat.metallic, mat.roughness, 0.0, 0.0],
-                    emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
-                };
-                stage(&mut object_data, (image * n_meshes + i) as u64, self.object_stride, &obj_uniform);
-            }
-        }
-
-        let held_uniform = |world: Mat4, h: &HeldGpu, glow: f32| {
-            let normal_mat = world.inverse().transpose();
-            let e = h.emissive * glow;
-            ObjectUniform {
-                model: world.to_cols_array_2d(),
-                normal_mat: normal_mat.to_cols_array_2d(),
-                base_color: [h.color.x, h.color.y, h.color.z, 1.0],
-                material: [h.metallic, h.roughness, 0.0, 0.0],
-                emissive: [e.x, e.y, e.z, 0.0],
-            }
-        };
-        // Only the active weapon's pieces are drawn (a muzzle flash only while it is up).
+        let held_uniform = |world: Mat4, h: &HeldGpu, glow: f32| (world, h.color, h.metallic, h.roughness, h.emissive * glow);
+        // Only the active weapon's pieces are drawn (a muzzle flash only while it is up), and only drawn pieces are staged.
         let held_visible: Vec<bool> = self.held.iter().map(|h| draw_held && h.weapon == opts.weapon && (!h.flash || opts.muzzle_flash > 0.0)).collect();
         for (k, h) in self.held.iter().enumerate() {
+            if !held_visible[k] {
+                continue;
+            }
             let glow = if h.flash { opts.muzzle_flash } else { 1.0 };
-            stage(&mut object_data, held_slot(k, false), self.object_stride, &held_uniform(weapon_transform, h, glow));
-            stage(&mut object_data, held_slot(k, true), self.object_stride, &held_uniform(hand_prop_transform, h, glow));
+            if opts.viewmodel {
+                let (w, c, m, r, e) = held_uniform(weapon_transform, h, glow);
+                self.staging.update_extra(held_slot(k, false) as usize, w, c, m, r, e);
+            }
+            if !h.fp_only {
+                let (w, c, m, r, e) = held_uniform(hand_prop_transform, h, glow);
+                self.staging.update_extra(held_slot(k, true) as usize, w, c, m, r, e);
+            }
         }
         for (r, hand) in self.remote_hands.iter().enumerate() {
             let world = remote_hand_transform(hand);
@@ -788,10 +739,14 @@ impl LiveRenderer {
                     continue;
                 }
                 let glow = if h.flash { hand.flash } else { 1.0 };
-                stage(&mut object_data, remote_slot(r, k), self.object_stride, &held_uniform(world, h, glow));
+                let (w, c, m, rough, e) = held_uniform(world, h, glow);
+                self.staging.update_extra(remote_slot(r, k) as usize, w, c, m, rough, e);
             }
         }
-        queue.write_buffer(&self.object_buf, 0, &object_data);
+        self.staging.drain_dirty_into(&mut self.upload_ranges);
+        for range in &self.upload_ranges {
+            queue.write_buffer(&self.object_buf, range.start as u64, &self.staging.bytes()[range.clone()]);
+        }
 
         if let Some(ocean) = &self.ocean {
             ocean.update(queue, self.clock.elapsed().as_secs_f32());
@@ -816,7 +771,7 @@ impl LiveRenderer {
             for image in 0..offsets.len() {
                 for (i, mesh) in self.meshes.iter().enumerate() {
                     let slot = image * n_meshes + i;
-                    if !shadow_visible[slot] {
+                    if !self.staging.shadow_visible(slot) {
                         continue;
                     }
                     shadow_pass.set_bind_group(1, &self.object_bind_group, &[(slot as u64 * self.object_stride) as u32]);
@@ -891,7 +846,7 @@ impl LiveRenderer {
             for image in 0..offsets.len() {
                 for (i, mesh) in self.meshes.iter().enumerate() {
                     let slot = image * n_meshes + i;
-                    if !main_visible[slot] {
+                    if !self.staging.main_visible(slot) {
                         continue;
                     }
                     main_pass.set_bind_group(1, &self.object_bind_group, &[(slot as u64 * self.object_stride) as u32]);

@@ -34,6 +34,9 @@ pub mod server;
 pub mod session;
 mod sessions;
 mod snapshots;
+/// The per-client prop selection, exposed only so `benches/settled_world.rs` can time it without a socket.
+#[doc(hidden)]
+pub use snapshots::props_to_send;
 pub mod testkit;
 pub mod transport;
 pub mod upnp;

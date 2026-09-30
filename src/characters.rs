@@ -56,7 +56,7 @@ fn limb(a: Vec3, b: Vec3, radius: f32, color: Option<Vec3>, roughness: f32) -> C
 // ---------------------------------------------------------------------------------------------
 
 /// The colours of a human that are not the shirt (which is the humanoid's `material.color`).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HumanLook {
     /// Costume on the shared human rig (Human means ordinary clothing).
     pub style: crate::player::Character,
@@ -218,7 +218,7 @@ impl HumanLook {
 // ---------------------------------------------------------------------------------------------
 
 /// Gait/pose numbers for [`rat_parts`].
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct RatPose {
     /// Gait phase in radians (advance it with distance travelled).
     pub gait: f32,

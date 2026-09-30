@@ -62,7 +62,8 @@ pub struct PostUniform {
     pub params2: [f32; 4],
 }
 
-/// A mesh uploaded to the GPU (vertex + index buffers).
+/// A mesh uploaded to the GPU (vertex + index buffers). Cloning shares the buffers (wgpu buffers are reference-counted).
+#[derive(Clone)]
 pub struct GpuMesh {
     pub vertex_buf: wgpu::Buffer,
     pub index_buf: wgpu::Buffer,

@@ -37,6 +37,8 @@ pub mod mesh;
 pub mod music;
 pub mod net;
 #[cfg(feature = "gfx")]
+pub mod object_staging;
+#[cfg(feature = "gfx")]
 pub mod ocean_pass;
 #[cfg(feature = "gfx")]
 pub mod overlay;

@@ -103,6 +103,15 @@ required-features = ["gfx"]
 name = "sim"
 harness = false
 
+[[bench]]
+name = "settled_world"
+harness = false
+
+[[bench]]
+name = "render_prep"
+harness = false
+required-features = ["gfx"]
+
 # CI runs `cargo clippy --all-targets -- -D warnings`. These are style-only lints the existing code
 # predates (index loops over parallel arrays, wide renderer entry points); allowed on purpose so CI can be
 # strict about everything else. Prefer fixing over adding to this list.

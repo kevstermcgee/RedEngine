@@ -89,7 +89,7 @@ pub(super) fn visible_players(sim: &MatchSim, interest: Option<&InterestMap>, vi
 /// (`known[entity slot]`) and lie in a relevant room, oldest-unconfirmed first, at most `max_props` (itself at most
 /// [`MAX_PROPS_PER_SNAPSHOT`]: the server sizes it to the client's datagram budget). `sent`
 /// receives `(entity slot, generation)` for each so a later acknowledgement can confirm them. `scratch` is a reusable buffer.
-pub(super) fn props_to_send(
+pub fn props_to_send(
     sim: &MatchSim,
     interest: Option<&InterestMap>,
     viewer_room: Option<usize>,
