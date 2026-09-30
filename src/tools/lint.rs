@@ -114,7 +114,9 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
     check_terrain(world, &mut out);
     check_carry(world, &mut out);
     check_speed_cap(world, &mut out);
-    out.sort_by(|a, b| b.sev.cmp(&a.sev).then(a.code.cmp(b.code)));
+    // A total order: findings of one severity and code used to keep the order the checks happened to produce them in, which follows hash-map iteration and
+    // differed from run to run (two `headroom` errors swapped places between runs of the same binary). The message names the object, so it breaks the tie.
+    out.sort_by(|a, b| b.sev.cmp(&a.sev).then(a.code.cmp(b.code)).then_with(|| a.message.cmp(&b.message)));
     out
 }
 
@@ -1108,6 +1110,24 @@ mod tests {
         let s: Vec<_> = f.iter().filter(|x| x.code == "speed").collect();
         assert_eq!(s.len(), 2, "{}", format_report(&f));
         assert!(s.iter().any(|x| x.message.contains("throw_speed 20")) && s.iter().any(|x| x.message.contains("rule `kick`")), "{}", format_report(&f));
+    }
+
+    #[test]
+    fn lint_output_is_the_same_on_every_run_even_with_several_findings_of_one_code() {
+        // Three trees whose canopies hang too low: three `headroom` errors of one severity and code, whose order used to follow hash-map iteration.
+        let tree = |id: &str, x: f32, z: f32, lift: f32| {
+            format!(
+                r##",{{"id":"{id}","type":"group","position":[{x},0,{z}],"children":[
+                {{"id":"{id}.trunk","type":"cylinder","radius":0.12,"height":1.4,"position":[0,0.7,0]}},
+                {{"id":"{id}.leaves","type":"cone","radius":0.75,"height":1.6,"position":[0,{lift},0]}}]}}"##
+            )
+        };
+        let scene = room(&format!("{}{}{}", tree("tree1", 2.6, -1.8, 2.1), tree("tree2", -2.2, -2.4, 1.8), tree("tree3", 0.0, 2.0, 1.9)));
+        let first = format_report(&run(&scene));
+        assert!(first.matches("[headroom]").count() >= 2, "the scene must actually produce several findings of one code:\n{first}");
+        for _ in 0..25 {
+            assert_eq!(format_report(&run(&scene)), first, "lint must print the same report every time");
+        }
     }
 
     #[test]

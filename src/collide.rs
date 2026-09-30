@@ -293,6 +293,78 @@ impl StairsRamp {
     }
 }
 
+/// A uniform grid over the footprints of the box tops: each bin lists the tops overlapping it. Map analysis asks for the ground height millions of times (every cell
+/// of the reachability flood fill, every neighbour) and the player step asks every tick; scanning every top made a furnished map (about 2 800 tops) spend 92% of
+/// its `reach` time there (measured, 7.45 of 8.06 s).
+///
+/// The answer is unchanged by construction: the ground height is the highest top that contains the point, an order-independent maximum, and the bin a point falls
+/// in lists every top whose footprint contains it (bin numbers are a monotonic function of the coordinate, used identically to register and to look up).
+#[derive(Clone)]
+struct BoxIndex {
+    min: glam::Vec2,
+    inv_bin: f32,
+    nx: usize,
+    nz: usize,
+    bins: Vec<Vec<u32>>,
+    /// How many tops were indexed (a debug check that the set did not change underneath).
+    count: usize,
+}
+
+impl BoxIndex {
+    /// Bin edge in metres: about the size of furniture, so a bin holds a handful of tops.
+    const BIN: f32 = 2.0;
+    /// Bins are capped so a huge or looping map cannot ask for gigabytes of index.
+    const MAX_BINS: f32 = 262_144.0;
+
+    fn build(tops: &[Collider2D]) -> BoxIndex {
+        if tops.is_empty() {
+            return BoxIndex { min: glam::Vec2::ZERO, inv_bin: 1.0, nx: 0, nz: 0, bins: Vec::new(), count: 0 };
+        }
+        let (mut lo, mut hi) = (glam::Vec2::splat(f32::INFINITY), glam::Vec2::splat(f32::NEG_INFINITY));
+        for t in tops {
+            lo = lo.min(t.min);
+            hi = hi.max(t.max);
+        }
+        let (w, h) = ((hi.x - lo.x).max(0.0), (hi.y - lo.y).max(0.0));
+        let bin = Self::BIN.max((w * h / Self::MAX_BINS).sqrt());
+        let inv_bin = 1.0 / bin;
+        let nx = ((w * inv_bin).floor() as usize + 1).max(1);
+        let nz = ((h * inv_bin).floor() as usize + 1).max(1);
+        let mut index = BoxIndex { min: lo, inv_bin, nx, nz, bins: vec![Vec::new(); nx * nz], count: tops.len() };
+        for (i, t) in tops.iter().enumerate() {
+            let (x0, z0) = index.cell_of(t.min);
+            let (x1, z1) = index.cell_of(t.max);
+            for z in z0..=z1 {
+                for x in x0..=x1 {
+                    index.bins[z * nx + x].push(i as u32);
+                }
+            }
+        }
+        index
+    }
+
+    /// The bin a point falls in, clamped into the grid (the same function registers a top and looks a point up).
+    fn cell_of(&self, p: glam::Vec2) -> (usize, usize) {
+        let x = ((p.x - self.min.x) * self.inv_bin).floor().clamp(0.0, (self.nx - 1) as f32) as usize;
+        let z = ((p.y - self.min.y) * self.inv_bin).floor().clamp(0.0, (self.nz - 1) as f32) as usize;
+        (x, z)
+    }
+
+    /// Every top registered in the bin of `p`; empty when `p` is outside the indexed area (no top can contain it).
+    fn at(&self, p: glam::Vec2) -> &[u32] {
+        if self.bins.is_empty() {
+            return &[];
+        }
+        let (fx, fz) = ((p.x - self.min.x) * self.inv_bin, (p.y - self.min.y) * self.inv_bin);
+        // Outside the bounding box of every top: nothing contains the point. (A NaN falls through to the clamp and is checked against the tops.)
+        if fx < 0.0 || fz < 0.0 || fx.floor() > (self.nx - 1) as f32 || fz.floor() > (self.nz - 1) as f32 {
+            return &[];
+        }
+        let (x, z) = self.cell_of(p);
+        &self.bins[z * self.nx + x]
+    }
+}
+
 /// Every standable surface in the scene, precomputed once at load (like [`Collider2D`]s):
 /// every `box` primitive's and box-shaped `Prop` part's top face (reusing [`push_box_collider`]
 /// — a `Collider2D`'s `max_y` doubles as "the height of this box's top"), plus every
@@ -301,6 +373,9 @@ impl StairsRamp {
 #[derive(Default, Clone)]
 pub struct GroundCandidates {
     box_tops: Vec<Collider2D>,
+    /// Uniform-grid index over `box_tops` (see [`BoxIndex`]), built on the first ground query and dropped whenever the set changes, so a lookup
+    /// reads the few tops near a point instead of every box top in the map. `box_tops` stays the source of truth.
+    box_index: std::sync::OnceLock<BoxIndex>,
     stairs: Vec<StairsRamp>,
     /// Heightfield terrains: where one exists it is the ground (no invisible floor at `y = 0` beneath it).
     terrains: Vec<std::sync::Arc<crate::terrain::Terrain>>,
@@ -321,9 +396,17 @@ impl GroundCandidates {
 
     pub fn append(&mut self, other: &GroundCandidates) {
         self.box_tops.extend_from_slice(&other.box_tops);
+        self.box_index = std::sync::OnceLock::new();
         self.stairs.extend_from_slice(&other.stairs);
         self.terrains.extend(other.terrains.iter().cloned());
         self.wrap = self.wrap.or(other.wrap);
+    }
+
+    /// The indices (into `box_tops`) of every box top whose footprint may contain `xz`: a superset of the tops that do, never missing one.
+    fn box_candidates(&self, xz: glam::Vec2) -> &[u32] {
+        let index = self.box_index.get_or_init(|| BoxIndex::build(&self.box_tops));
+        debug_assert_eq!(index.count, self.box_tops.len(), "box_tops changed after the ground index was built");
+        index.at(xz)
     }
 
     /// Height of the terrain under `xz`, if any terrain covers it (the highest, if several overlap).
@@ -418,7 +501,8 @@ pub fn ground_height_at(candidates: &GroundCandidates, xz: glam::Vec2, current_f
     // stairs may still stand on top of it.
     let xz = candidates.wrap.map_or(xz, |w| w.wrap_pos(xz));
     let mut best = candidates.terrain_height_at(xz).unwrap_or(0.0);
-    for b in &candidates.box_tops {
+    for &i in candidates.box_candidates(xz) {
+        let b = &candidates.box_tops[i as usize];
         if b.max_y <= limit && xz.x >= b.min.x && xz.x <= b.max.x && xz.y >= b.min.y && xz.y <= b.max.y {
             best = best.max(b.max_y);
         }
@@ -667,5 +751,89 @@ mod ground_tests {
         let xz = glam::Vec2::new(0.0, 0.0);
         assert_eq!(ground_height_at(&candidates, xz, 0.0), 0.0, "deck must be unreachable from ground level");
         assert_eq!(ground_height_at(&candidates, xz, 2.9), 3.0, "deck must become reachable once already close to its height");
+    }
+
+    /// The ground height the way it was computed before the index: every top, in order.
+    fn ground_height_naive(c: &GroundCandidates, xz: glam::Vec2, current_foot_y: f32) -> f32 {
+        let limit = current_foot_y + GROUND_SNAP_EPS;
+        let mut best = c.terrain_height_at(xz).unwrap_or(0.0);
+        for b in &c.box_tops {
+            if b.max_y <= limit && xz.x >= b.min.x && xz.x <= b.max.x && xz.y >= b.min.y && xz.y <= b.max.y {
+                best = best.max(b.max_y);
+            }
+        }
+        for s in &c.stairs {
+            if let Some(h) = s.height_at(xz) {
+                if h <= limit {
+                    best = best.max(h);
+                }
+            }
+        }
+        best
+    }
+
+    /// A tiny deterministic generator (the tests must not depend on a rand crate or on the clock).
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f32 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((self.0 >> 40) as f32) / ((1u64 << 24) as f32)
+        }
+        fn range(&mut self, lo: f32, hi: f32) -> f32 {
+            lo + (hi - lo) * self.next()
+        }
+    }
+
+    fn top(min: (f32, f32), max: (f32, f32), y: f32) -> Collider2D {
+        Collider2D { min: glam::Vec2::new(min.0, min.1), max: glam::Vec2::new(max.0, max.1), min_y: y - 0.1, max_y: y }
+    }
+
+    #[test]
+    fn the_indexed_ground_height_equals_the_full_scan_everywhere() {
+        let mut rng = Lcg(0x5eed);
+        for trial in 0..40 {
+            let mut tops = Vec::new();
+            // A big floor, a scatter of furniture-sized tops at assorted heights, and a few long thin ones (benches, walls' caps).
+            tops.push(top((-20.0, -15.0), (20.0, 15.0), 0.0));
+            for _ in 0..(20 + trial * 15) {
+                let (x, z) = (rng.range(-19.0, 19.0), rng.range(-14.0, 14.0));
+                let (w, d) = (rng.range(0.2, 2.5), rng.range(0.2, 2.5));
+                tops.push(top((x, z), (x + w, z + d), [0.0, 0.3, 0.5, 0.9, 2.8][(rng.next() * 5.0) as usize % 5]));
+            }
+            tops.push(top((-18.0, 3.0), (18.0, 3.1), 1.0));
+            let c = GroundCandidates { box_tops: tops.clone(), ..Default::default() };
+            let mut points: Vec<glam::Vec2> = (0..400).map(|_| glam::Vec2::new(rng.range(-25.0, 25.0), rng.range(-20.0, 20.0))).collect();
+            // Every edge and corner of every top, exactly and a hair either side: the places an index can get wrong.
+            for t in &tops {
+                for (x, z) in [(t.min.x, t.min.y), (t.max.x, t.max.y), (t.min.x, t.max.y), (t.max.x, t.min.y)] {
+                    for (dx, dz) in [(0.0, 0.0), (1e-4, 0.0), (-1e-4, 0.0), (0.0, 1e-4), (0.0, -1e-4)] {
+                        points.push(glam::Vec2::new(x + dx, z + dz));
+                    }
+                }
+            }
+            for p in &points {
+                for foot in [0.0, 0.4, 1.0, 3.0] {
+                    assert_eq!(ground_height_at(&c, *p, foot), ground_height_naive(&c, *p, foot), "trial {trial} point {p:?} foot {foot}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_ground_index_handles_no_tops_outside_points_and_a_changed_set() {
+        let empty = GroundCandidates::default();
+        assert_eq!(ground_height_at(&empty, glam::Vec2::new(3.0, 4.0), 0.0), 0.0);
+        let mut c = GroundCandidates { box_tops: vec![top((0.0, 0.0), (2.0, 2.0), 0.3)], ..Default::default() };
+        assert_eq!(ground_height_at(&c, glam::Vec2::new(1.0, 1.0), 0.0), 0.3);
+        assert_eq!(ground_height_at(&c, glam::Vec2::new(1.0, 1.0), -1.0), 0.0, "a top above the step limit is not ground yet");
+        assert_eq!(ground_height_at(&c, glam::Vec2::new(-50.0, 90.0), 0.0), 0.0, "far outside the indexed area");
+        assert_eq!(ground_height_at(&c, glam::Vec2::new(f32::NAN, 1.0), 0.0), 0.0, "NaN is on no top");
+        // `append` drops the index: a top added afterwards is seen.
+        let more = GroundCandidates { box_tops: vec![top((10.0, 10.0), (12.0, 12.0), 0.3)], ..Default::default() };
+        assert_eq!(ground_height_at(&c, glam::Vec2::new(11.0, 11.0), 0.0), 0.0);
+        c.append(&more);
+        assert_eq!(ground_height_at(&c, glam::Vec2::new(11.0, 11.0), 0.0), 0.3, "the index was rebuilt after append");
+        // A clone carries its own answer.
+        assert_eq!(ground_height_at(&c.clone(), glam::Vec2::new(1.0, 1.0), 0.0), 0.3);
     }
 }
