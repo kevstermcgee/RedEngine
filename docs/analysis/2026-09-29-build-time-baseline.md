@@ -32,6 +32,24 @@ Measured, not estimated: how long Red takes to build and test-compile on the Ubu
 * **Per-game engine builds.** RedEngineGames pins the engine two ways. `reddm` uses a path, which shares this checkout's `target/`. `gravity-gauntlet` pins a git commit, which `scripts/red` clones into the project's `.red/engine` and builds cold (about 5 minutes; it is an older engine than `main`). Sharing one `CARGO_TARGET_DIR` across projects on *different* commits is unsafe as the wrapper stands: the final binaries overwrite each other and the staleness check would trust the wrong one. A safe version needs the wrapper to copy binaries into a per-project folder. Not built; path-pinning games to this checkout avoids the problem on this box.
 * **The shared server and pinned commits.** Clients come from RedEngineGames CI at the cataloged RedEngine commit, so a game's server must be built from that commit (same wire protocol; `main` is at protocol v10). One `red_server` built from `main` will not serve a game pinned to an older, incompatible commit.
 
+## Phase 2 results: the edit-and-verify loop (2026-09-30, run `2026-09-30-dev-workflow-iterate`; decision in ADR 2026-09-30-bounded-iteration-explicit-configuration-and-safe-green)
+
+What the phase-1 numbers left unexplained was not compile time (the dev loop is 2-4 s to type-check) but what the loop *asked for*. Measured, steady state, wall seconds, one command at a time:
+
+| scenario | before | after |
+|---|---|---|
+| `preflight` after a one-line edit | 5.9 (rebuilt the graphics CLI) | 1.3 (tree-only) |
+| edit loop, localized edit (`rules.rs`) | `affected --quick --base HEAD` 23.7 | `iterate` 7.8 (8.9 CPU s), 1.6 with `--check-only` |
+| edit loop, central edit (`schema.rs`) | 36.7 | `iterate` 9.2 |
+| edit loop, docs-only edit | 20.8 | `iterate` 0.3 (nothing to compile or run) |
+| `affected --quick` on this 17-file branch (default base) | 140 wall, 303 CPU s, 1.2 GB tree PSS | unchanged: use `iterate` for the edit loop |
+
+* **`--release` in the loop was the largest avoidable cost** (release binary 3 min 18 s for a one-line edit, release suite about 15 min); the docs now say so and `CLAUDE.md` no longer contradicts itself.
+* **A correctness bug, not just speed:** the planner used the compiled-in feature index and `scripts/dev` never rebuilt it after `docs/features.json` changed, so `context`/`affected` planned with a stale index. The index is now read from the checkout.
+* **Cargo `-j2/-j3/-j4` is not a lever** for rebuilding the 42 test binaries after a central edit: means 48.5 / 43.5 / 49.5 s with 36-61 s spread inside each setting. The step writes about 1.3 GB (system-wide disk write counters) and stalls on I/O for 25-44 s of it, at 57-64 CPU-seconds and about 1.7 GB peak tree memory whatever `-j` is. The first attempt at this comparison was wrong (dirty pages from the previous build's writes leaked into the next run; a `sync` barrier fixed it), which is why the JSON says what is system-wide.
+* **Headless type-check** saves 0.3-0.4 s warm (1.8-2.1 s vs 2.4 s): selectable with `iterate --headless`, not automatic.
+* No stuck or abandoned processes were seen. Not measured: Windows, `iterate --headless` timing, test-thread concurrency, sccache (still off).
+
 ## Hypotheses still untested
 
 * A workspace split (sim/net core, tools, gfx) would shrink the headless server build. With the edit loop at 4-5 s the payoff is now mostly cold and release builds; measure the release edit (87-219 s) before deciding.

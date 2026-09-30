@@ -27,13 +27,15 @@ Most of the cost of working on this engine is reading things and running things 
   | command | when | what runs |
   |---|---|---|
   | `red_engine2 preflight [--fix]` | before each commit (about a second, compiles nothing) | the repository's paperwork: ADR records and index, `docs/features.json` ownership of every file, derived doc facts, the headless boundary, doc claims, `describe` budgets, rustfmt; each problem prints the exact edit (ADR 2026-09-28-generated-bookkeeping) |
-  | `scripts/dev affected --quick` | the edit loop | owners of the changed files only (seconds); the dependents it skipped are listed |
+  | `scripts/dev iterate` | the edit loop, after every change | only what changed since `HEAD`: fmt, type-check, the touched modules' unit tests (seconds). **Never verification**: it lists what it skipped and says full verification is still required; `--check-only` drops the tests, `--headless` type-checks without graphics when every changed file is provably graphics-free |
+  | `scripts/dev affected --quick` | after a meaningful step | owners of the branch's changed files (vs `origin/main`; `--base HEAD` for just your last edit) and their integration suites; the dependents it skipped are listed |
   | `scripts/dev affected` | before you say "done" | owners plus every feature built on them |
   | `scripts/dev affected --full` (= `scripts/ci.sh`) | before pushing / any integration boundary | everything CI runs |
 
   Boundary changes (`Cargo.toml`/`Cargo.lock`, `src/lib.rs`, `rustfmt.toml`, `.cargo/`, CI files, a very large diff, or an affected set that is most of the suite)
   escalate to the full run on their own. A green run is remembered by the *content* of the changed files: asking again with nothing edited is free; any edit re-runs.
-  Output is a few lines per step; full logs are in `out/logs/`. `--dry-run` prints the plan.
+  The green stamp also keys on the base commit, the cargo feature set, the toolchain and result-affecting environment, so a result is never reused across them, and an `iterate` (partial) pass is never accepted as any other tier.
+  Output is a few lines per step; full logs are in `out/logs/`. `--dry-run` prints the plan and its configuration. The feature index is read from the checkout at run time: editing `docs/features.json` needs no rebuild.
 - **Do not run the whole suite as a habit** (`scripts/dev test`, bare `cargo test`): that is what `--full` and CI are for. Game projects: `scripts/red check` re-verifies only maps
   whose bytes (or the project's other JSON, or the engine binary) changed.
 - **Never wait for a person.** Servers, bots, `play-local`, `net-test` and `perf` listen on loopback only, which never raises an OS firewall prompt. `red_server` needs an explicit
