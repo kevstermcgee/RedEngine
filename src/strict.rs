@@ -30,6 +30,7 @@ pub const ROOT_KEYS: &[&str] = &[
     "prefabs",
     "vars",
     "rules",
+    "fields",
     "player",
     "jump_pads",
     "weapons",
@@ -75,7 +76,7 @@ pub const PLAYER_KEYS: &[&str] = &[
 /// One `jump_pads` entry.
 pub const JUMP_PAD_KEYS: &[&str] = &["id", "position", "size", "launch_speed"];
 /// `material` keys.
-pub const MATERIAL_KEYS: &[&str] = &["color", "metallic", "roughness", "emissive"];
+pub const MATERIAL_KEYS: &[&str] = &["color", "metallic", "roughness", "emissive", "opacity"];
 /// Point-light keys.
 pub const POINT_LIGHT_KEYS: &[&str] = &["id", "type", "position", "color", "intensity", "range"];
 /// Directional-light keys.

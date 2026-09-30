@@ -285,3 +285,36 @@ fn edits_to_characters_and_stairs_are_never_stale() {
     }
     assert!(humans > 0 && stairs > 0, "the lab must contain characters and stairs for this test to mean anything ({humans} humans, {stairs} stairs)");
 }
+
+/// `material.opacity` < 1 marks a leaf as see-through: it leaves the solid and shadow draws and is listed by `blended` far to near.
+#[test]
+fn blended_leaves_are_listed_far_to_near_and_skipped_by_the_solid_draws() {
+    use glam::Vec4;
+    let json = r##"{"camera":{"position":[0,2,8],"target":[0,1,0]},"objects":[
+        {"id":"near","type":"box","position":[0,1,2],"size":[1,1,1],"material":{"color":"#88ccff","opacity":0.4}},
+        {"id":"solid","type":"box","position":[0,1,0],"size":[1,1,1],"material":{"color":"#888888"}},
+        {"id":"far","type":"box","position":[0,1,-6],"size":[1,1,1],"material":{"color":"#88ccff","opacity":0.5}}]}"##;
+    let scene = red_engine2::schema::parse_scene(json).expect("scene");
+    let (mut st, bounds, offsets) = make(&scene);
+    st.update_scene(&scene, 0.0, &offsets, &bounds);
+    let everything = [Vec4::new(0.0, 0.0, 0.0, 1.0); 6]; // every plane passes: nothing is culled
+    st.cull(&everything, Some(&everything), &[false; 3]);
+    assert!(st.is_blended(0) && !st.is_blended(1) && st.is_blended(2));
+    assert!(!st.main_visible(0) && st.main_visible(1) && !st.main_visible(2), "solid draw skips blended slots");
+    assert!(!st.shadow_visible(0) && st.shadow_visible(1) && !st.shadow_visible(2), "blended slots cast no shadow");
+    assert_eq!(st.blended(Vec3::new(0.0, 2.0, 8.0)), &[2, 0], "the far pane is drawn first, the near one last");
+    assert_eq!(st.blended(Vec3::new(0.0, 2.0, -9.0)), &[0, 2], "the order follows the eye");
+}
+
+#[test]
+fn opacity_is_clamped_defaults_to_solid_and_reaches_the_uniform() {
+    let json = r##"{"camera":{"position":[0,2,8],"target":[0,1,0]},"objects":[
+        {"id":"a","type":"box","material":{"color":"#ffffff"}},
+        {"id":"b","type":"box","material":{"color":"#ffffff","opacity":7}},
+        {"id":"c","type":"box","material":{"color":"#ffffff","opacity":0.25}}]}"##;
+    let scene = red_engine2::schema::parse_scene(json).expect("scene");
+    let (mut st, bounds, offsets) = make(&scene);
+    st.update_scene(&scene, 0.0, &offsets, &bounds);
+    let alpha = |slot: usize| f32::from_le_bytes(st.bytes()[slot * STRIDE as usize + 128 + 12..slot * STRIDE as usize + 128 + 16].try_into().unwrap());
+    assert_eq!((alpha(0), alpha(1), alpha(2)), (1.0, 1.0, 0.25));
+}

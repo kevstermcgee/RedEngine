@@ -53,7 +53,7 @@ pub const COMMON_FIELDS: &[(&str, &str, &str)] = &[
     ("position", "[x,y,z] = [0,0,0]", "meters, +Y up; a keyframed track is allowed"),
     ("rotation", "[rx,ry,rz] degrees = [0,0,0]", "composed Rx*Ry*Rz (Z acts first, then Y, then X, about the WORLD axes), so [90, yaw, 0] tips a yawed object over the world X axis: a cylinder laid on its side that way points across a heading, not along it. To lay one along a heading nest it: a group with rotation [0,yaw,0] holding the cylinder at [90,0,0]. Only Y (yaw) matters for upright objects"),
     ("scale", "number or [x,y,z] = 1", "uniform or per-axis"),
-    ("material", "{color, metallic, roughness, emissive}", "color #rrggbb; metallic/roughness 0..1 (defaults 0/0.6); emissive #hex glows"),
+    ("material", "{color, metallic, roughness, emissive, opacity}", "color #rrggbb; metallic/roughness 0..1 (defaults 0/0.6); emissive #hex glows; opacity 0..1 (default 1) blends the surface over what is behind it (glass, water)"),
     ("collide", "bool = true", "false = walk-through (no collider, not standable, no lint volume); on a group it covers everything inside"),
     ("lint_ignore", "[\"code\", ...]", "silence specific lint codes on this object (or \"all\")"),
 ];
@@ -218,6 +218,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("interest", "{cell_size, note} network-interest settings (roadmap; rooms are the cells)"),
     ("vars", "{name: number|bool} game variables rules read and write (`describe rules`); built-ins: time, tick, players"),
     ("rules", "[{id, when, who, if, once, cooldown, do}] game logic as data: triggers, conditions, actions (`describe rules`)"),
+    ("fields", "[{id, zone|object|box, velocity:[x,z], lift, rate}] force volumes on loose props: a river current, a conveyor, a wind tunnel; pulls props inside toward a target speed (SPEC \"Force fields\")"),
     ("weapons", "{starting, ladder: [weapon, ...], bat: {damage}, ammo: \"infinite\" | {loaded, capacity, reserve}}; starting accepts bat or any built-in firearm (pistol machine-pistol smg carbine rifle bullpup marksman shotgun lmg scout); ammo is one supply for every firearm; ladder = Gun Game: you carry ladder[kills] and cannot switch by hand"),
     ("combat", "{respawn_secs, spawn: round_robin|farthest, spawn_protect_secs, regen_delay_secs, regen_per_sec} how fights are paced: respawn delay, where the dead return, spawn protection, health regeneration"),
     ("bots", "{fill, skill, roster: [{name, character, skill, style}]} AI players: the server fills empty slots up to `fill` players (humans included); skill = rookie|easy|normal|hard|nightmare or 0..1; style = balanced|rusher|sniper|acrobat (`describe bots`)"),

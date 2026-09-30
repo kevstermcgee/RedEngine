@@ -49,6 +49,8 @@ pub struct RuleProp {
     pub mass: f32,
     /// Metres its origin is from where the map author put it.
     pub moved: f32,
+    /// Its linear velocity, m/s (what a `field` pushes toward its target from).
+    pub vel: Vec3,
 }
 
 impl RuleProp {
@@ -62,6 +64,7 @@ impl RuleProp {
             held_by: props.holder_of(prop),
             mass: props.mass(prop),
             moved: props.moved(prop),
+            vel: props.prop_velocity(prop),
         }
     }
 }
@@ -700,8 +703,15 @@ mod tests {
             "bell" => Some(1),
             _ => None,
         });
-        let prop =
-            |x: f32, y: f32, z: f32, tilt: f32| RuleProp { origin: Vec3::new(x, y, z), height: 0.5, tilt_deg: tilt, held_by: None, mass: 20.0, moved: 0.0 };
+        let prop = |x: f32, y: f32, z: f32, tilt: f32| RuleProp {
+            origin: Vec3::new(x, y, z),
+            height: 0.5,
+            tilt_deg: tilt,
+            held_by: None,
+            mass: 20.0,
+            moved: 0.0,
+            vel: Vec3::ZERO,
+        };
         let c0 = e.checksum();
         // Tick 1: both props up on a deck above the pit: nothing.
         assert!(e.step_props(1, &[], &[prop(2.0, 1.0, 2.0, 0.0), prop(2.0, 1.0, 3.0, 0.0)]).is_empty());

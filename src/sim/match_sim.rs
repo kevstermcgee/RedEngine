@@ -538,7 +538,7 @@ impl MatchSim {
     }
 
     fn run_rules(&mut self) {
-        if !self.rules.has_rules() {
+        if !self.rules.has_rules() && self.rules.set().fields.is_empty() {
             return;
         }
         let views: Vec<RulePlayer> = self
@@ -561,6 +561,7 @@ impl MatchSim {
                 self.prop_views.push(view);
             }
         }
+        self.apply_fields();
         let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
         let effects = self.rules.step_props(self.tick, &views, &self.prop_views);
         for effect in effects {
@@ -589,6 +590,25 @@ impl MatchSim {
         }
         if self.events_out.len() < 256 {
             self.events_out.extend(new);
+        }
+    }
+
+    /// Pulls every loose prop inside a scene `field` toward the field's target velocity (a river current, a belt, a wind tunnel). The push is
+    /// derived from state each tick, like a rule `impulse`, so it is not recorded in a trace and replays identically. Carried props are left alone.
+    fn apply_fields(&mut self) {
+        let dt = crate::sim::clock::TICK_DT;
+        for f in 0..self.rules.set().fields.len() {
+            for k in 0..self.prop_views.len() {
+                let view = self.prop_views[k];
+                let field = &self.rules.set().fields[f];
+                if view.held_by.is_some() || !crate::sim::rules_run::prop_inside(&field.volume, &view) {
+                    continue;
+                }
+                let dv = field.delta_v(view.vel, dt);
+                if dv.length_squared() > 1e-6 {
+                    self.shove(k, dv.normalize(), view.origin, view.mass * dv.length());
+                }
+            }
         }
     }
 

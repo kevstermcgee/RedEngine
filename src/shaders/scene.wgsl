@@ -138,5 +138,5 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // Exposure + filmic tone-mapping: rolls strong/overlapping lights off toward white instead of
     // hard-clipping, so an author's light intensities don't need to be perfectly balanced.
     color = aces(color * EXPOSURE);
-    return vec4<f32>(color, 1.0);
+    return vec4<f32>(color, obj.base_color.a);
 }

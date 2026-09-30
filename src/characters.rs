@@ -345,13 +345,13 @@ pub fn human_object(id: &str) -> Object {
         l_knee: Track::constant(4.0),
         r_knee: Track::constant(4.0),
     };
-    let material = Material { color: Track::constant(hex(HUMAN_SHIRT_HEX)), metallic: 0.0, roughness: 0.85, emissive: Vec3::ZERO };
+    let material = Material { color: Track::constant(hex(HUMAN_SHIRT_HEX)), metallic: 0.0, roughness: 0.85, emissive: Vec3::ZERO, opacity: 1.0 };
     object(id, ObjectKind::Humanoid(Box::new(HumanoidDef { height: HUMAN_HEIGHT, build: 1.0, material, look: HumanLook::default(), pose })))
 }
 
 /// Cheddar standing still at the origin, in his brownish-grey fur.
 pub fn rat_object(id: &str) -> Object {
-    let material = Material { color: Track::constant(hex(RAT_FUR_HEX)), metallic: 0.0, roughness: 0.9, emissive: Vec3::ZERO };
+    let material = Material { color: Track::constant(hex(RAT_FUR_HEX)), metallic: 0.0, roughness: 0.9, emissive: Vec3::ZERO, opacity: 1.0 };
     object(id, ObjectKind::Rat(Box::new(RatDef { material, gait: Track::constant(0.0), stride: Track::constant(0.0), sway: Track::constant(0.0) })))
 }
 

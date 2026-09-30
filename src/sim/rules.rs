@@ -66,6 +66,40 @@ pub struct Volume {
     pub max: Vec3,
 }
 
+/// A force volume acting on loose props (`fields` in the scene): a river current, a conveyor belt, a wind tunnel. Every tick a prop whose
+/// origin is inside is pulled toward the field's target velocity, exponentially at `rate` per second, so the push is a *speed target*
+/// (a prop cannot be accelerated past it, unlike a repeating `impulse` rule) and gravity, floors and walls still act.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Field {
+    /// Its id (errors and `describe` name it).
+    pub id: String,
+    /// The volume props must be in (same forms as a rule volume).
+    pub volume: Volume,
+    /// Target horizontal velocity `[x, z]`, m/s; `None` leaves horizontal motion alone.
+    pub velocity: Option<[f32; 2]>,
+    /// Upward target speed, m/s: props slower than this upward are pulled up toward it (a wind tunnel, a hover pad); `None` = none.
+    pub lift: Option<f32>,
+    /// How hard the velocity is pulled toward its target, 1/s (default 10). It is a drag, not a teleport: a prop on a floor settles a bit under the
+    /// target because floor friction (about 7 m/s^2) pulls back, so use a higher `rate` for a stronger belt.
+    pub rate: f32,
+}
+
+impl Field {
+    /// The velocity change to apply this tick to a prop moving at `vel`, for a step of `dt` seconds (zero once it is at the target).
+    pub fn delta_v(&self, vel: Vec3, dt: f32) -> Vec3 {
+        let k = (self.rate * dt).clamp(0.0, 1.0);
+        let mut dv = Vec3::ZERO;
+        if let Some([tx, tz]) = self.velocity {
+            dv.x = (tx - vel.x) * k;
+            dv.z = (tz - vel.z) * k;
+        }
+        if let Some(up) = self.lift {
+            dv.y = ((up - vel.y) * k).max(0.0);
+        }
+        dv
+    }
+}
+
 /// Which players a rule applies to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Who {
@@ -215,6 +249,8 @@ pub struct RuleSet {
     pub zone_ids: Vec<String>,
     /// The zones' volumes, parallel to [`zone_ids`](Self::zone_ids) (floor `y` up 3 m, like an `enter {zone}` volume).
     pub zone_volumes: Vec<Volume>,
+    /// The scene's force fields (`fields`), in declaration order.
+    pub fields: Vec<Field>,
     /// Whether any rule looks at loose props (a trigger, a built-in function, a `reset` or `place`): if not, the
     /// simulation need not describe its props to the rules every tick.
     pub needs_props: bool,
@@ -229,6 +265,7 @@ impl Default for RuleSet {
             prop_ids: Vec::new(),
             zone_ids: Vec::new(),
             zone_volumes: Vec::new(),
+            fields: Vec::new(),
             needs_props: false,
         }
     }
@@ -265,6 +302,7 @@ const TRIGGER_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "aft
 /// Everything a `when` may contain: a trigger plus the optional `prop` filter of `prop_enter` / `prop_exit`.
 const WHEN_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "prop"];
 const VOLUME_KEYS: &[&str] = &["zone", "object", "box", "pad", "height"];
+const FIELD_KEYS: &[&str] = &["id", "zone", "object", "box", "pad", "height", "velocity", "lift", "rate"];
 const ZONE_HEIGHT: f32 = 3.0;
 
 fn at(i: usize, id: &str) -> String {
@@ -343,6 +381,66 @@ fn parse_volume(v: &Value, refs: &Refs, path: &str, errs: &mut Vec<String>) -> O
             let (p, q) = (Vec3::new(b[0] as f32, b[1] as f32, b[2] as f32), Vec3::new(b[3] as f32, b[4] as f32, b[5] as f32));
             Some(Volume { min: p.min(q) - Vec3::splat(pad), max: p.max(q) + Vec3::splat(pad) })
         }
+    }
+}
+
+/// `fields`: force volumes on loose props (see [`Field`]).
+fn parse_fields(root: &Map<String, Value>, refs: &Refs, set: &mut RuleSet, errs: &mut Vec<String>) {
+    let Some(list) = root.get("fields") else { return };
+    let Some(list) = list.as_array() else {
+        errs.push("fields: must be an array like [{\"id\": \"river\", \"zone\": \"channel\", \"velocity\": [0, 1.5]}]".to_string());
+        return;
+    };
+    let mut seen = HashSet::new();
+    for (i, fv) in list.iter().enumerate() {
+        let id = fv.get("id").and_then(Value::as_str).unwrap_or("");
+        let path = format!("fields[{i}]{}", if id.is_empty() { String::new() } else { format!(" ({id})") });
+        let Some(fo) = fv.as_object() else {
+            errs.push(format!("{path}: must be an object"));
+            continue;
+        };
+        check_keys(errs, &path, fo, FIELD_KEYS);
+        if id.is_empty() {
+            errs.push(format!("{path}.id: missing (every field needs a unique id string)"));
+        } else if !seen.insert(id.to_string()) {
+            errs.push(format!("{path}.id: duplicate field id `{id}`"));
+        }
+        // The volume keys sit beside the field's own; `parse_volume` checks only the ones it owns.
+        let vol_only: Map<String, Value> = fo.iter().filter(|(k, _)| VOLUME_KEYS.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
+        let volume = parse_volume(&Value::Object(vol_only), refs, &path, errs);
+        let velocity = match fo.get("velocity") {
+            None => None,
+            Some(v) => match v.as_array().filter(|a| a.len() == 2).and_then(|a| Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32])) {
+                Some(xz) => Some(xz),
+                None => {
+                    errs.push(format!("{path}.velocity: must be two numbers [x, z] (m/s along +x and +z; up is `lift`)"));
+                    None
+                }
+            },
+        };
+        let lift = match fo.get("lift") {
+            None => None,
+            Some(v) => match v.as_f64() {
+                Some(x) => Some(x as f32),
+                None => {
+                    errs.push(format!("{path}.lift: must be a number (upward m/s)"));
+                    None
+                }
+            },
+        };
+        if velocity.is_none() && lift.is_none() && fo.get("velocity").is_none() && fo.get("lift").is_none() {
+            errs.push(format!("{path}: give `velocity` [x, z] and/or `lift` (what the field pushes toward)"));
+        }
+        let rate = fo.get("rate").and_then(Value::as_f64).map_or(10.0, |r| r as f32);
+        if !(rate > 0.0 && rate <= 60.0) {
+            errs.push(format!("{path}.rate: must be greater than 0 and at most 60 (per second)"));
+        }
+        if let Some(volume) = volume {
+            set.fields.push(Field { id: id.to_string(), volume, velocity, lift, rate });
+        }
+    }
+    if !set.fields.is_empty() {
+        set.needs_props = true;
     }
 }
 
@@ -607,7 +705,9 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
         match vars.as_object() {
             None => errs.push("vars: must be an object like {\"score\": 0, \"has_key\": false}".to_string()),
             Some(o) => {
-                for (name, v) in o.iter().filter(|(k, _)| !crate::strict::is_extension_key(k)) {
+                // `_name` is an internal variable (hidden from the HUD), so only `x-*` / `$comment` / `notes` are notes here: a `_` var used to be
+                // dropped silently and then rejected as unknown wherever a rule read it.
+                for (name, v) in o.iter().filter(|(k, _)| !(k.starts_with("x-") || *k == "$comment" || *k == "notes")) {
                     let ok_name = !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') && !name.starts_with(|c: char| c.is_ascii_digit());
                     if !ok_name {
                         errs.push(format!("vars.{name}: a variable name is letters, digits and `_`, not starting with a digit"));
@@ -630,6 +730,7 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             }
         }
     }
+    parse_fields(root, refs, &mut set, &mut errs);
     let Some(list) = root.get("rules") else {
         return if errs.is_empty() { Ok(set) } else { Err(errs) };
     };

@@ -151,6 +151,8 @@ pub struct Pipelines {
     pub shadow: wgpu::RenderPipeline,
     pub background: wgpu::RenderPipeline,
     pub main: wgpu::RenderPipeline,
+    /// `main` with alpha blending and no depth writes, for surfaces with `material.opacity` < 1 (drawn after the solid ones, back to front).
+    pub main_alpha: wgpu::RenderPipeline,
 }
 
 /// Bindings used by the shadow and background passes: just the uniform. Kept separate from
@@ -290,6 +292,36 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
         cache: None,
     });
 
+    // Blended surfaces (`material.opacity` < 1): the same shader, source-alpha blending, depth-tested but not depth-writing (they are drawn
+    // after every solid one, back to front), so what is behind shows through and the clarity pass still reads the solid world's depth.
+    let main_alpha = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("main-alpha-pipeline"),
+        layout: Some(&main_layout),
+        vertex: wgpu::VertexState { module: &scene_shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &vertex_buffers },
+        fragment: Some(wgpu::FragmentState {
+            module: &scene_shader,
+            entry_point: Some("fs_main"),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: color_format,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        // No culling: a pane or a water sheet is seen from both sides.
+        primitive: wgpu::PrimitiveState { cull_mode: None, front_face: wgpu::FrontFace::Ccw, ..Default::default() },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Less),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState { count: sample_count, mask: !0, alpha_to_coverage_enabled: false },
+        multiview_mask: None,
+        cache: None,
+    });
+
     let shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("shadow-pipeline"),
         layout: Some(&shadow_layout),
@@ -332,7 +364,13 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
         cache: None,
     });
 
-    Pipelines { layouts: BindLayouts { global_uniform: global_uniform_bgl, global_full: global_full_bgl, object: object_bgl }, shadow, background, main }
+    Pipelines {
+        layouts: BindLayouts { global_uniform: global_uniform_bgl, global_full: global_full_bgl, object: object_bgl },
+        shadow,
+        background,
+        main,
+        main_alpha,
+    }
 }
 
 /// Offscreen color/depth targets an offline frame renders into, at a given output size.

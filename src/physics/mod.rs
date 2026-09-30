@@ -371,6 +371,14 @@ impl PropWorld {
         }
     }
 
+    /// The prop's linear velocity, m/s (zero for a static instance and for a carried prop).
+    pub fn prop_velocity(&self, prop: usize) -> Vec3 {
+        match self.props[prop].state {
+            PropState::Static(_) => Vec3::ZERO,
+            PropState::Dynamic(d) => self.world.bodies[d.body].linvel(),
+        }
+    }
+
     /// Where the map author placed `prop` (its origin frame), world space: what `reset` restores.
     pub fn spawn_pose(&self, prop: usize) -> Mat4 {
         self.props[prop].spawn

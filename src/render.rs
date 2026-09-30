@@ -19,6 +19,8 @@ pub(crate) struct SampledMaterial {
     pub metallic: f32,
     pub roughness: f32,
     pub emissive: Vec3,
+    /// 1 = solid; below 1 the leaf is drawn in the blended pass.
+    pub opacity: f32,
 }
 
 fn sample_pose(pose: &crate::schema::Pose, t: f32) -> PoseSample {
@@ -37,7 +39,7 @@ fn sample_pose(pose: &crate::schema::Pose, t: f32) -> PoseSample {
 }
 
 fn sample_material(mat: &Material, t: f32) -> SampledMaterial {
-    SampledMaterial { color: mat.color.sample(t), metallic: mat.metallic, roughness: mat.roughness, emissive: mat.emissive }
+    SampledMaterial { color: mat.color.sample(t), metallic: mat.metallic, roughness: mat.roughness, emissive: mat.emissive, opacity: mat.opacity }
 }
 
 pub(crate) fn build_prim_mesh(p: &PrimKind) -> Mesh {
@@ -53,7 +55,13 @@ pub(crate) fn build_prim_mesh(p: &PrimKind) -> Mesh {
 
 /// A character part's final material: its own colour if it has one, else the object's.
 fn char_material(base: &SampledMaterial, part: &crate::characters::CharPart) -> SampledMaterial {
-    SampledMaterial { color: part.color.unwrap_or(base.color), metallic: part.metallic, roughness: part.roughness, emissive: base.emissive }
+    SampledMaterial {
+        color: part.color.unwrap_or(base.color),
+        metallic: part.metallic,
+        roughness: part.roughness,
+        emissive: base.emissive,
+        opacity: base.opacity,
+    }
 }
 
 pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
@@ -225,6 +233,7 @@ fn collect_leaf_transforms_inner(objects: &[Object], t: f32, parent: Mat4, out: 
                         metallic: (base.metallic + part.metallic_delta).clamp(0.0, 1.0),
                         roughness: (base.roughness + part.roughness_delta).clamp(0.04, 1.0),
                         emissive: base.emissive,
+                        opacity: base.opacity,
                     };
                     out.push((world * part.local_transform, mat));
                 }
@@ -388,14 +397,22 @@ impl Renderer {
 
         let offsets = wrap_offsets(scene);
         let n_meshes = self.meshes.len();
+        // See-through leaves (`opacity` < 1), drawn after the solid ones, far to near: `(distance from the camera squared, slot)`.
+        let eye = scene.camera.position.sample(t);
+        let mut blended: Vec<(f32, usize)> = Vec::new();
+        let mut is_blended = vec![false; n_meshes * offsets.len()];
         for (image, offset) in offsets.iter().enumerate() {
             for (i, (world, mat)) in transforms.iter().enumerate() {
                 let world = Mat4::from_translation(*offset) * *world;
+                if mat.opacity < 1.0 {
+                    blended.push((world.w_axis.truncate().distance_squared(eye), image * n_meshes + i));
+                    is_blended[image * n_meshes + i] = true;
+                }
                 let normal_mat = world.inverse().transpose();
                 let obj_uniform = ObjectUniform {
                     model: world.to_cols_array_2d(),
                     normal_mat: normal_mat.to_cols_array_2d(),
-                    base_color: [mat.color.x, mat.color.y, mat.color.z, 1.0],
+                    base_color: [mat.color.x, mat.color.y, mat.color.z, mat.opacity],
                     material: [mat.metallic, mat.roughness, 0.0, 0.0],
                     emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
                 };
@@ -425,6 +442,9 @@ impl Renderer {
             shadow_pass.set_bind_group(0, &self.global_bind_group_uniform, &[]);
             for image in 0..offsets.len() {
                 for (i, mesh) in self.meshes.iter().enumerate() {
+                    if is_blended[image * n_meshes + i] {
+                        continue; // see-through surfaces cast no shadow
+                    }
                     shadow_pass.set_bind_group(1, &self.object_bind_group, &[((image * n_meshes + i) as u64 * self.object_stride) as u32]);
                     shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
                     shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
@@ -474,7 +494,21 @@ impl Renderer {
             main_pass.set_bind_group(0, &self.global_bind_group_full, &[]);
             for image in 0..offsets.len() {
                 for (i, mesh) in self.meshes.iter().enumerate() {
+                    if is_blended[image * n_meshes + i] {
+                        continue;
+                    }
                     main_pass.set_bind_group(1, &self.object_bind_group, &[((image * n_meshes + i) as u64 * self.object_stride) as u32]);
+                    main_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
+                    main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                }
+            }
+            if !blended.is_empty() {
+                blended.sort_by(|a, b| b.0.total_cmp(&a.0));
+                main_pass.set_pipeline(&self.pipelines.main_alpha);
+                for &(_, slot) in &blended {
+                    let mesh = &self.meshes[slot % n_meshes];
+                    main_pass.set_bind_group(1, &self.object_bind_group, &[(slot as u64 * self.object_stride) as u32]);
                     main_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
                     main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -666,7 +700,7 @@ mod tests {
 
     #[test]
     fn stairs_parts_are_valid_and_non_degenerate() {
-        let material = Material { color: crate::track::Track::constant(Vec3::splat(0.7)), metallic: 0.0, roughness: 0.6, emissive: Vec3::ZERO };
+        let material = Material { color: crate::track::Track::constant(Vec3::splat(0.7)), metallic: 0.0, roughness: 0.6, emissive: Vec3::ZERO, opacity: 1.0 };
         let s = StairsDef { width: 1.2, run: 4.0, rise: 3.0, steps: 16, material };
         let parts = build_stairs_parts(&s);
         assert_eq!(parts.len(), 16);

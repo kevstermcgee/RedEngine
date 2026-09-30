@@ -34,7 +34,7 @@ impl SlotKey {
     fn scene(world: Mat4, mat: &SampledMaterial) -> Self {
         SlotKey {
             model: world.to_cols_array(),
-            base_color: [mat.color.x, mat.color.y, mat.color.z, 1.0],
+            base_color: [mat.color.x, mat.color.y, mat.color.z, mat.opacity],
             material: [mat.metallic, mat.roughness, 0.0, 0.0],
             emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
         }
@@ -69,6 +69,8 @@ pub struct SceneStaging {
     parts: PartsCache,
     main_visible: Vec<bool>,
     shadow_visible: Vec<bool>,
+    /// Visible blended (`opacity` < 1) scene slots, far to near, rebuilt by [`Self::sort_blended`].
+    blended: Vec<usize>,
     dirty: Vec<Range<usize>>,
     /// Slots rewritten last frame (statistics for tests and benchmarks).
     last_rewritten: usize,
@@ -89,6 +91,7 @@ impl SceneStaging {
             parts: PartsCache::default(),
             main_visible: vec![false; scene_slots],
             shadow_visible: vec![false; scene_slots],
+            blended: Vec::new(),
             dirty: Vec::new(),
             last_rewritten: 0,
         }
@@ -123,7 +126,7 @@ impl SceneStaging {
     /// Restages a held-weapon (or any extra) slot from its inputs when they changed; returns whether they did. `slot` counts from 0 over
     /// the *whole* buffer, so extras start at `n_meshes * images`.
     pub fn update_extra(&mut self, slot: usize, world: Mat4, color: Vec3, metallic: f32, roughness: f32, emissive: Vec3) -> bool {
-        let key = SlotKey::scene(world, &SampledMaterial { color, metallic, roughness, emissive });
+        let key = SlotKey::scene(world, &SampledMaterial { color, metallic, roughness, emissive, opacity: 1.0 });
         if self.keys[slot].as_ref() == Some(&key) {
             return false;
         }
@@ -158,14 +161,32 @@ impl SceneStaging {
         }
     }
 
-    /// Whether scene slot `slot` is drawn in the colour pass after [`Self::cull`].
+    /// Whether scene slot `slot` is drawn in the colour pass after [`Self::cull`] (blended slots are drawn by the alpha pass, see [`Self::blended`]).
     pub fn main_visible(&self, slot: usize) -> bool {
-        self.main_visible[slot]
+        self.main_visible[slot] && !self.is_blended(slot)
+    }
+
+    /// Whether the slot's material is see-through (`opacity` < 1): it is skipped by the solid and shadow draws.
+    pub fn is_blended(&self, slot: usize) -> bool {
+        self.keys[slot].is_some_and(|k| k.base_color[3] < 1.0)
+    }
+
+    /// The visible blended scene slots ordered far to near from `eye`, for back-to-front blending. Reuses its storage.
+    pub fn blended(&mut self, eye: Vec3) -> &[usize] {
+        self.blended.clear();
+        for slot in 0..self.bounds.len() {
+            if self.main_visible[slot] && self.is_blended(slot) {
+                self.blended.push(slot);
+            }
+        }
+        let bounds = &self.bounds;
+        self.blended.sort_by(|a, b| bounds[*b].0.distance_squared(eye).total_cmp(&bounds[*a].0.distance_squared(eye)));
+        &self.blended
     }
 
     /// Whether scene slot `slot` is drawn in the shadow pass after [`Self::cull`].
     pub fn shadow_visible(&self, slot: usize) -> bool {
-        self.shadow_visible[slot]
+        self.shadow_visible[slot] && !self.is_blended(slot)
     }
 
     /// Takes the coalesced byte ranges to upload (`queue.write_buffer(buf, range.start, &bytes()[range])`), clearing the change list.

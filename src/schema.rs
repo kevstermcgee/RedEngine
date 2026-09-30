@@ -124,18 +124,21 @@ pub struct Light {
     pub shadow_follow: bool,
 }
 
-/// Surface material: base color, metallic, roughness, emissive.
+/// Surface material: base color, metallic, roughness, emissive, opacity.
 #[derive(Clone, Debug)]
 pub struct Material {
     pub color: Track<Vec3>,
     pub metallic: f32,
     pub roughness: f32,
     pub emissive: Vec3,
+    /// 1 = solid (the default); below 1 the surface is drawn blended over what is behind it (glass, water, a flame's glow) after all
+    /// solid objects, back to front, and casts no shadow.
+    pub opacity: f32,
 }
 
 impl Material {
     fn default_gray() -> Self {
-        Material { color: Track::constant(Vec3::splat(0.7)), metallic: 0.0, roughness: 0.6, emissive: Vec3::ZERO }
+        Material { color: Track::constant(Vec3::splat(0.7)), metallic: 0.0, roughness: 0.6, emissive: Vec3::ZERO, opacity: 1.0 }
     }
 }
 
@@ -474,6 +477,7 @@ fn parse_material(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Materi
                 metallic: plain_f32(ctx, m, "metallic", &mpath, 0.0).clamp(0.0, 1.0),
                 roughness: plain_f32(ctx, m, "roughness", &mpath, 0.6).clamp(0.04, 1.0),
                 emissive: plain_hex(ctx, m, "emissive", &mpath, Vec3::ZERO),
+                opacity: plain_f32(ctx, m, "opacity", &mpath, 1.0).clamp(0.0, 1.0),
             }
         }
     }

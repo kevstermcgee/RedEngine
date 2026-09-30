@@ -878,6 +878,19 @@ impl LiveRenderer {
                     main_pass.draw_indexed(0..h.mesh.index_count, 0, 0..1);
                 }
             }
+            // See-through surfaces (`material.opacity` < 1): after every solid one, far to near, blended and not depth-writing.
+            let blended = self.staging.blended(camera.eye);
+            if !blended.is_empty() {
+                main_pass.set_pipeline(&self.pipelines.main_alpha);
+                for &slot in blended {
+                    let mesh = &self.meshes[slot % n_meshes];
+                    main_pass.set_bind_group(1, &self.object_bind_group, &[(slot as u64 * self.object_stride) as u32]);
+                    main_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
+                    main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                }
+                main_pass.set_pipeline(&self.pipelines.main);
+            }
             // The water goes last: it is depth-tested against everything opaque above and blends over the seabed under it.
             if let Some(ocean) = &self.ocean {
                 ocean.draw(&mut main_pass, &self.global_bind_group_uniform);

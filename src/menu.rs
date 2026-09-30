@@ -15,7 +15,7 @@ fn hex(s: &str) -> Vec3 {
 }
 
 fn constant_material(color: &str, roughness: f32) -> Material {
-    Material { color: Track::constant(hex(color)), metallic: 0.0, roughness, emissive: Vec3::ZERO }
+    Material { color: Track::constant(hex(color)), metallic: 0.0, roughness, emissive: Vec3::ZERO, opacity: 1.0 }
 }
 
 fn point_light(id: &str, pos: Vec3, color: &str, intensity: f32, range: f32) -> Light {

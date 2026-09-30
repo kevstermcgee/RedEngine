@@ -173,7 +173,10 @@ Every object shares these base fields:
 
 `scale` may be a single number (uniform) or `[x,y,z]`. `material.metallic`/`roughness` are
 0–1 (unset defaults: `metallic=0`, `roughness=0.6`). `emissive` is a hex color added on top,
-unaffected by lighting (glow); default `#000000` (none).
+unaffected by lighting (glow); default `#000000` (none). `opacity` (0–1, default 1) makes a surface see-through: glass, water, a
+flame's glow. Blended objects are drawn after all solid ones, far to near, cast no shadow and do not write depth (so they are
+not outlined by the clarity pass); a `plane` with `opacity` is a water sheet, a thin `box` a pane. Sorting is per object: two
+crossing blended objects can show a seam, so keep them apart.
 
 Two more base fields work on every object: `"collide": false` makes it (and, for a group, everything
 inside) walk-through — no player collider, not standable, no solid volume for `lint` — and
@@ -535,6 +538,18 @@ Expectations on loose props: `{prop: id, in_zone: zone}` / `not_in_zone`, `below
 degrees`, `moved: true|false`, `near: [x, z], tol?, y?`, `held_by: player_id | "none"`. The report prints where every player ended
 and every prop that moved, tilted or is carried; `--json` lists every loose prop with its position, tilt, distance moved, whether it is
 at rest and who holds it.
+
+### Force fields (`fields`)
+
+A river current, a conveyor belt or a wind tunnel is one entry, not a rule per prop: `"fields": [{"id": "current", "zone": "channel",
+"velocity": [0, 1.5], "rate": 10}]`. The volume takes the same keys as a rule volume (`zone` [+ `height`], `object` [+ `pad`] or `box`).
+Every tick each loose prop whose origin is inside (and that nobody is carrying) is pulled toward the target: `velocity: [x, z]` m/s
+along the ground axes, `lift: m/s` upward (a prop slower than that is pulled up to it; use it for wind tunnels and hover pads), at
+`rate` per second (default 10, at most 60). It is a drag toward a *speed*, so unlike a repeating `impulse` rule nothing accelerates
+past the target; gravity, floors, walls and other props still act, and floor friction (about 7 m/s^2) makes a prop on the ground
+settle a little under the target (raise `rate` for a stronger belt). A prop that has never been disturbed is promoted the first
+tick it is inside. Players are not pushed. The push is derived from state each tick (like a rule `impulse`), so it is deterministic,
+not recorded in a trace, and replays identically.
 
 ### Traces and replay (`sim --trace`, `replay`, `red_server --record`)
 

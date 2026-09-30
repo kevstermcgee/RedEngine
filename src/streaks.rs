@@ -42,7 +42,7 @@ pub fn add_pool(scene: &mut Scene) -> usize {
             position: Track::constant(Vec3::ZERO),
             rotation: Track::constant(Vec3::ZERO),
             scale: Track::constant(Vec3::splat(HIDDEN)),
-            material: Some(Material { color: Track::constant(Vec3::ZERO), metallic: 0.0, roughness: 1.0, emissive: Vec3::ZERO }),
+            material: Some(Material { color: Track::constant(Vec3::ZERO), metallic: 0.0, roughness: 1.0, emissive: Vec3::ZERO, opacity: 1.0 }),
             collide: false,
             prefab: None,
             movable: Some(false),
