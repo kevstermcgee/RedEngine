@@ -226,6 +226,13 @@ fn prop_collider(shape: SharedShape, pose: Mat4, prop: usize) -> ColliderBuilder
     ColliderBuilder::new(shape).position(pose_of(pose)).density(PROP_DENSITY).friction(0.7).restitution(0.2).user_data(prop as u128 + 1)
 }
 
+/// The mass, kg, a loose object gets in the physics world: the summed volume of its collider pieces at `PROP_DENSITY`. A composite prop
+/// (a crate of slats) weighs less than its bounding box suggests, so `info` reports this rather than a bounding-box estimate.
+pub fn collider_mass(o: &Object) -> f32 {
+    let s = Mat4::from_scale(object_scale(o));
+    object_leaves(o).into_iter().map(|(leaf, local)| leaf_collider(&leaf, s * local).0.mass_properties(PROP_DENSITY).mass()).sum()
+}
+
 impl PropWorld {
     /// Builds the world for `scene`: fixed colliders for the solid map, a static instance (fixed
     /// colliders, no body) for every loose prop, and the player's kinematic body. `skip` is a

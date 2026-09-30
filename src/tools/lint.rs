@@ -112,11 +112,41 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
     check_jump_clearance(world, reach, &mut out);
     check_interest(world, &mut out);
     check_terrain(world, &mut out);
+    check_carry(world, &mut out);
     out.sort_by(|a, b| b.sev.cmp(&a.sev).then(a.code.cmp(b.code)));
     out
 }
 
 // ---------------------------------------------------------------------------------------------
+
+/// A loose prop forced with `movable: true` that a human cannot lift: E does nothing on it (a `sim` shows an `interact` with no
+/// `pickup`). Fine for a shove-only barrel; a note so it is a choice, not a surprise.
+fn check_carry(world: &MapWorld, out: &mut Vec<Finding>) {
+    use crate::physics::{classify, HUMAN_CARRY};
+    for o in &world.scene.objects {
+        if o.movable != Some(true) {
+            continue;
+        }
+        let Some(shape) = classify(o) else { continue };
+        if shape.carriable(&HUMAN_CARRY) {
+            continue;
+        }
+        out.push(finding(
+            Severity::Info,
+            "carry",
+            format!(
+                "`{}` is loose but too big to pick up: longest side {:.2} m (limit {}) and volume {:.3} m^3 (limit {}); a player can only shove it — shrink it to carry, or ignore this note if shoving is the point",
+                o.id,
+                shape.extents.max_element(),
+                HUMAN_CARRY.max_dim,
+                shape.volume(),
+                HUMAN_CARRY.max_volume
+            ),
+            Some(o.position.sample(0.0)),
+            &[o.id.as_str()],
+        ));
+    }
+}
 
 fn check_duplicate_ids(world: &MapWorld, out: &mut Vec<Finding>) {
     fn walk(objs: &[Value], seen: &mut HashMap<String, usize>) {
@@ -1035,6 +1065,17 @@ mod tests {
     fn open_perimeter_is_a_leak() {
         let f = run(r##"{"camera":{"position":[0,1.7,0]},"objects":[{"id":"b","type":"box","size":[1,1,1],"position":[3,0.5,3]}]}"##);
         assert!(f.iter().any(|x| x.code == "leak"), "{}", format_report(&f));
+    }
+
+    #[test]
+    fn a_loose_prop_too_big_to_carry_gets_a_note_and_a_carriable_one_does_not() {
+        let f = run(&room(
+            r##",{"id":"heavy","type":"prop","prop":"crate","position":[0,0,0],"scale":[2.4,2.4,2.4],"movable":true}
+            ,{"id":"light","type":"prop","prop":"crate","position":[1.5,0,0],"movable":true}"##,
+        ));
+        let carry: Vec<_> = f.iter().filter(|x| x.code == "carry").collect();
+        assert_eq!(carry.len(), 1, "{}", format_report(&f));
+        assert!(carry[0].ids == ["heavy"] && carry[0].message.contains("limit 0.45"), "{}", format_report(&f));
     }
 
     #[test]

@@ -109,10 +109,9 @@ pub fn object_info(world: &MapWorld, id: &str, findings: &[Finding]) -> Result<S
     if let Some(o) = world.scene.objects.iter().find(|o| o.id == id) {
         match crate::physics::classify(o) {
             Some(shape) => {
-                let volume: f32 = items.iter().filter(|i| i.is_solid()).map(|i| (i.max.x - i.min.x) * (i.max.y - i.min.y) * (i.max.z - i.min.z)).sum();
                 out.push_str(&format!(
-                    "loose: yes (a player can move it; about {:.0} kg at {} kg/m^3; a human can carry it: {}; `movable: false` pins it)\n",
-                    volume * crate::physics::PROP_DENSITY,
+                    "loose: yes (a player can move it; {:.1} kg (what `mass(id)` reads) at {} kg/m^3; a human can carry it: {}; `movable: false` pins it)\n",
+                    crate::physics::collider_mass(o),
                     crate::physics::PROP_DENSITY,
                     if shape.carriable(&crate::physics::HUMAN_CARRY) { "yes" } else { "no, too big" }
                 ));

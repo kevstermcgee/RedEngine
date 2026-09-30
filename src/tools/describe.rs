@@ -246,6 +246,7 @@ pub const LINT_CODES: &[(&str, &str, &str)] = &[
     ("stairs-bottom", "error", "stairs' bottom starts in a wall -> clear space at the bottom end"),
     ("stairs-narrow", "warn", "stairs narrower than 1.1 m -> widen"),
     ("stairs-steep", "warn", "step rise > 0.2 m -> more steps or longer run"),
+    ("carry", "info", "a `movable: true` prop is too big for a human to pick up (0.45 m^3 / 1.25 m) -> shrink it, or keep it shove-only on purpose"),
     ("drop", "warn", "walkable edge with a big fall and no railing (open stairwell) -> add a 1.05 m railing wall"),
     ("leak", "error", "the player can walk off the map: a gap in the perimeter -> close it with wall/fence (not checked when the scene has a `world` block: its bounds are the edge)"),
     ("terrain-slope", "error", "terrain steeper than 45 degrees where players can walk (inside `world.bounds`): a player climbs any slope instantly -> soften the profile/noise or move it outside the bounds"),
