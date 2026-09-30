@@ -190,6 +190,10 @@ pub enum Character {
     Alien,
     /// Workshop robot using the human movement rig.
     Robot,
+    /// A Ridgeback soldier (team 1: army green and tan) on the human rig.
+    Ridgeback,
+    /// A Nightfall soldier (team 2: navy and black) on the human rig.
+    Nightfall,
 }
 
 /// Everything about a body that differs between characters. Gravity and the ground/step rules are
@@ -229,12 +233,13 @@ pub struct BodySpec {
 
 impl Character {
     /// Every character, in wire-code order.
-    pub const ALL: [Character; 6] = [Character::Human, Character::Rat, Character::Wizard, Character::Cowboy, Character::Alien, Character::Robot];
+    pub const ALL: [Character; 8] =
+        [Character::Human, Character::Rat, Character::Wizard, Character::Cowboy, Character::Alien, Character::Robot, Character::Ridgeback, Character::Nightfall];
 
     /// The body numbers for this character.
     pub fn body(self) -> BodySpec {
         match self {
-            Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot => BodySpec {
+            Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot | Character::Ridgeback | Character::Nightfall => BodySpec {
                 radius: PLAYER_RADIUS,
                 stand_eye: STAND_EYE_HEIGHT,
                 crouch_eye: CROUCH_EYE_HEIGHT,
@@ -279,6 +284,8 @@ impl Character {
             Character::Cowboy => "Cowboy",
             Character::Alien => "Alien",
             Character::Robot => "Robot",
+            Character::Ridgeback => "Ridgeback soldier",
+            Character::Nightfall => "Nightfall soldier",
         }
     }
 
@@ -291,6 +298,8 @@ impl Character {
             "cowboy" => Some(Character::Cowboy),
             "alien" => Some(Character::Alien),
             "robot" => Some(Character::Robot),
+            "ridgeback" => Some(Character::Ridgeback),
+            "nightfall" => Some(Character::Nightfall),
             _ => None,
         }
     }

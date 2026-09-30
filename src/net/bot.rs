@@ -167,7 +167,7 @@ pub struct Bot {
     pub events: Vec<(f64, String)>,
     /// Action buttons held on every input the bot sends (`PlayerInput::flags` bits: 8 interact, 16 attack, 32 reload,
     /// 64 switch). The server acts on the press, so set a button for a few ticks, then clear it.
-    pub buttons: u8,
+    pub buttons: u16,
     /// Look pitch the bot sends, radians (negative = down): tests aim at low props with it.
     pub pitch: f32,
     /// Press Ready whenever the match is in the lobby or showing results (how a bot takes part in a match flow and asks for a rematch).

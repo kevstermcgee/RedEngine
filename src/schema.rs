@@ -80,6 +80,8 @@ pub struct Scene {
     pub ocean: Option<crate::atmosphere::Ocean>,
     /// The kart race (`race` block), if the scene has one: its presence turns every player into a kart driver (`sim::kart`, `sim::race`).
     pub race: Option<std::sync::Arc<crate::sim::race::RaceCourse>>,
+    /// The loadout shooter (`shooter` block), if the scene has one: a kit of weapons per player, pickups on the map, two teams.
+    pub shooter: Option<crate::sim::shooter::ShooterConfig>,
 }
 
 /// Sky: a flat color or a vertical gradient.
@@ -1128,6 +1130,13 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             Default::default()
         }
     };
+    let shooter = match crate::sim::shooter::parse_shooter(root) {
+        Ok(s) => s,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            None
+        }
+    };
     let nav = match crate::sim::ai::nav::parse_nav(root) {
         Ok(n) => n,
         Err(errs) => {
@@ -1167,6 +1176,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         sky,
         ocean,
         race,
+        shooter,
     })
 }
 

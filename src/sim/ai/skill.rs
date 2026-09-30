@@ -152,6 +152,22 @@ impl WeaponProfile {
             Weapon::Shotgun => p(5.5, 14.0, true, (1, 1), 1.0),
             Weapon::Lmg => p(15.0, 55.0, false, (8, 18), 1.0),
             Weapon::Scout => p(34.0, 110.0, true, (1, 1), 0.45),
+            Weapon::Knife | Weapon::Hatchet => WeaponProfile { ideal: 1.3, reach: 1.9, semi_auto: true, burst: (1, 1), steadiness: 1.0, melee: true },
+            Weapon::Bulldog => p(13.0, 40.0, true, (1, 1), 0.9),
+            Weapon::HandCannon => p(15.0, 48.0, true, (1, 1), 0.8),
+            Weapon::Marshal => p(16.0, 50.0, true, (1, 1), 0.8),
+            Weapon::Stinger => p(10.0, 32.0, false, (4, 9), 1.05),
+            Weapon::Ranger => p(11.0, 36.0, false, (6, 14), 1.0),
+            Weapon::Wasp => p(8.0, 26.0, false, (5, 12), 1.15),
+            Weapon::Ironside => p(18.0, 75.0, false, (3, 5), 0.8),
+            Weapon::Gale => p(32.0, 120.0, true, (1, 1), 0.5),
+            Weapon::Sentinel => p(45.0, 160.0, true, (1, 1), 0.4),
+            Weapon::Auto12 => p(5.0, 13.0, true, (1, 1), 1.0),
+            Weapon::Coach => p(4.0, 9.0, true, (1, 1), 1.0),
+            Weapon::Hammer => p(16.0, 55.0, false, (10, 24), 1.05),
+            Weapon::Lancer => p(22.0, 60.0, true, (1, 1), 0.7),
+            Weapon::Thumper => p(20.0, 50.0, true, (1, 1), 0.8),
+            Weapon::Frag | Weapon::Flash | Weapon::Smoke | Weapon::Incendiary => p(14.0, 20.0, true, (1, 1), 1.0),
         }
     }
 }

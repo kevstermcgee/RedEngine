@@ -139,6 +139,8 @@ pub fn character_to_wire(c: Character) -> u8 {
         Character::Cowboy => 3,
         Character::Alien => 4,
         Character::Robot => 5,
+        Character::Ridgeback => 6,
+        Character::Nightfall => 7,
     }
 }
 
@@ -718,7 +720,7 @@ fn open(bytes: &[u8]) -> Result<(u8, R<'_>), DecodeError> {
 
 fn put_input(w: &mut W, i: &PlayerInput) {
     w.u32(i.seq);
-    w.u8(i.flags());
+    w.u16(i.flags());
     w.u8(i.forward as u8);
     w.u8(i.strafe as u8);
     w.f32(i.yaw);
@@ -727,7 +729,7 @@ fn put_input(w: &mut W, i: &PlayerInput) {
 
 fn get_input(r: &mut R) -> Result<PlayerInput, DecodeError> {
     let seq = r.u32()?;
-    let flags = r.u8()?;
+    let flags = r.u16()?;
     let (forward, strafe) = (r.u8()? as i8, r.u8()? as i8);
     let (yaw, pitch) = (r.f32()?, r.f32()?);
     Ok(PlayerInput { seq, forward, strafe, yaw, pitch, ..Default::default() }.with_flags(flags).sanitized())
@@ -1205,6 +1207,9 @@ mod tests {
             attack: false,
             reload: true,
             switch_weapon: true,
+            aim: true,
+            drop: false,
+            select: 3,
         }
     }
 

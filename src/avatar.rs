@@ -89,6 +89,8 @@ pub struct RemoteHand {
     pub kick: f32,
     /// Muzzle flash brightness, 1 at a shot fading to 0.
     pub flash: f32,
+    /// The glove look of the wearer (`uniforms::by_skin`; `0` = no team).
+    pub skin: u8,
 }
 
 /// What an avatar remembers between frames.
@@ -228,6 +230,7 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
                 bat_pitch_deg: swing_blend(a.swing, BAT_IDLE_PITCH_DEG, WINDUP_PITCH_DEG, STRIKE_PITCH_DEG),
                 kick,
                 flash: a.flash(),
+                skin: 0,
             })
         }
         (ObjectKind::Rat(r), Character::Rat) => {

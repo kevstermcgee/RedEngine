@@ -24,7 +24,7 @@ impl App {
             body.scale = Track::constant(scale);
         }
         match self.character {
-            Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot => {
+            Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot | Character::Ridgeback | Character::Nightfall => {
                 self.pose_human(body_pos, yaw_deg, speed, dt, scale)
             }
             Character::Rat => self.pose_rat(speed, dt),

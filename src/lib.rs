@@ -1,6 +1,7 @@
 //! Library root: module list plus the scene-loading and offline render entry points (`render_frame_png`, `render_video`).
 
 pub mod app;
+pub mod arsenal;
 pub mod atmosphere;
 #[cfg(feature = "gfx")]
 pub mod audio;
@@ -64,6 +65,7 @@ pub mod terrain;
 pub mod tools;
 pub mod track;
 pub mod ui;
+pub mod uniforms;
 #[cfg(feature = "gfx")]
 pub mod video;
 #[cfg(feature = "gfx")]

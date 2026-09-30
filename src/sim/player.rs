@@ -74,23 +74,34 @@ pub struct PlayerInput {
     pub reload: bool,
     /// Switch-weapon held (mouse wheel / `Q`). Acts on the press.
     pub switch_weapon: bool,
+    /// Aim held (right mouse / left trigger): aim down the sights, or throw a grenade underhand. Loadout matches only.
+    pub aim: bool,
+    /// Drop the weapon in hand (`G`). Acts on the press. Loadout matches only.
+    pub drop: bool,
+    /// Choose a weapon directly: `0` nothing, `1` and `2` the firearm slots, `3` melee, `4` grenade (again: the next one), `5` the previous
+    /// weapon, `6` next, `7` previous in the cycle. Acts on a change to a new non-zero value. Loadout matches only.
+    pub select: u8,
 }
 
 impl PlayerInput {
-    /// The action buttons as bits for the wire and traces: bit 0 jump, 1 sprint, 2 crouch, 3 interact, 4 attack, 5 reload, 6 switch.
-    pub fn flags(&self) -> u8 {
-        (self.jump as u8)
-            | ((self.sprint as u8) << 1)
-            | ((self.crouch as u8) << 2)
-            | ((self.interact as u8) << 3)
-            | ((self.attack as u8) << 4)
-            | ((self.reload as u8) << 5)
-            | ((self.switch_weapon as u8) << 6)
-            | ((self.analog as u8) << 7)
+    /// The action buttons as bits for the wire and traces: bit 0 jump, 1 sprint, 2 crouch, 3 interact, 4 attack, 5 reload, 6 switch,
+    /// 7 analog, 8 aim, 9 drop, 10-12 the direct weapon choice.
+    pub fn flags(&self) -> u16 {
+        (self.jump as u16)
+            | ((self.sprint as u16) << 1)
+            | ((self.crouch as u16) << 2)
+            | ((self.interact as u16) << 3)
+            | ((self.attack as u16) << 4)
+            | ((self.reload as u16) << 5)
+            | ((self.switch_weapon as u16) << 6)
+            | ((self.analog as u16) << 7)
+            | ((self.aim as u16) << 8)
+            | ((self.drop as u16) << 9)
+            | (((self.select & 7) as u16) << 10)
     }
 
     /// The inverse of [`flags`](Self::flags) applied to `self` (movement axes and look are left as they are).
-    pub fn with_flags(mut self, f: u8) -> Self {
+    pub fn with_flags(mut self, f: u16) -> Self {
         self.jump = f & 1 != 0;
         self.sprint = f & 2 != 0;
         self.crouch = f & 4 != 0;
@@ -99,6 +110,9 @@ impl PlayerInput {
         self.reload = f & 32 != 0;
         self.switch_weapon = f & 64 != 0;
         self.analog = f & 128 != 0;
+        self.aim = f & 256 != 0;
+        self.drop = f & 512 != 0;
+        self.select = ((f >> 10) & 7) as u8;
         self
     }
 

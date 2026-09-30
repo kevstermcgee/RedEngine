@@ -264,6 +264,32 @@ pub fn raycast_shapes(origin: Vec3, dir: Vec3, max_dist: f32, shapes: &[HitShape
     best
 }
 
+/// The outward surface normal where the ray `origin + t * dir` struck at distance `dist` (as returned by [`raycast_shapes`]), estimated from
+/// the hits of two neighbouring parallel rays: exact on a flat face, a sensible average on an edge, `-dir` if the neighbours miss.
+pub fn surface_normal(origin: Vec3, dir: Vec3, dist: f32, shapes: &[HitShape]) -> Vec3 {
+    let dir = dir.normalize_or_zero();
+    if dir == Vec3::ZERO {
+        return Vec3::Y;
+    }
+    let a = if dir.y.abs() < 0.9 { Vec3::Y } else { Vec3::X };
+    let t1 = dir.cross(a).normalize();
+    let t2 = dir.cross(t1).normalize();
+    let eps = 0.04;
+    let reach = dist + 0.5;
+    let p0 = origin + dir * dist;
+    let hit_at = |offset: Vec3| raycast_shapes(origin + offset, dir, reach, shapes).map(|h| origin + offset + dir * h.distance);
+    let (Some(p1), Some(p2)) = (hit_at(t1 * eps), hit_at(t2 * eps)) else { return -dir };
+    let n = (p1 - p0).cross(p2 - p0).normalize_or_zero();
+    if n == Vec3::ZERO {
+        return -dir;
+    }
+    if n.dot(dir) > 0.0 {
+        -n
+    } else {
+        n
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,6 +305,20 @@ mod tests {
         assert!((h.distance - 4.0).abs() < 1e-4);
         assert!(raycast_shapes(Vec3::new(3.0, 0.0, 0.0), -Vec3::Z, 10.0, &s).is_none());
         assert!(raycast_shapes(Vec3::ZERO, -Vec3::Z, 3.0, &s).is_none(), "out of reach");
+    }
+
+    #[test]
+    fn the_normal_of_a_floor_and_a_wall_point_out_of_them() {
+        let floor = [shape(PrimKind::Box { size: Vec3::new(10.0, 0.2, 10.0) }, Mat4::from_translation(Vec3::new(0.0, -0.1, 0.0)))];
+        let d = Vec3::new(0.3, -1.0, 0.1).normalize();
+        let h = raycast_shapes(Vec3::new(0.0, 2.0, 0.0), d, 10.0, &floor).unwrap();
+        let n = surface_normal(Vec3::new(0.0, 2.0, 0.0), d, h.distance, &floor);
+        assert!((n - Vec3::Y).length() < 1e-3, "{n:?}");
+        let wall = [shape(PrimKind::Box { size: Vec3::new(0.2, 4.0, 10.0) }, Mat4::from_translation(Vec3::new(5.0, 2.0, 0.0)))];
+        let d = Vec3::new(1.0, 0.1, 0.05).normalize();
+        let h = raycast_shapes(Vec3::new(0.0, 2.0, 0.0), d, 20.0, &wall).unwrap();
+        let n = surface_normal(Vec3::new(0.0, 2.0, 0.0), d, h.distance, &wall);
+        assert!((n + Vec3::X).length() < 1e-3, "{n:?}");
     }
 
     #[test]

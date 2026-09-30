@@ -37,9 +37,9 @@ pub const BOT_BODY_POOL: usize = 4;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AvatarPlan {
     /// Avatars to prepare.
-    pub pool: [usize; 6],
+    pub pool: [usize; 8],
     /// The most other players who can be wearing the body at once (humans where they may pick it, and the scene's bots, roster first, then the generated ones).
-    pub needed: [usize; 6],
+    pub needed: [usize; 8],
 }
 
 impl AvatarPlan {
@@ -59,11 +59,11 @@ fn body_index(who: Character) -> usize {
 pub fn avatar_plan(scene: &Scene) -> AvatarPlan {
     let forced = scene.player.character;
     let bots = &scene.bots;
-    let mut bot_bodies = [0usize; 6];
+    let mut bot_bodies = [0usize; 8];
     for k in 0..bots.fill {
         bot_bodies[body_index(bots.spec(k).character)] += 1;
     }
-    let (mut pool, mut needed) = ([0usize; 6], [0usize; 6]);
+    let (mut pool, mut needed) = ([0usize; 8], [0usize; 8]);
     for (i, who) in Character::ALL.iter().enumerate() {
         let human = forced.is_none_or(|f| f == *who);
         pool[i] = if human { MAX_PLAYERS_PER_SNAPSHOT } else { bot_bodies[i].max(if bots.fill > 0 && *who != Character::Rat { BOT_BODY_POOL } else { 0 }) };

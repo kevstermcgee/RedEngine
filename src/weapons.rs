@@ -7,6 +7,9 @@
 //! `sim::interact` (server and scenarios); the models live in `viewer::build_held_parts` (bat) and `firearms::build_firearm_parts`; the
 //! synthesized sounds in `sfx`; the single-player wiring in `bin/re2/weapons.rs`.
 //!
+//! The loadout arsenal of [`crate::arsenal`] adds twenty more variants after the legacy eleven; [`Weapon::ALL`] (the prototype's scroll order) is
+//! unchanged, [`Weapon::ROSTER`] is every weapon in wire order.
+//!
 //! There is no special weapon: every firearm is a [`FirearmSpec`] row and a procedural model, so a new gun is one row and one shape
 //! (ADR 2026-09-28-remove-the-revolver removed the one that had its own code path).
 
@@ -35,6 +38,47 @@ pub enum Weapon {
     Lmg,
     /// Lightweight scout rifle.
     Scout,
+    // ---- the loadout arsenal (`crate::arsenal`); the legacy prototype's scroll order ([`Weapon::ALL`]) never reaches these ----
+    /// Combat knife: the default melee weapon of a loadout match.
+    Knife,
+    /// Camp hatchet.
+    Hatchet,
+    /// Single-stack .45 pistol.
+    Bulldog,
+    /// Large-frame .50 pistol.
+    HandCannon,
+    /// Six-shot .357 revolver.
+    Marshal,
+    /// .45 submachine gun.
+    Stinger,
+    /// Personal defence weapon with a 50-round magazine.
+    Ranger,
+    /// Very fast .45 submachine gun.
+    Wasp,
+    /// 7.62 battle rifle.
+    Ironside,
+    /// Semi-automatic sniper rifle.
+    Gale,
+    /// Bolt-action .338 anti-personnel sniper rifle.
+    Sentinel,
+    /// Semi-automatic combat shotgun.
+    Auto12,
+    /// Sawed-off double-barrel shotgun.
+    Coach,
+    /// Belt-fed machine gun.
+    Hammer,
+    /// Shoulder-fired rocket launcher.
+    Lancer,
+    /// Single-shot 40 mm grenade launcher.
+    Thumper,
+    /// Fragmentation grenade.
+    Frag,
+    /// Flashbang.
+    Flash,
+    /// Smoke grenade.
+    Smoke,
+    /// Incendiary grenade.
+    Incendiary,
 }
 
 impl Weapon {
@@ -51,6 +95,41 @@ impl Weapon {
         Weapon::Shotgun,
         Weapon::Lmg,
         Weapon::Scout,
+    ];
+
+    /// Every weapon of the loadout arsenal, in wire order (the first eleven are [`Weapon::ALL`], so legacy numbers never changed).
+    pub const ROSTER: [Weapon; 31] = [
+        Weapon::Bat,
+        Weapon::Pistol,
+        Weapon::MachinePistol,
+        Weapon::Smg,
+        Weapon::Carbine,
+        Weapon::Rifle,
+        Weapon::Bullpup,
+        Weapon::Marksman,
+        Weapon::Shotgun,
+        Weapon::Lmg,
+        Weapon::Scout,
+        Weapon::Knife,
+        Weapon::Hatchet,
+        Weapon::Bulldog,
+        Weapon::HandCannon,
+        Weapon::Marshal,
+        Weapon::Stinger,
+        Weapon::Ranger,
+        Weapon::Wasp,
+        Weapon::Ironside,
+        Weapon::Gale,
+        Weapon::Sentinel,
+        Weapon::Auto12,
+        Weapon::Coach,
+        Weapon::Hammer,
+        Weapon::Lancer,
+        Weapon::Thumper,
+        Weapon::Frag,
+        Weapon::Flash,
+        Weapon::Smoke,
+        Weapon::Incendiary,
     ];
 
     /// The ten firearms shipped with the reusable shooter prototype.
@@ -73,14 +152,14 @@ impl Weapon {
         Weapon::ALL[(i + direction.signum()).rem_euclid(Weapon::ALL.len() as i32) as usize]
     }
 
-    /// The weapon's number on the wire (its index in [`Weapon::ALL`]).
+    /// The weapon's number on the wire (its index in [`Weapon::ROSTER`]).
     pub fn wire(self) -> u8 {
-        Weapon::ALL.iter().position(|w| *w == self).unwrap_or(0) as u8
+        Weapon::ROSTER.iter().position(|w| *w == self).unwrap_or(0) as u8
     }
 
     /// The inverse of [`wire`](Self::wire); an unknown number is the bat.
     pub fn from_wire(v: u8) -> Weapon {
-        Weapon::ALL.get(v as usize).copied().unwrap_or(Weapon::Bat)
+        Weapon::ROSTER.get(v as usize).copied().unwrap_or(Weapon::Bat)
     }
 
     /// Display name.
@@ -97,6 +176,26 @@ impl Weapon {
             Weapon::Shotgun => "Breach shotgun",
             Weapon::Lmg => "Atlas LMG",
             Weapon::Scout => "Warden scout rifle",
+            Weapon::Knife => "combat knife",
+            Weapon::Hatchet => "camp hatchet",
+            Weapon::Bulldog => "Bulldog .45",
+            Weapon::HandCannon => "Hand Cannon .50",
+            Weapon::Marshal => "Marshal .357",
+            Weapon::Stinger => "Stinger SMG",
+            Weapon::Ranger => "Ranger PDW",
+            Weapon::Wasp => "Wasp SMG",
+            Weapon::Ironside => "Ironside battle rifle",
+            Weapon::Gale => "Gale sniper",
+            Weapon::Sentinel => "Sentinel .338",
+            Weapon::Auto12 => "Auto-12 shotgun",
+            Weapon::Coach => "Coach gun",
+            Weapon::Hammer => "Hammer MG",
+            Weapon::Lancer => "Lancer rocket launcher",
+            Weapon::Thumper => "Thumper grenade launcher",
+            Weapon::Frag => "frag grenade",
+            Weapon::Flash => "flashbang",
+            Weapon::Smoke => "smoke grenade",
+            Weapon::Incendiary => "incendiary grenade",
         }
     }
 
@@ -115,13 +214,33 @@ impl Weapon {
             "shotgun" => Some(Weapon::Shotgun),
             "lmg" => Some(Weapon::Lmg),
             "scout" | "scout-rifle" => Some(Weapon::Scout),
+            "knife" | "combat-knife" => Some(Weapon::Knife),
+            "hatchet" => Some(Weapon::Hatchet),
+            "bulldog" => Some(Weapon::Bulldog),
+            "hand-cannon" | "handcannon" => Some(Weapon::HandCannon),
+            "marshal" | "revolver-357" => Some(Weapon::Marshal),
+            "stinger" => Some(Weapon::Stinger),
+            "ranger" | "pdw" => Some(Weapon::Ranger),
+            "wasp" => Some(Weapon::Wasp),
+            "ironside" => Some(Weapon::Ironside),
+            "gale" => Some(Weapon::Gale),
+            "sentinel" => Some(Weapon::Sentinel),
+            "auto12" | "auto-12" => Some(Weapon::Auto12),
+            "coach" | "coach-gun" => Some(Weapon::Coach),
+            "hammer" | "hammer-mg" => Some(Weapon::Hammer),
+            "lancer" | "rocket-launcher" => Some(Weapon::Lancer),
+            "thumper" | "grenade-launcher" => Some(Weapon::Thumper),
+            "frag" | "frag-grenade" => Some(Weapon::Frag),
+            "flash" | "flashbang" => Some(Weapon::Flash),
+            "smoke" | "smoke-grenade" => Some(Weapon::Smoke),
+            "incendiary" => Some(Weapon::Incendiary),
             _ => None,
         }
     }
 
-    /// True for every ranged weapon.
+    /// True for every gun (not the melee weapons and not grenades).
     pub fn is_firearm(self) -> bool {
-        self != Weapon::Bat
+        self.is_gun()
     }
 
     /// Perspective magnification while aiming; irons stay modest, precision rifles zoom further.
@@ -130,27 +249,32 @@ impl Weapon {
             Weapon::Marksman => 2.0,
             Weapon::Scout => 2.5,
             Weapon::Bat => 1.0,
-            _ => 1.25,
+            Weapon::Pistol | Weapon::MachinePistol | Weapon::Smg | Weapon::Carbine | Weapon::Rifle | Weapon::Bullpup | Weapon::Shotgun | Weapon::Lmg => 1.25,
+            other => other.kit().zoom,
         }
     }
 
     /// Whether holding the trigger repeats shots at the authoritative cooldown.
     pub fn automatic(self) -> bool {
-        matches!(self, Weapon::MachinePistol | Weapon::Smg | Weapon::Carbine | Weapon::Rifle | Weapon::Bullpup | Weapon::Lmg)
+        match self {
+            Weapon::MachinePistol | Weapon::Smg | Weapon::Carbine | Weapon::Rifle | Weapon::Bullpup | Weapon::Lmg => true,
+            Weapon::Bat | Weapon::Pistol | Weapon::Marksman | Weapon::Shotgun | Weapon::Scout => false,
+            other => other.kit().auto,
+        }
     }
 
     /// Number of deterministic rays emitted by one trigger action.
     pub fn pellets(self) -> u32 {
-        if self == Weapon::Shotgun {
-            9
-        } else {
-            1
+        match self {
+            Weapon::Shotgun => 9,
+            Weapon::Bat | Weapon::Pistol | Weapon::MachinePistol | Weapon::Smg | Weapon::Carbine | Weapon::Rifle | Weapon::Bullpup | Weapon::Marksman | Weapon::Lmg | Weapon::Scout => 1,
+            other => other.kit().pellets.max(1) as u32,
         }
     }
 
     /// Shared pellet cone; the center plus eight ring samples, with no frame-dependent RNG.
     pub fn shot_direction(self, forward: glam::Vec3, pellet: u32) -> glam::Vec3 {
-        if self != Weapon::Shotgun || pellet == 0 {
+        if self.pellets() == 1 || pellet == 0 {
             return forward;
         }
         let right = forward.cross(glam::Vec3::Y).normalize_or_zero();
@@ -178,6 +302,11 @@ impl Weapon {
             Weapon::Shotgun => FirearmSpec::new(62, 0.72, 32.0, 58.0, 1.15),
             Weapon::Lmg => FirearmSpec::new(27, 0.13, 105.0, 36.0, 0.72),
             Weapon::Scout => FirearmSpec::new(70, 0.85, 180.0, 48.0, 0.95),
+            other if other.is_gun() => {
+                let k = other.kit();
+                FirearmSpec { damage: k.damage as u32, cooldown_ticks: k.cooldown_ticks(), range: k.range, impulse: k.damage as f32 * 0.4, recoil: (k.kick / 4.0).clamp(0.3, 1.2) }
+            }
+            _ => return None,
         };
         Some(spec)
     }

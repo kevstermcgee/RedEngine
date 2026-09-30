@@ -76,6 +76,9 @@ impl App {
             attack: self.take_pulse(1) || ((self.attack_held || self.pad.down(red_engine2::controller::button::FIRE)) && self.weapon.automatic()),
             switch_weapon: self.take_pulse(2),
             reload: self.take_pulse(3),
+            aim: false,
+            drop: false,
+            select: 0,
         }
     }
 
@@ -478,6 +481,7 @@ impl App {
             muzzle_flash,
             fx,
             enemy,
+            skin: 0,
         };
         live.render_ex(
             &gpu.device,

@@ -37,6 +37,7 @@ pub const ROOT_KEYS: &[&str] = &[
     "match",
     "race",
     "combat",
+    "shooter",
     "bots",
     "nav",
     "music",

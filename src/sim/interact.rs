@@ -82,6 +82,16 @@ pub struct Combat {
     pub hurt_bearing: f32,
     /// Button state on the previous processed input (buttons act on their rising edge): interact, attack, reload, switch.
     prev: [bool; 4],
+    /// The loadout (two guns, melee, grenades), in a match whose scene has a `shooter` block; `None` in the classic arena.
+    pub kit: Option<super::kit::Kit>,
+    /// The tick until which the player is blinded by a flashbang (`0` = not).
+    pub flash_until: u64,
+    /// How long the blinding flash lasts in total, seconds (for the fade).
+    pub flash_total: f32,
+    /// Who killed this player, with what, and whether it was a headshot (set on death).
+    pub killed_by: Option<(u8, Weapon, bool)>,
+    /// Kills that were headshots (wrapping; a counter like `hits`).
+    pub headshots: u32,
 }
 
 /// How many failed pick-ups a match remembers for its report.
@@ -108,6 +118,11 @@ impl Combat {
             hurt: 0,
             hurt_bearing: 0.0,
             prev: [false; 4],
+            kit: None,
+            flash_until: 0,
+            flash_total: 0.0,
+            killed_by: None,
+            headshots: 0,
         }
     }
 
@@ -143,6 +158,10 @@ impl Combat {
             h ^= v;
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
         }
+        if let Some(kit) = &self.kit {
+            h ^= kit.state_hash();
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
         // The pacing state joins the fold only while it is in play, so a match that does not use spawn protection or regeneration keeps
         // exactly the checksums it always had (committed traces stay valid).
         if self.protected_until != 0 || self.last_hurt_tick != 0 || self.regen_acc != 0 {
@@ -156,7 +175,7 @@ impl Combat {
 }
 
 /// Eye position and look direction of a player.
-fn eye_and_look(state: &PlayerState, crouching: bool) -> (Vec3, Vec3) {
+pub(super) fn eye_and_look(state: &PlayerState, crouching: bool) -> (Vec3, Vec3) {
     let body = state.character.body();
     let eye = Vec3::new(state.pos.x, state.foot_y + if crouching { body.crouch_eye } else { body.stand_eye }, state.pos.y);
     let (sy, cy) = libm::sincosf(state.yaw);
@@ -213,7 +232,9 @@ impl MatchSim {
         for (slot, p) in self.players().filter(|(s, p)| *s != ignore && !p.combat.is_dead()) {
             let body = p.state.character.body();
             let (pos, foot) = self.rewound(slot, lag).unwrap_or((p.state.pos, p.state.foot_y));
-            if let Some(d) = ray_cylinder(origin, dir, reach, pos, body.radius, foot, body.body_height) {
+            // A crouching player is a shorter target.
+            let height = if p.crouching { body.crouch_eye + 0.12 } else { body.body_height };
+            if let Some(d) = ray_cylinder(origin, dir, reach, pos, body.radius, foot, height) {
                 consider(RayHit { target: RayTarget::Player(slot), distance: d });
             }
         }
@@ -239,6 +260,10 @@ impl MatchSim {
                 p.combat.hp = (p.combat.hp + 1).min(PLAYER_MAX_HP);
             }
         }
+        if p.combat.kit.is_some() {
+            self.kit_tick(slot);
+            return;
+        }
         if p.combat.swing.tick() {
             self.melee_strike(slot);
         }
@@ -250,26 +275,48 @@ impl MatchSim {
     /// extra), minus a penalty when any opponent has a clear line to it, and takes the best; ties keep the round-robin order, so a match
     /// with nobody else in it still rotates through the list.
     pub(super) fn pick_spawn(&mut self, slot: usize) -> Spawn {
-        let n = self.spawns.len();
-        let start = self.next_spawn % n;
+        let team = self.team_of(slot);
+        self.pick_spawn_team(slot, team)
+    }
+
+    /// [`pick_spawn`](Self::pick_spawn) for a player about to join `team`. In a team match a player spawns at their own team's spawn points
+    /// (`group` "team1" / "team2"), when the map has any.
+    pub(super) fn pick_spawn_team(&mut self, slot: usize, team: u8) -> Spawn {
+        if team != 0 {
+            let group = format!("team{team}");
+            let mine: Vec<usize> = (0..self.spawns.len()).filter(|i| self.spawns[*i].group == group).collect();
+            if !mine.is_empty() {
+                let start = self.next_spawn % mine.len();
+                self.next_spawn += 1;
+                return self.pick_from(slot, team, &mine, start);
+            }
+        }
+        let all: Vec<usize> = (0..self.spawns.len()).collect();
+        let start = self.next_spawn % all.len();
         self.next_spawn += 1;
+        self.pick_from(slot, team, &all, start)
+    }
+
+    /// The spawn among `candidates` (indices into the spawn list) for `slot`; `start` is the round-robin position in that list.
+    fn pick_from(&mut self, slot: usize, team: u8, candidates: &[usize], start: usize) -> Spawn {
+        let n = candidates.len();
         if self.combat_cfg.spawn != SpawnPolicy::Farthest {
-            return self.spawns[start].clone();
+            return self.spawns[candidates[start]].clone();
         }
         let others: Vec<(usize, Vec3, Vec3)> = self
             .players()
-            .filter(|(s, p)| *s != slot && !p.combat.is_dead())
+            .filter(|(s, p)| *s != slot && !p.combat.is_dead() && (team == 0 || p.team != team))
             .map(|(s, p)| {
                 let body = p.state.character.body();
                 (s, Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y), Vec3::new(p.state.pos.x, p.state.foot_y + body.stand_eye, p.state.pos.y))
             })
             .collect();
         if others.is_empty() {
-            return self.spawns[start].clone();
+            return self.spawns[candidates[start]].clone();
         }
-        let mut best = (f32::NEG_INFINITY, start);
+        let mut best = (f32::NEG_INFINITY, candidates[start]);
         for k in 0..n {
-            let i = (start + k) % n;
+            let i = candidates[(start + k) % n];
             let at = Vec3::from(self.spawns[i].position);
             let (mut nearest, mut seen) = (f32::INFINITY, false);
             for (other, feet, eye) in &others {
@@ -295,12 +342,16 @@ impl MatchSim {
         let character = p.state.character;
         p.state = PlayerState::spawn(s.position[0], s.position[2], s.position[1], s.yaw_deg, character);
         let old = &p.combat;
-        let (kills, deaths, shots, hits, hurt, hurt_bearing) = (old.kills, old.deaths, old.shots, old.hits, old.hurt, old.hurt_bearing);
-        p.combat = Combat { kills, deaths, shots, hits, hurt, hurt_bearing, weapon: cfg.weapon_for_kills(kills), ..Combat::new(&cfg) };
+        let (kills, deaths, shots, hits, hurt, hurt_bearing, headshots) = (old.kills, old.deaths, old.shots, old.hits, old.hurt, old.hurt_bearing, old.headshots);
+        p.combat = Combat { kills, deaths, shots, hits, hurt, hurt_bearing, headshots, weapon: cfg.weapon_for_kills(kills), ..Combat::new(&cfg) };
+        if let Some(arena) = &self.arena {
+            p.combat.kit = Some(arena.cfg.start_kit());
+        }
         p.combat.protected_until = if protect > 0 { now + protect } else { 0 };
         let body = character.body();
         let foot = Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y);
         self.props.set_player_slot(slot, foot, body.radius, body.body_height);
+        self.sync_kit(slot);
         self.rules.inject(self.tick, "respawn", Some(slot));
     }
 
@@ -309,6 +360,10 @@ impl MatchSim {
         let Some(p) = self.players[slot].as_mut() else { return };
         if p.combat.is_dead() {
             p.combat.prev = [false; 4];
+            return;
+        }
+        if p.combat.kit.is_some() {
+            self.kit_actions(slot, input);
             return;
         }
         // A peaceful scene has no weapons: the primary button *is* interact, and reload / switch do nothing.
@@ -456,7 +511,20 @@ impl MatchSim {
     /// `by` damages `target`; at 0 hit points the target dies (dropping what it carries) and `by` scores a kill (and, on a weapon
     /// ladder, climbs a rung). Returns whether any damage landed: `false` for a dead target or one under spawn protection.
     fn damage(&mut self, target: usize, amount: u32, by: usize) -> bool {
+        let weapon = self.players.get(by).and_then(Option::as_ref).map_or(Weapon::Bat, |p| p.combat.weapon);
+        self.damage_ex(target, amount, by, weapon, false)
+    }
+
+    /// [`damage`](Self::damage) with what dealt it and whether it was a headshot. In a team match a bullet or blast never hurts a teammate unless
+    /// the scene allows friendly fire (a player's own blast still hurts them).
+    pub(super) fn damage_ex(&mut self, target: usize, amount: u32, by: usize, weapon: Weapon, headshot: bool) -> bool {
         let (now, respawn_ticks, cfg, regen) = (self.tick, self.combat_cfg.respawn_ticks, self.weapons, self.combat_cfg.regen_per_sec > 0);
+        let friendly_fire = self.arena.as_ref().is_none_or(|a| a.cfg.friendly_fire);
+        let (by_team, target_team) = (self.team_of(by), self.team_of(target));
+        let same_team = by != target && by_team != 0 && by_team == target_team;
+        if same_team && !friendly_fire {
+            return false;
+        }
         let bearing = match (self.players.get(by).and_then(Option::as_ref), self.players[target].as_ref()) {
             (Some(a), Some(v)) => {
                 let d = a.state.pos - v.state.pos;
@@ -482,9 +550,22 @@ impl MatchSim {
         t.combat.dead_until = Some(now + respawn_ticks);
         t.combat.deaths += 1;
         t.combat.swing.cancel();
+        t.combat.killed_by = Some((by as u8, weapon, headshot));
+        if let Some(kit) = t.combat.kit.as_mut() {
+            kit.reload_left = 0;
+            kit.throwing = None;
+            kit.strike_in = 0;
+        }
         self.props.drop_held_by(target, Vec3::ZERO);
-        if let Some(killer) = self.players.get_mut(by).and_then(Option::as_mut) {
+        if self.arena.is_some() {
+            self.kit_drop_all(target);
+        }
+        let scores = by != target && !same_team;
+        if let Some(killer) = self.players.get_mut(by).and_then(Option::as_mut).filter(|_| scores) {
             killer.combat.kills += 1;
+            if headshot {
+                killer.combat.headshots = killer.combat.headshots.wrapping_add(1);
+            }
             if cfg.has_ladder() {
                 let (old, next) = (killer.combat.weapon, cfg.weapon_for_kills(killer.combat.kills));
                 if next != old {
@@ -494,6 +575,12 @@ impl MatchSim {
                     killer.combat.ammo = cfg.ammo;
                 }
             }
+        }
+        if let Some(arena) = self.arena.as_mut() {
+            if scores && by_team > 0 {
+                arena.team_kills[(by_team as usize - 1) & 1] += 1;
+            }
+            arena.record_kill(super::shooter::KillRecord { tick: now, killer: by as u8, victim: target as u8, weapon, headshot });
         }
         self.rules.inject(now, "kill", Some(by));
         true

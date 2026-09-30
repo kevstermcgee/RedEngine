@@ -29,7 +29,7 @@ use glam::{Vec2, Vec3};
 use std::collections::{HashMap, VecDeque};
 
 /// Most players in one match.
-pub const MAX_PLAYERS: usize = 8;
+pub const MAX_PLAYERS: usize = 12;
 /// A player's input queue is trimmed to this many entries (older ones are dropped).
 const INPUT_QUEUE_CAP: usize = 8;
 /// With more than this many inputs queued, a player processes two per tick to catch up.
@@ -51,6 +51,8 @@ pub struct ServerPlayer {
     pub last_processed_seq: u32,
     /// Weapon, timers, ammo, health and score (see `sim::interact`).
     pub combat: Combat,
+    /// The team in a team match (`1` or `2`; `0` = none).
+    pub team: u8,
     /// How many ticks behind the present this player's view of the others is (their interpolation delay plus latency): their shots and
     /// swings are judged against where the others were then. `0` = the present (bots, a local player).
     pub view_lag: u8,
@@ -111,6 +113,8 @@ pub struct MatchSim {
     pub(super) hazards: HazardPool,
     /// The track's item boxes and their respawn timers (race matches).
     pub(super) item_boxes: ItemBoxes,
+    /// Loadout-match state (the scene's `shooter` block): pickups, projectiles, smoke and fire, team scores. `None` in the classic arena.
+    pub(super) arena: Option<crate::sim::shooter::ArenaState>,
 }
 
 impl MatchSim {
@@ -184,6 +188,7 @@ impl MatchSim {
                 ),
                 None => ItemBoxes::new(Vec::new(), 0),
             },
+            arena: scene.shooter.clone().map(crate::sim::shooter::ArenaState::new),
         })
     }
 
@@ -289,6 +294,47 @@ impl MatchSim {
         &self.bots_cfg
     }
 
+    /// The team of player `slot` (`0` = none, or nobody there).
+    pub fn team_of(&self, slot: usize) -> u8 {
+        self.players.get(slot).and_then(Option::as_ref).map_or(0, |p| p.team)
+    }
+
+    /// Puts `slot` on `team` (`1` or `2`).
+    pub fn set_team(&mut self, slot: usize, team: u8) {
+        if let Some(Some(p)) = self.players.get_mut(slot) {
+            p.team = team;
+        }
+    }
+
+    /// How many players are on `team`.
+    pub fn team_count(&self, team: u8) -> usize {
+        self.players().filter(|(_, p)| p.team == team).count()
+    }
+
+    /// Kills scored by each team so far (index = team - 1); zeros outside a loadout match.
+    pub fn team_kills(&self) -> [u32; 2] {
+        self.arena.as_ref().map_or([0; 2], |a| a.team_kills)
+    }
+
+    /// The loadout-match state (pickups, projectiles, smoke, fire, kills), if this is a loadout match.
+    pub fn arena(&self) -> Option<&crate::sim::shooter::ArenaState> {
+        self.arena.as_ref()
+    }
+
+    /// Adds a player to `team` in a chosen `slot` at that team's spawn (see [`add_player_in_slot`](Self::add_player_in_slot)).
+    pub fn add_player_in_slot_team(&mut self, slot: usize, character: Character, team: u8) -> bool {
+        if self.players.get(slot).is_none_or(Option::is_some) {
+            return false;
+        }
+        // The team must be known before the spawn is picked, so a player appears among their own side.
+        let s = self.pick_spawn_team(slot, team);
+        let ok = self.add_player_at(slot, PlayerState::spawn(s.position[0], s.position[2], s.position[1], s.yaw_deg, character));
+        if ok {
+            self.set_team(slot, team);
+        }
+        ok
+    }
+
     /// Adds a player at the next spawn point (round robin). `None` when the match is full.
     pub fn add_player(&mut self, character: Character) -> Option<usize> {
         let s = self.pick_spawn(usize::MAX);
@@ -321,8 +367,12 @@ impl MatchSim {
             speed: 0.0,
             crouching: false,
             last_processed_seq: 0,
+            team: 0,
             combat: {
                 let mut combat = Combat::new(&self.weapons);
+                if let Some(arena) = &self.arena {
+                    combat.kit = Some(arena.cfg.start_kit());
+                }
                 if self.combat_cfg.protect_ticks > 0 {
                     combat.protected_until = self.tick + self.combat_cfg.protect_ticks;
                 }
@@ -333,6 +383,7 @@ impl MatchSim {
             queue: VecDeque::new(),
         });
         self.karts[slot] = KartState::default();
+        self.sync_kit(slot);
         let body = state.character.body();
         self.props.set_player_slot(slot, glam::Vec3::new(state.pos.x, state.foot_y, state.pos.y), body.radius, body.body_height);
         if let Some(r) = &mut self.recorder {
@@ -462,6 +513,10 @@ impl MatchSim {
         }
         if self.race.is_some() {
             self.kart_bumps_and_race(&kart_events);
+        }
+        if self.arena.is_some() {
+            self.kit_pickups_tick();
+            self.step_projectiles();
         }
         self.props.step();
         let mut frame = [None; MAX_PLAYERS];

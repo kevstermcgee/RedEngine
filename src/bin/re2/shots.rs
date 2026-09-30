@@ -177,6 +177,7 @@ impl App {
             muzzle_flash: (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0),
             fx: if hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() },
             enemy: self.aim_enemy && hud.shows_combat(),
+            skin: 0,
         };
         let highlighted = self.target_index.is_some();
         let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };

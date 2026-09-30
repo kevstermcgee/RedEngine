@@ -331,7 +331,7 @@ fn parse_entry(e: &Value) -> Option<Entry> {
                     pitch: f32::from_bits(u(8)? as u32),
                     ..Default::default()
                 }
-                .with_flags(flags as u8),
+                .with_flags(flags as u16),
             })
         }
         "v" => Some(Entry::ViewLag { tick: u(1)?, slot: u(2)? as usize, lag: u(3)? as u8 }),

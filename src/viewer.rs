@@ -90,12 +90,18 @@ pub struct HeldPart {
     pub emissive: Vec3,
     /// A muzzle-flash piece: drawn only while the flash is up, and casts no shadow.
     pub muzzle_flash: bool,
+    /// Which team look this piece is for (`uniforms::by_skin`): [`ANY_SKIN`] is drawn for everyone; `0` (no team), `1` and `2` only while the
+    /// wearer has that look, so a player's own hands and sleeves match their uniform.
+    pub skin: u8,
 }
+
+/// [`HeldPart::skin`] for pieces every wearer sees (the gun itself, the muzzle flash).
+pub const ANY_SKIN: u8 = u8::MAX;
 
 impl HeldPart {
     /// An ordinary lit piece of `weapon` (no glow, not a flash).
     pub fn lit(weapon: Weapon, mesh: Mesh, color: Vec3, metallic: f32, roughness: f32, first_person_only: bool) -> HeldPart {
-        HeldPart { mesh, color, metallic, roughness, first_person_only, weapon, emissive: Vec3::ZERO, muzzle_flash: false }
+        HeldPart { mesh, color, metallic, roughness, first_person_only, weapon, emissive: Vec3::ZERO, muzzle_flash: false, skin: ANY_SKIN }
     }
 }
 
@@ -111,11 +117,36 @@ pub fn flip_winding_for_viewmodel(parts: &mut [HeldPart]) {
     }
 }
 
+/// The hand and forearm pieces of a held weapon once per hand look (see [`HeldPart::skin`]): the same meshes in each team's glove and sleeve
+/// colours, so the arms a player sees on themselves are the arms everyone else sees on them.
+pub fn skinned_hands(weapon: Weapon, hand: &Mesh, sleeve: &Mesh) -> Vec<HeldPart> {
+    let mut out = Vec::new();
+    for skin in crate::firearms::SKINS {
+        let (sleeve_color, hand_color) = crate::firearms::skin_colors(skin);
+        out.push(HeldPart { skin, ..HeldPart::lit(weapon, hand.clone(), hand_color, 0.0, 0.55, false) });
+        out.push(HeldPart { skin, ..HeldPart::lit(weapon, sleeve.clone(), sleeve_color, 0.0, 0.85, true) });
+    }
+    out
+}
+
 /// Every held weapon's parts (the bat first, then each firearm of [`Weapon::FIREARMS`]), ready to upload.
 pub fn build_all_held_parts() -> Vec<HeldPart> {
     let mut parts = build_held_parts();
     for weapon in Weapon::FIREARMS {
         parts.extend(crate::firearms::build_firearm_parts(weapon));
+    }
+    parts
+}
+
+/// The parts of every weapon of the loadout arsenal ([`Weapon::ROSTER`]) — what a loadout match's renderer uploads.
+pub fn build_all_roster_parts() -> Vec<HeldPart> {
+    let mut parts = build_held_parts();
+    for weapon in Weapon::ROSTER {
+        match weapon {
+            Weapon::Bat => {}
+            w if w.is_gun() => parts.extend(crate::firearms::build_firearm_parts(w)),
+            w => parts.extend(crate::firearms::build_thrown_and_melee_parts(w)),
+        }
     }
     parts
 }
@@ -249,11 +280,8 @@ pub fn build_held_parts() -> Vec<HeldPart> {
     append_transformed(&mut sleeve, &Mesh::cylinder(0.038, 0.035, 14), along(0.040, 0.035));
     append_transformed(&mut sleeve, &Mesh::cylinder(0.030, 0.60, 14), along(0.070, 0.60));
 
-    let mut parts = vec![
-        HeldPart::lit(Weapon::Bat, bat, BAT_COLOR, 0.0, 0.32, false),
-        HeldPart::lit(Weapon::Bat, hand, HAND_COLOR, 0.0, 0.5, false),
-        HeldPart::lit(Weapon::Bat, sleeve, SLEEVE_COLOR, 0.0, 0.85, true),
-    ];
+    let mut parts = vec![HeldPart::lit(Weapon::Bat, bat, BAT_COLOR, 0.0, 0.32, false)];
+    parts.extend(skinned_hands(Weapon::Bat, &hand, &sleeve));
     // Pre-flip the winding to cancel the viewmodel basis' mirror (see `flip_winding_for_viewmodel`).
     flip_winding_for_viewmodel(&mut parts);
     parts
@@ -376,6 +404,7 @@ struct HeldGpu {
     weapon: Weapon,
     emissive: Vec3,
     flash: bool,
+    skin: u8,
 }
 
 /// Which optional layers [`LiveRenderer::render_ex`] draws on top of the world.
@@ -395,11 +424,13 @@ pub struct FrameOptions {
     pub fx: FxParams,
     /// An enemy is under the crosshair: it turns red (over the pick-up green and the gold "in reach").
     pub enemy: bool,
+    /// The hand look of the local player (`uniforms::by_skin`): `0` when they have no team.
+    pub skin: u8,
 }
 
 impl Default for FrameOptions {
     fn default() -> Self {
-        FrameOptions { crosshair: true, viewmodel: true, pickup: false, weapon: Weapon::Bat, muzzle_flash: 0.0, fx: FxParams::default(), enemy: false }
+        FrameOptions { crosshair: true, viewmodel: true, pickup: false, weapon: Weapon::Bat, muzzle_flash: 0.0, fx: FxParams::default(), enemy: false, skin: 0 }
     }
 }
 
@@ -472,6 +503,7 @@ impl LiveRenderer {
                 weapon: p.weapon,
                 emissive: p.emissive,
                 flash: p.muzzle_flash,
+                skin: p.skin,
             })
             .collect();
         // Two extra slots in the shared object-uniform buffer: one for the camera-attached
@@ -717,7 +749,7 @@ impl LiveRenderer {
 
         let held_uniform = |world: Mat4, h: &HeldGpu, glow: f32| (world, h.color, h.metallic, h.roughness, h.emissive * glow);
         // Only the active weapon's pieces are drawn (a muzzle flash only while it is up), and only drawn pieces are staged.
-        let held_visible: Vec<bool> = self.held.iter().map(|h| draw_held && h.weapon == opts.weapon && (!h.flash || opts.muzzle_flash > 0.0)).collect();
+        let held_visible: Vec<bool> = self.held.iter().map(|h| draw_held && h.weapon == opts.weapon && (h.skin == ANY_SKIN || h.skin == opts.skin) && (!h.flash || opts.muzzle_flash > 0.0)).collect();
         for (k, h) in self.held.iter().enumerate() {
             if !held_visible[k] {
                 continue;
@@ -735,7 +767,7 @@ impl LiveRenderer {
         for (r, hand) in self.remote_hands.iter().enumerate() {
             let world = remote_hand_transform(hand);
             for (k, h) in self.held.iter().enumerate() {
-                if h.weapon != hand.weapon || h.fp_only || (h.flash && hand.flash <= 0.0) {
+                if h.weapon != hand.weapon || h.fp_only || !(h.skin == ANY_SKIN || h.skin == hand.skin) || (h.flash && hand.flash <= 0.0) {
                     continue;
                 }
                 let glow = if h.flash { hand.flash } else { 1.0 };
@@ -869,7 +901,7 @@ impl LiveRenderer {
             // Other players' weapons, with a muzzle flash only while it is up.
             for (r, hand) in self.remote_hands.iter().enumerate() {
                 for (k, h) in self.held.iter().enumerate() {
-                    if h.weapon != hand.weapon || h.fp_only || (h.flash && hand.flash <= 0.0) {
+                    if h.weapon != hand.weapon || h.fp_only || !(h.skin == ANY_SKIN || h.skin == hand.skin) || (h.flash && hand.flash <= 0.0) {
                         continue;
                     }
                     main_pass.set_bind_group(1, &self.object_bind_group, &[(remote_slot(r, k) * self.object_stride) as u32]);

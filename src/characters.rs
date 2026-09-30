@@ -175,6 +175,8 @@ pub fn character_object(who: crate::player::Character, id: &str) -> Object {
             Character::Cowboy => "#995a35",
             Character::Alien => "#efad38",
             Character::Robot => "#3c9fba",
+            Character::Ridgeback => "#555e2b",
+            Character::Nightfall => "#1f2d4d",
             _ => "#af303c",
         };
         h.material.color = Track::constant(hex(shirt));

@@ -512,6 +512,9 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                     attack: flag("attack"),
                     reload: flag("reload"),
                     switch_weapon: flag("switch"),
+                    aim: flag("aim"),
+                    drop: flag("drop"),
+                    select: int("select").clamp(0, 7) as u8,
                 };
                 script.push((
                     pi,
