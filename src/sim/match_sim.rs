@@ -498,7 +498,15 @@ impl MatchSim {
                     continue;
                 }
                 if !dead {
-                    p.speed = step_player_tuned(&mut p.state, &input, &self.colliders, &self.ground, self.player_tuning, &self.jump_pads);
+                    // A heavy weapon slows its carrier (the client predicts with the same factor).
+                    let mut tuning = self.player_tuning;
+                    if let Some(kit) = p.combat.kit.as_ref() {
+                        let m = kit.current().kit().move_mult;
+                        tuning.walk_speed *= m;
+                        tuning.sprint_speed *= m;
+                        tuning.max_speed *= m;
+                    }
+                    p.speed = step_player_tuned(&mut p.state, &input, &self.colliders, &self.ground, tuning, &self.jump_pads);
                     p.crouching = input.crouch;
                 }
                 p.last_processed_seq = input.seq;

@@ -517,6 +517,25 @@ pub struct OwnKit {
     pub team: u8,
 }
 
+impl OwnKit {
+    /// The weapon in hand, from the slot and the kit.
+    pub fn current_weapon(&self) -> Option<crate::weapons::Weapon> {
+        use crate::weapons::Weapon;
+        match self.sel {
+            0 | 1 => {
+                let g = self.guns[self.sel as usize].0;
+                (g > 0).then(|| Weapon::from_wire(g - 1))
+            }
+            2 => Some(Weapon::from_wire(self.melee)),
+            3 | 4 => {
+                let g = self.grenades[self.sel as usize - 3];
+                (g > 0).then(|| Weapon::from_wire(g - 1))
+            }
+            _ => None,
+        }
+    }
+}
+
 /// A weapon lying on the floor where somebody dropped it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DroppedSnap {

@@ -214,6 +214,10 @@ pub struct NetClient {
     world: RemoteWorld,
     /// Turns the counters in consecutive snapshots into [`NetEvent::Happened`].
     watcher: Watcher,
+    /// The loadout match's world and our kit as of the newest snapshot (`None` in any other kind of match).
+    arena: Option<crate::net::protocol::ArenaSnap>,
+    /// The last seconds of the match, for the killcam.
+    recorder: crate::killcam::Recorder,
     /// Tenths of a second until we respawn, from the newest snapshot (`0` = alive).
     respawn_tenths: u8,
     stats: ClientStats,
@@ -291,6 +295,8 @@ impl NetClient {
             world: RemoteWorld::default(),
             watcher: Watcher::default(),
             respawn_tenths: 0,
+            arena: None,
+            recorder: crate::killcam::Recorder::new(),
             stats: ClientStats::default(),
             out: Vec::with_capacity(MAX_PACKET),
             status: None,
@@ -410,6 +416,16 @@ impl NetClient {
             self.team = team;
             self.send_lobby(now);
         }
+    }
+
+    /// The loadout match's world and our kit as of the newest snapshot.
+    pub fn arena(&self) -> Option<&crate::net::protocol::ArenaSnap> {
+        self.arena.as_ref()
+    }
+
+    /// The last seconds of the match as snapshots showed them (the killcam cuts its replay from this).
+    pub fn recorder(&self) -> &crate::killcam::Recorder {
+        &self.recorder
     }
 
     /// Whether we asked to be ready.
@@ -683,6 +699,8 @@ impl NetClient {
                 self.world.reset();
                 self.watcher.reset(); // counters restart with a new world: the next snapshot is a baseline
                 self.respawn_tenths = 0;
+                self.arena = None;
+                self.recorder.clear();
                 if first {
                     self.latest_snapshot_seq = 0;
                     self.stats.connects += 1;
@@ -712,6 +730,8 @@ impl NetClient {
                 let me = self.my_id();
                 let own = s.players.iter().find(|p| Some(p.id) == me).copied();
                 self.respawn_tenths = s.fx.respawn;
+                self.recorder.record(&s);
+                self.arena.clone_from(&s.arena);
                 let happened = self.watcher.observe(&s, me);
                 events.push(NetEvent::Snapshot { own, ack_input_seq: s.ack_input_seq, race: s.race });
                 if !happened.is_empty() {

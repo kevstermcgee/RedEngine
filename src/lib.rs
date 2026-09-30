@@ -8,6 +8,7 @@ pub mod audio;
 pub mod avatar;
 #[cfg(feature = "gfx")]
 pub mod capture;
+pub mod clipboard;
 pub mod characters;
 pub mod collide;
 pub mod color;

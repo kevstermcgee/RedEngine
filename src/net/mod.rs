@@ -25,6 +25,7 @@ pub mod fleet;
 pub mod happenings;
 pub mod host;
 pub mod interp;
+pub mod join_code;
 pub mod limits;
 pub mod memnet;
 pub mod netsim;

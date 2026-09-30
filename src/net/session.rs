@@ -203,6 +203,14 @@ pub struct SessionCounters {
     pub unknown_props: u64,
 }
 
+/// `tuning` with every speed scaled by `scale` (a heavy weapon in hand).
+pub fn scaled_tuning(mut tuning: crate::player::PlayerTuning, scale: f32) -> crate::player::PlayerTuning {
+    tuning.walk_speed *= scale;
+    tuning.sprint_speed *= scale;
+    tuning.max_speed *= scale;
+    tuning
+}
+
 /// A connection to a server plus everything the client keeps for it.
 pub struct NetSession {
     /// The connection.
@@ -227,6 +235,8 @@ pub struct NetSession {
     pub race: Option<crate::net::protocol::RaceSnap>,
     /// Whether a `Welcome` has arrived (also true in a lobby, where there is no body to place yet).
     pub joined: bool,
+    /// How much slower the weapon in hand makes us (`1.0` = not at all): the server applies the same factor, so prediction agrees.
+    pub speed_scale: f32,
     /// Things the snapshots reported since the last [`take_happened`](Self::take_happened): shots heard, hits landed, damage taken, kills.
     happened: Vec<crate::net::happenings::Happenings>,
     /// The weapons other players hold this frame (set by [`update_scene`](Self::update_scene)): where each is and how it is held.
@@ -265,6 +275,7 @@ impl NetSession {
             own: None,
             race: None,
             joined: false,
+            speed_scale: 1.0,
             happened: Vec::new(),
             remote_hands: Vec::new(),
             bodies: Vec::new(),
@@ -481,11 +492,12 @@ impl NetSession {
                             ack_input_seq,
                             &self.world.colliders,
                             &self.world.ground,
-                            self.world.player_tuning,
+                            scaled_tuning(self.world.player_tuning, self.speed_scale),
                             &self.world.jump_pads,
                         );
                     }
                     self.own = Some(own);
+                    self.speed_scale = self.client.arena().and_then(|a| a.own).and_then(|o| o.current_weapon()).map_or(1.0, |w| w.kit().move_mult);
                 }
                 NetEvent::Happened(h) if self.happened.len() < 64 => self.happened.push(h),
                 _ => {}
@@ -515,7 +527,7 @@ impl NetSession {
         input.seq = p.next_seq();
         // In a race the light decides whether the input counts (the server ignores it until green, so the prediction must too).
         let can_drive = self.race.as_ref().is_none_or(|r| r.phase == 1);
-        self.last_speed = p.apply_local_auto(input, can_drive, &self.world.colliders, &self.world.ground, self.world.player_tuning, &self.world.jump_pads);
+        self.last_speed = p.apply_local_auto(input, can_drive, &self.world.colliders, &self.world.ground, scaled_tuning(self.world.player_tuning, self.speed_scale), &self.world.jump_pads);
         self.client.send_input(input, now);
         Some(p.state)
     }

@@ -144,6 +144,11 @@ impl Keeper {
         Ok((Keeper { found, opts: opts.clone(), next_renew: Instant::now() + renew_in }, report))
     }
 
+    /// The router and this machine's address towards it.
+    pub fn found(&self) -> &Found {
+        &self.found
+    }
+
     /// Renews the lease when it is half spent. Returns an error line if the router stopped cooperating (the caller prints it and carries on).
     pub fn tick(&mut self) -> Option<String> {
         if Instant::now() < self.next_renew {
