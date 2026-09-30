@@ -17,6 +17,14 @@ pub fn decorate(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, style:
     };
     let sphere = PrimKind::Sphere { radius: 1.0 };
     let box_shape = PrimKind::Box { size: Vec3::ONE };
+    if let Some(u) = crate::uniforms::for_team(match style {
+        Character::Ridgeback => 1,
+        Character::Nightfall => 2,
+        _ => 0,
+    }) {
+        soldier_gear(out, bones, height, &u);
+        return;
+    }
     match style {
         Character::Wizard => {
             add(1, PrimKind::Cylinder { radius: 0.13, height: 0.018 }, Vec3::new(0.0, 0.055, 0.0), Vec3::ONE, "#43397c", 0.0);
@@ -60,13 +68,62 @@ pub fn decorate(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, style:
     }
 }
 
+/// A soldier's kit on top of the human rig: a combat helmet (with chin strap, night-vision mount and a band in the team's accent colour), a plate
+/// carrier front and back with magazine pouches, shoulder straps, a belt, a small pack, shoulder patches and knee pads. All in the team's colours
+/// (`uniforms`), so the body, the first-person sleeves and the lobby agree. Sizes are in metres (the rig is 1.8 m tall); offsets are in each bone's frame.
+fn soldier_gear(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, u: &crate::uniforms::Uniform) {
+    let mut add = |bone: usize, shape: PrimKind, offset_m: Vec3, scale_m: Vec3, color: Vec3, metallic: f32, roughness: f32| {
+        let anchor = &bones[bone];
+        out.push(CharPart {
+            shape,
+            local: Mat4::from_rotation_translation(anchor.rotation, anchor.center) * Mat4::from_scale_rotation_translation(scale_m, Quat::IDENTITY, offset_m),
+            color: Some(color),
+            metallic,
+            roughness,
+        });
+    };
+    let _ = height;
+    let sphere = PrimKind::Sphere { radius: 1.0 };
+    let cube = PrimKind::Box { size: Vec3::ONE };
+    let black = Vec3::new(0.02, 0.022, 0.025);
+    let dark = u.vest * 0.55;
+    // The helmet: a dome sitting high on the head (the eyes stay clear), a rim band, a front mount, chin straps.
+    add(1, sphere, Vec3::new(0.0, 0.105, -0.006), Vec3::new(0.136, 0.112, 0.142), u.helmet, 0.15, 0.6);
+    add(1, PrimKind::Cylinder { radius: 0.5, height: 1.0 }, Vec3::new(0.0, 0.012, -0.006), Vec3::new(0.272, 0.014, 0.284), u.helmet * 0.7, 0.1, 0.7);
+    add(1, cube, Vec3::new(0.0, 0.058, 0.128), Vec3::new(0.15, 0.012, 0.014), u.accent, 0.2, 0.6);
+    add(1, cube, Vec3::new(0.0, 0.165, 0.108), Vec3::new(0.05, 0.04, 0.035), black, 0.3, 0.5);
+    for side in [-1.0f32, 1.0] {
+        add(1, cube, Vec3::new(side * 0.098, -0.05, 0.03), Vec3::new(0.012, 0.11, 0.012), black, 0.0, 0.9);
+        add(1, cube, Vec3::new(side * 0.142, 0.07, 0.0), Vec3::new(0.02, 0.05, 0.12), dark, 0.2, 0.6);
+    }
+    // The plate carrier, front and back, and its straps over the shoulders.
+    add(0, cube, Vec3::new(0.0, 0.07, 0.112), Vec3::new(0.31, 0.27, 0.05), u.vest, 0.1, 0.85);
+    add(0, cube, Vec3::new(0.0, 0.07, -0.112), Vec3::new(0.31, 0.27, 0.05), u.vest, 0.1, 0.85);
+    for side in [-1.0f32, 1.0] {
+        add(0, cube, Vec3::new(side * 0.115, 0.255, 0.0), Vec3::new(0.065, 0.028, 0.24), u.vest, 0.1, 0.85);
+    }
+    for x in [-0.09f32, 0.0, 0.09] {
+        add(0, cube, Vec3::new(x, -0.005, 0.15), Vec3::new(0.07, 0.11, 0.04), dark, 0.1, 0.9);
+    }
+    add(0, cube, Vec3::new(0.0, -0.225, 0.0), Vec3::new(0.40, 0.06, 0.26), black, 0.1, 0.85);
+    add(0, cube, Vec3::new(0.0, 0.05, -0.19), Vec3::new(0.26, 0.30, 0.11), u.jacket * 0.7, 0.05, 0.9);
+    // Shoulder patches (the team's accent) and knee pads.
+    for bone in [2usize, 4] {
+        let side = if bone == 2 { 1.0 } else { -1.0 };
+        add(bone, cube, Vec3::new(side * 0.045, 0.055, 0.0), Vec3::new(0.012, 0.07, 0.06), u.accent, 0.0, 0.8);
+    }
+    for bone in [7usize, 10] {
+        add(bone, cube, Vec3::new(0.0, 0.14, 0.05), Vec3::new(0.10, 0.11, 0.045), black, 0.05, 0.9);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn every_costume_keeps_a_stable_rig_and_tracks_the_head_pose() {
         let rig = crate::skeleton::HumanoidRig::new(1.8, 1.0);
-        for style in [Character::Wizard, Character::Cowboy, Character::Alien, Character::Robot] {
+        for style in [Character::Wizard, Character::Cowboy, Character::Alien, Character::Robot, Character::Ridgeback, Character::Nightfall] {
             let look = crate::characters::HumanLook::styled(style);
             let rest = crate::characters::human_parts(&rig, &Default::default(), &look);
             let posed = crate::characters::human_parts(&rig, &crate::skeleton::PoseSample { head: Vec3::new(0.0, 35.0, 0.0), ..Default::default() }, &look);

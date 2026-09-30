@@ -13,7 +13,7 @@ pub fn sight_height(weapon: Weapon) -> f32 {
     if !weapon.is_gun() {
         return 0.0;
     }
-    0.04 + shape(weapon).body_h * 0.5 + 0.045
+    0.04 + shape(weapon).body_h * 0.5 + 0.03
 }
 
 /// Primary grip anchor used to attach the weapon to a third-person wrist.
@@ -30,7 +30,7 @@ pub fn held_pose(weapon: Weapon, ads: f32, kick: f32, dip: f32) -> (Vec3, Mat4) 
     if !weapon.is_gun() {
         // A knife or hatchet is held low and forward and slashes across the view as `kick` rises; a grenade sits in the hand and is pulled back to throw.
         let swing = kick.clamp(0.0, 1.0);
-        let offset = Vec3::new(0.20 - 0.40 * swing, -0.20 + 0.04 * swing - 0.30 * dip, 0.42 + 0.10 * swing);
+        let offset = Vec3::new(0.17 - 0.40 * swing, -0.15 + 0.04 * swing - 0.30 * dip, 0.40 + 0.10 * swing);
         let rotation = Mat4::from_rotation_y((-18.0 + 52.0 * swing).to_radians()) * Mat4::from_rotation_x((-12.0 + 40.0 * swing + 25.0 * dip).to_radians());
         return (offset, rotation);
     }
@@ -86,12 +86,12 @@ const fn sh(length: f32, stock: f32, barrel: f32, body_h: f32, body_w: f32, maga
 }
 
 fn shape(w: Weapon) -> Shape {
-    let red = Vec3::new(0.34, 0.025, 0.035);
     let slate = Vec3::new(0.055, 0.065, 0.08);
     let black = Vec3::new(0.022, 0.024, 0.026);
     let steel = Vec3::new(0.16, 0.17, 0.18);
     let olive = Vec3::new(0.085, 0.10, 0.05);
     let tan = Vec3::new(0.30, 0.22, 0.12);
+    let red = olive; // the prototype's red guns are olive drab now
     match w {
         Weapon::Pistol => sh(0.22, 0.0, 0.11, 0.055, 0.032, 0.10, false, slate),
         Weapon::MachinePistol => sh(0.27, 0.08, 0.14, 0.07, 0.038, 0.15, false, red),
@@ -151,8 +151,8 @@ pub fn build_thrown_and_melee_parts(weapon: Weapon) -> Vec<HeldPart> {
     let mut detail = Mesh::default();
     let (body_color, detail_color) = match weapon {
         Weapon::Knife => {
-            boxed(&mut body, Vec3::new(0.004, 0.034, 0.17), Vec3::new(0.0, 0.0, 0.14));
-            boxed(&mut body, Vec3::new(0.004, 0.012, 0.05), Vec3::new(0.0, -0.012, 0.25));
+            boxed(&mut body, Vec3::new(0.006, 0.05, 0.24), Vec3::new(0.0, 0.0, 0.18));
+            boxed(&mut body, Vec3::new(0.006, 0.02, 0.07), Vec3::new(0.0, -0.018, 0.33));
             boxed(&mut detail, Vec3::new(0.022, 0.03, 0.12), Vec3::new(0.0, 0.0, -0.01));
             boxed(&mut detail, Vec3::new(0.012, 0.05, 0.012), Vec3::new(0.0, 0.0, 0.055));
             (steel, black)
@@ -167,10 +167,10 @@ pub fn build_thrown_and_melee_parts(weapon: Weapon) -> Vec<HeldPart> {
         _ => {
             // A grenade: a canister in the fist with a spoon (or a cap) on top.
             let (radius, height, color, band) = match weapon {
-                Weapon::Frag => (0.036, 0.085, Vec3::new(0.06, 0.08, 0.03), Vec3::new(0.35, 0.3, 0.05)),
-                Weapon::Flash => (0.028, 0.115, Vec3::new(0.16, 0.17, 0.18), black),
-                Weapon::Smoke => (0.030, 0.115, Vec3::new(0.25, 0.26, 0.27), Vec3::new(0.55, 0.55, 0.2)),
-                _ => (0.030, 0.115, Vec3::new(0.30, 0.04, 0.03), Vec3::new(0.65, 0.4, 0.05)),
+                Weapon::Frag => (0.048, 0.11, Vec3::new(0.06, 0.08, 0.03), Vec3::new(0.35, 0.3, 0.05)),
+                Weapon::Flash => (0.038, 0.15, Vec3::new(0.16, 0.17, 0.18), black),
+                Weapon::Smoke => (0.04, 0.15, Vec3::new(0.25, 0.26, 0.27), Vec3::new(0.55, 0.55, 0.2)),
+                _ => (0.04, 0.15, Vec3::new(0.30, 0.04, 0.03), Vec3::new(0.65, 0.4, 0.05)),
             };
             if weapon == Weapon::Frag {
                 append_transformed(&mut body, &Mesh::uv_sphere(1.0, 12, 16), Mat4::from_translation(Vec3::new(0.0, 0.0, 0.05)) * Mat4::from_scale(Vec3::new(radius, radius * 1.15, radius)));
@@ -229,7 +229,7 @@ pub fn build_firearm_parts(weapon: Weapon) -> Vec<HeldPart> {
             append_transformed(
                 &mut body,
                 &Mesh::cone(bore * 1.9, 0.20, 16),
-                Mat4::from_translation(Vec3::new(0.0, 0.055, 0.10)) * Mat4::from_rotation_x(-90f32.to_radians()),
+                Mat4::from_translation(Vec3::new(0.0, 0.055, 0.10)) * Mat4::from_rotation_x(90f32.to_radians()),
             );
             append_transformed(
                 &mut body,

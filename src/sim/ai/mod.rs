@@ -78,7 +78,10 @@ pub const BOTS_KEYS: &[&str] = &["fill", "skill", "roster"];
 /// Keys of one `bots.roster` entry.
 pub const BOT_KEYS: &[&str] = &["name", "character", "skill", "style"];
 
-const NAME_POOL: [&str; 10] = ["Dusty", "Merlot", "Zorp", "R0-B1", "Hex", "Pixel", "Bolt", "Nova", "Gizmo", "Sprocket"];
+const NAME_POOL: [&str; 24] = [
+    "Dusty", "Merlot", "Zorp", "R0-B1", "Hex", "Pixel", "Bolt", "Nova", "Gizmo", "Sprocket", "Rook", "Maverick", "Ghost", "Viper", "Anvil", "Cobalt", "Falcon", "Granite", "Harbor", "Iron",
+    "Jackal", "Kestrel", "Lynx", "Onyx",
+];
 const BOT_BODIES: [Character; 4] = [Character::Cowboy, Character::Wizard, Character::Alien, Character::Robot];
 const STYLE_CYCLE: [Style; 4] = [Style::Balanced, Style::Rusher, Style::Sniper, Style::Acrobat];
 

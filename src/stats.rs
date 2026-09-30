@@ -14,6 +14,8 @@ use std::path::{Path, PathBuf};
 pub struct Stats {
     /// Layout of this file (for future changes).
     pub version: u32,
+    /// The name the player last used.
+    pub name: String,
     /// Unix seconds of the first time the game was played (`0` = never).
     pub first_played: u64,
     /// Unix seconds of the most recent session.

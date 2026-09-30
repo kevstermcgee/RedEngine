@@ -262,9 +262,68 @@ pub fn setup_layout(w: u32, h: u32, title: &str, o: &Setup, note: Option<&str>, 
 // join
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-/// The join screen: the engine's connect form under the game's name. The button ids are the form's (`connect`, `back`, `field_*`).
+/// What a join-screen button does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinAction {
+    /// The code field has the keyboard.
+    Code,
+    /// The name field has the keyboard.
+    Name,
+    /// Paste the clipboard into the code field.
+    Paste,
+    /// Try to join.
+    Connect,
+    /// Back to the home screen.
+    Back,
+}
+
+/// The action of a join-screen button id.
+pub fn join_action(id: &str) -> Option<JoinAction> {
+    match id {
+        "field_address" => Some(JoinAction::Code),
+        "field_name" => Some(JoinAction::Name),
+        "paste" => Some(JoinAction::Paste),
+        "connect" => Some(JoinAction::Connect),
+        "back" => Some(JoinAction::Back),
+        _ => None,
+    }
+}
+
+/// The join screen: one field for the join code a friend sent (paste it), your name, JOIN and BACK. The form's `address` holds the code and its
+/// `key` is unused; `message` is shown under the buttons.
 pub fn join_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> Layout {
-    super::online::connect_layout(w, h, f, hover)
+    let (mut l, p, (x0, _, x1, _), s) = frame(w, h, "join a game");
+    let inner = x1 - x0 - 24 * s;
+    let (lx, rx) = (x0 + 12 * s, x1 - 12 * s);
+    let mut y = 10 * s + text_height(s * 4) + 3 * s + text_height(s) + 10 * s;
+    let field_h = 13 * s;
+    for (id, caption, value, focused, max_chars) in [
+        ("field_address", "JOIN CODE  (PASTE IT)", &f.address, f.focus == super::online::Field::Address, 0usize),
+        ("field_name", "YOUR NAME", &f.name, f.focus == super::online::Field::Name, 0),
+    ] {
+        l.label_left(&format!("{id}_caption"), Some(p), lx, y, caption, s, inner, DIM);
+        y += text_height(s) + 2 * s;
+        let scale = fit_both("W", (lx, y, rx, y + field_h), s * 2).max(1);
+        let room = (rx - lx - 8 * s) / ((5 + 1) * scale).max(1);
+        let shown_full = if focused { format!("{}_", upper(value)) } else if value.is_empty() { String::new() } else { upper(value) };
+        let chars: Vec<char> = shown_full.chars().collect();
+        // A long value shows its end (where the caret is).
+        let shown: String = if chars.len() as i32 > room { chars[chars.len() - room as usize..].iter().collect() } else { shown_full };
+        let _ = max_chars;
+        l.button(id, (lx, y, rx, y + field_h), Some(p), &shown, scale, [16, 18, 20, 240], (if focused { ACCENT } else { EDGE }, 1), TEXT);
+        y += field_h + 6 * s;
+    }
+    let third = (rx - lx - 6 * s) / 3;
+    btn(&mut l, "connect", (lx, y, lx + third, y + 15 * s), Some(p), "JOIN", s * 2, hover == Some("connect"), true);
+    btn(&mut l, "paste", (lx + third + 3 * s, y, lx + 2 * third + 3 * s, y + 15 * s), Some(p), "PASTE", s * 2, hover == Some("paste"), false);
+    btn(&mut l, "back", (rx - third, y, rx, y + 15 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
+    y += 15 * s + 6 * s;
+    if let Some(m) = &f.message {
+        for (i, line) in super::wrap(&upper(m), inner, s).into_iter().take(4).enumerate() {
+            l.label_left(&format!("message_{i}"), Some(p), lx, y + i as i32 * (text_height(s) + 2 * s), &line, s, inner, [255, 170, 120, 255]);
+        }
+    }
+    l
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -507,7 +566,7 @@ pub fn hud_layout(w: u32, h: u32, v: &HudView) -> Layout {
     let mid = wi / 2;
     let clock_text = v.secs_left.map_or_else(|| "--:--".to_string(), clock);
     l.label("clock", None, mid, top, &clock_text, s * 2, TEXT);
-    let gap = text_width("0:00", s * 2) / 2 + 8 * s;
+    let gap = text_width("00:00", s * 2) / 2 + 10 * s;
     l.label_right("score_1", None, mid - gap, top, &v.team_score[0].to_string(), s * 2, 40 * s, RIDGEBACK);
     l.label_left("score_2", None, mid + gap, top, &v.team_score[1].to_string(), s * 2, 40 * s, NIGHTFALL);
     if v.kill_limit > 0 {

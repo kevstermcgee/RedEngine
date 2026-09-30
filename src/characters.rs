@@ -68,11 +68,13 @@ pub struct HumanLook {
     pub pants: Vec3,
     /// Shoes.
     pub shoes: Vec3,
+    /// Gloves, for a soldier (the hands and cuffs are these colours instead of skin); `None` = bare hands.
+    pub glove: Option<Vec3>,
 }
 
 impl Default for HumanLook {
     fn default() -> Self {
-        HumanLook { style: crate::player::Character::Human, skin: hex("#d9a684"), hair: hex("#3a281c"), pants: hex("#36445e"), shoes: hex("#2a2622") }
+        HumanLook { style: crate::player::Character::Human, skin: hex("#d9a684"), hair: hex("#3a281c"), pants: hex("#36445e"), shoes: hex("#2a2622"), glove: None }
     }
 }
 
@@ -107,11 +109,13 @@ pub fn human_parts(rig: &HumanoidRig, pose: &PoseSample, look: &HumanLook) -> Ve
     // 0 torso (broader than deep), 1 head (egg-shaped).
     out.push(capsule(&core[0], Vec3::new(1.40, 1.0, 0.80), None, 0.85));
     out.push(ellipsoid(core[1].center, Vec3::new(0.9 * r, 1.13 * r, r), core[1].rotation, skin, 0.6));
-    // 2..6: arms — sleeve to the elbow, then bare forearm.
-    out.push(capsule(&core[2], Vec3::ONE, skin, 0.6));
-    out.push(capsule(&core[3], Vec3::ONE, skin, 0.6));
-    out.push(capsule(&core[4], Vec3::ONE, skin, 0.6));
-    out.push(capsule(&core[5], Vec3::ONE, skin, 0.6));
+    // 2..6: arms — sleeve to the elbow, then bare forearm. A soldier wears long sleeves (the object's jacket colour) and gloves.
+    let soldier = look.glove.is_some();
+    let arm = if soldier { None } else { skin };
+    out.push(capsule(&core[2], Vec3::ONE, arm, if soldier { 0.85 } else { 0.6 }));
+    out.push(capsule(&core[3], if soldier { Vec3::new(1.12, 1.0, 1.12) } else { Vec3::ONE }, arm, if soldier { 0.85 } else { 0.6 }));
+    out.push(capsule(&core[4], Vec3::ONE, arm, if soldier { 0.85 } else { 0.6 }));
+    out.push(capsule(&core[5], if soldier { Vec3::new(1.12, 1.0, 1.12) } else { Vec3::ONE }, arm, if soldier { 0.85 } else { 0.6 }));
     // 6..12: legs — jeans, then shoes (wider and flatter than the shin).
     for leg in [6usize, 9] {
         out.push(capsule(&core[leg], Vec3::ONE, pants, 0.8));
@@ -144,10 +148,11 @@ pub fn human_parts(rig: &HumanoidRig, pose: &PoseSample, look: &HumanLook) -> Ve
         let (shoulder, elbow) = (bone_end(&core[upper], -1.0), bone_end(&core[upper], 1.0));
         out.push(ellipsoid(shoulder, Vec3::splat(ua * 1.16), Quat::IDENTITY, None, 0.85)); // shoulder (sleeve)
         out.push(limb(shoulder, shoulder + (elbow - shoulder) * 0.5, ua * 1.06, None, 0.85)); // short sleeve
-        out.push(ellipsoid(elbow, Vec3::splat(ua * 0.86), Quat::IDENTITY, skin, 0.6)); // bare elbow
+        out.push(ellipsoid(elbow, Vec3::splat(ua * 0.86), Quat::IDENTITY, if soldier { None } else { skin }, if soldier { 0.85 } else { 0.6 })); // elbow
         let wrist = bone_end(&core[fore], 1.0);
         let dir = core[fore].rotation * Vec3::Y;
-        out.push(ellipsoid(wrist + dir * 0.028 * h, Vec3::new(0.021, 0.034, 0.025) * h, core[fore].rotation, skin, 0.6));
+        let hand = look.glove.map(Some).unwrap_or(skin);
+        out.push(ellipsoid(wrist + dir * 0.028 * h, Vec3::new(0.021, 0.034, 0.025) * h * if soldier { 1.12 } else { 1.0 }, core[fore].rotation, hand, 0.7));
     }
     for leg in [6usize, 9] {
         out.push(ellipsoid(bone_end(&core[leg], 1.0), Vec3::splat(rig.upper_leg_radius * 0.84), Quat::IDENTITY, pants, 0.8)); // knee
@@ -189,6 +194,17 @@ impl HumanLook {
     pub fn styled(style: crate::player::Character) -> Self {
         use crate::player::Character;
         let mut look = Self { style, ..Self::default() };
+        if let Some(u) = crate::uniforms::for_team(match style {
+            crate::player::Character::Ridgeback => 1,
+            crate::player::Character::Nightfall => 2,
+            _ => 0,
+        }) {
+            look.skin = u.skin;
+            look.hair = hex("#2a1e16");
+            look.pants = u.trousers;
+            look.shoes = u.boots;
+            look.glove = Some(u.glove);
+        }
         match style {
             Character::Wizard => {
                 look.hair = hex("#ddd9d2");

@@ -57,6 +57,7 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 
 mod avatar;
 mod controller;
+mod kc;
 mod dump;
 mod events;
 mod feedback;
@@ -827,6 +828,17 @@ fn main() {
     if debug_help {
         print!("{}", help::text());
         return;
+    }
+    // A map with a `shooter` block is Killchain-style (loadouts, teams, killcam): it has its own client with its own front end.
+    if !headless_options.enabled && connect.is_none() && !host {
+        let is_loadout = std::fs::read_to_string(&scene_path)
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+            .is_some_and(|v| v.get("shooter").is_some());
+        if is_loadout {
+            kc::run(kc::Options { scene: scene_path, fullscreen, name });
+            return;
+        }
     }
     // `--host`: serve the map from a thread of this process and join it; the server stops when the game closes (it drops after `app`).
     let mut local_host = None;
