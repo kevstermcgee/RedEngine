@@ -1,7 +1,7 @@
 {
   "format": 1,
   "notes": "Which parts of the engine exist, who owns which file, and what must pass when a file changes. `red_engine2 features` lists it, `red_engine2 impact --git` turns a working tree into the exact commands to run, `red_engine2 features --check` (and tests/features_index.rs) keep it true: every listed file/suite/doc must exist and every source file must belong to a feature. tests: `lib:<module::path>` = library unit tests under that module, anything else = tests/<name>.rs. depends_on = features whose change can break this one. serial_suites = suites that use real-time UDP or spawn servers: `affected` and CI run them one test at a time; every other suite runs on parallel threads.",
-  "serial_suites": ["net_race", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_sim", "sim_replay", "server_env", "ai_tasks", "net_bots", "net_quic"],
+  "serial_suites": ["net_race", "net_race_lobby", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_sim", "sim_replay", "server_env", "ai_tasks", "net_bots", "net_quic"],
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, authored player tuning and jump pads, wall/fence sugar, prefabs, tracks and easing, colours.",
@@ -59,7 +59,7 @@
     "karts": {
       "summary": "Kart driving and racing for Great Outdoors: the scene's `race` block and per-player race progress (ordered gates, laps, standings, countdown), one pure kart step (steering, throttle, drift and hop, boost, spin-out, walls), the eight-driver spec table, kart-to-kart bumps and slipstream. A movement mode of the player, shared by server, prediction and bots.",
       "files": ["src/sim/kart.rs", "src/sim/race.rs", "src/sim/items.rs", "src/sim/ai/kart.rs", "src/kart_camera.rs", "src/net/fleet.rs", "src/tools/racetest.rs"],
-      "tests": ["lib:sim::kart", "lib:sim::race", "lib:sim::items", "lib:sim::ai::kart", "lib:kart_camera", "lib:net::fleet", "lib:tools::racetest", "lib:ui::race", "kart_race", "kart_bots", "net_race"],
+      "tests": ["lib:sim::kart", "lib:sim::race", "lib:sim::items", "lib:sim::ai::kart", "lib:kart_camera", "lib:net::fleet", "lib:tools::racetest", "lib:ui::race", "kart_race", "kart_bots", "net_race", "net_race_lobby"],
       "docs": ["docs/adr/2026-09-29-great-outdoors-karts-as-a-first-class-engine-feature.md"],
       "depends_on": ["player_physics"]
     },

@@ -126,6 +126,10 @@ impl fmt::Display for DecodeError {
 
 impl std::error::Error for DecodeError {}
 
+/// The largest character byte a client may ask for. Bodies use `0..=5`; in a race the byte is the driver (`sim::kart::Driver::wire`, `0..=7`), and the server
+/// clamps it to what the scene means.
+pub const MAX_CHOICE: u8 = 7;
+
 /// `0` human, `1` rat: how a [`Character`] travels on the wire.
 pub fn character_to_wire(c: Character) -> u8 {
     match c {

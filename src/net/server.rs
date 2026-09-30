@@ -29,6 +29,7 @@ use crate::net::protocol::*;
 use crate::sim::clock::TICK_RATE_HZ;
 use crate::sim::flow::{EndReason, Flow, FlowEvent, FlowInput, MatchSettings, Phase};
 use crate::sim::interest::InterestMap;
+use crate::sim::kart::Driver;
 use crate::sim::match_sim::{MatchSim, MAX_PLAYERS};
 use crate::sim::trace::{Header, Trace};
 use glam::Vec3;
@@ -38,7 +39,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-fn apply_character_policy(policy: Option<crate::player::Character>, requested: u8) -> u8 {
+/// The character byte a session may hold: the scene's forced character if it has one, else the request clamped to the choices. In a race the byte is
+/// the driver (`Driver::wire`, `0..=7`), not a body.
+fn apply_character_policy(policy: Option<crate::player::Character>, requested: u8, race: bool) -> u8 {
+    if race {
+        return requested.min(Driver::ALL.len() as u8 - 1);
+    }
     policy.map(character_to_wire).unwrap_or_else(|| requested.min(5))
 }
 
@@ -535,6 +541,7 @@ impl Server {
     fn on_lobby(&mut self, i: usize, l: LobbyCmd, now: Instant) {
         let playing = self.phase() == Phase::Playing && self.flow.is_some();
         let forced_character = self.sim.forced_character();
+        let race = self.sim.race().is_some();
         let s = &mut self.sessions[i];
         if !s.lobby_bucket.allow(now) {
             self.stats.rate_limited += 1;
@@ -549,7 +556,7 @@ impl Server {
         s.round_ack = s.round_ack.max(l.round_ack);
         s.rtt_ms = l.rtt_ms.min(9_999);
         let ready = l.ready && !playing;
-        let character = apply_character_policy(forced_character, l.character);
+        let character = apply_character_policy(forced_character, l.character, race);
         if ready != s.ready || character != s.character {
             s.ready = ready;
             s.character = character;
@@ -654,8 +661,8 @@ impl Server {
             self.say("the operating system's random number generator failed: join refused".to_string());
             return self.send_plain(addr, &ServerMsg::Reject(RejectReason::Full));
         };
-        let requested_character = resumed.as_ref().map_or(h.character.min(5), |p| p.character);
-        let character = apply_character_policy(self.sim.forced_character(), requested_character);
+        let requested_character = resumed.as_ref().map_or(h.character.min(Driver::ALL.len() as u8 - 1), |p| p.character);
+        let character = apply_character_policy(self.sim.forced_character(), requested_character, self.sim.race().is_some());
         let name = if h.name.trim().is_empty() { resumed.as_ref().map_or_else(|| sanitize_name(""), |p| p.name.clone()) } else { sanitize_name(&h.name) };
         let key = (!self.secure).then(|| SessionKey::derive(key_bytes.as_bytes(), h.client_nonce, h.cookie));
         let mut session = Session::new(addr, slot, token, key, h.client_nonce, h.cookie, name, character, now);
@@ -815,7 +822,9 @@ impl Server {
             .map(|(_, p)| p.combat.kills)
             .max()
             .unwrap_or(0);
-        let rules_outcome = (flow.phase() == Phase::Playing).then(|| self.sim.rules().ended().map(str::to_string)).flatten();
+        // A race ends the round when it is over (everyone finished, or the grace ran out) as a rule would.
+        let race_over = self.sim.race().is_some_and(|r| r.phase() == crate::sim::race::Phase::Finished).then(|| "race complete".to_string());
+        let rules_outcome = (flow.phase() == Phase::Playing).then(|| self.sim.rules().ended().map(str::to_string).or(race_over)).flatten();
         let input = FlowInput { connected, ready, in_round, rules_outcome, best_score };
         let Some(event) = self.flow.as_mut().and_then(|f| f.step(&input)) else { return };
         self.status_dirty = true;
@@ -853,7 +862,16 @@ impl Server {
         order.sort_by_key(|&i| self.sessions[i].slot);
         for i in order {
             let (slot, character) = (self.sessions[i].slot, self.sessions[i].character);
-            let placed = self.sim.add_player_in_slot(slot, character_from_wire(character));
+            let race = self.sim.race().is_some();
+            // In a race the character byte is the animal; a body is a plain person the kart hides. Two people who chose the same animal: the one in the
+            // lower slot has it, the other gets the first animal left.
+            let placed = self.sim.add_player_in_slot(slot, if race { crate::player::Character::Human } else { character_from_wire(character) });
+            if race && placed {
+                let want = Driver::from_wire(character).unwrap_or(Driver::Duck);
+                self.sim.set_driver(slot, want);
+                let free = self.sim.free_driver(slot);
+                self.sim.set_driver(slot, free);
+            }
             let s = &mut self.sessions[i];
             s.in_round = placed;
             s.forget_world();
@@ -894,7 +912,11 @@ impl Server {
             .collect();
         scores.sort_unstable();
         let top = scores.iter().map(|s| s.1).max().unwrap_or(0);
-        let winner = if top > 0 && scores.iter().filter(|s| s.1 == top).count() == 1 { scores.iter().find(|s| s.1 == top).map(|s| s.0) } else { None };
+        let mut winner = if top > 0 && scores.iter().filter(|s| s.1 == top).count() == 1 { scores.iter().find(|s| s.1 == top).map(|s| s.0) } else { None };
+        // A race is won by whoever is first in the standings.
+        if let Some(race) = self.sim.race() {
+            winner = race.standings().first().map(|row| row.player as u8);
+        }
         let (code, text) = reason.to_wire();
         self.last_result = Some(LastResult { winner: winner.unwrap_or(NO_WINNER), end_code: code, end_text: text });
         let trace = self.sim.take_trace();
@@ -1183,9 +1205,11 @@ mod character_policy_tests {
 
     #[test]
     fn a_scene_character_overrides_join_and_lobby_requests() {
-        assert_eq!(apply_character_policy(Some(crate::player::Character::Human), 1), 0);
-        assert_eq!(apply_character_policy(Some(crate::player::Character::Rat), 0), 1);
-        assert_eq!(apply_character_policy(None, 1), 1);
-        assert_eq!(apply_character_policy(None, 99), 5);
+        assert_eq!(apply_character_policy(Some(crate::player::Character::Human), 1, false), 0);
+        assert_eq!(apply_character_policy(Some(crate::player::Character::Rat), 0, false), 1);
+        assert_eq!(apply_character_policy(None, 1, false), 1);
+        assert_eq!(apply_character_policy(None, 7, true), 7);
+        assert_eq!(apply_character_policy(Some(crate::player::Character::Rat), 99, true), 7, "a race takes the driver, whatever body the scene forces");
+        assert_eq!(apply_character_policy(None, 99, false), 5);
     }
 }

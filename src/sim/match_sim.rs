@@ -205,7 +205,7 @@ impl MatchSim {
 
     /// The driver a bot in `slot` should take: the slot's own default animal unless another player already has it, else the first animal nobody has
     /// (or the default again if all eight are taken). Humans keep the same defaults, so a human joining later never lands on a bot's animal.
-    pub(super) fn free_driver(&self, slot: usize) -> Driver {
+    pub fn free_driver(&self, slot: usize) -> Driver {
         let taken = |d: Driver| (0..MAX_PLAYERS).any(|s| s != slot && self.players[s].is_some() && self.drivers[s] == d);
         let own = self.drivers[slot];
         if !taken(own) {

@@ -92,6 +92,13 @@ impl App {
             if p.hit(b::RELOAD) {
                 self.online_key(KeyCode::KeyC, event_loop);
             }
+            // The race lobby: the d-pad and the bumpers step through the animals.
+            if p.hit(b::LEFT) || p.hit(b::PREVIOUS) {
+                self.online_key(KeyCode::ArrowLeft, event_loop);
+            }
+            if p.hit(b::RIGHT) || p.hit(b::NEXT) {
+                self.online_key(KeyCode::ArrowRight, event_loop);
+            }
             if p.hit(b::CROUCH) {
                 self.online_key(KeyCode::Escape, event_loop);
             }

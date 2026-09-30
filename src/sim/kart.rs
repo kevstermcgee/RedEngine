@@ -234,6 +234,22 @@ pub enum Driver {
     Beaver,
 }
 
+impl Ability {
+    /// One short line for the driver-choice screen (capital letters, at most 34 characters).
+    pub fn blurb(self) -> &'static str {
+        match self {
+            Ability::Float => "WATER DOES NOT SLOW YOU DOWN",
+            Ability::Hop => "HIGH HOP, FAST HOP-DRIFTS",
+            Ability::DriftBoost => "DRIFTS CHARGE MUCH FASTER",
+            Ability::Dirt => "NO PENALTY ON DIRT SHORTCUTS",
+            Ability::Glide => "HOLD JUMP IN THE AIR TO GLIDE",
+            Ability::Bulldoze => "BUMPS SPIN OTHERS, YOU NEVER SPIN",
+            Ability::Slipstream => "SLIPSTREAM CHARGES A BOOST",
+            Ability::Build => "WOODEN KART, LAYS PLANKS BEHIND",
+        }
+    }
+}
+
 impl Driver {
     /// All eight, in wire order.
     pub const ALL: [Driver; 8] = [Driver::Duck, Driver::Bunny, Driver::Deer, Driver::Coyote, Driver::Hawk, Driver::Bear, Driver::Wolf, Driver::Beaver];

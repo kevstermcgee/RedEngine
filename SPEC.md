@@ -580,6 +580,14 @@ positions cannot be written as rules (a rule variable is one number for everybod
 - **Standings**: finishers by finish time, then by gates passed in total, then by distance to the next gate, then by slot. A player who joined and left is
   ranked as not finished; a slot that never joined is not listed. State is part of the match checksum.
 
+
+**A hosted race and its lobby.** Add a `match` block (`"match": {"min_players": 1, "countdown_secs": 1, "join_in_progress": false}`) and the server runs the usual
+lobby -> countdown -> round -> results loop around the race: in a race the lobby's character byte is the animal (`Driver::wire`, 0..7), so the lobby screen
+shows an animal picker instead of a body switch (arrow keys, A/D, the d-pad or the bumpers; animals other people hold are skipped), and everyone still in the
+lobby readies up. Two people who chose the same animal: the lower slot keeps it and the other gets the first free one when the round is built. The round ends
+when the race is over (everyone finished, or `finish_grace_secs` after the first finisher); the winner is first place in the standings; then the results,
+then the lobby again and a fresh world for the next race. The flow's own countdown runs first (keep it short: the race has its own).
+
 ## Physics rules a map author must know
 
 - **Releasing a carried prop** gives it your own horizontal and vertical velocity plus `player.throw_speed` (default 1 m/s) along your look,

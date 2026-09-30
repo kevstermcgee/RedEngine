@@ -70,6 +70,7 @@ impl App {
             reconnecting: matches!(c.state(), ConnState::Reconnecting | ConnState::Connecting),
             message: None,
             combat: None,
+            race: self.scene.race.is_some(),
         };
         view.combat = self.combat_view(view.me, &view.roster);
         Some(view)
@@ -219,11 +220,25 @@ impl App {
                 net.client.set_ready(want, now);
             }
             OnlineAction::ToggleCharacter => {
+                if self.scene.race.is_some() {
+                    return self.online_action(OnlineAction::NextDriver, event_loop);
+                }
                 if self.forced_character.is_some() {
                     return;
                 }
                 let other = (net.client.character() + 1) % Character::ALL.len() as u8;
                 net.client.set_character(other, now);
+            }
+            OnlineAction::PrevDriver | OnlineAction::NextDriver => {
+                let Some(view) = self.online_view() else { return };
+                if !view.race {
+                    return;
+                }
+                let step = if a == OnlineAction::PrevDriver { -1 } else { 1 };
+                let pick = red_engine2::ui::online::step_driver(&view, step);
+                if let Some(net) = self.net.as_mut() {
+                    net.client.set_character(pick, now);
+                }
             }
             OnlineAction::Leave => {
                 net.client.disconnect();
@@ -237,6 +252,8 @@ impl App {
         match code {
             KeyCode::KeyR | KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space => self.online_action(OnlineAction::ToggleReady, event_loop),
             KeyCode::KeyC => self.online_action(OnlineAction::ToggleCharacter, event_loop),
+            KeyCode::ArrowLeft | KeyCode::KeyA => self.online_action(OnlineAction::PrevDriver, event_loop),
+            KeyCode::ArrowRight | KeyCode::KeyD => self.online_action(OnlineAction::NextDriver, event_loop),
             KeyCode::Escape => self.online_action(OnlineAction::Leave, event_loop),
             _ => {}
         }

@@ -10,6 +10,7 @@
 use super::{ellipsize, fit_scale, text_height, text_width, Layout, Rect};
 use crate::net::protocol::{RosterEntry, ROSTER_IN_ROUND, ROSTER_READY};
 use crate::sim::flow::Phase;
+use crate::sim::kart::Driver;
 
 const TEXT: [u8; 4] = [236, 238, 245, 255];
 const DIM: [u8; 4] = [150, 156, 176, 255];
@@ -52,6 +53,8 @@ pub struct OnlineView {
     pub message: Option<String>,
     /// Our own combat state, for the shooter HUD (`None` = draw no health or weapon).
     pub combat: Option<CombatView>,
+    /// Whether the map is a race: the character byte is then the animal to drive, and the lobby lets everyone choose one.
+    pub race: bool,
 }
 
 /// What the shooter HUD shows about us: health, the weapon in hand and where it sits on the weapon ladder, and whether we are waiting to respawn.
@@ -145,6 +148,7 @@ impl OnlineView {
             map: "test_lab".to_string(),
             reconnecting: false,
             message: None,
+            race: false,
             combat: match phase {
                 Phase::Playing => Some(CombatView::demo()),
                 Phase::Countdown => Some(CombatView { notice: None, ..CombatView::demo() }),
@@ -181,6 +185,10 @@ pub enum OnlineAction {
     ToggleReady,
     /// Switch between human and rat.
     ToggleCharacter,
+    /// The previous free animal (a race lobby).
+    PrevDriver,
+    /// The next free animal (a race lobby).
+    NextDriver,
     /// Leave the match and close the game.
     Leave,
 }
@@ -190,6 +198,8 @@ pub fn action_for(button: &str) -> Option<OnlineAction> {
     match button {
         "ready" => Some(OnlineAction::ToggleReady),
         "character" => Some(OnlineAction::ToggleCharacter),
+        "driver_prev" => Some(OnlineAction::PrevDriver),
+        "driver" | "driver_next" => Some(OnlineAction::NextDriver),
         "leave" => Some(OnlineAction::Leave),
         _ => None,
     }
@@ -198,6 +208,28 @@ pub fn action_for(button: &str) -> Option<OnlineAction> {
 /// The action under the cursor at `(x, y)` on `layout`.
 pub fn action_at(layout: &Layout, x: f32, y: f32) -> Option<OnlineAction> {
     layout.button_at(x, y).and_then(action_for)
+}
+
+/// The wire byte of the animal `step` places (`1` next, `-1` previous) from ours, skipping animals other people have chosen; ours again if all are taken.
+pub fn step_driver(v: &OnlineView, step: i8) -> u8 {
+    let n = Driver::ALL.len() as i16;
+    let mine = i16::from(v.my_character()).min(n - 1);
+    for k in 1..=n {
+        let cand = (mine + i16::from(step) * k).rem_euclid(n) as u8;
+        if !v.roster.iter().any(|e| e.id != v.me && e.character == cand) {
+            return cand;
+        }
+    }
+    mine as u8
+}
+
+/// A roster entry's character as text: a body name, or in a race the animal.
+fn what_name(race: bool, c: u8) -> &'static str {
+    if race {
+        Driver::from_wire(c).map_or("?", Driver::name)
+    } else {
+        character_name(c)
+    }
 }
 
 fn character_name(c: u8) -> &'static str {
@@ -297,6 +329,7 @@ pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layo
         + 6 * s
         + text_height(s)
         + msg_lines * (text_height(s) + 2 * s)
+        + if v.race { text_height(s) + 3 * s } else { 0 }
         + 8 * s;
     let (mut l, c, rect, s) = card(w, h, 230, content, "card");
     let (x0, y0, x1, _) = rect;
@@ -321,7 +354,7 @@ pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layo
     let cols = columns(x0 + pad, x1 - pad);
     for (id, label, (a, b), right) in [
         ("h_name", "NAME", cols.name, false),
-        ("h_what", "TYPE", cols.what, false),
+        ("h_what", if v.race { "ANIMAL" } else { "TYPE" }, cols.what, false),
         ("h_ping", "PING", cols.ping, false),
         ("h_state", "STATE", cols.state, true),
     ] {
@@ -336,7 +369,7 @@ pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layo
         let mine = e.id == v.me;
         let col = if mine { GOLD } else { TEXT };
         l.label_left(&format!("r{i}_name"), Some(c), cols.name.0, y, &upper(&e.name), s, cols.name.1 - cols.name.0, col);
-        l.label_left(&format!("r{i}_what"), Some(c), cols.what.0, y, character_name(e.character), s, cols.what.1 - cols.what.0, col);
+        l.label_left(&format!("r{i}_what"), Some(c), cols.what.0, y, what_name(v.race, e.character), s, cols.what.1 - cols.what.0, col);
         l.label_left(&format!("r{i}_ping"), Some(c), cols.ping.0, y, &format!("{} MS", e.ping_ms), s, cols.ping.1 - cols.ping.0, DIM);
         let (txt, tc) = if e.flags & ROSTER_READY != 0 { ("READY", GREEN) } else { ("NOT READY", DIM) };
         l.label_right(&format!("r{i}_state"), Some(c), cols.state.1, y, txt, s, cols.state.1 - cols.state.0, tc);
@@ -368,11 +401,45 @@ pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layo
     };
     button(&mut l, "ready", y, if ready { "READY - CLICK TO CANCEL" } else { "READY" }, ready);
     y += bh + 3 * s;
-    button(&mut l, "character", y, &format!("PLAY AS: {}", character_name(v.my_character())), false);
-    y += bh + 3 * s;
+    if v.race {
+        // The animal to drive: previous / next arrows round its name, and a line about what it is good at.
+        let arrow = 2 * bh;
+        let hot = |id: &str| hover == Some(id);
+        for (id, x_a, x_b, label) in [("driver_prev", bx0, bx0 + arrow, "<"), ("driver_next", bx1 - arrow, bx1, ">")] {
+            l.button(
+                id,
+                (x_a, y, x_b, y + bh),
+                Some(c),
+                label,
+                s * 3 / 2,
+                if hot(id) { [56, 62, 92, 255] } else { [30, 34, 52, 255] },
+                (if hot(id) { GOLD } else { EDGE }, (s / 2).max(1)),
+                TEXT,
+            );
+        }
+        let me_driver = Driver::from_wire(v.my_character()).unwrap_or(Driver::Duck);
+        let name = upper(me_driver.name());
+        let scale = fit_scale(&name, bx1 - bx0 - 2 * arrow - 8 * s, s * 3 / 2);
+        l.button(
+            "driver",
+            (bx0 + arrow + 2 * s, y, bx1 - arrow - 2 * s, y + bh),
+            Some(c),
+            &name,
+            scale,
+            if hot("driver") { [56, 62, 92, 255] } else { [30, 34, 52, 255] },
+            (if hot("driver") { GOLD } else { GREEN }, (s / 2).max(1)),
+            GOLD,
+        );
+        y += bh + 3 * s;
+        l.label_fit("perk", Some(c), cx, y, me_driver.spec().ability.blurb(), s, inner, DIM);
+        y += text_height(s) + 3 * s;
+    } else {
+        button(&mut l, "character", y, &format!("PLAY AS: {}", character_name(v.my_character())), false);
+        y += bh + 3 * s;
+    }
     button(&mut l, "leave", y, "LEAVE", false);
     y += bh + 6 * s;
-    l.label_fit("hint", Some(c), cx, y, "R READY   C CHARACTER   ESC LEAVE", s, inner, DIM);
+    l.label_fit("hint", Some(c), cx, y, if v.race { "R READY   LEFT RIGHT ANIMAL   ESC LEAVE" } else { "R READY   C CHARACTER   ESC LEAVE" }, s, inner, DIM);
     y += text_height(s) + 2 * s;
     if let Some(m) = &v.message {
         for (i, line) in super::wrap(&upper(m), inner, s).iter().take(3).enumerate() {
@@ -426,7 +493,7 @@ pub fn results_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> La
     for (i, e) in ranked.iter().enumerate() {
         let col = if e.id == v.me { GOLD } else { TEXT };
         l.label_left(&format!("r{i}_name"), Some(c), cols.name.0, y, &format!("{}. {}", i + 1, upper(&e.name)), s, cols.name.1 - cols.name.0, col);
-        l.label_left(&format!("r{i}_what"), Some(c), cols.what.0, y, character_name(e.character), s, cols.what.1 - cols.what.0, DIM);
+        l.label_left(&format!("r{i}_what"), Some(c), cols.what.0, y, what_name(v.race, e.character), s, cols.what.1 - cols.what.0, DIM);
         l.label_right(&format!("r{i}_score"), Some(c), cols.state.1, y, &e.score.to_string(), s, cols.state.1 - cols.ping.0, col);
         y += row_h;
     }
@@ -818,6 +885,20 @@ pub fn connect_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> L
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn stepping_through_animals_skips_the_ones_others_have() {
+        let mut v = OnlineView::demo(Phase::Waiting);
+        v.race = true;
+        for (i, e) in v.roster.iter_mut().enumerate() {
+            e.character = i as u8; // everyone has a different animal; we (id 1) have the Bunny
+        }
+        v.roster.truncate(4); // Duck (0), Bunny (1: us), Deer (2), Coyote (3) are taken
+        assert_eq!(step_driver(&v, 1), 4, "the next free animal after the Bunny is the Hawk");
+        assert_eq!(step_driver(&v, -1), 7, "the previous free animal wraps round to the Beaver");
+        v.roster.retain(|e| e.id == v.me);
+        assert_eq!(step_driver(&v, 1), 2, "alone, the next animal is simply the next");
+    }
+
     use super::*;
 
     /// The arena look (every element on): what these tests are about.

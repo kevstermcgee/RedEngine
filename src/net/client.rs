@@ -264,7 +264,7 @@ impl NetClient {
             session_ready: false,
             last_reconnect: None,
             server: cfg.server,
-            character: cfg.character.min(5),
+            character: cfg.character.min(MAX_CHOICE),
             map_hash: cfg.map_hash,
             name: sanitize_name(&cfg.name),
             join_key: cfg.join_key.filter(|k| !k.is_empty()),
@@ -385,7 +385,7 @@ impl NetClient {
         self.welcome.is_some_and(|w| w.in_round) && self.phase() == Phase::Playing
     }
 
-    /// The character we ask for (`0` human, `1` rat).
+    /// The character we ask for (`0` human, `1` rat; in a race the driver, `Driver::wire`).
     pub fn character(&self) -> u8 {
         self.character
     }
@@ -405,7 +405,7 @@ impl NetClient {
 
     /// Chooses `0` human or `1` rat for the next spawn. Sent at once.
     pub fn set_character(&mut self, character: u8, now: Instant) {
-        let character = character.min(5);
+        let character = character.min(MAX_CHOICE);
         if self.character != character {
             self.character = character;
             self.send_lobby(now);
