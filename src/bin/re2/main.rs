@@ -423,6 +423,8 @@ struct App {
     /// The last sound cues played `(game seconds, cue)` and how many of each kind so far.
     cue_log: std::collections::VecDeque<(f32, String)>,
     cue_counts: std::collections::BTreeMap<String, u32>,
+    /// The kart race's sounds (which cue the HUD's changes ask for).
+    kart_sound: red_engine2::kart_sound::KartSound,
     /// States stored by a script's `snapshot` steps.
     snapshots: Vec<(String, serde_json::Value)>,
     /// Everything that went wrong that a person would only notice by looking: warnings from the session, failed expectations, shots that could not be taken.
@@ -601,6 +603,7 @@ impl App {
             hud_lines: Vec::new(),
             cue_log: Default::default(),
             cue_counts: Default::default(),
+            kart_sound: Default::default(),
             snapshots: Vec::new(),
             failures: Vec::new(),
             debug_hud: false,

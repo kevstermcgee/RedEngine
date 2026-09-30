@@ -267,9 +267,9 @@ pub fn roll_item(tick: u64, slot: usize, box_index: usize, place: usize, players
     let third = if players <= 1 { 1 } else { (place.saturating_sub(1) * 3 / players).min(2) };
     // (Mushroom, Acorn, Bubble) out of 100.
     let (mushroom, acorn) = match third {
-        0 => (20, 30),
+        0 => (25, 45),
         1 => (40, 35),
-        _ => (60, 30),
+        _ => (55, 30),
     };
     if r < mushroom {
         Item::Mushroom
@@ -430,7 +430,7 @@ mod tests {
         let (leader, tail) = (count(1), count(8));
         assert!(leader.iter().all(|n| *n > 500) && tail.iter().all(|n| *n > 500), "every item comes up: {leader:?} {tail:?}");
         assert!(tail[0] > leader[0] + 1500, "the tail gets Mushrooms far more often: {leader:?} vs {tail:?}");
-        assert!(leader[2] > tail[2] + 1500, "the leader gets Bubbles far more often: {leader:?} vs {tail:?}");
+        assert!(leader[2] > tail[2] + 600, "the leader gets Bubbles more often: {leader:?} vs {tail:?}");
         assert_ne!(
             (0..50).map(|t| roll_item(t, 0, 0, 4, 8)).collect::<Vec<_>>(),
             (0..50).map(|t| roll_item(t, 1, 0, 4, 8)).collect::<Vec<_>>(),

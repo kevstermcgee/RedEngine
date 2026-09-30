@@ -58,8 +58,8 @@
     },
     "karts": {
       "summary": "Kart driving and racing for Great Outdoors: the scene's `race` block and per-player race progress (ordered gates, laps, standings, countdown), one pure kart step (steering, throttle, drift and hop, boost, spin-out, walls), the eight-driver spec table, kart-to-kart bumps and slipstream. A movement mode of the player, shared by server, prediction and bots.",
-      "files": ["src/sim/kart.rs", "src/sim/race.rs", "src/sim/items.rs", "src/sim/ai/kart.rs", "src/kart_camera.rs", "src/net/fleet.rs", "src/tools/racetest.rs"],
-      "tests": ["lib:sim::kart", "lib:sim::race", "lib:sim::items", "lib:sim::ai::kart", "lib:kart_camera", "lib:net::fleet", "lib:tools::racetest", "lib:ui::race", "kart_race", "kart_bots", "net_race", "net_race_lobby"],
+      "files": ["src/sim/kart.rs", "src/sim/race.rs", "src/sim/items.rs", "src/sim/ai/kart.rs", "src/kart_camera.rs", "src/kart_sound.rs", "src/net/fleet.rs", "src/tools/racetest.rs"],
+      "tests": ["lib:sim::kart", "lib:sim::race", "lib:sim::items", "lib:sim::ai::kart", "lib:kart_camera", "lib:kart_sound", "lib:net::fleet", "lib:tools::racetest", "lib:ui::race", "kart_race", "kart_bots", "net_race", "net_race_lobby"],
       "docs": ["docs/adr/2026-09-29-great-outdoors-karts-as-a-first-class-engine-feature.md"],
       "depends_on": ["player_physics"]
     },

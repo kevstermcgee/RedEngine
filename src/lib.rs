@@ -26,6 +26,8 @@ pub mod gpu;
 pub mod hit;
 pub mod hud_config;
 pub mod kart_camera;
+#[cfg(feature = "gfx")]
+pub mod kart_sound;
 pub mod macros;
 #[cfg(feature = "gfx")]
 pub mod menu;

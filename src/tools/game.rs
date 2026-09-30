@@ -369,6 +369,9 @@ pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
 /// body only). `None` for a map that is not played online. The check builds the pool the way the client does ([`crate::net::session::avatars_made`]).
 pub fn avatar_line(map: &str, text: &str) -> Option<Line> {
     let scene = crate::schema::parse_scene(text).ok()?;
+    if scene.race.is_some() {
+        return Some(kart_line(map, &scene));
+    }
     let has_spawns = crate::sim::spawns::parse_spawns(text).is_ok_and(|s| !s.is_empty());
     if scene.bots.fill == 0 && !has_spawns {
         return None;
@@ -405,6 +408,25 @@ pub fn avatar_line(map: &str, text: &str) -> Option<Line> {
     } else {
         Line { failed: true, text: format!("map {map}: avatars: {}", missing.join("\n     ")) }
     })
+}
+
+/// A race draws karts, never bodies: every animal needs a model. The map's own `kart_<animal>` object is used when it has one; without it the client draws the
+/// built-in fallback kart, which works but looks the same for every animal, so it is reported (a note, not a failure).
+fn kart_line(map: &str, scene: &crate::schema::Scene) -> Line {
+    use crate::sim::kart::Driver;
+    let own: Vec<&str> = Driver::ALL.iter().filter(|d| scene.objects.iter().any(|o| o.id == crate::net::fleet::model_id(**d))).map(|d| d.name()).collect();
+    let plain: Vec<&str> = Driver::ALL.iter().map(|d| d.name()).filter(|n| !own.contains(n)).collect();
+    let text = if plain.is_empty() {
+        format!("map {map}: karts: all {} drivers have their own model in the map", own.len())
+    } else {
+        format!(
+            "map {map}: karts: {} of {} drivers have their own model; {} are drawn as the plain built-in kart (add `kart_<animal>` objects)",
+            own.len(),
+            Driver::ALL.len(),
+            plain.join(", ")
+        )
+    };
+    Line { failed: false, text }
 }
 
 /// Arguments for `red_server` from the project's `server` block.
@@ -522,6 +544,18 @@ pub fn engine_pin(checkout: &Path, allow_dirty: bool) -> Result<EnginePin, Strin
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_race_map_is_audited_for_karts_not_bodies() {
+        let text = r#"{"camera":{"position":[0,1,5],"target":[0,0,0]},
+            "zones":[{"id":"a","rect":[0,0,1,1]},{"id":"b","rect":[5,0,6,1]},{"id":"c","rect":[0,5,1,6]}],
+            "race":{"laps":1,"gates":["a","b","c"]},
+            "spawns":[{"id":"s","position":[0,0,0],"yaw_deg":0}],
+            "objects":[{"id":"kart_duck","type":"box","size":[1,1,1],"position":[0,-50,0],"collide":false}]}"#;
+        let line = avatar_line("race.json", text).expect("a race is played online");
+        assert!(!line.failed, "a plain kart is a note, not a failure: {}", line.text);
+        assert!(line.text.contains("karts: 1 of 8") && line.text.contains("Bunny"), "{}", line.text);
+    }
+
     use super::*;
 
     const GOOD: &str = r#"{"game":1,"name":"t","engine":{"path":"../engine"},"blueprints":["blueprints/main.blueprint.json"],"maps":["maps/main.json"],"server":{"port":28000,"spawn_group":"duel"}}"#;

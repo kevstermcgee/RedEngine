@@ -146,6 +146,17 @@ impl App {
         for cue in self.feel.take_cues() {
             self.play_cue(&cue);
         }
+        // A kart race: the countdown beeps, the green light, pickups, boosts, laps and the finish.
+        let hud = self.net.as_ref().filter(|n| n.is_race()).and_then(|n| n.race_hud());
+        for cue in self.kart_sound.step(hud.as_ref()) {
+            if self.log_cues {
+                println!("[cue {:7.2}s] {cue:?}", self.start.elapsed().as_secs_f32());
+            }
+            *self.cue_counts.entry(format!("{cue:?}").split(|c: char| !c.is_alphanumeric()).next().unwrap_or("").to_string()).or_default() += 1;
+            if let Some(audio) = &self.audio {
+                audio.play(&cue.clip());
+            }
+        }
     }
 
     /// Plays one cue: the clip, at its loudness, placed in the stereo field.
