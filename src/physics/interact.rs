@@ -54,6 +54,29 @@ impl PropWorld {
         (self.props[p].shape.carriable(limits) && !self.is_held(p)).then_some(p)
     }
 
+    /// Why [`pick_target_for`](Self::pick_target_for) found nothing for a ray that was meant to pick something up, in the words an
+    /// author needs (a `sim` report prints it): too big, too far, held by someone else, hidden behind geometry, or nothing aimed at.
+    pub fn why_no_pickup(&self, origin: Vec3, dir: Vec3, reach: f32, limits: &CarryLimits) -> String {
+        if let Some((p, _)) = self.first_prop_hit(origin, dir, reach) {
+            let shape = &self.props[p].shape;
+            if !shape.carriable(limits) {
+                return format!(
+                    "the prop under the crosshair is too big to carry: longest side {:.2} m (limit {}), volume {:.3} m^3 (limit {}); it can only be shoved",
+                    shape.extents.max_element(),
+                    limits.max_dim,
+                    shape.volume(),
+                    limits.max_volume
+                );
+            }
+            return "the prop under the crosshair is carried by another player".to_string();
+        }
+        match self.ray_props(origin, dir, 30.0) {
+            Some((_, d)) if d > reach => format!("the aimed prop is {d:.2} m away and the reach is {reach:.2} m: step closer"),
+            Some(_) => "something solid (a wall, a door, another object) is between the eye and the prop: aim at the prop itself".to_string(),
+            None => "no loose prop under the crosshair: aim at the prop's body (look_at its origin plus about half its height)".to_string(),
+        }
+    }
+
     /// The nearest loose prop a ray touches, ignoring fixed geometry (the caller compares with the
     /// static hit distance): `(prop, distance)`.
     pub fn ray_props(&self, origin: Vec3, dir: Vec3, reach: f32) -> Option<(usize, f32)> {

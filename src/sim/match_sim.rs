@@ -96,6 +96,9 @@ pub struct MatchSim {
     rule_object_index: HashMap<String, u16>,
     recorder: Option<Trace>,
     events_out: Vec<GameEvent>,
+    /// Diagnostics, not match state (never checksummed or traced): the first few times a player pressed interact empty-handed and
+    /// picked nothing up, as `(tick, slot, why)`.
+    pub(super) pickup_misses: Vec<(u64, usize, String)>,
     /// The kart race (the scene's `race` block), if this match is one: every player then drives a kart (`sim::kart`) and progress is tracked here.
     pub(super) race: Option<RaceState>,
     /// Every slot's kart memory (boost, drift, spin-out); untouched outside a race.
@@ -168,6 +171,7 @@ impl MatchSim {
                 .collect(),
             recorder: None,
             events_out: Vec::new(),
+            pickup_misses: Vec::new(),
             race: scene.race.clone().map(|course| RaceState::new(course, MAX_PLAYERS)),
             karts: vec![KartState::default(); MAX_PLAYERS],
             drivers: (0..MAX_PLAYERS).map(|slot| Driver::ALL[slot % Driver::ALL.len()]).collect(),

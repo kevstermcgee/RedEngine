@@ -443,7 +443,8 @@ impl Parser<'_> {
             Some(i) => Ok(i),
             None => {
                 let hint = crate::prefabs::suggest(id, list.iter().map(String::as_str)).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
-                let known = if list.is_empty() { "none in this scene".to_string() } else { list.iter().take(12).map(String::as_str).collect::<Vec<_>>().join(", ") };
+                let known =
+                    if list.is_empty() { "none in this scene".to_string() } else { list.iter().take(12).map(String::as_str).collect::<Vec<_>>().join(", ") };
                 Err(ParseError { message: format!("`{name}({prop}, {zone})`: no {kind} `{id}`{hint} ({kind}s: {known})"), at })
             }
         };
@@ -549,7 +550,11 @@ mod tests {
         }
         fn call2(&self, f: Func, prop: usize, zone: usize) -> f64 {
             // the crate (1) is in the pit (0); the bell (0) is not
-            if f == Func::InZone && prop == 1 && zone == 0 { 7.0 } else { 0.0 }
+            if f == Func::InZone && prop == 1 && zone == 0 {
+                7.0
+            } else {
+                0.0
+            }
         }
     }
 

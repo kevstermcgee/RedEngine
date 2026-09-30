@@ -721,15 +721,8 @@ mod tests {
             "bell" => Some(1),
             _ => None,
         });
-        let prop = |x: f32, z: f32, mass: f32| RuleProp {
-            origin: Vec3::new(x, 0.3, z),
-            height: 0.5,
-            tilt_deg: 0.0,
-            held_by: None,
-            mass,
-            moved: 0.0,
-            vel: Vec3::ZERO,
-        };
+        let prop =
+            |x: f32, z: f32, mass: f32| RuleProp { origin: Vec3::new(x, 0.3, z), height: 0.5, tilt_deg: 0.0, held_by: None, mass, moved: 0.0, vel: Vec3::ZERO };
         // Only the bell (mass 5) is on the pan: in_zone(crate) is 0, props_in counts 1, and the weighed sum is the bell alone.
         e.step_props(30, &[], &[prop(9.0, 9.0, 20.0), prop(2.0, 2.0, 5.0)]);
         assert_eq!((e.var("mine"), e.var("all"), e.var("weighed")), (Some(0.0), Some(1.0), Some(5.0)));

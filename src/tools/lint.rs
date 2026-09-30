@@ -113,11 +113,45 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
     check_interest(world, &mut out);
     check_terrain(world, &mut out);
     check_carry(world, &mut out);
+    check_speed_cap(world, &mut out);
     out.sort_by(|a, b| b.sev.cmp(&a.sev).then(a.code.cmp(b.code)));
     out
 }
 
 // ---------------------------------------------------------------------------------------------
+
+/// `player.throw_speed` and rule `impulse` speeds above the physics cap are accepted but saturate (20 and 30 behave like 14).
+fn check_speed_cap(world: &MapWorld, out: &mut Vec<Finding>) {
+    let cap = crate::physics::MAX_SPEED;
+    let throw = world.scene.player.throw_speed;
+    if throw > cap {
+        out.push(finding(
+            Severity::Warn,
+            "speed",
+            format!(
+                "player.throw_speed {throw} exceeds the {cap} m/s cap on any loose prop: it behaves exactly like {cap}; lower it or rely on the cap knowingly"
+            ),
+            None,
+            &[],
+        ));
+    }
+    let Some(rules) = world.raw.get("rules").and_then(Value::as_array) else { return };
+    for r in rules {
+        let id = r.get("id").and_then(Value::as_str).unwrap_or("?");
+        for a in r.get("do").and_then(Value::as_array).into_iter().flatten() {
+            let speed = a.get("impulse").and_then(|i| i.get("speed")).and_then(Value::as_f64).unwrap_or(0.0);
+            if speed > cap as f64 {
+                out.push(finding(
+                    Severity::Warn,
+                    "speed",
+                    format!("rule `{id}`: impulse speed {speed} exceeds the {cap} m/s cap on any loose prop: it behaves exactly like {cap}"),
+                    None,
+                    &[],
+                ));
+            }
+        }
+    }
+}
 
 /// A loose prop forced with `movable: true` that a human cannot lift: E does nothing on it (a `sim` shows an `interact` with no
 /// `pickup`). Fine for a shove-only barrel; a note so it is a choice, not a surprise.
@@ -1065,6 +1099,15 @@ mod tests {
     fn open_perimeter_is_a_leak() {
         let f = run(r##"{"camera":{"position":[0,1.7,0]},"objects":[{"id":"b","type":"box","size":[1,1,1],"position":[3,0.5,3]}]}"##);
         assert!(f.iter().any(|x| x.code == "leak"), "{}", format_report(&f));
+    }
+
+    #[test]
+    fn speeds_above_the_prop_cap_are_a_warning() {
+        let f = run(r##"{"camera":{"position":[0,1.7,0]},"player":{"throw_speed":20},"objects":[{"id":"b","type":"box","size":[1,1,1],"position":[0,0.5,3]}],
+            "rules":[{"id":"kick","when":{"start":true},"do":[{"impulse":{"object":"b","dir":[1,0,0],"speed":30}}]},{"id":"ok","when":{"start":true},"do":[{"impulse":{"object":"b","dir":[1,0,0],"speed":6}}]}]}"##);
+        let s: Vec<_> = f.iter().filter(|x| x.code == "speed").collect();
+        assert_eq!(s.len(), 2, "{}", format_report(&f));
+        assert!(s.iter().any(|x| x.message.contains("throw_speed 20")) && s.iter().any(|x| x.message.contains("rule `kick`")), "{}", format_report(&f));
     }
 
     #[test]

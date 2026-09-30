@@ -84,6 +84,9 @@ pub struct Combat {
     prev: [bool; 4],
 }
 
+/// How many failed pick-ups a match remembers for its report.
+const MAX_PICKUP_MISSES: usize = 8;
+
 impl Combat {
     /// A fresh, alive player carrying the bat.
     pub fn new(cfg: &WeaponConfig) -> Combat {
@@ -350,8 +353,16 @@ impl MatchSim {
                 self.rules.inject(self.tick, "pickup", Some(slot));
                 return true;
             }
+        } else if self.pickup_misses.len() < MAX_PICKUP_MISSES {
+            let why = self.props.why_no_pickup(eye, look, body.pickup_reach, &body.carry);
+            self.pickup_misses.push((self.tick, slot, why));
         }
         false
+    }
+
+    /// The first few failed pick-ups of this match (`(tick, slot, why)`): what `sim` prints so an empty-handed `interact` is explained.
+    pub fn pickup_misses(&self) -> &[(u64, usize, String)] {
+        &self.pickup_misses
     }
 
     fn switch_weapon(&mut self, slot: usize) {

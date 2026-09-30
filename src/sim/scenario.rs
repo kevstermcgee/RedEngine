@@ -288,6 +288,8 @@ pub struct ScenarioResult {
     pub finals: Vec<(String, f32, f32, f32)>,
     /// Where every loose prop ended.
     pub props: Vec<PropFinal>,
+    /// Why the first few empty-handed `interact`s picked nothing up (`"tick 105: p1: ..."`); empty when every one worked.
+    pub pickup_misses: Vec<String>,
     /// The exact checksum at the end (compare two runs).
     pub checksum: u64,
     /// The recording, when one was requested.
@@ -307,6 +309,7 @@ impl ScenarioResult {
             "vars": self.vars.iter().map(|(n, v)| json!({"name": n, "value": v})).collect::<Vec<_>>(),
             "players": self.finals.iter().map(|(id, x, z, y)| json!({"id": id, "pos": [x, z], "foot_y": y})).collect::<Vec<_>>(),
             "props": self.props.iter().map(|p| json!({"id": p.id, "pos": [p.pos.x, p.pos.y, p.pos.z], "tilt_deg": p.tilt_deg, "moved": p.moved, "asleep": p.asleep, "held_by": p.held_by})).collect::<Vec<_>>(),
+            "pickup_misses": self.pickup_misses,
             "events": self.events.iter().map(|e| json!({"tick": e.tick, "rule": e.rule, "name": e.name, "player": e.slot})).collect::<Vec<_>>(),
             "checks": self.outcomes.iter().map(|o| json!({"label": o.label, "ok": o.ok, "detail": o.detail})).collect::<Vec<_>>(),
         })
@@ -328,6 +331,9 @@ impl ScenarioResult {
         if !self.events.is_empty() {
             let shown: Vec<String> = self.events.iter().take(12).map(|e| format!("{}@{}", e.name, e.tick)).collect();
             out.push_str(&format!("  events: {}{}\n", shown.join(", "), if self.events.len() > 12 { ", ..." } else { "" }));
+        }
+        for m in &self.pickup_misses {
+            out.push_str(&format!("  note: {m}\n"));
         }
         if !self.vars.is_empty() {
             out.push_str(&format!("  vars: {}\n", self.vars.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>().join(", ")));
@@ -908,9 +914,14 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
             }
         })
         .collect();
+    let pickup_misses = sim
+        .pickup_misses()
+        .iter()
+        .map(|(tick, slot, why)| format!("tick {tick}: {} could not pick anything up: {why}", player_id(*slot).unwrap_or_else(|| format!("slot {slot}"))))
+        .collect();
     let ticks = sim.tick();
     let trace = sim.take_trace();
-    Ok(ScenarioResult { name: scenario.name.clone(), passed, ticks, outcomes, events: history, vars, ended, finals, props, checksum, trace })
+    Ok(ScenarioResult { name: scenario.name.clone(), passed, ticks, outcomes, events: history, vars, ended, finals, props, pickup_misses, checksum, trace })
 }
 
 fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], history: &[GameEvent]) -> Outcome {
