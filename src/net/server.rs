@@ -412,7 +412,9 @@ impl Server {
                 cfg.level = level;
                 cfg.roster.iter_mut().for_each(|b| b.level = level);
             }
-            let free = (0..MAX_PLAYERS)
+            // A race has eight animals, one per slot 0..8: bots take the top of that range. Other modes fill from the top of all slots.
+            let top = if self.sim.race().is_some() { crate::sim::kart::Driver::ALL.len() } else { MAX_PLAYERS };
+            let free = (0..top)
                 .rev()
                 .find(|s| self.sim.player(*s).is_none() && !self.sessions.iter().any(|x| x.slot == *s) && !self.parked.iter().any(|p| p.slot == *s));
             let Some(slot) = free else { break };

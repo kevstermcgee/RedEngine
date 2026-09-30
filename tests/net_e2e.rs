@@ -301,8 +301,8 @@ fn the_server_rejects_the_wrong_map_and_a_full_match_and_survives_garbage() {
     }
     let _ = sock.send_to(&[0x44, 0x52, 1, 0, 2, 0xff, 0xff], server.addr); // right magic, nonsense body
 
-    // Fill the match (8 players), then a ninth is refused; a real client still plays fine.
-    let mut bots: Vec<Bot> = (0..8).map(|_| bot(server.addr, Character::Human, Behavior::Idle, 0)).collect();
+    // Fill the match (12 players), then a thirteenth is refused; a real client still plays fine.
+    let mut bots: Vec<Bot> = (0..12).map(|_| bot(server.addr, Character::Human, Behavior::Idle, 0)).collect();
     std::thread::scope(|s| {
         for b in bots.iter_mut() {
             s.spawn(move || run_bot(b, 1.0));
@@ -314,7 +314,7 @@ fn the_server_rejects_the_wrong_map_and_a_full_match_and_survives_garbage() {
     assert_eq!(ninth.client.state(), ConnState::Rejected(red_engine2::net::protocol::RejectReason::Full));
     let server = server.finish();
     assert!(server.stats().bad_packets >= 5, "garbage was counted, not crashed on: {}", server.stats().bad_packets);
-    assert_eq!(server.client_count(), 8);
+    assert_eq!(server.client_count(), 12);
 }
 
 // ---------------------------------------------------------------------------------------------
