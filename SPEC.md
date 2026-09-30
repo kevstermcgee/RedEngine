@@ -495,7 +495,7 @@ condition holds, and then **does** its actions:
   The argument is a bare id; a prop that is not loose (`movable: false`, a fixture) is a validate error.
 - **`do`** (in order): `{set: [var, value]}`, `{add: [var, n]}` (value/n is a number, bool or expression string), `{emit: name}`,
   `{hide: id}` / `{show: id}` (the standard single-player client omits that object tree from rendering),
-  `{collision: [top_level_id, bool]}` (enable/disable its authored static collision and standable surfaces),
+  `{collision: [top_level_id, bool]}` (enable/disable its authored static collision and standable surfaces **for players**: loose props keep colliding with the object, and a prop resting on it stays put: it is not woken),
   `{deactivate: top_level_id}` / `{activate: top_level_id}` (`hide` plus `collision: false`, and `show` plus `collision: true`, in one step: an opened door),
   `{teleport: [x,y,z] | spawn_id}` (the triggering player),
   `{end: outcome}` (the match ends; rules stop), `{impulse: {object, dir: [x,y,z], speed}}` (shove a loose prop),
