@@ -69,8 +69,9 @@ use fixed::add_static;
 pub const PROP_GRAVITY: f32 = 14.0;
 /// Density of every prop collider, kg/m^3 (furniture and clutter are mostly hollow or light).
 pub const PROP_DENSITY: f32 = 120.0;
-/// Props never move faster than this, m/s (a bat swing or a thrown-off crate stays sane).
-const MAX_SPEED: f32 = 14.0;
+/// Props never move faster than this, m/s (a bat swing or a thrown-off crate stays sane). `throw_speed` and rule `impulse` speeds above it
+/// are accepted but saturate here.
+pub const MAX_SPEED: f32 = 14.0;
 /// A prop that falls below this height (out of the map) is put back where it started.
 const KILL_Y: f32 = -30.0;
 

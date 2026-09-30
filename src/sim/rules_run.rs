@@ -107,7 +107,17 @@ impl World for Ctx<'_> {
             Func::Held => p.held_by.is_some() as u8 as f64,
             Func::Mass => p.mass as f64,
             Func::Moved => p.moved as f64,
-            Func::PropsIn => 0.0,
+            Func::PropsIn | Func::InZone => 0.0,
+        }
+    }
+
+    fn call2(&self, f: Func, prop: usize, zone: usize) -> f64 {
+        if f != Func::InZone {
+            return 0.0;
+        }
+        match (self.prop(prop), self.zones.get(zone)) {
+            (Some(p), Some(v)) => prop_inside(v, p) as u8 as f64,
+            _ => 0.0,
         }
     }
 }
@@ -356,6 +366,14 @@ impl RulesEngine {
                 }
                 Action::Show(o) => {
                     self.hidden.remove(o);
+                }
+                Action::Deactivate(o) => {
+                    self.hidden.insert(o.clone());
+                    self.collision_disabled.insert(o.clone());
+                }
+                Action::Activate(o) => {
+                    self.hidden.remove(o);
+                    self.collision_disabled.remove(o);
                 }
                 Action::Collision { object, enabled } => {
                     if *enabled {
@@ -677,6 +695,74 @@ mod tests {
             y.step(t, &p);
         }
         assert_eq!(x.checksum(), y.checksum(), "same inputs, same state");
+    }
+
+    #[test]
+    fn in_zone_tests_one_prop_while_props_in_counts_them_all() {
+        let mut refs = Refs::default();
+        refs.prop_ids.extend(["bell".to_string(), "crate".to_string()]);
+        refs.zones.insert("pan".into(), (Vec3::new(0.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 4.0)));
+        let set = parse_rules(
+            json!({"vars": {"mine": 0, "all": 0, "weighed": 0}, "rules": [
+                {"id": "look", "when": {"every": 0.5}, "do": [
+                    {"set": ["mine", "in_zone(crate, pan)"]},
+                    {"set": ["all", "props_in(pan)"]},
+                    {"set": ["weighed", "in_zone(crate, pan) * mass(crate) + in_zone(bell, pan) * mass(bell)"]}]}
+            ]})
+            .as_object()
+            .unwrap(),
+            &refs,
+        )
+        .unwrap();
+        let mut e = RulesEngine::new(set);
+        assert!(e.needs_props(), "in_zone reads the props");
+        e.bind_props(|id| match id {
+            "crate" => Some(0),
+            "bell" => Some(1),
+            _ => None,
+        });
+        let prop = |x: f32, z: f32, mass: f32| RuleProp {
+            origin: Vec3::new(x, 0.3, z),
+            height: 0.5,
+            tilt_deg: 0.0,
+            held_by: None,
+            mass,
+            moved: 0.0,
+            vel: Vec3::ZERO,
+        };
+        // Only the bell (mass 5) is on the pan: in_zone(crate) is 0, props_in counts 1, and the weighed sum is the bell alone.
+        e.step_props(30, &[], &[prop(9.0, 9.0, 20.0), prop(2.0, 2.0, 5.0)]);
+        assert_eq!((e.var("mine"), e.var("all"), e.var("weighed")), (Some(0.0), Some(1.0), Some(5.0)));
+        // The crate (mass 20) joins: both on the pan.
+        e.step_props(60, &[], &[prop(1.0, 1.0, 20.0), prop(2.0, 2.0, 5.0)]);
+        assert_eq!((e.var("mine"), e.var("all"), e.var("weighed")), (Some(1.0), Some(2.0), Some(25.0)));
+        // A bounce out of the pan is undone by the next reading: no bookkeeping to drift.
+        e.step_props(90, &[], &[prop(9.0, 9.0, 20.0), prop(2.0, 2.0, 5.0)]);
+        assert_eq!((e.var("mine"), e.var("weighed")), (Some(0.0), Some(5.0)));
+    }
+
+    #[test]
+    fn deactivate_hides_and_unblocks_in_one_step_and_activate_undoes_it() {
+        let mut refs = Refs::default();
+        refs.object_ids.insert("door".into());
+        refs.top_level_ids.insert("door".into());
+        let set = parse_rules(
+            json!({"vars": {"open": 0}, "rules": [
+                {"id": "open", "when": {"start": true}, "do": [{"deactivate": "door"}]},
+                {"id": "shut", "when": {"after": 1.0}, "do": [{"activate": "door"}]}
+            ]})
+            .as_object()
+            .unwrap(),
+            &refs,
+        )
+        .unwrap();
+        let mut e = RulesEngine::new(set);
+        e.step(1, &[]);
+        assert!(e.hidden().any(|h| h == "door") && e.collision_disabled().any(|h| h == "door"), "one action did both");
+        e.step(60, &[]);
+        assert!(!e.hidden().any(|h| h == "door") && !e.collision_disabled().any(|h| h == "door"), "activate put both back");
+        let bad = parse_rules(json!({"rules": [{"id": "x", "when": {"start": true}, "do": [{"deactivate": "dor"}]}]}).as_object().unwrap(), &refs);
+        assert!(bad.unwrap_err().iter().any(|m| m.contains("no top-level object `dor` — did you mean `door`?")), "a typo names the fix");
     }
 
     #[test]

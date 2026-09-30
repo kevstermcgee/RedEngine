@@ -491,10 +491,12 @@ condition holds, and then **does** its actions:
   `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`. Built-in functions read the loose props:
   `prop_y(id)` (origin height, m), `tilt(id)` (degrees from how the map placed it: 0 upright, ~90 on its side), `held(id)`
   (1 while carried), `mass(id)` (kg), `moved(id)` (metres from the authored spot), `props_in(zone)` (loose props inside a
-  zone). The argument is a bare id; a prop that is not loose (`movable: false`, a fixture) is a validate error.
+  zone), `in_zone(id, zone)` (1 when that one prop is inside the zone: a weighed pan is `in_zone(a, pan) * mass(a) + ...`).
+  The argument is a bare id; a prop that is not loose (`movable: false`, a fixture) is a validate error.
 - **`do`** (in order): `{set: [var, value]}`, `{add: [var, n]}` (value/n is a number, bool or expression string), `{emit: name}`,
   `{hide: id}` / `{show: id}` (the standard single-player client omits that object tree from rendering),
   `{collision: [top_level_id, bool]}` (enable/disable its authored static collision and standable surfaces),
+  `{deactivate: top_level_id}` / `{activate: top_level_id}` (`hide` plus `collision: false`, and `show` plus `collision: true`, in one step: an opened door),
   `{teleport: [x,y,z] | spawn_id}` (the triggering player),
   `{end: outcome}` (the match ends; rules stop), `{impulse: {object, dir: [x,y,z], speed}}` (shove a loose prop),
   `{reset: id | [ids] | {zone: id}}` (put loose props back where the map placed them, at rest; a carried one is taken from its

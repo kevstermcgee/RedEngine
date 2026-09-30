@@ -293,6 +293,16 @@ fn physics() -> Vec<(&'static str, String, &'static str)> {
             "touching a pad at its foot height applies its authored upward launch speed in the same deterministic step used online",
         ),
         (
+            "max_prop_speed_mps",
+            format!("{}", crate::physics::MAX_SPEED),
+            "no loose prop ever moves faster than this. `player.throw_speed` (schema range 0-30) and rule `impulse` speeds above it are accepted but saturate: 20 and 30 behave exactly like this cap. Plan a throw with the effective speed below",
+        ),
+        (
+            "prop_material",
+            "friction 0.7, restitution 0.2, damped".to_string(),
+            "every loose prop is ONE box collider with one density (mass = volume x 120 kg/m^3, see `info <id>`); a sphere or cylinder prop is a box collider too, so nothing rolls. Sliding friction removes about 7 m/s^2; a tall barrel tips instead of sliding; a crate thrown flat travels about 8 m from a 14 m/s release",
+        ),
+        (
             "release_velocity",
             "own velocity + throw_speed * look".to_string(),
             "a released prop leaves with the holder's horizontal AND vertical velocity plus `player.throw_speed` (default 1 m/s) along the look direction, pitch included: one function (sim::player::release_velocity) offline and on the server, so a sprint-and-release throw is the same game everywhere",

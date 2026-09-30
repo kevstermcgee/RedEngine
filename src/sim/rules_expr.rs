@@ -6,7 +6,7 @@
 //! Identifiers must be **declared variables** (or the built-ins `time`, `tick`, `players`): an unknown name is a
 //! parse error with a did-you-mean, which is how a typo in a rule is caught by `validate` instead of at play time.
 //! Built-in **functions** read the world: `prop_y(crate)`, `tilt(domino_3) > 60`, `held(parcel)`, `mass(barrel)`,
-//! `moved(bell)`, `props_in(pit)`; their argument is a loose prop's (or a zone's) id from the [`Scope`] the expression
+//! `moved(bell)`, `props_in(pit)`, `in_zone(crate, pit)`; their argument is a loose prop's (or a zone's) id from the [`Scope`] the expression
 //! is compiled in, and a [`World`] answers them at evaluation time (ADR 2026-09-29-prop-aware-rules-and-scenarios).
 
 use std::fmt;
@@ -26,6 +26,8 @@ pub enum Func {
     Moved,
     /// `props_in(zone)`: how many loose props are inside the zone.
     PropsIn,
+    /// `in_zone(prop, zone)`: 1 when that one loose prop is inside the zone, else 0.
+    InZone,
 }
 
 impl Func {
@@ -37,6 +39,7 @@ impl Func {
         ("mass", Func::Mass, "mass(id)        its mass, kg"),
         ("moved", Func::Moved, "moved(id)       metres its origin is from where the map put it"),
         ("props_in", Func::PropsIn, "props_in(zone)  how many loose props have their origin inside the zone"),
+        ("in_zone", Func::InZone, "in_zone(id, zone)  1 when that loose prop has its origin inside the zone (same test as props_in, for one prop)"),
     ];
 
     fn by_name(name: &str) -> Option<Func> {
@@ -51,6 +54,11 @@ impl Func {
     /// True when the argument is a zone id rather than a loose prop id.
     pub fn takes_zone(self) -> bool {
         matches!(self, Func::PropsIn)
+    }
+
+    /// True when the call names a loose prop and then a zone (`in_zone(prop, zone)`).
+    pub fn takes_prop_and_zone(self) -> bool {
+        matches!(self, Func::InZone)
     }
 }
 
@@ -69,6 +77,11 @@ pub struct Scope<'a> {
 pub trait World {
     /// The value of `f` for the prop or zone at `index`.
     fn call(&self, f: Func, index: usize) -> f64;
+
+    /// The value of the two-argument `f` (`in_zone`) for the prop at `prop` and the zone at `zone`; 0 by default.
+    fn call2(&self, _f: Func, _prop: usize, _zone: usize) -> f64 {
+        0.0
+    }
 }
 
 impl World for () {
@@ -123,6 +136,8 @@ pub enum Expr {
     Bin(Op, Box<Expr>, Box<Expr>),
     /// A built-in function of the prop (or zone) at this index of the [`Scope`] it was compiled in.
     Call(Func, usize),
+    /// A built-in of a prop and a zone (`in_zone`): the prop's index in the scope's props, then the zone's in its zones.
+    Call2(Func, usize, usize),
 }
 
 impl Expr {
@@ -137,6 +152,7 @@ impl Expr {
             Expr::Num(n) => *n,
             Expr::Var(i) => vars.get(*i).copied().unwrap_or(0.0),
             Expr::Call(f, i) => world.call(*f, *i),
+            Expr::Call2(f, p, z) => world.call2(*f, *p, *z),
             Expr::Neg(e) => -e.eval_in(vars, world),
             Expr::Not(e) => b(e.eval_in(vars, world) == 0.0),
             Expr::Bin(op, l, r) => {
@@ -191,7 +207,7 @@ impl Expr {
     pub fn reads_world(&self) -> bool {
         match self {
             Expr::Num(_) | Expr::Var(_) => false,
-            Expr::Call(..) => true,
+            Expr::Call(..) | Expr::Call2(..) => true,
             Expr::Neg(e) | Expr::Not(e) => e.reads_world(),
             Expr::Bin(_, l, r) => l.reads_world() || r.reads_world(),
         }
@@ -229,6 +245,7 @@ enum Tok {
     Not,
     LParen,
     RParen,
+    Comma,
 }
 
 fn lex(src: &str) -> Result<Vec<(Tok, usize)>, ParseError> {
@@ -279,6 +296,7 @@ fn lex(src: &str) -> Result<Vec<(Tok, usize)>, ParseError> {
                     '%' => (Tok::Op(Op::Rem), 1),
                     '!' => (Tok::Not, 1),
                     '(' => (Tok::LParen, 1),
+                    ',' => (Tok::Comma, 1),
                     ')' => (Tok::RParen, 1),
                     other => {
                         return Err(ParseError { message: format!("unexpected `{other}` (operators: || && == != < <= > >= + - * / % ! and parentheses)"), at })
@@ -384,6 +402,9 @@ impl Parser<'_> {
             return Err(ParseError { message: format!("`{name}(` needs a {} id, then `)`", if f.takes_zone() { "zone" } else { "loose prop" }), at: arg_at });
         };
         self.pos += 1;
+        if f.takes_prop_and_zone() {
+            return self.call_prop_and_zone(f, name, &arg, arg_at);
+        }
         if self.peek() != Some(&Tok::RParen) {
             return Err(ParseError { message: format!("missing `)` after `{name}({arg}`"), at: self.at() });
         }
@@ -399,6 +420,36 @@ impl Parser<'_> {
                 Err(ParseError { message: format!("`{name}({arg})`: no {kind} `{arg}`{hint} ({kind}s: {known})"), at: arg_at })
             }
         }
+    }
+}
+
+impl Parser<'_> {
+    /// `in_zone(prop` was read: parse `, zone )` and resolve both ids against the scope.
+    fn call_prop_and_zone(&mut self, f: Func, name: &str, prop: &str, prop_at: usize) -> Result<Expr, ParseError> {
+        if self.peek() != Some(&Tok::Comma) {
+            return Err(ParseError { message: format!("`{name}(` needs a loose prop id, a comma, then a zone id: `{name}({prop}, zone)`"), at: self.at() });
+        }
+        self.pos += 1;
+        let zone_at = self.at();
+        let Some(Tok::Ident(zone)) = self.toks.get(self.pos).map(|t| t.0.clone()) else {
+            return Err(ParseError { message: format!("`{name}({prop}, ` needs a zone id, then `)`"), at: zone_at });
+        };
+        self.pos += 1;
+        if self.peek() != Some(&Tok::RParen) {
+            return Err(ParseError { message: format!("missing `)` after `{name}({prop}, {zone}`"), at: self.at() });
+        }
+        self.pos += 1;
+        let lookup = |kind: &str, list: &[String], id: &str, at: usize| match list.iter().position(|n| n == id) {
+            Some(i) => Ok(i),
+            None => {
+                let hint = crate::prefabs::suggest(id, list.iter().map(String::as_str)).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
+                let known = if list.is_empty() { "none in this scene".to_string() } else { list.iter().take(12).map(String::as_str).collect::<Vec<_>>().join(", ") };
+                Err(ParseError { message: format!("`{name}({prop}, {zone})`: no {kind} `{id}`{hint} ({kind}s: {known})"), at })
+            }
+        };
+        let p = lookup("loose prop", self.scope.props, prop, prop_at)?;
+        let z = lookup("zone", self.scope.zones, &zone, zone_at)?;
+        Ok(Expr::Call2(f, p, z))
     }
 }
 
@@ -496,6 +547,10 @@ mod tests {
                 _ => 0.0,
             }
         }
+        fn call2(&self, f: Func, prop: usize, zone: usize) -> f64 {
+            // the crate (1) is in the pit (0); the bell (0) is not
+            if f == Func::InZone && prop == 1 && zone == 0 { 7.0 } else { 0.0 }
+        }
     }
 
     #[test]
@@ -511,6 +566,10 @@ mod tests {
         assert_eq!(e("prop_y(crate)").eval(&[0.0; 3]), 0.0, "without a world every call reads as 0");
         assert!(e("prop_y(crate) < 0").reads_world() && !e("score > 1").reads_world());
         assert_eq!(e("prop_y(crate)"), Expr::Call(Func::PropY, 1));
+        assert_eq!(e("in_zone(crate, pit)"), Expr::Call2(Func::InZone, 1, 0));
+        assert_eq!(e("3 * in_zone(bell, pit) + 1").eval_in(&[0.0; 3], &Fake), 1.0, "bell is not in the pit");
+        assert_eq!(e("2 * in_zone(crate, pit)").eval_in(&[0.0; 3], &Fake), 14.0);
+        assert!(e("in_zone(crate, pit)").reads_world());
     }
 
     #[test]
@@ -524,6 +583,10 @@ mod tests {
         assert!(err("tilted(bell)").contains("unknown function `tilted` — did you mean `tilt`?"), "{}", err("tilted(bell)"));
         assert!(err("tilt(bell").contains("missing `)`"), "{}", err("tilt(bell"));
         assert!(err("tilt()").contains("needs a loose prop id"), "{}", err("tilt()"));
+        assert!(err("in_zone(bel, pit)").contains("no loose prop `bel` — did you mean `bell`?"), "{}", err("in_zone(bel, pit)"));
+        assert!(err("in_zone(bell, bell)").contains("no zone `bell`"), "{}", err("in_zone(bell, bell)"));
+        assert!(err("in_zone(bell)").contains("a comma, then a zone id"), "{}", err("in_zone(bell)"));
+        assert!(err("in_zone(bell, pit").contains("missing `)`"), "{}", err("in_zone(bell, pit"));
         assert!(parse("prop_y(bell)", &names()).unwrap_err().message.contains("none in this scene"), "no scope: nothing to call");
     }
 }

@@ -24,7 +24,7 @@
 //!
 //! Rules see **loose props** too (ADR 2026-09-29-prop-aware-rules-and-scenarios): triggers `{prop_enter: VOLUME}` /
 //! `{prop_exit: VOLUME}` (any loose prop, or one named by `prop: id` next to it) and `{prop_below: [id, y]}`, and the
-//! expression built-ins `prop_y(id)`, `tilt(id)`, `held(id)`, `mass(id)`, `moved(id)`, `props_in(zone)` in `if` and values.
+//! expression built-ins `prop_y(id)`, `tilt(id)`, `held(id)`, `mass(id)`, `moved(id)`, `props_in(zone)`, `in_zone(id, zone)` in `if` and values.
 
 use super::clock::secs_to_ticks;
 use super::rules_expr::{self, Expr, Op, Scope};
@@ -50,9 +50,11 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("hide", "object_id    mark an object hidden (state only: renderers/clients decide what that means)"),
     ("show", "object_id    the opposite of hide"),
     ("collision", "[object_id, bool]   enable/disable a top-level object's collision"),
+    ("deactivate", "object_id    hide a top-level object AND turn its collision off (an opened door, a dropped forcefield)"),
+    ("activate", "object_id    the opposite of deactivate: show it and turn its collision back on"),
     ("teleport", "[x,y,z] | spawn_id   move the player that triggered the rule"),
     ("end", "reason        end the match with this outcome; rules stop firing"),
-    ("impulse", "{object, dir:[x,y,z], speed}   shove a loose prop (a physics prop), speed in m/s"),
+    ("impulse", "{object, dir:[x,y,z], speed}   shove a loose prop (a physics prop), speed in m/s (props never exceed 14 m/s, so a larger speed saturates)"),
     ("reset", "id | [ids] | {zone: id}   put loose props back where the map placed them, at rest (a carried one is taken from its holder)"),
     ("place", "[id, [x,y,z]]   move a loose prop's origin to a point, upright as authored, at rest"),
 ];
@@ -181,6 +183,10 @@ pub enum Action {
     Emit(String),
     /// Mark an object hidden.
     Hide(String),
+    /// `hide` and `collision: false` in one step.
+    Deactivate(String),
+    /// `show` and `collision: true` in one step.
+    Activate(String),
     /// Mark an object shown.
     Show(String),
     /// Enable or disable a top-level object's collision.
@@ -593,6 +599,14 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                 return None;
             }
             Some(if key.as_str() == "hide" { Action::Hide(id.to_string()) } else { Action::Show(id.to_string()) })
+        }
+        "deactivate" | "activate" => {
+            let id = val.as_str().unwrap_or("");
+            if !refs.top_level_ids.contains(id) {
+                errs.push(format!("{sub}: no top-level object `{id}`{}", near(id, refs.top_level_ids.iter().cloned())));
+                return None;
+            }
+            Some(if key.as_str() == "deactivate" { Action::Deactivate(id.to_string()) } else { Action::Activate(id.to_string()) })
         }
         "collision" => {
             let Some(pair) = pair() else {
