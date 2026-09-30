@@ -183,6 +183,7 @@ fn net_codec(c: &mut Criterion) {
     };
     use red_engine2::sim::player::PlayerInput;
     let snap = Snapshot {
+        arena: None,
         seq: 1,
         server_tick: 1,
         ack_input_seq: 1,
@@ -204,6 +205,7 @@ fn net_codec(c: &mut Criterion) {
                 held: NO_PROP,
                 hp: 100,
                 shots: 0,
+                extra: 0,
                 kart: None
             };
             MAX_PLAYERS_PER_SNAPSHOT

@@ -159,8 +159,8 @@ impl MatchSettings {
             }
         };
         if let Some(n) = num("min_players")? {
-            if !(1.0..=8.0).contains(&n) {
-                return Err("match.min_players: must be 1..8 (a match holds at most 8 players)".to_string());
+            if !(1.0..=12.0).contains(&n) {
+                return Err("match.min_players: must be 1..12 (a match holds at most 12 players)".to_string());
             }
             s.min_players = n as u8;
         }
@@ -479,7 +479,7 @@ mod tests {
         assert_eq!((s.min_players, s.round_secs, s.score_to_win, s.countdown_secs), (2, 90.0, 5, 5.0));
         let e = MatchSettings::from_scene_text(r#"{"match":{"min_player":2}}"#).unwrap_err();
         assert!(e.contains("min_player") && e.contains("min_players"), "{e}");
-        assert!(MatchSettings::from_scene_text(r#"{"match":{"min_players":9}}"#).is_err());
+        assert!(MatchSettings::from_scene_text(r#"{"match":{"min_players":13}}"#).is_err());
         assert!(MatchSettings::from_scene_text(r#"{"match":{"round_secs":-1}}"#).is_err());
         assert!(MatchSettings::from_scene_text(r#"{"match":{"ready_check":"yes"}}"#).is_err());
         assert!(MatchSettings::from_scene_text(r#"{"match":[]}"#).is_err());

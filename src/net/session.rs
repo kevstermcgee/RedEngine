@@ -64,7 +64,18 @@ pub fn avatar_plan(scene: &Scene) -> AvatarPlan {
         bot_bodies[body_index(bots.spec(k).character)] += 1;
     }
     let (mut pool, mut needed) = ([0usize; 8], [0usize; 8]);
+    let team_match = scene.shooter.is_some();
     for (i, who) in Character::ALL.iter().enumerate() {
+        // A team match shows soldiers only (one uniform per team); every other match never draws one.
+        let soldier = matches!(who, Character::Ridgeback | Character::Nightfall);
+        if soldier != team_match {
+            continue;
+        }
+        if soldier {
+            pool[i] = crate::sim::shooter::MAX_TEAM + 1;
+            needed[i] = crate::sim::shooter::MAX_TEAM;
+            continue;
+        }
         let human = forced.is_none_or(|f| f == *who);
         pool[i] = if human { MAX_PLAYERS_PER_SNAPSHOT } else { bot_bodies[i].max(if bots.fill > 0 && *who != Character::Rat { BOT_BODY_POOL } else { 0 }) };
         needed[i] = (bot_bodies[i] + if human { MAX_PLAYERS_PER_SNAPSHOT - 1 } else { 0 }).min(MAX_PLAYERS_PER_SNAPSHOT - 1);
@@ -912,16 +923,16 @@ mod tests {
         };
         let n = MAX_PLAYERS_PER_SNAPSHOT;
         // [Human, Rat, Wizard, Cowboy, Alien, Robot]
-        assert_eq!(pool(None, false), [n; 6], "nobody is forced: any body can turn up");
-        assert_eq!(pool(Some("human"), false), [n, 0, 0, 0, 0, 0], "everybody is a Human and there are no bots: one body is enough");
+        assert_eq!(pool(None, false), [n, n, n, n, n, n, 0, 0], "nobody is forced: any body can turn up");
+        assert_eq!(pool(Some("human"), false), [n, 0, 0, 0, 0, 0, 0, 0], "everybody is a Human and there are no bots: one body is enough");
         assert_eq!(
             pool(Some("human"), true),
-            [n, 0, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL],
+            [n, 0, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0],
             "bots wear the fighting bodies, never the rat"
         );
         assert_eq!(
             pool(Some("rat"), true),
-            [BOT_BODY_POOL, n, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL],
+            [BOT_BODY_POOL, n, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0],
             "a rat game's bots still fight as people"
         );
     }
@@ -944,8 +955,8 @@ mod tests {
         assert!(plan.short().is_empty(), "the pool always covers what the scene needs: {:?}", plan.short());
         // No bots, nothing forced: humans can be anything.
         let open = avatar_plan(&scene_with(None, None));
-        assert_eq!(open.pool, [MAX_PLAYERS_PER_SNAPSHOT; 6]);
-        assert_eq!(open.needed, [MAX_PLAYERS_PER_SNAPSHOT - 1; 6]);
+        assert_eq!(open.pool, [MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, MAX_PLAYERS_PER_SNAPSHOT, 0, 0]);
+        assert_eq!(open.needed, [MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, MAX_PLAYERS_PER_SNAPSHOT - 1, 0, 0]);
     }
 
     /// A session with no server, for driving `apply_view` with views made by hand.
@@ -1068,6 +1079,7 @@ mod tests {
             held: crate::net::protocol::NO_PROP,
             hp: 100,
             shots: 0,
+            extra: 0,
             kart: Some(snap),
         });
         let mut predictor = Predictor::new(PlayerState::spawn(1.0, 2.0, 0.0, 90.0, Character::Human));
@@ -1101,7 +1113,7 @@ mod tests {
     }
 
     fn roster_entry(id: u8, in_round: bool) -> RosterEntry {
-        RosterEntry { id, flags: if in_round { ROSTER_IN_ROUND } else { 0 }, character: 0, ping_ms: 0, score: 0, name: format!("p{id}") }
+        RosterEntry { id, team: 0, flags: if in_round { ROSTER_IN_ROUND } else { 0 }, character: 0, ping_ms: 0, score: 0, name: format!("p{id}") }
     }
 
     #[test]
@@ -1115,7 +1127,7 @@ mod tests {
         assert_eq!(visible_avatars(&scene).len(), 1, "only the player who could be dressed is on screen: {}", visible_avatars(&scene).len());
         let warnings = session.take_warnings();
         assert_eq!(warnings.len(), 1, "one warning, in words: {warnings:?}");
-        assert!(warnings[0].contains("player 2") && warnings[0].contains("INVISIBLE") && warnings[0].contains("Human x8"), "{}", warnings[0]);
+        assert!(warnings[0].contains("player 2") && warnings[0].contains("INVISIBLE") && warnings[0].contains("Human x12"), "{}", warnings[0]);
         session.apply_view(&view, 2, None, &mut scene, 0.016, 0.0);
         assert!(session.take_warnings().is_empty(), "not repeated every frame");
         let c = session.counters();

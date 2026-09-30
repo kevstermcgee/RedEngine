@@ -33,6 +33,8 @@ pub(super) struct Session {
     /// `0` human, `1` rat: what the player asked for (used at the next spawn).
     pub character: u8,
     pub ready: bool,
+    /// The team the player is on in a team match (`1` or `2`; `0` in a match without teams).
+    pub team: u8,
     /// Whether the player has a body in the running world.
     pub in_round: bool,
     /// The newest round whose `Welcome` the client has applied.
@@ -77,6 +79,7 @@ impl Session {
             name,
             character,
             ready: false,
+            team: 0,
             in_round: false,
             round_ack: 0,
             rtt_ms: 0,
@@ -106,6 +109,8 @@ impl Session {
 pub(super) struct Parked {
     pub token: u64,
     pub slot: usize,
+    /// The team the player was on (`0` in a match without teams).
+    pub team: u8,
     /// Where the player stood (`None` if they had no body: they were in the lobby).
     pub state: Option<PlayerState>,
     /// The round `state` belongs to: resuming into a different round spawns fresh.

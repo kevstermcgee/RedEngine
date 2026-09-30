@@ -193,6 +193,8 @@ pub struct NetClient {
     last_reconnect: Option<Instant>,
     server: SocketAddr,
     character: u8,
+    /// The team we ask for (`0` = whichever has room).
+    team: u8,
     map_hash: u32,
     name: String,
     join_key: Option<String>,
@@ -270,6 +272,7 @@ impl NetClient {
             last_reconnect: None,
             server: cfg.server,
             character: cfg.character.min(MAX_CHOICE),
+            team: 0,
             map_hash: cfg.map_hash,
             name: sanitize_name(&cfg.name),
             join_key: cfg.join_key.filter(|k| !k.is_empty()),
@@ -395,6 +398,20 @@ impl NetClient {
         self.character
     }
 
+    /// The team we ask for (`0` = whichever has room). The server's answer is our roster entry's team.
+    pub fn team(&self) -> u8 {
+        self.team
+    }
+
+    /// Asks for a team (`1` or `2`; `0` for whichever has room) for the next round; repeated to the server until it shows in the roster. Sent at once.
+    pub fn set_team(&mut self, team: u8, now: Instant) {
+        let team = team.min(2);
+        if self.team != team {
+            self.team = team;
+            self.send_lobby(now);
+        }
+    }
+
     /// Whether we asked to be ready.
     pub fn is_ready(&self) -> bool {
         self.ready
@@ -496,6 +513,7 @@ impl NetClient {
         let l = LobbyCmd {
             ready: self.ready,
             character: self.character,
+            team: self.team,
             round_ack: self.round_ack,
             client_time_ms: now.duration_since(self.started).as_millis() as u32,
             rtt_ms: self.stats.rtt_ms.min(9_999.0) as u16,

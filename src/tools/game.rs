@@ -627,7 +627,7 @@ mod tests {
         let roster = r#"{"fill":8,"roster":[{"name":"Cow","character":"cowboy"},{"name":"Wiz","character":"wizard"},{"name":"Ali","character":"alien"},{"name":"Rob","character":"robot"}]}"#;
         let line = avatar_line("arena.json", &arena_text(roster)).expect("a map with bots is played online");
         assert!(!line.failed, "{}", line.text);
-        assert!(line.text.contains("Cowboy x4") && line.text.contains("Robot x4") && line.text.contains("Human x8"), "{}", line.text);
+        assert!(line.text.contains("Cowboy x4") && line.text.contains("Robot x4") && line.text.contains("Human x12"), "{}", line.text);
         // A map nobody plays online (no bots, no spawn points) is not this check's business.
         let quiet = r#"{"camera":{"position":[0,1.7,0]},"objects":[]}"#;
         assert!(avatar_line("quiet.json", quiet).is_none());

@@ -114,6 +114,8 @@ pub struct Kit {
     pub busy: u16,
     /// Ticks until a melee strike lands (`0` = none under way).
     pub strike_in: u16,
+    /// Ticks left of the melee swing being animated (`0` = not swinging).
+    pub swing: u16,
     /// A grenade being thrown: `(which, underhand, ticks until release)`.
     pub throwing: Option<(Weapon, bool, u16)>,
     /// How much the last shots have spoiled the aim, 0..1.
@@ -145,6 +147,7 @@ impl Kit {
             reload_left: 0,
             busy: DRAW_TICKS,
             strike_in: 0,
+            swing: 0,
             throwing: None,
             heat: 0.0,
             aiming: false,
@@ -209,6 +212,11 @@ impl Kit {
         self.reload_left > 0
     }
 
+    /// Whether a melee swing is under way (for the animation).
+    pub fn swinging(&self) -> bool {
+        self.swing > 0
+    }
+
     fn select(&mut self, slot: Slot) -> bool {
         if slot == self.sel || self.weapon_at(slot).is_none() {
             return false;
@@ -217,6 +225,7 @@ impl Kit {
         self.sel = slot;
         self.reload_left = 0;
         self.strike_in = 0;
+        self.swing = 0;
         self.throwing = None;
         self.busy = DRAW_TICKS;
         self.heat = 0.0;
@@ -409,6 +418,7 @@ impl MatchSim {
                     return;
                 }
                 kit.busy = spec.cooldown_ticks() as u16;
+                kit.swing = spec.cooldown_ticks().min(24) as u16;
                 kit.strike_in = secs_to_ticks(MELEE_WINDUP_SECS).max(2) as u16;
                 self.rules.inject(self.tick, "swing", Some(slot));
             }
@@ -532,6 +542,7 @@ impl MatchSim {
         }
         let Some(kit) = p.combat.kit.as_mut() else { return };
         kit.busy = kit.busy.saturating_sub(1);
+        kit.swing = kit.swing.saturating_sub(1);
         kit.heat = (kit.heat - 1.6 * TICK_DT).max(0.0);
         if kit.reload_left > 0 {
             kit.reload_left -= 1;

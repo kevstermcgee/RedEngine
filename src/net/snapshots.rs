@@ -7,7 +7,10 @@
 //! management cheap and exact: a prop that changed while out of earshot is simply still "unconfirmed" when the client walks
 //! into the room, and is sent then; nothing is ever sent twice once acknowledged.
 
-use super::protocol::{character_to_wire, Feedback, KartSnap, PlayerSnap, PropSnap, FLAG_PROTECTED, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROPS_PER_SNAPSHOT, NO_PROP};
+use super::protocol::{
+    character_to_wire, ArenaSnap, DroppedSnap, Feedback, FxSnap, KartSnap, OwnKit, PlayerSnap, ProjSnap, PropSnap, ZoneSnap, FLAG_PROTECTED, MAX_DROPPED_SNAP, MAX_FX_SNAP,
+    MAX_PLAYERS_PER_SNAPSHOT, MAX_PROJ_SNAP, MAX_PROPS_PER_SNAPSHOT, MAX_ZONE_SNAP, NO_PROP, PICKUP_MASK_BYTES,
+};
 use crate::sim::change::Generation;
 use crate::sim::interest::InterestMap;
 use crate::sim::match_sim::MatchSim;
@@ -21,7 +24,7 @@ pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
         id: slot as u8,
         character: character_to_wire(p.state.character),
         flags: (p.crouching as u8)
-            | ((p.combat.is_swinging() as u8) << 1)
+            | (((p.combat.is_swinging() || p.combat.kit.as_ref().is_some_and(|k| k.swinging())) as u8) << 1)
             | ((p.combat.is_dead() as u8) << 2)
             | if sim.tick() < p.combat.protected_until { FLAG_PROTECTED } else { 0 },
         pos: [p.state.pos.x, p.state.foot_y, p.state.pos.y],
@@ -34,6 +37,16 @@ pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
         held: sim.props().held_by(slot).map_or(NO_PROP, |h| h as u16),
         hp: p.combat.hp.min(255) as u8,
         shots: p.combat.shots as u8,
+        extra: match &p.combat.kit {
+            Some(k) => {
+                (p.team & 3)
+                    | ((k.aiming as u8) << 2)
+                    | ((k.reloading() as u8) << 3)
+                    | ((k.throwing.is_some() as u8) << 4)
+                    | (((sim.tick() < p.combat.flash_until) as u8) << 5)
+            }
+            None => 0,
+        },
         kart: sim.race().map(|race| {
             let k = sim.kart(slot).copied().unwrap_or_default();
             let progress = race.progress(slot).unwrap_or(crate::sim::race::Progress { lap: 0, next: 1, finished_at: None });
@@ -123,4 +136,64 @@ pub fn props_to_send(
         out.push(PropSnap { id: sim.props().prop_of_entity(slot) as u16, pos: t.position.to_array(), rot: t.rotation.to_array() });
         sent.push((slot, entities.transforms.changed_at(slot)));
     }
+}
+
+/// The loadout match's world for `viewer`: their own kit, which map pickups are there, what lies dropped, flies, burns or just went off.
+pub(super) fn arena_snap(sim: &MatchSim, viewer: usize) -> Option<ArenaSnap> {
+    let arena = sim.arena()?;
+    let now = sim.tick();
+    let own = sim.player(viewer).and_then(|p| {
+        let kit = p.combat.kit.as_ref()?;
+        let gun = |i: usize| kit.guns[i].map_or((0, 0, 0), |g| (g.weapon.wire() + 1, g.loaded, g.reserve));
+        let (killed_by, killed_weapon, killed_head) = match p.combat.killed_by {
+            Some((by, w, head)) if p.combat.is_dead() => (by, w.wire(), head),
+            _ => (255, 0, false),
+        };
+        Some(OwnKit {
+            sel: kit.sel.to_wire(),
+            guns: [gun(0), gun(1)],
+            melee: kit.melee.wire(),
+            grenades: [kit.grenades[0].map_or(0, |w| w.wire() + 1), kit.grenades[1].map_or(0, |w| w.wire() + 1)],
+            reload_left: kit.reload_left,
+            busy: kit.busy,
+            flash_left: p.combat.flash_until.saturating_sub(now).min(u16::MAX as u64) as u16,
+            flash_total: (p.combat.flash_total * 10.0).round().clamp(0.0, 255.0) as u8,
+            killed_by,
+            killed_weapon,
+            killed_head,
+            headshots: p.combat.headshots as u8,
+            team: p.team,
+        })
+    });
+    let mut pickups = [0u8; PICKUP_MASK_BYTES];
+    for (i, m) in arena.pickups.iter().enumerate().take(PICKUP_MASK_BYTES * 8) {
+        if m.taken_until.is_none() {
+            pickups[i / 8] |= 1 << (i % 8);
+        }
+    }
+    Some(ArenaSnap {
+        own,
+        team_kills: [arena.team_kills[0].min(u16::MAX as u32) as u16, arena.team_kills[1].min(u16::MAX as u32) as u16],
+        pickups,
+        dropped: arena.dropped.iter().take(MAX_DROPPED_SNAP).map(|d| DroppedSnap { id: d.id, weapon: d.weapon.wire(), pos: d.pos.to_array() }).collect(),
+        projectiles: arena
+            .projectiles
+            .iter()
+            .take(MAX_PROJ_SNAP)
+            .map(|p| ProjSnap { id: p.id, weapon: p.weapon.wire(), pos: p.pos.to_array(), vel: p.vel.to_array() })
+            .collect(),
+        zones: arena
+            .zones
+            .iter()
+            .take(MAX_ZONE_SNAP)
+            .map(|z| ZoneSnap {
+                id: z.id,
+                kind: (z.kind == crate::sim::ordnance::ZoneKind::Fire) as u8,
+                pos: z.pos.to_array(),
+                radius_dm: (z.radius * 10.0).round().clamp(0.0, 255.0) as u8,
+                left_ticks: z.until.saturating_sub(now).min(u16::MAX as u64) as u16,
+            })
+            .collect(),
+        fx: arena.fx.iter().rev().take(MAX_FX_SNAP).rev().map(|f| FxSnap { id: f.id, kind: f.kind.to_wire(), pos: f.pos.to_array(), size_dm: (f.size * 10.0).round().clamp(0.0, 255.0) as u8 }).collect(),
+    })
 }

@@ -30,6 +30,7 @@ use super::interact::{RayHit, RayTarget};
 use super::match_sim::{MatchSim, ServerPlayer, MAX_PLAYERS};
 use super::player::{step_player_tuned, PlayerInput, PlayerState};
 use crate::player::{Character, FIXED_DT};
+use crate::weapons::Weapon;
 use crate::strict::check_keys;
 use glam::{Vec2, Vec3};
 use serde_json::{Map, Value};
@@ -323,6 +324,11 @@ pub struct Brain {
     last_want: Vec2,
     /// The path being followed along the scene's nav graph.
     route: Route,
+    // loadout matches: choosing weapons, throwing grenades, going for pickups
+    select_until: u64,
+    nade_until: u64,
+    pickup_goal: Option<Vec3>,
+    pickup_until: u64,
 }
 
 impl Brain {
@@ -360,6 +366,10 @@ impl Brain {
             escape: Vec2::ZERO,
             last_want: Vec2::ZERO,
             route: Route::default(),
+            select_until: 0,
+            nade_until: 0,
+            pickup_goal: None,
+            pickup_until: 0,
         }
     }
 
@@ -438,7 +448,134 @@ impl Brain {
         input.yaw = self.aim_yaw + self.bias.x;
         input.pitch = (self.aim_pitch + self.bias.y).clamp(-1.5, 1.5);
         self.movement(sim, slot, me, now, &profile, &mut input);
+        self.kit_management(sim, me, now, &mut input);
         input
+    }
+
+    // ---- loadout matches: weapons, grenades, pickups ---------------------------------------------------------------------------
+
+    /// Chooses the weapon to hold, aims down the sights at range, throws grenades at people it can see, and never shoots blind.
+    fn kit_management(&mut self, sim: &MatchSim, me: &ServerPlayer, now: u64, input: &mut PlayerInput) {
+        let Some(kit) = me.combat.kit.as_ref() else { return };
+        if me.combat.flash_until > now {
+            input.attack = false; // blinded: no shooting at nothing
+            input.aim = false;
+            return;
+        }
+        let target = self.target.filter(|_| self.target_visible).and_then(|t| sim.player(t));
+        let dist = target.map(|p| (p.state.pos - me.state.pos).length());
+        let current = kit.current();
+        // Aim down the sights at range, except with weapons that do not gain from it.
+        if let Some(d) = dist {
+            input.aim = current.is_gun() && d > 13.0 && !matches!(current.class(), crate::arsenal::Class::Shotgun | crate::arsenal::Class::Launcher);
+        }
+        // Grenades: a lob at an enemy that is in sight and not too close.
+        if kit.grenade_count() > 0 {
+            if now >= self.nade_until && target.is_some() && dist.is_some_and(|d| (8.0..28.0).contains(&d)) && self.rng.chance(0.0012) {
+                self.nade_until = now + secs(0.9);
+            }
+            if now < self.nade_until {
+                if current.is_grenade() {
+                    if let Some(d) = dist {
+                        input.pitch = (input.pitch + 0.16 + d * 0.0065).clamp(-1.4, 1.4);
+                    }
+                    input.attack = kit.busy == 0 && kit.throwing.is_none();
+                    input.aim = false;
+                    return;
+                }
+                if now >= self.select_until {
+                    input.select = 4;
+                    self.select_until = now + 12;
+                }
+                return;
+            }
+        }
+        if now < self.select_until {
+            return;
+        }
+        // Which gun to hold: one with ammunition; the one whose range suits the fight; the melee weapon when both are dry.
+        let usable = |i: usize| kit.guns[i].filter(|g| g.loaded > 0 || g.reserve > 0 || kit.sel == crate::sim::kit::Slot::Gun(i as u8));
+        let score = |i: usize| -> Option<f32> {
+            let g = usable(i)?;
+            let p = WeaponProfile::of(g.weapon);
+            let have_rounds = if g.loaded > 0 { 0.0 } else { 40.0 };
+            let fit = match dist {
+                Some(d) => (p.ideal - d).abs().min(60.0),
+                None => -(g.weapon.kit().damage as f32) * 0.1,
+            };
+            Some(fit + have_rounds)
+        };
+        let best = (0..2).filter_map(|i| score(i).map(|s| (i, s))).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| i);
+        let want = match best {
+            Some(i) => crate::sim::kit::Slot::Gun(i as u8),
+            None => crate::sim::kit::Slot::Melee,
+        };
+        // A reload in progress is not thrown away for a marginal gain.
+        let reloading_useful = kit.reloading() && dist.is_none();
+        if want != kit.sel && !reloading_useful && !(current.is_gun() && kit.gun().is_some_and(|g| g.loaded > 0) && dist.is_some_and(|d| d < 35.0)) {
+            input.select = match want {
+                crate::sim::kit::Slot::Gun(i) => 1 + i,
+                _ => 3,
+            };
+            self.select_until = now + 30;
+        }
+        // Top up between fights.
+        if dist.is_none() && current.is_gun() && kit.gun().is_some_and(|g| g.loaded * 2 < g.weapon.kit().mag && g.reserve > 0) {
+            input.reload = self.seq.is_multiple_of(2);
+        }
+    }
+
+    /// The nearest weapon worth walking to: better than anything the bot holds, or fitting an empty slot.
+    fn pickup_goal(&mut self, sim: &MatchSim, me: &ServerPlayer, now: u64) -> Option<Vec3> {
+        let kit = me.combat.kit.as_ref()?;
+        let arena = sim.arena()?;
+        if now < self.pickup_until {
+            return self.pickup_goal;
+        }
+        self.pickup_until = now + secs(2.0);
+        let held: f32 = kit.guns.iter().flatten().map(|g| weapon_value(g.weapon)).fold(0.0, f32::max);
+        let free_gun = kit.guns.iter().any(Option::is_none);
+        let free_nade = kit.grenade_count() < crate::sim::kit::MAX_GRENADES;
+        let low_ammo = kit.guns.iter().flatten().any(|g| g.reserve < g.weapon.kit().mag);
+        let here = Vec3::new(me.state.pos.x, me.state.foot_y, me.state.pos.y);
+        let mut best: Option<(f32, Vec3)> = None;
+        let mut consider = |weapon: Option<Weapon>, pos: Vec3| {
+            let value = match weapon {
+                None => {
+                    if !low_ammo {
+                        return;
+                    }
+                    5.5
+                }
+                Some(w) if w.is_melee() => return,
+                Some(w) if w.is_grenade() => {
+                    if !free_nade {
+                        return;
+                    }
+                    4.0
+                }
+                Some(w) => {
+                    let v = weapon_value(w);
+                    if !(free_gun || v > held + 0.5) {
+                        return;
+                    }
+                    v
+                }
+            };
+            let d = (pos - here).length();
+            let score = value * 10.0 - d * 0.35;
+            if d < 70.0 && best.is_none_or(|b| score > b.0) {
+                best = Some((score, pos));
+            }
+        };
+        for m in arena.pickups.iter().filter(|m| m.taken_until.is_none()) {
+            consider(m.spawn.weapon, m.spawn.at);
+        }
+        for d in &arena.dropped {
+            consider(Some(d.weapon), d.pos);
+        }
+        self.pickup_goal = best.map(|b| b.1);
+        self.pickup_goal
     }
 
     // ---- perception -------------------------------------------------------------------------------------------------------------
@@ -451,8 +588,9 @@ impl Brain {
         let memory_ticks = secs(self.skill.memory_secs);
         let mut best: Option<(usize, f32)> = None;
         let mut current_visible = false;
+        let my_team = sim.team_of(slot);
         for (s, p) in sim.players() {
-            if s == slot || p.combat.is_dead() {
+            if s == slot || p.combat.is_dead() || (my_team != 0 && p.team == my_team) {
                 self.memory[s] = None;
                 continue;
             }
@@ -496,7 +634,7 @@ impl Brain {
         if hurt && !self.target_visible {
             let nearest = sim
                 .players()
-                .filter(|(s, p)| *s != slot && !p.combat.is_dead())
+                .filter(|(s, p)| *s != slot && !p.combat.is_dead() && (my_team == 0 || p.team != my_team))
                 .map(|(s, p)| (s, Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y)))
                 .min_by(|a, b| (a.1 - eye).length_squared().total_cmp(&(b.1 - eye).length_squared()));
             if let Some((s, pos)) = nearest {
@@ -659,6 +797,15 @@ impl Brain {
                     }
                 }
             }
+        } else if let Some(goal) = self.pickup_goal(sim, me, now).filter(|_| me.combat.kit.is_some()) {
+            let to = Vec2::new(goal.x - pos.x, goal.z - pos.y);
+            if let Some(nav) = sim.nav() {
+                steer = self.route.steer(nav, &me.state, grounded, goal, now);
+            }
+            want = steer.map_or_else(|| to.normalize_or_zero(), |s| s.dir);
+            if to.length() < 0.6 {
+                self.pickup_until = 0;
+            }
         } else if let Some(goal) = self.hunt_target(sim, slot, me, now) {
             let to = Vec2::new(goal.x - pos.x, goal.z - pos.y);
             if to.length() > 1.5 || (goal.y - me.state.foot_y).abs() > 1.5 {
@@ -738,9 +885,10 @@ impl Brain {
         }
         if self.hunt_goal.is_none() || now >= self.hunt_until {
             let here = Vec3::new(me.state.pos.x, me.state.foot_y, me.state.pos.y);
+            let my_team = sim.team_of(slot);
             let mut enemies: Vec<(f32, Vec3)> = sim
                 .players()
-                .filter(|(s, p)| *s != slot && !p.combat.is_dead())
+                .filter(|(s, p)| *s != slot && !p.combat.is_dead() && (my_team == 0 || p.team != my_team))
                 .map(|(_, p)| {
                     let at = Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y);
                     ((at - here).length(), at)
@@ -791,6 +939,23 @@ impl Brain {
     }
 }
 
+/// How much a bot wants a gun (a rough tier list: rifles and marksman guns over SMGs over pistols).
+fn weapon_value(w: Weapon) -> f32 {
+    use crate::arsenal::Class;
+    let k = w.kit();
+    match k.class {
+        Class::Rifle => 9.0 + k.damage as f32 * 0.02,
+        Class::Marksman => 8.5,
+        Class::Sniper => 8.0 + k.damage as f32 * 0.01,
+        Class::Lmg => 7.5,
+        Class::Smg => 7.0,
+        Class::Shotgun => 6.0,
+        Class::Launcher => 6.5,
+        Class::Pistol => 3.0 + k.damage as f32 * 0.02,
+        _ => 0.0,
+    }
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------------
 // MatchSim: adding, naming and running bots
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -804,6 +969,20 @@ impl MatchSim {
 
     /// Adds a bot in exactly `slot`; `false` when the slot is taken, out of range, or the spec asks for a body that cannot fight.
     pub fn add_bot_in_slot(&mut self, slot: usize, spec: &BotSpec) -> bool {
+        self.add_bot_in_slot_team(slot, spec, 0)
+    }
+
+    /// [`add_bot_in_slot`](Self::add_bot_in_slot) for a bot on `team` (`0` = no team): it wears that team's uniform and spawns at its base.
+    pub fn add_bot_in_slot_team(&mut self, slot: usize, spec: &BotSpec, team: u8) -> bool {
+        if team != 0 {
+            let mut spec = spec.clone();
+            spec.character = if team == 1 { Character::Ridgeback } else { Character::Nightfall };
+            if !self.add_player_in_slot_team(slot, spec.character, team) {
+                return false;
+            }
+            self.bots[slot] = Some(Box::new(Brain::new(spec, 0xB07 ^ ((slot as u64 + 1) << 8) ^ (self.tick << 16))));
+            return true;
+        }
         if self.race.is_some() {
             // A race: the bot is a kart driver, on the first animal no one else has taken.
             if !self.add_player_in_slot(slot, Character::Human) {

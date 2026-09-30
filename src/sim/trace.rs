@@ -444,6 +444,9 @@ mod tests {
                 attack: false,
                 reload: true,
                 switch_weapon: true,
+                aim: true,
+                drop: true,
+                select: 5,
             },
         });
         t.entries.push(Entry::ViewLag { tick: 3, slot: 0, lag: 7 });

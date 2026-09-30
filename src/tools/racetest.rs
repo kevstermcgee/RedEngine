@@ -251,7 +251,7 @@ mod tests {
         let _ = std::fs::remove_file(&plain);
         let path = write_map("bots", r#""race":{"gates":["line","east","south","west"]},"#);
         assert!(run(&path, 0, 0.5, 10.0, &[]).unwrap_err().contains("--bots"));
-        assert!(run(&path, 9, 0.5, 10.0, &[]).unwrap_err().contains("--bots"));
+        assert!(run(&path, 13, 0.5, 10.0, &[]).unwrap_err().contains("--bots"));
         let _ = std::fs::remove_file(&path);
         assert!(run(Path::new("/nonexistent/race.json"), 2, 0.5, 10.0, &[]).is_err());
         assert_eq!(parse_drivers("Duck, wolf,BEAVER").unwrap(), vec![Driver::Duck, Driver::Wolf, Driver::Beaver]);

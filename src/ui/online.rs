@@ -125,6 +125,7 @@ impl OnlineView {
             .iter()
             .enumerate()
             .map(|(i, n)| RosterEntry {
+                team: 0,
                 id: i as u8,
                 flags: if i % 3 == 0 { ROSTER_READY } else { 0 } | ROSTER_IN_ROUND,
                 character: (i % 2) as u8,

@@ -44,6 +44,7 @@ fn worst_snapshot() -> Snapshot {
         echo_time_ms: 1,
         echo_hold_ms: 0,
         fx: Default::default(),
+        arena: None,
         players: vec![
             PlayerSnap {
                 id: 0,
@@ -59,6 +60,7 @@ fn worst_snapshot() -> Snapshot {
                 held: NO_PROP,
                 hp: 100,
                 shots: 0,
+                extra: 0,
                 kart: None
             };
             MAX_PLAYERS_PER_SNAPSHOT

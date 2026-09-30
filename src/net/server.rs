@@ -23,7 +23,7 @@
 use super::auth::{proof_matches, CookieJar, Direction, SessionKey, TAG_LEN};
 use super::limits::{TokenBucket, HELLOS_PER_SEC, HELLO_BURST, MAX_PARKED};
 use super::sessions::{Parked, Session, TokenSource};
-use super::snapshots::{feedback_of, player_snaps, props_to_send, room_of_player, visible_players};
+use super::snapshots::{arena_snap, feedback_of, player_snaps, props_to_send, room_of_player, visible_players};
 use super::transport::{Security, ServerTransport, TransportStats, UdpServer};
 use crate::net::protocol::*;
 use crate::sim::clock::TICK_RATE_HZ;
@@ -46,6 +46,15 @@ fn apply_character_policy(policy: Option<crate::player::Character>, requested: u
         return requested.min(Driver::ALL.len() as u8 - 1);
     }
     policy.map(character_to_wire).unwrap_or_else(|| requested.min(5))
+}
+
+/// The soldier a team wears.
+fn team_character(team: u8) -> crate::player::Character {
+    if team == 2 {
+        crate::player::Character::Nightfall
+    } else {
+        crate::player::Character::Ridgeback
+    }
 }
 
 /// A `Status` goes to every client this often (5 Hz), and at once when something changes.
@@ -155,6 +164,10 @@ pub struct RoundRecord {
     pub reason: EndReason,
     /// The winner's player id: the unique highest score above zero.
     pub winner: Option<u8>,
+    /// The winning team in a team match (`0` = none or a draw).
+    pub winner_team: u8,
+    /// Kills per team at the end (index = team - 1).
+    pub team_kills: [u32; 2],
     /// `(player id, kills)` for everyone who was in the round.
     pub scores: Vec<(u8, u32)>,
     /// The recorded trace of the round, when recording is on.
@@ -168,6 +181,7 @@ pub type RoundFactory = Box<dyn FnMut() -> Result<MatchSim, String> + Send>;
 #[derive(Debug, Clone)]
 struct LastResult {
     winner: u8,
+    winner_team: u8,
     end_code: u8,
     end_text: String,
 }
@@ -377,7 +391,13 @@ impl Server {
         let humans = self.sessions.iter().filter(|s| s.in_round).count();
         let want = if fill == 0 { 0 } else { fill.saturating_sub(humans) };
         while self.sim.bot_count() > want {
-            let weakest = (0..MAX_PLAYERS).filter(|s| self.sim.is_bot(*s)).min_by_key(|s| (self.sim.player(*s).map_or(0, |p| p.combat.kills), *s));
+            // Bots make way from the fuller team first, then the weakest goes.
+            let crowded = if self.sim.team_count(1) >= self.sim.team_count(2) { 1 } else { 2 };
+            let in_crowded = |s: &usize| !self.sim.is_loadout() || self.sim.team_of(*s) == crowded;
+            let weakest = (0..MAX_PLAYERS)
+                .filter(|s| self.sim.is_bot(*s) && in_crowded(s))
+                .min_by_key(|s| (self.sim.player(*s).map_or(0, |p| p.combat.kills), *s))
+                .or_else(|| (0..MAX_PLAYERS).filter(|s| self.sim.is_bot(*s)).min_by_key(|s| (self.sim.player(*s).map_or(0, |p| p.combat.kills), *s)));
             match weakest {
                 Some(slot) => {
                     self.sim.remove_player(slot);
@@ -398,7 +418,17 @@ impl Server {
             let Some(slot) = free else { break };
             let spec = cfg.spec(self.bots_spawned as usize);
             self.bots_spawned += 1;
-            if !self.sim.add_bot_in_slot(slot, &spec) {
+            let team = if self.sim.is_loadout() {
+                let (a, b) = (self.sim.team_count(1), self.sim.team_count(2));
+                match (a <= b, a.min(b) < crate::sim::shooter::MAX_TEAM) {
+                    (_, false) => break,
+                    (true, _) => 1,
+                    (false, _) => 2,
+                }
+            } else {
+                0
+            };
+            if !self.sim.add_bot_in_slot_team(slot, &spec, team) {
                 break;
             }
             self.status_dirty = true;
@@ -542,6 +572,7 @@ impl Server {
         let playing = self.phase() == Phase::Playing && self.flow.is_some();
         let forced_character = self.sim.forced_character();
         let race = self.sim.race().is_some();
+        let team_match = self.sim.is_loadout();
         let s = &mut self.sessions[i];
         if !s.lobby_bucket.allow(now) {
             self.stats.rate_limited += 1;
@@ -557,10 +588,38 @@ impl Server {
         s.rtt_ms = l.rtt_ms.min(9_999);
         let ready = l.ready && !playing;
         let character = apply_character_policy(forced_character, l.character, race);
-        if ready != s.ready || character != s.character {
-            s.ready = ready;
-            s.character = character;
+        let mut changed = ready != s.ready || character != s.character;
+        s.ready = ready;
+        s.character = character;
+        // A team can be chosen until the player has a body in a running round.
+        let (in_round, current, want) = (s.in_round, s.team, l.team);
+        if team_match && !in_round && want != 0 && want != current && self.team_has_room(want, i) {
+            self.sessions[i].team = want;
+            changed = true;
+        }
+        if changed {
             self.status_dirty = true;
+        }
+    }
+
+    /// Whether `team` has room for one more person besides session `except`. Bots never count: they make way for people.
+    fn team_has_room(&self, team: u8, except: usize) -> bool {
+        self.sessions.iter().enumerate().filter(|(j, s)| *j != except && s.team == team).count() < crate::sim::shooter::MAX_TEAM
+    }
+
+    /// The team a newcomer gets: the one they asked for if it has room, else the smaller one (`0` in a match without teams).
+    fn pick_team(&self, asked: u8, except: Option<usize>) -> u8 {
+        if !self.sim.is_loadout() {
+            return 0;
+        }
+        let humans = |t: u8| self.sessions.iter().enumerate().filter(|(j, s)| Some(*j) != except && s.team == t).count();
+        if (1..=2).contains(&asked) && humans(asked) < crate::sim::shooter::MAX_TEAM {
+            return asked;
+        }
+        if humans(1) <= humans(2) {
+            1
+        } else {
+            2
         }
     }
 
@@ -666,6 +725,10 @@ impl Server {
         let name = if h.name.trim().is_empty() { resumed.as_ref().map_or_else(|| sanitize_name(""), |p| p.name.clone()) } else { sanitize_name(&h.name) };
         let key = (!self.secure).then(|| SessionKey::derive(key_bytes.as_bytes(), h.client_nonce, h.cookie));
         let mut session = Session::new(addr, slot, token, key, h.client_nonce, h.cookie, name, character, now);
+        session.team = resumed.as_ref().map_or(0, |p| p.team);
+        if session.team == 0 {
+            session.team = self.pick_team(0, None);
+        }
 
         // Does this player get a body right now?
         let joins_world = match &self.flow {
@@ -680,7 +743,14 @@ impl Server {
                 self.sim.remove_player(slot); // a person takes a bot place
             }
             let placed = match resumed.as_ref().and_then(|p| (p.round == round).then_some(p.state).flatten()) {
-                Some(state) => self.sim.add_player_at(slot, state),
+                Some(state) => {
+                    let ok = self.sim.add_player_at(slot, state);
+                    if ok {
+                        self.sim.set_team(slot, session.team);
+                    }
+                    ok
+                }
+                None if session.team != 0 => self.sim.add_player_in_slot_team(slot, team_character(session.team), session.team),
                 None => self.sim.add_player_in_slot(slot, character_from_wire(character)),
             };
             if !placed {
@@ -715,6 +785,7 @@ impl Server {
         self.parked.push(Parked {
             token: s.token,
             slot: s.slot,
+            team: s.team,
             state,
             round,
             name: s.name.clone(),
@@ -815,13 +886,17 @@ impl Server {
         let connected = self.sessions.len();
         let ready = self.sessions.iter().filter(|s| s.ready).count();
         let in_round = self.sessions.iter().filter(|s| s.in_round).count();
-        let best_score = self
-            .sim
-            .players()
-            .filter(|(slot, _)| self.sim.is_bot(*slot) || self.sessions.iter().any(|s| s.in_round && s.slot == *slot))
-            .map(|(_, p)| p.combat.kills)
-            .max()
-            .unwrap_or(0);
+        let best_score = if self.sim.is_loadout() {
+            // In a team match the score that counts is the team's.
+            self.sim.team_kills().into_iter().max().unwrap_or(0)
+        } else {
+            self.sim
+                .players()
+                .filter(|(slot, _)| self.sim.is_bot(*slot) || self.sessions.iter().any(|s| s.in_round && s.slot == *slot))
+                .map(|(_, p)| p.combat.kills)
+                .max()
+                .unwrap_or(0)
+        };
         // A race ends the round when it is over (everyone finished, or the grace ran out) as a rule would.
         let race_over = self.sim.race().is_some_and(|r| r.phase() == crate::sim::race::Phase::Finished).then(|| "race complete".to_string());
         let rules_outcome = (flow.phase() == Phase::Playing).then(|| self.sim.rules().ended().map(str::to_string).or(race_over)).flatten();
@@ -861,11 +936,15 @@ impl Server {
         let mut order: Vec<usize> = (0..self.sessions.len()).collect();
         order.sort_by_key(|&i| self.sessions[i].slot);
         for i in order {
-            let (slot, character) = (self.sessions[i].slot, self.sessions[i].character);
+            let (slot, character, team) = (self.sessions[i].slot, self.sessions[i].character, self.sessions[i].team);
             let race = self.sim.race().is_some();
             // In a race the character byte is the animal; a body is a plain person the kart hides. Two people who chose the same animal: the one in the
             // lower slot has it, the other gets the first animal left.
-            let placed = self.sim.add_player_in_slot(slot, if race { crate::player::Character::Human } else { character_from_wire(character) });
+            let placed = if team != 0 {
+                self.sim.add_player_in_slot_team(slot, team_character(team), team)
+            } else {
+                self.sim.add_player_in_slot(slot, if race { crate::player::Character::Human } else { character_from_wire(character) })
+            };
             if race && placed {
                 let want = Driver::from_wire(character).unwrap_or(Driver::Duck);
                 self.sim.set_driver(slot, want);
@@ -917,8 +996,22 @@ impl Server {
         if let Some(race) = self.sim.race() {
             winner = race.standings().first().map(|row| row.player as u8);
         }
+        let team_kills = self.sim.team_kills();
+        let winner_team = if !self.sim.is_loadout() {
+            0
+        } else if team_kills[0] > team_kills[1] {
+            1
+        } else if team_kills[1] > team_kills[0] {
+            2
+        } else {
+            0
+        };
+        if self.sim.is_loadout() {
+            // The best player of the winning team is named as the winner (the match MVP); a drawn match has none.
+            winner = scores.iter().filter(|(slot, _)| self.sim.team_of(*slot as usize) == winner_team && winner_team != 0).max_by_key(|s| s.1).map(|s| s.0);
+        }
         let (code, text) = reason.to_wire();
-        self.last_result = Some(LastResult { winner: winner.unwrap_or(NO_WINNER), end_code: code, end_text: text });
+        self.last_result = Some(LastResult { winner: winner.unwrap_or(NO_WINNER), winner_team, end_code: code, end_text: text });
         let trace = self.sim.take_trace();
         for s in self.sessions.iter_mut() {
             s.ready = false; // a rematch needs everyone to press Ready again
@@ -926,7 +1019,7 @@ impl Server {
         self.stats.rounds += 1;
         self.say(format!("round {round} ended: {}{}", reason.text(), winner.map(|w| format!("; winner: player {w}")).unwrap_or_default()));
         if let Some(hook) = self.round_hook.as_mut() {
-            hook(RoundRecord { round, reason, winner, scores, trace });
+            hook(RoundRecord { round, reason, winner, winner_team, team_kills, scores, trace });
         }
     }
 
@@ -949,6 +1042,7 @@ impl Server {
             .iter()
             .map(|s| RosterEntry {
                 id: s.slot as u8,
+                team: s.team,
                 flags: if s.ready { ROSTER_READY } else { 0 } | if s.in_round { ROSTER_IN_ROUND } else { 0 },
                 character: s.character,
                 ping_ms: s.rtt_ms,
@@ -961,6 +1055,7 @@ impl Server {
             if let Some(name) = self.sim.bot_name(slot) {
                 r.push(RosterEntry {
                     id: slot as u8,
+                    team: p.team,
                     flags: ROSTER_READY | ROSTER_IN_ROUND | ROSTER_BOT,
                     character: character_to_wire(p.state.character),
                     ping_ms: 0,
@@ -975,10 +1070,23 @@ impl Server {
             if let Some(level) = self.cfg.bot_level {
                 cfg.level = level;
             }
+            // The bots fill the smaller team first, as they will when the world is built.
+            let mut sizes = [self.sessions.iter().filter(|s| s.team == 1).count(), self.sessions.iter().filter(|s| s.team == 2).count()];
             for i in 0..self.bot_fill().saturating_sub(humans) {
                 let spec = cfg.spec(i);
+                let team = if self.sim.is_loadout() {
+                    let t = if sizes[0] <= sizes[1] { 0 } else { 1 };
+                    if sizes[t] >= crate::sim::shooter::MAX_TEAM {
+                        break;
+                    }
+                    sizes[t] += 1;
+                    t as u8 + 1
+                } else {
+                    0
+                };
                 r.push(RosterEntry {
                     id: (MAX_PLAYERS - 1 - i) as u8,
+                    team,
                     flags: ROSTER_READY | ROSTER_BOT,
                     character: character_to_wire(spec.character),
                     ping_ms: 0,
@@ -1006,6 +1114,13 @@ impl Server {
             Some(r) => (r.winner, r.end_code, r.end_text.clone()),
             None => (NO_WINNER, NO_END, String::new()),
         };
+        let winner_team = self.last_result.as_ref().map_or(0, |r| r.winner_team);
+        let team_kills = self.sim.team_kills();
+        let team_score = [team_kills[0].min(u16::MAX as u32) as u16, team_kills[1].min(u16::MAX as u32) as u16];
+        let (kill_limit, time_limit_secs) = self
+            .flow
+            .as_ref()
+            .map_or((0, 0), |f| (f.settings().score_to_win.min(u16::MAX as u32) as u16, f.settings().round_secs.clamp(0.0, 65_535.0) as u16));
         let rules = self.sim.rules();
         let vars: Vec<RuleVar> = rules.vars().into_iter().take(MAX_RULE_VARS).map(|(name, value)| RuleVar { name: name.to_string(), value }).collect();
         let hidden: Vec<u16> = rules.hidden().filter_map(|id| self.sim.rule_object_index(id)).take(MAX_RULE_HIDDEN).collect();
@@ -1032,6 +1147,10 @@ impl Server {
                 echo_time_ms: s.last_client_time_ms,
                 echo_hold_ms: now.duration_since(s.last_client_packet_at).as_millis().min(65_535) as u16,
                 roster: roster.clone(),
+                team_score,
+                kill_limit,
+                time_limit_secs,
+                winner_team,
             };
             self.stats.statuses_sent += 1;
             self.send_signed(i, &ServerMsg::Status(status));
@@ -1067,7 +1186,9 @@ impl Server {
             } else {
                 0
             };
-            let max_props = snapshot_prop_budget(budget.saturating_sub(race_bytes), self.visible_scratch.len());
+            let arena = arena_snap(&self.sim, slot);
+            let arena_bytes = arena.as_ref().map_or(0, |a| a.wire_bytes() + self.visible_scratch.len());
+            let max_props = snapshot_prop_budget(budget.saturating_sub(race_bytes + arena_bytes), self.visible_scratch.len());
             let s = &mut self.sessions[i];
             props_to_send(&self.sim, self.interest.as_ref(), room, &s.known, &mut self.changed, &mut self.props_scratch, &mut self.sent_scratch, max_props);
             s.snapshot_seq = s.snapshot_seq.wrapping_add(1);
@@ -1085,6 +1206,7 @@ impl Server {
                 fx: feedback_of(&self.sim, slot),
                 players: std::mem::take(&mut self.visible_scratch),
                 props: std::mem::take(&mut self.props_scratch),
+                arena,
                 race: self.sim.race().map(|r| RaceSnap {
                     phase: match r.phase() {
                         crate::sim::race::Phase::Countdown => 0,
