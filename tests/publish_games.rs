@@ -25,7 +25,9 @@ fn tree(root: &Path) -> Vec<String> {
             if p.is_dir() {
                 walk(&p, base, out);
             } else {
-                out.push(format!("{}={}", p.strip_prefix(base).unwrap().display(), fs::read_to_string(&p).unwrap_or_default().trim().replace('\n', " ")));
+                // Forward slashes and no carriage returns on every platform (Windows prints `games\demo` and Python writes CRLF), so the assertions read the same everywhere.
+                let rel = p.strip_prefix(base).unwrap().to_string_lossy().replace('\\', "/");
+                out.push(format!("{rel}={}", fs::read_to_string(&p).unwrap_or_default().trim().replace(['\r', '\n'], " ")));
             }
         }
     }
