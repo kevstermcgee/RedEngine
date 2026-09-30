@@ -76,3 +76,13 @@ What the second half of the build taught, most useful first. The numbers are in 
     mark objects as pool templates would avoid per-object ignores.
 15. **Adding one concept still touched many files** (protocol, server, session, client, HUD, docs facts, feature index): the plumbing friction from the first half
     is unchanged, but the repo's own tests named each omission, which is the reason it cost minutes and not hours.
+
+## Phases 7-8: terrain, a shortcut, the lobby, hosting and publishing
+
+* **A balance lever needs a route, not a number.** With mud and water on the track the Coyote (fine on dirt) fell to 5th: the penalties cost more than the dirt gained. A stat tweak would have made him strong everywhere; a real dirt shortcut across the SE bend put him 1st at bot level 1.0 (85.2 s) and left the others where they were.
+* **A shortcut is a trap for bots.** A bot that overshot the entrance pushed at the wall for the rest of the race because its next line point was "behind" the wall. The bot doc promised stuck recovery would drop a missed point but the code only reversed. Fix in the engine (general): wedged twice at the same point -> back up to the previous point and ignore the "passed" test until it is reached. Widening the mouth (12 m -> 19 m) cut the wedges further. `race-test` now prints where a bot that did not finish stopped, which is how this was found in minutes.
+* **Scenery hid the shortcut.** Infield trees stood in the corridor (scenery does not collide, but you cannot see the way). A keep-out around the corridor in the generator fixed it; a render from above found it, no test could.
+* **A race needs the match flow to be hosted.** With no `match` block the map was open play: no lobby, no second race. Adding one gives lobby -> race -> results -> lobby with a fresh world; the missing pieces were a round end when the race finishes and a winner from the standings. The sim only ticks in the flow's Playing phase, so the flow's own countdown is dead time before the race's: keep it 1 s.
+* **The lobby's character byte is enough for a driver choice** (0..7 in a race), with the server clamping it by what the scene means. Duplicate choices resolve at round start (lower slot keeps it). No protocol change.
+* **Green-light extrapolation was not done**: its cost is one 0.1 m correction per race and a fix means per-step race-phase knowledge in the predictor's replay.
+* **Friction**: `sfx` is graphics-build only, so a pure cue module that returns clips had to be graphics-gated too (a headless build cannot see it); split cue logic from clips if it ever needs testing headless. Round-end conditions are hard-coded in the server (`rules_outcome`, score); a scene-level "round ends when" would have made races configuration.

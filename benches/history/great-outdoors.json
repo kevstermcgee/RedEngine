@@ -69,6 +69,18 @@
       "commit": "cb6c854",
       "adds": "controller analog triggers + kart_controls; net::fleet (kart models by driver, hazard pools, item boxes); kart_camera::ChaseCamera; ui::race HUD (+3 ui-shot screens); NetSession is_race/kart_view/race_hud; re2 client kart input, chase camera and HUD; protocol v13 (item-box ready mask); red_engine2 race-test; homing Acorn; bot catch-up pacing",
       "tests_added": "4 controller + 6 camera + 5 hud + 5 fleet + 3 session + 3 racetest + 1 claim_slot + 1 homing + 1 ready_mask"
+    },
+    {
+      "id": "7-terrain-and-shortcut",
+      "commit": "770c0f3,633e9ab",
+      "adds": "mud/dirt/water surfaces (scene race.surfaces; same lookup in server, prediction and bots); larger Bear; a dirt shortcut across the SE bend for the Coyote; bots back up to the previous line point when wedged twice; race-test reports where a bot stopped",
+      "tests_added": "surface tests in kart_race + predict, racetest position"
+    },
+    {
+      "id": "8-lobby-hosting-publish",
+      "commit": "0029fb4 and the commit after it",
+      "adds": "race lobby: animal picker (keys, d-pad, bumpers) using the lobby character byte as the driver; a finished race ends the round, winner from standings; kart sounds (pure KartSound cues); game check audits karts in a race; item roll less Bubble-heavy; per-user systemd service with QUIC identity + join key; published to RedEngineGames as a --host playable",
+      "tests_added": "net_race_lobby, ui::online step_driver, kart_sound x3, game kart audit, server policy in race"
     }
   ],
   "cost_of_karts_on_the_server": {
@@ -118,7 +130,8 @@
     "wall-clock and tokens per phase (no per-phase timing was recorded during the work)",
     "prediction over a lossy or laggy link (net-test profiles)",
     "8 real clients on the shared server",
-    "feel on a physical gamepad or at a window"
+    "feel on a physical gamepad or at a window",
+    "physical gamepad and windowed feel of the lobby picker and kart sounds; 8 real clients on the hosted service; play through the router from outside the LAN"
   ],
   "bot_balance_lap_times": {
     "scenario": "tests/kart_bots.rs balance_lap_times_per_animal: one level-1.0 bot alone on the plain diamond (radius 40, four 90-degree corners, no walls, no items), three laps, dev-profile CLI",
@@ -179,6 +192,17 @@
       "undrawn": 0,
       "frame_time_software_render_s": 1.5,
       "objects_in_scene": 3328
+    },
+    "with_shortcut_level_1_0": {
+      "Coyote": "85.2 s (1st)",
+      "Deer": "86.1",
+      "Duck": "87.8",
+      "Hawk": "88.3",
+      "Bunny": "96.8",
+      "Bear": "99.2",
+      "Wolf": "102.7",
+      "Beaver": "106-132 (one early wedge at the shortcut mouth)",
+      "note": "before the shortcut Coyote was 5th: mud and water cost more than dirt gained"
     }
   }
 }
