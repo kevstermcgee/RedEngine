@@ -414,6 +414,7 @@ impl MatchSim {
         self.run_bots();
         // In a race every player is a kart driver: no weapons, no carrying, and the countdown holds the karts on the grid.
         let racing = self.race.as_ref().map(RaceState::can_drive);
+        let course = self.race.as_ref().map(RaceState::course_arc);
         let mut kart_events = [KartEvents::default(); MAX_PLAYERS];
         for slot in 0..self.players.len() {
             if racing.is_none() {
@@ -431,7 +432,9 @@ impl MatchSim {
                 if let Some(green) = racing {
                     let input = if green { input } else { PlayerInput { seq: input.seq, ..Default::default() } };
                     let spec = self.drivers[slot].spec();
-                    let (speed, events) = step_kart_ex(&mut p.state, &mut self.karts[slot], &input, &spec, Surface::Road, &self.colliders, &self.ground);
+                    // What is under the kart at the start of the tick: clients predict with the same lookup, so they agree.
+                    let surface = course.as_ref().map_or(Surface::Road, |c| c.surface_at(p.state.pos));
+                    let (speed, events) = step_kart_ex(&mut p.state, &mut self.karts[slot], &input, &spec, surface, &self.colliders, &self.ground);
                     p.speed = speed;
                     kart_events[slot].throw_acorn |= events.throw_acorn;
                     kart_events[slot].lay_plank |= events.lay_plank;

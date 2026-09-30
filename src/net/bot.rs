@@ -39,6 +39,8 @@ pub struct ClientWorld {
     pub rule_object_ids: Vec<String>,
     /// Hash of the map file text, sent when joining.
     pub map_hash: u32,
+    /// The scene's kart race, if it has one: the surfaces (mud, water ...) a kart's prediction must look up exactly as the server does.
+    pub race: Option<std::sync::Arc<crate::sim::race::RaceCourse>>,
 }
 
 impl ClientWorld {
@@ -75,6 +77,7 @@ impl ClientWorld {
             prop_objects,
             rule_object_ids: crate::schema::object_ids(&scene.objects),
             map_hash,
+            race: scene.race.clone(),
         }
     }
 
@@ -267,7 +270,11 @@ impl Bot {
                     };
                     match &mut self.predictor {
                         Some(p) => p.teleport(st),
-                        None => self.predictor = Some(Predictor::new(st)),
+                        None => {
+                            let mut predictor = Predictor::new(st);
+                            predictor.set_course(self.world.race.clone());
+                            self.predictor = Some(predictor);
+                        }
                     }
                     self.yaw = w.spawn[3];
                     self.character = st.character;

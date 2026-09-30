@@ -263,3 +263,47 @@ fn a_race_with_items_is_deterministic() {
     };
     assert_eq!(run(), run(), "items, acorns and planks are part of the deterministic state");
 }
+
+/// A race whose first stretch east along z = -40 is a `kind` patch 80 m long; two karts drive straight into it.
+fn surface_run(kind: &str, drivers: [Driver; 2]) -> [f32; 2] {
+    let text = scene(3, 0.0)
+        .replace(r#""race":{"#, &format!(r#""race":{{"surfaces":[{{"zone":"patch","kind":"{kind}"}}],"#))
+        .replace(r#""zones":["#, r#""zones":[{"id":"patch","rect":[-10,-45,90,-35]},"#);
+    let mut sim = sim_for(&text, drivers);
+    let mut speed = [0.0f32; 2];
+    for t in 1..=300 {
+        for slot in 0..2 {
+            sim.push_input(slot, PlayerInput { seq: t, forward: 1, ..Default::default() });
+        }
+        sim.tick_once();
+        // Sample once both are well inside the patch (about 60 m in).
+        if sim.player(0).unwrap().state.pos.x > 55.0 || sim.player(1).unwrap().state.pos.x > 55.0 {
+            for slot in 0..2 {
+                speed[slot] = sim.player(slot).unwrap().state.velocity.length();
+            }
+            break;
+        }
+    }
+    speed
+}
+
+#[test]
+fn mud_slows_most_animals_but_not_the_beavers_wooden_kart() {
+    let [duck, beaver] = surface_run("mud", [Driver::Duck, Driver::Beaver]);
+    assert!(duck < Driver::Duck.spec().top_speed * 0.75, "the Duck wallows in mud: {duck}");
+    assert!(beaver > Driver::Beaver.spec().top_speed * 0.9, "the Beaver does not notice it: {beaver}");
+}
+
+#[test]
+fn water_slows_a_bunny_but_a_duck_floats() {
+    let [duck, bunny] = surface_run("water", [Driver::Duck, Driver::Bunny]);
+    assert!(duck > Driver::Duck.spec().top_speed * 0.9, "the Duck floats over water: {duck}");
+    assert!(bunny < Driver::Bunny.spec().top_speed * 0.75, "the Bunny wades: {bunny}");
+}
+
+#[test]
+fn dirt_costs_everyone_but_the_coyote_a_little() {
+    let [coyote, deer] = surface_run("dirt", [Driver::Coyote, Driver::Deer]);
+    assert!(coyote > Driver::Coyote.spec().top_speed * 0.95, "the Coyote is at home on dirt: {coyote}");
+    assert!(deer < Driver::Deer.spec().top_speed * 0.92, "the Deer loses speed on it: {deer}");
+}

@@ -16,13 +16,16 @@
 //! ```
 
 use crate::sim::clock::TICK_RATE_HZ;
+use crate::sim::kart::Surface;
 use crate::strict::check_keys;
 use glam::Vec2;
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
 /// Keys of the `race` block.
-pub const RACE_KEYS: &[&str] = &["laps", "gates", "countdown_secs", "finish_grace_secs", "line", "item_boxes", "item_respawn_secs"];
+pub const RACE_KEYS: &[&str] = &["laps", "gates", "countdown_secs", "finish_grace_secs", "line", "item_boxes", "item_respawn_secs", "surfaces"];
+/// Keys of one `race.surfaces` entry.
+pub const SURFACE_KEYS: &[&str] = &["zone", "kind"];
 /// Most laps a race may have.
 pub const MAX_LAPS: u8 = 20;
 /// Fewest gates a course may have (the line and two more, or a kart could cut straight across).
@@ -94,6 +97,8 @@ pub struct RaceCourse {
     pub item_boxes: Vec<(String, Vec2, Vec2)>,
     /// How long an item box takes to come back after being taken, seconds (default 5).
     pub item_respawn_secs: f32,
+    /// Patches of ground that are not road: `(surface, min, max)`. Later entries win where they overlap.
+    pub surfaces: Vec<(Surface, Vec2, Vec2)>,
 }
 
 /// The rectangle of the zone called `id`, resolved against a scene's `zones`. `path` names the field being read and `what` the thing a zone is being
@@ -108,6 +113,16 @@ fn zone_rect(zones: &[Value], id: &str, path: &str, what: &str) -> Result<(Vec2,
 }
 
 impl RaceCourse {
+    /// What is under a kart at `pos` (x, z): the last `surfaces` patch that contains it, else the road. The server and every client's prediction call this with the
+    /// kart's position at the start of the tick, so they always agree.
+    pub fn surface_at(&self, pos: Vec2) -> Surface {
+        self.surfaces
+            .iter()
+            .rev()
+            .find(|(_, min, max)| pos.x >= min.x && pos.x <= max.x && pos.y >= min.y && pos.y <= max.y)
+            .map_or(Surface::Road, |(kind, _, _)| *kind)
+    }
+
     /// Reads the `race` block of a scene's JSON text: `Ok(None)` when the scene has none.
     pub fn from_scene_text(text: &str) -> Result<Option<RaceCourse>, String> {
         let v: Value = serde_json::from_str(text).map_err(|e| format!("scene is not JSON: {e}"))?;
@@ -190,7 +205,26 @@ impl RaceCourse {
             }
         }
         let item_respawn_secs = secs("item_respawn_secs", 5.0)?;
-        Ok(Some(RaceCourse { laps, gates, countdown_secs, finish_grace_secs, line, item_boxes, item_respawn_secs }))
+        let mut surfaces = Vec::new();
+        if let Some(list) = obj.get("surfaces") {
+            for (i, entry) in list.as_array().ok_or("race.surfaces: must be a list of {zone, kind}")?.iter().enumerate() {
+                let entry = entry.as_object().ok_or_else(|| format!("race.surfaces[{i}]: must be {{\"zone\": id, \"kind\": \"dirt|mud|water\"}}"))?;
+                let mut errs = Vec::new();
+                check_keys(&mut errs, &format!("race.surfaces[{i}]"), entry, SURFACE_KEYS);
+                if let Some(e) = errs.into_iter().next() {
+                    return Err(e);
+                }
+                let id = entry.get("zone").and_then(Value::as_str).ok_or_else(|| format!("race.surfaces[{i}].zone: give the id of a zone"))?;
+                let kind = entry
+                    .get("kind")
+                    .and_then(Value::as_str)
+                    .and_then(Surface::parse)
+                    .ok_or_else(|| format!("race.surfaces[{i}].kind: must be road, dirt, mud or water"))?;
+                let (min, max) = zone_rect(zones, id, &format!("race.surfaces[{i}]"), "a surface patch is a scene zone")?;
+                surfaces.push((kind, min, max));
+            }
+        }
+        Ok(Some(RaceCourse { laps, gates, countdown_secs, finish_grace_secs, line, item_boxes, item_respawn_secs, surfaces }))
     }
 }
 
@@ -269,6 +303,11 @@ impl RaceState {
     /// The course.
     pub fn course(&self) -> &RaceCourse {
         &self.course
+    }
+
+    /// The course, shared (for code that must hold it while it changes other parts of the match).
+    pub fn course_arc(&self) -> Arc<RaceCourse> {
+        self.course.clone()
     }
 
     /// Where the race is in its life.
@@ -485,6 +524,19 @@ mod tests {
         assert!(err(r#","item_boxes":[3]"#).contains("race.item_boxes[0]"));
         assert!(err(r#","item_boxes":"east""#).contains("list of zone ids"));
         assert!(err(r#","item_respawn_secs":-2"#).contains("item_respawn_secs"));
+        let surfaced = RaceCourse::from_scene_text(&scene(r#","surfaces":[{"zone":"east","kind":"Mud"},{"zone":"west","kind":"water"}]"#)).unwrap().unwrap();
+        assert_eq!(surfaced.surfaces.len(), 2);
+        assert_eq!(surfaced.surface_at(Vec2::new(40.0, 0.0)), Surface::Mud, "inside the east gate's rectangle");
+        assert_eq!(surfaced.surface_at(Vec2::new(-40.0, 0.0)), Surface::Water);
+        assert_eq!(surfaced.surface_at(Vec2::new(0.0, 0.0)), Surface::Road, "anywhere else is road");
+        assert_eq!(c.surface_at(Vec2::new(40.0, 0.0)), Surface::Road, "no patches, no surfaces");
+        assert!(err(r#","surfaces":[{"zone":"east","kind":"lava"}]"#).contains("race.surfaces[0].kind"));
+        assert!(err(r#","surfaces":[{"zone":"nowhere","kind":"mud"}]"#).contains("race.surfaces[0]: no zone 'nowhere'"));
+        assert!(err(r#","surfaces":[{"kind":"mud"}]"#).contains("race.surfaces[0].zone"));
+        assert!(err(r#","surfaces":[{"zone":"east","kind":"mud","x":1}]"#).contains("race.surfaces[0]"));
+        assert!(err(r#","surfaces":"mud""#).contains("list of {zone, kind}"));
+        let overlap = RaceCourse::from_scene_text(&scene(r#","surfaces":[{"zone":"east","kind":"mud"},{"zone":"east","kind":"dirt"}]"#)).unwrap().unwrap();
+        assert_eq!(overlap.surface_at(Vec2::new(40.0, 0.0)), Surface::Dirt, "later patches win");
         let with_line = RaceCourse::from_scene_text(&scene(r#","line":[[0,-40],[20,-30]]"#)).unwrap().unwrap();
         assert_eq!(with_line.line, vec![Vec2::new(0.0, -40.0), Vec2::new(20.0, -30.0)]);
     }

@@ -568,6 +568,10 @@ positions cannot be written as rules (a rule variable is one number for everybod
   absorbs the next hit). `attack` uses the item on the press. Which item is rolled from the tick, slot, box and place alone (so a replay draws the same items),
   weighted towards Mushrooms for the tail and Bubbles for the leader. The Beaver's `interact` lays a **plank** behind the kart (4 s cooldown; a full pool of 24
   hazards replaces the oldest plank). A hazard never hits its owner in its first 0.75 s.
+- **`surfaces`** (optional): `[{"zone": id, "kind": "dirt" | "mud" | "water"}, ...]` marks patches of ground that are not road. A kart's top speed is scaled by
+  its driver's multiplier for the surface under it at the start of the tick (mud 0.6 and water 0.55 for most animals, dirt 0.85; the Duck floats over water, the Beaver's
+  wooden kart ignores mud and water and dirt, the Coyote ignores dirt). Later patches win where they overlap. The server and every client's prediction use the same
+  lookup (`RaceCourse::surface_at`), so a predicted kart stays exact across a patch's edge. Draw the patch yourself (a plane over the zone): the engine only changes the physics.
 - **Bots** (`bots` block): in a race scene `bots.fill` tops the grid up with kart bots (`skill` is their level, as for fighters). A bot is an ordinary player
   slot driven by a brain that follows the racing line (`race.line`, else the gate centres), sets its speed from the corner ahead and its skill, steers on the
   analog stick, drifts long corners once good enough, uses its pickup (Mushroom on a straight, Acorn at a kart ahead in its lane, Bubble when an Acorn is

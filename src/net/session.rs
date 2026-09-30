@@ -453,7 +453,11 @@ impl NetSession {
                     };
                     match &mut self.predictor {
                         Some(p) => p.teleport(st),
-                        None => self.predictor = Some(Predictor::new(st)),
+                        None => {
+                            let mut predictor = Predictor::new(st);
+                            predictor.set_course(self.world.race.clone());
+                            self.predictor = Some(predictor);
+                        }
                     }
                     self.teleport = Some(st);
                 }

@@ -178,6 +178,29 @@ pub struct KartSpec {
     pub ability: Ability,
 }
 
+impl Surface {
+    /// The surface a scene names (`dirt`, `mud`, `water`, `road`; any case).
+    pub fn parse(name: &str) -> Option<Surface> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "road" => Some(Surface::Road),
+            "dirt" => Some(Surface::Dirt),
+            "mud" => Some(Surface::Mud),
+            "water" => Some(Surface::Water),
+            _ => None,
+        }
+    }
+
+    /// The word a scene uses for it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Surface::Road => "road",
+            Surface::Dirt => "dirt",
+            Surface::Mud => "mud",
+            Surface::Water => "water",
+        }
+    }
+}
+
 impl KartSpec {
     /// The top-speed multiplier of `surface` for this kart.
     pub fn surface_mult(&self, surface: Surface) -> f32 {
