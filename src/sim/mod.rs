@@ -34,6 +34,8 @@ pub mod combat;
 pub mod combat_cfg;
 pub mod components;
 pub mod entities;
+/// A conventional agent interface to a match (`reset`/`observe`/`step`), over the real simulation; what an agent may know is separate from the privileged state.
+pub mod env;
 pub mod flow;
 pub mod interact;
 pub mod interest;

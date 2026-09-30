@@ -348,3 +348,183 @@ fn a_player_can_stand_on_a_crate_and_jump_off_it() {
     assert!(peak > top + 0.3, "jumped off the crate top: peak {peak} vs top {top}");
     assert!((y - top).abs() < 0.02, "and lands back on it");
 }
+
+// ---- prop ownership as a state machine: random operation sequences, checked against a model, with shrinking ----------------------------------------------------
+//
+// A prop must never have two authoritative owners, a player never two props, and what `PropWorld` says must equal a tiny model of the documented rules. The
+// sequences are generated from a seed (xorshift, no crate, same on every platform) and a failing one is shrunk (chunk removal, then single operations) to the
+// shortest sequence that still fails, which is what gets printed, so a failure arrives as `Join(0) -> Pick(0,1) -> Leave(0) -> Join(0)` and not as "seed 31 failed".
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Op {
+    Join(usize),
+    Leave(usize),
+    Pick(usize, usize),
+    Drop(usize),
+    Reset(usize),
+    Place(usize),
+    Step,
+}
+
+const SLOTS: usize = 3;
+const PROPS: usize = 4;
+
+fn gen_ops(seed: u64, len: usize) -> Vec<Op> {
+    let mut s = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+    let mut next = move |n: usize| {
+        s ^= s >> 12;
+        s ^= s << 25;
+        s ^= s >> 27;
+        (s.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 33) as usize % n
+    };
+    (0..len)
+        .map(|_| match next(7) {
+            0 => Op::Join(next(SLOTS)),
+            1 => Op::Leave(next(SLOTS)),
+            2 | 3 => Op::Pick(next(SLOTS), next(PROPS)),
+            4 => Op::Drop(next(SLOTS)),
+            5 => {
+                if next(2) == 0 {
+                    Op::Reset(next(PROPS))
+                } else {
+                    Op::Place(next(PROPS))
+                }
+            }
+            _ => Op::Step,
+        })
+        .collect()
+}
+
+/// Applies `ops` to a fresh world, checking after every operation; the first violation is the error.
+fn run_ops(ops: &[Op]) -> Result<(), String> {
+    let s = scene(
+        r##"{"id":"c0","type":"prop","prop":"crate","position":[-3,0,0]},{"id":"c1","type":"prop","prop":"crate","position":[-1,0,0]},
+            {"id":"c2","type":"prop","prop":"crate","position":[1,0,0]},{"id":"c3","type":"prop","prop":"crate","position":[3,0,0]}"##,
+    );
+    let mut w = PropWorld::new(&s, None);
+    assert_eq!(w.props.len(), PROPS, "the scene has four loose crates");
+    let mut model: Vec<(usize, usize)> = Vec::new(); // (holder, prop): what the documented rules say
+    for (i, op) in ops.iter().enumerate() {
+        match *op {
+            Op::Join(slot) => w.set_player_slot(slot, Vec3::new(slot as f32 * 2.0 - 2.0, 0.0, 4.0), 0.35, 1.7),
+            Op::Leave(slot) => {
+                w.remove_player_slot(slot);
+                model.retain(|m| m.0 != slot);
+            }
+            Op::Pick(slot, prop) => {
+                let expected = !model.iter().any(|m| m.0 == slot || m.1 == prop);
+                let got = w.pick_up_by(slot, prop);
+                if got != expected {
+                    return Err(format!("op {i} {op:?}: pick_up_by returned {got}, the rules say {expected}"));
+                }
+                if expected {
+                    model.push((slot, prop));
+                }
+            }
+            Op::Drop(slot) => {
+                let expected = model.iter().find(|m| m.0 == slot).map(|m| m.1);
+                let got = w.drop_held_by(slot, Vec3::ZERO);
+                if got != expected {
+                    return Err(format!("op {i} {op:?}: dropped {got:?}, the rules say {expected:?}"));
+                }
+                model.retain(|m| m.0 != slot);
+            }
+            Op::Reset(prop) => {
+                w.reset_prop(prop);
+                model.retain(|m| m.1 != prop); // taken from its holder
+            }
+            Op::Place(prop) => {
+                w.place_prop(prop, Vec3::new(0.0, 0.0, -2.0));
+                model.retain(|m| m.1 != prop);
+            }
+            Op::Step => w.step(),
+        }
+        // Invariants, whatever the model says.
+        for p in 0..PROPS {
+            let holders: Vec<usize> = w.held.iter().filter(|h| h.prop == p).map(|h| h.holder).collect();
+            if holders.len() > 1 {
+                return Err(format!("op {i} {op:?}: prop {p} has two authoritative owners {holders:?}"));
+            }
+            if w.holder_of(p) != holders.first().copied() || w.is_held(p) != !holders.is_empty() {
+                return Err(format!("op {i} {op:?}: holder_of/is_held disagree with the held list for prop {p}"));
+            }
+        }
+        for slot in 0..SLOTS {
+            let props: Vec<usize> = w.held.iter().filter(|h| h.holder == slot).map(|h| h.prop).collect();
+            if props.len() > 1 || w.held_by(slot) != props.first().copied() {
+                return Err(format!("op {i} {op:?}: player {slot} holds {props:?} (held_by says {:?})", w.held_by(slot)));
+            }
+        }
+        let mut actual: Vec<(usize, usize)> = w.held.iter().map(|h| (h.holder, h.prop)).collect();
+        let (mut want, mut got) = (model.clone(), std::mem::take(&mut actual));
+        want.sort();
+        got.sort();
+        if want != got {
+            return Err(format!("op {i} {op:?}: PropWorld holds {got:?}, the rules say {want:?}"));
+        }
+    }
+    Ok(())
+}
+
+/// The shortest sequence (by removing chunks, then single operations, until nothing more can go) for which `fails` still holds.
+fn shrink_ops(mut ops: Vec<Op>, fails: &dyn Fn(&[Op]) -> bool) -> Vec<Op> {
+    assert!(fails(&ops), "only a failing sequence can be shrunk");
+    let mut chunk = ops.len().div_ceil(2).max(1);
+    loop {
+        let mut progressed = false;
+        let mut start = 0;
+        while start < ops.len() {
+            let end = (start + chunk).min(ops.len());
+            let mut candidate = ops.clone();
+            candidate.drain(start..end);
+            if !candidate.is_empty() && fails(&candidate) {
+                ops = candidate; // the same start now holds what came after the removed chunk
+                progressed = true;
+            } else {
+                start += chunk;
+            }
+        }
+        if chunk == 1 && !progressed {
+            return ops;
+        }
+        if chunk > 1 {
+            chunk = chunk.div_ceil(2);
+        }
+    }
+}
+
+#[test]
+fn prop_ownership_matches_the_rules_under_random_operation_sequences() {
+    for seed in 0..40u64 {
+        let ops = gen_ops(seed, 70);
+        if let Err(first) = run_ops(&ops) {
+            let small = shrink_ops(ops, &|o| run_ops(o).is_err());
+            panic!("seed {seed}: {first}\nshrunk to {} operations: {small:?}\n  which fail with: {}", small.len(), run_ops(&small).unwrap_err());
+        }
+    }
+}
+
+#[test]
+fn the_shrinker_reduces_a_seventy_operation_failure_to_connect_pick_up_disconnect_reconnect() {
+    // A made-up bug: a player who picks something up, leaves and comes back. It needs those four operations, in that order, for one player.
+    let fails = |ops: &[Op]| {
+        (0..SLOTS).any(|s| {
+            let mut stage = 0;
+            for op in ops {
+                stage = match (stage, *op) {
+                    (0, Op::Join(x)) if x == s => 1,
+                    (1, Op::Pick(x, _)) if x == s => 2,
+                    (2, Op::Leave(x)) if x == s => 3,
+                    (3, Op::Join(x)) if x == s => 4,
+                    (st, _) => st,
+                };
+            }
+            stage == 4
+        })
+    };
+    let (seed, long) = (0..500u64).map(|s| (s, gen_ops(s, 70))).find(|(_, o)| fails(o)).expect("some random sequence contains the pattern");
+    assert_eq!(long.len(), 70);
+    let small = shrink_ops(long, &fails);
+    assert_eq!(small.len(), 4, "seed {seed} shrank to {small:?}");
+    assert!(matches!(small[..], [Op::Join(a), Op::Pick(b, _), Op::Leave(c), Op::Join(d)] if a == b && b == c && c == d), "{small:?}");
+}

@@ -21,7 +21,7 @@
     "player_physics": {
       "summary": "One shared, scene-tunable player movement and jump-pad simulation used by the game, server, client prediction and map tools.",
       "files": ["src/player.rs", "src/controller.rs", "src/collide.rs", "src/sim/player.rs"],
-      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab"],
+      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
       "depends_on": ["scene_format"]
@@ -42,7 +42,7 @@
     },
     "sim_core": {
       "summary": "The headless, renderer-free simulation: fixed tick clock, scratch buffers, change tracking, entities, static props, the authoritative MatchSim, spawns, interest management.",
-      "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs"],
+      "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs"],
       "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest"],
       "commands": ["cargo bench --bench sim", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0010-headless-match-server.md", "docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", "docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md"],
