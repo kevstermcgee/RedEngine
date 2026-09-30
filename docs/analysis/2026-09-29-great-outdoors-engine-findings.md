@@ -35,3 +35,44 @@ A regex-driven mass edit to add a field to every struct literal also matched `->
 ## Not measured
 
 Wall-clock and tokens per phase (no per-phase timing was recorded while working; the flow harness measures tool steps, not authoring), prediction over lossy or laggy links, eight real clients on the shared server, and feel on a physical gamepad or in a window. Everything above is headless.
+
+## Phases 4-6: pickups, bots, and putting it on screen
+
+What the second half of the build taught, most useful first. The numbers are in `benches/history/great-outdoors.json`.
+
+### Using the tools on a real track found what the unit tests could not
+
+* **`playtest` and `frame` let a build see itself.** With no display and no hardware GPU, the client still ran end to end (software rendering), took screenshots, and
+  reported "7 of 7 other players drawn". Every visual bug below was found by *looking* at a rendered frame, not by a test: a log lying across the road, a
+  washed-out palette, a camera far plane that showed only sky.
+* **`lint` found a real hole.** The barrier ring had wedge-shaped gaps on the outside of every bend (a piece as long as the centre-line chord is too short on the
+  outer edge), so a kart could leave the track. `leak` reported it as "the player can walk off the map"; the plan view showed exactly where. The fix is to build
+  barriers along the mitred offset curve. The same lint also caught 235 z-fighting road pieces (planes overlapping at one height).
+* **`race-test` (new) made "can this track be raced?" one command:** all eight bots finish three laps of the 651 m circuit in 0.2 s of wall clock for ~105 s of race.
+
+### Tuning came from data, not taste
+
+* **A pack of perfect bots is not a pack.** With top speeds from 21 to 27 m/s the winner finishes about 5 s (120 m) ahead of second place, so nobody is ever near
+  anybody: 24 pickups, **0 hits**. Catch-up pacing (leaders ease off 5%, the tail pushes 5%, not at top skill) brought hits to 1; a homing Acorn (a mild turn onto a kart
+  inside a 28 degree cone) brought a no-catch-up race to 11 hits. Bubbles were 14 of 23 pickups because the leaders reach the boxes first: the roll weights need to
+  be re-checked against real races.
+* **The game's own rule can hide a track problem, and a tool can wrongly report one.** The 30 s finish-grace ended a race before the slowest kart (Beaver, top speed 21
+  against the Deer's 27) finished, which `race-test` first reported as "did not finish". It is a balance finding (the speed spread is wide enough for the grace rule to
+  DNF the slowest driver), and the tool now ignores the rule so it judges the track.
+* **Lap times per animal on the real track** (bots at 0.8): Deer 79.7 s, Coyote 84.2, Wolf 86.6, Hawk 87.0, Duck 88.9, Bear 98.1, Bunny 98.2, Beaver 102.8. Top speed still
+  dominates: Bunny (best handling) and Bear are level. Beaver's Build never fires in a bot race, because it is slowest and nobody is behind him.
+
+### Engine friction (new)
+
+10. **Object rotation composes in an order that is easy to get wrong.** A horizontal cylinder (`rotation [90, yaw, 0]`) lay across the road on some pieces. Nested
+    groups (turn the group, lay the child on its side) are unambiguous; `describe objects` should say how the axes combine.
+11. **Free-camera renders need `camera.far`.** `frame --eye` from 300 m rendered pure sky because the scene's far plane was shorter than the view; the tool could
+    warn when the eye is farther from every object than `far`.
+12. **`game check`'s avatar audit is first-person shaped.** It reports "every body in play is drawn (Human x8, Cheddar the rat x8 ...)" for a kart race, where
+    people are never drawn. It should audit the kart fleet in a race scene instead.
+13. **The first-person lint (`leak`, `sunk`) is the only containment check.** It worked here (it found the gap), but "the player can walk off the map" is about a
+    walker; a `race-test` that reports when a kart leaves the track polygon would say what a racer cares about.
+14. **Parked models need `lint_ignore`.** The eight kart models sit at y = -50 until the client places them, which lint reads as "sunk 50 m". A scene-level way to
+    mark objects as pool templates would avoid per-object ignores.
+15. **Adding one concept still touched many files** (protocol, server, session, client, HUD, docs facts, feature index): the plumbing friction from the first half
+    is unchanged, but the repo's own tests named each omission, which is the reason it cost minutes and not hours.
