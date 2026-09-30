@@ -27,6 +27,8 @@ pub struct BotResult {
     pub lap_ticks: Vec<u32>,
     /// Its place at the end (from 1).
     pub place: usize,
+    /// Where it was (x, z) when the race ended.
+    pub at: (f32, f32),
 }
 
 /// What a bot race showed.
@@ -124,6 +126,7 @@ pub fn run(path: &Path, bots: usize, level: f32, max_secs: f32, drivers: &[Drive
             finished_at: race.progress(slot).and_then(|p| p.finished_at),
             lap_ticks: lap_ticks[slot].clone(),
             place: race.place_of(slot).unwrap_or(bots),
+            at: sim.player(slot).map_or((0.0, 0.0), |p| (p.state.pos.x, p.state.pos.y)),
         })
         .collect();
     results.sort_by_key(|r| r.place);
@@ -146,7 +149,7 @@ pub fn render(r: &RaceReport) -> String {
             "  {}. {:<7} {}  laps: {}\n",
             res.place,
             res.driver.name(),
-            res.finished_at.map_or("DID NOT FINISH".to_string(), |t| format!("{:6.1} s", seconds(t))),
+            res.finished_at.map_or(format!("DID NOT FINISH (last at x {:.0}, z {:.0})", res.at.0, res.at.1), |t| format!("{:6.1} s", seconds(t))),
             match (first, laps.is_empty()) {
                 (Some(f), true) => format!("{f:.1} s to lap 1"),
                 (Some(f), false) => format!("{f:.1} to lap 1, then {}", laps.join(", ")),

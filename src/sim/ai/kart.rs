@@ -49,6 +49,10 @@ pub struct KartBrain {
     drift_ticks: u32,
     item_age: u32,
     last: Vec2,
+    /// The line point it was wedged at last time; being wedged at the same one again sends it back a point.
+    stuck_at: Option<usize>,
+    /// Heading back to a point it had already "passed": only reaching it counts, not passing it.
+    backtrack: bool,
 }
 
 impl KartBrain {
@@ -67,6 +71,8 @@ impl KartBrain {
             drift_ticks: 0,
             item_age: 0,
             last: Vec2::ZERO,
+            stuck_at: None,
+            backtrack: false,
         }
     }
 
@@ -120,8 +126,9 @@ impl KartBrain {
             let prev = self.path[(self.target + n - 1) % n];
             let point = self.path[self.target];
             let along = point - prev;
-            let passed = along.length_squared() > 1e-6 && (point - pos).dot(along) < 0.0;
+            let passed = !self.backtrack && along.length_squared() > 1e-6 && (point - pos).dot(along) < 0.0;
             if (point - pos).length() < reach || passed {
+                self.backtrack = false;
                 self.target = (self.target + 1) % n;
             } else {
                 break;
@@ -137,6 +144,15 @@ impl KartBrain {
         self.last = pos;
         if self.stuck_ticks > STUCK_TICKS && self.reverse_ticks == 0 {
             self.reverse_ticks = REVERSE_TICKS;
+            // Wedged twice in a row while heading for the same point (it overshot a gap and is pushing at a wall the point is behind): go back to the
+            // previous point and approach again.
+            if self.stuck_at == Some(self.target) {
+                self.target = (self.target + n - 1) % n;
+                self.backtrack = true;
+                self.stuck_at = None;
+            } else {
+                self.stuck_at = Some(self.target);
+            }
             self.reverse_steer = if self.steer >= 0.0 { -1.0 } else { 1.0 };
             self.stuck_ticks = 0;
         }
