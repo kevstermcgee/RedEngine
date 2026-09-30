@@ -38,6 +38,22 @@ pub fn load() -> Result<Vec<Feature>, String> {
     parse(INDEX)
 }
 
+/// The text of the index a checkout is actually using: `docs/features.json` read from disk, so an edit to it is planned with immediately and a
+/// prebuilt binary never plans with a stale copy; the compiled-in text only outside a checkout (an installed binary).
+pub fn index_text_at(root: &Path) -> String {
+    std::fs::read_to_string(root.join("docs/features.json")).unwrap_or_else(|_| INDEX.to_string())
+}
+
+/// [`load`] for a checkout: the index on disk (see [`index_text_at`]).
+pub fn load_at(root: &Path) -> Result<Vec<Feature>, String> {
+    parse(&index_text_at(root))
+}
+
+/// The suites that must run one test at a time, from the checkout's index on disk.
+pub fn serial_suites_at(root: &Path) -> Vec<String> {
+    serial_suites_of(&index_text_at(root))
+}
+
 /// Parses an index document.
 pub fn parse(text: &str) -> Result<Vec<Feature>, String> {
     let v: Value = serde_json::from_str(text).map_err(|e| format!("features.json is not JSON: {e}"))?;
@@ -617,5 +633,26 @@ mod tests {
         assert_eq!((t.feature.as_str(), t.key, t.item.as_str()), ("sim", "tests", "new_suite"), "one owned import (sim::a) beats two unowned ones: {t:?}");
         assert!(suggest_owner(&fs, &root, "docs/x/none.md", &files).is_none(), "nothing beside it, nothing to go on");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_checkout_is_planned_with_the_index_on_disk_and_the_compiled_one_is_only_the_fallback() {
+        let dir = std::env::temp_dir().join(format!("re2_features_at_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("docs")).unwrap();
+        // No index on disk: the compiled-in one answers.
+        assert_eq!(index_text_at(&dir), INDEX);
+        assert_eq!(load_at(&dir).unwrap().len(), load().unwrap().len());
+        // An edited index on disk wins immediately, with no rebuild.
+        std::fs::write(
+            dir.join("docs/features.json"),
+            r#"{"serial_suites":["only_serial"],"features":{"solo":{"summary":"edited on disk","files":["src/solo.rs"],"tests":["solo_suite"]}}}"#,
+        )
+        .unwrap();
+        let all = load_at(&dir).unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!((all[0].name.as_str(), all[0].summary.as_str()), ("solo", "edited on disk"));
+        assert_eq!(serial_suites_at(&dir), ["only_serial"]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

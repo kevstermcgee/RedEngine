@@ -381,9 +381,9 @@ pub(crate) fn run_verify(scene: &Path, bless: bool, no_views: bool, only: Option
 
 pub(crate) fn run_features(query: &[String], check: bool) -> Result<(), String> {
     use red_engine2::tools::features;
-    let all = features::load()?;
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    let all = features::load_at(&root)?;
     if check {
-        let root = std::env::current_dir().map_err(|e| e.to_string())?;
         let problems = features::check(&all, &root);
         if envelope::capturing() {
             println!("{}", serde_json::json!({"ok": problems.is_empty(), "features": all.len(), "problems": problems}));
@@ -422,7 +422,7 @@ pub(crate) fn run_features(query: &[String], check: bool) -> Result<(), String> 
 
 pub(crate) fn run_impact(files: &[String], git: Option<&str>) -> Result<(), String> {
     use red_engine2::tools::features;
-    let all = features::load()?;
+    let all = features::load_at(&std::env::current_dir().map_err(|e| e.to_string())?)?;
     let changed: Vec<String> = match git {
         Some(base) => features::changed_files(&std::env::current_dir().map_err(|e| e.to_string())?, base)?,
         None => files.to_vec(),
@@ -471,57 +471,114 @@ fn restore_exe(moved: Option<(PathBuf, PathBuf)>) {
     }
 }
 
-pub(crate) fn run_affected(
-    files: &[String],
-    base: Option<&str>,
-    quick: bool,
-    full: bool,
-    dry_run: bool,
-    keep_going: bool,
-    no_cache: bool,
-) -> Result<(), String> {
+/// What `affected` was asked to do besides which files changed.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct AffectedFlags {
+    pub quick: bool,
+    pub full: bool,
+    pub dry_run: bool,
+    pub keep_going: bool,
+    pub no_cache: bool,
+    /// The bounded edit-loop tier (see `affected::plan_partial`).
+    pub partial: bool,
+    /// Partial only: no tests.
+    pub check_only: bool,
+    /// Partial only: graphics-free checks when provably safe.
+    pub headless: bool,
+}
+
+/// The commit `rev` names (so a stamp is tied to the real base, not to a moving ref name), or `rev` itself when git cannot say.
+fn resolve_rev(root: &Path, rev: &str) -> String {
+    std::process::Command::new("git")
+        .args(["rev-parse", "--verify", &format!("{rev}^{{commit}}")])
+        .current_dir(root)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| rev.to_string())
+}
+
+pub(crate) fn run_affected(files: &[String], base: Option<&str>, flags: AffectedFlags) -> Result<(), String> {
     use red_engine2::tools::{affected, features, symbols};
-    let all = features::load()?;
-    let serial = features::serial_suites();
+    let AffectedFlags { quick, full, dry_run, keep_going, no_cache, partial, check_only, headless } = flags;
     let root = symbols::find_root().ok_or("`affected` needs the engine's source tree: run it inside a red-engine-2 checkout (or set RE2_SRC)")?;
-    let changed: Vec<String> = if files.is_empty() {
-        let base = base.map(str::to_string).unwrap_or_else(|| features::default_base(&root));
-        features::changed_files(&root, &base)?
+    let all = features::load_at(&root)?;
+    let serial = features::serial_suites_at(&root);
+    // A partial run looks at what you just did (changes since HEAD); the other tiers look at everything you would push (changes since the merge base).
+    let explicit = !files.is_empty();
+    let base_ref = base.map(str::to_string).unwrap_or_else(|| if partial { "HEAD".to_string() } else { features::default_base(&root) });
+    let changed: Vec<String> = if explicit { files.to_vec() } else { features::changed_files(&root, &base_ref)? };
+    let opts = affected::Options { quick, full, partial, check_only, headless, ..Default::default() };
+    let mut headless_note = None;
+    let feature_set = if partial && headless {
+        match affected::headless_safe(&root, &changed) {
+            Ok(()) => affected::Features::Headless,
+            Err(why) => {
+                headless_note = Some(format!("--headless ignored, checking with the default features: {why}"));
+                affected::Features::Default
+            }
+        }
     } else {
-        files.to_vec()
+        affected::Features::Default
     };
-    let opts = affected::Options { quick, full, ..Default::default() };
-    let mut plan = affected::plan(&all, &serial, &changed, &opts);
-    affected::prune_doc_step(&mut plan, &root);
+    let mut plan = if partial { affected::plan_partial(&all, &serial, &changed, &opts, feature_set) } else { affected::plan(&all, &serial, &changed, &opts) };
+    if let Some(n) = headless_note {
+        plan.notes.push(n);
+    }
+    if !partial {
+        affected::prune_doc_step(&mut plan, &root);
+    }
+    let config = affected::Config::detect(plan.features);
+    // A list of files typed by hand says nothing about the rest of the tree: such a run is never remembered or reused.
+    let cacheable = !no_cache && !explicit;
+    let key =
+        affected::StampKey { base: resolve_rev(&root, &base_ref), config: config.id(), variant: if check_only { "check-only".into() } else { String::new() } };
     let json = envelope::capturing();
+    let plan_with_config = |p: &affected::Plan| {
+        let mut v = affected::plan_json(p);
+        v["config"] = serde_json::json!(config.render());
+        v
+    };
     if dry_run {
         if json {
-            println!("{}", affected::plan_json(&plan));
+            println!("{}", plan_with_config(&plan));
         } else {
+            println!("config: {}", config.render());
             print!("{}", affected::render_plan(&plan));
         }
         return Ok(());
     }
     if plan.steps.is_empty() {
         if json {
-            println!("{}", serde_json::json!({"verified": true, "plan": affected::plan_json(&plan), "results": []}));
+            println!("{}", serde_json::json!({"verified": !partial, "partial": partial, "plan": plan_with_config(&plan), "results": []}));
         } else {
+            println!("config: {}", config.render());
             print!("{}", affected::render_plan(&plan));
             println!("nothing to run");
         }
         return Ok(());
     }
-    if !no_cache {
-        if let Some(scope) = affected::already_green(&root, &plan.changed, plan.scope) {
+    if cacheable {
+        if let Some(scope) = affected::already_green_in(&root, &plan.changed, plan.scope, &key) {
             if json {
-                println!("{}", serde_json::json!({"verified": true, "cached": true, "scope": scope.name(), "plan": affected::plan_json(&plan), "results": []}));
+                println!(
+                    "{}",
+                    serde_json::json!({"verified": !partial, "partial": partial, "cached": true, "scope": scope.name(), "plan": plan_with_config(&plan), "results": []})
+                );
+            } else if partial {
+                println!("already passed this partial check (identical files, base, configuration): nothing to run. This is not verification; `--no-cache` forces a re-run.");
+                for r in &plan.full_required {
+                    println!("full verification still required: {r}");
+                }
             } else {
-                println!("already verified ({} scope, identical file contents): nothing to run. `--no-cache` forces a re-run.", scope.name());
+                println!("already verified ({} scope, identical file contents and configuration): nothing to run. `--no-cache` forces a re-run.", scope.name());
             }
             return Ok(());
         }
     }
     if !json {
+        println!("config: {}", config.render());
         print!("{}", affected::render_plan(&plan));
     }
     let started = std::time::Instant::now();
@@ -540,15 +597,23 @@ pub(crate) fn run_affected(
     });
     restore_exe(moved);
     let ok = results.len() == plan.steps.len() && results.iter().all(|r| r.ok);
-    if ok && !no_cache {
-        affected::record_green(&root, &plan.changed, plan.scope);
+    if ok && cacheable {
+        affected::record_green_in(&root, &plan.changed, plan.scope, &key);
     }
     if json {
         let rs: Vec<_> = results
             .iter()
             .map(|r| serde_json::json!({"name": r.name, "ok": r.ok, "secs": r.secs, "tally": r.tally, "failures": r.failures, "log": r.log.display().to_string()}))
             .collect();
-        println!("{}", serde_json::json!({"verified": ok, "scope": plan.scope.name(), "plan": affected::plan_json(&plan), "results": rs}));
+        println!(
+            "{}",
+            serde_json::json!({"verified": ok && !partial, "partial": partial, "passed": ok, "scope": plan.scope.name(), "plan": plan_with_config(&plan), "results": rs})
+        );
+    } else if ok && partial {
+        println!("partial pass in {:.0}s: this is NOT verification.", started.elapsed().as_secs_f64());
+        for r in &plan.full_required {
+            println!("full verification still required: {r}");
+        }
     } else if ok {
         println!("verified ({} scope) in {:.0}s", plan.scope.name(), started.elapsed().as_secs_f64());
         if plan.scope != affected::Scope::Full {

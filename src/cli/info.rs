@@ -53,7 +53,7 @@ pub(crate) fn run_search(query: &str, kind: Option<&str>, limit: usize) -> Resul
 pub(crate) fn run_context(query: &[String], git: bool, budget: usize) -> Result<(), String> {
     use red_engine2::tools::{context, features};
     let root = symbols::find_root().ok_or("cannot find the source tree (run inside the repo or set RE2_SRC=<repo path>)")?;
-    let all = features::load()?;
+    let all = features::load_at(&root)?;
     let mut query = query.to_vec();
     if git {
         let changed = features::changed_files(&root, "HEAD")?;

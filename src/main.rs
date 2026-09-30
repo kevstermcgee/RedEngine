@@ -139,7 +139,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Replay { trace, scene, against } => run_replay(&trace, scene.as_deref(), against.as_deref()),
         Command::NetIdentity { out, names } => run_net_identity(&out, &names),
         Command::NetTest { scene, profile, players, secs, seed, transport } => run_net_test(&scene, &profile, players, secs, seed, &transport),
-        Command::Preflight { fix, no_fmt, root } => run_preflight(fix, no_fmt, root.as_deref()),
+        Command::Preflight { fix, no_fmt, tree, root } => run_preflight(fix, no_fmt, tree, root.as_deref()),
         Command::Playtest { scene, secs, shots, out, script, connect, fill, bot_skill, size } => playtest::run_playtest(&playtest::PlaytestArgs {
             scene: &scene,
             secs,
@@ -156,8 +156,8 @@ fn run(command: Command) -> Result<(), String> {
         Command::Features { query, check } => run_features(&query, check),
         Command::Impact { files, git } => run_impact(&files, git.as_deref()),
         Command::Context { query, git, budget } => run_context(&query, git, budget),
-        Command::Affected { files, base, quick, full, dry_run, keep_going, no_cache } => {
-            run_affected(&files, base.as_deref(), quick, full, dry_run, keep_going, no_cache)
+        Command::Affected { files, base, quick, full, dry_run, keep_going, no_cache, partial, check_only, headless } => {
+            run_affected(&files, base.as_deref(), AffectedFlags { quick, full, dry_run, keep_going, no_cache, partial, check_only, headless })
         }
         Command::Package { zip, verify, allow_dirty, no_build } => run_package(&zip, verify, allow_dirty, no_build),
         Command::Portmap { action, port, lease, router, allow_permanent } => run_portmap(&action, port, lease, router, allow_permanent),

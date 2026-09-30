@@ -22,6 +22,12 @@
 //! **Green stamps.** A passing run is recorded in `out/.affected-green.json` under a hash of the *contents* of every changed file, the scope and the feature
 //! index. Asking again with identical inputs costs nothing ("already verified"); any edit changes the hash. Failures are never cached.
 //!
+//! **Partial iteration.** `--partial` (`scripts/dev iterate`) is the bounded edit-loop path: it looks only at what changed since `HEAD`, never escalates, and runs
+//! `cargo fmt --check`, a type-check of the touched targets and the focused unit tests. It always says that full verification is still required, is stamped under
+//! its own scope (`partial`) that no other scope ever accepts, and never prints "verified". Its cargo steps state their feature set (`--headless` for files that are
+//! provably not graphics code) and the stamp key includes that configuration, the toolchain and the base commit, so a partial, headless or other-toolchain pass cannot
+//! stand in for anything else.
+//!
 //! Planning is pure (`plan`), so it is unit-tested without running cargo; `run` executes a plan with one log file per step and prints only summaries.
 
 use super::features::{self, Feature};
@@ -34,6 +40,8 @@ use std::time::Instant;
 /// How much verification to plan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Scope {
+    /// The bounded edit-loop path: changes since `HEAD`, type-check plus focused unit tests, never escalates and never counts as verification.
+    Partial,
     /// Only the features that own a changed file (the edit loop).
     Quick,
     /// Owners plus every feature built on them (before "done").
@@ -46,12 +54,120 @@ impl Scope {
     /// Stable name (`quick`, `closure`, `full`), used in stamps and output.
     pub fn name(self) -> &'static str {
         match self {
+            Scope::Partial => "partial",
             Scope::Quick => "quick",
             Scope::Closure => "closure",
             Scope::Full => "full",
         }
     }
 }
+
+/// Which cargo feature set a plan's steps use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Features {
+    /// Everything, graphics included (`cargo` defaults).
+    Default,
+    /// `--no-default-features`: the graphics-free server/analysis build.
+    Headless,
+}
+
+impl Features {
+    /// Stable name (`default`, `headless`), shown in plans and part of the stamp key.
+    pub fn name(self) -> &'static str {
+        match self {
+            Features::Default => "default",
+            Features::Headless => "headless",
+        }
+    }
+    /// The cargo flags that select this feature set.
+    pub fn flags(self) -> &'static [&'static str] {
+        match self {
+            Features::Default => &[],
+            Features::Headless => &["--no-default-features"],
+        }
+    }
+}
+
+/// The effective configuration a plan's steps run under, shown in the plan and (except the two build-speed fields) part of the stamp key: a green result is
+/// only reused under the same feature set, toolchain and result-affecting environment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Config {
+    /// Feature set of the cargo steps.
+    pub features: Features,
+    /// `rustc -vV` release and commit hash (`unknown` when rustc cannot be run).
+    pub toolchain: String,
+    /// Environment variables that change what a build or test does (`RUSTFLAGS`, `RUST_TEST_THREADS`, `CARGO_PROFILE_*`, `CARGO_BUILD_TARGET`), sorted.
+    pub env: Vec<(String, String)>,
+    /// `CARGO_BUILD_JOBS` if set: how fast, not what, so it is reported but not part of [`id`](Self::id).
+    pub jobs: Option<String>,
+    /// The cargo target directory: where artifacts live, not what they prove, so reported but not part of [`id`](Self::id).
+    pub target_dir: String,
+}
+
+/// Environment variables that change the result of a build or a test run.
+fn result_env_names(name: &str) -> bool {
+    matches!(name, "RUSTFLAGS" | "CARGO_ENCODED_RUSTFLAGS" | "RUSTDOCFLAGS" | "CARGO_BUILD_TARGET" | "RUST_TEST_THREADS" | "RUST_TEST_NOCAPTURE")
+        || name.starts_with("CARGO_PROFILE_")
+}
+
+impl Config {
+    /// The configuration of this process's environment for `features`.
+    pub fn detect(features: Features) -> Config {
+        let toolchain = Command::new("rustc")
+            .arg("-vV")
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| {
+                let text = String::from_utf8_lossy(&o.stdout).to_string();
+                let get = |key: &str| text.lines().find_map(|l| l.strip_prefix(key)).unwrap_or("?").trim().to_string();
+                format!("{} ({})", get("release:"), get("commit-hash:").chars().take(9).collect::<String>())
+            })
+            .unwrap_or_else(|| "unknown".into());
+        let mut env: Vec<(String, String)> = std::env::vars().filter(|(k, _)| result_env_names(k)).collect();
+        env.sort();
+        Config {
+            features,
+            toolchain,
+            env,
+            jobs: std::env::var("CARGO_BUILD_JOBS").ok(),
+            target_dir: std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".into()),
+        }
+    }
+
+    /// What makes two results comparable: feature set, toolchain and result-affecting environment (not jobs or target directory).
+    pub fn id(&self) -> String {
+        let env: Vec<String> = self.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        format!("features={};profile=dev;toolchain={};env=[{}]", self.features.name(), self.toolchain, env.join(","))
+    }
+
+    /// One line for humans: everything, including the two fields that are not part of the identity.
+    pub fn render(&self) -> String {
+        let env: Vec<String> = self.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        format!(
+            "features={} profile=dev/test toolchain={} jobs={} target-dir={}{}",
+            self.features.name(),
+            self.toolchain,
+            self.jobs.as_deref().unwrap_or("auto"),
+            self.target_dir,
+            if env.is_empty() { String::new() } else { format!(" env: {}", env.join(" ")) }
+        )
+    }
+}
+
+/// Everything besides the changed files' contents that a stamp must agree on.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StampKey {
+    /// The resolved commit the change set is relative to: together with the changed files' contents it fixes the whole tree.
+    pub base: String,
+    /// [`Config::id`]: feature set, toolchain, result-affecting environment.
+    pub config: String,
+    /// The plan variant (`--check-only` runs fewer steps than a plain partial run).
+    pub variant: String,
+}
+
+/// Bump when the planner's steps change in a way that an old green result should not vouch for.
+const PLANNER_REV: &str = "3";
 
 /// One command of a plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,6 +210,10 @@ pub struct Plan {
     pub notes: Vec<String>,
     /// Verification commands from the affected features that need eyes (`frame`, `verify ...`): suggestions, not run.
     pub suggest: Vec<String>,
+    /// The cargo feature set the steps use.
+    pub features: Features,
+    /// Why full verification is still required after this plan (a partial plan only; empty for every other scope): never empty for `Scope::Partial`.
+    pub full_required: Vec<String>,
 }
 
 /// Paths that never need verification (generated output, logs, the handoff file).
@@ -172,11 +292,17 @@ pub struct Options {
     pub max_files: usize,
     /// Escalate when the suites to run are at least this fraction of all suites (percent).
     pub escalate_percent: usize,
+    /// Plan the bounded partial iteration path instead (see [`plan_partial`]).
+    pub partial: bool,
+    /// Partial only: type-check and format only, no tests.
+    pub check_only: bool,
+    /// Partial only: ask for the graphics-free feature set (honoured only when every changed file is provably headless-safe).
+    pub headless: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { quick: false, full: false, max_files: 60, escalate_percent: 75 }
+        Options { quick: false, full: false, max_files: 60, escalate_percent: 75, partial: false, check_only: false, headless: false }
     }
 }
 
@@ -194,6 +320,8 @@ fn full_plan(changed: Vec<String>, why: String) -> Plan {
         deferred: Vec::new(),
         notes: Vec::new(),
         suggest: Vec::new(),
+        features: Features::Default,
+        full_required: Vec::new(),
     }
 }
 
@@ -219,6 +347,8 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
         deferred: Vec::new(),
         notes: Vec::new(),
         suggest: Vec::new(),
+        features: Features::Default,
+        full_required: Vec::new(),
     };
     if changed.is_empty() {
         plan.notes.push("nothing to verify: no changed files".into());
@@ -376,6 +506,166 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
     plan
 }
 
+/// Top-level modules of `src/lib.rs` that exist only with the `gfx` feature (`#[cfg(feature = "gfx")]` directly above `mod name;`).
+fn gfx_modules(lib_rs: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    let mut gated = false;
+    for line in lib_rs.lines() {
+        let t = line.trim();
+        if t.starts_with("#[cfg(feature = \"gfx\")]") {
+            gated = true;
+        } else if t.starts_with("#[") {
+            // another attribute between the cfg and the module keeps the gate
+        } else {
+            if gated {
+                if let Some(name) = t.strip_prefix("pub mod ").or_else(|| t.strip_prefix("mod ")).map(|r| r.trim_end_matches(';').trim()) {
+                    out.insert(name.to_string());
+                }
+            }
+            gated = false;
+        }
+    }
+    out
+}
+
+/// Whether every changed file can be checked without graphics: `Ok(())`, or `Err(why)` naming the first file that needs the default feature set.
+/// Reviewed rule, deliberately conservative: a Rust file under `src/` whose top-level module is not `gfx`-gated in `src/lib.rs`, that is not the live
+/// client (`src/bin/re2/`), and whose text never mentions `feature = "gfx"`. Tests, benches and examples run under the default features; a change to the
+/// build settings does too.
+pub fn headless_safe(root: &Path, changed: &[String]) -> Result<(), String> {
+    let gated = std::fs::read_to_string(root.join("src/lib.rs")).map(|t| gfx_modules(&t)).unwrap_or_default();
+    for c in changed {
+        if boundary_reason(c).is_some() {
+            return Err(format!("{c}: build settings change for every feature set"));
+        }
+        if !c.ends_with(".rs") {
+            continue;
+        }
+        let Some(rel) = c.strip_prefix("src/") else {
+            return Err(format!("{c}: tests, benches and examples run under the default features"));
+        };
+        if rel.starts_with("bin/re2/") {
+            return Err(format!("{c}: the live client needs graphics"));
+        }
+        let top = rel.split('/').next().unwrap_or("").trim_end_matches(".rs");
+        if gated.contains(top) {
+            return Err(format!("{c}: module `{top}` exists only with the gfx feature"));
+        }
+        match std::fs::read_to_string(root.join(c)) {
+            Ok(text) if text.contains("feature = \"gfx\"") => return Err(format!("{c}: has gfx-only code inside")),
+            Ok(_) => {}
+            Err(_) => return Err(format!("{c}: cannot be read to check for gfx-only code")),
+        }
+    }
+    Ok(())
+}
+
+/// The bounded partial plan (`--partial`, `scripts/dev iterate`): for the files changed since the base (the caller passes `HEAD`'s diff), format check, a type-check
+/// of the touched cargo targets, the unit tests of the touched library modules (unless `check_only`) and any changed test file running itself.
+/// It **never escalates**: a boundary file does not turn it into a full CI run, it is reported in [`Plan::full_required`] instead. The result is never "verified":
+/// `full_required` always says what the plan did not cover, and `deferred` lists the integration suites a quick run would have run.
+pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts: &Options, features: Features) -> Plan {
+    let changed: Vec<String> = changed.iter().map(|c| c.replace('\\', "/")).filter(|c| !ignorable(c)).collect();
+    let mut plan = Plan {
+        scope: Scope::Partial,
+        changed: changed.clone(),
+        steps: Vec::new(),
+        escalated: None,
+        deferred: Vec::new(),
+        notes: Vec::new(),
+        suggest: Vec::new(),
+        features,
+        full_required: Vec::new(),
+    };
+    if changed.is_empty() {
+        plan.notes.push("nothing changed since the base: nothing to check".into());
+        return plan;
+    }
+    for c in &changed {
+        if let Some(why) = boundary_reason(c) {
+            plan.full_required.push(format!("{c}: {why}; no subset of tests can vouch for it"));
+        }
+    }
+    if changed.len() > opts.max_files {
+        plan.full_required.push(format!("{} changed files: a partial check says little about a change this large", changed.len()));
+    }
+    let is_test_file = |c: &str| matches!(target_of(c), Some(Target::Test(_)));
+    let (_, others): (Vec<String>, Vec<String>) = changed.iter().cloned().partition(|c| is_test_file(c));
+    let imp = features::impact(all, &others);
+    let mut would: BTreeSet<String> = BTreeSet::new();
+    for f in all.iter().filter(|f| imp.direct.contains_key(&f.name) || imp.downstream.contains(&f.name)) {
+        would.extend(f.tests.iter().filter(|t| !t.starts_with("lib:")).cloned());
+    }
+    let mut targets: BTreeSet<Target> = BTreeSet::new();
+    let mut lib_filters: BTreeSet<String> = BTreeSet::new();
+    for c in &changed {
+        if let Some(t) = target_of(c) {
+            targets.insert(t);
+        }
+        if let Some(m) = lib_filter(c) {
+            lib_filters.insert(m);
+        }
+    }
+    let own_tests: BTreeSet<String> = targets.iter().filter_map(|t| if let Target::Test(n) = t { Some(n.clone()) } else { None }).collect();
+    plan.deferred = would.difference(&own_tests).cloned().collect();
+    let flags = features.flags();
+    let has_rs = changed.iter().any(|c| c.ends_with(".rs"));
+    let build_settings = changed.iter().any(|c| boundary_reason(c).is_some() && matches!(c.as_str(), "Cargo.toml" | "Cargo.lock" | "build.rs"));
+    if has_rs {
+        plan.steps.push(Step::new("fmt", &["cargo", "fmt", "--check"], "a Rust file changed"));
+    }
+    if has_rs || build_settings {
+        let mut argv: Vec<String> = ["cargo", "check", "--locked"].iter().map(|s| s.to_string()).collect();
+        argv.extend(flags.iter().map(|f| f.to_string()));
+        let lib_changed = targets.contains(&Target::Lib) || build_settings || targets.is_empty();
+        if lib_changed {
+            argv.extend(["--lib".into(), "--bins".into()]);
+        }
+        for t in &targets {
+            match t {
+                Target::Lib => {}
+                Target::Bin(b) if !lib_changed => argv.extend(["--bin".into(), b.clone()]),
+                Target::Bin(_) => {}
+                Target::Test(n) => argv.extend(["--test".into(), n.clone()]),
+                Target::Bench(n) => argv.extend(["--bench".into(), n.clone()]),
+                Target::Example(n) => argv.extend(["--example".into(), n.clone()]),
+            }
+        }
+        plan.steps.push(Step { name: "check".into(), argv, env: Vec::new(), why: format!("type-check the touched targets ({} features)", features.name()) });
+    }
+    if !opts.check_only {
+        let lib_filters = minimal_filters(&lib_filters);
+        if !lib_filters.is_empty() {
+            let mut argv: Vec<String> = ["cargo", "test", "--locked"].iter().map(|s| s.to_string()).collect();
+            argv.extend(flags.iter().map(|f| f.to_string()));
+            argv.extend(["--lib".into(), "--".into()]);
+            argv.extend(lib_filters.iter().cloned());
+            plan.steps.push(Step { name: "unit".into(), argv, env: Vec::new(), why: format!("unit tests of the touched modules: {}", lib_filters.join(", ")) });
+        }
+        let (serial_own, parallel_own): (Vec<&String>, Vec<&String>) = own_tests.iter().partition(|s| serial.contains(s));
+        for (name, list, env) in [("suites", parallel_own, Vec::new()), ("suites-serial", serial_own, vec![("RUST_TEST_THREADS".to_string(), "1".to_string())])]
+        {
+            if list.is_empty() {
+                continue;
+            }
+            let mut argv: Vec<String> = ["cargo", "test", "--locked"].iter().map(|s| s.to_string()).collect();
+            argv.extend(flags.iter().map(|f| f.to_string()));
+            for t in &list {
+                argv.extend(["--test".into(), (*t).clone()]);
+            }
+            plan.steps.push(Step { name: name.into(), argv, env, why: "a changed test file runs itself".into() });
+        }
+    }
+    if opts.check_only {
+        plan.notes.push("--check-only: formatting and type-check only, no tests".into());
+    }
+    if !plan.deferred.is_empty() {
+        plan.full_required.push(format!("{} integration suite(s) of the affected features did not run (see `not run`)", plan.deferred.len()));
+    }
+    plan.full_required.push("a partial pass is not verification: run `scripts/dev affected` before you say done, `--full` before pushing".into());
+    plan
+}
+
 /// Drops the `doc` step when none of the changed library files contains a doc example (a fenced block inside a `///` or `//!` comment): starting
 /// rustdoc to run zero doctests costs seconds. Files that cannot be read keep the step.
 pub fn prune_doc_step(plan: &mut Plan, root: &Path) {
@@ -384,16 +674,39 @@ pub fn prune_doc_step(plan: &mut Plan, root: &Path) {
             return false;
         }
         match std::fs::read_to_string(root.join(rel)) {
-            Ok(text) => text.lines().any(|l| {
-                let t = l.trim_start();
-                (t.starts_with("///") || t.starts_with("//!")) && t.contains("```")
-            }),
+            Ok(text) => has_runnable_doc_example(&text),
             Err(_) => true,
         }
     };
     if plan.steps.iter().any(|s| s.name == "doc") && !plan.changed.iter().any(has_example) {
         plan.steps.retain(|s| s.name != "doc");
     }
+}
+
+/// Whether a source text has a doctest rustdoc would actually run: a fenced block in a `///` or `//!` comment whose info string is empty or rust-ish. A
+/// ```` ```json ````, ```` ```text ```` or ```` ```sh ```` block is documentation, and `ignore`d blocks are not run, so they must not keep the (seconds-long) `doc` step.
+pub fn has_runnable_doc_example(text: &str) -> bool {
+    let mut open = false;
+    for l in text.lines() {
+        let t = l.trim_start();
+        let Some(body) = t.strip_prefix("///").or_else(|| t.strip_prefix("//!")) else { continue };
+        let Some(info) = body.trim_start().strip_prefix("```") else { continue };
+        if open {
+            open = false; // the closing fence
+            continue;
+        }
+        open = true;
+        let info = info.trim();
+        let runnable = info.is_empty()
+            || info
+                .split([',', ' '])
+                .filter(|w| !w.is_empty())
+                .all(|w| matches!(w, "rust" | "no_run" | "should_panic" | "compile_fail" | "edition2015" | "edition2018" | "edition2021" | "edition2024"));
+        if runnable {
+            return true;
+        }
+    }
+    false
 }
 
 /// The result of running one step.
@@ -545,12 +858,23 @@ pub fn run(plan: &Plan, root: &Path, log_dir: &Path, keep_going: bool, on_step: 
     results
 }
 
-/// A hash of what is being verified: the scope, the feature index and the *contents* of every changed file (a deleted file hashes as such). Equal
-/// hashes mean equal inputs, so a previous green result still holds.
-pub fn fingerprint(root: &Path, changed: &[String], scope: Scope) -> String {
+/// A hash of what is being verified: the scope, the planner revision, the feature index **as it is on disk**, everything in the [`StampKey`] (base commit,
+/// configuration, plan variant) and the *contents* of every changed file (a deleted file hashes as such). Equal hashes mean equal inputs, so a previous green
+/// result still holds; anything that could change what the result proves changes the hash.
+pub fn fingerprint_in(root: &Path, changed: &[String], scope: Scope, key: &StampKey) -> String {
     let mut h = crypto::Sha256::new();
-    h.update(format!("affected-v1\n{}\n{}\n", scope.name(), env!("CARGO_PKG_VERSION")).as_bytes());
-    h.update(features::INDEX.as_bytes());
+    h.update(
+        format!(
+            "affected-v2\n{}\n{}\n{PLANNER_REV}\nbase={}\nconfig={}\nvariant={}\n",
+            scope.name(),
+            env!("CARGO_PKG_VERSION"),
+            key.base,
+            key.config,
+            key.variant
+        )
+        .as_bytes(),
+    );
+    h.update(features::index_text_at(root).as_bytes());
     let mut files: Vec<&String> = changed.iter().collect();
     files.sort();
     for f in files {
@@ -563,39 +887,59 @@ pub fn fingerprint(root: &Path, changed: &[String], scope: Scope) -> String {
     crypto::hex(&h.finish())
 }
 
+/// [`fingerprint_in`] with an empty key (no base, configuration or variant): kept for callers that only know files and scope.
+pub fn fingerprint(root: &Path, changed: &[String], scope: Scope) -> String {
+    fingerprint_in(root, changed, scope, &StampKey::default())
+}
+
 /// Path of the green-stamp file under `root`.
 pub fn stamp_path(root: &Path) -> PathBuf {
     root.join("out").join(".affected-green.json")
 }
 
-/// The scopes at least as strong as `scope` (a green full run also proves the smaller ones).
+/// The scopes whose green result also proves `scope`. A quick run is proven by a green closure or full run, and so on up. **A partial pass proves only a
+/// partial pass, and is proven by nothing stronger being assumed**: it type-checks and runs a few unit tests, so it must never stand in for a real
+/// verification, and the lookup for any other scope never reads a partial stamp.
 pub fn scopes_covering(scope: Scope) -> Vec<Scope> {
+    if scope == Scope::Partial {
+        return vec![Scope::Partial];
+    }
     [Scope::Quick, Scope::Closure, Scope::Full].into_iter().filter(|s| *s >= scope).collect()
 }
 
-/// Whether a stamp for `changed` at `scope` or stronger is already green.
-pub fn already_green(root: &Path, changed: &[String], scope: Scope) -> Option<Scope> {
+/// Whether a stamp for `changed` at `scope` or stronger is already green under `key`.
+pub fn already_green_in(root: &Path, changed: &[String], scope: Scope, key: &StampKey) -> Option<Scope> {
     let text = std::fs::read_to_string(stamp_path(root)).ok()?;
     let v: serde_json::Value = serde_json::from_str(&text).ok()?;
     let greens: BTreeSet<&str> = v.get("green")?.as_array()?.iter().filter_map(|x| x.as_str()).collect();
-    scopes_covering(scope).into_iter().find(|s| greens.contains(fingerprint(root, changed, *s).as_str()))
+    scopes_covering(scope).into_iter().find(|s| greens.contains(fingerprint_in(root, changed, *s, key).as_str()))
 }
 
-/// Records a green run (keeps the most recent 16).
-pub fn record_green(root: &Path, changed: &[String], scope: Scope) {
+/// [`already_green_in`] with an empty key.
+pub fn already_green(root: &Path, changed: &[String], scope: Scope) -> Option<Scope> {
+    already_green_in(root, changed, scope, &StampKey::default())
+}
+
+/// Records a green run under `key` (keeps the most recent 16).
+pub fn record_green_in(root: &Path, changed: &[String], scope: Scope, key: &StampKey) {
     let path = stamp_path(root);
     let mut greens: Vec<String> = std::fs::read_to_string(&path)
         .ok()
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         .and_then(|v| v.get("green").and_then(|g| g.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()))
         .unwrap_or_default();
-    let key = fingerprint(root, changed, scope);
-    greens.retain(|g| g != &key);
-    greens.push(key);
+    let k = fingerprint_in(root, changed, scope, key);
+    greens.retain(|g| g != &k);
+    greens.push(k);
     let keep = greens.len().saturating_sub(16);
     greens.drain(..keep);
     let _ = std::fs::create_dir_all(root.join("out"));
     let _ = std::fs::write(path, serde_json::json!({ "green": greens }).to_string());
+}
+
+/// [`record_green_in`] with an empty key.
+pub fn record_green(root: &Path, changed: &[String], scope: Scope) {
+    record_green_in(root, changed, scope, &StampKey::default());
 }
 
 /// The plan as text: what changed, the scope, each step with its reason, what was deferred.
@@ -603,6 +947,9 @@ pub fn render_plan(p: &Plan) -> String {
     let mut s = format!("{} changed file(s), scope {}", p.changed.len(), p.scope.name());
     if let Some(why) = &p.escalated {
         s.push_str(&format!(" (full CI: {why})"));
+    }
+    if p.scope == Scope::Partial {
+        s.push_str(" (PARTIAL: does not count as verification)");
     }
     s.push('\n');
     for st in &p.steps {
@@ -612,7 +959,14 @@ pub fn render_plan(p: &Plan) -> String {
         s.push_str(&format!("note: {n}\n"));
     }
     if !p.deferred.is_empty() {
-        s.push_str(&format!("not run in this scope (dependents; run without --quick before integrating): {}\n", p.deferred.join(", ")));
+        if p.scope == Scope::Partial {
+            s.push_str(&format!("not run (integration suites of the affected features): {}\n", p.deferred.join(", ")));
+        } else {
+            s.push_str(&format!("not run in this scope (dependents; run without --quick before integrating): {}\n", p.deferred.join(", ")));
+        }
+    }
+    for r in &p.full_required {
+        s.push_str(&format!("full verification still required: {r}\n"));
     }
     if !p.suggest.is_empty() {
         s.push_str("worth a look (not run):\n");
@@ -633,6 +987,9 @@ pub fn plan_json(p: &Plan) -> serde_json::Value {
         "deferred": p.deferred,
         "notes": p.notes,
         "suggest": p.suggest,
+        "partial": p.scope == Scope::Partial,
+        "features": p.features.name(),
+        "full_verification_required": p.full_required,
     })
 }
 
@@ -845,6 +1202,8 @@ mod tests {
             deferred: vec![],
             notes: vec![],
             suggest: vec![],
+            features: Features::Default,
+            full_required: vec![],
         };
         let mut seen = Vec::new();
         let r = run(&p, &dir, &dir.join("logs"), false, &mut |s| seen.push((s.name.clone(), s.ok)));
@@ -854,5 +1213,171 @@ mod tests {
         let all = run(&p, &dir, &dir.join("logs"), true, &mut |_| {});
         assert_eq!(all.len(), 3, "--keep-going runs every step");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    fn scratch(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("re2_affected_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn partial_of(changed: &[&str], opts: &Options) -> Plan {
+        let changed: Vec<String> = changed.iter().map(|c| c.to_string()).collect();
+        plan_partial(&world(), &serial(), &changed, opts, Features::Default)
+    }
+
+    #[test]
+    fn a_partial_plan_type_checks_and_runs_the_touched_modules_and_always_says_full_verification_is_still_required() {
+        let p = partial_of(&["src/sim/flow.rs"], &Options { partial: true, ..Options::default() });
+        assert_eq!(p.scope, Scope::Partial);
+        assert_eq!(names(&p), ["fmt", "check", "unit"]);
+        assert_eq!(step(&p, "check").argv.join(" "), "cargo check --locked --lib --bins");
+        assert_eq!(step(&p, "unit").argv.join(" "), "cargo test --locked --lib -- sim::flow");
+        assert!(p.escalated.is_none());
+        assert!(p.deferred.iter().any(|d| d == "net_flow"), "the owner's integration suites are listed as not run: {:?}", p.deferred);
+        assert!(p.full_required.iter().any(|r| r.contains("not verification")), "{:?}", p.full_required);
+        let text = render_plan(&p);
+        assert!(text.contains("PARTIAL") && text.contains("full verification still required"), "{text}");
+        assert_eq!(plan_json(&p)["partial"], true);
+        // Even a change with nothing deferred carries the reminder.
+        let docs = partial_of(&["README.md"], &Options { partial: true, ..Options::default() });
+        assert!(docs.steps.is_empty() && !docs.full_required.is_empty(), "{docs:?}");
+    }
+
+    #[test]
+    fn a_partial_plan_never_escalates_to_full_ci_and_check_only_drops_the_tests() {
+        for boundary in ["Cargo.toml", "src/lib.rs", "scripts/ci.sh"] {
+            let p = partial_of(&[boundary, "src/sim/flow.rs"], &Options { partial: true, ..Options::default() });
+            assert_eq!(p.scope, Scope::Partial, "{boundary}");
+            assert!(p.steps.iter().all(|s| s.name != "ci"), "{boundary}: {:?}", names(&p));
+            assert!(p.full_required.iter().any(|r| r.contains(boundary)), "{boundary}: {:?}", p.full_required);
+        }
+        let quick = partial_of(&["src/sim/flow.rs"], &Options { partial: true, check_only: true, ..Options::default() });
+        assert_eq!(names(&quick), ["fmt", "check"]);
+        // A changed test file runs itself (serial suites one at a time); nothing else is run for it.
+        let t = partial_of(&["tests/net_e2e.rs"], &Options { partial: true, ..Options::default() });
+        assert_eq!(step(&t, "suites-serial").env, vec![("RUST_TEST_THREADS".to_string(), "1".to_string())]);
+        assert_eq!(step(&t, "check").argv.join(" "), "cargo check --locked --test net_e2e");
+    }
+
+    #[test]
+    fn the_feature_set_is_chosen_explicitly_and_reaches_every_cargo_step() {
+        let changed = vec!["src/sim/flow.rs".to_string()];
+        let p = plan_partial(&world(), &serial(), &changed, &Options { partial: true, ..Options::default() }, Features::Headless);
+        assert_eq!(p.features, Features::Headless);
+        assert!(step(&p, "check").argv.contains(&"--no-default-features".to_string()));
+        assert!(step(&p, "unit").argv.contains(&"--no-default-features".to_string()));
+        assert_eq!(plan_json(&p)["features"], "headless");
+        let d = plan_partial(&world(), &serial(), &changed, &Options { partial: true, ..Options::default() }, Features::Default);
+        assert!(d.steps.iter().all(|s| !s.argv.contains(&"--no-default-features".to_string())));
+    }
+
+    #[test]
+    fn headless_is_used_only_for_files_that_are_provably_not_graphics_code() {
+        let dir = scratch("headless");
+        std::fs::create_dir_all(dir.join("src/sim")).unwrap();
+        std::fs::create_dir_all(dir.join("src/bin/re2")).unwrap();
+        std::fs::write(
+            dir.join("src/lib.rs"),
+            "pub mod sim;\n#[cfg(feature = \"gfx\")]\n#[allow(missing_docs)]\npub mod render;\n#[cfg(feature = \"gfx\")]\nmod gpu;\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("src/sim/clock.rs"), "pub fn tick() {}\n").unwrap();
+        std::fs::write(dir.join("src/sim/mixed.rs"), "#[cfg(feature = \"gfx\")]\nfn draw() {}\n").unwrap();
+        std::fs::write(dir.join("src/render.rs"), "pub fn draw() {}\n").unwrap();
+        std::fs::write(dir.join("src/bin/re2/main.rs"), "fn main() {}\n").unwrap();
+        let ok = |files: &[&str]| headless_safe(&dir, &files.iter().map(|f| f.to_string()).collect::<Vec<_>>());
+        assert_eq!(ok(&["src/sim/clock.rs", "docs/x.md"]), Ok(()));
+        assert!(ok(&["src/render.rs"]).unwrap_err().contains("only with the gfx feature"));
+        assert!(ok(&["src/sim/clock.rs", "src/sim/mixed.rs"]).unwrap_err().contains("gfx-only code inside"));
+        assert!(ok(&["src/bin/re2/main.rs"]).unwrap_err().contains("live client"));
+        assert!(ok(&["tests/net_e2e.rs"]).unwrap_err().contains("default features"));
+        assert!(ok(&["Cargo.toml"]).unwrap_err().contains("every feature set"));
+        assert!(ok(&["src/missing.rs"]).is_err(), "an unreadable file is not assumed safe");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_partial_pass_never_stands_in_for_any_other_scope_and_nothing_stands_in_for_it() {
+        let dir = scratch("partial_stamp");
+        std::fs::write(dir.join("a.txt"), "one").unwrap();
+        let files = vec!["a.txt".to_string()];
+        let key = StampKey { base: "abc".into(), config: "features=default".into(), variant: String::new() };
+        assert_eq!(scopes_covering(Scope::Partial), vec![Scope::Partial]);
+        assert!(scopes_covering(Scope::Quick).iter().all(|s| *s != Scope::Partial));
+        record_green_in(&dir, &files, Scope::Partial, &key);
+        assert_eq!(already_green_in(&dir, &files, Scope::Partial, &key), Some(Scope::Partial));
+        for scope in [Scope::Quick, Scope::Closure, Scope::Full] {
+            assert_eq!(already_green_in(&dir, &files, scope, &key), None, "a partial pass must not satisfy {scope:?}");
+        }
+        let dir2 = scratch("partial_stamp_full");
+        std::fs::write(dir2.join("a.txt"), "one").unwrap();
+        record_green_in(&dir2, &files, Scope::Full, &key);
+        assert_eq!(already_green_in(&dir2, &files, Scope::Partial, &key), None, "and a full pass is not assumed to have run the partial steps");
+        assert_eq!(already_green_in(&dir2, &files, Scope::Quick, &key), Some(Scope::Full), "the ordinary tiers still cover each other");
+        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_dir_all(&dir2).unwrap();
+    }
+
+    #[test]
+    fn a_green_stamp_is_not_reused_across_base_configuration_toolchain_variant_or_index() {
+        let dir = scratch("stamp_key");
+        std::fs::write(dir.join("a.txt"), "one").unwrap();
+        let files = vec!["a.txt".to_string()];
+        let cfg = |features: Features, toolchain: &str, env: &[(&str, &str)]| {
+            Config {
+                features,
+                toolchain: toolchain.into(),
+                env: env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+                jobs: None,
+                target_dir: "target".into(),
+            }
+            .id()
+        };
+        let key = |base: &str, config: String, variant: &str| StampKey { base: base.into(), config, variant: variant.into() };
+        let base = key("b1", cfg(Features::Default, "1.98.1", &[]), "");
+        record_green_in(&dir, &files, Scope::Quick, &base);
+        assert_eq!(already_green_in(&dir, &files, Scope::Quick, &base), Some(Scope::Quick));
+        let variants = [
+            ("another base commit", key("b2", cfg(Features::Default, "1.98.1", &[]), "")),
+            ("headless features", key("b1", cfg(Features::Headless, "1.98.1", &[]), "")),
+            ("another toolchain", key("b1", cfg(Features::Default, "1.99.0", &[]), "")),
+            ("another RUSTFLAGS", key("b1", cfg(Features::Default, "1.98.1", &[("RUSTFLAGS", "-C target-cpu=native")]), "")),
+            ("another test-thread setting", key("b1", cfg(Features::Default, "1.98.1", &[("RUST_TEST_THREADS", "1")]), "")),
+            ("another plan variant", key("b1", cfg(Features::Default, "1.98.1", &[]), "check-only")),
+        ];
+        for (what, k) in &variants {
+            assert_eq!(already_green_in(&dir, &files, Scope::Quick, k), None, "a green result must not cross {what}");
+        }
+        // Build speed is not part of the identity: the same result under a different job count or target directory is the same result.
+        let fast = Config { features: Features::Default, toolchain: "1.98.1".into(), env: vec![], jobs: Some("2".into()), target_dir: "/elsewhere".into() };
+        assert_eq!(fast.id(), cfg(Features::Default, "1.98.1", &[]));
+        assert!(fast.render().contains("jobs=2") && fast.render().contains("/elsewhere"));
+        // The index on disk is part of the key: adding a file to a feature changes what a plan covers.
+        std::fs::create_dir_all(dir.join("docs")).unwrap();
+        std::fs::write(dir.join("docs/features.json"), "{\"features\":{}}").unwrap();
+        assert_eq!(already_green_in(&dir, &files, Scope::Quick, &base), None, "an edited feature index invalidates the stamp");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn only_runnable_doc_examples_keep_the_doc_step() {
+        assert!(has_runnable_doc_example("/// ```\n/// let x = 1;\n/// ```\nfn f() {}"));
+        assert!(has_runnable_doc_example("//! ```rust\n//! let x = 1;\n//! ```"));
+        assert!(has_runnable_doc_example("/// ```should_panic\n/// panic!();\n/// ```"));
+        assert!(!has_runnable_doc_example("//! ```json\n//! {}\n//! ```"), "a json block is documentation");
+        assert!(!has_runnable_doc_example("/// ```text\n/// hello\n/// ```\n/// ```sh\n/// ls\n/// ```"));
+        assert!(!has_runnable_doc_example("/// ```ignore\n/// nope\n/// ```"), "ignored blocks are not run");
+        assert!(!has_runnable_doc_example("// ```\n// not a doc comment\n// ```"));
+        // The closing fence of a non-rust block is not an opening fence.
+        assert!(!has_runnable_doc_example("//! ```json\n//! {}\n//! ```\nfn f() {}"));
+        assert!(has_runnable_doc_example("//! ```json\n//! {}\n//! ```\n//! ```\n//! let x = 1;\n//! ```"));
+    }
+
+    #[test]
+    fn gated_modules_are_read_from_the_crate_root() {
+        let gated = gfx_modules("pub mod a;\n#[cfg(feature = \"gfx\")]\npub mod b;\n#[cfg(feature = \"gfx\")]\n#[allow(dead_code)]\nmod c;\npub mod d;\n");
+        assert_eq!(gated.into_iter().collect::<Vec<_>>(), ["b", "c"]);
     }
 }

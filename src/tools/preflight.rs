@@ -20,6 +20,9 @@ pub struct Options {
     pub commands: Vec<(String, String)>,
     /// Bytes of `describe --brief` and of the `describe` overview, if the caller rendered them.
     pub describe_sizes: Option<(usize, usize)>,
+    /// Tree-only run: skip the two checks that read the *compiled* binary (the CLI command table and the `describe` byte budgets), so a binary built before your
+    /// latest edit still gives a correct answer for everything else; the report says what was skipped.
+    pub tree: bool,
 }
 
 /// A mechanical edit `--fix` can make.
@@ -73,6 +76,8 @@ pub struct Report {
     pub problems: Vec<Problem>,
     /// The checks that ran.
     pub ran: Vec<&'static str>,
+    /// Checks a tree-only run left out because they need a current build (empty for a full run).
+    pub skipped: Vec<&'static str>,
     /// How long it took.
     pub millis: u128,
 }
@@ -457,9 +462,11 @@ pub fn run(root: &Path, opts: &Options) -> Report {
     add("features", check_features(root));
     add("facts", check_facts(root));
     add("headless", check_headless(root));
-    add("docs", check_docs(root, &opts.commands));
+    add("docs", check_docs(root, if opts.tree { &[] } else { &opts.commands }));
     add("lf", check_line_endings(root));
-    if opts.describe_sizes.is_some() {
+    if opts.tree {
+        r.skipped.extend(["the CLI command table", "the describe byte budgets"]);
+    } else if opts.describe_sizes.is_some() {
         add("budget", check_budgets(opts.describe_sizes));
     }
     if opts.fmt {
@@ -560,7 +567,10 @@ pub fn apply(root: &Path, fixes: &[Fix]) -> Result<Vec<String>, String> {
 
 /// The report as text: each problem, the exact edit, and what `--fix` would do.
 pub fn render(r: &Report) -> String {
-    let checked = r.ran.join(", ");
+    let mut checked = r.ran.join(", ");
+    if !r.skipped.is_empty() {
+        checked.push_str(&format!("; NOT checked, they need a current build: {} (run `scripts/dev preflight --full`)", r.skipped.join(", ")));
+    }
     if r.problems.is_empty() {
         return format!("preflight: OK in {} ms (checked {checked})\n", r.millis);
     }
@@ -581,6 +591,7 @@ pub fn to_json(r: &Report) -> Value {
         "ok": r.problems.is_empty(),
         "millis": r.millis,
         "checked": r.ran,
+        "skipped": r.skipped,
         "problems": r.problems.iter().map(|p| json!({"check": p.check, "message": p.message, "edit": p.edit, "fixable": p.fix.is_some()})).collect::<Vec<_>>(),
     })
 }
@@ -614,7 +625,30 @@ mod tests {
     }
 
     fn opts(cmds: &[(&str, &str)]) -> Options {
-        Options { fmt: false, commands: cmds.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect(), describe_sizes: None }
+        Options { fmt: false, commands: cmds.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect(), describe_sizes: None, tree: false }
+    }
+
+    #[test]
+    fn a_tree_only_run_skips_exactly_the_checks_that_read_the_compiled_binary_and_says_so() {
+        let d = repo("tree");
+        let huge = Some((usize::MAX / 2, usize::MAX / 2));
+        let full = run(&d, &Options { describe_sizes: huge, ..opts(&[]) });
+        assert!(full.skipped.is_empty() && full.ran.contains(&"budget"), "{full:?}");
+        assert!(full.problems.iter().any(|p| p.check == "budget"), "a compiled-in describe that is too big is a problem in a full run");
+        let tree = run(&d, &Options { describe_sizes: huge, tree: true, ..opts(&[("not-in-the-table", "x")]) });
+        assert!(!tree.ran.contains(&"budget") && tree.problems.iter().all(|p| p.check != "budget"), "{tree:?}");
+        assert!(
+            tree.problems.iter().all(|p| p.check != "docs" || !p.message.contains("not-in-the-table")),
+            "the command table is not consulted: {:?}",
+            tree.problems
+        );
+        for check in ["adr", "features", "facts", "headless", "docs", "lf"] {
+            assert!(tree.ran.contains(&check), "{check} still runs from the tree: {:?}", tree.ran);
+        }
+        let text = render(&tree);
+        assert!(text.contains("NOT checked") && text.contains("scripts/dev preflight --full"), "{text}");
+        assert_eq!(to_json(&tree)["skipped"].as_array().map(Vec::len), Some(2));
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

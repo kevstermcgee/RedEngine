@@ -1,7 +1,9 @@
 # scripts/dev.ps1 — the Windows-native twin of scripts/dev (same commands). Run from any directory:
 #   powershell -File scripts\dev.ps1 doctor | fast | test [filter] | build [--headless] | red <args> | verify <scene> [...]
 #                                    walk <scene> [...] | server <scene> [...] | ci | status [...]
-#                                    affected|check [--quick|--full] | context <feature|file|words>   (verify only what a change can affect; a work packet)
+#                                    affected|check [--quick|--full] | iterate [--check-only] [--headless] | context <feature|file|words>   (verify only what a
+#                                    change can affect; `iterate` = only what changed since HEAD, type-check + focused unit tests, never counts as verification)
+#                                    preflight [--fix]   (bookkeeping; always builds a current binary here, the bash twin can skip the two checks that need one)
 # Env: RED_PROFILE = debug | release | fast (default debug). (The bash twin also takes RED_TIMEOUT; PowerShell relies on the tool's own timeout.)
 param([Parameter(Position = 0)][string]$Cmd = 'help', [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
 $ErrorActionPreference = 'Stop'
@@ -34,7 +36,8 @@ function Planner {
     $exe = Exe 'red_engine2'
     if ((Test-Path $exe) -and $env:RED_REBUILD -ne '1') {
         $built = (Get-Item $exe).LastWriteTimeUtc
-        $inputs = 'docs\features.json', 'src\tools\affected.rs', 'src\tools\features.rs', 'src\tools\context.rs', 'src\cli\args.rs'
+        # Logic files only: the feature index is read from the checkout at run time, so editing it needs no rebuild.
+        $inputs = 'src\tools\affected.rs', 'src\tools\features.rs', 'src\tools\context.rs', 'src\tools\symbols.rs', 'src\crypto.rs', 'src\cli\args.rs', 'src\cli\analyze.rs', 'src\cli\info.rs'
         if (-not ($inputs | Where-Object { (Test-Path $_) -and (Get-Item $_).LastWriteTimeUtc -gt $built })) { return $exe }
     }
     return (Cli)
@@ -70,6 +73,8 @@ switch ($Cmd) {
     'walk' { $e = Cli; & $e walk @Rest; exit $LASTEXITCODE }
     'status' { $e = Cli; & $e status @Rest; exit $LASTEXITCODE }
     { $_ -in 'affected', 'check' } { Need-Cargo; $e = Planner; & $e affected @Rest; exit $LASTEXITCODE }
+    'iterate' { Need-Cargo; $e = Planner; & $e affected --partial @Rest; exit $LASTEXITCODE }
+    'preflight' { $e = Cli; & $e preflight @Rest; exit $LASTEXITCODE }
     'context' { Need-Cargo; $e = Planner; & $e context @Rest; exit $LASTEXITCODE }
     'server' {
         Need-Cargo

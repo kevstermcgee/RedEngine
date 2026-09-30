@@ -5,9 +5,14 @@
 # runs from the repo root, never prints colour codes, puts a timeout on everything, and prints how long each step took.
 #
 #   scripts/dev doctor                 what toolchain / binaries / git state does this machine have? (`doctor-full`: the engine's own probe)
-#   scripts/dev affected [--quick|--full]  verify ONLY what your change can affect (alias: check). --quick = owning features (edit loop, seconds),
-#                                      default = plus dependents (before "done"), --full = CI (before pushing); boundary files escalate by themselves.
-#                                      A green run is remembered by file content: asking again with nothing edited is free.
+#   scripts/dev iterate [--check-only] [--headless]   the edit loop: only what changed since HEAD, fmt + type-check + focused unit tests, seconds. NEVER
+#                                      verification: it says so, never escalates, and is stamped so no other tier accepts it (alias of `affected --partial`).
+#   scripts/dev affected [--quick|--full]  verify ONLY what your change can affect (alias: check). --quick = owning features, default = plus dependents
+#                                      (before "done"), --full = CI (before pushing); boundary files escalate by themselves. The change set is everything since the
+#                                      merge base with origin/main (use `iterate`, or `--base HEAD`, for just your last edit). A green run is remembered by
+#                                      file content, base commit, feature set and toolchain: asking again with nothing edited is free.
+#   scripts/dev preflight [--full] [--fix]   repository bookkeeping (~1 s). With a binary older than your edits it runs the tree-only checks and names the two it
+#                                      skipped; --full builds first and checks everything.
 #   scripts/dev context <feature|file|words>   a 5-15 KB work packet for one change (files, public API, tests, ADR pointers)
 #   scripts/dev fast                   unit tests only (seconds): `cargo test --lib`
 #   scripts/dev test [filter]          the whole suite (or tests whose name matches filter); prints a summary, full log in out/logs/
@@ -20,7 +25,9 @@
 #   scripts/dev status [...]           `red_engine2 status` (handoff: what is done / in flight / next)
 #
 # Env: RED_TIMEOUT=seconds per command (default 900), RED_PROFILE=debug|release|fast (default debug; the dev profile is
-# already opt-level 1 so it is fast enough for maps and tests). CARGO_TARGET_DIR is honoured (put build output on another drive).
+# already opt-level 1 so it is fast enough for maps and tests: measured, a one-line edit is 2-4 s to type-check, 4 s to rebuild the lib tests, against
+# 3+ minutes for a release build; never use --release to iterate). CARGO_TARGET_DIR is honoured (put build output on another drive).
+# RED_WAIT=1 queues behind another heavy job (build/test/affected/ci) instead of refusing: two at once on a 4-core box slow both.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
@@ -86,15 +93,39 @@ needs_build() { # binary name + build mode: missing, forced, mode-changed, or ol
   return 1
 }
 
-planner() { # the CLI for `affected`/`context`: a stale binary plans identically unless the index or the planner changed, so skip the rebuild
+# The files whose *logic* decides what `affected`, `context` and `preflight` say. The feature index (docs/features.json) is deliberately NOT here: the tools read it
+# from the checkout at run time, so editing it never needs a rebuild and a prebuilt binary never plans with a stale copy.
+PLANNER_LOGIC="src/tools/affected.rs src/tools/features.rs src/tools/context.rs src/tools/symbols.rs src/crypto.rs src/cli/args.rs src/cli/analyze.rs src/cli/info.rs"
+PREFLIGHT_LOGIC="src/tools/preflight.rs src/tools/adr.rs src/tools/features.rs src/tools/status.rs src/cli/repo.rs src/cli/args.rs"
+
+logic_fresh() { # logic_fresh <exe> <file...>: true when the binary exists and none of those files is newer than it
+  local exe="$1" f; shift
+  [ -f "$exe" ] && [ "${RED_REBUILD:-0}" != "1" ] || return 1
+  for f in "$@"; do [ -f "$f" ] && [ "$f" -nt "$exe" ] && return 1; done
+  return 0
+}
+
+planner() { # the CLI for `affected`/`context`: a stale binary plans identically unless the planner's own logic changed (it reads the index at run time)
   local exe="$TARGET_DIR/$PROFILE/red_engine2"
   [ -f "$exe" ] || exe="$exe.exe"
-  if [ -f "$exe" ] && [ "${RED_REBUILD:-0}" != "1" ]; then
-    local f stale=0
-    for f in docs/features.json src/tools/affected.rs src/tools/features.rs src/tools/context.rs src/cli/args.rs; do [ "$f" -nt "$exe" ] && stale=1; done
-    [ $stale -eq 0 ] && { echo "$exe"; return; }
-  fi
+  # shellcheck disable=SC2086
+  if logic_fresh "$exe" $PLANNER_LOGIC; then echo "$exe"; return; fi
   cli
+}
+
+heavy_lock() { # one heavy job at a time: two builds/test runs on a 4-core box make both slower, and the second one used to run anyway
+  command -v flock >/dev/null 2>&1 || return 0
+  mkdir -p "$TARGET_DIR" 2>/dev/null
+  exec 9>"$TARGET_DIR/.red-dev-heavy.lock"
+  if ! flock -n 9; then
+    if [ "${RED_WAIT:-0}" = "1" ]; then
+      echo "dev: another heavy job is running; queueing behind it (RED_WAIT=1)" >&2
+      flock 9
+    else
+      echo "dev: another heavy job (build, test, affected, iterate or ci) is running in this target directory; not starting a second one. Wait for it, or RED_WAIT=1 to queue." >&2
+      exit 75
+    fi
+  fi
 }
 
 cli() { # path of the CLI binary, building it if needed
@@ -121,10 +152,10 @@ case "$cmd" in
     command -v python3 >/dev/null 2>&1 && echo "python3   $(python3 --version 2>&1)" || echo "python3   not found (only needed for benches/check.py and mcp_server.py)"
     [ -f STATUS.md ] && echo "status    STATUS.md exists: run 'scripts/dev status'" || echo "status    no STATUS.md yet: 'scripts/dev status --init'"
     ;;
-  fast)   need_cargo; logged unit-tests cargo test $PFLAG --lib "$@" ;;
-  test)   need_cargo; logged tests cargo test $PFLAG --no-fail-fast "$@" ;;
+  fast)   need_cargo; heavy_lock; logged unit-tests cargo test $PFLAG --lib "$@" ;;
+  test)   need_cargo; heavy_lock; logged tests cargo test $PFLAG --no-fail-fast "$@" ;;
   build)
-    need_cargo
+    need_cargo; heavy_lock
     if [ "${1:-}" = "--headless" ]; then
       run "headless build" cargo build $PFLAG --no-default-features --bin red_engine2 --bin red_server --bin red_bot
     else
@@ -142,9 +173,23 @@ case "$cmd" in
     fi
     exe="$TARGET_DIR/$PROFILE/red_server"; [ -x "$exe" ] || exe="$exe.exe"
     exec "$exe" --map "$@" ;;
-  affected|check) need_cargo; exe="$(planner)" || exit $?; exec "$exe" affected "$@" ;;
+  affected|check|iterate)
+    need_cargo
+    case " $* " in *" --dry-run "*) ;; *) heavy_lock ;; esac
+    exe="$(planner)" || exit $?
+    if [ "$cmd" = iterate ]; then exec "$exe" affected --partial "$@"; fi
+    exec "$exe" affected "$@" ;;
+  preflight)
+    need_cargo
+    full=0; args=()
+    for a in "$@"; do if [ "$a" = "--full" ]; then full=1; else args+=("$a"); fi; done
+    exe="$TARGET_DIR/$PROFILE/red_engine2"; [ -f "$exe" ] || exe="$exe.exe"
+    # shellcheck disable=SC2086
+    if [ $full -eq 1 ] || ! logic_fresh "$exe" $PREFLIGHT_LOGIC; then exe="$(cli)" || exit $?; exec "$exe" preflight ${args[@]+"${args[@]}"}; fi
+    if needs_build red_engine2 default; then exec "$exe" preflight --tree ${args[@]+"${args[@]}"}; fi
+    exec "$exe" preflight ${args[@]+"${args[@]}"} ;;
   context) need_cargo; exe="$(planner)" || exit $?; exec "$exe" context "$@" ;;
-  ci)     need_cargo; logged ci bash scripts/ci.sh ;;
+  ci)     need_cargo; heavy_lock; logged ci bash scripts/ci.sh ;;
   doctor-full) exe="$(cli)" || exit $?; "$exe" doctor ;;
   help|-h|--help) sed -n '2,25p' "$0" ;;
   *) echo "dev: unknown command '$cmd' (try: scripts/dev help)" >&2; exit 2 ;;

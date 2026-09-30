@@ -571,6 +571,9 @@ pub(crate) enum Command {
         /// Skip `cargo fmt --check`.
         #[arg(long)]
         no_fmt: bool,
+        /// Tree-only: skip the two checks that read this binary (command table, describe budgets); use when the binary may be older than your edits.
+        #[arg(long)]
+        tree: bool,
         /// Repository root (default: found from the current directory).
         #[arg(long)]
         root: Option<PathBuf>,
@@ -680,6 +683,15 @@ pub(crate) enum Command {
         /// Ignore and do not write the green stamp (`out/.affected-green.json`).
         #[arg(long)]
         no_cache: bool,
+        /// The bounded edit-loop path: only what changed since HEAD, format check + type-check + focused unit tests, never escalates, never counts as verification.
+        #[arg(long, conflicts_with_all = ["quick", "full"])]
+        partial: bool,
+        /// With --partial: format and type-check only, no tests.
+        #[arg(long, requires = "partial")]
+        check_only: bool,
+        /// With --partial: check without the graphics feature when every changed file is provably headless-safe (otherwise the default features, and it says why).
+        #[arg(long, requires = "partial")]
+        headless: bool,
     },
     /// A release you can prove. Builds the client + CLI (default features) and the dedicated server + bot (`--no-default-features`, its own
     /// target directory so no graphics stack can leak in), and writes one reproducible zip of the tracked source and the binaries with a

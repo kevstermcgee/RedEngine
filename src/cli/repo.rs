@@ -22,7 +22,7 @@ fn repo_root(given: Option<&Path>) -> Result<PathBuf, String> {
 }
 
 /// `preflight`: run the bookkeeping checks; with `--fix` apply the mechanical edits and check again.
-pub(crate) fn run_preflight(fix: bool, no_fmt: bool, root: Option<&Path>) -> Result<(), String> {
+pub(crate) fn run_preflight(fix: bool, no_fmt: bool, tree: bool, root: Option<&Path>) -> Result<(), String> {
     let root = repo_root(root)?;
     let commands = commands_json();
     let pairs: Vec<(String, String)> = commands
@@ -34,7 +34,7 @@ pub(crate) fn run_preflight(fix: bool, no_fmt: bool, root: Option<&Path>) -> Res
         })
         .collect();
     let sizes = describe::render("brief", &commands, false).ok().zip(describe::render("overview", &commands, false).ok()).map(|(b, o)| (b.len(), o.len()));
-    let opts = preflight::Options { fmt: !no_fmt, commands: pairs, describe_sizes: sizes };
+    let opts = preflight::Options { fmt: !no_fmt, commands: pairs, describe_sizes: sizes, tree };
     let mut report = preflight::run(&root, &opts);
     if fix && !report.problems.is_empty() {
         let fixes: Vec<_> = report.problems.iter().filter_map(|p| p.fix.clone()).collect();
