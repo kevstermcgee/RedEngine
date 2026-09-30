@@ -17,7 +17,7 @@ const GOLD: [u8; 4] = [255, 210, 74, 255];
 
 /// Screens `ui-shot` / `ui-check` know, in display order.
 pub fn all() -> &'static [&'static str] {
-    &["menu", "pause", "connect", "lobby", "countdown", "hud", "final", "death", "rules", "results"]
+    &["menu", "pause", "connect", "lobby", "countdown", "hud", "final", "death", "rules", "results", "race-hud", "race-start", "race-results"]
 }
 
 /// Window sizes `ui-check` audits every screen at: small, common, portrait and large.
@@ -63,6 +63,9 @@ pub fn build(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Option<Layout> {
         }
         "rules" => Some(rules_hud_layout(w, h, &[("score", 3.0), ("coins_left", 1.0)], Some("coin"), opts.message.as_deref())),
         "results" => Some(results_layout(w, h, &demo(Phase::Results, opts), opts.hover_id.as_deref())),
+        "race-hud" => Some(super::race::race_hud_layout(w, h, &super::race::demo_racing())),
+        "race-start" => Some(super::race::race_hud_layout(w, h, &super::race::demo_countdown())),
+        "race-results" => Some(super::race::race_hud_layout(w, h, &super::race::demo_results())),
         _ => None,
     }
 }

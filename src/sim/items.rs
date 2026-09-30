@@ -25,6 +25,12 @@ pub const ACORN_SPIN_TICKS: u16 = 60;
 pub const PLANK_SPIN_TICKS: u16 = 30;
 /// Collision radius of a hazard, m.
 pub const HAZARD_RADIUS: f32 = 0.5;
+/// An Acorn steers towards a kart within this many metres ahead of it...
+pub const ACORN_SEEK_RANGE: f32 = 40.0;
+/// ...that is within this angle of its heading (cosine of 28 degrees)...
+const ACORN_SEEK_COS: f32 = 0.883;
+/// ...turning at most this fast, radians per second (about 110 degrees).
+const ACORN_TURN_RATE: f32 = 1.9;
 /// A hazard cannot hit the kart that made it for this long after it appears, ticks (so a thrown Acorn does not hit its thrower).
 pub const OWNER_GRACE_TICKS: u16 = 45;
 
@@ -117,6 +123,29 @@ impl HazardPool {
             let Some(h) = slot else { continue };
             h.age = h.age.saturating_add(1);
             h.ttl = h.ttl.saturating_sub(1);
+            if h.kind == HazardKind::Acorn {
+                // A mild homing: on a wide track a nut thrown down the lane would almost never meet a kart, so it turns towards the nearest kart ahead of it
+                // (not its thrower in the first moments), a little at a time. It stays a dodgeable nut: it cannot turn past its cone or faster than its rate.
+                let speed = h.vel.length();
+                if speed > 1.0 {
+                    let dir = h.vel / speed;
+                    let target = karts
+                        .iter()
+                        .enumerate()
+                        .filter(|(i, _)| *i != h.owner as usize || h.age > OWNER_GRACE_TICKS)
+                        .filter_map(|(_, k)| *k)
+                        .map(|p| (p - h.pos, (p - h.pos).length()))
+                        .filter(|(rel, d)| *d < ACORN_SEEK_RANGE && *d > 0.5 && rel.dot(dir) / *d > ACORN_SEEK_COS)
+                        .min_by(|a, b| a.1.total_cmp(&b.1));
+                    if let Some((rel, _)) = target {
+                        let want = rel.normalize_or_zero();
+                        let cross = dir.x * want.y - dir.y * want.x;
+                        let angle = cross.atan2(dir.dot(want)).clamp(-ACORN_TURN_RATE * FIXED_DT, ACORN_TURN_RATE * FIXED_DT);
+                        let (s, c) = libm::sincosf(angle);
+                        h.vel = Vec2::new(dir.x * c - dir.y * s, dir.x * s + dir.y * c) * speed;
+                    }
+                }
+            }
             h.pos += h.vel * FIXED_DT;
             let in_wall = h.kind == HazardKind::Acorn
                 && colliders.iter().any(|c| collider_blocks_at(c, 0.0) && h.pos.x >= c.min.x && h.pos.x <= c.max.x && h.pos.y >= c.min.y && h.pos.y <= c.max.y);
@@ -181,6 +210,11 @@ impl ItemBoxes {
     /// The boxes.
     pub fn boxes(&self) -> &[ItemBox] {
         &self.boxes
+    }
+
+    /// Which boxes are ready to be taken, as a bit mask (bit `i` = box `i`; boxes beyond the 32nd are not reported). What a snapshot tells the clients.
+    pub fn ready_mask(&self) -> u32 {
+        self.ready_in.iter().take(32).enumerate().fold(0, |mask, (i, t)| if *t == 0 { mask | 1 << i } else { mask })
     }
 
     /// Whether box `i` is there to be taken.
@@ -269,6 +303,23 @@ mod tests {
     }
 
     #[test]
+    fn an_acorn_thrown_a_little_off_line_still_finds_the_kart_ahead_but_not_one_far_to_the_side() {
+        let run = |target: Vec2| {
+            let mut pool = HazardPool::default();
+            pool.spawn(Hazard::acorn(0, Vec2::ZERO, Vec2::new(30.0, 0.0)));
+            let karts = [Some(Vec2::new(-5.0, 0.0)), Some(target)];
+            let mut hits = Vec::new();
+            for _ in 0..180 {
+                pool.step(&karts, &[], |slot, _| hits.push(slot));
+            }
+            hits
+        };
+        assert_eq!(run(Vec2::new(25.0, 5.0)), vec![1], "5 m off the line at 25 m ahead is inside the cone: the acorn steers onto it");
+        assert_eq!(run(Vec2::new(25.0, 20.0)), Vec::<usize>::new(), "a kart far off to the side is not chased");
+        assert_eq!(run(Vec2::new(-30.0, 2.0)), Vec::<usize>::new(), "and one behind is left alone");
+    }
+
+    #[test]
     fn an_acorn_shatters_on_a_wall_and_rots_away_if_nothing_stops_it() {
         let mut pool = HazardPool::default();
         pool.spawn(Hazard::acorn(0, Vec2::ZERO, Vec2::new(30.0, 0.0)));
@@ -342,6 +393,23 @@ mod tests {
         let mut g2 = 0;
         b2.step(&touching_edge, |_| true, |_, _| g2 += 1);
         assert_eq!(g2, 1, "a kart whose body overlaps the box takes it");
+    }
+
+    #[test]
+    fn the_ready_mask_shows_which_boxes_can_be_taken() {
+        let boxes = vec![
+            ItemBox { min: Vec2::ZERO, max: Vec2::ONE },
+            ItemBox { min: Vec2::new(10.0, 0.0), max: Vec2::new(11.0, 1.0) },
+            ItemBox { min: Vec2::new(20.0, 0.0), max: Vec2::new(21.0, 1.0) },
+        ];
+        let mut b = ItemBoxes::new(boxes, 5);
+        assert_eq!(b.ready_mask(), 0b111);
+        b.step(&[Some(Vec2::new(10.5, 0.5))], |_| true, |_, _| {});
+        assert_eq!(b.ready_mask(), 0b101, "box 1 was taken");
+        for _ in 0..5 {
+            b.step(&[None], |_| true, |_, _| {});
+        }
+        assert_eq!(b.ready_mask(), 0b111, "and is back");
     }
 
     #[test]

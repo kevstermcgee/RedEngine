@@ -54,6 +54,9 @@ impl App {
                 ..Default::default()
             };
         }
+        if self.net.as_ref().is_some_and(|n| n.is_race()) {
+            return self.build_kart_input();
+        }
         let held = |a: KeyCode, b: KeyCode| self.keys.contains(&a) || self.keys.contains(&b);
         let axis = |pos: bool, neg: bool| pos as i8 - neg as i8;
         let forward = axis(held(KeyCode::KeyW, KeyCode::ArrowUp), held(KeyCode::KeyS, KeyCode::ArrowDown));
@@ -76,6 +79,28 @@ impl App {
         }
     }
 
+    /// What the driver is asking for in a kart race, from the keys and the gamepad (`controller::kart_controls`): W/S or up/down throttle and brake, A/D or
+    /// left/right steer, Space hop and drift (held), the mouse button or F the item, E the driver's ability. The pad's analog stick and triggers win when
+    /// they are being used.
+    fn build_kart_input(&mut self) -> PlayerInput {
+        let pad = red_engine2::controller::kart_controls(&self.pad);
+        let held = |a: KeyCode, b: KeyCode| self.keys.contains(&a) || self.keys.contains(&b);
+        let axis = |pos: bool, neg: bool| pos as i8 - neg as i8;
+        let analog = pad.active();
+        let key_forward = axis(held(KeyCode::KeyW, KeyCode::ArrowUp), held(KeyCode::KeyS, KeyCode::ArrowDown));
+        let key_steer = axis(held(KeyCode::KeyD, KeyCode::ArrowRight), held(KeyCode::KeyA, KeyCode::ArrowLeft));
+        PlayerInput {
+            seq: 0,
+            forward: if analog { (pad.throttle * 127.0).round() as i8 } else { key_forward },
+            strafe: if analog { (pad.steer * 127.0).round() as i8 } else { key_steer },
+            analog,
+            jump: pad.hop || self.keys.contains(&KeyCode::Space),
+            interact: pad.ability || self.take_pulse(0),
+            attack: pad.item || self.keys.contains(&KeyCode::KeyF) || self.take_pulse(1),
+            ..Default::default()
+        }
+    }
+
     /// One fixed-size (`FIXED_DT`) physics step: movement/collision + jump/gravity, sampling
     /// currently-held input fresh (input state doesn't change within a rendered frame between
     /// steps). Snapshots the pre-step planar position/foot height into `prev_physics_pos`/
@@ -95,7 +120,8 @@ impl App {
         let input = self.build_input();
         // Dead: the body lies where it fell. The server ignores our movement then, and predicting it would only pull us back.
         let input = if self.own_dead() { PlayerInput { yaw: input.yaw, pitch: input.pitch, ..Default::default() } } else { input };
-        let attack_now = input.attack;
+        // In a race `attack` uses the item (the kart step handles it): it must not swing a bat or fire a gun as well.
+        let attack_now = input.attack && !self.net.as_ref().is_some_and(|n| n.is_race());
         let mut st = PlayerState {
             pos: self.physics_pos,
             foot_y: self.foot_y,
@@ -354,6 +380,14 @@ impl App {
         let fov_blend = (dt / FOV_TRANSITION_TIME).min(1.0);
         self.fov_deg += (target_fov - self.fov_deg) * fov_blend;
         self.camera.fov_deg = self.fov_deg;
+        // A kart race is seen from behind and above the kart: the chase camera decides where the camera is and what it looks at.
+        if let Some(view) = self.net.as_ref().and_then(|n| n.kart_view()) {
+            let pose = self.chase.update(&view, dt);
+            self.camera.position = pose.eye;
+            self.camera.yaw = pose.yaw;
+            self.camera.pitch = pose.pitch;
+            self.camera.fov_deg = pose.fov_deg;
+        }
 
         // Loose props: keep a carried one in front of the player, write every prop's physics pose into
         // the scene, and see what the crosshair could pick up.
@@ -418,8 +452,14 @@ impl App {
         let fx = if hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() };
         let enemy = self.aim_enemy && hud.shows_combat();
         let (show_crosshair, show_viewmodel) = (hud.shows_crosshair(), !peaceful);
-        let hidden =
-            hidden_ids(&self.net, &self.rules, &self.streaks, &self.scene, (self.view_mode == ViewMode::FirstPerson).then_some(self.player_object_index));
+        let racing = self.net.as_ref().is_some_and(|n| n.is_race());
+        let hidden = hidden_ids(
+            &self.net,
+            &self.rules,
+            &self.streaks,
+            &self.scene,
+            (self.view_mode == ViewMode::FirstPerson || racing).then_some(self.player_object_index),
+        );
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(live) = gpu.live.as_mut() else { return };
         live.set_hidden_objects(hidden);

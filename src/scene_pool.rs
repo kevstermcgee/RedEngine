@@ -90,6 +90,23 @@ impl ScenePool {
         }
     }
 
+    /// Claims exactly `slot` (a pool whose slots mean something, like one model per driver). `false`, counting a failed claim, if it is taken or out of range.
+    pub fn claim_slot(&mut self, slot: usize) -> bool {
+        match self.used.get(slot) {
+            Some(false) => {
+                self.used[slot] = true;
+                self.stats.claims += 1;
+                self.stats.in_use += 1;
+                self.stats.high_water = self.stats.high_water.max(self.stats.in_use);
+                true
+            }
+            _ => {
+                self.stats.failed_claims += 1;
+                false
+            }
+        }
+    }
+
     /// Frees slot `slot` and hides its object (a no-op for a slot that is not claimed).
     pub fn release(&mut self, scene: &mut Scene, slot: usize) {
         if self.is_used(slot) {
@@ -173,5 +190,19 @@ mod tests {
         pool.release(&mut s, 99);
         assert_eq!(pool.stats().in_use, 0);
         assert!(!pool.is_used(0) && !pool.is_used(99));
+    }
+
+    #[test]
+    fn a_specific_slot_can_be_claimed_once() {
+        let mut s = scene();
+        let mut pool = ScenePool::add(&mut s, 3, make("p"));
+        assert!(pool.claim_slot(2) && pool.is_used(2) && !pool.is_used(0));
+        assert!(!pool.claim_slot(2), "already taken");
+        assert!(!pool.claim_slot(9), "out of range");
+        assert_eq!(pool.claim(), Some(0), "the sequential claim still finds the first free slot");
+        let stats = pool.stats();
+        assert_eq!((stats.in_use, stats.claims, stats.failed_claims), (2, 2, 2));
+        pool.release(&mut s, 2);
+        assert!(!pool.is_used(2));
     }
 }

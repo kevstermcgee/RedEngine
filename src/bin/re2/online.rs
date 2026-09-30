@@ -101,6 +101,11 @@ impl App {
         let mut layout = match screen {
             OnlineScreen::Lobby => lobby_layout(w, h, &view, hover.as_deref()),
             OnlineScreen::Results => results_layout(w, h, &view, hover.as_deref()),
+            // A kart race has its own HUD (place, lap, speed, item ...); the shooter's health and weapon ladder mean nothing there.
+            OnlineScreen::Hud if self.net.as_ref().is_some_and(|n| n.is_race()) => match self.net.as_ref().and_then(|n| n.race_hud()) {
+                Some(race) => red_engine2::ui::race::race_hud_layout(w, h, &race),
+                None => Layout::new(w, h),
+            },
             OnlineScreen::Hud => hud_layout(w, h, &view, &self.scene.hud),
         };
         if screen == OnlineScreen::Hud && self.rules.has_rules() {

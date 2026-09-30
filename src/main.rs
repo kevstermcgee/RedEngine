@@ -162,6 +162,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Package { zip, verify, allow_dirty, no_build } => run_package(&zip, verify, allow_dirty, no_build),
         Command::Portmap { action, port, lease, router, allow_permanent } => run_portmap(&action, port, lease, router, allow_permanent),
         Command::Perf { scene, players, secs, windows, budget } => run_perf(&scene, players, secs, windows, budget.as_deref()),
+        Command::RaceTest { scene, bots, level, secs, drivers } => run_race_test(&scene, bots, level, secs, drivers.as_deref()),
         Command::Catalog { query, tag, category, kind, libraries, manifest, long, sheet, cols } => {
             let json = envelope::capturing();
             run_catalog(&query, tag.as_deref(), category.as_deref(), kind.as_deref(), &libraries, manifest, long, json, sheet.as_deref(), cols)

@@ -692,6 +692,25 @@ pub(crate) fn run_perf(scene: &Path, players: Option<usize>, secs: Option<f64>, 
     }
 }
 
+pub(crate) fn run_race_test(scene: &Path, bots: usize, level: f32, secs: f32, drivers: Option<&str>) -> Result<(), String> {
+    use red_engine2::tools::racetest;
+    let drivers = match drivers {
+        Some(list) => racetest::parse_drivers(list)?,
+        None => Vec::new(),
+    };
+    let report = racetest::run(scene, bots, level, secs, &drivers)?;
+    if envelope::capturing() {
+        println!("{}", racetest::to_json(&report));
+    } else {
+        print!("{}", racetest::render(&report));
+    }
+    if report.all_finished() {
+        Ok(())
+    } else {
+        Err(String::new())
+    }
+}
+
 pub(crate) fn run_net_identity(out: &Path, names: &[String]) -> Result<(), String> {
     let key_path = out.join("key.pem");
     if key_path.exists() {

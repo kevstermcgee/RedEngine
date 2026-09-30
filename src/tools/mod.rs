@@ -34,6 +34,7 @@ pub mod perf;
 pub mod plan;
 pub mod portmap;
 pub mod preflight;
+pub mod racetest;
 pub mod reach;
 pub mod recipes;
 pub mod search;

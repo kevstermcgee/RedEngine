@@ -25,6 +25,7 @@ pub mod geometry;
 pub mod gpu;
 pub mod hit;
 pub mod hud_config;
+pub mod kart_camera;
 pub mod macros;
 #[cfg(feature = "gfx")]
 pub mod menu;

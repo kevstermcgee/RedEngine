@@ -180,7 +180,13 @@ impl App {
         };
         let highlighted = self.target_index.is_some();
         let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
-        let hidden = hidden_ids(&self.net, &self.rules, &self.streaks, &self.scene, first.then_some(self.player_object_index));
+        let hidden = hidden_ids(
+            &self.net,
+            &self.rules,
+            &self.streaks,
+            &self.scene,
+            (first || self.net.as_ref().is_some_and(|n| n.is_race())).then_some(self.player_object_index),
+        );
         let Some(gpu) = self.gpu.as_mut() else {
             return Err(
                 "there is no GPU adapter (a headless run starts one only for `--shot-at` or a script `shot` step); is there a GPU, or a software adapter?"

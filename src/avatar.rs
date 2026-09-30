@@ -262,6 +262,7 @@ mod tests {
             hp: 100,
             shots,
             protected: false,
+            kart: None,
         }
     }
 

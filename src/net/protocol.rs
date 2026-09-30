@@ -28,7 +28,7 @@ pub const MAGIC: u16 = 0x5244;
 /// v9: the weapon numbers on the wire (indices of `weapons::Weapon::ALL`) changed when the silver revolver left the list.
 /// v10 (ADR 0044): join proofs use a new domain (bound to the TLS exporter on QUIC), and a snapshot carries only as many props as the
 /// client's transport datagram budget allows.
-pub const PROTOCOL_VERSION: u16 = 12;
+pub const PROTOCOL_VERSION: u16 = 13;
 /// Largest message either side accepts, and the development UDP datagram budget (under a typical 1500-byte MTU). On QUIC the budget is
 /// the connection's current `max_datagram_size` (about 1150 bytes on a fresh 1200-byte path MTU); messages above it travel on a stream.
 pub const MAX_PACKET: usize = 1400;
@@ -345,7 +345,7 @@ const WIRE_RACE: u8 = 0x80;
 /// Bytes a kart block adds to each player in a race snapshot.
 pub const KART_BYTES: usize = 13;
 /// Bytes the race header adds to a race snapshot, before its hazards (phase, countdown, clock, hazard count).
-pub const RACE_HEADER_BYTES: usize = 8;
+pub const RACE_HEADER_BYTES: usize = 12;
 /// Bytes each hazard adds to a race snapshot.
 pub const HAZARD_BYTES: usize = 10;
 /// Most hazards a race snapshot carries (the simulation's pool size).
@@ -429,6 +429,8 @@ pub struct RaceSnap {
     pub countdown_ticks: u16,
     /// Ticks since the light went green.
     pub race_tick: u32,
+    /// Which item boxes are ready to be taken (bit `i` = the race's `i`th `item_boxes` zone); a taken box is drawn gone.
+    pub boxes_ready: u32,
     /// The Acorns in flight and planks on the track.
     pub hazards: Vec<HazardSnap>,
 }
@@ -908,6 +910,7 @@ impl ServerMsg {
                     w.u8(race.phase);
                     w.u16(race.countdown_ticks);
                     w.u32(race.race_tick);
+                    w.u32(race.boxes_ready);
                     let nh = race.hazards.len().min(MAX_HAZARDS_PER_SNAPSHOT);
                     w.u8(nh as u8);
                     for h in &race.hazards[..nh] {
@@ -1058,7 +1061,7 @@ impl ServerMsg {
                     return Err(DecodeError::OutOfRange);
                 }
                 let race = if has_race {
-                    let (phase, countdown_ticks, race_tick, nh) = (r.u8()?, r.u16()?, r.u32()?, r.u8()? as usize);
+                    let (phase, countdown_ticks, race_tick, boxes_ready, nh) = (r.u8()?, r.u16()?, r.u32()?, r.u32()?, r.u8()? as usize);
                     if phase > 2 || nh > MAX_HAZARDS_PER_SNAPSHOT {
                         return Err(DecodeError::OutOfRange);
                     }
@@ -1070,7 +1073,7 @@ impl ServerMsg {
                         }
                         hazards.push(HazardSnap { kind, owner, pos: [r.f32()?, r.f32()?] });
                     }
-                    Some(RaceSnap { phase, countdown_ticks, race_tick, hazards })
+                    Some(RaceSnap { phase, countdown_ticks, race_tick, boxes_ready, hazards })
                 } else {
                     None
                 };
@@ -1485,6 +1488,7 @@ mod tests {
                 phase: 1,
                 countdown_ticks: 0,
                 race_tick: 4_000_000_000,
+                boxes_ready: 0b1010_0101,
                 hazards: (0..hazards).map(|i| HazardSnap { kind: (i % 2) as u8, owner: (i % 8) as u8, pos: [i as f32 * 3.5, -40.0 + i as f32] }).collect(),
             }),
         }

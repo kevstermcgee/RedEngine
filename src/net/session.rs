@@ -201,6 +201,8 @@ pub struct NetSession {
     /// The static map as the client sees it.
     pub world: ClientWorld,
     avatars: Vec<AvatarPool>,
+    /// The kart models, hazards and item boxes, in a race match.
+    fleet: Option<crate::net::fleet::KartFleet>,
     started: Instant,
     /// Set when a Welcome arrives (first join or resume): the state to teleport the camera to.
     pub teleport: Option<PlayerState>,
@@ -244,6 +246,7 @@ impl NetSession {
             predictor: None,
             world,
             avatars: Vec::new(),
+            fleet: None,
             started: Instant::now(),
             teleport: None,
             status: "connecting...".into(),
@@ -304,7 +307,7 @@ impl NetSession {
 
     /// The ids of the avatar objects nobody wears: the renderer must not draw them (`LiveRenderer::set_hidden_objects`).
     pub fn hidden_avatar_ids<'a>(&'a self, scene: &'a Scene) -> impl Iterator<Item = &'a str> + 'a {
-        self.avatars.iter().flat_map(move |a| a.pool.hidden_ids(scene))
+        self.avatars.iter().flat_map(move |a| a.pool.hidden_ids(scene)).chain(self.fleet.iter().flat_map(move |f| f.hidden_ids(scene)))
     }
 
     /// The nearest living remote player a ray from `eye` along `dir` meets within `reach`, as they are drawn, and how far: what the crosshair turns
@@ -317,7 +320,78 @@ impl NetSession {
     /// `player.humans_play_as` forces) and, when the scene has bots, the fighting bodies they wear whatever the humans are (a roster gives each bot a body of
     /// its own: cowboy, wizard, alien, robot). A body nobody can wear costs nothing.
     pub fn add_avatar_pool(&mut self, scene: &mut Scene) {
-        self.avatars = build_avatar_pools(scene);
+        // A race match draws karts, not people: the fleet replaces the character avatars.
+        self.fleet = crate::net::fleet::KartFleet::build(scene);
+        self.avatars = if self.fleet.is_some() { Vec::new() } else { build_avatar_pools(scene) };
+    }
+
+    /// The local kart as the chase camera needs it (where the prediction has it, drawn position included), in a race once the first snapshot has arrived.
+    pub fn kart_view(&self) -> Option<crate::kart_camera::KartView> {
+        let p = self.predictor.as_ref()?;
+        let kart = p.kart()?;
+        let driver = crate::sim::kart::Driver::from_wire(self.own.as_ref()?.kart.as_ref()?.driver)?;
+        Some(crate::kart_camera::KartView {
+            pos: p.visual_pos(),
+            foot_y: p.state.foot_y,
+            heading: p.state.yaw,
+            velocity: p.state.velocity,
+            top_speed: driver.spec().top_speed,
+            drifting: kart.drift_dir != 0,
+            boosting: kart.boost_ticks > 0,
+        })
+    }
+
+    /// What the race HUD shows, from the newest snapshot and the local prediction (so a used item or a pulled boost shows at once, not a round trip later).
+    pub fn race_hud(&self) -> Option<crate::ui::race::RaceHud> {
+        use crate::ui::race::{Finish, RaceHud};
+        let (fleet, race) = (self.fleet.as_ref()?, self.race.as_ref()?);
+        let snap = self.own.as_ref()?.kart.as_ref()?;
+        let driver = crate::sim::kart::Driver::from_wire(snap.driver)?;
+        let mine = self.predictor.as_ref().and_then(|p| p.kart().copied()).unwrap_or_else(|| snap.to_state());
+        let tier = if mine.drift_dir == 0 {
+            0
+        } else if mine.drift_charge >= 3.2 {
+            3
+        } else if mine.drift_charge >= 2.0 {
+            2
+        } else {
+            u8::from(mine.drift_charge >= 1.0)
+        };
+        let standings = if race.phase == 2 {
+            fleet
+                .standings()
+                .into_iter()
+                .filter_map(|(d, place, finished)| {
+                    let name = crate::sim::kart::Driver::from_wire(d)?.name().to_string();
+                    Some((place, name, if finished { Finish::Done } else { Finish::DidNotFinish }))
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Some(RaceHud {
+            phase: race.phase,
+            countdown_secs: race.countdown_ticks as f32 / crate::sim::clock::TICK_RATE_HZ as f32,
+            race_secs: race.race_tick as f32 / crate::sim::clock::TICK_RATE_HZ as f32,
+            lap: if snap.finished { fleet.laps() } else { snap.lap.saturating_add(1).min(fleet.laps()) },
+            laps: fleet.laps(),
+            place: snap.place,
+            racers: fleet.standings().len().max(1) as u8,
+            speed: self.last_speed,
+            item: mine.item,
+            shielded: mine.shield_ticks > 0,
+            boosting: mine.boost_ticks > 0,
+            drift_tier: tier,
+            ability_cooldown: (driver.spec().ability == crate::sim::kart::Ability::Build)
+                .then(|| mine.ability_cooldown as f32 / crate::sim::clock::TICK_RATE_HZ as f32),
+            finished: snap.finished,
+            standings,
+        })
+    }
+
+    /// Whether this match is a kart race (the scene has a `race` block): the client then drives with the chase camera and the race HUD.
+    pub fn is_race(&self) -> bool {
+        self.fleet.is_some()
     }
 
     /// Polls until welcomed (or refused / `timeout_secs` passes). Returns the spawn state, or `None` when the server put us in a lobby
@@ -509,6 +583,13 @@ impl NetSession {
         let roster: Option<Vec<RosterEntry>> = self.client.status().map(|s| s.roster.clone());
         let idle_t = now.duration_since(self.started).as_secs_f32();
         self.apply_view(&view, present, roster.as_deref().map(|r| (r, me)), scene, dt, idle_t);
+        // The local kart is not in the interpolated view of the others: draw it where the prediction has it.
+        if let (Some(fleet), Some(p), Some(own)) = (self.fleet.as_mut(), self.predictor.as_ref(), self.own.as_ref()) {
+            if let Some(kart) = own.kart.as_ref() {
+                let at = p.visual_pos();
+                fleet.place_kart(scene, kart.driver, Vec3::new(at.x, p.state.foot_y, at.y), p.state.yaw, kart);
+            }
+        }
     }
 
     /// The part of [`update_scene`](Self::update_scene) that needs no connection: draws `view` into `scene` and accounts for every player and prop in it.
@@ -517,6 +598,13 @@ impl NetSession {
         self.remote_hands.clear();
         self.bodies.clear();
         self.drawn.clear();
+        if let Some(fleet) = self.fleet.as_mut() {
+            fleet.begin_frame(scene);
+            if let Some(race) = &self.race {
+                fleet.set_boxes_ready(race.boxes_ready);
+                fleet.place_hazards(scene, &race.hazards, idle_t);
+            }
+        }
         // Free avatars whose player left.
         let gone: Vec<(usize, usize)> = self
             .avatars
@@ -531,6 +619,16 @@ impl NetSession {
         }
         let mut stats = RemoteStats { in_view: view.players.len(), ..RemoteStats::default() };
         for (id, pose) in &view.players {
+            // In a race a player is a kart: the fleet has a fixed model for each driver.
+            if let (Some(fleet), Some(kart)) = (self.fleet.as_mut(), pose.kart.as_ref()) {
+                if fleet.place_kart(scene, kart.driver, pose.pos, pose.yaw, kart) {
+                    stats.drawn += 1;
+                } else {
+                    stats.undrawn += 1;
+                    stats.undrawn_ids.push(*id);
+                }
+                continue;
+            }
             let body = character_from_wire(pose.character);
             let Some((p, s)) = self.claim_avatar(*id, body, scene) else {
                 stats.undrawn += 1;
@@ -871,7 +969,131 @@ mod tests {
             hp: 100,
             shots: 0,
             protected: false,
+            kart: None,
         }
+    }
+
+    fn race_session() -> (NetSession, Scene) {
+        let text = r#"{"camera":{"position":[0,30,60],"target":[0,0,0]},
+            "zones":[{"id":"line","rect":[-6,-41,6,-39]},{"id":"east","rect":[39,-6,41,6]},{"id":"south","rect":[-6,39,6,41]},{"id":"west","rect":[-41,-6,-39,6]}],
+            "race":{"gates":["line","east","south","west"]},"spawns":[{"id":"a","position":[-20,0,-41],"yaw_deg":90}],
+            "objects":[{"id":"floor","type":"plane","size":[100,100]}]}"#;
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let path =
+            std::env::temp_dir().join(format!("re2_race_session_{}_{}.json", std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+        std::fs::write(&path, text).unwrap();
+        let (mut scene, world) = ClientWorld::load(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        let mut session = NetSession::connect("127.0.0.1:9".parse().unwrap(), Character::Human, world, 0).unwrap();
+        session.add_avatar_pool(&mut scene);
+        (session, scene)
+    }
+
+    fn kart_pose(driver: u8, x: f32, yaw: f32) -> PlayerPose {
+        PlayerPose { yaw, kart: Some(crate::net::protocol::KartSnap { driver, ..Default::default() }), ..pose(0, x) }
+    }
+
+    #[test]
+    fn a_race_view_draws_each_player_as_a_kart_of_their_driver_and_no_people() {
+        use crate::sim::kart::Driver;
+        let (mut session, mut scene) = race_session();
+        assert!(session.is_race());
+        assert!(session.avatar_pool_stats().is_empty(), "a race needs no character avatars");
+        let players = vec![
+            (1, kart_pose(Driver::Bunny.wire(), 3.0, 0.0)),
+            (2, kart_pose(Driver::Bear.wire(), 6.0, std::f32::consts::FRAC_PI_2)),
+            (3, kart_pose(Driver::Beaver.wire(), 9.0, 0.0)),
+        ];
+        session.apply_view(&View { players, props: vec![] }, 3, None, &mut scene, 0.016, 0.0);
+        let s = session.stats();
+        assert_eq!((s.drawn, s.undrawn), (3, 0), "{s:?}");
+        let find = |id: &str| scene.objects.iter().find(|o| o.id == id).unwrap_or_else(|| panic!("{id}"));
+        assert_eq!(find("kart_bunny").position.sample(0.0).x, 3.0);
+        assert_eq!(find("kart_bear").position.sample(0.0).x, 6.0);
+        assert!((find("kart_bear").rotation.sample(0.0).y + 90.0).abs() < 1e-3, "the Bear heads east");
+        let hidden: Vec<&str> = session.hidden_avatar_ids(&scene).collect();
+        assert!(hidden.contains(&"kart_duck") && hidden.contains(&"kart_wolf"), "drivers who are not racing are not drawn");
+        assert!(!hidden.contains(&"kart_bunny") && !hidden.contains(&"kart_beaver"));
+        // A driver who leaves is hidden again next frame.
+        session.apply_view(&View { players: vec![(1, kart_pose(Driver::Bunny.wire(), 4.0, 0.0))], props: vec![] }, 1, None, &mut scene, 0.016, 0.0);
+        let hidden: Vec<&str> = session.hidden_avatar_ids(&scene).collect();
+        assert!(hidden.contains(&"kart_bear") && !hidden.contains(&"kart_bunny"));
+    }
+
+    #[test]
+    fn a_race_snapshot_puts_hazards_on_the_track_and_takes_item_boxes_off_it() {
+        use crate::net::protocol::{HazardSnap, RaceSnap};
+        let (mut session, mut scene) = race_session();
+        session.race = Some(RaceSnap { phase: 1, hazards: vec![HazardSnap { kind: 1, owner: 0, pos: [5.0, 6.0] }], ..Default::default() });
+        session.apply_view(&View::default(), 0, None, &mut scene, 0.016, 0.0);
+        let plank = scene.objects.iter().find(|o| o.id == "plank_0").unwrap();
+        assert_eq!((plank.position.sample(0.0).x, plank.position.sample(0.0).z), (5.0, 6.0));
+        assert!(!session.hidden_avatar_ids(&scene).any(|id| id == "plank_0"));
+    }
+
+    #[test]
+    fn the_race_hud_and_the_chase_view_come_from_the_prediction_and_the_newest_snapshot() {
+        use crate::net::predict::Predictor;
+        use crate::net::protocol::{KartSnap, PlayerSnap, RaceSnap};
+        use crate::sim::kart::{Driver, Item};
+        let (mut session, mut scene) = race_session();
+        assert!(session.race_hud().is_none() && session.kart_view().is_none(), "nothing to show before the first snapshot");
+        session.race = Some(RaceSnap { phase: 1, race_tick: 630, ..Default::default() });
+        let snap = KartSnap {
+            driver: Driver::Beaver.wire(),
+            lap: 1,
+            place: 3,
+            item: Item::Mushroom.wire(),
+            boost_ticks: 10,
+            drift_dir: 1,
+            drift_charge_ms: 2300,
+            ability_cooldown: 120,
+            ..Default::default()
+        };
+        session.own = Some(PlayerSnap {
+            id: 0,
+            character: 0,
+            flags: 0,
+            pos: [1.0, 0.0, 2.0],
+            yaw: 1.5,
+            pitch: 0.0,
+            speed: 20.0,
+            vy: 0.0,
+            velocity: [20.0, 0.0],
+            weapon: 0,
+            held: crate::net::protocol::NO_PROP,
+            hp: 100,
+            shots: 0,
+            kart: Some(snap),
+        });
+        let mut predictor = Predictor::new(PlayerState::spawn(1.0, 2.0, 0.0, 90.0, Character::Human));
+        predictor.enable_kart(snap.to_state(), Driver::Beaver.spec());
+        session.predictor = Some(predictor);
+        session.last_speed = 21.0;
+        // One frame draws the others, which is where the standings come from.
+        let rival = PlayerPose {
+            kart: Some(KartSnap { driver: Driver::Bear.wire(), place: 1, finished: true, ..Default::default() }),
+            ..kart_pose(Driver::Bear.wire(), 3.0, 0.0)
+        };
+        session.apply_view(&View { players: vec![(1, rival)], props: vec![] }, 1, None, &mut scene, 0.016, 0.0);
+        // ... and update_scene then places the local kart, from the prediction.
+        session.fleet.as_mut().unwrap().place_kart(&mut scene, snap.driver, Vec3::new(1.0, 0.0, 2.0), 1.5, &snap);
+        let hud = session.race_hud().expect("a race HUD");
+        assert_eq!((hud.phase, hud.lap, hud.laps, hud.place), (1, 2, 3, 3));
+        assert_eq!((hud.item, hud.boosting, hud.shielded, hud.drift_tier), (Item::Mushroom, true, false, 2));
+        assert_eq!(hud.ability_cooldown, Some(2.0), "the Beaver's Build cooldown, in seconds");
+        assert!((hud.race_secs - 10.5).abs() < 1e-3 && (hud.speed - 21.0).abs() < 1e-6);
+        assert_eq!(hud.racers, 2, "the rival and us");
+        assert!(hud.standings.is_empty(), "the standings table is for the end of the race");
+        let view = session.kart_view().expect("a chase view");
+        assert!((view.heading - 90f32.to_radians()).abs() < 1e-5 && view.drifting && view.boosting);
+        assert_eq!(view.top_speed, Driver::Beaver.spec().top_speed);
+        // The race ends: the standings list everyone drawn, best place first, saying who finished.
+        session.race = Some(RaceSnap { phase: 2, ..Default::default() });
+        let hud = session.race_hud().unwrap();
+        assert_eq!(hud.standings.len(), 2);
+        assert_eq!((hud.standings[0].0, hud.standings[0].1.as_str(), hud.standings[0].2), (1, "Bear", crate::ui::race::Finish::Done), "best place first");
+        assert_eq!((hud.standings[1].0, hud.standings[1].1.as_str(), hud.standings[1].2), (3, "Beaver", crate::ui::race::Finish::DidNotFinish));
     }
 
     fn roster_entry(id: u8, in_round: bool) -> RosterEntry {

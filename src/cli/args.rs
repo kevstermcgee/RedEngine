@@ -726,6 +726,25 @@ pub(crate) enum Command {
         #[arg(long)]
         budget: Option<PathBuf>,
     },
+    /// Race kart bots on a map, headless, and say whether the track can be finished (Great Outdoors). Fills the grid with bots, one animal each (or the ones you
+    /// name), runs the real tick until the race ends or the time is up, and reports every bot's finish time and lap times plus pickups taken and hits landed.
+    /// Exit 1 if a bot did not finish: a fence across the racing line, a gate the kart cannot reach or a corner too tight shows up here, before a person finds it.
+    RaceTest {
+        /// A scene with a `race` block.
+        scene: PathBuf,
+        /// Bots on the grid (1..8).
+        #[arg(long, default_value_t = 8)]
+        bots: usize,
+        /// Bot skill, 0 (rookie) to 1 (nightmare).
+        #[arg(long, default_value_t = 0.8)]
+        level: f32,
+        /// Seconds of game time before giving up.
+        #[arg(long, default_value_t = 300.0)]
+        secs: f32,
+        /// The animals, in slot order, e.g. `duck,bunny,beaver` (default: each slot's own animal).
+        #[arg(long)]
+        drivers: Option<String>,
+    },
     /// Make a QUIC server identity. A self-signed certificate and private key (ADR 0044) go to `DIR/cert.pem` and `DIR/key.pem`, and the
     /// SHA-256 fingerprint clients pin (`--server-fingerprint`) is printed. Never commit the key; an existing key is never overwritten.
     /// `red_server --tls-cert DIR/cert.pem --tls-key DIR/key.pem` uses it.

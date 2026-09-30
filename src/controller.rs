@@ -27,6 +27,8 @@ pub struct Sample {
     pub look: Vec2,
     pub held: u16,
     pub pressed: u16,
+    /// The analog triggers, `0.0` (released) to `1.0` (fully pulled): `x` the left, `y` the right. A pad whose triggers are only buttons reads `0` or `1`.
+    pub triggers: Vec2,
 }
 impl Sample {
     /// Is this logical button held?
@@ -38,7 +40,55 @@ impl Sample {
         self.pressed & button != 0
     }
     fn neutral(self) -> bool {
-        self.held == 0 && self.movement == Vec2::ZERO && self.look == Vec2::ZERO
+        self.held == 0 && self.movement == Vec2::ZERO && self.look == Vec2::ZERO && self.triggers == Vec2::ZERO
+    }
+}
+
+/// What a kart driver asks for, from a gamepad sample (Great Outdoors): the pure mapping, so it is tested without a pad. Xbox names; the equivalent
+/// PlayStation and Nintendo buttons are mapped by gilrs.
+///
+/// | control | does |
+/// |---|---|
+/// | left stick X, or the D-pad | steer |
+/// | right trigger (analog), or A | accelerate |
+/// | left trigger (analog), or B | brake, then reverse |
+/// | either shoulder button | hop, and drift while held |
+/// | X | use the held item |
+/// | Y | the driver's ability (the Beaver builds) |
+/// | Start | pause (handled by the menu layer) |
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct KartControls {
+    /// Steering, `-1.0` left to `1.0` right.
+    pub steer: f32,
+    /// Throttle, `-1.0` (full brake or reverse) to `1.0` (full throttle).
+    pub throttle: f32,
+    /// Hop and drift button held.
+    pub hop: bool,
+    /// Item button held (the kart uses the item on the press).
+    pub item: bool,
+    /// Ability button held (the ability fires on the press).
+    pub ability: bool,
+}
+
+impl KartControls {
+    /// Whether the pad is asking for anything: when it is not, the keyboard's digital keys are used instead.
+    pub fn active(&self) -> bool {
+        self.steer != 0.0 || self.throttle != 0.0
+    }
+}
+
+/// The kart controls a gamepad sample means. Analog triggers and the stick are used as they are; a pad without analog triggers falls back to A and B.
+pub fn kart_controls(pad: &Sample) -> KartControls {
+    let dpad = pad.down(button::RIGHT) as i8 as f32 - pad.down(button::LEFT) as i8 as f32;
+    let steer = if pad.movement.x != 0.0 { pad.movement.x } else { dpad }.clamp(-1.0, 1.0);
+    let accelerate = pad.triggers.y.max(pad.down(button::JUMP) as u8 as f32);
+    let brake = pad.triggers.x.max(pad.down(button::CROUCH) as u8 as f32);
+    KartControls {
+        steer,
+        throttle: (accelerate - brake).clamp(-1.0, 1.0),
+        hop: pad.down(button::NEXT) || pad.down(button::PREVIOUS),
+        item: pad.down(button::INTERACT),
+        ability: pad.down(button::RELOAD),
     }
 }
 
@@ -124,9 +174,13 @@ impl Controller {
             return Sample::default();
         };
         let pad = native.gamepad(id);
+        let trigger = |b: Button| pad.button_data(b).map_or(0.0, |d| d.value()).clamp(0.0, 1.0);
+        // A small dead zone so a resting trigger that reads 0.02 does not creep the kart forward.
+        let shaped = |v: f32| if v < 0.05 { 0.0 } else { (v - 0.05) / 0.95 };
         let mut raw = Sample {
             movement: stick(Vec2::new(pad.value(Axis::LeftStickX), pad.value(Axis::LeftStickY)), 0.18),
             look: stick(Vec2::new(pad.value(Axis::RightStickX), pad.value(Axis::RightStickY)), 0.15),
+            triggers: Vec2::new(shaped(trigger(Button::LeftTrigger2)), shaped(trigger(Button::RightTrigger2))),
             ..Default::default()
         };
         for (physical, logical) in [
@@ -181,5 +235,55 @@ mod tests {
         assert!(gate.sample(held, true).hit(button::FIRE));
         gate.reset();
         assert_eq!(gate.sample(held, true).held, 0);
+    }
+
+    #[test]
+    fn a_pad_with_analog_triggers_drives_a_kart_by_the_pull() {
+        let half = Sample { triggers: Vec2::new(0.0, 0.5), movement: Vec2::new(-0.6, 0.9), ..Default::default() };
+        let c = kart_controls(&half);
+        assert_eq!((c.steer, c.throttle), (-0.6, 0.5), "the stick steers, the right trigger is a half throttle; stick Y is ignored");
+        let brake = kart_controls(&Sample { triggers: Vec2::new(1.0, 0.0), ..Default::default() });
+        assert_eq!(brake.throttle, -1.0, "the left trigger brakes and reverses");
+        let both = kart_controls(&Sample { triggers: Vec2::new(0.4, 1.0), ..Default::default() });
+        assert!((both.throttle - 0.6).abs() < 1e-6, "both pulled: the difference");
+        assert!(!kart_controls(&Sample::default()).active(), "a resting pad asks for nothing, so the keyboard keeps working");
+        assert!(kart_controls(&half).active());
+    }
+
+    #[test]
+    fn a_pad_without_analog_triggers_uses_the_face_buttons() {
+        let go = kart_controls(&Sample { held: button::JUMP, ..Default::default() });
+        assert_eq!(go.throttle, 1.0, "A accelerates");
+        let stop = kart_controls(&Sample { held: button::CROUCH, ..Default::default() });
+        assert_eq!(stop.throttle, -1.0, "B brakes");
+        assert_eq!(kart_controls(&Sample { held: button::JUMP | button::CROUCH, ..Default::default() }).throttle, 0.0);
+        let dpad = kart_controls(&Sample { held: button::RIGHT, ..Default::default() });
+        assert_eq!(dpad.steer, 1.0, "the D-pad steers");
+        let stick_wins = kart_controls(&Sample { held: button::RIGHT, movement: Vec2::new(-0.3, 0.0), ..Default::default() });
+        assert_eq!(stick_wins.steer, -0.3, "the analog stick beats the D-pad");
+    }
+
+    #[test]
+    fn hop_item_and_ability_are_the_shoulders_x_and_y_and_held_buttons_stay_held() {
+        for shoulder in [button::NEXT, button::PREVIOUS] {
+            assert!(kart_controls(&Sample { held: shoulder, ..Default::default() }).hop);
+        }
+        let x = kart_controls(&Sample { held: button::INTERACT, ..Default::default() });
+        let y = kart_controls(&Sample { held: button::RELOAD, ..Default::default() });
+        assert!(x.item && !x.ability && y.ability && !y.item);
+        assert!(!kart_controls(&Sample::default()).hop);
+        // The mapping reads held buttons, not the per-poll edge, so a press between two fixed steps is never lost: the kart does its own edge detection.
+        let edge_missed = Sample { held: button::INTERACT, pressed: 0, ..Default::default() };
+        assert!(kart_controls(&edge_missed).item);
+    }
+
+    #[test]
+    fn triggers_are_held_back_by_the_gate_like_everything_else() {
+        let mut gate = Gate::default();
+        let pulled = Sample { triggers: Vec2::new(0.0, 1.0), ..Default::default() };
+        assert_eq!(gate.sample(pulled, true).triggers, Vec2::ZERO, "a trigger pulled while the gate is unarmed is ignored until release");
+        gate.sample(Sample::default(), true);
+        assert_eq!(gate.sample(pulled, true).triggers, Vec2::new(0.0, 1.0));
+        assert_eq!(gate.sample(pulled, false).triggers, Vec2::ZERO, "and a lost focus zeroes them");
     }
 }

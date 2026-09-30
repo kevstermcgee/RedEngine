@@ -21,6 +21,7 @@
 pub mod auth;
 pub mod bot;
 pub mod client;
+pub mod fleet;
 pub mod happenings;
 pub mod host;
 pub mod interp;

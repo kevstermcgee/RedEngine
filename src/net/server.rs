@@ -1071,6 +1071,7 @@ impl Server {
                     },
                     countdown_ticks: r.countdown_ticks_left().min(65_535) as u16,
                     race_tick: r.race_tick(),
+                    boxes_ready: self.sim.item_boxes().ready_mask(),
                     hazards: self
                         .sim
                         .hazards()

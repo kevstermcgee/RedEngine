@@ -268,6 +268,8 @@ struct App {
     ads_held: bool,
     /// Smoothed 0 (hip) .. 1 (sights) presentation blend.
     ads_blend: f32,
+    /// The third-person chase camera used in a kart race (`kart_camera`).
+    chase: red_engine2::kart_camera::ChaseCamera,
     /// Online: ticks left to hold each action button (interact, attack, switch, reload) on the input sent to the server.
     /// The server acts on the press, so a short pulse is one action.
     net_pulse: [u8; 4],
@@ -511,6 +513,7 @@ impl App {
             attack_held: false,
             ads_held: false,
             ads_blend: 0.0,
+            chase: red_engine2::kart_camera::ChaseCamera::new(),
             net_pulse: [0; 4],
             paused: false,
             pause_hover: None,

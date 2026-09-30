@@ -69,6 +69,7 @@ fn main() -> anyhow::Result<()> {
             hp: 100,
             shots: 3,
             protected: false,
+            kart: None,
         };
         let mut anim = AvatarAnim::default();
         animate(&mut scene.objects[base + i], who, &pose, &mut anim, 0.016, 0.0); // a baseline for the shot counter

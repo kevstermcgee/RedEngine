@@ -76,6 +76,8 @@ pub struct PlayerPose {
     pub shots: u8,
     /// Under spawn protection.
     pub protected: bool,
+    /// The player's kart, in a race match (driver, drift, boost, shield, place ...): what the renderer needs to dress and pose it.
+    pub kart: Option<crate::net::protocol::KartSnap>,
 }
 
 /// How many server ticks behind the present a client's picture of the other players is when its round trip takes `rtt_ms`: the interpolation
@@ -113,6 +115,7 @@ impl Blend for PlayerPose {
             hp: o.hp,
             shots: o.shots,
             protected: o.protected,
+            kart: o.kart,
         }
     }
 
@@ -162,6 +165,7 @@ impl From<&PlayerSnap> for PlayerPose {
             hp: p.hp,
             shots: p.shots,
             protected: p.flags & crate::net::protocol::FLAG_PROTECTED != 0,
+            kart: p.kart,
         }
     }
 }
@@ -461,6 +465,7 @@ mod tests {
             hp: 100,
             shots: 0,
             protected: false,
+            kart: None,
         };
         h.push(1.0, pose(0.0));
         h.push(2.0, pose(10.0));
@@ -486,6 +491,7 @@ mod tests {
             hp: 100,
             shots: 0,
             protected: false,
+            kart: None,
         }
     }
 

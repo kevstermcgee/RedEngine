@@ -164,7 +164,13 @@ impl KartBrain {
         let next_dir = (self.path[(self.target + 1) % n] - self.path[self.target]).normalize_or_zero();
         let sharpness = to.dot(next_dir).clamp(-1.0, 1.0).acos();
         let corner = 1.0 - (sharpness / 1.6).clamp(0.0, 0.55);
-        let pace = 0.80 + 0.20 * self.level;
+        // Catch-up: the leader eases off a little and the tail pushes a little, so a pack of equally good drivers on karts of different speeds stays a pack
+        // (and there is someone near enough to throw an Acorn at). A driver at nightmare level has none of it, which is what balance measurements use.
+        let standings = race.standings();
+        let place = standings.iter().position(|row| row.player == slot).unwrap_or(0);
+        let fraction = place as f32 / (standings.len().max(2) - 1) as f32;
+        let catch_up = if self.level < 0.95 { 1.05 - 0.10 * fraction } else { 1.0 };
+        let pace = (0.80 + 0.20 * self.level) * catch_up;
         let boosting = kart.boost_ticks > 0;
         let desired = spec.top_speed * corner * pace * if boosting { spec.boost_mult } else { 1.0 };
         let forward: i8 = if speed < desired - 1.0 {
@@ -199,7 +205,8 @@ impl KartBrain {
         let (mut nearest_ahead, mut nearest_behind): (Option<Vec2>, Option<Vec2>) = (None, None);
         for rel in rivals {
             let (ahead, side) = (rel.dot(fwd), rel.dot(right));
-            if ahead > 0.0 && side.abs() < 2.6 && nearest_ahead.is_none_or(|b| b.length() > rel.length()) {
+            // An Acorn homes onto a kart inside a cone ahead of it (`sim::items`), so that is what a bot waits for: a rival ahead and roughly in front.
+            if ahead > 0.0 && ahead / rel.length().max(1e-3) > 0.9 && nearest_ahead.is_none_or(|b| b.length() > rel.length()) {
                 nearest_ahead = Some(rel);
             }
             if ahead < 0.0 && side.abs() < 3.0 && nearest_behind.is_none_or(|b| b.length() > rel.length()) {
@@ -214,7 +221,7 @@ impl KartBrain {
         if !kart.attack_held && reaction_ok {
             attack = match kart.item {
                 Item::Mushroom => angle_err.abs() < 0.12 && !boosting && speed > 6.0,
-                Item::Acorn => nearest_ahead.is_some_and(|r| (4.0..28.0).contains(&r.dot(fwd))),
+                Item::Acorn => nearest_ahead.is_some_and(|r| (6.0..38.0).contains(&r.dot(fwd))),
                 Item::Bubble => acorn_coming || self.item_age > BUBBLE_HOLD_TICKS,
                 Item::None => false,
             };
