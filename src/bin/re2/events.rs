@@ -221,6 +221,15 @@ impl ApplicationHandler for App {
                         Some(PauseAction::Resume) => self.leave_pause(),
                         Some(PauseAction::Fullscreen) => self.toggle_fullscreen(),
                         Some(PauseAction::Quit) => event_loop.exit(),
+                        Some(PauseAction::ToggleMusic) => {
+                            self.toggle_music();
+                            self.repaint_pause();
+                        }
+                        Some(PauseAction::ToggleSfx) => {
+                            self.toggle_sfx();
+                            self.repaint_pause();
+                        }
+                        Some(PauseAction::DownloadMusic) => self.download_music(),
                         None => {}
                     }
                 } else if !self.grabbed {

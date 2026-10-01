@@ -367,6 +367,17 @@ struct App {
     streaks: Option<red_engine2::streaks::Streaks>,
     /// Whether the music is audible (`N` toggles it; `RE2_MUSIC=0` starts without).
     music_on: bool,
+    /// Whether sound effects play (the pause menu's SOUND toggle).
+    sfx_on: bool,
+    /// The persisted preference the music/sfx toggles read and write (`red_engine2::settings`); `music_on`/
+    /// `sfx_on` above are the *live* state, which can momentarily differ (e.g. `RE2_MUSIC=1` forces music on
+    /// without changing what is saved).
+    settings: red_engine2::settings::Settings,
+    /// The key `settings` is saved under for this game (`red_engine2::settings::key_for`).
+    settings_key: String,
+    /// A one-line result to show on the pause menu (e.g. where the music was saved), overriding the online
+    /// status line until the next pause-menu action replaces or clears it.
+    pause_message: Option<String>,
     /// When this game hosts its own match: the switch that freezes it (the pause menu and losing focus set it).
     host_pause: Option<Arc<std::sync::atomic::AtomicBool>>,
     /// Footsteps played so far (picks the foot).
@@ -480,6 +491,12 @@ impl App {
         let pad_launch = scene.jump_pads.iter().map(|p| p.launch_speed).reduce(f32::min);
         let starting_weapon = scene.weapons.starting_weapon;
         let rules = RulesEngine::new(scene.rules.clone()).with_wrap(scene.player.expanse.wrap);
+        let settings_key = red_engine2::settings::key_for(&scene_path);
+        let settings = red_engine2::settings::load(&settings_key);
+        let mut audio = Audio::new();
+        if let Some(a) = audio.as_mut() {
+            a.set_sfx_enabled(settings.sfx);
+        }
         App {
             window: None,
             gpu: None,
@@ -555,12 +572,16 @@ impl App {
             player_object_index,
             walk_phase: 0.0,
             hand_prop_transform: Mat4::from_scale(Vec3::splat(HIDDEN_SCALE)),
-            audio: Audio::new(),
+            audio,
             hit_sound: synth_bat_hit(),
             sounds: red_engine2::sfx::SoundBank::new(),
             feel: red_engine2::feel::Feel::new(),
             streaks: None,
             music_on: false,
+            sfx_on: settings.sfx,
+            settings,
+            settings_key,
+            pause_message: None,
             host_pause: None,
             step_count: 0,
             pred_prev_attack: false,

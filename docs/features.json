@@ -165,10 +165,10 @@
     },
     "graphical_client": {
       "summary": "The `re2` game: window, input, live rendering, avatars, weapons, rule-state presentation, launch/connect and online lobby/HUD wiring.",
-      "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/sfx.rs", "src/music.rs", "src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
-      "tests": ["lib:viewer"],
+      "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/sfx.rs", "src/music.rs", "src/settings.rs", "src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
+      "tests": ["lib:viewer", "lib:audio", "lib:settings"],
       "commands": ["powershell -File scripts/lobby_demo.ps1"],
-      "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0043-a-reusable-client-layer-for-custom-games.md"],
+      "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0043-a-reusable-client-layer-for-custom-games.md", "docs/adr/2026-10-01-persisted-per-game-audio-settings-and-a-music-download.md"],
       "depends_on": ["net_client", "ui_kit", "player_physics", "prop_physics", "offline_renderer", "game_rules", "client_app"]
     },
     "client_app": {

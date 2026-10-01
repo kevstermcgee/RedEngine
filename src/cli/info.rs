@@ -437,11 +437,14 @@ pub(crate) fn run_ui_shot(screen: &str, out: &Path, size: &str, hover: Option<&s
     let (hover, hover_id) = match hover {
         None => (None, None),
         Some("resume") => (Some(PauseAction::Resume), None),
+        Some("music") => (Some(PauseAction::ToggleMusic), None),
+        Some("download_music") => (Some(PauseAction::DownloadMusic), None),
+        Some("sfx") => (Some(PauseAction::ToggleSfx), None),
         Some("fullscreen") => (Some(PauseAction::Fullscreen), None),
         Some("quit") => (Some(PauseAction::Quit), None),
         Some(o) => (None, Some(o.to_string())),
     };
-    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, hover_id })
+    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, hover_id, ..Default::default() })
         .ok_or_else(|| format!("unknown screen '{screen}' (screens: {})", screens::all().join(", ")))?;
     if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;

@@ -1,5 +1,6 @@
 //! A tiny 5x7 bitmap font so the analysis tools can label images without a font dependency.
-//! Uppercase only (lowercase is mapped up), digits, and the punctuation ids/coordinates use.
+//! Uppercase only (lowercase is mapped up), digits, the punctuation ids/coordinates use, and one
+//! icon glyph (`↓`, a download/save affordance for UI buttons).
 
 use image::{Rgb, RgbImage};
 
@@ -67,6 +68,8 @@ const GLYPHS: &[(char, [&str; 7])] = &[
     ('?', [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."]),
     ('[', [".###.", ".#...", ".#...", ".#...", ".#...", ".#...", ".###."]),
     (']', [".###.", "...#.", "...#.", "...#.", "...#.", "...#.", ".###."]),
+    // A download/save affordance (the pause menu's "save the music" button): a shaft with a chevron point.
+    ('↓', ["..#..", "..#..", "..#..", "..#..", "#.#.#", ".#.#.", "..#.."]),
 ];
 
 /// The 5x7 bitmap rows of `c` (`#` = ink), if the font has it.

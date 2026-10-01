@@ -10,7 +10,7 @@ description = "AI-first Rust game engine: JSON scenes, self-verifying maps, auth
 # map-analysis CLI build without it (`cargo build --no-default-features --bin red_server`); CI enforces that on Linux.
 [features]
 default = ["gfx"]
-gfx = ["dep:wgpu", "dep:winit", "dep:rodio", "dep:pollster", "dep:ffmpeg-sidecar", "dep:gilrs"]
+gfx = ["dep:wgpu", "dep:winit", "dep:rodio", "dep:pollster", "dep:ffmpeg-sidecar", "dep:gilrs", "dep:rfd"]
 
 [dependencies]
 gilrs = { version = "0.11.2", optional = true }
@@ -48,6 +48,7 @@ getrandom = "0.3"
 bytes = "1"
 wgpu = { version = "30.0.1", optional = true }
 winit = { version = "0.30", optional = true }
+rfd = { version = "0.17.2", optional = true }
 
 [profile.release]
 lto = true
