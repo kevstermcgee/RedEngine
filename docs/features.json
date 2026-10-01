@@ -8,7 +8,7 @@
       "files": ["src/schema.rs", "src/strict.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/**", "SPEC.md"],
       "tests": ["lib:schema", "lib:strict", "lib:prefabs", "lib:macros", "lib:track", "examples_validate", "render_prep", "fields"],
       "commands": ["red_engine2 validate examples/test_lab.json"],
-      "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md"]
+      "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md"]
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
@@ -160,7 +160,7 @@
       "files": ["src/ui/**", "src/menu.rs", "src/tools/font.rs"],
       "tests": ["lib:ui", "lib:menu"],
       "commands": ["red_engine2 ui-check", "red_engine2 ui-shot lobby out/lobby.png"],
-      "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md"],
+      "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md"],
       "depends_on": ["match_flow", "net_protocol"]
     },
     "graphical_client": {
@@ -168,7 +168,7 @@
       "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/sfx.rs", "src/music.rs", "src/settings.rs", "src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
       "tests": ["lib:viewer", "lib:audio", "lib:settings"],
       "commands": ["powershell -File scripts/lobby_demo.ps1"],
-      "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0043-a-reusable-client-layer-for-custom-games.md", "docs/adr/2026-10-01-persisted-per-game-audio-settings-and-a-music-download.md"],
+      "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0043-a-reusable-client-layer-for-custom-games.md", "docs/adr/2026-10-01-persisted-per-game-audio-settings-and-a-music-download.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md"],
       "depends_on": ["net_client", "ui_kit", "player_physics", "prop_physics", "offline_renderer", "game_rules", "client_app"]
     },
     "client_app": {

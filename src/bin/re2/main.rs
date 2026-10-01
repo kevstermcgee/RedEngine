@@ -30,7 +30,7 @@ use red_engine2::net::host::{HostOptions, LocalHost};
 use red_engine2::net::session::NetSession;
 use red_engine2::physics::PropWorld;
 use red_engine2::player::{BodySpec, Character, FIXED_DT};
-use red_engine2::schema::{Object, ObjectKind, Scene};
+use red_engine2::schema::{Light, LightKind, Object, ObjectKind, Scene};
 use red_engine2::sim::clock::TickClock;
 use red_engine2::sim::combat::{Cooldown, MeleeSwing, WeaponSwitch};
 use red_engine2::sim::player::{step_player_on_tuned, PlayerInput, PlayerState};
@@ -369,6 +369,9 @@ struct App {
     music_on: bool,
     /// Whether sound effects play (the pause menu's SOUND toggle).
     sfx_on: bool,
+    /// Whether the player's carried light is on (`scene.flashlight`; the `T` key toggles it). Meaningless
+    /// (never shown, never lit) when the scene did not ask for a flashlight.
+    flashlight_on: bool,
     /// The persisted preference the music/sfx toggles read and write (`red_engine2::settings`); `music_on`/
     /// `sfx_on` above are the *live* state, which can momentarily differ (e.g. `RE2_MUSIC=1` forces music on
     /// without changing what is saved).
@@ -579,6 +582,7 @@ impl App {
             streaks: None,
             music_on: false,
             sfx_on: settings.sfx,
+            flashlight_on: true,
             settings,
             settings_key,
             pause_message: None,

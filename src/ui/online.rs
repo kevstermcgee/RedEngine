@@ -78,6 +78,8 @@ pub struct CombatView {
     pub protected: bool,
     /// A short line to flash (a level-up), if any.
     pub notice: Option<String>,
+    /// The death screen's title (`scene.death_text`); `None` shows "ELIMINATED".
+    pub death_text: Option<String>,
 }
 
 impl CombatView {
@@ -93,6 +95,7 @@ impl CombatView {
             respawn_secs: 0,
             protected: false,
             notice: Some("RUNG 9 - LONGBOW MARKSMAN RIFLE".into()),
+            death_text: None,
         }
     }
 
@@ -693,7 +696,8 @@ fn combat_hud(l: &mut Layout, v: &OnlineView, c: &CombatView) {
         l.label_fit("notice", None, wi / 2, hi * 62 / 100, text, s * 2, wi * 6 / 10, GOLD);
     }
     if c.dead {
-        let title = l.label_fit("dead_title", None, wi / 2, hi * 34 / 100, "ELIMINATED", s * 4, wi - 8, RED);
+        let title_text = c.death_text.as_deref().unwrap_or("ELIMINATED");
+        let title = l.label_fit("dead_title", None, wi / 2, hi * 34 / 100, title_text, s * 4, wi - 8, RED);
         let below = l.widgets[title].rect.3 + 4 * s;
         let text = if c.respawn_secs > 0 { format!("RESPAWNING IN {}", c.respawn_secs) } else { "RESPAWNING".to_string() };
         l.label_fit("dead_hint", None, wi / 2, below, &text, s * 2, wi - 8, TEXT);
@@ -1066,6 +1070,14 @@ mod tests {
         assert_eq!(text(&hud_layout(1280, 720, &v), "protected").as_deref(), Some("SPAWN PROTECTED"));
         v.combat = None;
         assert!(text(&hud_layout(1280, 720, &v), "hp_text").is_none(), "no combat state, no shooter HUD");
+    }
+
+    #[test]
+    fn a_scene_can_replace_eliminated_with_its_own_wording() {
+        let text = |l: &Layout, id: &str| l.widgets.iter().find(|w| w.id == id).and_then(|w| w.text.clone());
+        let mut v = OnlineView::demo(Phase::Playing);
+        v.combat = Some(CombatView { death_text: Some("YOU WERE CAUGHT".into()), ..CombatView::demo_dead() });
+        assert_eq!(text(&hud_layout(1280, 720, &v), "dead_title").as_deref(), Some("YOU WERE CAUGHT"));
     }
 
     #[test]

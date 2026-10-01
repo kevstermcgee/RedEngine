@@ -69,6 +69,7 @@ impl App {
             respawn_secs: net.client.respawn_in_secs().ceil() as u32,
             protected: own.flags & FLAG_PROTECTED != 0,
             notice: self.notice.as_ref().map(|(text, _)| text.clone()),
+            death_text: self.scene.death_text.clone(),
         })
     }
 

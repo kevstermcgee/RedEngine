@@ -75,6 +75,12 @@ pub struct Scene {
     /// the `N` key and the pause menu's MUSIC button still toggle it). Not every game needs music: a game whose own audio cues,
     /// tone or pacing it would fight is better off silent (`red_engine2 describe scene` explains this to the next author).
     pub music: bool,
+    /// Whether the player carries a toggleable point light (root `"flashlight"`, default false; the `T` key toggles it on/off
+    /// once playing). A `Point` light, not a cone: the engine has no spotlight kind (ADR "a player-carried flashlight").
+    pub flashlight: bool,
+    /// The big line the standard client's death screen shows while waiting to respawn (root `"death_text"`,
+    /// default `None` = "ELIMINATED", the arena-shooter wording every map used before this key existed).
+    pub death_text: Option<String>,
     /// The sky dome and its sun (`sky` block), if the scene has one; without it `background` is a screen-space gradient.
     pub sky: Option<crate::atmosphere::Sky>,
     /// The endless water plane (`ocean` block), if the scene has one.
@@ -1018,6 +1024,22 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             true
         }
     };
+    let flashlight = match root.get("flashlight") {
+        None => false,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => {
+            ctx.err("flashlight", "must be true or false (true gives the player a toggleable point light, the T key)");
+            false
+        }
+    };
+    let death_text = match root.get("death_text") {
+        None => None,
+        Some(Value::String(s)) => Some(s.clone()),
+        Some(_) => {
+            ctx.err("death_text", "must be a string (the death screen's title; omit it to keep \"ELIMINATED\")");
+            None
+        }
+    };
     let mut player = parse_player(&mut ctx, root);
     match crate::expanse::parse_world(root) {
         Ok(expanse) => player.expanse = expanse,
@@ -1174,6 +1196,8 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         nav,
         hud,
         music,
+        flashlight,
+        death_text,
         sky,
         ocean,
         race,
@@ -1245,6 +1269,26 @@ mod tests {
         assert!(e.iter().any(|m| m.starts_with("lights[0].rnge:") && m.contains("`range`")), "{e:?}");
         let e = errors_of(r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"zones":[{"id":"z","rectt":[0,0,1,1]}],"objects":[]}"#);
         assert!(e.iter().any(|m| m.contains("zones[0] (z).rectt") && m.contains("`rect`")), "{e:?}");
+    }
+
+    #[test]
+    fn flashlight_defaults_off_and_rejects_a_non_bool() {
+        let base = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"objects":[]}"#;
+        assert!(!parse_scene(base).unwrap().flashlight, "absent means no flashlight, like older maps with no `music` key");
+        let on = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"flashlight":true,"objects":[]}"#;
+        assert!(parse_scene(on).unwrap().flashlight);
+        let bad = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"flashlight":"yes","objects":[]}"#;
+        assert!(errors_of(bad).iter().any(|m| m.starts_with("flashlight:")), "{:?}", errors_of(bad));
+    }
+
+    #[test]
+    fn death_text_defaults_absent_and_rejects_a_non_string() {
+        let base = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"objects":[]}"#;
+        assert_eq!(parse_scene(base).unwrap().death_text, None, "absent means the standard client shows its own \"ELIMINATED\"");
+        let set = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"death_text":"YOU WERE CAUGHT","objects":[]}"#;
+        assert_eq!(parse_scene(set).unwrap().death_text.as_deref(), Some("YOU WERE CAUGHT"));
+        let bad = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"death_text":5,"objects":[]}"#;
+        assert!(errors_of(bad).iter().any(|m| m.starts_with("death_text:")), "{:?}", errors_of(bad));
     }
 
     #[test]

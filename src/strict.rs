@@ -41,6 +41,8 @@ pub const ROOT_KEYS: &[&str] = &[
     "bots",
     "nav",
     "music",
+    "flashlight",
+    "death_text",
     "hud",
     "world",
     "sky",

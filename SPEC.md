@@ -160,6 +160,10 @@ up to 16 active lights total. Each light has a `type` of `"directional"` or `"po
   curve at a fixed exposure. So the same numbers read the same in every map, interiors don't blow
   out to white, and ceilings/corners stay readable. Keep authoring ~10-14 per room lamp; light-coloured
   ceilings (`#d0d0c8`-ish) read better than dark roofs seen from below.
+- That softening is distance-based, so it still blows out to solid white right next to the fixture: a lamp
+  tuned to look right from across the room can overexpose if the player can walk up and stand beside it. Place
+  a lamp slightly out of reach (on a wall, a high shelf, behind a counter), or check it with `frame`/`tour` from
+  where the player will actually stand, not just the room's establishing shot.
 
 ## Objects
 
@@ -520,7 +524,9 @@ runnable example; `recipe coin_run` is a complete game.
 ### Proving gameplay headless (`checks.sim`, `sim`)
 
 `red_engine2 sim scene.json` plays **scenarios** — scripted players walking through the real simulation at 60 Hz — and
-checks the outcome. They live in `checks.sim` (so `verify` runs them) or a file (`--scenario`):
+checks the outcome. They live in `checks.sim` (so `verify` runs them) or a file (`--scenario`). **`bots.fill`/`roster`
+are not part of this**: a scenario's `players` are the only participants simulated. To prove what a bot (an AI
+opponent, a monster) actually does, use `playtest` (which hosts a real match with bots) or a real hosted match.
 
 ```json
 "checks": { "sim": [ { "name": "collect all three coins, then win",

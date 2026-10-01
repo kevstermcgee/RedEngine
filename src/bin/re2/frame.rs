@@ -31,7 +31,51 @@ pub(crate) fn hidden_ids<'a>(
     ids
 }
 
+/// Id of the synthesized flashlight light [`App::sync_flashlight`] maintains — never authored in a scene's own JSON.
+const FLASHLIGHT_ID: &str = "__flashlight";
+/// How far ahead of the eye the light sits, metres (clear of the player's own head/body).
+const FLASHLIGHT_OFFSET: f32 = 0.3;
+/// How far the flashlight reaches, metres.
+const FLASHLIGHT_RANGE: f32 = 9.0;
+/// Brightness when on; 0 when off (no object removal needed, it is simply dark).
+const FLASHLIGHT_INTENSITY: f32 = 6.0;
+
+/// The flashlight's light for this frame: a warm `Point` light at `eye + forward * FLASHLIGHT_OFFSET`, dark when `on` is
+/// false. A `Point`, not a cone: the engine has no spotlight kind (see the flashlight ADR). No shadow casting — one more
+/// shadow-casting light recomputed every frame is a real cost the atmosphere does not need to pay for a small game.
+pub(crate) fn flashlight_light(eye: Vec3, forward: Vec3, on: bool) -> Light {
+    Light {
+        id: FLASHLIGHT_ID.to_string(),
+        kind: LightKind::Point { position: Track::constant(eye + forward * FLASHLIGHT_OFFSET), range: FLASHLIGHT_RANGE },
+        color: Track::constant(Vec3::new(1.0, 0.92, 0.75)),
+        intensity: Track::constant(if on { FLASHLIGHT_INTENSITY } else { 0.0 }),
+        cast_shadows: false,
+        shadow_radius: 0.0,
+        shadow_center: Vec3::ZERO,
+        shadow_follow: false,
+    }
+}
+
+/// Inserts or updates the flashlight light in `lights` in place: a pure helper behind [`App::sync_flashlight`],
+/// factored out so it is testable against a plain `Vec<Light>` rather than a whole live `App`.
+fn sync_flashlight_into(lights: &mut Vec<Light>, eye: Vec3, forward: Vec3, on: bool) {
+    let light = flashlight_light(eye, forward, on);
+    match lights.iter_mut().find(|l| l.id == FLASHLIGHT_ID) {
+        Some(existing) => *existing = light,
+        None => lights.push(light),
+    }
+}
+
 impl App {
+    /// Keeps the synthesized flashlight light (if `scene.flashlight`) following the camera: inserts it once, then
+    /// updates it in place every frame. A no-op for a scene that never asked for a flashlight.
+    pub(crate) fn sync_flashlight(&mut self) {
+        if !self.scene.flashlight {
+            return;
+        }
+        sync_flashlight_into(&mut self.scene.lights, self.eye, self.camera.forward(), self.flashlight_on);
+    }
+
     /// What the player is asking for this tick, from the held keys (or the `RE2_AUTOWALK` debug script).
     pub(crate) fn build_input(&mut self) -> PlayerInput {
         if let Some(mode) = self.autowalk.clone() {
@@ -353,6 +397,7 @@ impl App {
 
         let anchor = Vec3::new(planar_pos.x, foot_y + self.eye_height, planar_pos.y);
         self.eye = anchor;
+        self.sync_flashlight();
         // Cosmetic timers run on render time; everything that decides a hit is in `fixed_step_combat`.
         self.since_shot += dt;
         self.flash_left = (self.flash_left - dt).max(0.0);
@@ -618,5 +663,58 @@ impl App {
             self.colliders.extend_from_slice(&self.collider_groups[i]);
             self.ground.append(&self.ground_groups[i]);
         }
+    }
+}
+
+#[cfg(test)]
+mod flashlight_tests {
+    use super::*;
+
+    #[test]
+    fn the_flashlight_sits_ahead_of_the_eye_and_is_dark_when_off() {
+        let eye = Vec3::new(1.0, 2.0, 3.0);
+        let forward = Vec3::new(0.0, 0.0, -1.0);
+        let on = flashlight_light(eye, forward, true);
+        assert_eq!(on.id, FLASHLIGHT_ID);
+        let LightKind::Point { position, range } = on.kind else { panic!("the flashlight is a Point light, never a Directional one") };
+        assert_eq!(position.sample(0.0), eye + forward * FLASHLIGHT_OFFSET);
+        assert_eq!(range, FLASHLIGHT_RANGE);
+        assert!(on.intensity.sample(0.0) > 0.0);
+        assert!(!on.cast_shadows, "no shadow-casting cost for a light recomputed every frame");
+
+        let off = flashlight_light(eye, forward, false);
+        assert_eq!(off.intensity.sample(0.0), 0.0);
+    }
+
+    #[test]
+    fn sync_flashlight_into_inserts_once_then_updates_the_same_light_in_place() {
+        let mut lights: Vec<Light> = Vec::new();
+        let forward = Vec3::new(0.0, 0.0, -1.0);
+        sync_flashlight_into(&mut lights, Vec3::new(0.0, 1.7, 0.0), forward, true);
+        assert_eq!(lights.iter().filter(|l| l.id == FLASHLIGHT_ID).count(), 1);
+
+        let eye = Vec3::new(5.0, 1.7, 0.0);
+        sync_flashlight_into(&mut lights, eye, forward, true);
+        assert_eq!(lights.iter().filter(|l| l.id == FLASHLIGHT_ID).count(), 1, "the second call must update, not duplicate");
+        let light = lights.iter().find(|l| l.id == FLASHLIGHT_ID).unwrap();
+        let LightKind::Point { position, .. } = &light.kind else { panic!("expected a Point light") };
+        assert_eq!(position.sample(0.0), eye + forward * FLASHLIGHT_OFFSET);
+    }
+
+    #[test]
+    fn sync_flashlight_into_leaves_other_lights_alone() {
+        let mut lights = vec![Light {
+            id: "lamp".into(),
+            kind: LightKind::Point { position: Track::constant(Vec3::ZERO), range: 5.0 },
+            color: Track::constant(Vec3::ONE),
+            intensity: Track::constant(1.0),
+            cast_shadows: false,
+            shadow_radius: 0.0,
+            shadow_center: Vec3::ZERO,
+            shadow_follow: false,
+        }];
+        sync_flashlight_into(&mut lights, Vec3::ZERO, Vec3::new(0.0, 0.0, -1.0), true);
+        assert_eq!(lights.len(), 2);
+        assert!(lights.iter().any(|l| l.id == "lamp"), "the authored light must survive untouched");
     }
 }
