@@ -953,7 +953,15 @@ fn main() {
         drop(local_host);
         std::process::exit(code);
     }
-    let event_loop = EventLoop::new().expect("failed to create event loop");
+    let event_loop = EventLoop::new().unwrap_or_else(|e| {
+        let msg = e.to_string();
+        if msg.contains("DISPLAY") || msg.contains("WAYLAND") {
+            eprintln!("re2: no display available ({msg})");
+            eprintln!("re2: this box can't open a window. Use --headless (with --script FILE or --playtest) for a run with no window; see `red_engine2 describe playtest`.");
+            std::process::exit(2);
+        }
+        panic!("failed to create event loop: {e}")
+    });
     event_loop.set_control_flow(ControlFlow::Poll);
     app.shots = shots::Shots::new(headless_options.shot_dir.clone(), headless_options.shot_at.clone());
     event_loop.run_app(&mut app).expect("event loop error");

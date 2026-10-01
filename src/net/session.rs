@@ -1145,21 +1145,14 @@ mod tests {
             ..Default::default()
         };
         session.own = Some(PlayerSnap {
-            id: 0,
-            character: 0,
-            flags: 0,
             pos: [1.0, 0.0, 2.0],
             yaw: 1.5,
-            pitch: 0.0,
             speed: 20.0,
-            vy: 0.0,
             velocity: [20.0, 0.0],
-            weapon: 0,
             held: crate::net::protocol::NO_PROP,
             hp: 100,
-            shots: 0,
-            extra: 0,
             kart: Some(snap),
+            ..Default::default()
         });
         let mut predictor = Predictor::new(PlayerState::spawn(1.0, 2.0, 0.0, 90.0, Character::Human));
         predictor.enable_kart(snap.to_state(), Driver::Beaver.spec());
