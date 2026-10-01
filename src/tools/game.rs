@@ -128,6 +128,7 @@ pub fn load(dir: &Path) -> Result<GameConfig, Vec<String>> {
 }
 
 /// One line of a project report.
+#[derive(Debug, Clone)]
 pub struct Line {
     /// Whether it counts as a failure.
     pub failed: bool,
@@ -300,8 +301,9 @@ fn collect_json(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// The project health check: blueprints build and equal their maps, maps pass their `checks`, handoff exists.
-pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
+/// Whether each blueprint still builds and still equals its committed map: `check`'s first section, pulled out so
+/// `game upgrade plan` can read the same drift evidence without running every other check too.
+pub fn blueprint_drift(cfg: &GameConfig) -> Vec<Line> {
     let mut lines = Vec::new();
     for bp in &cfg.blueprints {
         let path = cfg.dir.join(bp);
@@ -323,6 +325,12 @@ pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
             }
         }
     }
+    lines
+}
+
+/// The project health check: blueprints build and equal their maps, maps pass their own `checks`, handoff exists.
+pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
+    let mut lines = blueprint_drift(cfg);
     let cache = (!views && std::env::var_os("RED_NO_CACHE").is_none()).then(|| CheckCache::new(cfg));
     for m in &cfg.maps {
         let path = cfg.dir.join(m);

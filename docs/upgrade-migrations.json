@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "notes": "Known engine compatibility changes a `game upgrade plan` can match against a project's evidence. Each record is seeded only after being verified against real git history (see the record's `evidence` line); an unmatched project change stays unclassified rather than being guessed at. `red_engine2 game upgrade plan` reads this file from the checkout it runs in, the same way `docs/features.json` is read live.",
+  "migrations": [
+    {
+      "id": "protocol-version-lockstep",
+      "introduced_at": "ongoing",
+      "evidence": "src/net/protocol.rs::PROTOCOL_VERSION has bumped across real commits (v8 44fa180, v9 7918af0, v11 af0f0e0, v12 577cc24, v14 a8a9bb1); a client and server built from different versions refuse each other's Hello (protocol.rs: 'version != PROTOCOL_VERSION').",
+      "affected": "src/net/protocol.rs::PROTOCOL_VERSION (wire handshake)",
+      "detect": [
+        "the project has a non-empty `server` block in game.json (every game project does)",
+        "PROTOCOL_VERSION read from the baseline commit differs from PROTOCOL_VERSION read from the target commit"
+      ],
+      "required": true,
+      "repair": "rebuild and redeploy both the client and the dedicated server from the target commit; `game pin` already makes this the natural outcome (it rewrites game.json to one exact commit) — do not mix a client or server built from a different commit after the bump.",
+      "verify": "staged `extra` stage of `game upgrade verify`: builds the client and server from the same staged target commit and confirms neither is run against a build from the other side of the bump.",
+      "limitations": "only checked when both the baseline and target commits are reachable from a local checkout (`git show <sha>:src/net/protocol.rs`); an unreachable commit leaves this migration's applicability unknown, not negative."
+    },
+    {
+      "id": "verify-checks-groups-grew",
+      "introduced_at": "ongoing",
+      "evidence": "src/tools/verify.rs's GROUPS constant grew from 6 to 7 to 8 entries across real commits (sim -> +perf -> +nav), each time adding a new optional key under a scene's `checks` block.",
+      "affected": "scene `checks` block (`checks.perf`, `checks.nav`)",
+      "detect": [
+        "the project's maps have a `checks` block (every blueprint-built map does)",
+        "the target commit's src/tools/verify.rs GROUPS constant lists a group the baseline commit's did not"
+      ],
+      "required": false,
+      "repair": "optionally add `checks.perf`/`checks.nav` entries to adopt the new verification; nothing already in the map stops working without them.",
+      "verify": "`game upgrade verify`'s `full` stage runs whatever `checks` groups the map already declares; adopting a new group is a separate, deliberate content edit, not something the upgrade performs for you.",
+      "limitations": "detection compares the literal GROUPS array text between the two commits' src/tools/verify.rs; a rename or refactor of that constant would make this record stop matching and it would need updating."
+    }
+  ]
+}

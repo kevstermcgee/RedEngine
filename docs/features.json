@@ -242,6 +242,18 @@
       "summary": "Shared test code and fixtures.",
       "files": ["tests/fixtures/**", "benches/common/**"],
       "tests": ["test_lab"]
+    },
+    "game_upgrade": {
+      "summary": "`game upgrade plan|verify`: a read-only upgrade planner (target resolution, project classification, migration matching, the upgrade packet) and staged verification against an isolated, identity-cached target-engine build, for game projects pinned via ADR 0024 and the pin ADR.",
+      "files": ["src/tools/upgrade.rs", "docs/upgrade-migrations.json"],
+      "tests": ["lib:tools::upgrade", "game_upgrade"],
+      "commands": ["red_engine2 game upgrade plan --dir <game> --to <rev> --engine <checkout>", "red_engine2 game upgrade verify <packet.json> --dir <game>"],
+      "docs": [
+        "docs/adr/2026-10-01-game-upgrade-planning-and-staged-verification.md",
+        "docs/adr/0024-the-framework-layer-blueprints-and-game-projects.md",
+        "docs/adr/2026-09-29-develop-on-a-path-ship-on-a-pin.md"
+      ],
+      "depends_on": ["blueprints_and_games", "verification", "map_analysis", "self_description"]
     }
   }
 }

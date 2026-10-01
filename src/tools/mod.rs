@@ -47,6 +47,7 @@ pub mod sight;
 pub mod simrun;
 pub mod status;
 pub mod symbols;
+pub mod upgrade;
 pub mod verify;
 pub mod walk;
 pub mod world;

@@ -216,6 +216,44 @@ pub(crate) enum GameCmd {
     },
     /// Develop again: point game.json at a local engine checkout (a path relative to the project) instead of a pinned commit.
     Unpin { path: String },
+    /// Move this project to a different pinned engine commit: a read-only plan, then staged verification. Never
+    /// edits the project, builds an engine, or touches the network by itself (see `game upgrade plan --help`).
+    Upgrade {
+        #[command(subcommand)]
+        cmd: GameUpgradeCmd,
+    },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum GameUpgradeCmd {
+    /// Read-only: resolve a target engine commit once, classify the project from evidence, match known
+    /// compatibility changes, and write a machine (.json) and human (.md) upgrade packet.
+    Plan {
+        /// Revision to resolve (branch, tag or commit), against a reachable local checkout.
+        #[arg(long)]
+        to: String,
+        /// Checkout to resolve `to` against (default: the project's own `engine.path`).
+        #[arg(long)]
+        engine: Option<PathBuf>,
+        /// A requested gameplay problem to fix, carried into the packet (repeatable).
+        #[arg(long = "fix")]
+        fixes: Vec<String>,
+        /// Destination for the packet (default: out/upgrade/<target-sha12>/packet.{json,md}).
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Staged verification against a packet from `plan`: build/reuse the target engine in isolation, regenerate
+    /// content into a staging copy (never the real project), and run the project's own checks against it.
+    Verify {
+        /// The packet.json written by `game upgrade plan`.
+        packet: PathBuf,
+        /// An already-built, identity-stamped engine build to reuse instead of building one.
+        #[arg(long = "engine-build")]
+        engine_build: Option<PathBuf>,
+        /// Run only one stage (`baseline` is the cheap one; omit to run the full pipeline).
+        #[arg(long)]
+        only: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
