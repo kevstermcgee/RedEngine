@@ -38,6 +38,11 @@ QUIT.
   Rust client (ADR 0043 — `topdown_switch`, the in-engine `killchain` example) already owns its entire
   input/UI/audio and is not touched here; it would need to call `settings`/`audio::wav_bytes_i16` itself to get
   the same behavior.
+- **This does not make music mandatory.** The scene's own `"music": false` (`new-game`'s default since before
+  this ADR — "a game asks for music, it is never a default") still decides whether the loop autoplays at all;
+  these buttons only control and export it when a game chose to use it. `red_engine2 describe scene`'s `music`
+  entry is explicit that silence is a legitimate, complete choice, not an unfinished one, for a game whose own
+  audio cues, tone or pacing music would fight.
 
 ## Consequences
 A player's audio choices now survive a relaunch, and sound effects are finally toggleable (not just music). Saving
