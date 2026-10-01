@@ -194,6 +194,8 @@ pub enum Character {
     Ridgeback,
     /// A Nightfall soldier (team 2: navy and black) on the human rig.
     Nightfall,
+    /// A too-tall, too-thin, featureless figure on the human rig — a monster, not a costume.
+    Hollow,
 }
 
 /// Everything about a body that differs between characters. Gravity and the ground/step rules are
@@ -233,7 +235,7 @@ pub struct BodySpec {
 
 impl Character {
     /// Every character, in wire-code order.
-    pub const ALL: [Character; 8] = [
+    pub const ALL: [Character; 9] = [
         Character::Human,
         Character::Rat,
         Character::Wizard,
@@ -242,29 +244,35 @@ impl Character {
         Character::Robot,
         Character::Ridgeback,
         Character::Nightfall,
+        Character::Hollow,
     ];
 
     /// The body numbers for this character.
     pub fn body(self) -> BodySpec {
         match self {
-            Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot | Character::Ridgeback | Character::Nightfall => {
-                BodySpec {
-                    radius: PLAYER_RADIUS,
-                    stand_eye: STAND_EYE_HEIGHT,
-                    crouch_eye: CROUCH_EYE_HEIGHT,
-                    walk_speed: WALK_SPEED,
-                    sprint_speed: SPRINT_SPEED,
-                    third_person_distance: 3.4,
-                    third_person_lift: 0.55,
-                    near_plane: 0.05,
-                    has_bat: true,
-                    body_height: 1.75,
-                    band_top: PLAYER_BAND_MAX_Y,
-                    pickup_reach: 2.3,
-                    carry: crate::physics::HUMAN_CARRY,
-                    hold_drop: 0.55,
-                }
-            }
+            Character::Human
+            | Character::Wizard
+            | Character::Cowboy
+            | Character::Alien
+            | Character::Robot
+            | Character::Ridgeback
+            | Character::Nightfall
+            | Character::Hollow => BodySpec {
+                radius: PLAYER_RADIUS,
+                stand_eye: STAND_EYE_HEIGHT,
+                crouch_eye: CROUCH_EYE_HEIGHT,
+                walk_speed: WALK_SPEED,
+                sprint_speed: SPRINT_SPEED,
+                third_person_distance: 3.4,
+                third_person_lift: 0.55,
+                near_plane: 0.05,
+                has_bat: true,
+                body_height: 1.75,
+                band_top: PLAYER_BAND_MAX_Y,
+                pickup_reach: 2.3,
+                carry: crate::physics::HUMAN_CARRY,
+                hold_drop: 0.55,
+            },
             // Cheddar has one pace, `RAT_SPEED`, and Shift adds nothing.
             Character::Rat => BodySpec {
                 radius: RAT_RADIUS,
@@ -296,6 +304,7 @@ impl Character {
             Character::Robot => "Robot",
             Character::Ridgeback => "Ridgeback soldier",
             Character::Nightfall => "Nightfall soldier",
+            Character::Hollow => "The Hollow",
         }
     }
 
@@ -310,6 +319,7 @@ impl Character {
             "robot" => Some(Character::Robot),
             "ridgeback" => Some(Character::Ridgeback),
             "nightfall" => Some(Character::Nightfall),
+            "hollow" => Some(Character::Hollow),
             _ => None,
         }
     }

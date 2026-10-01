@@ -133,7 +133,8 @@ impl std::error::Error for DecodeError {}
 /// clamps it to what the scene means.
 pub const MAX_CHOICE: u8 = 7;
 
-/// `0` human, `1` rat: how a [`Character`] travels on the wire.
+/// `0` human, `1` rat: how a [`Character`] travels on the wire. The field itself is a full byte (`w.u8`,
+/// never bit-packed), so this is free to grow; [`MAX_CHOICE`] only bounds what a *human* may request.
 pub fn character_to_wire(c: Character) -> u8 {
     match c {
         Character::Human => 0,
@@ -144,6 +145,7 @@ pub fn character_to_wire(c: Character) -> u8 {
         Character::Robot => 5,
         Character::Ridgeback => 6,
         Character::Nightfall => 7,
+        Character::Hollow => 8,
     }
 }
 

@@ -914,7 +914,16 @@ fn main() {
     }
     println!("WASD / arrow keys to walk, mouse to look, Shift to sprint forward, Space to jump, Ctrl to crouch.");
     match scene.player.character {
-        Some(Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot | Character::Ridgeback | Character::Nightfall) => {
+        Some(
+            Character::Human
+            | Character::Wizard
+            | Character::Cowboy
+            | Character::Alien
+            | Character::Robot
+            | Character::Ridgeback
+            | Character::Nightfall
+            | Character::Hollow,
+        ) => {
             println!("Left-click / right trigger uses the equipped weapon.")
         }
         Some(Character::Rat) => println!("Cheddar is small and always as fast as a human sprinting."),

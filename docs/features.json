@@ -15,7 +15,7 @@
       "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs", "src/arsenal.rs", "src/stats.rs", "src/killcam.rs", "src/uniforms.rs", "src/shooter_world.rs", "src/clipboard.rs"],
       "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms"],
       "commands": ["red_engine2 frame examples/test_lab.json out/frame.png", "red_engine2 tour examples/test_lab.json out/tour.png"],
-      "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md"],
+      "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
       "depends_on": ["scene_format"]
     },
     "player_physics": {
@@ -23,7 +23,7 @@
       "files": ["src/player.rs", "src/controller.rs", "src/collide.rs", "src/sim/player.rs"],
       "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env", "loadout"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
-      "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
+      "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
       "depends_on": ["scene_format"]
     },
     "prop_physics": {
@@ -37,7 +37,7 @@
       "summary": "Bat plus a ten-firearm arsenal: tick-based swings/cooldowns, hitscan, health, death, respawn and authoritative pick-up contention.",
       "files": ["src/weapons.rs", "src/sim/combat.rs", "src/sim/combat_cfg.rs", "src/sim/interact.rs"],
       "tests": ["lib:weapons", "lib:sim::combat", "lib:sim::combat_cfg", "lib:sim::interact", "interactions", "combat_rules", "net_interactions"],
-      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md"],
+      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
       "depends_on": ["prop_physics", "sim_core"]
     },
     "sim_core": {
