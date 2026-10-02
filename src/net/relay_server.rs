@@ -578,8 +578,16 @@ mod tests {
         // real DNS dependency; `resolve_relay`'s own fresh-every-call resolution is what makes a dynamic-DNS name
         // actually useful once deployed. This is a genuine hostname lookup, not a numeric-address parse: the
         // other tests pass `relay_addr.to_string()` (already a literal `ip:port`), which exercises the parsing
-        // half of `ToSocketAddrs` but not the resolver.
-        let relay = RelayServer::bind(fast_options()).unwrap();
+        // half of `ToSocketAddrs` but not the resolver. Whether "localhost" resolves to 127.0.0.1 or ::1 first is
+        // up to the machine running this test (CI has resolved it to the IPv6 loopback before now) — bind the
+        // relay to whichever family that is, rather than assuming IPv4, so the two sides of this loopback test
+        // actually agree regardless of resolver config.
+        use std::net::ToSocketAddrs;
+        let bind = match "localhost:0".to_socket_addrs().unwrap().next().unwrap() {
+            SocketAddr::V4(_) => SocketAddr::new(std::net::Ipv4Addr::LOCALHOST.into(), 0),
+            SocketAddr::V6(_) => SocketAddr::new(std::net::Ipv6Addr::LOCALHOST.into(), 0),
+        };
+        let relay = RelayServer::bind(RelayServerOptions { bind, ..fast_options() }).unwrap();
         let relay_addr = relay.local_addr();
         let relay_host = format!("localhost:{}", relay_addr.port());
         with_relay_running(&relay, || {
