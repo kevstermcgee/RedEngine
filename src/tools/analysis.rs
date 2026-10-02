@@ -156,10 +156,36 @@ type Row = (Note, String);
 /// One digest section: the feature every row in it matches (`None` for "no feature matched"), and its rows.
 type Group = (Option<String>, Vec<Row>);
 
+/// Whether a feedback row's own text says the thing is still open, says it is resolved, or says neither clearly.
+/// Best-effort, not a claim of understanding: a feature with every row `Unknown` is not proven fixed, it is just
+/// not proven *open* either, which is the safer side to be wrong on (it sinks the ranking instead of inflating
+/// it). `Open` is checked first because a resolved-sounding word can sit inside a negated phrase — "not done"
+/// contains "done" — so an open phrase must win when both appear.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Resolution {
+    Open,
+    Resolved,
+    Unknown,
+}
+
+fn resolution_of(text: &str) -> Resolution {
+    let low = text.to_lowercase();
+    const OPEN: &[&str] = &["not done", "not yet", "not merged", "not built", "not reviewed", "partly done", "partially done"];
+    const RESOLVED: &[&str] = &["done", "fixed", "already", "merged"];
+    if OPEN.iter().any(|p| low.contains(p)) {
+        Resolution::Open
+    } else if RESOLVED.iter().any(|p| low.contains(p)) {
+        Resolution::Resolved
+    } else {
+        Resolution::Unknown
+    }
+}
+
 /// Every feedback row, grouped by the feature its text best matches (`context::resolve`'s existing word-overlap
-/// scoring — no new text matching here), most-cross-game-first (by how many *distinct* notes landed in that
-/// group, not raw row count, so one chatty note cannot dominate). Rows matching no feature are kept under `None`,
-/// listed last, never dropped.
+/// scoring — no new text matching here). Ranked by how many *distinct* notes still have something open for that
+/// feature (not raw row count, so one chatty note cannot dominate, and not resolved rows, so fixed friction does
+/// not crowd out what still needs attention), then by total distinct notes as a tie-break. Rows matching no
+/// feature are kept under `None`, listed last, never dropped.
 pub fn digest(root: &Path, features: &[Feature]) -> Vec<Group> {
     let mut groups: std::collections::BTreeMap<String, Vec<Row>> = std::collections::BTreeMap::new();
     let mut unassigned: Vec<Row> = Vec::new();
@@ -174,23 +200,44 @@ pub fn digest(root: &Path, features: &[Feature]) -> Vec<Group> {
         }
     }
     let note_count = |rows: &[Row]| rows.iter().map(|(n, _)| n.file.as_str()).collect::<BTreeSet<_>>().len();
+    let open_note_count =
+        |rows: &[Row]| rows.iter().filter(|(_, t)| resolution_of(t) == Resolution::Open).map(|(n, _)| n.file.as_str()).collect::<BTreeSet<_>>().len();
     let mut out: Vec<Group> = groups.into_iter().map(|(k, v)| (Some(k), v)).collect();
-    out.sort_by(|a, b| note_count(&b.1).cmp(&note_count(&a.1)).then_with(|| a.0.cmp(&b.0)));
+    out.sort_by(|a, b| open_note_count(&b.1).cmp(&open_note_count(&a.1)).then_with(|| note_count(&b.1).cmp(&note_count(&a.1))).then_with(|| a.0.cmp(&b.0)));
     if !unassigned.is_empty() {
         out.push((None, unassigned));
     }
     out
 }
 
-/// The generated digest table: one section per feature (most cross-game first), each listing its matching rows.
+/// The generated digest table: a feature's section only when at least one of its rows is still open, ranked by
+/// how many different games still have something open there; then every feature with nothing flagged open
+/// (resolved, or no row says either way); then rows matching no feature. Every open row is tagged inline so the
+/// backlog is visible without re-reading each row's own status text.
 pub fn render_digest(groups: &[Group]) -> String {
     let mut s = String::new();
+    let mut section: Option<&str> = None;
     for (feature, rows) in groups {
+        let has_open = rows.iter().any(|(_, t)| resolution_of(t) == Resolution::Open);
+        let want = match feature {
+            None => "unassigned",
+            Some(_) if has_open => "open",
+            Some(_) => "quiet",
+        };
+        if section != Some(want) {
+            section = Some(want);
+            s.push_str(match want {
+                "open" => "## Open friction (ranked by how many different games still hit it)\n\n",
+                "quiet" => "## No open friction (resolved, or no row says either way)\n\n",
+                _ => "## Unassigned (no feature matched)\n\n",
+            });
+        }
         let notes = rows.iter().map(|(n, _)| n.file.as_str()).collect::<BTreeSet<_>>().len();
         let heading = feature.as_deref().unwrap_or("unassigned (no feature matched)");
         s.push_str(&format!("### {heading} — {notes} note(s)\n\n"));
         for (note, text) in rows {
-            s.push_str(&format!("- {} ({}): {}\n", note.date, note.file, text.replace('\n', " ")));
+            let tag = if resolution_of(text) == Resolution::Open { "**[open]** " } else { "" };
+            s.push_str(&format!("- {tag}{} ({}): {}\n", note.date, note.file, text.replace('\n', " ")));
         }
         s.push('\n');
     }
@@ -329,6 +376,56 @@ mod tests {
         assert_eq!(groups[1].0, None, "a row about nothing feature-shaped lands in the unassigned bucket");
         let rendered = render_digest(&groups);
         assert!(rendered.contains("### net_client — 2 note(s)") && rendered.contains("### unassigned"), "{rendered}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resolution_of_reads_an_open_phrase_before_a_resolved_one_even_when_both_words_appear() {
+        assert_eq!(resolution_of("not done yet"), Resolution::Open);
+        assert_eq!(resolution_of("not yet reviewed or merged"), Resolution::Open);
+        assert_eq!(resolution_of("**started, not merged**"), Resolution::Open);
+        assert_eq!(resolution_of("**done** (ADR 0012)"), Resolution::Resolved);
+        assert_eq!(resolution_of("already fixed in the current engine"), Resolution::Resolved);
+        assert_eq!(resolution_of("< 400 B — yes — yes"), Resolution::Unknown);
+    }
+
+    #[test]
+    fn open_friction_ranks_above_quiet_features_by_how_many_games_still_have_it_open() {
+        let root = std::env::temp_dir().join(format!("re2_analysis_openrank_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("docs/analysis")).unwrap();
+        // audio: two different notes still have an open row for it -> outranks net_client's one.
+        std::fs::write(
+            root.join("docs/analysis/2026-09-24-a.md"),
+            "# A (2026-09-24)\n\n| # | feedback | status |\n|---|---|---|\n| 1 | music playback stutters | not done |\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("docs/analysis/2026-09-25-b.md"),
+            "# B (2026-09-25)\n\n| # | feedback | status |\n|---|---|---|\n| 1 | music volume wrong | not yet |\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("docs/analysis/2026-09-26-c.md"),
+            "# C (2026-09-26)\n\n| # | feedback | status |\n|---|---|---|\n| 1 | connection spawn issue | not merged |\n",
+        )
+        .unwrap();
+        // net_client's second mention is already resolved, and must not count toward its open rank.
+        std::fs::write(
+            root.join("docs/analysis/2026-09-27-d.md"),
+            "# D (2026-09-27)\n\n| # | feedback | status |\n|---|---|---|\n| 1 | connection timeout | fixed |\n",
+        )
+        .unwrap();
+
+        let groups = digest(&root, &fixture_features());
+        let names: Vec<Option<&str>> = groups.iter().map(|(f, _)| f.as_deref()).collect();
+        assert_eq!(names, vec![Some("audio"), Some("net_client")], "{groups:?}");
+
+        let rendered = render_digest(&groups);
+        let open_at = rendered.find("## Open friction").expect("an open section exists");
+        assert!(rendered.find("## No open friction").is_none_or(|q| q > open_at), "{rendered}");
+        assert!(rendered.contains("**[open]** 2026-09-24"), "{rendered}");
+        assert!(!rendered.contains("**[open]** 2026-09-27"), "the resolved row from D must not be tagged open: {rendered}");
         let _ = std::fs::remove_dir_all(&root);
     }
 
