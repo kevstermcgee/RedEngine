@@ -226,6 +226,7 @@ impl App {
             radius: self.body.radius,
             height: self.body.body_height,
             character: self.character,
+            team: 0,
         };
         let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
         // The same prop view the authoritative simulation feeds its rules (built only when a rule looks at props).

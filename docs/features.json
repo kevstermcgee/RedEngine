@@ -8,7 +8,7 @@
       "files": ["src/schema.rs", "src/strict.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/**", "SPEC.md"],
       "tests": ["lib:schema", "lib:strict", "lib:prefabs", "lib:macros", "lib:track", "examples_validate", "render_prep", "fields"],
       "commands": ["red_engine2 validate examples/test_lab.json"],
-      "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md"]
+      "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md"]
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
@@ -43,7 +43,7 @@
     "sim_core": {
       "summary": "The headless, renderer-free simulation: fixed tick clock, scratch buffers, change tracking, entities, static props, the authoritative MatchSim, spawns, interest management.",
       "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs", "src/sim/ordnance.rs", "src/sim/shooter.rs", "src/sim/kit.rs"],
-      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots"],
+      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots", "teams"],
       "commands": ["cargo bench --bench sim", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0010-headless-match-server.md", "docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", "docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md"],
       "depends_on": ["player_physics", "prop_physics"]
@@ -53,7 +53,7 @@
       "files": ["src/sim/rules.rs", "src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "recipes/coin_run.json"],
       "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks", "net_rule_state", "prop_rules"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
-      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md"],
+      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md"],
       "depends_on": ["sim_core"]
     },
     "karts": {
@@ -76,7 +76,7 @@
       "files": ["src/sim/ai/mod.rs", "src/sim/ai/skill.rs", "src/sim/ai/nav.rs", "src/sim/ai/route.rs", "src/tools/nav.rs", "examples/bot_match.rs"],
       "tests": ["lib:sim::ai", "lib:tools::nav", "net_bots"],
       "commands": ["cargo run --release --example bot_match -- examples/test_lab.json --bots 6 --weapon smg", "red_server --fill 8 --bot-skill normal", "red_engine2 nav scene.json"],
-      "docs": ["docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md"],
+      "docs": ["docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md"],
       "depends_on": ["sim_core", "combat_weapons", "player_physics"]
     },
     "match_flow": {
@@ -113,7 +113,7 @@
       "files": ["src/net/server.rs", "src/net/host.rs", "src/net/sessions.rs", "src/net/snapshots.rs", "src/bin/red_server.rs"],
       "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_bots", "server_env"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
-      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md"],
+      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md"],
       "depends_on": ["net_protocol", "net_auth", "net_transport", "sim_core", "match_flow"]
     },
     "net_client": {

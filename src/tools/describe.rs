@@ -230,6 +230,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("music", "true | false: whether the standard client starts the built-in music loop (default true for older maps; `new-game` writes false: a game asks for music, it is never a default; the N key and the pause menu's MUSIC button still toggle it). Not every game needs music: leave it `false` when it would compete with gameplay audio cues, fight a game's own tone, or just feel wrong for the map; silence is a legitimate, complete answer, not an unfinished one."),
     ("flashlight", "true | false (default false): gives the player a toggleable point light that follows the camera (the T key); a Point, not a cone — the engine has no spotlight kind. Good for a dark map that needs the player to actively light their own way rather than being lit for them."),
     ("death_text", "a string (default none, meaning \"ELIMINATED\"): the title the standard client's death screen shows while waiting to respawn. The arena-shooter wording is not right for every genre — a horror game, a race, anything else with its own tone can say what being caught/crashed/out actually means there."),
+    ("teams", "true | false (default false): lets players (human or bot) be assigned to team 1 or 2 outside a loadout `shooter` match, so `who: team1`/`who: team2` can be used in `rules`. A `shooter` block already has teams regardless of this flag; this is for a non-shooter game with asymmetric roles (hide-and-seek, capture-the-flag, anything two-sided)."),
     ("hud", "{enabled, show_combat, show_crosshair, show_ping, show_scoreboard, show_round, show_events, show_help, show_rules_vars, custom_vars: [var, ...]} which on-screen display is drawn; `enabled:false` is a clean screen; defaults are all-on, or combat/crosshair/ping/scoreboard/round off when `player.mode` is peaceful"),
     ("world", "{wrap: {axis: x|z, min, max}, bounds: {x: [lo, hi], z: [lo, hi]}} an endless world: the axis loops every max-min metres (author one period; the seam is invisible), bounds are the invisible edge of the other axes"),
     ("sky", "{sun: {direction:[x,y,z] toward the sun, size_deg, color, glow}, haze, zenith, gradient_power} a sky dome shaded by view direction with a sun at infinity that sets behind the horizon instead of dipping under the ground; without it `background` is a screen-space gradient"),
@@ -432,7 +433,7 @@ fn rules_text() -> String {
          \x20 when      exactly one of: {enter: VOLUME} {exit: VOLUME} {event: name} {every: secs} {after: secs} {start: true}\n\
          \x20           {prop_enter: VOLUME} {prop_exit: VOLUME} (a loose prop's origin crosses in/out; add `prop: id` beside it for one prop)\n\
          \x20           {prop_below: [prop_id, y]} (its origin drops below y metres)\n\
-         \x20 who       any (default) | human | rat   (player triggers only)\n\
+         \x20 who       any (default) | human | rat | team1 | team2   (player triggers only; team1/team2 need \"teams\": true or a shooter block)\n\
          \x20 if        expression over the vars (and built-ins time, tick, players): `score >= 3 && !has_key`\n\
          \x20 once      fire at most once per match;  cooldown: minimum seconds between firings\n\
          \x20 do        actions, in order:\n",

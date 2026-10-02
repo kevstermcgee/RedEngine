@@ -490,7 +490,8 @@ condition holds, and then **does** its actions:
 - **VOLUME** (exactly one): `{zone: id [, height]}` (a `zones` rect from its floor `y` up 3 m, or `height`),
   `{object: id [, pad]}` (a top-level object's world box, grown by `pad` m — how a coin becomes a trigger), or
   `{box: [x0,y0,z0,x1,y1,z1]}`. A player is *inside* when its body circle overlaps the volume in x/z and its body height overlaps in y.
-- **`who`**: `any` (default), `human`, `rat`. **`once`**: at most once per match. **`cooldown`**: seconds between firings.
+- **`who`**: `any` (default), `human`, `rat`, `team1`, `team2` (the last two need the scene's own `"teams": true`,
+  or a `shooter` block, to put anyone on a team at all). **`once`**: at most once per match. **`cooldown`**: seconds between firings.
 - **`if`**: an expression over the `vars` and the built-ins `time` (s), `tick`, `players`: numbers, `true`/`false`,
   `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`. Built-in functions read the loose props:
   `prop_y(id)` (origin height, m), `tilt(id)` (degrees from how the map placed it: 0 upright, ~90 on its side), `held(id)`

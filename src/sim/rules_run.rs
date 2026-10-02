@@ -32,6 +32,8 @@ pub struct RulePlayer {
     pub height: f32,
     /// Which body.
     pub character: Character,
+    /// Team 1 or 2, or `0` outside a teamed match (see `MatchSim::teams_enabled`).
+    pub team: u8,
 }
 
 /// A loose prop as the rules see it (one per prop, in the physics world's order).
@@ -310,8 +312,14 @@ impl RulesEngine {
         dx * dx + dz * dz <= p.radius * p.radius && pos.y + p.height >= v.min.y && pos.y <= v.max.y
     }
 
-    fn who_ok(who: Who, c: Character) -> bool {
-        matches!(who, Who::Any) || (matches!(who, Who::Human) && c != Character::Rat) || (matches!(who, Who::Rat) && c == Character::Rat)
+    fn who_ok(who: Who, c: Character, team: u8) -> bool {
+        match who {
+            Who::Any => true,
+            Who::Human => c != Character::Rat,
+            Who::Rat => c == Character::Rat,
+            Who::Team1 => team == 1,
+            Who::Team2 => team == 2,
+        }
     }
 
     fn record(&mut self, tick: u64, rule: &str, name: String, slot: Option<usize>) {
@@ -442,7 +450,7 @@ impl RulesEngine {
                 }
                 When::Enter(v) | When::Exit(v) => {
                     let entering = matches!(rule.when, When::Enter(_));
-                    for p in players.iter().filter(|p| Self::who_ok(rule.who, p.character)) {
+                    for p in players.iter().filter(|p| Self::who_ok(rule.who, p.character, p.team)) {
                         let now = Self::inside(v, p, self.wrap);
                         let was = self.inside.insert((ri, p.slot), now);
                         if let Some(was) = was {
@@ -499,7 +507,7 @@ impl RulesEngine {
             for (name, slot) in batch {
                 for ri in 0..set.rules.len() {
                     let matches_event = matches!(&set.rules[ri].when, When::Event(n) if *n == name);
-                    let who_ok = slot.is_none_or(|s| players.iter().find(|p| p.slot == s).is_none_or(|p| Self::who_ok(set.rules[ri].who, p.character)));
+                    let who_ok = slot.is_none_or(|s| players.iter().find(|p| p.slot == s).is_none_or(|p| Self::who_ok(set.rules[ri].who, p.character, p.team)));
                     if matches_event && who_ok {
                         self.fire(&set, ri, tick, slot, &mut queue, &mut effects, &ctx);
                     }
@@ -579,7 +587,11 @@ mod tests {
     }
 
     fn at(slot: usize, x: f32, z: f32, c: Character) -> RulePlayer {
-        RulePlayer { slot, pos: Vec3::new(x, 0.0, z), radius: 0.3, height: 1.8, character: c }
+        RulePlayer { slot, pos: Vec3::new(x, 0.0, z), radius: 0.3, height: 1.8, character: c, team: 0 }
+    }
+
+    fn at_team(slot: usize, x: f32, z: f32, c: Character, team: u8) -> RulePlayer {
+        RulePlayer { team, ..at(slot, x, z, c) }
     }
 
     fn coin_game() -> RulesEngine {
@@ -650,6 +662,22 @@ mod tests {
         let fx = e.step(3, &near_rat);
         assert_eq!(e.var("n"), Some(11.0), "rat_in -> second, both handled in the same tick");
         assert_eq!(fx, vec![Effect::Teleport { slot: 1, target: Target::Spawn("start".into()) }]);
+    }
+
+    #[test]
+    fn who_filters_by_team_too() {
+        let mut e = engine(json!({
+            "vars": {"team1_in": 0, "team2_in": 0},
+            "rules": [
+                {"id": "a", "when": {"enter": {"zone": "exit"}}, "who": "team1", "do": [{"add": ["team1_in", 1]}]},
+                {"id": "b", "when": {"enter": {"zone": "exit"}}, "who": "team2", "do": [{"add": ["team2_in", 1]}]}
+            ]
+        }));
+        let far = [at_team(0, 0.0, 0.0, Character::Human, 1), at_team(1, 0.0, 3.0, Character::Human, 2)];
+        e.step(1, &far);
+        let both_in = [at_team(0, 9.0, 0.0, Character::Human, 1), at_team(1, 9.0, 0.0, Character::Human, 2)];
+        e.step(2, &both_in);
+        assert_eq!((e.var("team1_in"), e.var("team2_in")), (Some(1.0), Some(1.0)), "each team's own rule fires once for its own team");
     }
 
     #[test]

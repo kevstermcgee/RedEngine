@@ -81,6 +81,11 @@ pub struct Scene {
     /// The big line the standard client's death screen shows while waiting to respawn (root `"death_text"`,
     /// default `None` = "ELIMINATED", the arena-shooter wording every map used before this key existed).
     pub death_text: Option<String>,
+    /// Whether players (human or bot) can be assigned to team 1 or 2 outside a loadout `shooter` match (root
+    /// `"teams"`, default false). A `shooter` scene already has teams regardless of this flag; this is what a
+    /// non-shooter game (hide-and-seek roles, capture-the-flag, anything asymmetric) opts into to use `who: team1`/
+    /// `who: team2` in its rules and to have the lobby/bot-fill assign players to a side.
+    pub teams: bool,
     /// The sky dome and its sun (`sky` block), if the scene has one; without it `background` is a screen-space gradient.
     pub sky: Option<crate::atmosphere::Sky>,
     /// The endless water plane (`ocean` block), if the scene has one.
@@ -1040,6 +1045,14 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             None
         }
     };
+    let teams = match root.get("teams") {
+        None => false,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => {
+            ctx.err("teams", "must be true or false (true lets players be assigned to team 1 or 2 outside a loadout shooter match)");
+            false
+        }
+    };
     let mut player = parse_player(&mut ctx, root);
     match crate::expanse::parse_world(root) {
         Ok(expanse) => player.expanse = expanse,
@@ -1198,6 +1211,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         music,
         flashlight,
         death_text,
+        teams,
         sky,
         ocean,
         race,
@@ -1289,6 +1303,16 @@ mod tests {
         assert_eq!(parse_scene(set).unwrap().death_text.as_deref(), Some("YOU WERE CAUGHT"));
         let bad = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"death_text":5,"objects":[]}"#;
         assert!(errors_of(bad).iter().any(|m| m.starts_with("death_text:")), "{:?}", errors_of(bad));
+    }
+
+    #[test]
+    fn teams_defaults_off_and_rejects_a_non_bool() {
+        let base = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"objects":[]}"#;
+        assert!(!parse_scene(base).unwrap().teams, "absent means no team assignment outside a loadout shooter match");
+        let on = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"teams":true,"objects":[]}"#;
+        assert!(parse_scene(on).unwrap().teams);
+        let bad = r#"{"camera":{"position":[0,2,8],"target":[0,0,0]},"teams":"yes","objects":[]}"#;
+        assert!(errors_of(bad).iter().any(|m| m.starts_with("teams:")), "{:?}", errors_of(bad));
     }
 
     #[test]

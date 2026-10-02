@@ -111,6 +111,10 @@ pub enum Who {
     Human,
     /// Rat players only.
     Rat,
+    /// Team 1 only (needs the scene's own `"teams": true`, or a `shooter` block).
+    Team1,
+    /// Team 2 only (needs the scene's own `"teams": true`, or a `shooter` block).
+    Team2,
 }
 
 /// What makes a rule fire.
@@ -777,8 +781,10 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             None | Some("any") => Who::Any,
             Some("human") => Who::Human,
             Some("rat") => Who::Rat,
+            Some("team1") => Who::Team1,
+            Some("team2") => Who::Team2,
             Some(other) => {
-                errs.push(format!("{p}.who: `{other}` is not one of any, human, rat"));
+                errs.push(format!("{p}.who: `{other}` is not one of any, human, rat, team1, team2"));
                 Who::Any
             }
         };
@@ -881,6 +887,21 @@ mod tests {
         assert!(!set.needs_props, "nothing here looks at a prop");
         assert_eq!(set.prop_ids, ["bell", "crate"]);
         assert_eq!(set.zone_ids, ["exit", "pit"]);
+    }
+
+    #[test]
+    fn who_accepts_team1_and_team2_and_rejects_anything_else() {
+        let set = parse(json!({
+            "vars": {},
+            "rules": [
+                {"id": "a", "when": {"every": 1.0}, "who": "team1", "do": [{"emit": "a"}]},
+                {"id": "b", "when": {"every": 1.0}, "who": "team2", "do": [{"emit": "b"}]}
+            ]
+        }))
+        .unwrap();
+        assert_eq!((set.rules[0].who, set.rules[1].who), (Who::Team1, Who::Team2));
+        let e = parse(json!({"vars": {}, "rules": [{"id": "a", "when": {"every": 1.0}, "who": "team3", "do": [{"emit": "a"}]}]})).unwrap_err();
+        assert!(e.iter().any(|m| m.starts_with("rules[0] (a).who:") && m.contains("team1, team2")), "{e:?}");
     }
 
     #[test]
