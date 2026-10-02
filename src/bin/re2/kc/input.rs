@@ -6,13 +6,14 @@
 //! | fire | left mouse | right trigger |
 //! | aim down sights / scope (grenade: underhand) | right mouse | left trigger |
 //! | jump | Space | A |
+//! | sprint (hold, forward) | Shift | left stick click |
 //! | crouch (hold) | Ctrl or C | B |
 //! | reload | R | X |
 //! | use / pick up | E | Y |
 //! | drop weapon | G | Y while crouching (B held) |
 //! | weapon slots | 1 primary, 2 secondary, 3 knife, 4 grenades | D-pad up, right, left, down |
 //! | previous / next weapon | mouse wheel | left / right bumper |
-//! | last weapon | Q | left stick click |
+//! | last weapon | Q | |
 //! | scoreboard | hold Tab | Back |
 //! | pause | Esc | Start |
 //!
@@ -104,9 +105,6 @@ impl Controls {
         if p.hit(pad::DOWN) {
             self.select = (4, PULSE_TICKS);
         }
-        if p.hit(pad::SPRINT) {
-            self.select = (5, PULSE_TICKS);
-        }
         if p.hit(pad::INTERACT) {
             self.reload = PULSE_TICKS;
         }
@@ -181,6 +179,7 @@ impl Controls {
             pitch,
             attack: self.firing(),
             aim,
+            sprint: (self.held(KeyCode::ShiftLeft, KeyCode::ShiftRight) || self.pad.down(pad::SPRINT)) && !aim && !self.crouching(),
             ..Default::default()
         };
         let tick_down = |v: &mut u8| {
@@ -202,5 +201,30 @@ impl Controls {
     pub fn end_frame(&mut self) {
         self.mouse = (0.0, 0.0);
         self.aim_pressed = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sprint_reaches_the_server_and_aim_crouch_and_focus_loss_cancel_it() {
+        let mut controls = Controls::default();
+        controls.key_down(KeyCode::KeyW);
+        controls.key_down(KeyCode::ShiftLeft);
+        assert!(controls.tick(0.0, 0.0, false).sprint);
+        assert!(!controls.tick(0.0, 0.0, true).sprint);
+        controls.key_down(KeyCode::KeyC);
+        assert!(!controls.tick(0.0, 0.0, false).sprint);
+        controls.release_all();
+        assert!(!controls.tick(0.0, 0.0, false).sprint);
+        controls.pad.held = pad::SPRINT;
+        controls.pad.pressed = pad::SPRINT;
+        controls.pad.movement.y = 1.0;
+        controls.apply_pad();
+        let input = controls.tick(0.0, 0.0, false);
+        assert!(input.sprint && input.forward == 127);
+        assert_eq!(input.select, 0, "sprinting must not switch weapons");
     }
 }

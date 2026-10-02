@@ -586,7 +586,8 @@ pub fn hud_layout(w: u32, h: u32, v: &HudView) -> Layout {
             l.label_right("weapon", None, wi - m, ammo_y - text_height(s) - 3 * s, &weapon_line, s, 120 * s, [110, 116, 120, 255]);
         }
         None => {
-            l.label_right("hand", None, wi - m, hi - m - text_height(s * 2), &upper(&v.weapon), s * 2, 120 * s, DIM);
+            let name = if v.weapon.eq_ignore_ascii_case("combat knife") { "KNIFE".to_string() } else { upper(&v.weapon) };
+            l.label_right("hand", None, wi - m, hi - m - text_height(s * 2), &name, s * 2, 180 * s, DIM);
         }
     }
     if !v.grenades.is_empty() {
@@ -887,7 +888,18 @@ pub fn paint_scope(cv: &mut Canvas) {
         cv.rect(cx + off, cy - len, cx + off + thick, cy + len + 1, line);
         cv.rect(cx - off, cy - len, cx - off + thick, cy + len + 1, line);
     }
-    cv.rect(cx - thick, cy - thick, cx + thick + 1, cy + thick + 1, [220, 40, 30, 255]);
+    paint_optic_reticle(cv);
+}
+
+/// A small illuminated cross on the camera's center ray, legible over both light and dark scenery.
+pub fn paint_optic_reticle(cv: &mut Canvas) {
+    let (cx, cy) = (cv.w / 2, cv.h / 2);
+    let t = (cv.h / 540).max(1);
+    let r = 4 * t;
+    cv.rect(cx - r - 1, cy - t - 1, cx + r + 2, cy + t + 2, [8, 8, 8, 255]);
+    cv.rect(cx - t - 1, cy - r - 1, cx + t + 2, cy + r + 2, [8, 8, 8, 255]);
+    cv.rect(cx - r, cy - t, cx + r + 1, cy + t + 1, [240, 70, 45, 255]);
+    cv.rect(cx - t, cy - r, cx + t + 1, cy + r + 1, [240, 70, 45, 255]);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1081,6 +1093,19 @@ mod tests {
         assert!(texts.len() <= 10, "a handful of labels, no more: {texts:?}");
         assert!(texts.contains(&"100") && texts.contains(&"17"), "health and magazine: {texts:?}");
         assert!(l.widgets.iter().all(|w| w.fill.is_none()), "no panels, no boxes: nothing behind the numbers");
+    }
+
+    #[test]
+    fn knife_label_and_optic_cross_remain_legible_at_small_and_large_resolutions() {
+        for (w, h) in [(640, 360), (1280, 720), (1920, 1080)] {
+            let hud = hud_layout(w, h, &HudView { weapon: "combat knife".into(), ..Default::default() });
+            assert_eq!(hud.widgets.iter().find(|w| w.id == "hand").unwrap().text.as_deref(), Some("KNIFE"));
+            let mut cv = Canvas::new(w, h);
+            paint_optic_reticle(&mut cv);
+            let at = ((h / 2 * w + w / 2) * 4) as usize;
+            assert_eq!(&cv.px[at..at + 4], &[240, 70, 45, 255]);
+            assert_eq!(cv.px[3], 0, "open optics leave the rest of the view clear");
+        }
     }
 
     #[test]

@@ -523,6 +523,21 @@ pub struct SoundBank {
 }
 
 impl SoundBank {
+    /// Killchain's restrained feedback: dry impacts and low mechanical pulses in place of melodic rewards.
+    pub fn new_tactical() -> SoundBank {
+        let mut bank = Self::new();
+        bank.hit_tick = tactical_signal(0.07, 760.0, 0x417, 0.26);
+        bank.kill = tactical_signal(0.18, 185.0, 0xA111, 0.38);
+        bank.respawn = tactical_signal(0.20, 125.0, 0x5A11, 0.30);
+        bank.beep = tactical_signal(0.11, 440.0, 0xBEE, 0.28);
+        bank.go = tactical_signal(0.25, 95.0, 0x601, 0.36);
+        bank.victory = tactical_signal(0.65, 82.0, 0x71C, 0.42);
+        bank.defeat = tactical_signal(0.55, 65.0, 0xDEF, 0.34);
+        bank.jump = tactical_signal(0.10, 90.0, 0xC10, 0.12);
+        bank.draw = reload_shell();
+        bank
+    }
+
     /// Builds every clip (a few milliseconds of arithmetic).
     pub fn new() -> SoundBank {
         let guns = Weapon::ROSTER.iter().map(|w| gun_shot(*w)).collect();
@@ -590,6 +605,22 @@ impl SoundBank {
             Cue::Alert => centred(&self.alert, 0.75),
         }
     }
+}
+
+// A single damped impact with inharmonic metal and filtered noise; no scale, chord or upward pitch sweep.
+fn tactical_signal(seconds: f32, pitch: f32, seed: u32, level: f32) -> Vec<f32> {
+    let mut noise = Noise(seed);
+    let mut low = 0.0;
+    let rate = 7.0 / seconds;
+    let clip = (0..samples(seconds))
+        .map(|i| {
+            let t = time(i);
+            low += 0.14 * (noise.next() - low);
+            let metal = partial(pitch, t, rate) * 0.35 + partial(pitch * 2.73, t, rate * 2.5) * 0.12;
+            (metal + low * decay(t, rate) * 1.4 + noise.next() * decay(t, rate * 7.0) * 0.18) * attack(t)
+        })
+        .collect();
+    finish(clip, level)
 }
 
 /// Where the listener stands: the eye position (x, y, z) and the yaw it looks along.
@@ -853,6 +884,12 @@ pub struct KitSounds {
 }
 
 impl KitSounds {
+    /// Loadout feedback with a quiet handling click instead of the bright pickup double chime.
+    pub fn new_tactical() -> KitSounds {
+        let mut sounds = Self::new();
+        sounds.pickup = tactical_signal(0.12, 210.0, 0xC11C, 0.22);
+        sounds
+    }
     /// Builds every clip.
     pub fn new() -> KitSounds {
         KitSounds {
@@ -930,6 +967,21 @@ pub fn ambience(seconds: f32) -> Vec<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tactical_feedback_is_short_quiet_bounded_and_decays_without_clicks() {
+        let bank = SoundBank::new_tactical();
+        let kit = KitSounds::new_tactical();
+        for clip in [&bank.hit_tick, &bank.kill, &bank.respawn, &bank.beep, &bank.go, &bank.victory, &bank.defeat, &bank.jump, &kit.pickup] {
+            assert!(clip.iter().all(|s| s.is_finite() && s.abs() <= 0.43));
+            assert!(peak(clip) > 0.05);
+            assert_eq!(*clip.last().unwrap(), 0.0);
+            assert!(secs(clip) < 0.7);
+        }
+        assert_eq!(bank.guns, SoundBank::new().guns, "weapon reports keep their distinct voices");
+        assert_ne!(bank.kill, kill_ding());
+        assert_ne!(kit.pickup, pickup());
+    }
 
     fn peak(c: &[f32]) -> f32 {
         c.iter().fold(0.0f32, |m, s| m.max(s.abs()))

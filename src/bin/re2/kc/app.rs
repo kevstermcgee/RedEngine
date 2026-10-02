@@ -172,8 +172,8 @@ impl Kc {
             menu_live: None,
             orbit: (center, radius, 0.0),
             audio: Audio::new(),
-            sounds: SoundBank::new(),
-            kit_sounds: KitSounds::new(),
+            sounds: SoundBank::new_tactical(),
+            kit_sounds: KitSounds::new_tactical(),
             ambient_started: false,
             store,
             stats,
@@ -227,6 +227,10 @@ impl Kc {
             }
         }
         self.painted = None;
+        // Windows may release cursor confinement during a fullscreen resize even though our cached grab is still true.
+        if self.grabbed && self.focused {
+            self.set_grab(true);
+        }
     }
 
     // ---- the overlay -----------------------------------------------------------------------------------------------------------
@@ -293,7 +297,8 @@ impl Kc {
     fn paint_overlay(&mut self) {
         let Some(layout) = self.current_layout() else { return };
         let scoped = self.game.as_ref().is_some_and(|g| self.screen == Screen::InGame && g.scoped());
-        let hash = layout_hash(&layout, scoped as u64);
+        let optic = self.game.as_ref().is_some_and(|g| self.screen == Screen::InGame && g.optic_aiming());
+        let hash = layout_hash(&layout, scoped as u64 | ((optic as u64) << 1));
         if self.painted == Some(hash) {
             return;
         }
@@ -302,6 +307,8 @@ impl Kc {
         let mut canvas = Canvas::new(layout.w as u32, layout.h as u32);
         if scoped {
             ui::paint_scope(&mut canvas);
+        } else if optic {
+            ui::paint_optic_reticle(&mut canvas);
         }
         blend_over(&mut canvas, &layout.paint());
         let live = match (&mut self.game, self.screen) {
@@ -571,7 +578,7 @@ impl Kc {
             self.controls.keys.insert(code);
             return;
         }
-        if code == KeyCode::F11 && !repeat {
+        if !repeat && (code == KeyCode::F11 || (code == KeyCode::KeyF && self.typing_target().is_none())) {
             self.fullscreen_request = true;
             return;
         }
@@ -762,7 +769,7 @@ impl Kc {
             }
         }
         // Mouse capture follows what is on screen.
-        let want_grab = self.screen == Screen::InGame && self.game.as_ref().is_some_and(|g| !g.wants_cursor());
+        let want_grab = self.focused && self.screen == Screen::InGame && self.game.as_ref().is_some_and(|g| !g.wants_cursor());
         if want_grab != self.grabbed {
             self.set_grab(want_grab);
         }
@@ -1076,6 +1083,9 @@ fn script_key(name: &str) -> Option<KeyCode> {
         "3" => KeyCode::Digit3,
         "4" => KeyCode::Digit4,
         "CTRL" => KeyCode::ControlLeft,
+        "SHIFT" => KeyCode::ShiftLeft,
+        "F" => KeyCode::KeyF,
+        "F11" => KeyCode::F11,
         _ => return None,
     })
 }

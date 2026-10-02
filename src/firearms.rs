@@ -16,6 +16,21 @@ pub fn sight_height(weapon: Weapon) -> f32 {
     0.04 + shape(weapon).body_h * 0.5 + 0.03
 }
 
+/// Whether the model carries an open optic that needs a camera-centered reticle when aimed.
+pub fn has_open_optic(weapon: Weapon) -> bool {
+    weapon.is_gun() && shape(weapon).optic && !weapon.kit().scoped
+}
+
+/// The knife's compact slash: a small wind-up, a fast stroke at the authoritative hit time, then a smooth return.
+pub fn knife_pose(elapsed: Option<f32>, dip: f32) -> (Vec3, Mat4) {
+    let stroke = crate::avatar::knife_stroke(elapsed);
+    let offset = Vec3::new(0.20 - 0.28 * stroke, -0.18 + 0.05 * stroke - 0.30 * dip, 0.37 + 0.055 * stroke);
+    let rotation = Mat4::from_rotation_z((18.0 - 36.0 * stroke).to_radians())
+        * Mat4::from_rotation_y((-22.0 + 65.0 * stroke).to_radians())
+        * Mat4::from_rotation_x((-18.0 + 12.0 * stroke + 25.0 * dip).to_radians());
+    (offset, rotation)
+}
+
 /// Primary grip anchor used to attach the weapon to a third-person wrist.
 pub fn grip_anchor(weapon: Weapon) -> Vec3 {
     if !weapon.is_gun() {
@@ -27,6 +42,9 @@ pub fn grip_anchor(weapon: Weapon) -> Vec3 {
 
 /// Camera-local pose: sights converge to the center ray without hip yaw or pitch.
 pub fn held_pose(weapon: Weapon, ads: f32, kick: f32, dip: f32) -> (Vec3, Mat4) {
+    if weapon == Weapon::Knife {
+        return knife_pose(None, dip);
+    }
     if !weapon.is_gun() {
         // A knife or hatchet is held low and forward and slashes across the view as `kick` rises; a grenade sits in the hand and is pulled back to throw.
         let swing = kick.clamp(0.0, 1.0);
@@ -151,10 +169,31 @@ pub fn build_thrown_and_melee_parts(weapon: Weapon) -> Vec<HeldPart> {
     let mut detail = Mesh::default();
     let (body_color, detail_color) = match weapon {
         Weapon::Knife => {
-            boxed(&mut body, Vec3::new(0.006, 0.05, 0.24), Vec3::new(0.0, 0.0, 0.18));
-            boxed(&mut body, Vec3::new(0.006, 0.02, 0.07), Vec3::new(0.0, -0.018, 0.33));
-            boxed(&mut detail, Vec3::new(0.022, 0.03, 0.12), Vec3::new(0.0, 0.0, -0.01));
-            boxed(&mut detail, Vec3::new(0.012, 0.05, 0.012), Vec3::new(0.0, 0.0, 0.055));
+            // A tapered drop-point blade. Facets run from the raised spine to the thin cutting edge.
+            let edge = [
+                Vec3::new(-0.018, 0.0, 0.06),
+                Vec3::new(0.018, 0.0, 0.06),
+                Vec3::new(0.018, 0.0, 0.22),
+                Vec3::new(0.0, 0.0, 0.30),
+                Vec3::new(-0.016, 0.0, 0.24),
+            ];
+            for (sign, reverse) in [(1.0, true), (-1.0, false)] {
+                let spine = Vec3::new(0.0, 0.004 * sign, 0.15);
+                for i in 0..edge.len() {
+                    let (a, b) = if reverse { (edge[(i + 1) % edge.len()], edge[i]) } else { (edge[i], edge[(i + 1) % edge.len()]) };
+                    let normal = (b - a).cross(spine - a).normalize();
+                    let base = body.vertices.len() as u32;
+                    for p in [a, b, spine] {
+                        body.vertices.push(crate::mesh::Vertex::new(p.to_array(), normal.to_array()));
+                    }
+                    body.indices.extend_from_slice(&[base, base + 1, base + 2]);
+                }
+            }
+            boxed(&mut detail, Vec3::new(0.026, 0.026, 0.12), Vec3::new(0.0, 0.0, -0.005));
+            boxed(&mut detail, Vec3::new(0.056, 0.012, 0.014), Vec3::new(0.0, 0.0, 0.055));
+            for z in [-0.045, -0.02, 0.005, 0.03] {
+                boxed(&mut detail, Vec3::new(0.029, 0.029, 0.005), Vec3::new(0.0, 0.0, z));
+            }
             (steel, black)
         }
         Weapon::Hatchet => {
