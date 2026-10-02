@@ -365,7 +365,49 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             }
             launch(&exe, &args)
         }
+        GameCmd::Upgrade { cmd } => run_game_upgrade(&cfg, cmd),
     }
+}
+
+fn run_game_upgrade(cfg: &red_engine2::tools::game::GameConfig, cmd: GameUpgradeCmd) -> Result<(), String> {
+    use red_engine2::tools::upgrade;
+    let migrations_path = Path::new(upgrade::MIGRATIONS_PATH);
+    match cmd {
+        GameUpgradeCmd::Plan { to, engine, fixes, out } => {
+            let outcome = upgrade::run_plan(&cfg.dir, &to, engine.as_deref(), &fixes, out.as_deref(), migrations_path)?;
+            print!("{}", upgrade::render_packet(&outcome.packet));
+            println!("packet written to {} ({})", outcome.json_path.display(), outcome.md_path.display());
+            Ok(())
+        }
+        GameUpgradeCmd::Verify { packet, engine_build, only } => {
+            let doc = upgrade::read_packet(&packet)?;
+            let cache_root = std::env::var_os("RED_UPGRADE_CACHE")
+                .map(PathBuf::from)
+                .or_else(dirs_cache_root)
+                .unwrap_or_else(|| std::env::temp_dir().join("red-engine-upgrade"));
+            let opts = upgrade::VerifyOptions { engine_build: engine_build.as_deref(), only: only.as_deref(), cache_root };
+            let report = upgrade::run_verify(&cfg.dir, &doc, migrations_path, &opts)?;
+            let out_json = packet.with_file_name("report.json");
+            let out_md = packet.with_file_name("report.md");
+            upgrade::write_report(&report, &out_json, &out_md)?;
+            print!("{}", upgrade::render_report(&report));
+            println!("report written to {} ({})", out_json.display(), out_md.display());
+            if report.ok() {
+                Ok(())
+            } else {
+                Err(String::new())
+            }
+        }
+    }
+}
+
+/// `~/.cache/red-engine-upgrade` on a platform with a conventional cache dir, else `None` (the caller falls back
+/// to a temp directory). No new dependency: `$HOME`/`$XDG_CACHE_HOME` only, not a crate like `dirs`.
+fn dirs_cache_root() -> Option<PathBuf> {
+    if let Some(xdg) = std::env::var_os("XDG_CACHE_HOME") {
+        return Some(PathBuf::from(xdg).join("red-engine-upgrade"));
+    }
+    std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache").join("red-engine-upgrade"))
 }
 
 /// Runs a sibling program with inherited stdio and passes its exit code on.
@@ -395,11 +437,14 @@ pub(crate) fn run_ui_shot(screen: &str, out: &Path, size: &str, hover: Option<&s
     let (hover, hover_id) = match hover {
         None => (None, None),
         Some("resume") => (Some(PauseAction::Resume), None),
+        Some("music") => (Some(PauseAction::ToggleMusic), None),
+        Some("download_music") => (Some(PauseAction::DownloadMusic), None),
+        Some("sfx") => (Some(PauseAction::ToggleSfx), None),
         Some("fullscreen") => (Some(PauseAction::Fullscreen), None),
         Some("quit") => (Some(PauseAction::Quit), None),
         Some(o) => (None, Some(o.to_string())),
     };
-    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, hover_id })
+    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, hover_id, ..Default::default() })
         .ok_or_else(|| format!("unknown screen '{screen}' (screens: {})", screens::all().join(", ")))?;
     if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;

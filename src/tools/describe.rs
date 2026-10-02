@@ -223,11 +223,14 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("shooter", "{start: [weapon, ...], friendly_fire, pickups: [{weapon|ammo:true, at:[x,y,z], respawn_secs}]} a loadout shooter (ADR 2026-09-30-killchain-loadout-shooter): every player carries up to 2 guns (own magazine and reserve each), 1 melee weapon and 2 grenades; weapons lie on the map and drop from the dead; 31 weapons in `arsenal`; two teams (spawn groups team1/team2), headshots, rockets, grenades, smoke, fire; absent = the classic single-weapon arena"),
     ("combat", "{respawn_secs, spawn: round_robin|farthest, spawn_protect_secs, regen_delay_secs, regen_per_sec} how fights are paced: respawn delay, where the dead return, spawn protection, health regeneration"),
     ("bots", "{fill, skill, roster: [{name, character, skill, style}]} AI players: the server fills empty slots up to `fill` players (humans included); skill = rookie|easy|normal|hard|nightmare or 0..1; style = balanced|rusher|sniper|acrobat (`describe bots`)"),
-    ("nav", "{nodes: [{id, pos:[x,y,z]}], edges: [[from, to, kind?]]} the waypoint graph bots route along; kind = walk (default, both ways) | jump | pad | drop; `red_engine2 nav check` replays every edge with the real movement"),
+    ("nav", "{nodes: [{id, pos:[x,y,z]}], edges: [[from, to, kind?]]} the waypoint graph bots use to route known-good ways (stairs, jumps, drops); kind = walk (default, both ways) | jump | pad | drop; `red_engine2 nav check` replays every edge with the real movement. It is an aid, not a fence: a bot not on the graph still steers itself around walls and ledges with the real movement code, so it can and will reach areas the graph does not cover. To keep a bot out of a region, block it with level geometry (a locked door, a gap it cannot cross), not by leaving that region off the graph."),
     ("match", "{min_players, countdown_secs, round_secs, results_secs, score_to_win, join_in_progress, ready_check} turns on the server's lobby -> countdown -> round -> results -> rematch flow (`describe multiplayer`); absent = open play"),
     ("race", "{laps, gates:[zone ids, first = start/finish line], countdown_secs, finish_grace_secs, line, item_boxes:[zone ids], item_respawn_secs, surfaces:[{zone, kind: dirt|mud|water}]} a kart race: gates count in order and only in the direction of travel; per-player laps and standings live in `sim::race` (SPEC \"Races\")"),
     ("prefabs", "scene-local prefab definitions {name: {params, objects, tags, desc, extends, collide, mount}} — shadow built-ins"),
-    ("music", "true | false: whether the standard client starts the built-in music loop (default true for older maps; `new-game` writes false: a game asks for music, it is never a default; the N key still toggles it)"),
+    ("music", "true | false: whether the standard client starts the built-in music loop (default true for older maps; `new-game` writes false: a game asks for music, it is never a default; the N key and the pause menu's MUSIC button still toggle it). Not every game needs music: leave it `false` when it would compete with gameplay audio cues, fight a game's own tone, or just feel wrong for the map; silence is a legitimate, complete answer, not an unfinished one."),
+    ("flashlight", "true | false (default false): gives the player a toggleable point light that follows the camera (the T key); a Point, not a cone — the engine has no spotlight kind. Good for a dark map that needs the player to actively light their own way rather than being lit for them."),
+    ("death_text", "a string (default none, meaning \"ELIMINATED\"): the title the standard client's death screen shows while waiting to respawn. The arena-shooter wording is not right for every genre — a horror game, a race, anything else with its own tone can say what being caught/crashed/out actually means there."),
+    ("teams", "true | false (default false): lets players (human or bot) be assigned to team 1 or 2 outside a loadout `shooter` match, so `who: team1`/`who: team2` can be used in `rules`. A `shooter` block already has teams regardless of this flag; this is for a non-shooter game with asymmetric roles (hide-and-seek, capture-the-flag, anything two-sided)."),
     ("hud", "{enabled, show_combat, show_crosshair, show_ping, show_scoreboard, show_round, show_events, show_help, show_rules_vars, custom_vars: [var, ...]} which on-screen display is drawn; `enabled:false` is a clean screen; defaults are all-on, or combat/crosshair/ping/scoreboard/round off when `player.mode` is peaceful"),
     ("world", "{wrap: {axis: x|z, min, max}, bounds: {x: [lo, hi], z: [lo, hi]}} an endless world: the axis loops every max-min metres (author one period; the seam is invisible), bounds are the invisible edge of the other axes"),
     ("sky", "{sun: {direction:[x,y,z] toward the sun, size_deg, color, glow}, haze, zenith, gradient_power} a sky dome shaded by view direction with a sun at infinity that sets behind the horizon instead of dipping under the ground; without it `background` is a screen-space gradient"),
@@ -430,7 +433,7 @@ fn rules_text() -> String {
          \x20 when      exactly one of: {enter: VOLUME} {exit: VOLUME} {event: name} {every: secs} {after: secs} {start: true}\n\
          \x20           {prop_enter: VOLUME} {prop_exit: VOLUME} (a loose prop's origin crosses in/out; add `prop: id` beside it for one prop)\n\
          \x20           {prop_below: [prop_id, y]} (its origin drops below y metres)\n\
-         \x20 who       any (default) | human | rat   (player triggers only)\n\
+         \x20 who       any (default) | human | rat | team1 | team2   (player triggers only; team1/team2 need \"teams\": true or a shooter block)\n\
          \x20 if        expression over the vars (and built-ins time, tick, players): `score >= 3 && !has_key`\n\
          \x20 once      fire at most once per match;  cooldown: minimum seconds between firings\n\
          \x20 do        actions, in order:\n",
@@ -574,7 +577,9 @@ fn sim_text() -> String {
     String::from(
         "red_engine2 sim <scene> [--scenario file.json] [--only name] [--trace out.json] [--checkpoint-every 1] [--dump-every 60]\n\
          \x20 Plays scripted players through the real authoritative simulation (no window, no GPU, no socket) and checks what happened.\n\
-         \x20 Scenarios live in the scene's `checks.sim` (so `verify` runs them) or in a file. Exit 1 if any fails.\n\n\
+         \x20 Scenarios live in the scene's `checks.sim` (so `verify` runs them) or in a file. Exit 1 if any fails.\n\
+         \x20 `bots.fill`/`roster` are NOT simulated here — only the scripted `players` below run. To prove a bot's behavior (a monster,\n\
+         \x20 an AI opponent), use `playtest` (hosts a real match with bots) or a real hosted match, not a `checks.sim` scenario.\n\n\
          scenario = { name, players, script, expect, spawn_group?, max_seconds? (30), settle_seconds? (0.5) }\n\
          \x20 players  [{id, character: human|rat|wizard|cowboy|alien|robot, spawn?: spawn id}]\n\
          \x20 script   [{player, walk: \"x,z; x,z\" | wait: secs | hold: {forward, strafe, sprint, crouch, jump, yaw_deg, pitch_deg,\n\

@@ -58,6 +58,8 @@ pub mod render;
 pub mod scene_pool;
 pub mod schema;
 #[cfg(feature = "gfx")]
+pub mod settings;
+#[cfg(feature = "gfx")]
 pub mod sfx;
 #[cfg(feature = "gfx")]
 pub mod shooter_world;

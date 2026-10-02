@@ -30,7 +30,7 @@ use red_engine2::net::host::{HostOptions, LocalHost};
 use red_engine2::net::session::NetSession;
 use red_engine2::physics::PropWorld;
 use red_engine2::player::{BodySpec, Character, FIXED_DT};
-use red_engine2::schema::{Object, ObjectKind, Scene};
+use red_engine2::schema::{Light, LightKind, Object, ObjectKind, Scene};
 use red_engine2::sim::clock::TickClock;
 use red_engine2::sim::combat::{Cooldown, MeleeSwing, WeaponSwitch};
 use red_engine2::sim::player::{step_player_on_tuned, PlayerInput, PlayerState};
@@ -367,6 +367,20 @@ struct App {
     streaks: Option<red_engine2::streaks::Streaks>,
     /// Whether the music is audible (`N` toggles it; `RE2_MUSIC=0` starts without).
     music_on: bool,
+    /// Whether sound effects play (the pause menu's SOUND toggle).
+    sfx_on: bool,
+    /// Whether the player's carried light is on (`scene.flashlight`; the `T` key toggles it). Meaningless
+    /// (never shown, never lit) when the scene did not ask for a flashlight.
+    flashlight_on: bool,
+    /// The persisted preference the music/sfx toggles read and write (`red_engine2::settings`); `music_on`/
+    /// `sfx_on` above are the *live* state, which can momentarily differ (e.g. `RE2_MUSIC=1` forces music on
+    /// without changing what is saved).
+    settings: red_engine2::settings::Settings,
+    /// The key `settings` is saved under for this game (`red_engine2::settings::key_for`).
+    settings_key: String,
+    /// A one-line result to show on the pause menu (e.g. where the music was saved), overriding the online
+    /// status line until the next pause-menu action replaces or clears it.
+    pause_message: Option<String>,
     /// When this game hosts its own match: the switch that freezes it (the pause menu and losing focus set it).
     host_pause: Option<Arc<std::sync::atomic::AtomicBool>>,
     /// Footsteps played so far (picks the foot).
@@ -480,6 +494,12 @@ impl App {
         let pad_launch = scene.jump_pads.iter().map(|p| p.launch_speed).reduce(f32::min);
         let starting_weapon = scene.weapons.starting_weapon;
         let rules = RulesEngine::new(scene.rules.clone()).with_wrap(scene.player.expanse.wrap);
+        let settings_key = red_engine2::settings::key_for(&scene_path);
+        let settings = red_engine2::settings::load(&settings_key);
+        let mut audio = Audio::new();
+        if let Some(a) = audio.as_mut() {
+            a.set_sfx_enabled(settings.sfx);
+        }
         App {
             window: None,
             gpu: None,
@@ -555,12 +575,17 @@ impl App {
             player_object_index,
             walk_phase: 0.0,
             hand_prop_transform: Mat4::from_scale(Vec3::splat(HIDDEN_SCALE)),
-            audio: Audio::new(),
+            audio,
             hit_sound: synth_bat_hit(),
             sounds: red_engine2::sfx::SoundBank::new(),
             feel: red_engine2::feel::Feel::new(),
             streaks: None,
             music_on: false,
+            sfx_on: settings.sfx,
+            flashlight_on: true,
+            settings,
+            settings_key,
+            pause_message: None,
             host_pause: None,
             step_count: 0,
             pred_prev_attack: false,
@@ -889,7 +914,16 @@ fn main() {
     }
     println!("WASD / arrow keys to walk, mouse to look, Shift to sprint forward, Space to jump, Ctrl to crouch.");
     match scene.player.character {
-        Some(Character::Human | Character::Wizard | Character::Cowboy | Character::Alien | Character::Robot | Character::Ridgeback | Character::Nightfall) => {
+        Some(
+            Character::Human
+            | Character::Wizard
+            | Character::Cowboy
+            | Character::Alien
+            | Character::Robot
+            | Character::Ridgeback
+            | Character::Nightfall
+            | Character::Hollow,
+        ) => {
             println!("Left-click / right trigger uses the equipped weapon.")
         }
         Some(Character::Rat) => println!("Cheddar is small and always as fast as a human sprinting."),
@@ -919,7 +953,15 @@ fn main() {
         drop(local_host);
         std::process::exit(code);
     }
-    let event_loop = EventLoop::new().expect("failed to create event loop");
+    let event_loop = EventLoop::new().unwrap_or_else(|e| {
+        let msg = e.to_string();
+        if msg.contains("DISPLAY") || msg.contains("WAYLAND") {
+            eprintln!("re2: no display available ({msg})");
+            eprintln!("re2: this box can't open a window. Use --headless (with --script FILE or --playtest) for a run with no window; see `red_engine2 describe playtest`.");
+            std::process::exit(2);
+        }
+        panic!("failed to create event loop: {e}")
+    });
     event_loop.set_control_flow(ControlFlow::Poll);
     app.shots = shots::Shots::new(headless_options.shot_dir.clone(), headless_options.shot_at.clone());
     event_loop.run_app(&mut app).expect("event loop error");

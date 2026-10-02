@@ -61,11 +61,17 @@ was hosted this way and a QUIC client with the pinned fingerprint and key raced 
 ## Networking
 
 * Allow **UDP** 27015 in the machine's firewall (`ufw allow 27015/udp`) and, in the cloud, the provider's security group.
-* At home, three ways, best first: a private network (Tailscale/WireGuard/ZeroTier: players join `re2 --connect <tailscale-ip>:27015`, nothing
+* At home, four ways: a private network (Tailscale/WireGuard/ZeroTier: players join `re2 --connect <tailscale-ip>:27015`, nothing
   is opened to the internet); **UPnP** (`red_server --upnp`, or `red_engine2 portmap status|enable|remove|keep`) which asks your router to
   open UDP 27015 for this machine only, renews the lease while the server runs and removes it on exit, and prints the address to give a
   friend (ADR 0031: it refuses to touch a mapping that is not its own and warns when your ISP gives you a carrier-grade NAT address, which
-  no mapping can fix; tested against a fake router, not a real one); or forwarding UDP 27015 by hand.
+  no mapping can fix; tested against a fake router, not a real one); forwarding UDP 27015 by hand; or, when none of those can reach you at
+  all (carrier-grade NAT, a router with UPnP off and no access to change that) — **a relay** (`red_relay`, ADR 2026-10-02): `red_server --relay
+  HOST:PORT` (or Killchain's own HOST button with `RE2_RELAY=HOST:PORT` set) registers with it and a friend joins with a short 6-character
+  code instead of an address at all — no port forwarding or public bind needed on the host's own network, since both sides only ever make
+  *outbound* connections to the relay. It is a blind forwarder (never touches QUIC/TLS content, see the ADR) so hosting still needs a
+  `--tls-cert`/`--tls-key` identity the same as any other public game, and the relay itself needs to run somewhere reachable 24/7 — one
+  more thing to operate (`deploy/red-relay.service`), not a free lunch, but the one option on this list that works even behind CGNAT.
 * **Encrypted and authenticated on QUIC.** Traffic is confidential, the server is verified by its fingerprint, and with a `--key` strangers
   cannot join (the proof is bound to the TLS connection). Connection limits, a bounded inbound queue, rate limits, size limits and
   hostile-packet tests (`tests/net_quic.rs`, `tests/net_abuse.rs`, `tests/net_auth.rs`) protect the server. On *development UDP* the traffic is

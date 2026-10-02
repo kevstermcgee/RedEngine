@@ -33,13 +33,18 @@ pub use crate::scene_pool::HIDDEN_SCALE;
 /// pool cannot grow once the renderer is built, so four is a comfortable margin; a fifth wearer gets a stand-in of another costume, never nothing.
 pub const BOT_BODY_POOL: usize = 4;
 
+/// Number of distinct bodies the avatar system tracks one slot per — tied to [`Character::ALL`]'s own length
+/// so the two can never drift apart (a body added to `Character::ALL` without a matching slot here would index
+/// out of bounds, not silently misbehave).
+const BODY_KINDS: usize = Character::ALL.len();
+
 /// How a client prepares avatars for a scene, per body, in [`Character::ALL`] order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AvatarPlan {
     /// Avatars to prepare.
-    pub pool: [usize; 8],
+    pub pool: [usize; BODY_KINDS],
     /// The most other players who can be wearing the body at once (humans where they may pick it, and the scene's bots, roster first, then the generated ones).
-    pub needed: [usize; 8],
+    pub needed: [usize; BODY_KINDS],
 }
 
 impl AvatarPlan {
@@ -59,11 +64,11 @@ fn body_index(who: Character) -> usize {
 pub fn avatar_plan(scene: &Scene) -> AvatarPlan {
     let forced = scene.player.character;
     let bots = &scene.bots;
-    let mut bot_bodies = [0usize; 8];
+    let mut bot_bodies = [0usize; BODY_KINDS];
     for k in 0..bots.fill {
         bot_bodies[body_index(bots.spec(k).character)] += 1;
     }
-    let (mut pool, mut needed) = ([0usize; 8], [0usize; 8]);
+    let (mut pool, mut needed) = ([0usize; BODY_KINDS], [0usize; BODY_KINDS]);
     let team_match = scene.shooter.is_some();
     for (i, who) in Character::ALL.iter().enumerate() {
         // A team match shows soldiers only (one uniform per team); every other match never draws one.
@@ -112,9 +117,9 @@ fn build_avatar_pools(scene: &mut Scene) -> Vec<AvatarPool> {
 
 /// What a client would really have: builds the avatar pool for the scene in `scene_json` exactly as [`NetSession::add_avatar_pool`] does and counts the avatars made per
 /// body, in [`Character::ALL`] order. `game check` compares it with what the scene's bots wear.
-pub fn avatars_made(scene_json: &str) -> Result<[usize; 6], Vec<String>> {
+pub fn avatars_made(scene_json: &str) -> Result<[usize; BODY_KINDS], Vec<String>> {
     let mut scene = crate::schema::parse_scene(scene_json)?;
-    let mut made = [0usize; 6];
+    let mut made = [0usize; BODY_KINDS];
     for pool in build_avatar_pools(&mut scene) {
         made[body_index(pool.body)] = pool.pool.capacity();
     }
@@ -758,6 +763,34 @@ mod tests {
         assert_eq!(nearest_body_on_ray(&bodies, Vec3::new(0.0, 2.5, 0.0), Vec3::NEG_Z, 80.0), None);
     }
 
+    /// Regression test for a real bug this caught: `avatars_made` and `AvatarPlan` used to be hardcoded to
+    /// `Character::ALL`'s *old* length, so a body added after that point (like `Hollow`) would index one of
+    /// their fixed-size arrays out of bounds and panic — but only for an ordinary (non-team) bot roster, which
+    /// is exactly how a scene uses a new body. Every `Character::ALL` entry must round-trip through both
+    /// without panicking, not just the ones that existed when the arrays were first sized.
+    #[test]
+    fn avatars_made_never_panics_for_any_character_all_entry_in_an_ordinary_bot_roster() {
+        // The real `Character::parse` spelling for every fighting body (`Character::ALL` minus `Rat`, which
+        // cannot be a bot's body at all — `sim::ai` requires a human-rig character).
+        let spellings = [
+            ("human", Character::Human),
+            ("wizard", Character::Wizard),
+            ("cowboy", Character::Cowboy),
+            ("alien", Character::Alien),
+            ("robot", Character::Robot),
+            ("hollow", Character::Hollow),
+        ];
+        for (word, who) in spellings {
+            let scene = format!(
+                r#"{{"camera":{{"position":[0,2,8],"target":[0,0,0]}},"objects":[],
+                 "bots":{{"fill":2,"roster":[{{"name":"T","character":"{word}","skill":"normal","style":"balanced"}}]}}}}"#
+            );
+            let made = avatars_made(&scene).unwrap_or_else(|e| panic!("{who:?} ({word}): {e:?}"));
+            assert_eq!(made.len(), Character::ALL.len());
+            assert!(made[body_index(who)] > 0, "{who:?} must have at least one avatar prepared: {made:?}");
+        }
+    }
+
     /// A networked session's whole path, minus the window: it joins a real server, sees
     /// another client's avatar appear in the scene (and disappear when they leave), and the other
     /// client's moving prop shows up posed in the scene.
@@ -941,17 +974,17 @@ mod tests {
             Character::ALL.map(of)
         };
         let n = MAX_PLAYERS_PER_SNAPSHOT;
-        // [Human, Rat, Wizard, Cowboy, Alien, Robot]
-        assert_eq!(pool(None, false), [n, n, n, n, n, n, 0, 0], "nobody is forced: any body can turn up");
-        assert_eq!(pool(Some("human"), false), [n, 0, 0, 0, 0, 0, 0, 0], "everybody is a Human and there are no bots: one body is enough");
+        // [Human, Rat, Wizard, Cowboy, Alien, Robot, Ridgeback, Nightfall, Hollow]
+        assert_eq!(pool(None, false), [n, n, n, n, n, n, 0, 0, n], "nobody is forced: any body can turn up");
+        assert_eq!(pool(Some("human"), false), [n, 0, 0, 0, 0, 0, 0, 0, 0], "everybody is a Human and there are no bots: one body is enough");
         assert_eq!(
             pool(Some("human"), true),
-            [n, 0, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0],
+            [n, 0, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL],
             "bots wear the fighting bodies, never the rat"
         );
         assert_eq!(
             pool(Some("rat"), true),
-            [BOT_BODY_POOL, n, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0],
+            [BOT_BODY_POOL, n, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL],
             "a rat game's bots still fight as people"
         );
     }
@@ -984,7 +1017,8 @@ mod tests {
                 MAX_PLAYERS_PER_SNAPSHOT,
                 MAX_PLAYERS_PER_SNAPSHOT,
                 0,
-                0
+                0,
+                MAX_PLAYERS_PER_SNAPSHOT
             ]
         );
         assert_eq!(
@@ -997,7 +1031,8 @@ mod tests {
                 MAX_PLAYERS_PER_SNAPSHOT - 1,
                 MAX_PLAYERS_PER_SNAPSHOT - 1,
                 0,
-                0
+                0,
+                MAX_PLAYERS_PER_SNAPSHOT - 1
             ]
         );
     }
@@ -1110,21 +1145,14 @@ mod tests {
             ..Default::default()
         };
         session.own = Some(PlayerSnap {
-            id: 0,
-            character: 0,
-            flags: 0,
             pos: [1.0, 0.0, 2.0],
             yaw: 1.5,
-            pitch: 0.0,
             speed: 20.0,
-            vy: 0.0,
             velocity: [20.0, 0.0],
-            weapon: 0,
             held: crate::net::protocol::NO_PROP,
             hp: 100,
-            shots: 0,
-            extra: 0,
             kart: Some(snap),
+            ..Default::default()
         });
         let mut predictor = Predictor::new(PlayerState::spawn(1.0, 2.0, 0.0, 90.0, Character::Human));
         predictor.enable_kart(snap.to_state(), Driver::Beaver.spec());

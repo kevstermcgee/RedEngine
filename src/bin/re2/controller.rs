@@ -45,19 +45,39 @@ impl App {
                 self.open_maps();
                 return;
             }
+            // Top to bottom as the menu actually lays the buttons out (`ui::screens::pause_layout`); the arrow
+            // (save the music) gets its own stop so it is reachable without a mouse.
+            const ORDER: [PauseAction; 6] =
+                [PauseAction::Resume, PauseAction::ToggleMusic, PauseAction::DownloadMusic, PauseAction::ToggleSfx, PauseAction::Fullscreen, PauseAction::Quit];
+            let index = self.pause_hover.and_then(|h| ORDER.iter().position(|a| *a == h)).unwrap_or(0);
             if p.hit(b::UP) {
-                self.pause_hover = Some(PauseAction::Resume);
+                self.pause_hover = Some(ORDER[index.saturating_sub(1)]);
                 self.repaint_pause();
             }
             if p.hit(b::DOWN) {
-                self.pause_hover = Some(if self.pause_hover == Some(PauseAction::Resume) { PauseAction::Fullscreen } else { PauseAction::Quit });
+                self.pause_hover = Some(ORDER[(index + 1).min(ORDER.len() - 1)]);
                 self.repaint_pause();
             }
-            if p.hit(b::JUMP) && self.pause_hover == Some(PauseAction::Fullscreen) {
-                self.toggle_fullscreen();
-            } else if p.hit(b::JUMP) && self.pause_hover == Some(PauseAction::Quit) {
-                event_loop.exit();
-            } else if p.hit(b::PAUSE) || p.hit(b::CROUCH) || p.hit(b::JUMP) {
+            if p.hit(b::JUMP) {
+                match self.pause_hover {
+                    Some(PauseAction::ToggleMusic) => {
+                        self.toggle_music();
+                        self.repaint_pause();
+                    }
+                    Some(PauseAction::DownloadMusic) => self.download_music(),
+                    Some(PauseAction::ToggleSfx) => {
+                        self.toggle_sfx();
+                        self.repaint_pause();
+                    }
+                    Some(PauseAction::Fullscreen) => self.toggle_fullscreen(),
+                    Some(PauseAction::Quit) => event_loop.exit(),
+                    Some(PauseAction::Resume) | None => {
+                        self.leave_pause();
+                        self.controller.reset();
+                        self.pad = Default::default();
+                    }
+                }
+            } else if p.hit(b::PAUSE) || p.hit(b::CROUCH) {
                 self.leave_pause();
                 self.controller.reset();
                 self.pad = Default::default();

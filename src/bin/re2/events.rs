@@ -183,6 +183,9 @@ impl ApplicationHandler for App {
                     if code == KeyCode::KeyN && event.state == ElementState::Pressed && !self.keys.contains(&code) {
                         self.toggle_music();
                     }
+                    if code == KeyCode::KeyT && event.state == ElementState::Pressed && !self.keys.contains(&code) && self.scene.flashlight {
+                        self.flashlight_on = !self.flashlight_on;
+                    }
                     if code == KeyCode::F3 && event.state == ElementState::Pressed && !self.keys.contains(&code) {
                         self.debug_hud = !self.debug_hud;
                         self.online.painted = None; // repaint the overlay with (or without) the debug lines
@@ -221,6 +224,15 @@ impl ApplicationHandler for App {
                         Some(PauseAction::Resume) => self.leave_pause(),
                         Some(PauseAction::Fullscreen) => self.toggle_fullscreen(),
                         Some(PauseAction::Quit) => event_loop.exit(),
+                        Some(PauseAction::ToggleMusic) => {
+                            self.toggle_music();
+                            self.repaint_pause();
+                        }
+                        Some(PauseAction::ToggleSfx) => {
+                            self.toggle_sfx();
+                            self.repaint_pause();
+                        }
+                        Some(PauseAction::DownloadMusic) => self.download_music(),
                         None => {}
                     }
                 } else if !self.grabbed {

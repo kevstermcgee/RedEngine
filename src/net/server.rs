@@ -393,7 +393,7 @@ impl Server {
         while self.sim.bot_count() > want {
             // Bots make way from the fuller team first, then the weakest goes.
             let crowded = if self.sim.team_count(1) >= self.sim.team_count(2) { 1 } else { 2 };
-            let in_crowded = |s: &usize| !self.sim.is_loadout() || self.sim.team_of(*s) == crowded;
+            let in_crowded = |s: &usize| !self.sim.teams_enabled() || self.sim.team_of(*s) == crowded;
             let weakest = (0..MAX_PLAYERS)
                 .filter(|s| self.sim.is_bot(*s) && in_crowded(s))
                 .min_by_key(|s| (self.sim.player(*s).map_or(0, |p| p.combat.kills), *s))
@@ -420,15 +420,18 @@ impl Server {
             let Some(slot) = free else { break };
             let spec = cfg.spec(self.bots_spawned as usize);
             self.bots_spawned += 1;
-            let team = if self.sim.is_loadout() {
+            let team = if !self.sim.teams_enabled() {
+                0
+            } else if let Some(t) = spec.team {
+                // The roster pinned this bot to a side; an author's explicit choice skips the capacity check below.
+                t
+            } else {
                 let (a, b) = (self.sim.team_count(1), self.sim.team_count(2));
                 match (a <= b, a.min(b) < crate::sim::shooter::MAX_TEAM) {
                     (_, false) => break,
                     (true, _) => 1,
                     (false, _) => 2,
                 }
-            } else {
-                0
             };
             if !self.sim.add_bot_in_slot_team(slot, &spec, team) {
                 break;
@@ -574,7 +577,7 @@ impl Server {
         let playing = self.phase() == Phase::Playing && self.flow.is_some();
         let forced_character = self.sim.forced_character();
         let race = self.sim.race().is_some();
-        let team_match = self.sim.is_loadout();
+        let team_match = self.sim.teams_enabled();
         let s = &mut self.sessions[i];
         if !s.lobby_bucket.allow(now) {
             self.stats.rate_limited += 1;
@@ -611,7 +614,7 @@ impl Server {
 
     /// The team a newcomer gets: the one they asked for if it has room, else the smaller one (`0` in a match without teams).
     fn pick_team(&self, asked: u8, except: Option<usize>) -> u8 {
-        if !self.sim.is_loadout() {
+        if !self.sim.teams_enabled() {
             return 0;
         }
         let humans = |t: u8| self.sessions.iter().enumerate().filter(|(j, s)| Some(*j) != except && s.team == t).count();
@@ -1076,7 +1079,7 @@ impl Server {
             let mut sizes = [self.sessions.iter().filter(|s| s.team == 1).count(), self.sessions.iter().filter(|s| s.team == 2).count()];
             for i in 0..self.bot_fill().saturating_sub(humans) {
                 let spec = cfg.spec(i);
-                let team = if self.sim.is_loadout() {
+                let team = if self.sim.teams_enabled() {
                     let t = if sizes[0] <= sizes[1] { 0 } else { 1 };
                     if sizes[t] >= crate::sim::shooter::MAX_TEAM {
                         break;

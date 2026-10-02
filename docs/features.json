@@ -8,14 +8,14 @@
       "files": ["src/schema.rs", "src/strict.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/**", "SPEC.md"],
       "tests": ["lib:schema", "lib:strict", "lib:prefabs", "lib:macros", "lib:track", "examples_validate", "render_prep", "fields"],
       "commands": ["red_engine2 validate examples/test_lab.json"],
-      "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md"]
+      "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md"]
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
       "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs", "src/arsenal.rs", "src/stats.rs", "src/killcam.rs", "src/uniforms.rs", "src/shooter_world.rs", "src/clipboard.rs"],
       "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms"],
       "commands": ["red_engine2 frame examples/test_lab.json out/frame.png", "red_engine2 tour examples/test_lab.json out/tour.png"],
-      "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md"],
+      "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
       "depends_on": ["scene_format"]
     },
     "player_physics": {
@@ -23,7 +23,7 @@
       "files": ["src/player.rs", "src/controller.rs", "src/collide.rs", "src/sim/player.rs"],
       "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env", "loadout"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
-      "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md"],
+      "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
       "depends_on": ["scene_format"]
     },
     "prop_physics": {
@@ -37,13 +37,13 @@
       "summary": "Bat plus a ten-firearm arsenal: tick-based swings/cooldowns, hitscan, health, death, respawn and authoritative pick-up contention.",
       "files": ["src/weapons.rs", "src/sim/combat.rs", "src/sim/combat_cfg.rs", "src/sim/interact.rs"],
       "tests": ["lib:weapons", "lib:sim::combat", "lib:sim::combat_cfg", "lib:sim::interact", "interactions", "combat_rules", "net_interactions"],
-      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md"],
+      "docs": ["docs/adr/0013-revolver-second-weapon-hitscan-infinite-ammo.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/adr/0038-reusable-firearm-arsenal-and-ads.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
       "depends_on": ["prop_physics", "sim_core"]
     },
     "sim_core": {
       "summary": "The headless, renderer-free simulation: fixed tick clock, scratch buffers, change tracking, entities, static props, the authoritative MatchSim, spawns, interest management.",
       "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs", "src/sim/ordnance.rs", "src/sim/shooter.rs", "src/sim/kit.rs"],
-      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots"],
+      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots", "teams"],
       "commands": ["cargo bench --bench sim", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0010-headless-match-server.md", "docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", "docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md"],
       "depends_on": ["player_physics", "prop_physics"]
@@ -53,7 +53,7 @@
       "files": ["src/sim/rules.rs", "src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "recipes/coin_run.json"],
       "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks", "net_rule_state", "prop_rules"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
-      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md"],
+      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md"],
       "depends_on": ["sim_core"]
     },
     "karts": {
@@ -76,7 +76,7 @@
       "files": ["src/sim/ai/mod.rs", "src/sim/ai/skill.rs", "src/sim/ai/nav.rs", "src/sim/ai/route.rs", "src/tools/nav.rs", "examples/bot_match.rs"],
       "tests": ["lib:sim::ai", "lib:tools::nav", "net_bots"],
       "commands": ["cargo run --release --example bot_match -- examples/test_lab.json --bots 6 --weapon smg", "red_server --fill 8 --bot-skill normal", "red_engine2 nav scene.json"],
-      "docs": ["docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md"],
+      "docs": ["docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md"],
       "depends_on": ["sim_core", "combat_weapons", "player_physics"]
     },
     "match_flow": {
@@ -113,15 +113,15 @@
       "files": ["src/net/server.rs", "src/net/host.rs", "src/net/sessions.rs", "src/net/snapshots.rs", "src/bin/red_server.rs"],
       "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_bots", "server_env"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
-      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md"],
+      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md"],
       "depends_on": ["net_protocol", "net_auth", "net_transport", "sim_core", "match_flow"]
     },
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
-      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs", "src/net/join_code.rs"],
+      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs", "src/net/join_code.rs", "src/bin/red_relay.rs", "src/net/relay.rs", "src/net/relay_server.rs"],
       "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
-      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md"],
+      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md"],
       "depends_on": ["net_protocol", "net_auth", "net_transport"]
     },
     "net_test": {
@@ -145,7 +145,7 @@
       "files": ["src/net/upnp.rs", "src/tools/portmap.rs", "src/tools/servers.rs", "src/cli/servers.rs", "tests/servers_cli.rs", "tests/publish_games.rs", "Dockerfile", "docker-compose.yml", "deploy/**", "docs/HOSTING.md"],
       "tests": ["lib:net::upnp", "lib:tools::servers", "server_env", "servers_cli", "publish_games"],
       "commands": ["red_engine2 portmap status", "red_engine2 servers"],
-      "docs": ["docs/adr/0031-home-hosting-with-upnp.md", "docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md", "docs/adr/2026-09-30-red-engine2-servers-manages-the-game-servers-on-this.md", "docs/adr/2026-09-30-publishing-to-redenginegames-never-deletes-what-it-does.md", "docs/GAMES_PUBLISHING.md", "docs/HOSTING.md"],
+      "docs": ["docs/adr/0031-home-hosting-with-upnp.md", "docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md", "docs/adr/2026-09-30-red-engine2-servers-manages-the-game-servers-on-this.md", "docs/adr/2026-09-30-publishing-to-redenginegames-never-deletes-what-it-does.md", "docs/GAMES_PUBLISHING.md", "docs/HOSTING.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md"],
       "depends_on": ["net_server"]
     },
     "release_packaging": {
@@ -160,15 +160,15 @@
       "files": ["src/ui/**", "src/menu.rs", "src/tools/font.rs"],
       "tests": ["lib:ui", "lib:menu"],
       "commands": ["red_engine2 ui-check", "red_engine2 ui-shot lobby out/lobby.png"],
-      "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md"],
+      "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md"],
       "depends_on": ["match_flow", "net_protocol"]
     },
     "graphical_client": {
       "summary": "The `re2` game: window, input, live rendering, avatars, weapons, rule-state presentation, launch/connect and online lobby/HUD wiring.",
-      "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/sfx.rs", "src/music.rs", "src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
-      "tests": ["lib:viewer"],
+      "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/sfx.rs", "src/music.rs", "src/settings.rs", "src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
+      "tests": ["lib:viewer", "lib:audio", "lib:settings"],
       "commands": ["powershell -File scripts/lobby_demo.ps1"],
-      "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0043-a-reusable-client-layer-for-custom-games.md"],
+      "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0043-a-reusable-client-layer-for-custom-games.md", "docs/adr/2026-10-01-persisted-per-game-audio-settings-and-a-music-download.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md"],
       "depends_on": ["net_client", "ui_kit", "player_physics", "prop_physics", "offline_renderer", "game_rules", "client_app"]
     },
     "client_app": {
@@ -242,6 +242,18 @@
       "summary": "Shared test code and fixtures.",
       "files": ["tests/fixtures/**", "benches/common/**"],
       "tests": ["test_lab"]
+    },
+    "game_upgrade": {
+      "summary": "`game upgrade plan|verify`: a read-only upgrade planner (target resolution, project classification, migration matching, the upgrade packet) and staged verification against an isolated, identity-cached target-engine build, for game projects pinned via ADR 0024 and the pin ADR.",
+      "files": ["src/tools/upgrade.rs", "docs/upgrade-migrations.json"],
+      "tests": ["lib:tools::upgrade", "game_upgrade"],
+      "commands": ["red_engine2 game upgrade plan --dir <game> --to <rev> --engine <checkout>", "red_engine2 game upgrade verify <packet.json> --dir <game>"],
+      "docs": [
+        "docs/adr/2026-10-01-game-upgrade-planning-and-staged-verification.md",
+        "docs/adr/0024-the-framework-layer-blueprints-and-game-projects.md",
+        "docs/adr/2026-09-29-develop-on-a-path-ship-on-a-pin.md"
+      ],
+      "depends_on": ["blueprints_and_games", "verification", "map_analysis", "self_description"]
     }
   }
 }

@@ -160,6 +160,10 @@ up to 16 active lights total. Each light has a `type` of `"directional"` or `"po
   curve at a fixed exposure. So the same numbers read the same in every map, interiors don't blow
   out to white, and ceilings/corners stay readable. Keep authoring ~10-14 per room lamp; light-coloured
   ceilings (`#d0d0c8`-ish) read better than dark roofs seen from below.
+- That softening is distance-based, so it still blows out to solid white right next to the fixture: a lamp
+  tuned to look right from across the room can overexpose if the player can walk up and stand beside it. Place
+  a lamp slightly out of reach (on a wall, a high shelf, behind a counter), or check it with `frame`/`tour` from
+  where the player will actually stand, not just the room's establishing shot.
 
 ## Objects
 
@@ -486,7 +490,8 @@ condition holds, and then **does** its actions:
 - **VOLUME** (exactly one): `{zone: id [, height]}` (a `zones` rect from its floor `y` up 3 m, or `height`),
   `{object: id [, pad]}` (a top-level object's world box, grown by `pad` m — how a coin becomes a trigger), or
   `{box: [x0,y0,z0,x1,y1,z1]}`. A player is *inside* when its body circle overlaps the volume in x/z and its body height overlaps in y.
-- **`who`**: `any` (default), `human`, `rat`. **`once`**: at most once per match. **`cooldown`**: seconds between firings.
+- **`who`**: `any` (default), `human`, `rat`, `team1`, `team2` (the last two need the scene's own `"teams": true`,
+  or a `shooter` block, to put anyone on a team at all). **`once`**: at most once per match. **`cooldown`**: seconds between firings.
 - **`if`**: an expression over the `vars` and the built-ins `time` (s), `tick`, `players`: numbers, `true`/`false`,
   `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`. Built-in functions read the loose props:
   `prop_y(id)` (origin height, m), `tilt(id)` (degrees from how the map placed it: 0 upright, ~90 on its side), `held(id)`
@@ -520,7 +525,9 @@ runnable example; `recipe coin_run` is a complete game.
 ### Proving gameplay headless (`checks.sim`, `sim`)
 
 `red_engine2 sim scene.json` plays **scenarios** — scripted players walking through the real simulation at 60 Hz — and
-checks the outcome. They live in `checks.sim` (so `verify` runs them) or a file (`--scenario`):
+checks the outcome. They live in `checks.sim` (so `verify` runs them) or a file (`--scenario`). **`bots.fill`/`roster`
+are not part of this**: a scenario's `players` are the only participants simulated. To prove what a bot (an AI
+opponent, a monster) actually does, use `playtest` (which hosts a real match with bots) or a real hosted match.
 
 ```json
 "checks": { "sim": [ { "name": "collect all three coins, then win",

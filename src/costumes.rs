@@ -53,6 +53,21 @@ pub fn decorate(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, style:
             }
             add(0, box_shape, Vec3::new(0.0, 0.055, 0.068), Vec3::new(0.08, 0.07, 0.035), "#795eab", 0.4);
         }
+        Character::Hollow => {
+            let black = "#08070a";
+            // A larger, elongated, off-axis head shape fully encloses (and so hides) the rig's built-in
+            // face — no eyes, brows, nose or mouth should read through it. Restraint over accessories:
+            // the body itself is the costume, nothing is "worn".
+            add(1, sphere, Vec3::new(0.012, 0.03, -0.01), Vec3::new(0.125, 0.165, 0.118), black, 0.0);
+            // Two small, pale, deep-set points — the only light the head gives back.
+            for side in [-1.0f32, 1.0] {
+                add(1, sphere, Vec3::new(side * 0.034, 0.02, 0.085), Vec3::splat(0.009), "#e8e4da", 0.1);
+            }
+            // Claw-like fingers: thin cones well past where the ordinary hand ellipsoid sits.
+            for fore in [3usize, 5] {
+                add(fore, PrimKind::Cone { radius: 1.0, height: 1.0 }, Vec3::new(0.0, 0.205, 0.0), Vec3::new(0.014, 0.09, 0.014), black, 0.0);
+            }
+        }
         Character::Robot => {
             add(1, box_shape, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.16, 0.15, 0.15), "#a2bbc5", 0.65);
             add(1, box_shape, Vec3::new(0.0, 0.014, 0.079), Vec3::new(0.125, 0.035, 0.015), "#172e47", 0.4);
@@ -123,7 +138,7 @@ mod tests {
     #[test]
     fn every_costume_keeps_a_stable_rig_and_tracks_the_head_pose() {
         let rig = crate::skeleton::HumanoidRig::new(1.8, 1.0);
-        for style in [Character::Wizard, Character::Cowboy, Character::Alien, Character::Robot, Character::Ridgeback, Character::Nightfall] {
+        for style in [Character::Wizard, Character::Cowboy, Character::Alien, Character::Robot, Character::Ridgeback, Character::Nightfall, Character::Hollow] {
             let look = crate::characters::HumanLook::styled(style);
             let rest = crate::characters::human_parts(&rig, &Default::default(), &look);
             let posed = crate::characters::human_parts(&rig, &crate::skeleton::PoseSample { head: Vec3::new(0.0, 35.0, 0.0), ..Default::default() }, &look);

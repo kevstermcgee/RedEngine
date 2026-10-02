@@ -32,6 +32,8 @@ pub mod netsim;
 pub mod predict;
 pub mod protocol;
 pub mod quic;
+pub mod relay;
+pub mod relay_server;
 pub mod server;
 pub mod session;
 mod sessions;

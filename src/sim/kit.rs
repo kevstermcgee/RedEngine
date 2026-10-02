@@ -324,6 +324,13 @@ impl MatchSim {
         self.arena.is_some()
     }
 
+    /// Whether players may be assigned to team 1 or 2: always true in a loadout match, or when the scene's own
+    /// `"teams": true` asked for team assignment without a `shooter` block (a hide-and-seek, capture-the-flag or
+    /// other asymmetric-role game that still wants `who: team1`/`who: team2` in its rules).
+    pub fn teams_enabled(&self) -> bool {
+        self.is_loadout() || self.teams_requested
+    }
+
     /// Keeps the legacy view of a kit (the weapon in hand, the ammunition the HUD reads) in step with the kit.
     pub(super) fn sync_kit(&mut self, slot: usize) {
         let Some(p) = self.players[slot].as_mut() else { return };

@@ -69,14 +69,21 @@ impl App {
             respawn_secs: net.client.respawn_in_secs().ceil() as u32,
             protected: own.flags & FLAG_PROTECTED != 0,
             notice: self.notice.as_ref().map(|(text, _)| text.clone()),
+            death_text: self.scene.death_text.clone(),
         })
     }
 
-    /// Starts the music loop (generated in a few hundredths of a second) unless `RE2_MUSIC=0`.
+    /// Starts the music loop (generated in a few hundredths of a second) unless `RE2_MUSIC=0`, the scene asks
+    /// for silence, or the player's saved settings turned music off.
     pub(crate) fn start_music(&mut self) {
-        // A scene says `"music": false` to start silent (`N` still turns it on); `RE2_MUSIC=0` silences any scene, `RE2_MUSIC=1` starts any.
+        // A scene says `"music": false` to start silent (`N` still turns it on); `RE2_MUSIC=0` silences any scene
+        // or setting, `RE2_MUSIC=1` starts any — both env overrides win over the persisted settings file.
         let env = std::env::var("RE2_MUSIC").ok();
-        if env.as_deref() == Some("0") || (!self.scene.music && env.as_deref() != Some("1")) {
+        if env.as_deref() == Some("1") {
+            self.begin_music();
+            return;
+        }
+        if env.as_deref() == Some("0") || !self.scene.music || !self.settings.music {
             return;
         }
         self.begin_music();
@@ -97,16 +104,45 @@ impl App {
         }
     }
 
-    /// `N`: music on or off (the loop keeps its place while it is silent).
+    /// `N` or the pause menu's MUSIC button: music on or off (the loop keeps its place while it is silent),
+    /// saved so the choice survives a relaunch (`red_engine2::settings`).
     pub(crate) fn toggle_music(&mut self) {
         if !self.audio.as_ref().is_some_and(|a| a.has_music()) {
             self.begin_music();
-            return;
+        } else {
+            self.music_on = !self.music_on;
+            if let Some(audio) = &self.audio {
+                audio.set_music_volume(if self.music_on { MUSIC_VOLUME } else { 0.0 });
+            }
         }
-        self.music_on = !self.music_on;
-        if let Some(audio) = &self.audio {
-            audio.set_music_volume(if self.music_on { MUSIC_VOLUME } else { 0.0 });
+        self.settings.music = self.music_on;
+        let _ = red_engine2::settings::save(&self.settings_key, &self.settings);
+    }
+
+    /// The pause menu's SOUND button: sound effects on or off, saved the same way as [`toggle_music`](Self::toggle_music).
+    pub(crate) fn toggle_sfx(&mut self) {
+        self.sfx_on = !self.sfx_on;
+        if let Some(audio) = self.audio.as_mut() {
+            audio.set_sfx_enabled(self.sfx_on);
         }
+        self.settings.sfx = self.sfx_on;
+        let _ = red_engine2::settings::save(&self.settings_key, &self.settings);
+    }
+
+    /// The pause menu's ↓ button: saves the current music loop as a WAV file wherever the player chooses in the
+    /// native save dialog (never guesses a Downloads folder), and shows the result on the pause menu.
+    pub(crate) fn download_music(&mut self) {
+        let bytes = red_engine2::audio::wav_bytes_i16(&red_engine2::music::loop_samples(), red_engine2::audio::SAMPLE_RATE, 2);
+        let name = self.scene_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "game".to_string());
+        let chosen = rfd::FileDialog::new().set_file_name(format!("{name}-music.wav")).add_filter("WAV audio", &["wav"]).save_file();
+        if let Some(path) = chosen {
+            self.pause_message = Some(match std::fs::write(&path, &bytes) {
+                Ok(()) => format!("saved {}", path.display()),
+                Err(e) => format!("could not save: {e}"),
+            });
+            self.repaint_pause();
+        }
+        // No file chosen (cancelled): leave whatever the pause menu was already showing.
     }
 
     /// Once per rendered frame: turns what the network reported into sounds and screen effects, and lets the effects age.

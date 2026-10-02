@@ -189,9 +189,16 @@ pub fn character_object(who: crate::player::Character, id: &str) -> Object {
             Character::Robot => "#3c9fba",
             Character::Ridgeback => "#555e2b",
             Character::Nightfall => "#1f2d4d",
+            // Matches the skin, not a costume accent: one wrong-colored shape, not a person wearing black.
+            Character::Hollow => "#0d0c10",
             _ => "#af303c",
         };
         h.material.color = Track::constant(hex(shirt));
+        if who == Character::Hollow {
+            // Unnaturally tall and gaunt — the cheapest, most reliable "this is wrong" silhouette cue.
+            h.height = HUMAN_HEIGHT * 1.28;
+            h.build = 0.82;
+        }
     }
     object
 }
@@ -231,6 +238,13 @@ impl HumanLook {
                 look.hair = look.skin;
                 look.pants = hex("#344f63");
                 look.shoes = hex("#243c4f");
+            }
+            Character::Hollow => {
+                // Near-black, barely differentiated from itself: no warm tones anywhere, nothing reads as "wearing" clothes.
+                look.skin = hex("#0d0c10");
+                look.hair = look.skin;
+                look.pants = hex("#0a090c");
+                look.shoes = look.pants;
             }
             _ => {}
         }

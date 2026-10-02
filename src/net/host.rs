@@ -49,6 +49,11 @@ pub struct PublicOptions {
     pub upnp: bool,
     /// A join key friends must also know (`None` = none).
     pub key: Option<String>,
+    /// Register with a `red_relay` (docs/HOSTING.md) at this `HOST:PORT` instead of relying on UPnP/port
+    /// forwarding: a friend then joins with a short code rather than an address at all, and this works even
+    /// behind carrier-grade NAT (ADR 0031: nothing UPnP does can fix that; a relay sidesteps it instead of trying
+    /// to). A hostname (a DuckDNS name, say) works here, re-resolved on every use — not just a literal address.
+    pub relay: Option<String>,
 }
 
 impl Default for HostOptions {
@@ -80,6 +85,15 @@ pub struct LocalHost {
     upnp_note: Option<String>,
     key: Option<String>,
     keeper: Option<JoinHandle<()>>,
+    /// The short code a friend can join with instead of an address, when `PublicOptions::relay` was set and
+    /// registration succeeded.
+    relay_code: Option<String>,
+    /// What registering with the relay said, if it was asked and failed (a line for the screen, the same role
+    /// `upnp_note` plays for UPnP).
+    relay_note: Option<String>,
+    /// Kept alive for as long as the host runs; its forwarding threads hold their own handles independently, but
+    /// dropping this early would needlessly tear down a feature that looks unused.
+    _relay_bridge: Option<super::relay_server::HostBridge>,
 }
 
 impl LocalHost {
@@ -197,11 +211,34 @@ impl LocalHost {
                 join_addresses.push(format!("{lan}:{}", bound.port()));
             }
         }
+        let (mut relay_code, mut relay_note, mut relay_bridge) = (None, None, None);
+        if let Some(relay) = public.and_then(|p| p.relay.as_deref()) {
+            match super::relay_server::HostBridge::start(relay, addr, fingerprint.clone(), stop.clone()) {
+                Ok((bridge, code)) => {
+                    relay_code = Some(super::relay::code_to_string(&code));
+                    relay_bridge = Some(bridge);
+                }
+                Err(e) => relay_note = Some(format!("the relay at '{relay}' did not answer ({e}); friends can still join another way")),
+            }
+        }
         raise_timer_resolution();
         let flag = stop.clone();
         let thread =
             std::thread::Builder::new().name("red-host".into()).spawn(move || server.run(&flag)).map_err(|e| format!("cannot start the server thread: {e}"))?;
-        Ok(LocalHost { addr, stop, pause, thread: Some(thread), fingerprint, join_addresses, upnp_note, key: public.and_then(|p| p.key.clone()), keeper })
+        Ok(LocalHost {
+            addr,
+            stop,
+            pause,
+            thread: Some(thread),
+            fingerprint,
+            join_addresses,
+            upnp_note,
+            key: public.and_then(|p| p.key.clone()),
+            keeper,
+            relay_code,
+            relay_note,
+            _relay_bridge: relay_bridge,
+        })
     }
 
     /// The identity fingerprint clients must pin (`sha256:<hex>`), when this host speaks QUIC.
@@ -217,6 +254,17 @@ impl LocalHost {
     /// What the router said about opening the port, for the screen.
     pub fn upnp_note(&self) -> Option<&str> {
         self.upnp_note.as_deref()
+    }
+
+    /// The short code a friend can join with instead of an address (`PublicOptions::relay`, registered and
+    /// accepted).
+    pub fn relay_code(&self) -> Option<&str> {
+        self.relay_code.as_deref()
+    }
+
+    /// What asking the relay said, when it was asked and did not succeed (a line for the screen).
+    pub fn relay_note(&self) -> Option<&str> {
+        self.relay_note.as_deref()
     }
 
     /// The transport settings a client on this machine joins with (pinned to this host's own identity over QUIC, or plain loopback UDP).
@@ -340,7 +388,7 @@ mod tests {
     fn a_public_host_speaks_quic_with_a_saved_identity_that_a_client_pins() {
         let dir = std::env::temp_dir().join(format!("re2_host_identity_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        let public = PublicOptions { identity_dir: dir.clone(), port: 0, upnp: false, key: Some("sesame".into()) };
+        let public = PublicOptions { identity_dir: dir.clone(), port: 0, upnp: false, key: Some("sesame".into()), relay: None };
         let opts = HostOptions {
             fill: Some(0),
             spawn_group: "duel".into(),

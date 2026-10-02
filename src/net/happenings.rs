@@ -121,20 +121,14 @@ mod tests {
                 .iter()
                 .map(|&(id, shots)| PlayerSnap {
                     id,
-                    character: 0,
-                    flags: 0,
                     pos: [id as f32, 0.0, 0.0],
                     yaw: 0.5,
                     pitch: -0.1,
-                    speed: 0.0,
-                    vy: 0.0,
-                    velocity: [0.0; 2],
                     weapon: 4,
                     held: NO_PROP,
                     hp: 100,
                     shots,
-                    extra: 0,
-                    kart: None,
+                    ..Default::default()
                 })
                 .collect(),
             props: vec![],

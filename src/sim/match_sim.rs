@@ -115,6 +115,8 @@ pub struct MatchSim {
     pub(super) item_boxes: ItemBoxes,
     /// Loadout-match state (the scene's `shooter` block): pickups, projectiles, smoke and fire, team scores. `None` in the classic arena.
     pub(super) arena: Option<crate::sim::shooter::ArenaState>,
+    /// The scene's own `"teams": true` (see [`MatchSim::teams_enabled`]), independent of whether it also has a `shooter` block.
+    pub(super) teams_requested: bool,
 }
 
 impl MatchSim {
@@ -189,6 +191,7 @@ impl MatchSim {
                 None => ItemBoxes::new(Vec::new(), 0),
             },
             arena: scene.shooter.clone().map(crate::sim::shooter::ArenaState::new),
+            teams_requested: scene.teams,
         })
     }
 
@@ -618,6 +621,7 @@ impl MatchSim {
                     radius: body.radius,
                     height: body.body_height,
                     character: p.state.character,
+                    team: p.team,
                 }
             })
             .collect();

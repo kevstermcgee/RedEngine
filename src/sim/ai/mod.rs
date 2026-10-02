@@ -47,6 +47,9 @@ pub struct BotSpec {
     pub level: f32,
     /// How it likes to fight.
     pub style: Style,
+    /// Pins this bot to team 1 or 2 (`bots.roster[].team`), on top of the match's own auto-balancing. `None` lets
+    /// the match assign it a team when teams are in play (`MatchSim::teams_enabled`), or no team otherwise.
+    pub team: Option<u8>,
 }
 
 /// The scene's `bots` block: how many fighters the match wants and who they are.
@@ -76,7 +79,7 @@ impl Default for BotsConfig {
 /// Keys of the `bots` block.
 pub const BOTS_KEYS: &[&str] = &["fill", "skill", "roster"];
 /// Keys of one `bots.roster` entry.
-pub const BOT_KEYS: &[&str] = &["name", "character", "skill", "style"];
+pub const BOT_KEYS: &[&str] = &["name", "character", "skill", "style", "team"];
 
 const NAME_POOL: [&str; 24] = [
     "Dusty", "Merlot", "Zorp", "R0-B1", "Hex", "Pixel", "Bolt", "Nova", "Gizmo", "Sprocket", "Rook", "Maverick", "Ghost", "Viper", "Anvil", "Cobalt", "Falcon",
@@ -97,6 +100,7 @@ impl BotsConfig {
             character: BOT_BODIES[index % BOT_BODIES.len()],
             level: self.level,
             style: STYLE_CYCLE[(n + 1) % STYLE_CYCLE.len()],
+            team: None,
         }
     }
 }
@@ -171,6 +175,12 @@ pub fn parse_bots(root: &Map<String, Value>) -> Result<BotsConfig, Vec<String>> 
                 match s.as_str().and_then(Style::parse) {
                     Some(s) => spec.style = s,
                     None => errs.push(format!("{path}.style: must be balanced, rusher, sniper or acrobat")),
+                }
+            }
+            if let Some(t) = b.get("team") {
+                match t.as_u64().filter(|n| *n == 1 || *n == 2) {
+                    Some(n) => spec.team = Some(n as u8),
+                    None => errs.push(format!("{path}.team: must be 1 or 2")),
                 }
             }
             cfg.roster.push(spec);
@@ -1008,7 +1018,14 @@ impl MatchSim {
     pub fn add_bot_in_slot_team(&mut self, slot: usize, spec: &BotSpec, team: u8) -> bool {
         if team != 0 {
             let mut spec = spec.clone();
-            spec.character = if team == 1 { Character::Ridgeback } else { Character::Nightfall };
+            // The team uniform only replaces a bot's requested look in a real loadout match; a non-shooter teamed
+            // scene (hide-and-seek roles, etc.) keeps whatever character the roster asked for.
+            if self.is_loadout() {
+                spec.character = if team == 1 { Character::Ridgeback } else { Character::Nightfall };
+            } else if spec.character == Character::Rat {
+                // A fighter cannot be the rat (it cannot attack), the same rule the no-team path below applies.
+                return false;
+            }
             if !self.add_player_in_slot_team(slot, spec.character, team) {
                 return false;
             }

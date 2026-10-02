@@ -37,12 +37,12 @@ impl App {
     /// Redraws the pause menu overlay (after it opens, the window resizes or the hover changes).
     pub(crate) fn repaint_pause(&mut self) {
         let map = self.scene_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        let status = self.net.as_ref().map(|n| n.status.clone());
+        let status = self.pause_message.clone().or_else(|| self.net.as_ref().map(|n| n.status.clone()));
         let hover = self.pause_hover;
         if let Some(gpu) = self.gpu.as_mut() {
             let (w, h) = (gpu.config.width, gpu.config.height);
             if let Some(live) = gpu.live.as_mut() {
-                live.overlay.set(&gpu.device, &gpu.queue, w, h, &menu::paint_pause(w, h, &map, status.as_deref(), hover));
+                live.overlay.set(&gpu.device, &gpu.queue, w, h, &menu::paint_pause(w, h, &map, status.as_deref(), hover, self.music_on, self.sfx_on));
             }
         }
     }
