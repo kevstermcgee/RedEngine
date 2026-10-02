@@ -191,7 +191,7 @@ impl RelayServer {
     /// Opens this pairing's own small socket to `host`, remembers it under `client`'s exact address, and starts
     /// its forwarding thread. Called the moment a pending-by-IP resolution sees its first real packet.
     fn lock_pairing(&self, client: SocketAddr, host: SocketAddr) {
-        let to_host = match UdpSocket::bind(("0.0.0.0", 0)) {
+        let to_host = match UdpSocket::bind(unspecified_matching(host)) {
             Ok(s) => Arc::new(s),
             Err(e) => {
                 eprintln!("red_relay: could not open a forwarding socket for {client}: {e}");
@@ -260,7 +260,8 @@ impl HostBridge {
         fingerprint: Option<String>,
         stop: Arc<AtomicBool>,
     ) -> io::Result<(HostBridge, [u8; super::relay::CODE_LEN])> {
-        let control = Arc::new(UdpSocket::bind(("0.0.0.0", 0))?);
+        let relay_addr = resolve_relay(relay)?;
+        let control = Arc::new(UdpSocket::bind(unspecified_matching(relay_addr))?);
         control.set_read_timeout(Some(Duration::from_secs(10)))?;
         let code = register_with_retry(&control, relay, fingerprint.clone())?;
         let bridge =
@@ -315,6 +316,18 @@ fn resolve_relay(relay: &str) -> io::Result<SocketAddr> {
     relay.to_socket_addrs()?.next().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("'{relay}' did not resolve to any address")))
 }
 
+/// `UdpSocket::bind(("0.0.0.0", 0))` refuses to talk to an IPv6 peer (`EAFNOSUPPORT`) — a real risk here, not a
+/// theoretical one, since a bare hostname like `localhost` can resolve to `::1` ahead of `127.0.0.1` depending on
+/// the machine's resolver config. Binding "any address of the same family as the peer we're about to talk to"
+/// instead keeps this working regardless of which family a given hostname (or the relay's own public socket)
+/// happens to resolve to.
+fn unspecified_matching(peer: SocketAddr) -> SocketAddr {
+    match peer {
+        SocketAddr::V4(_) => SocketAddr::new(std::net::Ipv4Addr::UNSPECIFIED.into(), 0),
+        SocketAddr::V6(_) => SocketAddr::new(std::net::Ipv6Addr::UNSPECIFIED.into(), 0),
+    }
+}
+
 /// What a joining client does before ever touching `net::quic`: resolve a short code against a relay, getting
 /// back the host's own fingerprint (if it has one) to pin — then treat the relay's resolved address itself
 /// exactly like a normal server address for everything after this (the relay is transparent to the QUIC handshake
@@ -323,7 +336,7 @@ fn resolve_relay(relay: &str) -> io::Result<SocketAddr> {
 /// relay is transparent from there on) alongside the host's fingerprint, if it has one.
 pub fn resolve_code(relay: &str, code: super::relay::RelayCode, timeout: Duration) -> Result<(SocketAddr, Option<String>), String> {
     let relay_addr = resolve_relay(relay).map_err(|e| format!("could not find the relay '{relay}': {e}"))?;
-    let socket = UdpSocket::bind(("0.0.0.0", 0)).map_err(|e| format!("could not reach the relay: {e}"))?;
+    let socket = UdpSocket::bind(unspecified_matching(relay_addr)).map_err(|e| format!("could not reach the relay: {e}"))?;
     socket.set_read_timeout(Some(timeout)).map_err(|e| e.to_string())?;
     socket.send_to(&RelayMessage::Resolve { code }.encode(), relay_addr).map_err(|e| format!("could not reach the relay: {e}"))?;
     let mut buf = [0u8; 256];
