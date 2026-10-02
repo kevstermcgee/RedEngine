@@ -170,6 +170,12 @@ pub(crate) enum AnalysisCmd {
     },
     /// One line per note: date, title, first sentence.
     List,
+    /// Check that the generated cross-game digest in `docs/analysis/README.md` is current (default) or rewrite it (`--write`).
+    Digest {
+        /// Rewrite the digest.
+        #[arg(long)]
+        write: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -714,7 +720,7 @@ pub(crate) enum Command {
         #[command(subcommand)]
         cmd: Option<ServersCmd>,
     },
-    /// Analysis notes (`docs/analysis/`): what a builder reported and what was done about it. `analysis new "Title" [--from file]`, `analysis list`; `search --kind analysis`.
+    /// Analysis notes (`docs/analysis/`): what a builder reported and what was done about it. `analysis new "Title" [--from file]`, `analysis list`, `analysis digest [--write]` (cross-game friction, grouped by feature); `search --kind analysis`.
     Analysis {
         #[command(subcommand)]
         cmd: AnalysisCmd,
