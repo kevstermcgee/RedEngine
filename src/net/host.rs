@@ -49,10 +49,11 @@ pub struct PublicOptions {
     pub upnp: bool,
     /// A join key friends must also know (`None` = none).
     pub key: Option<String>,
-    /// Register with a `red_relay` (docs/HOSTING.md) at this address instead of relying on UPnP/port forwarding:
-    /// a friend then joins with a short code rather than an address at all, and this works even behind
-    /// carrier-grade NAT (ADR 0031: nothing UPnP does can fix that; a relay sidesteps it instead of trying to).
-    pub relay: Option<SocketAddr>,
+    /// Register with a `red_relay` (docs/HOSTING.md) at this `HOST:PORT` instead of relying on UPnP/port
+    /// forwarding: a friend then joins with a short code rather than an address at all, and this works even
+    /// behind carrier-grade NAT (ADR 0031: nothing UPnP does can fix that; a relay sidesteps it instead of trying
+    /// to). A hostname (a DuckDNS name, say) works here, re-resolved on every use — not just a literal address.
+    pub relay: Option<String>,
 }
 
 impl Default for HostOptions {
@@ -211,13 +212,13 @@ impl LocalHost {
             }
         }
         let (mut relay_code, mut relay_note, mut relay_bridge) = (None, None, None);
-        if let Some(relay_addr) = public.and_then(|p| p.relay) {
-            match super::relay_server::HostBridge::start(relay_addr, addr, fingerprint.clone(), stop.clone()) {
+        if let Some(relay) = public.and_then(|p| p.relay.as_deref()) {
+            match super::relay_server::HostBridge::start(relay, addr, fingerprint.clone(), stop.clone()) {
                 Ok((bridge, code)) => {
                     relay_code = Some(super::relay::code_to_string(&code));
                     relay_bridge = Some(bridge);
                 }
-                Err(e) => relay_note = Some(format!("the relay at {relay_addr} did not answer ({e}); friends can still join another way")),
+                Err(e) => relay_note = Some(format!("the relay at '{relay}' did not answer ({e}); friends can still join another way")),
             }
         }
         raise_timer_resolution();

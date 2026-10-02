@@ -39,6 +39,12 @@ unchanged — the relay sees ciphertext, exactly like any NAT box on the path al
   ADR 0044's "fail closed, never downgrade" rule is not touched: a relayed connection with no fingerprint (a
   loopback dev-udp host, relayed) is still refused by the client's own existing rule, since the relay's address is
   never loopback.
+- **The relay's own address is a hostname, not just a literal IP, resolved fresh on every use**
+  (`net::relay_server::resolve_relay`, `std::net::ToSocketAddrs`) — `--relay`/`RE2_RELAY`/`PublicOptions::relay`
+  all take a `HOST:PORT` string. A dynamic-DNS name (DuckDNS, say) is the point of this rather than a cosmetic
+  nicety: a relay runs as a long-lived service on a residential connection whose IP can itself change, and
+  caching one resolved address at startup would go stale exactly when a dynamic-DNS name is doing its job. The
+  host's keepalive and every client's resolve each re-resolve independently, never reusing an old lookup.
 - **Host-side bridging**: `net::relay_server::HostBridge` is the mirror image on the hosting machine — it
   registers once (repeating as a keepalive), then bridges every distinct address the relay forwards from to the
   real local game server over loopback, one small local socket per remote joiner, for the same per-peer-identity

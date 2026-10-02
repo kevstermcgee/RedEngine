@@ -94,7 +94,7 @@ fn main() {
     let (mut record, mut record_every, mut no_interest) = (None::<PathBuf>, 6u32, false);
     let (mut key, mut lobby) = (env::<String>("RED_KEY"), env::<u8>("RED_LOBBY").unwrap_or(0) != 0);
     let mut upnp = env::<u8>("RED_UPNP").unwrap_or(0) != 0;
-    let mut relay: Option<SocketAddr> = env("RED_RELAY");
+    let mut relay: Option<String> = env("RED_RELAY");
     let (mut fill, mut bot_skill) = (env::<usize>("RED_FILL"), env::<String>("RED_BOT_SKILL"));
     let (mut tls_cert, mut tls_key) = (env::<PathBuf>("RED_TLS_CERT"), env::<PathBuf>("RED_TLS_KEY"));
     let mut dev_udp = env::<u8>("RED_DEV_UDP").unwrap_or(0) != 0;
@@ -125,7 +125,7 @@ fn main() {
             "--key" => key = Some(val()),
             "--lobby" => lobby = true,
             "--upnp" => upnp = true,
-            "--relay" => relay = Some(val().parse().unwrap_or_else(|_| usage())),
+            "--relay" => relay = Some(val()),
             "--fill" => fill = Some(val().parse().unwrap_or_else(|_| usage())),
             "--bot-skill" => bot_skill = Some(val()),
             "--min-players" => ov_min = Some(val().parse().unwrap_or_else(|_| usage())),
@@ -364,13 +364,13 @@ fn main() {
     // Kept alive for the life of `main` (its forwarding threads hold their own handles and need no further
     // attention from here, but dropping it early would be a surprising way to end a feature that looks unused).
     let _relay_bridge =
-        relay.map(|relay_addr| match red_engine2::net::relay_server::HostBridge::start(relay_addr, local, server_fingerprint.clone(), stop.clone()) {
+        relay.as_deref().map(|relay| match red_engine2::net::relay_server::HostBridge::start(relay, local, server_fingerprint.clone(), stop.clone()) {
             Ok((bridge, code)) => {
-                println!("relay {relay_addr}: join with the code {}", red_engine2::net::relay::code_to_string(&code));
+                println!("relay {relay}: join with the code {}", red_engine2::net::relay::code_to_string(&code));
                 Some(bridge)
             }
             Err(e) => {
-                eprintln!("--relay {relay_addr}: {e}");
+                eprintln!("--relay {relay}: {e}");
                 eprintln!("the server keeps running without it; see docs/HOSTING.md for other ways to be reachable");
                 None
             }

@@ -233,7 +233,11 @@ pub const DEFAULT_HOST_KEEPALIVE: Duration = Duration::from_secs(60);
 /// it is being relayed: from their side, each bridged socket is just another local client on loopback.
 pub struct HostBridge {
     control: Arc<UdpSocket>,
-    relay_addr: SocketAddr,
+    /// `HOST:PORT` as given — a literal address or a hostname (e.g. a DuckDNS name): re-resolved on every use
+    /// (`register_with_retry`, the keepalive), never cached, so a dynamic-DNS relay address actually behaves like
+    /// one — the whole point of such a name is that the IP behind it can change without anyone reconfiguring
+    /// anything.
+    relay: String,
     local_game_addr: SocketAddr,
     /// The game server's own TLS fingerprint (`sha256:<64 hex>`), if it has one, passed through to every joiner
     /// via the relay so nobody ever has to see or type it.
@@ -251,15 +255,16 @@ impl HostBridge {
     /// loopback development-UDP server — passed through to joining clients so they verify the real host without
     /// ever needing to see or type it themselves.
     pub fn start(
-        relay_addr: SocketAddr,
+        relay: &str,
         local_game_addr: SocketAddr,
         fingerprint: Option<String>,
         stop: Arc<AtomicBool>,
     ) -> io::Result<(HostBridge, [u8; super::relay::CODE_LEN])> {
         let control = Arc::new(UdpSocket::bind(("0.0.0.0", 0))?);
         control.set_read_timeout(Some(Duration::from_secs(10)))?;
-        let code = register_with_retry(&control, relay_addr, fingerprint.clone())?;
-        let bridge = HostBridge { control: control.clone(), relay_addr, local_game_addr, fingerprint, bridges: Arc::new(Mutex::new(HashMap::new())) };
+        let code = register_with_retry(&control, relay, fingerprint.clone())?;
+        let bridge =
+            HostBridge { control: control.clone(), relay: relay.to_string(), local_game_addr, fingerprint, bridges: Arc::new(Mutex::new(HashMap::new())) };
         bridge.spawn_keepalive(stop.clone());
         bridge.spawn_forwarding(stop);
         Ok((bridge, code))
@@ -267,12 +272,14 @@ impl HostBridge {
 
     fn spawn_keepalive(&self, stop: Arc<AtomicBool>) {
         let control = self.control.clone();
-        let relay_addr = self.relay_addr;
+        let relay = self.relay.clone();
         let fingerprint = self.fingerprint.clone();
         std::thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
                 std::thread::sleep(DEFAULT_HOST_KEEPALIVE);
-                let _ = control.send_to(&RelayMessage::Register { fingerprint: fingerprint.clone() }.encode(), relay_addr);
+                if let Ok(relay_addr) = resolve_relay(&relay) {
+                    let _ = control.send_to(&RelayMessage::Register { fingerprint: fingerprint.clone() }.encode(), relay_addr);
+                }
             }
         });
     }
@@ -300,30 +307,41 @@ impl HostBridge {
     }
 }
 
+/// Resolves `relay` (`HOST:PORT`, a literal address or a hostname — a DuckDNS name, say) fresh, never cached:
+/// re-resolving on every use is what makes a dynamic-DNS relay address actually behave like one, since the whole
+/// point of such a name is that the IP behind it can change without anyone having to reconfigure anything.
+fn resolve_relay(relay: &str) -> io::Result<SocketAddr> {
+    use std::net::ToSocketAddrs;
+    relay.to_socket_addrs()?.next().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("'{relay}' did not resolve to any address")))
+}
+
 /// What a joining client does before ever touching `net::quic`: resolve a short code against a relay, getting
-/// back the host's own fingerprint (if it has one) to pin — then treat `relay_addr` itself exactly like a normal
-/// server address for everything after this (the relay is transparent to the QUIC handshake that follows; see
-/// this module's own doc comment for why a different local port for that handshake is fine).
-pub fn resolve_code(relay_addr: SocketAddr, code: super::relay::RelayCode, timeout: Duration) -> Result<Option<String>, String> {
+/// back the host's own fingerprint (if it has one) to pin — then treat the relay's resolved address itself
+/// exactly like a normal server address for everything after this (the relay is transparent to the QUIC handshake
+/// that follows; see this module's own doc comment for why a different local port for that handshake is fine).
+/// Returns the relay's own resolved address (what the caller should actually open its QUIC connection to — the
+/// relay is transparent from there on) alongside the host's fingerprint, if it has one.
+pub fn resolve_code(relay: &str, code: super::relay::RelayCode, timeout: Duration) -> Result<(SocketAddr, Option<String>), String> {
+    let relay_addr = resolve_relay(relay).map_err(|e| format!("could not find the relay '{relay}': {e}"))?;
     let socket = UdpSocket::bind(("0.0.0.0", 0)).map_err(|e| format!("could not reach the relay: {e}"))?;
     socket.set_read_timeout(Some(timeout)).map_err(|e| e.to_string())?;
     socket.send_to(&RelayMessage::Resolve { code }.encode(), relay_addr).map_err(|e| format!("could not reach the relay: {e}"))?;
     let mut buf = [0u8; 256];
-    let (n, from) =
-        socket.recv_from(&mut buf).map_err(|_| format!("the relay at {relay_addr} did not answer: check the address and your internet connection"))?;
+    let (n, from) = socket.recv_from(&mut buf).map_err(|_| format!("the relay at {relay} did not answer: check the address and your internet connection"))?;
     if from != relay_addr {
         return Err("got a reply from somewhere other than the relay: try again".to_string());
     }
     match RelayMessage::decode(&buf[..n]) {
-        Some(RelayMessage::Resolved { fingerprint }) => Ok(fingerprint),
+        Some(RelayMessage::Resolved { fingerprint }) => Ok((relay_addr, fingerprint)),
         Some(RelayMessage::CodeNotFound) => Err("that code is not live: ask your friend for a fresh one".to_string()),
         _ => Err("the relay sent something unexpected: try again".to_string()),
     }
 }
 
-fn register_with_retry(control: &UdpSocket, relay_addr: SocketAddr, fingerprint: Option<String>) -> io::Result<[u8; super::relay::CODE_LEN]> {
+fn register_with_retry(control: &UdpSocket, relay: &str, fingerprint: Option<String>) -> io::Result<[u8; super::relay::CODE_LEN]> {
     let mut buf = [0u8; 128];
     for _ in 0..5 {
+        let relay_addr = resolve_relay(relay)?;
         control.send_to(&RelayMessage::Register { fingerprint: fingerprint.clone() }.encode(), relay_addr)?;
         match control.recv_from(&mut buf) {
             Ok((n, from)) if from == relay_addr => {
@@ -334,7 +352,7 @@ fn register_with_retry(control: &UdpSocket, relay_addr: SocketAddr, fingerprint:
             _ => {}
         }
     }
-    Err(io::Error::new(io::ErrorKind::TimedOut, format!("the relay at {relay_addr} never answered Register")))
+    Err(io::Error::new(io::ErrorKind::TimedOut, format!("the relay at '{relay}' never answered Register")))
 }
 
 /// One datagram arriving from the relay, on the control socket: if it is already a known remote (a joined
@@ -437,7 +455,7 @@ mod tests {
 
             let stop = Arc::new(AtomicBool::new(false));
             let _stop_guard = StopOnDrop(&stop);
-            let (bridge, code) = HostBridge::start(relay_addr, game_addr, None, stop.clone()).unwrap();
+            let (bridge, code) = HostBridge::start(&relay_addr.to_string(), game_addr, None, stop.clone()).unwrap();
 
             let client = UdpSocket::bind(loopback()).unwrap();
             client.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
@@ -474,15 +492,16 @@ mod tests {
             let game_addr = game_server.local_addr().unwrap();
             let stop = Arc::new(AtomicBool::new(false));
             let _stop_guard = StopOnDrop(&stop);
-            let (_bridge, real_code) = HostBridge::start(relay_addr, game_addr, None, stop.clone()).unwrap();
+            let (_bridge, real_code) = HostBridge::start(&relay_addr.to_string(), game_addr, None, stop.clone()).unwrap();
 
             // First resolve: succeeds, leaves this IP "pending" (no follow-up packet ever sent on this socket).
-            let fp = super::resolve_code(relay_addr, real_code, Duration::from_secs(10)).unwrap();
+            let (resolved_addr, fp) = super::resolve_code(&relay_addr.to_string(), real_code, Duration::from_secs(10)).unwrap();
+            assert_eq!(resolved_addr, relay_addr);
             assert_eq!(fp, None);
 
             // Second, unrelated resolve from the same IP (a different throwaway socket, same as the first):
             // must be looked up on its own, not misrouted as the first resolution's own real traffic.
-            let err = super::resolve_code(relay_addr, generate_code().unwrap(), Duration::from_secs(10)).unwrap_err();
+            let err = super::resolve_code(&relay_addr.to_string(), generate_code().unwrap(), Duration::from_secs(10)).unwrap_err();
             assert!(err.contains("not live"), "{err}");
         });
     }
@@ -496,12 +515,12 @@ mod tests {
             let game_addr = game_server.local_addr().unwrap();
             let stop = Arc::new(AtomicBool::new(false));
             let _stop_guard = StopOnDrop(&stop);
-            let (_bridge, code) = HostBridge::start(relay_addr, game_addr, Some("sha256:aa".to_string()), stop.clone()).unwrap();
+            let (_bridge, code) = HostBridge::start(&relay_addr.to_string(), game_addr, Some("sha256:aa".to_string()), stop.clone()).unwrap();
 
-            let fp = super::resolve_code(relay_addr, code, Duration::from_secs(10)).unwrap();
+            let (_, fp) = super::resolve_code(&relay_addr.to_string(), code, Duration::from_secs(10)).unwrap();
             assert_eq!(fp.as_deref(), Some("sha256:aa"));
 
-            let err = super::resolve_code(relay_addr, generate_code().unwrap(), Duration::from_secs(10)).unwrap_err();
+            let err = super::resolve_code(&relay_addr.to_string(), generate_code().unwrap(), Duration::from_secs(10)).unwrap_err();
             assert!(err.contains("not live"), "{err}");
         });
     }
@@ -519,7 +538,7 @@ mod tests {
             let fingerprint = "sha256:deadbeef00000000000000000000000000000000000000000000000000000001".to_string();
             let stop = Arc::new(AtomicBool::new(false));
             let _stop_guard = StopOnDrop(&stop);
-            let (_bridge, code) = HostBridge::start(relay_addr, game_addr, Some(fingerprint.clone()), stop.clone()).unwrap();
+            let (_bridge, code) = HostBridge::start(&relay_addr.to_string(), game_addr, Some(fingerprint.clone()), stop.clone()).unwrap();
 
             let client = UdpSocket::bind(loopback()).unwrap();
             client.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
@@ -537,6 +556,28 @@ mod tests {
             pending_timeout: Duration::from_millis(300),
             housekeeping_tick: Duration::from_millis(20),
         }
+    }
+
+    #[test]
+    fn a_hostname_not_just_a_literal_address_resolves_to_the_relay() {
+        // A real deployment points a game at a dynamic-DNS name (DuckDNS, say), not a literal IP — "localhost" is
+        // the one hostname guaranteed resolvable in any environment, so it stands in for that here without a
+        // real DNS dependency; `resolve_relay`'s own fresh-every-call resolution is what makes a dynamic-DNS name
+        // actually useful once deployed. This is a genuine hostname lookup, not a numeric-address parse: the
+        // other tests pass `relay_addr.to_string()` (already a literal `ip:port`), which exercises the parsing
+        // half of `ToSocketAddrs` but not the resolver.
+        let relay = RelayServer::bind(fast_options()).unwrap();
+        let relay_addr = relay.local_addr();
+        let relay_host = format!("localhost:{}", relay_addr.port());
+        with_relay_running(&relay, || {
+            let game_server = UdpSocket::bind(loopback()).unwrap();
+            let game_addr = game_server.local_addr().unwrap();
+            let stop = Arc::new(AtomicBool::new(false));
+            let _stop_guard = StopOnDrop(&stop);
+            let (_bridge, code) = HostBridge::start(&relay_host, game_addr, None, stop.clone()).unwrap();
+            let (resolved_addr, _) = super::resolve_code(&relay_host, code, Duration::from_secs(10)).unwrap();
+            assert_eq!(resolved_addr.port(), relay_addr.port(), "the hostname resolved to the relay's real port");
+        });
     }
 
     #[test]

@@ -351,9 +351,10 @@ impl Kc {
     fn start_hosted(&mut self, hosting: bool) {
         let Some(gpu) = self.gpu.as_ref() else { return };
         let skill = ui::SKILLS.get(self.setup.skill as usize).map_or("normal", |s| s.1);
-        // `RE2_RELAY=HOST:PORT`: a red_relay to register with instead of relying on UPnP/port forwarding (see
-        // docs/HOSTING.md) — a friend then joins with a short code, which also works behind carrier-grade NAT.
-        let relay = std::env::var("RE2_RELAY").ok().filter(|v| !v.is_empty()).and_then(|v| v.parse().ok());
+        // `RE2_RELAY=HOST:PORT` (a hostname works too, e.g. a DuckDNS name): a red_relay to register with instead
+        // of relying on UPnP/port forwarding (see docs/HOSTING.md) — a friend then joins with a short code,
+        // which also works behind carrier-grade NAT.
+        let relay = std::env::var("RE2_RELAY").ok().filter(|v| !v.is_empty());
         let public = hosting.then(|| PublicOptions {
             identity_dir: stats::data_dir().unwrap_or_else(|| PathBuf::from(".")).join("host"),
             port: red_engine2::net::DEFAULT_PORT,
@@ -411,13 +412,13 @@ impl Kc {
     fn try_join(&mut self) {
         let Some(gpu) = self.gpu.as_ref() else { return };
         let (addr, fingerprint, key) = if let Some(short) = red_engine2::net::relay::parse_code(&self.join_form.address) {
-            let Some(relay_addr) = std::env::var("RE2_RELAY").ok().filter(|v| !v.is_empty()).and_then(|v| v.parse::<std::net::SocketAddr>().ok()) else {
+            let Some(relay) = std::env::var("RE2_RELAY").ok().filter(|v| !v.is_empty()) else {
                 self.join_form.message = Some("No relay is set up on this PC (RE2_RELAY): ask whoever is hosting for the full join code instead.".to_string());
                 return;
             };
             self.join_form.message = Some("CONNECTING...".to_string());
-            match red_engine2::net::relay_server::resolve_code(relay_addr, short, std::time::Duration::from_secs(5)) {
-                Ok(fingerprint) => (relay_addr, fingerprint, None),
+            match red_engine2::net::relay_server::resolve_code(&relay, short, std::time::Duration::from_secs(5)) {
+                Ok((addr, fingerprint)) => (addr, fingerprint, None),
                 Err(e) => {
                     self.join_form.message = Some(e);
                     return;
