@@ -13,18 +13,18 @@ use crate::schema::{Object, ObjectKind};
 use crate::skeleton::{pose_to_parts, HumanoidRig, PoseSample};
 use crate::track::Track;
 use crate::weapons::{Weapon, MUZZLE_FLASH_TIME, RECOIL_TIME, SWING_RECOVER_SECS, SWING_STRIKE_SECS, SWING_WINDUP_SECS};
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3};
 
 /// Walk cycles a second at the human walk speed (faster and slower scale it).
-pub const WALK_CYCLES_PER_SEC_AT_WALK_SPEED: f32 = 1.6;
+pub const WALK_CYCLES_PER_SEC_AT_WALK_SPEED: f32 = 1.15;
 /// Hip swing at full stride, degrees.
-pub const HIP_SWING_DEG: f32 = 28.0;
+pub const HIP_SWING_DEG: f32 = 24.0;
 /// How far a knee lifts on the forward stroke, degrees.
-pub const KNEE_LIFT_DEG: f32 = 45.0;
+pub const KNEE_LIFT_DEG: f32 = 32.0;
 /// Knee bend at rest, degrees.
 pub const KNEE_REST_DEG: f32 = 4.0;
 /// Arm swing at full stride, degrees.
-pub const SHOULDER_SWING_DEG: f32 = 20.0;
+pub const SHOULDER_SWING_DEG: f32 = 12.0;
 /// Idle sway of the spine, degrees.
 pub const IDLE_SWAY_DEG: f32 = 1.4;
 /// Cheddar's gait phase advances this many radians per metre travelled.
@@ -66,6 +66,23 @@ pub fn swing_blend(elapsed: Option<f32>, idle: f32, windup: f32, strike: f32) ->
     }
 }
 
+/// Knife stroke, shared by first- and third-person presentation: lands at the simulation's melee wind-up, settles by 0.4 seconds.
+pub fn knife_stroke(elapsed: Option<f32>) -> f32 {
+    let Some(t) = elapsed else { return 0.0 };
+    let hit = crate::sim::kit::MELEE_WINDUP_SECS;
+    let smooth = |t: f32| {
+        let t = t.clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    };
+    if t < hit * 0.45 {
+        -0.16 * smooth(t / (hit * 0.45))
+    } else if t < hit {
+        -0.16 + 1.16 * smooth((t - hit * 0.45) / (hit * 0.55))
+    } else {
+        1.0 - smooth((t - hit) / (0.4 - hit))
+    }
+}
+
 /// Recoil kick right after a shot: 1 at the shot, easing to 0 over [`RECOIL_TIME`].
 pub fn recoil_kick(since_shot: f32) -> f32 {
     let f = (since_shot / RECOIL_TIME).clamp(0.0, 1.0);
@@ -83,7 +100,7 @@ pub struct RemoteHand {
     pub yaw: f32,
     /// The player's look pitch, radians.
     pub pitch: f32,
-    /// The bat's pitch, degrees (the swing), when the weapon is the bat.
+    /// A melee weapon's pitch, degrees (the bat's overhead swing or the knife's compact slash).
     pub bat_pitch_deg: f32,
     /// Recoil kick, 1 at a shot easing to 0.
     pub kick: f32,
@@ -102,6 +119,9 @@ pub struct AvatarAnim {
     pub fall: f32,
     /// Seconds into a bat swing.
     pub swing: Option<f32>,
+    stride: f32,
+    last_pos: Option<Vec3>,
+    move_dir: Vec2,
     swinging_before: bool,
     /// Seconds since the last shot (`None` until the first one was seen: nothing to show yet).
     since_shot: Option<f32>,
@@ -152,6 +172,15 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
     let lean = Ease::Out.apply(a.fall) * std::f32::consts::FRAC_PI_2;
 
     let yaw_deg = 180.0 - p.yaw.to_degrees();
+    let displacement = a.last_pos.map_or(Vec3::ZERO, |last| p.pos - last);
+    a.last_pos = Some(p.pos);
+    let local = Quat::from_rotation_y(-yaw_deg.to_radians()) * displacement;
+    if local.x * local.x + local.z * local.z > 0.000001 && displacement.length() < 2.0 {
+        a.move_dir = a.move_dir.lerp(Vec2::new(local.x, local.z).normalize(), (dt * 12.0).min(1.0));
+    }
+    if a.move_dir.length_squared() < 0.001 {
+        a.move_dir = Vec2::Y;
+    }
     o.position = Track::constant(p.pos + Vec3::Y * 0.18 * a.fall);
     o.rotation = Track::constant(if a.fall > 0.0 { fallen_rotation(yaw_deg, lean) } else { Vec3::new(0.0, yaw_deg, 0.0) });
     o.scale = Track::constant(Vec3::ONE);
@@ -159,17 +188,19 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
         (ObjectKind::Humanoid(h), who) if who != Character::Rat => {
             let walk = Character::Human.body().walk_speed;
             let moving = p.speed > 0.05 && !p.dead;
-            let (spine_x, l_hip, r_hip, l_knee, r_knee, l_sh, r_sh) = if moving {
+            let target_stride = if moving { (p.speed / walk).clamp(0.0, 1.15) } else { 0.0 };
+            a.stride += (target_stride - a.stride) * (dt * 10.0).min(1.0);
+            let (spine_x, l_hip, r_hip, l_knee, r_knee, l_sh, r_sh) = if moving || a.stride > 0.01 {
                 a.phase += dt * p.speed * (WALK_CYCLES_PER_SEC_AT_WALK_SPEED / walk) * std::f32::consts::TAU;
                 let ph = a.phase;
                 (
-                    3.0 * (ph * 2.0).sin(),
-                    HIP_SWING_DEG * ph.sin(),
-                    -HIP_SWING_DEG * ph.sin(),
-                    KNEE_REST_DEG + (KNEE_LIFT_DEG * (-ph).sin()).max(0.0),
-                    KNEE_REST_DEG + (KNEE_LIFT_DEG * ph.sin()).max(0.0),
-                    -SHOULDER_SWING_DEG * ph.sin(),
-                    SHOULDER_SWING_DEG * ph.sin(),
+                    1.0 * a.stride,
+                    -HIP_SWING_DEG * ph.sin() * a.stride,
+                    HIP_SWING_DEG * ph.sin() * a.stride,
+                    KNEE_REST_DEG + KNEE_LIFT_DEG * ph.cos().max(0.0) * a.stride,
+                    KNEE_REST_DEG + KNEE_LIFT_DEG * (-ph.cos()).max(0.0) * a.stride,
+                    SHOULDER_SWING_DEG * ph.sin() * a.stride,
+                    -SHOULDER_SWING_DEG * ph.sin() * a.stride,
                 )
             } else {
                 (IDLE_SWAY_DEG * (idle_t * 1.1).sin(), 0.0, 0.0, KNEE_REST_DEG, KNEE_REST_DEG, 0.0, 0.0)
@@ -181,6 +212,9 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
                 (10.0, 20.0)
             } else if aiming {
                 ((AIM_SHOULDER_X - p.pitch.to_degrees() + 14.0 * kick).clamp(-175.0, -20.0), AIM_ELBOW_DEG + 22.0 * kick)
+            } else if weapon == Weapon::Knife {
+                let stroke = knife_stroke(a.swing);
+                (-52.0 - 24.0 * stroke, 32.0 + 8.0 * stroke)
             } else {
                 (
                     swing_blend(a.swing, l_sh, ARM_WINDUP_SHOULDER_X, ARM_STRIKE_SHOULDER_X),
@@ -188,12 +222,16 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
                 )
             };
             let head = Vec3::new(p.pitch.to_degrees().clamp(-60.0, 60.0) * -0.5, 0.0, 0.0);
-            let l_shoulder = Vec3::new(l_sh_x, 0.0, -6.0);
+            let l_shoulder = Vec3::new(l_sh_x, if weapon == Weapon::Knife { 32.0 * knife_stroke(a.swing) } else { 0.0 }, -6.0);
             let r_shoulder = Vec3::new(r_sh, 0.0, 6.0);
             h.pose.spine = Track::constant(Vec3::new(spine_x, 0.0, 0.0));
             h.pose.head = Track::constant(head);
-            h.pose.l_hip = Track::constant(Vec3::new(l_hip, 0.0, 0.0));
-            h.pose.r_hip = Track::constant(Vec3::new(r_hip, 0.0, 0.0));
+            let stance = if p.crouching { 18.0 } else { 0.0 };
+            let l_hip = Vec3::new(l_hip * a.move_dir.y - stance, 0.0, -l_hip * a.move_dir.x);
+            let r_hip = Vec3::new(r_hip * a.move_dir.y - stance, 0.0, -r_hip * a.move_dir.x);
+            let (l_knee, r_knee) = (l_knee + stance * 2.0, r_knee + stance * 2.0);
+            h.pose.l_hip = Track::constant(l_hip);
+            h.pose.r_hip = Track::constant(r_hip);
             h.pose.l_knee = Track::constant(l_knee);
             h.pose.r_knee = Track::constant(r_knee);
             h.pose.l_shoulder = Track::constant(l_shoulder);
@@ -212,13 +250,25 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
                 r_shoulder,
                 l_elbow,
                 r_elbow: KNEE_REST_DEG,
-                l_hip: Vec3::new(l_hip, 0.0, 0.0),
-                r_hip: Vec3::new(r_hip, 0.0, 0.0),
+                l_hip,
+                r_hip,
                 l_knee,
                 r_knee,
             };
-            let forearm = &pose_to_parts(&rig, &sample)[HAND_FOREARM_PART];
-            let body_world = Mat4::from_rotation_translation(Quat::from_rotation_y(yaw_deg.to_radians()), p.pos);
+            let parts = pose_to_parts(&rig, &sample);
+            // Keep the supporting shoe on the ground instead of bobbing the torso through the stride.
+            let lowest = [8usize, 11]
+                .into_iter()
+                .map(|i| {
+                    let foot = &parts[i];
+                    let end = foot.rotation * Vec3::Y * (foot.length * 0.5);
+                    (foot.center.y - end.y.abs()) - foot.radius
+                })
+                .fold(f32::INFINITY, f32::min);
+            let root = p.pos + Vec3::Y * (-lowest).clamp(-0.12, 0.16);
+            o.position = Track::constant(root);
+            let forearm = &parts[HAND_FOREARM_PART];
+            let body_world = Mat4::from_rotation_translation(Quat::from_rotation_y(yaw_deg.to_radians()), root);
             let wrist = (body_world
                 * Mat4::from_rotation_translation(forearm.rotation, forearm.center)
                 * Mat4::from_translation(Vec3::new(0.0, forearm.length * 0.5, 0.0)))
@@ -228,7 +278,11 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
                 wrist,
                 yaw: p.yaw,
                 pitch: p.pitch,
-                bat_pitch_deg: swing_blend(a.swing, BAT_IDLE_PITCH_DEG, WINDUP_PITCH_DEG, STRIKE_PITCH_DEG),
+                bat_pitch_deg: if weapon == Weapon::Knife {
+                    -18.0 + 12.0 * knife_stroke(a.swing)
+                } else {
+                    swing_blend(a.swing, BAT_IDLE_PITCH_DEG, WINDUP_PITCH_DEG, STRIKE_PITCH_DEG)
+                },
                 kick,
                 flash: a.flash(),
                 skin: p.team(),
@@ -249,6 +303,38 @@ pub fn animate(o: &mut Object, who: Character, p: &PlayerPose, a: &mut AvatarAni
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn knife_strike_lands_at_the_server_hit_and_recovers_smoothly() {
+        let hit = crate::sim::kit::MELEE_WINDUP_SECS;
+        assert_eq!(knife_stroke(None), 0.0);
+        assert_eq!(knife_stroke(Some(0.0)), 0.0);
+        assert!((knife_stroke(Some(hit)) - 1.0).abs() < 0.001);
+        assert_eq!(knife_stroke(Some(0.4)), 0.0);
+        for i in 1..400 {
+            assert!((knife_stroke(Some(i as f32 / 1000.0)) - knife_stroke(Some((i - 1) as f32 / 1000.0))).abs() < 0.04);
+        }
+    }
+
+    #[test]
+    fn slow_steps_are_small_and_strafing_moves_the_legs_sideways() {
+        let (mut o, mut a) = (human(), AvatarAnim::default());
+        let mut p = pose(0.0, false, Weapon::Knife, 0, false);
+        p.speed = 0.1;
+        for _ in 0..60 {
+            animate(&mut o, Character::Human, &p, &mut a, 1.0 / 60.0, 0.0);
+        }
+        let ObjectKind::Humanoid(h) = &o.kind else { panic!("human") };
+        assert!(h.pose.l_hip.sample(0.0).length() < 1.0, "creeping should not take full strides");
+        p.speed = 4.6;
+        for _ in 0..90 {
+            p.pos.x += 4.6 / 60.0;
+            animate(&mut o, Character::Human, &p, &mut a, 1.0 / 60.0, 0.0);
+        }
+        let ObjectKind::Humanoid(h) = &o.kind else { panic!("human") };
+        let hip = h.pose.l_hip.sample(0.0);
+        assert!(hip.z.abs() > hip.x.abs() * 3.0, "side steps follow actual movement: {hip:?}");
+    }
     use crate::characters::character_object;
 
     fn pose(x: f32, dead: bool, weapon: Weapon, shots: u8, swinging: bool) -> PlayerPose {

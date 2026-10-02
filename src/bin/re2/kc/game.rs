@@ -1038,10 +1038,10 @@ impl Game {
             self.draw_remote_shot(Weapon::from_wire(weapon), at, yaw, pitch, shooter);
         }
         let Some(audio) = env.audio else { return };
-        let played = env.sounds.play(cue, self.listener(), self.step_count);
         if matches!(cue, Cue::Step) {
-            self.step_count = self.step_count.wrapping_add(1);
+            return; // Killchain deliberately has no footstep playback.
         }
+        let played = env.sounds.play(cue, self.listener(), self.step_count);
         if played.gain > 0.01 && !(in_replay && !matches!(cue, Cue::Death | Cue::Respawn)) {
             audio.play_at(played.clip, played.gain, played.pan);
         }
@@ -1052,6 +1052,11 @@ impl Game {
     /// Whether the scope picture is showing.
     pub fn scoped(&self) -> bool {
         self.scoped_now && self.killcam.is_none()
+    }
+
+    /// Whether a fully raised open optic needs its aiming reticle.
+    pub fn optic_aiming(&self) -> bool {
+        self.killcam.is_none() && !self.paused && !self.own_dead() && self.ads > 0.93 && firearms::has_open_optic(self.weapon)
     }
 
     fn body_under_crosshair(&self) -> bool {
@@ -1108,8 +1113,14 @@ impl Game {
             }
             _ => recoil_kick(self.since_shot),
         };
-        let (offset, rotation) =
-            if weapon == Weapon::Bat { (Vec3::new(0.12, -0.14, 0.34), Mat4::IDENTITY) } else { firearms::held_pose(weapon, aiming, kick, dip) };
+        let (offset, rotation) = if weapon == Weapon::Knife {
+            let elapsed = (self.melee_timer > 0.0).then(|| weapon.kit().cooldown.min(0.4) - self.melee_timer);
+            firearms::knife_pose(elapsed, dip)
+        } else if weapon == Weapon::Bat {
+            (Vec3::new(0.12, -0.14, 0.34), Mat4::IDENTITY)
+        } else {
+            firearms::held_pose(weapon, aiming, kick, dip)
+        };
         let weapon_tf = viewmodel_transform(&self.camera, offset, rotation);
         let scoped = self.scoped();
         let mut fx: FxParams = if in_replay { FxParams::default() } else { self.feel.fx(self.camera.yaw) };

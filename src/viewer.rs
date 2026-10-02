@@ -40,6 +40,12 @@ pub fn remote_hand_transform(h: &RemoteHand) -> Mat4 {
             * basis
             * Mat4::from_rotation_x(-h.pitch - 0.30 * h.kick)
             * Mat4::from_translation(-crate::firearms::grip_anchor(h.weapon))
+    } else if h.weapon == Weapon::Knife {
+        Mat4::from_translation(h.wrist)
+            * basis
+            * Mat4::from_rotation_z(18.0f32.to_radians())
+            * Mat4::from_rotation_x(h.bat_pitch_deg.to_radians())
+            * Mat4::from_translation(-crate::firearms::grip_anchor(h.weapon))
     } else {
         Mat4::from_translation(h.wrist) * basis * Mat4::from_rotation_z(IDLE_ROLL_DEG.to_radians()) * Mat4::from_rotation_x(h.bat_pitch_deg.to_radians())
     }

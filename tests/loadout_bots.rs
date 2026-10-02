@@ -72,3 +72,40 @@ fn bots_never_shoot_their_own_team() {
     assert_eq!(sim.team_kills(), [0, 0]);
     assert!(sim.player(0).unwrap().combat.hp == 100 && sim.player(1).unwrap().combat.hp == 100);
 }
+
+#[test]
+fn full_teams_start_at_distinct_spawns_under_both_policies() {
+    for policy in ["farthest", "round_robin"] {
+        let text = json!({
+            "camera": {"position":[0,1.7,0], "target":[0,1.7,-5]},
+            "combat": {"spawn": policy},
+            "shooter": {"start": ["pistol", "knife"]},
+            "objects": [{"id":"floor","type":"plane","size":[200,200]}]
+        })
+        .to_string();
+        let scene = red_engine2::schema::parse_scene(&text).unwrap();
+        let mut spawns = Vec::new();
+        for team in 1..=2 {
+            for i in 0..6 {
+                spawns.push(Spawn {
+                    id: format!("{team}_{i}"),
+                    group: format!("team{team}"),
+                    position: [if team == 1 { -35.0 } else { 35.0 }, 0.0, i as f32 * 4.0],
+                    yaw_deg: 90.0,
+                });
+            }
+        }
+        let mut sim = MatchSim::new(&scene, spawns);
+        let cfg = BotsConfig::default();
+        for i in 0..12 {
+            assert!(sim.add_bot_in_slot_team(i, &cfg.spec(i), 1 + (i % 2) as u8));
+        }
+        for (a, pa) in sim.players() {
+            for (b, pb) in sim.players() {
+                if a != b {
+                    assert!((pa.state.pos - pb.state.pos).length() >= 2.5, "{policy}: {a} and {b} overlap");
+                }
+            }
+        }
+    }
+}

@@ -1,5 +1,5 @@
 //! Render every weapon of the loadout arsenal, in hand, for both teams, into two contact sheets (no window).
-//! Run: cargo run --example arsenal_poses -- <output-directory> [aim]
+//! Run: cargo run --example arsenal_poses -- <output-directory> [aim|hip] [knife-seconds]
 #[cfg(feature = "gfx")]
 fn main() -> anyhow::Result<()> {
     use glam::{Mat4, Vec3};
@@ -12,6 +12,7 @@ fn main() -> anyhow::Result<()> {
     };
     let out = std::path::PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "out/arsenal".into()));
     let aimed = std::env::args().nth(2).as_deref() == Some("aim");
+    let knife_time = std::env::args().nth(3).and_then(|v| v.parse::<f32>().ok());
     std::fs::create_dir_all(&out)?;
     let scene = red_engine2::schema::parse_scene(
         r##"{
@@ -34,8 +35,21 @@ fn main() -> anyhow::Result<()> {
             if ads > 0.0 {
                 camera.fov_deg = (2.0 * (1.0 / weapon.aim_magnification()).atan()).to_degrees();
             }
-            let (offset, rotation) =
-                if weapon == Weapon::Bat { (Vec3::new(0.1, -0.125, 0.3), Mat4::IDENTITY) } else { firearms::held_pose(weapon, ads, 0.0, 0.0) };
+            let scoped = ads > 0.0 && weapon.kit().scoped;
+            let mut overlay = red_engine2::ui::Canvas::new(targets.width, targets.height);
+            if scoped {
+                red_engine2::ui::killchain::paint_scope(&mut overlay);
+            } else if ads > 0.0 && firearms::has_open_optic(weapon) {
+                red_engine2::ui::killchain::paint_optic_reticle(&mut overlay);
+            }
+            renderer.overlay.set(&gpu.device, &gpu.queue, targets.width, targets.height, &overlay.px);
+            let (offset, rotation) = if weapon == Weapon::Knife {
+                firearms::knife_pose(knife_time, 0.0)
+            } else if weapon == Weapon::Bat {
+                (Vec3::new(0.1, -0.125, 0.3), Mat4::IDENTITY)
+            } else {
+                firearms::held_pose(weapon, ads, 0.0, 0.0)
+            };
             renderer.render_ex(
                 &gpu.device,
                 &gpu.queue,
@@ -46,7 +60,7 @@ fn main() -> anyhow::Result<()> {
                 false,
                 viewmodel_transform(&camera, offset, rotation),
                 Mat4::from_scale(Vec3::splat(0.00001)),
-                FrameOptions { weapon, crosshair: false, viewmodel: true, pickup: false, muzzle_flash: 0.0, skin, ..FrameOptions::default() },
+                FrameOptions { weapon, crosshair: false, viewmodel: !scoped, pickup: false, muzzle_flash: 0.0, skin, ..FrameOptions::default() },
             );
             let mut encoder = gpu.device.create_command_encoder(&Default::default());
             encoder.copy_texture_to_buffer(

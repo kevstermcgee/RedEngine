@@ -26,7 +26,7 @@ pub const AFTER_THROW_TICKS: u16 = secs_to_ticks(0.7) as u16;
 /// Ticks of a dry click.
 pub const DRY_TICKS: u16 = secs_to_ticks(0.25) as u16;
 /// Seconds a knife's slash takes to land.
-const MELEE_WINDUP_SECS: f32 = 0.11;
+pub const MELEE_WINDUP_SECS: f32 = crate::sim::clock::ticks_to_secs(crate::sim::clock::secs_to_ticks(0.11));
 /// Horizontal distance within which walking over a weapon picks it up, m.
 pub const PICKUP_RADIUS: f32 = 1.15;
 /// Horizontal distance within which pressing interact picks a weapon up, m.

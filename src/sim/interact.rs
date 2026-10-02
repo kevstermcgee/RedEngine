@@ -300,8 +300,27 @@ impl MatchSim {
     /// The spawn among `candidates` (indices into the spawn list) for `slot`; `start` is the round-robin position in that list.
     fn pick_from(&mut self, slot: usize, team: u8, candidates: &[usize], start: usize) -> Spawn {
         let n = candidates.len();
+        // Occupancy is independent of enemy safety: teammates must never share a spawn when another is free.
+        let occupants: Vec<Vec3> =
+            self.players().filter(|(s, p)| *s != slot && !p.combat.is_dead()).map(|(_, p)| Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y)).collect();
+        let clearance = |i: usize| {
+            let at = Vec3::from(self.spawns[i].position);
+            occupants.iter().filter(|p| (p.y - at.y).abs() < 1.8).map(|p| Vec2::new(p.x - at.x, p.z - at.z).length()).fold(f32::INFINITY, f32::min)
+        };
+        let free: Vec<usize> = (0..n).map(|k| candidates[(start + k) % n]).filter(|i| clearance(*i) >= 2.5).collect();
+        if free.is_empty() {
+            // A crowded map still gets the greatest available personal space, with stable round-robin ties.
+            let mut best = (f32::NEG_INFINITY, candidates[start]);
+            for k in 0..n {
+                let i = candidates[(start + k) % n];
+                if clearance(i) > best.0 {
+                    best = (clearance(i), i);
+                }
+            }
+            return self.spawns[best.1].clone();
+        }
         if self.combat_cfg.spawn != SpawnPolicy::Farthest {
-            return self.spawns[candidates[start]].clone();
+            return self.spawns[free[0]].clone();
         }
         let others: Vec<(usize, Vec3, Vec3)> = self
             .players()
@@ -312,11 +331,10 @@ impl MatchSim {
             })
             .collect();
         if others.is_empty() {
-            return self.spawns[candidates[start]].clone();
+            return self.spawns[free[0]].clone();
         }
         let mut best = (f32::NEG_INFINITY, candidates[start]);
-        for k in 0..n {
-            let i = candidates[(start + k) % n];
+        for i in free {
             let at = Vec3::from(self.spawns[i].position);
             let (mut nearest, mut seen) = (f32::INFINITY, false);
             for (other, feet, eye) in &others {

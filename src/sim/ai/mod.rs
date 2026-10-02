@@ -539,10 +539,18 @@ impl Brain {
     }
 
     /// The nearest weapon worth walking to: better than anything the bot holds, or fitting an empty slot.
-    fn pickup_goal(&mut self, sim: &MatchSim, me: &ServerPlayer, now: u64) -> Option<Vec3> {
+    fn pickup_goal(&mut self, sim: &MatchSim, slot: usize, me: &ServerPlayer, now: u64) -> Option<Vec3> {
         let kit = me.combat.kit.as_ref()?;
         let arena = sim.arena()?;
-        if now < self.pickup_until {
+        if now < self.pickup_until && self.pickup_goal.is_none() {
+            return None;
+        }
+        if now < self.pickup_until
+            && self.pickup_goal.is_some_and(|goal| {
+                arena.pickups.iter().any(|m| m.taken_until.is_none() && (m.spawn.at - goal).length() < 0.1)
+                    || arena.dropped.iter().any(|d| (d.pos - goal).length() < 0.1)
+            })
+        {
             return self.pickup_goal;
         }
         self.pickup_until = now + secs(2.0);
@@ -576,7 +584,17 @@ impl Brain {
                 }
             };
             let d = (pos - here).length();
-            let score = value * 10.0 - d * 0.35;
+            // Prefer a different pickup when a teammate is already heading here or standing beside it.
+            // Claims expire with the brain's decision; no reservation state enters the simulation or wire format.
+            let congestion = sim
+                .players()
+                .filter(|(s, p)| *s != slot && p.team == me.team && !p.combat.is_dead())
+                .filter(|(s, p)| {
+                    (Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y) - pos).length() < 3.0
+                        || sim.brain(*s).is_some_and(|b| now < b.pickup_until && b.pickup_goal.is_some_and(|g| (g - pos).length() < 2.0))
+                })
+                .count() as f32;
+            let score = value * 10.0 - d * 0.35 - congestion * 35.0;
             if d < 70.0 && best.is_none_or(|b| score > b.0) {
                 best = Some((score, pos));
             }
@@ -810,7 +828,7 @@ impl Brain {
                     }
                 }
             }
-        } else if let Some(goal) = self.pickup_goal(sim, me, now).filter(|_| me.combat.kit.is_some()) {
+        } else if let Some(goal) = self.pickup_goal(sim, slot, me, now).filter(|_| me.combat.kit.is_some()) {
             let to = Vec2::new(goal.x - pos.x, goal.z - pos.y);
             if let Some(nav) = sim.nav() {
                 steer = self.route.steer(nav, &me.state, grounded, goal, now);
@@ -846,7 +864,14 @@ impl Brain {
             }
         }
         if apart.length_squared() > 0.0 && !committed {
-            want = if want.length_squared() > 0.001 { want.normalize() + apart * 1.5 } else { apart };
+            // Escape overlapping bodies first: normalizing the goal used to overpower the small separation push.
+            want = if apart.length_squared() > 0.25 {
+                apart.normalize()
+            } else if want.length_squared() > 0.001 {
+                want.normalize() + apart * 2.5
+            } else {
+                apart
+            };
         }
         self.last_want = want;
         if want.length_squared() > 0.001 {
@@ -873,6 +898,10 @@ impl Brain {
             input.forward = (d.dot(fwd) * 127.0).round().clamp(-127.0, 127.0) as i8;
             input.strafe = (d.dot(right) * 127.0).round().clamp(-127.0, 127.0) as i8;
             input.analog = true;
+            // Slow down while giving way, instead of racing back and forth through the same waypoint.
+            if apart.length_squared() > 0.01 {
+                input.sprint = false;
+            }
         } else {
             self.heading = Vec2::ZERO;
         }
@@ -1063,6 +1092,34 @@ impl MatchSim {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn teammates_choose_different_pickups_and_abandon_taken_goals_immediately() {
+        let scene = crate::schema::parse_scene(
+            r#"{
+            "camera":{"position":[0,1.7,0],"target":[0,1.7,-5]},
+            "shooter":{"start":["pistol","knife"],"pickups":[
+                {"weapon":"rifle","at":[-10,0.3,0]}, {"weapon":"rifle","at":[10,0.3,0]}]},
+            "objects":[{"id":"floor","type":"plane","size":[100,100]}]
+        }"#,
+        )
+        .unwrap();
+        let spawn = crate::sim::spawns::Spawn { id: "s".into(), position: [0.0; 3], yaw_deg: 0.0, group: String::new() };
+        let mut sim = MatchSim::new(&scene, vec![spawn]);
+        let cfg = BotsConfig::default();
+        assert!(sim.add_bot_in_slot_team(0, &cfg.spec(0), 1));
+        assert!(sim.add_bot_in_slot_team(1, &cfg.spec(1), 1));
+        let mut first = sim.bots[0].take().unwrap();
+        let goal = first.pickup_goal(&sim, 0, sim.player(0).unwrap(), 0).unwrap();
+        sim.bots[0] = Some(first);
+        let mut second = sim.bots[1].take().unwrap();
+        let other = second.pickup_goal(&sim, 1, sim.player(1).unwrap(), 0).unwrap();
+        assert!((goal - other).length() > 10.0, "same-value pickups should split the team");
+        let arena = sim.arena.as_mut().unwrap();
+        arena.pickups.iter_mut().find(|m| m.spawn.at == other).unwrap().taken_until = Some(500);
+        let next = second.pickup_goal(&sim, 1, sim.player(1).unwrap(), 1).unwrap();
+        assert_ne!(other, next, "a consumed pickup is abandoned before the two-second decision expires");
+    }
 
     fn root(s: &str) -> Map<String, Value> {
         serde_json::from_str::<Value>(s).unwrap().as_object().unwrap().clone()
