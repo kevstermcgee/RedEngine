@@ -19,6 +19,8 @@
 //! a Windows "allow access?" prompt. Hosting for other machines is an explicit choice: `--public` (= `--bind 0.0.0.0`), `--bind IP`, or `--upnp`.
 //!
 //! `--upnp` opens the UDP port on the home router (UPnP, see `red_engine2 portmap`), renews it while the server runs and removes it on exit.
+//! `--relay HOST:PORT` registers with a `red_relay` (`docs/HOSTING.md`) instead: no port forwarding, UPnP or public bind needed at all (the
+//! server can stay loopback-only even while relayed) — a friend joins with the short code this prints, not an address.
 //! `--key` makes joining need a key: clients prove they know it without sending it, and every datagram is authenticated (ADR 0028).
 //! `--fill N` aims for N players in the match, humans included, and fills the empty slots with AI bots (a joining human takes a bot's place;
 //! `--fill 0` means no bots even if the map asks for them); `--bot-skill` sets their level (`rookie`, `easy`, `normal`, `hard`, `nightmare` or 0 to 1).
@@ -50,7 +52,7 @@ use std::time::Duration;
 fn usage() -> ! {
     eprintln!(
         "usage: red_server [--map FILE] [--port N] [--bind IP | --public] [--spawn-group NAME] [--demo-kick OBJECT_ID]\n                  [--snapshot-every N] [--timeout-ms N] [--stats-secs N] [--run-for SECS]
-                  [--record TRACE.json] [--record-every N] [--no-interest] [--key K|auto] [--lobby] [--upnp]
+                  [--record TRACE.json] [--record-every N] [--no-interest] [--key K|auto] [--lobby] [--upnp] [--relay HOST:PORT]
                   [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]
                   [--fill N] [--bot-skill LEVEL]
                   [--tls-cert CERT.pem --tls-key KEY.pem] [--max-connections N] [--dev-udp] [--insecure-public-udp]"
@@ -92,6 +94,7 @@ fn main() {
     let (mut record, mut record_every, mut no_interest) = (None::<PathBuf>, 6u32, false);
     let (mut key, mut lobby) = (env::<String>("RED_KEY"), env::<u8>("RED_LOBBY").unwrap_or(0) != 0);
     let mut upnp = env::<u8>("RED_UPNP").unwrap_or(0) != 0;
+    let mut relay: Option<SocketAddr> = env("RED_RELAY");
     let (mut fill, mut bot_skill) = (env::<usize>("RED_FILL"), env::<String>("RED_BOT_SKILL"));
     let (mut tls_cert, mut tls_key) = (env::<PathBuf>("RED_TLS_CERT"), env::<PathBuf>("RED_TLS_KEY"));
     let mut dev_udp = env::<u8>("RED_DEV_UDP").unwrap_or(0) != 0;
@@ -122,6 +125,7 @@ fn main() {
             "--key" => key = Some(val()),
             "--lobby" => lobby = true,
             "--upnp" => upnp = true,
+            "--relay" => relay = Some(val().parse().unwrap_or_else(|_| usage())),
             "--fill" => fill = Some(val().parse().unwrap_or_else(|_| usage())),
             "--bot-skill" => bot_skill = Some(val()),
             "--min-players" => ov_min = Some(val().parse().unwrap_or_else(|_| usage())),
@@ -215,7 +219,7 @@ fn main() {
     cfg.stats_every = (stats_secs > 0).then(|| Duration::from_secs(stats_secs));
     // The transport: QUIC with the deployment's identity, or development UDP where that is allowed. Never both, never a fallback.
     let addr = SocketAddr::new(bind, port);
-    let transport: Box<dyn red_engine2::net::transport::ServerTransport> = match (tls_cert, tls_key, dev_udp) {
+    let (transport, server_fingerprint): (Box<dyn red_engine2::net::transport::ServerTransport>, Option<String>) = match (tls_cert, tls_key, dev_udp) {
         (Some(_), Some(_), true) => fail("--dev-udp cannot be combined with --tls-cert/--tls-key: choose one transport"),
         (Some(cert), Some(key_file), false) => {
             let identity = red_engine2::net::quic::ServerIdentity::load(&cert, &key_file).unwrap_or_else(|e| {
@@ -225,7 +229,8 @@ fn main() {
             let t = red_engine2::net::quic::QuicServer::bind(addr, &identity, opts).unwrap_or_else(|e| fail(&format!("cannot listen on {addr} (QUIC): {e}")));
             println!("transport: quic (TLS 1.3, encrypted); server identity {}", t.fingerprint());
             println!("clients verify it with:  --server-fingerprint {}", t.fingerprint());
-            Box::new(t)
+            let fingerprint = t.fingerprint().to_string();
+            (Box::new(t), Some(fingerprint))
         }
         (Some(_), None, _) | (None, Some(_), _) => fail("--tls-cert and --tls-key go together"),
         (None, None, _) => {
@@ -238,7 +243,7 @@ fn main() {
             } else {
                 println!("WARNING transport: dev-udp on {addr} (--insecure-public-udp): traffic is NOT encrypted and clients cannot verify this server");
             }
-            Box::new(t)
+            (Box::new(t), None)
         }
     };
     let mut server = Server::with_transport(cfg, sim, transport).unwrap_or_else(|e| fail(&format!("cannot start the server: {e}")));
@@ -347,6 +352,29 @@ fn main() {
             }
         }
     });
+    // A relay (`red_relay`, docs/HOSTING.md): registers this server for a short code, so a friend can join without
+    // any port forwarding, UPnP or public bind at all — the server can stay loopback-only even while relayed.
+    // Relayed traffic genuinely crosses the open internet even though the bind itself stays loopback, so a
+    // dev-udp host (no --tls-cert/--tls-key) relays with no fingerprint: a joining client's own fail-closed rule
+    // (ADR 0044) then correctly refuses that connection rather than ever sending it in the clear.
+    if relay.is_some() && server_fingerprint.is_none() {
+        eprintln!("--relay without --tls-cert/--tls-key: joiners will be refused (fail-closed, ADR 0044) since there is no identity to pin");
+        eprintln!("make one with `red_engine2 net-identity --out DIR` and pass --tls-cert/--tls-key, or relaying will not let anyone in");
+    }
+    // Kept alive for the life of `main` (its forwarding threads hold their own handles and need no further
+    // attention from here, but dropping it early would be a surprising way to end a feature that looks unused).
+    let _relay_bridge =
+        relay.map(|relay_addr| match red_engine2::net::relay_server::HostBridge::start(relay_addr, local, server_fingerprint.clone(), stop.clone()) {
+            Ok((bridge, code)) => {
+                println!("relay {relay_addr}: join with the code {}", red_engine2::net::relay::code_to_string(&code));
+                Some(bridge)
+            }
+            Err(e) => {
+                eprintln!("--relay {relay_addr}: {e}");
+                eprintln!("the server keeps running without it; see docs/HOSTING.md for other ways to be reachable");
+                None
+            }
+        });
     if let Some(secs) = run_for {
         let s = stop.clone();
         std::thread::spawn(move || {

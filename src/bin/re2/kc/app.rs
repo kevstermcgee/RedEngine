@@ -351,11 +351,15 @@ impl Kc {
     fn start_hosted(&mut self, hosting: bool) {
         let Some(gpu) = self.gpu.as_ref() else { return };
         let skill = ui::SKILLS.get(self.setup.skill as usize).map_or("normal", |s| s.1);
+        // `RE2_RELAY=HOST:PORT`: a red_relay to register with instead of relying on UPnP/port forwarding (see
+        // docs/HOSTING.md) — a friend then joins with a short code, which also works behind carrier-grade NAT.
+        let relay = std::env::var("RE2_RELAY").ok().filter(|v| !v.is_empty()).and_then(|v| v.parse().ok());
         let public = hosting.then(|| PublicOptions {
             identity_dir: stats::data_dir().unwrap_or_else(|| PathBuf::from(".")).join("host"),
             port: red_engine2::net::DEFAULT_PORT,
             upnp: true,
             key: red_engine2::net::auth::random_key().ok().map(|k| k[..8].to_string()),
+            relay,
         });
         let opts = HostOptions {
             fill: Some(if self.setup.bots { 12 } else { 0 }),
@@ -385,8 +389,11 @@ impl Kc {
         let name = self.clean_name();
         match Game::start(gpu, &self.opts.scene, Connection { cfg, team: 0 }, true, &name) {
             Ok(mut game) => {
-                game.join_codes = host.join_codes().iter().map(JoinCode::format).collect();
-                game.notice = host.upnp_note().map(str::to_string);
+                // The relay's short code, when there is one, is the preferred thing shown to a host: the whole
+                // point of it is to not need to read an address or a fingerprint aloud. `join_codes.first()` is
+                // what the lobby screen actually displays (`FRIENDS JOIN AT ...`), so it goes first.
+                game.join_codes = host.relay_code().map(str::to_string).into_iter().chain(host.join_codes().iter().map(JoinCode::format)).collect();
+                game.notice = host.relay_note().map(str::to_string).or_else(|| host.upnp_note().map(str::to_string));
                 self.game = Some(game);
                 self.host = Some(host);
                 self.screen = Screen::InGame;
@@ -398,23 +405,41 @@ impl Kc {
         }
     }
 
-    /// JOIN: parses the code and connects.
+    /// JOIN: parses the code and connects. A short relay code (`net::relay::parse_code`) is resolved against
+    /// `RE2_RELAY` first — the fingerprint it needs still comes through end-to-end (ADR 0044), the player just
+    /// never has to see or type it. Anything else is the long-form `HOST:PORT#fingerprint#key`.
     fn try_join(&mut self) {
         let Some(gpu) = self.gpu.as_ref() else { return };
-        let code = match JoinCode::parse(&self.join_form.address) {
-            Ok(c) => c,
-            Err(e) => {
-                self.join_form.message = Some(e);
+        let (addr, fingerprint, key) = if let Some(short) = red_engine2::net::relay::parse_code(&self.join_form.address) {
+            let Some(relay_addr) = std::env::var("RE2_RELAY").ok().filter(|v| !v.is_empty()).and_then(|v| v.parse::<std::net::SocketAddr>().ok()) else {
+                self.join_form.message = Some("No relay is set up on this PC (RE2_RELAY): ask whoever is hosting for the full join code instead.".to_string());
                 return;
+            };
+            self.join_form.message = Some("CONNECTING...".to_string());
+            match red_engine2::net::relay_server::resolve_code(relay_addr, short, std::time::Duration::from_secs(5)) {
+                Ok(fingerprint) => (relay_addr, fingerprint, None),
+                Err(e) => {
+                    self.join_form.message = Some(e);
+                    return;
+                }
             }
-        };
-        let Some(addr) = std::net::ToSocketAddrs::to_socket_addrs(&code.address).ok().and_then(|mut i| i.next()) else {
-            self.join_form.message = Some(format!("Cannot find '{}'. Check the code and your internet connection.", code.address));
-            return;
+        } else {
+            let code = match JoinCode::parse(&self.join_form.address) {
+                Ok(c) => c,
+                Err(e) => {
+                    self.join_form.message = Some(e);
+                    return;
+                }
+            };
+            let Some(addr) = std::net::ToSocketAddrs::to_socket_addrs(&code.address).ok().and_then(|mut i| i.next()) else {
+                self.join_form.message = Some(format!("Cannot find '{}'. Check the code and your internet connection.", code.address));
+                return;
+            };
+            (addr, code.fingerprint.clone(), code.key.clone())
         };
         let mut cfg = ClientConfig::new(addr, 0, 0, 0);
-        cfg.join_key = code.key.clone();
-        cfg.transport = match red_engine2::net::client::ClientTransportConfig::choose(addr, code.fingerprint.as_deref(), None, Some("localhost"), false) {
+        cfg.join_key = key;
+        cfg.transport = match red_engine2::net::client::ClientTransportConfig::choose(addr, fingerprint.as_deref(), None, Some("localhost"), false) {
             Ok(t) => t,
             Err(_) => {
                 self.join_form.message =

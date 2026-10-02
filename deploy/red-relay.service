@@ -1,0 +1,25 @@
+[Unit]
+Description=Red Engine rendezvous relay (docs/HOSTING.md, ADR 2026-10-02)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=red
+WorkingDirectory=/opt/red
+# RED_RELAY_PORT, RED_RELAY_BIND, RED_RELAY_STATS_SECS (see src/bin/red_relay.rs); a missing file is fine (defaults apply).
+EnvironmentFile=-/etc/red/relay.env
+ExecStart=/usr/local/bin/red_relay
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryMax=128M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target
