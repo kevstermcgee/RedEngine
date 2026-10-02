@@ -73,7 +73,7 @@
     },
     "bots": {
       "summary": "AI players: brains that drive ordinary player inputs inside the match (perceive, aim with human-like error, fire, move, hunt), difficulty and personality data, the nav waypoint graph, and the server filling empty slots.",
-      "files": ["src/sim/ai/mod.rs", "src/sim/ai/skill.rs", "src/sim/ai/nav.rs", "src/sim/ai/route.rs", "src/tools/nav.rs", "examples/bot_match.rs"],
+      "files": ["src/sim/ai/mod.rs", "src/sim/ai/skill.rs", "src/sim/ai/nav.rs", "src/sim/ai/route.rs", "src/tools/nav.rs", "examples/bot_match.rs", "src/sim/ai/hiding.rs"],
       "tests": ["lib:sim::ai", "lib:tools::nav", "net_bots"],
       "commands": ["cargo run --release --example bot_match -- examples/test_lab.json --bots 6 --weapon smg", "red_server --fill 8 --bot-skill normal", "red_engine2 nav scene.json"],
       "docs": ["docs/adr/0050-bots-weapon-ladder-and-combat-pacing.md", "docs/adr/2026-09-28-remove-the-revolver.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md"],

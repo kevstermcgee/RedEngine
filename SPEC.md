@@ -600,7 +600,10 @@ positions cannot be written as rules (a rule variable is one number for everybod
   slot driven by a brain that follows the racing line (`race.line`, else the gate centres), sets its speed from the corner ahead and its skill, steers on the
   analog stick, drifts long corners once good enough, uses its pickup (Mushroom on a straight, Acorn at a kart ahead in its lane, Bubble when an Acorn is
   coming), dodges planks, and backs out of a jam. Each bot takes an animal nobody else has. Put `line` points on tight corners and make sure the first is on
-  the start line.
+  the start line. Outside a race, `bots.roster[].role` (`hider`/`seeker`) picks hide-and-seek behavior instead of a fighter: a hider walks to a spot far
+  from every spawn and never fights back (implying team 1); a seeker is an ordinary fighting bot with no new brain of its own, implying team 2 — it already
+  hunts the nearest non-teammate and melees in reach once it has no ranged weapon. `role` needs the scene's own `"teams": true` to make `who: team1`/
+  `who: team2` usable in rules, though the hiding/fighting behavior itself works either way.
 - **Standings**: finishers by finish time, then by gates passed in total, then by distance to the next gate, then by slot. A player who joined and left is
   ranked as not finished; a slot that never joined is not listed. State is part of the match checksum.
 

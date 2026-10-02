@@ -19,6 +19,7 @@
 //! The pieces: [`skill`] (difficulty, personality, per-weapon profiles), [`nav`] (the waypoint graph a scene may carry), and this file (the
 //! brain, [`BotSpec`]/[`BotsConfig`] and the `MatchSim` methods that add, name and run bots).
 
+pub mod hiding;
 pub mod kart;
 pub mod nav;
 pub mod route;
@@ -50,6 +51,21 @@ pub struct BotSpec {
     /// Pins this bot to team 1 or 2 (`bots.roster[].team`), on top of the match's own auto-balancing. `None` lets
     /// the match assign it a team when teams are in play (`MatchSim::teams_enabled`), or no team otherwise.
     pub team: Option<u8>,
+    /// Hide-and-seek role (`bots.roster[].role`): a hider runs [`hiding::HideBrain`] instead of the ordinary
+    /// fighting [`Brain`], and never fights back. `None` is an ordinary fighter (a "seeker" is just that: a
+    /// fighter, team-assigned, needing no brain of its own — see the module doc on [`hiding`]).
+    pub role: Option<Role>,
+}
+
+/// A bot's hide-and-seek role; `None` on [`BotSpec`] means an ordinary fighter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    /// Walks to a hiding spot and stays there; never fights back. Implies team 1 unless the roster entry also
+    /// gives an explicit `team`.
+    Hider,
+    /// An ordinary fighter on the opposing side; implies team 2 unless overridden. No new brain: the existing
+    /// combat [`Brain`] already hunts the nearest non-teammate and melees in reach once it has no ranged weapon.
+    Seeker,
 }
 
 /// The scene's `bots` block: how many fighters the match wants and who they are.
@@ -79,7 +95,7 @@ impl Default for BotsConfig {
 /// Keys of the `bots` block.
 pub const BOTS_KEYS: &[&str] = &["fill", "skill", "roster"];
 /// Keys of one `bots.roster` entry.
-pub const BOT_KEYS: &[&str] = &["name", "character", "skill", "style", "team"];
+pub const BOT_KEYS: &[&str] = &["name", "character", "skill", "style", "team", "role"];
 
 const NAME_POOL: [&str; 24] = [
     "Dusty", "Merlot", "Zorp", "R0-B1", "Hex", "Pixel", "Bolt", "Nova", "Gizmo", "Sprocket", "Rook", "Maverick", "Ghost", "Viper", "Anvil", "Cobalt", "Falcon",
@@ -101,6 +117,7 @@ impl BotsConfig {
             level: self.level,
             style: STYLE_CYCLE[(n + 1) % STYLE_CYCLE.len()],
             team: None,
+            role: None,
         }
     }
 }
@@ -181,6 +198,21 @@ pub fn parse_bots(root: &Map<String, Value>) -> Result<BotsConfig, Vec<String>> 
                 match t.as_u64().filter(|n| *n == 1 || *n == 2) {
                     Some(n) => spec.team = Some(n as u8),
                     None => errs.push(format!("{path}.team: must be 1 or 2")),
+                }
+            }
+            if let Some(r) = b.get("role") {
+                match r.as_str() {
+                    Some("hider") => spec.role = Some(Role::Hider),
+                    Some("seeker") => spec.role = Some(Role::Seeker),
+                    _ => errs.push(format!("{path}.role: must be hider or seeker")),
+                }
+                // A role implies a side unless the roster entry also gave an explicit team.
+                if spec.team.is_none() {
+                    spec.team = match spec.role {
+                        Some(Role::Hider) => Some(1),
+                        Some(Role::Seeker) => Some(2),
+                        None => None,
+                    };
                 }
             }
             cfg.roster.push(spec);
@@ -987,6 +1019,17 @@ impl MatchSim {
 
     /// [`add_bot_in_slot`](Self::add_bot_in_slot) for a bot on `team` (`0` = no team): it wears that team's uniform and spawns at its base.
     pub fn add_bot_in_slot_team(&mut self, slot: usize, spec: &BotSpec, team: u8) -> bool {
+        if spec.role == Some(Role::Hider) {
+            // Checked before the generic team branch below: a hider always gets `HideBrain`, never the ordinary
+            // fighting `Brain`, whatever its team. Unlike a fighter, the rat is a fine body here (ADR 0011: Cheddar
+            // exists for exactly this, a hider that is not a person) — a hider never attacks, so "cannot attack" is moot.
+            if !self.add_player_in_slot_team(slot, spec.character, team) {
+                return false;
+            }
+            let seed = 0xB07 ^ ((slot as u64 + 1) << 8) ^ (self.tick << 16);
+            self.hide_bots[slot] = Some(Box::new(hiding::HideBrain::new(spec.name.clone(), spec.level, seed)));
+            return true;
+        }
         if team != 0 {
             let mut spec = spec.clone();
             // The team uniform only replaces a bot's requested look in a real loadout match; a non-shooter teamed
@@ -1022,7 +1065,9 @@ impl MatchSim {
 
     /// Whether `slot` is driven by a brain.
     pub fn is_bot(&self, slot: usize) -> bool {
-        self.bots.get(slot).is_some_and(Option::is_some) || self.kart_bots.get(slot).is_some_and(Option::is_some)
+        self.bots.get(slot).is_some_and(Option::is_some)
+            || self.kart_bots.get(slot).is_some_and(Option::is_some)
+            || self.hide_bots.get(slot).is_some_and(Option::is_some)
     }
 
     /// A bot's name.
@@ -1030,12 +1075,15 @@ impl MatchSim {
         if let Some(Some(k)) = self.kart_bots.get(slot) {
             return Some(k.name());
         }
+        if let Some(Some(h)) = self.hide_bots.get(slot) {
+            return Some(h.name());
+        }
         self.bots.get(slot)?.as_ref().map(|b| b.spec.name.as_str())
     }
 
     /// Number of bots in the match.
     pub fn bot_count(&self) -> usize {
-        self.bots.iter().flatten().count() + self.kart_bots.iter().flatten().count()
+        self.bots.iter().flatten().count() + self.kart_bots.iter().flatten().count() + self.hide_bots.iter().flatten().count()
     }
 
     /// The brain of `slot`, for inspection (its target, its spec).
@@ -1049,6 +1097,12 @@ impl MatchSim {
             let Some(mut brain) = self.kart_bots[slot].take() else { continue };
             let input = brain.think(self, slot);
             self.kart_bots[slot] = Some(brain);
+            self.push_input(slot, input);
+        }
+        for slot in 0..self.hide_bots.len() {
+            let Some(mut brain) = self.hide_bots[slot].take() else { continue };
+            let input = brain.think(self, slot);
+            self.hide_bots[slot] = Some(brain);
             self.push_input(slot, input);
         }
         for slot in 0..self.bots.len() {

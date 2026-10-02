@@ -109,6 +109,8 @@ pub struct MatchSim {
     pub(super) drivers: Vec<Driver>,
     /// The brain of every kart-bot slot (`None` for humans, fighters and empty slots): see [`crate::sim::ai::kart`].
     pub(super) kart_bots: Vec<Option<Box<crate::sim::ai::kart::KartBrain>>>,
+    /// The brain of every hider-bot slot (`None` for humans, fighters, kart drivers and empty slots): see [`crate::sim::ai::hiding`].
+    pub(super) hide_bots: Vec<Option<Box<crate::sim::ai::hiding::HideBrain>>>,
     /// Acorns in flight and planks on the track (race matches).
     pub(super) hazards: HazardPool,
     /// The track's item boxes and their respawn timers (race matches).
@@ -182,6 +184,7 @@ impl MatchSim {
             karts: vec![KartState::default(); MAX_PLAYERS],
             drivers: (0..MAX_PLAYERS).map(|slot| Driver::ALL[slot % Driver::ALL.len()]).collect(),
             kart_bots: (0..MAX_PLAYERS).map(|_| None).collect(),
+            hide_bots: (0..MAX_PLAYERS).map(|_| None).collect(),
             hazards: HazardPool::default(),
             item_boxes: match &scene.race {
                 Some(course) => ItemBoxes::new(
@@ -402,6 +405,7 @@ impl MatchSim {
         let p = self.players.get_mut(slot)?.take()?;
         self.bots[slot] = None;
         self.kart_bots[slot] = None;
+        self.hide_bots[slot] = None;
         self.props.remove_player_slot(slot);
         if let Some(r) = &mut self.recorder {
             r.entries.push(Entry::Leave { tick: self.tick, slot });
