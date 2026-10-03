@@ -124,6 +124,10 @@ Every task should be doable from `describe`/`search`/`src show`, not by reading 
   split by subsystem (see the map above). Navigate with `src outline`/`src show`, and put new subsystems in their own module.
 - **A decision that a future reader would otherwise have to re-derive gets an ADR** (`docs/adr/`, template in
   its README; a test makes you register it). A new term gets a line in `docs/GLOSSARY.md`.
+- **Before hand-writing something that feels like it should already exist, check `search` and `docs/analysis/README.md`**
+  (`analysis digest`): it groups every past game-building report's feedback by the engine feature it is about, ranked by
+  how many different games hit it, so recurring friction surfaces instead of being rediscovered per game. Finished a game
+  or a real patch session? `analysis new "Title" [--from file]` turns the report into a dated, searchable note.
 - **Behaviour worth keeping is a test or a `checks` entry**, not prose: `tests/house_walk.rs` and each
   recipe's `verify` block are the living documentation of the physics and the maps.
 

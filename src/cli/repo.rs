@@ -1,7 +1,7 @@
 //! Repository housekeeping commands: `preflight`, `adr`, `analysis` (ADR 2026-09-28-generated-bookkeeping).
 
 use super::*;
-use red_engine2::tools::{adr, analysis, preflight, status};
+use red_engine2::tools::{adr, analysis, features, preflight, status};
 
 /// The repository to work on: `--root`, else the nearest parent of the current directory that is the engine's tree, else the tree this binary was built from.
 fn repo_root(given: Option<&Path>) -> Result<PathBuf, String> {
@@ -113,6 +113,27 @@ pub(crate) fn run_analysis(cmd: AnalysisCmd, root: Option<&Path>) -> Result<(), 
         AnalysisCmd::List => {
             print!("{}", analysis::render_list(&analysis::list(&root)));
             Ok(())
+        }
+        AnalysisCmd::Digest { write } => {
+            let feats = features::load_at(&root)?;
+            if write {
+                println!(
+                    "{}",
+                    if analysis::write_digest(&root, &feats)? {
+                        "docs/analysis/README.md: digest rewritten"
+                    } else {
+                        "docs/analysis/README.md: digest already current"
+                    }
+                );
+                return Ok(());
+            }
+            let problems = analysis::check_digest(&root, &feats);
+            if problems.is_empty() {
+                println!("the cross-game friction digest is current");
+                Ok(())
+            } else {
+                Err(problems.join("\n"))
+            }
         }
     }
 }

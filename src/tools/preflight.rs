@@ -5,7 +5,7 @@
 //! checks now lives here as a plain function of the file tree; the test suites call the same functions (one implementation, so preflight and CI cannot disagree), and
 //! `preflight` runs them all at once, names what is wrong with **the exact edit that fixes it**, and applies the mechanical ones with `--fix`.
 
-use super::{adr, features, status};
+use super::{adr, analysis, features, status};
 use serde_json::{json, Value};
 use std::path::Path;
 use std::process::Command;
@@ -30,6 +30,8 @@ pub struct Options {
 pub enum Fix {
     /// Regenerate the index table in `docs/adr/README.md`.
     AdrIndex,
+    /// Regenerate the cross-game digest in `docs/analysis/README.md`.
+    AnalysisDigest,
     /// Rewrite the derived facts block of a document.
     SyncFacts(String),
     /// Rewrite the inline `<!--fact:...-->` values of a document.
@@ -107,6 +109,16 @@ fn check_adr(root: &Path) -> Vec<Problem> {
                 problem("adr", m, "edit the ADR file named above (`red_engine2 adr list` shows all of them)", None)
             }
         })
+        .collect()
+}
+
+fn check_analysis_digest(root: &Path) -> Vec<Problem> {
+    // `features.json`'s own problems are reported by `check_features`; without a parseable index there is nothing
+    // sensible to group by, so this check just stays quiet rather than piling on a second report of the same fault.
+    let Ok(features) = features::load_at(root) else { return Vec::new() };
+    analysis::check_digest(root, &features)
+        .into_iter()
+        .map(|m| problem("analysis", m, "run `red_engine2 analysis digest --write`", Some(Fix::AnalysisDigest)))
         .collect()
 }
 
@@ -460,6 +472,7 @@ pub fn run(root: &Path, opts: &Options) -> Report {
     };
     add("adr", check_adr(root));
     add("features", check_features(root));
+    add("analysis", check_analysis_digest(root));
     add("facts", check_facts(root));
     add("headless", check_headless(root));
     add("docs", check_docs(root, if opts.tree { &[] } else { &opts.commands }));
@@ -491,6 +504,12 @@ pub fn apply(root: &Path, fixes: &[Fix]) -> Result<Vec<String>, String> {
             Fix::AdrIndex => {
                 if adr::write_index(root)? {
                     done.push("regenerated the index of docs/adr/README.md".to_string());
+                }
+            }
+            Fix::AnalysisDigest => {
+                let features = features::load_at(root)?;
+                if analysis::write_digest(root, &features)? {
+                    done.push("regenerated the digest of docs/analysis/README.md".to_string());
                 }
             }
             Fix::SyncFacts(doc) => {
@@ -604,7 +623,7 @@ mod tests {
     fn repo(tag: &str) -> std::path::PathBuf {
         let d = std::env::temp_dir().join(format!("re2_preflight_{tag}_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
-        for dir in ["src/net", "src/tools", "src/bin/win", "docs/adr", "tests", "scripts"] {
+        for dir in ["src/net", "src/tools", "src/bin/win", "docs/adr", "docs/analysis", "tests", "scripts"] {
             std::fs::create_dir_all(d.join(dir)).unwrap();
         }
         let w = |p: &str, t: &str| std::fs::write(d.join(p), t).unwrap();
@@ -618,6 +637,7 @@ mod tests {
         w("src/tools/b.rs", "//! b\n");
         w("docs/features.json", "{\n  \"serial_suites\": [],\n  \"features\": {\n    \"tools\": {\n      \"summary\": \"t\",\n      \"files\": [\"src/tools/a.rs\", \"src/tools/b.rs\", \"src/lib.rs\",\"src/render.rs\", \"src/net/protocol.rs\", \"src/bin/win/main.rs\", \"Cargo.toml\"],\n      \"tests\": []\n    }\n  }\n}\n");
         w("docs/adr/README.md", &format!("# ADRs\n{}\n{}\n", adr::INDEX_BEGIN, adr::INDEX_END));
+        w("docs/analysis/README.md", &format!("# Analysis\n{}\n{}\n", analysis::DIGEST_BEGIN, analysis::DIGEST_END));
         w("CLAUDE.md", "# c\n<!-- facts:begin -->\nold\n<!-- facts:end -->\nProtocol v<!--fact:protocol-->4<!--/fact-->.\n");
         w("AGENTS.md", "commands: `lint`\n");
         w("docs/AGENT_REFERENCE.md", "| `lint <scene>` | finds bugs | |\n| `walk <scene>` | walks | |\n");
@@ -642,7 +662,7 @@ mod tests {
             "the command table is not consulted: {:?}",
             tree.problems
         );
-        for check in ["adr", "features", "facts", "headless", "docs", "lf"] {
+        for check in ["adr", "features", "analysis", "facts", "headless", "docs", "lf"] {
             assert!(tree.ran.contains(&check), "{check} still runs from the tree: {:?}", tree.ran);
         }
         let text = render(&tree);
