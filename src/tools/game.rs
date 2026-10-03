@@ -529,8 +529,11 @@ pub fn engine_checkout(cfg: &GameConfig, explicit: Option<&Path>) -> Result<Path
 }
 
 /// Reads the pin from an engine checkout: its HEAD commit and `origin` URL. Refuses what could not be reproduced: uncommitted changes to tracked
-/// files (unless `allow_dirty`) and a commit no remote branch contains (a clone of the pin would not find it; push first).
-pub fn engine_pin(checkout: &Path, allow_dirty: bool) -> Result<EnginePin, String> {
+/// files (unless `allow_dirty`), a commit no remote branch contains (a clone of the pin would not find it; push first), and — when `expect_sha`
+/// is given — a HEAD that is not that exact commit. `checkout` is usually a branch, not a fixed point: between a `game upgrade verify` run and
+/// the person actually pinning, its HEAD can move on. Without this check, `game pin --engine <checkout>` would silently pin whatever that
+/// checkout happens to be at *now* — a commit nobody verified — not the one the report actually certified.
+pub fn engine_pin(checkout: &Path, allow_dirty: bool, expect_sha: Option<&str>) -> Result<EnginePin, String> {
     let git = |args: &[&str]| -> Result<String, String> {
         let out = std::process::Command::new("git").arg("-C").arg(checkout).args(args).output().map_err(|e| format!("git: {e}"))?;
         if out.status.success() {
@@ -540,6 +543,17 @@ pub fn engine_pin(checkout: &Path, allow_dirty: bool) -> Result<EnginePin, Strin
         }
     };
     let sha = git(&["rev-parse", "HEAD"])?;
+    if let Some(expect) = expect_sha {
+        if sha != expect {
+            return Err(format!(
+                "{} is now at {} but the verified target was {}: the checkout moved since `game upgrade verify` ran — \
+                 check out the verified commit exactly before pinning, or re-verify its current HEAD",
+                checkout.display(),
+                &sha[..sha.len().min(12)],
+                &expect[..expect.len().min(12)]
+            ));
+        }
+    }
     let url = git(&["remote", "get-url", "origin"]).map_err(|e| format!("{e} (the pin needs an `origin` remote to clone from)"))?;
     if !allow_dirty && !git(&["status", "--porcelain", "--untracked-files=no"])?.is_empty() {
         return Err(format!("{} has uncommitted changes, so HEAD is not what you built: commit them (or --allow-dirty)", checkout.display()));
@@ -671,18 +685,57 @@ mod tests {
         std::fs::write(work.join("a.txt"), "1").unwrap();
         git(&work, &["add", "."]);
         git(&work, &["commit", "-q", "-m", "one"]);
-        let e = engine_pin(&work, false).unwrap_err();
+        let e = engine_pin(&work, false, None).unwrap_err();
         assert!(e.contains("origin"), "no remote: {e}");
         git(&dir, &["init", "-q", "--bare", "remote.git"]);
         git(&work, &["remote", "add", "origin", bare.to_str().unwrap()]);
-        let e = engine_pin(&work, false).unwrap_err();
+        let e = engine_pin(&work, false, None).unwrap_err();
         assert!(e.contains("no remote branch"), "unpushed commit: {e}");
         git(&work, &["push", "-q", "-u", "origin", "main"]);
-        let pin = engine_pin(&work, false).unwrap();
+        let pin = engine_pin(&work, false, None).unwrap();
         assert_eq!((pin.sha.len(), pin.url.as_str()), (40, bare.to_str().unwrap()));
         std::fs::write(work.join("a.txt"), "2").unwrap();
-        assert!(engine_pin(&work, false).unwrap_err().contains("uncommitted"), "a dirty tree is not what was built");
-        assert!(engine_pin(&work, true).is_ok(), "--allow-dirty is the explicit way past that");
+        assert!(engine_pin(&work, false, None).unwrap_err().contains("uncommitted"), "a dirty tree is not what was built");
+        assert!(engine_pin(&work, true, None).is_ok(), "--allow-dirty is the explicit way past that");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A verify report names an exact commit as its target; if the engine checkout is a branch that has since
+    /// moved on, `game pin` must refuse rather than silently pin whatever HEAD happens to be now.
+    #[test]
+    fn engine_pin_refuses_a_checkout_that_moved_since_the_verified_sha() {
+        let dir = std::env::temp_dir().join(format!("re2_pin_moved_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let bare = dir.join("remote.git");
+        let work = dir.join("work");
+        std::fs::create_dir_all(&work).unwrap();
+        let git = |cwd: &Path, args: &[&str]| {
+            let mut cmd = std::process::Command::new("git");
+            cmd.current_dir(cwd).args(["-c", "user.name=t", "-c", "user.email=t@example.com"]).args(args);
+            assert!(cmd.output().unwrap().status.success(), "git {args:?}");
+        };
+        git(&dir, &["init", "-q", "--bare", "remote.git"]);
+        git(&work, &["init", "-q", "-b", "main"]);
+        git(&work, &["remote", "add", "origin", bare.to_str().unwrap()]);
+        std::fs::write(work.join("a.txt"), "1").unwrap();
+        git(&work, &["add", "."]);
+        git(&work, &["commit", "-q", "-m", "one"]);
+        git(&work, &["push", "-q", "-u", "origin", "main"]);
+        let verified = engine_pin(&work, false, None).unwrap().sha;
+
+        // The branch advances (exactly what a background `git pull`/another session's commit would do).
+        std::fs::write(work.join("a.txt"), "2").unwrap();
+        git(&work, &["add", "."]);
+        git(&work, &["commit", "-q", "-m", "two"]);
+        git(&work, &["push", "-q", "origin", "main"]);
+
+        let e = engine_pin(&work, false, Some(&verified)).unwrap_err();
+        assert!(e.contains(&verified[..12]) && e.contains("moved"), "{e}");
+        // Pinning without an expectation (today's existing behaviour) still works — this is additive, not a block.
+        assert!(engine_pin(&work, false, None).is_ok());
+        // Re-stating the checkout's new, actual HEAD as the expectation passes.
+        let now = engine_pin(&work, false, None).unwrap().sha;
+        assert!(engine_pin(&work, false, Some(&now)).is_ok());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

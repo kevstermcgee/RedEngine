@@ -204,6 +204,68 @@ fn stale_check_cache_does_not_let_verify_bless_a_changed_map() {
 }
 
 #[test]
+fn an_unknown_only_stage_fails_clearly_instead_of_running_everything() {
+    let (engine, _old, new) = fake_engine_repo("unknownonly");
+    let game = scaffold_game("unknownonly", &engine);
+    let packet = game.join("out/upgrade/packet.json");
+    let plan_out = cli(&[
+        "game",
+        "upgrade",
+        "plan",
+        "--dir",
+        game.to_str().unwrap(),
+        "--to",
+        &new,
+        "--engine",
+        engine.to_str().unwrap(),
+        "--out",
+        packet.to_str().unwrap(),
+    ]);
+    assert!(plan_out.status.success(), "{}", text(&plan_out));
+
+    // A plausible typo for "baseline": at the review anchor this silently ran the full pipeline instead of
+    // failing, which would also have tried (and failed) to build this fixture's non-buildable fake engine.
+    let verify_out = cli(&["game", "upgrade", "verify", packet.to_str().unwrap(), "--dir", game.to_str().unwrap(), "--only", "basline"]);
+    assert!(!verify_out.status.success(), "{}", text(&verify_out));
+    let rendered = text(&verify_out);
+    assert!(rendered.contains("unknown") && rendered.contains("basline"), "{rendered}");
+    assert!(!rendered.contains("[ok]") && !rendered.contains("[FAIL]"), "no stage actually ran: {rendered}");
+}
+
+#[test]
+fn verify_refuses_a_packet_whose_baseline_no_longer_matches_the_project() {
+    let (engine, old, new) = fake_engine_repo("staleverify");
+    let game = scaffold_game("staleverify", &engine);
+    let packet = game.join("out/upgrade/packet.json");
+    // Plan while the engine checkout is at `new` (where `scaffold_game` leaves it).
+    let plan_out = cli(&[
+        "game",
+        "upgrade",
+        "plan",
+        "--dir",
+        game.to_str().unwrap(),
+        "--to",
+        &new,
+        "--engine",
+        engine.to_str().unwrap(),
+        "--out",
+        packet.to_str().unwrap(),
+    ]);
+    assert!(plan_out.status.success(), "{}", text(&plan_out));
+    assert!(text(&plan_out).contains(&new[..12]), "the packet must record `new` as the baseline: {}", text(&plan_out));
+
+    // The project's own engine checkout moves (exactly what a background `git pull` on a tracked branch would
+    // do) between planning and verifying: its recorded baseline no longer matches what the packet was planned
+    // against, so every migration verdict in it was computed against a project state that no longer exists.
+    git(&engine, &["checkout", "-q", "--detach", &old]);
+
+    let verify_out = cli(&["game", "upgrade", "verify", packet.to_str().unwrap(), "--dir", game.to_str().unwrap(), "--only", "baseline"]);
+    assert!(!verify_out.status.success(), "a moved baseline must be refused, not silently verified: {}", text(&verify_out));
+    let rendered = text(&verify_out).to_lowercase();
+    assert!(rendered.contains("stale") && rendered.contains("plan") && rendered.contains("again"), "{}", text(&verify_out));
+}
+
+#[test]
 fn an_unreachable_migration_id_is_possible_not_silently_certified_through_the_cli() {
     // docs/upgrade-migrations.json ships with real ids; confirm `plan`'s rendered packet never calls an
     // id "applicable" without a real detector backing it when the evidence cannot be read (unresolved baseline).

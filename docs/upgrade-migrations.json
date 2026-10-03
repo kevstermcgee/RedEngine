@@ -13,7 +13,7 @@
       ],
       "required": true,
       "repair": "rebuild and redeploy both the client and the dedicated server from the target commit; `game pin` already makes this the natural outcome (it rewrites game.json to one exact commit) — do not mix a client or server built from a different commit after the bump.",
-      "verify": "staged `extra` stage of `game upgrade verify`: builds the client and server from the same staged target commit and confirms neither is run against a build from the other side of the bump.",
+      "verify": "no stage of `game upgrade verify` automatically confirms this repair was done (there is no dual client/server cross-version check implemented) — this is exactly why `required: true` here blocks VerifyReport::ready_to_apply until a person confirms it by hand (see docs/adr/2026-10-03-upgrade-results-must-earn-their-recommendation.md); a prior version of this record claimed a staged verification stage for it that was never built.",
       "limitations": "only checked when both the baseline and target commits are reachable from a local checkout (`git show <sha>:src/net/protocol.rs`); an unreachable commit leaves this migration's applicability unknown, not negative."
     },
     {
