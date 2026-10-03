@@ -202,6 +202,10 @@ pub(crate) enum GameCmd {
         /// Pin HEAD even though tracked files are modified.
         #[arg(long)]
         allow_dirty: bool,
+        /// Refuse unless the checkout's HEAD is exactly this commit (the `target.sha` a `game upgrade verify`
+        /// report certified) — a branch checkout can move between verifying and pinning; this catches that.
+        #[arg(long)]
+        sha: Option<String>,
     },
     /// Copy this project into a RedEngineGames checkout and add its playable (never commits; refuses keys).
     Publish {

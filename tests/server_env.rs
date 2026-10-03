@@ -95,3 +95,30 @@ fn public_hosting_is_an_explicit_choice() {
     assert!(ok && text.contains("LISTENING 0.0.0.0:") && text.contains("NOT encrypted"), "{text}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn relaying_a_dev_udp_host_with_no_identity_is_refused_not_merely_warned() {
+    // B3: relayed traffic genuinely crosses the open internet even though the bind itself stays loopback.
+    // Relaying a server with no TLS identity would bridge its unauthenticated-by-identity transport out past
+    // every joining client's own fail-closed check for anyone willing to connect with --dev-udp — a warning used
+    // to be all this got; it must now refuse to start at all, the same as any other fail-closed violation.
+    let out = server()
+        .args([
+            "--map",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_lab.json"),
+            "--port",
+            "0",
+            "--stats-secs",
+            "0",
+            "--run-for",
+            "0.3",
+            "--relay",
+            "127.0.0.1:1", // never actually reached: refusal happens before any relay I/O
+        ])
+        .output()
+        .expect("run red_server");
+    let (text, err) = (String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    assert!(!out.status.success(), "{text}{err}");
+    assert!(!text.contains("LISTENING"), "must not have started listening: {text}");
+    assert!(err.contains("--relay") && err.contains("--tls-cert"), "{err}");
+}

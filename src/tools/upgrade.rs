@@ -401,6 +401,20 @@ fn class_json(c: &ProjectClass) -> Value {
     }
 }
 
+/// The inverse of [`class_json`]: reads a packet's `class` back. An unrecognized or missing `kind` is read as
+/// `Unknown`, never silently as `StandardBlueprint` — a malformed packet must not look like the safest, most
+/// ordinary project class.
+fn class_from_json(v: &Value) -> ProjectClass {
+    match v.get("kind").and_then(Value::as_str) {
+        Some("standard_blueprint") => ProjectClass::StandardBlueprint,
+        Some("custom_rust_client") => ProjectClass::CustomRustClient {
+            crates: v.get("crates").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(PathBuf::from).collect()).unwrap_or_default(),
+        },
+        Some("unknown") => ProjectClass::Unknown { reason: v.get("reason").and_then(Value::as_str).unwrap_or("packet did not say").to_string() },
+        _ => ProjectClass::Unknown { reason: "packet's class field is missing or unrecognized".to_string() },
+    }
+}
+
 fn confidence_json(c: &Confidence) -> Value {
     match c {
         Confidence::Applicable => json!("applicable"),
@@ -618,9 +632,65 @@ fn run_checked(cmd: &mut Command) -> Result<(), String> {
     }
 }
 
+/// How long a second caller waits for another process's build of the *same identity* before giving up — generous
+/// (a cold engine build is minutes, not seconds) but finite, so a crashed builder cannot hang every future caller.
+const BUILD_LOCK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30 * 60);
+const BUILD_LOCK_POLL: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Releases a build lock on drop (including on an early return via `?` or a panic), so a failed build does not
+/// leave the lock file behind forever.
+#[derive(Debug)]
+struct BuildLock(PathBuf);
+impl Drop for BuildLock {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// Claims the right to build `dir`'s cache entry, or waits for whoever already holds it. Two concurrent
+/// verifications computing the same identity must not have one delete or overwrite the checkout/build the other
+/// is currently using. The lock is an atomically-created file (`create_new` fails if it already exists, on every
+/// platform this engine supports — no Unix-only `flock` needed): exactly one caller gets `Some`, and every other
+/// caller polls until either the lock clears (the builder finished or gave up) or `timeout` is reached, at which
+/// point it fails loudly rather than silently waiting forever or barging in.
+fn acquire_build_lock(dir: &Path, timeout: std::time::Duration, poll: std::time::Duration) -> Result<Option<BuildLock>, String> {
+    let lock_path = dir.join(".building");
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock_path) {
+        Ok(_) => Ok(Some(BuildLock(lock_path))),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            let start = std::time::Instant::now();
+            while start.elapsed() < timeout {
+                if !lock_path.exists() {
+                    return Ok(None); // the other builder finished (or cleaned up after giving up); caller re-checks identity
+                }
+                std::thread::sleep(poll);
+            }
+            Err(format!(
+                "{} has been building for over {} minute(s) (lock at {}); if that process is confirmed dead, remove the lock file and retry",
+                dir.display(),
+                timeout.as_secs() / 60,
+                lock_path.display()
+            ))
+        }
+        Err(e) => Err(format!("{}: {e}", lock_path.display())),
+    }
+}
+
+/// The compiled binary's platform-specific name: `ensure_target_build` must find this exact file before it
+/// accepts a build as successful (task step 6 — "verify the expected artifacts exist before accepting a receipt").
+fn bin_name() -> &'static str {
+    if cfg!(windows) {
+        "red_engine2.exe"
+    } else {
+        "red_engine2"
+    }
+}
+
 /// Obtains a target-engine build: an explicit `--engine-build` reused only if its identity matches, else a cached
 /// build keyed by identity, else a fresh isolated clone+build (never the engine's or an agent's own working
-/// checkout — task step 6, "never rebuild identical engine binaries separately for every map").
+/// checkout — task step 6, "never rebuild identical engine binaries separately for every map"). Concurrent callers
+/// for the same identity are serialized by [`acquire_build_lock`], not raced.
 pub fn ensure_target_build(
     cache_root: &Path,
     engine_checkout: &Path,
@@ -635,6 +705,10 @@ pub fn ensure_target_build(
         if got != wanted {
             return Err(format!("{} does not match the target: has {got:?}, need {wanted:?} — refusing to reuse it", dir.display()));
         }
+        let bin = bin_dir(dir, profile).join(bin_name());
+        if !bin.exists() {
+            return Err(format!("{} claims identity {:?} but {} is missing: refusing to reuse it", dir.display(), got, bin.display()));
+        }
         return Ok((bin_dir(dir, profile), true));
     }
     let dir = cache_root.join(format!(
@@ -644,30 +718,47 @@ pub fn ensure_target_build(
         wanted.features,
         &wanted.lockfile_hash[..wanted.lockfile_hash.len().min(12)]
     ));
-    if let Some(got) = read_identity(&dir) {
-        if got == wanted {
-            return Ok((bin_dir(&dir, profile), true));
+    loop {
+        if let Some(got) = read_identity(&dir) {
+            let bin = bin_dir(&dir, profile).join(bin_name());
+            if got == wanted && bin.exists() {
+                return Ok((bin_dir(&dir, profile), true));
+            }
         }
+        let Some(_lock) = acquire_build_lock(&dir, BUILD_LOCK_TIMEOUT, BUILD_LOCK_POLL)? else {
+            continue; // someone else just finished (or gave up); loop re-checks identity above
+        };
+        // Holding the lock: safe to rebuild over whatever (if anything) is here — a stale/failed prior attempt,
+        // never another live verification's in-progress work. Only the checkout/target/identity are cleared, not
+        // the cache entry directory itself, which still holds our just-created lock file.
+        let checkout_dir = dir.join("checkout");
+        let target_dir = dir.join("target");
+        let _ = std::fs::remove_dir_all(&checkout_dir);
+        let _ = std::fs::remove_dir_all(&target_dir);
+        let _ = std::fs::remove_file(identity_path(&dir));
+        run_checked(Command::new("git").args(["clone", "--no-checkout", "--quiet"]).arg(engine_checkout).arg(&checkout_dir))?;
+        run_checked(Command::new("git").arg("-C").arg(&checkout_dir).args(["checkout", "--quiet", "--detach", sha]))?;
+        let mut cmd = Command::new("cargo");
+        // `--locked`: the recorded identity includes a hash of Cargo.lock at this exact commit (`identity_for`) —
+        // without `--locked`, Cargo is free to silently resolve a different (if compatible) set of dependency
+        // versions, and the resulting binary would not actually match the identity this cache entry claims.
+        cmd.current_dir(&checkout_dir).env("CARGO_TARGET_DIR", &target_dir).args(["build", "--locked", "--bins"]);
+        if profile == "release" {
+            cmd.arg("--release");
+        } else if profile != "dev" {
+            cmd.args(["--profile", profile]);
+        }
+        if !features.is_empty() && features != "default" {
+            cmd.args(["--no-default-features", "--features", features]);
+        }
+        run_checked(&mut cmd)?;
+        let bin = bin_dir(&dir, profile).join(bin_name());
+        if !bin.exists() {
+            return Err(format!("cargo build reported success but {} does not exist: refusing to publish a build identity for it", bin.display()));
+        }
+        write_identity(&dir, &wanted)?;
+        return Ok((bin_dir(&dir, profile), false));
     }
-    let checkout_dir = dir.join("checkout");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    run_checked(Command::new("git").args(["clone", "--no-checkout", "--quiet"]).arg(engine_checkout).arg(&checkout_dir))?;
-    run_checked(Command::new("git").arg("-C").arg(&checkout_dir).args(["checkout", "--quiet", "--detach", sha]))?;
-    let target_dir = dir.join("target");
-    let mut cmd = Command::new("cargo");
-    cmd.current_dir(&checkout_dir).env("CARGO_TARGET_DIR", &target_dir).args(["build", "--bins"]);
-    if profile == "release" {
-        cmd.arg("--release");
-    } else if profile != "dev" {
-        cmd.args(["--profile", profile]);
-    }
-    if !features.is_empty() && features != "default" {
-        cmd.args(["--no-default-features", "--features", features]);
-    }
-    run_checked(&mut cmd)?;
-    write_identity(&dir, &wanted)?;
-    Ok((bin_dir(&dir, profile), false))
 }
 
 fn copy_tree(src: &Path, dst: &Path) -> Result<(), String> {
@@ -729,6 +820,7 @@ pub fn stage_and_build(cfg: &GameConfig, stage_dir: &Path, target_bin_dir: &Path
 }
 
 /// One stage's outcome, timed separately (task step 6 — "measure planning, compilation and test execution separately").
+#[derive(Clone)]
 pub struct StageResult {
     pub name: String,
     pub ok: bool,
@@ -739,6 +831,10 @@ pub struct StageResult {
 pub struct VerifyReport {
     pub baseline_sha: Option<String>,
     pub target_sha: String,
+    /// The project's class, re-derived fresh from disk at verify time (never trusted from the packet alone —
+    /// see [`run_verify`]'s staleness check), since whether a custom Rust client exists changes what "verified"
+    /// can honestly mean for this project.
+    pub class: ProjectClass,
     pub build_identity: BuildIdentity,
     pub build_reused: bool,
     /// Whether a target-engine build was actually obtained (false for `--only baseline`, which never builds).
@@ -750,8 +846,42 @@ pub struct VerifyReport {
 }
 
 impl VerifyReport {
-    pub fn ok(&self) -> bool {
+    /// Whether every stage that actually *ran* passed. Says nothing about which stages those were: a `--only
+    /// baseline` run that passes is `scope_ok()` without the candidate target ever having been built or checked.
+    /// This is what the CLI's exit code reflects (did the requested scope succeed) — never read it as "the
+    /// upgrade is safe to apply."
+    pub fn scope_ok(&self) -> bool {
         self.stages.iter().all(|s| s.ok)
+    }
+
+    /// Whether the candidate target engine/game combination was actually built and exercised end to end — a
+    /// target build, staged content regeneration, and the full project check all ran (not skipped by a narrower
+    /// `--only`) and passed. False for `--only baseline`, `--only target-build` and `--only content`: each is a
+    /// real, useful partial check, but none of them is proof the candidate works.
+    pub fn candidate_verified(&self) -> bool {
+        self.target_built && self.stages.iter().any(|s| s.name == "content") && self.stages.iter().any(|s| s.name == "full") && self.scope_ok()
+    }
+
+    /// Required migrations this report cannot certify resolved: `required` and not `NotApplicable`. Nothing here
+    /// auto-applies a repair or confirms by hand that one was done, so any of these staying `Applicable` (a
+    /// known-needed repair) or `Possible` (unknown; review by hand) blocks [`ready_to_apply`](Self::ready_to_apply)
+    /// until a fresh `game upgrade plan` shows it resolved.
+    pub fn unresolved_required_migrations(&self) -> Vec<&Migration> {
+        self.migrations.iter().filter(|(m, c)| m.required && !matches!(c, Confidence::NotApplicable)).map(|(m, _)| m).collect()
+    }
+
+    /// Whether this project has a verification path no stage here actually exercises: a custom Rust client. The
+    /// `content`/`full` stages only regenerate and check blueprint-built maps through the engine's own CLI —
+    /// successful map regeneration is not proof a sibling client crate still compiles or runs against the target.
+    pub fn unverified_custom_client(&self) -> bool {
+        matches!(self.class, ProjectClass::CustomRustClient { .. })
+    }
+
+    /// Whether this report licenses `game pin --sha <target_sha>`: the candidate was actually verified end to
+    /// end, every stage that ran passed, no required migration is left unresolved, and (for a custom Rust
+    /// client) that unverified path is not silently waved through by a clean map regeneration.
+    pub fn ready_to_apply(&self) -> bool {
+        self.candidate_verified() && self.unresolved_required_migrations().is_empty() && !self.unverified_custom_client()
     }
 }
 
@@ -761,6 +891,22 @@ pub struct VerifyOptions<'a> {
     pub cache_root: PathBuf,
 }
 
+/// The stages `--only` may select, in pipeline order. Each later stage needs everything before it as a
+/// prerequisite (`content` has nothing to regenerate against without a target build, `full` has nothing to check
+/// without staged content) — selecting one runs it and its prerequisites, reusing the target build by identity
+/// when it is already cached, and stops there. It never silently continues past the requested stage.
+const STAGE_NAMES: &[&str] = &["baseline", "target-build", "content", "full"];
+
+/// Rejects an unrecognized `--only` value up front, by name, instead of letting it fall through to "run
+/// everything" — the behaviour at the review anchor for anything other than the literal string `"baseline"`.
+fn validate_only(only: Option<&str>) -> Result<Option<&str>, String> {
+    match only {
+        None => Ok(None),
+        Some(s) if STAGE_NAMES.contains(&s) => Ok(Some(s)),
+        Some(s) => Err(format!("unknown --only stage '{s}': one of {} (or omit --only to run the full pipeline)", STAGE_NAMES.join(", "))),
+    }
+}
+
 fn run_capture(cmd: &mut Command) -> (bool, String) {
     match cmd.output() {
         Ok(out) => (out.status.success(), format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr))),
@@ -768,51 +914,102 @@ fn run_capture(cmd: &mut Command) -> (bool, String) {
     }
 }
 
-/// Target sha, the checkout it was resolved from, the baseline sha, and the migration verdicts.
-type PacketPieces = (String, PathBuf, Option<String>, Vec<(Migration, Confidence)>);
+/// Target sha, the checkout it was resolved from, the baseline sha, the project class, and the migration verdicts.
+type PacketPieces = (String, PathBuf, Option<String>, ProjectClass, Vec<(Migration, Confidence)>);
 
-/// Reads a packet's own JSON back into the pieces [`run_verify`] needs: target sha, the checkout it was resolved
-/// from, the baseline sha, and the migration verdicts already matched by `plan` (not re-matched here).
+/// Reads a packet's own JSON back into the pieces [`run_verify`] needs. Unlike the review anchor, nothing here
+/// quietly becomes "no migrations" or "not applicable" when evidence is missing or unreadable: a missing
+/// migrations array, an unreadable `docs/upgrade-migrations.json`, or a confidence value this code does not
+/// recognize is an error, not a silent empty/negative default — a required migration must never vanish because a
+/// file could not be read. A migration id the current registry no longer has (it was renamed or removed since
+/// this packet was planned) keeps the packet's own `required` flag and is flagged as registry drift instead of
+/// being dropped.
 fn packet_pieces(doc: &Value, migrations_path: &Path) -> Result<PacketPieces, String> {
     let target_sha = doc.get("target").and_then(|t| t.get("sha")).and_then(Value::as_str).ok_or("packet: missing target.sha")?.to_string();
     let resolved_from =
         doc.get("target").and_then(|t| t.get("resolved_from")).and_then(Value::as_str).ok_or("packet: missing target.resolved_from")?.to_string();
     let baseline_sha = doc.get("baseline").and_then(|b| b.get("sha")).and_then(Value::as_str).map(str::to_string);
-    let registry = load_migrations(migrations_path).unwrap_or_default();
-    let migrations = doc
-        .get("migrations")
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .filter_map(|m| {
-                    let id = m.get("id")?.as_str()?.to_string();
-                    let reg = registry.iter().find(|r| r.id == id)?.clone();
-                    let confidence = match m.get("confidence") {
-                        Some(Value::String(s)) if s == "applicable" => Confidence::Applicable,
-                        Some(Value::String(s)) if s == "not_applicable" => Confidence::NotApplicable,
-                        Some(Value::Object(o)) => Confidence::Possible(o.get("possible").and_then(Value::as_str).unwrap_or_default().to_string()),
-                        _ => Confidence::NotApplicable,
-                    };
-                    Some((reg, confidence))
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok((target_sha, PathBuf::from(resolved_from), baseline_sha, migrations))
+    let class = class_from_json(doc.get("class").ok_or("packet: missing class")?);
+    let registry = load_migrations(migrations_path).map_err(|e| format!("could not read the migration registry: {e}"))?;
+    let migrations_arr = doc.get("migrations").and_then(Value::as_array).ok_or("packet: missing or malformed \"migrations\" array")?;
+    let mut migrations = Vec::with_capacity(migrations_arr.len());
+    for m in migrations_arr {
+        let id = m.get("id").and_then(Value::as_str).ok_or("packet: a migration entry is missing its \"id\"")?.to_string();
+        let required = m.get("required").and_then(Value::as_bool).ok_or_else(|| format!("packet: migration '{id}' is missing \"required\""))?;
+        let confidence = match m.get("confidence") {
+            Some(Value::String(s)) if s == "applicable" => Confidence::Applicable,
+            Some(Value::String(s)) if s == "not_applicable" => Confidence::NotApplicable,
+            Some(Value::Object(o)) if o.contains_key("possible") => {
+                Confidence::Possible(o.get("possible").and_then(Value::as_str).unwrap_or_default().to_string())
+            }
+            other => return Err(format!("packet: migration '{id}' has an unrecognized confidence value: {other:?}")),
+        };
+        // The packet's own `required` flag is authoritative for this specific packet even if the registry's
+        // record has since changed; a vanished registry entry becomes visible drift, not a silent drop.
+        let reg = registry.iter().find(|r| r.id == id).cloned().unwrap_or(Migration {
+            id: id.clone(),
+            affected: String::new(),
+            detect: Vec::new(),
+            required,
+            repair: String::new(),
+            verify: String::new(),
+            limitations: "this migration id is no longer in docs/upgrade-migrations.json: the registry changed since this packet was planned; run `game upgrade plan` again".to_string(),
+        });
+        migrations.push((Migration { required, ..reg }, confidence));
+    }
+    Ok((target_sha, PathBuf::from(resolved_from), baseline_sha, class, migrations))
+}
+
+/// Whether the project on disk right now still matches the evidence this packet was planned against. Every
+/// migration verdict in the packet was computed by comparing a *specific* baseline against the target; if the
+/// project's actual current baseline (or its class — whether it has grown a custom Rust client) has since
+/// changed, those verdicts describe a project that no longer exists, and `game upgrade plan` needs to run again.
+fn evidence_is_stale(cfg: &GameConfig, packet_baseline_sha: Option<&str>, packet_class: &ProjectClass) -> Option<String> {
+    let current = resolve_current_engine(cfg, None);
+    if current.sha.as_deref() != packet_baseline_sha {
+        return Some(format!(
+            "this packet is stale: the project's current baseline engine ({}) no longer matches what it was planned against ({}) — run `game upgrade plan` again",
+            current.sha.as_deref().unwrap_or("unresolved"),
+            packet_baseline_sha.unwrap_or("unresolved"),
+        ));
+    }
+    let cargo = find_cargo_engine_refs(&cfg.dir);
+    let fresh_class = classify(cfg, &cargo);
+    if &fresh_class != packet_class {
+        return Some(format!(
+            "this packet is stale: the project's class has changed since it was planned ({packet_class:?} -> {fresh_class:?}) — run `game upgrade plan` again"
+        ));
+    }
+    None
 }
 
 /// The staged verification flow. Only this function builds anything, and only into `opts.cache_root` (or an
 /// explicit, identity-checked `--engine-build`); the real project at `game_dir` is read, never written.
 pub fn run_verify(game_dir: &Path, packet: &Value, migrations_path: &Path, opts: &VerifyOptions) -> Result<VerifyReport, String> {
-    let (target_sha, target_checkout, baseline_sha, migrations) = packet_pieces(packet, migrations_path)?;
+    let only = validate_only(opts.only)?;
+    let (target_sha, target_checkout, baseline_sha, class, migrations) = packet_pieces(packet, migrations_path)?;
     let cfg = game::load(game_dir).map_err(|e| e.join("\n"))?;
+    if let Some(reason) = evidence_is_stale(&cfg, baseline_sha.as_deref(), &class) {
+        return Err(reason);
+    }
     let mut stages = Vec::new();
 
+    // "baseline" always runs: it is cheap (no build) and names the project's state before anything else happens.
+    // It checks with *this* CLI binary, not a build of the recorded baseline engine commit — labelled so here,
+    // never implied to be a baseline-engine execution that did not occur.
     let t0 = std::time::Instant::now();
     let baseline_report = game::check(&cfg, false);
-    stages.push(StageResult { name: "baseline".into(), ok: baseline_report.failed() == 0, detail: baseline_report.render(), ms: t0.elapsed().as_millis() });
+    stages.push(StageResult {
+        name: "baseline".into(),
+        ok: baseline_report.failed() == 0,
+        detail: format!(
+            "(checked against the project's current files using this CLI's own build, not a build of the recorded baseline engine)\n{}",
+            baseline_report.render()
+        ),
+        ms: t0.elapsed().as_millis(),
+    });
 
-    if opts.only == Some("baseline") {
+    if only == Some("baseline") {
         let identity = identity_for(&target_checkout, &target_sha, "dev", "default").unwrap_or(BuildIdentity {
             sha: target_sha.clone(),
             rustc: String::new(),
@@ -823,6 +1020,7 @@ pub fn run_verify(game_dir: &Path, packet: &Value, migrations_path: &Path, opts:
         return Ok(VerifyReport {
             baseline_sha,
             target_sha,
+            class,
             build_identity: identity,
             build_reused: false,
             target_built: false,
@@ -833,16 +1031,43 @@ pub fn run_verify(game_dir: &Path, packet: &Value, migrations_path: &Path, opts:
         });
     }
 
+    // target-build: a prerequisite for content/full, reused by identity when already cached. `--only target-build`
+    // stops here, exactly as requested — it does not continue into content or full.
     let t1 = std::time::Instant::now();
     let (bin_dir, reused) = ensure_target_build(&opts.cache_root, &target_checkout, &target_sha, "dev", "default", opts.engine_build)?;
     let identity = identity_for(&target_checkout, &target_sha, "dev", "default")?;
     stages.push(StageResult {
         name: "target-build".into(),
         ok: true,
-        detail: format!("{} ({})", bin_dir.display(), if reused { "reused" } else { "fresh" }),
+        detail: format!(
+            "{} ({}) identity: sha={} rustc={} profile={} features={} lockfile_hash={}",
+            bin_dir.display(),
+            if reused { "reused" } else { "fresh" },
+            &identity.sha[..identity.sha.len().min(12)],
+            identity.rustc.lines().next().unwrap_or_default(),
+            identity.profile,
+            identity.features,
+            &identity.lockfile_hash[..identity.lockfile_hash.len().min(12)],
+        ),
         ms: t1.elapsed().as_millis(),
     });
 
+    if only == Some("target-build") {
+        return Ok(VerifyReport {
+            baseline_sha,
+            target_sha,
+            class,
+            build_identity: identity,
+            build_reused: reused,
+            target_built: true,
+            migrations,
+            stages,
+            conflicts: Vec::new(),
+            clean_maps: Vec::new(),
+        });
+    }
+
+    // content: needs the target build above; `--only content` stops here, before `full`.
     let stage_dir = cfg.dir.join("out/upgrade").join(&target_sha[..target_sha.len().min(12)]).join("stage");
     let t2 = std::time::Instant::now();
     let content = stage_and_build(&cfg, &stage_dir, &bin_dir)?;
@@ -853,6 +1078,24 @@ pub fn run_verify(game_dir: &Path, packet: &Value, migrations_path: &Path, opts:
         ms: t2.elapsed().as_millis(),
     });
 
+    if only == Some("content") {
+        return Ok(VerifyReport {
+            baseline_sha,
+            target_sha,
+            class,
+            build_identity: identity,
+            build_reused: reused,
+            target_built: true,
+            migrations,
+            stages,
+            conflicts: content.conflicts,
+            clean_maps: content.clean,
+        });
+    }
+
+    // full: `--only full` (or no `--only` at all) needs content's staged output above as its own prerequisite, so
+    // it necessarily reruns target-build (free, by identity) and content on the way to it — this is not the
+    // selector being ignored, it is what "full" legitimately requires, and every stage that ran is listed above.
     let t3 = std::time::Instant::now();
     let (ok, detail) = run_capture(Command::new(bin_dir.join("red_engine2")).args(["game", "check", "--dir"]).arg(&stage_dir));
     stages.push(StageResult { name: "full".into(), ok, detail, ms: t3.elapsed().as_millis() });
@@ -860,6 +1103,7 @@ pub fn run_verify(game_dir: &Path, packet: &Value, migrations_path: &Path, opts:
     Ok(VerifyReport {
         baseline_sha,
         target_sha,
+        class,
         build_identity: identity,
         build_reused: reused,
         target_built: true,
@@ -882,6 +1126,7 @@ pub fn report_json(r: &VerifyReport) -> Value {
     json!({
         "baseline_sha": r.baseline_sha,
         "target_sha": r.target_sha,
+        "class": class_json(&r.class),
         "build": {
             "identity": {"sha": r.build_identity.sha, "rustc": r.build_identity.rustc, "profile": r.build_identity.profile,
                          "features": r.build_identity.features, "lockfile_hash": r.build_identity.lockfile_hash},
@@ -892,7 +1137,12 @@ pub fn report_json(r: &VerifyReport) -> Value {
         "stages": r.stages.iter().map(|s| json!({"name": s.name, "ok": s.ok, "ms": s.ms, "detail": s.detail})).collect::<Vec<_>>(),
         "conflicts": r.conflicts,
         "clean_maps": r.clean_maps,
-        "ok": r.ok(),
+        // Three different questions, each answered separately — never collapse them into one "ok":
+        "scope_ok": r.scope_ok(),                 // did the stages that ran pass (the CLI's exit code)
+        "candidate_verified": r.candidate_verified(), // was the target actually built and exercised end to end
+        "ready_to_apply": r.ready_to_apply(),         // does this report license `game pin --sha <target_sha>`
+        "unresolved_required_migrations": r.unresolved_required_migrations().iter().map(|m| m.id.clone()).collect::<Vec<_>>(),
+        "unverified_custom_client": r.unverified_custom_client(),
     })
 }
 
@@ -918,10 +1168,38 @@ pub fn render_report(r: &VerifyReport) -> String {
             s.push_str(&format!("  {c}\n"));
         }
     }
-    if r.ok() {
-        s.push_str("\nnext: `red_engine2 game pin --engine <target checkout>`, then copy in the clean regenerated map(s) by hand\n");
-    } else if let Some(f) = r.stages.iter().find(|s| !s.ok) {
-        s.push_str(&format!("\nnext: fix `{}` (see detail above), then `game upgrade verify <packet> --only {}`\n", f.name, f.name));
+    if r.ready_to_apply() {
+        s.push_str(&format!(
+            "\nready to apply: `red_engine2 game pin --engine <target checkout> --sha {}`, then copy in the clean regenerated map(s) by hand\n",
+            r.target_sha
+        ));
+    } else if !r.scope_ok() {
+        if let Some(f) = r.stages.iter().find(|s| !s.ok) {
+            s.push_str(&format!("\nnot ready to apply — next: fix `{}` (see detail above), then `game upgrade verify <packet> --only {}`\n", f.name, f.name));
+        }
+    } else if !r.candidate_verified() {
+        let ran = |name: &str| r.stages.iter().any(|s| s.name == name);
+        let missing: Vec<&str> = [("target-build", r.target_built), ("content", ran("content")), ("full", ran("full"))]
+            .into_iter()
+            .filter(|(_, done)| !done)
+            .map(|(name, _)| name)
+            .collect();
+        s.push_str(&format!(
+            "\nnot ready to apply: this was a partial check — {} did not run; `game upgrade verify <packet>` with no `--only` runs the full pipeline\n",
+            missing.join(", ")
+        ));
+    } else {
+        s.push_str("\nnot ready to apply:\n");
+        for m in r.unresolved_required_migrations() {
+            let how = if m.repair.is_empty() { "see docs/upgrade-migrations.json".to_string() } else { m.repair.clone() };
+            s.push_str(&format!("  - required migration unresolved: {} — {how}\n", m.id));
+        }
+        if r.unverified_custom_client() {
+            s.push_str(
+                "  - this project has a custom Rust client; no stage here builds or runs it against the target engine \
+                 (a clean map regeneration is not proof it compiles) — verify it by hand before pinning\n",
+            );
+        }
     }
     s
 }
@@ -1068,6 +1346,60 @@ mod tests {
     }
 
     #[test]
+    fn an_explicit_engine_build_with_a_matching_identity_but_no_binary_is_refused() {
+        // A matching IDENTITY.json is not, by itself, proof a usable binary exists there (task step 6: "verify
+        // the expected artifacts exist before accepting a receipt"). No real build needed to prove this: an
+        // identity file with nothing beside it is exactly the shape a half-cleaned-up or corrupted cache entry
+        // would have.
+        let dir = scratch("missing_artifact");
+        let wanted = identity_for(Path::new("."), "deadbeef", "dev", "default").unwrap();
+        let claimed = BuildIdentity { sha: "deadbeef".into(), ..wanted.clone() };
+        write_identity(&dir, &claimed).unwrap();
+        assert!(!dir.join("target/debug").join(bin_name()).exists(), "the fixture must not accidentally have a real binary");
+        let err = ensure_target_build(Path::new("/unused"), Path::new("."), "deadbeef", "dev", "default", Some(&dir)).unwrap_err();
+        assert!(err.contains("missing") && err.contains(&dir.display().to_string()), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_build_lock_serializes_concurrent_callers_instead_of_racing_them() {
+        let dir = scratch("lock");
+        std::fs::create_dir_all(&dir).unwrap();
+        let first = acquire_build_lock(&dir, std::time::Duration::from_secs(5), std::time::Duration::from_millis(10)).unwrap();
+        assert!(first.is_some(), "the first caller must win the lock");
+
+        // A concurrent caller must not also proceed, and must not delete anything out from under the first: it
+        // waits, and — since the first caller never releases it within this short timeout — gives up loudly.
+        let timed_out = acquire_build_lock(&dir, std::time::Duration::from_millis(100), std::time::Duration::from_millis(10)).unwrap_err();
+        assert!(timed_out.contains("building"), "{timed_out}");
+
+        // Once the first caller's guard drops (its build finished, one way or another), the lock clears and a
+        // new caller may proceed.
+        drop(first);
+        let second = acquire_build_lock(&dir, std::time::Duration::from_secs(5), std::time::Duration::from_millis(10)).unwrap();
+        assert!(second.is_some(), "the lock must be free once the holder released it");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_second_caller_proceeds_once_the_first_releases_the_lock_from_another_thread() {
+        let dir = scratch("lock_threaded");
+        std::fs::create_dir_all(&dir).unwrap();
+        let dir2 = dir.clone();
+        let holder = std::thread::spawn(move || {
+            let guard = acquire_build_lock(&dir2, std::time::Duration::from_secs(5), std::time::Duration::from_millis(10)).unwrap();
+            assert!(guard.is_some());
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            // guard drops here, releasing the lock
+        });
+        std::thread::sleep(std::time::Duration::from_millis(20)); // let the holder claim the lock first
+        let waited = acquire_build_lock(&dir, std::time::Duration::from_secs(5), std::time::Duration::from_millis(10)).unwrap();
+        assert!(waited.is_none(), "this caller waited for the holder to finish, rather than racing it or timing out");
+        holder.join().unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn packet_round_trips_through_json_for_verify() {
         let ev = Evidence {
             game: GameConfig {
@@ -1085,10 +1417,11 @@ mod tests {
         };
         let p = plan(&ev, "b".repeat(40), Path::new("../engine"), &["fix the thing".to_string()], &[]);
         let doc = packet_json(&p);
-        let (target_sha, resolved_from, baseline_sha, _) = packet_pieces(&doc, Path::new("docs/upgrade-migrations.json")).unwrap();
+        let (target_sha, resolved_from, baseline_sha, class, _) = packet_pieces(&doc, Path::new("docs/upgrade-migrations.json")).unwrap();
         assert_eq!(target_sha, "b".repeat(40));
         assert_eq!(resolved_from, Path::new("../engine"));
         assert_eq!(baseline_sha.as_deref(), Some("a".repeat(40).as_str()));
+        assert_eq!(class, ProjectClass::StandardBlueprint);
         assert!(render_packet(&p).contains("fix the thing"));
     }
 
@@ -1122,5 +1455,187 @@ mod tests {
         assert_eq!(explicit_dir, first_dir);
 
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    fn sample_identity() -> BuildIdentity {
+        BuildIdentity { sha: "a".repeat(40), rustc: "rustc 1.0".into(), profile: "dev".into(), features: "default".into(), lockfile_hash: "h".into() }
+    }
+
+    fn sample_report(stages: Vec<StageResult>, target_built: bool, class: ProjectClass, migrations: Vec<(Migration, Confidence)>) -> VerifyReport {
+        VerifyReport {
+            baseline_sha: Some("b".repeat(40)),
+            target_sha: "a".repeat(40),
+            class,
+            build_identity: sample_identity(),
+            build_reused: false,
+            target_built,
+            migrations,
+            stages,
+            conflicts: Vec::new(),
+            clean_maps: vec!["maps/main.json".into()],
+        }
+    }
+
+    fn ok_stage(name: &str) -> StageResult {
+        StageResult { name: name.into(), ok: true, detail: String::new(), ms: 0 }
+    }
+
+    #[test]
+    fn a_baseline_only_pass_is_never_ready_to_apply_or_candidate_verified() {
+        let r = sample_report(vec![ok_stage("baseline")], false, ProjectClass::StandardBlueprint, vec![]);
+        assert!(r.scope_ok(), "the one stage that ran (baseline) passed");
+        assert!(!r.candidate_verified(), "the target was never built");
+        assert!(!r.ready_to_apply());
+        assert!(!render_report(&r).contains("game pin"), "{}", render_report(&r));
+        assert!(report_json(&r)["ready_to_apply"] == json!(false));
+    }
+
+    #[test]
+    fn only_target_build_or_only_content_are_not_candidate_verified_either() {
+        let r = sample_report(vec![ok_stage("baseline"), ok_stage("target-build")], true, ProjectClass::StandardBlueprint, vec![]);
+        assert!(!r.candidate_verified(), "content and full never ran");
+        let r = sample_report(vec![ok_stage("baseline"), ok_stage("target-build"), ok_stage("content")], true, ProjectClass::StandardBlueprint, vec![]);
+        assert!(!r.candidate_verified(), "full never ran");
+    }
+
+    #[test]
+    fn the_full_pipeline_passing_is_candidate_verified_and_ready_with_no_obligations() {
+        let r = sample_report(
+            vec![ok_stage("baseline"), ok_stage("target-build"), ok_stage("content"), ok_stage("full")],
+            true,
+            ProjectClass::StandardBlueprint,
+            vec![],
+        );
+        assert!(r.candidate_verified());
+        assert!(r.ready_to_apply());
+        assert!(render_report(&r).contains("ready to apply") && render_report(&r).contains(&r.target_sha));
+    }
+
+    #[test]
+    fn an_unresolved_required_migration_blocks_readiness_even_when_every_stage_passed() {
+        let m = Migration {
+            id: "protocol-version-lockstep".into(),
+            affected: "wire".into(),
+            detect: vec![],
+            required: true,
+            repair: "rebuild client and server from the target".into(),
+            verify: String::new(),
+            limitations: String::new(),
+        };
+        let fully_passed = vec![ok_stage("baseline"), ok_stage("target-build"), ok_stage("content"), ok_stage("full")];
+        let applicable = sample_report(fully_passed.clone(), true, ProjectClass::StandardBlueprint, vec![(m.clone(), Confidence::Applicable)]);
+        assert!(applicable.candidate_verified(), "every stage still passed");
+        assert_eq!(applicable.unresolved_required_migrations().len(), 1);
+        assert!(!applicable.ready_to_apply());
+        assert!(render_report(&applicable).contains("protocol-version-lockstep"));
+
+        let possible =
+            sample_report(fully_passed.clone(), true, ProjectClass::StandardBlueprint, vec![(m.clone(), Confidence::Possible("unreachable commit".into()))]);
+        assert!(!possible.ready_to_apply(), "an uncertain required migration is not a resolved one");
+
+        let not_applicable = sample_report(fully_passed, true, ProjectClass::StandardBlueprint, vec![(m, Confidence::NotApplicable)]);
+        assert!(not_applicable.ready_to_apply(), "a migration this project's evidence rules out does not block readiness");
+    }
+
+    #[test]
+    fn a_custom_rust_client_is_never_ready_to_apply_from_map_regeneration_alone() {
+        let fully_passed = vec![ok_stage("baseline"), ok_stage("target-build"), ok_stage("content"), ok_stage("full")];
+        let r = sample_report(fully_passed, true, ProjectClass::CustomRustClient { crates: vec![PathBuf::from("client/Cargo.toml")] }, vec![]);
+        assert!(r.candidate_verified(), "the blueprint-built maps did verify cleanly");
+        assert!(r.unverified_custom_client());
+        assert!(!r.ready_to_apply(), "a clean map regeneration is not proof the client crate still compiles");
+        assert!(render_report(&r).contains("custom Rust client"));
+    }
+
+    #[test]
+    fn unknown_only_values_are_rejected_by_name_not_run_as_everything() {
+        for good in STAGE_NAMES {
+            assert_eq!(validate_only(Some(good)).unwrap(), Some(*good));
+        }
+        assert_eq!(validate_only(None).unwrap(), None);
+        let e = validate_only(Some("basline")).unwrap_err(); // a plausible typo
+        assert!(e.contains("basline") && STAGE_NAMES.iter().all(|s| e.contains(s)), "{e}");
+    }
+
+    #[test]
+    fn a_malformed_packet_fails_loudly_instead_of_silently_certifying_nothing() {
+        let good = json!({
+            "target": {"sha": "a".repeat(40), "resolved_from": "../engine"},
+            "baseline": {"sha": "b".repeat(40)},
+            "class": {"kind": "standard_blueprint"},
+            "migrations": [{"id": "protocol-version-lockstep", "required": true, "confidence": "applicable"}],
+        });
+        let (_, _, _, class, migrations) = packet_pieces(&good, Path::new(MIGRATIONS_PATH)).unwrap();
+        assert_eq!(class, ProjectClass::StandardBlueprint);
+        assert_eq!(migrations.len(), 1);
+        assert!(migrations[0].0.required);
+
+        // Missing the migrations array entirely: must not silently become "no migrations".
+        let mut no_migrations = good.clone();
+        no_migrations.as_object_mut().unwrap().remove("migrations");
+        let e = packet_pieces(&no_migrations, Path::new(MIGRATIONS_PATH)).unwrap_err();
+        assert!(e.contains("migrations"), "{e}");
+
+        // An unreadable registry must not silently become "no migrations" either.
+        let e = packet_pieces(&good, Path::new("/nonexistent/upgrade-migrations.json")).unwrap_err();
+        assert!(e.contains("registry"), "{e}");
+
+        // A migration entry with a confidence shape this code does not recognize must error, not quietly become
+        // `NotApplicable` (the single most dangerous silent default for a *required* migration).
+        let mut weird_confidence = good.clone();
+        weird_confidence["migrations"][0]["confidence"] = json!(42);
+        let e = packet_pieces(&weird_confidence, Path::new(MIGRATIONS_PATH)).unwrap_err();
+        assert!(e.contains("protocol-version-lockstep"), "{e}");
+
+        // A migration id the current registry no longer has: kept (with the packet's own `required`), flagged as
+        // drift, never dropped.
+        let mut renamed = good.clone();
+        renamed["migrations"][0]["id"] = json!("some-id-the-registry-no-longer-has");
+        let (_, _, _, _, migrations) = packet_pieces(&renamed, Path::new(MIGRATIONS_PATH)).unwrap();
+        assert_eq!(migrations.len(), 1, "the entry must survive, not vanish");
+        assert!(migrations[0].0.required, "the packet's own required flag is kept");
+        assert!(migrations[0].0.limitations.contains("no longer"), "{:?}", migrations[0].0.limitations);
+    }
+
+    #[test]
+    fn stale_baseline_or_class_evidence_is_rejected_before_any_stage_runs() {
+        let (engine, old, new) = fake_engine_repo_for_evidence("staleness");
+        let dir = scratch("stale_evidence_game");
+        // `json!` escapes the engine path properly (a Windows path's backslashes are not valid JSON escapes if
+        // hand-formatted into a string literal directly).
+        let game_json = json!({
+            "game": 1, "name": "t",
+            "engine": {"path": engine.display().to_string()},
+            "blueprints": [], "maps": ["maps/main.json"],
+            "server": {"map": "maps/main.json", "port": 1},
+        });
+        std::fs::write(dir.join("game.json"), game_json.to_string()).unwrap();
+        std::fs::create_dir_all(dir.join("maps")).unwrap();
+        std::fs::write(dir.join("maps/main.json"), "{}").unwrap();
+        let cfg = game::load(&dir).unwrap();
+
+        // The packet claims the project's baseline was `old`; the project's engine.path actually resolves `new`
+        // right now (as if main advanced after planning) — this must be refused, not silently verified.
+        assert!(evidence_is_stale(&cfg, Some(&old), &ProjectClass::StandardBlueprint).is_some());
+        assert!(evidence_is_stale(&cfg, Some(&new), &ProjectClass::StandardBlueprint).is_none(), "matching evidence must pass");
+        assert!(evidence_is_stale(&cfg, Some(&new), &ProjectClass::CustomRustClient { crates: vec![] }).is_some(), "a changed class is also stale evidence");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&engine);
+    }
+
+    /// A tiny real git checkout standing in for "the engine", with two commits — just enough for
+    /// `resolve_current_engine`'s `probe_sha` to read a real HEAD, no buildable crate needed.
+    fn fake_engine_repo_for_evidence(name: &str) -> (PathBuf, String, String) {
+        let dir = scratch(&format!("evidence_engine_{name}"));
+        git(&dir, &["init", "-q", "-b", "main"]);
+        std::fs::write(dir.join("MARKER"), name).unwrap();
+        git(&dir, &["add", "."]);
+        git(&dir, &["commit", "-q", "-m", "old"]);
+        let old = probe_sha(&dir).unwrap();
+        std::fs::write(dir.join("MARKER"), format!("{name}-2")).unwrap();
+        git(&dir, &["add", "."]);
+        git(&dir, &["commit", "-q", "-m", "new"]);
+        let new = probe_sha(&dir).unwrap();
+        (dir, old, new)
     }
 }

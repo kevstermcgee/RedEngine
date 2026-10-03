@@ -312,9 +312,9 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             let addr = addr.unwrap_or_else(|| format!("127.0.0.1:{}", cfg.server.port));
             launch(&exe, &["--connect".to_string(), addr, cfg.dir.join(&cfg.server.map).display().to_string()])
         }
-        GameCmd::Pin { engine, allow_dirty } => {
+        GameCmd::Pin { engine, allow_dirty, sha } => {
             let checkout = game::engine_checkout(&cfg, engine.as_deref())?;
-            let pin = game::engine_pin(&checkout, allow_dirty)?;
+            let pin = game::engine_pin(&checkout, allow_dirty, sha.as_deref())?;
             let file = cfg.dir.join("game.json");
             let text = std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
             std::fs::write(&file, game::pin_text(&text, &pin.url, &pin.sha)?).map_err(|e| format!("{}: {e}", file.display()))?;
@@ -392,7 +392,7 @@ fn run_game_upgrade(cfg: &red_engine2::tools::game::GameConfig, cmd: GameUpgrade
             upgrade::write_report(&report, &out_json, &out_md)?;
             print!("{}", upgrade::render_report(&report));
             println!("report written to {} ({})", out_json.display(), out_md.display());
-            if report.ok() {
+            if report.scope_ok() {
                 Ok(())
             } else {
                 Err(String::new())
