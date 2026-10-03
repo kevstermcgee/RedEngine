@@ -1601,14 +1601,15 @@ mod tests {
     fn stale_baseline_or_class_evidence_is_rejected_before_any_stage_runs() {
         let (engine, old, new) = fake_engine_repo_for_evidence("staleness");
         let dir = scratch("stale_evidence_game");
-        std::fs::write(
-            dir.join("game.json"),
-            format!(
-                "{{\"game\":1,\"name\":\"t\",\"engine\":{{\"path\":\"{}\"}},\"blueprints\":[],\"maps\":[\"maps/main.json\"],\"server\":{{\"map\":\"maps/main.json\",\"port\":1}}}}",
-                engine.display()
-            ),
-        )
-        .unwrap();
+        // `json!` escapes the engine path properly (a Windows path's backslashes are not valid JSON escapes if
+        // hand-formatted into a string literal directly).
+        let game_json = json!({
+            "game": 1, "name": "t",
+            "engine": {"path": engine.display().to_string()},
+            "blueprints": [], "maps": ["maps/main.json"],
+            "server": {"map": "maps/main.json", "port": 1},
+        });
+        std::fs::write(dir.join("game.json"), game_json.to_string()).unwrap();
         std::fs::create_dir_all(dir.join("maps")).unwrap();
         std::fs::write(dir.join("maps/main.json"), "{}").unwrap();
         let cfg = game::load(&dir).unwrap();
