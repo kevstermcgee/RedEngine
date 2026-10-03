@@ -280,6 +280,35 @@ A run of fence along a polyline, expanded to posts + panels/rails.
   passes nearest. Leaving a gap in a perimeter lets the player walk out of the map (`lint` flags
   it as a `leak`).
 
+### `text` (macro)
+
+Lettering from the engine's 5x7 font, merged into the fewest boxes, with generated ids (`sign.l0_5`). A sign no longer takes hundreds of hand-named boxes.
+
+```json
+{ "id": "sign_depot", "type": "text", "text": "DEPOT\nOPEN 24H", "position": [0, 2.2, -3.9], "height": 0.25,
+  "backing": "#23303f", "material": { "color": "#ffcc66", "emissive": "#553300" } }
+```
+
+`text` is letters, digits and `!#%'()*+,-./:<=>?[]^_~` (lowercase shows as capitals; anything else is an error that lists what the font has), `\n` starts a line, at most 400
+characters and 12 lines. `position` is the middle of the text block. `height` is the letters' height in metres (default 0.3; one font pixel is height/7); `depth` how far
+they stand out (default one pixel); `align` `left|center|right` places shorter lines; `spacing` and `line_gap` are whole font pixels (1 and 3); `backing` is a board behind the
+letters (a colour, or `{color, material, margin, thickness}`); `material` is the letters'. Lettering is decoration (`collide: false`) unless it says otherwise.
+
+**Orientation:** the text reads along local +X and faces +Z, so a viewer looking along -Z (yaw 0) reads it normally. `rotation: [0, yaw, 0]` turns it: yaw 0 faces +Z, 90 faces +X,
+180 faces -Z, -90 faces -X. A sign on the west face of a wall at x = 4 is `"rotation": [0, -90, 0]` at x just below the wall's face.
+
+### `array` (macro)
+
+Copies of one template, named `<id>.0`, `<id>.1`, ... (the engine requires every object to have a unique id; this makes them).
+
+```json
+{ "id": "posts", "type": "array", "count": 6, "step": [1.5, 0, 0],
+  "template": { "type": "box", "size": [0.1, 1.1, 0.1], "position": [0, 0.55, 0], "material": { "color": "#8a6a40" } } }
+```
+
+Give `count` with `step`, or `positions` (a list of `[x, y, z]` offsets), up to 500 copies. `rotation_step` adds degrees per copy. The template has no `id`; its own `position` and `rotation`
+are the first copy's. A group template's children (which need ids) are renamed per copy (`lamps.2.head.bulb`). `position` on the array places the whole thing.
+
 ### `stairs`
 
 ```json

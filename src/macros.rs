@@ -1,4 +1,4 @@
-//! Parse-time "macro" object types: `wall` and `fence`.
+//! Parse-time "macro" object types: `wall`, `fence`, `text` and `array`.
 //!
 //! Hand-authoring a wall with a door in it means splitting it into pieces and doing the offset
 //! arithmetic by hand — exactly the kind of fiddly, error-prone work that produced misaligned
@@ -398,22 +398,321 @@ fn expand_fence(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> V
     vec![json!({ "id": format!("{id}.frame"), "type": "group", "children": children })]
 }
 
-/// Expands a macro object (`"wall"` or `"fence"`) into a `group` JSON object with the macro's
+/// The punctuation the 5x7 font can draw (asked of the font, so a message about it cannot drift).
+fn font_punctuation() -> String {
+    (0x21u8..0x7f).map(char::from).filter(|c| !c.is_ascii_alphanumeric() && crate::tools::font::glyph(*c).is_some()).collect()
+}
+/// Most characters and lines one `text` object takes (a sign, not a page).
+const MAX_TEXT_CHARS: usize = 400;
+const MAX_TEXT_LINES: usize = 12;
+/// Letter pixels per glyph row: the font is 5 wide and 7 tall.
+const GLYPH_COLS: usize = crate::tools::font::GLYPH_W as usize;
+const GLYPH_ROWS: usize = crate::tools::font::GLYPH_H as usize;
+
+/// A rectangle of font pixels: `(col, row, width, height)`, row 0 at the top of the text block.
+type PixelRect = (usize, usize, usize, usize);
+
+/// The font's pixels for `text` (one string per line) as a grid, with the block's size in pixels.
+/// `spacing` pixels sit between letters and `line_gap` between lines; `align` places shorter lines.
+fn text_grid(lines: &[&str], spacing: usize, line_gap: usize, align: &str) -> (Vec<Vec<bool>>, usize, usize) {
+    let width_of = |l: &str| {
+        let n = l.chars().count();
+        if n == 0 {
+            0
+        } else {
+            n * GLYPH_COLS + (n - 1) * spacing
+        }
+    };
+    let cols = lines.iter().map(|l| width_of(l)).max().unwrap_or(0);
+    let rows = lines.len() * GLYPH_ROWS + lines.len().saturating_sub(1) * line_gap;
+    let mut grid = vec![vec![false; cols]; rows];
+    for (li, line) in lines.iter().enumerate() {
+        let free = cols - width_of(line);
+        let start = match align {
+            "left" => 0,
+            "right" => free,
+            _ => free / 2,
+        };
+        let top = li * (GLYPH_ROWS + line_gap);
+        for (ci, ch) in line.chars().enumerate() {
+            let Some(rows_of) = crate::tools::font::glyph(ch) else { continue };
+            let left = start + ci * (GLYPH_COLS + spacing);
+            for (r, row) in rows_of.iter().enumerate() {
+                for (c, b) in row.bytes().enumerate() {
+                    if b == b'#' {
+                        grid[top + r][left + c] = true;
+                    }
+                }
+            }
+        }
+    }
+    (grid, cols, rows)
+}
+
+/// Covers every inked pixel exactly once with as few rectangles as a greedy sweep finds: take the first free ink pixel, grow right while
+/// ink, then grow down while the whole row segment is free ink. A letter becomes 3 to 8 boxes instead of up to 35.
+fn merge_pixels(grid: &[Vec<bool>]) -> Vec<PixelRect> {
+    let rows = grid.len();
+    let cols = grid.first().map_or(0, Vec::len);
+    let mut taken = vec![vec![false; cols]; rows];
+    let mut out = Vec::new();
+    for r in 0..rows {
+        for c in 0..cols {
+            if !grid[r][c] || taken[r][c] {
+                continue;
+            }
+            let mut w = 1;
+            while c + w < cols && grid[r][c + w] && !taken[r][c + w] {
+                w += 1;
+            }
+            let mut h = 1;
+            while r + h < rows && (c..c + w).all(|x| grid[r + h][x] && !taken[r + h][x]) {
+                h += 1;
+            }
+            for row in taken.iter_mut().skip(r).take(h) {
+                for t in row.iter_mut().skip(c).take(w) {
+                    *t = true;
+                }
+            }
+            out.push((c, r, w, h));
+        }
+    }
+    out
+}
+
+/// Expands a `text` object: lettering from the engine's 5x7 font as merged boxes, facing +Z and reading along +X, centred on the object's
+/// `position`. See SPEC.md (`### text`).
+fn expand_text(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> Vec<Value> {
+    let Some(text) = obj.get("text").and_then(Value::as_str) else {
+        errs.push(format!("{id}.text: a text object needs \"text\": \"WORDS\" (use \\n for a second line)"));
+        return vec![];
+    };
+    if text.trim().is_empty() {
+        errs.push(format!("{id}.text: is empty"));
+        return vec![];
+    }
+    let lines: Vec<&str> = text.split('\n').collect();
+    if text.chars().count() > MAX_TEXT_CHARS || lines.len() > MAX_TEXT_LINES {
+        errs.push(format!("{id}.text: at most {MAX_TEXT_CHARS} characters and {MAX_TEXT_LINES} lines (a sign, not a page)"));
+        return vec![];
+    }
+    let bad: Vec<char> = {
+        let mut b: Vec<char> = text.chars().filter(|c| *c != '\n' && *c != ' ' && crate::tools::font::glyph(*c).is_none()).collect();
+        b.sort_unstable();
+        b.dedup();
+        b
+    };
+    if !bad.is_empty() {
+        errs.push(format!(
+            "{id}.text: the font has no {} (it has letters, digits and {}; lowercase shows as capitals)",
+            bad.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", "),
+            font_punctuation()
+        ));
+        return vec![];
+    }
+    let height = num(obj, "height", 0.3);
+    let px = height / GLYPH_ROWS as f32;
+    let depth = num(obj, "depth", px.max(0.01));
+    let spacing = num(obj, "spacing", 1.0);
+    let line_gap = num(obj, "line_gap", 3.0);
+    if !(0.02..=20.0).contains(&height) || !(0.005..=2.0).contains(&depth) {
+        errs.push(format!("{id}: 'height' must be 0.02..20 m (the letter height) and 'depth' 0.005..2 m"));
+        return vec![];
+    }
+    if !(0.0..=6.0).contains(&spacing) || !(0.0..=12.0).contains(&line_gap) || spacing.fract() != 0.0 || line_gap.fract() != 0.0 {
+        errs.push(format!("{id}: 'spacing' (0..6) and 'line_gap' (0..12) are whole numbers of letter pixels"));
+        return vec![];
+    }
+    let align = obj.get("align").and_then(Value::as_str).unwrap_or("center");
+    if !["left", "center", "right"].contains(&align) {
+        errs.push(format!("{id}.align: `{align}` is not one of left, center, right"));
+        return vec![];
+    }
+    let (grid, cols, rows) = text_grid(&lines, spacing as usize, line_gap as usize, align);
+    let mat = obj.get("material").cloned().unwrap_or_else(|| json!({ "color": "#f2efe6", "roughness": 0.8 }));
+    let backing = match obj.get("backing") {
+        None => None,
+        Some(Value::String(color)) => Some((material_from_hex(color, 0.9), 0.1, 0.04)),
+        Some(Value::Object(b)) => {
+            let m = b.get("material").cloned().or_else(|| b.get("color").and_then(Value::as_str).map(|c| material_from_hex(c, 0.9)));
+            Some((m.unwrap_or_else(|| material_from_hex("#23303f", 0.9)), num(b, "margin", 0.1), num(b, "thickness", 0.04)))
+        }
+        Some(_) => {
+            errs.push(format!("{id}.backing: a colour like \"#23303f\" or {{color?, material?, margin?, thickness?}}"));
+            return vec![];
+        }
+    };
+    // Letters start a hair inside the board so their backs never share its plane.
+    let z0 = if backing.is_some() { -FIGHT_GAP } else { 0.0 };
+    let (w_m, h_m) = (cols as f32 * px, rows as f32 * px);
+    let mut kids = Vec::new();
+    if let Some((bmat, margin, thick)) = &backing {
+        kids.push(boxed(format!("{id}.backing"), [w_m + 2.0 * margin, h_m + 2.0 * margin, *thick], [0.0, 0.0, -thick / 2.0], 0.0, bmat));
+    }
+    for (c, r, w, h) in merge_pixels(&grid) {
+        let cx = (c as f32 + w as f32 / 2.0) * px - w_m / 2.0;
+        let cy = h_m / 2.0 - (r as f32 + h as f32 / 2.0) * px;
+        kids.push(boxed(format!("{id}.l{r}_{c}"), [w as f32 * px, h as f32 * px, depth - z0], [cx, cy, (z0 + depth) / 2.0], 0.0, &mat));
+    }
+    kids
+}
+
+/// Most copies one `array` makes (a row of posts, not a field of grass).
+const MAX_ARRAY: usize = 500;
+
+fn vec3_of(v: Option<&Value>) -> Option<[f64; 3]> {
+    let a = v?.as_array()?;
+    if a.len() != 3 {
+        return None;
+    }
+    Some([a[0].as_f64()?, a[1].as_f64()?, a[2].as_f64()?])
+}
+
+/// Renames every descendant of `node` to `<prefix>.<its id>`, so copies of a group template do not collide. Children without an id are reported.
+fn rename_children(node: &mut Value, prefix: &str, errs: &mut Vec<String>) {
+    let Some(kids) = node.get_mut("children").and_then(Value::as_array_mut) else { return };
+    for (k, kid) in kids.iter_mut().enumerate() {
+        match kid.get("id").and_then(Value::as_str).map(str::to_string) {
+            Some(old) => kid["id"] = json!(format!("{prefix}.{old}")),
+            None => {
+                errs.push(format!("{prefix}.children[{k}]: a template's children need ids (the array prefixes them per copy)"));
+                continue;
+            }
+        }
+        let new = kid["id"].as_str().unwrap_or_default().to_string();
+        rename_children(kid, &new, errs);
+    }
+}
+
+/// Expands an `array`: copies of one `template` object along a `step` (`count` times) or at explicit `positions`, each named `<id>.<n>`.
+/// Position and rotation of the copy are the template's own plus the offset; a group template's children are renamed per copy.
+fn expand_array(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> Vec<Value> {
+    let Some(template) = obj.get("template").and_then(Value::as_object) else {
+        errs.push(format!("{id}.template: an array needs \"template\": {{an object without an id}} to copy"));
+        return vec![];
+    };
+    if template.contains_key("id") {
+        errs.push(format!("{id}.template.id: remove it (the array names its copies {id}.0, {id}.1, ...)"));
+        return vec![];
+    }
+    let base = match template.get("position") {
+        None => [0.0; 3],
+        Some(p) => match vec3_of(Some(p)) {
+            Some(v) => v,
+            None => {
+                errs.push(format!("{id}.template.position: must be [x, y, z] (an array moves a fixed position, not a keyframed track)"));
+                return vec![];
+            }
+        },
+    };
+    let base_rot = vec3_of(template.get("rotation")).unwrap_or([0.0; 3]);
+    let offsets: Vec<[f64; 3]> = match (obj.get("positions"), obj.get("count")) {
+        (Some(_), Some(_)) => {
+            errs.push(format!("{id}: give 'count' (with 'step') or 'positions', not both"));
+            return vec![];
+        }
+        (Some(list), None) => {
+            let Some(arr) = list.as_array().filter(|a| !a.is_empty() && a.len() <= MAX_ARRAY) else {
+                errs.push(format!("{id}.positions: a list of 1 to {MAX_ARRAY} [x, y, z] offsets"));
+                return vec![];
+            };
+            let parsed: Vec<[f64; 3]> = arr.iter().filter_map(|p| vec3_of(Some(p))).collect();
+            if parsed.len() != arr.len() {
+                errs.push(format!("{id}.positions: every entry must be [x, y, z]"));
+                return vec![];
+            }
+            parsed
+        }
+        (None, Some(count)) => {
+            let Some(n) = count.as_u64().filter(|n| (1..=MAX_ARRAY as u64).contains(n)) else {
+                errs.push(format!("{id}.count: a whole number from 1 to {MAX_ARRAY}"));
+                return vec![];
+            };
+            let step = match obj.get("step") {
+                None if n == 1 => [0.0; 3],
+                None => {
+                    errs.push(format!("{id}.step: needed with 'count' above 1, as [dx, dy, dz] metres between copies"));
+                    return vec![];
+                }
+                Some(v) => match vec3_of(Some(v)) {
+                    Some(s) => s,
+                    None => {
+                        errs.push(format!("{id}.step: must be [dx, dy, dz]"));
+                        return vec![];
+                    }
+                },
+            };
+            (0..n).map(|i| [step[0] * i as f64, step[1] * i as f64, step[2] * i as f64]).collect()
+        }
+        (None, None) => {
+            errs.push(format!("{id}: an array needs 'count' (with 'step') or 'positions'"));
+            return vec![];
+        }
+    };
+    let rot_step = match obj.get("rotation_step") {
+        None => [0.0; 3],
+        Some(v) => match vec3_of(Some(v)) {
+            Some(r) => r,
+            None => {
+                errs.push(format!("{id}.rotation_step: must be [rx, ry, rz] degrees added per copy"));
+                return vec![];
+            }
+        },
+    };
+    let mut out = Vec::new();
+    for (i, off) in offsets.iter().enumerate() {
+        let mut copy = Value::Object(template.clone());
+        let name = format!("{id}.{i}");
+        copy["id"] = json!(name);
+        copy["position"] = json!([round_f64(base[0] + off[0]), round_f64(base[1] + off[1]), round_f64(base[2] + off[2])]);
+        if rot_step != [0.0; 3] || template.contains_key("rotation") {
+            let k = i as f64;
+            copy["rotation"] =
+                json!([round_f64(base_rot[0] + rot_step[0] * k), round_f64(base_rot[1] + rot_step[1] * k), round_f64(base_rot[2] + rot_step[2] * k)]);
+        }
+        rename_children(&mut copy, &name, errs);
+        out.push(copy);
+    }
+    out
+}
+
+fn round_f64(x: f64) -> f64 {
+    (x * 10000.0).round() / 10000.0
+}
+
+/// Expands a macro object (`"wall"`, `"fence"`, `"text"` or `"array"`) into a `group` JSON object with the macro's
 /// own `id`. Returns the expanded group, or every validation error found (`path: message`).
 pub fn expand(ty: &str, obj: &Map<String, Value>, id: &str) -> Result<Value, Vec<String>> {
     let mut errs = Vec::new();
     let kids = match ty {
         "wall" => expand_wall(obj, id, &mut errs),
         "fence" => expand_fence(obj, id, &mut errs),
+        "text" => expand_text(obj, id, &mut errs),
+        "array" => expand_array(obj, id, &mut errs),
         _ => unreachable!("caller checked the macro type"),
     };
     if !errs.is_empty() {
         return Err(errs);
     }
-    Ok(json!({ "id": id, "type": "group", "children": kids }))
+    let mut group = json!({ "id": id, "type": "group", "children": kids });
+    if ty == "text" || ty == "array" {
+        // Lettering and arrays are placed like any object (a wall's pieces carry absolute coordinates instead).
+        for key in ["position", "rotation", "scale", "lint_ignore"] {
+            if let Some(v) = obj.get(key) {
+                group[key] = v.clone();
+            }
+        }
+        // Lettering is decoration unless it asks otherwise; an array's copies keep whatever their template says.
+        match (ty, obj.get("collide")) {
+            (_, Some(c)) => group["collide"] = c.clone(),
+            ("text", None) => group["collide"] = json!(false),
+            _ => {}
+        }
+    }
+    Ok(group)
 }
 
-pub const MACRO_TYPES: &[&str] = &["wall", "fence"];
+pub const MACRO_TYPES: &[&str] = &["wall", "fence", "text", "array"];
 
 #[cfg(test)]
 mod tests {
@@ -433,6 +732,180 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn text(json: Value) -> Result<Value, Vec<String>> {
+        expand("text", json.as_object().unwrap(), json["id"].as_str().unwrap())
+    }
+
+    fn kids(v: &Value) -> Vec<Value> {
+        let mut out = Vec::new();
+        all_boxes(v, &mut out);
+        out
+    }
+
+    /// Every font pixel of `lines` covered exactly once by the merged rectangles.
+    fn coverage(lines: &[&str], spacing: usize, gap: usize, align: &str) -> (usize, usize) {
+        let (grid, cols, rows) = text_grid(lines, spacing, gap, align);
+        let ink = grid.iter().flatten().filter(|b| **b).count();
+        let mut hits = vec![vec![0u32; cols]; rows];
+        let rects = merge_pixels(&grid);
+        for (c, r, w, h) in &rects {
+            for row in hits.iter_mut().skip(*r).take(*h) {
+                for cell in row.iter_mut().skip(*c).take(*w) {
+                    *cell += 1;
+                }
+            }
+        }
+        for r in 0..rows {
+            for c in 0..cols {
+                assert_eq!(hits[r][c], u32::from(grid[r][c]), "pixel ({c},{r}) of {lines:?}");
+            }
+        }
+        (ink, rects.len())
+    }
+
+    #[test]
+    fn merged_rectangles_cover_every_font_pixel_exactly_once_and_cut_the_box_count() {
+        let (ink, boxes) = coverage(&["MOONLIGHT DELIVERY"], 1, 3, "center");
+        assert!(boxes * 3 < ink, "{boxes} boxes for {ink} pixels");
+        let (ink, boxes) = coverage(&["PARCELS 3/6", "BY MOONLIGHT!", "ok"], 2, 4, "right");
+        assert!(boxes < ink, "{boxes} for {ink}");
+        // A single letter is a handful of boxes, not up to thirty-five.
+        assert!(coverage(&["B"], 1, 3, "center").1 <= 8);
+    }
+
+    #[test]
+    fn a_sign_is_a_group_of_valid_uniquely_named_boxes_placed_like_any_object() {
+        let v = text(json!({"id":"sign","type":"text","text":"DEPOT","height":0.35,"position":[2,1.5,-4],"rotation":[0,90,0],
+            "material":{"color":"#ffcc00","emissive":"#553300"}}))
+        .unwrap();
+        assert_eq!((v["type"].as_str(), v["position"].clone(), v["rotation"].clone()), (Some("group"), json!([2, 1.5, -4]), json!([0, 90, 0])));
+        assert_eq!(v["collide"], false, "lettering is decoration unless it asks otherwise");
+        let boxes = kids(&v);
+        let mut ids: Vec<&str> = boxes.iter().map(|b| b["id"].as_str().unwrap()).collect();
+        let n = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), n, "every piece has its own id");
+        assert!(ids.iter().all(|i| i.starts_with("sign.l")), "{ids:?}");
+        assert!(boxes.iter().all(|b| b["material"]["emissive"] == "#553300"), "the material reaches every letter");
+        // The whole object parses as a scene (the generated ids and fields are what the parser demands).
+        let scene = json!({"camera":{"position":[0,1.7,5],"target":[0,1.5,0]},"objects":[{"id":"sign","type":"text","text":"DEPOT","position":[0,1.5,0]}]});
+        let parsed = crate::schema::parse_scene_in(&scene.to_string(), None).unwrap();
+        assert!(matches!(&parsed.objects[0].kind, crate::schema::ObjectKind::Group(k) if !k.is_empty()));
+        let solid = text(json!({"id":"s","type":"text","text":"A","collide":true})).unwrap();
+        assert_eq!(solid["collide"], true);
+    }
+
+    #[test]
+    fn lettering_reads_along_plus_x_with_the_top_of_the_text_up_and_stands_in_front_of_z_zero() {
+        let v = text(json!({"id":"t","type":"text","text":"T","height":0.7})).unwrap();
+        let boxes = kids(&v);
+        let top = boxes.iter().max_by(|a, b| a["position"][1].as_f64().partial_cmp(&b["position"][1].as_f64()).unwrap()).unwrap();
+        assert!((top["size"][0].as_f64().unwrap() - 0.5).abs() < 1e-3, "the bar of a T is five pixels wide, at the top: {top}");
+        assert!(top["position"][1].as_f64().unwrap() > 0.25, "and above the middle");
+        // Block is centred on the origin, 5 px wide and 7 px (0.7 m) tall.
+        let (lo, hi) = boxes.iter().fold((f64::MAX, f64::MIN), |(lo, hi), b| {
+            let (y, h) = (b["position"][1].as_f64().unwrap(), b["size"][1].as_f64().unwrap());
+            (lo.min(y - h / 2.0), hi.max(y + h / 2.0))
+        });
+        assert!((lo + 0.35).abs() < 1e-3 && (hi - 0.35).abs() < 1e-3, "{lo} {hi}");
+        assert!(boxes.iter().all(|b| b["position"][2].as_f64().unwrap() > 0.0), "the letters stand out toward +Z");
+        // Lowercase is the same lettering.
+        assert_eq!(kids(&text(json!({"id":"t","type":"text","text":"t","height":0.7})).unwrap()), boxes);
+    }
+
+    #[test]
+    fn a_backing_board_sits_behind_the_letters_and_alignment_places_short_lines() {
+        let v =
+            text(json!({"id":"s","type":"text","text":"HELLO\nHI","height":0.14,"align":"left","backing":{"color":"#102030","margin":0.05,"thickness":0.03}}))
+                .unwrap();
+        let boxes = kids(&v);
+        let back = boxes.iter().find(|b| b["id"] == "s.backing").expect("a backing board");
+        // 5 letters of 5 px and 4 gaps = 29 px wide at 0.02 m, two lines = 17 px tall, plus the margin each side.
+        assert!((back["size"][0].as_f64().unwrap() - (29.0 * 0.02 + 0.1)).abs() < 1e-3, "{back}");
+        assert!((back["size"][1].as_f64().unwrap() - (17.0 * 0.02 + 0.1)).abs() < 1e-3, "{back}");
+        assert!(back["position"][2].as_f64().unwrap() < 0.0, "behind the letters' front plane");
+        let letters: Vec<&Value> = boxes.iter().filter(|b| b["id"] != "s.backing").collect();
+        let left = letters.iter().map(|b| b["position"][0].as_f64().unwrap() - b["size"][0].as_f64().unwrap() / 2.0).fold(f64::MAX, f64::min);
+        assert!((left + 29.0 * 0.02 / 2.0).abs() < 1e-3, "left aligned lines start at the block's left edge: {left}");
+        assert!(letters.iter().all(|b| b["position"][2].as_f64().unwrap() + b["size"][2].as_f64().unwrap() / 2.0 > 0.0), "letters poke out of the board");
+        assert_eq!(text(json!({"id":"s","type":"text","text":"A","backing":"#223344"})).unwrap()["children"][0]["id"], "s.backing");
+    }
+
+    #[test]
+    fn a_bad_sign_says_what_is_wrong_and_what_the_font_has() {
+        let err = |v: Value| text(v).unwrap_err().join("\n");
+        let e = err(json!({"id":"s","type":"text","text":"CAFÉ @"}));
+        assert!(e.contains("no `@`") && e.contains("`É`") && e.contains("letters, digits and"), "{e}");
+        assert!(err(json!({"id":"s","type":"text"})).contains("needs \"text\""));
+        assert!(err(json!({"id":"s","type":"text","text":"  "})).contains("is empty"));
+        assert!(err(json!({"id":"s","type":"text","text":"A","height":0})).contains("'height'"));
+        assert!(err(json!({"id":"s","type":"text","text":"A","align":"middle"})).contains("not one of left, center, right"));
+        assert!(err(json!({"id":"s","type":"text","text":"A","spacing":1.5})).contains("whole numbers"));
+        assert!(err(json!({"id":"s","type":"text","text":"A\n".repeat(13)})).contains("at most"));
+        assert!(err(json!({"id":"s","type":"text","text":"A","backing":3})).contains(".backing"));
+    }
+
+    fn array(json: Value) -> Result<Value, Vec<String>> {
+        expand("array", json.as_object().unwrap(), json["id"].as_str().unwrap())
+    }
+
+    fn all_ids(v: &Value, out: &mut Vec<String>) {
+        for k in v.get("children").and_then(Value::as_array).into_iter().flatten() {
+            out.push(k["id"].as_str().unwrap().to_string());
+            all_ids(k, out);
+        }
+    }
+
+    #[test]
+    fn an_array_names_its_copies_and_steps_position_and_rotation() {
+        let v = array(json!({"id":"posts","type":"array","count":4,"step":[1.5,0,0.25],"rotation_step":[0,15,0],"position":[10,0,0],
+            "template":{"type":"box","size":[0.1,1,0.1],"position":[0,0.5,0],"rotation":[0,5,0],"material":{"color":"#8a6a40"}}}))
+        .unwrap();
+        let kids = kids(&v);
+        assert_eq!(kids.iter().map(|k| k["id"].as_str().unwrap()).collect::<Vec<_>>(), ["posts.0", "posts.1", "posts.2", "posts.3"]);
+        assert_eq!(kids[2]["position"], json!([3.0, 0.5, 0.5]));
+        assert_eq!(kids[3]["rotation"], json!([0.0, 50.0, 0.0]), "the template's own rotation plus 15 degrees per copy");
+        assert_eq!(v["position"], json!([10, 0, 0]), "the group carries the array's own placement");
+        assert!(kids.iter().all(|k| k["material"]["color"] == "#8a6a40" && k["size"] == json!([0.1, 1, 0.1])));
+    }
+
+    #[test]
+    fn explicit_positions_and_group_templates_get_unique_ids_the_parser_accepts() {
+        let v = array(json!({"id":"lamps","type":"array","positions":[[0,2.4,0],[5,2.4,0],[5,2.4,6]],
+            "template":{"type":"group","children":[{"id":"pole","type":"box","size":[0.1,2.4,0.1],"position":[0,-1.2,0]},
+                                                   {"id":"head","type":"group","children":[{"id":"bulb","type":"sphere","radius":0.15}]}]}}))
+        .unwrap();
+        let mut ids = Vec::new();
+        all_ids(&v, &mut ids);
+        let n = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(n, ids.len(), "no two pieces share an id: {ids:?}");
+        assert!(ids.contains(&"lamps.2.head.bulb".to_string()) && ids.contains(&"lamps.0.pole".to_string()), "{ids:?}");
+        let scene = json!({"camera":{"position":[0,1.7,5],"target":[0,1,0]},"objects":[v]});
+        crate::schema::parse_scene_in(&scene.to_string(), None).expect("the expanded array is a valid scene");
+    }
+
+    #[test]
+    fn a_bad_array_says_what_to_give() {
+        let err = |v: Value| array(v).unwrap_err().join("\n");
+        let b = json!({"type":"box","size":[1,1,1]});
+        assert!(err(json!({"id":"a","type":"array","count":3})).contains("needs \"template\""));
+        assert!(err(json!({"id":"a","type":"array","template":{"id":"x","type":"box"},"count":2,"step":[1,0,0]})).contains("remove it"));
+        assert!(err(json!({"id":"a","type":"array","template":b.clone()})).contains("needs 'count'"));
+        assert!(err(json!({"id":"a","type":"array","template":b.clone(),"count":3})).contains(".step"));
+        assert!(err(json!({"id":"a","type":"array","template":b.clone(),"count":0,"step":[1,0,0]})).contains("1 to 500"));
+        assert!(err(json!({"id":"a","type":"array","template":b.clone(),"count":501,"step":[1,0,0]})).contains("1 to 500"));
+        assert!(err(json!({"id":"a","type":"array","template":b.clone(),"count":2,"step":[1,0,0],"positions":[[0,0,0]]})).contains("not both"));
+        assert!(err(json!({"id":"a","type":"array","template":b.clone(),"positions":[[0,0]]})).contains("[x, y, z]"));
+        let mut keyframed = b.clone();
+        keyframed["position"] = json!({"keyframes": []});
+        assert!(err(json!({"id":"a","type":"array","template":keyframed,"count":2,"step":[1,0,0]})).contains("keyframed"));
+        let nameless = json!({"id":"a","type":"array","count":2,"step":[1,0,0],"template":{"type":"group","children":[{"type":"box"}]}});
+        assert!(err(nameless).contains("children need ids"));
     }
 
     #[test]

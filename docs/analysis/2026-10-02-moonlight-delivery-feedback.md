@@ -40,3 +40,5 @@ not established (CLAUDE.md already advises `CARGO_TARGET_DIR`; worth checking wh
 - **#2 done:** ADR 2026-10-03 "Object-based player actions for sim and the scripted client": `approach` / `look_at` / `interact` by object id in `checks.sim` and the client script (`sim::approach`).
 - Full CI green with both (2007 passed).
 - Side finding: the `interact` event a peaceful scene injects cannot be used as a rule trigger (the validator says nothing emits it).
+- **#4 done:** ADR 2026-10-03 "Lettering and arrays as macros": a `text` macro (signs from the engine font as merged boxes, generated ids) and an `array` macro (copies with generated ids).
+- #5 (Linux authoring binaries + bootstrap/doctor) is not done.
