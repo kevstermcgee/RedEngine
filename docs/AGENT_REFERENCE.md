@@ -69,7 +69,7 @@ prints waypoints and a paste-ready `checks.walk` entry (or put `{"from": [..], "
 ```bash
 cargo build --release          # once; then use target/release/red_engine2(.exe) and re2(.exe)   (or just `scripts/dev red <command>`, any OS, any directory)
 alias re='./target/release/red_engine2'      # the examples below write it as `red_engine2`
-scripts/dev iterate            # the edit loop: what changed since HEAD, fmt + type-check + touched unit tests; never verification (then `affected`, then `affected --full`)
+scripts/dev iterate            # the edit loop: what changed since HEAD, fmt + type-check + clippy + touched unit tests; never verification (then `affected`, then `affected --full`)
 scripts/dev test               # the whole suite (catalogue, recipes, verify, search, docs-vs-code checks, netcode, sim replay...): a summary, full log in out/logs/
 ```
 
