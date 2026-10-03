@@ -179,6 +179,36 @@ pub const TYPES: &[TypeInfo] = &[
         example: r##"{"id":"f1","type":"fence","points":[[0,0],[8,0],[8,6],[0,6]],"closed":true,"gaps":[{"at":[4,0],"width":2.4}],"material":{"color":"#b8a888"}}"##,
     },
     TypeInfo {
+        name: "text",
+        summary: "macro: lettering (a sign, a label on a wall) from the engine's 5x7 font, merged into the fewest boxes; ids are generated. Reads along +X and faces +Z; `rotation: [0,yaw,0]` turns it.",
+        fields: &[
+            ("text", "string, required", "letters, digits and !#%'()*+,-./:<=>?[]^_~ (lowercase shows as capitals); \\n starts a new line; at most 400 characters, 12 lines"),
+            ("position", "[x,y,z] = [0,0,0]", "the MIDDLE of the text block"),
+            ("height", "number = 0.3", "the letters' height in metres (one font pixel is height/7)"),
+            ("depth", "number = one pixel", "how far the letters stand out toward +Z"),
+            ("align", "left|center|right = center", "where shorter lines of a multi-line text sit"),
+            ("spacing", "whole px = 1", "gap between letters, in font pixels"),
+            ("line_gap", "whole px = 3", "gap between lines, in font pixels"),
+            ("backing", "#hex or {color?, material?, margin?, thickness?}", "a board behind the letters; margin default 0.1 m, thickness 0.04 m"),
+            ("material", "{color, emissive, ...}", "the letters (default off-white); emissive makes a lit sign"),
+            ("collide", "bool = false", "lettering is decoration; true makes it solid"),
+        ],
+        example: r##"{"id":"sign_depot","type":"text","text":"DEPOT\nOPEN 24H","position":[0,2.2,-3.9],"height":0.25,"backing":"#23303f","material":{"color":"#ffcc66","emissive":"#553300"}}"##,
+    },
+    TypeInfo {
+        name: "array",
+        summary: "macro: copies of one template along a step (or at listed positions), named <id>.0, <id>.1, ... so repeated geometry never needs hand-written ids. A group template's children are renamed per copy.",
+        fields: &[
+            ("template", "object without an id, required", "any object (box, prop, group, text ...); its own position and rotation are the first copy's"),
+            ("count", "1..500, with step", "how many copies"),
+            ("step", "[dx,dy,dz]", "metres between copies (needed when count > 1)"),
+            ("positions", "[[x,y,z], ...] instead of count", "explicit offsets, one copy each"),
+            ("rotation_step", "[rx,ry,rz] degrees", "added per copy (a fan, a spiral)"),
+            ("position", "[x,y,z] = [0,0,0]", "places the whole array"),
+        ],
+        example: r##"{"id":"posts","type":"array","count":6,"step":[1.5,0,0],"template":{"type":"box","size":[0.1,1.1,0.1],"position":[0,0.55,0],"material":{"color":"#8a6a40"}}}"##,
+    },
+    TypeInfo {
         name: "humanoid",
         summary: "posable ordinary-looking person (shirt, skin, hair, jeans, shoes); the human player's body in `re2`.",
         fields: &[

@@ -121,6 +121,8 @@ pub fn object_keys(ty: &str) -> Option<Vec<&'static str>> {
         "terrain" => crate::terrain::TERRAIN_KEYS,
         "wall" => &["from", "to", "y", "height", "thickness", "material", "openings", "trim", "baseboard", "extend"],
         "fence" => &["points", "closed", "y", "height", "post_spacing", "style", "material", "post_color", "gaps"],
+        "array" => &["template", "count", "step", "positions", "rotation_step"],
+        "text" => &["text", "height", "depth", "align", "spacing", "line_gap", "backing", "material"],
         "prefab" => return Some(PREFAB_INSTANCE_KEYS.to_vec()),
         _ => return None,
     };

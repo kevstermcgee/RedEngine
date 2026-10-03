@@ -250,7 +250,8 @@
    "exist": [
     "floor",
     "key",
-    "gate"
+    "gate",
+    "sign_garden"
    ],
    "min_count": 8
   },
@@ -501,6 +502,27 @@
     "emissive": "#7a5a08",
     "metallic": 0.8,
     "roughness": 0.3
+   }
+  },
+  {
+   "id": "sign_garden",
+   "type": "text",
+   "text": "GARDEN\nKEY OPENS GATE",
+   "position": [
+    3.86,
+    1.9,
+    -3.4
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "height": 0.18,
+   "backing": "#23303f",
+   "material": {
+    "color": "#ffd27a",
+    "emissive": "#4a3510"
    }
   }
  ]
