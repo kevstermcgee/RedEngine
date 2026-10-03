@@ -97,6 +97,40 @@ fn contains_xz(min: Vec3, max: Vec3, p: Vec2) -> bool {
     p.x >= min.x && p.x <= max.x && p.y >= min.z && p.y <= max.z
 }
 
+/// Codes that say "the player cannot get there": in a scene with `phases`, one reachable state settles them.
+const REACH_CODES: [&str; 3] = ["zone", "floor", "unreachable"];
+
+/// [`lint`] for a scene with `phases`: the initial state's findings, except that a reachability finding (`zone`, `floor`,
+/// `unreachable`) is dropped when some declared phase reaches that place (a garden behind a gate a rule opens is not
+/// unreachable, it is reachable once the gate is open), and a finding that appears only in a phase (a leak the open gate
+/// creates) is added, prefixed `[phase name]`. Without `phases` this is exactly [`lint`].
+pub fn lint_phases(world: &MapWorld, reach: &Reach, cell: f32) -> Vec<Finding> {
+    let mut out = lint(world, reach);
+    if world.phase.is_some() || world.scene.rules.phases.is_empty() {
+        return out;
+    }
+    let key = |f: &Finding| (f.code, f.message.clone());
+    let initial: HashSet<(&'static str, String)> = out.iter().map(key).collect();
+    let mut resolved: HashSet<(&'static str, String)> = HashSet::new();
+    let mut extra = Vec::new();
+    for ph in &world.scene.rules.phases {
+        let Ok(w) = MapWorld::from_text_phase(&world.raw.to_string(), &world.path, Some(&ph.name)) else { continue };
+        let r = super::reach::compute(&w, &super::reach::ReachParams { cell, ..Default::default() });
+        let found = lint(&w, &r);
+        let here: HashSet<(&'static str, String)> = found.iter().map(key).collect();
+        resolved.extend(initial.iter().filter(|k| REACH_CODES.contains(&k.0) && !here.contains(*k)).cloned());
+        for mut f in found {
+            if !initial.contains(&key(&f)) && !extra.iter().any(|e: &Finding| key(e) == key(&f)) {
+                f.message = format!("[phase {}] {}", ph.name, f.message);
+                extra.push(f);
+            }
+        }
+    }
+    out.retain(|f| !resolved.contains(&key(f)));
+    out.extend(extra);
+    out
+}
+
 /// Runs every lint check over a loaded map and its reachability analysis.
 pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
     let mut out = Vec::new();

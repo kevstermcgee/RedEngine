@@ -6,7 +6,8 @@
 //! An expectation in the script that does not hold, a warning from the session (a player nobody can see) or a picture that cannot be taken makes the exit code 1.
 
 use super::*;
-use red_engine2::playscript::{CameraSpec, Driver, Key, Policy, Runner, Script};
+use red_engine2::playscript::{CameraSpec, Driver, Key, Policy, Pose, Runner, Script};
+use red_engine2::sim::approach::Target;
 use serde_json::{json, Value};
 
 /// What the command line asked of a headless run.
@@ -157,6 +158,25 @@ impl Driver for App {
 
     fn say(&mut self, text: &str) {
         println!("script: {text}");
+    }
+
+    fn pose(&self) -> Option<Pose> {
+        Some(Pose { pos: self.physics_pos, eye: self.tick_eye(), pickup_reach: self.body.pickup_reach })
+    }
+
+    /// The scene's own copy of the object: a loose prop's pose is written into it every frame, offline from the physics world and online from the
+    /// server's snapshots, so this is where the prop is now either way.
+    fn locate(&self, id: &str) -> Option<Target> {
+        let object = self.scene.objects.iter().find(|o| o.id == id)?;
+        let item = red_engine2::collide::interactables_of(std::slice::from_ref(object)).into_iter().next()?;
+        Some(Target::from_bounds(item.min, item.max))
+    }
+
+    /// Offline the physics world knows the holder; online it is the server's to know and the client cannot tell.
+    fn carrying(&self, id: &str) -> Option<bool> {
+        let props = self.props.as_ref()?;
+        let index = self.scene.objects.iter().position(|o| o.id == id)?;
+        Some(props.prop_of_object(index).is_some_and(|p| props.held() == Some(p)))
     }
 }
 
