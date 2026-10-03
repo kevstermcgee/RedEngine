@@ -293,6 +293,13 @@ impl App {
     pub(crate) fn update(&mut self, dt: f32) {
         // Online, the connection must be serviced even when the window is not focused (or the server
         // would time us out), so the simulation keeps ticking; offline it pauses like before.
+        // A start or end card is up: the game waits for its button (the clock still runs for scripts and pictures).
+        if self.card.is_some() && self.net.is_none() {
+            self.frame_no += 1;
+            self.play_secs += dt;
+            self.sync_rule_hud();
+            return;
+        }
         if !self.grabbed && self.net.is_none() {
             return;
         }
@@ -337,6 +344,7 @@ impl App {
 
         self.feedback_frame(dt);
         self.sync_online_ui();
+        self.sync_card();
         self.sync_rule_hud();
 
         // Online, the weapon in hand is whatever the server says (it owns weapons, health and pick-ups).
@@ -652,6 +660,7 @@ impl App {
         self.last_frame = Instant::now();
         self.net_title_at = Instant::now();
         self.set_grab(true);
+        self.open_start_card();
     }
 
     fn rebuild_collision_world(&mut self) {

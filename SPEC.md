@@ -78,6 +78,27 @@ Easing options: `linear`, `in`, `out`, `inout`, `hold` (step, no interpolation),
 Vector tracks (`position`, `rotation`, color) interpolate component-wise / channel-wise; you
 never need to keyframe X, Y, Z separately.
 
+### The game's own words (`ui`)
+
+A top-level `"ui"` block says what the *game* tells its player; `hud` only chooses which engine panels show. It is presentation (no gameplay, no checksum), read
+the same way by the client, `ui-shot`, `ui-check` and the headless state dump. `describe ui` has the full syntax; in short:
+
+```json
+"ui": {
+  "title": "Moonlight Delivery",
+  "labels": { "stamps": "Stamps" },
+  "counters": [ { "var": "delivered", "of": 6, "label": "Parcels" }, { "var": "time_left", "label": "Time", "format": "clock" } ],
+  "objective": [ { "if": "delivered >= 6", "text": "Open the garden gate" }, { "text": "Bring every parcel to the depot ({delivered} of 6)" } ],
+  "start": { "title": "Moonlight Delivery", "text": "Carry the parcels before dawn.", "button": "Start" },
+  "end": { "victory": { "title": "Delivered!", "text": "All {delivered} parcels.", "button": "Play again" }, "default": { "title": "Time is up" } }
+}
+```
+
+Variables, `end` outcomes (against the rules' `end` actions), expressions and `{placeholders}` are validated when the scene loads. Offline, the game waits for the start
+card's button and puts the end card up when a rule ends the match; its button restarts the scene (Enter, Space, E or a click). Online the HUD uses the labels, counters
+and objective; the cards are offline only. `ui-shot game-hud|game-start|game-end --scene S.json --var delivered=3 --outcome victory` draws them and
+`ui-check --scene S.json` audits them at nine window sizes. A headless script plays them with `{"press": "start"}` / `{"press": "restart"}`.
+
 ## Camera
 
 ```json

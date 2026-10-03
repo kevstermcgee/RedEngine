@@ -23,6 +23,7 @@
 //! | `turn: deg, over: secs` | turn by an angle, spread over a time (a spin: `360`) |
 //! | `hold: [keys], secs` | hold `forward` `back` `left` `right` `sprint` `crouch` |
 //! | `jump: true`, `interact: true`, `switch: n` | tap Space, tap E, scroll the mouse wheel |
+//! | `press: id` | use the on-screen button with that id (`start` on the start card, `restart` on the end card) |
 //! | `fire: n` or `{clicks, every}` or `{secs}` | click n times / hold the trigger for a time; `track: true` keeps aiming at the nearest visible enemy |
 //! | `aim_at: "nearest"` | turn to the nearest remote player in line of sight |
 //! | `view: "first"\|"third"`, `policy: name` | camera mode; who plays between steps (`idle`, `sentry`, `walker`) |
@@ -176,6 +177,8 @@ pub enum Step {
     Switch(f32),
     /// Tap E.
     Interact,
+    /// Use the on-screen button with this id (`start`, `restart`).
+    Press(String),
     /// First or third person.
     View {
         /// Third person.
@@ -208,8 +211,9 @@ pub struct Script {
 }
 
 /// Actions a step can be, for the "did you mean" of a typo.
-pub const ACTIONS: &[&str] =
-    &["wait", "look", "turn", "hold", "jump", "fire", "aim_at", "switch", "interact", "view", "policy", "shot", "snapshot", "expect", "wait_for", "say"];
+pub const ACTIONS: &[&str] = &[
+    "wait", "look", "turn", "hold", "jump", "fire", "aim_at", "switch", "interact", "press", "view", "policy", "shot", "snapshot", "expect", "wait_for", "say",
+];
 
 /// Keys a step may carry besides its action (checked so a typo in one is an error, not silently ignored).
 const STEP_KEYS: &[&str] = &["over", "secs", "camera", "track", "every", "clicks", "msg"];
@@ -401,6 +405,13 @@ fn parse_step(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<Step> {
             Step::AimAt
         }
         "switch" => Step::Switch(num(val, &format!("{path}.switch"), errs)?),
+        "press" => match val.as_str().filter(|id| !id.is_empty()) {
+            Some(id) => Step::Press(id.to_string()),
+            None => {
+                errs.push(format!("{path}.press: a button id like \"start\" or \"restart\""));
+                return None;
+            }
+        },
         "view" => Step::View {
             third: match val.as_str() {
                 Some("first") => false,
@@ -533,6 +544,10 @@ pub trait Driver {
     fn state(&self) -> Value;
     /// Prints a line.
     fn say(&mut self, text: &str);
+    /// Uses the on-screen button with this id; `Err` says why there is none.
+    fn press(&mut self, _id: &str) -> Result<(), String> {
+        Err("this client has no buttons to press".to_string())
+    }
 }
 
 /// Why an expectation failed, or `None` when `e` holds in `state`.
@@ -670,6 +685,11 @@ impl Runner {
                 }
                 Step::Jump => d.jump(),
                 Step::Interact => d.interact(),
+                Step::Press(id) => {
+                    if let Err(why) = d.press(&id) {
+                        self.failures.push(format!("press `{id}`: {why}"));
+                    }
+                }
                 Step::Switch(n) => d.scroll(n),
                 Step::View { third } => d.set_view(third),
                 Step::Policy(p) => d.set_policy(p),
@@ -808,6 +828,20 @@ mod tests {
             r.advance(dt, fake);
         }
         r
+    }
+
+    #[test]
+    fn press_takes_a_button_id_asks_the_driver_and_a_refusal_is_a_failure() {
+        let s = Script::parse(r#"{"steps":[{"press":"start"}]}"#).unwrap();
+        assert_eq!(s.steps, vec![Step::Press("start".into())]);
+        let e = Script::parse(r#"{"steps":[{"press":""},{"press":3}]}"#).unwrap_err().join("\n");
+        assert!(e.contains("a button id"), "{e}");
+        // A driver with no buttons refuses, and the script says which button and why.
+        let mut fake = Fake::default();
+        let r = run(r#"{"steps":[{"press":"start"},{"say":"after"}]}"#, 3, 0.1, &mut fake);
+        assert!(r.finished(), "a failed press does not stop the script");
+        assert_eq!(r.failures.len(), 1);
+        assert!(r.failures[0].contains("press `start`") && r.failures[0].contains("no buttons"), "{:?}", r.failures);
     }
 
     #[test]

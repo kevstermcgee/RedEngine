@@ -56,6 +56,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
 mod avatar;
+mod cards;
 mod controller;
 mod dump;
 mod events;
@@ -318,6 +319,10 @@ struct App {
     rule_event_until: u64,
     /// Last `(width, height, content)` painted into the offline rules HUD.
     rule_hud_painted: Option<(u32, u32, String)>,
+    /// The start or end card of the scene's `ui` block, when one is up (offline only; `cards.rs`).
+    card: Option<cards::CardState>,
+    /// A restart does not show the start card again.
+    skip_start_card: bool,
     /// Seconds since the last shot (drives the recoil kick); starts settled.
     since_shot: f32,
     /// Seconds of muzzle flash left.
@@ -560,6 +565,8 @@ impl App {
             rule_event: None,
             rule_event_until: 0,
             rule_hud_painted: None,
+            card: None,
+            skip_start_card: false,
             swing_timer: None,
             target_index: None,
             physics_pos: Vec2::new(spawn.x, spawn.z),

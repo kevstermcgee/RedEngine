@@ -30,9 +30,10 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("decisions", "the architecture decision records (docs/adr): why the engine is built this way, one line each"),
     ("diagnostics", "the `--json` envelope every command can return, and every stable diagnostic code with its fix"),
     ("rules", "game logic as data: `vars` + `rules` (when/who/if/once/do), volumes, actions, expressions"),
+    ("ui", "game HUD, objective, start/end cards"),
     ("sim", "headless play-throughs (`sim`, `checks.sim`) and match traces (`replay`, checksums)"),
     ("multiplayer", "hosting and playing online: keys, lobby and rounds, UPnP, net-test, perf, package"),
-    ("playtest", "look at the game without a screen: `playtest`, headless scripts, pictures, the state dump, `expect`"),
+    ("playtest", "see the game without a screen: `playtest`, headless scripts, state dump"),
     ("custom-client", "a game that is not first-person: your own crate on `red_engine2::app`"),
     ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
@@ -231,6 +232,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("flashlight", "true | false (default false): gives the player a toggleable point light that follows the camera (the T key); a Point, not a cone — the engine has no spotlight kind. Good for a dark map that needs the player to actively light their own way rather than being lit for them."),
     ("death_text", "a string (default none, meaning \"ELIMINATED\"): the title the standard client's death screen shows while waiting to respawn. The arena-shooter wording is not right for every genre — a horror game, a race, anything else with its own tone can say what being caught/crashed/out actually means there."),
     ("teams", "true | false (default false): lets players (human or bot) be assigned to team 1 or 2 outside a loadout `shooter` match, so `who: team1`/`who: team2` can be used in `rules`. A `shooter` block already has teams regardless of this flag; this is for a non-shooter game with asymmetric roles (hide-and-seek, capture-the-flag, anything two-sided)."),
+    ("ui", "{title, labels: {var: name}, counters: [{var, of?, label?, format?: number|clock}], objective: text | [{if?, text}], start: {title, text, button}, end: {outcome|default: {title, text, button}}} the game's own words: friendly HUD, objective, start card, end cards with restart (`describe ui`); texts may use {var}"),
     ("hud", "{enabled, show_combat, show_crosshair, show_ping, show_scoreboard, show_round, show_events, show_help, show_rules_vars, custom_vars: [var, ...]} which on-screen display is drawn; `enabled:false` is a clean screen; defaults are all-on, or combat/crosshair/ping/scoreboard/round off when `player.mode` is peaceful"),
     ("world", "{wrap: {axis: x|z, min, max}, bounds: {x: [lo, hi], z: [lo, hi]}} an endless world: the axis loops every max-min metres (author one period; the seam is invisible), bounds are the invisible edge of the other axes"),
     ("sky", "{sun: {direction:[x,y,z] toward the sun, size_deg, color, glow}, haze, zenith, gradient_power} a sky dome shaded by view direction with a sun at infinity that sets behind the horizon instead of dipping under the ground; without it `background` is a screen-space gradient"),
@@ -426,6 +428,31 @@ pub const RULES_EXAMPLE: &str = r##"{"camera":{"position":[0,1.7,-6],"target":[0
  "objects":[{"id":"floor","type":"plane","size":[20,10],"position":[0,0.01,0]},
             {"id":"coin","type":"cylinder","radius":0.25,"height":0.08,"position":[0,0.45,0],"collide":false}]}"##;
 
+/// `describe ui`: the scene's `ui` block.
+fn ui_text() -> String {
+    "A scene's `ui` block is what the GAME says to its player; `hud` only chooses which engine panels show. Presentation only: it changes no gameplay.\n\n\
+     \"ui\": {\n\
+     \x20 \"title\": \"Moonlight Delivery\",                       shown on the HUD panel and as the start card's default\n\
+     \x20 \"labels\": {\"stamps\": \"Stamps\"},                      friendly names for variables (a plain row reads STAMPS: 3, not STAMPS_RAW)\n\
+     \x20 \"counters\": [{\"var\": \"delivered\", \"of\": 6, \"label\": \"Parcels\"},     PARCELS: 3 / 6   (`of`: a number or another variable)\n\
+     \x20                {\"var\": \"time_left\", \"label\": \"Time\", \"format\": \"clock\"}],   TIME: 1:23   (format: number | clock)\n\
+     \x20 \"objective\": [{\"if\": \"delivered >= 6\", \"text\": \"Open the garden gate\"},   the first line whose `if` holds; one string is fine too\n\
+     \x20                {\"text\": \"Bring every parcel to the depot ({delivered} of 6)\"}],   {var} is filled in\n\
+     \x20 \"start\": {\"title\": \"...\", \"text\": \"...\", \"button\": \"Start\"},   offline: the game waits for the button\n\
+     \x20 \"end\": {\"victory\": {\"title\": \"Delivered!\", \"text\": \"All {delivered}.\", \"button\": \"Play again\"},   keyed by the outcome an `end` action names\n\
+     \x20         \"default\": {\"title\": \"Time is up\", \"button\": false}}   `default` answers the rest; \"button\": false = no button\n\
+     }\n\n\
+     Everything is checked on load with a did-you-mean: variables (labels, counters, `of`, conditions, {placeholders}), `end` outcomes against the rules' `end` actions,\n\
+     unknown keys, texts too long for a screen. `hud` composes: `show_rules_vars: false` hides the plain variable rows but counters and the objective stay; `enabled: false` hides all.\n\
+     Offline (`re2 scene.json`): Enter, Space, E or a click uses a card's button; a restart rebuilds the game from the scene file and skips the start card. Online: the HUD\n\
+     uses the labels, counters and objective, but the cards are offline only (a shared match cannot wait for one player; it has its own lobby and results).\n\n\
+     SEE IT:    red_engine2 ui-shot game-hud|game-start|game-end out.png --scene scene.json [--var delivered=3] [--outcome victory] [--size 1280x720]\n\
+     AUDIT IT:  red_engine2 ui-check --scene scene.json      its HUD, start card and every end card at nine window sizes (no overlaps, nothing clipped)\n\
+     TEST IT:   re2 scene.json --headless --script play.json  steps `{\"press\": \"start\"}` and `{\"press\": \"restart\"}`; state `/card/{kind,title,text,button}` and `/hud/lines`\n\
+     EXAMPLE:   red_engine2 recipe coin_run\n"
+        .to_string()
+}
+
 fn rules_text() -> String {
     let mut out = String::from(
         "Game rules are data in the scene: `vars` (numbers/bools) and `rules`. Everything a rule names is validated when the scene loads.\n\n\
@@ -521,6 +548,7 @@ fn playtest_text() -> String {
         ("turn: deg, over: secs", "turn by an angle over a time (a spin is 360)"),
         ("hold: [keys], secs", "hold forward back left right sprint crouch (policy idle)"),
         ("jump / interact / switch: n", "tap Space, tap E, scroll the wheel"),
+        ("press: id", "use the on-screen button with that id: `start` on the start card, `restart` on the end card (`describe ui`)"),
         ("fire: n | {clicks, every} | {secs}", "click n times / hold the trigger; track: true keeps aiming at the nearest visible enemy"),
         ("aim_at: \"nearest\"", "turn to the nearest remote player in line of sight"),
         ("view / policy", "first|third person; idle (still), sentry (turns and fires), walker (circles and fires)"),
@@ -537,7 +565,7 @@ fn playtest_text() -> String {
     s.push_str(
         "\nSTATE    /remote/{in_view,drawn,undrawn,standins,unposed,roster_others,hidden_by_interest,players[],pool,counters}   every way another player can fail to be drawn\n\
          \x20        /online/{connected,id,ping_ms,phase,in_round,round,roster[]}  /player/{pos,yaw_deg,pitch_deg,weapon,hp,dead}  /view  /streaks\n\
-         \x20        /hud/lines[{id,text}]  /cues/{counts,recent[]}  /crosshair/{state,enemy,pickup,in_reach}  /shots[]  /snapshots  /failures[]\n\
+         \x20        /hud/lines[{id,text}]  /card/{kind,title,text,button}  /cues/{counts,recent[]}  /crosshair/{state,enemy,pickup,in_reach}  /shots[]  /snapshots  /failures[]\n\
          \x20        /rules/{vars[{name,value}],ended,last_event,hidden[]}  /props[{id,pos,tilt_deg,moved,asleep,held_by}] (offline only; null online)\n\
          EXAMPLE  {\"steps\":[{\"wait_for\":{\"at\":\"/online/in_round\",\"eq\":true}},{\"expect\":{\"at\":\"/remote/drawn\",\"eq\":7,\"msg\":\"8 fighters means 7 drawn\"}},\n\
          \x20         {\"turn\":360,\"over\":6},{\"shot\":\"spin\"},{\"expect\":{\"at\":\"/remote/undrawn\",\"eq\":0}}]}\n\
@@ -706,6 +734,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
                 "builtin_vars": crate::sim::rules::BUILTIN_VARS,
                 "example": serde_json::from_str::<Value>(RULES_EXAMPLE).unwrap_or(Value::Null),
             }),
+            "ui" => json!({"text": ui_text()}),
             "sim" => json!({"text": sim_text()}),
             "multiplayer" => json!({"text": multiplayer_text()}),
             "playtest" => json!({"text": playtest_text()}),
@@ -731,6 +760,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "brief" => out.push_str(&brief_text(commands)),
         "diagnostics" => out.push_str(&diagnostics_text()),
         "rules" => out.push_str(&rules_text()),
+        "ui" => out.push_str(&ui_text()),
         "sim" => out.push_str(&sim_text()),
         "multiplayer" => out.push_str(&multiplayer_text()),
         "playtest" => out.push_str(&playtest_text()),

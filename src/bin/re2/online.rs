@@ -8,7 +8,6 @@ use red_engine2::ui::online::{
     action_at, connect_action_for, connect_layout, hud_layout, lobby_layout, results_layout, screen_for, ConnectAction, ConnectForm, OnlineAction,
     OnlineScreen, OnlineView,
 };
-use red_engine2::ui::rules::hud_layout_for as rules_hud_layout;
 use red_engine2::ui::Layout;
 use std::hash::{Hash, Hasher};
 
@@ -114,7 +113,7 @@ impl App {
                 let vars: Vec<(&str, f64)> = state.vars.iter().map(|v| (v.name.as_str(), v.value)).collect();
                 let event = (!state.event.is_empty() && state.server_tick.saturating_sub(state.event_tick) <= 120).then_some(state.event.as_str());
                 let outcome = (!state.outcome.is_empty()).then_some(state.outcome.as_str());
-                let mut rules = rules_hud_layout(w, h, &vars, event, outcome, &self.scene.hud);
+                let mut rules = self.rules_overlay(w, h, &vars, event, outcome);
                 let offset = layout.widgets.len();
                 for widget in &mut rules.widgets {
                     widget.container = widget.container.map(|i| i + offset);
@@ -145,7 +144,7 @@ impl App {
     /// Paints the offline rule state over the world. It intentionally yields to the pause and
     /// online overlays, which own the same texture while they are active.
     pub(crate) fn sync_rule_hud(&mut self) {
-        if self.net.is_some() || self.paused || (!self.rules.has_rules() && self.project_maps.is_empty()) {
+        if self.net.is_some() || self.paused || (!self.rules.has_rules() && self.project_maps.is_empty() && self.scene.ui.is_none()) {
             return;
         }
         let Some((w, h)) = self.window_size() else { return };
@@ -153,11 +152,20 @@ impl App {
         let event = self.rule_event.as_deref();
         let outcome = self.rules.ended();
         let inspected = self.target_index.and_then(|i| self.scene.objects.get(i)).map(|o| o.id.as_str()).unwrap_or("look at an asset to inspect its id");
-        let fingerprint = format!("{:?}|{:?}|{:?}|{}", vars, event, outcome, inspected);
+        let fingerprint = format!("{:?}|{:?}|{:?}|{}|{:?}", vars, event, outcome, inspected, self.card);
         if self.rule_hud_painted.as_ref().is_some_and(|(pw, ph, old)| (*pw, *ph) == (w, h) && old == &fingerprint) {
             return;
         }
-        let mut layout = rules_hud_layout(w, h, &vars, event, outcome, &self.scene.hud);
+        let mut layout = self.rules_overlay(w, h, &vars, event, outcome);
+        if let Some(card) = self.card_layout_now(w, h) {
+            let offset = layout.widgets.len();
+            layout.widgets.extend(card.widgets.into_iter().map(|mut widget| {
+                widget.container = widget.container.map(|i| i + offset);
+                widget
+            }));
+        }
+        // What the player can read, kept for the state dump (a headless run has no screen to look at).
+        self.hud_lines = layout.widgets.iter().filter_map(|w| w.text.as_ref().filter(|t| !t.is_empty()).map(|t| (w.id.clone(), t.clone()))).collect();
         if !self.project_maps.is_empty() && self.scene.hud.shows_help() {
             let s = (h as i32 / 540).max(1);
             layout.panel("project_help", (0, h as i32 - 32 * s, w as i32, h as i32), None, Some([12, 18, 28, 200]), None);

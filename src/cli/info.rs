@@ -429,9 +429,46 @@ fn parse_wh(s: &str) -> Result<(u32, u32), String> {
     Ok((w, h))
 }
 
-pub(crate) fn run_ui_shot(screen: &str, out: &Path, size: &str, hover: Option<&str>, message: Option<String>, map: &str) -> Result<(), String> {
+/// A scene's `ui` block with its variables at their starting values, `overrides` (`name=value`) applied.
+fn game_screen_of(scene: &Path, overrides: &[String], outcome: Option<String>) -> Result<red_engine2::ui::screens::GameScreen, String> {
+    use red_engine2::sim::rules::BUILTIN_VARS;
+    let text = std::fs::read_to_string(scene).map_err(|e| format!("{}: {e}", scene.display()))?;
+    let parsed = red_engine2::schema::parse_scene_in(&text, scene.parent())
+        .map_err(|errs| format!("{}: scene is invalid:\n  {}", scene.display(), errs.join("\n  ")))?;
+    let ui = parsed.ui.clone().ok_or_else(|| format!("{}: the scene has no `ui` block (see `describe rules`, `ui`)", scene.display()))?;
+    let skip = BUILTIN_VARS.len().min(parsed.rules.var_names.len());
+    let mut vars: Vec<(String, f64)> = parsed.rules.var_names[skip..].iter().cloned().zip(parsed.rules.var_init[skip..].iter().copied()).collect();
+    for o in overrides {
+        let (name, value) = o.split_once('=').ok_or_else(|| format!("--var {o}: write it as name=value"))?;
+        let value: f64 = value.trim().parse().map_err(|_| format!("--var {o}: `{value}` is not a number"))?;
+        match vars.iter_mut().find(|(n, _)| n == name.trim()) {
+            Some(slot) => slot.1 = value,
+            None => {
+                return Err(format!(
+                    "--var {o}: the scene has no variable `{name}` (vars: {})",
+                    vars.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", ")
+                ))
+            }
+        }
+    }
+    Ok(red_engine2::ui::screens::GameScreen { ui, vars, outcome, event: None })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_ui_shot(
+    screen: &str,
+    out: &Path,
+    size: &str,
+    hover: Option<&str>,
+    message: Option<String>,
+    map: &str,
+    scene: Option<&Path>,
+    vars: &[String],
+    outcome: Option<String>,
+) -> Result<(), String> {
     use red_engine2::ui::screens::{self, PauseAction, ScreenOpts};
     let (w, h) = parse_wh(size)?;
+    let game = scene.map(|s| game_screen_of(s, vars, outcome)).transpose()?;
     // `--hover` names a pause button (`resume`, `quit`) or any button id of an online screen (`ready`, `leave`,
     // `connect`, `back`, `field_key`, ...).
     let (hover, hover_id) = match hover {
@@ -444,7 +481,7 @@ pub(crate) fn run_ui_shot(screen: &str, out: &Path, size: &str, hover: Option<&s
         Some("quit") => (Some(PauseAction::Quit), None),
         Some(o) => (None, Some(o.to_string())),
     };
-    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, hover_id, ..Default::default() })
+    let layout = screens::build(screen, w, h, &ScreenOpts { map: map.to_string(), message, hover, hover_id, game, ..Default::default() })
         .ok_or_else(|| format!("unknown screen '{screen}' (screens: {})", screens::all().join(", ")))?;
     if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
@@ -461,9 +498,9 @@ pub(crate) fn run_ui_shot(screen: &str, out: &Path, size: &str, hover: Option<&s
     Ok(())
 }
 
-pub(crate) fn run_ui_check(screen: Option<&str>, size: Option<&str>) -> Result<(), String> {
+pub(crate) fn run_ui_check(screen: Option<&str>, size: Option<&str>, scene: Option<&Path>) -> Result<(), String> {
     use red_engine2::ui::screens;
-    let problems = if screen.is_none() && size.is_none() {
+    let mut problems = if screen.is_none() && size.is_none() {
         screens::audit_all()
     } else {
         let names: Vec<&str> = screen.map(|s| vec![s]).unwrap_or_else(|| screens::all().to_vec());
@@ -481,6 +518,28 @@ pub(crate) fn run_ui_check(screen: Option<&str>, size: Option<&str>) -> Result<(
         }
         out
     };
+    // A scene's own `ui` block: its HUD, its start card and a card for every outcome it declares, at every size.
+    if let Some(path) = scene {
+        let base = game_screen_of(path, &[], None)?;
+        let outcomes: Vec<Option<String>> = if base.ui.end.is_empty() { vec![None] } else { base.ui.end.iter().map(|(o, _)| Some(o.clone())).collect() };
+        let sizes = match size {
+            Some(s) => vec![parse_wh(s)?],
+            None => screens::CHECK_SIZES.to_vec(),
+        };
+        for &(w, h) in &sizes {
+            for name in ["game-hud", "game-start", "game-end"] {
+                for outcome in &outcomes {
+                    let mut g = base.clone();
+                    g.outcome = outcome.clone();
+                    let opts = screens::ScreenOpts { game: Some(g), ..Default::default() };
+                    if let Some(l) = screens::build(name, w, h, &opts) {
+                        let label = format!("{} {name}{}", path.display(), outcome.as_ref().map(|o| format!(" ({o})")).unwrap_or_default());
+                        problems.extend(l.check().into_iter().map(|v| (label.clone(), (w, h), format!("[{}] {}: {}", v.code, v.widget, v.message))));
+                    }
+                }
+            }
+        }
+    }
     for (s, (w, h), m) in &problems {
         println!("{s} {w}x{h}: {m}");
     }

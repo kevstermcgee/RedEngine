@@ -24,7 +24,7 @@ impl App {
         if let Some(live) = self.gpu.as_mut().and_then(|g| g.live.as_mut()) {
             live.overlay.hide();
         }
-        self.set_grab(!self.online.takeover);
+        self.set_grab(!self.online.takeover && self.card.is_none());
     }
 
     /// Freezes or thaws the match this game hosts (nothing to do when it plays on another machine's server).

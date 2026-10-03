@@ -45,6 +45,7 @@ pub const ROOT_KEYS: &[&str] = &[
     "death_text",
     "teams",
     "hud",
+    "ui",
     "world",
     "sky",
     "ocean",

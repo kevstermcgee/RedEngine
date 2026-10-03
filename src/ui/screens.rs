@@ -16,7 +16,24 @@ const GOLD: [u8; 4] = [255, 210, 74, 255];
 
 /// Screens `ui-shot` / `ui-check` know, in display order.
 pub fn all() -> &'static [&'static str] {
-    &["pause", "connect", "lobby", "countdown", "hud", "final", "death", "rules", "results", "race-hud", "race-start", "race-results", "race-lobby"]
+    &[
+        "pause",
+        "connect",
+        "lobby",
+        "countdown",
+        "hud",
+        "final",
+        "death",
+        "rules",
+        "results",
+        "race-hud",
+        "race-start",
+        "race-results",
+        "race-lobby",
+        "game-hud",
+        "game-start",
+        "game-end",
+    ]
 }
 
 /// Window sizes `ui-check` audits every screen at: small, common, portrait and large.
@@ -37,11 +54,26 @@ pub struct ScreenOpts {
     pub music_on: bool,
     /// Pause menu: whether sound effects are currently on (shown by the SOUND button's label).
     pub sfx_on: bool,
+    /// The `game-*` screens: a scene's own `ui` block (`ui-shot --scene`); without one they show a demo game.
+    pub game: Option<GameScreen>,
+}
+
+/// A scene's `ui` block with the state to draw it in (`ui-shot --scene scene.json --var delivered=3 --outcome victory`).
+#[derive(Debug, Clone)]
+pub struct GameScreen {
+    /// The declaration.
+    pub ui: crate::ui_config::GameUi,
+    /// Every scene variable and its value.
+    pub vars: Vec<(String, f64)>,
+    /// The outcome the end card is for (`None`: the first card the block declares).
+    pub outcome: Option<String>,
+    /// The newest rule event shown under the counters.
+    pub event: Option<String>,
 }
 
 impl Default for ScreenOpts {
     fn default() -> Self {
-        ScreenOpts { map: String::new(), message: None, hover: None, hover_id: None, music_on: true, sfx_on: true }
+        ScreenOpts { map: String::new(), message: None, hover: None, hover_id: None, music_on: true, sfx_on: true, game: None }
     }
 }
 
@@ -77,11 +109,60 @@ pub fn build(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Option<Layout> {
             Some(lobby_layout(w, h, &v, opts.hover_id.as_deref()))
         }
         "results" => Some(results_layout(w, h, &demo(Phase::Results, opts), opts.hover_id.as_deref())),
+        "game-hud" | "game-start" | "game-end" => Some(game_screen(name, w, h, opts)),
         "race-hud" => Some(super::race::race_hud_layout(w, h, &super::race::demo_racing())),
         "race-start" => Some(super::race::race_hud_layout(w, h, &super::race::demo_countdown())),
         "race-results" => Some(super::race::race_hud_layout(w, h, &super::race::demo_results())),
         _ => None,
     }
+}
+
+/// The `game-*` screens for a scene's own `ui` block, or for a demo game when none is given.
+fn game_screen(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Layout {
+    let demo;
+    let g = match &opts.game {
+        Some(g) => g,
+        None => {
+            demo = demo_game();
+            &demo
+        }
+    };
+    let vars: Vec<(&str, f64)> = g.vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();
+    match name {
+        "game-start" => match g.ui.start_card(&vars) {
+            Some(card) => super::game::card_layout(w, h, &card, "start", opts.hover_id.as_deref() == Some("start")),
+            None => Layout::new(w, h),
+        },
+        "game-end" => {
+            let outcome = g.outcome.clone().or_else(|| g.ui.end.first().map(|(o, _)| o.clone())).unwrap_or_default();
+            match g.ui.filled_end_card(&outcome, &vars) {
+                Some(card) => super::game::card_layout(w, h, &card, "restart", opts.hover_id.as_deref() == Some("restart")),
+                None => Layout::new(w, h),
+            }
+        }
+        _ => super::game::hud_layout(w, h, &g.ui, &vars, &vars, g.event.as_deref()),
+    }
+}
+
+/// A small game for `ui-check` and `ui-shot game-*` to draw when no scene is given.
+fn demo_game() -> GameScreen {
+    let root = serde_json::json!({
+        "vars": {"delivered": 3, "has_key": 1, "time_left": 83},
+        "rules": [{"id": "win", "when": {"start": true}, "if": "delivered > 99", "do": [{"end": "victory"}]}],
+        "ui": {
+            "title": "Moonlight Delivery", "labels": {"has_key": "Key"},
+            "counters": [{"var": "delivered", "of": 6, "label": "Parcels"}, {"var": "time_left", "label": "Time", "format": "clock"}],
+            "objective": [{"if": "delivered < 6", "text": "Bring every parcel to the depot ({delivered} of 6)"}, {"text": "Open the garden gate"}],
+            "start": {"title": "Moonlight Delivery", "text": "Carry six parcels across the sleeping town to the depot before the sun comes up. Pick them up with E."},
+            "end": {"victory": {"title": "All delivered!", "text": "You made it with {time_left} seconds to spare."}}
+        }
+    });
+    let parsed = root.as_object().and_then(|o| {
+        let rules = crate::sim::rules::parse_rules(o, &crate::sim::rules::Refs::default()).ok()?;
+        crate::ui_config::parse_ui(o, &rules).ok().flatten()
+    });
+    let ui = parsed.unwrap_or_default();
+    GameScreen { ui, vars: vec![("delivered".into(), 3.0), ("has_key".into(), 1.0), ("time_left".into(), 83.0)], outcome: None, event: Some("parcel".into()) }
 }
 
 /// The sample match the online screens show in `ui-shot` / `ui-check` (eight players, one with a very long name).
@@ -107,6 +188,7 @@ pub fn audit_all() -> Vec<(String, (u32, u32), String)> {
             hover_id: Some("ready".into()),
             music_on: false,
             sfx_on: false,
+            game: None,
         },
     ];
     let mut out = Vec::new();

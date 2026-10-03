@@ -158,6 +158,10 @@ impl Driver for App {
     fn say(&mut self, text: &str) {
         println!("script: {text}");
     }
+
+    fn press(&mut self, id: &str) -> Result<(), String> {
+        self.press_button(id)
+    }
 }
 
 impl App {

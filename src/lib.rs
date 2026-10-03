@@ -72,6 +72,7 @@ pub mod terrain;
 pub mod tools;
 pub mod track;
 pub mod ui;
+pub mod ui_config;
 pub mod uniforms;
 #[cfg(feature = "gfx")]
 pub mod video;
