@@ -192,6 +192,7 @@ fn a_wrong_server_identity_is_refused_and_never_downgraded() {
         transport: red_engine2::net::client::ClientTransportConfig::Quic {
             trust: ServerTrust::roots_file(&dir.join("ca.pem")).unwrap(),
             server_name: "localhost".into(),
+            relay_claim: None,
         },
         ..ClientConfig::new(server.addr, 0, red_engine2::net::map_hash(SCENE), 0)
     };

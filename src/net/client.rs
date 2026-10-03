@@ -107,6 +107,9 @@ pub enum ClientTransportConfig {
         trust: ServerTrust,
         /// The name the certificate is for (any name works with a pinned fingerprint).
         server_name: String,
+        /// Set only for a relay-mediated join (`net::relay`): the encoded `Claim` datagram to send, once, from
+        /// the exact socket the QUIC connection then uses for everything else. `None` for a direct connection.
+        relay_claim: Option<Vec<u8>>,
     },
 }
 
@@ -125,8 +128,8 @@ impl ClientTransportConfig {
         match (fingerprint, ca, dev_udp) {
             (Some(_), Some(_), _) => Err("give either --server-fingerprint or --server-ca, not both".to_string()),
             (Some(_), _, true) | (_, Some(_), true) => Err("--dev-udp cannot be combined with a server identity: choose one transport".to_string()),
-            (Some(f), None, false) => Ok(ClientTransportConfig::Quic { trust: ServerTrust::fingerprint(f)?, server_name: name }),
-            (None, Some(path), false) => Ok(ClientTransportConfig::Quic { trust: ServerTrust::roots_file(path)?, server_name: name }),
+            (Some(f), None, false) => Ok(ClientTransportConfig::Quic { trust: ServerTrust::fingerprint(f)?, server_name: name, relay_claim: None }),
+            (None, Some(path), false) => Ok(ClientTransportConfig::Quic { trust: ServerTrust::roots_file(path)?, server_name: name, relay_claim: None }),
             (None, None, true) => Ok(ClientTransportConfig::DevUdp),
             (None, None, false) if server.ip().is_loopback() => Ok(ClientTransportConfig::DevUdp),
             (None, None, false) => Err(format!(
@@ -175,7 +178,7 @@ impl ClientConfig {
     /// A config for a keyless join over QUIC, the server verified by `trust`.
     pub fn quic(server: SocketAddr, character: u8, map_hash: u32, trust: ServerTrust, server_name: &str) -> Self {
         ClientConfig {
-            transport: ClientTransportConfig::Quic { trust, server_name: server_name.to_string() },
+            transport: ClientTransportConfig::Quic { trust, server_name: server_name.to_string(), relay_claim: None },
             ..ClientConfig::new(server, character, map_hash, 0)
         }
     }
@@ -260,7 +263,10 @@ impl NetClient {
     pub fn connect_with(cfg: ClientConfig) -> io::Result<NetClient> {
         let transport: Box<dyn ClientTransport> = match &cfg.transport {
             ClientTransportConfig::DevUdp => Box::new(UdpClient::connect(cfg.server)?),
-            ClientTransportConfig::Quic { trust, server_name } => Box::new(QuicClient::connect(cfg.server, server_name, trust.clone())?),
+            ClientTransportConfig::Quic { trust, server_name, relay_claim: Some(claim) } => {
+                Box::new(QuicClient::connect_claiming(cfg.server, server_name, trust.clone(), claim)?)
+            }
+            ClientTransportConfig::Quic { trust, server_name, relay_claim: None } => Box::new(QuicClient::connect(cfg.server, server_name, trust.clone())?),
         };
         Ok(Self::with_transport(cfg, transport, Instant::now()))
     }

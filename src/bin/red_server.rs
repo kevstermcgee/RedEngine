@@ -237,6 +237,13 @@ fn main() {
             if let Err(e) = red_engine2::net::transport::dev_udp_allowed(addr, insecure_public) {
                 fail(&e);
             }
+            // Relayed traffic genuinely crosses the open internet even though the bind itself stays loopback:
+            // relaying a dev-udp host (no identity to pin) would bridge its plaintext-equivalent transport out
+            // past every joining client's own fail-closed check for anyone willing to connect with --dev-udp.
+            // Refuse before binding anything, not after announcing LISTENING.
+            if relay.is_some() {
+                fail("--relay without --tls-cert/--tls-key: relaying a loopback-only dev server would bridge it onto the open internet with no identity to pin; make one with `red_engine2 net-identity --out DIR` and pass --tls-cert/--tls-key");
+            }
             let t = red_engine2::net::transport::UdpServer::bind(addr).unwrap_or_else(|e| fail(&format!("cannot listen on {addr}: {e}")));
             if bind.is_loopback() {
                 println!("transport: dev-udp (loopback development: authenticated, NOT encrypted; host with --tls-cert/--tls-key)");
@@ -354,13 +361,9 @@ fn main() {
     });
     // A relay (`red_relay`, docs/HOSTING.md): registers this server for a short code, so a friend can join without
     // any port forwarding, UPnP or public bind at all — the server can stay loopback-only even while relayed.
-    // Relayed traffic genuinely crosses the open internet even though the bind itself stays loopback, so a
-    // dev-udp host (no --tls-cert/--tls-key) relays with no fingerprint: a joining client's own fail-closed rule
-    // (ADR 0044) then correctly refuses that connection rather than ever sending it in the clear.
-    if relay.is_some() && server_fingerprint.is_none() {
-        eprintln!("--relay without --tls-cert/--tls-key: joiners will be refused (fail-closed, ADR 0044) since there is no identity to pin");
-        eprintln!("make one with `red_engine2 net-identity --out DIR` and pass --tls-cert/--tls-key, or relaying will not let anyone in");
-    }
+    // The dev-udp-with-no-identity case is refused earlier, before binding anything (see the `(None, None, _)`
+    // transport arm above) — ADR 0044's own client refuses to connect anyway, but a `--dev-udp` client (an
+    // explicit, documented opt-in downgrade elsewhere) would not, and the relay would forward to it regardless.
     // Kept alive for the life of `main` (its forwarding threads hold their own handles and need no further
     // attention from here, but dropping it early would be a surprising way to end a feature that looks unused).
     let _relay_bridge =

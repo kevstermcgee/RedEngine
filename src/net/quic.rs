@@ -492,6 +492,9 @@ impl Drop for QuicServer {
     }
 }
 
+/// Set once if the server's certificate verification itself fails, distinct from a connection merely dropping.
+type IdentityFailure = Arc<Mutex<Option<String>>>;
+
 /// The production client transport. See the module docs.
 pub struct QuicClient {
     rt: Option<tokio::runtime::Runtime>,
@@ -501,7 +504,7 @@ pub struct QuicClient {
     server_name: String,
     conn: Arc<Mutex<Option<Connection>>>,
     status: Arc<Mutex<TransportStatus>>,
-    identity_failure: Arc<Mutex<Option<String>>>,
+    identity_failure: IdentityFailure,
     /// A handshake task is running (so `reconnect` does not start a second one).
     handshaking: Arc<std::sync::atomic::AtomicBool>,
     shared: Arc<ServerShared>,
@@ -513,6 +516,34 @@ impl QuicClient {
     /// Starts connecting to `server`, verifying it with `trust` for `server_name` (the name in the certificate; for a pinned
     /// fingerprint any name works).
     pub fn connect(server: SocketAddr, server_name: &str, trust: ServerTrust) -> io::Result<QuicClient> {
+        let (rt, config, failure) = Self::prepare(trust)?;
+        let endpoint = {
+            let _g = rt.enter();
+            Endpoint::client(super::client::local_bind_for(server))?
+        };
+        Ok(Self::finish(rt, endpoint, config, server, server_name, failure))
+    }
+
+    /// Like [`connect`](Self::connect), but first sends `claim` as one raw UDP datagram to `server` from the
+    /// exact socket quinn then uses for the connection's whole lifetime, before any QUIC byte is sent. Needed
+    /// only when `server` is a relay (`net::relay_server`): the relay cannot know in advance which local port a
+    /// client's QUIC handshake will use, so a client claims its pending resolution explicitly, from that very
+    /// socket — see `net::relay`'s module doc for why a public IP alone cannot tell two players apart.
+    pub fn connect_claiming(server: SocketAddr, server_name: &str, trust: ServerTrust, claim: &[u8]) -> io::Result<QuicClient> {
+        let (rt, config, failure) = Self::prepare(trust)?;
+        let socket = std::net::UdpSocket::bind(super::client::local_bind_for(server))?;
+        socket.send_to(claim, server)?;
+        let endpoint = {
+            let _g = rt.enter();
+            let async_rt = quinn::default_runtime().ok_or_else(|| io::Error::other("no async runtime found"))?;
+            Endpoint::new(quinn::EndpointConfig::default(), None, socket, async_rt)?
+        };
+        Ok(Self::finish(rt, endpoint, config, server, server_name, failure))
+    }
+
+    /// The TLS/transport setup shared by [`connect`](Self::connect) and
+    /// [`connect_claiming`](Self::connect_claiming); only how the endpoint's socket comes to exist differs.
+    fn prepare(trust: ServerTrust) -> io::Result<(tokio::runtime::Runtime, quinn::ClientConfig, IdentityFailure)> {
         let failure = Arc::new(Mutex::new(None));
         let builder = rustls::ClientConfig::builder_with_provider(provider())
             .with_protocol_versions(&[&rustls::version::TLS13])
@@ -532,10 +563,17 @@ impl QuicClient {
         let mut config = quinn::ClientConfig::new(Arc::new(crypto));
         config.transport_config(Arc::new(transport_config(true)));
         let rt = runtime("red-quic-client")?;
-        let endpoint = {
-            let _g = rt.enter();
-            Endpoint::client(super::client::local_bind_for(server))?
-        };
+        Ok((rt, config, failure))
+    }
+
+    fn finish(
+        rt: tokio::runtime::Runtime,
+        endpoint: Endpoint,
+        config: quinn::ClientConfig,
+        server: SocketAddr,
+        server_name: &str,
+        failure: IdentityFailure,
+    ) -> QuicClient {
         let (tx, rx) = mpsc::channel(INBOUND_QUEUE);
         let mut c = QuicClient {
             rt: Some(rt),
@@ -558,7 +596,7 @@ impl QuicClient {
             tx,
         };
         c.start();
-        Ok(c)
+        c
     }
 
     fn start(&mut self) {

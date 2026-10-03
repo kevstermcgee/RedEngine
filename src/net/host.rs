@@ -270,9 +270,11 @@ impl LocalHost {
     /// The transport settings a client on this machine joins with (pinned to this host's own identity over QUIC, or plain loopback UDP).
     pub fn local_transport(&self) -> Result<super::client::ClientTransportConfig, String> {
         match &self.fingerprint {
-            Some(f) => {
-                Ok(super::client::ClientTransportConfig::Quic { trust: super::quic::ServerTrust::fingerprint(f)?, server_name: "localhost".to_string() })
-            }
+            Some(f) => Ok(super::client::ClientTransportConfig::Quic {
+                trust: super::quic::ServerTrust::fingerprint(f)?,
+                server_name: "localhost".to_string(),
+                relay_claim: None,
+            }),
             None => Ok(super::client::ClientTransportConfig::DevUdp),
         }
     }

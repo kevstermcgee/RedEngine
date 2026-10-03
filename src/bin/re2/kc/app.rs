@@ -418,14 +418,17 @@ impl Kc {
     /// never has to see or type it. Anything else is the long-form `HOST:PORT#fingerprint#key`.
     fn try_join(&mut self) {
         let Some(gpu) = self.gpu.as_ref() else { return };
-        let (addr, fingerprint, key) = if let Some(short) = red_engine2::net::relay::parse_code(&self.join_form.address) {
+        let (addr, fingerprint, key, relay_claim) = if let Some(short) = red_engine2::net::relay::parse_code(&self.join_form.address) {
             let Some(relay) = std::env::var("RE2_RELAY").ok().filter(|v| !v.is_empty()) else {
                 self.join_form.message = Some("No relay is set up on this PC (RE2_RELAY): ask whoever is hosting for the full join code instead.".to_string());
                 return;
             };
             self.join_form.message = Some("CONNECTING...".to_string());
             match red_engine2::net::relay_server::resolve_code(&relay, short, std::time::Duration::from_secs(5)) {
-                Ok((addr, fingerprint)) => (addr, fingerprint, None),
+                Ok(resolved) => {
+                    let claim = resolved.claim_bytes();
+                    (resolved.relay_addr, resolved.fingerprint, None, Some(claim))
+                }
                 Err(e) => {
                     self.join_form.message = Some(e);
                     return;
@@ -443,12 +446,19 @@ impl Kc {
                 self.join_form.message = Some(format!("Cannot find '{}'. Check the code and your internet connection.", code.address));
                 return;
             };
-            (addr, code.fingerprint.clone(), code.key.clone())
+            (addr, code.fingerprint.clone(), code.key.clone(), None)
         };
         let mut cfg = ClientConfig::new(addr, 0, 0, 0);
         cfg.join_key = key;
         cfg.transport = match red_engine2::net::client::ClientTransportConfig::choose(addr, fingerprint.as_deref(), None, Some("localhost"), false) {
-            Ok(t) => t,
+            Ok(mut t) => {
+                // A relay join claims its pending resolution from the exact socket QUIC then uses for everything
+                // else (`net::relay`'s `ClaimToken`) — a public IP alone cannot tell two players apart.
+                if let (red_engine2::net::client::ClientTransportConfig::Quic { relay_claim: slot, .. }, Some(claim)) = (&mut t, relay_claim) {
+                    *slot = Some(claim);
+                }
+                t
+            }
             Err(_) => {
                 self.join_form.message =
                     Some("That code has no identity part: ask your friend for the whole code (they can copy it from the lobby).".to_string());
