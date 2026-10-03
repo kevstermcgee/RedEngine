@@ -41,7 +41,12 @@ run_tests() {
 stage_fmt() { echo "== rustfmt (rustfmt.toml is the style) =="; cargo fmt --check; }
 stage_clippy() { echo "== clippy (warnings are errors) =="; cargo clippy --locked --all-targets -- -D warnings; }
 stage_tests() { echo "== tests (lib, integration, doctests) =="; run_tests; }
-stage_benches() { echo "== benches compile =="; cargo bench --locked --no-run; }
+# "The benches compile" is a type-check question: `check` answers it in seconds, where `bench --no-run` builds the whole engine optimised (measured: 475 s of
+# a 1167 s local run, all of it for binaries nobody runs). RED_CI_BUILD_BENCHES=1 restores the full build.
+stage_benches() {
+  echo "== benches compile =="
+  if [ "${RED_CI_BUILD_BENCHES:-0}" = "1" ]; then cargo bench --locked --no-run; else cargo check --locked --benches; fi
+}
 stage_headless_tree() {
   echo "== headless server: no graphics/audio crates in the dependency tree =="
   # The tree is captured first, then searched: piped straight into grep, a *failing* `cargo tree` (a stale Cargo.lock under
@@ -58,7 +63,13 @@ stage_headless_tree() {
 }
 stage_headless_build() {
   echo "== headless server builds without the gfx feature =="
-  cargo build --locked --release --no-default-features --bin red_server --bin red_bot
+  # The shipped build is the LTO release one, and the hosted job (CI=true) builds exactly that. A local run only needs to know the binaries build and
+  # link without gfx, which the dev profile answers from the artifacts `headless-tests` builds anyway; RED_CI_RELEASE=1 asks for the release build.
+  if [ "${CI:-}" = "true" ] || [ "${RED_CI_RELEASE:-0}" = "1" ]; then
+    cargo build --locked --release --no-default-features --bin red_server --bin red_bot
+  else
+    cargo build --locked --no-default-features --bin red_server --bin red_bot
+  fi
 }
 stage_headless_clippy() { echo "== headless clippy =="; cargo clippy --locked --no-default-features --all-targets -- -D warnings; }
 stage_headless_tests() { echo "== headless tests (incl. real-UDP server tests) =="; run_tests --no-default-features; }
@@ -79,9 +90,16 @@ stage_external_client() {
 
 stages=("$@")
 [ ${#stages[@]} -gt 0 ] || stages=(fmt clippy tests benches headless-tree headless-build headless-clippy headless-tests external-client)
+# Every stage is timed, and the table at the end says where the minutes went (the first thing to read when CI feels slow).
+timings=()
+t_all=$SECONDS
 for s in "${stages[@]}"; do
   fn="stage_${s//-/_}"
   if ! declare -F "$fn" >/dev/null; then echo "ci.sh: unknown stage '$s'" >&2; exit 2; fi
+  t0=$SECONDS
   "$fn"
+  timings+=("$(printf '%5ds  %s' $((SECONDS - t0)) "$s")")
 done
-echo "CI OK"
+echo "-- stage times"
+printf '   %s\n' "${timings[@]}"
+echo "CI OK ($((SECONDS - t_all)) s)"

@@ -50,10 +50,10 @@
     },
     "game_rules": {
       "summary": "Game rules as data: vars, rules, the expression language, scripted headless scenarios (`sim`), and standard-client presentation.",
-      "files": ["src/sim/rules.rs", "src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "recipes/coin_run.json"],
-      "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks", "net_rule_state", "prop_rules"],
+      "files": ["src/sim/rules.rs", "src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "src/sim/approach.rs", "recipes/coin_run.json", "recipes/gated_garden.json"],
+      "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "lib:sim::approach", "ai_tasks", "net_rule_state", "prop_rules", "object_actions"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
-      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md"],
+      "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-03-level-states-phases-for-lint-reach-and-walk.md", "docs/adr/2026-10-03-object-based-player-actions-for-sim-and-the-scripted.md"],
       "depends_on": ["sim_core"]
     },
     "karts": {
@@ -184,15 +184,15 @@
       "files": ["src/capture.rs", "src/playscript.rs", "src/scene_pool.rs", "src/cli/playtest.rs", "src/tools/sheet.rs"],
       "tests": ["lib:playscript", "lib:scene_pool", "lib:tools::sheet", "client_headless"],
       "commands": ["red_engine2 playtest examples/test_lab.json --secs 20 --shots 6"],
-      "docs": ["docs/adr/2026-09-28-seeing-what-the-player-sees.md"],
-      "depends_on": ["graphical_client", "net_client", "net_server", "offline_renderer"]
+      "docs": ["docs/adr/2026-09-28-seeing-what-the-player-sees.md", "docs/adr/2026-10-03-object-based-player-actions-for-sim-and-the-scripted.md"],
+      "depends_on": ["game_rules", "graphical_client", "net_client", "net_server", "offline_renderer"]
     },
     "map_analysis": {
       "summary": "lint, reach, walk (incl. auto-planned routes), plan, tour, ray, ls/info, diff: what the map will do, answered with the game's own physics.",
       "files": ["src/tools/lint.rs", "src/tools/reach.rs", "src/tools/walk.rs", "src/tools/pathing.rs", "src/tools/plan.rs", "src/tools/sight.rs", "src/tools/world.rs", "src/tools/shots.rs", "src/tools/inspect.rs", "src/tools/diff.rs", "src/cli/analyze.rs", "src/cli/render_cmds.rs"],
       "tests": ["lib:tools::lint", "lib:tools::reach", "lib:tools::walk", "lib:tools::plan", "house_walk", "maps_verify", "test_lab"],
       "commands": ["red_engine2 lint examples/test_lab.json", "red_engine2 verify examples/test_lab.json --no-views"],
-      "docs": ["AGENTS.md", "docs/adr/0023-walk-failures-name-their-blocker-routes-are-planned.md"],
+      "docs": ["AGENTS.md", "docs/adr/0023-walk-failures-name-their-blocker-routes-are-planned.md", "docs/adr/2026-10-03-level-states-phases-for-lint-reach-and-walk.md"],
       "depends_on": ["player_physics", "scene_format"]
     },
     "map_editing": {

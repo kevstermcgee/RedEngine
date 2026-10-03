@@ -53,7 +53,7 @@ impact --git` says which tests and docs a change touches; `features --check` kee
 `vars` + `rules` in the scene declare gameplay (triggers, conditions, actions); `checks.sim` scenarios play scripted players through
 the real simulation and assert the outcome, with no window (`red_engine2 sim scene.json`); `red_engine2 replay trace.json` re-runs a
 recorded match and names the first divergent tick. `describe rules` and `describe sim` have the syntax with runnable examples;
-`recipe coin_run` is a complete game proven by its own scenarios, with a `ui` block (friendly HUD, objective, start and end cards; `describe ui`). In single-player `re2`, the same rules drive hidden/shown objects,
+`recipe coin_run` is a complete game proven by its own scenarios, with a `ui` block (friendly HUD, objective, start and end cards; `describe ui`); `recipe gated_garden` adds `phases` (a gate a rule opens): check reach/walk/lint in each level state. Scripted players act on objects, not coordinates: `approach` / `look_at` / `interact` with an object id work the same in `checks.sim` and in the `playtest` / `re2 --script` client script. In single-player `re2`, the same rules drive hidden/shown objects,
 teleports and prop impulses; a compact generic HUD shows scene variables, recent events and the terminal outcome.
 
 ## When a walk or a route fails (ADR 0023)
@@ -69,7 +69,7 @@ prints waypoints and a paste-ready `checks.walk` entry (or put `{"from": [..], "
 ```bash
 cargo build --release          # once; then use target/release/red_engine2(.exe) and re2(.exe)   (or just `scripts/dev red <command>`, any OS, any directory)
 alias re='./target/release/red_engine2'      # the examples below write it as `red_engine2`
-scripts/dev iterate            # the edit loop: what changed since HEAD, fmt + type-check + touched unit tests; never verification (then `affected`, then `affected --full`)
+scripts/dev iterate            # the edit loop: what changed since HEAD, fmt + type-check + clippy + touched unit tests; never verification (then `affected`, then `affected --full`)
 scripts/dev test               # the whole suite (catalogue, recipes, verify, search, docs-vs-code checks, netcode, sim replay...): a summary, full log in out/logs/
 ```
 

@@ -311,6 +311,9 @@ pub(crate) enum Command {
         /// Reachability grid size in meters (smaller = more faithful to tight gaps, slower).
         #[arg(long, default_value_t = 0.1)]
         cell: f32,
+        /// Analyse the level as it is in this `phases` state (default: the initial state): what that phase's rules open is open.
+        #[arg(long)]
+        phase: Option<String>,
     },
     /// Where can the player walk? Floors reached, zone coverage, doorways between zones, drops, leaks.
     Reach {
@@ -323,6 +326,9 @@ pub(crate) enum Command {
         to: Option<String>,
         #[arg(long, default_value_t = 0.1)]
         cell: f32,
+        /// Analyse the level as it is in this `phases` state (default: the initial state): what that phase's rules open is open.
+        #[arg(long)]
+        phase: Option<String>,
     },
     /// Replay a walking route with the game's real per-tick physics: `walk scene.json --path "0,-8; 0,1; -0.8,2; -0.8,7.6"`.
     /// Prints where the player ends up at each waypoint, or where they get stuck AND which object stopped them (id, gap,
@@ -348,6 +354,9 @@ pub(crate) enum Command {
         /// Write a plan image of the walk (route, stop point, blockers). Default file: out/walk.png.
         #[arg(long, num_args = 0..=1, default_missing_value = "out/walk.png")]
         explain: Option<PathBuf>,
+        /// Analyse the level as it is in this `phases` state (default: the initial state): what that phase's rules open is open.
+        #[arg(long)]
+        phase: Option<String>,
     },
     /// Top-down floor plan (PNG, or --ascii to stdout): walls, props with ids, stairs, walkable area, findings.
     Plan {
@@ -379,6 +388,9 @@ pub(crate) enum Command {
         no_reach: bool,
         #[arg(long)]
         no_lint: bool,
+        /// Draw the level as it is in this `phases` state (default: the initial state).
+        #[arg(long)]
+        phase: Option<String>,
     },
     /// Labelled contact sheet of auto-generated views: exterior, each floor cut away, each zone from two corners.
     Tour {
@@ -795,7 +807,7 @@ pub(crate) enum Command {
         /// Ignore and do not write the green stamp (`out/.affected-green.json`).
         #[arg(long)]
         no_cache: bool,
-        /// The bounded edit-loop path: only what changed since HEAD, format check + type-check + focused unit tests, never escalates, never counts as verification.
+        /// The bounded edit-loop path: only what changed since HEAD, format check + type-check + clippy + focused unit tests, never escalates, never counts as verification.
         #[arg(long, conflicts_with_all = ["quick", "full"])]
         partial: bool,
         /// With --partial: format and type-check only, no tests.

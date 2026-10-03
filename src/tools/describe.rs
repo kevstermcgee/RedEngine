@@ -219,6 +219,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("interest", "{cell_size, note} network-interest settings (roadmap; rooms are the cells)"),
     ("vars", "{name: number|bool} game variables rules read and write (`describe rules`); built-ins: time, tick, players"),
     ("rules", "[{id, when, who, if, once, cooldown, do}] game logic as data: triggers, conditions, actions (`describe rules`)"),
+    ("phases", "{name: [rule ids]} named level states for lint/reach/walk/verify: the rules assumed to have fired, so a gate they open is open (`describe rules`)"),
     ("fields", "[{id, zone|object|box, velocity:[x,z], lift, rate}] force volumes on loose props: a river current, a conveyor, a wind tunnel; pulls props inside toward a target speed (SPEC \"Force fields\")"),
     ("weapons", "{starting, ladder: [weapon, ...], bat: {damage}, ammo: \"infinite\" | {loaded, capacity, reserve}}; starting accepts bat or any built-in firearm (pistol machine-pistol smg carbine rifle bullpup marksman shotgun lmg scout); ammo is one supply for every firearm; ladder = Gun Game: you carry ladder[kills] and cannot switch by hand"),
     ("shooter", "{start: [weapon, ...], friendly_fire, pickups: [{weapon|ammo:true, at:[x,y,z], respawn_secs}]} a loadout shooter (ADR 2026-09-30-killchain-loadout-shooter): every player carries up to 2 guns (own magazine and reserve each), 1 melee weapon and 2 grenades; weapons lie on the map and drop from the dead; 31 weapons in `arsenal`; two teams (spawn groups team1/team2), headshots, rockets, grenades, smoke, fire; absent = the classic single-weapon arena"),
@@ -489,7 +490,11 @@ fn rules_text() -> String {
          occupancy) is part of the match checksum. Offline `re2` runs the same rule state machine: hide/show changes rendering, collision\n\
          changes static movement/ground collision for a top-level object, teleport/impulse/reset/place are applied, the engine events\n\
          are injected, and vars/events/outcome appear in a generic HUD. Online clients use the same HUD from a repeated bounded\n\
-         authoritative state, so loss, reconnect and late join recover it. Prove a rule with `checks.sim` (see `describe sim`).\n\nExample scene:\n",
+         authoritative state, so loss, reconnect and late join recover it. Prove a rule with `checks.sim` (see `describe sim`).\n\
+         Level states: lint/reach/walk see a gate closed unless an unconditional `start` rule opens it. Name the states a rule creates with\n\
+         `\"phases\": {\"gate_open\": [\"open_gate\"]}` (rule ids assumed fired; their collision/deactivate/activate effects apply); then\n\
+         `checks.reach`/`checks.walk` entries take `\"phase\": \"gate_open\"`, a reach entry `\"reachable\": false` (still cut off), `lint` drops an\n\
+         unreachable zone/floor/prop that some phase reaches, and `reach|lint|walk|plan --phase gate_open` looks by hand. `recipe gated_garden`.\n\nExample scene:\n",
     );
     out.push_str(RULES_EXAMPLE);
     out.push('\n');
@@ -549,6 +554,10 @@ fn playtest_text() -> String {
         ("hold: [keys], secs", "hold forward back left right sprint crouch (policy idle)"),
         ("jump / interact / switch: n", "tap Space, tap E, scroll the wheel"),
         ("press: id", "use the on-screen button with that id: `start` on the start card, `restart` on the end card (`describe ui`)"),
+        (
+            "approach / look_at / interact: \"id\"",
+            "by object, not keys: walk up to it (within?, timeout?), face its middle, or approach+face+press E and check it is carried (offline)",
+        ),
         ("fire: n | {clicks, every} | {secs}", "click n times / hold the trigger; track: true keeps aiming at the nearest visible enemy"),
         ("aim_at: \"nearest\"", "turn to the nearest remote player in line of sight"),
         ("view / policy", "first|third person; idle (still), sentry (turns and fires), walker (circles and fires)"),
@@ -617,7 +626,11 @@ fn sim_text() -> String {
          \x20          at the foot and head of stairs, not beside a flank. `look_at` aims yaw and pitch at a world point from the eye every\n\
          \x20          tick (a prop's origin plus about half its height), instead of hand-computed yaw_deg/pitch_deg.\n\
          \x20          Pick up / drop = `hold: {look_at: [x,y,z], interact: true, seconds: 0.2}` at the prop (reach 2.3 m; a `hold` of ~0.15 s\n\
-         \x20          with the same aim first sets the view); a bat swing = `hold: {attack: true, seconds: 0.3}` (strike lands after the windup).\n\
+         \x20          with the same aim first sets the view). Better, by object id (top-level; the playtest script has the same three steps):\n\
+         \x20          {player, approach: \"id\", within?: m, timeout?: s} done within `within` (default 60% of pickup reach) of its footprint, fails\n\
+         \x20          if no closer for 2 s or after `timeout` (12 s); {player, look_at: \"id\"} faces its middle; {player, interact: \"id\"} approaches,\n\
+         \x20          faces, presses E and fails with the pick-up reason if a loose prop is not then carried (or if hands are full). Straight-line\n\
+         \x20          steering like `walk`: `walk` round a wall first. A bat swing = `hold: {attack: true, seconds: 0.3}` (strike lands after the windup).\n\
          \x20 expect   [{event: name, count|min|max} {no_event: name} {var: name, eq|ne: number|bool, gt|gte|lt|lte: number}\n\
          \x20           {ended: outcome} {not_ended: true} {hidden|shown: object id} {collision_disabled|collision_enabled: object id}\n\
          \x20           {player: id, near: [x,z], tol?, y?}\n\

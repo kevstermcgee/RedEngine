@@ -15,6 +15,7 @@ pub const FILES: &[(&str, &str)] = &[
     ("convenience_store", include_str!("../../recipes/convenience_store.json")),
     ("classroom_wing", include_str!("../../recipes/classroom_wing.json")),
     ("coin_run", include_str!("../../recipes/coin_run.json")),
+    ("gated_garden", include_str!("../../recipes/gated_garden.json")),
 ];
 
 /// A known-good example map, parsed, with its `recipe` metadata block.

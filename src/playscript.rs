@@ -24,6 +24,7 @@
 //! | `hold: [keys], secs` | hold `forward` `back` `left` `right` `sprint` `crouch` |
 //! | `jump: true`, `interact: true`, `switch: n` | tap Space, tap E, scroll the mouse wheel |
 //! | `press: id` | use the on-screen button with that id (`start` on the start card, `restart` on the end card) |
+//! | `approach: id`, `look_at: id`, `interact: id` | by object instead of by keys and angles (`within`, `timeout` beside): walk up to it, face it, press E and check it is carried; the same three steps `checks.sim` has (`sim::approach`) |
 //! | `fire: n` or `{clicks, every}` or `{secs}` | click n times / hold the trigger for a time; `track: true` keeps aiming at the nearest visible enemy |
 //! | `aim_at: "nearest"` | turn to the nearest remote player in line of sight |
 //! | `view: "first"\|"third"`, `policy: name` | camera mode; who plays between steps (`idle`, `sentry`, `walker`) |
@@ -32,6 +33,8 @@
 //! | `expect: {at, eq\|ne\|min\|max\|contains\|exists, within?, msg?}` | assert on the client state (a JSON pointer into the dump); `within` waits up to that many seconds; `wait_for` is the same with a 20 s default |
 //! | `say: text` | print a line |
 
+use crate::sim::approach::{self, Approach, Progress, Target};
+use glam::{Vec2, Vec3};
 use serde_json::Value;
 
 /// Keys a script can hold.
@@ -179,6 +182,26 @@ pub enum Step {
     Interact,
     /// Use the on-screen button with this id (`start`, `restart`).
     Press(String),
+    /// Walk straight at an object until within `within` metres of it (`None`: from the body's pickup reach).
+    Approach {
+        /// The object's id.
+        object: String,
+        /// Done at this horizontal gap.
+        within: Option<f32>,
+        /// Seconds before it fails.
+        timeout: f32,
+    },
+    /// Face the middle of an object.
+    LookAt(String),
+    /// Approach an object, face it, tap E and (where the client can tell) check it is now carried.
+    InteractWith {
+        /// The object's id.
+        object: String,
+        /// Approach distance, as for [`Step::Approach`].
+        within: Option<f32>,
+        /// Seconds the approach may take.
+        timeout: f32,
+    },
     /// First or third person.
     View {
         /// Third person.
@@ -212,11 +235,12 @@ pub struct Script {
 
 /// Actions a step can be, for the "did you mean" of a typo.
 pub const ACTIONS: &[&str] = &[
-    "wait", "look", "turn", "hold", "jump", "fire", "aim_at", "switch", "interact", "press", "view", "policy", "shot", "snapshot", "expect", "wait_for", "say",
+    "wait", "look", "turn", "hold", "jump", "fire", "aim_at", "switch", "interact", "press", "approach", "look_at", "view", "policy", "shot", "snapshot",
+    "expect", "wait_for", "say",
 ];
 
 /// Keys a step may carry besides its action (checked so a typo in one is an error, not silently ignored).
-const STEP_KEYS: &[&str] = &["over", "secs", "camera", "track", "every", "clicks", "msg"];
+const STEP_KEYS: &[&str] = &["over", "secs", "camera", "track", "every", "clicks", "msg", "within", "timeout"];
 
 fn num(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<f32> {
     let n = v.as_f64().map(|n| n as f32).filter(|n| n.is_finite());
@@ -311,6 +335,29 @@ fn parse_expect(v: &Value, path: &str, default_within: f32, errs: &mut Vec<Strin
     Some(Expect { at: at?, test: tests.into_iter().next()?, within, msg: o.get("msg").and_then(Value::as_str).map(str::to_string) })
 }
 
+/// An object id for `approach` / `look_at` / `interact`.
+fn object_id(id: &str, path: &str, action: &str, errs: &mut Vec<String>) -> Option<String> {
+    if id.is_empty() {
+        errs.push(format!("{path}.{action}: an object id like \"parcel_1\""));
+        return None;
+    }
+    Some(id.to_string())
+}
+
+/// `within` (metres) and `timeout` (seconds) beside an `approach` / `interact`.
+fn reach_options(o: &serde_json::Map<String, Value>, path: &str, errs: &mut Vec<String>) -> (Option<f32>, f32) {
+    let positive = |k: &str, errs: &mut Vec<String>| {
+        o.get(k).and_then(|v| num(v, &format!("{path}.{k}"), errs)).filter(|n| {
+            let ok = *n > 0.0;
+            if !ok {
+                errs.push(format!("{path}.{k}: must be greater than 0"));
+            }
+            ok
+        })
+    };
+    (positive("within", errs), positive("timeout", errs).unwrap_or(approach::DEFAULT_TIMEOUT_SECS))
+}
+
 fn parse_step(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<Step> {
     let Some(o) = v.as_object() else {
         errs.push(format!("{path}: a step is an object with one action, like {{\"wait\": 2}}"));
@@ -371,7 +418,18 @@ fn parse_step(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<Step> {
             Step::Hold { keys, secs: key("secs").map_or(Some(1.0), |v| secs(v, &format!("{path}.secs"), errs))? }
         }
         "jump" => Step::Jump,
-        "interact" => Step::Interact,
+        "interact" => match val.as_str() {
+            Some(id) => {
+                let (within, timeout) = reach_options(o, path, errs);
+                Step::InteractWith { object: object_id(id, path, "interact", errs)?, within, timeout }
+            }
+            None => Step::Interact,
+        },
+        "approach" => {
+            let (within, timeout) = reach_options(o, path, errs);
+            Step::Approach { object: object_id(val.as_str().unwrap_or(""), path, "approach", errs)?, within, timeout }
+        }
+        "look_at" => Step::LookAt(object_id(val.as_str().unwrap_or(""), path, "look_at", errs)?),
         "fire" => {
             let (mut clicks, mut every, mut hold, mut track) = (1u32, 0.25f32, 0.0f32, key("track").and_then(Value::as_bool).unwrap_or(false));
             match val {
@@ -451,6 +509,8 @@ fn parse_step(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<Step> {
         "hold" => &["secs"],
         "fire" => &["track"],
         "shot" => &["camera"],
+        "approach" => &["within", "timeout"],
+        "interact" if val.is_string() => &["within", "timeout"],
         _ => &[],
     };
     for k in o.keys() {
@@ -508,11 +568,17 @@ impl Script {
                 Step::Hold { secs, .. } => *secs,
                 Step::Fire { clicks, every, hold, .. } => *clicks as f32 * every + hold,
                 Step::Expect(e) => e.within,
+                Step::Approach { timeout, .. } | Step::InteractWith { timeout, .. } => *timeout + 1.0,
                 _ => 0.0,
             })
             .sum()
     }
 }
+
+/// Seconds an `interact` aims at its object before it presses.
+const AIM_SECS: f32 = 0.1;
+/// Seconds an `interact` waits for the object to be carried before it fails.
+const PICKUP_SECS: f32 = 1.5;
 
 /// What the runner asks of the game. The windowed client implements it for its `App`; tests use a fake.
 pub trait Driver {
@@ -548,6 +614,29 @@ pub trait Driver {
     fn press(&mut self, _id: &str) -> Result<(), String> {
         Err("this client has no buttons to press".to_string())
     }
+    /// Where the player is, for the object steps (`None`: this driver cannot say, and those steps fail).
+    fn pose(&self) -> Option<Pose> {
+        None
+    }
+    /// Where the object with this id is right now (a loose prop where it has been moved to); `None` when there is no such top-level object.
+    fn locate(&self, _id: &str) -> Option<Target> {
+        None
+    }
+    /// Whether the player carries the object `id`; `None` when the client cannot tell (a prop's holder is the server's to know online).
+    fn carrying(&self, _id: &str) -> Option<bool> {
+        None
+    }
+}
+
+/// The player, as the object steps need to know it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Pose {
+    /// Feet, (x, z).
+    pub pos: Vec2,
+    /// The eye.
+    pub eye: Vec3,
+    /// How far the body reaches to pick something up, m.
+    pub pickup_reach: f32,
 }
 
 /// Why an expectation failed, or `None` when `e` holds in `state`.
@@ -597,6 +686,19 @@ pub struct Runner {
     /// Clicks of the current `fire` step already made, and whether the button is down.
     clicked: u32,
     down_until: Option<f32>,
+    /// The running `approach` (or the approach part of an `interact`), and which part of an `interact` it is: 0 approach, 1 aim, 2 settle after the press.
+    approach: Option<Approach>,
+    phase: u8,
+}
+
+/// How a frame of an object step went.
+enum Drive {
+    /// Not done: come back next frame.
+    Going,
+    /// Done.
+    Done,
+    /// Failed, and why.
+    Failed(String),
 }
 
 impl Runner {
@@ -612,6 +714,8 @@ impl Runner {
             secs: 0.0,
             clicked: 0,
             down_until: None,
+            approach: None,
+            phase: 0,
         }
     }
 
@@ -636,6 +740,49 @@ impl Runner {
         self.entered = false;
         self.clicked = 0;
         self.down_until = None;
+        self.approach = None;
+        self.phase = 0;
+    }
+
+    /// One frame of walking at `object`: aim the body at it, hold forward, and ask [`Approach`] whether it is there yet.
+    fn drive_approach(&mut self, d: &mut dyn Driver, object: &str, within: Option<f32>, timeout: f32, dt: f32, what: &str) -> Drive {
+        let (Some(pose), Some(target)) = (d.pose(), d.locate(object)) else {
+            d.hold_keys(&[Key::Forward], false);
+            return Drive::Failed(format!(
+                "{what} `{object}`: {}",
+                if d.pose().is_none() {
+                    "this client cannot say where the player is"
+                } else {
+                    "no such top-level object in the scene (nested children have no id of their own)"
+                }
+            ));
+        };
+        let goal = within.unwrap_or_else(|| approach::default_within(pose.pickup_reach));
+        let gap = target.gap(pose.pos);
+        match self.approach.get_or_insert_with(|| Approach::new(goal, timeout)).step(dt, gap) {
+            Progress::Arrived => {
+                d.hold_keys(&[Key::Forward], false);
+                Drive::Done
+            }
+            Progress::Moving => {
+                d.set_look(Some(target.heading(pose.pos).to_degrees()), None);
+                d.hold_keys(&[Key::Forward], true);
+                Drive::Going
+            }
+            Progress::Failed(why) => {
+                d.hold_keys(&[Key::Forward], false);
+                let secs = self.approach.as_ref().map_or(0.0, Approach::elapsed);
+                Drive::Failed(approach::failure_message(what, object, why, gap, goal, pose.pos, secs))
+            }
+        }
+    }
+
+    /// Faces the middle of `object` from the eye; false when it cannot be found.
+    fn face(d: &mut dyn Driver, object: &str) -> bool {
+        let (Some(pose), Some(target)) = (d.pose(), d.locate(object)) else { return false };
+        let (yaw, pitch) = approach::aim(pose.eye, target.aim_point());
+        d.set_look(Some(yaw.to_degrees()), Some(pitch.to_degrees()));
+        true
     }
 
     /// Runs the script for `dt` seconds of game time: instant steps run at once, timed steps take their time and hand what is left of the frame to the next.
@@ -685,6 +832,56 @@ impl Runner {
                 }
                 Step::Jump => d.jump(),
                 Step::Interact => d.interact(),
+                Step::Approach { object, within, timeout } => match self.drive_approach(d, &object, within, timeout, budget, "approach") {
+                    Drive::Going => return,
+                    Drive::Done => {}
+                    Drive::Failed(why) => self.failures.push(why),
+                },
+                Step::LookAt(object) => {
+                    if !Self::face(d, &object) {
+                        self.failures.push(format!("look_at `{object}`: no such top-level object in the scene, or this client cannot say where the player is"));
+                    }
+                }
+                Step::InteractWith { object, within, timeout } => {
+                    // 0: walk up to it. 1: face it for a moment, then press. 2: give the pick-up a moment to show, then check.
+                    if self.phase == 0 {
+                        if d.carrying(&object) == Some(true) {
+                            self.next();
+                            continue;
+                        }
+                        match self.drive_approach(d, &object, within, timeout, budget, "interact") {
+                            Drive::Going => return,
+                            Drive::Done => (self.phase, self.elapsed) = (1, 0.0),
+                            Drive::Failed(why) => {
+                                self.failures.push(why);
+                                self.next();
+                                continue;
+                            }
+                        }
+                    }
+                    if self.phase == 1 {
+                        Self::face(d, &object);
+                        let take = (AIM_SECS - self.elapsed).min(budget);
+                        self.elapsed += take;
+                        budget -= take;
+                        if self.elapsed + 1e-6 < AIM_SECS {
+                            return;
+                        }
+                        d.interact();
+                        (self.phase, self.elapsed) = (2, 0.0);
+                    }
+                    // Online the server answers a press a round trip later: wait for the pick-up, up to PICKUP_SECS.
+                    let carried = d.carrying(&object);
+                    if carried == Some(false) && self.elapsed + 1e-6 < PICKUP_SECS {
+                        self.elapsed += budget;
+                        return;
+                    }
+                    if carried == Some(false) {
+                        let at = d.pose().map(|p| format!(" from ({:.2}, {:.2})", p.pos.x, p.pos.y)).unwrap_or_default();
+                        let crosshair = d.state().pointer("/crosshair").map(Value::to_string).unwrap_or_default();
+                        self.failures.push(format!("interact `{object}`: pressed interact{at} but did not pick it up (crosshair {crosshair})"));
+                    }
+                }
                 Step::Press(id) => {
                     if let Err(why) = d.press(&id) {
                         self.failures.push(format!("press `{id}`: {why}"));
@@ -828,6 +1025,174 @@ mod tests {
             r.advance(dt, fake);
         }
         r
+    }
+
+    /// A player on a flat floor who walks where it looks while forward is held (4 m/s), with one crate and an optional wall that stops it at z = 3.
+    struct Walker {
+        pos: Vec2,
+        yaw_deg: f32,
+        forward: bool,
+        crate_at: Vec3,
+        wall: bool,
+        carrying: Option<bool>,
+        pickups: bool,
+        presses: u32,
+    }
+
+    impl Walker {
+        fn new(crate_at: Vec3) -> Walker {
+            Walker { pos: Vec2::ZERO, yaw_deg: 0.0, forward: false, crate_at, wall: false, carrying: Some(false), pickups: true, presses: 0 }
+        }
+        /// One frame of the world: walk along the yaw while forward is held.
+        fn tick(&mut self, dt: f32) {
+            if self.forward {
+                let yaw = self.yaw_deg.to_radians();
+                let next = self.pos + Vec2::new(yaw.sin(), -yaw.cos()) * 4.0 * dt;
+                if !(self.wall && next.y > 3.0) {
+                    self.pos = next;
+                }
+            }
+        }
+    }
+
+    impl Driver for Walker {
+        fn hold_keys(&mut self, keys: &[Key], down: bool) {
+            if keys.contains(&Key::Forward) {
+                self.forward = down;
+            }
+        }
+        fn set_look(&mut self, yaw: Option<f32>, _pitch: Option<f32>) {
+            self.yaw_deg = yaw.unwrap_or(self.yaw_deg);
+        }
+        fn add_yaw(&mut self, _: f32) {}
+        fn jump(&mut self) {}
+        fn fire(&mut self, _: bool) {}
+        fn scroll(&mut self, _: f32) {}
+        fn interact(&mut self) {
+            self.presses += 1;
+            let close = Vec2::new(self.crate_at.x, self.crate_at.z).distance(self.pos) < 2.3;
+            if self.pickups && self.carrying.is_some() && close {
+                self.carrying = Some(true);
+            }
+        }
+        fn aim_at_nearest(&mut self) -> bool {
+            false
+        }
+        fn set_view(&mut self, _: bool) {}
+        fn set_policy(&mut self, _: Policy) {}
+        fn shot(&mut self, _: &str, _: &CameraSpec) -> Result<(), String> {
+            Ok(())
+        }
+        fn snapshot(&mut self, _: &str) {}
+        fn state(&self) -> Value {
+            json!({"crosshair": {"pickup": false}})
+        }
+        fn say(&mut self, _: &str) {}
+        fn pose(&self) -> Option<Pose> {
+            Some(Pose { pos: self.pos, eye: Vec3::new(self.pos.x, 1.6, self.pos.y), pickup_reach: 2.3 })
+        }
+        fn locate(&self, id: &str) -> Option<Target> {
+            (id == "crate").then(|| Target::from_prop(self.crate_at, Vec3::splat(0.6)))
+        }
+        fn carrying(&self, id: &str) -> Option<bool> {
+            (id == "crate").then_some(self.carrying).flatten()
+        }
+    }
+
+    /// Plays `script` against `w` at 60 frames a second for up to `secs`, moving the world between frames.
+    fn play(script: &str, w: &mut Walker, secs: f32) -> Runner {
+        let mut r = Runner::new(Script::parse(script).unwrap_or_else(|e| panic!("{e:?}")));
+        let dt = 1.0 / 60.0;
+        for _ in 0..(secs / dt) as usize {
+            if r.finished() {
+                break;
+            }
+            r.advance(dt, w);
+            w.tick(dt);
+        }
+        r
+    }
+
+    #[test]
+    fn approach_walks_at_the_object_and_stops_within_reach() {
+        let mut w = Walker::new(Vec3::new(5.0, 0.0, -8.0));
+        let r = play(r#"{"steps":[{"approach":"crate"}]}"#, &mut w, 10.0);
+        assert!(r.finished() && r.failures.is_empty(), "{:?}", r.failures);
+        let gap = Target::from_prop(w.crate_at, Vec3::splat(0.6)).gap(w.pos);
+        assert!(gap <= 1.38 && gap > 0.9, "stopped at the default 60% of reach, not on top of it: {gap}");
+        assert!(!w.forward, "the key is released");
+        // An explicit `within` is honoured.
+        let mut w = Walker::new(Vec3::new(5.0, 0.0, -8.0));
+        let r = play(r#"{"steps":[{"approach":"crate","within":0.5}]}"#, &mut w, 10.0);
+        assert!(r.failures.is_empty() && Target::from_prop(w.crate_at, Vec3::splat(0.6)).gap(w.pos) <= 0.5);
+    }
+
+    #[test]
+    fn interact_by_id_approaches_faces_presses_once_and_checks_the_pickup() {
+        let mut w = Walker::new(Vec3::new(-4.0, 0.0, -6.0));
+        let r = play(r#"{"steps":[{"interact":"crate"},{"say":"after"}]}"#, &mut w, 15.0);
+        assert!(r.finished() && r.failures.is_empty(), "{:?}", r.failures);
+        assert_eq!((w.presses, w.carrying), (1, Some(true)));
+        // Already carrying it: nothing to do, and no press that would drop it.
+        let mut w = Walker::new(Vec3::new(-4.0, 0.0, -6.0));
+        w.carrying = Some(true);
+        let r = play(r#"{"steps":[{"interact":"crate"}]}"#, &mut w, 5.0);
+        assert!(r.finished() && r.failures.is_empty() && w.presses == 0 && w.pos == Vec2::ZERO);
+    }
+
+    #[test]
+    fn an_object_step_that_cannot_finish_fails_by_name_and_the_script_goes_on() {
+        // Something in the way (a wall stops the player at z = 3 on the way to z = 9).
+        let mut w = Walker::new(Vec3::new(0.0, 0.0, 9.0));
+        w.wall = true;
+        let r = play(r#"{"steps":[{"approach":"crate"},{"say":"still running"}]}"#, &mut w, 20.0);
+        assert!(r.finished(), "a failed step does not hang the script");
+        assert!(r.failures.len() == 1 && r.failures[0].contains("approach `crate`") && r.failures[0].contains("in the way"), "{:?}", r.failures);
+        // Too slow for its own timeout.
+        let mut w = Walker::new(Vec3::new(0.0, 0.0, -30.0));
+        let r = play(r#"{"steps":[{"approach":"crate","timeout":1}]}"#, &mut w, 20.0);
+        assert!(r.failures[0].contains("raise `timeout`"), "{:?}", r.failures);
+        // The press took nothing.
+        let mut w = Walker::new(Vec3::new(0.0, 0.0, -5.0));
+        w.pickups = false;
+        let r = play(r#"{"steps":[{"interact":"crate"}]}"#, &mut w, 20.0);
+        assert!(r.failures.len() == 1 && r.failures[0].contains("did not pick it up"), "{:?}", r.failures);
+        // No such object.
+        let mut w = Walker::new(Vec3::new(0.0, 0.0, -5.0));
+        let r = play(r#"{"steps":[{"look_at":"bench"},{"approach":"bench"}]}"#, &mut w, 5.0);
+        assert_eq!(r.failures.len(), 2, "{:?}", r.failures);
+        assert!(r.failures.iter().all(|f| f.contains("bench") && f.contains("no such top-level object")), "{:?}", r.failures);
+    }
+
+    #[test]
+    fn a_client_that_cannot_tell_who_carries_a_prop_is_not_failed_for_it() {
+        let mut w = Walker::new(Vec3::new(2.0, 0.0, -3.0));
+        w.carrying = None;
+        let r = play(r#"{"steps":[{"interact":"crate"}]}"#, &mut w, 10.0);
+        assert!(r.finished() && r.failures.is_empty() && w.presses == 1, "{:?}", r.failures);
+    }
+
+    #[test]
+    fn look_at_faces_the_middle_of_the_object() {
+        let mut w = Walker::new(Vec3::new(5.0, 0.0, 0.0));
+        let r = play(r#"{"steps":[{"look_at":"crate"}]}"#, &mut w, 1.0);
+        assert!(r.finished() && r.failures.is_empty());
+        assert!((w.yaw_deg - 90.0).abs() < 0.1, "a crate to the east is yaw 90, got {}", w.yaw_deg);
+    }
+
+    #[test]
+    fn object_steps_parse_with_their_options_and_reject_what_they_do_not_take() {
+        let s =
+            Script::parse(r#"{"steps":[{"approach":"p","within":1.2,"timeout":5},{"look_at":"p"},{"interact":"p","timeout":3},{"interact":true}]}"#).unwrap();
+        assert_eq!(s.steps[0], Step::Approach { object: "p".into(), within: Some(1.2), timeout: 5.0 });
+        assert_eq!(s.steps[1], Step::LookAt("p".into()));
+        assert_eq!(s.steps[2], Step::InteractWith { object: "p".into(), within: None, timeout: 3.0 });
+        assert_eq!(s.steps[3], Step::Interact, "interact with no object is still a tap of E");
+        let e = Script::parse(r#"{"steps":[{"look_at":"p","within":1},{"approach":"","timeout":-1},{"interact":true,"within":1},{"aprroach":"p"}]}"#)
+            .unwrap_err()
+            .join("\n");
+        assert!(e.contains("'look_at' does not take 'within'") && e.contains("an object id") && e.contains("must be greater than 0"), "{e}");
+        assert!(e.contains("'interact' does not take 'within'") && e.contains("did you mean 'approach'"), "{e}");
     }
 
     #[test]

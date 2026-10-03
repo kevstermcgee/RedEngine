@@ -27,7 +27,7 @@ Most of the cost of working on this engine is reading things and running things 
   | command | when | what runs |
   |---|---|---|
   | `red_engine2 preflight [--fix]` | before each commit (about a second, compiles nothing) | the repository's paperwork: ADR records and index, `docs/features.json` ownership of every file, derived doc facts, the headless boundary, doc claims, `describe` budgets, rustfmt; each problem prints the exact edit (ADR 2026-09-28-generated-bookkeeping) |
-  | `scripts/dev iterate` | the edit loop, after every change | only what changed since `HEAD`: fmt, type-check, the touched modules' unit tests (seconds). **Never verification**: it lists what it skipped and says full verification is still required; `--check-only` drops the tests, `--headless` type-checks without graphics when every changed file is provably graphics-free |
+  | `scripts/dev iterate` | the edit loop, after every change | only what changed since `HEAD`: fmt, type-check + clippy, the touched modules' unit tests (seconds). **Never verification**: it lists what it skipped and says full verification is still required; `--check-only` drops the tests, `--headless` type-checks without graphics when every changed file is provably graphics-free |
   | `scripts/dev affected --quick` | after a meaningful step | owners of the branch's changed files (vs `origin/main`; `--base HEAD` for just your last edit) and their integration suites; the dependents it skipped are listed |
   | `scripts/dev affected` | before you say "done" | owners plus every feature built on them |
   | `scripts/dev affected --full` (= `scripts/ci.sh`) | before pushing / any integration boundary | everything CI runs |

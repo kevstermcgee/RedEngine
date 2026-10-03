@@ -264,6 +264,18 @@ pub struct RuleSet {
     /// Whether any rule looks at loose props (a trigger, a built-in function, a `reset` or `place`): if not, the
     /// simulation need not describe its props to the rules every tick.
     pub needs_props: bool,
+    /// The scene's named level states (`phases`), in declaration order: for the analysis tools only, the simulation ignores them.
+    pub phases: Vec<Phase>,
+}
+
+/// A named state of the level for `lint` / `reach` / `walk` (`"phases": {"gate_open": ["open_gate"]}`): the rules to assume
+/// have already fired, so what they open (collision off, `deactivate`) is open to the tools.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Phase {
+    /// The phase name (`checks.reach[].phase`, `--phase`).
+    pub name: String,
+    /// Indices into [`RuleSet::rules`], applied in this order after the unconditional `start` rules.
+    pub rules: Vec<usize>,
 }
 
 impl Default for RuleSet {
@@ -277,11 +289,49 @@ impl Default for RuleSet {
             zone_volumes: Vec::new(),
             fields: Vec::new(),
             needs_props: false,
+            phases: Vec::new(),
         }
     }
 }
 
 impl RuleSet {
+    /// Top-level objects the player cannot collide with in `phase` (`None` = the initial state): what the unconditional `start`
+    /// rules switch off, then what each of the phase's rules switches off or back on, in order. An unknown phase is an error
+    /// that names the declared ones.
+    pub fn open_objects(&self, phase: Option<&str>) -> Result<Vec<String>, String> {
+        let mut open: Vec<String> = Vec::new();
+        let mut apply = |actions: &[Action]| {
+            for a in actions {
+                match a {
+                    Action::Collision { object, enabled: false } | Action::Deactivate(object) => {
+                        if !open.contains(object) {
+                            open.push(object.clone());
+                        }
+                    }
+                    Action::Collision { object, enabled: true } | Action::Activate(object) => open.retain(|o| o != object),
+                    _ => {}
+                }
+            }
+        };
+        for r in self.rules.iter().filter(|r| matches!(r.when, When::Start) && r.cond.is_none()) {
+            apply(&r.actions);
+        }
+        if let Some(name) = phase {
+            let Some(ph) = self.phases.iter().find(|p| p.name == name) else {
+                let declared: Vec<String> = self.phases.iter().map(|p| p.name.clone()).collect();
+                return Err(format!(
+                    "unknown phase `{name}`{} (declared: {})",
+                    near(name, declared.iter().cloned()),
+                    if declared.is_empty() { "none; add \"phases\": {\"name\": [\"rule_id\"]} to the scene".to_string() } else { declared.join(", ") }
+                ));
+            };
+            for &i in &ph.rules {
+                apply(&self.rules[i].actions);
+            }
+        }
+        Ok(open)
+    }
+
     /// The expression scope: the loose props and zones a built-in function may name.
     pub fn scope(&self) -> Scope<'_> {
         Scope { props: &self.prop_ids, zones: &self.zone_ids }
@@ -750,6 +800,7 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
     }
     parse_fields(root, refs, &mut set, &mut errs);
     let Some(list) = root.get("rules") else {
+        parse_phases(root, &mut set, &mut errs);
         return if errs.is_empty() { Ok(set) } else { Err(errs) };
     };
     let Some(list) = list.as_array() else {
@@ -807,6 +858,7 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             set.rules.push(Rule { id: id.to_string(), when, who, cond, once, cooldown_ticks, actions });
         }
     }
+    parse_phases(root, &mut set, &mut errs);
     // A rule that reacts to an event nothing emits can never fire: say so (a typo in either place).
     let mut emitted: HashSet<&str> =
         set.rules.iter().flat_map(|r| r.actions.iter()).filter_map(|a| if let Action::Emit(n) = a { Some(n.as_str()) } else { None }).collect();
@@ -839,6 +891,37 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
     }
 }
 
+/// `phases`: `{"gate_open": ["open_gate"], "done": ["open_gate", "win"]}`. Each name lists rule ids the analysis tools assume have fired.
+fn parse_phases(root: &Map<String, Value>, set: &mut RuleSet, errs: &mut Vec<String>) {
+    let Some(v) = root.get("phases") else { return };
+    let Some(o) = v.as_object() else {
+        errs.push("phases: must be an object like {\"gate_open\": [\"open_gate\"]} (a phase name, then the rule ids assumed to have fired)".to_string());
+        return;
+    };
+    for (name, list) in o.iter().filter(|(k, _)| !(k.starts_with("x-") || *k == "$comment" || *k == "notes")) {
+        if name.is_empty() || !name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') || name == "initial" {
+            errs.push(format!("phases.{name}: a phase name is letters, digits, `_` or `-` (and `initial` is the implicit first state)"));
+            continue;
+        }
+        let Some(ids) = list.as_array() else {
+            errs.push(format!("phases.{name}: must be an array of rule ids"));
+            continue;
+        };
+        let mut rules = Vec::new();
+        for (k, id) in ids.iter().enumerate() {
+            let Some(id) = id.as_str() else {
+                errs.push(format!("phases.{name}[{k}]: must be a rule id string"));
+                continue;
+            };
+            match set.rules.iter().position(|r| r.id == id) {
+                Some(i) => rules.push(i),
+                None => errs.push(format!("phases.{name}[{k}]: no rule `{id}`{}", near(id, set.rules.iter().map(|r| r.id.clone())))),
+            }
+        }
+        set.phases.push(Phase { name: name.clone(), rules });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -860,6 +943,45 @@ mod tests {
 
     fn parse(v: Value) -> Result<RuleSet, Vec<String>> {
         parse_rules(v.as_object().unwrap(), &refs())
+    }
+
+    fn gate_rules() -> Value {
+        json!({
+            "vars": {},
+            "rules": [
+                {"id": "boot", "when": {"start": true}, "do": [{"collision": ["crate", false]}]},
+                {"id": "open_door", "when": {"event": "go"}, "do": [{"deactivate": "door"}]},
+                {"id": "shut_door", "when": {"event": "go"}, "do": [{"activate": "door"}, {"emit": "go"}]},
+                {"id": "open_crate", "when": {"event": "go"}, "if": "1 == 1", "do": [{"collision": ["crate", true]}]}
+            ],
+            "phases": {"open": ["open_door"], "reopened": ["open_door", "shut_door"], "crate_back": ["open_crate"]}
+        })
+    }
+
+    #[test]
+    fn phases_name_the_objects_their_rules_open_in_order() {
+        let set = parse(gate_rules()).unwrap();
+        assert_eq!(set.phases.len(), 3);
+        assert_eq!(set.open_objects(None).unwrap(), vec!["crate".to_string()], "initial: only the unconditional start rule counts");
+        assert_eq!(set.open_objects(Some("open")).unwrap(), vec!["crate".to_string(), "door".to_string()], "deactivate opens");
+        assert_eq!(set.open_objects(Some("reopened")).unwrap(), vec!["crate".to_string()], "a later activate closes it again");
+        assert!(set.open_objects(Some("crate_back")).unwrap().is_empty(), "collision true closes what start opened");
+    }
+
+    #[test]
+    fn an_unknown_phase_names_the_declared_ones_and_a_bad_phase_entry_is_a_validate_error() {
+        let set = parse(gate_rules()).unwrap();
+        let e = set.open_objects(Some("opn")).unwrap_err();
+        assert!(e.contains("did you mean `open`") && e.contains("declared: "), "{e}");
+        assert!(RuleSet::default().open_objects(Some("x")).unwrap_err().contains("add \"phases\""));
+        let mut bad = gate_rules();
+        bad["phases"] = json!({"open": ["open_dor"], "initial": [], "n": "open_door", "ok": []});
+        let e = parse(bad).unwrap_err().join("\n");
+        assert!(e.contains("phases.open[0]: no rule `open_dor`") && e.contains("did you mean `open_door`"), "{e}");
+        assert!(e.contains("phases.initial") && e.contains("phases.n: must be an array"), "{e}");
+        // phases without any rules are still validated
+        let e = parse(json!({"phases": {"p": ["nope"]}})).unwrap_err().join("\n");
+        assert!(e.contains("no rule `nope`"), "{e}");
     }
 
     #[test]

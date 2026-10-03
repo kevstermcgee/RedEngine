@@ -1,0 +1,507 @@
+{
+ "recipe": {
+  "title": "Gated garden: checking a level in each of its states",
+  "summary": "A courtyard, a gate that stays shut until you carry the key to it, and a garden behind the gate. `phases` names the states a rule creates (`gate_open`: the `open_gate` rule has fired), so `lint`, `reach`, `walk` and `verify` can check the garden is sealed at first AND walkable afterwards, instead of calling it unreachable.",
+  "teaches": [
+   "`phases`: {name: [rule ids assumed fired]}; what those rules open (`deactivate`, `collision`) is open to the analysis tools in that phase",
+   "`checks.reach[].phase` and `checks.walk[].phase` test one state; `\"reachable\": false` asserts a place is still cut off",
+   "`lint` runs every phase and drops an `unreachable`/`zone`/`floor` finding that some phase resolves",
+   "`red_engine2 reach|lint|walk|plan --phase gate_open` looks at one state by hand"
+  ],
+  "tips": [
+   "The initial state is implicit (`initial`): the unconditional `start` rules apply there. Name a phase for each state worth proving.",
+   "Phases do not change the game: `checks.sim` plays the real rules, so keep a scenario that really opens the gate."
+  ]
+ },
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "background": {
+  "sky_top": "#8fc7ff",
+  "sky_bottom": "#eef6ff"
+ },
+ "ambient": {
+  "color": "#ffffff",
+  "intensity": 0.45
+ },
+ "camera": {
+  "fov": 70,
+  "position": [
+   -8,
+   1.7,
+   0
+  ],
+  "target": [
+   0,
+   1.4,
+   0
+  ]
+ },
+ "post": {
+  "ao": 0.8,
+  "outline": 0.5
+ },
+ "lights": [
+  {
+   "id": "lamp_w",
+   "type": "point",
+   "position": [
+    -5,
+    2.6,
+    0
+   ],
+   "color": "#fff0d0",
+   "intensity": 11,
+   "range": 9
+  },
+  {
+   "id": "lamp_e",
+   "type": "point",
+   "position": [
+    6,
+    2.6,
+    0
+   ],
+   "color": "#fff0d0",
+   "intensity": 11,
+   "range": 9
+  }
+ ],
+ "zones": [
+  {
+   "id": "courtyard",
+   "rect": [
+    -9.88,
+    -5.88,
+    3.9,
+    5.88
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "garden",
+   "rect": [
+    4.12,
+    -5.88,
+    9.88,
+    5.88
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "bench",
+   "rect": [
+    8,
+    -1.5,
+    9.88,
+    1.5
+   ],
+   "y": 0,
+   "kind": "goal"
+  }
+ ],
+ "spawns": [
+  {
+   "id": "spawn_a",
+   "position": [
+    -8,
+    0,
+    0
+   ],
+   "yaw_deg": 90,
+   "group": "solo"
+  }
+ ],
+ "vars": {
+  "has_key": 0
+ },
+ "rules": [
+  {
+   "id": "take_key",
+   "when": {
+    "enter": {
+     "object": "key",
+     "pad": 0.3
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "set": [
+      "has_key",
+      1
+     ]
+    },
+    {
+     "hide": "key"
+    },
+    {
+     "emit": "key"
+    }
+   ]
+  },
+  {
+   "id": "gate_locked",
+   "when": {
+    "enter": {
+     "object": "gate",
+     "pad": 0.8
+    }
+   },
+   "if": "has_key == 0",
+   "do": [
+    {
+     "emit": "locked"
+    }
+   ]
+  },
+  {
+   "id": "open_gate",
+   "when": {
+    "enter": {
+     "object": "gate",
+     "pad": 0.8
+    }
+   },
+   "if": "has_key == 1",
+   "once": true,
+   "do": [
+    {
+     "deactivate": "gate"
+    },
+    {
+     "emit": "gate_open"
+    }
+   ]
+  },
+  {
+   "id": "sit_on_bench",
+   "when": {
+    "enter": {
+     "zone": "bench"
+    }
+   },
+   "do": [
+    {
+     "emit": "victory"
+    },
+    {
+     "end": "victory"
+    }
+   ]
+  }
+ ],
+ "phases": {
+  "gate_open": [
+   "open_gate"
+  ]
+ },
+ "checks": {
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0
+  },
+  "reach": [
+   {
+    "to": [
+     0,
+     0
+    ],
+    "why": "courtyard"
+   },
+   {
+    "to": [
+     8,
+     0
+    ],
+    "reachable": false,
+    "why": "garden is sealed until the gate opens"
+   },
+   {
+    "to": [
+     8,
+     0
+    ],
+    "phase": "gate_open",
+    "why": "garden once the gate is open"
+   }
+  ],
+  "walk": [
+   {
+    "name": "through the open gate to the bench",
+    "phase": "gate_open",
+    "path": "-8,0; 8.8,0",
+    "ends_near": [
+     8.8,
+     0
+    ],
+    "tol": 0.4,
+    "floor_y": 0
+   }
+  ],
+  "objects": {
+   "exist": [
+    "floor",
+    "key",
+    "gate"
+   ],
+   "min_count": 8
+  },
+  "sim": [
+   {
+    "name": "key, gate, bench",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "spawn_a"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-5,-3; 4,0; 8.8,0"
+     }
+    ],
+    "expect": [
+     {
+      "event": "key",
+      "count": 1
+     },
+     {
+      "event": "gate_open",
+      "count": 1
+     },
+     {
+      "event": "victory",
+      "count": 1
+     },
+     {
+      "ended": "victory"
+     }
+    ]
+   },
+   {
+    "name": "the gate stays shut without the key",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "spawn_a"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "3,0"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "event": "locked",
+      "min": 1
+     },
+     {
+      "no_event": "gate_open"
+     },
+     {
+      "not_ended": true
+     }
+    ]
+   }
+  ]
+ },
+ "objects": [
+  {
+   "id": "floor",
+   "type": "plane",
+   "size": [
+    20,
+    12
+   ],
+   "position": [
+    0,
+    0.01,
+    0
+   ],
+   "material": {
+    "color": "#c8c0b0",
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": "ceiling",
+   "type": "box",
+   "size": [
+    20,
+    0.2,
+    12
+   ],
+   "position": [
+    0,
+    2.9,
+    0
+   ],
+   "material": {
+    "color": "#e8e4dc",
+    "roughness": 0.9
+   }
+  },
+  {
+   "id": "wall_n",
+   "type": "wall",
+   "from": [
+    -10,
+    -6
+   ],
+   "to": [
+    10,
+    -6
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "wall_s",
+   "type": "wall",
+   "from": [
+    -10,
+    6
+   ],
+   "to": [
+    10,
+    6
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "wall_w",
+   "type": "wall",
+   "from": [
+    -10,
+    -6
+   ],
+   "to": [
+    -10,
+    6
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "wall_e",
+   "type": "wall",
+   "from": [
+    10,
+    -6
+   ],
+   "to": [
+    10,
+    6
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "fence_n",
+   "type": "wall",
+   "from": [
+    4,
+    -6
+   ],
+   "to": [
+    4,
+    -1.5
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "fence_s",
+   "type": "wall",
+   "from": [
+    4,
+    1.5
+   ],
+   "to": [
+    4,
+    6
+   ],
+   "height": 2.8,
+   "thickness": 0.24
+  },
+  {
+   "id": "gate",
+   "type": "box",
+   "size": [
+    0.24,
+    2.8,
+    3
+   ],
+   "position": [
+    4,
+    1.4,
+    0
+   ],
+   "material": {
+    "color": "#7a5a30",
+    "roughness": 0.7
+   }
+  },
+  {
+   "id": "bench_pad",
+   "type": "plane",
+   "size": [
+    1.88,
+    3
+   ],
+   "position": [
+    8.94,
+    0.02,
+    0
+   ],
+   "material": {
+    "color": "#3fbf6a",
+    "emissive": "#1a5a30",
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": "key",
+   "type": "cylinder",
+   "radius": 0.25,
+   "height": 0.08,
+   "position": [
+    -5,
+    0.45,
+    -3
+   ],
+   "rotation": [
+    90,
+    0,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "color": "#f2c230",
+    "emissive": "#7a5a08",
+    "metallic": 0.8,
+    "roughness": 0.3
+   }
+  }
+ ]
+}

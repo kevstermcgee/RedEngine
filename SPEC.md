@@ -681,6 +681,15 @@ names the object that blocked it and writes `out/verify/<scene>_walk<N>_explain.
 first run or with `--bless`; on failure a `golden | now | diff` image is written under `out/verify/`).
 `verify --no-views` skips rendering (no GPU), `--only walk` / `--only walk[2]` / `--only "front door"` runs a subset (every check is timed); add the global `--json` for the machine-readable envelope.
 `checks.lint` takes `ignore: [codes]` for findings a map accepts everywhere (a pit's `drop` edges) beside `forbid` and the budgets.
+
+**Level states (`phases`).** The tools see the level as it is before any rule has fired, so a gate that a rule opens later is a wall to them. A top-level
+`"phases": { "gate_open": ["open_gate"] }` names a state by the rules assumed to have fired (applied in order after the unconditional `start` rules;
+their `deactivate` / `collision` / `activate` effects count, nothing else). A `checks.reach` or `checks.walk` entry takes `"phase": "gate_open"`;
+a `reach` entry also takes `"reachable": false` to assert a place is still cut off in that state (`initial`, the implicit first state, is what an
+entry without `phase` checks). `lint` (in `verify` and on the command line) also runs every declared phase: a `zone`, `floor` or `unreachable`
+finding that some phase resolves is dropped, and a finding that exists only in a phase (a leak the open gate creates) is reported as `[phase name] ...`.
+`reach`, `lint`, `walk` and `plan` take `--phase NAME` to look at one state by hand. Phases are for the analysis tools; they change nothing in the game,
+so keep a `checks.sim` scenario that really opens the gate (`recipe gated_garden`).
 `checks.sim` holds headless gameplay scenarios (see [Game rules as data](#game-rules-as-data-vars-rules)).
 
 ## Blueprints (`red_engine2 build`)
