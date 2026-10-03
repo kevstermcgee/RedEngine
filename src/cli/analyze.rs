@@ -2,10 +2,10 @@
 
 use super::*;
 
-pub(crate) fn analyze(scene: &Path, cell: f32) -> Result<(MapWorld, reach::Reach, Vec<lint::Finding>), String> {
-    let world = load_or_report(scene)?;
+pub(crate) fn analyze(scene: &Path, cell: f32, phase: Option<&str>) -> Result<(MapWorld, reach::Reach, Vec<lint::Finding>), String> {
+    let world = load_or_report_phase(scene, phase)?;
     let r = reach::compute(&world, &ReachParams { cell, ..Default::default() });
-    let findings = lint::lint(&world, &r);
+    let findings = lint::lint_phases(&world, &r, cell);
     Ok((world, r, findings))
 }
 
@@ -24,8 +24,8 @@ pub(crate) fn run_validate(scene: &Path) -> Result<(), String> {
     }
 }
 
-pub(crate) fn run_lint(scene: &Path, json: bool, strict: bool, cell: f32) -> Result<(), String> {
-    let (world, r, findings) = analyze(scene, cell)?;
+pub(crate) fn run_lint(scene: &Path, json: bool, strict: bool, cell: f32, phase: Option<&str>) -> Result<(), String> {
+    let (world, r, findings) = analyze(scene, cell, phase)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&lint::to_json(&findings)).unwrap());
     } else {
@@ -49,8 +49,8 @@ pub(crate) fn run_lint(scene: &Path, json: bool, strict: bool, cell: f32) -> Res
     Ok(())
 }
 
-pub(crate) fn run_reach(scene: &Path, from: Option<&str>, to: Option<&str>, cell: f32, json: bool) -> Result<(), String> {
-    let world = load_or_report(scene)?;
+pub(crate) fn run_reach(scene: &Path, from: Option<&str>, to: Option<&str>, cell: f32, json: bool, phase: Option<&str>) -> Result<(), String> {
+    let world = load_or_report_phase(scene, phase)?;
     let start = from.map(v2).transpose()?;
     let r = reach::compute(&world, &ReachParams { cell, start, ..Default::default() });
     if !r.start_ok {
@@ -165,8 +165,9 @@ pub(crate) fn run_plan(
     labels: &str,
     no_reach: bool,
     no_lint: bool,
+    phase: Option<&str>,
 ) -> Result<(), String> {
-    let (world, r, findings) = analyze(scene, 0.1)?;
+    let (world, r, findings) = analyze(scene, 0.1, phase)?;
     let findings = if no_lint { vec![] } else { findings };
     let labels = match labels {
         "auto" => Labels::Auto,
@@ -232,9 +233,10 @@ pub(crate) fn run_walk(
     to: Option<&str>,
     cell: f32,
     explain: Option<&Path>,
+    phase: Option<&str>,
 ) -> Result<(), String> {
     use red_engine2::tools::pathing;
-    let world = load_or_report(scene)?;
+    let world = load_or_report_phase(scene, phase)?;
     let (start, start_y) = from.map(v2y).transpose()?.unwrap_or((world.spawn, Some(world.spawn_y)));
     let json = envelope::capturing();
     let write_explain =
@@ -338,7 +340,7 @@ pub(crate) fn run_walk(
 }
 
 pub(crate) fn run_info(scene: &Path, id: &str) -> Result<(), String> {
-    let (world, _r, findings) = analyze(scene, 0.1)?;
+    let (world, _r, findings) = analyze(scene, 0.1, None)?;
     print!("{}", inspect::object_info(&world, id, &findings)?);
     Ok(())
 }

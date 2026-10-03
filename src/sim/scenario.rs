@@ -13,9 +13,11 @@
 //!
 //! Each player runs its own steps in order (players run in parallel): `walk "x,z; x,z"` steers through waypoints with
 //! the real per-tick movement, `wait secs` stands still, `hold {forward, strafe, sprint, crouch, jump, yaw_deg,
-//! seconds}` presses inputs. The run ends when the match ends (an `end` rule), when every script is done (plus a short
+//! seconds}` presses inputs. `approach "id"`, `look_at "id"` and `interact "id"` do the same by object instead of by coordinates
+//! (see [`super::approach`]; the graphical client's script has the same three). The run ends when the match ends (an `end` rule), when every script is done (plus a short
 //! settle), or at `max_seconds`. Every mistake in a scenario is reported with a path and a did-you-mean.
 
+use super::approach::{self, default_within, failure_message, Approach, Progress, Target};
 use super::match_sim::MatchSim;
 use super::player::{PlayerInput, PlayerState};
 use super::rules::RuleSet;
@@ -29,7 +31,7 @@ use serde_json::{json, Map, Value};
 
 const SCENARIO_KEYS: &[&str] = &["name", "spawn_group", "players", "script", "max_seconds", "settle_seconds", "expect"];
 const PLAYER_KEYS: &[&str] = &["id", "character", "spawn"];
-const STEP_KEYS: &[&str] = &["player", "walk", "wait", "hold", "until_event"];
+const STEP_KEYS: &[&str] = &["player", "walk", "wait", "hold", "approach", "look_at", "interact", "within", "timeout", "until_event"];
 const HOLD_KEYS: &[&str] =
     &["forward", "strafe", "sprint", "crouch", "jump", "yaw_deg", "pitch_deg", "look_at", "interact", "attack", "reload", "switch", "seconds"];
 const EXPECT_KEYS: &[&str] = &[
@@ -121,6 +123,29 @@ pub enum Action {
     Walk(Vec<Vec2>),
     /// Stand still this many ticks.
     Wait(u32),
+    /// Walk straight at a top-level object until within `within` metres of it (default: from the body's pickup reach).
+    Approach {
+        /// The object's id.
+        object: String,
+        /// Done at this horizontal gap.
+        within: Option<f32>,
+        /// Seconds before it fails.
+        timeout: f32,
+    },
+    /// Face the middle of a top-level object (yaw and pitch from the eye), then go on.
+    LookAt {
+        /// The object's id.
+        object: String,
+    },
+    /// Approach, look at the object, press interact, and (for a loose prop) check it is now carried.
+    Interact {
+        /// The object's id.
+        object: String,
+        /// Approach distance, as for [`Action::Approach`].
+        within: Option<f32>,
+        /// Seconds the approach may take.
+        timeout: f32,
+    },
     /// Hold an input for `ticks`.
     Hold {
         /// The input (its `seq` is set by the runner).
@@ -453,15 +478,63 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
             continue;
         };
         let until = so.get("until_event").and_then(Value::as_str).map(str::to_string);
-        let actions: Vec<&str> = ["walk", "wait", "hold"].into_iter().filter(|k| so.contains_key(*k)).collect();
+        const ACTIONS: [&str; 6] = ["walk", "wait", "hold", "approach", "look_at", "interact"];
+        let actions: Vec<&str> = ACTIONS.into_iter().filter(|k| so.contains_key(*k)).collect();
         if actions.len() != 1 {
             errs.push(format!(
-                "{sp}: give exactly one of walk, wait, hold (got {})",
+                "{sp}: give exactly one of {} (got {})",
+                ACTIONS.join(", "),
                 if actions.is_empty() { "none".to_string() } else { actions.join(" + ") }
             ));
             continue;
         }
+        if !matches!(actions[0], "approach" | "interact") {
+            for k in ["within", "timeout"] {
+                if so.contains_key(k) {
+                    errs.push(format!("{sp}.{k}: only `approach` and `interact` take `{k}`"));
+                }
+            }
+        }
         match actions[0] {
+            "approach" | "look_at" | "interact" => {
+                let kind = actions[0];
+                let id = so[kind].as_str().unwrap_or("");
+                if id.is_empty() {
+                    errs.push(format!("{sp}.{kind}: must be an object id like \"parcel_1\""));
+                    continue;
+                }
+                if !object_ids.iter().any(|o| o == id) {
+                    errs.push(format!("{sp}.{kind}: no object `{id}`{}", near_names(id, object_ids.iter().cloned())));
+                    continue;
+                }
+                let within = match so.get("within") {
+                    None => None,
+                    Some(w) => match w.as_f64().filter(|w| *w > 0.0 && w.is_finite()) {
+                        Some(w) => Some(w as f32),
+                        None => {
+                            errs.push(format!("{sp}.within: metres, a number greater than 0"));
+                            None
+                        }
+                    },
+                };
+                let timeout = match so.get("timeout") {
+                    None => super::approach::DEFAULT_TIMEOUT_SECS,
+                    Some(t) => match t.as_f64().filter(|t| *t > 0.0 && t.is_finite()) {
+                        Some(t) => t as f32,
+                        None => {
+                            errs.push(format!("{sp}.timeout: seconds, a number greater than 0"));
+                            super::approach::DEFAULT_TIMEOUT_SECS
+                        }
+                    },
+                };
+                let object = id.to_string();
+                let action = match kind {
+                    "approach" => Action::Approach { object, within, timeout },
+                    "look_at" => Action::LookAt { object },
+                    _ => Action::Interact { object, within, timeout },
+                };
+                script.push((pi, action, until));
+            }
             "walk" => {
                 let wps = match so["walk"].as_str() {
                     Some(s) => parse_walk(s, &format!("{sp}.walk"), &mut errs),
@@ -750,7 +823,14 @@ struct Cursor {
     ticks_in_step: u32,
     best: f32,
     since_progress: u32,
-    stuck: Option<String>,
+    /// A failed step: what it was (the outcome's label) and why.
+    stuck: Option<(&'static str, String)>,
+    /// The step the fields below belong to (they restart when it changes).
+    seen_step: usize,
+    /// The running `approach`.
+    approach: Option<super::approach::Approach>,
+    /// Which part of an `interact` is running: 0 approach, 1 aim, 2 press, 3 settle.
+    phase: u8,
 }
 
 /// Runs `scenario` on `scene`, returning the checked result (and a [`Trace`] when `record` is given).
@@ -777,8 +857,44 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
         };
         slots.push(slot.ok_or_else(|| format!("scenario `{}`: the match is full (at most {} players)", scenario.name, super::match_sim::MAX_PLAYERS))?);
     }
-    let mut cursors: Vec<Cursor> =
-        scenario.players.iter().map(|_| Cursor { mark: 0, step: 0, leg: 0, ticks_in_step: 0, best: f32::INFINITY, since_progress: 0, stuck: None }).collect();
+    // Where a top-level object is right now: loose props from the physics world, everything else from the scene's bounds.
+    let statics: std::collections::HashMap<String, (Vec3, Vec3)> =
+        crate::collide::interactables_of(&scene.objects).into_iter().map(|i| (i.id, (i.min, i.max))).collect();
+    let prop_of: std::collections::HashMap<String, usize> =
+        (0..sim.props().props().len()).map(|k| (scene.objects[sim.props().props()[k].object_index].id.clone(), k)).collect();
+    let locate = |sim: &MatchSim, id: &str| -> Option<(Target, Option<usize>)> {
+        if let Some(&k) = prop_of.get(id) {
+            return Some((Target::from_prop(sim.prop_view(k).origin, sim.props().props()[k].shape.extents), Some(k)));
+        }
+        statics.get(id).map(|(lo, hi)| (Target::from_bounds(*lo, *hi), None))
+    };
+    for (_, action, _) in &scenario.script {
+        if let Action::Approach { object, .. } | Action::LookAt { object } | Action::Interact { object, .. } = action {
+            if locate(&sim, object).is_none() {
+                return Err(format!(
+                    "scenario `{}`: `{object}` is not a top-level object of the scene (approach / look_at / interact take a top-level id; a nested child has none of its own)",
+                    scenario.name
+                ));
+            }
+        }
+    }
+    let tick_secs = 1.0 / super::clock::TICK_RATE_HZ as f32;
+    let mut cursors: Vec<Cursor> = scenario
+        .players
+        .iter()
+        .map(|_| Cursor {
+            mark: 0,
+            step: 0,
+            leg: 0,
+            ticks_in_step: 0,
+            best: f32::INFINITY,
+            since_progress: 0,
+            stuck: None,
+            seen_step: usize::MAX,
+            approach: None,
+            phase: 0,
+        })
+        .collect();
     let steps_of = |pi: usize| -> Vec<(&Action, &Option<String>)> { scenario.script.iter().filter(|(p, _, _)| *p == pi).map(|(_, a, u)| (a, u)).collect() };
     let mut seq = vec![0u32; slots.len()];
     let mut settle_left = scenario.settle_ticks;
@@ -793,6 +909,9 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                 input.yaw = state.yaw;
                 // Finish steps that are already complete, then produce this tick's input from the current one.
                 while let Some((action, until)) = steps.get(cur.step).copied() {
+                    if cur.seen_step != cur.step {
+                        (cur.seen_step, cur.approach, cur.phase) = (cur.step, None, 0);
+                    }
                     // `until_event`: the step is over once that event has happened since it began.
                     if let Some(name) = until {
                         if sim.rules().history().iter().skip(cur.mark).any(|h| &h.name == name) {
@@ -824,9 +943,107 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                             if let Some(at) = look_at {
                                 // Aim from the standing eye: what a player looking at that point would send this tick.
                                 let eye = Vec3::new(state.pos.x, state.foot_y + state.character.body().stand_eye, state.pos.y);
-                                let d = *at - eye;
-                                input.yaw = libm::atan2f(d.x, -d.z);
-                                input.pitch = libm::atan2f(d.y, libm::sqrtf(d.x * d.x + d.z * d.z));
+                                (input.yaw, input.pitch) = super::approach::aim(eye, *at);
+                            }
+                        }
+                        Action::Approach { object, within, timeout } => {
+                            let Some((target, _)) = locate(&sim, object) else { break };
+                            let goal = within.unwrap_or_else(|| default_within(state.character.body().pickup_reach));
+                            let gap = target.gap(state.pos);
+                            match cur.approach.get_or_insert_with(|| Approach::new(goal, *timeout)).step(tick_secs, gap) {
+                                Progress::Arrived => {
+                                    cur.step += 1;
+                                    continue;
+                                }
+                                Progress::Moving => {
+                                    input.forward = 1;
+                                    input.yaw = target.heading(state.pos);
+                                }
+                                Progress::Failed(why) => {
+                                    let secs = cur.approach.as_ref().map_or(0.0, Approach::elapsed);
+                                    cur.stuck = Some(("approach", failure_message("approach", object, why, gap, goal, state.pos, secs)));
+                                    break;
+                                }
+                            }
+                        }
+                        Action::LookAt { object } => {
+                            let Some((target, _)) = locate(&sim, object) else { break };
+                            let eye = Vec3::new(state.pos.x, state.foot_y + state.character.body().stand_eye, state.pos.y);
+                            (input.yaw, input.pitch) = approach::aim(eye, target.aim_point());
+                            cur.step += 1;
+                        }
+                        Action::Interact { object, within, timeout } => {
+                            let Some((target, prop)) = locate(&sim, object) else { break };
+                            let slot = slots[pi];
+                            let eye = Vec3::new(state.pos.x, state.foot_y + state.character.body().stand_eye, state.pos.y);
+                            let mine = prop.is_some() && sim.props().held_by(slot) == prop;
+                            if mine && cur.phase < 2 {
+                                cur.step += 1; // already carrying it
+                                continue;
+                            }
+                            if let (Some(held), true) = (sim.props().held_by(slot), cur.phase == 0) {
+                                let held_id = scene.objects[sim.props().props()[held].object_index].id.clone();
+                                cur.stuck = Some((
+                                    "interact",
+                                    format!(
+                                        "interact `{object}`: {} is already carrying `{held_id}`, and interact would drop that instead",
+                                        scenario.players[pi].id
+                                    ),
+                                ));
+                                break;
+                            }
+                            if cur.phase == 0 {
+                                let goal = within.unwrap_or_else(|| default_within(state.character.body().pickup_reach));
+                                let gap = target.gap(state.pos);
+                                match cur.approach.get_or_insert_with(|| Approach::new(goal, *timeout)).step(tick_secs, gap) {
+                                    Progress::Arrived => (cur.phase, cur.ticks_in_step) = (1, 0),
+                                    Progress::Moving => {
+                                        input.forward = 1;
+                                        input.yaw = target.heading(state.pos);
+                                        break;
+                                    }
+                                    Progress::Failed(why) => {
+                                        let secs = cur.approach.as_ref().map_or(0.0, Approach::elapsed);
+                                        cur.stuck = Some(("interact", failure_message("interact", object, why, gap, goal, state.pos, secs)));
+                                        break;
+                                    }
+                                }
+                            }
+                            // Face it for two ticks (the view settles), press for one, then give the pick-up two ticks to show.
+                            (input.yaw, input.pitch) = approach::aim(eye, target.aim_point());
+                            match cur.phase {
+                                1 => {
+                                    cur.ticks_in_step += 1;
+                                    if cur.ticks_in_step >= 2 {
+                                        (cur.phase, cur.ticks_in_step) = (2, 0);
+                                    }
+                                }
+                                2 => {
+                                    input.interact = true;
+                                    (cur.phase, cur.ticks_in_step) = (3, 0);
+                                }
+                                _ => {
+                                    cur.ticks_in_step += 1;
+                                    if cur.ticks_in_step >= 2 {
+                                        if prop.is_some() && !mine && sim.props().held_by(slot) != prop {
+                                            let why = sim
+                                                .pickup_misses()
+                                                .iter()
+                                                .rev()
+                                                .find(|m| m.1 == slot)
+                                                .map_or("the press found nothing to take", |m| m.2.as_str());
+                                            cur.stuck = Some((
+                                                "interact",
+                                                format!(
+                                                    "interact `{object}`: pressed interact from ({:.2}, {:.2}) but did not pick it up: {why}",
+                                                    state.pos.x, state.pos.y
+                                                ),
+                                            ));
+                                            break;
+                                        }
+                                        (cur.step, cur.ticks_in_step) = (cur.step + 1, 0);
+                                    }
+                                }
                             }
                         }
                         Action::Walk(wps) => {
@@ -847,15 +1064,18 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                             } else {
                                 cur.since_progress += 1;
                                 if cur.since_progress >= STUCK_TICKS {
-                                    cur.stuck = Some(format!(
-                                        "{} got stuck on leg {} toward ({:.2}, {:.2}); stopped at ({:.2}, {:.2}) y={:.2}",
-                                        scenario.players[pi].id,
-                                        cur.leg + 1,
-                                        target.x,
-                                        target.y,
-                                        state.pos.x,
-                                        state.pos.y,
-                                        state.foot_y
+                                    cur.stuck = Some((
+                                        "walk",
+                                        format!(
+                                            "{} got stuck on leg {} toward ({:.2}, {:.2}); stopped at ({:.2}, {:.2}) y={:.2}",
+                                            scenario.players[pi].id,
+                                            cur.leg + 1,
+                                            target.x,
+                                            target.y,
+                                            state.pos.x,
+                                            state.pos.y,
+                                            state.foot_y
+                                        ),
                                     ));
                                     break;
                                 }
@@ -885,8 +1105,8 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
     // Evaluate.
     let mut outcomes: Vec<Outcome> = Vec::new();
     for (pi, cur) in cursors.iter().enumerate() {
-        if let Some(msg) = &cur.stuck {
-            outcomes.push(Outcome { label: format!("walk {}", scenario.players[pi].id), ok: false, detail: msg.clone() });
+        if let Some((what, msg)) = &cur.stuck {
+            outcomes.push(Outcome { label: format!("{what} {}", scenario.players[pi].id), ok: false, detail: msg.clone() });
         }
     }
     let history = sim.rules().history().to_vec();

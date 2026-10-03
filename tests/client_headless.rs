@@ -135,3 +135,50 @@ fn bots_in_bodies_the_humans_are_not_forced_to_are_drawn() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// One scene, one vocabulary: `approach` / `look_at` / `interact` by object id play the same in the real client as in a `checks.sim` scenario
+/// (`tests/object_actions.rs` runs this scene through the simulator).
+fn parcel_scene() -> Value {
+    json!({
+        "camera": {"position": [0, 6, -6], "target": [0, 0, 2]},
+        "player": {"mode": "peaceful"},
+        "spawns": [{"id": "s", "position": [0, 0, 0], "yaw_deg": 0}],
+        "objects": [
+            {"id": "floor", "type": "plane", "size": [40, 40], "position": [0, 0, 0]},
+            {"id": "far_crate", "type": "prop", "prop": "crate", "position": [6, 0, 9]},
+            {"id": "wall", "type": "box", "size": [8, 3, 0.3], "position": [0, 1.5, 4.5]},
+            {"id": "behind_wall", "type": "prop", "prop": "crate", "position": [0, 0, 6.5]}
+        ]
+    })
+}
+
+#[test]
+fn interact_by_id_walks_to_a_far_crate_and_picks_it_up_in_the_real_client() {
+    let dir = scratch("objects");
+    let scene = dir.join("parcel.json");
+    std::fs::write(&scene, parcel_scene().to_string()).unwrap();
+    let script = dir.join("play.json");
+    std::fs::write(
+        &script,
+        json!({"steps": [
+            {"interact": "far_crate"},
+            {"expect": {"at": "/player/carrying", "eq": true, "msg": "interact by id should leave the crate in hand"}},
+            {"say": "picked up"}]})
+        .to_string(),
+    )
+    .unwrap();
+    let o = re2(&[scene.to_str().unwrap(), "--as", "human", "--headless", "--script", script.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", text(&o));
+    // A wall in the way fails the step by name instead of hanging or passing.
+    std::fs::write(&script, json!({"steps": [{"approach": "behind_wall"}, {"say": "unreachable"}]}).to_string()).unwrap();
+    let o = re2(&[scene.to_str().unwrap(), "--as", "human", "--headless", "--script", script.to_str().unwrap()]);
+    let t = text(&o);
+    assert_eq!(o.status.code(), Some(1), "{t}");
+    assert!(t.contains("approach `behind_wall`") && t.contains("in the way"), "{t}");
+    // A typo in the id is not silently ignored.
+    std::fs::write(&script, json!({"steps": [{"interact": "far_crat"}]}).to_string()).unwrap();
+    let o = re2(&[scene.to_str().unwrap(), "--as", "human", "--headless", "--script", script.to_str().unwrap()]);
+    assert_eq!(o.status.code(), Some(1), "{}", text(&o));
+    assert!(text(&o).contains("no such top-level object"), "{}", text(&o));
+    let _ = std::fs::remove_dir_all(dir);
+}

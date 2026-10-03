@@ -11,7 +11,7 @@ use red_engine2::tools::lint::{self, Severity};
 use red_engine2::tools::plan::{self, Labels, PlanOptions};
 use red_engine2::tools::reach::{self, ReachParams};
 use red_engine2::tools::shots::{self, FrameOpts, View};
-use red_engine2::tools::world::{load_or_report, MapWorld};
+use red_engine2::tools::world::{load_or_report, load_or_report_phase, MapWorld};
 use red_engine2::tools::{catalog, describe, recipes, search, simrun, symbols, verify};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -96,8 +96,8 @@ fn run(command: Command) -> Result<(), String> {
         }
         Command::Render { scene, out } => run_render(&scene, &out),
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
-        Command::Lint { scene, strict, cell } => run_lint(&scene, envelope::capturing(), strict, cell),
-        Command::Reach { scene, from, to, cell } => run_reach(&scene, from.as_deref(), to.as_deref(), cell, envelope::capturing()),
+        Command::Lint { scene, strict, cell, phase } => run_lint(&scene, envelope::capturing(), strict, cell, phase.as_deref()),
+        Command::Reach { scene, from, to, cell, phase } => run_reach(&scene, from.as_deref(), to.as_deref(), cell, envelope::capturing(), phase.as_deref()),
         Command::Doctor { out_dir } => run_doctor(&out_dir),
         Command::Ray { scene, from, to, skip } => run_ray(&scene, &from, &to, &skip),
         Command::Nav { scene, route, all } => run_nav(&scene, &route, all),
@@ -118,11 +118,11 @@ fn run(command: Command) -> Result<(), String> {
         Command::Game { cmd, dir } => run_game(&dir, cmd),
         Command::Build { blueprint, out, check, example } => run_build(blueprint.as_deref(), out.as_deref(), check, example),
         Command::Status { root, init, note, section, facts, sync_docs } => run_status(&root, init, note.as_deref(), &section, facts, &sync_docs),
-        Command::Walk { scene, path, from, auto, to, cell, explain } => {
-            run_walk(&scene, path.as_deref(), from.as_deref(), auto, to.as_deref(), cell, explain.as_deref())
+        Command::Walk { scene, path, from, auto, to, cell, explain, phase } => {
+            run_walk(&scene, path.as_deref(), from.as_deref(), auto, to.as_deref(), cell, explain.as_deref(), phase.as_deref())
         }
-        Command::Plan { scene, out, y, all_floors, ascii, ascii_cell, scale, bounds, labels, no_reach, no_lint } => {
-            run_plan(&scene, out, y, all_floors, ascii, ascii_cell, scale, bounds.as_deref(), &labels, no_reach, no_lint)
+        Command::Plan { scene, out, y, all_floors, ascii, ascii_cell, scale, bounds, labels, no_reach, no_lint, phase } => {
+            run_plan(&scene, out, y, all_floors, ascii, ascii_cell, scale, bounds.as_deref(), &labels, no_reach, no_lint, phase.as_deref())
         }
         Command::Tour { scene, out, cols, only, view } => run_tour(&scene, &out, cols, only.as_deref(), &view),
         Command::Ls { scene, filter, kind, all } => {

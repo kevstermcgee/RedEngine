@@ -179,8 +179,8 @@ fn unknown_check_keys(checks: &Value) -> Vec<String> {
     if let Some(l) = root.get("lint").and_then(Value::as_object) {
         check_keys(&mut errs, "checks.lint", l, &["max_errors", "max_warnings", "forbid", "ignore"]);
     }
-    each(&mut errs, "reach", &["to", "from", "from_y", "why"]);
-    each(&mut errs, "walk", &["name", "path", "from", "from_y", "to", "to_y", "auto", "ends_near", "tol", "floor_y"]);
+    each(&mut errs, "reach", &["to", "from", "from_y", "why", "phase", "reachable"]);
+    each(&mut errs, "walk", &["name", "path", "from", "from_y", "to", "to_y", "auto", "ends_near", "tol", "floor_y", "phase"]);
     each(&mut errs, "views", &["name", "eye", "at", "fov", "max_diff"]);
     if let Some(o) = root.get("objects").and_then(Value::as_object) {
         check_keys(&mut errs, "checks.objects", o, &["exist", "absent", "min_count", "max_count", "count"]);
@@ -191,6 +191,21 @@ fn unknown_check_keys(checks: &Value) -> Vec<String> {
         }
     }
     errs
+}
+
+/// What a cached reachability grid was computed for: the phase, the `from` start and the `from_y` bits (all `None` = the base grid).
+type ReachKey = (Option<String>, Option<Vec2>, Option<u32>);
+
+/// The world as it is in the scene's `phases` entry `phase`, built once per run (or why it cannot be).
+fn phase_world<'a>(cache: &'a mut Vec<(String, Result<MapWorld, String>)>, path: &Path, phase: &str) -> Result<&'a MapWorld, &'a String> {
+    let idx = match cache.iter().position(|(p, _)| p == phase) {
+        Some(i) => i,
+        None => {
+            cache.push((phase.to_string(), MapWorld::load_phase(path, Some(phase)).map_err(|e| e.join("; "))));
+            cache.len() - 1
+        }
+    };
+    cache[idx].1.as_ref()
 }
 
 /// Runs every check in the scene's `checks` block.
@@ -215,11 +230,12 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
     let t_base = std::time::Instant::now();
     let base = (wants_lint || wants_reach).then(|| reach::compute(&world, &ReachParams::default()));
     let mut pending_ms = t_base.elapsed().as_millis() as u64; // charged to the first check that uses it
-    let mut from_cache: Vec<((Vec2, Option<u32>), reach::Reach)> = Vec::new();
+    let mut from_cache: Vec<(ReachKey, reach::Reach)> = Vec::new();
+    let mut phase_worlds: Vec<(String, Result<MapWorld, String>)> = Vec::new();
 
     if let Some(l) = checks.get("lint").filter(|_| wants_lint) {
         let t0 = std::time::Instant::now();
-        let all = base.as_ref().map(|r| lint::lint(&world, r)).unwrap_or_default();
+        let all = base.as_ref().map(|r| lint::lint_phases(&world, r, ReachParams::default().cell)).unwrap_or_default();
         let max_e = l.get("max_errors").and_then(Value::as_u64).unwrap_or(0) as usize;
         let max_w = l.get("max_warnings").and_then(Value::as_u64);
         let forbid: Vec<&str> = l.get("forbid").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
@@ -256,31 +272,47 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
                 continue;
             };
             let t0 = std::time::Instant::now();
-            // Entries without `from` share the base grid; each distinct `from` (and `from_y`) is computed once.
-            let rr: &reach::Reach = match c.get("from").and_then(v2) {
-                Some(start) => {
-                    let from_y = c.get("from_y").and_then(Value::as_f64).map(|f| f as f32);
-                    let key = (start, from_y.map(f32::to_bits));
+            // `phase`: the level as it is once that `phases` entry's rules have fired; `reachable: false` asserts the place is still cut off.
+            let phase = c.get("phase").and_then(Value::as_str);
+            let want = c.get("reachable").and_then(Value::as_bool).unwrap_or(true);
+            let w: &MapWorld = match phase {
+                None => &world,
+                Some(ph) => match phase_world(&mut phase_worlds, path, ph) {
+                    Ok(w) => w,
+                    Err(e) => {
+                        results.push(fail(name, e.clone()));
+                        continue;
+                    }
+                },
+            };
+            // Entries without `from` (or `phase`) share the base grid; each distinct `from`, `from_y` and phase is computed once.
+            let start = c.get("from").and_then(v2);
+            let from_y = c.get("from_y").and_then(Value::as_f64).map(|f| f as f32);
+            let rr: &reach::Reach = match (start, phase) {
+                (None, None) => match base.as_ref() {
+                    Some(b) => b,
+                    None => continue,
+                },
+                _ => {
+                    let key = (phase.map(str::to_string), start, from_y.map(f32::to_bits));
                     let idx = match from_cache.iter().position(|(p, _)| *p == key) {
                         Some(i) => i,
                         None => {
-                            from_cache.push((key, reach::compute(&world, &ReachParams { start: Some(start), start_y: from_y, ..Default::default() })));
+                            from_cache.push((key, reach::compute(w, &ReachParams { start, start_y: from_y, ..Default::default() })));
                             from_cache.len() - 1
                         }
                     };
                     &from_cache[idx].1
                 }
-                None => match base.as_ref() {
-                    Some(b) => b,
-                    None => continue,
-                },
             };
             let p = Vec2::new(to[0], to[1]);
-            let ok = if to.len() == 3 { rr.reachable(p, to[2], 0.3) } else { !rr.levels_at(p).is_empty() };
-            let mut r = if ok {
-                pass(name, format!("({:.1}, {:.1}) reachable", p.x, p.y))
-            } else {
-                fail(name, format!("({:.1}, {:.1}) is NOT reachable from the start", p.x, p.y))
+            let got = if to.len() == 3 { rr.reachable(p, to[2], 0.3) } else { !rr.levels_at(p).is_empty() };
+            let at = phase.map(|ph| format!(" [phase {ph}]")).unwrap_or_default();
+            let mut r = match (got, want) {
+                (true, true) => pass(name, format!("({:.1}, {:.1}) reachable{at}", p.x, p.y)),
+                (false, false) => pass(name, format!("({:.1}, {:.1}) not reachable, as expected{at}", p.x, p.y)),
+                (false, true) => fail(name, format!("({:.1}, {:.1}) is NOT reachable from the start{at}", p.x, p.y)),
+                (true, false) => fail(name, format!("({:.1}, {:.1}) IS reachable{at}, but the check says it should not be", p.x, p.y)),
             };
             r.ms = t0.elapsed().as_millis() as u64 + std::mem::take(&mut pending_ms);
             results.push(r);
@@ -296,7 +328,17 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
                 continue;
             }
             let t0 = std::time::Instant::now();
-            let mut r = check_walk(&world, c, name, &out_dir.join(format!("{stem}_walk{i}_explain.png")));
+            let w: &MapWorld = match c.get("phase").and_then(Value::as_str) {
+                None => &world,
+                Some(ph) => match phase_world(&mut phase_worlds, path, ph) {
+                    Ok(w) => w,
+                    Err(e) => {
+                        results.push(fail(name, e.clone()));
+                        continue;
+                    }
+                },
+            };
+            let mut r = check_walk(w, c, name, &out_dir.join(format!("{stem}_walk{i}_explain.png")));
             r.ms = t0.elapsed().as_millis() as u64;
             results.push(r);
         }
@@ -632,6 +674,54 @@ mod tests {
         let r = run_text(r#"{"objects":{"exist":["nope"],"absent":["crate_1"]},"reach":[{"to":[40,40]}]}"#);
         assert_eq!(r.failed(), 3, "{}", r.render());
         assert!(r.render().contains("missing: nope"));
+    }
+
+    /// The `gated_garden` recipe with its `checks` replaced (it is the smallest scene whose gate opens by a rule).
+    fn garden(checks: &str, phases: bool) -> Report {
+        let mut v: Value = serde_json::from_str(include_str!("../../recipes/gated_garden.json")).unwrap();
+        v["checks"] = serde_json::from_str(checks).unwrap();
+        if !phases {
+            v.as_object_mut().unwrap().remove("phases");
+        }
+        let dir = std::env::temp_dir().join("re2_verify_phase_tests");
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join(format!("g{}{}.json", checks.len(), phases));
+        std::fs::write(&p, v.to_string()).unwrap();
+        run(&p, &Options { skip_views: true, ..Default::default() }).unwrap()
+    }
+
+    #[test]
+    fn a_phase_opens_the_gate_for_reach_and_walk_and_reachable_false_holds_the_initial_state() {
+        let r = garden(
+            r#"{"reach":[{"to":[8,0],"reachable":false},{"to":[8,0],"phase":"gate_open"}],
+                "walk":[{"name":"in","phase":"gate_open","path":"-8,0; 8.8,0","ends_near":[8.8,0],"tol":0.4}]}"#,
+            true,
+        );
+        assert_eq!(r.failed(), 0, "{}", r.render());
+        assert!(r.render().contains("not reachable, as expected") && r.render().contains("[phase gate_open]"), "{}", r.render());
+        // Without the phase the same questions get the opposite answers, and each failure says why.
+        let r = garden(
+            r#"{"reach":[{"to":[8,0]},{"to":[8,0],"phase":"gate_open","reachable":false}],"walk":[{"name":"in","path":"-8,0; 8.8,0","ends_near":[8.8,0],"tol":0.4}]}"#,
+            true,
+        );
+        assert_eq!(r.failed(), 3, "{}", r.render());
+        assert!(r.render().contains("IS reachable") && r.render().contains("should not be"), "{}", r.render());
+    }
+
+    #[test]
+    fn an_unknown_phase_fails_its_check_instead_of_being_ignored() {
+        let r = garden(r#"{"reach":[{"to":[8,0],"phase":"gate_opn"}],"walk":[{"name":"w","phase":"nope","path":"0,0; 1,0"}]}"#, true);
+        assert_eq!(r.failed(), 2, "{}", r.render());
+        assert!(r.render().contains("unknown phase `gate_opn`") && r.render().contains("did you mean `gate_open`"), "{}", r.render());
+    }
+
+    #[test]
+    fn lint_runs_every_phase_so_a_sealed_zone_a_rule_opens_is_not_an_error_but_a_never_opened_one_is() {
+        let lint = r#"{"lint":{"max_errors":0}}"#;
+        assert_eq!(garden(lint, true).failed(), 0);
+        let r = garden(lint, false);
+        assert_eq!(r.failed(), 1, "without phases the garden is unreachable: {}", r.render());
+        assert!(r.render().contains("[zone]"), "{}", r.render());
     }
 
     #[test]

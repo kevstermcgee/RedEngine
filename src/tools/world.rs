@@ -13,7 +13,6 @@ use crate::collide::{
 use crate::geometry::trs;
 use crate::props::{collision, collision_box, local_bounds, prop_parts, Collision, PropKind};
 use crate::schema::{Object, ObjectKind, PrimKind, Scene};
-use crate::sim::rules::{Action, When};
 use glam::{Mat4, Vec2, Vec3};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -188,33 +187,36 @@ pub struct MapWorld {
     /// Top-level objects an unconditional `start` rule switches collision off for: the analysis tools treat them as open,
     /// the way the game does from its first tick (ADR 2026-09-29-verification-honours-the-map).
     pub collision_disabled: Vec<String>,
+    /// The scene `phases` entry the world was built for (`None` = the initial state): see [`crate::sim::rules::RuleSet::open_objects`].
+    pub phase: Option<String>,
 }
 
 impl MapWorld {
     /// Loads a scene file into a `MapWorld`.
     pub fn load(path: &Path) -> Result<Self, Vec<String>> {
+        Self::load_phase(path, None)
+    }
+
+    /// Loads a scene file as it is in the named `phases` state (`None` = the initial state).
+    pub fn load_phase(path: &Path, phase: Option<&str>) -> Result<Self, Vec<String>> {
         let text = std::fs::read_to_string(path).map_err(|e| vec![format!("io: {}: {e}", path.display())])?;
-        Self::from_text(&text, path)
+        Self::from_text_phase(&text, path, phase)
     }
 
     /// Builds a `MapWorld` from scene JSON text; `path` is only for messages and `checks` lookups.
     pub fn from_text(text: &str, path: &Path) -> Result<Self, Vec<String>> {
+        Self::from_text_phase(text, path, None)
+    }
+
+    /// [`from_text`](Self::from_text) for a named `phases` state: what the unconditional `start` rules and then that phase's rules
+    /// open (collision off, `deactivate`) is open to every tool; a gate that is closed in the initial state is walkable in `gate_open`.
+    pub fn from_text_phase(text: &str, path: &Path, phase: Option<&str>) -> Result<Self, Vec<String>> {
         let scene = crate::schema::parse_scene_in(text, path.parent())?;
         let raw: Value = serde_json::from_str(text).map_err(|e| vec![format!("json: {e}")])?;
         let ignores = collect_ignores(&raw);
-        // What an unconditional `start` rule opens on the first tick is open to the tools too (a gate a game keeps closed until
-        // something happens stays solid: the tools cannot know when).
-        let collision_disabled: Vec<String> = scene
-            .rules
-            .rules
-            .iter()
-            .filter(|r| matches!(r.when, When::Start) && r.cond.is_none())
-            .flat_map(|r| r.actions.iter())
-            .filter_map(|a| match a {
-                Action::Collision { object, enabled: false } => Some(object.clone()),
-                _ => None,
-            })
-            .collect();
+        // What the unconditional `start` rules open on the first tick is open to the tools too, and so is what the chosen phase's rules
+        // open (a gate a game keeps closed until something happens stays solid in the initial state: the tools cannot know when).
+        let collision_disabled: Vec<String> = scene.rules.open_objects(phase).map_err(|e| vec![format!("phase: {e}")])?;
         let disabled_indices: HashSet<usize> = scene.objects.iter().enumerate().filter(|(_, o)| collision_disabled.contains(&o.id)).map(|(i, _)| i).collect();
         let mut items = Vec::new();
         for o in &scene.objects {
@@ -236,7 +238,19 @@ impl MapWorld {
             }
             (collect_box_colliders_grouped_except(&scene, &disabled_indices).into_iter().flatten().collect(), ground)
         };
-        Ok(MapWorld { path: path.to_path_buf(), colliders, ground, scene, raw, items, zones, spawn, spawn_y, collision_disabled })
+        Ok(MapWorld {
+            path: path.to_path_buf(),
+            colliders,
+            ground,
+            scene,
+            raw,
+            items,
+            zones,
+            spawn,
+            spawn_y,
+            collision_disabled,
+            phase: phase.map(str::to_string),
+        })
     }
 
     /// XZ bounds of everything solid (planes excluded, so a giant ground plane doesn't count).
@@ -438,7 +452,12 @@ fn flatten_object(o: &Object, top_id: &str, parent: Mat4, collide: bool, ignores
 /// Reads the scene at `path` as `MapWorld`, printing each parse error on failure — the shared
 /// front door for every CLI tool.
 pub fn load_or_report(path: &Path) -> Result<MapWorld, String> {
-    MapWorld::load(path).map_err(|errs| {
+    load_or_report_phase(path, None)
+}
+
+/// [`load_or_report`] for a named `phases` state (`--phase`, `checks.*[].phase`).
+pub fn load_or_report_phase(path: &Path, phase: Option<&str>) -> Result<MapWorld, String> {
+    MapWorld::load_phase(path, phase).map_err(|errs| {
         let mut msg = format!("{}: scene is invalid:", path.display());
         for e in errs {
             msg.push_str(&format!("\n  error: {e}"));
