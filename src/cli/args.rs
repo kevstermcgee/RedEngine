@@ -783,7 +783,7 @@ pub(crate) enum Command {
         /// Ignore and do not write the green stamp (`out/.affected-green.json`).
         #[arg(long)]
         no_cache: bool,
-        /// The bounded edit-loop path: only what changed since HEAD, format check + type-check + focused unit tests, never escalates, never counts as verification.
+        /// The bounded edit-loop path: only what changed since HEAD, format check + type-check + clippy + focused unit tests, never escalates, never counts as verification.
         #[arg(long, conflicts_with_all = ["quick", "full"])]
         partial: bool,
         /// With --partial: format and type-check only, no tests.

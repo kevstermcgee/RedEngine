@@ -615,7 +615,9 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
         plan.steps.push(Step::new("fmt", &["cargo", "fmt", "--check"], "a Rust file changed"));
     }
     if has_rs || build_settings {
-        let mut argv: Vec<String> = ["cargo", "check", "--locked"].iter().map(|s| s.to_string()).collect();
+        // clippy, not check: it type-checks the same targets and also fails on what CI's clippy stage would (warnings are errors), so a lint
+        // problem shows up in seconds here and not at the end of a 7-minute full run.
+        let mut argv: Vec<String> = ["cargo", "clippy", "--locked"].iter().map(|s| s.to_string()).collect();
         argv.extend(flags.iter().map(|f| f.to_string()));
         let lib_changed = targets.contains(&Target::Lib) || build_settings || targets.is_empty();
         if lib_changed {
@@ -631,7 +633,13 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
                 Target::Example(n) => argv.extend(["--example".into(), n.clone()]),
             }
         }
-        plan.steps.push(Step { name: "check".into(), argv, env: Vec::new(), why: format!("type-check the touched targets ({} features)", features.name()) });
+        argv.extend(["--".into(), "-D".into(), "warnings".into()]);
+        plan.steps.push(Step {
+            name: "check".into(),
+            argv,
+            env: Vec::new(),
+            why: format!("type-check and lint the touched targets ({} features)", features.name()),
+        });
     }
     if !opts.check_only {
         let lib_filters = minimal_filters(&lib_filters);
@@ -1232,7 +1240,7 @@ mod tests {
         let p = partial_of(&["src/sim/flow.rs"], &Options { partial: true, ..Options::default() });
         assert_eq!(p.scope, Scope::Partial);
         assert_eq!(names(&p), ["fmt", "check", "unit"]);
-        assert_eq!(step(&p, "check").argv.join(" "), "cargo check --locked --lib --bins");
+        assert_eq!(step(&p, "check").argv.join(" "), "cargo clippy --locked --lib --bins -- -D warnings");
         assert_eq!(step(&p, "unit").argv.join(" "), "cargo test --locked --lib -- sim::flow");
         assert!(p.escalated.is_none());
         assert!(p.deferred.iter().any(|d| d == "net_flow"), "the owner's integration suites are listed as not run: {:?}", p.deferred);
@@ -1258,7 +1266,7 @@ mod tests {
         // A changed test file runs itself (serial suites one at a time); nothing else is run for it.
         let t = partial_of(&["tests/net_e2e.rs"], &Options { partial: true, ..Options::default() });
         assert_eq!(step(&t, "suites-serial").env, vec![("RUST_TEST_THREADS".to_string(), "1".to_string())]);
-        assert_eq!(step(&t, "check").argv.join(" "), "cargo check --locked --test net_e2e");
+        assert_eq!(step(&t, "check").argv.join(" "), "cargo clippy --locked --test net_e2e -- -D warnings");
     }
 
     #[test]

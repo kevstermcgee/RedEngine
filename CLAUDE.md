@@ -11,7 +11,7 @@ $R context <feature|file|words>  # 5-15 KB work packet for a Rust change: files,
 scripts/dev preflight [--fix]    # ~1 s: ADR index, feature ownership, doc facts, headless boundary, fmt (+ command table and describe budgets with --full, which builds first); prints the exact edit for each problem
 $R adr new "Title" --summary "one sentence"   # a decision record: dated id, index refreshed (no list to edit); an unfinished Summary fails preflight
 # One ladder, cheapest first; each rung is what you run at that stage and none of them is optional at its own stage:
-scripts/dev iterate              # 1. THE EDIT LOOP (seconds): only what changed since HEAD: fmt + type-check + the touched modules' unit tests. NEVER verification: it prints what it skipped
+scripts/dev iterate              # 1. THE EDIT LOOP (seconds): only what changed since HEAD: fmt + type-check + clippy + the touched modules' unit tests. NEVER verification: it prints what it skipped
 scripts/dev affected --quick     # 2. the features that own your branch's changes, with their integration suites (the change set is everything since origin/main; on a long branch use --base HEAD)
 scripts/dev affected             # 3. + every feature built on them: before you say "done" (a green run is remembered by file content, base commit, feature set and toolchain)
 scripts/dev affected --full      # 4. = scripts/ci.sh: before pushing (Cargo.*, src/lib.rs, CI files escalate to it by themselves)
