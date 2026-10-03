@@ -128,6 +128,7 @@ impl App {
             },
             "online": online,
             "remote": remote,
+            "card": self.card_content().map(|(c, button)| json!({"kind": self.card.map(|k| format!("{:?}", k.kind).to_lowercase()), "title": c.title, "text": c.text, "button": c.button.map(|label| json!({"id": button, "label": label}))})),
             "hud": {"lines": self.hud_lines.iter().map(|(id, text)| json!({"id": id, "text": text})).collect::<Vec<_>>()},
             "rules": {
                 "vars": self.rules.vars().iter().map(|(n, v)| json!({"name": n, "value": v})).collect::<Vec<_>>(),

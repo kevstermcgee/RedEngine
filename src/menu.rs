@@ -70,6 +70,7 @@ pub fn backdrop_scene() -> Scene {
         bots: Default::default(),
         nav: None,
         hud: Default::default(),
+        ui: None,
         music: false,
         flashlight: false,
         death_text: None,

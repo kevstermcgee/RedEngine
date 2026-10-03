@@ -129,6 +129,22 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } if self.phase == Phase::Connect => self.connect_key(&event, event_loop),
             WindowEvent::CursorMoved { position, .. } if self.phase == Phase::Connect => self.connect_hover(position.x as f32, position.y as f32),
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.phase == Phase::Connect => self.connect_click(),
+            // A start or end card (the scene's `ui` block): it owns the keyboard and the mouse until its button is used.
+            WindowEvent::KeyboardInput { event, .. } if self.card.is_some() && !self.paused => {
+                if let (PhysicalKey::Code(code), ElementState::Pressed) = (event.physical_key, event.state) {
+                    if !event.repeat {
+                        match code {
+                            KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space | KeyCode::KeyE => {
+                                self.card_activate();
+                            }
+                            KeyCode::Escape => self.enter_pause(),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            WindowEvent::CursorMoved { position, .. } if self.card.is_some() && !self.paused => self.card_hover(position.x as f32, position.y as f32),
+            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.card.is_some() && !self.paused => self.card_click(),
             WindowEvent::KeyboardInput { event, .. } if self.online.takeover && !self.paused => {
                 if let (PhysicalKey::Code(code), ElementState::Pressed) = (event.physical_key, event.state) {
                     if !event.repeat {

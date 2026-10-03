@@ -160,6 +160,10 @@ impl Driver for App {
         println!("script: {text}");
     }
 
+    fn press(&mut self, id: &str) -> Result<(), String> {
+        self.press_button(id)
+    }
+
     fn pose(&self) -> Option<Pose> {
         Some(Pose { pos: self.physics_pos, eye: self.tick_eye(), pickup_reach: self.body.pickup_reach })
     }

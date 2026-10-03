@@ -23,6 +23,7 @@
 //! | `turn: deg, over: secs` | turn by an angle, spread over a time (a spin: `360`) |
 //! | `hold: [keys], secs` | hold `forward` `back` `left` `right` `sprint` `crouch` |
 //! | `jump: true`, `interact: true`, `switch: n` | tap Space, tap E, scroll the mouse wheel |
+//! | `press: id` | use the on-screen button with that id (`start` on the start card, `restart` on the end card) |
 //! | `approach: id`, `look_at: id`, `interact: id` | by object instead of by keys and angles (`within`, `timeout` beside): walk up to it, face it, press E and check it is carried; the same three steps `checks.sim` has (`sim::approach`) |
 //! | `fire: n` or `{clicks, every}` or `{secs}` | click n times / hold the trigger for a time; `track: true` keeps aiming at the nearest visible enemy |
 //! | `aim_at: "nearest"` | turn to the nearest remote player in line of sight |
@@ -179,6 +180,8 @@ pub enum Step {
     Switch(f32),
     /// Tap E.
     Interact,
+    /// Use the on-screen button with this id (`start`, `restart`).
+    Press(String),
     /// Walk straight at an object until within `within` metres of it (`None`: from the body's pickup reach).
     Approach {
         /// The object's id.
@@ -232,8 +235,8 @@ pub struct Script {
 
 /// Actions a step can be, for the "did you mean" of a typo.
 pub const ACTIONS: &[&str] = &[
-    "wait", "look", "turn", "hold", "jump", "fire", "aim_at", "switch", "interact", "approach", "look_at", "view", "policy", "shot", "snapshot", "expect",
-    "wait_for", "say",
+    "wait", "look", "turn", "hold", "jump", "fire", "aim_at", "switch", "interact", "press", "approach", "look_at", "view", "policy", "shot", "snapshot",
+    "expect", "wait_for", "say",
 ];
 
 /// Keys a step may carry besides its action (checked so a typo in one is an error, not silently ignored).
@@ -460,6 +463,13 @@ fn parse_step(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<Step> {
             Step::AimAt
         }
         "switch" => Step::Switch(num(val, &format!("{path}.switch"), errs)?),
+        "press" => match val.as_str().filter(|id| !id.is_empty()) {
+            Some(id) => Step::Press(id.to_string()),
+            None => {
+                errs.push(format!("{path}.press: a button id like \"start\" or \"restart\""));
+                return None;
+            }
+        },
         "view" => Step::View {
             third: match val.as_str() {
                 Some("first") => false,
@@ -600,6 +610,10 @@ pub trait Driver {
     fn state(&self) -> Value;
     /// Prints a line.
     fn say(&mut self, text: &str);
+    /// Uses the on-screen button with this id; `Err` says why there is none.
+    fn press(&mut self, _id: &str) -> Result<(), String> {
+        Err("this client has no buttons to press".to_string())
+    }
     /// Where the player is, for the object steps (`None`: this driver cannot say, and those steps fail).
     fn pose(&self) -> Option<Pose> {
         None
@@ -866,6 +880,11 @@ impl Runner {
                         let at = d.pose().map(|p| format!(" from ({:.2}, {:.2})", p.pos.x, p.pos.y)).unwrap_or_default();
                         let crosshair = d.state().pointer("/crosshair").map(Value::to_string).unwrap_or_default();
                         self.failures.push(format!("interact `{object}`: pressed interact{at} but did not pick it up (crosshair {crosshair})"));
+                    }
+                }
+                Step::Press(id) => {
+                    if let Err(why) = d.press(&id) {
+                        self.failures.push(format!("press `{id}`: {why}"));
                     }
                 }
                 Step::Switch(n) => d.scroll(n),
@@ -1174,6 +1193,20 @@ mod tests {
             .join("\n");
         assert!(e.contains("'look_at' does not take 'within'") && e.contains("an object id") && e.contains("must be greater than 0"), "{e}");
         assert!(e.contains("'interact' does not take 'within'") && e.contains("did you mean 'approach'"), "{e}");
+    }
+
+    #[test]
+    fn press_takes_a_button_id_asks_the_driver_and_a_refusal_is_a_failure() {
+        let s = Script::parse(r#"{"steps":[{"press":"start"}]}"#).unwrap();
+        assert_eq!(s.steps, vec![Step::Press("start".into())]);
+        let e = Script::parse(r#"{"steps":[{"press":""},{"press":3}]}"#).unwrap_err().join("\n");
+        assert!(e.contains("a button id"), "{e}");
+        // A driver with no buttons refuses, and the script says which button and why.
+        let mut fake = Fake::default();
+        let r = run(r#"{"steps":[{"press":"start"},{"say":"after"}]}"#, 3, 0.1, &mut fake);
+        assert!(r.finished(), "a failed press does not stop the script");
+        assert_eq!(r.failures.len(), 1);
+        assert!(r.failures[0].contains("press `start`") && r.failures[0].contains("no buttons"), "{:?}", r.failures);
     }
 
     #[test]

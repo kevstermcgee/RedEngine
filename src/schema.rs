@@ -71,6 +71,8 @@ pub struct Scene {
     pub nav: Option<crate::sim::ai::nav::Nav>,
     /// Which on-screen display the standard client draws (`hud` block; the defaults follow `player.mode`).
     pub hud: crate::hud_config::HudConfig,
+    /// What the game says to its player (`ui` block): friendly labels, counters, an objective, a start card and end cards. `None` keeps the generic rules panel.
+    pub ui: Option<crate::ui_config::GameUi>,
     /// Whether the standard client starts the built-in music loop (root `"music"`, default true for older maps; new games say `false`;
     /// the `N` key and the pause menu's MUSIC button still toggle it). Not every game needs music: a game whose own audio cues,
     /// tone or pacing it would fight is better off silent (`red_engine2 describe scene` explains this to the next author).
@@ -1142,6 +1144,14 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             crate::sim::rules::RuleSet::default()
         }
     };
+    // The game's own words and screens (`ui` block), checked against the variables and outcomes the rules just declared.
+    let ui = match crate::ui_config::parse_ui(root, &rules) {
+        Ok(u) => u,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            None
+        }
+    };
 
     let weapons = match crate::weapons::parse_weapons(root) {
         Ok(w) => w,
@@ -1208,6 +1218,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         bots,
         nav,
         hud,
+        ui,
         music,
         flashlight,
         death_text,

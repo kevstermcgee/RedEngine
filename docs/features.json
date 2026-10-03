@@ -157,11 +157,11 @@
     },
     "ui_kit": {
       "summary": "The headless, audited 2-D UI: layouts, menus, connect form, lobby, HUD, results; `ui-shot` and `ui-check`.",
-      "files": ["src/ui/**", "src/menu.rs", "src/tools/font.rs"],
-      "tests": ["lib:ui", "lib:menu"],
+      "files": ["src/ui/**", "src/ui_config.rs", "src/menu.rs", "src/tools/font.rs"],
+      "tests": ["lib:ui", "lib:ui_config", "lib:menu"],
       "commands": ["red_engine2 ui-check", "red_engine2 ui-shot lobby out/lobby.png"],
-      "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md"],
-      "depends_on": ["match_flow", "net_protocol"]
+      "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-03-a-scene-declared-game-ui.md"],
+      "depends_on": ["match_flow", "net_protocol", "game_rules"]
     },
     "graphical_client": {
       "summary": "The `re2` game: window, input, live rendering, avatars, weapons, rule-state presentation, launch/connect and online lobby/HUD wiring.",

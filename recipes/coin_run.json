@@ -124,6 +124,40 @@
  "vars": {
   "score": 0
  },
+ "ui": {
+  "title": "Coin run",
+  "labels": {
+   "score": "Coins"
+  },
+  "counters": [
+   {
+    "var": "score",
+    "of": 3,
+    "label": "Coins"
+   }
+  ],
+  "objective": [
+   {
+    "if": "score < 3",
+    "text": "Collect all three coins ({score} of 3)"
+   },
+   {
+    "text": "Run to the green exit"
+   }
+  ],
+  "start": {
+   "title": "Coin run",
+   "text": "Collect three coins, then reach the green exit. The red pad sends you back to the start.",
+   "button": "Start"
+  },
+  "end": {
+   "victory": {
+    "title": "You win!",
+    "text": "All {score} coins collected.",
+    "button": "Play again"
+   }
+  }
+ },
  "rules": [
   {
    "id": "take_coin_1",

@@ -182,3 +182,67 @@ fn interact_by_id_walks_to_a_far_crate_and_picks_it_up_in_the_real_client() {
     assert!(text(&o).contains("no such top-level object"), "{}", text(&o));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A tiny game that ends 0.4 s after it starts, with a `ui` block: a start card the game waits for, an end card with a restart button, and a HUD with
+/// a friendly counter and objective (ADR 2026-10-03-a-scene-declared-game-ui).
+fn tiny_game() -> Value {
+    json!({
+        "camera": {"position": [0, 6, -6], "target": [0, 0, 2]},
+        "player": {"mode": "peaceful"},
+        "spawns": [{"id": "s", "position": [0, 0, 0], "yaw_deg": 0}],
+        "vars": {"n": 0},
+        "rules": [{"id": "finish", "when": {"after": 0.4}, "do": [{"add": ["n", 1]}, {"end": "victory"}]}],
+        "ui": {
+            "title": "Tiny game",
+            "counters": [{"var": "n", "of": 1, "label": "Wins"}],
+            "objective": "Wait for it",
+            "start": {"title": "Tiny game", "text": "Press start.", "button": "Go"},
+            "end": {"victory": {"title": "Done", "text": "Score {n}.", "button": "Again"}}
+        },
+        "objects": [{"id": "floor", "type": "plane", "size": [20, 20], "position": [0, 0, 0]}]
+    })
+}
+
+#[test]
+fn the_start_card_holds_the_game_until_pressed_and_the_end_card_restarts_it() {
+    let dir = scratch("cards");
+    let scene = dir.join("tiny.json");
+    std::fs::write(&scene, tiny_game().to_string()).unwrap();
+    let script = dir.join("play.json");
+    let dump = dir.join("state.json");
+    std::fs::write(
+        &script,
+        json!({"steps": [
+            {"wait_for": {"at": "/card/kind", "eq": "start", "within": 3}},
+            {"expect": {"at": "/card/title", "eq": "Tiny game"}},
+            {"expect": {"at": "/card/button/id", "eq": "start"}},
+            {"wait": 1.0},
+            {"expect": {"at": "/rules/ended", "eq": null, "msg": "the game must wait for the start card"}},
+            {"press": "start"},
+            {"expect": {"at": "/card", "eq": null}},
+            {"wait_for": {"at": "/card/kind", "eq": "end", "within": 5}},
+            {"expect": {"at": "/card/title", "eq": "Done"}},
+            {"expect": {"at": "/card/text", "eq": "Score 1."}},
+            {"expect": {"at": "/card/button/label", "eq": "Again"}},
+            {"press": "restart"},
+            {"expect": {"at": "/card", "eq": null, "msg": "a restart does not show the start card again"}},
+            {"expect": {"at": "/rules/ended", "eq": null}},
+            {"wait_for": {"at": "/card/kind", "eq": "end", "within": 5}},
+            {"snapshot": "second_end"}]})
+        .to_string(),
+    )
+    .unwrap();
+    let o = re2(&[scene.to_str().unwrap(), "--as", "human", "--headless", "--script", script.to_str().unwrap(), "--dump", dump.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", text(&o));
+    let d: Value = serde_json::from_str(&std::fs::read_to_string(&dump).unwrap()).unwrap();
+    assert!(d["snapshots"]["second_end"]["card"]["kind"] == "end", "the restarted game ran to its end again: {d}");
+    // The HUD a player reads is the declared one: a friendly label and counter, not `N: 1`.
+    let lines: Vec<String> = d["hud"]["lines"].as_array().unwrap().iter().filter_map(|l| l["text"].as_str().map(str::to_string)).collect();
+    assert!(lines.iter().any(|l| l == "WINS: 1 / 1") && lines.iter().any(|l| l == "WAIT FOR IT"), "{lines:?}");
+    // A button that is not there fails by name.
+    std::fs::write(&script, json!({"steps": [{"press": "restart"}]}).to_string()).unwrap();
+    let o = re2(&[scene.to_str().unwrap(), "--as", "human", "--headless", "--script", script.to_str().unwrap()]);
+    assert_eq!(o.status.code(), Some(1), "{}", text(&o));
+    assert!(text(&o).contains("press `restart`") && text(&o).contains("start card has `start`"), "{}", text(&o));
+    let _ = std::fs::remove_dir_all(dir);
+}

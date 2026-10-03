@@ -570,7 +570,7 @@ pub(crate) enum Command {
     /// Render a 2-D screen (menu, pause, connect, lobby, countdown, hud, results) to a PNG with no window or GPU. UI work is never blind:
     /// `ui-shot pause out/pause.png --size 1280x720 --hover resume --message "long text wraps"`.
     UiShot {
-        /// Screen name (see `ui-check`'s output or `describe ui`): menu | pause | connect | lobby | countdown | hud | results.
+        /// Screen name (see `ui-check`'s output or `describe ui`): menu | pause | connect | lobby | countdown | hud | results | game-hud | game-start | game-end.
         screen: String,
         /// Output PNG.
         out: PathBuf,
@@ -586,6 +586,15 @@ pub(crate) enum Command {
         /// Map name shown on the screens.
         #[arg(long, default_value = "test_lab")]
         map: String,
+        /// For `game-hud` | `game-start` | `game-end`: draw this scene's own `ui` block instead of the demo game.
+        #[arg(long)]
+        scene: Option<PathBuf>,
+        /// With `--scene`: set a game variable for the picture, `--var delivered=3` (repeatable; the rest keep their starting values).
+        #[arg(long = "var")]
+        vars: Vec<String>,
+        /// With `--scene` and `game-end`: which outcome's card to draw (default: the first the block declares).
+        #[arg(long)]
+        outcome: Option<String>,
     },
     /// Audit every 2-D screen at 9 window sizes (small, common, portrait, 1440p): everything on screen, inside its container, text not
     /// wider than its panel, no overlaps. Exit 1 on any violation. The same audit runs in `cargo test`.
@@ -596,6 +605,9 @@ pub(crate) enum Command {
         /// Only this window size "WxH" (default: all standard sizes).
         #[arg(long)]
         size: Option<String>,
+        /// Also audit this scene's own `ui` block (its HUD, start card and every end card) at every size.
+        #[arg(long)]
+        scene: Option<PathBuf>,
     },
     /// Scaffold a game project that USES the engine (pinned in game.json) instead of forking it: a starter blueprint and the map it builds,
     /// CLAUDE.md, STATUS.md, `scripts/red` (finds/builds the pinned engine) and a CI workflow. The result already passes `game check`.
