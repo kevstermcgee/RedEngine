@@ -23,6 +23,11 @@ most of which is compiling the engine crate once per feature set and running the
 - The same local run measured 409 s after the first two changes, against 1167 s before (warm caches both times; the benches stage alone went from
   475 s to 25 s cold). The hosted `test` job loses the same eight minutes.
 - A release-only failure of the headless binaries is no longer caught by a local run; the hosted headless job still catches it before merge.
-- Not done, and why: `mold` (no measured gain), merging test binaries (link time is not the cost), running the headless job without the network
-  suites (they are the point of that job). What would help next is a smaller engine crate to compile: splitting tools, simulation, networking and the
-  graphical client into workspace crates, which also makes `affected` more precise than "everything depends on `rules.rs`".
+- Not done, and why: `mold` (no measured gain; summed over a core-edit rebuild, 127 links took 66 s with the default linker and 54 s with mold, across 4 cores),
+  merging test binaries (a test crate whose source changes rebuilds in about 0.7 s, 45 s for all fifty), running the headless job without the network suites
+  (they are the point of that job).
+- Measured and rejected: splitting the engine crate. A rebuild after touching a core file costs 126 s of compiler time with one job at a time: the library
+  itself 54 s (42 s normal profile + 12 s test profile), two test crates 36 s (`net_processes`, `net_flow`, about 18 s each for 120 to 240 lines of source),
+  the `re2` client 11 s, the other ~45 test crates under 1 s each. A split would save part of the 54 s for edits that stay in one crate, and the modules form
+  cycles (`schema`, `sim`, `player`, `physics`, `collide`, `net`, `tools` all use each other), so it is a large refactor for a minor gain. What is left to look
+  at is why those two test crates compile for 18 s each.
