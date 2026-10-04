@@ -40,6 +40,8 @@ pub struct PlayerTuning {
     pub throw_speed: f32,
     /// Whether the scene is an arena (weapons, combat) or a peaceful one (empty hands, no fighting, a click interacts).
     pub mode: PlayerMode,
+    /// Whether the game opens behind the character (`player.view`: `"third"`) instead of looking out of their eyes (`"first"`, the default). The player can still switch with Q.
+    pub third_person: bool,
     /// How far the world reaches: the looping axis and the walkable limits (the scene's `world` block).
     pub expanse: crate::expanse::Expanse,
 }
@@ -87,6 +89,7 @@ impl Default for PlayerTuning {
             max_speed: 20.0,
             throw_speed: THROW_SPEED,
             mode: PlayerMode::Arena,
+            third_person: false,
             expanse: crate::expanse::Expanse::default(),
         }
     }
@@ -196,6 +199,8 @@ pub enum Character {
     Nightfall,
     /// A too-tall, too-thin, featureless figure on the human rig — a monster, not a costume.
     Hollow,
+    /// A boy of about nine in a red-orange jumper with a backpack and a scarf: a child's proportions on the human rig, and slower, smaller, with no bat.
+    Boy,
 }
 
 /// Everything about a body that differs between characters. Gravity and the ground/step rules are
@@ -235,7 +240,7 @@ pub struct BodySpec {
 
 impl Character {
     /// Every character, in wire-code order.
-    pub const ALL: [Character; 9] = [
+    pub const ALL: [Character; 10] = [
         Character::Human,
         Character::Rat,
         Character::Wizard,
@@ -245,6 +250,7 @@ impl Character {
         Character::Ridgeback,
         Character::Nightfall,
         Character::Hollow,
+        Character::Boy,
     ];
 
     /// The body numbers for this character.
@@ -272,6 +278,23 @@ impl Character {
                 pickup_reach: 2.3,
                 carry: crate::physics::HUMAN_CARRY,
                 hold_drop: 0.55,
+            },
+            // The boy wanders and runs at a child's pace, sees the world from a child's height, and carries nothing heavier than a stick.
+            Character::Boy => BodySpec {
+                radius: 0.28,
+                stand_eye: 1.18,
+                crouch_eye: 0.8,
+                walk_speed: 2.9,
+                sprint_speed: 5.4,
+                third_person_distance: 3.1,
+                third_person_lift: 0.5,
+                near_plane: 0.05,
+                has_bat: false,
+                body_height: 1.35,
+                band_top: 1.4,
+                pickup_reach: 1.6,
+                carry: crate::physics::HUMAN_CARRY,
+                hold_drop: 0.42,
             },
             // Cheddar has one pace, `RAT_SPEED`, and Shift adds nothing.
             Character::Rat => BodySpec {
@@ -305,6 +328,7 @@ impl Character {
             Character::Ridgeback => "Ridgeback soldier",
             Character::Nightfall => "Nightfall soldier",
             Character::Hollow => "The Hollow",
+            Character::Boy => "The boy",
         }
     }
 
@@ -320,6 +344,7 @@ impl Character {
             "ridgeback" => Some(Character::Ridgeback),
             "nightfall" => Some(Character::Nightfall),
             "hollow" => Some(Character::Hollow),
+            "boy" | "child" | "kid" => Some(Character::Boy),
             _ => None,
         }
     }

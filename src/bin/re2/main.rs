@@ -495,6 +495,7 @@ impl App {
         if let Some(deg) = std::env::var("RE2_PITCH").ok().and_then(|v| v.parse::<f32>().ok()) {
             camera.pitch = deg.to_radians();
         }
+        let scene_third_person = scene.player.third_person;
         let scene_ammo = scene.weapons.ammo;
         let pad_launch = scene.jump_pads.iter().map(|p| p.launch_speed).reduce(f32::min);
         let starting_weapon = scene.weapons.starting_weapon;
@@ -578,7 +579,7 @@ impl App {
             last_move_speed: 0.0,
             eye_height: body.stand_eye,
             fov_deg: player_fov_deg,
-            view_mode: ViewMode::FirstPerson,
+            view_mode: if scene_third_person { ViewMode::ThirdPerson } else { ViewMode::FirstPerson },
             player_object_index,
             walk_phase: 0.0,
             hand_prop_transform: Mat4::from_scale(Vec3::splat(HIDDEN_SCALE)),
@@ -933,6 +934,7 @@ fn main() {
         ) => {
             println!("Left-click / right trigger uses the equipped weapon.")
         }
+        Some(Character::Boy) => println!("The boy: just walk, run and look around."),
         Some(Character::Rat) => println!("Cheddar is small and always as fast as a human sprinting."),
         None => println!("Human: left-click swings the bat. Cheddar: small, and always as fast as a human sprinting."),
     }

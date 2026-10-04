@@ -146,6 +146,7 @@ pub fn character_to_wire(c: Character) -> u8 {
         Character::Ridgeback => 6,
         Character::Nightfall => 7,
         Character::Hollow => 8,
+        Character::Boy => 9,
     }
 }
 

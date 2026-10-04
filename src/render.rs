@@ -70,7 +70,7 @@ pub(crate) fn collect_leaf_meshes(objects: &[Object], out: &mut Vec<Mesh>) {
             ObjectKind::Prim(p) => out.push(build_prim_mesh(p)),
             ObjectKind::Group(children) => collect_leaf_meshes(children, out),
             ObjectKind::Humanoid(h) => {
-                let rig = HumanoidRig::new(h.height, h.build);
+                let rig = HumanoidRig::for_look(h.height, h.build, &h.look);
                 for part in human_parts(&rig, &PoseSample::default(), &h.look) {
                     out.push(build_prim_mesh(&part.shape));
                 }
@@ -112,7 +112,7 @@ pub(crate) fn collect_leaf_object_paths(objects: &[Object], parents: &[String], 
                 collect_leaf_object_paths(children, &path, out);
                 0
             }
-            ObjectKind::Humanoid(h) => human_parts(&HumanoidRig::new(h.height, h.build), &PoseSample::default(), &h.look).len(),
+            ObjectKind::Humanoid(h) => human_parts(&HumanoidRig::for_look(h.height, h.build, &h.look), &PoseSample::default(), &h.look).len(),
             ObjectKind::Rat(_) => rat_parts(&RatPose::default()).len(),
             ObjectKind::Prop(p) => prop_parts(p.kind).len(),
             ObjectKind::Stairs(s) => build_stairs_parts(s).len(),
@@ -210,7 +210,7 @@ fn collect_leaf_transforms_inner(objects: &[Object], t: f32, parent: Mat4, out: 
             }
             ObjectKind::Group(children) => collect_leaf_transforms_inner(children, t, world, out, cache),
             ObjectKind::Humanoid(h) => {
-                let rig = HumanoidRig::new(h.height, h.build);
+                let rig = HumanoidRig::for_look(h.height, h.build, &h.look);
                 let pose = sample_pose(&h.pose, t);
                 let base = sample_material(&h.material, t);
                 let key = CharKey::Human { height: h.height, build: h.build, pose, look: h.look };

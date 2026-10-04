@@ -5,6 +5,8 @@ use glam::{Quat, Vec3};
 /// Fixed bone lengths/radii derived once from a humanoid's `height`/`build`. Pose only changes
 /// joint *rotations*, never these lengths, so this is computed once per object, not per frame.
 pub struct HumanoidRig {
+    /// The nominal height this rig was built for (what size-relative details scale with).
+    pub height: f32,
     pub hip_y: f32,
     pub torso_len: f32,
     pub torso_radius: f32,
@@ -32,6 +34,7 @@ impl HumanoidRig {
         // mid-thigh): `hip_y` + torso put the neck base at 0.82h; shoulders sit 0.02h below it, the ankles sit 0.04h off the
         // floor so a shoe capsule rests on it, and the hands hang to ~0.45h.
         HumanoidRig {
+            height: h,
             hip_y: 0.53 * h,
             torso_len: 0.29 * h,
             torso_radius: 0.078 * h * build,
@@ -49,6 +52,42 @@ impl HumanoidRig {
             lower_leg_radius: 0.034 * h * build,
             foot_len: 0.115 * h,
             foot_radius: 0.033 * h * build,
+        }
+    }
+}
+
+impl HumanoidRig {
+    /// A child of about nine: a bigger head, a shorter reach, shorter legs and narrower shoulders than the adult proportions of [`HumanoidRig::new`].
+    pub fn child(height: f32, build: f32) -> Self {
+        let h = height;
+        HumanoidRig {
+            height: h,
+            hip_y: 0.49 * h,
+            torso_len: 0.28 * h,
+            torso_radius: 0.085 * h * build,
+            neck_len: 0.03 * h,
+            head_radius: 0.088 * h * build.sqrt(),
+            shoulder_half: 0.108 * h,
+            hip_half: 0.050 * h,
+            upper_arm_len: 0.155 * h,
+            upper_arm_radius: 0.031 * h * build,
+            forearm_len: 0.135 * h,
+            forearm_radius: 0.025 * h * build,
+            upper_leg_len: 0.225 * h,
+            upper_leg_radius: 0.050 * h * build,
+            lower_leg_len: 0.225 * h,
+            lower_leg_radius: 0.038 * h * build,
+            foot_len: 0.125 * h,
+            foot_radius: 0.038 * h * build,
+        }
+    }
+
+    /// The rig for a humanoid of `height` and `build` wearing `look`: the boy has a child's proportions, everyone else an adult's.
+    pub fn for_look(height: f32, build: f32, look: &crate::characters::HumanLook) -> Self {
+        if look.style == crate::player::Character::Boy {
+            HumanoidRig::child(height, build)
+        } else {
+            HumanoidRig::new(height, build)
         }
     }
 }
@@ -110,7 +149,7 @@ pub fn pose_to_parts(rig: &HumanoidRig, pose: &PoseSample) -> Vec<BonePart> {
     parts.push(BonePart { center: head_center, rotation: r_head, length: rig.head_radius * 2.0, radius: rig.head_radius, kind: BoneKind::Sphere });
 
     // Lower the arm sockets slightly for a relaxed shoulder line, keeping head height fixed.
-    let shoulder_drop = 0.02 * (rig.hip_y / 0.53);
+    let shoulder_drop = 0.02 * rig.height;
     let sl = shoulder + r_spine * Vec3::new(-rig.shoulder_half, -shoulder_drop, 0.0);
     let sr = shoulder + r_spine * Vec3::new(rig.shoulder_half, -shoulder_drop, 0.0);
 

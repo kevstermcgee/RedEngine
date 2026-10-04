@@ -82,7 +82,11 @@ pub fn avatar_plan(scene: &Scene) -> AvatarPlan {
             continue;
         }
         let human = forced.is_none_or(|f| f == *who);
-        pool[i] = if human { MAX_PLAYERS_PER_SNAPSHOT } else { bot_bodies[i].max(if bots.fill > 0 && *who != Character::Rat { BOT_BODY_POOL } else { 0 }) };
+        pool[i] = if human {
+            MAX_PLAYERS_PER_SNAPSHOT
+        } else {
+            bot_bodies[i].max(if bots.fill > 0 && !matches!(*who, Character::Rat | Character::Boy) { BOT_BODY_POOL } else { 0 })
+        };
         needed[i] = (bot_bodies[i] + if human { MAX_PLAYERS_PER_SNAPSHOT - 1 } else { 0 }).min(MAX_PLAYERS_PER_SNAPSHOT - 1);
     }
     AvatarPlan { pool, needed }
@@ -974,17 +978,17 @@ mod tests {
             Character::ALL.map(of)
         };
         let n = MAX_PLAYERS_PER_SNAPSHOT;
-        // [Human, Rat, Wizard, Cowboy, Alien, Robot, Ridgeback, Nightfall, Hollow]
-        assert_eq!(pool(None, false), [n, n, n, n, n, n, 0, 0, n], "nobody is forced: any body can turn up");
-        assert_eq!(pool(Some("human"), false), [n, 0, 0, 0, 0, 0, 0, 0, 0], "everybody is a Human and there are no bots: one body is enough");
+        // [Human, Rat, Wizard, Cowboy, Alien, Robot, Ridgeback, Nightfall, Hollow, Boy]
+        assert_eq!(pool(None, false), [n, n, n, n, n, n, 0, 0, n, n], "nobody is forced: any body can turn up");
+        assert_eq!(pool(Some("human"), false), [n, 0, 0, 0, 0, 0, 0, 0, 0, 0], "everybody is a Human and there are no bots: one body is enough");
         assert_eq!(
             pool(Some("human"), true),
-            [n, 0, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL],
+            [n, 0, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL, 0],
             "bots wear the fighting bodies, never the rat"
         );
         assert_eq!(
             pool(Some("rat"), true),
-            [BOT_BODY_POOL, n, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL],
+            [BOT_BODY_POOL, n, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL, 0],
             "a rat game's bots still fight as people"
         );
     }
@@ -1018,6 +1022,7 @@ mod tests {
                 MAX_PLAYERS_PER_SNAPSHOT,
                 0,
                 0,
+                MAX_PLAYERS_PER_SNAPSHOT,
                 MAX_PLAYERS_PER_SNAPSHOT
             ]
         );
@@ -1032,6 +1037,7 @@ mod tests {
                 MAX_PLAYERS_PER_SNAPSHOT - 1,
                 0,
                 0,
+                MAX_PLAYERS_PER_SNAPSHOT - 1,
                 MAX_PLAYERS_PER_SNAPSHOT - 1
             ]
         );

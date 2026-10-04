@@ -60,7 +60,7 @@ fn leaves_of(o: &Object, parent: Mat4, is_root: bool, out: &mut Vec<(PrimKind, M
             }
         }
         ObjectKind::Humanoid(h) => {
-            let rig = HumanoidRig::new(h.height, h.build);
+            let rig = HumanoidRig::for_look(h.height, h.build, &h.look);
             for part in human_parts(&rig, &PoseSample::default(), &h.look) {
                 out.push((part.shape, world * part.local));
             }

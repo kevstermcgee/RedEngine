@@ -31,7 +31,8 @@ impl App {
             | Character::Robot
             | Character::Ridgeback
             | Character::Nightfall
-            | Character::Hollow => self.pose_human(body_pos, yaw_deg, speed, dt, scale),
+            | Character::Hollow
+            | Character::Boy => self.pose_human(body_pos, yaw_deg, speed, dt, scale),
             Character::Rat => self.pose_rat(speed, dt),
         }
     }

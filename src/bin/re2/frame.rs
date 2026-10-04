@@ -67,6 +67,18 @@ fn sync_flashlight_into(lights: &mut Vec<Light>, eye: Vec3, forward: Vec3, on: b
 }
 
 impl App {
+    /// The scene's animation time for this frame: seconds into a looping animation (`duration`), or, in a scene with a `clock`, the game's own seconds
+    /// (fixed steps run, so a paused game keeps its sunset and a headless script can live through a whole day in a moment).
+    pub(crate) fn scene_time(&self) -> f32 {
+        if self.scene.clock.is_some() {
+            self.clock.ticks_run() as f32 * FIXED_DT
+        } else if self.scene.duration > 0.0 {
+            self.start.elapsed().as_secs_f32() % self.scene.duration
+        } else {
+            0.0
+        }
+    }
+
     /// Keeps the synthesized flashlight light (if `scene.flashlight`) following the camera: inserts it once, then
     /// updates it in place every frame. A no-op for a scene that never asked for a flashlight.
     pub(crate) fn sync_flashlight(&mut self) {
@@ -417,10 +429,16 @@ impl App {
             ViewMode::FirstPerson => anchor,
             ViewMode::ThirdPerson => {
                 let desired = anchor - self.camera.forward() * self.body.third_person_distance + Vec3::Y * self.body.third_person_lift;
-                let active = colliders_on_floor(&self.colliders, foot_y);
+                // In a generated world the trees are walls for the camera too, and it never dips under the hill behind the character.
+                let walls = match self.ground.procgen() {
+                    Some(world) => world.colliders_near(Vec2::new(desired.x, desired.z), 4.0, &self.colliders),
+                    None => self.colliders.clone(),
+                };
+                let active = colliders_on_floor(&walls, foot_y);
                 let cam_radius = THIRD_PERSON_CAM_RADIUS.min(self.body.radius * 0.7);
                 let clamped = resolve_collision(Vec2::new(desired.x, desired.z), cam_radius, &active);
-                Vec3::new(clamped.x, desired.y, clamped.y)
+                let floor = self.ground.terrain_height_at(clamped).map_or(f32::NEG_INFINITY, |h| h + 0.4);
+                Vec3::new(clamped.x, desired.y.max(floor), clamped.y)
             }
         };
 
@@ -517,6 +535,7 @@ impl App {
             &self.scene,
             (self.view_mode == ViewMode::FirstPerson || racing).then_some(self.player_object_index),
         );
+        let t = self.scene_time();
         let Some(gpu) = self.gpu.as_mut() else { return };
         let Some(live) = gpu.live.as_mut() else { return };
         live.set_hidden_objects(hidden);
@@ -526,7 +545,6 @@ impl App {
         let Some(surface) = gpu.surface.as_ref() else { return }; // a headless run has nothing to present
         let Some((surface_tex, reconfigure)) = acquire_frame(surface, &gpu.device, &gpu.config) else { return };
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
         let opts = FrameOptions {
             crosshair: show_crosshair,
             viewmodel: show_viewmodel && !carrying && !dead,
