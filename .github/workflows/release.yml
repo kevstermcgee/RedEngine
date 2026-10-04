@@ -1,0 +1,56 @@
+name: Release (Linux binaries)
+# Prebuilt Linux binaries for authoring (the self-describing CLI: lint, reach, walk, verify, frame, sim ...), the game client, the dedicated server and bots, so a fresh
+# machine needs `scripts/bootstrap.sh` and not a Rust toolchain. Built on the oldest Ubuntu runner so they run on anything newer (glibc). A tag `v*` publishes a
+# GitHub release; a manual run only builds the archives as workflow artifacts (and smoke-tests them from an empty directory).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-linux
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    name: linux-x86_64
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+      - name: System libraries (audio backend for the client)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
+      - name: Name the version
+        id: v
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME}"; else v="dev-$(git rev-parse --short=12 HEAD)"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Build the full set (client, CLI with rendering, server, bots)
+        run: cargo build --locked --release --bins
+      - name: Build the headless CLI (no graphics or audio libraries needed)
+        run: cargo build --locked --release --no-default-features --bin red_engine2 --target-dir target/headless
+      - name: Package
+        run: bash scripts/package_release.sh "${{ steps.v.outputs.version }}" dist
+      - name: Smoke test from an empty directory
+        run: bash scripts/smoke_release.sh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: redengine-linux-x86_64
+          path: dist/*
+          retention-days: 14
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.v.outputs.version }}" dist/* --title "RedEngine ${{ steps.v.outputs.version }} (Linux)" \
+            --notes "Prebuilt Linux x86_64 binaries. Install with: curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/bootstrap.sh | sh"

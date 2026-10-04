@@ -24,6 +24,7 @@ game with it) and `release` (LTO, 4+ minutes: ship with it). Put build output on
 ## First 60 seconds
 ```bash
 scripts/dev doctor               # toolchain, binaries, git (Windows: powershell -File scripts\dev.ps1 doctor)
+# No Rust on this Linux machine? curl -fsSL https://raw.githubusercontent.com/kevstermcgee/RedEngine/main/scripts/bootstrap.sh | sh   # prebuilt binaries + doctor
 R="scripts/dev red"              # builds the CLI on first use, then runs it from any directory
 $R doctor                        # what THIS machine can do: GPU or software rendering, UDP, ffmpeg, output dir
 $R status                        # resume: facts + git + STATUS.md (what is done / in flight / next)

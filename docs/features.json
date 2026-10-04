@@ -149,11 +149,11 @@
       "depends_on": ["net_server"]
     },
     "release_packaging": {
-      "summary": "`package`: a reproducible zip with a SHA-256 manifest, provenance, feature-isolated binaries and `--verify`.",
-      "files": ["src/tools/package.rs", "src/tools/pe.rs"],
-      "tests": ["lib:tools::package", "lib:tools::pe"],
-      "commands": ["red_engine2 package out/release.zip", "red_engine2 package --verify out/release.zip"],
-      "docs": ["docs/adr/0032-provable-releases.md"]
+      "summary": "`package`: a reproducible zip with a SHA-256 manifest, provenance, feature-isolated binaries and `--verify`; prebuilt Linux binaries on a tag and `scripts/bootstrap.sh` to install them.",
+      "files": ["src/tools/package.rs", "src/tools/pe.rs", "tests/bootstrap_script.rs"],
+      "tests": ["lib:tools::package", "lib:tools::pe", "bootstrap_script"],
+      "commands": ["red_engine2 package out/release.zip", "red_engine2 package --verify out/release.zip", "sh scripts/bootstrap.sh --help"],
+      "docs": ["docs/adr/0032-provable-releases.md", "docs/adr/2026-10-04-prebuilt-linux-binaries-and-a-bootstrap-script-for-a.md"]
     },
     "ui_kit": {
       "summary": "The headless, audited 2-D UI: layouts, menus, connect form, lobby, HUD, results; `ui-shot` and `ui-check`.",
