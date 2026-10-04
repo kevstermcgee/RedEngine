@@ -415,7 +415,7 @@ impl Renderer {
         // A still frame cannot wait for the world to stream in: build everything around the camera first.
         let origin = render_origin(scene.camera.position.sample(t));
         if let Some(stream) = &mut self.stream {
-            stream.fill(&self.gpu.device, &self.gpu.queue, scene.camera.position.sample(t));
+            stream.fill(&self.gpu.device, &self.gpu.queue, &[scene.camera.position.sample(t)]);
             stream.set_origin(&self.gpu.queue, origin);
             let eye = scene.camera.position.sample(t);
             stream.update_motes(&self.gpu.queue, eye, (scene.camera.target.sample(t) - eye).normalize_or(Vec3::NEG_Z), t, scene.clock.as_ref());

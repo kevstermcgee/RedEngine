@@ -72,6 +72,8 @@ pub mod sfx;
 pub mod shooter_world;
 pub mod sim;
 pub mod skeleton;
+#[cfg(feature = "gfx")]
+pub mod split_gpu;
 pub mod splitscreen;
 pub mod stats;
 pub mod streaks;

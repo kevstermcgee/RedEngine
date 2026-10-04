@@ -88,6 +88,16 @@ pub fn vertical_fov(base_vfov_deg: f32, window_aspect: f32, view_aspect: f32) ->
     v.to_degrees().clamp(base_vfov_deg, 100.0)
 }
 
+/// How far the streamed world reaches (metres) with `players` views on the screen: every view draws it, so a crowded screen sees a little less far (its views are
+/// also smaller, so the difference is hard to spot) and a whole frame of four views stays near the triangle budget of one big one.
+pub fn view_distance(players: usize) -> f32 {
+    match players {
+        0 | 1 => 270.0,
+        2 => 230.0,
+        _ => 190.0,
+    }
+}
+
 /// What drives a local player.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device {

@@ -180,10 +180,10 @@
       "depends_on": ["graphical_client"]
     },
     "split_screen": {
-      "summary": "Native split-screen co-op (up to four local players): viewport layouts, field of view for narrow views and device assignment as tested arithmetic; the renderer and the client follow (plan in docs/analysis).",
-      "files": ["src/splitscreen.rs"],
-      "tests": ["lib:splitscreen"],
-      "commands": [],
+      "summary": "Native split-screen co-op (up to four local players): viewport layouts, field of view for narrow views and device assignment as tested arithmetic, and the compositor that draws each player's view and HUD into its rectangle (`splitshot` shows it); the client follows (plan in docs/analysis).",
+      "files": ["src/splitscreen.rs", "src/split_gpu.rs"],
+      "tests": ["lib:splitscreen", "split_render"],
+      "commands": ["red_engine2 splitshot examples/marcel/marcel.json out/split.png --players 4"],
       "docs": ["docs/analysis/2026-10-04-split-screen-survey-and-plan.md"],
       "depends_on": ["graphical_client"]
     },

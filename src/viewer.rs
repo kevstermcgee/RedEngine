@@ -382,6 +382,8 @@ pub struct LiveRenderer {
     ocean: Option<crate::ocean_pass::OceanPass>,
     /// The scene's endless generated world, when it has a `procgen` block: chunks stream in around the camera.
     stream: Option<crate::stream_gpu::StreamLayer>,
+    /// Every local viewer's eye, when several views are drawn in a frame (split-screen): the streamed world follows all of them.
+    stream_eyes: Vec<Vec3>,
     /// Drives the water's animation (it must not loop with the scene's `duration`).
     clock: std::time::Instant,
     /// Scene object ids suppressed by a game rule or application.
@@ -609,6 +611,7 @@ impl LiveRenderer {
             mesh_object_paths,
             ocean,
             stream,
+            stream_eyes: Vec::new(),
             clock: std::time::Instant::now(),
             hidden_objects: HashSet::new(),
             held,
@@ -660,7 +663,29 @@ impl LiveRenderer {
     /// Builds and uploads every chunk of a streamed (`procgen`) world around `eye` before returning, so a picture shows all of it. A no-op without one.
     pub fn settle_stream(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, eye: Vec3) {
         if let Some(stream) = &mut self.stream {
-            stream.fill(device, queue, eye);
+            if self.stream_eyes.is_empty() {
+                stream.fill(device, queue, &[eye]);
+            } else {
+                stream.fill(device, queue, &self.stream_eyes);
+            }
+        }
+    }
+
+    /// Tells the streamed world where every viewer of this frame is (split-screen draws several views; each needs its ground). Empty means one viewer, the camera.
+    pub fn set_stream_eyes(&mut self, eyes: &[Vec3]) {
+        self.stream_eyes.clear();
+        self.stream_eyes.extend_from_slice(eyes);
+    }
+
+    /// What the streamed world drew in the last frame (chunks resident, draw calls, triangles), if the scene has one.
+    pub fn stream_draw_stats(&self) -> Option<crate::stream_gpu::DrawStats> {
+        self.stream.as_ref().map(|s| s.draw_stats())
+    }
+
+    /// How far the streamed world reaches, metres (split-screen draws several views per frame, so each sees a little less far).
+    pub fn set_view_distance(&mut self, metres: f32) {
+        if let Some(s) = &mut self.stream {
+            s.set_view_distance(metres);
         }
     }
 
@@ -819,7 +844,11 @@ impl LiveRenderer {
             ocean.update(queue, self.clock.elapsed().as_secs_f32());
         }
         if let Some(stream) = &mut self.stream {
-            stream.update(device, queue, camera.eye + origin);
+            if self.stream_eyes.is_empty() {
+                stream.update(device, queue, &[camera.eye + origin]);
+            } else {
+                stream.update(device, queue, &self.stream_eyes);
+            }
             stream.set_origin(queue, origin);
             stream.update_motes(queue, camera.eye + origin, camera.forward(), t, scene.clock.as_ref());
         }
