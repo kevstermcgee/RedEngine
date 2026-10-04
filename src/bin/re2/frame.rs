@@ -219,6 +219,17 @@ impl App {
         }
     }
 
+    /// Saves the `persist` variables when any of them has changed since the last save.
+    fn persist_vars(&mut self) {
+        let now: std::collections::BTreeMap<String, f64> = self.rules.persisted().into_iter().collect();
+        if !now.is_empty() && now != self.saved_vars {
+            if let Err(e) = red_engine2::settings::save_vars(&self.settings_key, &now) {
+                eprintln!("could not save the game's progress: {e}");
+            }
+            self.saved_vars = now;
+        }
+    }
+
     /// Runs scene rules for the offline player and applies their world-facing effects. This is
     /// deliberately the existing [`RulesEngine`], not a presentation-side copy of game logic.
     fn fixed_step_rules(&mut self) {
@@ -228,6 +239,17 @@ impl App {
         let tick = self.clock.ticks_run();
         if tick >= self.rule_event_until {
             self.rule_event = None;
+        }
+        self.persist_vars();
+        // A scene with a clock tells its rules when the sun comes up and goes down (`when: {event: "sunrise"}`).
+        if let Some(clock) = &self.scene.clock {
+            let elev = clock.state(tick as f32 * FIXED_DT, 0).sun_elev_deg;
+            match self.last_sun_elev {
+                Some(before) if before < 0.0 && elev >= 0.0 => self.rules.inject(tick, "sunrise", None),
+                Some(before) if before >= 0.0 && elev < 0.0 => self.rules.inject(tick, "sunset", None),
+                _ => {}
+            }
+            self.last_sun_elev = Some(elev);
         }
         if self.rules.ended().is_some() {
             return;

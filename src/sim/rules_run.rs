@@ -263,6 +263,22 @@ impl RulesEngine {
         self.set.var_names.iter().zip(&self.vars).skip(super::rules::BUILTIN_VARS.len()).map(|(n, v)| (n.as_str(), *v)).collect()
     }
 
+    /// Sets a scene variable (not a built-in) to a value; false when there is no such variable.
+    pub fn set_var(&mut self, name: &str, value: f64) -> bool {
+        match self.set.var_names.iter().position(|n| n == name).filter(|i| *i >= super::rules::BUILTIN_VARS.len()) {
+            Some(i) => {
+                self.vars[i] = value;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// The variables the scene keeps between sessions (`persist`) with their values.
+    pub fn persisted(&self) -> Vec<(String, f64)> {
+        self.set.persist.iter().filter_map(|n| self.var(n).map(|v| (n.clone(), v))).collect()
+    }
+
     /// Ids of objects a rule has hidden.
     pub fn hidden(&self) -> impl Iterator<Item = &str> {
         self.hidden.iter().map(String::as_str)

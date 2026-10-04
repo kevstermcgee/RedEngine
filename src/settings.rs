@@ -98,6 +98,29 @@ pub fn save(key: &str, s: &Settings) -> Result<(), String> {
     std::fs::write(&path, serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())? + "\n").map_err(|e| format!("{}: {e}", path.display()))
 }
 
+fn vars_path(key: &str) -> Option<PathBuf> {
+    Some(config_dir()?.join("red_engine2").join("games").join(key).join("vars.json"))
+}
+
+/// Loads the variables a game keeps between sessions (`persist`); empty when there is nothing saved (or it is unreadable).
+pub fn load_vars(key: &str) -> std::collections::BTreeMap<String, f64> {
+    (|| -> Option<std::collections::BTreeMap<String, f64>> {
+        let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(vars_path(key)?).ok()?).ok()?;
+        Some(v.as_object()?.iter().filter_map(|(k, x)| Some((k.clone(), x.as_f64()?))).collect())
+    })()
+    .unwrap_or_default()
+}
+
+/// Saves the persisted variables for `key`.
+pub fn save_vars(key: &str, vars: &std::collections::BTreeMap<String, f64>) -> Result<(), String> {
+    let path = vars_path(key).ok_or("no resolvable config directory (neither XDG_CONFIG_HOME, APPDATA nor HOME is set)")?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    let doc: serde_json::Map<String, serde_json::Value> = vars.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
+    std::fs::write(&path, serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())? + "\n").map_err(|e| format!("{}: {e}", path.display()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

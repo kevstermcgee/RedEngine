@@ -40,7 +40,7 @@ pub const BUILTIN_VARS: &[&str] = &["time", "tick", "players"];
 /// `pickup` / `drop` (a player took / released a prop), `shot` (a firearm was fired), `hit` (a player was damaged),
 /// `kill` (a player was killed; the player is the killer), `respawn` (a dead player came back), `swing` (a bat swing
 /// started), `prop_hit` (a bat or a bullet struck a loose prop; the player is the striker).
-pub const ENGINE_EVENTS: &[&str] = &["pickup", "drop", "shot", "hit", "kill", "respawn", "swing", "prop_hit"];
+pub const ENGINE_EVENTS: &[&str] = &["pickup", "drop", "shot", "hit", "kill", "respawn", "swing", "prop_hit", "sunrise", "sunset"];
 
 /// The action names, for error messages and `describe rules`.
 pub const ACTIONS: &[(&str, &str)] = &[
@@ -266,6 +266,8 @@ pub struct RuleSet {
     pub needs_props: bool,
     /// The scene's named level states (`phases`), in declaration order: for the analysis tools only, the simulation ignores them.
     pub phases: Vec<Phase>,
+    /// Variables the game keeps between sessions (`persist`): loaded when it starts, saved when they change.
+    pub persist: Vec<String>,
 }
 
 /// A named state of the level for `lint` / `reach` / `walk` (`"phases": {"gate_open": ["open_gate"]}`): the rules to assume
@@ -290,6 +292,7 @@ impl Default for RuleSet {
             fields: Vec::new(),
             needs_props: false,
             phases: Vec::new(),
+            persist: Vec::new(),
         }
     }
 }
@@ -793,6 +796,20 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
                             set.var_init.push(x);
                         }
                         None => errs.push(format!("vars.{name}: must be a number or true/false")),
+                    }
+                }
+            }
+        }
+    }
+    if let Some(p) = root.get("persist") {
+        match p.as_array() {
+            None => errs.push("persist: must be a list of variable names like [\"days_lived\"]".to_string()),
+            Some(list) => {
+                for (i, v) in list.iter().enumerate() {
+                    match v.as_str() {
+                        Some(name) if set.var_names.iter().skip(BUILTIN_VARS.len()).any(|n| n == name) => set.persist.push(name.to_string()),
+                        Some(name) => errs.push(format!("persist[{i}]: `{name}` is not one of the scene's vars (declare it under `vars`)")),
+                        None => errs.push(format!("persist[{i}]: must be a variable name")),
                     }
                 }
             }

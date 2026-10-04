@@ -139,7 +139,15 @@ impl GameUi {
         while let Some(open) = rest.find('{') {
             let Some(close) = rest[open..].find('}') else { break };
             out.push_str(&rest[..open]);
-            out.push_str(&number(lookup(vars, &rest[open + 1..open + close])));
+            let inner = &rest[open + 1..open + close];
+            // `{days:day|days}` is the number and the right word for it: "1 day", "3 days".
+            match inner.split_once(':').and_then(|(name, words)| Some((name, words.split_once('|')?))) {
+                Some((name, (one, many))) => {
+                    let v = lookup(vars, name);
+                    out.push_str(&format!("{} {}", number(v), if (v - 1.0).abs() < 1e-9 { one } else { many }));
+                }
+                None => out.push_str(&number(lookup(vars, inner))),
+            }
             rest = &rest[open + close + 1..];
         }
         out.push_str(rest);
@@ -247,7 +255,16 @@ impl Ctx<'_> {
                 self.err(path, "a `{` has no closing `}` (write a variable as {name})");
                 break;
             };
-            let name = &rest[open + 1..open + close];
+            let inner = &rest[open + 1..open + close];
+            // `{days:day|days}`: the variable, then the word for one and the word for the rest.
+            let name = match inner.split_once(':') {
+                Some((name, words)) if words.split_once('|').is_some_and(|(a, b)| !a.is_empty() && !b.is_empty()) => name,
+                Some((_, _)) => {
+                    self.err(path, format!("`{{{inner}}}`: after the `:` write the word for one and the word for the rest, like {{days:day|days}}"));
+                    inner.split(':').next().unwrap_or(inner)
+                }
+                None => inner,
+            };
             self.var(path, name);
             rest = &rest[open + close + 1..];
         }
@@ -463,6 +480,15 @@ mod tests {
         }))
         .unwrap()
         .unwrap()
+    }
+
+    #[test]
+    fn a_count_takes_its_plural_with_it() {
+        let u = ui(json!({"start": {"title": "T", "text": "{delivered:parcel|parcels} so far"}})).unwrap().unwrap();
+        assert_eq!(u.fill("{delivered:parcel|parcels}!", &[("delivered", 1.0)]), "1 parcel!");
+        assert_eq!(u.fill("{delivered:parcel|parcels}!", &[("delivered", 0.0)]), "0 parcels!");
+        assert_eq!(u.fill("{delivered:parcel|parcels}!", &[("delivered", 3.0)]), "3 parcels!");
+        assert!(ui(json!({"start": {"title": "{delivered:parcel}"}})).unwrap_err().join(" ").contains("word for one"));
     }
 
     #[test]

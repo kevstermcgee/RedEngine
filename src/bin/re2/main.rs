@@ -313,6 +313,10 @@ struct App {
     /// Offline uses the same pure scene-rule state machine as `MatchSim`; online presents the
     /// server's repeated authoritative rule-state snapshot.
     rules: RulesEngine,
+    /// The `persist` variables as last saved, so a save happens only when one changes.
+    saved_vars: std::collections::BTreeMap<String, f64>,
+    /// The sun's height at the previous tick (for the `sunrise` and `sunset` events).
+    last_sun_elev: Option<f32>,
     /// Named targets for the rule `teleport` action.
     spawns: Vec<Spawn>,
     /// Most recent non-terminal rule event, shown briefly by the generic rules HUD.
@@ -502,8 +506,14 @@ impl App {
         let scene_ammo = scene.weapons.ammo;
         let pad_launch = scene.jump_pads.iter().map(|p| p.launch_speed).reduce(f32::min);
         let starting_weapon = scene.weapons.starting_weapon;
-        let rules = RulesEngine::new(scene.rules.clone()).with_wrap(scene.player.expanse.wrap);
+        let mut rules = RulesEngine::new(scene.rules.clone()).with_wrap(scene.player.expanse.wrap);
         let settings_key = red_engine2::settings::key_for(&scene_path);
+        // What the game keeps between sessions (`persist`) comes back before the first tick.
+        let saved_vars: std::collections::BTreeMap<String, f64> =
+            if scene.rules.persist.is_empty() { Default::default() } else { red_engine2::settings::load_vars(&settings_key) };
+        for (name, value) in &saved_vars {
+            rules.set_var(name, *value);
+        }
         let settings = red_engine2::settings::load(&settings_key);
         let mut audio = Audio::new();
         if let Some(a) = audio.as_mut() {
@@ -565,6 +575,8 @@ impl App {
             switch: WeaponSwitch::default(),
             clock: TickClock::default(),
             rules,
+            saved_vars,
+            last_sun_elev: None,
             spawns,
             rule_event: None,
             rule_event_until: 0,
