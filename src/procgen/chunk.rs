@@ -17,6 +17,11 @@ use std::sync::OnceLock;
 
 /// Metres between ground vertices.
 pub const GROUND_CELL: f64 = 2.0;
+/// The flowers and grass of a chunk are kept in a `FLORA_CELLS` x `FLORA_CELLS` grid of squares, each a run of the index buffer, so the shadow pass can draw only the
+/// squares near the player.
+pub const FLORA_CELLS: usize = 4;
+/// Metres on a side of a flora square.
+pub const FLORA_CELL: f32 = (CHUNK / FLORA_CELLS as f64) as f32;
 /// Shape variants of each species in the library.
 const VARIANTS: u32 = 6;
 /// Colour tints of each variant.
@@ -62,6 +67,21 @@ impl Lod {
     }
 }
 
+/// Darkens a small plant toward its root, the shade the stems and blades cast on each other and on the ground at their feet. It is what stops a distant meadow
+/// looking pasted on the grass (the near shadow map only reaches a few metres, and no ambient occlusion reaches farther): free at run time, it is in the colours.
+fn root_shade(geo: &mut Geo, height: f32) {
+    for (c, p) in geo.col.iter_mut().zip(&geo.pos) {
+        let t = (p[1] / height.max(1e-4)).clamp(0.0, 1.0);
+        let k = ROOT_SHADE + (1.0 - ROOT_SHADE) * (t / ROOT_REACH).min(1.0).powf(0.7);
+        *c = [c[0] * k, c[1] * k, c[2] * k];
+    }
+}
+
+/// How much of its colour a plant keeps at the ground.
+const ROOT_SHADE: f32 = 0.45;
+/// Up to what fraction of its height the shading reaches.
+const ROOT_REACH: f32 = 0.55;
+
 /// A plant model and the height it was built at.
 struct Model {
     geo: Geo,
@@ -93,7 +113,11 @@ impl Library {
             let s = flora::species(id);
             let height = (s.height.0 + s.height.1) * 0.5;
             let tint = (t as f32 + 0.5) / TINTS as f32;
-            Model { geo: shapes::build_lod(id, height, v.wrapping_mul(7919).wrapping_add(id.0 as u32 * 104_729), tint, far), height }
+            let mut geo = shapes::build_lod(id, height, v.wrapping_mul(7919).wrapping_add(id.0 as u32 * 104_729), tint, far);
+            if matches!(s.kind, Kind::Flower | Kind::Grass) {
+                root_shade(&mut geo, height);
+            }
+            Model { geo, height }
         })
     }
 }
@@ -109,8 +133,12 @@ pub struct Chunk {
     pub ground: Geo,
     /// Trees and shrubs (they cast shadows).
     pub solid: Geo,
-    /// Flowers and grass.
+    /// Flowers and grass, grouped by square: see [`Chunk::flora_cells`].
     pub flora: Geo,
+    /// How many indices of `solid` belong to the trees (they come first, then the shrubs): the far shadow map draws only those.
+    pub solid_trees: usize,
+    /// For each flora square (row by row), the start and length of its run in `flora.idx`.
+    pub flora_cells: Vec<(u32, u32)>,
     /// How many plants of each kind went in: trees, shrubs, flowers, grass.
     pub counts: [usize; 4],
     /// The lowest and highest point of everything in the chunk, relative to its corner in x and z.
@@ -162,13 +190,23 @@ pub fn ground(world: &World, id: ChunkId) -> Geo {
 /// Bakes a chunk at a level of detail.
 pub fn build_chunk(world: &World, lib: &Library, id: ChunkId, lod: Lod) -> Chunk {
     let (x0, z0) = id.origin();
-    let mut out = Chunk { id, lod, ground: ground(world, id), solid: Geo::default(), flora: Geo::default(), counts: [0; 4], bounds: (Vec3::ZERO, Vec3::ZERO) };
+    let mut out = Chunk {
+        id,
+        lod,
+        ground: ground(world, id),
+        solid: Geo::default(),
+        flora: Geo::default(),
+        solid_trees: 0,
+        flora_cells: Vec::new(),
+        counts: [0; 4],
+        bounds: (Vec3::ZERO, Vec3::ZERO),
+    };
+    let mut cells: Vec<Geo> = (0..FLORA_CELLS * FLORA_CELLS).map(|_| Geo::default()).collect();
     for (slot, kind) in [Kind::Tree, Kind::Shrub, Kind::Flower, Kind::Grass].into_iter().enumerate() {
         let cap = lod.cap(kind);
         if cap == 0 {
             continue;
         }
-        let target = if matches!(kind, Kind::Tree | Kind::Shrub) { &mut out.solid } else { &mut out.flora };
         let plants = world.plants(id, kind);
         // Keep the lowest-ranked `cap` of them: the same share everywhere in the chunk.
         let keep = if plants.len() > cap { cap as f32 / plants.len() as f32 } else { 1.0 };
@@ -177,9 +215,23 @@ pub fn build_chunk(world: &World, lib: &Library, id: ChunkId, lod: Lod) -> Chunk
                 continue;
             }
             let m = lib.model(p.species, p.seed, p.tint, lod != Lod::Near);
-            target.add(&m.geo, Vec3::new((p.x - x0) as f32, p.y, (p.z - z0) as f32), p.yaw, p.height / m.height);
+            let at = Vec3::new((p.x - x0) as f32, p.y, (p.z - z0) as f32);
+            if matches!(kind, Kind::Tree | Kind::Shrub) {
+                out.solid.add(&m.geo, at, p.yaw, p.height / m.height);
+            } else {
+                let cell = |v: f32| ((v / FLORA_CELL) as usize).min(FLORA_CELLS - 1);
+                cells[cell(at.z) * FLORA_CELLS + cell(at.x)].add(&m.geo, at, p.yaw, p.height / m.height);
+            }
             out.counts[slot] += 1;
         }
+        if kind == Kind::Tree {
+            out.solid_trees = out.solid.idx.len();
+        }
+    }
+    for cell in &cells {
+        let start = out.flora.idx.len() as u32;
+        out.flora.extend(cell);
+        out.flora_cells.push((start, out.flora.idx.len() as u32 - start));
     }
     let mut lo = Vec3::splat(f32::MAX);
     let mut hi = Vec3::splat(f32::MIN);
@@ -299,6 +351,49 @@ mod tests {
         if tallest_tree > 0.0 {
             assert!(c.solid.bounds().1.y > tallest_tree * 0.7);
         }
+    }
+
+    #[test]
+    fn flora_squares_and_the_tree_run_partition_the_index_buffers_exactly() {
+        let w = world();
+        let lib = Library::new();
+        let c = build_chunk(&w, &lib, ChunkId { x: 4, z: 4 }, Lod::Near);
+        assert_eq!(c.flora_cells.len(), FLORA_CELLS * FLORA_CELLS);
+        let mut next = 0;
+        for &(start, count) in &c.flora_cells {
+            assert_eq!(start, next, "the squares follow one another with no gap");
+            assert_eq!(count % 3, 0, "whole triangles");
+            next += count;
+        }
+        assert_eq!(next as usize, c.flora.idx.len());
+        assert!(c.solid_trees <= c.solid.idx.len() && c.solid_trees % 3 == 0);
+        assert!(c.solid_trees > 0, "this chunk has trees");
+        // Every flora triangle sits in the square its run says, give or take a plant's width.
+        for (k, &(start, count)) in c.flora_cells.iter().enumerate() {
+            let (cx, cz) = ((k % FLORA_CELLS) as f32 * FLORA_CELL, (k / FLORA_CELLS) as f32 * FLORA_CELL);
+            for &i in &c.flora.idx[start as usize..(start + count) as usize] {
+                let p = c.flora.pos[i as usize];
+                assert!(p[0] > cx - 3.0 && p[0] < cx + FLORA_CELL + 3.0 && p[2] > cz - 3.0 && p[2] < cz + FLORA_CELL + 3.0, "square {k}: {p:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn small_plants_are_darker_at_the_root_than_at_the_tip() {
+        let lib = Library::new();
+        let grass = flora::SPECIES.iter().position(|s| s.kind == Kind::Grass).expect("a grass species");
+        let m = lib.model(SpeciesId(grass as u8), 1, 0.5, false);
+        let (mut low, mut high) = ((0.0f32, 0), (0.0f32, 0));
+        for (c, p) in m.geo.col.iter().zip(&m.geo.pos) {
+            let lum = c[0] + c[1] + c[2];
+            if p[1] < m.height * 0.1 {
+                low = (low.0 + lum, low.1 + 1);
+            } else if p[1] > m.height * 0.7 {
+                high = (high.0 + lum, high.1 + 1);
+            }
+        }
+        assert!(low.1 > 0 && high.1 > 0);
+        assert!(low.0 / (low.1 as f32) < 0.8 * high.0 / (high.1 as f32), "root {} tip {}", low.0 / low.1 as f32, high.0 / high.1 as f32);
     }
 
     #[test]

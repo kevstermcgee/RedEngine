@@ -470,19 +470,25 @@ impl Renderer {
             });
             shadow_pass.set_pipeline(&self.pipelines.shadow);
             shadow_pass.set_bind_group(0, &self.global_bind_group_uniform, &[]);
-            for image in 0..offsets.len() {
-                for (i, mesh) in self.meshes.iter().enumerate() {
-                    if is_blended[image * n_meshes + i] {
-                        continue; // see-through surfaces cast no shadow
+            for cascade in 0..globals.cascade_count() {
+                let v = globals.cascade_viewport(cascade);
+                shadow_pass.set_viewport(v[0], v[1], v[2], v[3], 0.0, 1.0);
+                let instance = cascade as u32..cascade as u32 + 1;
+                for image in 0..offsets.len() {
+                    for (i, mesh) in self.meshes.iter().enumerate() {
+                        if is_blended[image * n_meshes + i] {
+                            continue; // see-through surfaces cast no shadow
+                        }
+                        shadow_pass.set_bind_group(1, &self.object_bind_group, &[((image * n_meshes + i) as u64 * self.object_stride) as u32]);
+                        shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
+                        shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                        shadow_pass.draw_indexed(0..mesh.index_count, 0, instance.clone());
                     }
-                    shadow_pass.set_bind_group(1, &self.object_bind_group, &[((image * n_meshes + i) as u64 * self.object_stride) as u32]);
-                    shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
-                    shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                    shadow_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
-            }
-            if let Some(stream) = &self.stream {
-                stream.draw_shadow(&mut shadow_pass, &crate::object_staging::frustum_planes(Mat4::from_cols_array_2d(&globals.light_view_proj)));
+                if let Some(stream) = &self.stream {
+                    let planes = crate::object_staging::frustum_planes(Mat4::from_cols_array_2d(&globals.cascade_vp[cascade]));
+                    stream.draw_shadow(&mut shadow_pass, &planes, globals.cascade_detail(cascade), instance);
+                }
             }
         }
 
@@ -623,7 +629,7 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
     let mut light_pos_or_dir = [[0f32; 4]; MAX_LIGHTS];
     let mut light_color_intensity = [[0f32; 4]; MAX_LIGHTS];
     let mut shadow_idx: i32 = -1;
-    let mut light_view_proj = Mat4::IDENTITY;
+    let mut cascades: Vec<crate::shadow::Cascade> = Vec::new();
     // A scene with a `clock`: the sky, the sun's light, the ambient and the moon follow the time of day.
     let day = scene.clock.as_ref().map(|c| c.state(t, 0));
     let sun_index = scene.clock.as_ref().and_then(|c| {
@@ -646,20 +652,6 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
     points.sort_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
     selected.extend(points.into_iter().map(|(i, _)| i));
     selected.truncate(MAX_LIGHTS);
-    // The shadow map for a directional light shining along `d`: centred on `center`, or under the camera (snapped to texels so shadows do not crawl) when it follows.
-    let shadow_matrix = |d: Vec3, radius: f32, center: Vec3, follow: bool| -> Mat4 {
-        let r = radius.max(0.5);
-        let mut center = center;
-        if follow {
-            let texel = (2.0 * r) / crate::gpu::SHADOW_SIZE as f32;
-            center = Vec3::new((cam_pos.x / texel).round() * texel, center.y, (cam_pos.z / texel).round() * texel);
-        }
-        let light_pos = center - d * (r * 1.6);
-        let up = if d.y.abs() > 0.98 { Vec3::Z } else { Vec3::Y };
-        let view_l = glam::camera::rh::view::look_at_mat4(light_pos, center, up);
-        let proj_l = glam::camera::rh::proj::directx::orthographic(-r, r, -r, r, 0.05, r * 3.5);
-        proj_l * view_l
-    };
     let mut n = selected.len();
     for (i, source_index) in selected.into_iter().enumerate() {
         let light = &scene.lights[source_index];
@@ -677,7 +669,7 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
                 light_color_intensity[i] = [color.x, color.y, color.z, 0.0];
                 if light.cast_shadows {
                     shadow_idx = i as i32;
-                    light_view_proj = shadow_matrix(d, light.shadow_radius, light.shadow_center, light.shadow_follow);
+                    cascades = crate::shadow::cascades(d, light.shadow_radius, light.shadow_center, light.shadow_follow, cam_pos);
                 }
             }
             LightKind::Point { position, range } => {
@@ -694,7 +686,7 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
             light_pos_or_dir[n] = [d.x, d.y, d.z, 0.0];
             light_color_intensity[n] = [day.light_color.x, day.light_color.y, day.light_color.z, 0.0];
             shadow_idx = n as i32;
-            light_view_proj = shadow_matrix(d, 48.0, Vec3::ZERO, true);
+            cascades = crate::shadow::cascades(d, 48.0, Vec3::ZERO, true, cam_pos);
             n += 1;
         }
         // Moonlight: a dim, cool fill from the moon's own place in the sky (no shadows).
@@ -742,14 +734,24 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
         _ => ([0.0, 1.0, 0.0, 0.0], [0.0, t, 0.0, 0.0], [[0.0; 4]; 3], [0.0; 4], [0.0; 4]),
     };
 
+    let mut cascade_vp = [Mat4::IDENTITY.to_cols_array_2d(); 3];
+    let mut cascade_rect = [[0.0f32; 4]; 3];
+    let mut cascade_params = [[0.0f32; 4]; 3];
+    for (k, c) in cascades.iter().enumerate() {
+        cascade_vp[k] = c.view_proj.to_cols_array_2d();
+        cascade_rect[k] = c.uv_rect();
+        cascade_params[k] = [c.texel(), c.depth_per_metre(), 0.0, 0.0];
+    }
     GlobalUniform {
         view_proj: view_proj.to_cols_array_2d(),
-        light_view_proj: light_view_proj.to_cols_array_2d(),
+        cascade_vp,
+        cascade_rect,
+        cascade_params,
         camera_pos: [cam_pos.x, cam_pos.y, cam_pos.z, 1.0],
         ambient: [ambient.x, ambient.y, ambient.z, 0.0],
         light_pos_or_dir,
         light_color_intensity,
-        counts: [n as f32, shadow_idx as f32, 0.0, 0.0],
+        counts: [n as f32, shadow_idx as f32, cascades.len() as f32, 0.0],
         bg_top: [bg_top.x, bg_top.y, bg_top.z, bg_mode],
         bg_bottom: [bg_bottom.x, bg_bottom.y, bg_bottom.z, 0.0],
         inv_view_proj: view_proj.inverse().to_cols_array_2d(),

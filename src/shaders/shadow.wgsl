@@ -7,8 +7,9 @@ struct VsIn {
 };
 
 @vertex
-fn vs_shadow(in: VsIn) -> @builtin(position) vec4<f32> {
+// The cascade being drawn is the instance index: each cascade's draws are issued with first_instance = its number.
+fn vs_shadow(in: VsIn, @builtin(instance_index) cascade: u32) -> @builtin(position) vec4<f32> {
     var world = obj.model * vec4<f32>(in.pos, 1.0);
     world = vec4<f32>(world.xyz + wind_offset(in.sway, world.xyz), 1.0);
-    return globals.light_view_proj * world;
+    return globals.cascade_vp[cascade] * world;
 }

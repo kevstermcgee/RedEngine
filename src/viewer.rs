@@ -15,7 +15,7 @@ use crate::feel::FxParams;
 use crate::fx::FxPipeline;
 use crate::gpu::{
     create_crosshair_pipeline, create_pipelines, create_post_pipeline, make_shadow_sampler, post_uniform, CrosshairPipeline, CrosshairUniform, GlobalUniform,
-    GpuMesh, ObjectUniform, Pipelines, PostFx, MSAA_SAMPLES, SHADOW_SIZE,
+    GpuMesh, ObjectUniform, Pipelines, PostFx, MSAA_SAMPLES,
 };
 use crate::mesh::{Mesh, Vertex};
 use crate::object_staging::{frustum_planes, SceneStaging};
@@ -336,7 +336,7 @@ impl LiveTargets {
         });
         let shadow_tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("live-shadow-map"),
-            size: wgpu::Extent3d { width: SHADOW_SIZE, height: SHADOW_SIZE, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d { width: crate::shadow::ATLAS.0, height: crate::shadow::ATLAS.1, depth_or_array_layers: 1 },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -787,7 +787,8 @@ impl LiveRenderer {
         // a few dozen props instead of a handful of room furniture.
         let cam_planes = frustum_planes(view_proj);
         let shadow_active = globals.counts[1] >= 0.0;
-        let light_planes = shadow_active.then(|| frustum_planes(Mat4::from_cols_array_2d(&globals.light_view_proj)));
+        // Culling for the shadow pass uses the widest cascade (it contains the others' casters); each cascade then draws what is in its own box.
+        let light_planes = shadow_active.then(|| frustum_planes(Mat4::from_cols_array_2d(&globals.cascade_vp[globals.cascade_count().max(1) - 1])));
         // One entry per (image, mesh): slot `image * meshes + mesh`. Image 0 is the scene itself; on a looping world the others are its
         // neighbours one period away along the loop axis.
         let offsets: Vec<Vec3> = crate::render::wrap_offsets(scene).into_iter().map(|o| o - origin).collect();
@@ -869,41 +870,47 @@ impl LiveRenderer {
             });
             shadow_pass.set_pipeline(&self.pipelines.shadow);
             shadow_pass.set_bind_group(0, &self.global_bind_group_uniform, &[]);
-            for image in 0..offsets.len() {
-                for (i, mesh) in self.meshes.iter().enumerate() {
-                    let slot = image * n_meshes + i;
-                    if !self.staging.shadow_visible(slot) {
-                        continue;
+            for cascade in 0..globals.cascade_count() {
+                let v = globals.cascade_viewport(cascade);
+                shadow_pass.set_viewport(v[0], v[1], v[2], v[3], 0.0, 1.0);
+                let instance = cascade as u32..cascade as u32 + 1;
+                for image in 0..offsets.len() {
+                    for (i, mesh) in self.meshes.iter().enumerate() {
+                        let slot = image * n_meshes + i;
+                        if !self.staging.shadow_visible(slot) {
+                            continue;
+                        }
+                        shadow_pass.set_bind_group(1, &self.object_bind_group, &[(slot as u64 * self.object_stride) as u32]);
+                        shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
+                        shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                        shadow_pass.draw_indexed(0..mesh.index_count, 0, instance.clone());
                     }
-                    shadow_pass.set_bind_group(1, &self.object_bind_group, &[(slot as u64 * self.object_stride) as u32]);
-                    shadow_pass.set_vertex_buffer(0, mesh.vertex_buf.slice(..));
-                    shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                    shadow_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
-            }
-            if let (Some(stream), Some(planes)) = (&self.stream, &light_planes) {
-                stream.draw_shadow(&mut shadow_pass, planes);
-            }
-            // The hand-held (third-person) bat is an ordinary world object, so it casts a
-            // shadow like any other prop — unlike the always-on-top first-person viewmodel.
-            for (k, h) in self.held.iter().enumerate() {
-                if h.fp_only || h.flash || !held_visible[k] {
-                    continue;
+                if let Some(stream) = &self.stream {
+                    let planes = frustum_planes(Mat4::from_cols_array_2d(&globals.cascade_vp[cascade]));
+                    stream.draw_shadow(&mut shadow_pass, &planes, globals.cascade_detail(cascade), instance.clone());
                 }
-                shadow_pass.set_bind_group(1, &self.object_bind_group, &[(held_slot(k, true) * self.object_stride) as u32]);
-                shadow_pass.set_vertex_buffer(0, h.mesh.vertex_buf.slice(..));
-                shadow_pass.set_index_buffer(h.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                shadow_pass.draw_indexed(0..h.mesh.index_count, 0, 0..1);
-            }
-            for (r, hand) in self.remote_hands.iter().enumerate() {
+                // The hand-held (third-person) bat is an ordinary world object, so it casts a
+                // shadow like any other prop — unlike the always-on-top first-person viewmodel.
                 for (k, h) in self.held.iter().enumerate() {
-                    if h.weapon != hand.weapon || h.fp_only || h.flash {
+                    if h.fp_only || h.flash || !held_visible[k] {
                         continue;
                     }
-                    shadow_pass.set_bind_group(1, &self.object_bind_group, &[(remote_slot(r, k) * self.object_stride) as u32]);
+                    shadow_pass.set_bind_group(1, &self.object_bind_group, &[(held_slot(k, true) * self.object_stride) as u32]);
                     shadow_pass.set_vertex_buffer(0, h.mesh.vertex_buf.slice(..));
                     shadow_pass.set_index_buffer(h.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                    shadow_pass.draw_indexed(0..h.mesh.index_count, 0, 0..1);
+                    shadow_pass.draw_indexed(0..h.mesh.index_count, 0, instance.clone());
+                }
+                for (r, hand) in self.remote_hands.iter().enumerate() {
+                    for (k, h) in self.held.iter().enumerate() {
+                        if h.weapon != hand.weapon || h.fp_only || h.flash {
+                            continue;
+                        }
+                        shadow_pass.set_bind_group(1, &self.object_bind_group, &[(remote_slot(r, k) * self.object_stride) as u32]);
+                        shadow_pass.set_vertex_buffer(0, h.mesh.vertex_buf.slice(..));
+                        shadow_pass.set_index_buffer(h.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                        shadow_pass.draw_indexed(0..h.mesh.index_count, 0, instance.clone());
+                    }
                 }
             }
         }

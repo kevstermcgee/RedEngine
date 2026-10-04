@@ -68,6 +68,7 @@ pub mod score;
 #[cfg(feature = "gfx")]
 pub mod settings;
 pub mod sfx;
+pub mod shadow;
 #[cfg(feature = "gfx")]
 pub mod shooter_world;
 pub mod sim;

@@ -28,26 +28,70 @@ fn vs_main(in: VsIn) -> VsOut {
     return out;
 }
 
-fn shadow_factor(world_pos: vec3<f32>, n_dot_l: f32) -> f32 {
-    let lp = globals.light_view_proj * vec4<f32>(world_pos, 1.0);
-    if (lp.w <= 0.0) {
-        return 1.0;
+// ---- Sun shadows: cascades in one atlas (shadow.rs) ----------------------------------------------------------------------------------
+
+const ATLAS_TEXEL: vec2<f32> = vec2<f32>(1.0 / 3072.0, 1.0 / 2048.0);
+const SHADOW_TAPS: i32 = 8;
+
+// Interleaved gradient noise: a cheap per-pixel value in 0..1 that rotates the filter, so the softness is smooth grain instead of bands.
+fn gradient_noise(pixel: vec2<f32>) -> f32 {
+    return fract(52.9829189 * fract(dot(pixel, vec2<f32>(0.06711056, 0.00583715))));
+}
+
+// Where a world point lands in cascade `c`: xy in -1..1 across its box, z the depth. The point is first pushed along the surface normal by a texel or so, which
+// removes self-shadow acne without the detached look of a big depth bias.
+fn cascade_ndc(c: u32, world_pos: vec3<f32>, n: vec3<f32>, n_dot_l: f32) -> vec3<f32> {
+    let texel = globals.cascade_params[c].x;
+    let offset = n * texel * (1.2 + 2.0 * (1.0 - n_dot_l));
+    let lp = globals.cascade_vp[c] * vec4<f32>(world_pos + offset, 1.0);
+    return lp.xyz / lp.w;
+}
+
+fn cascade_lit(c: u32, ndc: vec3<f32>, noise: f32) -> f32 {
+    let rect = globals.cascade_rect[c];
+    let uv = rect.xy + vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5) * rect.zw;
+    let lo = rect.xy + ATLAS_TEXEL * 3.0;
+    let hi = rect.xy + rect.zw - ATLAS_TEXEL * 3.0;
+    // A little over a texel of constant bias on top of the normal offset.
+    let z = ndc.z - globals.cascade_params[c].x * globals.cascade_params[c].y * 1.5;
+    let spin = noise * 6.2831853;
+    var lit = 0.0;
+    for (var i = 0; i < SHADOW_TAPS; i = i + 1) {
+        // A Vogel disc: evenly spread taps, rotated per pixel, about 1.6 texels across at the edge.
+        let r = sqrt((f32(i) + 0.5) / f32(SHADOW_TAPS)) * 1.6;
+        let a = f32(i) * 2.3999632 + spin;
+        let tap = clamp(uv + vec2<f32>(cos(a), sin(a)) * r * ATLAS_TEXEL, lo, hi);
+        lit = lit + textureSampleCompare(shadow_map, shadow_sampler, tap, z);
     }
-    let ndc = lp.xyz / lp.w;
-    if (ndc.x < -1.0 || ndc.x > 1.0 || ndc.y < -1.0 || ndc.y > 1.0 || ndc.z < 0.0 || ndc.z > 1.0) {
-        return 1.0;
-    }
-    let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
-    let bias = clamp(0.0035 * (1.0 - n_dot_l) + 0.0006, 0.0006, 0.004);
-    let texel = 1.0 / 2048.0;
-    var shadow = 0.0;
-    for (var dx = -1; dx <= 1; dx = dx + 1) {
-        for (var dy = -1; dy <= 1; dy = dy + 1) {
-            let offset = vec2<f32>(f32(dx), f32(dy)) * texel;
-            shadow = shadow + textureSampleCompare(shadow_map, shadow_sampler, uv + offset, ndc.z - bias);
+    return lit / f32(SHADOW_TAPS);
+}
+
+// How much of the sun reaches `world_pos` (1 lit, 0 shadowed): the sharpest cascade that holds the point, blended into the next one toward its edge; past the last
+// one the shadow fades out rather than stopping at a line.
+fn shadow_factor(world_pos: vec3<f32>, n: vec3<f32>, n_dot_l: f32, pixel: vec2<f32>) -> f32 {
+    let count = u32(globals.counts.z);
+    let noise = gradient_noise(pixel);
+    for (var c = 0u; c < count; c = c + 1u) {
+        let ndc = cascade_ndc(c, world_pos, n, n_dot_l);
+        let edge = max(abs(ndc.x), abs(ndc.y));
+        if (edge >= 1.0 || ndc.z < 0.0 || ndc.z > 1.0) {
+            continue;
         }
+        var lit = cascade_lit(c, ndc, noise);
+        let blend = smoothstep(0.80, 0.97, edge);
+        if (blend > 0.0) {
+            if (c + 1u < count) {
+                let next = cascade_ndc(c + 1u, world_pos, n, n_dot_l);
+                if (max(abs(next.x), abs(next.y)) < 1.0 && next.z >= 0.0 && next.z <= 1.0) {
+                    lit = mix(lit, cascade_lit(c + 1u, next, noise), blend);
+                    return lit;
+                }
+            }
+            lit = mix(lit, 1.0, blend);
+        }
+        return lit;
     }
-    return shadow / 9.0;
+    return 1.0;
 }
 
 // ---- Lighting model constants (one place, so every map reads the same) ------------------------
@@ -128,7 +172,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         }
         var shadow = 1.0;
         if (i == shadow_idx) {
-            shadow = shadow_factor(in.world_pos, n_dot_l);
+            shadow = shadow_factor(in.world_pos, n, n_dot_l, in.clip_pos.xy);
         }
         let h = normalize(l + v);
         let spec_pow = pow(max(dot(n, h), 0.0), shininess);

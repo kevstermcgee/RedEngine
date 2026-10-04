@@ -201,6 +201,16 @@ impl Geo {
         self.idx.extend(other.idx.iter().map(|i| first + i));
     }
 
+    /// Appends another mesh as it is.
+    pub fn extend(&mut self, other: &Geo) {
+        let first = self.pos.len() as u32;
+        self.pos.extend_from_slice(&other.pos);
+        self.nrm.extend_from_slice(&other.nrm);
+        self.col.extend_from_slice(&other.col);
+        self.sway.extend_from_slice(&other.sway);
+        self.idx.extend(other.idx.iter().map(|i| first + i));
+    }
+
     /// Sets every vertex's sway: how many metres it moves in a full gust. That is `k` times 0.12 m times the square root of the plant's `height` (a
     /// tall plant moves farther, but not in proportion), times how high the vertex is up the plant, squared: a stem's tip or a crown's edge moves
     /// most, the root not at all.
