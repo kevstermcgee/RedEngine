@@ -111,6 +111,13 @@ pub fn catalog() -> Vec<Entry> {
         e.text = Some(text);
         v.push(e);
     }
+    // The countryside: seamless beds and bird calls (`ambience.nature.wind`, `bird.robin`), the sounds of a procgen world.
+    for bed in crate::nature::Bed::ALL {
+        v.push(Entry::new(format!("ambience.nature.{}", bed.name()), "ambience", Kind::Loop, 2, move || bed.render()));
+    }
+    for call in crate::nature::Call::ALL {
+        v.push(Entry::new(format!("bird.{}", call.name()), "bird", Kind::OneShot, 1, move || call.render(1)));
+    }
     v.push(Entry::new("music.loop", "music", Kind::Loop, 2, crate::music::loop_samples));
     v.push(Entry::new("ambience.map", "ambience", Kind::Loop, 2, || sfx::ambience(20.0)));
     v

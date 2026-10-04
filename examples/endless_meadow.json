@@ -14,12 +14,13 @@
     "far": 700
   },
   "clock": {
-    "day_secs": 720,
-    "start": 0.3,
+    "day_secs": 1200,
+    "start": 0.235,
     "fog": 0.0028,
     "stars": 1.0,
     "moon": true,
-    "night_light": 0.3
+    "night_light": 0.3,
+    "sun_max_deg": 50
   },
   "procgen": {
     "seed": 7
@@ -50,5 +51,24 @@
       "yaw_deg": 0
     }
   ],
-  "objects": []
+  "objects": [],
+  "player": {
+    "humans_play_as": "boy",
+    "view": "third",
+    "mode": "peaceful",
+    "walk_speed": 2.9,
+    "sprint_speed": 5.4,
+    "fov": 70
+  },
+  "audio": {
+    "ambience": "nature",
+    "music": {
+      "dawn": "marcel/audio/marcel_dawn.json",
+      "day": "marcel/audio/marcel_day.json",
+      "dusk": "marcel/audio/marcel_dusk.json",
+      "night": "marcel/audio/marcel_night.json"
+    },
+    "music_volume": 0.6,
+    "ambience_volume": 0.8
+  }
 }

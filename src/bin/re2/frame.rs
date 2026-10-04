@@ -419,6 +419,7 @@ impl App {
         let anchor = Vec3::new(planar_pos.x, foot_y + self.eye_height, planar_pos.y);
         self.eye = anchor;
         self.sync_flashlight();
+        self.update_ambient(dt);
         // Cosmetic timers run on render time; everything that decides a hit is in `fixed_step_combat`.
         self.since_shot += dt;
         self.flash_left = (self.flash_left - dt).max(0.0);

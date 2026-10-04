@@ -111,6 +111,14 @@ multipliers (a scene with none gets a shadow-casting sun), a dim cool moonlight 
 over 29.5 days (`moon_phase` sets day 0), and `fog` (density per metre, 0 for none) fades the distance into the horizon colour, warmed toward the sun at dusk. Without a `clock` the sky is whatever `sky`/`background` say.
 Draw any moment with `frame scene.json out.png --hour 18.5`, and a whole day as a labelled contact sheet with `sky scene.json out.png [--hours 5,6,7,12,18,19,22] [--look sun|moon]`. Presentation only: the simulation does not read it.
 
+### The sounds of a world (`audio`)
+
+```json
+"audio": { "ambience": "nature", "music": { "dawn": "audio/dawn.json", "day": "audio/day.json", "dusk": "audio/dusk.json", "night": "audio/night.json" }, "music_volume": 0.6, "ambience_volume": 0.8 }
+```
+
+`"ambience": "nature"` plays the engine's countryside as the hour and the place call for it: wind that gusts, leaves in woods, crickets after dark, bees over flowers at noon, and birds by the real day (a dawn chorus of robins, blackbirds, wrens and chaffinches, scattered song and the odd cuckoo or pigeon by day, blackbirds at dusk, an owl at night, silence between). `music` gives a score file (see `audio` in `describe`; paths are relative to the scene) for each mood; the sun's height crossfades between them, so the music follows the day (any subset works). It needs a `clock` for the hour; without one it is always midday. The player's music setting (N, the pause menu) controls the music and their sound setting the ambience. `re2 scene.json --headless --script s.json --dump d.json` writes `/audio/{beds,music,calls,recent}` so a script can assert on it. `red_engine2 audio report ambience.nature.wind` / `bird.robin` measure the sounds; `audio picture` draws them.
+
 ### An endless world (`procgen`)
 
 ```json

@@ -55,6 +55,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
+mod ambient;
 mod avatar;
 mod cards;
 mod controller;
@@ -372,6 +373,8 @@ struct App {
     streaks: Option<red_engine2::streaks::Streaks>,
     /// Whether the music is audible (`N` toggles it; `RE2_MUSIC=0` starts without).
     music_on: bool,
+    /// The countryside and the mood music of a scene with an `audio` block.
+    ambient: Option<ambient::Ambient>,
     /// Whether sound effects play (the pause menu's SOUND toggle).
     sfx_on: bool,
     /// Whether the player's carried light is on (`scene.flashlight`; the `T` key toggles it). Meaningless
@@ -589,6 +592,7 @@ impl App {
             feel: red_engine2::feel::Feel::new(),
             streaks: None,
             music_on: false,
+            ambient: None,
             sfx_on: settings.sfx,
             flashlight_on: true,
             settings,

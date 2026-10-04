@@ -76,6 +76,11 @@ impl App {
     /// Starts the music loop (generated in a few hundredths of a second) unless `RE2_MUSIC=0`, the scene asks
     /// for silence, or the player's saved settings turned music off.
     pub(crate) fn start_music(&mut self) {
+        // A scene with an `audio` block has its own music and ambience (see `ambient.rs`); the built-in synthwave loop stays out of it.
+        self.start_ambient();
+        if self.ambient.as_ref().is_some_and(|a| a.has_music()) {
+            return;
+        }
         // A scene says `"music": false` to start silent (`N` still turns it on); `RE2_MUSIC=0` silences any scene
         // or setting, `RE2_MUSIC=1` starts any — both env overrides win over the persisted settings file.
         let env = std::env::var("RE2_MUSIC").ok();
@@ -107,6 +112,12 @@ impl App {
     /// `N` or the pause menu's MUSIC button: music on or off (the loop keeps its place while it is silent),
     /// saved so the choice survives a relaunch (`red_engine2::settings`).
     pub(crate) fn toggle_music(&mut self) {
+        if self.ambient.as_ref().is_some_and(|a| a.has_music()) {
+            self.music_on = !self.music_on;
+            self.settings.music = self.music_on;
+            let _ = red_engine2::settings::save(&self.settings_key, &self.settings);
+            return;
+        }
         if !self.audio.as_ref().is_some_and(|a| a.has_music()) {
             self.begin_music();
         } else {

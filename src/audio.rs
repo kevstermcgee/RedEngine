@@ -20,6 +20,8 @@ pub struct Audio {
     handle: OutputStreamHandle,
     /// The looping music, if any is playing (dropping the sink stops it).
     music: Option<rodio::Sink>,
+    /// Looping layers (the ambience beds and the mood scores), each with a volume the game sets as the hour changes.
+    layers: Vec<rodio::Sink>,
     /// Whether [`play`](Self::play)/[`play_at`](Self::play_at) are allowed to make sound (the settings SFX toggle).
     sfx_on: bool,
 }
@@ -28,7 +30,7 @@ impl Audio {
     /// Opens the default output device; `None` (never an error) when there isn't one, so audio can never take the game down.
     pub fn new() -> Option<Self> {
         let (stream, handle) = OutputStream::try_default().ok()?;
-        Some(Audio { _stream: stream, handle, music: None, sfx_on: true })
+        Some(Audio { _stream: stream, handle, music: None, layers: Vec::new(), sfx_on: true })
     }
 
     /// Turns sound effects on or off (music is separate: see [`start_music`](Self::start_music)/[`set_music_volume`](Self::set_music_volume)).
@@ -42,6 +44,22 @@ impl Audio {
         sink.set_volume(volume);
         sink.append(rodio::buffer::SamplesBuffer::new(2, SAMPLE_RATE, samples).repeat_infinite());
         self.music = Some(sink);
+    }
+
+    /// Starts `samples` (interleaved stereo at [`SAMPLE_RATE`]) looping silently as a new layer and returns its id; [`set_layer_volume`](Self::set_layer_volume) brings it in.
+    pub fn add_layer(&mut self, samples: Vec<f32>) -> Option<usize> {
+        let sink = rodio::Sink::try_new(&self.handle).ok()?;
+        sink.set_volume(0.0);
+        sink.append(rodio::buffer::SamplesBuffer::new(2, SAMPLE_RATE, samples).repeat_infinite());
+        self.layers.push(sink);
+        Some(self.layers.len() - 1)
+    }
+
+    /// Sets a layer's volume (0 silent, 1 full).
+    pub fn set_layer_volume(&self, id: usize, volume: f32) {
+        if let Some(sink) = self.layers.get(id) {
+            sink.set_volume(volume.clamp(0.0, 1.0));
+        }
     }
 
     /// Sets the music's volume (no effect when none is playing).

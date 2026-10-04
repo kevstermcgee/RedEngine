@@ -94,6 +94,8 @@ pub struct Scene {
     pub clock: Option<crate::daycycle::Clock>,
     /// An endless generated world (`procgen` block): ground, forests and flowers made from a seed, built around the player as they walk.
     pub procgen: Option<crate::procgen::Config>,
+    /// The sounds of the world (`audio` block): nature ambience and a score for each time of day.
+    pub audio: Option<crate::ambience::AudioSpec>,
     /// The endless water plane (`ocean` block), if the scene has one.
     pub ocean: Option<crate::atmosphere::Ocean>,
     /// The kart race (`race` block), if the scene has one: its presence turns every player into a kart driver (`sim::kart`, `sim::race`).
@@ -1003,6 +1005,13 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             None
         }
     };
+    let audio = match crate::ambience::parse_audio(root, ASSET_DIR.with(|d| d.borrow().clone()).as_deref()) {
+        Ok(a) => a,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            None
+        }
+    };
     let ocean = match crate::atmosphere::parse_ocean(root) {
         Ok(o) => o,
         Err(errs) => {
@@ -1254,6 +1263,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         sky,
         clock,
         procgen,
+        audio,
         ocean,
         race,
         shooter,
