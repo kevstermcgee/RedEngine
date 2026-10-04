@@ -61,9 +61,14 @@ fn cascade_lit(c: u32, ndc: vec3<f32>, noise: f32) -> f32 {
         let r = sqrt((f32(i) + 0.5) / f32(SHADOW_TAPS)) * 1.6;
         let a = f32(i) * 2.3999632 + spin;
         let tap = clamp(uv + vec2<f32>(cos(a), sin(a)) * r * ATLAS_TEXEL, lo, hi);
-        lit = lit + textureSampleCompare(shadow_map, shadow_sampler, tap, z);
+        // The level variant: it needs no derivatives, so it may sit in the non-uniform branches below (Direct3D's compiler refuses the other there).
+        lit = lit + textureSampleCompareLevel(shadow_map, shadow_sampler, tap, z);
     }
     return lit / f32(SHADOW_TAPS);
+}
+
+fn inside_cascade(ndc: vec3<f32>) -> bool {
+    return max(abs(ndc.x), abs(ndc.y)) < 1.0 && ndc.z >= 0.0 && ndc.z <= 1.0;
 }
 
 // How much of the sun reaches `world_pos` (1 lit, 0 shadowed): the sharpest cascade that holds the point, blended into the next one toward its edge; past the last
@@ -71,27 +76,30 @@ fn cascade_lit(c: u32, ndc: vec3<f32>, noise: f32) -> f32 {
 fn shadow_factor(world_pos: vec3<f32>, n: vec3<f32>, n_dot_l: f32, pixel: vec2<f32>) -> f32 {
     let count = u32(globals.counts.z);
     let noise = gradient_noise(pixel);
-    for (var c = 0u; c < count; c = c + 1u) {
-        let ndc = cascade_ndc(c, world_pos, n, n_dot_l);
-        let edge = max(abs(ndc.x), abs(ndc.y));
-        if (edge >= 1.0 || ndc.z < 0.0 || ndc.z > 1.0) {
-            continue;
+    // Which cascade holds the point: a loop of three, with no early exit.
+    var chosen = 3u;
+    for (var c = 0u; c < 3u; c = c + 1u) {
+        if (chosen == 3u && c < count && inside_cascade(cascade_ndc(c, world_pos, n, n_dot_l))) {
+            chosen = c;
         }
-        var lit = cascade_lit(c, ndc, noise);
-        let blend = smoothstep(0.80, 0.97, edge);
-        if (blend > 0.0) {
-            if (c + 1u < count) {
-                let next = cascade_ndc(c + 1u, world_pos, n, n_dot_l);
-                if (max(abs(next.x), abs(next.y)) < 1.0 && next.z >= 0.0 && next.z <= 1.0) {
-                    lit = mix(lit, cascade_lit(c + 1u, next, noise), blend);
-                    return lit;
-                }
-            }
-            lit = mix(lit, 1.0, blend);
-        }
-        return lit;
     }
-    return 1.0;
+    if (chosen == 3u) {
+        return 1.0;
+    }
+    let ndc = cascade_ndc(chosen, world_pos, n, n_dot_l);
+    var lit = cascade_lit(chosen, ndc, noise);
+    let blend = smoothstep(0.80, 0.97, max(abs(ndc.x), abs(ndc.y)));
+    if (blend > 0.0) {
+        var beyond = 1.0;
+        if (chosen + 1u < count) {
+            let next = cascade_ndc(chosen + 1u, world_pos, n, n_dot_l);
+            if (inside_cascade(next)) {
+                beyond = cascade_lit(chosen + 1u, next, noise);
+            }
+        }
+        lit = mix(lit, beyond, blend);
+    }
+    return lit;
 }
 
 // ---- Lighting model constants (one place, so every map reads the same) ------------------------
