@@ -80,7 +80,17 @@ impl Default for ScreenOpts {
 /// Builds the named screen for a `w` x `h` window, or `None` for an unknown name.
 pub fn build(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Option<Layout> {
     match name {
-        "pause" => Some(pause_layout(w, h, &opts.map, opts.message.as_deref(), opts.hover, opts.music_on, opts.sfx_on)),
+        "pause" => {
+            // With a scene's `ui` block that has a `pause` line, the game's own name and line (`ui-shot pause --scene marcel.json --var days_lived=4`).
+            let own = opts.game.as_ref().and_then(|g| {
+                let vars: Vec<(&str, f64)> = g.vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();
+                g.ui.pause_line(&vars).map(|line| (g.ui.title.clone().unwrap_or_else(|| opts.map.clone()), line))
+            });
+            Some(match &own {
+                Some((name, line)) => pause_layout_with(w, h, PauseInfo::Game { name, line }, opts.message.as_deref(), opts.hover, opts.music_on, opts.sfx_on),
+                None => pause_layout(w, h, &opts.map, opts.message.as_deref(), opts.hover, opts.music_on, opts.sfx_on),
+            })
+        }
         "connect" => {
             let mut f = ConnectForm::new("play.example-game-server.net:27015", "correct-horse-battery", "Ada");
             f.message = opts.message.clone();
@@ -229,18 +239,39 @@ pub enum PauseAction {
 /// never move with the message (so clicks are stable); a long `message` wraps and grows the panel downward
 /// instead. `music_on`/`sfx_on` decide the ON/OFF label of their buttons.
 pub fn pause_layout(w: u32, h: u32, map: &str, message: Option<&str>, hover: Option<PauseAction>, music_on: bool, sfx_on: bool) -> Layout {
+    pause_layout_with(w, h, PauseInfo::Map(map), message, hover, music_on, sfx_on)
+}
+
+/// What the pause menu says about the game under its title.
+#[derive(Debug, Clone, Copy)]
+pub enum PauseInfo<'a> {
+    /// `MAP: <file name>`, the plain engine menu.
+    Map(&'a str),
+    /// The game's name and a line of its own (a clean-screen game's day count or score), instead of the map's file name.
+    Game {
+        /// The game's name.
+        name: &'a str,
+        /// The line under it.
+        line: &'a str,
+    },
+}
+
+/// [`pause_layout`] with the game's own name and line in place of the map name.
+pub fn pause_layout_with(w: u32, h: u32, info: PauseInfo<'_>, message: Option<&str>, hover: Option<PauseAction>, music_on: bool, sfx_on: bool) -> Layout {
     let mut l = Layout::new(w, h);
     let (wi, hi) = (w as i32, h as i32);
     let s = (hi / 240).max(1);
     let pw = (190 * s).min(wi - 8);
-    let base_h = 215 * s;
+    // A game's own line takes one more row under the title.
+    let extra = if matches!(info, PauseInfo::Game { .. }) { 10 * s } else { 0 };
+    let base_h = 215 * s + extra;
     let (x0, y0) = ((wi - pw) / 2, ((hi - base_h) / 2).max(0));
     let cx = x0 + pw / 2;
     let inner = pw - 12 * s;
     let bx = (x0 + 14 * s, x0 + pw - 14 * s);
     let bh = 20 * s;
     let gap = 8 * s;
-    let resume_y = y0 + 42 * s;
+    let resume_y = y0 + 42 * s + extra;
     let music_y = resume_y + bh + gap;
     let sfx_y = music_y + bh + gap;
     let full_y = sfx_y + bh + gap;
@@ -256,7 +287,15 @@ pub fn pause_layout(w: u32, h: u32, map: &str, message: Option<&str>, hover: Opt
     l.panel("backdrop", (0, 0, wi, hi), None, Some([4, 6, 12, 120]), None);
     let panel = l.panel("panel", (x0, y0, x0 + pw, panel_bottom), None, Some([14, 17, 28, 235]), Some(([90, 98, 130, 255], (s / 2).max(2))));
     l.label_fit("title", Some(panel), cx, y0 + 8 * s, "PAUSED", s * 2, inner, TEXT);
-    l.label_fit("map", Some(panel), cx, y0 + 28 * s, &format!("MAP: {}", map.to_uppercase()), s, inner, DIM);
+    match info {
+        PauseInfo::Map(map) => {
+            l.label_fit("map", Some(panel), cx, y0 + 28 * s, &format!("MAP: {}", map.to_uppercase()), s, inner, DIM);
+        }
+        PauseInfo::Game { name, line } => {
+            l.label_fit("map", Some(panel), cx, y0 + 28 * s, &name.to_uppercase(), s * 3 / 2, inner, GOLD);
+            l.label_fit("game_line", Some(panel), cx, y0 + 41 * s, &line.to_uppercase(), s, inner, TEXT);
+        }
+    }
 
     let row = |id: &str, y: i32, bounds: (i32, i32), label: &str, action: PauseAction, l: &mut Layout| {
         let hot = hover == Some(action);
@@ -308,9 +347,28 @@ pub fn paint_pause(w: u32, h: u32, map: &str, status: Option<&str>, hover: Optio
     pause_layout(w, h, map, status, hover, music_on, sfx_on).paint().px
 }
 
+/// [`paint_pause`] with the game's own name and line (see [`PauseInfo::Game`]).
+pub fn paint_pause_with(w: u32, h: u32, info: PauseInfo<'_>, status: Option<&str>, hover: Option<PauseAction>, music_on: bool, sfx_on: bool) -> Vec<u8> {
+    pause_layout_with(w, h, info, status, hover, music_on, sfx_on).paint().px
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_games_own_pause_line_replaces_the_map_name_and_the_buttons_stay_in_a_row_below_it() {
+        let plain = pause_layout(1280, 720, "marcel", None, None, true, true);
+        let own = pause_layout_with(1280, 720, PauseInfo::Game { name: "Marcel", line: "3 days lived" }, None, None, true, true);
+        let text = |l: &Layout, id: &str| l.widgets.iter().find(|w| w.id == id).and_then(|w| w.text.clone());
+        assert_eq!(text(&plain, "map").as_deref(), Some("MAP: MARCEL"));
+        assert_eq!(text(&own, "map").as_deref(), Some("MARCEL"));
+        assert_eq!(text(&own, "game_line").as_deref(), Some("3 DAYS LIVED"));
+        let (rp, ro) = (plain.widgets.iter().find(|w| w.id == "resume").unwrap().rect, own.widgets.iter().find(|w| w.id == "resume").unwrap().rect);
+        assert!(ro.1 > rp.1, "the buttons make room for the extra line");
+        // Every button is still where `pause_action_at`-style hit testing finds it.
+        assert_eq!(own.button_at(640.0, (ro.1 + ro.3) as f32 / 2.0), Some("resume"));
+    }
 
     #[test]
     fn every_screen_passes_the_audit_at_every_size() {

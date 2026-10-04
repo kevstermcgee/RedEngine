@@ -104,7 +104,7 @@ pub fn backdrop_camera() -> FpsCamera {
 // sizes by `red_engine2 ui-check`); they are re-exported here so callers keep using `menu::paint_pause` & co.
 // ---------------------------------------------------------------------------------------------
 
-pub use crate::ui::screens::{paint_pause, pause_action_at, PauseAction};
+pub use crate::ui::screens::{paint_pause, paint_pause_with, pause_action_at, PauseAction, PauseInfo};
 
 #[cfg(test)]
 mod tests {

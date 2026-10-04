@@ -12,6 +12,7 @@
 //!   "counters": [ { "var": "delivered", "of": 6, "label": "Parcels" }, { "var": "time_left", "label": "Time", "format": "clock" } ],
 //!   "objective": [ { "if": "delivered >= 6", "text": "Open the garden gate" }, { "text": "Bring every parcel to the depot ({delivered} of 6)" } ],
 //!   "start": { "title": "Moonlight Delivery", "text": "Carry the parcels to the depot before dawn.", "button": "Start" },
+//!   "pause": "{stamps} stamps so far",
 //!   "end": { "victory": { "title": "Delivered!", "text": "All {delivered} parcels made it.", "button": "Play again" },
 //!            "default": { "title": "Time is up", "text": "Try again?" } }
 //! }
@@ -25,7 +26,7 @@ use crate::strict::check_keys;
 use serde_json::{Map, Value};
 
 /// `ui` keys.
-pub const UI_KEYS: &[&str] = &["title", "labels", "counters", "objective", "start", "end"];
+pub const UI_KEYS: &[&str] = &["title", "labels", "counters", "objective", "start", "pause", "end"];
 const COUNTER_KEYS: &[&str] = &["var", "of", "label", "format"];
 const OBJECTIVE_KEYS: &[&str] = &["if", "text"];
 const CARD_KEYS: &[&str] = &["title", "text", "button"];
@@ -101,6 +102,9 @@ pub struct GameUi {
     pub objective: Vec<Objective>,
     /// The card shown before play.
     pub start: Option<Card>,
+    /// A line for the pause menu, with `{var}` and `{var:word|words}` filled in ("{days_lived:day|days} lived"): where a game with a clean screen (`hud.enabled: false`)
+    /// keeps what its HUD would have said.
+    pub pause: Option<String>,
     /// Cards by outcome (`default` answers any outcome without its own).
     pub end: Vec<(String, Card)>,
     /// The scene's variable names, the order `Objective::cond` was compiled against.
@@ -185,6 +189,11 @@ impl GameUi {
     /// The start card with its text filled.
     pub fn start_card(&self, vars: &[(&str, f64)]) -> Option<Card> {
         self.start.as_ref().map(|c| self.filled(c, vars))
+    }
+
+    /// The pause-menu line with its variables filled in.
+    pub fn pause_line(&self, vars: &[(&str, f64)]) -> Option<String> {
+        self.pause.as_ref().map(|t| self.fill(t, vars))
     }
 
     /// The end card for `outcome` with its text filled.
@@ -418,6 +427,7 @@ pub fn parse_ui(root: &Map<String, Value>, rules: &RuleSet) -> Result<Option<Gam
     if let Some(s) = o.get("start") {
         ui.start = card(&mut ctx, "ui.start", s, Some("START"));
     }
+    ui.pause = ctx.text("ui.pause", o.get("pause"), MAX_TITLE);
 
     match o.get("end") {
         None => {}

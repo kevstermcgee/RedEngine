@@ -90,6 +90,7 @@ the same way by the client, `ui-shot`, `ui-check` and the headless state dump. `
   "counters": [ { "var": "delivered", "of": 6, "label": "Parcels" }, { "var": "time_left", "label": "Time", "format": "clock" } ],
   "objective": [ { "if": "delivered >= 6", "text": "Open the garden gate" }, { "text": "Bring every parcel to the depot ({delivered} of 6)" } ],
   "start": { "title": "Moonlight Delivery", "text": "Carry the parcels before dawn.", "button": "Start" },
+  "pause": "{stamps:stamp|stamps} so far",
   "end": { "victory": { "title": "Delivered!", "text": "All {delivered} parcels.", "button": "Play again" }, "default": { "title": "Time is up" } }
 }
 ```
@@ -97,7 +98,7 @@ the same way by the client, `ui-shot`, `ui-check` and the headless state dump. `
 Variables, `end` outcomes (against the rules' `end` actions), expressions and `{placeholders}` are validated when the scene loads. Offline, the game waits for the start
 card's button and puts the end card up when a rule ends the match; its button restarts the scene (Enter, Space, E or a click). Online the HUD uses the labels, counters
 and objective; the cards are offline only. `ui-shot game-hud|game-start|game-end --scene S.json --var delivered=3 --outcome victory` draws them and
-`ui-check --scene S.json` audits them at nine window sizes. A headless script plays them with `{"press": "start"}` / `{"press": "restart"}`.
+`pause` is a line for the pause menu, under the game's name: where a game with a clean screen (`"hud": {"enabled": false}`) keeps what its HUD would have said (`ui-shot pause --scene S.json --var stamps=3`). `ui-check --scene S.json` audits them at nine window sizes. A headless script plays them with `{"press": "start"}` / `{"press": "restart"}`.
 
 ### A day that turns to night (`clock`)
 
