@@ -16,6 +16,7 @@ pub mod color;
 pub mod controller;
 pub mod costumes;
 pub mod crypto;
+pub mod dsp;
 pub mod easing;
 pub mod expanse;
 pub mod feel;

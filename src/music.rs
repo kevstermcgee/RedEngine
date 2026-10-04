@@ -6,6 +6,7 @@
 //! Pure: [`loop_samples`] returns interleaved stereo `f32` at [`crate::synth::SAMPLE_RATE`]; tests check its length, level, seam, rhythm and that the
 //! bass and the arpeggio play the notes the chords say (a piece of music cannot be looked at, but its pitches can be measured).
 
+use crate::dsp::{saw, Noise};
 use crate::synth::SAMPLE_RATE;
 use std::f32::consts::TAU;
 
@@ -36,38 +37,11 @@ pub fn loop_frames() -> usize {
     bar_frames() * BARS
 }
 
-/// Frequency of MIDI note `n` (69 is A4, 440 Hz).
-pub fn hz(n: i32) -> f32 {
-    440.0 * 2f32.powf((n - 69) as f32 / 12.0)
-}
+pub use crate::dsp::hz;
 
 /// The three notes of a chord on `root` (MIDI), then its octave.
 fn chord(root: i32, minor: bool) -> [i32; 4] {
     [root, root + if minor { 3 } else { 4 }, root + 7, root + 12]
-}
-
-struct Noise(u32);
-
-impl Noise {
-    fn next(&mut self) -> f32 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 17;
-        self.0 ^= self.0 << 5;
-        (self.0 as f32 / u32::MAX as f32) * 2.0 - 1.0
-    }
-}
-
-/// A band-limited saw (PolyBLEP) for a phase in 0..1 and a phase step per sample `dt`.
-fn saw(phase: f32, dt: f32) -> f32 {
-    let mut s = 2.0 * phase - 1.0;
-    if phase < dt {
-        let t = phase / dt;
-        s -= t + t - t * t - 1.0;
-    } else if phase > 1.0 - dt {
-        let t = (phase - 1.0) / dt;
-        s -= t * t + t + t + 1.0;
-    }
-    s
 }
 
 /// One mono layer of the loop, rendered on its own so it can be tested and mixed.

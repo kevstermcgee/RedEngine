@@ -9,59 +9,11 @@
 //! *body* (low-passed noise) and a *tail* (the room). Small automatic weapons have a thin crack, a little boom and almost no tail, so ten
 //! shots a second do not smear; a shotgun is all boom and body; the scout is a hard crack and a long echo.
 
+use crate::dsp::{attack, decay, finish, partial, samples, time, Noise};
 use crate::feel::Cue;
 use crate::synth::SAMPLE_RATE;
 use crate::weapons::Weapon;
 use std::f32::consts::{PI, TAU};
-
-/// A tiny xorshift so a noise burst needs no dependency and is the same every run.
-struct Noise(u32);
-
-impl Noise {
-    fn next(&mut self) -> f32 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 17;
-        self.0 ^= self.0 << 5;
-        (self.0 as f32 / u32::MAX as f32) * 2.0 - 1.0
-    }
-}
-
-fn samples(seconds: f32) -> usize {
-    (SAMPLE_RATE as f32 * seconds) as usize
-}
-
-fn time(i: usize) -> f32 {
-    i as f32 / SAMPLE_RATE as f32
-}
-
-/// Exponential decay `e^(-t * rate)`.
-fn decay(t: f32, rate: f32) -> f32 {
-    (-t * rate).exp()
-}
-
-/// A click-free start: ramps in over about a third of a millisecond.
-fn attack(t: f32) -> f32 {
-    1.0 - decay(t, 9000.0)
-}
-
-/// Pushes a clip through a soft clipper and scales its peak to `level` (never above 0.98).
-fn finish(mut clip: Vec<f32>, level: f32) -> Vec<f32> {
-    for s in clip.iter_mut() {
-        *s = (*s * 1.25).tanh();
-    }
-    let peak = clip.iter().fold(0.0f32, |m, s| m.max(s.abs())).max(1e-6);
-    let k = level.min(0.98) / peak;
-    for s in clip.iter_mut() {
-        *s *= k;
-    }
-    // A 2 ms fade-out so nothing ends on a click.
-    let fade = samples(0.002).min(clip.len());
-    let n = clip.len();
-    for j in 0..fade {
-        clip[n - 1 - j] *= j as f32 / fade as f32;
-    }
-    clip
-}
 
 /// The numbers that make one firearm sound like itself.
 #[derive(Debug, Clone, Copy)]
@@ -195,11 +147,6 @@ pub fn bat_hit() -> Vec<f32> {
         })
         .collect();
     finish(clip, 0.8)
-}
-
-/// A sine partial with an exponential decay, the unit a bell is built from.
-fn partial(freq: f32, t: f32, rate: f32) -> f32 {
-    (TAU * freq * t).sin() * decay(t, rate)
 }
 
 /// The tick of a shot that landed: short, bright, unmistakable, and quiet enough to hear a hundred of.

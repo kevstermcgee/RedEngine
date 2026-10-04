@@ -441,8 +441,13 @@ pub fn problems(r: &Report, kind: Kind) -> Vec<String> {
     }
     match kind {
         Kind::OneShot => {
-            if r.end_dbfs > -50.0 {
-                out.push(format!("its last samples are at {:.0} dBFS: it is cut off instead of fading to zero (a click)", r.end_dbfs));
+            // Cut off = the clip stops while still sounding (its last samples are audible) AND jumps to silence (the end-to-start step dwarfs the usual
+            // step). A loud tone the engine fades over its last 2 ms ends audible but does not jump; a faint tail that stops inaudibly is not a click.
+            if r.end_dbfs > -50.0 && r.seam > 6.0 {
+                out.push(format!(
+                    "it is cut off instead of fading to zero: its last samples are at {:.0} dBFS and the jump to silence is {:.0}x the usual step (a click)",
+                    r.end_dbfs, r.seam
+                ));
             }
             if r.secs > 6.0 {
                 out.push(format!("{:.1} s is long for an effect (over 6 s)", r.secs));
@@ -612,12 +617,15 @@ mod tests {
         let n = fade.len();
         fade.iter_mut().enumerate().for_each(|(i, v)| *v *= (1.0 - i as f32 / n as f32).powi(3));
         assert!(problems(&rep(&fade, 1), Kind::OneShot).is_empty(), "{:?}", problems(&rep(&fade, 1), Kind::OneShot));
-        let cut = sine(500.0, 0.4, 0.5, 44100, 1);
-        assert!(problems(&rep(&cut, 1), Kind::OneShot).iter().any(|p| p.contains("cut off")));
+        // 0.4 s of 500 Hz is a whole number of cycles (it happens to end on a zero crossing); stopping a quarter cycle early ends it mid-wave.
+        let cut: Vec<f32> = sine(500.0, 0.4, 0.5, 44100, 1).into_iter().take(44100 * 4 / 10 - 22).collect();
+        assert!(problems(&rep(&cut, 1), Kind::OneShot).iter().any(|p| p.contains("cut off")), "{:?}", rep(&cut, 1));
+        let tone_with_engine_fade = crate::dsp::finish(sine(500.0, 0.4, 0.5, 44100, 1), 0.5);
+        assert!(problems(&rep(&tone_with_engine_fade, 1), Kind::OneShot).is_empty(), "a loud tone ended by the 2 ms fade is not a click");
         let mut hot = sine(500.0, 0.2, 1.5, 44100, 1);
         hot.iter_mut().for_each(|v| *v = v.clamp(-1.0, 1.0));
         assert!(problems(&rep(&hot, 1), Kind::OneShot).iter().any(|p| p.contains("full scale")));
-        assert!(problems(&rep(&cut, 1), Kind::Loop).is_empty());
+        assert!(problems(&rep(&sine(441.0, 1.0, 0.5, 44100, 1), 1), Kind::Loop).is_empty());
         let jump: Vec<f32> = sine(441.0, 1.0, 0.5, 44100, 1).into_iter().take(44100 - 25).collect();
         assert!(problems(&rep(&jump, 1), Kind::Loop).iter().any(|p| p.contains("seam")));
     }

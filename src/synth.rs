@@ -40,25 +40,13 @@ pub fn write_wav_i16(path: &std::path::Path, interleaved: &[f32], sample_rate: u
     std::fs::write(path, wav_bytes_i16(interleaved, sample_rate, channels)).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// A tiny xorshift PRNG so a one-off noise burst doesn't need a `rand` dependency.
-struct Xorshift(u32);
-
-impl Xorshift {
-    fn next_f32(&mut self) -> f32 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 17;
-        self.0 ^= self.0 << 5;
-        (self.0 as f32 / u32::MAX as f32) * 2.0 - 1.0
-    }
-}
-
 /// A short wooden "thock" for the bat connecting: a fast-decaying low body thump (the impact), a
 /// dry woody resonance a little above it, and a brief noise crack at the very start. Purely
 /// synthesized, same reasoning as the engine's procedural meshes: no sample file to import.
 pub fn synth_bat_hit() -> Vec<f32> {
     let duration_s = 0.20_f32;
     let n = (SAMPLE_RATE as f32 * duration_s) as usize;
-    let mut noise = Xorshift(0x9E3779B9);
+    let mut noise = crate::dsp::Noise(0x9E3779B9);
     let mut lp = 0.0f32;
     let mut out = Vec::with_capacity(n);
     for i in 0..n {
@@ -66,7 +54,7 @@ pub fn synth_bat_hit() -> Vec<f32> {
         let thump = (2.0 * std::f32::consts::PI * (95.0 - 30.0 * t) * t).sin() * (-t * 22.0).exp();
         let wood = (2.0 * std::f32::consts::PI * 340.0 * t).sin() * (-t * 38.0).exp();
         let wood2 = (2.0 * std::f32::consts::PI * 610.0 * t).sin() * (-t * 55.0).exp();
-        lp += 0.35 * (noise.next_f32() - lp); // crude low-pass: a dull crack, not a hiss
+        lp += 0.35 * (noise.next() - lp); // crude low-pass: a dull crack, not a hiss
         let crack = lp * (-t * 90.0).exp();
         out.push((thump * 0.75 + wood * 0.45 + wood2 * 0.18 + crack * 0.9) * 0.9);
     }
@@ -84,12 +72,12 @@ pub fn synth_bat_hit() -> Vec<f32> {
 /// A dry metallic click: the hammer falling on an empty magazine, or raising a firearm.
 pub fn synth_weapon_click() -> Vec<f32> {
     let n = (SAMPLE_RATE as f32 * 0.05) as usize;
-    let mut noise = Xorshift(0xC11C4B);
+    let mut noise = crate::dsp::Noise(0xC11C4B);
     (0..n)
         .map(|i| {
             let t = i as f32 / SAMPLE_RATE as f32;
             let ring = (2.0 * std::f32::consts::PI * 2400.0 * t).sin() * (-t * 140.0).exp();
-            let tick = noise.next_f32() * (-t * 400.0).exp();
+            let tick = noise.next() * (-t * 400.0).exp();
             ((ring * 0.5 + tick * 0.6) * 0.8).clamp(-1.0, 1.0)
         })
         .collect()
