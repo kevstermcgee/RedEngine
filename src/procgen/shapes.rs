@@ -253,10 +253,6 @@ fn hawthorn(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
             shade(hi, rng.range(0.95, 1.08)),
         );
     }
-    for _ in 0..5 {
-        let d = dir(rng.range(0.0, TAU)) * rng.range(0.1, 0.4) * h;
-        g.blob(d + Vec3::new(0.0, rng.range(0.6, 0.78) * h, 0.0), Vec3::splat(0.05 * h), 0, rng.bits(), 0.15, hex("#e8e4d8"), hex("#fffaf0"));
-    }
 }
 
 fn bracken(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {

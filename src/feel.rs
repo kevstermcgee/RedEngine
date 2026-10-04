@@ -116,6 +116,14 @@ impl Default for FxParams {
 }
 
 impl FxParams {
+    /// The same effects with a black cover over the whole picture at `alpha` (0 clear, 1 black), as a fade from black draws it.
+    pub fn with_black(mut self, alpha: f32) -> FxParams {
+        if alpha > self.flash[3] {
+            self.flash = [0.0, 0.0, 0.0, alpha.min(1.0)];
+        }
+        self
+    }
+
     /// Whether anything at all needs drawing.
     pub fn active(&self) -> bool {
         self.vignette[3] > 0.001 || self.flash[3] > 0.001 || self.hurt_strength > 0.001 || self.marker_age < 1.0

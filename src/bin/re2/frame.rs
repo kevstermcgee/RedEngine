@@ -391,7 +391,7 @@ impl App {
         // matters — the body must be placed before `self.camera.position` is potentially
         // overwritten by the third-person pullback below.
         let body_yaw_deg = 180.0 - self.camera.yaw.to_degrees();
-        self.update_player_body(planar_pos, body_yaw_deg, self.last_move_speed, dt);
+        self.update_player_body(planar_pos, foot_y, body_yaw_deg, self.last_move_speed, dt);
 
         let anchor = Vec3::new(planar_pos.x, foot_y + self.eye_height, planar_pos.y);
         self.eye = anchor;
@@ -480,6 +480,18 @@ impl App {
         }
     }
 
+    /// The screen effects for this frame: the fight's (when the scene shows combat) under the opening fade from black.
+    pub(crate) fn fx_now(&self) -> red_engine2::feel::FxParams {
+        let fx = if self.scene.hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() };
+        let secs = self.scene.player.fade_in;
+        if secs <= 0.0 {
+            return fx;
+        }
+        // Black until play begins (behind a start card), then eased clear.
+        let t = (self.fade_age / secs).clamp(0.0, 1.0);
+        fx.with_black(1.0 - t * t * (3.0 - 2.0 * t))
+    }
+
     pub(crate) fn update(&mut self, dt: f32) {
         // Online, the connection must be serviced even when the window is not focused (or the server
         // would time us out), so the simulation keeps ticking; offline it pauses like before.
@@ -495,6 +507,7 @@ impl App {
         }
         self.frame_no += 1;
         self.play_secs += dt;
+        self.fade_age += dt;
         self.fps_avg += (1.0 / dt.max(1e-4) - self.fps_avg) * 0.1;
         if self.debug_hud && self.frame_no % 15 == 1 {
             self.debug_text = self.debug_lines(); // four times a second: the overlay is repainted only when its text changes
@@ -594,7 +607,7 @@ impl App {
         let muzzle_flash = (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0);
         let hud = &self.scene.hud;
         let peaceful = self.scene.player.mode.is_peaceful();
-        let fx = if hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() };
+        let fx = self.fx_now();
         let enemy = self.aim_enemy && hud.shows_combat();
         let (show_crosshair, show_viewmodel) = (hud.shows_crosshair(), !peaceful);
         let racing = self.net.as_ref().is_some_and(|n| n.is_race());

@@ -14,7 +14,7 @@ use crate::procgen::noise::{smooth, Rng};
 use crate::procgen::Biome;
 
 /// `audio` keys.
-pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience_volume", "reverb", "duck", "layers"];
+pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience_volume", "reverb", "duck", "layers", "birds"];
 
 /// A scene's `audio` block: the sounds of its world.
 ///
@@ -26,6 +26,8 @@ pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience
 /// score (see `describe audio`) for each mood, which the hour crossfades between (any subset: a mood without a score is silent). Music is the player's `music`
 /// setting, ambience their `sound` setting.
 ///
+/// `"birds": false` takes the songbirds, cuckoo and pigeon out of the countryside (the beds and the owl stay).
+///
 /// Three more keys shape the mix: `"reverb": {"decay": 1.4, "mix": 0.25}` puts every nature call in a room; `"duck": {"events": ["hit"], "depth": 0.5, "hold": 1.0,
 /// "release": 1.5}` pulls the music down whenever the rules raise one of those events; and `"layers": [{"score": "audio/chase.json", "var": "danger", "above": 0.5,
 /// "fade": 3, "volume": 0.6}]` fades a score in while a rule variable is above a value (intensity that follows the game).
@@ -33,6 +35,8 @@ pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience
 pub struct AudioSpec {
     /// Whether the nature ambience plays.
     pub nature: bool,
+    /// Whether birds sing (`audio.birds`, on unless false). The owl at night is not birdsong and stays.
+    pub birds: bool,
     /// A score file for each mood, paths resolved against the scene's folder.
     pub music: Vec<(Mood, std::path::PathBuf)>,
     /// Music level, 0 to 1.
@@ -111,6 +115,14 @@ pub fn parse_audio(root: &serde_json::Map<String, serde_json::Value>, base: Opti
         Some(_) => {
             errs.push("audio.ambience: must be \"nature\" (the engine's countryside) or false".to_string());
             false
+        }
+    };
+    let birds = match o.get("birds") {
+        None => true,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => {
+            errs.push("audio.birds: must be true or false".to_string());
+            true
         }
     };
     let mut music = Vec::new();
@@ -211,7 +223,7 @@ pub fn parse_audio(root: &serde_json::Map<String, serde_json::Value>, base: Opti
         Some(_) => errs.push("audio.layers: must be a list".to_string()),
     }
     if errs.is_empty() {
-        Ok(Some(AudioSpec { nature, music, music_volume, ambience_volume, reverb, duck, layers }))
+        Ok(Some(AudioSpec { nature, birds, music, music_volume, ambience_volume, reverb, duck, layers }))
     } else {
         Err(errs)
     }
@@ -301,6 +313,8 @@ pub struct Ambience {
     wait: [f32; 7],
     /// Calls started, ever, per call (for a script's assertions).
     pub totals: [u32; 7],
+    /// Whether the songbirds are silenced (the owl is not counted as one).
+    pub birds_off: bool,
 }
 
 /// How fast a bed's gain moves toward its target, per second.
@@ -320,7 +334,7 @@ impl Ambience {
         for w in &mut wait {
             *w = rng.range(0.0, 20.0);
         }
-        Ambience { rng, beds: [0.0; 5], music: [0.0; 4], primed: false, wait, totals: [0; 7] }
+        Ambience { rng, beds: [0.0; 5], music: [0.0; 4], primed: false, wait, totals: [0; 7], birds_off: false }
     }
 
     /// The gain each bed should settle at in this context.
@@ -389,7 +403,14 @@ impl Ambience {
         let sum: f32 = self.music.iter().sum::<f32>().max(1e-4);
         let weights = self.music.map(|w| w / sum);
         // Calls: each kind counts down; when it reaches zero it sounds and waits an exponentially distributed time for its current rate.
-        let rates = Self::call_rates(c);
+        let mut rates = Self::call_rates(c);
+        if self.birds_off {
+            for (i, call) in Call::ALL.into_iter().enumerate() {
+                if call != Call::Owl {
+                    rates[i] = 0.0;
+                }
+            }
+        }
         let mut calls = Vec::new();
         for (i, call) in Call::ALL.into_iter().enumerate() {
             if rates[i] <= 1e-5 {

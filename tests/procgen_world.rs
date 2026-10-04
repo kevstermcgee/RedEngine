@@ -49,11 +49,13 @@ fn walking_a_long_way_stays_on_the_ground_and_out_of_the_trees() {
     let world = ground.procgen().unwrap().world();
     // Walk east (yaw 90 degrees) for two minutes at a run.
     let mut st = PlayerState::spawn(0.0, 0.0, world.height(0.0, 0.0), 90.0, Character::Human);
-    let input = PlayerInput { forward: 1, sprint: true, yaw: st.yaw, ..Default::default() };
+    let mut input = PlayerInput { forward: 1, sprint: true, yaw: st.yaw, ..Default::default() };
+    let mut steer = Steer::new(st.yaw);
     let mut worst_gap = 0.0f32;
     let mut closest = f32::MAX;
     let mut trunks_seen = 0;
     for tick in 0..(60 * 120) {
+        input.yaw = steer.yaw(st.pos);
         step_player(&mut st, &input, &statics, &ground);
         let floor = ground_height_at(&ground, st.pos, st.foot_y);
         worst_gap = worst_gap.max((st.foot_y - floor).abs());
@@ -61,7 +63,7 @@ fn walking_a_long_way_stays_on_the_ground_and_out_of_the_trees() {
             let id = ChunkId::at(st.pos.x as f64, st.pos.y as f64);
             for dz in -1..=1 {
                 for dx in -1..=1 {
-                    for t in world.trunks(ChunkId { x: id.x + dx, z: id.z + dz }) {
+                    for t in world.blockers(ChunkId { x: id.x + dx, z: id.z + dz }) {
                         trunks_seen += 1;
                         let d = Vec2::new(t.x as f32, t.z as f32).distance(st.pos) - t.radius;
                         closest = closest.min(d);
@@ -70,7 +72,7 @@ fn walking_a_long_way_stays_on_the_ground_and_out_of_the_trees() {
             }
         }
     }
-    assert!(st.pos.x > 600.0, "only got {} m in two minutes at a run", st.pos.x);
+    assert!(st.pos.x > 400.0, "only got {} m in two minutes at a run", st.pos.x);
     assert!(worst_gap < 0.12, "feet strayed {worst_gap} m from the ground");
     assert!(trunks_seen > 200, "the walk passed too few trees to mean anything: {trunks_seen}");
     // Colliders are squares round each trunk, so the circle of the player may graze a trunk's corner but never be inside it.
@@ -141,14 +143,136 @@ fn only_declared_variables_can_be_kept() {
 }
 
 #[test]
-fn marcel_is_a_boy_behind_him_in_a_peaceful_world_with_a_menu_that_counts_days() {
+fn marcel_is_a_boy_seen_from_his_own_eyes_in_a_peaceful_world_with_a_menu_that_counts_days() {
     let s = marcel();
     assert_eq!(s.player.character, Some(Character::Boy));
-    assert!(s.player.third_person && s.player.mode.is_peaceful());
+    assert!(!s.player.third_person && s.player.fade_in > 0.0 && s.player.mode.is_peaceful(), "opens in first person, fading in from black");
     let clock = s.clock.as_ref().expect("a clock");
     assert!(clock.day_secs >= 900.0 && clock.state(clock.t_for_hour(5.0), 0).sun_elev_deg < 0.0, "a long day that begins before sunrise");
     let card = s.ui.as_ref().and_then(|u| u.start_card(&[("days_lived", 1.0)])).expect("a start card");
     assert_eq!(card.title, "Marcel");
     assert!(card.text.contains("1 day lived"), "{}", card.text);
     assert!(s.ui.as_ref().and_then(|u| u.start_card(&[("days_lived", 12.0)])).unwrap().text.contains("12 days"));
+}
+
+/// A walker who keeps heading one way but sidesteps for a second whenever something has stopped them (bushes are walls now).
+struct Steer {
+    heading: f32,
+    tick: u32,
+    checked: Vec2,
+    detour: u32,
+    side: f32,
+}
+
+impl Steer {
+    fn new(heading: f32) -> Steer {
+        Steer { heading, tick: 0, checked: Vec2::splat(f32::MAX), detour: 0, side: 70.0 }
+    }
+
+    fn yaw(&mut self, pos: Vec2) -> f32 {
+        self.tick += 1;
+        if self.tick.is_multiple_of(30) {
+            if self.detour == 0 && pos.distance(self.checked) < 1.0 {
+                self.detour = 60;
+                self.side = -self.side;
+            }
+            self.checked = pos;
+        }
+        if self.detour > 0 {
+            self.detour -= 1;
+            return self.heading + self.side;
+        }
+        self.heading
+    }
+}
+
+/// The height of the drawn ground (the 2 m triangle mesh `chunk::ground` builds) under a point.
+fn mesh_height(world: &red_engine2::procgen::World, x: f64, z: f64) -> f32 {
+    let cell = 2.0f64; // chunk::GROUND_CELL
+    let (i, j) = ((x / cell).floor(), (z / cell).floor());
+    let (u, v) = (((x / cell) - i) as f32, ((z / cell) - j) as f32);
+    let h = |di: f64, dj: f64| world.height((i + di) * cell, (j + dj) * cell);
+    let (a, b, c, d) = (h(0.0, 0.0), h(1.0, 0.0), h(0.0, 1.0), h(1.0, 1.0));
+    // Chunks are 64 m, so (i + j) parity on the chunk's own grid is the world grid's parity (a multiple of 2 m cells per chunk).
+    if (i as i64 + j as i64).rem_euclid(2) == 0 {
+        // triangles (a, c, b) and (b, c, d): the diagonal runs from b to c.
+        if u + v <= 1.0 {
+            a + (b - a) * u + (c - a) * v
+        } else {
+            d + (c - d) * (1.0 - u) + (b - d) * (1.0 - v)
+        }
+    } else {
+        // triangles (a, c, d) and (a, d, b): the diagonal runs from a to d.
+        if u >= v {
+            a + (b - a) * u + (d - b) * v
+        } else {
+            a + (d - c) * u + (c - a) * v
+        }
+    }
+}
+
+#[test]
+fn the_boys_feet_stay_on_the_drawn_ground_at_a_run() {
+    let s = marcel();
+    let ground = collect_ground_candidates(&s);
+    let statics = collect_box_colliders(&s);
+    let world = ground.procgen().unwrap().world();
+    let mut st = PlayerState::spawn(0.0, 0.0, world.height(0.0, 0.0), 90.0, Character::Boy);
+    let mut input = PlayerInput { forward: 1, sprint: true, yaw: st.yaw, ..Default::default() };
+    let mut steer = Steer::new(st.yaw);
+    let (mut up, mut down, mut mup, mut mdown) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+    for _ in 0..(60 * 120) {
+        input.yaw = steer.yaw(st.pos);
+        step_player(&mut st, &input, &statics, &ground);
+        let f = world.height(st.pos.x as f64, st.pos.y as f64);
+        let m = mesh_height(world, st.pos.x as f64, st.pos.y as f64);
+        up = up.max(st.foot_y - f);
+        down = down.min(st.foot_y - f);
+        mup = mup.max(st.foot_y - m);
+        mdown = mdown.min(st.foot_y - m);
+    }
+    assert!(up < 0.01 && down > -0.01, "feet strayed from the height function: float {up:.3} m, sink {down:.3} m");
+    assert!(mup < 0.03 && mdown > -0.03, "feet strayed from the drawn ground: float {mup:.3} m, sink {mdown:.3} m");
+    assert!(st.pos.x > 200.0, "the boy only got {} m", st.pos.x);
+}
+
+#[test]
+fn a_hawthorn_blocks_the_player_at_its_leaves_not_just_its_trunk() {
+    let s = marcel();
+    let ground = collect_ground_candidates(&s);
+    let world = ground.procgen().unwrap().world();
+    let mut found = None;
+    'search: for cz in -12..12 {
+        for cx in -12..12 {
+            let id = ChunkId { x: cx, z: cz };
+            if let Some(p) = world.plants(id, Kind::Shrub).into_iter().find(|p| red_engine2::procgen::flora::species(p.species).key == "hawthorn") {
+                found = Some(p);
+                break 'search;
+            }
+        }
+    }
+    let p = found.expect("a hawthorn somewhere");
+    let trunk = world.blockers(ChunkId::at(p.x, p.z)).into_iter().find(|t| t.x == p.x && t.z == p.z).expect("it blocks");
+    assert!(trunk.radius > 0.3 * p.height, "a hawthorn of {} m blocks only {} m round", p.height, trunk.radius);
+}
+
+#[test]
+fn marcel_has_no_birdsong_but_keeps_its_countryside() {
+    let s = marcel();
+    let audio = s.audio.expect("an audio block");
+    assert!(audio.nature && !audio.birds, "the countryside plays, the songbirds do not");
+    let mut a = red_engine2::ambience::Ambience::new(3);
+    a.birds_off = true;
+    let ctx = |sun, rising| red_engine2::ambience::Context { sun_elev_deg: sun, rising, biome: red_engine2::procgen::Biome::Forest, speed: 0.0 };
+    for (sun, rising) in [(4.0, true), (30.0, true), (5.0, false)] {
+        for _ in 0..(60 * 600) {
+            let f = a.step(1.0 / 60.0, &ctx(sun, rising));
+            assert!(f.calls.is_empty(), "a bird sang at sun {sun}: {:?}", f.calls);
+        }
+    }
+    let mut owls = 0;
+    for _ in 0..(60 * 900) {
+        owls += a.step(1.0 / 60.0, &ctx(-40.0, false)).calls.len();
+    }
+    assert!(owls >= 4, "the owl still hoots at night: {owls}");
 }

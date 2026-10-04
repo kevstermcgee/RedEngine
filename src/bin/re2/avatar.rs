@@ -13,10 +13,10 @@ impl App {
     /// that same right forearm bone — and flips both the body's and the hand prop's scale
     /// between `HIDDEN_SCALE` and life-size depending on `self.view_mode`, since there's no
     /// per-object render-visibility flag to hide the player's own body in first person instead.
-    pub(crate) fn update_player_body(&mut self, planar_pos: Vec2, yaw_deg: f32, speed: f32, dt: f32) {
+    pub(crate) fn update_player_body(&mut self, planar_pos: Vec2, foot_y: f32, yaw_deg: f32, speed: f32, dt: f32) {
         let third_person = self.view_mode == ViewMode::ThirdPerson;
         let scale = if third_person { Vec3::ONE } else { Vec3::splat(HIDDEN_SCALE) };
-        let body_pos = Vec3::new(planar_pos.x, self.foot_y, planar_pos.y);
+        let body_pos = Vec3::new(planar_pos.x, foot_y, planar_pos.y);
         {
             let body = &mut self.scene.objects[self.player_object_index];
             body.position = Track::constant(body_pos);
@@ -115,6 +115,29 @@ impl App {
             h.pose.r_shoulder = Track::constant(r_shoulder);
             h.pose.l_elbow = Track::constant(l_elbow_final);
             h.pose.r_elbow = Track::constant(r_elbow);
+            // Bent knees and swinging hips lift the feet off the ground the body stands on: lower the body by however high the lowest foot
+            // has been raised, so the sole always meets the ground (never lowered past a small limit, so a jump pose cannot bury it).
+            let rig = HumanoidRig::for_look(h.height, h.build, &h.look);
+            let pose = PoseSample {
+                spine: Vec3::new(spine_x, 0.0, 0.0),
+                head: Vec3::ZERO,
+                l_shoulder,
+                r_shoulder,
+                l_elbow: l_elbow_final,
+                r_elbow,
+                l_hip: Vec3::new(l_hip_x, 0.0, 0.0),
+                r_hip: Vec3::new(r_hip_x, 0.0, 0.0),
+                l_knee,
+                r_knee,
+            };
+            let lowest = pose_to_parts(&rig, &pose)
+                .iter()
+                .skip(FIRST_LEG_PART)
+                .map(|p| p.center.y - (p.rotation * Vec3::Y).y.abs() * p.length * 0.5 - p.radius)
+                .fold(f32::MAX, f32::min);
+            let lift = lowest.clamp(0.0, MAX_FOOT_PLANT);
+            let planted = body_pos - Vec3::Y * lift * scale.y;
+            self.scene.objects[self.player_object_index].position = Track::constant(planted);
         }
 
         // Weld the third-person bat to the right forearm bone: run the same forward-kinematic

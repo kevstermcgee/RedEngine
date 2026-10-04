@@ -180,7 +180,7 @@ impl App {
             pickup: self.pickup_target.is_some(),
             weapon,
             muzzle_flash: (self.flash_left / MUZZLE_FLASH_TIME).clamp(0.0, 1.0),
-            fx: if hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() },
+            fx: self.fx_now(),
             enemy: self.aim_enemy && hud.shows_combat(),
             skin: 0,
         };

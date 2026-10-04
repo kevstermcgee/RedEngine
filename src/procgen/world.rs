@@ -354,6 +354,18 @@ impl World {
             .collect()
     }
 
+    /// What stops the player in a chunk: the trunks, widened to the leaves' reach where those fill a walking child's body band (see [`blocking_crown`]).
+    pub fn blockers(&self, id: ChunkId) -> Vec<Trunk> {
+        [Kind::Tree, Kind::Shrub]
+            .into_iter()
+            .flat_map(|k| self.plants(id, k))
+            .filter_map(|p| {
+                let r = tree_trunk(&p);
+                (r > 0.0).then_some(Trunk { x: p.x, z: p.z, radius: r.max(blocking_crown(&p)) })
+            })
+            .collect()
+    }
+
     /// The trees in and just around a chunk, as discs the smaller plants must keep out of (a daisy does not grow through an oak).
     fn tree_discs(&self, id: ChunkId) -> Vec<Trunk> {
         let (x0, z0) = id.origin();
@@ -521,6 +533,17 @@ fn lerp3(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
 fn tree_trunk(p: &Plant) -> f32 {
     let s = flora::species(p.species);
     s.trunk * p.height / ((s.height.0 + s.height.1) * 0.5)
+}
+
+/// How far a plant's leaves reach at the height of a walking child, when that is more than its trunk: a hawthorn's crown fills the body band from the
+/// ground up and a willow's streamers hang down to head height, so a player stopped only by the trunk would walk through the plant.
+fn blocking_crown(p: &Plant) -> f32 {
+    let s = flora::species(p.species);
+    match (s.kind, s.key) {
+        (Kind::Shrub, _) => s.spread * 0.75 * p.height,
+        (_, "willow") => s.spread * 0.5 * p.height,
+        _ => 0.0,
+    }
 }
 
 /// Whether a point is within `margin` metres of any disc.

@@ -54,11 +54,12 @@
   "objects": [],
   "player": {
     "humans_play_as": "boy",
-    "view": "third",
+    "view": "first",
     "mode": "peaceful",
     "walk_speed": 2.9,
     "sprint_speed": 5.4,
-    "fov": 70
+    "fov": 70,
+    "fade_in": 4
   },
   "audio": {
     "ambience": "nature",
@@ -69,7 +70,8 @@
       "night": "audio/marcel_night.json"
     },
     "music_volume": 0.6,
-    "ambience_volume": 0.8
+    "ambience_volume": 0.8,
+    "birds": false
   },
   "hud": {
     "enabled": false
@@ -118,29 +120,15 @@
         ],
         "peak_max": -6
       },
-      "sounds": [
-        {
-          "name": "birds sit above the beds",
-          "sound": "bird.robin",
-          "lufs": [
-            -28,
-            -18
-          ]
-        }
-      ],
       "soundscape": [
         {
-          "name": "a dawn chorus",
+          "name": "a dawn without song",
           "sun": 4,
           "rising": true,
           "biome": "meadow",
           "secs": 300,
           "calls": {
             "any": [
-              30,
-              2000
-            ],
-            "owl": [
               0,
               0
             ]
@@ -159,13 +147,9 @@
           "biome": "meadow",
           "secs": 300,
           "calls": {
-            "owl": [
-              0,
-              0
-            ],
             "any": [
               0,
-              60
+              0
             ]
           },
           "beds": {

@@ -83,6 +83,7 @@ pub const PLAYER_KEYS: &[&str] = &[
     "throw_speed",
     "mode",
     "view",
+    "fade_in",
 ];
 /// One `jump_pads` entry.
 pub const JUMP_PAD_KEYS: &[&str] = &["id", "position", "size", "launch_speed"];

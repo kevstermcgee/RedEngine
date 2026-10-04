@@ -44,7 +44,7 @@ impl ProcgenGround {
             cache.push(hit);
             return out;
         }
-        let made = Arc::new(self.world.trunks(id));
+        let made = Arc::new(self.world.blockers(id));
         if cache.len() >= CACHE {
             cache.remove(0);
         }

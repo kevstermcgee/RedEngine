@@ -42,6 +42,8 @@ pub struct PlayerTuning {
     pub mode: PlayerMode,
     /// Whether the game opens behind the character (`player.view`: `"third"`) instead of looking out of their eyes (`"first"`, the default). The player can still switch with Q.
     pub third_person: bool,
+    /// Seconds the picture takes to fade in from black when play begins (`player.fade_in`; 0 = no fade).
+    pub fade_in: f32,
     /// How far the world reaches: the looping axis and the walkable limits (the scene's `world` block).
     pub expanse: crate::expanse::Expanse,
 }
@@ -90,6 +92,7 @@ impl Default for PlayerTuning {
             throw_speed: THROW_SPEED,
             mode: PlayerMode::Arena,
             third_person: false,
+            fade_in: 0.0,
             expanse: crate::expanse::Expanse::default(),
         }
     }

@@ -97,9 +97,11 @@ impl Ambient {
                 }
             }
         });
+        let mut state = Ambience::new(seed);
+        state.birds_off = !spec.birds;
         Ambient {
             spec,
-            state: Ambience::new(seed),
+            state,
             rx,
             bed_layers: [None; 5],
             mood_layers: [None; 4],

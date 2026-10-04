@@ -156,6 +156,10 @@ const THIRD_PERSON_CAM_RADIUS: f32 = 0.25;
 // pitch/roll the first-person viewmodel uses, so both views show one motion (the bone's own roll
 // about its length is arbitrary, so it can't be used for orientation).
 const BAT_FOREARM_PART: usize = red_engine2::avatar::HAND_FOREARM_PART;
+/// Where the legs begin in `skeleton::pose_to_parts` (torso, head and four arm bones come first).
+const FIRST_LEG_PART: usize = 6;
+/// The most the body is lowered to plant the lowest foot, metres.
+const MAX_FOOT_PLANT: f32 = 0.15;
 
 // Swing pose for the bat arm in third person (shoulder raise/swing on the local
 // right axis, elbow bend), driven by the same windup/strike/recover phases as the first-person
@@ -459,6 +463,8 @@ struct App {
     gpu_kind: String,
     /// Seconds of game time since the game started, and frames updated (a script's clock; screenshots are named by it).
     play_secs: f32,
+    /// Seconds of play since the fade from black began (it waits while a card is up).
+    fade_age: f32,
     frame_no: u64,
     /// Screenshots asked for and taken (`shots.rs`).
     shots: shots::Shots,
@@ -681,6 +687,7 @@ impl App {
             virtual_size: None,
             gpu_kind: "none".to_string(),
             play_secs: 0.0,
+            fade_age: 0.0,
             frame_no: 0,
             shots: shots::Shots::default(),
             hud_lines: Vec::new(),

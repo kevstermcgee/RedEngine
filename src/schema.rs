@@ -608,6 +608,7 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
         throw_speed: ranged(ctx, obj, "throw_speed", "player", d.throw_speed, 0.0, 30.0),
         mode,
         third_person,
+        fade_in: ranged(ctx, obj, "fade_in", "player", d.fade_in, 0.0, 30.0),
         expanse: crate::expanse::Expanse::default(),
     }
 }
