@@ -1,0 +1,235 @@
+//! The streamed world on the GPU: every chunk the [`Streamer`] has baked, uploaded once, culled and drawn.
+//!
+//! A scene with a `procgen` block gets one of these in each renderer. It owns its own object-uniform buffer (one slot per draw, written when the chunk
+//! arrives and never again, because chunks do not move), so it needs nothing from the renderer's object slots: the renderer hands it the render pass and the
+//! frustum planes and it issues the draws. A chunk is up to three draws (ground, solid plants, flora). The ground is not drawn in the shadow pass, flowers and
+//! grass neither, so the shadow map holds only the trees and bushes near the light's box.
+//!
+//! Live, [`StreamLayer::update`] is called every frame: it asks the streamer (which builds on worker threads) for what changed and uploads a few chunks.
+//! Offline, [`StreamLayer::fill`] builds everything around the camera first, because a still frame cannot wait.
+
+use crate::gpu::{GpuMesh, ObjectUniform};
+use crate::mesh::{Mesh, Vertex};
+use crate::object_staging::{aabb_outside_frustum, frustum_planes};
+use crate::procgen::chunk::Chunk;
+use crate::procgen::geo::Geo;
+use crate::procgen::stream::{Stats, Update};
+use crate::procgen::{ChunkId, Config, Streamer, View};
+use glam::{Mat4, Vec3, Vec4};
+use std::collections::HashMap;
+
+/// Draw slots in the uniform buffer: three per chunk, for more chunks than any view distance reaches.
+const SLOTS: u32 = 3 * 400;
+
+/// One uploaded part of a chunk.
+struct Part {
+    mesh: GpuMesh,
+    slot: u32,
+}
+
+/// A chunk on the GPU.
+struct Resident {
+    ground: Option<Part>,
+    solid: Option<Part>,
+    flora: Option<Part>,
+    /// The centre (relative to the chunk's corner) and half-extent of everything in it, for culling.
+    centre: Vec3,
+    half: Vec3,
+    tris: u32,
+    /// The chunk's corner in the world (x, z), for placing it relative to the renderer's origin.
+    corner: Vec3,
+}
+
+/// What the layer drew last frame, for tests and the debug overlay.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DrawStats {
+    /// Chunks resident on the GPU.
+    pub resident: usize,
+    /// Draw calls issued in the last main pass.
+    pub draws: u32,
+    /// Triangles those draws hold.
+    pub tris: u64,
+}
+
+/// The streamed world.
+pub struct StreamLayer {
+    streamer: Streamer,
+    resident: HashMap<ChunkId, Resident>,
+    free: Vec<u32>,
+    object_buf: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
+    stride: u64,
+    /// The point the renderer measures from; chunks are placed relative to it.
+    origin: Vec3,
+    drawn: std::cell::Cell<DrawStats>,
+}
+
+/// A geometry as an engine mesh.
+fn to_mesh(g: &Geo) -> Mesh {
+    Mesh { vertices: (0..g.pos.len()).map(|i| Vertex { pos: g.pos[i], normal: g.nrm[i], color: g.col[i], sway: g.sway[i] }).collect(), indices: g.idx.clone() }
+}
+
+impl StreamLayer {
+    /// A layer for a scene's `procgen` settings. `threads` workers build chunks (0 builds them inside `update`).
+    pub fn new(device: &wgpu::Device, object_layout: &wgpu::BindGroupLayout, cfg: Config, view: View, threads: usize) -> StreamLayer {
+        let alignment = device.limits().min_uniform_buffer_offset_alignment as u64;
+        let stride = (std::mem::size_of::<ObjectUniform>() as u64).div_ceil(alignment) * alignment;
+        let object_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("stream-object-uniforms"),
+            size: stride * SLOTS as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("stream-object-bind-group"),
+            layout: object_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &object_buf,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(std::mem::size_of::<ObjectUniform>() as u64),
+                }),
+            }],
+        });
+        StreamLayer {
+            streamer: Streamer::new(cfg, view, threads),
+            resident: HashMap::new(),
+            free: (0..SLOTS).rev().collect(),
+            object_buf,
+            bind_group,
+            stride,
+            origin: Vec3::ZERO,
+            drawn: Default::default(),
+        }
+    }
+
+    /// The streamer's counters.
+    pub fn stream_stats(&self) -> Stats {
+        self.streamer.stats()
+    }
+
+    /// What the last main pass drew.
+    pub fn draw_stats(&self) -> DrawStats {
+        DrawStats { resident: self.resident.len(), ..self.drawn.get() }
+    }
+
+    /// Streams for a viewer at `eye`: uploads what the workers have finished and forgets what is behind.
+    pub fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, eye: Vec3) {
+        let u = self.streamer.update((eye.x as f64, eye.z as f64));
+        self.apply(device, queue, u);
+    }
+
+    /// Builds and uploads everything wanted around `eye` before returning (a still frame).
+    pub fn fill(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, eye: Vec3) {
+        let u = self.streamer.fill((eye.x as f64, eye.z as f64));
+        self.apply(device, queue, u);
+    }
+
+    fn release(&mut self, id: ChunkId) {
+        if let Some(r) = self.resident.remove(&id) {
+            for p in [r.ground, r.solid, r.flora].into_iter().flatten() {
+                self.free.push(p.slot);
+            }
+        }
+    }
+
+    fn write_uniform(&self, queue: &wgpu::Queue, slot: u32, corner: Vec3) {
+        // Relative to the renderer's origin, so far out the numbers on the GPU stay small.
+        let model = Mat4::from_translation(corner - self.origin);
+        let uniform = ObjectUniform {
+            model: model.to_cols_array_2d(),
+            normal_mat: Mat4::IDENTITY.to_cols_array_2d(),
+            base_color: [1.0, 1.0, 1.0, 1.0],
+            material: [0.0, 0.93, 0.0, 0.0],
+            emissive: [0.0; 4],
+        };
+        queue.write_buffer(&self.object_buf, slot as u64 * self.stride, bytemuck::bytes_of(&uniform));
+    }
+
+    fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, g: &Geo, corner: Vec3) -> Option<Part> {
+        if g.idx.is_empty() {
+            return None;
+        }
+        let slot = self.free.pop()?;
+        self.write_uniform(queue, slot, corner);
+        Some(Part { mesh: GpuMesh::upload(device, &to_mesh(g)), slot })
+    }
+
+    /// Tells the layer where the renderer measures from; when that moves (every couple of kilometres of walking) every chunk is re-placed.
+    pub fn set_origin(&mut self, queue: &wgpu::Queue, origin: Vec3) {
+        if origin == self.origin {
+            return;
+        }
+        self.origin = origin;
+        for r in self.resident.values() {
+            for p in [&r.ground, &r.solid, &r.flora].into_iter().flatten() {
+                self.write_uniform(queue, p.slot, r.corner);
+            }
+        }
+    }
+
+    fn apply(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, update: Update) {
+        for id in update.removed {
+            self.release(id);
+        }
+        for c in update.added {
+            self.release(c.id);
+            let r = self.make(device, queue, &c);
+            self.resident.insert(c.id, r);
+        }
+    }
+
+    fn make(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, c: &Chunk) -> Resident {
+        let (ox, oz) = c.id.origin();
+        let origin = Vec3::new(ox as f32, 0.0, oz as f32);
+        let (lo, hi) = c.bounds;
+        // Plants sway a little: pad the box by their largest reach so a swaying crown is never culled while visible.
+        let pad = Vec3::splat(0.5);
+        Resident {
+            ground: self.upload(device, queue, &c.ground, origin),
+            solid: self.upload(device, queue, &c.solid, origin),
+            flora: self.upload(device, queue, &c.flora, origin),
+            centre: (lo + hi) * 0.5,
+            half: (hi - lo) * 0.5 + pad,
+            tris: c.tris() as u32,
+            corner: origin,
+        }
+    }
+
+    /// Draws the trees and bushes into the shadow pass (`pass` has the shadow pipeline and the global uniform set), skipping chunks off the light's box.
+    pub fn draw_shadow(&self, pass: &mut wgpu::RenderPass<'_>, light_planes: &[Vec4; 6]) {
+        for r in self.resident.values() {
+            if aabb_outside_frustum(r.corner - self.origin + r.centre, r.half, light_planes) {
+                continue;
+            }
+            if let Some(p) = &r.solid {
+                self.draw(pass, p);
+            }
+        }
+    }
+
+    /// Draws the ground, trees, bushes, flowers and grass into the main pass (`pass` has the main pipeline and the global bindings set).
+    pub fn draw_main(&self, pass: &mut wgpu::RenderPass<'_>, view_proj: Mat4) {
+        let planes = frustum_planes(view_proj);
+        let (mut draws, mut tris) = (0u32, 0u64);
+        for r in self.resident.values() {
+            if aabb_outside_frustum(r.corner - self.origin + r.centre, r.half, &planes) {
+                continue;
+            }
+            for p in [&r.ground, &r.solid, &r.flora].into_iter().flatten() {
+                self.draw(pass, p);
+                draws += 1;
+            }
+            tris += r.tris as u64;
+        }
+        self.drawn.set(DrawStats { resident: self.resident.len(), draws, tris });
+    }
+
+    fn draw(&self, pass: &mut wgpu::RenderPass<'_>, p: &Part) {
+        pass.set_bind_group(1, &self.bind_group, &[(p.slot as u64 * self.stride) as u32]);
+        pass.set_vertex_buffer(0, p.mesh.vertex_buf.slice(..));
+        pass.set_index_buffer(p.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+        pass.draw_indexed(0..p.mesh.index_count, 0, 0..1);
+    }
+}

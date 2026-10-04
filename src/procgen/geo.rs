@@ -9,7 +9,7 @@ use super::noise::Rng;
 use glam::{Mat3, Vec3};
 
 /// A triangle mesh with a colour per vertex; counter-clockwise triangles face outward.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Geo {
     /// Vertex positions.
     pub pos: Vec<[f32; 3]>,
@@ -19,6 +19,18 @@ pub struct Geo {
     pub col: Vec<[f32; 3]>,
     /// Triangle indices.
     pub idx: Vec<u32>,
+    /// How much each vertex sways in the wind (0 rooted, 1 free): see [`Geo::set_sway`].
+    pub sway: Vec<f32>,
+    /// The finest sphere subdivision [`Geo::blob`] may use: a far model sets 0 and gets 20-triangle clumps instead of 80.
+    pub max_subdiv: u32,
+    /// Whether this is a far-away model: shapes leave out small features (boughs, bark scars, some strands).
+    pub far: bool,
+}
+
+impl Default for Geo {
+    fn default() -> Self {
+        Geo { pos: Vec::new(), nrm: Vec::new(), col: Vec::new(), idx: Vec::new(), sway: Vec::new(), max_subdiv: 2, far: false }
+    }
 }
 
 /// A colour as three linear channels.
@@ -49,6 +61,7 @@ impl Geo {
         self.pos.push(p.to_array());
         self.nrm.push(n.normalize_or_zero().to_array());
         self.col.push(c);
+        self.sway.push(0.0);
         (self.pos.len() - 1) as u32
     }
 
@@ -134,7 +147,7 @@ impl Geo {
     /// A lumpy ellipsoid with smooth normals: `subdiv` 0 is 20 triangles, 1 is 80, 2 is 320; `lump` is the random bulge (0.15 is leafy).
     #[allow(clippy::too_many_arguments)]
     pub fn blob(&mut self, centre: Vec3, radii: Vec3, subdiv: u32, seed: u32, lump: f32, c_bottom: Rgb, c_top: Rgb) {
-        let (dirs, faces) = icosphere(subdiv);
+        let (dirs, faces) = icosphere(subdiv.min(self.max_subdiv));
         let mut rng = Rng::at(seed, 17, 31);
         let verts: Vec<Vec3> = dirs.iter().map(|d| centre + *d * radii * (1.0 + lump * (rng.white() * 2.0 - 1.0))).collect();
         let mut normals = vec![Vec3::ZERO; verts.len()];
@@ -183,8 +196,20 @@ impl Geo {
             self.pos.push(p.to_array());
             self.nrm.push(n.to_array());
             self.col.push(other.col[i]);
+            self.sway.push(other.sway[i]);
         }
         self.idx.extend(other.idx.iter().map(|i| first + i));
+    }
+
+    /// Sets every vertex's sway: how many metres it moves in a full gust. That is `k` times 0.12 m times the square root of the plant's `height` (a
+    /// tall plant moves farther, but not in proportion), times how high the vertex is up the plant, squared: a stem's tip or a crown's edge moves
+    /// most, the root not at all.
+    pub fn set_sway(&mut self, k: f32, height: f32) {
+        let reach = k * 0.12 * height.max(0.0).sqrt();
+        for (w, p) in self.sway.iter_mut().zip(&self.pos) {
+            let t = (p[1] / height.max(1e-4)).clamp(0.0, 1.0);
+            *w = reach * t * t;
+        }
     }
 
     /// The smallest and largest corner of the mesh.

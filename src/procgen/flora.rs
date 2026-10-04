@@ -162,7 +162,7 @@ pub const SPECIES: &[Species] = &[
         cool: (0.0, 0.85),
         wet: ANY,
         wood: (0.1, 0.9),
-        colors: &["#5a8a3a", "#6a9a42", "#f3eee4"],
+        colors: &["#5a8a3a", "#6a9a42", "#72a248"],
     },
     Species {
         key: "bracken",
@@ -314,7 +314,7 @@ pub const SPECIES: &[Species] = &[
         common: "smooth meadow-grass",
         latin: "Poa pratensis",
         kind: Kind::Grass,
-        height: (0.25, 0.45),
+        height: (0.3, 0.55),
         spread: 0.55,
         trunk: 0.0,
         cool: ANY,

@@ -111,6 +111,14 @@ multipliers (a scene with none gets a shadow-casting sun), a dim cool moonlight 
 over 29.5 days (`moon_phase` sets day 0), and `fog` (density per metre, 0 for none) fades the distance into the horizon colour, warmed toward the sun at dusk. Without a `clock` the sky is whatever `sky`/`background` say.
 Draw any moment with `frame scene.json out.png --hour 18.5`, and a whole day as a labelled contact sheet with `sky scene.json out.png [--hours 5,6,7,12,18,19,22] [--look sun|moon]`. Presentation only: the simulation does not read it.
 
+### An endless world (`procgen`)
+
+```json
+"procgen": { "seed": 7, "relief": 1.0, "trees": 1.0, "flowers": 1.0, "grass": 1.0 }
+```
+
+A top-level `"procgen"` makes the ground an endless generated world: rolling hills, open meadows, wildflower fields, groves, broadleaf forest, pinewoods and glades, with twenty real species (English oak, silver birch, Norway spruce, Scots pine, weeping willow, wild cherry, hawthorn, bracken, oxeye daisy, poppy, cornflower, lavender, bluebell, dandelion, buttercup, red clover, foxglove, harebell and two grasses). The same `seed` is the same world on every machine; the multipliers (0 to 3 for `relief` and `flowers`, 0 to 2 for `trees` and `grass`) change the hills and how thick things grow. It is the floor everywhere (a scene needs no ground object), tree trunks stop the player, plants sway in the wind, and chunks around the camera stream in as it moves. It combines with `clock` (a day that turns to night). Look at it without a renderer with `procgen map.png --seed 7 --size 400 [--biomes] [--grid]` (top-down map and plant counts) and at the plant models with `flora sheet.png [--species oak --variants 6]`; draw it with `frame scene.json out.png --hour 9`. `examples/endless_meadow.json` is the smallest scene. Design and limits: ADRs "An endless world" and "The streamed world".
+
 ## Camera
 
 ```json

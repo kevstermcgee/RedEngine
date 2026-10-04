@@ -381,6 +381,8 @@ pub struct GroundCandidates {
     terrains: Vec<std::sync::Arc<crate::terrain::Terrain>>,
     /// The scene's looping axis: ground queries are brought into the period first.
     wrap: Option<crate::expanse::Wrap>,
+    /// An endless generated world (`procgen` block): it is the ground everywhere, and its tree trunks block.
+    procgen: Option<std::sync::Arc<crate::procgen::ProcgenGround>>,
 }
 
 impl GroundCandidates {
@@ -400,6 +402,14 @@ impl GroundCandidates {
         self.stairs.extend_from_slice(&other.stairs);
         self.terrains.extend(other.terrains.iter().cloned());
         self.wrap = self.wrap.or(other.wrap);
+        if self.procgen.is_none() {
+            self.procgen = other.procgen.clone();
+        }
+    }
+
+    /// The generated world under this ground, if the scene has a `procgen` block.
+    pub fn procgen(&self) -> Option<&crate::procgen::ProcgenGround> {
+        self.procgen.as_deref()
     }
 
     /// The indices (into `box_tops`) of every box top whose footprint may contain `xz`: a superset of the tops that do, never missing one.
@@ -412,7 +422,8 @@ impl GroundCandidates {
     /// Height of the terrain under `xz`, if any terrain covers it (the highest, if several overlap).
     pub fn terrain_height_at(&self, xz: glam::Vec2) -> Option<f32> {
         let xz = self.wrap.map_or(xz, |w| w.wrap_pos(xz));
-        self.terrains.iter().filter_map(|t| t.height_at(xz.x, xz.y)).fold(None, |a, h| Some(a.map_or(h, |m: f32| m.max(h))))
+        let generated = self.procgen.as_ref().map(|p| p.height(xz));
+        self.terrains.iter().filter_map(|t| t.height_at(xz.x, xz.y)).chain(generated).fold(None, |a, h| Some(a.map_or(h, |m: f32| m.max(h))))
     }
 }
 
@@ -479,6 +490,7 @@ pub fn collect_ground_candidates_except(scene: &Scene, skip: &std::collections::
     for group in collect_ground_candidates_grouped_except(scene, skip) {
         out.append(&group);
     }
+    out.procgen = scene.procgen.clone().map(|cfg| std::sync::Arc::new(crate::procgen::ProcgenGround::new(cfg)));
     out
 }
 

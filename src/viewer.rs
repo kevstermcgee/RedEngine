@@ -380,6 +380,8 @@ pub struct LiveRenderer {
     mesh_object_paths: Vec<Vec<String>>,
     /// The scene's ocean, when it has one (drawn last in the main pass; see [`crate::ocean_pass`]).
     ocean: Option<crate::ocean_pass::OceanPass>,
+    /// The scene's endless generated world, when it has a `procgen` block: chunks stream in around the camera.
+    stream: Option<crate::stream_gpu::StreamLayer>,
     /// Drives the water's animation (it must not loop with the scene's `duration`).
     clock: std::time::Instant,
     /// Scene object ids suppressed by a game rule or application.
@@ -570,6 +572,10 @@ impl LiveRenderer {
         let post = create_post_pipeline(device, color_format, MSAA_SAMPLES);
         let post_bind_group = post.bind(device, &targets.depth_view);
         let ocean = crate::ocean_pass::OceanPass::new(device, color_format, MSAA_SAMPLES, scene, &pipelines.layouts.global_uniform);
+        let stream = scene.procgen.clone().map(|cfg| {
+            let workers = std::thread::available_parallelism().map_or(1, |n| (n.get() / 2).clamp(1, 3));
+            crate::stream_gpu::StreamLayer::new(device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), workers)
+        });
         let crosshair = create_crosshair_pipeline(device, color_format);
         let crosshair_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("live-crosshair-uniform"),
@@ -602,6 +608,7 @@ impl LiveRenderer {
             meshes,
             mesh_object_paths,
             ocean,
+            stream,
             clock: std::time::Instant::now(),
             hidden_objects: HashSet::new(),
             held,
@@ -731,8 +738,14 @@ impl LiveRenderer {
         };
         let draw_held = fps.is_some();
         let aspect = self.targets.width.max(1) as f32 / self.targets.height.max(1) as f32;
+        // Far from the world's origin everything is measured from a nearby point (see `render_origin`), so the f32 maths stays accurate.
+        let origin = crate::render::render_origin(camera.eye);
+        let shift = Mat4::from_translation(-origin);
+        let (weapon_transform, hand_prop_transform) =
+            if origin == Vec3::ZERO { (weapon_transform, hand_prop_transform) } else { (shift * weapon_transform, shift * hand_prop_transform) };
+        let camera = &ViewCamera { eye: camera.eye - origin, target: camera.target - origin, ..*camera };
         let view_proj = camera.view_proj(aspect);
-        let globals = build_globals_common(scene, t, camera.eye, view_proj);
+        let globals = build_globals_common(scene, t, camera.eye, view_proj, origin);
         queue.write_buffer(&self.global_buf, 0, bytemuck::bytes_of(&globals));
 
         // Per-mesh frustum culling: which scene meshes are worth a draw call this frame, tested
@@ -745,7 +758,7 @@ impl LiveRenderer {
         let light_planes = shadow_active.then(|| frustum_planes(Mat4::from_cols_array_2d(&globals.light_view_proj)));
         // One entry per (image, mesh): slot `image * meshes + mesh`. Image 0 is the scene itself; on a looping world the others are its
         // neighbours one period away along the loop axis.
-        let offsets = crate::render::wrap_offsets(scene);
+        let offsets: Vec<Vec3> = crate::render::wrap_offsets(scene).into_iter().map(|o| o - origin).collect();
         let n_meshes = self.meshes.len();
 
         // Object uniforms live in a persistent staging copy of the GPU buffer (see `object_staging`): the scene is sampled as before, but
@@ -780,7 +793,7 @@ impl LiveRenderer {
             }
         }
         for (r, hand) in self.remote_hands.iter().enumerate() {
-            let world = remote_hand_transform(hand);
+            let world = shift * remote_hand_transform(hand);
             for (k, h) in self.held.iter().enumerate() {
                 if h.weapon != hand.weapon || h.fp_only || !(h.skin == ANY_SKIN || h.skin == hand.skin) || (h.flash && hand.flash <= 0.0) {
                     continue;
@@ -797,6 +810,10 @@ impl LiveRenderer {
 
         if let Some(ocean) = &self.ocean {
             ocean.update(queue, self.clock.elapsed().as_secs_f32());
+        }
+        if let Some(stream) = &mut self.stream {
+            stream.update(device, queue, camera.eye + origin);
+            stream.set_origin(queue, origin);
         }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("live-frame-encoder") });
 
@@ -826,6 +843,9 @@ impl LiveRenderer {
                     shadow_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                     shadow_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
+            }
+            if let (Some(stream), Some(planes)) = (&self.stream, &light_planes) {
+                stream.draw_shadow(&mut shadow_pass, planes);
             }
             // The hand-held (third-person) bat is an ordinary world object, so it casts a
             // shadow like any other prop — unlike the always-on-top first-person viewmodel.
@@ -901,6 +921,9 @@ impl LiveRenderer {
                     main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
+            }
+            if let Some(stream) = &self.stream {
+                stream.draw_main(&mut main_pass, view_proj);
             }
             // Hand-held (third-person) bat instance: normal depth test against the world,
             // so a wall between the camera and the player correctly occludes it like any prop.

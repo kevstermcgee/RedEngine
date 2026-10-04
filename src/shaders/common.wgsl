@@ -70,3 +70,18 @@ fn haze_color(dir: vec3<f32>) -> vec3<f32> {
     }
     return c;
 }
+
+// ---- Wind -----------------------------------------------------------------------------------------------------------------------------------
+// The displacement in metres of a vertex with sway weight `w` (the metres it moves at full gust) at world position `p`: a wave travelling
+// across the field, so grass and flowers ripple instead of nodding together, under a slow gust envelope. The clock is the scene time.
+fn wind_offset(w: f32, p: vec3<f32>) -> vec3<f32> {
+    if (w <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    let t = globals.night.y;
+    let phase = dot(p.xz, vec2<f32>(0.34, 0.2));
+    let wave = sin(t * 1.7 - phase * 1.3) * 0.55 + sin(t * 2.9 - phase * 2.1 + 1.3) * 0.25;
+    let gust = 0.55 + 0.45 * sin(t * 0.23 - phase * 0.11);
+    let d = w * (wave * gust + 0.35 * gust);
+    return vec3<f32>(0.86 * d, 0.0, 0.5 * d);
+}

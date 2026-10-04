@@ -165,11 +165,11 @@
     },
     "procgen": {
       "summary": "An endless world as pure functions of a seed: deterministic noise, ground, climate, biomes, per-chunk placement of real plant species and a low-poly model of each; `procgen` draws a top-down map with plant counts, `flora` a contact sheet of the models, no GPU needed.",
-      "files": ["src/procgen/**", "src/tools/procgen_map.rs", "src/tools/flora_sheet.rs"],
-      "tests": ["lib:procgen", "lib:tools::procgen_map", "lib:tools::flora_sheet"],
+      "files": ["src/procgen/**", "src/tools/procgen_map.rs", "src/tools/flora_sheet.rs", "src/stream_gpu.rs", "examples/endless_meadow.json"],
+      "tests": ["lib:procgen", "lib:tools::procgen_map", "lib:tools::flora_sheet", "procgen_world", "procgen_render"],
       "commands": ["red_engine2 procgen out/world.png --seed 7 --size 400", "red_engine2 procgen out/biomes.png --seed 7 --size 2400 --scale 0.5 --biomes", "red_engine2 flora out/flora.png"],
-      "docs": ["docs/adr/2026-10-04-an-endless-world-procgen-as-pure-functions-of-a-seed.md"],
-      "depends_on": ["scene_format"]
+      "docs": ["docs/adr/2026-10-04-an-endless-world-procgen-as-pure-functions-of-a-seed.md", "docs/adr/2026-10-04-plants-as-small-parametric-models-previewed-in-software.md", "docs/adr/2026-10-04-the-streamed-world-chunks-around-the-player-a-floating.md"],
+      "depends_on": ["scene_format", "offline_renderer", "player_physics"]
     },
     "audio": {
       "summary": "Sound you can measure: the procedural synthesis (guns, effects, music, ambience) and WAV encoder build headless; `audio list|report|render|picture|check` give loudness (BS.1770 LUFS), peaks, clipping, silence, loop seam, spectrum and pitch as numbers or one picture, and hold every built-in sound to a standard.",
