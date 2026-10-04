@@ -366,7 +366,7 @@ mod tests {
             next += count;
         }
         assert_eq!(next as usize, c.flora.idx.len());
-        assert!(c.solid_trees <= c.solid.idx.len() && c.solid_trees % 3 == 0);
+        assert!(c.solid_trees <= c.solid.idx.len() && c.solid_trees.is_multiple_of(3));
         assert!(c.solid_trees > 0, "this chunk has trees");
         // Every flora triangle sits in the square its run says, give or take a plant's width.
         for (k, &(start, count)) in c.flora_cells.iter().enumerate() {

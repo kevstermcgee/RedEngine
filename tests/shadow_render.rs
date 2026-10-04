@@ -37,13 +37,13 @@ fn shadowed(lit: &[u8], shaded: &[u8], w: usize) -> Vec<(usize, usize)> {
 
 #[test]
 fn a_near_pillar_and_a_far_pillar_both_cast_a_shadow_that_the_unshadowed_scene_lacks() {
-    let (mut with, mut without) = (scene(true), scene(false));
+    let (with, without) = (scene(true), scene(false));
     let (Ok(mut a), Ok(mut b)) = (Renderer::new(&with), Renderer::new(&without)) else {
         eprintln!("no GPU adapter on this machine: the shadow render test is skipped");
         return;
     };
-    let shaded = a.render_frame(&mut with, 0.0);
-    let lit = b.render_frame(&mut without, 0.0);
+    let shaded = a.render_frame(&with, 0.0);
+    let lit = b.render_frame(&without, 0.0);
     let w = with.width as usize;
     let dark = shadowed(&lit, &shaded, w);
     // The camera looks at x = 25 across about 104 m: about 3.5 pixels a metre. The near pillar is 3 m right of centre, the far one 40 m (140 pixels).
