@@ -287,6 +287,16 @@ pub(crate) enum AudioCmd {
         #[arg(long, default_value = "960x400")]
         size: String,
     },
+    /// Compare every built-in sound's measurements with the stored golden (tests/fixtures/audio_golden.json): a refactor or a tweak that changes how a sound
+    /// sounds shows up as a line. `--write` stores the current sounds as the new golden. Exit 1 on a difference.
+    Golden {
+        /// Store the current measurements instead of comparing.
+        #[arg(long)]
+        write: bool,
+        /// The golden file.
+        #[arg(long, default_value = "tests/fixtures/audio_golden.json")]
+        file: PathBuf,
+    },
     /// Hold sounds to the engine's standard (finite, not clipped, audible, no DC offset, one-shots end cleanly, loops have no seam). Exit 1 on a failure.
     Check {
         /// Built-in names or `.wav` files; none = every built-in.
