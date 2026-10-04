@@ -584,6 +584,14 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
     let mut light_color_intensity = [[0f32; 4]; MAX_LIGHTS];
     let mut shadow_idx: i32 = -1;
     let mut light_view_proj = Mat4::IDENTITY;
+    // A scene with a `clock`: the sky, the sun's light, the ambient and the moon follow the time of day.
+    let day = scene.clock.as_ref().map(|c| c.state(t, 0));
+    let sun_index = scene.clock.as_ref().and_then(|c| {
+        c.light
+            .as_ref()
+            .and_then(|id| scene.lights.iter().position(|l| &l.id == id))
+            .or_else(|| scene.lights.iter().position(|l| matches!(l.kind, LightKind::Directional { .. })))
+    });
     let mut selected: Vec<usize> =
         scene.lights.iter().enumerate().filter_map(|(i, light)| matches!(light.kind, LightKind::Directional { .. }).then_some(i)).collect();
     let mut points: Vec<(usize, f32)> = scene
@@ -598,30 +606,38 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
     points.sort_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
     selected.extend(points.into_iter().map(|(i, _)| i));
     selected.truncate(MAX_LIGHTS);
-    let n = selected.len();
+    // The shadow map for a directional light shining along `d`: centred on `center`, or under the camera (snapped to texels so shadows do not crawl) when it follows.
+    let shadow_matrix = |d: Vec3, radius: f32, center: Vec3, follow: bool| -> Mat4 {
+        let r = radius.max(0.5);
+        let mut center = center;
+        if follow {
+            let texel = (2.0 * r) / crate::gpu::SHADOW_SIZE as f32;
+            center = Vec3::new((cam_pos.x / texel).round() * texel, center.y, (cam_pos.z / texel).round() * texel);
+        }
+        let light_pos = center - d * (r * 1.6);
+        let up = if d.y.abs() > 0.98 { Vec3::Z } else { Vec3::Y };
+        let view_l = glam::camera::rh::view::look_at_mat4(light_pos, center, up);
+        let proj_l = glam::camera::rh::proj::directx::orthographic(-r, r, -r, r, 0.05, r * 3.5);
+        proj_l * view_l
+    };
+    let mut n = selected.len();
     for (i, source_index) in selected.into_iter().enumerate() {
         let light = &scene.lights[source_index];
         let intensity = light.intensity.sample(t);
-        let color = light.color.sample(t) * intensity;
+        let mut color = light.color.sample(t) * intensity;
         match &light.kind {
             LightKind::Directional { direction } => {
-                let d = direction.sample(t).normalize_or_zero();
+                let mut d = direction.sample(t).normalize_or_zero();
+                if let (Some(day), true) = (&day, Some(source_index) == sun_index) {
+                    // The sun: its direction and colour from the clock, scaled by the light's own colour and intensity (so an author can tune it).
+                    d = day.light_dir;
+                    color = day.light_color * light.color.sample(t) * intensity;
+                }
                 light_pos_or_dir[i] = [d.x, d.y, d.z, 0.0];
                 light_color_intensity[i] = [color.x, color.y, color.z, 0.0];
                 if light.cast_shadows {
                     shadow_idx = i as i32;
-                    let r = light.shadow_radius.max(0.5);
-                    let mut center = light.shadow_center;
-                    if light.shadow_follow {
-                        // Centred under the camera, snapped to shadow-map texels so the shadows stay put as you walk.
-                        let texel = (2.0 * r) / crate::gpu::SHADOW_SIZE as f32;
-                        center = Vec3::new((cam_pos.x / texel).round() * texel, light.shadow_center.y, (cam_pos.z / texel).round() * texel);
-                    }
-                    let light_pos = center - d * (r * 1.6);
-                    let up = if d.y.abs() > 0.98 { Vec3::Z } else { Vec3::Y };
-                    let view_l = glam::camera::rh::view::look_at_mat4(light_pos, center, up);
-                    let proj_l = glam::camera::rh::proj::directx::orthographic(-r, r, -r, r, 0.05, r * 3.5);
-                    light_view_proj = proj_l * view_l;
+                    light_view_proj = shadow_matrix(d, light.shadow_radius, light.shadow_center, light.shadow_follow);
                 }
             }
             LightKind::Point { position, range } => {
@@ -631,21 +647,59 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
             }
         }
     }
+    if let Some(day) = &day {
+        // No directional light authored: the clock supplies a sun that casts shadows around the camera.
+        if sun_index.is_none() && n < MAX_LIGHTS {
+            let d = day.light_dir;
+            light_pos_or_dir[n] = [d.x, d.y, d.z, 0.0];
+            light_color_intensity[n] = [day.light_color.x, day.light_color.y, day.light_color.z, 0.0];
+            shadow_idx = n as i32;
+            light_view_proj = shadow_matrix(d, 48.0, Vec3::ZERO, true);
+            n += 1;
+        }
+        // Moonlight: a dim, cool fill from the moon's own place in the sky (no shadows).
+        if n < MAX_LIGHTS && day.moon_light_color.max_element() > 1e-4 {
+            let d = day.moon_light_dir;
+            light_pos_or_dir[n] = [d.x, d.y, d.z, 0.0];
+            light_color_intensity[n] = [day.moon_light_color.x, day.moon_light_color.y, day.moon_light_color.z, 0.0];
+            n += 1;
+        }
+    }
 
-    let ambient = scene.ambient_color * scene.ambient_intensity;
+    let ambient = match &day {
+        Some(d) => d.ambient,
+        None => scene.ambient_color * scene.ambient_intensity,
+    };
     let (bg_top, bg_bottom, bg_mode) = match &scene.background {
         Background::Flat(c) => (*c, Vec3::ZERO, 0.0f32),
         Background::Gradient { top, bottom } => (*top, *bottom, 1.0f32),
     };
 
-    // The sky: a view-direction gradient (zenith over horizon) and a sun at infinity, when the scene has a `sky` block.
-    let (bg_top, bg_bottom, bg_mode, sky_flags) = match &scene.sky {
-        Some(sky) => (sky.zenith, sky.horizon, 1.0f32, [1.0, sky.gradient_power, if sky.sun.is_some() { 1.0 } else { 0.0 }, 0.0]),
-        None => (bg_top, bg_bottom, bg_mode, [0.0; 4]),
+    // The sky: a view-direction gradient (zenith over horizon) and a sun at infinity, when the scene has a `sky` block (or a `clock`, which supplies one).
+    let (bg_top, bg_bottom, bg_mode, sky_flags) = match (&day, &scene.sky) {
+        (Some(d), sky) => (d.zenith, d.horizon, 1.0f32, [1.0, sky.map_or(0.6, |s| s.gradient_power), 1.0, 0.0]),
+        (None, Some(sky)) => (sky.zenith, sky.horizon, 1.0f32, [1.0, sky.gradient_power, if sky.sun.is_some() { 1.0 } else { 0.0 }, 0.0]),
+        (None, None) => (bg_top, bg_bottom, bg_mode, [0.0; 4]),
     };
     let sun = scene.sky.and_then(|s| s.sun);
-    let sun_dir = sun.map_or([0.0, 1.0, 0.0, 0.0], |s| [s.direction.x, s.direction.y, s.direction.z, s.radius_deg.to_radians()]);
-    let sun_color = sun.map_or([0.0; 4], |s| [s.color.x, s.color.y, s.color.z, s.glow]);
+    let (sun_dir, sun_color) = match &day {
+        Some(d) => ([d.sun_dir.x, d.sun_dir.y, d.sun_dir.z, d.sun_radius_deg.to_radians()], [d.sun_color.x, d.sun_color.y, d.sun_color.z, 0.85]),
+        None => (
+            sun.map_or([0.0, 1.0, 0.0, 0.0], |s| [s.direction.x, s.direction.y, s.direction.z, s.radius_deg.to_radians()]),
+            sun.map_or([0.0; 4], |s| [s.color.x, s.color.y, s.color.z, s.glow]),
+        ),
+    };
+    let clock = scene.clock.as_ref();
+    let (moon_dir, night, celestial, glow, fog) = match (&day, clock) {
+        (Some(d), Some(c)) => (
+            [d.moon_dir.x, d.moon_dir.y, d.moon_dir.z, if c.moon { 2.6f32.to_radians() } else { 0.0 }],
+            [d.star_visibility, t, d.moon_phase, 1.0],
+            d.celestial.map(|r| [r.x, r.y, r.z, 0.0]),
+            [d.glow.x, d.glow.y, d.glow.z, d.glow_strength],
+            [d.horizon.x, d.horizon.y, d.horizon.z, c.fog],
+        ),
+        _ => ([0.0, 1.0, 0.0, 0.0], [0.0; 4], [[0.0; 4]; 3], [0.0; 4], [0.0; 4]),
+    };
 
     GlobalUniform {
         view_proj: view_proj.to_cols_array_2d(),
@@ -661,6 +715,11 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
         sun_dir,
         sun_color,
         sky: sky_flags,
+        moon_dir,
+        night,
+        celestial,
+        glow,
+        fog,
     }
 }
 

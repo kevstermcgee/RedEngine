@@ -320,6 +320,9 @@ pub(crate) enum Command {
         out: PathBuf,
         #[arg(long, default_value_t = 0.0)]
         t: f32,
+        /// For a scene with a `clock`: draw it at this clock hour (0 to 24, e.g. 18.5 for half past six in the evening) instead of at `--t`.
+        #[arg(long)]
+        hour: Option<f32>,
         /// Camera position "x,y,z" (overrides the scene camera).
         #[arg(long, allow_hyphen_values = true)]
         eye: Option<String>,
@@ -339,9 +342,38 @@ pub(crate) enum Command {
         #[arg(long)]
         size: Option<String>,
     },
+    /// A clock scene across the day as a contact sheet. `sky scene.json out.png --hours 5,6,12,18,19,22`.
+    Sky {
+        scene: PathBuf,
+        out: PathBuf,
+        /// Clock hours to draw (0 to 24, comma separated).
+        #[arg(long, default_value = "4.5,5.5,6.2,7.5,10,13,16.5,17.8,18.4,19,20.5,23.5", allow_hyphen_values = true)]
+        hours: String,
+        /// Columns of the sheet.
+        #[arg(long, default_value_t = 4)]
+        cols: u32,
+        /// Width of each tile in pixels.
+        #[arg(long, default_value_t = 480)]
+        tile: u32,
+        /// Camera position "x,y,z" (overrides the scene camera).
+        #[arg(long, allow_hyphen_values = true)]
+        eye: Option<String>,
+        /// Point to look at "x,y,z".
+        #[arg(long, allow_hyphen_values = true)]
+        at: Option<String>,
+        /// Vertical field of view in degrees.
+        #[arg(long)]
+        fov: Option<f32>,
+        /// Render size of each frame "WxH" (default: the scene's own).
+        #[arg(long)]
+        size: Option<String>,
+        /// Aim the camera at the `sun` or the `moon` in every tile (the horizon in its direction when it is below it).
+        #[arg(long)]
+        look: Option<String>,
+    },
     /// Render the full scene to an MP4.
     Render { scene: PathBuf, out: PathBuf },
-    /// Render a multi-frame contact sheet PNG for fast whole-clip review.
+    /// Contact sheet of frames across the clip.
     Storyboard {
         scene: PathBuf,
         out: PathBuf,
@@ -379,7 +411,7 @@ pub(crate) enum Command {
         #[arg(long)]
         phase: Option<String>,
     },
-    /// Replay a walking route with the game's real per-tick physics: `walk scene.json --path "0,-8; 0,1; -0.8,2; -0.8,7.6"`.
+    /// Replay a walking route with the game's real per-tick physics. `walk scene.json --path "0,-8; 0,1; -0.8,2; -0.8,7.6"`.
     /// Prints where the player ends up at each waypoint, or where they get stuck AND which object stopped them (id, gap,
     /// passage width vs body). `--auto --to X,Z[,Y]` plans the route for you (A* on the reach grid, validated with the real
     /// physics) and prints waypoints to paste; `--explain out.png` draws the route, the stop point and the blocker.
@@ -407,7 +439,7 @@ pub(crate) enum Command {
         #[arg(long)]
         phase: Option<String>,
     },
-    /// Top-down floor plan (PNG, or --ascii to stdout): walls, props with ids, stairs, walkable area, findings.
+    /// Top-down floor plan (PNG or --ascii): walls, props, stairs, walkable area.
     Plan {
         scene: PathBuf,
         /// Output PNG (default out/plan_y<height>.png).

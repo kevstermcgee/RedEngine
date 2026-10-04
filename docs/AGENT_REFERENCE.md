@@ -53,7 +53,7 @@ impact --git` says which tests and docs a change touches; `features --check` kee
 `vars` + `rules` in the scene declare gameplay (triggers, conditions, actions); `checks.sim` scenarios play scripted players through
 the real simulation and assert the outcome, with no window (`red_engine2 sim scene.json`); `red_engine2 replay trace.json` re-runs a
 recorded match and names the first divergent tick. `describe rules` and `describe sim` have the syntax with runnable examples;
-`recipe coin_run` is a complete game proven by its own scenarios, with a `ui` block (friendly HUD, objective, start and end cards; `describe ui`); `recipe gated_garden` adds `phases` (a gate a rule opens): check reach/walk/lint in each level state. Scripted players act on objects, not coordinates: `approach` / `look_at` / `interact` with an object id work the same in `checks.sim` and in the `playtest` / `re2 --script` client script. In single-player `re2`, the same rules drive hidden/shown objects,
+`clock` gives a scene a day and night (`frame --hour`, `sky` contact sheet; `examples/day_cycle.json`). `recipe coin_run` is a complete game proven by its own scenarios, with a `ui` block (friendly HUD, objective, start and end cards; `describe ui`); `recipe gated_garden` adds `phases` (a gate a rule opens): check reach/walk/lint in each level state. Scripted players act on objects, not coordinates: `approach` / `look_at` / `interact` with an object id work the same in `checks.sim` and in the `playtest` / `re2 --script` client script. In single-player `re2`, the same rules drive hidden/shown objects,
 teleports and prop impulses; a compact generic HUD shows scene variables, recent events and the terminal outcome.
 
 ## When a walk or a route fails (ADR 0023)

@@ -71,6 +71,7 @@ pub fn backdrop_scene() -> Scene {
         nav: None,
         hud: Default::default(),
         ui: None,
+        clock: None,
         music: false,
         flashlight: false,
         death_text: None,

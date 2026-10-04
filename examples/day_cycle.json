@@ -1,0 +1,3992 @@
+{
+ "camera": {
+  "fov": 78,
+  "position": [
+   0,
+   1.6,
+   0
+  ],
+  "target": [
+   0,
+   2.2,
+   -10
+  ]
+ },
+ "clock": {
+  "day_secs": 720,
+  "start": 0.27,
+  "fog": 0.0035,
+  "stars": 1.0,
+  "moon": true
+ },
+ "lights": [
+  {
+   "id": "sun",
+   "type": "directional",
+   "direction": [
+    -0.4,
+    -1,
+    -0.3
+   ],
+   "cast_shadows": true,
+   "shadow_radius": 48,
+   "shadow_follow": true,
+   "intensity": 1.0
+  }
+ ],
+ "objects": [
+  {
+   "id": "ground",
+   "type": "plane",
+   "size": [
+    900,
+    900
+   ],
+   "position": [
+    0,
+    0,
+    0
+   ],
+   "material": {
+    "color": "#79b35a",
+    "roughness": 1.0
+   }
+  },
+  {
+   "id": "tree_1",
+   "type": "group",
+   "position": [
+    1.17,
+    0,
+    13.29
+   ],
+   "children": [
+    {
+     "id": "tree_1_trunk",
+     "type": "cylinder",
+     "radius": 0.2691,
+     "height": 2.093,
+     "position": [
+      0,
+      1.0465,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_1_crown",
+     "type": "cone",
+     "radius": 1.794,
+     "height": 4.784000000000001,
+     "position": [
+      0,
+      4.485,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_2",
+   "type": "group",
+   "position": [
+    10.35,
+    0,
+    6.57
+   ],
+   "children": [
+    {
+     "id": "tree_2_trunk",
+     "type": "cylinder",
+     "radius": 0.30374999999999996,
+     "height": 2.3625,
+     "position": [
+      0,
+      1.18125,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_2_crown",
+     "type": "cone",
+     "radius": 2.025,
+     "height": 5.4,
+     "position": [
+      0,
+      5.0625,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_3",
+   "type": "group",
+   "position": [
+    6.84,
+    0,
+    -20.85
+   ],
+   "children": [
+    {
+     "id": "tree_3_trunk",
+     "type": "cylinder",
+     "radius": 0.22995000000000002,
+     "height": 1.7885,
+     "position": [
+      0,
+      0.89425,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_3_crown",
+     "type": "cone",
+     "radius": 1.5330000000000001,
+     "height": 4.088,
+     "position": [
+      0,
+      3.8325,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_4",
+   "type": "group",
+   "position": [
+    -2.38,
+    0,
+    14.04
+   ],
+   "children": [
+    {
+     "id": "tree_4_trunk",
+     "type": "cylinder",
+     "radius": 0.20385,
+     "height": 1.5855,
+     "position": [
+      0,
+      0.79275,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_4_crown",
+     "type": "cone",
+     "radius": 1.359,
+     "height": 3.6240000000000006,
+     "position": [
+      0,
+      3.3975,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_5",
+   "type": "group",
+   "position": [
+    11.55,
+    0,
+    -4.33
+   ],
+   "children": [
+    {
+     "id": "tree_5_trunk",
+     "type": "cylinder",
+     "radius": 0.324,
+     "height": 2.52,
+     "position": [
+      0,
+      1.26,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_5_crown",
+     "type": "cone",
+     "radius": 2.16,
+     "height": 5.760000000000001,
+     "position": [
+      0,
+      5.4,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_6",
+   "type": "group",
+   "position": [
+    4.52,
+    0,
+    -13.79
+   ],
+   "children": [
+    {
+     "id": "tree_6_trunk",
+     "type": "cylinder",
+     "radius": 0.24974999999999997,
+     "height": 1.9425,
+     "position": [
+      0,
+      0.97125,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_6_crown",
+     "type": "cone",
+     "radius": 1.6649999999999998,
+     "height": 4.44,
+     "position": [
+      0,
+      4.1625,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_7",
+   "type": "group",
+   "position": [
+    17.0,
+    0,
+    10.3
+   ],
+   "children": [
+    {
+     "id": "tree_7_trunk",
+     "type": "cylinder",
+     "radius": 0.3312,
+     "height": 2.576,
+     "position": [
+      0,
+      1.288,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_7_crown",
+     "type": "cone",
+     "radius": 2.208,
+     "height": 5.888000000000001,
+     "position": [
+      0,
+      5.5200000000000005,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_8",
+   "type": "group",
+   "position": [
+    7.96,
+    0,
+    16.32
+   ],
+   "children": [
+    {
+     "id": "tree_8_trunk",
+     "type": "cylinder",
+     "radius": 0.20025,
+     "height": 1.5574999999999999,
+     "position": [
+      0,
+      0.7787499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_8_crown",
+     "type": "cone",
+     "radius": 1.335,
+     "height": 3.5600000000000005,
+     "position": [
+      0,
+      3.3375000000000004,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_9",
+   "type": "group",
+   "position": [
+    15.78,
+    0,
+    0.72
+   ],
+   "children": [
+    {
+     "id": "tree_9_trunk",
+     "type": "cylinder",
+     "radius": 0.3384,
+     "height": 2.6319999999999997,
+     "position": [
+      0,
+      1.3159999999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_9_crown",
+     "type": "cone",
+     "radius": 2.256,
+     "height": 6.016,
+     "position": [
+      0,
+      5.64,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_10",
+   "type": "group",
+   "position": [
+    10.75,
+    0,
+    -15.19
+   ],
+   "children": [
+    {
+     "id": "tree_10_trunk",
+     "type": "cylinder",
+     "radius": 0.27315,
+     "height": 2.1245,
+     "position": [
+      0,
+      1.06225,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_10_crown",
+     "type": "cone",
+     "radius": 1.821,
+     "height": 4.856000000000001,
+     "position": [
+      0,
+      4.5525,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_11",
+   "type": "group",
+   "position": [
+    -34.55,
+    0,
+    15.98
+   ],
+   "children": [
+    {
+     "id": "tree_11_trunk",
+     "type": "cylinder",
+     "radius": 0.24885000000000002,
+     "height": 1.9355,
+     "position": [
+      0,
+      0.96775,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_11_crown",
+     "type": "cone",
+     "radius": 1.659,
+     "height": 4.424,
+     "position": [
+      0,
+      4.1475,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_12",
+   "type": "group",
+   "position": [
+    46.39,
+    0,
+    25.91
+   ],
+   "children": [
+    {
+     "id": "tree_12_trunk",
+     "type": "cylinder",
+     "radius": 0.40455,
+     "height": 3.1465,
+     "position": [
+      0,
+      1.57325,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_12_crown",
+     "type": "cone",
+     "radius": 2.697,
+     "height": 7.192,
+     "position": [
+      0,
+      6.7425,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_13",
+   "type": "group",
+   "position": [
+    -11.32,
+    0,
+    -35.49
+   ],
+   "children": [
+    {
+     "id": "tree_13_trunk",
+     "type": "cylinder",
+     "radius": 0.33165,
+     "height": 2.5795,
+     "position": [
+      0,
+      1.28975,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_13_crown",
+     "type": "cone",
+     "radius": 2.211,
+     "height": 5.896000000000001,
+     "position": [
+      0,
+      5.5275,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_14",
+   "type": "group",
+   "position": [
+    -34.26,
+    0,
+    20.91
+   ],
+   "children": [
+    {
+     "id": "tree_14_trunk",
+     "type": "cylinder",
+     "radius": 0.3222,
+     "height": 2.506,
+     "position": [
+      0,
+      1.253,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_14_crown",
+     "type": "cone",
+     "radius": 2.148,
+     "height": 5.728000000000001,
+     "position": [
+      0,
+      5.37,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_15",
+   "type": "group",
+   "position": [
+    20.96,
+    0,
+    47.37
+   ],
+   "children": [
+    {
+     "id": "tree_15_trunk",
+     "type": "cylinder",
+     "radius": 0.3123,
+     "height": 2.429,
+     "position": [
+      0,
+      1.2145,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_15_crown",
+     "type": "cone",
+     "radius": 2.082,
+     "height": 5.5520000000000005,
+     "position": [
+      0,
+      5.205,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_16",
+   "type": "group",
+   "position": [
+    28.9,
+    0,
+    -19.83
+   ],
+   "children": [
+    {
+     "id": "tree_16_trunk",
+     "type": "cylinder",
+     "radius": 0.19394999999999998,
+     "height": 1.5084999999999997,
+     "position": [
+      0,
+      0.7542499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_16_crown",
+     "type": "cone",
+     "radius": 1.293,
+     "height": 3.448,
+     "position": [
+      0,
+      3.2325,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_17",
+   "type": "group",
+   "position": [
+    -10.15,
+    0,
+    58.23
+   ],
+   "children": [
+    {
+     "id": "tree_17_trunk",
+     "type": "cylinder",
+     "radius": 0.37395,
+     "height": 2.9085,
+     "position": [
+      0,
+      1.45425,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_17_crown",
+     "type": "cone",
+     "radius": 2.493,
+     "height": 6.648000000000001,
+     "position": [
+      0,
+      6.2325,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_18",
+   "type": "group",
+   "position": [
+    -18.96,
+    0,
+    33.94
+   ],
+   "children": [
+    {
+     "id": "tree_18_trunk",
+     "type": "cylinder",
+     "radius": 0.2835,
+     "height": 2.2049999999999996,
+     "position": [
+      0,
+      1.1024999999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_18_crown",
+     "type": "cone",
+     "radius": 1.89,
+     "height": 5.04,
+     "position": [
+      0,
+      4.725,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_19",
+   "type": "group",
+   "position": [
+    -21.27,
+    0,
+    26.69
+   ],
+   "children": [
+    {
+     "id": "tree_19_trunk",
+     "type": "cylinder",
+     "radius": 0.3969,
+     "height": 3.0869999999999997,
+     "position": [
+      0,
+      1.5434999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_19_crown",
+     "type": "cone",
+     "radius": 2.646,
+     "height": 7.056000000000001,
+     "position": [
+      0,
+      6.615,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_20",
+   "type": "group",
+   "position": [
+    -7.4,
+    0,
+    -77.64
+   ],
+   "children": [
+    {
+     "id": "tree_20_trunk",
+     "type": "cylinder",
+     "radius": 0.18405,
+     "height": 1.4314999999999998,
+     "position": [
+      0,
+      0.7157499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_20_crown",
+     "type": "cone",
+     "radius": 1.2269999999999999,
+     "height": 3.2720000000000002,
+     "position": [
+      0,
+      3.0675,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_21",
+   "type": "group",
+   "position": [
+    -16.39,
+    0,
+    33.89
+   ],
+   "children": [
+    {
+     "id": "tree_21_trunk",
+     "type": "cylinder",
+     "radius": 0.3267,
+     "height": 2.541,
+     "position": [
+      0,
+      1.2705,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_21_crown",
+     "type": "cone",
+     "radius": 2.178,
+     "height": 5.808,
+     "position": [
+      0,
+      5.445,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_22",
+   "type": "group",
+   "position": [
+    -10.66,
+    0,
+    38.11
+   ],
+   "children": [
+    {
+     "id": "tree_22_trunk",
+     "type": "cylinder",
+     "radius": 0.2799,
+     "height": 2.1769999999999996,
+     "position": [
+      0,
+      1.0884999999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_22_crown",
+     "type": "cone",
+     "radius": 1.8659999999999999,
+     "height": 4.976,
+     "position": [
+      0,
+      4.664999999999999,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_23",
+   "type": "group",
+   "position": [
+    -0.02,
+    0,
+    59.94
+   ],
+   "children": [
+    {
+     "id": "tree_23_trunk",
+     "type": "cylinder",
+     "radius": 0.21555,
+     "height": 1.6764999999999999,
+     "position": [
+      0,
+      0.8382499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_23_crown",
+     "type": "cone",
+     "radius": 1.437,
+     "height": 3.8320000000000003,
+     "position": [
+      0,
+      3.5925000000000002,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_24",
+   "type": "group",
+   "position": [
+    -34.46,
+    0,
+    39.93
+   ],
+   "children": [
+    {
+     "id": "tree_24_trunk",
+     "type": "cylinder",
+     "radius": 0.26234999999999997,
+     "height": 2.0404999999999998,
+     "position": [
+      0,
+      1.0202499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_24_crown",
+     "type": "cone",
+     "radius": 1.7489999999999999,
+     "height": 4.664000000000001,
+     "position": [
+      0,
+      4.3725000000000005,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_25",
+   "type": "group",
+   "position": [
+    58.56,
+    0,
+    -1.04
+   ],
+   "children": [
+    {
+     "id": "tree_25_trunk",
+     "type": "cylinder",
+     "radius": 0.27899999999999997,
+     "height": 2.17,
+     "position": [
+      0,
+      1.085,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_25_crown",
+     "type": "cone",
+     "radius": 1.8599999999999999,
+     "height": 4.960000000000001,
+     "position": [
+      0,
+      4.65,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_26",
+   "type": "group",
+   "position": [
+    -35.87,
+    0,
+    18.58
+   ],
+   "children": [
+    {
+     "id": "tree_26_trunk",
+     "type": "cylinder",
+     "radius": 0.19349999999999998,
+     "height": 1.505,
+     "position": [
+      0,
+      0.7525,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_26_crown",
+     "type": "cone",
+     "radius": 1.2899999999999998,
+     "height": 3.44,
+     "position": [
+      0,
+      3.2249999999999996,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_27",
+   "type": "group",
+   "position": [
+    -4.83,
+    0,
+    -59.58
+   ],
+   "children": [
+    {
+     "id": "tree_27_trunk",
+     "type": "cylinder",
+     "radius": 0.39825,
+     "height": 3.0974999999999997,
+     "position": [
+      0,
+      1.5487499999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_27_crown",
+     "type": "cone",
+     "radius": 2.655,
+     "height": 7.08,
+     "position": [
+      0,
+      6.637499999999999,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_28",
+   "type": "group",
+   "position": [
+    -56.66,
+    0,
+    -16.94
+   ],
+   "children": [
+    {
+     "id": "tree_28_trunk",
+     "type": "cylinder",
+     "radius": 0.25245,
+     "height": 1.9635,
+     "position": [
+      0,
+      0.98175,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_28_crown",
+     "type": "cone",
+     "radius": 1.683,
+     "height": 4.488,
+     "position": [
+      0,
+      4.2075000000000005,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_29",
+   "type": "group",
+   "position": [
+    40.6,
+    0,
+    39.23
+   ],
+   "children": [
+    {
+     "id": "tree_29_trunk",
+     "type": "cylinder",
+     "radius": 0.35414999999999996,
+     "height": 2.7544999999999997,
+     "position": [
+      0,
+      1.3772499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_29_crown",
+     "type": "cone",
+     "radius": 2.3609999999999998,
+     "height": 6.296,
+     "position": [
+      0,
+      5.9025,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_30",
+   "type": "group",
+   "position": [
+    -23.19,
+    0,
+    -32.61
+   ],
+   "children": [
+    {
+     "id": "tree_30_trunk",
+     "type": "cylinder",
+     "radius": 0.22544999999999998,
+     "height": 1.7534999999999998,
+     "position": [
+      0,
+      0.8767499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_30_crown",
+     "type": "cone",
+     "radius": 1.503,
+     "height": 4.008,
+     "position": [
+      0,
+      3.7575,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_31",
+   "type": "group",
+   "position": [
+    -26.95,
+    0,
+    16.96
+   ],
+   "children": [
+    {
+     "id": "tree_31_trunk",
+     "type": "cylinder",
+     "radius": 0.27495,
+     "height": 2.1385,
+     "position": [
+      0,
+      1.06925,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_31_crown",
+     "type": "cone",
+     "radius": 1.833,
+     "height": 4.888000000000001,
+     "position": [
+      0,
+      4.5825000000000005,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_32",
+   "type": "group",
+   "position": [
+    -30.87,
+    0,
+    -41.08
+   ],
+   "children": [
+    {
+     "id": "tree_32_trunk",
+     "type": "cylinder",
+     "radius": 0.2286,
+     "height": 1.7779999999999998,
+     "position": [
+      0,
+      0.8889999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_32_crown",
+     "type": "cone",
+     "radius": 1.524,
+     "height": 4.064,
+     "position": [
+      0,
+      3.8099999999999996,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_33",
+   "type": "group",
+   "position": [
+    41.88,
+    0,
+    8.44
+   ],
+   "children": [
+    {
+     "id": "tree_33_trunk",
+     "type": "cylinder",
+     "radius": 0.23445,
+     "height": 1.8235,
+     "position": [
+      0,
+      0.91175,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_33_crown",
+     "type": "cone",
+     "radius": 1.563,
+     "height": 4.168,
+     "position": [
+      0,
+      3.9074999999999998,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_34",
+   "type": "group",
+   "position": [
+    7.11,
+    0,
+    -50.36
+   ],
+   "children": [
+    {
+     "id": "tree_34_trunk",
+     "type": "cylinder",
+     "radius": 0.23894999999999997,
+     "height": 1.8584999999999998,
+     "position": [
+      0,
+      0.9292499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_34_crown",
+     "type": "cone",
+     "radius": 1.5929999999999997,
+     "height": 4.248,
+     "position": [
+      0,
+      3.9825,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_35",
+   "type": "group",
+   "position": [
+    72.47,
+    0,
+    24.19
+   ],
+   "children": [
+    {
+     "id": "tree_35_trunk",
+     "type": "cylinder",
+     "radius": 0.30735,
+     "height": 2.3905,
+     "position": [
+      0,
+      1.19525,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_35_crown",
+     "type": "cone",
+     "radius": 2.049,
+     "height": 5.464,
+     "position": [
+      0,
+      5.1225000000000005,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_36",
+   "type": "group",
+   "position": [
+    60.94,
+    0,
+    -14.53
+   ],
+   "children": [
+    {
+     "id": "tree_36_trunk",
+     "type": "cylinder",
+     "radius": 0.37575,
+     "height": 2.9225,
+     "position": [
+      0,
+      1.46125,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_36_crown",
+     "type": "cone",
+     "radius": 2.505,
+     "height": 6.68,
+     "position": [
+      0,
+      6.262499999999999,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_37",
+   "type": "group",
+   "position": [
+    -109.44,
+    0,
+    3.93
+   ],
+   "children": [
+    {
+     "id": "tree_37_trunk",
+     "type": "cylinder",
+     "radius": 0.22724999999999998,
+     "height": 1.7674999999999998,
+     "position": [
+      0,
+      0.8837499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_37_crown",
+     "type": "cone",
+     "radius": 1.515,
+     "height": 4.04,
+     "position": [
+      0,
+      3.7874999999999996,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_38",
+   "type": "group",
+   "position": [
+    -117.99,
+    0,
+    195.04
+   ],
+   "children": [
+    {
+     "id": "tree_38_trunk",
+     "type": "cylinder",
+     "radius": 0.36,
+     "height": 2.8,
+     "position": [
+      0,
+      1.4,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_38_crown",
+     "type": "cone",
+     "radius": 2.4,
+     "height": 6.4,
+     "position": [
+      0,
+      6.0,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_39",
+   "type": "group",
+   "position": [
+    79.58,
+    0,
+    -184.45
+   ],
+   "children": [
+    {
+     "id": "tree_39_trunk",
+     "type": "cylinder",
+     "radius": 0.32715,
+     "height": 2.5444999999999998,
+     "position": [
+      0,
+      1.2722499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_39_crown",
+     "type": "cone",
+     "radius": 2.1809999999999996,
+     "height": 5.816,
+     "position": [
+      0,
+      5.4525,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_40",
+   "type": "group",
+   "position": [
+    -91.01,
+    0,
+    146.37
+   ],
+   "children": [
+    {
+     "id": "tree_40_trunk",
+     "type": "cylinder",
+     "radius": 0.2916,
+     "height": 2.268,
+     "position": [
+      0,
+      1.134,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_40_crown",
+     "type": "cone",
+     "radius": 1.944,
+     "height": 5.184000000000001,
+     "position": [
+      0,
+      4.86,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_41",
+   "type": "group",
+   "position": [
+    223.74,
+    0,
+    -54.8
+   ],
+   "children": [
+    {
+     "id": "tree_41_trunk",
+     "type": "cylinder",
+     "radius": 0.18989999999999999,
+     "height": 1.4769999999999999,
+     "position": [
+      0,
+      0.7384999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_41_crown",
+     "type": "cone",
+     "radius": 1.2659999999999998,
+     "height": 3.376,
+     "position": [
+      0,
+      3.165,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_42",
+   "type": "group",
+   "position": [
+    15.46,
+    0,
+    -145.76
+   ],
+   "children": [
+    {
+     "id": "tree_42_trunk",
+     "type": "cylinder",
+     "radius": 0.37259999999999993,
+     "height": 2.8979999999999997,
+     "position": [
+      0,
+      1.4489999999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_42_crown",
+     "type": "cone",
+     "radius": 2.4839999999999995,
+     "height": 6.624,
+     "position": [
+      0,
+      6.209999999999999,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_43",
+   "type": "group",
+   "position": [
+    -71.39,
+    0,
+    -173.44
+   ],
+   "children": [
+    {
+     "id": "tree_43_trunk",
+     "type": "cylinder",
+     "radius": 0.2862,
+     "height": 2.226,
+     "position": [
+      0,
+      1.113,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_43_crown",
+     "type": "cone",
+     "radius": 1.908,
+     "height": 5.088000000000001,
+     "position": [
+      0,
+      4.7700000000000005,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_44",
+   "type": "group",
+   "position": [
+    122.03,
+    0,
+    -59.8
+   ],
+   "children": [
+    {
+     "id": "tree_44_trunk",
+     "type": "cylinder",
+     "radius": 0.18089999999999998,
+     "height": 1.4069999999999998,
+     "position": [
+      0,
+      0.7034999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_44_crown",
+     "type": "cone",
+     "radius": 1.2059999999999997,
+     "height": 3.2159999999999997,
+     "position": [
+      0,
+      3.0149999999999997,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_45",
+   "type": "group",
+   "position": [
+    273.12,
+    0,
+    22.55
+   ],
+   "children": [
+    {
+     "id": "tree_45_trunk",
+     "type": "cylinder",
+     "radius": 0.2061,
+     "height": 1.603,
+     "position": [
+      0,
+      0.8015,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_45_crown",
+     "type": "cone",
+     "radius": 1.3739999999999999,
+     "height": 3.664,
+     "position": [
+      0,
+      3.435,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_46",
+   "type": "group",
+   "position": [
+    148.01,
+    0,
+    -142.75
+   ],
+   "children": [
+    {
+     "id": "tree_46_trunk",
+     "type": "cylinder",
+     "radius": 0.37755,
+     "height": 2.9365,
+     "position": [
+      0,
+      1.46825,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_46_crown",
+     "type": "cone",
+     "radius": 2.517,
+     "height": 6.712000000000001,
+     "position": [
+      0,
+      6.2925,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_47",
+   "type": "group",
+   "position": [
+    114.47,
+    0,
+    185.22
+   ],
+   "children": [
+    {
+     "id": "tree_47_trunk",
+     "type": "cylinder",
+     "radius": 0.36405,
+     "height": 2.8314999999999997,
+     "position": [
+      0,
+      1.4157499999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_47_crown",
+     "type": "cone",
+     "radius": 2.427,
+     "height": 6.472,
+     "position": [
+      0,
+      6.0675,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_48",
+   "type": "group",
+   "position": [
+    157.07,
+    0,
+    -92.58
+   ],
+   "children": [
+    {
+     "id": "tree_48_trunk",
+     "type": "cylinder",
+     "radius": 0.19754999999999998,
+     "height": 1.5364999999999998,
+     "position": [
+      0,
+      0.7682499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_48_crown",
+     "type": "cone",
+     "radius": 1.317,
+     "height": 3.512,
+     "position": [
+      0,
+      3.2924999999999995,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_49",
+   "type": "group",
+   "position": [
+    -270.92,
+    0,
+    19.04
+   ],
+   "children": [
+    {
+     "id": "tree_49_trunk",
+     "type": "cylinder",
+     "radius": 0.31679999999999997,
+     "height": 2.464,
+     "position": [
+      0,
+      1.232,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_49_crown",
+     "type": "cone",
+     "radius": 2.112,
+     "height": 5.632000000000001,
+     "position": [
+      0,
+      5.28,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_50",
+   "type": "group",
+   "position": [
+    103.15,
+    0,
+    27.44
+   ],
+   "children": [
+    {
+     "id": "tree_50_trunk",
+     "type": "cylinder",
+     "radius": 0.378,
+     "height": 2.94,
+     "position": [
+      0,
+      1.47,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_50_crown",
+     "type": "cone",
+     "radius": 2.52,
+     "height": 6.720000000000001,
+     "position": [
+      0,
+      6.300000000000001,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_51",
+   "type": "group",
+   "position": [
+    -47.34,
+    0,
+    155.82
+   ],
+   "children": [
+    {
+     "id": "tree_51_trunk",
+     "type": "cylinder",
+     "radius": 0.19665,
+     "height": 1.5294999999999999,
+     "position": [
+      0,
+      0.7647499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_51_crown",
+     "type": "cone",
+     "radius": 1.311,
+     "height": 3.4960000000000004,
+     "position": [
+      0,
+      3.2775,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_52",
+   "type": "group",
+   "position": [
+    -187.41,
+    0,
+    173.44
+   ],
+   "children": [
+    {
+     "id": "tree_52_trunk",
+     "type": "cylinder",
+     "radius": 0.2502,
+     "height": 1.9459999999999997,
+     "position": [
+      0,
+      0.9729999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_52_crown",
+     "type": "cone",
+     "radius": 1.668,
+     "height": 4.4479999999999995,
+     "position": [
+      0,
+      4.17,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_53",
+   "type": "group",
+   "position": [
+    14.75,
+    0,
+    -269.25
+   ],
+   "children": [
+    {
+     "id": "tree_53_trunk",
+     "type": "cylinder",
+     "radius": 0.27,
+     "height": 2.0999999999999996,
+     "position": [
+      0,
+      1.0499999999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_53_crown",
+     "type": "cone",
+     "radius": 1.7999999999999998,
+     "height": 4.800000000000001,
+     "position": [
+      0,
+      4.5,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_54",
+   "type": "group",
+   "position": [
+    165.83,
+    0,
+    145.18
+   ],
+   "children": [
+    {
+     "id": "tree_54_trunk",
+     "type": "cylinder",
+     "radius": 0.37934999999999997,
+     "height": 2.9505,
+     "position": [
+      0,
+      1.47525,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_54_crown",
+     "type": "cone",
+     "radius": 2.529,
+     "height": 6.744,
+     "position": [
+      0,
+      6.3225,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_55",
+   "type": "group",
+   "position": [
+    -206.71,
+    0,
+    120.69
+   ],
+   "children": [
+    {
+     "id": "tree_55_trunk",
+     "type": "cylinder",
+     "radius": 0.2799,
+     "height": 2.1769999999999996,
+     "position": [
+      0,
+      1.0884999999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_55_crown",
+     "type": "cone",
+     "radius": 1.8659999999999999,
+     "height": 4.976,
+     "position": [
+      0,
+      4.664999999999999,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_56",
+   "type": "group",
+   "position": [
+    -186.02,
+    0,
+    -216.25
+   ],
+   "children": [
+    {
+     "id": "tree_56_trunk",
+     "type": "cylinder",
+     "radius": 0.28755,
+     "height": 2.2365,
+     "position": [
+      0,
+      1.11825,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_56_crown",
+     "type": "cone",
+     "radius": 1.9169999999999998,
+     "height": 5.112,
+     "position": [
+      0,
+      4.7925,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_57",
+   "type": "group",
+   "position": [
+    37.44,
+    0,
+    -119.42
+   ],
+   "children": [
+    {
+     "id": "tree_57_trunk",
+     "type": "cylinder",
+     "radius": 0.37664999999999993,
+     "height": 2.9294999999999995,
+     "position": [
+      0,
+      1.4647499999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_57_crown",
+     "type": "cone",
+     "radius": 2.5109999999999997,
+     "height": 6.696,
+     "position": [
+      0,
+      6.2775,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_58",
+   "type": "group",
+   "position": [
+    -42.59,
+    0,
+    -152.75
+   ],
+   "children": [
+    {
+     "id": "tree_58_trunk",
+     "type": "cylinder",
+     "radius": 0.3735,
+     "height": 2.9050000000000002,
+     "position": [
+      0,
+      1.4525000000000001,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_58_crown",
+     "type": "cone",
+     "radius": 2.49,
+     "height": 6.640000000000001,
+     "position": [
+      0,
+      6.2250000000000005,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_59",
+   "type": "group",
+   "position": [
+    -270.23,
+    0,
+    -72.77
+   ],
+   "children": [
+    {
+     "id": "tree_59_trunk",
+     "type": "cylinder",
+     "radius": 0.33975,
+     "height": 2.6424999999999996,
+     "position": [
+      0,
+      1.3212499999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_59_crown",
+     "type": "cone",
+     "radius": 2.2649999999999997,
+     "height": 6.04,
+     "position": [
+      0,
+      5.6625,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_60",
+   "type": "group",
+   "position": [
+    -68.94,
+    0,
+    -92.55
+   ],
+   "children": [
+    {
+     "id": "tree_60_trunk",
+     "type": "cylinder",
+     "radius": 0.20475,
+     "height": 1.5924999999999998,
+     "position": [
+      0,
+      0.7962499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_60_crown",
+     "type": "cone",
+     "radius": 1.365,
+     "height": 3.64,
+     "position": [
+      0,
+      3.4124999999999996,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_61",
+   "type": "group",
+   "position": [
+    -196.63,
+    0,
+    -32.8
+   ],
+   "children": [
+    {
+     "id": "tree_61_trunk",
+     "type": "cylinder",
+     "radius": 0.2727,
+     "height": 2.1209999999999996,
+     "position": [
+      0,
+      1.0604999999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_61_crown",
+     "type": "cone",
+     "radius": 1.8179999999999998,
+     "height": 4.848,
+     "position": [
+      0,
+      4.545,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_62",
+   "type": "group",
+   "position": [
+    -156.06,
+    0,
+    196.59
+   ],
+   "children": [
+    {
+     "id": "tree_62_trunk",
+     "type": "cylinder",
+     "radius": 0.40185,
+     "height": 3.1254999999999997,
+     "position": [
+      0,
+      1.5627499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_62_crown",
+     "type": "cone",
+     "radius": 2.679,
+     "height": 7.144,
+     "position": [
+      0,
+      6.6975,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_63",
+   "type": "group",
+   "position": [
+    -96.85,
+    0,
+    -195.31
+   ],
+   "children": [
+    {
+     "id": "tree_63_trunk",
+     "type": "cylinder",
+     "radius": 0.25065,
+     "height": 1.9495,
+     "position": [
+      0,
+      0.97475,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_63_crown",
+     "type": "cone",
+     "radius": 1.671,
+     "height": 4.456,
+     "position": [
+      0,
+      4.1775,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_64",
+   "type": "group",
+   "position": [
+    42.39,
+    0,
+    -205.01
+   ],
+   "children": [
+    {
+     "id": "tree_64_trunk",
+     "type": "cylinder",
+     "radius": 0.39059999999999995,
+     "height": 3.038,
+     "position": [
+      0,
+      1.519,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_64_crown",
+     "type": "cone",
+     "radius": 2.6039999999999996,
+     "height": 6.944,
+     "position": [
+      0,
+      6.51,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_65",
+   "type": "group",
+   "position": [
+    -138.65,
+    0,
+    -119.18
+   ],
+   "children": [
+    {
+     "id": "tree_65_trunk",
+     "type": "cylinder",
+     "radius": 0.2115,
+     "height": 1.645,
+     "position": [
+      0,
+      0.8225,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_65_crown",
+     "type": "cone",
+     "radius": 1.41,
+     "height": 3.7600000000000002,
+     "position": [
+      0,
+      3.5250000000000004,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_66",
+   "type": "group",
+   "position": [
+    160.78,
+    0,
+    -14.29
+   ],
+   "children": [
+    {
+     "id": "tree_66_trunk",
+     "type": "cylinder",
+     "radius": 0.27765,
+     "height": 2.1595,
+     "position": [
+      0,
+      1.07975,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_66_crown",
+     "type": "cone",
+     "radius": 1.851,
+     "height": 4.936,
+     "position": [
+      0,
+      4.6274999999999995,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_67",
+   "type": "group",
+   "position": [
+    -99.69,
+    0,
+    -196.84
+   ],
+   "children": [
+    {
+     "id": "tree_67_trunk",
+     "type": "cylinder",
+     "radius": 0.24434999999999998,
+     "height": 1.9004999999999999,
+     "position": [
+      0,
+      0.9502499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_67_crown",
+     "type": "cone",
+     "radius": 1.6289999999999998,
+     "height": 4.344,
+     "position": [
+      0,
+      4.0725,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_68",
+   "type": "group",
+   "position": [
+    83.18,
+    0,
+    242.87
+   ],
+   "children": [
+    {
+     "id": "tree_68_trunk",
+     "type": "cylinder",
+     "radius": 0.33165,
+     "height": 2.5795,
+     "position": [
+      0,
+      1.28975,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_68_crown",
+     "type": "cone",
+     "radius": 2.211,
+     "height": 5.896000000000001,
+     "position": [
+      0,
+      5.5275,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_69",
+   "type": "group",
+   "position": [
+    199.66,
+    0,
+    105.01
+   ],
+   "children": [
+    {
+     "id": "tree_69_trunk",
+     "type": "cylinder",
+     "radius": 0.38339999999999996,
+     "height": 2.9819999999999998,
+     "position": [
+      0,
+      1.4909999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_69_crown",
+     "type": "cone",
+     "radius": 2.5559999999999996,
+     "height": 6.816,
+     "position": [
+      0,
+      6.39,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_70",
+   "type": "group",
+   "position": [
+    -89.76,
+    0,
+    -130.76
+   ],
+   "children": [
+    {
+     "id": "tree_70_trunk",
+     "type": "cylinder",
+     "radius": 0.2475,
+     "height": 1.9249999999999998,
+     "position": [
+      0,
+      0.9624999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_70_crown",
+     "type": "cone",
+     "radius": 1.65,
+     "height": 4.4,
+     "position": [
+      0,
+      4.125,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_71",
+   "type": "group",
+   "position": [
+    -159.0,
+    0,
+    -121.37
+   ],
+   "children": [
+    {
+     "id": "tree_71_trunk",
+     "type": "cylinder",
+     "radius": 0.34964999999999996,
+     "height": 2.7194999999999996,
+     "position": [
+      0,
+      1.3597499999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_71_crown",
+     "type": "cone",
+     "radius": 2.331,
+     "height": 6.216,
+     "position": [
+      0,
+      5.8275,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_72",
+   "type": "group",
+   "position": [
+    81.91,
+    0,
+    -246.26
+   ],
+   "children": [
+    {
+     "id": "tree_72_trunk",
+     "type": "cylinder",
+     "radius": 0.39464999999999995,
+     "height": 3.0694999999999997,
+     "position": [
+      0,
+      1.5347499999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_72_crown",
+     "type": "cone",
+     "radius": 2.631,
+     "height": 7.016,
+     "position": [
+      0,
+      6.5775,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_73",
+   "type": "group",
+   "position": [
+    122.5,
+    0,
+    270.86
+   ],
+   "children": [
+    {
+     "id": "tree_73_trunk",
+     "type": "cylinder",
+     "radius": 0.32894999999999996,
+     "height": 2.5584999999999996,
+     "position": [
+      0,
+      1.2792499999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_73_crown",
+     "type": "cone",
+     "radius": 2.1929999999999996,
+     "height": 5.848,
+     "position": [
+      0,
+      5.4825,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_74",
+   "type": "group",
+   "position": [
+    18.88,
+    0,
+    -292.77
+   ],
+   "children": [
+    {
+     "id": "tree_74_trunk",
+     "type": "cylinder",
+     "radius": 0.2061,
+     "height": 1.603,
+     "position": [
+      0,
+      0.8015,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_74_crown",
+     "type": "cone",
+     "radius": 1.3739999999999999,
+     "height": 3.664,
+     "position": [
+      0,
+      3.435,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_75",
+   "type": "group",
+   "position": [
+    -111.36,
+    0,
+    -219.9
+   ],
+   "children": [
+    {
+     "id": "tree_75_trunk",
+     "type": "cylinder",
+     "radius": 0.31905,
+     "height": 2.4814999999999996,
+     "position": [
+      0,
+      1.2407499999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_75_crown",
+     "type": "cone",
+     "radius": 2.127,
+     "height": 5.672000000000001,
+     "position": [
+      0,
+      5.3175,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_76",
+   "type": "group",
+   "position": [
+    141.08,
+    0,
+    -187.23
+   ],
+   "children": [
+    {
+     "id": "tree_76_trunk",
+     "type": "cylinder",
+     "radius": 0.37845,
+     "height": 2.9435,
+     "position": [
+      0,
+      1.47175,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_76_crown",
+     "type": "cone",
+     "radius": 2.523,
+     "height": 6.728000000000001,
+     "position": [
+      0,
+      6.3075,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_77",
+   "type": "group",
+   "position": [
+    189.57,
+    0,
+    -143.5
+   ],
+   "children": [
+    {
+     "id": "tree_77_trunk",
+     "type": "cylinder",
+     "radius": 0.24974999999999997,
+     "height": 1.9425,
+     "position": [
+      0,
+      0.97125,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_77_crown",
+     "type": "cone",
+     "radius": 1.6649999999999998,
+     "height": 4.44,
+     "position": [
+      0,
+      4.1625,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_78",
+   "type": "group",
+   "position": [
+    -5.51,
+    0,
+    -202.74
+   ],
+   "children": [
+    {
+     "id": "tree_78_trunk",
+     "type": "cylinder",
+     "radius": 0.29925,
+     "height": 2.3275,
+     "position": [
+      0,
+      1.16375,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_78_crown",
+     "type": "cone",
+     "radius": 1.995,
+     "height": 5.32,
+     "position": [
+      0,
+      4.987500000000001,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_79",
+   "type": "group",
+   "position": [
+    140.17,
+    0,
+    -103.17
+   ],
+   "children": [
+    {
+     "id": "tree_79_trunk",
+     "type": "cylinder",
+     "radius": 0.27,
+     "height": 2.0999999999999996,
+     "position": [
+      0,
+      1.0499999999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_79_crown",
+     "type": "cone",
+     "radius": 1.7999999999999998,
+     "height": 4.800000000000001,
+     "position": [
+      0,
+      4.5,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_80",
+   "type": "group",
+   "position": [
+    -37.16,
+    0,
+    172.47
+   ],
+   "children": [
+    {
+     "id": "tree_80_trunk",
+     "type": "cylinder",
+     "radius": 0.18315,
+     "height": 1.4245,
+     "position": [
+      0,
+      0.71225,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_80_crown",
+     "type": "cone",
+     "radius": 1.221,
+     "height": 3.2560000000000002,
+     "position": [
+      0,
+      3.0525,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_81",
+   "type": "group",
+   "position": [
+    148.89,
+    0,
+    -111.97
+   ],
+   "children": [
+    {
+     "id": "tree_81_trunk",
+     "type": "cylinder",
+     "radius": 0.30644999999999994,
+     "height": 2.3834999999999997,
+     "position": [
+      0,
+      1.1917499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_81_crown",
+     "type": "cone",
+     "radius": 2.0429999999999997,
+     "height": 5.448,
+     "position": [
+      0,
+      5.1075,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_82",
+   "type": "group",
+   "position": [
+    -141.45,
+    0,
+    97.18
+   ],
+   "children": [
+    {
+     "id": "tree_82_trunk",
+     "type": "cylinder",
+     "radius": 0.18629999999999997,
+     "height": 1.4489999999999998,
+     "position": [
+      0,
+      0.7244999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_82_crown",
+     "type": "cone",
+     "radius": 1.2419999999999998,
+     "height": 3.312,
+     "position": [
+      0,
+      3.1049999999999995,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_83",
+   "type": "group",
+   "position": [
+    -282.62,
+    0,
+    75.99
+   ],
+   "children": [
+    {
+     "id": "tree_83_trunk",
+     "type": "cylinder",
+     "radius": 0.32175,
+     "height": 2.5025,
+     "position": [
+      0,
+      1.25125,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_83_crown",
+     "type": "cone",
+     "radius": 2.145,
+     "height": 5.720000000000001,
+     "position": [
+      0,
+      5.362500000000001,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_84",
+   "type": "group",
+   "position": [
+    -123.64,
+    0,
+    -94.42
+   ],
+   "children": [
+    {
+     "id": "tree_84_trunk",
+     "type": "cylinder",
+     "radius": 0.2007,
+     "height": 1.561,
+     "position": [
+      0,
+      0.7805,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_84_crown",
+     "type": "cone",
+     "radius": 1.3379999999999999,
+     "height": 3.568,
+     "position": [
+      0,
+      3.3449999999999998,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_85",
+   "type": "group",
+   "position": [
+    -223.18,
+    0,
+    23.29
+   ],
+   "children": [
+    {
+     "id": "tree_85_trunk",
+     "type": "cylinder",
+     "radius": 0.28709999999999997,
+     "height": 2.2329999999999997,
+     "position": [
+      0,
+      1.1164999999999998,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_85_crown",
+     "type": "cone",
+     "radius": 1.914,
+     "height": 5.104,
+     "position": [
+      0,
+      4.785,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_86",
+   "type": "group",
+   "position": [
+    83.22,
+    0,
+    112.64
+   ],
+   "children": [
+    {
+     "id": "tree_86_trunk",
+     "type": "cylinder",
+     "radius": 0.2475,
+     "height": 1.9249999999999998,
+     "position": [
+      0,
+      0.9624999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_86_crown",
+     "type": "cone",
+     "radius": 1.65,
+     "height": 4.4,
+     "position": [
+      0,
+      4.125,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_87",
+   "type": "group",
+   "position": [
+    132.63,
+    0,
+    218.96
+   ],
+   "children": [
+    {
+     "id": "tree_87_trunk",
+     "type": "cylinder",
+     "radius": 0.333,
+     "height": 2.59,
+     "position": [
+      0,
+      1.295,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_87_crown",
+     "type": "cone",
+     "radius": 2.22,
+     "height": 5.920000000000001,
+     "position": [
+      0,
+      5.550000000000001,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_88",
+   "type": "group",
+   "position": [
+    140.57,
+    0,
+    16.44
+   ],
+   "children": [
+    {
+     "id": "tree_88_trunk",
+     "type": "cylinder",
+     "radius": 0.34919999999999995,
+     "height": 2.7159999999999997,
+     "position": [
+      0,
+      1.3579999999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_88_crown",
+     "type": "cone",
+     "radius": 2.328,
+     "height": 6.208,
+     "position": [
+      0,
+      5.82,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_89",
+   "type": "group",
+   "position": [
+    153.37,
+    0,
+    31.01
+   ],
+   "children": [
+    {
+     "id": "tree_89_trunk",
+     "type": "cylinder",
+     "radius": 0.20745,
+     "height": 1.6135,
+     "position": [
+      0,
+      0.80675,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_89_crown",
+     "type": "cone",
+     "radius": 1.383,
+     "height": 3.6880000000000006,
+     "position": [
+      0,
+      3.4575000000000005,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_90",
+   "type": "group",
+   "position": [
+    162.84,
+    0,
+    -155.41
+   ],
+   "children": [
+    {
+     "id": "tree_90_trunk",
+     "type": "cylinder",
+     "radius": 0.31725,
+     "height": 2.4675,
+     "position": [
+      0,
+      1.23375,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_90_crown",
+     "type": "cone",
+     "radius": 2.1149999999999998,
+     "height": 5.640000000000001,
+     "position": [
+      0,
+      5.2875,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_91",
+   "type": "group",
+   "position": [
+    -26.64,
+    0,
+    -226.02
+   ],
+   "children": [
+    {
+     "id": "tree_91_trunk",
+     "type": "cylinder",
+     "radius": 0.3942,
+     "height": 3.066,
+     "position": [
+      0,
+      1.533,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_91_crown",
+     "type": "cone",
+     "radius": 2.6279999999999997,
+     "height": 7.008,
+     "position": [
+      0,
+      6.57,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_92",
+   "type": "group",
+   "position": [
+    -219.16,
+    0,
+    -86.71
+   ],
+   "children": [
+    {
+     "id": "tree_92_trunk",
+     "type": "cylinder",
+     "radius": 0.3429,
+     "height": 2.667,
+     "position": [
+      0,
+      1.3335,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_92_crown",
+     "type": "cone",
+     "radius": 2.286,
+     "height": 6.096,
+     "position": [
+      0,
+      5.715,
+      0
+     ],
+     "material": {
+      "color": "#4a8c3f",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_93",
+   "type": "group",
+   "position": [
+    -122.37,
+    0,
+    -1.96
+   ],
+   "children": [
+    {
+     "id": "tree_93_trunk",
+     "type": "cylinder",
+     "radius": 0.3699,
+     "height": 2.8770000000000002,
+     "position": [
+      0,
+      1.4385000000000001,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_93_crown",
+     "type": "cone",
+     "radius": 2.466,
+     "height": 6.5760000000000005,
+     "position": [
+      0,
+      6.165000000000001,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_94",
+   "type": "group",
+   "position": [
+    -168.76,
+    0,
+    -8.06
+   ],
+   "children": [
+    {
+     "id": "tree_94_trunk",
+     "type": "cylinder",
+     "radius": 0.2169,
+     "height": 1.687,
+     "position": [
+      0,
+      0.8435,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_94_crown",
+     "type": "cone",
+     "radius": 1.446,
+     "height": 3.8560000000000003,
+     "position": [
+      0,
+      3.615,
+      0
+     ],
+     "material": {
+      "color": "#356f35",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_95",
+   "type": "group",
+   "position": [
+    -201.96,
+    0,
+    -18.88
+   ],
+   "children": [
+    {
+     "id": "tree_95_trunk",
+     "type": "cylinder",
+     "radius": 0.24794999999999998,
+     "height": 1.9284999999999999,
+     "position": [
+      0,
+      0.9642499999999999,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_95_crown",
+     "type": "cone",
+     "radius": 1.6529999999999998,
+     "height": 4.408,
+     "position": [
+      0,
+      4.1325,
+      0
+     ],
+     "material": {
+      "color": "#528f45",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "tree_96",
+   "type": "group",
+   "position": [
+    -81.0,
+    0,
+    150.86
+   ],
+   "children": [
+    {
+     "id": "tree_96_trunk",
+     "type": "cylinder",
+     "radius": 0.2754,
+     "height": 2.142,
+     "position": [
+      0,
+      1.071,
+      0
+     ],
+     "material": {
+      "color": "#6b4a2e",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "tree_96_crown",
+     "type": "cone",
+     "radius": 1.8359999999999999,
+     "height": 4.896000000000001,
+     "position": [
+      0,
+      4.59,
+      0
+     ],
+     "material": {
+      "color": "#3f7f3a",
+      "roughness": 1
+     }
+    }
+   ]
+  }
+ ]
+}

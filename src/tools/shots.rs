@@ -267,6 +267,44 @@ pub fn tour(path: &Path, out: &Path, views: Option<Vec<View>>, cols: u32, only: 
     Ok(views.iter().map(|v| v.label.clone()).collect())
 }
 
+/// `sky`: the scene at several hours of its `clock`, as one labelled contact sheet (each tile titled with the clock time and the sun's height). Returns the
+/// titles. One renderer is reused, so a day costs little more than one frame.
+#[cfg(feature = "gfx")]
+pub fn sky_sheet(path: &Path, out: &Path, hours: &[f32], opts: &FrameOpts, cols: u32, tile_w: u32, look: Option<&str>) -> Result<Vec<String>, String> {
+    let world = super::world::load_or_report(path)?;
+    let mut scene = prepare(world, opts);
+    let clock = scene.clock.clone().ok_or("`sky` needs a scene with a `clock` block (see `describe scene`)")?;
+    let mut renderer = Renderer::new(&scene).map_err(|e| e.to_string())?;
+    let mut tiles = Vec::new();
+    for &h in hours {
+        let t = clock.t_for_hour(h);
+        // `look`: aim at the sun or the moon (the horizon in its direction when it is below it) so each tile shows that body.
+        if let Some(body) = look {
+            let st = clock.state(t, 0);
+            let mut d = if body == "moon" { st.moon_dir } else { st.sun_dir };
+            if d.y < 0.02 {
+                d = glam::Vec3::new(d.x, 0.02, d.z).normalize();
+            }
+            let eye = scene.camera.position.sample(0.0);
+            scene.camera.target = Track::constant(eye + d * 50.0);
+        }
+        let rgb = renderer.render_frame(&scene, t);
+        let img = image::RgbaImage::from_raw(scene.width, scene.height, rgb.chunks(3).flat_map(|p| [p[0], p[1], p[2], 255]).collect())
+            .ok_or("frame size mismatch")?;
+        let st = clock.state(t, 0);
+        tiles.push(super::sheet::Tile {
+            image: img,
+            title: format!("{:02}:{:02} sun {:+.0}", h.floor() as u32, ((h.fract()) * 60.0).round() as u32, st.sun_elev_deg),
+        });
+    }
+    let sheet = super::sheet::contact_sheet(&tiles, cols, tile_w);
+    if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    sheet.save(out).map_err(|e| e.to_string())?;
+    Ok(tiles.into_iter().map(|t| t.title).collect())
+}
+
 /// This build has no renderer (`--no-default-features`): `frame`/`tour`/`render`/golden views are unavailable.
 #[cfg(not(feature = "gfx"))]
 pub fn render_frame(_path: &Path, _out: &Path, _opts: &FrameOpts) -> Result<(), String> {
@@ -276,5 +314,11 @@ pub fn render_frame(_path: &Path, _out: &Path, _opts: &FrameOpts) -> Result<(), 
 /// See [`render_frame`]: unavailable without the `gfx` feature.
 #[cfg(not(feature = "gfx"))]
 pub fn tour(_path: &Path, _out: &Path, _views: Option<Vec<View>>, _cols: u32, _only: Option<&str>) -> Result<Vec<String>, String> {
+    Err(super::NO_GFX.to_string())
+}
+
+/// See [`render_frame`]: unavailable without the `gfx` feature.
+#[cfg(not(feature = "gfx"))]
+pub fn sky_sheet(_path: &Path, _out: &Path, _hours: &[f32], _opts: &FrameOpts, _cols: u32, _tile_w: u32, _look: Option<&str>) -> Result<Vec<String>, String> {
     Err(super::NO_GFX.to_string())
 }

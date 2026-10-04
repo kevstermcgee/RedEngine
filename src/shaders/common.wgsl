@@ -20,6 +20,11 @@ struct Globals {
     sun_dir: vec4<f32>,
     sun_color: vec4<f32>,
     sky: vec4<f32>,
+    moon_dir: vec4<f32>,
+    night: vec4<f32>,
+    celestial: array<vec4<f32>, 3>,
+    glow: vec4<f32>,
+    fog: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> globals: Globals;
 
@@ -30,3 +35,38 @@ struct ObjectUniform {
     material: vec4<f32>,
     emissive: vec4<f32>,
 };
+
+// ---- Sunset light (shared by the sky and the haze) -----------------------------------------------------------------------------------
+
+// The glow low on the sun's side of the sky, plus a faint pink band opposite (the Belt of Venus), as a colour to add.
+fn horizon_glow(dir: vec3<f32>) -> vec3<f32> {
+    let g = globals.glow;
+    if (g.w <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    let up = max(dir.y, 0.0);
+    let sun_az = normalize(vec3<f32>(globals.sun_dir.x, 0.0, globals.sun_dir.z) + vec3<f32>(1e-5, 0.0, 0.0));
+    let az = normalize(vec3<f32>(dir.x, 0.0, dir.z) + vec3<f32>(1e-5, 0.0, 0.0));
+    let toward = dot(az, sun_az);
+    let near = pow(max(toward, 0.0), 2.2);
+    let wide = pow(max(toward * 0.5 + 0.5, 0.0), 3.0);
+    // A strong low glow on the sun's side, a broad soft wash all round the horizon, climbing less far than the glow itself.
+    let low = exp(-up * 5.5);
+    let high = exp(-up * 1.9);
+    var c = g.rgb * g.w * (near * (low * 0.95 + high * 0.30) + wide * low * 0.30);
+    // Opposite the sun the shadow of the earth rises as a dusky blue band with a pink edge above it.
+    let anti = max(-toward, 0.0);
+    let belt = exp(-pow((up - 0.13) / 0.10, 2.0));
+    c = c + vec3<f32>(1.0, 0.55, 0.62) * g.w * anti * anti * belt * 0.22;
+    return c;
+}
+
+// The colour of the haze for a view direction (used by the scene shader): the horizon colour, warmed toward the sun's side by the sunset glow.
+fn haze_color(dir: vec3<f32>) -> vec3<f32> {
+    var c = globals.fog.rgb;
+    if (globals.glow.w > 0.0) {
+        let g = horizon_glow(vec3<f32>(dir.x, 0.0, dir.z));
+        c = c + g * 0.55;
+    }
+    return c;
+}

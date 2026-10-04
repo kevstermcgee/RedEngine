@@ -37,6 +37,16 @@ pub struct GlobalUniform {
     pub sun_color: [f32; 4],
     /// x: 1 when the scene has a `sky` (view-direction gradient), y: gradient exponent, z: 1 when the sky has a sun.
     pub sky: [f32; 4],
+    /// Direction toward the moon (xyz, unit) and its angular radius in radians (w).
+    pub moon_dir: [f32; 4],
+    /// x: star visibility (0 by day, 1 at night), y: scene time in seconds (twinkle), z: moon phase 0..1 (0.5 full), w: 1 when the scene has a `clock` (stars, moon, glow on).
+    pub night: [f32; 4],
+    /// The rotation of the celestial sphere, one row per vec4: the star field is looked up with `rows . view_dir`.
+    pub celestial: [[f32; 4]; 3],
+    /// The glow low on the sun's side of the sky: rgb, strength in w.
+    pub glow: [f32; 4],
+    /// Haze: the colour distance fades into (rgb) and its density per metre (w); density 0 means none.
+    pub fog: [f32; 4],
 }
 
 /// Per-object uniform block (transform and material); one slot per mesh.

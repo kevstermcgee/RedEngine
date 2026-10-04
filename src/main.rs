@@ -91,8 +91,11 @@ fn main() {
 fn run(command: Command) -> Result<(), String> {
     match command {
         Command::Validate { scene } => run_validate(&scene),
-        Command::Frame { scene, out, t, eye, at, fov, hide, cut_above, size } => {
-            run_frame(&scene, &out, t, eye.as_deref(), at.as_deref(), fov, hide, cut_above, size.as_deref())
+        Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size } => {
+            run_frame(&scene, &out, t, hour, eye.as_deref(), at.as_deref(), fov, hide, cut_above, size.as_deref())
+        }
+        Command::Sky { scene, out, hours, cols, tile, eye, at, fov, size, look } => {
+            run_sky(&scene, &out, &hours, cols, tile, eye.as_deref(), at.as_deref(), fov, size.as_deref(), look.as_deref())
         }
         Command::Render { scene, out } => run_render(&scene, &out),
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
