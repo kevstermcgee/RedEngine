@@ -821,6 +821,7 @@ impl LiveRenderer {
         if let Some(stream) = &mut self.stream {
             stream.update(device, queue, camera.eye + origin);
             stream.set_origin(queue, origin);
+            stream.update_motes(queue, camera.eye + origin, camera.forward(), t, scene.clock.as_ref());
         }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("live-frame-encoder") });
 
@@ -967,6 +968,9 @@ impl LiveRenderer {
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
                 main_pass.set_pipeline(&self.pipelines.main);
+            }
+            if let Some(stream) = &self.stream {
+                stream.draw_motes(&mut main_pass, &self.pipelines.main_glow);
             }
             // The water goes last: it is depth-tested against everything opaque above and blends over the seabed under it.
             if let Some(ocean) = &self.ocean {

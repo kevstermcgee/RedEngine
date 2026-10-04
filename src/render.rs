@@ -417,6 +417,8 @@ impl Renderer {
         if let Some(stream) = &mut self.stream {
             stream.fill(&self.gpu.device, &self.gpu.queue, scene.camera.position.sample(t));
             stream.set_origin(&self.gpu.queue, origin);
+            let eye = scene.camera.position.sample(t);
+            stream.update_motes(&self.gpu.queue, eye, (scene.camera.target.sample(t) - eye).normalize_or(Vec3::NEG_Z), t, scene.clock.as_ref());
         }
 
         let mut transforms = Vec::with_capacity(self.meshes.len());
@@ -547,6 +549,9 @@ impl Renderer {
                     main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
+            }
+            if let Some(stream) = &self.stream {
+                stream.draw_motes(&mut main_pass, &self.pipelines.main_glow);
             }
             if let Some(ocean) = &self.ocean {
                 ocean.draw(&mut main_pass, &self.global_bind_group_uniform);
