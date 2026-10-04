@@ -15,6 +15,36 @@ use crate::synth::SAMPLE_RATE;
 use crate::weapons::Weapon;
 use std::f32::consts::{PI, TAU};
 
+/// Every sound that is built as a [`Voice`], by catalog name (`gun.<weapon>`, `fx.<cue>`): what `audio export` prints and the JSON form round-trips.
+pub fn voice_catalog() -> Vec<(String, Voice)> {
+    let mut v = Vec::new();
+    for w in Weapon::ROSTER {
+        if let Some(g) = voice(w) {
+            v.push((format!("gun.{}", w.name().to_lowercase().replace(' ', "_")), gun_voice(w, &g)));
+        }
+    }
+    let fx: [(&str, Voice); 16] = [
+        ("bat_swing", bat_swing_voice()),
+        ("bat_hit", bat_hit_voice()),
+        ("hit_tick", hit_tick_voice()),
+        ("kill_ding", kill_ding_voice()),
+        ("hurt", hurt_voice()),
+        ("death", death_voice()),
+        ("pad_launch", pad_launch_voice()),
+        ("victory", victory_voice()),
+        ("defeat", defeat_voice()),
+        ("heartbeat", heartbeat_voice()),
+        ("landing", landing_voice()),
+        ("jump", jump_voice()),
+        ("throw_whoosh", throw_whoosh_voice()),
+        ("level_up", level_up_voice(false)),
+        ("level_up_final", level_up_voice(true)),
+        ("footstep", footstep_voice(0)),
+    ];
+    v.extend(fx.into_iter().map(|(n, voice)| (format!("fx.{n}"), voice)));
+    v
+}
+
 /// The numbers that make one firearm sound like itself.
 #[derive(Debug, Clone, Copy)]
 struct GunVoice {
@@ -106,48 +136,55 @@ fn gun_voice(weapon: Weapon, g: &GunVoice) -> Voice {
 }
 /// The bat coming round: a soft rush of filtered noise that opens up and closes again.
 pub fn bat_swing() -> Vec<f32> {
-    let n = samples(0.24);
-    let mut noise = Noise(0x0BAD_5EED);
-    let mut lp = 0.0f32;
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            let open = (PI * t / 0.24).sin().powi(2);
-            lp += (0.05 + 0.5 * open) * (noise.white() - lp);
-            lp * open * 2.0
-        })
-        .collect();
-    finish(clip, 0.32)
+    bat_swing_voice().render()
 }
 
+/// The bat coming round: a soft rush of filtered noise that opens up and closes again.
+pub fn bat_swing_voice() -> Voice {
+    Voice::new(0.24, 0.32, 0x0BAD_5EED).without_attack().with(Layer::noise(
+        Filter::LowOpen { closed: 0.05, open: 0.55 },
+        Env::decay(0.0).swelling(0.12, 0.12),
+        2.0,
+    ))
+}
 /// The bat landing on a person: a low knock with a dry ring (louder and duller than hitting a prop).
-pub fn bat_hit() -> Vec<f32> {
+pub fn bat_hit_voice() -> Voice {
     Voice::new(0.24, 0.8, 0xB47)
         .with(Layer::new(Src::Glide { from: 85.0, to: 60.0, rate: 1.0 }, Env::decay(20.0), 1.0))
         .with(Layer::sine(420.0, Env::decay(40.0), 0.4))
         .with(Layer::noise(Filter::Low(0.3), Env::decay(90.0), 1.0))
-        .render()
+}
+
+pub fn bat_hit() -> Vec<f32> {
+    bat_hit_voice().render()
 }
 /// The tick of a shot that landed: short, bright, unmistakable, and quiet enough to hear a hundred of.
+pub fn hit_tick_voice() -> Voice {
+    Voice::new(0.07, 0.45, 0x71C6).with(Layer::sine(2100.0, Env::decay(60.0), 0.6)).with(Layer::sine(3300.0, Env::decay(90.0), 0.4)).with(Layer::noise(
+        Filter::None,
+        Env::decay(400.0),
+        0.25,
+    ))
+}
+
 pub fn hit_tick() -> Vec<f32> {
-    Voice::new(0.07, 0.45, 0x71C6)
-        .with(Layer::sine(2100.0, Env::decay(60.0), 0.6))
-        .with(Layer::sine(3300.0, Env::decay(90.0), 0.4))
-        .with(Layer::noise(Filter::None, Env::decay(400.0), 0.25))
-        .render()
+    hit_tick_voice().render()
 }
 /// A kill: a chest thump under a two-note bell.
-pub fn kill_ding() -> Vec<f32> {
+pub fn kill_ding_voice() -> Voice {
     Voice::new(0.75, 0.6, 0)
         .with(Layer::sine(95.0, Env::decay(28.0), 0.9))
         .with(Layer::sine(1046.5, Env::decay(7.0), 0.55))
         .with(Layer::sine(1568.0, Env::decay(9.0), 0.35))
         .with(Layer::sine(2093.0, Env::decay(14.0), 0.18))
         .with(Layer::sine(1318.5, Env::decay(7.0).after(0.09), 0.5))
-        .render()
+}
+
+pub fn kill_ding() -> Vec<f32> {
+    kill_ding_voice().render()
 }
 /// Up a rung: a quick rising arpeggio with a shimmer. `final_rung` adds a fifth note and a longer ring (the last weapon).
-pub fn level_up(final_rung: bool) -> Vec<f32> {
+pub fn level_up_voice(final_rung: bool) -> Voice {
     let notes: &[f32] = if final_rung { &[523.25, 659.25, 783.99, 1046.5, 1318.5] } else { &[523.25, 659.25, 783.99, 1046.5] };
     let step = 0.065;
     let rate = if final_rung { 4.0 } else { 7.0 };
@@ -156,34 +193,36 @@ pub fn level_up(final_rung: bool) -> Vec<f32> {
         // Each note: its fundamental and an octave shimmer, ringing out, fading in over a couple of milliseconds.
         v = v.with(Layer::new(Src::Tone { hz: *f, partials: vec![(2.0, 0.2 / 0.7)] }, Env::decay(rate).fading_in(400.0).after(k as f32 * step), 0.7));
     }
-    v.render()
+    v
+}
+
+pub fn level_up(final_rung: bool) -> Vec<f32> {
+    level_up_voice(final_rung).render()
 }
 /// Taking damage: a dull thud with a rasp, low enough not to be mistaken for anything you did.
-pub fn hurt() -> Vec<f32> {
+pub fn hurt_voice() -> Voice {
     Voice::new(0.28, 0.66, 0x4172)
         .with(Layer::sine(70.0, Env::decay(16.0), 0.9))
         .with(Layer::noise(Filter::Low(0.12), Env::decay(30.0), 1.4))
         .with(Layer::sine(190.0, Env::decay(30.0), 0.3))
-        .render()
+}
+
+pub fn hurt() -> Vec<f32> {
+    hurt_voice().render()
 }
 /// Dying: a falling tone and a rumble.
 pub fn death() -> Vec<f32> {
-    let n = samples(1.1);
-    let mut noise = Noise(0xDEAD);
-    let mut lp = 0.0f32;
-    let mut phase = 0.0f32;
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            let f = 320.0 * decay(t, 2.4) + 45.0;
-            phase += TAU * f / SAMPLE_RATE as f32;
-            lp += 0.03 * (noise.white() - lp);
-            (phase.sin() * 0.7 * decay(t, 4.5) + lp * 3.0 * decay(t, 5.0)) * attack(t)
-        })
-        .collect();
-    finish(clip, 0.6)
+    death_voice().render()
 }
 
+/// Dying: a falling tone and a rumble.
+pub fn death_voice() -> Voice {
+    Voice::new(1.1, 0.6, 0xDEAD).with(Layer::new(Src::Sweep { from: 365.0, to: 45.0, rate: 2.4 }, Env::decay(4.5), 0.7)).with(Layer::noise(
+        Filter::Low(0.03),
+        Env::decay(5.0),
+        3.0,
+    ))
+}
 /// Coming back: a rising whoosh.
 pub fn respawn() -> Vec<f32> {
     let n = samples(0.45);
@@ -204,19 +243,17 @@ pub fn respawn() -> Vec<f32> {
 
 /// A jump pad: a springy upward chirp.
 pub fn pad_launch() -> Vec<f32> {
-    let n = samples(0.45);
-    let mut phase = 0.0f32;
-    let mut noise = Noise(0x0BAD);
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            phase += TAU * (160.0 + 1500.0 * (1.0 - decay(t, 9.0))) / SAMPLE_RATE as f32;
-            (phase.sin() * 0.8 + noise.white() * 0.12 * decay(t, 20.0)) * decay(t, 11.0) * attack(t)
-        })
-        .collect();
-    finish(clip, 0.5)
+    pad_launch_voice().render()
 }
 
+/// A jump pad: a springy upward chirp.
+pub fn pad_launch_voice() -> Voice {
+    Voice::new(0.45, 0.5, 0x0BAD).with(Layer::new(Src::Sweep { from: 160.0, to: 1660.0, rate: 9.0 }, Env::decay(11.0), 0.8)).with(Layer::noise(
+        Filter::None,
+        Env::decay(31.0),
+        0.12,
+    ))
+}
 /// A siren: three swells alternating between two tones, for "someone is one kill from winning".
 pub fn alert() -> Vec<f32> {
     let n = samples(1.0);
@@ -252,16 +289,26 @@ pub fn go() -> Vec<f32> {
 }
 
 /// A win: a bright rising fanfare.
+pub fn victory_voice() -> Voice {
+    chord_run_voice(&[523.25, 659.25, 783.99, 1046.5, 1318.5, 1568.0], 0.11, 1.7, 4.5, 0.62)
+}
+
+/// A win: a bright rising fanfare.
 pub fn victory() -> Vec<f32> {
-    chord_run(&[523.25, 659.25, 783.99, 1046.5, 1318.5, 1568.0], 0.11, 1.7, 4.5, 0.62)
+    victory_voice().render()
+}
+
+/// A loss: a slow falling minor line.
+pub fn defeat_voice() -> Voice {
+    chord_run_voice(&[440.0, 392.0, 349.23, 293.66], 0.2, 1.6, 4.5, 0.5)
 }
 
 /// A loss: a slow falling minor line.
 pub fn defeat() -> Vec<f32> {
-    chord_run(&[440.0, 392.0, 349.23, 293.66], 0.2, 1.6, 4.5, 0.5)
+    defeat_voice().render()
 }
 
-fn chord_run(notes: &[f32], step: f32, seconds: f32, rate: f32, level: f32) -> Vec<f32> {
+fn chord_run_voice(notes: &[f32], step: f32, seconds: f32, rate: f32, level: f32) -> Voice {
     let mut v = Voice::new(seconds, level, 0).without_attack();
     for (k, f) in notes.iter().enumerate() {
         // The note, its octave above and the half below, ringing out and fading in over a couple of milliseconds.
@@ -271,40 +318,46 @@ fn chord_run(notes: &[f32], step: f32, seconds: f32, rate: f32, level: f32) -> V
             0.6,
         ));
     }
-    v.render()
+    v
 }
 /// One heartbeat ("lub-dub"), for low health.
+pub fn heartbeat_voice() -> Voice {
+    Voice::new(0.55, 0.55, 0).with(Layer::sine(58.0, Env::decay(22.0), 1.0)).with(Layer::sine(52.0, Env::decay(26.0).after(0.17), 0.7))
+}
+
 pub fn heartbeat() -> Vec<f32> {
-    Voice::new(0.55, 0.55, 0).with(Layer::sine(58.0, Env::decay(22.0), 1.0)).with(Layer::sine(52.0, Env::decay(26.0).after(0.17), 0.7)).render()
+    heartbeat_voice().render()
 }
 /// A footstep: a soft thud and a scuff of noise. `variant` picks between two slightly different feet.
-pub fn footstep(variant: u32) -> Vec<f32> {
+pub fn footstep_voice(variant: u32) -> Voice {
     let v = variant as f32;
-    Voice::new(0.1, 0.5, 0xF007 + variant * 7919)
-        .with(Layer::sine(72.0 + 9.0 * v, Env::decay(48.0), 0.55))
-        .with(Layer::noise(Filter::Low(0.16 + 0.03 * v), Env::decay(42.0), 1.6))
-        .render()
+    Voice::new(0.1, 0.5, 0xF007 + variant * 7919).with(Layer::sine(72.0 + 9.0 * v, Env::decay(48.0), 0.55)).with(Layer::noise(
+        Filter::Low(0.16 + 0.03 * v),
+        Env::decay(42.0),
+        1.6,
+    ))
+}
+
+pub fn footstep(variant: u32) -> Vec<f32> {
+    footstep_voice(variant).render()
 }
 /// Landing: a heavier thud than a step.
+pub fn landing_voice() -> Voice {
+    Voice::new(0.2, 0.7, 0x1A2D).with(Layer::sine(58.0, Env::decay(20.0), 1.0)).with(Layer::noise(Filter::Low(0.1), Env::decay(24.0), 2.0))
+}
+
 pub fn landing() -> Vec<f32> {
-    Voice::new(0.2, 0.7, 0x1A2D).with(Layer::sine(58.0, Env::decay(20.0), 1.0)).with(Layer::noise(Filter::Low(0.1), Env::decay(24.0), 2.0)).render()
+    landing_voice().render()
 }
 /// Pushing off: a short breath of air.
 pub fn jump() -> Vec<f32> {
-    let n = samples(0.16);
-    let mut noise = Noise(0x0A1B);
-    let mut lp = 0.0f32;
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            let open = (PI * t / 0.16).sin().powi(2);
-            lp += (0.08 + 0.3 * open) * (noise.white() - lp);
-            lp * open * 2.5
-        })
-        .collect();
-    finish(clip, 0.3)
+    jump_voice().render()
 }
 
+/// Pushing off: a short breath of air.
+pub fn jump_voice() -> Voice {
+    Voice::new(0.16, 0.3, 0x0A1B).without_attack().with(Layer::noise(Filter::LowOpen { closed: 0.08, open: 0.38 }, Env::decay(0.0).swelling(0.08, 0.08), 2.5))
+}
 /// Where a sound at `source` (x, y, z) lands in the stereo field for a listener at `listener` looking along `yaw` (the engine's yaw: 0 is -Z,
 /// clockwise from above): `(gain, pan)` with `pan` from -1 (hard left) to 1 (hard right). Sounds fall off with distance and are a little duller
 /// behind you, so a shot from behind is quieter than the same shot in front.
@@ -663,20 +716,13 @@ pub fn pickup() -> Vec<f32> {
 
 /// A grenade leaving the hand: a short rush of air.
 pub fn throw_whoosh() -> Vec<f32> {
-    let n = samples(0.3);
-    let mut noise = Noise(0x7A0);
-    let mut lp = 0.0f32;
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            let open = (PI * t / 0.3).sin().powi(2);
-            lp += (0.05 + 0.25 * open) * (noise.white() - lp);
-            lp * open * 2.2
-        })
-        .collect();
-    finish(clip, 0.4)
+    throw_whoosh_voice().render()
 }
 
+/// A grenade leaving the hand: a short rush of air.
+pub fn throw_whoosh_voice() -> Voice {
+    Voice::new(0.3, 0.4, 0x7A0).without_attack().with(Layer::noise(Filter::LowOpen { closed: 0.05, open: 0.30 }, Env::decay(0.0).swelling(0.15, 0.15), 2.2))
+}
 /// A knife or hatchet through the air: a thin, quick swish.
 pub fn blade_swish() -> Vec<f32> {
     let n = samples(0.2);

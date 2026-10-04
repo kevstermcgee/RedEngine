@@ -5,6 +5,7 @@
 //! The numbers and the picture are the evidence an AI author or CI has instead of ears (`audio_analysis`).
 
 use crate::audio_analysis::{analyze, problems, read_wav, spectrogram, warnings, Clip, Kind, Report};
+use crate::dsp::Voice;
 use crate::synth::{wav_bytes_i16, SAMPLE_RATE};
 use crate::tools::font::draw_text;
 use image::{Rgb, RgbImage};
@@ -25,12 +26,19 @@ pub struct Entry {
     pub kind: Kind,
     /// 1 or 2.
     pub channels: usize,
+    /// The sound as data, when it is built as a [`Voice`] (what `audio export` prints).
+    pub voice: Option<Voice>,
     render: Box<dyn Fn() -> Vec<f32>>,
 }
 
 impl Entry {
     fn new(name: impl Into<String>, group: &'static str, kind: Kind, channels: usize, render: impl Fn() -> Vec<f32> + 'static) -> Entry {
-        Entry { name: name.into(), group, kind, channels, render: Box::new(render) }
+        Entry { name: name.into(), group, kind, channels, voice: None, render: Box::new(render) }
+    }
+
+    fn voiced(name: String, group: &'static str, voice: Voice) -> Entry {
+        let v = voice.clone();
+        Entry { name, group, kind: Kind::OneShot, channels: 1, voice: Some(voice), render: Box::new(move || v.clone().render()) }
     }
 
     /// The samples (interleaved when stereo), generated fresh.
@@ -47,30 +55,18 @@ impl Entry {
 /// Every sound the engine builds in code, in a stable order.
 pub fn catalog() -> Vec<Entry> {
     use crate::sfx;
-    let mut v = Vec::new();
-    // Melee weapons and grenades have no gun voice (their sound is the swing or the kit's), so they are not listed as guns.
-    for w in crate::weapons::Weapon::ROSTER {
-        if sfx::gun_shot(w) == sfx::bat_swing() {
-            continue;
-        }
-        v.push(Entry::new(format!("gun.{}", w.name().to_lowercase().replace(' ', "_")), "gun", Kind::OneShot, 1, move || sfx::gun_shot(w)));
-    }
-    let one: [Generator; 30] = [
-        ("bat_swing", sfx::bat_swing),
-        ("bat_hit", sfx::bat_hit),
-        ("hit_tick", sfx::hit_tick),
-        ("kill_ding", sfx::kill_ding),
-        ("hurt", sfx::hurt),
-        ("death", sfx::death),
+    // Everything built as a voice comes first: guns and the cues that are layers (these can be exported as JSON).
+    let mut v: Vec<Entry> = sfx::voice_catalog()
+        .into_iter()
+        .map(|(name, voice)| {
+            let group = if name.starts_with("gun.") { "gun" } else { "fx" };
+            Entry::voiced(name, group, voice)
+        })
+        .collect();
+    let one: [Generator; 14] = [
         ("respawn", sfx::respawn),
-        ("pad_launch", sfx::pad_launch),
         ("alert", sfx::alert),
         ("go", sfx::go),
-        ("victory", sfx::victory),
-        ("defeat", sfx::defeat),
-        ("heartbeat", sfx::heartbeat),
-        ("landing", sfx::landing),
-        ("jump", sfx::jump),
         ("explosion", sfx::explosion),
         ("flash_pop", sfx::flash_pop),
         ("smoke_pop", sfx::smoke_pop),
@@ -80,12 +76,8 @@ pub fn catalog() -> Vec<Entry> {
         ("reload_shell", sfx::reload_shell),
         ("bolt_cycle", sfx::bolt_cycle),
         ("pickup", sfx::pickup),
-        ("throw_whoosh", sfx::throw_whoosh),
         ("blade_swish", sfx::blade_swish),
         ("blade_hit", sfx::blade_hit),
-        ("level_up", || sfx::level_up(false)),
-        ("level_up_final", || sfx::level_up(true)),
-        ("footstep", || sfx::footstep(0)),
     ];
     for (name, f) in one {
         v.push(Entry::new(format!("fx.{name}"), "fx", Kind::OneShot, 1, f));
@@ -127,24 +119,37 @@ pub fn find(name: &str) -> Result<Entry, String> {
     }
 }
 
+/// `audio export`: the JSON of a built-in sound that is built as a voice.
+pub fn export_json(name: &str) -> Result<String, String> {
+    let e = find(name)?;
+    match e.voice {
+        Some(v) => Ok(serde_json::to_string_pretty(&crate::voice_spec::voice_to_json(&v)).unwrap_or_default() + "\n"),
+        None => Err(format!(
+            "`{name}` is still hand-written code, not a voice, so it has no JSON form (voices: {})",
+            catalog().iter().filter(|e| e.voice.is_some()).count()
+        )),
+    }
+}
+
 /// `audio list`: name, group, kind, length.
 pub fn list_text() -> String {
     let mut out = String::new();
     for e in catalog() {
         let r = e.report();
         out.push_str(&format!(
-            "{:<26} {:<9} {:<8} {:>5.2}s {}\n",
+            "{:<26} {:<9} {:<8} {:>5.2}s {}{}\n",
             e.name,
             e.group,
             if e.kind == Kind::Loop { "loop" } else { "one-shot" },
             r.secs,
-            if e.channels == 2 { "stereo" } else { "mono" }
+            if e.channels == 2 { "stereo" } else { "mono" },
+            if e.voice.is_some() { " json" } else { "" }
         ));
     }
     out
 }
 
-/// A sound to measure: a built-in by name, or a `.wav` file.
+/// A sound to measure: a built-in by name, a `.wav` file or a sound `.json` file.
 pub struct Source {
     /// What to call it.
     pub name: String,
@@ -172,6 +177,12 @@ pub fn source(name: &str) -> Result<Source, String> {
         let bytes = std::fs::read(name).map_err(|e| format!("{name}: {e}"))?;
         let (samples, channels, rate) = read_wav(&bytes).map_err(|e| format!("{name}: {e}"))?;
         return Ok(Source { name: name.to_string(), samples, channels, rate, kind: Kind::OneShot, group: "file" });
+    }
+    if name.to_lowercase().ends_with(".json") {
+        let text = std::fs::read_to_string(name).map_err(|e| format!("{name}: {e}"))?;
+        let value: Value = serde_json::from_str(&text).map_err(|e| format!("{name}: not valid JSON: {e}"))?;
+        let voice = crate::voice_spec::parse_voice(&value).map_err(|errs| format!("{name}: not a valid sound:\n  {}", errs.join("\n  ")))?;
+        return Ok(Source { name: name.to_string(), samples: voice.render(), channels: 1, rate: SAMPLE_RATE, kind: Kind::OneShot, group: "file" });
     }
     let e = find(name)?;
     Ok(Source::of(&e))

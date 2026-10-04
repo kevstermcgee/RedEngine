@@ -474,8 +474,12 @@ fn audio_text() -> String {
      Names: gun.<weapon>, fx.<cue>, tactical.<cue>, synth.<clip>, music.loop, ambience.map. Reading a line: a gunshot is mostly `bass`/`sub` with a low `bright`;\n\
      a UI beep is one note (`flat` near 0) in `lowmid`; a hiss has `flat` near 0.7 and a high `bright`; two cues 10+ LU apart will not sit together in a mix.\n\
      red_engine2 audio golden [--write]           compare every sound's measurements with tests/fixtures/audio_golden.json (a tweak shows as a diff line)\n\
-     Make a sound: `dsp::Voice::new(secs, level, seed).with(Layer::sine(hz, Env::decay(rate), gain))...render()`; a Layer is a Src (Tone+harmonics, Glide, Noise through Filter)\n\
-     x Env (decay, fade_in, delay) x gain, layers share one noise. Then `audio report` it. Code: `crate::dsp` (the kit), `sfx`, `music`, `synth`, `audio_analysis`.\n"
+     red_engine2 audio export NAME                a built-in sound as JSON (the `json` rows of `audio list`): copy it, change numbers, report it\n\
+     SOUND JSON  {\"seconds\":3,\"level\":0.4,\"seed\":0,\"layers\":[LAYER,...]}   LAYER = ONE source + any shaping (a file works wherever a name does):\n\
+     \x20 source   \"sine\":hz (+\"harmonics\":[[multiple,amp]..]) | \"glide\":[from,to,rate] | \"sweep\":[from,to,rate] (clean pitch glide) | \"noise\":\"white\"|\"lp K\"|\"hp K\"|\"lp A..B\" (K 0..1, smaller=duller; A..B opens with the swell)\n\
+     \x20 shaping  \"decay\":rate (e^-rate*t) \"fade_in\":rate \"delay\":s \"attack\":s \"release\":s (smooth swells; both = half the length is a bump) \"gain\":g. Layers share one noise stream.\n\
+     \x20 e.g. a bell: {\"seconds\":3,\"layers\":[{\"sine\":440,\"harmonics\":[[2.76,0.3],[5.4,0.12]],\"decay\":1.6,\"release\":0.6}]}\n\
+     Same model in Rust: `dsp::Voice::new(secs, level, seed).with(Layer::sine(hz, Env::decay(r), gain))`; code in `crate::dsp`, `voice_spec`, `sfx`, `music`, `synth`, `audio_analysis`.\n"
         .to_string()
 }
 
