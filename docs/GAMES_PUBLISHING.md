@@ -35,13 +35,12 @@ symlinks, and destination collisions before replacing any managed collection.
 
 ## Playable releases
 
-The manifest's `playables` array is also copied into the catalog. Each entry names a
-download, its main published file, every published file or directory it needs, and
-the command-line arguments used by its launcher. `RedEngineGames` builds the exact
-cataloged RedEngine commit on a Windows runner and creates a permanent GitHub
-Release containing one ZIP per playable. Each ZIP includes the engine and a small
-`Play-<slug>.exe` launcher. Add an entry only after its content is self-contained and
-manually playable with the listed arguments.
+The manifest's `playables` array is also copied into the catalog. Each entry names a download, its main published file, every published file or directory it needs, and
+the command-line arguments its launcher uses. `RedEngineGames` builds the cataloged RedEngine commit on a Windows runner and releases **each game on its own**, only when
+that game's content changed: a per-user installer (desktop shortcut offered, uninstaller, saves in `Saved Games\<game>`) and a portable ZIP, as a permanent GitHub Release
+tagged `<slug>-v<N>`. An installed game updates itself in place, and the download site lists every version. Add an entry only after its content is self-contained and
+manually playable with the listed arguments. How it works, forcing a re-release after an engine change, and code signing: `docs/DISTRIBUTION.md` in RedEngineGames;
+the decision: ADR "Games ship as versioned installers that update in place". The engine reads `RE2_SAVE_DIR` (a folder for a game's settings and saved variables).
 
 ## Publishing a game project
 

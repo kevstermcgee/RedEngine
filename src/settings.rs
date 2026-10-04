@@ -69,8 +69,39 @@ fn config_dir() -> Option<PathBuf> {
     std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config"))
 }
 
+/// `RE2_SAVE_DIR`: one folder that holds this game's settings and saved variables, whatever the game's key is. An installed game sets it (to `Saved Games\<game>`), so
+/// a player's progress follows the *game*, not the folder it was unpacked into, and survives an update, a reinstall or a move.
+const SAVE_DIR_ENV: &str = "RE2_SAVE_DIR";
+
+fn save_dir_override() -> Option<PathBuf> {
+    std::env::var_os(SAVE_DIR_ENV).filter(|v| !v.is_empty()).map(PathBuf::from)
+}
+
+/// The file `name` for `key`: in `RE2_SAVE_DIR` when it is set, else under the per-user config directory keyed by the game's location.
+fn state_path(key: &str, name: &str) -> Option<PathBuf> {
+    match save_dir_override() {
+        Some(dir) => Some(dir.join(name)),
+        None => legacy_path(key, name),
+    }
+}
+
+/// Where `name` lived before `RE2_SAVE_DIR`: `<config>/red_engine2/games/<key>/<name>`.
+fn legacy_path(key: &str, name: &str) -> Option<PathBuf> {
+    Some(config_dir()?.join("red_engine2").join("games").join(key).join(name))
+}
+
+/// Reads `name` for `key`; with `RE2_SAVE_DIR` set and nothing there yet, the file from the old keyed location is used once (and written to the new place on the next save).
+fn read_state(key: &str, name: &str) -> Option<String> {
+    let path = state_path(key, name)?;
+    std::fs::read_to_string(&path).ok().or_else(|| {
+        let old = legacy_path(key, name).filter(|old| *old != path)?;
+        save_dir_override()?;
+        std::fs::read_to_string(old).ok()
+    })
+}
+
 fn settings_path(key: &str) -> Option<PathBuf> {
-    Some(config_dir()?.join("red_engine2").join("games").join(key).join("settings.json"))
+    state_path(key, "settings.json")
 }
 
 /// Loads the settings for `key`. Anything short of a clean, parseable file (missing, unreadable, corrupt, no
@@ -78,7 +109,7 @@ fn settings_path(key: &str) -> Option<PathBuf> {
 /// convenience, never a reason to refuse to start.
 pub fn load(key: &str) -> Settings {
     (|| -> Option<Settings> {
-        let text = std::fs::read_to_string(settings_path(key)?).ok()?;
+        let text = read_state(key, "settings.json")?;
         let v: serde_json::Value = serde_json::from_str(&text).ok()?;
         Some(Settings {
             music: v.get("music").and_then(serde_json::Value::as_bool).unwrap_or(true),
@@ -99,13 +130,13 @@ pub fn save(key: &str, s: &Settings) -> Result<(), String> {
 }
 
 fn vars_path(key: &str) -> Option<PathBuf> {
-    Some(config_dir()?.join("red_engine2").join("games").join(key).join("vars.json"))
+    state_path(key, "vars.json")
 }
 
 /// Loads the variables a game keeps between sessions (`persist`); empty when there is nothing saved (or it is unreadable).
 pub fn load_vars(key: &str) -> std::collections::BTreeMap<String, f64> {
     (|| -> Option<std::collections::BTreeMap<String, f64>> {
-        let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(vars_path(key)?).ok()?).ok()?;
+        let v: serde_json::Value = serde_json::from_str(&read_state(key, "vars.json")?).ok()?;
         Some(v.as_object()?.iter().filter_map(|(k, x)| Some((k.clone(), x.as_f64()?))).collect())
     })()
     .unwrap_or_default()
@@ -174,6 +205,28 @@ mod tests {
         // Corrupt the file: still never an error, falls back to defaults.
         std::fs::write(settings_path("some-key").unwrap(), "not json").unwrap();
         assert_eq!(load("some-key"), Settings::default());
+
+        // An installed game names its own folder: the settings and the saved variables live there, wherever the game was unpacked, and what was saved the old way is
+        // picked up once.
+        let saves = scratch("saves");
+        unsafe { std::env::set_var(SAVE_DIR_ENV, &saves) };
+        assert_eq!(load("some-key"), Settings::default(), "the old file was corrupted above");
+        save("some-key", &custom).unwrap();
+        let mut vars = std::collections::BTreeMap::new();
+        vars.insert("days".to_string(), 12.0);
+        save_vars("other-key", &vars).unwrap();
+        assert!(saves.join("settings.json").is_file() && saves.join("vars.json").is_file(), "both files are in the save folder");
+        assert_eq!(load("a-different-key"), custom, "the key no longer matters: the folder is the game's");
+        assert_eq!(load_vars("a-different-key"), vars);
+        unsafe { std::env::remove_var(SAVE_DIR_ENV) };
+        assert_eq!(load("some-key"), Settings::default(), "without the folder the old keyed place is used again");
+        let legacy = Settings { music: true, sfx: false };
+        save("legacy-key", &legacy).unwrap();
+        let fresh = scratch("saves_fresh");
+        unsafe { std::env::set_var(SAVE_DIR_ENV, &fresh) };
+        assert_eq!(load("legacy-key"), legacy, "progress made before the save folder existed is not lost");
+        unsafe { std::env::remove_var(SAVE_DIR_ENV) };
+        let _ = (std::fs::remove_dir_all(&saves), std::fs::remove_dir_all(&fresh));
 
         match old {
             Some(v) => unsafe { std::env::set_var("XDG_CONFIG_HOME", v) },
