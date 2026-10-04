@@ -43,6 +43,6 @@ Runtime mixing waits until there is something worth mixing, except that listener
 
 ## Phase 3 progress
 - **3a (done): sounds as data.** Sweep, swell (attack/release) and an opening filter added to the model; JSON voice form (`voice_spec`); `audio export`; the audio commands take `.json` sound files. 40 of 67 built-in sounds are voices.
-- **3b (next): scores.** A sequencer (the same layers placed on a grid, patterns as strings, chords and scales), pitched voices (an instrument is a voice whose partials are multiples of the note), stereo placement,
+- **3b (done; ADR "Music as data"): scores.** A sequencer (the same layers placed on a grid, patterns as strings, chords and scales), pitched voices (an instrument is a voice whose partials are multiples of the note), stereo placement,
   a delay and a reverb, loop-safe rendering (the reverb run twice so the tail wraps), and **loudness targeting** (a score states its LUFS and the meter makes it exact).
-- **3c: the generative ambient engine and a scene `audio` block** (seeded drones, slow pads, sparse motifs from a scale, long reverb; the client plays the scene's own music and ambience).
+- **3c (next): richer generators and a scene `audio` block** (seeded drones, slow pads, sparse motifs from a scale, long reverb; the client plays the scene's own music and ambience).

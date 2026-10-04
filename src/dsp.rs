@@ -271,6 +271,8 @@ pub struct Voice {
     pub seed: u32,
     /// Ramp in over a third of a millisecond (nearly every effect; a tone that ramps itself in does not need it).
     pub attack: bool,
+    /// An instrument: the `Tone` frequencies are multiples of the note it is played at (1 is the note, 2 the octave above), see [`Voice::render_note`].
+    pub pitched: bool,
     /// The layers, summed in this order.
     pub layers: Vec<Layer>,
 }
@@ -278,7 +280,7 @@ pub struct Voice {
 impl Voice {
     /// An empty voice of `seconds`, normalised to `level`, with the noise seeded by `seed`.
     pub fn new(seconds: f32, level: f32, seed: u32) -> Voice {
-        Voice { seconds, level, seed, attack: true, layers: Vec::new() }
+        Voice { seconds, level, seed, attack: true, pitched: false, layers: Vec::new() }
     }
 
     /// Adds a layer.
@@ -291,6 +293,29 @@ impl Voice {
     pub fn without_attack(mut self) -> Voice {
         self.attack = false;
         self
+    }
+
+    /// Marks this voice as an instrument (its tones are multiples of the note).
+    pub fn instrument(mut self) -> Voice {
+        self.pitched = true;
+        self
+    }
+
+    /// Plays this instrument at `hz`. With `hold` (seconds of gate) the note lasts the gate plus its release, at most the voice's own length; without,
+    /// the voice's full length. `salt` varies the noise between notes so a repeated pluck is not a machine-gun.
+    pub fn render_note(&self, hz: f32, hold: Option<f32>, salt: u32) -> Vec<f32> {
+        let mut v = self.clone();
+        for layer in &mut v.layers {
+            if let Src::Tone { hz: h, .. } = &mut layer.src {
+                *h *= hz;
+            }
+        }
+        let release = v.layers.iter().map(|l| l.env.release).fold(0.0f32, f32::max);
+        if let Some(h) = hold {
+            v.seconds = (h + release.max(0.01)).min(self.seconds);
+        }
+        v.seed ^= salt.wrapping_mul(0x9E37_79B9);
+        v.render()
     }
 
     /// Renders the mono clip.

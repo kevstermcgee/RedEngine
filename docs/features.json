@@ -165,10 +165,10 @@
     },
     "audio": {
       "summary": "Sound you can measure: the procedural synthesis (guns, effects, music, ambience) and WAV encoder build headless; `audio list|report|render|picture|check` give loudness (BS.1770 LUFS), peaks, clipping, silence, loop seam, spectrum and pitch as numbers or one picture, and hold every built-in sound to a standard.",
-      "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json"],
-      "tests": ["lib:synth", "lib:dsp", "lib:voice_spec", "lib:sfx", "lib:music", "lib:audio_analysis", "lib:tools::audio"],
+      "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/audio_fx.rs", "src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json"],
+      "tests": ["lib:synth", "lib:dsp", "lib:voice_spec", "lib:audio_fx", "lib:score", "lib:sfx", "lib:music", "lib:audio_analysis", "lib:tools::audio"],
       "commands": ["red_engine2 audio check", "red_engine2 audio golden", "red_engine2 audio report fx.explosion", "red_engine2 audio picture music.loop out/music.png"],
-      "docs": ["docs/adr/0008-procedural-assets-only.md", "docs/adr/0056-music-in-code.md", "docs/adr/2026-10-04-audio-you-can-measure-headless-synthesis-and-the-audio.md", "docs/adr/2026-10-04-a-sound-kit-voices-made-of-layers.md", "docs/adr/2026-10-04-sounds-as-data-the-json-voice-and-audio-export.md"],
+      "docs": ["docs/adr/0008-procedural-assets-only.md", "docs/adr/0056-music-in-code.md", "docs/adr/2026-10-04-audio-you-can-measure-headless-synthesis-and-the-audio.md", "docs/adr/2026-10-04-a-sound-kit-voices-made-of-layers.md", "docs/adr/2026-10-04-sounds-as-data-the-json-voice-and-audio-export.md", "docs/adr/2026-10-04-music-as-data-scores-pitched-instruments-and-loop-safe.md"],
       "depends_on": ["graphical_client"]
     },
     "graphical_client": {
