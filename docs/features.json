@@ -179,6 +179,14 @@
       "docs": ["docs/adr/0008-procedural-assets-only.md", "docs/adr/0056-music-in-code.md", "docs/adr/2026-10-04-audio-you-can-measure-headless-synthesis-and-the-audio.md", "docs/adr/2026-10-04-a-sound-kit-voices-made-of-layers.md", "docs/adr/2026-10-04-sounds-as-data-the-json-voice-and-audio-export.md", "docs/adr/2026-10-04-music-as-data-scores-pitched-instruments-and-loop-safe.md", "docs/adr/2026-10-04-a-living-soundscape-nature-sounds-birdsong-by-the-hour.md", "docs/adr/2026-10-04-a-mixing-desk-buses-voice-limits-ducking-rule-driven.md"],
       "depends_on": ["graphical_client"]
     },
+    "split_screen": {
+      "summary": "Native split-screen co-op (up to four local players): viewport layouts, field of view for narrow views and device assignment as tested arithmetic, and the compositor that draws each player's view and HUD into its rectangle (`splitshot` shows it); `re2 --players N` plays it (a swapped-in context per player, a gamepad each, scripted with `{\"player\": N}` and the `split` camera).",
+      "files": ["src/splitscreen.rs", "src/split_gpu.rs", "src/bin/re2/coop.rs"],
+      "tests": ["lib:splitscreen", "split_render", "client_headless"],
+      "commands": ["red_engine2 splitshot examples/marcel/marcel.json out/split.png --players 4", "re2 examples/marcel/marcel.json --players 2"],
+      "docs": ["docs/analysis/2026-10-04-split-screen-survey-and-plan.md", "docs/adr/2026-10-04-split-screen-co-op-one-app-a-swapped-in-context-per.md"],
+      "depends_on": ["graphical_client"]
+    },
     "graphical_client": {
       "summary": "The `re2` game: window, input, live rendering, avatars, weapons, rule-state presentation, launch/connect and online lobby/HUD wiring.",
       "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/settings.rs", "src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],

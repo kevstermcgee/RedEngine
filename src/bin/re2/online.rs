@@ -148,6 +148,10 @@ impl App {
             return;
         }
         let Some((w, h)) = self.window_size() else { return };
+        if self.split.is_some() {
+            self.sync_split_hud(w, h);
+            return;
+        }
         let vars = self.rules.vars();
         let event = self.rule_event.as_deref();
         let outcome = self.rules.ended();

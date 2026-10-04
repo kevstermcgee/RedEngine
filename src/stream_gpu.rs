@@ -154,6 +154,11 @@ impl StreamLayer {
         }
     }
 
+    /// How far the world reaches, metres.
+    pub fn set_view_distance(&mut self, metres: f32) {
+        self.streamer.set_view(View { distance: metres.clamp(60.0, 600.0) });
+    }
+
     /// The streamer's counters.
     pub fn stream_stats(&self) -> Stats {
         self.streamer.stats()
@@ -212,14 +217,16 @@ impl StreamLayer {
     }
 
     /// Streams for a viewer at `eye`: uploads what the workers have finished and forgets what is behind.
-    pub fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, eye: Vec3) {
-        let u = self.streamer.update((eye.x as f64, eye.z as f64));
+    pub fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, eyes: &[Vec3]) {
+        let eyes: Vec<(f64, f64)> = eyes.iter().map(|e| (e.x as f64, e.z as f64)).collect();
+        let u = self.streamer.update_many(&eyes, 4);
         self.apply(device, queue, u);
     }
 
     /// Builds and uploads everything wanted around `eye` before returning (a still frame).
-    pub fn fill(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, eye: Vec3) {
-        let u = self.streamer.fill((eye.x as f64, eye.z as f64));
+    pub fn fill(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, eyes: &[Vec3]) {
+        let eyes: Vec<(f64, f64)> = eyes.iter().map(|e| (e.x as f64, e.z as f64)).collect();
+        let u = self.streamer.fill_many(&eyes);
         self.apply(device, queue, u);
     }
 

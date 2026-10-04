@@ -37,6 +37,6 @@ pub use gpu::WindowGpu;
 #[cfg(feature = "gfx")]
 pub use input::{InputState, KeyCode, MouseButton};
 #[cfg(feature = "gfx")]
-pub use offscreen::Offscreen;
+pub use offscreen::{Offscreen, OffscreenSplit};
 #[cfg(feature = "gfx")]
 pub use shell::{run, ClientGame, Frame, HudPainter, WindowOptions};

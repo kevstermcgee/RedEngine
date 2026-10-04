@@ -121,6 +121,17 @@ impl App {
             }
             return;
         }
+        // On a shared screen the first player plays on the keyboard and mouse; gamepads belong to the others (`poll_guest_pads`).
+        if self.local_player_count() > 1 && self.device == red_engine2::splitscreen::Device::KeyboardMouse {
+            self.pad = Default::default();
+            return;
+        }
+        self.apply_pad_gameplay(dt);
+    }
+
+    /// What the gamepad in `self.pad` does to the game for the player swapped in: look, jump, use, switch, reload.
+    pub(crate) fn apply_pad_gameplay(&mut self, dt: f32) {
+        let p = self.pad;
         let zoom = red_engine2::firearms::zoom_sensitivity(self.camera.fov_deg, self.scene.player.fov_deg);
         self.camera.look(p.look.x * 2.8 * dt * zoom, p.look.y * 2.2 * dt * zoom);
         if p.hit(b::JUMP) {

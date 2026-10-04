@@ -424,6 +424,26 @@ pub(crate) enum Command {
         #[arg(long, default_value_t = 1)]
         seed: u32,
     },
+    /// A split screen, drawn: `splitshot scene.json out.png`
+    Splitshot {
+        scene: PathBuf,
+        out: PathBuf,
+        /// Local players on the screen (1 to 4).
+        #[arg(long, default_value_t = 4)]
+        players: usize,
+        /// Window size "WxH".
+        #[arg(long, default_value = "1280x720")]
+        size: String,
+        /// Clock hour (0 to 24) for a scene with a `clock`.
+        #[arg(long, allow_hyphen_values = true)]
+        hour: Option<f32>,
+        /// Metres between the players, who stand on a ring round the scene's camera and look outward (0: all in one place, each facing a compass direction).
+        #[arg(long, default_value_t = 0.0)]
+        spread: f32,
+        /// Pixels between the views.
+        #[arg(long, default_value_t = 6)]
+        gutter: u32,
+    },
     /// Render the full scene to an MP4.
     Render { scene: PathBuf, out: PathBuf },
     /// Contact sheet of frames across the clip.

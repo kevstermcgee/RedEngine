@@ -59,65 +59,79 @@ pub(crate) fn playtest_script(secs: f32, shots: usize, online: bool) -> Script {
 
 impl Driver for App {
     fn hold_keys(&mut self, keys: &[Key], down: bool) {
-        for key in keys {
-            let code = match key {
-                Key::Forward => KeyCode::KeyW,
-                Key::Back => KeyCode::KeyS,
-                Key::Left => KeyCode::KeyA,
-                Key::Right => KeyCode::KeyD,
-                Key::Crouch => KeyCode::ControlLeft,
-                Key::Sprint => {
-                    self.sprint_held = down;
-                    continue;
+        self.acting(|app| {
+            for key in keys {
+                let code = match key {
+                    Key::Forward => KeyCode::KeyW,
+                    Key::Back => KeyCode::KeyS,
+                    Key::Left => KeyCode::KeyA,
+                    Key::Right => KeyCode::KeyD,
+                    Key::Crouch => KeyCode::ControlLeft,
+                    Key::Sprint => {
+                        app.sprint_held = down;
+                        continue;
+                    }
+                };
+                if down {
+                    app.keys.insert(code);
+                } else {
+                    app.keys.remove(&code);
                 }
-            };
-            if down {
-                self.keys.insert(code);
-            } else {
-                self.keys.remove(&code);
             }
-        }
+        });
     }
 
     fn set_look(&mut self, yaw_deg: Option<f32>, pitch_deg: Option<f32>) {
-        if let Some(y) = yaw_deg {
-            self.camera.yaw = y.to_radians();
-        }
-        if let Some(p) = pitch_deg {
-            self.camera.pitch = p.to_radians().clamp(-FpsCamera::PITCH_LIMIT, FpsCamera::PITCH_LIMIT);
-        }
+        self.acting(|app| {
+            if let Some(y) = yaw_deg {
+                app.camera.yaw = y.to_radians();
+            }
+            if let Some(p) = pitch_deg {
+                app.camera.pitch = p.to_radians().clamp(-FpsCamera::PITCH_LIMIT, FpsCamera::PITCH_LIMIT);
+            }
+        });
     }
 
     fn add_yaw(&mut self, deg: f32) {
-        self.camera.yaw += deg.to_radians();
+        self.acting(|app| app.camera.yaw += deg.to_radians());
     }
 
     fn jump(&mut self) {
-        self.jump_queued = true;
+        self.acting(|app| app.jump_queued = true);
     }
 
     fn fire(&mut self, down: bool) {
-        if down {
-            self.press_primary();
-        } else {
-            self.attack_held = false;
-        }
+        self.acting(|app| {
+            if down {
+                app.press_primary();
+            } else {
+                app.attack_held = false;
+            }
+        });
     }
 
     fn scroll(&mut self, lines: f32) {
-        self.on_scroll(lines);
+        self.acting(|app| app.on_scroll(lines));
     }
 
     fn interact(&mut self) {
-        App::interact(self);
+        self.acting(App::interact);
     }
 
     fn aim_at_nearest(&mut self) -> bool {
-        self.aim_at_nearest_visible()
+        self.acting(App::aim_at_nearest_visible)
     }
 
     fn set_view(&mut self, third: bool) {
-        self.view_mode = if third { ViewMode::ThirdPerson } else { ViewMode::FirstPerson };
+        self.acting(|app| app.view_mode = if third { ViewMode::ThirdPerson } else { ViewMode::FirstPerson });
+    }
+
+    fn set_player(&mut self, player: usize) -> Result<(), String> {
+        if player >= self.local_player_count() {
+            return Err(format!("there are {} local player(s): start the client with --players N", self.local_player_count()));
+        }
+        self.script_player = player;
+        Ok(())
     }
 
     fn set_policy(&mut self, policy: Policy) {
@@ -165,7 +179,11 @@ impl Driver for App {
     }
 
     fn pose(&self) -> Option<Pose> {
-        Some(Pose { pos: self.physics_pos, eye: self.tick_eye(), pickup_reach: self.body.pickup_reach })
+        // The acting player's state is stored in `locals` while they are not swapped in, so a read-only peek goes through their saved context.
+        match self.script_player.checked_sub(1).and_then(|i| self.locals.get(i)).and_then(Option::as_ref) {
+            Some(c) => Some(Pose { pos: c.physics_pos, eye: c.eye, pickup_reach: self.body.pickup_reach }),
+            None => Some(Pose { pos: self.physics_pos, eye: self.tick_eye(), pickup_reach: self.body.pickup_reach }),
+        }
     }
 
     /// The scene's own copy of the object: a loose prop's pose is written into it every frame, offline from the physics world and online from the
@@ -185,6 +203,11 @@ impl Driver for App {
 }
 
 impl App {
+    /// Runs `f` as the player the script is playing.
+    fn acting<R>(&mut self, f: impl FnOnce(&mut App) -> R) -> R {
+        self.as_player(self.script_player, f)
+    }
+
     /// Turns to the nearest other player with nothing solid between (a sentry does not see through walls). Whether there was one.
     pub(crate) fn aim_at_nearest_visible(&mut self) -> bool {
         let eye = self.tick_eye();

@@ -142,6 +142,62 @@ pub(crate) fn run_sky(
     Ok(())
 }
 
+/// `splitshot`: the split screen a scene would show with `players` local players.
+#[cfg(feature = "gfx")]
+pub(crate) fn run_splitshot(scene_path: &Path, out: &Path, players: usize, size: &str, hour: Option<f32>, spread: f32, gutter: u32) -> Result<(), String> {
+    use red_engine2::app::{OffscreenSplit, ViewCamera};
+    use red_engine2::split_gpu::PlayerView;
+    let (w, h) = size.split_once('x').and_then(|(w, h)| Some((w.parse::<u32>().ok()?, h.parse::<u32>().ok()?))).ok_or("--size must look like 1280x720")?;
+    if !(1..=4).contains(&players) || !(64..=7680).contains(&w) || !(64..=4320).contains(&h) {
+        return Err("--players is 1 to 4 and --size from 64x64 to 7680x4320".into());
+    }
+    let started = Instant::now();
+    let scene = red_engine2::load_scene(scene_path).map_err(|e| e.join("\n"))?;
+    let t = match (hour, scene.clock.as_ref()) {
+        (Some(hr), Some(c)) => c.t_for_hour(hr),
+        (Some(_), None) => return Err("--hour needs a scene with a `clock`".into()),
+        _ => 0.0,
+    };
+    let mut split = OffscreenSplit::new(&scene, w, h, players, gutter).map_err(|e| e.to_string())?;
+    let layout = split.layout().clone();
+    let centre = scene.camera.position.sample(t);
+    let looking = (scene.camera.target.sample(t) - centre).normalize_or(glam::Vec3::NEG_Z);
+    let base_yaw = looking.x.atan2(-looking.z);
+    let views: Vec<PlayerView> = (0..players)
+        .map(|k| {
+            let yaw = base_yaw + k as f32 * std::f32::consts::TAU / players as f32;
+            let dir = glam::Vec3::new(yaw.sin(), 0.0, -yaw.cos());
+            let eye = centre + dir * spread;
+            let mut cam = ViewCamera::look_at(eye, eye + dir * 10.0 + glam::Vec3::Y * looking.y * 10.0);
+            cam.far = scene.camera.far;
+            cam.near = scene.camera.near;
+            cam.fov_deg = red_engine2::splitscreen::vertical_fov(scene.camera.fov.sample(t), w as f32 / h as f32, layout.views[k].aspect());
+            PlayerView { camera: cam, layers: None, hidden: &[] }
+        })
+        .collect();
+    split.set_view_distance(red_engine2::splitscreen::view_distance(players));
+    let px = split.render(&scene, t, &views, &[]).map_err(|e| e.to_string())?;
+    let rendered = started.elapsed().as_secs_f32();
+    if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    image::save_buffer(out, &px, w, h, image::ColorType::Rgba8).map_err(|e| format!("{}: {e}", out.display()))?;
+    println!(
+        "wrote {} ({players} views of {}x{}, {}) ({rendered:.2}s)",
+        out.display(),
+        layout.size.0,
+        layout.size.1,
+        split.last_draw_stats().map_or("no streamed world".to_string(), |d| format!("last view drew {} triangles in {} draws", d.tris, d.draws))
+    );
+    Ok(())
+}
+
+#[cfg(not(feature = "gfx"))]
+pub(crate) fn run_splitshot(_: &Path, _: &Path, _: usize, _: &str, _: Option<f32>, _: f32, _: u32) -> Result<(), String> {
+    Err("this build has no renderer (built with --no-default-features); rebuild with `cargo build --release` (feature `gfx`, on by default) to use splitshot"
+        .into())
+}
+
 /// `procgen`: a top-down map of a generated world and a count of what grows on it.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_procgen(

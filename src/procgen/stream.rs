@@ -105,6 +105,11 @@ impl Streamer {
         Streamer::new(cfg, view, 0)
     }
 
+    /// Changes how far the world reaches (chunks beyond it are dropped on the next update).
+    pub fn set_view(&mut self, view: View) {
+        self.view = view;
+    }
+
     /// The generator.
     pub fn world(&self) -> &World {
         &self.world
@@ -122,33 +127,51 @@ impl Streamer {
 
     /// The chunks that should exist for a viewer at `eye`, with the detail each should have, nearest first.
     pub fn wanted(&self, eye: (f64, f64)) -> Vec<(ChunkId, Lod, f32)> {
+        self.wanted_many(&[eye])
+    }
+
+    /// [`Streamer::wanted`] for several viewers at once (split-screen): every chunk any of them needs, at the detail the *nearest* viewer calls for.
+    pub fn wanted_many(&self, eyes: &[(f64, f64)]) -> Vec<(ChunkId, Lod, f32)> {
         let reach = (self.view.distance as f64 / CHUNK).ceil() as i32 + 1;
-        let here = ChunkId::at(eye.0, eye.1);
-        let mut out = Vec::new();
-        for dz in -reach..=reach {
-            for dx in -reach..=reach {
-                let id = ChunkId { x: here.x + dx, z: here.z + dz };
-                let (cx, cz) = id.centre();
-                let d = ((cx - eye.0).powi(2) + (cz - eye.1).powi(2)).sqrt();
-                if d > self.view.distance as f64 {
-                    continue;
+        let mut best: HashMap<ChunkId, f32> = HashMap::new();
+        for &eye in eyes {
+            let here = ChunkId::at(eye.0, eye.1);
+            for dz in -reach..=reach {
+                for dx in -reach..=reach {
+                    let id = ChunkId { x: here.x + dx, z: here.z + dz };
+                    let (cx, cz) = id.centre();
+                    let d = ((cx - eye.0).powi(2) + (cz - eye.1).powi(2)).sqrt();
+                    if d > self.view.distance as f64 {
+                        continue;
+                    }
+                    let chunks = (d / CHUNK) as f32;
+                    best.entry(id).and_modify(|b| *b = b.min(chunks)).or_insert(chunks);
                 }
-                let chunks = (d / CHUNK) as f32;
+            }
+        }
+        let mut out: Vec<(ChunkId, Lod, f32)> = best
+            .into_iter()
+            .map(|(id, chunks)| {
                 let lod = match self.loaded.get(&id).or(self.pending.get(&id)) {
                     // Keep what is there unless the viewer is clearly in another band.
                     Some(&have) if Lod::for_distance(chunks - LOD_MARGIN) <= have && have <= Lod::for_distance(chunks + LOD_MARGIN) => have,
                     _ => Lod::for_distance(chunks),
                 };
-                out.push((id, lod, chunks));
-            }
-        }
-        out.sort_by(|a, b| a.2.total_cmp(&b.2));
+                (id, lod, chunks)
+            })
+            .collect();
+        out.sort_by(|a, b| a.2.total_cmp(&b.2).then(a.0.cmp(&b.0)));
         out
     }
 
     /// Advances the stream: asks for what is missing (at most `max_new` chunks this call), collects what is finished and forgets what is behind.
     pub fn update_with(&mut self, eye: (f64, f64), max_new: usize) -> Update {
-        let wanted = self.wanted(eye);
+        self.update_many(&[eye], max_new)
+    }
+
+    /// [`Streamer::update_with`] for several viewers at once.
+    pub fn update_many(&mut self, eyes: &[(f64, f64)], max_new: usize) -> Update {
+        let wanted = self.wanted_many(eyes);
         let want: HashSet<ChunkId> = wanted.iter().map(|w| w.0).collect();
         let mut update = Update::default();
         // Forget what is out of range, and abandon what is no longer wanted (a finished chunk nobody wants is dropped on arrival).
@@ -202,12 +225,17 @@ impl Streamer {
 
     /// Builds everything wanted around `eye` right now (a still frame, a test). With workers it waits for them.
     pub fn fill(&mut self, eye: (f64, f64)) -> Update {
+        self.fill_many(&[eye])
+    }
+
+    /// [`Streamer::fill`] for several viewers at once.
+    pub fn fill_many(&mut self, eyes: &[(f64, f64)]) -> Update {
         let mut all = Update::default();
         for _ in 0..100_000 {
-            let u = self.update_with(eye, usize::MAX);
+            let u = self.update_many(eyes, usize::MAX);
             all.added.extend(u.added);
             all.removed.extend(u.removed);
-            if self.pending.is_empty() && self.wanted(eye).iter().all(|(id, lod, _)| self.loaded.get(id) == Some(lod)) {
+            if self.pending.is_empty() && self.wanted_many(eyes).iter().all(|(id, lod, _)| self.loaded.get(id) == Some(lod)) {
                 return all;
             }
             std::thread::sleep(std::time::Duration::from_millis(1));
@@ -243,6 +271,25 @@ mod tests {
             let (cx, cz) = c.id.centre();
             assert!(((cx - eye.0).powi(2) + (cz - eye.1).powi(2)).sqrt() <= 150.0);
         }
+    }
+
+    #[test]
+    fn several_viewers_keep_the_ground_of_all_of_them() {
+        let mut s = Streamer::synchronous(cfg(), small());
+        let (a, b) = ((24.0, 24.0), (2000.0, -900.0));
+        let both = s.fill_many(&[a, b]);
+        let mut alone = Streamer::synchronous(cfg(), small());
+        let one = alone.fill(a).added.len() + Streamer::synchronous(cfg(), small()).fill(b).added.len();
+        assert_eq!(both.added.len(), one, "the two discs, no more and no fewer");
+        assert!(both.added.iter().any(|c| c.id == ChunkId { x: 0, z: 0 }) && both.added.iter().any(|c| c.id == ChunkId::at(2000.0, -900.0)));
+        // Standing still, nothing is rebuilt however many are watching.
+        let built = s.stats().built;
+        s.fill_many(&[a, b]);
+        s.fill_many(&[b, a]);
+        assert_eq!(s.stats().built, built);
+        // One walks away: only their ground changes hands.
+        let u = s.fill_many(&[a, (2000.0 + 480.0, -900.0)]);
+        assert!(u.removed.iter().all(|id| id.x > 30), "the first viewer's ground stays: {:?}", u.removed);
     }
 
     #[test]

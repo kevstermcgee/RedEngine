@@ -21,9 +21,7 @@ impl App {
         self.pause_hover = None;
         self.online.painted = None; // the online overlay (if any) is redrawn next frame
         self.rule_hud_painted = None; // likewise for the offline rules HUD
-        if let Some(live) = self.gpu.as_mut().and_then(|g| g.live.as_mut()) {
-            live.overlay.hide();
-        }
+        self.set_window_overlay(0, 0, None);
         self.set_grab(!self.online.takeover && self.card.is_none());
     }
 
@@ -39,11 +37,9 @@ impl App {
         let map = self.scene_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
         let status = self.pause_message.clone().or_else(|| self.net.as_ref().map(|n| n.status.clone()));
         let hover = self.pause_hover;
-        if let Some(gpu) = self.gpu.as_mut() {
-            let (w, h) = (gpu.config.width, gpu.config.height);
-            if let Some(live) = gpu.live.as_mut() {
-                live.overlay.set(&gpu.device, &gpu.queue, w, h, &menu::paint_pause(w, h, &map, status.as_deref(), hover, self.music_on, self.sfx_on));
-            }
+        if let Some((w, h)) = self.gpu.as_ref().map(|g| (g.config.width, g.config.height)) {
+            let px = menu::paint_pause(w, h, &map, status.as_deref(), hover, self.music_on, self.sfx_on);
+            self.set_window_overlay(w, h, Some(&px));
         }
     }
 

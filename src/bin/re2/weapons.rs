@@ -14,7 +14,7 @@ impl App {
         if let Some(audio) = &self.audio {
             audio.play(&self.hit_sound);
         }
-        self.rules.inject(self.clock.ticks_run(), "hit", Some(0));
+        self.rules.inject(self.clock.ticks_run(), "hit", Some(self.slot));
     }
 
     /// Blends between `idle`, `windup`, and `strike` values across the current swing's three
@@ -154,9 +154,9 @@ impl App {
                 println!("Shot '{}' at {:.1} m", self.scene.objects[object_index].id, distance);
             }
         }
-        self.rules.inject(self.clock.ticks_run(), "shot", Some(0));
+        self.rules.inject(self.clock.ticks_run(), "shot", Some(self.slot));
         if struck_prop {
-            self.rules.inject(self.clock.ticks_run(), "prop_hit", Some(0));
+            self.rules.inject(self.clock.ticks_run(), "prop_hit", Some(self.slot));
         }
     }
 
@@ -191,7 +191,7 @@ impl App {
                 if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
                     let dir = self.camera.forward();
                     props.strike(prop, dir, eye + dir * distance);
-                    self.rules.inject(self.clock.ticks_run(), "prop_hit", Some(0));
+                    self.rules.inject(self.clock.ticks_run(), "prop_hit", Some(self.slot));
                 }
                 self.hit_with(object_index);
             }
@@ -206,7 +206,7 @@ impl App {
             match self.weapon {
                 Weapon::Bat => {
                     self.swing.start();
-                    self.rules.inject(self.clock.ticks_run(), "swing", Some(0));
+                    self.rules.inject(self.clock.ticks_run(), "swing", Some(self.slot));
                 }
                 _ => self.fire_firearm(),
             }
@@ -238,7 +238,8 @@ impl App {
             return;
         }
         let mut acted = false;
-        if let Some(props) = self.props.as_mut() {
+        // The physics world has one holder: loose props are the first player's to carry. Everyone's `interact` still reaches the rules.
+        if let Some(props) = self.props.as_mut().filter(|_| self.slot == 0) {
             if props.held().is_some() {
                 let state = PlayerState {
                     pos: self.physics_pos,
@@ -250,18 +251,18 @@ impl App {
                     character: self.character,
                 };
                 props.drop_held(red_engine2::sim::player::release_velocity(&state, self.camera.forward(), self.scene.player.throw_speed));
-                self.rules.inject(self.clock.ticks_run(), "drop", Some(0));
+                self.rules.inject(self.clock.ticks_run(), "drop", Some(self.slot));
                 acted = true;
             } else if let Some(p) = self.pickup_target {
                 props.pick_up(p);
                 self.swing.cancel();
                 self.swing_timer = None;
-                self.rules.inject(self.clock.ticks_run(), "pickup", Some(0));
+                self.rules.inject(self.clock.ticks_run(), "pickup", Some(self.slot));
                 acted = true;
             }
         }
         if !acted && self.scene.player.mode.is_peaceful() {
-            self.rules.inject(self.clock.ticks_run(), "interact", Some(0));
+            self.rules.inject(self.clock.ticks_run(), "interact", Some(self.slot));
         }
     }
 

@@ -64,6 +64,46 @@ fn a_script_plays_the_solo_game_and_the_dump_says_what_the_player_would_see() {
 }
 
 #[test]
+fn split_screen_co_op_gives_each_player_their_own_body_and_the_script_plays_them_in_turn() {
+    let dir = scratch("coop");
+    let script = dir.join("play.json");
+    let dump = dir.join("state.json");
+    std::fs::write(
+        &script,
+        json!({"steps": [
+            {"wait": 0.3}, {"player": 2}, {"look": {"yaw": 90, "pitch": 0}}, {"hold": ["forward"], "secs": 0.6},
+            {"player": 3}, {"look": {"yaw": 270, "pitch": 0}}, {"hold": ["forward"], "secs": 0.6}, {"wait": 0.2},
+            {"expect": {"at": "/players/0/slot", "eq": 1}}, {"expect": {"at": "/players/2/device", "eq": "Pad(1)"}},
+            {"expect": {"at": "/players/1/yaw_deg", "min": 89, "max": 91}}, {"expect": {"at": "/players/2/yaw_deg", "min": 269, "max": 271}},
+            {"snapshot": "end"}]})
+        .to_string(),
+    )
+    .unwrap();
+    let o = re2(&[lab().to_str().unwrap(), "--as", "human", "--players", "3", "--script", script.to_str().unwrap(), "--dump", dump.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", text(&o));
+    let d: Value = serde_json::from_str(&std::fs::read_to_string(&dump).unwrap()).unwrap();
+    let players = d["players"].as_array().expect("a co-op dump lists the players");
+    assert_eq!(players.len(), 3, "{d}");
+    let at = |i: usize| (players[i]["pos"][0].as_f64().unwrap(), players[i]["pos"][2].as_f64().unwrap());
+    let apart = ((at(1).0 - at(2).0).powi(2) + (at(1).1 - at(2).1).powi(2)).sqrt();
+    assert!(apart > 2.0, "the two guests were played in opposite directions and stand apart ({apart:.1} m): {players:?}");
+    // The first player was never given the controls after the start.
+    assert_eq!(players[0]["device"], "KeyboardMouse");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_single_player_game_has_no_players_list_and_a_script_cannot_play_a_second_player() {
+    let dir = scratch("solo-players");
+    let script = dir.join("play.json");
+    std::fs::write(&script, json!({"steps": [{"player": 2}]}).to_string()).unwrap();
+    let o = re2(&[lab().to_str().unwrap(), "--as", "human", "--script", script.to_str().unwrap()]);
+    assert_eq!(o.status.code(), Some(1), "{}", text(&o));
+    assert!(text(&o).contains("--players"), "{}", text(&o));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn a_failed_expectation_is_exit_code_1_and_says_what_was_expected() {
     let dir = scratch("failing");
     let script = dir.join("play.json");
