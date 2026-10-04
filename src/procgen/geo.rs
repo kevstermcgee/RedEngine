@@ -272,7 +272,7 @@ pub fn icosphere(subdiv: u32) -> (Vec<Vec3>, Vec<[u32; 3]>) {
 #[cfg(test)]
 /// Every triangle's winding agrees with its vertex normals (so back-face culling shows the outside).
 pub fn assert_wound_outward(g: &Geo, what: &str) {
-    for t in g.idx.chunks_exact(3) {
+    for t in g.idx.as_chunks::<3>().0 {
         let (a, b, c) = (Vec3::from(g.pos[t[0] as usize]), Vec3::from(g.pos[t[1] as usize]), Vec3::from(g.pos[t[2] as usize]));
         let face = (b - a).cross(c - a);
         if face.length() < 1e-9 {
@@ -320,7 +320,7 @@ mod tests {
     fn a_tube_wall_points_away_from_its_axis() {
         let mut g = Geo::default();
         g.tube(Vec3::ZERO, Vec3::Y, 0.5, 0.5, 8, [1.0; 3], [1.0; 3], false);
-        for t in g.idx.chunks_exact(3) {
+        for t in g.idx.as_chunks::<3>().0 {
             let (a, b, c) = (Vec3::from(g.pos[t[0] as usize]), Vec3::from(g.pos[t[1] as usize]), Vec3::from(g.pos[t[2] as usize]));
             let n = (b - a).cross(c - a);
             let out = Vec3::new((a.x + b.x + c.x) / 3.0, 0.0, (a.z + b.z + c.z) / 3.0);

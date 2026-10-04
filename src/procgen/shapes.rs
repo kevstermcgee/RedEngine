@@ -467,8 +467,7 @@ mod tests {
                 let g = build(SpeciesId(i as u8), h, seed, 0.5);
                 let (lo, hi) = g.bounds();
                 assert!(lo.y > -0.05 * h - 0.02 && lo.y < 0.2 * h, "{} bottom {}", s.key, lo.y);
-                let want = if s.kind == flora::Kind::Grass { 1.0 } else { 1.0 };
-                assert!(hi.y > 0.7 * h * want && hi.y < 1.3 * h, "{} is {:.2} tall for a height of {h}", s.key, hi.y);
+                assert!(hi.y > 0.7 * h && hi.y < 1.3 * h, "{} is {:.2} tall for a height of {h}", s.key, hi.y);
                 let width = (hi.x - lo.x).max(hi.z - lo.z);
                 assert!(width < 2.4 * (s.spread * h).max(0.25 * h) + 0.4, "{} is {width:.2} wide", s.key);
             }
