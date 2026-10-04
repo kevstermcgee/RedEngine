@@ -246,3 +246,41 @@ fn the_start_card_holds_the_game_until_pressed_and_the_end_card_restarts_it() {
     assert!(text(&o).contains("press `restart`") && text(&o).contains("start card has `start`"), "{}", text(&o));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn the_soundscape_follows_the_hour_a_rule_variable_fades_a_layer_in_and_an_event_ducks_the_music() {
+    let dir = scratch("soundscape");
+    // A flat scene: a clock starting just after sunrise, the nature ambience, one score layer driven by `tension`, and the music ducking when `boom` is raised.
+    let scene = dir.join("s.json");
+    std::fs::write(dir.join("chase.json"), r#"{"bpm": 100, "bars": 2, "tracks": []}"#).unwrap();
+    std::fs::write(
+        &scene,
+        json!({
+            "camera": {"position": [0, 1.6, 0], "target": [0, 1.6, -5]},
+            "clock": {"day_secs": 600, "start": 0.27},
+            "spawns": [{"id": "s", "position": [0, 0, 0], "yaw_deg": 0}],
+            "vars": {"tension": 0},
+            "rules": [
+                {"id": "rise", "when": {"after": 3}, "do": [{"set": ["tension", 1]}]},
+                {"id": "bang", "when": {"after": 6}, "do": [{"emit": "boom"}]}],
+            "audio": {"ambience": "nature", "duck": {"events": ["boom"], "depth": 0.5}, "layers": [{"score": "chase.json", "var": "tension", "above": 0.5, "fade": 2}]},
+            "objects": [{"id": "floor", "type": "plane", "size": [40, 40], "position": [0, 0, 0]}]
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let script = dir.join("play.json");
+    let dump = dir.join("state.json");
+    std::fs::write(&script, json!({"steps": [{"wait": 1}, {"snapshot": "early"}, {"wait": 10}]}).to_string()).unwrap();
+    let o = re2(&[scene.to_str().unwrap(), "--as", "human", "--headless", "--script", script.to_str().unwrap(), "--dump", dump.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", text(&o));
+    let d: Value = serde_json::from_str(&std::fs::read_to_string(&dump).unwrap()).unwrap();
+    let audio = &d["audio"];
+    assert!(audio.is_object(), "a scene with an audio block reports its soundscape: {d}");
+    assert!(audio["beds"]["wind"].as_f64().unwrap() > 0.2, "{audio}");
+    assert_eq!(audio["layers"][0]["var"], "tension");
+    assert!(audio["layers"][0]["level"].as_f64().unwrap() > 0.99, "after the variable rose the layer is fully in: {audio}");
+    assert_eq!(audio["ducks"], 1, "the one boom ducked the music once: {audio}");
+    assert_eq!(audio["music"]["dawn"], 1.0, "just after sunrise the mood is dawn: {audio}");
+    assert!(d["snapshots"]["early"]["audio"]["layers"][0]["level"].as_f64().unwrap() < 0.01, "and before it rose the layer was out");
+}

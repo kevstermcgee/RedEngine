@@ -10,6 +10,7 @@ pub mod adr;
 pub mod affected;
 pub mod analysis;
 pub mod audio;
+pub mod audio_checks;
 pub mod blueprint;
 pub mod catalog;
 pub mod context;

@@ -379,6 +379,8 @@ struct App {
     music_on: bool,
     /// The countryside and the mood music of a scene with an `audio` block.
     ambient: Option<ambient::Ambient>,
+    /// Rule events raised since the soundscape last looked (it ducks the music on some).
+    fresh_events: Vec<String>,
     /// Whether sound effects play (the pause menu's SOUND toggle).
     sfx_on: bool,
     /// Whether the player's carried light is on (`scene.flashlight`; the `T` key toggles it). Meaningless
@@ -605,6 +607,7 @@ impl App {
             streaks: None,
             music_on: false,
             ambient: None,
+            fresh_events: Vec::new(),
             sfx_on: settings.sfx,
             flashlight_on: true,
             settings,

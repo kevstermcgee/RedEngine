@@ -127,7 +127,7 @@ fn parse_path(s: &str) -> Result<Vec<Vec2>, String> {
 }
 
 /// Check groups `--only` may name (a group name, or `group[N]`, or any text from one check's name).
-const GROUPS: [&str; 8] = ["lint", "reach", "walk", "objects", "views", "sim", "perf", "nav"];
+const GROUPS: [&str; 9] = ["lint", "reach", "walk", "objects", "views", "sim", "perf", "nav", "audio"];
 
 /// The `--only` text minus a trailing `[N]`: `walk[2]` -> `walk`.
 fn only_base(o: &str) -> &str {
@@ -162,7 +162,7 @@ fn unknown_check_keys(checks: &Value) -> Vec<String> {
     use crate::strict::check_keys;
     let mut errs = Vec::new();
     let Some(root) = checks.as_object() else { return errs };
-    check_keys(&mut errs, "checks", root, &["lint", "reach", "walk", "objects", "views", "sim", "perf", "nav"]);
+    check_keys(&mut errs, "checks", root, &["lint", "reach", "walk", "objects", "views", "sim", "perf", "nav", "audio"]);
     if let Some(n) = root.get("nav").and_then(Value::as_object) {
         check_keys(&mut errs, "checks.nav", n, &["max_failures"]);
     }
@@ -371,6 +371,16 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
         stamp(&mut results[first..], t0);
     }
 
+    if let Some(block) = checks.get("audio").filter(|_| selected(opts, "audio")) {
+        let t0 = std::time::Instant::now();
+        let first = results.len();
+        match super::audio_checks::verify_checks(path, block) {
+            Ok(rows) => results.extend(rows.into_iter().map(|(name, ok, detail)| if ok { pass(name, detail) } else { fail(name, detail) })),
+            Err(e) => results.push(fail("audio", e)),
+        }
+        stamp(&mut results[first..], t0);
+    }
+
     if let Some(block) = checks.get("perf").filter(|_| selected(opts, "perf")) {
         let t0 = std::time::Instant::now();
         let first = results.len();
@@ -394,7 +404,7 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
     }
 
     if results.is_empty() {
-        results.push(fail("checks", "no check ran (unknown keys or --only matched nothing). Known: lint, reach, walk, objects, views, sim, perf"));
+        results.push(fail("checks", "no check ran (unknown keys or --only matched nothing). Known: lint, reach, walk, objects, views, sim, perf, nav, audio"));
     }
     Ok(Report { scene: path.to_path_buf(), results })
 }

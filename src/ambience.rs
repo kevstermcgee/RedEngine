@@ -14,7 +14,7 @@ use crate::procgen::noise::{smooth, Rng};
 use crate::procgen::Biome;
 
 /// `audio` keys.
-pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience_volume"];
+pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience_volume", "reverb", "duck", "layers"];
 
 /// A scene's `audio` block: the sounds of its world.
 ///
@@ -25,6 +25,10 @@ pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience
 /// `ambience: "nature"` plays the engine's countryside (wind, leaves, crickets, bees, birdsong, owls) as the hour and the place call for it; `music` names a
 /// score (see `describe audio`) for each mood, which the hour crossfades between (any subset: a mood without a score is silent). Music is the player's `music`
 /// setting, ambience their `sound` setting.
+///
+/// Three more keys shape the mix: `"reverb": {"decay": 1.4, "mix": 0.25}` puts every nature call in a room; `"duck": {"events": ["hit"], "depth": 0.5, "hold": 1.0,
+/// "release": 1.5}` pulls the music down whenever the rules raise one of those events; and `"layers": [{"score": "audio/chase.json", "var": "danger", "above": 0.5,
+/// "fade": 3, "volume": 0.6}]` fades a score in while a rule variable is above a value (intensity that follows the game).
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioSpec {
     /// Whether the nature ambience plays.
@@ -35,6 +39,63 @@ pub struct AudioSpec {
     pub music_volume: f32,
     /// Ambience level (beds and calls), 0 to 1.
     pub ambience_volume: f32,
+    /// A room for the nature calls.
+    pub reverb: Option<RoomSpec>,
+    /// Ducking the music on game events.
+    pub duck: Option<DuckSpec>,
+    /// Scores that fade in and out with a rule variable.
+    pub layers: Vec<LayerSpec>,
+}
+
+/// `audio.reverb`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RoomSpec {
+    /// Seconds for the tail to fall 60 dB.
+    pub decay: f32,
+    /// Wet level relative to the dry sound.
+    pub mix: f32,
+}
+
+impl RoomSpec {
+    /// The reverb this describes.
+    pub fn reverb(&self) -> crate::audio_fx::Reverb {
+        crate::audio_fx::Reverb { decay: self.decay, size: 1.0, damp: 0.5, predelay: 0.01, mix: self.mix }
+    }
+}
+
+/// `audio.duck`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DuckSpec {
+    /// Rule events that duck the music.
+    pub events: Vec<String>,
+    /// How the music falls and recovers.
+    pub duck: crate::mixer::Duck,
+    /// Seconds it stays down.
+    pub hold: f32,
+}
+
+/// One entry of `audio.layers`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LayerSpec {
+    /// The score file (resolved against the scene's folder).
+    pub score: std::path::PathBuf,
+    /// The rule variable that drives it.
+    pub var: String,
+    /// It plays while the variable is at least this.
+    pub above: f64,
+    /// Seconds to fade in or out.
+    pub fade: f32,
+    /// Its level, 0 to 1.
+    pub volume: f32,
+}
+
+/// How loud a layer wants to be: 1 while its variable is at or above the threshold, else 0.
+pub fn layer_target(value: f64, above: f64) -> f32 {
+    if value >= above {
+        1.0
+    } else {
+        0.0
+    }
 }
 
 /// Parses a scene's `audio` block (`base` is the folder the scene lives in, for the score paths).
@@ -78,8 +139,79 @@ pub fn parse_audio(root: &serde_json::Map<String, serde_json::Value>, base: Opti
         },
     };
     let (music_volume, ambience_volume) = (level("music_volume", 0.6), level("ambience_volume", 0.8));
+    let num = |obj: &serde_json::Map<String, Value>, path: &str, key: &str, default: f64, lo: f64, hi: f64, errs: &mut Vec<String>| match obj.get(key) {
+        None => default,
+        Some(v) => match v.as_f64().filter(|x| (lo..=hi).contains(x)) {
+            Some(x) => x,
+            None => {
+                errs.push(format!("{path}.{key}: must be a number from {lo} to {hi}"));
+                default
+            }
+        },
+    };
+    let reverb = match o.get("reverb") {
+        None => None,
+        Some(Value::Object(r)) => {
+            crate::strict::check_keys(&mut errs, "audio.reverb", r, &["decay", "mix"]);
+            Some(RoomSpec {
+                decay: num(r, "audio.reverb", "decay", 1.2, 0.1, 12.0, &mut errs) as f32,
+                mix: num(r, "audio.reverb", "mix", 0.25, 0.0, 1.5, &mut errs) as f32,
+            })
+        }
+        Some(_) => {
+            errs.push("audio.reverb: must be an object like {\"decay\": 1.4, \"mix\": 0.25}".to_string());
+            None
+        }
+    };
+    let duck = match o.get("duck") {
+        None => None,
+        Some(Value::Object(d)) => {
+            crate::strict::check_keys(&mut errs, "audio.duck", d, &["events", "depth", "attack", "hold", "release"]);
+            let events: Vec<String> =
+                d.get("events").and_then(Value::as_array).map(|a| a.iter().filter_map(|e| e.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            if events.is_empty() {
+                errs.push("audio.duck.events: name the rule events that duck the music, like [\"hit\"]".to_string());
+            }
+            let duck = crate::mixer::Duck {
+                depth: num(d, "audio.duck", "depth", 0.5, 0.0, 1.0, &mut errs) as f32,
+                attack: num(d, "audio.duck", "attack", 0.08, 0.0, 5.0, &mut errs) as f32,
+                release: num(d, "audio.duck", "release", 1.2, 0.0, 20.0, &mut errs) as f32,
+            };
+            Some(DuckSpec { events, duck, hold: num(d, "audio.duck", "hold", 0.6, 0.0, 30.0, &mut errs) as f32 })
+        }
+        Some(_) => {
+            errs.push("audio.duck: must be an object like {\"events\": [\"hit\"], \"depth\": 0.5}".to_string());
+            None
+        }
+    };
+    let mut layers = Vec::new();
+    match o.get("layers") {
+        None => {}
+        Some(Value::Array(list)) => {
+            for (i, item) in list.iter().enumerate() {
+                let path = format!("audio.layers[{i}]");
+                let Some(l) = item.as_object() else {
+                    errs.push(format!("{path}: must be an object like {{\"score\": \"chase.json\", \"var\": \"danger\", \"above\": 0.5}}"));
+                    continue;
+                };
+                crate::strict::check_keys(&mut errs, &path, l, &["score", "var", "above", "fade", "volume"]);
+                let (Some(score), Some(var)) = (l.get("score").and_then(Value::as_str), l.get("var").and_then(Value::as_str)) else {
+                    errs.push(format!("{path}: needs a `score` file and the rule `var` that drives it"));
+                    continue;
+                };
+                layers.push(LayerSpec {
+                    score: base.map_or_else(|| score.into(), |b| b.join(score)),
+                    var: var.to_string(),
+                    above: num(l, &path, "above", 0.5, -1e9, 1e9, &mut errs),
+                    fade: num(l, &path, "fade", 3.0, 0.0, 60.0, &mut errs) as f32,
+                    volume: num(l, &path, "volume", 0.6, 0.0, 1.0, &mut errs) as f32,
+                });
+            }
+        }
+        Some(_) => errs.push("audio.layers: must be a list".to_string()),
+    }
     if errs.is_empty() {
-        Ok(Some(AudioSpec { nature, music, music_volume, ambience_volume }))
+        Ok(Some(AudioSpec { nature, music, music_volume, ambience_volume, reverb, duck, layers }))
     } else {
         Err(errs)
     }
@@ -423,6 +555,28 @@ mod tests {
             let e = parse(bad).unwrap_err().join(" ");
             assert!(e.contains(needle), "{e}");
         }
+    }
+
+    #[test]
+    fn reverb_duck_and_layers_are_checked() {
+        let parse = |v: serde_json::Value| parse_audio(v.as_object().unwrap(), Some(std::path::Path::new("/g")));
+        let ok = parse(serde_json::json!({"audio": {"reverb": {"decay": 2, "mix": 0.3}, "duck": {"events": ["hit"], "depth": 0.6, "hold": 1}, "layers": [{"score": "c.json", "var": "danger", "above": 2}]}}))
+            .unwrap()
+            .unwrap();
+        assert_eq!(ok.reverb, Some(RoomSpec { decay: 2.0, mix: 0.3 }));
+        assert_eq!(ok.duck.as_ref().map(|d| (d.events.clone(), d.duck.depth, d.hold)), Some((vec!["hit".to_string()], 0.6, 1.0)));
+        assert_eq!((ok.layers[0].score.clone(), ok.layers[0].var.as_str(), ok.layers[0].above, ok.layers[0].fade), ("/g/c.json".into(), "danger", 2.0, 3.0));
+        for (bad, needle) in [
+            (serde_json::json!({"audio": {"reverb": {"decay": 99}}}), "audio.reverb.decay"),
+            (serde_json::json!({"audio": {"reverb": {"wet": 1}}}), "wet"),
+            (serde_json::json!({"audio": {"duck": {"depth": 0.5}}}), "audio.duck.events"),
+            (serde_json::json!({"audio": {"layers": [{"score": "x.json"}]}}), "audio.layers[0]"),
+            (serde_json::json!({"audio": {"layers": [{"score": "x.json", "var": "v", "fade": -1}]}}), "fade"),
+        ] {
+            let e = parse(bad).unwrap_err().join(" ");
+            assert!(e.contains(needle), "{e}");
+        }
+        assert_eq!((layer_target(2.0, 2.0), layer_target(1.9, 2.0)), (1.0, 0.0));
     }
 
     #[test]

@@ -311,6 +311,7 @@ impl App {
             self.rebuild_collision_world();
         }
         for event in self.rules.take_new_events() {
+            self.fresh_events.push(event.name.clone());
             if !event.name.starts_with("end:") {
                 self.rule_event = Some(event.name);
                 self.rule_event_until = tick + 120;
@@ -442,6 +443,9 @@ impl App {
         self.eye = anchor;
         self.sync_flashlight();
         self.update_ambient(dt);
+        if let Some(audio) = &self.audio {
+            audio.tick();
+        }
         // Cosmetic timers run on render time; everything that decides a hit is in `fixed_step_combat`.
         self.since_shot += dt;
         self.flash_left = (self.flash_left - dt).max(0.0);

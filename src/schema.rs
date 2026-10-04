@@ -1181,6 +1181,14 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             crate::sim::rules::RuleSet::default()
         }
     };
+    // An audio layer follows a rule variable: it has to be one.
+    if let Some(a) = &audio {
+        for (i, l) in a.layers.iter().enumerate() {
+            if !rules.var_names.iter().skip(crate::sim::rules::BUILTIN_VARS.len()).any(|n| *n == l.var) {
+                ctx.err(&format!("audio.layers[{i}].var"), format!("`{}` is not one of the scene's vars (declare it under `vars`)", l.var));
+            }
+        }
+    }
     // The game's own words and screens (`ui` block), checked against the variables and outcomes the rules just declared.
     let ui = match crate::ui_config::parse_ui(root, &rules) {
         Ok(u) => u,
