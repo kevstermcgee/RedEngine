@@ -7,6 +7,7 @@ pub(crate) fn run_frame(
     scene: &Path,
     out: &Path,
     t: f32,
+    hour: Option<f32>,
     eye: Option<&str>,
     at: Option<&str>,
     fov: Option<f32>,
@@ -15,6 +16,16 @@ pub(crate) fn run_frame(
     size: Option<&str>,
 ) -> Result<(), String> {
     let started = Instant::now();
+    // `--hour` reads the scene's clock: the scene time at which it shows that hour.
+    let t = match hour {
+        Some(h) => {
+            let text = std::fs::read_to_string(scene).map_err(|e| format!("{}: {e}", scene.display()))?;
+            let parsed = red_engine2::schema::parse_scene(&text).map_err(|e| format!("{}: {}", scene.display(), e.join("; ")))?;
+            let clock = parsed.clock.ok_or("--hour needs a scene with a `clock` block (see `describe scene`)")?;
+            clock.t_for_hour(h) + t
+        }
+        None => t,
+    };
     let size = match size {
         Some(s) => {
             let (w, h) = s.split_once('x').ok_or("--size must look like 1280x720")?;
@@ -98,6 +109,37 @@ pub(crate) fn run_tour(scene: &Path, out: &Path, cols: u32, only: Option<&str>, 
 fn far_plane_warning(eye: glam::Vec3, target: glam::Vec3, far: f32) -> Option<String> {
     let d = eye.distance(target);
     (d > far).then(|| format!("warning: the eye is {d:.0} m from the target but the scene's camera.far is {far:.0} m: things beyond it are not drawn, so this may render as sky only (raise camera.far in the scene)"))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_sky(
+    scene: &Path,
+    out: &Path,
+    hours: &str,
+    cols: u32,
+    tile: u32,
+    eye: Option<&str>,
+    at: Option<&str>,
+    fov: Option<f32>,
+    size: Option<&str>,
+    look: Option<&str>,
+) -> Result<(), String> {
+    if let Some(l) = look.filter(|l| *l != "sun" && *l != "moon") {
+        return Err(format!("--look `{l}`: the sun or the moon"));
+    }
+    let started = Instant::now();
+    let hours: Vec<f32> = hours.split(',').map(|h| h.trim().parse::<f32>().map_err(|_| format!("--hours: `{h}` is not a number"))).collect::<Result<_, _>>()?;
+    let size = match size {
+        Some(s) => {
+            let (w, h) = s.split_once('x').ok_or("--size must look like 960x540")?;
+            Some((w.parse::<u32>().map_err(|_| "bad width")?, h.parse::<u32>().map_err(|_| "bad height")?))
+        }
+        None => None,
+    };
+    let opts = FrameOpts { eye: eye.map(v3).transpose()?, at: at.map(v3).transpose()?, fov, size, ..Default::default() };
+    let titles = shots::sky_sheet(scene, out, &hours, &opts, cols, tile, look)?;
+    println!("wrote {} ({} views: {}) ({:.2}s)", out.display(), titles.len(), titles.join(", "), started.elapsed().as_secs_f32());
+    Ok(())
 }
 
 #[cfg(test)]

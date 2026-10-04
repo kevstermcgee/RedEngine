@@ -90,6 +90,8 @@ pub struct Scene {
     pub teams: bool,
     /// The sky dome and its sun (`sky` block), if the scene has one; without it `background` is a screen-space gradient.
     pub sky: Option<crate::atmosphere::Sky>,
+    /// The time-of-day clock (`clock` block), if the scene has one: it drives the sun, moon, stars, sky colours, sun light and ambient from the scene time.
+    pub clock: Option<crate::daycycle::Clock>,
     /// The endless water plane (`ocean` block), if the scene has one.
     pub ocean: Option<crate::atmosphere::Ocean>,
     /// The kart race (`race` block), if the scene has one: its presence turns every player into a kart driver (`sim::kart`, `sim::race`).
@@ -975,6 +977,13 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             None
         }
     };
+    let clock = match crate::daycycle::parse_clock(root) {
+        Ok(c) => c,
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            None
+        }
+    };
     let ocean = match crate::atmosphere::parse_ocean(root) {
         Ok(o) => o,
         Err(errs) => {
@@ -1224,6 +1233,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         death_text,
         teams,
         sky,
+        clock,
         ocean,
         race,
         shooter,

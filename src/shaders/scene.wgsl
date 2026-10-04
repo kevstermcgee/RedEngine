@@ -138,5 +138,12 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // Exposure + filmic tone-mapping: rolls strong/overlapping lights off toward white instead of
     // hard-clipping, so an author's light intensities don't need to be perfectly balanced.
     color = aces(color * EXPOSURE);
+    // Haze: with a scene `clock` the distance fades into the horizon colour, warmed toward the sun's side at sunset (atmospheric perspective).
+    if (globals.fog.w > 0.0) {
+        let to_frag = in.world_pos - globals.camera_pos.xyz;
+        let dist = length(to_frag);
+        let f = 1.0 - exp(-dist * globals.fog.w);
+        color = mix(color, haze_color(to_frag / max(dist, 1e-4)), f);
+    }
     return vec4<f32>(color, obj.base_color.a);
 }

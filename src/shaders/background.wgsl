@@ -23,7 +23,8 @@ fn vs_bg(@builtin(vertex_index) vi: u32) -> VsOut {
 fn fs_bg(in: VsOut) -> @location(0) vec4<f32> {
     // A scene with a `sky` block: shaded by the view direction (see sky.wgsl), a sun at infinity.
     if (globals.sky.x > 0.5) {
-        return vec4<f32>(sky_color(view_ray(in.ndc)), 1.0);
+        let dir = view_ray(in.ndc);
+        return vec4<f32>(sky_color_px(dir, length(fwidth(dir))), 1.0);
     }
     if (globals.bg_top.w < 0.5) {
         return vec4<f32>(globals.bg_top.rgb, 1.0);

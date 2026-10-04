@@ -99,6 +99,18 @@ card's button and puts the end card up when a rule ends the match; its button re
 and objective; the cards are offline only. `ui-shot game-hud|game-start|game-end --scene S.json --var delivered=3 --outcome victory` draws them and
 `ui-check --scene S.json` audits them at nine window sizes. A headless script plays them with `{"press": "start"}` / `{"press": "restart"}`.
 
+### A day that turns to night (`clock`)
+
+```json
+"clock": { "day_secs": 720, "start": 0.27, "sun_max_deg": 62, "fog": 0.0035, "stars": 1.0, "moon": true }
+```
+
+A top-level `"clock"` makes the scene's time a time of day. `start` is where the day is when the scene begins (0 midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset) and `day_secs` how many real seconds a day lasts. The sun and moon cross
+the sky (the sun rises in the east, +X, and climbs toward +Z), the sky changes colour with the sun's height, the first directional light (or the one named by `light`) becomes the sun with its authored colour and intensity as
+multipliers (a scene with none gets a shadow-casting sun), a dim cool moonlight fills the night, the ambient follows the sky, the stars come out after sunset and wheel overhead through the night, the moon goes through its phases
+over 29.5 days (`moon_phase` sets day 0), and `fog` (density per metre, 0 for none) fades the distance into the horizon colour, warmed toward the sun at dusk. Without a `clock` the sky is whatever `sky`/`background` say.
+Draw any moment with `frame scene.json out.png --hour 18.5`, and a whole day as a labelled contact sheet with `sky scene.json out.png [--hours 5,6,7,12,18,19,22] [--look sun|moon]`. Presentation only: the simulation does not read it.
+
 ## Camera
 
 ```json

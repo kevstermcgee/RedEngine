@@ -12,10 +12,10 @@
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
-      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs", "src/arsenal.rs", "src/stats.rs", "src/killcam.rs", "src/uniforms.rs", "src/shooter_world.rs", "src/clipboard.rs"],
-      "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms"],
+      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs", "src/arsenal.rs", "src/stats.rs", "src/killcam.rs", "src/uniforms.rs", "src/shooter_world.rs", "src/clipboard.rs", "src/daycycle.rs", "examples/day_cycle.json"],
+      "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms", "lib:daycycle", "day_cycle"],
       "commands": ["red_engine2 frame examples/test_lab.json out/frame.png", "red_engine2 tour examples/test_lab.json out/tour.png"],
-      "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
+      "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md", "docs/adr/2026-10-04-a-day-and-night-cycle-the-clock-block-and-a-living-sky.md"],
       "depends_on": ["scene_format"]
     },
     "player_physics": {
