@@ -46,7 +46,7 @@ fn probe_gpu() -> Check {
     check(
         "gpu",
         Status::Warn,
-        "this is the headless build (no `gfx` feature): frame/tour/render/golden views are not compiled in. Rebuild without --no-default-features for them",
+        "this is the headless build (no `gfx` feature): frame/tour/render/golden views are not compiled in. Rebuild without --no-default-features, or install the full prebuilt set with scripts/bootstrap.sh, for them",
     )
 }
 
