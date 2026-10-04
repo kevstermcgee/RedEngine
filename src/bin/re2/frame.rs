@@ -552,6 +552,7 @@ impl App {
         // timestep" pattern) — capped so a long stall (window drag, debugger pause) resumes from
         // where it left off instead of trying to replay minutes of physics in one frame.
         self.clock.push_time(dt);
+        self.note_listeners();
         while self.clock.next_tick().is_some() {
             self.fixed_step_physics();
         }

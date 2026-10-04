@@ -152,9 +152,31 @@ pub fn owners_of(devices: &[Device], lost: usize) -> Vec<usize> {
     devices.iter().enumerate().filter(|(_, d)| **d == Device::Pad(lost)).map(|(i, _)| i).collect()
 }
 
+/// How loud a guest's own sound (steps, jumps, swings) is next to the first player's: the speakers are shared, so everyone hears everyone, but four sets of footsteps at
+/// full level are noise.
+pub const GUEST_SOUND: f32 = 0.55;
+
+/// How a sound made by a guest at `source` is heard: `(gain scale, pan)`. It is placed against the *other* players (the loudest of them hears it), so a guest running off
+/// across the map fades and leans to their side; the first player's sounds are centred and full as ever.
+pub fn guest_mix(others: &[crate::mixer::Listener], source: [f32; 3]) -> (f32, f32) {
+    let (gain, pan) = crate::mixer::hear(others, source);
+    (GUEST_SOUND + (1.0 - GUEST_SOUND) * gain, pan * 0.5)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_guest_far_from_the_others_is_quieter_and_leans_to_their_side_but_never_inaudible() {
+        use crate::mixer::Listener;
+        let others = [Listener { pos: [0.0, 1.6, 0.0], yaw: 0.0 }];
+        let (near, _) = guest_mix(&others, [0.0, 1.6, -1.0]);
+        let (far, pan) = guest_mix(&others, [60.0, 1.6, 0.0]);
+        assert!(near > far && far >= GUEST_SOUND && near <= 1.0, "{near} {far}");
+        assert!(pan > 0.2 && pan <= 0.5, "to the right, and softened: {pan}");
+        assert_eq!(guest_mix(&[], [3.0, 0.0, 3.0]), (1.0, 0.0), "nobody else to hear them: the sound is as it was");
+    }
 
     #[test]
     fn views_tile_the_window_without_overlap_and_are_all_the_same_size() {

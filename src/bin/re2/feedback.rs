@@ -235,8 +235,14 @@ impl App {
         if matches!(cue, Cue::Step) {
             self.step_count = self.step_count.wrapping_add(1);
         }
-        if played.gain > 0.01 {
-            audio.play_at(played.clip, played.gain, played.pan);
+        // Shared speakers: a guest's footsteps and swings are heard against the other players (`splitscreen::guest_mix`).
+        let (scale, pan) = match self.slot {
+            0 => (1.0, played.pan),
+            _ => self.guest_sound(),
+        };
+        let gain = played.gain * scale;
+        if gain > 0.01 {
+            audio.play_at(played.clip, gain, if self.slot == 0 { played.pan } else { pan });
         }
     }
 

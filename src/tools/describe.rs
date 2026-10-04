@@ -626,7 +626,8 @@ fn playtest_text() -> String {
         ("fire: n | {clicks, every} | {secs}", "click n times / hold the trigger; track: true keeps aiming at the nearest visible enemy"),
         ("aim_at: \"nearest\"", "turn to the nearest remote player in line of sight"),
         ("view / policy", "first|third person; idle (still), sentry (turns and fires), walker (circles and fires)"),
-        ("shot: name, camera", "save a picture: first, third, overview, follow, follow:ID, or {eye, at, fov}"),
+        ("shot: name, camera", "save a picture: first, third, overview, split (--players), follow, follow:ID, or {eye, at, fov}"),
+        ("player: N", "hand the controls to local player N (1-4; re2 --players N) until the next player step"),
         ("snapshot: name", "store the state dump under that name"),
         (
             "expect: {at, eq|ne|min|max|contains|exists, within?, msg?}",

@@ -180,11 +180,11 @@
       "depends_on": ["graphical_client"]
     },
     "split_screen": {
-      "summary": "Native split-screen co-op (up to four local players): viewport layouts, field of view for narrow views and device assignment as tested arithmetic, and the compositor that draws each player's view and HUD into its rectangle (`splitshot` shows it); the client follows (plan in docs/analysis).",
-      "files": ["src/splitscreen.rs", "src/split_gpu.rs"],
-      "tests": ["lib:splitscreen", "split_render"],
-      "commands": ["red_engine2 splitshot examples/marcel/marcel.json out/split.png --players 4"],
-      "docs": ["docs/analysis/2026-10-04-split-screen-survey-and-plan.md"],
+      "summary": "Native split-screen co-op (up to four local players): viewport layouts, field of view for narrow views and device assignment as tested arithmetic, and the compositor that draws each player's view and HUD into its rectangle (`splitshot` shows it); `re2 --players N` plays it (a swapped-in context per player, a gamepad each, scripted with `{\"player\": N}` and the `split` camera).",
+      "files": ["src/splitscreen.rs", "src/split_gpu.rs", "src/bin/re2/coop.rs"],
+      "tests": ["lib:splitscreen", "split_render", "client_headless"],
+      "commands": ["red_engine2 splitshot examples/marcel/marcel.json out/split.png --players 4", "re2 examples/marcel/marcel.json --players 2"],
+      "docs": ["docs/analysis/2026-10-04-split-screen-survey-and-plan.md", "docs/adr/2026-10-04-split-screen-co-op-one-app-a-swapped-in-context-per.md"],
       "depends_on": ["graphical_client"]
     },
     "graphical_client": {

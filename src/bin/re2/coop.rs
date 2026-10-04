@@ -367,6 +367,22 @@ impl App {
         }
     }
 
+    /// Notes where every player's ears are, once a frame (a swapped-in guest cannot see the others' state, which is parked).
+    pub(crate) fn note_listeners(&mut self) {
+        if self.locals.is_empty() {
+            return;
+        }
+        let me = red_engine2::mixer::Listener { pos: self.eye.to_array(), yaw: self.camera.yaw };
+        let guests = self.locals.iter().flatten().map(|c| red_engine2::mixer::Listener { pos: c.eye.to_array(), yaw: c.camera.yaw });
+        self.listeners = std::iter::once(me).chain(guests).collect();
+    }
+
+    /// How the sound the swapped-in guest makes is heard: the gain scale and the pan, against everyone else.
+    pub(crate) fn guest_sound(&self) -> (f32, f32) {
+        let others: Vec<red_engine2::mixer::Listener> = self.listeners.iter().enumerate().filter(|(i, _)| *i != self.slot).map(|(_, l)| *l).collect();
+        splitscreen::guest_mix(&others, self.eye.to_array())
+    }
+
     /// Reads the other players' gamepads and applies them (look, jump, use ...); a pad that was unplugged pauses the game and says whose it was.
     pub(crate) fn poll_guest_pads(&mut self, dt: f32) {
         if self.locals.is_empty() {

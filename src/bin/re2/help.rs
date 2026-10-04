@@ -16,6 +16,7 @@ pub(crate) const SWITCHES: &[(&str, &str)] = &[
     ("RE2_AUTOWALK", "forward | circle[:deg/s] | still: play by itself (a walker; combine with the next two)"),
     ("RE2_AUTOFIRE", "1: pull the trigger five times a second (with RE2_AUTOWALK)"),
     ("RE2_AUTOAIM", "1: a sentry that turns to the nearest enemy it can see and fires (with RE2_AUTOWALK)"),
+    ("RE2_PLAYERS", "N (1-4): local players sharing the screen, as --players N"),
     ("RE2_LOG_CUES", "1: print every sound cue as it plays (check the feedback without listening)"),
     ("RE2_CONSOLE", "1: (Windows) the shipped, console-less copy of the game shows its output in the terminal that started it instead of re2.log"),
     ("RE2_FEEL", "hit | kill | hurt | dead | low | protected | flash: hold that screen effect (for screenshots)"),

@@ -343,6 +343,8 @@ struct App {
     rule_hud_painted: Option<(u32, u32, String)>,
     /// What each split-screen view's HUD was last painted from (nothing is repainted while it is the same).
     split_hud_painted: Vec<Option<String>>,
+    /// Where each local player's ears are (see `coop::note_listeners`).
+    listeners: Vec<red_engine2::mixer::Listener>,
     /// The start or end card of the scene's `ui` block, when one is up (offline only; `cards.rs`).
     card: Option<cards::CardState>,
     /// A restart does not show the start card again.
@@ -611,6 +613,7 @@ impl App {
             rule_event_until: 0,
             rule_hud_painted: None,
             split_hud_painted: Vec::new(),
+            listeners: Vec::new(),
             card: None,
             skip_start_card: false,
             swing_timer: None,
