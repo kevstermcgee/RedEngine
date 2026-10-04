@@ -473,7 +473,9 @@ fn audio_text() -> String {
      \x20                                            seam. FAIL lines exit 1; WARN lines (loudness 10+ LU from the median of its group) do not\n\n\
      Names: gun.<weapon>, fx.<cue>, tactical.<cue>, synth.<clip>, music.loop, ambience.map. Reading a line: a gunshot is mostly `bass`/`sub` with a low `bright`;\n\
      a UI beep is one note (`flat` near 0) in `lowmid`; a hiss has `flat` near 0.7 and a high `bright`; two cues 10+ LU apart will not sit together in a mix.\n\
-     Code: `crate::sfx`, `crate::music`, `crate::synth` (synthesis), `crate::audio_analysis` (the measurements).\n"
+     red_engine2 audio golden [--write]           compare every sound's measurements with tests/fixtures/audio_golden.json (a tweak shows as a diff line)\n\
+     Make a sound: `dsp::Voice::new(secs, level, seed).with(Layer::sine(hz, Env::decay(rate), gain))...render()`; a Layer is a Src (Tone+harmonics, Glide, Noise through Filter)\n\
+     x Env (decay, fade_in, delay) x gain, layers share one noise. Then `audio report` it. Code: `crate::dsp` (the kit), `sfx`, `music`, `synth`, `audio_analysis`.\n"
         .to_string()
 }
 

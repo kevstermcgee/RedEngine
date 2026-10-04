@@ -6,6 +6,7 @@
 //! Pure: [`loop_samples`] returns interleaved stereo `f32` at [`crate::synth::SAMPLE_RATE`]; tests check its length, level, seam, rhythm and that the
 //! bass and the arpeggio play the notes the chords say (a piece of music cannot be looked at, but its pitches can be measured).
 
+use crate::dsp::{saw, Noise};
 use crate::synth::SAMPLE_RATE;
 use std::f32::consts::TAU;
 
@@ -36,38 +37,11 @@ pub fn loop_frames() -> usize {
     bar_frames() * BARS
 }
 
-/// Frequency of MIDI note `n` (69 is A4, 440 Hz).
-pub fn hz(n: i32) -> f32 {
-    440.0 * 2f32.powf((n - 69) as f32 / 12.0)
-}
+pub use crate::dsp::hz;
 
 /// The three notes of a chord on `root` (MIDI), then its octave.
 fn chord(root: i32, minor: bool) -> [i32; 4] {
     [root, root + if minor { 3 } else { 4 }, root + 7, root + 12]
-}
-
-struct Noise(u32);
-
-impl Noise {
-    fn next(&mut self) -> f32 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 17;
-        self.0 ^= self.0 << 5;
-        (self.0 as f32 / u32::MAX as f32) * 2.0 - 1.0
-    }
-}
-
-/// A band-limited saw (PolyBLEP) for a phase in 0..1 and a phase step per sample `dt`.
-fn saw(phase: f32, dt: f32) -> f32 {
-    let mut s = 2.0 * phase - 1.0;
-    if phase < dt {
-        let t = phase / dt;
-        s -= t + t - t * t - 1.0;
-    } else if phase > 1.0 - dt {
-        let t = (phase - 1.0) / dt;
-        s -= t * t + t + t + 1.0;
-    }
-    s
 }
 
 /// One mono layer of the loop, rendered on its own so it can be tested and mixed.
@@ -118,15 +92,15 @@ pub fn layers() -> Layers {
         for k in 0..kick_len {
             let t = k as f32 / sr;
             let phase = TAU * (42.0 * t + 110.0 * (1.0 - (-t * 38.0).exp()) / 38.0);
-            let click = if k < 60 { noise.next() * (1.0 - k as f32 / 60.0) * 0.25 } else { 0.0 };
+            let click = if k < 60 { noise.white() * (1.0 - k as f32 / 60.0) * 0.25 } else { 0.0 };
             add(&mut drums, start + k, (phase.sin() * (-t * 9.0).exp() + click) * 0.95 * release(k, kick_len));
         }
         if b % 2 == 1 {
             let mut lp = 0.0f32;
             for k in 0..(0.2 * sr) as usize {
                 let t = k as f32 / sr;
-                lp += 0.35 * (noise.next() - lp);
-                let body = (noise.next() - lp) * 0.7 + (TAU * 185.0 * t).sin() * 0.25;
+                lp += 0.35 * (noise.white() - lp);
+                let body = (noise.white() - lp) * 0.7 + (TAU * 185.0 * t).sin() * 0.25;
                 add(&mut drums, start + k, body * (-t * 22.0).exp() * 0.55);
             }
         }
@@ -134,8 +108,8 @@ pub fn layers() -> Layers {
         let mut hp = 0.0f32;
         for k in 0..(0.05 * sr) as usize {
             let t = k as f32 / sr;
-            hp += 0.6 * (noise.next() - hp);
-            add(&mut drums, start + half + k, (noise.next() - hp) * (-t * 90.0).exp() * 0.22);
+            hp += 0.6 * (noise.white() - hp);
+            add(&mut drums, start + half + k, (noise.white() - hp) * (-t * 90.0).exp() * 0.22);
         }
     }
 

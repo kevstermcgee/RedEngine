@@ -9,59 +9,11 @@
 //! *body* (low-passed noise) and a *tail* (the room). Small automatic weapons have a thin crack, a little boom and almost no tail, so ten
 //! shots a second do not smear; a shotgun is all boom and body; the scout is a hard crack and a long echo.
 
+use crate::dsp::{attack, decay, finish, partial, samples, time, Env, Filter, Layer, Noise, Src, Voice};
 use crate::feel::Cue;
 use crate::synth::SAMPLE_RATE;
 use crate::weapons::Weapon;
 use std::f32::consts::{PI, TAU};
-
-/// A tiny xorshift so a noise burst needs no dependency and is the same every run.
-struct Noise(u32);
-
-impl Noise {
-    fn next(&mut self) -> f32 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 17;
-        self.0 ^= self.0 << 5;
-        (self.0 as f32 / u32::MAX as f32) * 2.0 - 1.0
-    }
-}
-
-fn samples(seconds: f32) -> usize {
-    (SAMPLE_RATE as f32 * seconds) as usize
-}
-
-fn time(i: usize) -> f32 {
-    i as f32 / SAMPLE_RATE as f32
-}
-
-/// Exponential decay `e^(-t * rate)`.
-fn decay(t: f32, rate: f32) -> f32 {
-    (-t * rate).exp()
-}
-
-/// A click-free start: ramps in over about a third of a millisecond.
-fn attack(t: f32) -> f32 {
-    1.0 - decay(t, 9000.0)
-}
-
-/// Pushes a clip through a soft clipper and scales its peak to `level` (never above 0.98).
-fn finish(mut clip: Vec<f32>, level: f32) -> Vec<f32> {
-    for s in clip.iter_mut() {
-        *s = (*s * 1.25).tanh();
-    }
-    let peak = clip.iter().fold(0.0f32, |m, s| m.max(s.abs())).max(1e-6);
-    let k = level.min(0.98) / peak;
-    for s in clip.iter_mut() {
-        *s *= k;
-    }
-    // A 2 ms fade-out so nothing ends on a click.
-    let fade = samples(0.002).min(clip.len());
-    let n = clip.len();
-    for j in 0..fade {
-        clip[n - 1 - j] *= j as f32 / fade as f32;
-    }
-    clip
-}
 
 /// The numbers that make one firearm sound like itself.
 #[derive(Debug, Clone, Copy)]
@@ -132,38 +84,26 @@ fn voice(weapon: Weapon) -> Option<GunVoice> {
 /// The report of `weapon` being fired: its own voice, except the bat (whose "shot" is the swing, see [`bat_swing`] and [`bat_hit`]).
 pub fn gun_shot(weapon: Weapon) -> Vec<f32> {
     let Some(g) = voice(weapon) else { return bat_swing() };
-    let n = samples(g.seconds);
-    let mut noise = Noise(0x9E37_79B9 ^ (weapon.wire() as u32 + 1).wrapping_mul(0x85EB_CA6B));
-    let (mut lp_body, mut lp_tail, mut hp_lp) = (0.0f32, 0.0f32, 0.0f32);
-    let mut clip = Vec::with_capacity(n);
-    for i in 0..n {
-        let t = time(i);
-        let white = noise.next();
-        hp_lp += 0.5 * (white - hp_lp);
-        let crack = (white - hp_lp) * decay(t, g.crack_rate) * g.crack;
-        // The boom sweeps quickly down from `boom_from` to `boom_to`: the integral of the frequency is the phase.
-        let sweep = (t * 7.0).min(1.0);
-        let freq = g.boom_from + (g.boom_to - g.boom_from) * sweep;
-        let boom = (TAU * freq * t).sin() * decay(t, g.boom_rate) * g.boom;
-        lp_body += g.body_lp * (white - lp_body);
-        let body = lp_body * decay(t, g.body_rate) * g.body * 2.2;
-        lp_tail += 0.045 * (white - lp_tail);
-        let tail = lp_tail * decay(t, g.tail_rate) * g.tail * 3.0 * (1.0 - decay(t, 70.0));
-        let mut s = (crack + boom + body + tail) * attack(t);
-        if g.pump {
-            // Racking the pump: two dry clacks after the blast.
-            for start in [0.46, 0.55] {
-                let u = t - start;
-                if u >= 0.0 {
-                    s += (noise.next() * 0.5 + (TAU * 1800.0 * u).sin() * 0.5) * decay(u, 260.0) * 0.28;
-                }
-            }
-        }
-        clip.push(s);
-    }
-    finish(clip, g.level)
+    gun_voice(weapon, &g).render()
 }
 
+/// A gun as four layers over one shared noise: a *crack* (the noise through a high-pass), a *boom* (a sine gliding down), a *body* and a *tail* (the
+/// noise through two low-passes). A pump-action adds two dry clacks after the blast.
+fn gun_voice(weapon: Weapon, g: &GunVoice) -> Voice {
+    let seed = 0x9E37_79B9 ^ (weapon.wire() as u32 + 1).wrapping_mul(0x85EB_CA6B);
+    let mut v = Voice::new(g.seconds, g.level, seed)
+        .with(Layer::noise(Filter::High(0.5), Env::decay(g.crack_rate), g.crack))
+        .with(Layer::new(Src::Glide { from: g.boom_from, to: g.boom_to, rate: 7.0 }, Env::decay(g.boom_rate), g.boom))
+        .with(Layer::noise(Filter::Low(g.body_lp), Env::decay(g.body_rate), g.body * 2.2))
+        .with(Layer::noise(Filter::Low(0.045), Env::decay(g.tail_rate).fading_in(70.0), g.tail * 3.0));
+    if g.pump {
+        // Racking the pump: two dry clacks after the blast.
+        for start in [0.46, 0.55] {
+            v = v.with(Layer::noise(Filter::None, Env::decay(260.0).after(start), 0.14)).with(Layer::sine(1800.0, Env::decay(260.0).after(start), 0.14));
+        }
+    }
+    v
+}
 /// The bat coming round: a soft rush of filtered noise that opens up and closes again.
 pub fn bat_swing() -> Vec<f32> {
     let n = samples(0.24);
@@ -173,7 +113,7 @@ pub fn bat_swing() -> Vec<f32> {
         .map(|i| {
             let t = time(i);
             let open = (PI * t / 0.24).sin().powi(2);
-            lp += (0.05 + 0.5 * open) * (noise.next() - lp);
+            lp += (0.05 + 0.5 * open) * (noise.white() - lp);
             lp * open * 2.0
         })
         .collect();
@@ -182,95 +122,50 @@ pub fn bat_swing() -> Vec<f32> {
 
 /// The bat landing on a person: a low knock with a dry ring (louder and duller than hitting a prop).
 pub fn bat_hit() -> Vec<f32> {
-    let n = samples(0.24);
-    let mut noise = Noise(0xB47);
-    let mut lp = 0.0f32;
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            lp += 0.3 * (noise.next() - lp);
-            let thump = (TAU * (85.0 - 25.0 * t) * t).sin() * decay(t, 20.0);
-            let ring = (TAU * 420.0 * t).sin() * decay(t, 40.0) * 0.4;
-            (thump + ring + lp * decay(t, 90.0)) * attack(t)
-        })
-        .collect();
-    finish(clip, 0.8)
+    Voice::new(0.24, 0.8, 0xB47)
+        .with(Layer::new(Src::Glide { from: 85.0, to: 60.0, rate: 1.0 }, Env::decay(20.0), 1.0))
+        .with(Layer::sine(420.0, Env::decay(40.0), 0.4))
+        .with(Layer::noise(Filter::Low(0.3), Env::decay(90.0), 1.0))
+        .render()
 }
-
-/// A sine partial with an exponential decay, the unit a bell is built from.
-fn partial(freq: f32, t: f32, rate: f32) -> f32 {
-    (TAU * freq * t).sin() * decay(t, rate)
-}
-
 /// The tick of a shot that landed: short, bright, unmistakable, and quiet enough to hear a hundred of.
 pub fn hit_tick() -> Vec<f32> {
-    let n = samples(0.07);
-    let mut noise = Noise(0x71C6);
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            (partial(2100.0, t, 60.0) * 0.6 + partial(3300.0, t, 90.0) * 0.4 + noise.next() * decay(t, 400.0) * 0.25) * attack(t)
-        })
-        .collect();
-    finish(clip, 0.45)
+    Voice::new(0.07, 0.45, 0x71C6)
+        .with(Layer::sine(2100.0, Env::decay(60.0), 0.6))
+        .with(Layer::sine(3300.0, Env::decay(90.0), 0.4))
+        .with(Layer::noise(Filter::None, Env::decay(400.0), 0.25))
+        .render()
 }
-
 /// A kill: a chest thump under a two-note bell.
 pub fn kill_ding() -> Vec<f32> {
-    let n = samples(0.75);
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            let thump = partial(95.0, t, 28.0) * 0.9;
-            let bell = partial(1046.5, t, 7.0) * 0.55 + partial(1568.0, t, 9.0) * 0.35 + partial(2093.0 * 1.0, t, 14.0) * 0.18;
-            let second = if t > 0.09 { partial(1318.5, t - 0.09, 7.0) * 0.5 } else { 0.0 };
-            (thump + bell + second) * attack(t)
-        })
-        .collect();
-    finish(clip, 0.6)
+    Voice::new(0.75, 0.6, 0)
+        .with(Layer::sine(95.0, Env::decay(28.0), 0.9))
+        .with(Layer::sine(1046.5, Env::decay(7.0), 0.55))
+        .with(Layer::sine(1568.0, Env::decay(9.0), 0.35))
+        .with(Layer::sine(2093.0, Env::decay(14.0), 0.18))
+        .with(Layer::sine(1318.5, Env::decay(7.0).after(0.09), 0.5))
+        .render()
 }
-
 /// Up a rung: a quick rising arpeggio with a shimmer. `final_rung` adds a fifth note and a longer ring (the last weapon).
 pub fn level_up(final_rung: bool) -> Vec<f32> {
     let notes: &[f32] = if final_rung { &[523.25, 659.25, 783.99, 1046.5, 1318.5] } else { &[523.25, 659.25, 783.99, 1046.5] };
     let step = 0.065;
-    let n = samples(step * notes.len() as f32 + if final_rung { 0.9 } else { 0.5 });
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            notes
-                .iter()
-                .enumerate()
-                .map(|(k, f)| {
-                    let u = t - k as f32 * step;
-                    if u < 0.0 {
-                        0.0
-                    } else {
-                        let tri = (TAU * f * u).sin() * 0.7 + (TAU * f * 2.0 * u).sin() * 0.2;
-                        tri * decay(u, if final_rung { 4.0 } else { 7.0 }) * (1.0 - decay(u, 400.0))
-                    }
-                })
-                .sum::<f32>()
-        })
-        .collect();
-    finish(clip, if final_rung { 0.62 } else { 0.5 })
+    let rate = if final_rung { 4.0 } else { 7.0 };
+    let mut v = Voice::new(step * notes.len() as f32 + if final_rung { 0.9 } else { 0.5 }, if final_rung { 0.62 } else { 0.5 }, 0).without_attack();
+    for (k, f) in notes.iter().enumerate() {
+        // Each note: its fundamental and an octave shimmer, ringing out, fading in over a couple of milliseconds.
+        v = v.with(Layer::new(Src::Tone { hz: *f, partials: vec![(2.0, 0.2 / 0.7)] }, Env::decay(rate).fading_in(400.0).after(k as f32 * step), 0.7));
+    }
+    v.render()
 }
-
 /// Taking damage: a dull thud with a rasp, low enough not to be mistaken for anything you did.
 pub fn hurt() -> Vec<f32> {
-    let n = samples(0.28);
-    let mut noise = Noise(0x4172);
-    let mut lp = 0.0f32;
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            lp += 0.12 * (noise.next() - lp);
-            (partial(70.0, t, 16.0) * 0.9 + lp * decay(t, 30.0) * 1.4 + partial(190.0, t, 30.0) * 0.3) * attack(t)
-        })
-        .collect();
-    finish(clip, 0.66)
+    Voice::new(0.28, 0.66, 0x4172)
+        .with(Layer::sine(70.0, Env::decay(16.0), 0.9))
+        .with(Layer::noise(Filter::Low(0.12), Env::decay(30.0), 1.4))
+        .with(Layer::sine(190.0, Env::decay(30.0), 0.3))
+        .render()
 }
-
 /// Dying: a falling tone and a rumble.
 pub fn death() -> Vec<f32> {
     let n = samples(1.1);
@@ -282,7 +177,7 @@ pub fn death() -> Vec<f32> {
             let t = time(i);
             let f = 320.0 * decay(t, 2.4) + 45.0;
             phase += TAU * f / SAMPLE_RATE as f32;
-            lp += 0.03 * (noise.next() - lp);
+            lp += 0.03 * (noise.white() - lp);
             (phase.sin() * 0.7 * decay(t, 4.5) + lp * 3.0 * decay(t, 5.0)) * attack(t)
         })
         .collect();
@@ -300,7 +195,7 @@ pub fn respawn() -> Vec<f32> {
             let t = time(i);
             let rise = t / 0.45;
             phase += TAU * (180.0 + 900.0 * rise * rise) / SAMPLE_RATE as f32;
-            lp += (0.02 + 0.5 * rise) * (noise.next() - lp);
+            lp += (0.02 + 0.5 * rise) * (noise.white() - lp);
             (phase.sin() * 0.35 + lp * 1.2) * (PI * rise).sin().powf(1.5)
         })
         .collect();
@@ -316,7 +211,7 @@ pub fn pad_launch() -> Vec<f32> {
         .map(|i| {
             let t = time(i);
             phase += TAU * (160.0 + 1500.0 * (1.0 - decay(t, 9.0))) / SAMPLE_RATE as f32;
-            (phase.sin() * 0.8 + noise.next() * 0.12 * decay(t, 20.0)) * decay(t, 11.0) * attack(t)
+            (phase.sin() * 0.8 + noise.white() * 0.12 * decay(t, 20.0)) * decay(t, 11.0) * attack(t)
         })
         .collect();
     finish(clip, 0.5)
@@ -367,73 +262,33 @@ pub fn defeat() -> Vec<f32> {
 }
 
 fn chord_run(notes: &[f32], step: f32, seconds: f32, rate: f32, level: f32) -> Vec<f32> {
-    let n = samples(seconds);
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            notes
-                .iter()
-                .enumerate()
-                .map(|(k, f)| {
-                    let u = t - k as f32 * step;
-                    if u < 0.0 {
-                        0.0
-                    } else {
-                        ((TAU * f * u).sin() * 0.6 + (TAU * f * 2.0 * u).sin() * 0.15 + (TAU * f * 0.5 * u).sin() * 0.2)
-                            * decay(u, rate)
-                            * (1.0 - decay(u, 300.0))
-                    }
-                })
-                .sum::<f32>()
-        })
-        .collect();
-    finish(clip, level)
+    let mut v = Voice::new(seconds, level, 0).without_attack();
+    for (k, f) in notes.iter().enumerate() {
+        // The note, its octave above and the half below, ringing out and fading in over a couple of milliseconds.
+        v = v.with(Layer::new(
+            Src::Tone { hz: *f, partials: vec![(2.0, 0.15 / 0.6), (0.5, 0.2 / 0.6)] },
+            Env::decay(rate).fading_in(300.0).after(k as f32 * step),
+            0.6,
+        ));
+    }
+    v.render()
 }
-
 /// One heartbeat ("lub-dub"), for low health.
 pub fn heartbeat() -> Vec<f32> {
-    let n = samples(0.55);
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            let lub = partial(58.0, t, 22.0);
-            let dub = if t > 0.17 { partial(52.0, t - 0.17, 26.0) * 0.7 } else { 0.0 };
-            (lub + dub) * attack(t)
-        })
-        .collect();
-    finish(clip, 0.55)
+    Voice::new(0.55, 0.55, 0).with(Layer::sine(58.0, Env::decay(22.0), 1.0)).with(Layer::sine(52.0, Env::decay(26.0).after(0.17), 0.7)).render()
 }
-
 /// A footstep: a soft thud and a scuff of noise. `variant` picks between two slightly different feet.
 pub fn footstep(variant: u32) -> Vec<f32> {
-    let n = samples(0.1);
-    let mut noise = Noise(0xF007 + variant * 7919);
-    let mut lp = 0.0f32;
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            lp += (0.16 + 0.03 * variant as f32) * (noise.next() - lp);
-            (partial(72.0 + 9.0 * variant as f32, t, 48.0) * 0.55 + lp * decay(t, 42.0) * 1.6) * attack(t)
-        })
-        .collect();
-    finish(clip, 0.5)
+    let v = variant as f32;
+    Voice::new(0.1, 0.5, 0xF007 + variant * 7919)
+        .with(Layer::sine(72.0 + 9.0 * v, Env::decay(48.0), 0.55))
+        .with(Layer::noise(Filter::Low(0.16 + 0.03 * v), Env::decay(42.0), 1.6))
+        .render()
 }
-
 /// Landing: a heavier thud than a step.
 pub fn landing() -> Vec<f32> {
-    let n = samples(0.2);
-    let mut noise = Noise(0x1A2D);
-    let mut lp = 0.0f32;
-    let clip = (0..n)
-        .map(|i| {
-            let t = time(i);
-            lp += 0.1 * (noise.next() - lp);
-            (partial(58.0, t, 20.0) * 1.0 + lp * decay(t, 24.0) * 2.0) * attack(t)
-        })
-        .collect();
-    finish(clip, 0.7)
+    Voice::new(0.2, 0.7, 0x1A2D).with(Layer::sine(58.0, Env::decay(20.0), 1.0)).with(Layer::noise(Filter::Low(0.1), Env::decay(24.0), 2.0)).render()
 }
-
 /// Pushing off: a short breath of air.
 pub fn jump() -> Vec<f32> {
     let n = samples(0.16);
@@ -443,7 +298,7 @@ pub fn jump() -> Vec<f32> {
         .map(|i| {
             let t = time(i);
             let open = (PI * t / 0.16).sin().powi(2);
-            lp += (0.08 + 0.3 * open) * (noise.next() - lp);
+            lp += (0.08 + 0.3 * open) * (noise.white() - lp);
             lp * open * 2.5
         })
         .collect();
@@ -615,9 +470,9 @@ fn tactical_signal(seconds: f32, pitch: f32, seed: u32, level: f32) -> Vec<f32> 
     let clip = (0..samples(seconds))
         .map(|i| {
             let t = time(i);
-            low += 0.14 * (noise.next() - low);
+            low += 0.14 * (noise.white() - low);
             let metal = partial(pitch, t, rate) * 0.35 + partial(pitch * 2.73, t, rate * 2.5) * 0.12;
-            (metal + low * decay(t, rate) * 1.4 + noise.next() * decay(t, rate * 7.0) * 0.18) * attack(t)
+            (metal + low * decay(t, rate) * 1.4 + noise.white() * decay(t, rate * 7.0) * 0.18) * attack(t)
         })
         .collect();
     finish(clip, level)
@@ -661,9 +516,9 @@ pub fn explosion() -> Vec<f32> {
     let clip = (0..n)
         .map(|i| {
             let t = time(i);
-            lp += 0.25 * (noise.next() - lp);
-            lp2 += 0.02 * (noise.next() - lp2);
-            let crack = noise.next() * decay(t, 70.0) * 0.8;
+            lp += 0.25 * (noise.white() - lp);
+            lp2 += 0.02 * (noise.white() - lp2);
+            let crack = noise.white() * decay(t, 70.0) * 0.8;
             let boom = (TAU * (95.0 * decay(t, 2.2) + 28.0) * t).sin() * decay(t, 4.0) * 1.1;
             let rumble = lp2 * decay(t, 3.2) * 9.0;
             let debris = lp * decay(t, 7.0) * 0.5 * (0.6 + 0.4 * (TAU * 23.0 * t).sin());
@@ -680,7 +535,7 @@ pub fn flash_pop() -> Vec<f32> {
     let clip = (0..n)
         .map(|i| {
             let t = time(i);
-            let bang = noise.next() * decay(t, 45.0) * 1.0 + partial(180.0, t, 14.0) * 0.6;
+            let bang = noise.white() * decay(t, 45.0) * 1.0 + partial(180.0, t, 14.0) * 0.6;
             let ring = (partial(4200.0, t, 1.6) * 0.5 + partial(6300.0, t, 2.2) * 0.25) * (1.0 - decay(t, 60.0));
             (bang + ring) * attack(t)
         })
@@ -696,9 +551,9 @@ pub fn smoke_pop() -> Vec<f32> {
     let clip = (0..n)
         .map(|i| {
             let t = time(i);
-            lp += 0.35 * (noise.next() - lp);
-            let pop = partial(110.0, t, 26.0) * 0.9 + noise.next() * decay(t, 120.0) * 0.4;
-            let hiss = (noise.next() - lp) * 0.35 * (1.0 - decay(t, 20.0)) * decay(t, 2.2);
+            lp += 0.35 * (noise.white() - lp);
+            let pop = partial(110.0, t, 26.0) * 0.9 + noise.white() * decay(t, 120.0) * 0.4;
+            let hiss = (noise.white() - lp) * 0.35 * (1.0 - decay(t, 20.0)) * decay(t, 2.2);
             (pop + hiss) * attack(t)
         })
         .collect();
@@ -713,9 +568,9 @@ pub fn fire_burst() -> Vec<f32> {
     let clip = (0..n)
         .map(|i| {
             let t = time(i);
-            lp += 0.08 * (noise.next() - lp);
-            if noise.next() > 0.93 {
-                crackle = noise.next().abs();
+            lp += 0.08 * (noise.white() - lp);
+            if noise.white() > 0.93 {
+                crackle = noise.white().abs();
             }
             crackle *= 0.9;
             let whump = partial(70.0, t, 9.0) * 1.0 + lp * decay(t, 3.0) * 6.0;
@@ -732,7 +587,7 @@ pub fn grenade_bounce() -> Vec<f32> {
     let clip = (0..n)
         .map(|i| {
             let t = time(i);
-            (partial(1250.0, t, 28.0) * 0.5 + partial(2010.0, t, 40.0) * 0.35 + partial(3330.0, t, 60.0) * 0.15 + noise.next() * decay(t, 400.0) * 0.4)
+            (partial(1250.0, t, 28.0) * 0.5 + partial(2010.0, t, 40.0) * 0.35 + partial(3330.0, t, 60.0) * 0.15 + noise.white() * decay(t, 400.0) * 0.4)
                 * attack(t)
         })
         .collect();
@@ -751,7 +606,7 @@ pub fn reload_mag() -> Vec<f32> {
             for (at, f, g) in [(0.0, 900.0, 0.7), (0.38, 640.0, 0.9), (0.78, 1300.0, 1.0)] {
                 if t >= at {
                     let u = t - at;
-                    v += (click(u, f) + noise.next() * decay(u, 500.0) * 0.5) * g;
+                    v += (click(u, f) + noise.white() * decay(u, 500.0) * 0.5) * g;
                 }
             }
             v * attack(t)
@@ -767,7 +622,7 @@ pub fn reload_shell() -> Vec<f32> {
     let clip = (0..n)
         .map(|i| {
             let t = time(i);
-            (partial(520.0, t, 70.0) * 0.6 + partial(1500.0, t, 130.0) * 0.3 + noise.next() * decay(t, 600.0) * 0.4) * attack(t)
+            (partial(520.0, t, 70.0) * 0.6 + partial(1500.0, t, 130.0) * 0.3 + noise.white() * decay(t, 600.0) * 0.4) * attack(t)
         })
         .collect();
     finish(clip, 0.42)
@@ -784,7 +639,7 @@ pub fn bolt_cycle() -> Vec<f32> {
             for (at, f) in [(0.0, 420.0), (0.28, 300.0)] {
                 if t >= at {
                     let u = t - at;
-                    v += partial(f, u, 55.0) * 0.7 + partial(f * 3.1, u, 120.0) * 0.3 + noise.next() * decay(u, 500.0) * 0.5;
+                    v += partial(f, u, 55.0) * 0.7 + partial(f * 3.1, u, 120.0) * 0.3 + noise.white() * decay(u, 500.0) * 0.5;
                 }
             }
             v * attack(t)
@@ -815,7 +670,7 @@ pub fn throw_whoosh() -> Vec<f32> {
         .map(|i| {
             let t = time(i);
             let open = (PI * t / 0.3).sin().powi(2);
-            lp += (0.05 + 0.25 * open) * (noise.next() - lp);
+            lp += (0.05 + 0.25 * open) * (noise.white() - lp);
             lp * open * 2.2
         })
         .collect();
@@ -831,7 +686,7 @@ pub fn blade_swish() -> Vec<f32> {
         .map(|i| {
             let t = time(i);
             let open = (PI * t / 0.2).sin().powi(2);
-            let x = noise.next();
+            let x = noise.white();
             lp += 0.45 * (x - lp);
             hp += 0.15 * (lp - hp);
             (lp - hp) * open * 2.2
@@ -848,7 +703,7 @@ pub fn blade_hit() -> Vec<f32> {
     let clip = (0..n)
         .map(|i| {
             let t = time(i);
-            lp += 0.2 * (noise.next() - lp);
+            lp += 0.2 * (noise.white() - lp);
             (partial(130.0, t, 30.0) * 0.9 + partial(2300.0, t, 120.0) * 0.25 + lp * decay(t, 60.0)) * attack(t)
         })
         .collect();
@@ -931,7 +786,7 @@ pub fn ambience(seconds: f32) -> Vec<f32> {
         let t = time(i);
         let gust = 0.55 + 0.45 * ((TAU * t / seconds * 3.0).sin() * 0.6 + (TAU * t / seconds * 7.0 + 1.3).sin() * 0.4);
         for ch in 0..2 {
-            let w = noise[ch].next();
+            let w = noise[ch].white();
             lp[ch] += 0.03 * (w - lp[ch]);
             lp_slow[ch] += 0.004 * (w - lp_slow[ch]);
             let wind = (lp[ch] * 1.4 + lp_slow[ch] * 5.0) * gust;

@@ -513,6 +513,26 @@ pub(crate) fn run_audio(cmd: AudioCmd) -> Result<(), String> {
             img.save(&out).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("wrote {} ({w}x{h})", out.display());
         }
+        AudioCmd::Golden { write, file } => {
+            let now = audio::golden();
+            if write {
+                if let Some(dir) = file.parent().filter(|d| !d.as_os_str().is_empty()) {
+                    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+                }
+                std::fs::write(&file, serde_json::to_string_pretty(&now).unwrap_or_default() + "\n").map_err(|e| format!("{}: {e}", file.display()))?;
+                println!("wrote {} ({} sounds)", file.display(), now["sounds"].as_object().map_or(0, |m| m.len()));
+            } else {
+                let stored: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?)
+                    .map_err(|e| format!("{}: {e}", file.display()))?;
+                let diff = audio::golden_diff(&stored, &now);
+                diff.iter().for_each(|d| println!("{d}"));
+                if diff.is_empty() {
+                    println!("audio golden: every sound matches {}", file.display());
+                } else {
+                    return Err(format!("{} difference(s) from {}", diff.len(), file.display()));
+                }
+            }
+        }
         AudioCmd::Check { names } => {
             let (text, ok) = audio::check_text(&names)?;
             print!("{text}");

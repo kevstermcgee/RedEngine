@@ -269,6 +269,64 @@ pub fn check_text(names: &[String]) -> Result<(String, bool), String> {
     Ok((out, failed == 0))
 }
 
+/// The measurements of every built-in sound that identify how it sounds, rounded: what `audio golden` stores and compares. Pitch is kept only for
+/// tonal sounds (a noisy spectrum's strongest bin can flip between neighbours on another platform without the sound changing).
+pub fn golden() -> Value {
+    let mut sounds = serde_json::Map::new();
+    for e in catalog() {
+        let r = e.report();
+        let tonal = r.flatness < 0.1;
+        sounds.insert(
+            e.name.clone(),
+            json!({
+                "secs": (r.secs * 100.0).round() / 100.0, "peak_dbfs": (r.peak_dbfs * 10.0).round() / 10.0, "lufs": (r.lufs * 10.0).round() / 10.0,
+                "centroid_hz": r.centroid_hz.round(), "bands_pct": r.bands.map(|b| b.round()), "clipped": r.clipped,
+                "dominant_hz": if tonal { json!(r.dominant_hz.round()) } else { Value::Null },
+            }),
+        );
+    }
+    json!({ "format": 1, "note": "audio golden: how each built-in sound measures. Regenerate with `red_engine2 audio golden --write` and review the diff.", "sounds": sounds })
+}
+
+/// What differs between a stored golden and the current sounds, as sentences. Tolerances absorb the last-digit differences between platforms
+/// (loudness 0.3 LU, peak 0.5 dB, length 10 ms, brightness 3%, a band 3 points, pitch 2%) and nothing audible.
+pub fn golden_diff(expected: &Value, actual: &Value) -> Vec<String> {
+    let mut out = Vec::new();
+    let (Some(e), Some(a)) = (expected["sounds"].as_object(), actual["sounds"].as_object()) else { return vec!["the golden file has no `sounds`".to_string()] };
+    for name in e.keys().filter(|k| !a.contains_key(*k)) {
+        out.push(format!("{name}: in the golden but no longer a built-in sound"));
+    }
+    for (name, now) in a {
+        let Some(was) = e.get(name) else {
+            out.push(format!("{name}: a new sound the golden does not know (run `audio golden --write`)"));
+            continue;
+        };
+        let f = |v: &Value, k: &str| v[k].as_f64().unwrap_or(0.0);
+        let mut note = |what: &str, was: f64, now: f64, tol: f64| {
+            if (was - now).abs() > tol {
+                out.push(format!("{name}: {what} {was} -> {now} (tolerance {tol})"));
+            }
+        };
+        note("secs", f(was, "secs"), f(now, "secs"), 0.01);
+        note("lufs", f(was, "lufs"), f(now, "lufs"), 0.3);
+        note("peak_dbfs", f(was, "peak_dbfs"), f(now, "peak_dbfs"), 0.5);
+        note("centroid_hz", f(was, "centroid_hz"), f(now, "centroid_hz"), (f(was, "centroid_hz") * 0.03).max(5.0));
+        note("clipped", f(was, "clipped"), f(now, "clipped"), 0.0);
+        for i in 0..5 {
+            note(
+                &format!("band {}", crate::audio_analysis::BAND_NAMES[i]),
+                was["bands_pct"][i].as_f64().unwrap_or(0.0),
+                now["bands_pct"][i].as_f64().unwrap_or(0.0),
+                3.0,
+            );
+        }
+        if let (Some(w), Some(n)) = (was["dominant_hz"].as_f64(), now["dominant_hz"].as_f64()) {
+            note("pitch_hz", w, n, (w * 0.02).max(3.0));
+        }
+    }
+    out
+}
+
 /// A viridis-like ramp for a dB value (-100 dark .. 0 bright).
 fn heat(db: f32) -> Rgb<u8> {
     let t = ((db + 100.0) / 100.0).clamp(0.0, 1.0);
@@ -385,6 +443,35 @@ mod tests {
         let j: Value = serde_json::from_str(&report_text(&["fx.jump".into()], true).unwrap()).unwrap();
         assert!(j["sounds"][0]["report"]["lufs"].is_number());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn every_builtin_sound_still_sounds_like_its_golden() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/audio_golden.json");
+        let stored: Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).expect("tests/fixtures/audio_golden.json (run `red_engine2 audio golden --write`)")).unwrap();
+        let diff = golden_diff(&stored, &golden());
+        assert!(
+            diff.is_empty(),
+            "a built-in sound changed; if that is intended run `red_engine2 audio golden --write` and review the diff:\n{}",
+            diff.join("\n")
+        );
+    }
+
+    #[test]
+    fn the_golden_comparison_notices_each_kind_of_change_and_ignores_rounding() {
+        let base = golden();
+        assert!(golden_diff(&base, &base).is_empty());
+        let mut louder = base.clone();
+        louder["sounds"]["fx.jump"]["lufs"] = json!(louder["sounds"]["fx.jump"]["lufs"].as_f64().unwrap() + 1.0);
+        assert!(golden_diff(&base, &louder).iter().any(|d| d.contains("fx.jump: lufs")));
+        let mut nudged = base.clone();
+        nudged["sounds"]["fx.jump"]["lufs"] = json!(nudged["sounds"]["fx.jump"]["lufs"].as_f64().unwrap() + 0.2);
+        assert!(golden_diff(&base, &nudged).is_empty(), "platform noise is tolerated");
+        let mut gone = base.clone();
+        gone["sounds"].as_object_mut().unwrap().remove("fx.jump");
+        assert!(golden_diff(&gone, &base).iter().any(|d| d.contains("a new sound")));
+        assert!(golden_diff(&base, &gone).iter().any(|d| d.contains("no longer")));
     }
 
     #[test]
