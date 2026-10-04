@@ -40,6 +40,8 @@ jobs:
         run: cargo build --locked --release --no-default-features --bin red_engine2 --target-dir target/headless
       - name: Package
         run: bash scripts/package_release.sh "${{ steps.v.outputs.version }}" dist
+      - name: "A software GPU for the smoke test (Mesa lavapipe; the runner has no graphics adapter)"
+        run: sudo apt-get install -y mesa-vulkan-drivers
       - name: Smoke test from an empty directory
         run: bash scripts/smoke_release.sh dist
       - uses: actions/upload-artifact@v4
