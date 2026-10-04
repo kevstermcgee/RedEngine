@@ -13,6 +13,7 @@ use std::sync::mpsc::{channel, Receiver};
 enum Loaded {
     Bed(usize, Vec<f32>),
     Mood(usize, Vec<f32>),
+    Layer(usize, Vec<f32>),
 }
 
 /// How fast the player's own music and sound switches fade, per second.
@@ -24,6 +25,8 @@ pub(crate) struct Ambient {
     rx: Receiver<Loaded>,
     bed_layers: [Option<usize>; 5],
     mood_layers: [Option<usize>; 4],
+    /// The scene's rule-driven layers: the audio layer id once rendered, and where the fade has got to.
+    rule_layers: Vec<(Option<usize>, f32)>,
     /// The player's music and sound switches, eased so a toggle is a fade not a click.
     music_gate: f32,
     sound_gate: f32,
@@ -36,12 +39,16 @@ pub(crate) struct Ambient {
     pub(crate) recent: Vec<Heard>,
     /// How many loops the worker has finished.
     pub(crate) loaded: usize,
+    /// How many times the music was ducked.
+    pub(crate) ducks: u32,
 }
 
 impl Ambient {
     /// Starts rendering what the scene's `audio` block asks for. `first_mood` (the mood of the hour the game starts at) is rendered first.
     pub(crate) fn new(spec: AudioSpec, seed: u32, first_mood: Mood, render: bool) -> Ambient {
         let (tx, rx) = channel();
+        let layer_count = spec.layers.len();
+        let layer_files: Vec<std::path::PathBuf> = spec.layers.iter().map(|l| l.score.clone()).collect();
         let music = spec.music.clone();
         let nature = spec.nature;
         // With no sound card there is nothing to play the loops on, so a headless run does not spend minutes rendering them.
@@ -74,6 +81,21 @@ impl Ambient {
                     Err(e) => eprintln!("audio.music.{}: {}: {e}", mood.name(), path.display()),
                 }
             }
+            for (i, path) in layer_files.into_iter().enumerate() {
+                let rendered = std::fs::read_to_string(&path)
+                    .map_err(|e| e.to_string())
+                    .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).map_err(|e| e.to_string()))
+                    .and_then(|v| red_engine2::score::parse_score(&v).map_err(|e| e.join("; ")))
+                    .map(|score| score.render().samples);
+                match rendered {
+                    Ok(samples) => {
+                        if tx.send(Loaded::Layer(i, samples)).is_err() {
+                            return;
+                        }
+                    }
+                    Err(e) => eprintln!("audio.layers[{i}]: {}: {e}", path.display()),
+                }
+            }
         });
         Ambient {
             spec,
@@ -81,6 +103,7 @@ impl Ambient {
             rx,
             bed_layers: [None; 5],
             mood_layers: [None; 4],
+            rule_layers: vec![(None, 0.0); layer_count],
             music_gate: 1.0,
             sound_gate: 1.0,
             clips: HashMap::new(),
@@ -89,6 +112,7 @@ impl Ambient {
             last: Frame::default(),
             recent: Vec::new(),
             loaded: 0,
+            ducks: 0,
         }
     }
 
@@ -99,7 +123,17 @@ impl Ambient {
 
     /// Advances by `dt` seconds: the hour, the place and the player's switches in, sound out.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn update(&mut self, dt: f32, audio: Option<&mut Audio>, ctx: Context, biome_at: impl FnOnce() -> Biome, music_on: bool, sound_on: bool) {
+    pub(crate) fn update(
+        &mut self,
+        dt: f32,
+        audio: Option<&mut Audio>,
+        ctx: Context,
+        biome_at: impl FnOnce() -> Biome,
+        music_on: bool,
+        sound_on: bool,
+        vars: &[(&str, f64)],
+        events: &[String],
+    ) {
         self.biome_age += dt;
         if self.biome_age > 0.5 {
             self.biome = biome_at();
@@ -110,6 +144,16 @@ impl Ambient {
         let ease = |gate: &mut f32, on: bool| *gate += ((if on { 1.0 } else { 0.0 }) - *gate).clamp(-GATE_SLEW * dt, GATE_SLEW * dt);
         ease(&mut self.music_gate, music_on);
         ease(&mut self.sound_gate, sound_on);
+        // Layers that follow a rule variable fade in while it is high and out when it is not; the music ducks on the events the scene names.
+        for (i, spec) in self.spec.layers.iter().enumerate() {
+            let value = vars.iter().find(|(n, _)| *n == spec.var).map_or(0.0, |(_, v)| *v);
+            let target = red_engine2::ambience::layer_target(value, spec.above);
+            let step = dt / spec.fade.max(0.05);
+            let level = &mut self.rule_layers[i].1;
+            *level += (target - *level).clamp(-step, step);
+        }
+        let ducked = self.spec.duck.as_ref().is_some_and(|d| events.iter().any(|e| d.events.contains(e)));
+        self.ducks += ducked as u32;
         if let Some(audio) = audio {
             // Loops that have finished rendering join, silent, and are then brought in by the volumes below.
             while let Ok(loaded) = self.rx.try_recv() {
@@ -117,6 +161,7 @@ impl Ambient {
                 match loaded {
                     Loaded::Bed(i, samples) => self.bed_layers[i] = audio.add_layer(samples),
                     Loaded::Mood(i, samples) => self.mood_layers[i] = audio.add_layer(samples),
+                    Loaded::Layer(i, samples) => self.rule_layers[i].0 = audio.add_layer(samples),
                 }
             }
             for (i, layer) in self.bed_layers.iter().enumerate() {
@@ -124,16 +169,36 @@ impl Ambient {
                     audio.set_layer_volume(*id, frame.beds[i] * self.spec.ambience_volume * self.sound_gate);
                 }
             }
+            let duck = audio.music_duck();
             for (i, layer) in self.mood_layers.iter().enumerate() {
                 if let Some(id) = layer {
-                    audio.set_layer_volume(*id, frame.music[i] * self.spec.music_volume * self.music_gate);
+                    audio.set_layer_volume(*id, frame.music[i] * self.spec.music_volume * self.music_gate * duck);
+                }
+            }
+            for (i, (id, level)) in self.rule_layers.iter().enumerate() {
+                if let Some(id) = id {
+                    audio.set_layer_volume(*id, *level * self.spec.layers[i].volume * self.music_gate * duck);
+                }
+            }
+            if ducked {
+                if let Some(d) = &self.spec.duck {
+                    audio.duck_music(d.duck, d.hold);
                 }
             }
             if self.spec.nature {
                 for heard in &frame.calls {
                     let index = Call::ALL.iter().position(|c| *c == heard.call).unwrap_or(0);
-                    let clip = self.clips.entry((index, heard.seed)).or_insert_with(|| heard.call.render(heard.seed));
-                    audio.play_at(clip, heard.gain * self.spec.ambience_volume, heard.pan);
+                    let reverb = self.spec.reverb;
+                    let clip = self.clips.entry((index, heard.seed)).or_insert_with(|| {
+                        let dry = heard.call.render(heard.seed);
+                        // A scene with a room (`audio.reverb`) puts every call in it, once, here.
+                        reverb.map_or_else(|| dry.iter().flat_map(|s| [*s, *s]).collect(), |r| red_engine2::mixer::wet(&dry, &r.reverb()))
+                    });
+                    let key = (index as u64) << 32 | heard.seed as u64 | 1 << 63;
+                    audio.play_stereo_cue(
+                        clip.clone(),
+                        red_engine2::mixer::Cue::ambience(heard.gain * self.spec.ambience_volume, heard.pan, key, clip.len() as f32 / 2.0 / 44100.0),
+                    );
                 }
             }
         } else {
@@ -185,9 +250,12 @@ impl App {
         let pos = self.physics_pos;
         let ground = self.ground.clone();
         let (music_on, sound_on) = (self.music_on, self.sfx_on);
+        let vars: Vec<(String, f64)> = self.rules.vars().into_iter().map(|(n, v)| (n.to_string(), v)).collect();
+        let vars: Vec<(&str, f64)> = vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();
+        let events = std::mem::take(&mut self.fresh_events);
         let biome_at = move || ground.procgen().map_or(Biome::Meadow, |g| g.world().biome(pos.x as f64, pos.y as f64));
         if let Some(a) = self.ambient.as_mut() {
-            a.update(dt, self.audio.as_mut(), ctx, biome_at, music_on, sound_on);
+            a.update(dt, self.audio.as_mut(), ctx, biome_at, music_on, sound_on, &vars, &events);
         }
     }
 
@@ -202,6 +270,8 @@ impl App {
             "calls": calls,
             "recent": a.recent.iter().map(|h| json!({"call": h.call.name(), "gain": (h.gain * 100.0).round() / 100.0, "pan": (h.pan * 100.0).round() / 100.0})).collect::<Vec<_>>(),
             "loops_ready": a.loaded,
+            "layers": a.spec_layers().iter().zip(&a.rule_layers).map(|(l, (_, level))| json!({"var": l.var, "level": (level * 100.0).round() / 100.0})).collect::<Vec<_>>(),
+            "ducks": a.ducks,
             "music_on": self.music_on,
             "sound_on": self.sfx_on,
         }))
@@ -215,6 +285,10 @@ fn mood_of(ctx: &Context) -> usize {
 }
 
 impl Ambient {
+    fn spec_layers(&self) -> &[red_engine2::ambience::LayerSpec] {
+        &self.spec.layers
+    }
+
     fn state_totals(&self) -> [u32; 7] {
         self.state.totals
     }

@@ -104,5 +104,105 @@
       "text": "{days_lived:day|days} lived in this world so far.",
       "button": "Wander"
     }
+  },
+  "checks": {
+    "audio": {
+      "scores": {
+        "lufs": [
+          -33,
+          -24
+        ],
+        "peak_max": -6
+      },
+      "sounds": [
+        {
+          "name": "birds sit above the beds",
+          "sound": "bird.robin",
+          "lufs": [
+            -28,
+            -18
+          ]
+        }
+      ],
+      "soundscape": [
+        {
+          "name": "a dawn chorus",
+          "sun": 4,
+          "rising": true,
+          "biome": "meadow",
+          "secs": 300,
+          "calls": {
+            "any": [
+              30,
+              2000
+            ],
+            "owl": [
+              0,
+              0
+            ]
+          },
+          "beds": {
+            "crickets": [
+              0,
+              0.1
+            ]
+          }
+        },
+        {
+          "name": "a quiet noon",
+          "sun": 60,
+          "rising": true,
+          "biome": "meadow",
+          "secs": 300,
+          "calls": {
+            "owl": [
+              0,
+              0
+            ],
+            "any": [
+              0,
+              60
+            ]
+          },
+          "beds": {
+            "bees": [
+              0.2,
+              1
+            ],
+            "crickets": [
+              0,
+              0.01
+            ]
+          }
+        },
+        {
+          "name": "a night of crickets and owls",
+          "sun": -40,
+          "rising": false,
+          "biome": "forest",
+          "secs": 900,
+          "calls": {
+            "owl": [
+              4,
+              500
+            ],
+            "robin": [
+              0,
+              0
+            ],
+            "blackbird": [
+              0,
+              0
+            ]
+          },
+          "beds": {
+            "crickets": [
+              0.4,
+              1
+            ]
+          }
+        }
+      ]
+    }
   }
 }

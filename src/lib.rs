@@ -41,6 +41,7 @@ pub mod macros;
 pub mod menu;
 #[cfg(feature = "gfx")]
 pub mod mesh;
+pub mod mixer;
 pub mod music;
 pub mod nature;
 pub mod net;

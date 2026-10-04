@@ -127,15 +127,18 @@ pub fn catalog() -> Vec<Entry> {
 fn render_score_text(text: &str) -> Result<crate::score::Rendered, String> {
     // The shipped scores take seconds to render and the catalog is listed often (every `audio` command that takes no name, every test that walks it): render each once.
     static CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<usize, crate::score::Rendered>>> = std::sync::OnceLock::new();
-    let key = text.as_ptr() as usize;
+    use std::hash::{Hash, Hasher};
+    let key = {
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        text.hash(&mut h);
+        h.finish() as usize
+    };
     if let Some(r) = CACHE.get().and_then(|c| c.lock().ok()).and_then(|c| c.get(&key).cloned()) {
         return Ok(r);
     }
     let r = render_score_uncached(text)?;
-    if SCORES.iter().any(|(_, s)| s.as_ptr() as usize == key) {
-        if let Ok(mut c) = CACHE.get_or_init(Default::default).lock() {
-            c.insert(key, r.clone());
-        }
+    if let Ok(mut c) = CACHE.get_or_init(Default::default).lock() {
+        c.insert(key, r.clone());
     }
     Ok(r)
 }
