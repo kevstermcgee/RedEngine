@@ -18,23 +18,24 @@ pub const OVERVIEW_BUDGET: usize = 7_300;
 
 /// Topic names and one-line descriptions for `describe`; a test renders every one.
 pub const TOPICS: &[(&str, &str)] = &[
-    ("brief", "a ~1 KB summary: binaries, workflow, commands, where to look next (the cheapest first read)"),
+    ("brief", "a ~1 KB summary: binaries, workflow, commands, where to look next"),
     ("overview", "what the engine is + the topics below"),
-    ("commands", "every CLI command and its flags (11 KB; one command: `search <name>`)"),
+    ("commands", "every CLI command and flag (11 KB; one: `search <name>`)"),
     ("objects", "every object `type` with its fields and a working example"),
     ("scene", "top-level scene keys: meta, camera, lights, zones, prefabs, checks, ..."),
     ("lint", "every lint code: what it means and how to fix it"),
     ("physics", "player size/speed/step rules that decide what is walkable (live constants)"),
-    ("conventions", "coordinates, origins, facing, naming — the things that cause silent mistakes"),
-    ("glossary", "project vocabulary: props vs prefabs, zones, body band, the four maps, the tire-iron naming trap, ..."),
-    ("decisions", "the architecture decision records (docs/adr): why the engine is built this way, one line each"),
-    ("diagnostics", "the `--json` envelope every command can return, and every stable diagnostic code with its fix"),
+    ("conventions", "coordinates, origins, facing, naming: what causes silent mistakes"),
+    ("glossary", "project vocabulary: props vs prefabs, zones, body band, the four maps, ..."),
+    ("decisions", "the architecture decision records (docs/adr), one line each"),
+    ("diagnostics", "the `--json` envelope and every diagnostic code with its fix"),
     ("rules", "game logic as data: `vars` + `rules` (when/who/if/once/do), volumes, actions, expressions"),
     ("ui", "game HUD, objective, start/end cards"),
-    ("sim", "headless play-throughs (`sim`, `checks.sim`) and match traces (`replay`, checksums)"),
-    ("multiplayer", "hosting and playing online: keys, lobby and rounds, UPnP, net-test, perf, package"),
+    ("audio", "measure sound: LUFS, peaks, seam, pitch, spectrogram"),
+    ("sim", "scripted headless play-throughs (`sim`) and match traces (`replay`)"),
+    ("multiplayer", "hosting and playing online: keys, lobby, rounds, UPnP, net-test, package"),
     ("playtest", "see the game without a screen: `playtest`, headless scripts, state dump"),
-    ("custom-client", "a game that is not first-person: your own crate on `red_engine2::app`"),
+    ("custom-client", "a non-first-person game: your own crate on `red_engine2::app`"),
     ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
 
@@ -459,6 +460,23 @@ pub const RULES_EXAMPLE: &str = r##"{"camera":{"position":[0,1.7,-6],"target":[0
  "objects":[{"id":"floor","type":"plane","size":[20,10],"position":[0,0.01,0]},
             {"id":"coin","type":"cylinder","radius":0.25,"height":0.08,"position":[0,0.45,0],"collide":false}]}"##;
 
+/// `describe audio`: measuring sound.
+fn audio_text() -> String {
+    "All sound is synthesized in code (nothing imported) and builds headless, so it can be measured without a sound card or ears.\n\n\
+     red_engine2 audio list                       every built-in sound: name, group, one-shot or loop, length\n\
+     red_engine2 audio report [NAME|file.wav ...] one line each (no names = all): length, peak, RMS, LUFS (ITU BS.1770, gated), crest, clipped samples, DC,\n\
+     \x20                                            silence before/after, `end` (last samples, dBFS), loop `seam` (1 = clean), brightness (centroid Hz), strongest\n\
+     \x20                                            pitch (note), flatness (0 tone .. 1 noise), % energy in sub/bass/lowmid/highmid/air, stereo correlation; --json\n\
+     red_engine2 audio render NAME out.wav        write the 16-bit WAV (to listen to, or to send someone)\n\
+     red_engine2 audio picture NAME|f.wav out.png waveform over a spectrogram (log frequency up, time right): LOOK at it\n\
+     red_engine2 audio check [NAME ...]           the standard: finite, no full-scale samples, audible, little DC, one-shots end on zero (no click), loops have no\n\
+     \x20                                            seam. FAIL lines exit 1; WARN lines (loudness 10+ LU from the median of its group) do not\n\n\
+     Names: gun.<weapon>, fx.<cue>, tactical.<cue>, synth.<clip>, music.loop, ambience.map. Reading a line: a gunshot is mostly `bass`/`sub` with a low `bright`;\n\
+     a UI beep is one note (`flat` near 0) in `lowmid`; a hiss has `flat` near 0.7 and a high `bright`; two cues 10+ LU apart will not sit together in a mix.\n\
+     Code: `crate::sfx`, `crate::music`, `crate::synth` (synthesis), `crate::audio_analysis` (the measurements).\n"
+        .to_string()
+}
+
 /// `describe ui`: the scene's `ui` block.
 fn ui_text() -> String {
     "A scene's `ui` block is what the GAME says to its player; `hud` only chooses which engine panels show. Presentation only: it changes no gameplay.\n\n\
@@ -778,6 +796,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
                 "example": serde_json::from_str::<Value>(RULES_EXAMPLE).unwrap_or(Value::Null),
             }),
             "ui" => json!({"text": ui_text()}),
+            "audio" => json!({"text": audio_text()}),
             "sim" => json!({"text": sim_text()}),
             "multiplayer" => json!({"text": multiplayer_text()}),
             "playtest" => json!({"text": playtest_text()}),
@@ -804,6 +823,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "diagnostics" => out.push_str(&diagnostics_text()),
         "rules" => out.push_str(&rules_text()),
         "ui" => out.push_str(&ui_text()),
+        "audio" => out.push_str(&audio_text()),
         "sim" => out.push_str(&sim_text()),
         "multiplayer" => out.push_str(&multiplayer_text()),
         "playtest" => out.push_str(&playtest_text()),

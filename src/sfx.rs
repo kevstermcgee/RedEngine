@@ -9,8 +9,8 @@
 //! *body* (low-passed noise) and a *tail* (the room). Small automatic weapons have a thin crack, a little boom and almost no tail, so ten
 //! shots a second do not smear; a shotgun is all boom and body; the scout is a hard crack and a long echo.
 
-use crate::audio::SAMPLE_RATE;
 use crate::feel::Cue;
+use crate::synth::SAMPLE_RATE;
 use crate::weapons::Weapon;
 use std::f32::consts::{PI, TAU};
 
@@ -560,7 +560,7 @@ impl SoundBank {
             steps: [footstep(0), footstep(1)],
             land: landing(),
             jump: jump(),
-            draw: crate::audio::synth_weapon_click(),
+            draw: crate::synth::synth_weapon_click(),
             alert: alert(),
         }
     }
