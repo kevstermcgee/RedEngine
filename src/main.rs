@@ -97,6 +97,9 @@ fn run(command: Command) -> Result<(), String> {
         Command::Sky { scene, out, hours, cols, tile, eye, at, fov, size, look } => {
             run_sky(&scene, &out, &hours, cols, tile, eye.as_deref(), at.as_deref(), fov, size.as_deref(), look.as_deref())
         }
+        Command::Procgen { out, seed, centre, size, scale, grid, biomes, relief, trees, flowers, grass } => {
+            run_procgen(&out, seed, &centre, size, scale, grid, biomes, [relief, trees, flowers, grass])
+        }
         Command::Render { scene, out } => run_render(&scene, &out),
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
         Command::Lint { scene, strict, cell, phase } => run_lint(&scene, envelope::capturing(), strict, cell, phase.as_deref()),

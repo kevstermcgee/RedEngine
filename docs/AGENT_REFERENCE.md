@@ -53,7 +53,7 @@ impact --git` says which tests and docs a change touches; `features --check` kee
 `vars` + `rules` in the scene declare gameplay (triggers, conditions, actions); `checks.sim` scenarios play scripted players through
 the real simulation and assert the outcome, with no window (`red_engine2 sim scene.json`); `red_engine2 replay trace.json` re-runs a
 recorded match and names the first divergent tick. `describe rules` and `describe sim` have the syntax with runnable examples;
-`clock` gives a scene a day and night (`frame --hour`, `sky` contact sheet; `examples/day_cycle.json`). `recipe coin_run` is a complete game proven by its own scenarios, with a `ui` block (friendly HUD, objective, start and end cards; `describe ui`); `recipe gated_garden` adds `phases` (a gate a rule opens): check reach/walk/lint in each level state. Scripted players act on objects, not coordinates: `approach` / `look_at` / `interact` with an object id work the same in `checks.sim` and in the `playtest` / `re2 --script` client script. In single-player `re2`, the same rules drive hidden/shown objects,
+`clock` gives a scene a day and night (`frame --hour`, `sky` contact sheet; `examples/day_cycle.json`). `recipe coin_run` is a complete game proven by its own scenarios, with a `ui` block (friendly HUD, objective, start and end cards; `describe ui`); `recipe gated_garden` adds `phases` (a gate a rule opens): check reach/walk/lint in each level state. Scripted players act on objects, not coordinates: `approach` / `look_at` / `interact` with an object id work the same in `checks.sim` and in the `playtest` / `re2 --script` client script. In single-player `re2`, the same rules drive hidden/shown objects, `red_engine2 procgen map.png --seed 7 --size 400` (`--biomes`, `--grid`) draws the top-down map of an endless generated world (`src/procgen`: pure functions of a seed, real plant species with Latin names, 48 m chunks) and prints plant counts per species; not yet a scene block (phase 4 of Marcel).
 teleports and prop impulses; a compact generic HUD shows scene variables, recent events and the terminal outcome.
 
 ## When a walk or a route fails (ADR 0023)
@@ -351,6 +351,7 @@ gameplay in the scene's rules. `describe custom-client` is the one-screen API; t
 | `race-track` | Write a complete raceable kart map from a few numbers: circuit, barriers, gates, item boxes, terrain, grid, bot line, the animals, lobby, checks | |
 | `servers` | The game servers on this machine (Linux, systemd user units): `servers` lists them; `start/stop/restart/status/logs NAME`; `--json` for tools | |
 | `audio` | Sound without ears: list, report (LUFS, peaks, seam, pitch), render, picture, check | |
+| `procgen` | A generated world, mapped: `procgen map.png --seed 7` | |
 
 `examples/external/topdown_switch` (own `Cargo.toml` and `[workspace]`, engine by path): top-down camera that turns (Q/E) and zooms
 (wheel), WASD relative to the view, click-to-move through `pick_ground` + `input_toward`, two switch plates and a gate that the rules

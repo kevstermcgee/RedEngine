@@ -54,6 +54,7 @@ pub mod playscript;
 pub mod prefabs;
 #[cfg(feature = "gfx")]
 pub mod probe;
+pub mod procgen;
 pub mod project_browser;
 pub mod props;
 #[cfg(feature = "gfx")]
