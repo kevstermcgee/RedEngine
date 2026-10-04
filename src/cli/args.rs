@@ -261,6 +261,40 @@ pub(crate) enum GameUpgradeCmd {
 }
 
 #[derive(Subcommand)]
+pub(crate) enum AudioCmd {
+    /// Every built-in sound with its group, kind and length.
+    List,
+    /// One line of numbers per sound: length, peak, RMS, LUFS (BS.1770), crest, clipped samples, DC, silence before/after, the loop seam, brightness, pitch,
+    /// stereo correlation, spectral flatness and the share of energy in five bands. No names = every built-in; a `.wav` path measures a file.
+    Report {
+        /// Built-in names (`gun.pistol`, `fx.explosion`, `music.loop`) or `.wav` files.
+        names: Vec<String>,
+    },
+    /// Write a sound as a 16-bit WAV.
+    Render {
+        /// A built-in name.
+        name: String,
+        /// Output file.
+        out: PathBuf,
+    },
+    /// Draw a sound: its waveform over a spectrogram (log frequency up, time right) with the key numbers on top.
+    Picture {
+        /// A built-in name or a `.wav` file.
+        name: String,
+        /// Output PNG.
+        out: PathBuf,
+        /// Image size "WxH".
+        #[arg(long, default_value = "960x400")]
+        size: String,
+    },
+    /// Hold sounds to the engine's standard (finite, not clipped, audible, no DC offset, one-shots end cleanly, loops have no seam). Exit 1 on a failure.
+    Check {
+        /// Built-in names or `.wav` files; none = every built-in.
+        names: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
 pub(crate) enum Command {
     /// Check a scene file for errors before spending any render time.
     Validate { scene: PathBuf },
@@ -595,6 +629,11 @@ pub(crate) enum Command {
         /// With `--scene` and `game-end`: which outcome's card to draw (default: the first the block declares).
         #[arg(long)]
         outcome: Option<String>,
+    },
+    /// Sound without ears: list, report (LUFS, peaks, seam, pitch), render, picture, check.
+    Audio {
+        #[command(subcommand)]
+        cmd: AudioCmd,
     },
     /// Audit every 2-D screen at 9 window sizes (small, common, portrait, 1440p): everything on screen, inside its container, text not
     /// wider than its panel, no overlaps. Exit 1 on any violation. The same audit runs in `cargo test`.

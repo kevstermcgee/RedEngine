@@ -163,9 +163,17 @@
       "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-03-a-scene-declared-game-ui.md"],
       "depends_on": ["match_flow", "net_protocol", "game_rules"]
     },
+    "audio": {
+      "summary": "Sound you can measure: the procedural synthesis (guns, effects, music, ambience) and WAV encoder build headless; `audio list|report|render|picture|check` give loudness (BS.1770 LUFS), peaks, clipping, silence, loop seam, spectrum and pitch as numbers or one picture, and hold every built-in sound to a standard.",
+      "files": ["src/synth.rs", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs"],
+      "tests": ["lib:synth", "lib:sfx", "lib:music", "lib:audio_analysis", "lib:tools::audio"],
+      "commands": ["red_engine2 audio check", "red_engine2 audio report fx.explosion", "red_engine2 audio picture music.loop out/music.png"],
+      "docs": ["docs/adr/0008-procedural-assets-only.md", "docs/adr/0056-music-in-code.md", "docs/adr/2026-10-04-audio-you-can-measure-headless-synthesis-and-the-audio.md"],
+      "depends_on": ["graphical_client"]
+    },
     "graphical_client": {
       "summary": "The `re2` game: window, input, live rendering, avatars, weapons, rule-state presentation, launch/connect and online lobby/HUD wiring.",
-      "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/sfx.rs", "src/music.rs", "src/settings.rs", "src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
+      "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/settings.rs", "src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
       "tests": ["lib:viewer", "lib:audio", "lib:settings"],
       "commands": ["powershell -File scripts/lobby_demo.ps1"],
       "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0043-a-reusable-client-layer-for-custom-games.md", "docs/adr/2026-10-01-persisted-per-game-audio-settings-and-a-music-download.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md"],

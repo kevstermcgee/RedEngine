@@ -498,6 +498,32 @@ pub(crate) fn run_ui_shot(
     Ok(())
 }
 
+pub(crate) fn run_audio(cmd: AudioCmd) -> Result<(), String> {
+    use red_engine2::tools::audio;
+    match cmd {
+        AudioCmd::List => print!("{}", audio::list_text()),
+        AudioCmd::Report { names } => print!("{}", audio::report_text(&names, envelope::capturing())?),
+        AudioCmd::Render { name, out } => print!("{}", audio::render_wav(&name, &out)?),
+        AudioCmd::Picture { name, out, size } => {
+            let (w, h) = parse_wh(&size)?;
+            let img = audio::picture(&audio::source(&name)?, w, h);
+            if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
+                std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+            }
+            img.save(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+            println!("wrote {} ({w}x{h})", out.display());
+        }
+        AudioCmd::Check { names } => {
+            let (text, ok) = audio::check_text(&names)?;
+            print!("{text}");
+            if !ok {
+                return Err(String::new());
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn run_ui_check(screen: Option<&str>, size: Option<&str>, scene: Option<&Path>) -> Result<(), String> {
     use red_engine2::ui::screens;
     let mut problems = if screen.is_none() && size.is_none() {
