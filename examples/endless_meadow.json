@@ -1,10 +1,54 @@
 {
-  "camera": { "fov": 75, "position": [0, 1.6, 0], "target": [0, 1.7, -10], "far": 700 },
-  "clock": { "day_secs": 720, "start": 0.3, "fog": 0.0028, "stars": 1.0, "moon": true },
-  "procgen": { "seed": 7 },
+  "camera": {
+    "fov": 75,
+    "position": [
+      0,
+      1.6,
+      0
+    ],
+    "target": [
+      0,
+      1.7,
+      -10
+    ],
+    "far": 700
+  },
+  "clock": {
+    "day_secs": 720,
+    "start": 0.3,
+    "fog": 0.0028,
+    "stars": 1.0,
+    "moon": true,
+    "night_light": 0.3
+  },
+  "procgen": {
+    "seed": 7
+  },
   "lights": [
-    { "id": "sun", "type": "directional", "direction": [-0.4, -1, -0.3], "cast_shadows": true, "shadow_radius": 60, "shadow_follow": true, "intensity": 1.0 }
+    {
+      "id": "sun",
+      "type": "directional",
+      "direction": [
+        -0.4,
+        -1,
+        -0.3
+      ],
+      "cast_shadows": true,
+      "shadow_radius": 60,
+      "shadow_follow": true,
+      "intensity": 1.0
+    }
   ],
-  "spawns": [ { "id": "start", "position": [0, 0, 0], "yaw_deg": 0 } ],
+  "spawns": [
+    {
+      "id": "start",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "yaw_deg": 0
+    }
+  ],
   "objects": []
 }

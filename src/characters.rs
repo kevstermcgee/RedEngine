@@ -97,7 +97,7 @@ fn bone_end(p: &BonePart, sign: f32) -> Vec3 {
 /// left forearm — followed by the joint fillers and face details.
 pub fn human_parts(rig: &HumanoidRig, pose: &PoseSample, look: &HumanLook) -> Vec<CharPart> {
     let core = pose_to_parts(rig, pose);
-    let h = rig.hip_y / 0.53; // the object's nominal height, for size-relative details
+    let h = rig.height; // the object's nominal height, for size-relative details
     let r = rig.head_radius;
     let skin = Some(look.skin);
     let pants = Some(look.pants);
@@ -191,9 +191,15 @@ pub fn character_object(who: crate::player::Character, id: &str) -> Object {
             Character::Nightfall => "#1f2d4d",
             // Matches the skin, not a costume accent: one wrong-colored shape, not a person wearing black.
             Character::Hollow => "#0d0c10",
+            // A warm, cheerful red-orange jumper: the one saturated thing in a green and gold world.
+            Character::Boy => "#e0573a",
             _ => "#af303c",
         };
         h.material.color = Track::constant(hex(shirt));
+        if who == Character::Boy {
+            h.height = BOY_HEIGHT;
+            h.build = 0.92;
+        }
         if who == Character::Hollow {
             // Unnaturally tall and gaunt — the cheapest, most reliable "this is wrong" silhouette cue.
             h.height = HUMAN_HEIGHT * 1.28;
@@ -238,6 +244,12 @@ impl HumanLook {
                 look.hair = look.skin;
                 look.pants = hex("#344f63");
                 look.shoes = hex("#243c4f");
+            }
+            Character::Boy => {
+                look.skin = hex("#e8b48f");
+                look.hair = hex("#6a4426");
+                look.pants = hex("#51648a");
+                look.shoes = hex("#7b5233");
             }
             Character::Hollow => {
                 // Near-black, barely differentiated from itself: no warm tones anywhere, nothing reads as "wearing" clothes.
@@ -352,6 +364,8 @@ pub fn rat_parts(pose: &RatPose) -> Vec<CharPart> {
 
 /// Height of the standard human, m.
 pub const HUMAN_HEIGHT: f32 = 1.8;
+/// The boy's height in metres: about nine years old.
+pub const BOY_HEIGHT: f32 = 1.35;
 /// The player's default T-shirt colour.
 pub const HUMAN_SHIRT_HEX: &str = "#4b7fb0";
 
@@ -448,6 +462,31 @@ mod tests {
         let (lo, hi) = y_range(&parts);
         assert!((-0.02..0.05).contains(&lo), "shoes rest on the floor: {lo}");
         assert!((1.75..1.95).contains(&hi), "hair top near 1.8 m: {hi}");
+    }
+
+    #[test]
+    fn the_boy_is_a_child_with_a_big_head_standing_on_the_floor() {
+        use crate::player::Character;
+        let look = HumanLook::styled(Character::Boy);
+        let boy = HumanoidRig::for_look(BOY_HEIGHT, 0.92, &look);
+        let (lo, hi) = y_range(&human_parts(&boy, &PoseSample::default(), &look));
+        assert!((-0.02..0.05).contains(&lo), "shoes rest on the floor: {lo}");
+        assert!((BOY_HEIGHT * 0.95..BOY_HEIGHT * 1.12).contains(&hi), "tousled hair a little over 1.35 m: {hi}");
+        let adult = HumanoidRig::new(HUMAN_HEIGHT, 1.0);
+        assert!(boy.head_radius / boy.height > 1.25 * adult.head_radius / adult.height, "a child's head is a bigger share of the height");
+        assert!(
+            boy.upper_leg_len + boy.lower_leg_len < 0.93 * (adult.upper_leg_len + adult.lower_leg_len) * BOY_HEIGHT / HUMAN_HEIGHT,
+            "and the legs are shorter"
+        );
+        let o = character_object(Character::Boy, "boy");
+        match o.kind {
+            ObjectKind::Humanoid(h) => assert_eq!((h.height, h.look.style), (BOY_HEIGHT, Character::Boy)),
+            _ => panic!("the boy is a humanoid"),
+        }
+        assert_eq!(Character::parse("boy"), Some(Character::Boy));
+        assert_eq!(crate::net::protocol::character_from_wire(crate::net::protocol::character_to_wire(Character::Boy)), Character::Boy);
+        let b = Character::Boy.body();
+        assert!(b.stand_eye < 1.3 && !b.has_bat && b.walk_speed < Character::Human.body().walk_speed);
     }
 
     #[test]

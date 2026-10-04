@@ -8,6 +8,7 @@ pub mod chunk;
 pub mod flora;
 pub mod geo;
 pub mod ground;
+pub mod motes;
 pub mod noise;
 pub mod shapes;
 pub mod stream;

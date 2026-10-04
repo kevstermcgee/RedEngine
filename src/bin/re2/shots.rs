@@ -180,7 +180,7 @@ impl App {
             skin: 0,
         };
         let highlighted = self.target_index.is_some();
-        let t = if self.scene.duration > 0.0 { self.start.elapsed().as_secs_f32() % self.scene.duration } else { 0.0 };
+        let t = self.scene_time();
         let hidden = hidden_ids(
             &self.net,
             &self.rules,
@@ -204,6 +204,8 @@ impl App {
         if let Some(net) = self.net.as_ref().filter(|_| !peaceful) {
             live.set_remote_hands(net.remote_hands());
         }
+        // A picture is of the whole world, not of whatever has streamed in so far.
+        live.settle_stream(&gpu.device, &gpu.queue, cam.position);
         live.render_ex(&gpu.device, &gpu.queue, &self.scene, t, cam, capture.view(), highlighted, weapon_transform, hand, opts);
         capture.read_rgba(&gpu.device, &gpu.queue).map_err(|e| e.to_string())
     }

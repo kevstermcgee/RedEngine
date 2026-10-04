@@ -657,6 +657,13 @@ impl LiveRenderer {
     /// [`crate::sim::rules_run::RulesEngine::hidden`] directly. It is the way to switch a pooled object off ([`crate::scene_pool::ScenePool::hidden_ids`]): a mesh
     /// scaled to a speck is still a draw call in both passes, a hidden one is none. Cheap to call every frame: an unchanged set costs no allocation and no
     /// recomputation.
+    /// Builds and uploads every chunk of a streamed (`procgen`) world around `eye` before returning, so a picture shows all of it. A no-op without one.
+    pub fn settle_stream(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, eye: Vec3) {
+        if let Some(stream) = &mut self.stream {
+            stream.fill(device, queue, eye);
+        }
+    }
+
     pub fn set_hidden_objects<'a>(&mut self, ids: impl IntoIterator<Item = &'a str>) {
         let mut ids: Vec<&str> = ids.into_iter().collect();
         ids.sort_unstable();
@@ -814,6 +821,7 @@ impl LiveRenderer {
         if let Some(stream) = &mut self.stream {
             stream.update(device, queue, camera.eye + origin);
             stream.set_origin(queue, origin);
+            stream.update_motes(queue, camera.eye + origin, camera.forward(), t, scene.clock.as_ref());
         }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("live-frame-encoder") });
 
@@ -960,6 +968,9 @@ impl LiveRenderer {
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
                 main_pass.set_pipeline(&self.pipelines.main);
+            }
+            if let Some(stream) = &self.stream {
+                stream.draw_motes(&mut main_pass, &self.pipelines.main_glow);
             }
             // The water goes last: it is depth-tested against everything opaque above and blends over the seabed under it.
             if let Some(ocean) = &self.ocean {

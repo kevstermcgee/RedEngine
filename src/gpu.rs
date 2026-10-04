@@ -163,6 +163,8 @@ pub struct Pipelines {
     pub main: wgpu::RenderPipeline,
     /// `main` with alpha blending and no depth writes, for surfaces with `material.opacity` < 1 (drawn after the solid ones, back to front).
     pub main_alpha: wgpu::RenderPipeline,
+    /// `main` that adds its colour to what is behind (no depth writes, no culling): the glow of a firefly or a spark.
+    pub main_glow: wgpu::RenderPipeline,
 }
 
 /// Bindings used by the shadow and background passes: just the uniform. Kept separate from
@@ -332,6 +334,42 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
         cache: None,
     });
 
+    // Glows: the same shader added onto the picture, so overlapping layers brighten into a core and a soft halo.
+    let main_glow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("main-glow-pipeline"),
+        layout: Some(&main_layout),
+        vertex: wgpu::VertexState { module: &scene_shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &vertex_buffers },
+        fragment: Some(wgpu::FragmentState {
+            module: &scene_shader,
+            entry_point: Some("fs_main"),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: color_format,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::One,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent::OVER,
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        // No culling: a pane or a water sheet is seen from both sides.
+        primitive: wgpu::PrimitiveState { cull_mode: None, front_face: wgpu::FrontFace::Ccw, ..Default::default() },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Less),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState { count: sample_count, mask: !0, alpha_to_coverage_enabled: false },
+        multiview_mask: None,
+        cache: None,
+    });
+
     let shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("shadow-pipeline"),
         layout: Some(&shadow_layout),
@@ -380,6 +418,7 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
         background,
         main,
         main_alpha,
+        main_glow,
     }
 }
 

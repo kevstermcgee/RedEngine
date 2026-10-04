@@ -13,6 +13,7 @@ use crate::mesh::{Mesh, Vertex};
 use crate::object_staging::{aabb_outside_frustum, frustum_planes};
 use crate::procgen::chunk::Chunk;
 use crate::procgen::geo::Geo;
+use crate::procgen::motes::{motes, MoteKind, MAX_MOTES};
 use crate::procgen::stream::{Stats, Update};
 use crate::procgen::{ChunkId, Config, Streamer, View};
 use glam::{Mat4, Vec3, Vec4};
@@ -62,6 +63,53 @@ pub struct StreamLayer {
     /// The point the renderer measures from; chunks are placed relative to it.
     origin: Vec3,
     drawn: std::cell::Cell<DrawStats>,
+    lights: MoteLights,
+}
+
+/// The fireflies and pollen: one small glowing mesh drawn once per mote, billboarded to the camera, each with its own uniform (so its own brightness).
+struct MoteLights {
+    mesh: GpuMesh,
+    buf: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
+    /// Slots in use this frame, far to near.
+    live: u32,
+}
+
+impl MoteLights {
+    fn new(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, stride: u64) -> MoteLights {
+        // Concentric twelve-sided discs facing +Z (radii 1 to 5.6): drawn additively at a low strength each they stack into a bright core and a soft halo.
+        let mut mesh = Mesh::default();
+        for radius in [1.0f32, 1.5, 2.2, 3.1, 4.2, 5.6] {
+            let first = mesh.vertices.len() as u32;
+            mesh.vertices.push(Vertex::colored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0; 3]));
+            for k in 0..12 {
+                let a = k as f32 / 12.0 * std::f32::consts::TAU;
+                mesh.vertices.push(Vertex::colored([a.cos() * radius, a.sin() * radius, 0.0], [0.0, 0.0, 1.0], [1.0; 3]));
+            }
+            for k in 0..12 {
+                mesh.indices.extend_from_slice(&[first, first + 1 + k, first + 1 + (k + 1) % 12]);
+            }
+        }
+        let buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("mote-object-uniforms"),
+            size: stride * MAX_MOTES as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("mote-object-bind-group"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &buf,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(std::mem::size_of::<ObjectUniform>() as u64),
+                }),
+            }],
+        });
+        MoteLights { mesh: GpuMesh::upload(device, &mesh), buf, bind_group, live: 0 }
+    }
 }
 
 /// A geometry as an engine mesh.
@@ -92,7 +140,9 @@ impl StreamLayer {
                 }),
             }],
         });
+        let lights = MoteLights::new(device, object_layout, stride);
         StreamLayer {
+            lights,
             streamer: Streamer::new(cfg, view, threads),
             resident: HashMap::new(),
             free: (0..SLOTS).rev().collect(),
@@ -107,6 +157,53 @@ impl StreamLayer {
     /// The streamer's counters.
     pub fn stream_stats(&self) -> Stats {
         self.streamer.stats()
+    }
+
+    /// Lights this frame's fireflies and pollen for a camera at `eye` (world position) looking along `forward`: only in a scene with a `clock` (they follow the
+    /// height of the sun), and not at all when the sun is high at night's end or low at noon, so a daylight frame stays clean.
+    pub fn update_motes(&mut self, queue: &wgpu::Queue, eye: Vec3, forward: Vec3, t: f32, clock: Option<&crate::daycycle::Clock>) {
+        let Some(clock) = clock else {
+            self.lights.live = 0;
+            return;
+        };
+        let sun = clock.state(t, 0).sun_elev_deg;
+        let mut list = motes(self.streamer.world(), [eye.x as f64, eye.y as f64, eye.z as f64], t, sun);
+        // Far to near, so the glows blend over one another correctly.
+        let d2 = |m: &crate::procgen::motes::Mote| (m.pos[0] - eye.x as f64).powi(2) + (m.pos[1] - eye.y as f64).powi(2) + (m.pos[2] - eye.z as f64).powi(2);
+        list.sort_by(|a, b| d2(b).total_cmp(&d2(a)));
+        let right = forward.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X);
+        let up = right.cross(forward);
+        for (slot, m) in list.iter().enumerate() {
+            let pos = Vec3::new((m.pos[0] - self.origin.x as f64) as f32, m.pos[1] as f32, (m.pos[2] - self.origin.z as f64) as f32);
+            let (scale, colour, alpha) = match m.kind {
+                MoteKind::Firefly => (m.size * 0.75, Vec3::new(0.95, 1.0, 0.3) * 0.7, 1.0),
+                MoteKind::Pollen => (m.size * 1.0, Vec3::new(1.0, 0.93, 0.7) * 0.35, 1.0),
+            };
+            let model = Mat4::from_cols(right.extend(0.0) * scale, up.extend(0.0) * scale, (-forward).extend(0.0) * scale, pos.extend(1.0));
+            let uniform = ObjectUniform {
+                model: model.to_cols_array_2d(),
+                normal_mat: Mat4::IDENTITY.to_cols_array_2d(),
+                base_color: [0.0, 0.0, 0.0, alpha],
+                material: [0.0, 1.0, 0.0, 0.0],
+                emissive: [colour.x * m.glow, colour.y * m.glow, colour.z * m.glow, 0.0],
+            };
+            queue.write_buffer(&self.lights.buf, slot as u64 * self.stride, bytemuck::bytes_of(&uniform));
+        }
+        self.lights.live = list.len() as u32;
+    }
+
+    /// Draws the lights (`pass` has the main bindings; `alpha` is the blended pipeline, which does not write depth).
+    pub fn draw_motes(&self, pass: &mut wgpu::RenderPass<'_>, alpha: &wgpu::RenderPipeline) {
+        if self.lights.live == 0 {
+            return;
+        }
+        pass.set_pipeline(alpha);
+        pass.set_vertex_buffer(0, self.lights.mesh.vertex_buf.slice(..));
+        pass.set_index_buffer(self.lights.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+        for slot in 0..self.lights.live {
+            pass.set_bind_group(1, &self.lights.bind_group, &[(slot as u64 * self.stride) as u32]);
+            pass.draw_indexed(0..self.lights.mesh.index_count, 0, 0..1);
+        }
     }
 
     /// What the last main pass drew.

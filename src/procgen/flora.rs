@@ -327,7 +327,7 @@ pub const SPECIES: &[Species] = &[
         common: "timothy grass",
         latin: "Phleum pratense",
         kind: Kind::Grass,
-        height: (0.6, 0.95),
+        height: (0.5, 0.8),
         spread: 0.30,
         trunk: 0.0,
         cool: ANY,

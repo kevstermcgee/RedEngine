@@ -80,6 +80,7 @@ pub const PLAYER_KEYS: &[&str] = &[
     "max_speed",
     "throw_speed",
     "mode",
+    "view",
 ];
 /// One `jump_pads` entry.
 pub const JUMP_PAD_KEYS: &[&str] = &["id", "position", "size", "launch_speed"];
@@ -157,6 +158,7 @@ fn alias(key: &str, allowed: &[&str]) -> Option<String> {
         "w" | "d" | "l" => Some("size"),
         "r" => Some("radius"),
         "h" => Some("height"),
+        "field_of_view" | "fov_deg" => Some("fov"),
         _ => None,
     };
     if let Some(d) = direct.filter(|d| allowed.contains(d)) {

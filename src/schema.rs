@@ -562,12 +562,12 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
         Some(Value::String(value)) => match crate::player::Character::parse(value) {
             Some(character) => Some(character),
             None => {
-                ctx.err(&format!("player.{key}"), "must be human, rat, wizard, cowboy, alien or robot");
+                ctx.err(&format!("player.{key}"), "must be human, rat, wizard, cowboy, alien, robot or boy");
                 None
             }
         },
         Some(_) => {
-            ctx.err(&format!("player.{key}"), "must be a string: human, rat, wizard, cowboy, alien or robot");
+            ctx.err(&format!("player.{key}"), "must be a string: human, rat, wizard, cowboy, alien, robot or boy");
             None
         }
     };
@@ -580,6 +580,15 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
         Some(_) => {
             ctx.err("player.mode", "must be a string: \"arena\" or \"peaceful\"");
             d.mode
+        }
+    };
+    let third_person = match obj.get("view") {
+        None => d.third_person,
+        Some(Value::String(v)) if v == "third" => true,
+        Some(Value::String(v)) if v == "first" => false,
+        Some(_) => {
+            ctx.err("player.view", "must be \"first\" (out of the character's eyes, the default) or \"third\" (behind the character)");
+            d.third_person
         }
     };
     crate::player::PlayerTuning {
@@ -596,6 +605,7 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
         max_speed: ranged(ctx, obj, "max_speed", "player", d.max_speed.max(sprint_speed), sprint_speed, 50.0),
         throw_speed: ranged(ctx, obj, "throw_speed", "player", d.throw_speed, 0.0, 30.0),
         mode,
+        third_person,
         expanse: crate::expanse::Expanse::default(),
     }
 }
@@ -743,7 +753,7 @@ fn parse_humanoid(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Humano
     let style = match crate::player::Character::parse(style) {
         Some(who) if who != crate::player::Character::Rat => who,
         _ => {
-            ctx.errors.push(format!("{path}.style: expected human, wizard, cowboy, alien or robot"));
+            ctx.errors.push(format!("{path}.style: expected human, wizard, cowboy, alien, robot or boy"));
             crate::player::Character::Human
         }
     };
