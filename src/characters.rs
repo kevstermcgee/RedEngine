@@ -96,6 +96,9 @@ fn bone_end(p: &BonePart, sign: f32) -> Vec3 {
 /// upper/fore, then each leg's thigh/shin/foot) — `re2` welds the third-person bat to part 3, the
 /// left forearm — followed by the joint fillers and face details.
 pub fn human_parts(rig: &HumanoidRig, pose: &PoseSample, look: &HumanLook) -> Vec<CharPart> {
+    if look.style == crate::player::Character::Boy {
+        return boy_parts(rig, pose, look);
+    }
     let core = pose_to_parts(rig, pose);
     let h = rig.height; // the object's nominal height, for size-relative details
     let r = rig.head_radius;
@@ -169,6 +172,113 @@ pub fn human_parts(rig: &HumanoidRig, pose: &PoseSample, look: &HumanLook) -> Ve
     // Pelvis (trousers) with the shirt hem hanging over its top edge.
     out.push(ellipsoid(Vec3::new(0.0, rig.hip_y - 0.012 * h, 0.0), Vec3::new(0.098, 0.058, 0.070) * h, Quat::IDENTITY, pants, 0.8));
     out.push(ellipsoid(Vec3::new(0.0, rig.hip_y + 0.040 * h, 0.0), Vec3::new(0.099, 0.052, 0.062) * h, Quat::IDENTITY, None, 0.85));
+    crate::costumes::decorate(&mut out, &core, h, look.style);
+    out
+}
+
+/// The boy (Marcel): the same bones as [`human_parts`] in the same order (so everything that finds a bone by index still does), built as a picture-book child. A round
+/// head with big friendly eyes, rosy cheeks and a soft smile; a jumper with long sleeves and chunky cuffs; round hands; sturdy trousers with turned-up cuffs; and big
+/// round shoes. No pack, no bat.
+fn boy_parts(rig: &HumanoidRig, pose: &PoseSample, look: &HumanLook) -> Vec<CharPart> {
+    let core = pose_to_parts(rig, pose);
+    let h = rig.height;
+    let r = rig.head_radius;
+    let skin = Some(look.skin);
+    let pants = Some(look.pants);
+    let shoes = Some(look.shoes);
+    let mut out: Vec<CharPart> = Vec::with_capacity(64);
+    let at = |p: &BonePart, s: Vec3| Mat4::from_scale_rotation_translation(s, p.rotation, p.center);
+    let capsule = |p: &BonePart, s: Vec3, color: Option<Vec3>, rough: f32| CharPart {
+        shape: PrimKind::Capsule { radius: p.radius, height: p.length },
+        local: at(p, s),
+        color,
+        metallic: 0.0,
+        roughness: rough,
+    };
+
+    // 0 torso (a soft barrel: broader than deep), 1 head (a round egg).
+    out.push(capsule(&core[0], Vec3::new(1.22, 1.0, 0.88), None, 0.9));
+    out.push(ellipsoid(core[1].center, Vec3::new(0.94 * r, 1.08 * r, r), core[1].rotation, skin, 0.6));
+    // 2..6: arms, in jumper sleeves to the wrist (the object's colour), 6..12: legs in trousers, shoes (wide, rounded, a little flat).
+    out.push(capsule(&core[2], Vec3::ONE, None, 0.9));
+    out.push(capsule(&core[3], Vec3::ONE, None, 0.9));
+    out.push(capsule(&core[4], Vec3::ONE, None, 0.9));
+    out.push(capsule(&core[5], Vec3::ONE, None, 0.9));
+    for leg in [6usize, 9] {
+        out.push(capsule(&core[leg], Vec3::ONE, pants, 0.85));
+        out.push(capsule(&core[leg + 1], Vec3::ONE, pants, 0.85));
+        out.push(capsule(&core[leg + 2], Vec3::new(1.3, 1.0, 0.9), shoes, 0.55));
+    }
+
+    // Neck, short and thick.
+    let spine_up = core[0].rotation * Vec3::Y;
+    let neck_a = bone_end(&core[0], 1.0) - spine_up * 0.035 * h;
+    out.push(limb(neck_a, core[1].center - core[1].rotation * Vec3::Y * 0.3 * r, 0.036 * h, skin, 0.6));
+
+    // The head's own frame: unit coordinates times the radius; the face sits on the front of the egg.
+    let hr = core[1].rotation;
+    let head = |p: Vec3| core[1].center + hr * (p * r);
+    let egg = Vec3::new(0.94, 1.08, 1.0);
+    // A point on the surface of the face at (x, y) in head units, pushed out by `lift`.
+    let face = |x: f32, y: f32, lift: f32| {
+        let z = (1.0 - (x / egg.x).powi(2) - (y / egg.y).powi(2)).max(0.05).sqrt() * egg.z;
+        head(Vec3::new(x, y, z + lift))
+    };
+    // Hair: a thick cap that comes well down over the brow, then a few tufts of different lengths on the crown, each leaning its own way.
+    out.push(ellipsoid(head(Vec3::new(0.0, 0.20, -0.08)), Vec3::new(1.02 * r, 1.04 * r, 1.08 * r), hr, Some(look.hair), 0.9));
+    for (x, y, z, rx, ry, rz, lean) in [
+        (0.18f32, 1.14f32, 0.10f32, 0.22f32, 0.12f32, 0.17f32, -32.0f32),
+        (-0.18, 1.13, 0.06, 0.23, 0.12, 0.17, 30.0),
+        (0.02, 1.16, -0.18, 0.18, 0.13, 0.20, 8.0),
+    ] {
+        out.push(ellipsoid(head(Vec3::new(x, y, z)), Vec3::new(rx, ry, rz) * r, hr * Quat::from_rotation_z(lean.to_radians()), Some(look.hair), 0.9));
+    }
+    // Eyes: big, dark and wide apart, each with a small bright glint; brows as gentle arches.
+    for sx in [-1.0f32, 1.0] {
+        out.push(ellipsoid(face(0.36 * sx, 0.00, 0.01), Vec3::new(0.15, 0.185, 0.08) * r, hr, Some(hex("#f4f0ea")), 0.3));
+        out.push(ellipsoid(face(0.36 * sx, -0.01, 0.06), Vec3::new(0.105, 0.135, 0.06) * r, hr, Some(hex("#2c1d14")), 0.2));
+        out.push(ellipsoid(face(0.36 * sx + 0.035, 0.05, 0.095), Vec3::splat(0.036) * r, hr, Some(hex("#ffffff")), 0.1));
+        out.push(ellipsoid(face(0.38 * sx, 0.27, 0.0), Vec3::new(0.20, 0.04, 0.06) * r, hr, Some(look.hair), 0.9));
+        // Rosy cheeks, ears.
+        out.push(ellipsoid(face(0.56 * sx, -0.30, 0.0), Vec3::new(0.15, 0.10, 0.05) * r, hr, Some(hex("#eb9786")), 0.8));
+        out.push(ellipsoid(head(Vec3::new(0.94 * sx, -0.05, -0.05)), Vec3::new(0.10, 0.19, 0.14) * r, hr, skin, 0.6));
+    }
+    // A button nose.
+    out.push(ellipsoid(face(0.0, -0.20, 0.07), Vec3::new(0.10, 0.09, 0.09) * r, hr, skin, 0.6));
+    // A soft smile: a flat dark-red oval with a flat skin-coloured one laid over its upper part, which leaves a crescent whose corners curl up. Each plate is turned to lie
+    // along the face where it sits, so the skin plate takes exactly the shading of the cheek around it and no lip shows.
+    let decal = |x: f32, y: f32, lift: f32, w: f32, tall: f32, color: Vec3, rough: f32| {
+        let z = (1.0 - (x / egg.x).powi(2) - (y / egg.y).powi(2)).max(0.05).sqrt() * egg.z;
+        let normal = Vec3::new(x / (egg.x * egg.x), y / (egg.y * egg.y), z / (egg.z * egg.z)).normalize();
+        let turn = hr * Quat::from_rotation_arc(Vec3::Z, normal);
+        ellipsoid(head(Vec3::new(x, y, z) + normal * lift), Vec3::new(w, tall, 0.012) * r, turn, Some(color), rough)
+    };
+    out.push(decal(0.0, -0.45, 0.004, 0.30, 0.13, hex("#a4443f"), 0.5));
+    out.push(decal(0.0, -0.29, 0.010, 0.36, 0.17, look.skin, 0.6));
+
+    // Joint fillers, cuffs and hands: round and a little oversized, as a child's are.
+    let ua = rig.upper_arm_radius;
+    for (upper, fore) in [(2usize, 3usize), (4, 5)] {
+        let (shoulder, elbow) = (bone_end(&core[upper], -1.0), bone_end(&core[upper], 1.0));
+        out.push(ellipsoid(shoulder, Vec3::splat(ua), Quat::IDENTITY, None, 0.9));
+        out.push(ellipsoid(elbow, Vec3::splat(rig.forearm_radius * 1.02), Quat::IDENTITY, None, 0.9));
+        let wrist = bone_end(&core[fore], 1.0);
+        let dir = core[fore].rotation * Vec3::Y;
+        // The cuff: a slightly darker ribbed band, then the hand.
+        out.push(limb(wrist - dir * 0.020 * h, wrist + dir * 0.004 * h, rig.forearm_radius * 1.10, Some(hex("#c2452c")), 0.95));
+        out.push(ellipsoid(wrist + dir * 0.034 * h, Vec3::new(0.036, 0.044, 0.032) * h, core[fore].rotation, skin, 0.7));
+    }
+    for leg in [6usize, 9] {
+        out.push(ellipsoid(bone_end(&core[leg], 1.0), Vec3::splat(rig.lower_leg_radius * 1.02), Quat::IDENTITY, pants, 0.85)); // knee
+                                                                                                                               // The turned-up trouser cuff at the ankle, a little wider than the shin, and the round of the ankle above the shoe.
+        let ankle = bone_end(&core[leg + 1], 1.0);
+        let up = -(core[leg + 1].rotation * Vec3::Y); // the shin's axis runs knee to ankle, so up the leg is the other way
+        out.push(limb(ankle + up * 0.045 * h, ankle - up * 0.006 * h, rig.lower_leg_radius * 1.10, Some(look.pants * 1.2), 0.9));
+        out.push(ellipsoid(ankle, Vec3::splat(rig.foot_radius * 1.02), Quat::IDENTITY, shoes, 0.55));
+    }
+    // Seat of the trousers, and the jumper's hem hanging over it.
+    out.push(ellipsoid(Vec3::new(0.0, rig.hip_y - 0.010 * h, 0.0), Vec3::new(0.104, 0.060, 0.078) * h, Quat::IDENTITY, pants, 0.85));
+    out.push(ellipsoid(Vec3::new(0.0, rig.hip_y + 0.040 * h, 0.0), Vec3::new(0.108, 0.056, 0.074) * h, Quat::IDENTITY, None, 0.9));
     crate::costumes::decorate(&mut out, &core, h, look.style);
     out
 }
@@ -471,7 +581,7 @@ mod tests {
         let boy = HumanoidRig::for_look(BOY_HEIGHT, 0.92, &look);
         let (lo, hi) = y_range(&human_parts(&boy, &PoseSample::default(), &look));
         assert!((-0.02..0.05).contains(&lo), "shoes rest on the floor: {lo}");
-        assert!((BOY_HEIGHT * 0.95..BOY_HEIGHT * 1.12).contains(&hi), "tousled hair a little over 1.35 m: {hi}");
+        assert!((BOY_HEIGHT * 0.90..BOY_HEIGHT * 1.05).contains(&hi), "a child of about 1.25 m with the hair on: {hi}");
         let adult = HumanoidRig::new(HUMAN_HEIGHT, 1.0);
         assert!(boy.head_radius / boy.height > 1.25 * adult.head_radius / adult.height, "a child's head is a bigger share of the height");
         assert!(
@@ -487,6 +597,28 @@ mod tests {
         assert_eq!(crate::net::protocol::character_from_wire(crate::net::protocol::character_to_wire(Character::Boy)), Character::Boy);
         let b = Character::Boy.body();
         assert!(b.stand_eye < 1.3 && !b.has_bat && b.walk_speed < Character::Human.body().walk_speed);
+    }
+
+    #[test]
+    fn the_boy_has_no_pack_arms_that_stop_at_the_hip_and_a_mouth_below_his_nose() {
+        use crate::player::Character;
+        let look = HumanLook::styled(Character::Boy);
+        let rig = HumanoidRig::for_look(BOY_HEIGHT, 0.92, &look);
+        let parts = human_parts(&rig, &PoseSample::default(), &look);
+        // Nothing sticks out behind the back further than the body is deep: no book bag, no straps.
+        let back = parts.iter().map(|p| p.local.transform_point3(Vec3::ZERO).z).fold(f32::MAX, f32::min);
+        assert!(back > -0.16, "the furthest part behind the origin is at {back} m: a pack would be well past 0.17");
+        // Arms and legs make sense together: the arm, shoulder to the middle of the hand, is about three quarters as long as the leg from hip to floor, so the hands
+        // hang about at the hip, as a child's do.
+        let arm = rig.upper_arm_len + rig.forearm_len + 0.034 * rig.height;
+        let leg = rig.upper_leg_len + rig.lower_leg_len + rig.foot_radius;
+        assert!((0.62..0.88).contains(&(arm / leg)), "arm {arm} m, leg {leg} m");
+        // The smile: a red crescent in the lower face, under the nose and above the chin.
+        let red = hex("#a4443f");
+        let mouth = parts.iter().find(|p| p.color == Some(red)).expect("the boy has a mouth").local.transform_point3(Vec3::ZERO);
+        let head_c = parts[1].local.transform_point3(Vec3::ZERO);
+        assert!(mouth.y < head_c.y - 0.03 && mouth.y > head_c.y - 0.15, "mouth {} head {}", mouth.y, head_c.y);
+        assert!(mouth.z > head_c.z + 0.06, "on the front of the face");
     }
 
     #[test]

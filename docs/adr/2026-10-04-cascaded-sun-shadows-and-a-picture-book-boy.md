@@ -1,0 +1,16 @@
+# 2026-10-04. Cascaded sun shadows and a picture-book boy
+Status: accepted
+Summary: The sun's shadow is three maps in one atlas (near with small plants, middle, far with trees) blended without seams, plants are shaded at the root, and Marcel is rebuilt as a smiling, sturdy child with no pack.
+
+## Context
+Marcel looked flat: one 96 m shadow map held only trees and shrubs, so the grass, the flowers and everything past the map's edge cast nothing, and a bush stood on the ground without touching it. The boy was a mannequin: arms like sticks, a body that did not go with the legs, a dot of a face, a pack nobody asked for. Both needed to be right without spending the frame budget: the world is streamed, four players may share a screen, and the software rasteriser we test on is geometry-bound (about 100 ms per 0.6 M triangles).
+
+## Decision
+- **Three maps, one atlas** (`src/shadow.rs`, pure and tested): a sun that follows the camera gets a near map (authored radius / 6, 2 cm texels), the authored middle one (6 cm) and a far one (4 times the radius, 47 cm), laid out in one 3072 x 2048 depth texture. The shadow vertex shader picks its matrix from the instance index (each cascade's draws use `first_instance = cascade`), so there is one pass, one pipeline and no extra bind groups. A light that does not follow the camera keeps its single map exactly as before.
+- **What each map draws** (`stream_gpu::ShadowDetail`): the far one only trees (the first run of the solid index buffer), the middle one trees and shrubs, the near one also the flowers and grass, but only the 12 m squares of a chunk that touch its box (flora is baked into a 4 x 4 grid of index runs per chunk). Draw cost is counted (`DrawStats::shadow_tris`), about 0.2 M triangles at the heaviest, against 0.7 M for the picture.
+- **No seams.** A pixel takes the sharpest map that holds it and blends into the next toward its edge (0.80 to 0.97 of the box), the last map fades to "lit"; lookups are 8 rotated taps on a Vogel disc (soft, not banded) after a normal offset of a texel or two (no acne, no detached shadows).
+- **Plants are shaded at the root** in their colours (`root_shade`): free at run time, and it is what grounds the meadow beyond the near map.
+- **The boy** (`characters::boy_parts`, the same bones in the same order as the adults): a round head a fifth of his height, big eyes with a glint, rosy cheeks, a button nose and a soft smile (a dark crescent made of two plates turned to lie along the face), hair cap with a few tufts, a jumper with long sleeves and cuffs, sturdy trousers with turned-up cuffs, round shoes, his scarf, and nothing on his back. Arms reach the hip and are about three quarters of the leg (tested).
+
+## Consequences
+The near shadows of grass and flowers are real and soft; trees shadow the whole visible world; the cost on the software rasteriser is about +30% per frame, on a GPU a fraction of a millisecond. A light with `shadow_follow` now uses three maps whatever its radius, so a huge authored radius makes the near map coarser. The far map is redrawn every frame (it could be cached between texel moves if a GPU ever shows a cost). Undo: `shadow::cascades` returning one cascade restores the old behaviour.

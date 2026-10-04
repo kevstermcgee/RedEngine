@@ -57,28 +57,30 @@ impl HumanoidRig {
 }
 
 impl HumanoidRig {
-    /// A child of about nine: a bigger head, a shorter reach, shorter legs and narrower shoulders than the adult proportions of [`HumanoidRig::new`].
+    /// A child of about nine, drawn the way a picture book draws one: a big round head (about a fifth of the height), a short sturdy body, arms that end at the hip
+    /// and legs that are shorter than an adult's (about 40% of the height, against 50%), all a little thicker, so the figure reads as small and soft rather than as a
+    /// scaled-down adult.
     pub fn child(height: f32, build: f32) -> Self {
         let h = height;
         HumanoidRig {
             height: h,
-            hip_y: 0.49 * h,
-            torso_len: 0.28 * h,
-            torso_radius: 0.085 * h * build,
-            neck_len: 0.03 * h,
-            head_radius: 0.088 * h * build.sqrt(),
-            shoulder_half: 0.108 * h,
-            hip_half: 0.050 * h,
-            upper_arm_len: 0.155 * h,
-            upper_arm_radius: 0.031 * h * build,
-            forearm_len: 0.135 * h,
-            forearm_radius: 0.025 * h * build,
-            upper_leg_len: 0.225 * h,
-            upper_leg_radius: 0.050 * h * build,
-            lower_leg_len: 0.225 * h,
-            lower_leg_radius: 0.038 * h * build,
-            foot_len: 0.125 * h,
-            foot_radius: 0.038 * h * build,
+            hip_y: 0.406 * h,
+            torso_len: 0.29 * h,
+            torso_radius: 0.080 * h * build,
+            neck_len: 0.025 * h,
+            head_radius: 0.094 * h * build.sqrt(),
+            shoulder_half: 0.100 * h,
+            hip_half: 0.046 * h,
+            upper_arm_len: 0.125 * h,
+            upper_arm_radius: 0.036 * h * build,
+            forearm_len: 0.115 * h,
+            forearm_radius: 0.031 * h * build,
+            upper_leg_len: 0.185 * h,
+            upper_leg_radius: 0.052 * h * build,
+            lower_leg_len: 0.175 * h,
+            lower_leg_radius: 0.045 * h * build,
+            foot_len: 0.13 * h,
+            foot_radius: 0.045 * h * build,
         }
     }
 

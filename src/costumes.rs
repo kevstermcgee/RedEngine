@@ -54,29 +54,10 @@ pub fn decorate(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, style:
             add(0, box_shape, Vec3::new(0.0, 0.055, 0.068), Vec3::new(0.08, 0.07, 0.035), "#795eab", 0.4);
         }
         Character::Boy => {
-            // Messy brown hair: a cap over the crown and back of the head, a fringe, and a few tufts that stick up.
-            add(1, sphere, Vec3::new(0.0, 0.032, -0.012), Vec3::new(0.088, 0.088, 0.094), "#6a4426", 0.0);
-            for (x, y, z, r) in [
-                (0.03f32, 0.098f32, 0.02f32, 0.026f32),
-                (-0.022, 0.104, 0.03, 0.024),
-                (0.0, 0.108, -0.012, 0.03),
-                (-0.046, 0.088, -0.01, 0.022),
-                (0.05, 0.082, -0.018, 0.022),
-            ] {
-                add(1, sphere, Vec3::new(x, y, z), Vec3::splat(r), "#6a4426", 0.0);
-            }
             // A scarf round the neck, one end hanging down the front.
-            add(0, PrimKind::Cylinder { radius: 0.082, height: 0.04 }, Vec3::new(0.0, 0.146, 0.0), Vec3::new(1.0, 1.0, 0.92), "#f0b93f", 0.0);
+            add(0, sphere, Vec3::new(0.0, 0.150, 0.0), Vec3::new(0.098, 0.030, 0.088), "#f0b93f", 0.0);
             add(0, box_shape, Vec3::new(0.05, 0.075, 0.082), Vec3::new(0.04, 0.15, 0.014), "#e39a2c", 0.0);
             add(0, box_shape, Vec3::new(0.05, 0.0, 0.083), Vec3::new(0.04, 0.012, 0.016), "#c4571f", 0.0);
-            // A small backpack: the body, its flap, two straps over the shoulders, and a charm on the zip.
-            add(0, box_shape, Vec3::new(0.0, 0.02, -0.1), Vec3::new(0.13, 0.16, 0.065), "#3f7fb5", 0.0);
-            add(0, box_shape, Vec3::new(0.0, 0.105, -0.1), Vec3::new(0.136, 0.045, 0.07), "#2f6694", 0.0);
-            for side in [-1.0f32, 1.0] {
-                add(0, box_shape, Vec3::new(side * 0.052, 0.06, 0.0), Vec3::new(0.02, 0.012, 0.2), "#2f6694", 0.0);
-                add(0, box_shape, Vec3::new(side * 0.052, 0.0, 0.086), Vec3::new(0.02, 0.2, 0.012), "#2f6694", 0.0);
-            }
-            add(0, sphere, Vec3::new(0.05, -0.04, -0.14), Vec3::splat(0.016), "#f8d56b", 0.4);
         }
         Character::Hollow => {
             let black = "#08070a";
