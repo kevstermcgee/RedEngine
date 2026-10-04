@@ -26,8 +26,8 @@ pub fn time(i: usize) -> f32 {
 pub struct Noise(pub u32);
 
 impl Noise {
-    /// The next sample, -1..1.
-    pub fn next(&mut self) -> f32 {
+    /// The next white-noise sample, -1..1.
+    pub fn white(&mut self) -> f32 {
         self.0 ^= self.0 << 13;
         self.0 ^= self.0 >> 17;
         self.0 ^= self.0 << 5;
@@ -253,7 +253,7 @@ impl Voice {
         let clip = (0..samples(self.seconds))
             .map(|i| {
                 let t = time(i);
-                let white = noise.next();
+                let white = noise.white();
                 let sum: f32 = self.layers.iter_mut().map(|l| l.sample(t, white)).sum();
                 if self.attack {
                     sum * attack(t)
@@ -279,9 +279,9 @@ mod tests {
     fn the_noise_stream_is_the_engines_xorshift_and_never_changes() {
         // The first draws of a known seed: sounds are specified by these numbers, so a change here changes every noise burst in the game.
         let mut n = Noise(0x9E37_79B9);
-        let first: Vec<f32> = (0..4).map(|_| n.next()).collect();
+        let first: Vec<f32> = (0..4).map(|_| n.white()).collect();
         let mut again = Noise(0x9E37_79B9);
-        assert_eq!(first, (0..4).map(|_| again.next()).collect::<Vec<_>>());
+        assert_eq!(first, (0..4).map(|_| again.white()).collect::<Vec<_>>());
         assert!(first.iter().all(|v| (-1.0..=1.0).contains(v)));
         let mut x = 0x9E37_79B9u32;
         x ^= x << 13;

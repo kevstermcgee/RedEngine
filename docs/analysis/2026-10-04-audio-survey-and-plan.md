@@ -20,7 +20,7 @@ Goal (from the user): reliable, high-quality music and audio tooling that **mini
 
 ## Phases
 1. **Measure (done in this PR).** Headless synthesis; `audio list|report|render|picture|check`; BS.1770 loudness, spectrum, pitch, seam, a standard that CI enforces. See ADR 2026-10-04.
-2. **A DSP kit.** One shared, tested set of building blocks (oscillators incl. band-limited saw/square, noise colours, ADSR and exponential envelopes, one-pole/biquad/state-variable filters, delay,
+2. **A DSP kit (done, PR in review; ADR 2026-10-04 "A sound kit").** One shared, tested set of building blocks (oscillators incl. band-limited saw/square, noise colours, ADSR and exponential envelopes, one-pole/biquad/state-variable filters, delay,
    a reverb, a compressor/limiter, a sidechain duck, soft clip) replacing the copies. Existing sounds are re-expressed on it with their `audio report` lines as the golden: the refactor must not move them.
 3. **Describe sounds and music as data.** A compact JSON patch (voices, envelopes, filter moves) and score notation (patterns as strings like `x..x..x.`, chords as scale degrees, seeded variation), so a
    sound is ~10 lines instead of ~40 of Rust and an AI writes it cheaply; `describe audio` stays under ~2 KB. A **generative ambient engine** (seeded drones, slow pads, sparse motifs from a scale, long
@@ -33,3 +33,10 @@ Goal (from the user): reliable, high-quality music and audio tooling that **mini
 ## Why this order
 Measurement first: it found a real defect in the first run and gives every later phase a golden to hold to. The DSP kit next, because data-described sounds need something to be described in terms of.
 Runtime mixing waits until there is something worth mixing, except that listeners per player must be designed together with split-screen.
+
+## What phase 2 taught phase 3
+- A voice is already the data model: `Voice { seconds, level, seed, attack, layers: [Layer { src, env, gain }] }`. Phase 3 is mostly `serde` for these structs plus a scene `audio` block, not a new engine.
+- A gun in that model is 4 layers; as JSON about 250 bytes against a Rust table and a loop.
+- The model should learn next (each needed by sounds that are still hand-written): an **integrated pitch sweep** (death, respawn, pad launch), a **filter whose cutoff follows an envelope** (the swing and
+  jump breaths), an **ADSR / held note** (beeps, alert), **stereo voices and a few effects** (delay, reverb, compressor), and a **sequencer** so music is the same layers placed on a grid.
+- `audio golden` is the safety net for all of it: port a sound, run it, and it either matches or the diff says by how much.

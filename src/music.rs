@@ -92,15 +92,15 @@ pub fn layers() -> Layers {
         for k in 0..kick_len {
             let t = k as f32 / sr;
             let phase = TAU * (42.0 * t + 110.0 * (1.0 - (-t * 38.0).exp()) / 38.0);
-            let click = if k < 60 { noise.next() * (1.0 - k as f32 / 60.0) * 0.25 } else { 0.0 };
+            let click = if k < 60 { noise.white() * (1.0 - k as f32 / 60.0) * 0.25 } else { 0.0 };
             add(&mut drums, start + k, (phase.sin() * (-t * 9.0).exp() + click) * 0.95 * release(k, kick_len));
         }
         if b % 2 == 1 {
             let mut lp = 0.0f32;
             for k in 0..(0.2 * sr) as usize {
                 let t = k as f32 / sr;
-                lp += 0.35 * (noise.next() - lp);
-                let body = (noise.next() - lp) * 0.7 + (TAU * 185.0 * t).sin() * 0.25;
+                lp += 0.35 * (noise.white() - lp);
+                let body = (noise.white() - lp) * 0.7 + (TAU * 185.0 * t).sin() * 0.25;
                 add(&mut drums, start + k, body * (-t * 22.0).exp() * 0.55);
             }
         }
@@ -108,8 +108,8 @@ pub fn layers() -> Layers {
         let mut hp = 0.0f32;
         for k in 0..(0.05 * sr) as usize {
             let t = k as f32 / sr;
-            hp += 0.6 * (noise.next() - hp);
-            add(&mut drums, start + half + k, (noise.next() - hp) * (-t * 90.0).exp() * 0.22);
+            hp += 0.6 * (noise.white() - hp);
+            add(&mut drums, start + half + k, (noise.white() - hp) * (-t * 90.0).exp() * 0.22);
         }
     }
 

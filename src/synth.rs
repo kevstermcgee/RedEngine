@@ -54,7 +54,7 @@ pub fn synth_bat_hit() -> Vec<f32> {
         let thump = (2.0 * std::f32::consts::PI * (95.0 - 30.0 * t) * t).sin() * (-t * 22.0).exp();
         let wood = (2.0 * std::f32::consts::PI * 340.0 * t).sin() * (-t * 38.0).exp();
         let wood2 = (2.0 * std::f32::consts::PI * 610.0 * t).sin() * (-t * 55.0).exp();
-        lp += 0.35 * (noise.next() - lp); // crude low-pass: a dull crack, not a hiss
+        lp += 0.35 * (noise.white() - lp); // crude low-pass: a dull crack, not a hiss
         let crack = lp * (-t * 90.0).exp();
         out.push((thump * 0.75 + wood * 0.45 + wood2 * 0.18 + crack * 0.9) * 0.9);
     }
@@ -77,7 +77,7 @@ pub fn synth_weapon_click() -> Vec<f32> {
         .map(|i| {
             let t = i as f32 / SAMPLE_RATE as f32;
             let ring = (2.0 * std::f32::consts::PI * 2400.0 * t).sin() * (-t * 140.0).exp();
-            let tick = noise.next() * (-t * 400.0).exp();
+            let tick = noise.white() * (-t * 400.0).exp();
             ((ring * 0.5 + tick * 0.6) * 0.8).clamp(-1.0, 1.0)
         })
         .collect()
