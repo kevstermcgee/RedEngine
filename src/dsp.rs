@@ -112,6 +112,13 @@ pub enum Filter {
     Low(f32),
     /// The complement: everything the low-pass of this coefficient leaves out (a crack, a hiss).
     High(f32),
+    /// A low-pass that opens with the layer's own swell: its coefficient goes from `closed` (silent edges) to `open` (the swell's peak). A whoosh.
+    LowOpen {
+        /// Coefficient while the layer is faded out.
+        closed: f32,
+        /// Coefficient at the top of the swell.
+        open: f32,
+    },
 }
 
 /// What a layer plays.
@@ -133,6 +140,16 @@ pub enum Src {
         /// How fast it gets there (7 is a seventh of a second).
         rate: f32,
     },
+    /// A sine whose pitch glides exponentially from `from` to `to` (rate per second), with the phase integrated so the glide is clean: a falling death
+    /// tone, a springy launch chirp.
+    Sweep {
+        /// Frequency at the start.
+        from: f32,
+        /// Frequency it settles on.
+        to: f32,
+        /// How fast it gets there (`e^(-rate*t)` of the way remains).
+        rate: f32,
+    },
     /// The voice's noise through a filter. Layers share one noise stream, so a crack and a body of the same shot are correlated, as in a real blast.
     Noise(Filter),
 }
@@ -146,12 +163,16 @@ pub struct Env {
     pub fade_in: f32,
     /// Seconds into the voice before the layer starts.
     pub delay: f32,
+    /// Seconds to swell in from silence (a smooth raised-cosine); 0 for none. A pad's slow bloom.
+    pub attack: f32,
+    /// Seconds to swell out to silence at the end of the voice (or note); 0 for none. With `attack` set to half the voice it is a single smooth bump.
+    pub release: f32,
 }
 
 impl Env {
     /// A plain decay starting at once.
     pub fn decay(rate: f32) -> Env {
-        Env { decay: rate, fade_in: 0.0, delay: 0.0 }
+        Env { decay: rate, fade_in: 0.0, delay: 0.0, attack: 0.0, release: 0.0 }
     }
 
     /// The same, starting `seconds` into the voice.
@@ -162,6 +183,19 @@ impl Env {
     /// The same, fading in at `rate`.
     pub fn fading_in(self, rate: f32) -> Env {
         Env { fade_in: rate, ..self }
+    }
+
+    /// The same, swelling in over `seconds` and out over `release`.
+    pub fn swelling(self, attack: f32, release: f32) -> Env {
+        Env { attack, release, ..self }
+    }
+
+    /// The layer's swell at `u` seconds in with `left` seconds to the end: 0 to 1, raised-cosine in and out (1 where neither is set).
+    pub fn swell(&self, u: f32, left: f32) -> f32 {
+        let ramp = |x: f32| 0.5 - 0.5 * (std::f32::consts::PI * x.clamp(0.0, 1.0)).cos();
+        let up = if self.attack > 0.0 { ramp(u / self.attack) } else { 1.0 };
+        let down = if self.release > 0.0 { ramp(left / self.release) } else { 1.0 };
+        up * down
     }
 }
 
@@ -175,12 +209,13 @@ pub struct Layer {
     /// How loud, before the voice is normalised.
     pub gain: f32,
     filter: OnePole,
+    phase: f32,
 }
 
 impl Layer {
     /// A layer of `src` shaped by `env` at `gain`.
     pub fn new(src: Src, env: Env, gain: f32) -> Layer {
-        Layer { src, env, gain, filter: OnePole::default() }
+        Layer { src, env, gain, filter: OnePole::default(), phase: 0.0 }
     }
 
     /// A sine at `hz` (no harmonics).
@@ -193,8 +228,9 @@ impl Layer {
         Layer::new(Src::Noise(filter), env, gain)
     }
 
-    fn sample(&mut self, t: f32, white: f32) -> f32 {
+    fn sample(&mut self, t: f32, white: f32, end: f32) -> f32 {
         let u = t - self.env.delay;
+        let swell = self.env.swell(u, end - t);
         if u < 0.0 {
             // A noise filter must still see the noise that came before the layer starts, or its first samples would differ from a layer that was always running.
             if let Src::Noise(Filter::Low(k) | Filter::High(k)) = self.src {
@@ -205,12 +241,22 @@ impl Layer {
         let raw = match &self.src {
             Src::Tone { hz, partials } => (TAU * hz * u).sin() + partials.iter().map(|(m, a)| (TAU * hz * m * u).sin() * a).sum::<f32>(),
             Src::Glide { from, to, rate } => (TAU * (from + (to - from) * (u * rate).min(1.0)) * u).sin(),
+            Src::Sweep { from, to, rate } => {
+                self.phase += TAU * (to + (from - to) * decay(u, *rate)) / SAMPLE_RATE as f32;
+                self.phase.sin()
+            }
             Src::Noise(Filter::None) => white,
             Src::Noise(Filter::Low(k)) => self.filter.low(*k, white),
             Src::Noise(Filter::High(k)) => self.filter.high(*k, white),
+            Src::Noise(Filter::LowOpen { closed, open }) => self.filter.low(closed + (open - closed) * swell, white),
         };
         let fade = if self.env.fade_in > 0.0 { 1.0 - decay(u, self.env.fade_in) } else { 1.0 };
-        raw * decay(u, self.env.decay) * fade * self.gain
+        let shaped = raw * decay(u, self.env.decay) * fade;
+        if self.env.attack > 0.0 || self.env.release > 0.0 {
+            shaped * swell * self.gain
+        } else {
+            shaped * self.gain
+        }
     }
 }
 
@@ -254,7 +300,7 @@ impl Voice {
             .map(|i| {
                 let t = time(i);
                 let white = noise.white();
-                let sum: f32 = self.layers.iter_mut().map(|l| l.sample(t, white)).sum();
+                let sum: f32 = self.layers.iter_mut().map(|l| l.sample(t, white, self.seconds)).sum();
                 if self.attack {
                     sum * attack(t)
                 } else {

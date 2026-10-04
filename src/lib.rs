@@ -79,6 +79,7 @@ pub mod uniforms;
 pub mod video;
 #[cfg(feature = "gfx")]
 pub mod viewer;
+pub mod voice_spec;
 pub mod weapons;
 
 /// The maths library every public type uses (`Vec3`, `Mat4`, ...), re-exported so a game built on the engine uses the

@@ -502,6 +502,7 @@ pub(crate) fn run_audio(cmd: AudioCmd) -> Result<(), String> {
     use red_engine2::tools::audio;
     match cmd {
         AudioCmd::List => print!("{}", audio::list_text()),
+        AudioCmd::Export { name } => print!("{}", audio::export_json(&name)?),
         AudioCmd::Report { names } => print!("{}", audio::report_text(&names, envelope::capturing())?),
         AudioCmd::Render { name, out } => print!("{}", audio::render_wav(&name, &out)?),
         AudioCmd::Picture { name, out, size } => {

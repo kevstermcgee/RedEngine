@@ -267,19 +267,24 @@ pub(crate) enum AudioCmd {
     /// One line of numbers per sound: length, peak, RMS, LUFS (BS.1770), crest, clipped samples, DC, silence before/after, the loop seam, brightness, pitch,
     /// stereo correlation, spectral flatness and the share of energy in five bands. No names = every built-in; a `.wav` path measures a file.
     Report {
-        /// Built-in names (`gun.pistol`, `fx.explosion`, `music.loop`) or `.wav` files.
+        /// Built-in names (`gun.r9_service_pistol`, `fx.explosion`, `music.loop`), `.wav` files or sound `.json` files.
         names: Vec<String>,
+    },
+    /// Print a built-in sound as JSON (the `json` ones in `audio list`): copy it, edit a few numbers, then `report`/`render`/`picture` the file.
+    Export {
+        /// A built-in name.
+        name: String,
     },
     /// Write a sound as a 16-bit WAV.
     Render {
-        /// A built-in name.
+        /// A built-in name or a sound `.json` file.
         name: String,
         /// Output file.
         out: PathBuf,
     },
     /// Draw a sound: its waveform over a spectrogram (log frequency up, time right) with the key numbers on top.
     Picture {
-        /// A built-in name or a `.wav` file.
+        /// A built-in name, a `.wav` file or a sound `.json` file.
         name: String,
         /// Output PNG.
         out: PathBuf,
