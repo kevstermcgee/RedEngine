@@ -142,6 +142,42 @@ pub(crate) fn run_sky(
     Ok(())
 }
 
+/// `procgen`: a top-down map of a generated world and a count of what grows on it.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_procgen(
+    out: &Path,
+    seed: u32,
+    centre: &str,
+    size: f64,
+    scale: f32,
+    grid: bool,
+    biomes: bool,
+    tweaks: [Option<f32>; 4],
+) -> Result<(), String> {
+    use red_engine2::procgen::{Config, World};
+    let c = v2(centre)?;
+    if !(8.0..=4000.0).contains(&size) || !(0.25..=16.0).contains(&scale) || size * scale as f64 > 8000.0 {
+        return Err("--size must be 8 to 4000 m, --scale 0.25 to 16 px/m, and size x scale at most 8000 px".into());
+    }
+    let mut cfg = Config { seed, ..Config::default() };
+    for (slot, v) in [&mut cfg.relief, &mut cfg.trees, &mut cfg.flowers, &mut cfg.grass].into_iter().zip(tweaks) {
+        if let Some(v) = v {
+            *slot = v;
+        }
+    }
+    let started = Instant::now();
+    let world = World::new(cfg);
+    let opts = red_engine2::tools::procgen_map::MapOpts { centre: (c.x as f64, c.y as f64), size, scale, grid, biomes };
+    let (img, stats) = red_engine2::tools::procgen_map::map(&world, &opts);
+    if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    img.save(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    print!("{}", red_engine2::tools::procgen_map::report(&stats));
+    println!("wrote {} ({}x{}, seed {seed}) ({:.2}s)", out.display(), img.width(), img.height(), started.elapsed().as_secs_f32());
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

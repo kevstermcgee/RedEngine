@@ -36,6 +36,7 @@ pub mod perf;
 pub mod plan;
 pub mod portmap;
 pub mod preflight;
+pub mod procgen_map;
 pub mod racetest;
 pub mod racetrack;
 pub mod reach;

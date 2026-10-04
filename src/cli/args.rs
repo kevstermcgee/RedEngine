@@ -342,7 +342,7 @@ pub(crate) enum Command {
         #[arg(long)]
         size: Option<String>,
     },
-    /// A clock scene across the day as a contact sheet. `sky scene.json out.png --hours 5,6,12,18,19,22`.
+    /// A clock scene across the day, as a sheet. `sky scene.json out.png --hours 5,6,12,18`.
     Sky {
         scene: PathBuf,
         out: PathBuf,
@@ -370,6 +370,40 @@ pub(crate) enum Command {
         /// Aim the camera at the `sun` or the `moon` in every tile (the horizon in its direction when it is below it).
         #[arg(long)]
         look: Option<String>,
+    },
+    /// A generated world, mapped
+    Procgen {
+        out: PathBuf,
+        /// The world seed.
+        #[arg(long, default_value_t = 1)]
+        seed: u32,
+        /// Middle of the map "x,z" in metres.
+        #[arg(long, default_value = "0,0", allow_hyphen_values = true)]
+        centre: String,
+        /// Side of the map in metres.
+        #[arg(long, default_value_t = 360.0)]
+        size: f64,
+        /// Pixels per metre.
+        #[arg(long, default_value_t = 3.0)]
+        scale: f32,
+        /// Draw the chunk borders.
+        #[arg(long)]
+        grid: bool,
+        /// Paint the kind of country instead of the ground.
+        #[arg(long)]
+        biomes: bool,
+        /// Multiplier on the height of the hills.
+        #[arg(long)]
+        relief: Option<f32>,
+        /// Multiplier on tree density.
+        #[arg(long)]
+        trees: Option<f32>,
+        /// Multiplier on flower density.
+        #[arg(long)]
+        flowers: Option<f32>,
+        /// Multiplier on grass density.
+        #[arg(long)]
+        grass: Option<f32>,
     },
     /// Render the full scene to an MP4.
     Render { scene: PathBuf, out: PathBuf },
