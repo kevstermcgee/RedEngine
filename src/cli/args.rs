@@ -405,6 +405,25 @@ pub(crate) enum Command {
         #[arg(long)]
         grass: Option<f32>,
     },
+    /// Plant models, as a sheet: `flora sheet.png`
+    Flora {
+        out: PathBuf,
+        /// Species keys (comma separated); one species with --variants shows its variation. Default: all.
+        #[arg(long)]
+        species: Option<String>,
+        /// Plants of the single named species, from its smallest to its tallest.
+        #[arg(long, default_value_t = 4)]
+        variants: u32,
+        /// Columns of the sheet.
+        #[arg(long, default_value_t = 5)]
+        cols: u32,
+        /// Width of each tile in pixels.
+        #[arg(long, default_value_t = 280)]
+        tile: u32,
+        /// Variation seed.
+        #[arg(long, default_value_t = 1)]
+        seed: u32,
+    },
     /// Render the full scene to an MP4.
     Render { scene: PathBuf, out: PathBuf },
     /// Contact sheet of frames across the clip.

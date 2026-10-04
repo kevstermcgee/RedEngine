@@ -352,6 +352,7 @@ gameplay in the scene's rules. `describe custom-client` is the one-screen API; t
 | `servers` | The game servers on this machine (Linux, systemd user units): `servers` lists them; `start/stop/restart/status/logs NAME`; `--json` for tools | |
 | `audio` | Sound without ears: list, report (LUFS, peaks, seam, pitch), render, picture, check | |
 | `procgen` | A generated world, mapped: `procgen map.png --seed 7` | |
+| `flora` | Plant models, as a sheet: `flora sheet.png` | |
 
 `examples/external/topdown_switch` (own `Cargo.toml` and `[workspace]`, engine by path): top-down camera that turns (Q/E) and zooms
 (wheel), WASD relative to the view, click-to-move through `pick_ground` + `input_toward`, two switch plates and a gate that the rules

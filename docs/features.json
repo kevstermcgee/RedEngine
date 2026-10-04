@@ -164,10 +164,10 @@
       "depends_on": ["match_flow", "net_protocol", "game_rules"]
     },
     "procgen": {
-      "summary": "An endless world as pure functions of a seed: deterministic noise, ground, climate, biomes and per-chunk placement of real plant species (trees, shrubs, flowers, grasses); `procgen` draws a top-down map with plant counts and generation time, no GPU needed.",
-      "files": ["src/procgen/**", "src/tools/procgen_map.rs"],
-      "tests": ["lib:procgen", "lib:tools::procgen_map"],
-      "commands": ["red_engine2 procgen out/world.png --seed 7 --size 400", "red_engine2 procgen out/biomes.png --seed 7 --size 2400 --scale 0.5 --biomes"],
+      "summary": "An endless world as pure functions of a seed: deterministic noise, ground, climate, biomes, per-chunk placement of real plant species and a low-poly model of each; `procgen` draws a top-down map with plant counts, `flora` a contact sheet of the models, no GPU needed.",
+      "files": ["src/procgen/**", "src/tools/procgen_map.rs", "src/tools/flora_sheet.rs"],
+      "tests": ["lib:procgen", "lib:tools::procgen_map", "lib:tools::flora_sheet"],
+      "commands": ["red_engine2 procgen out/world.png --seed 7 --size 400", "red_engine2 procgen out/biomes.png --seed 7 --size 2400 --scale 0.5 --biomes", "red_engine2 flora out/flora.png"],
       "docs": ["docs/adr/2026-10-04-an-endless-world-procgen-as-pure-functions-of-a-seed.md"],
       "depends_on": ["scene_format"]
     },

@@ -100,6 +100,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Procgen { out, seed, centre, size, scale, grid, biomes, relief, trees, flowers, grass } => {
             run_procgen(&out, seed, &centre, size, scale, grid, biomes, [relief, trees, flowers, grass])
         }
+        Command::Flora { out, species, variants, cols, tile, seed } => run_flora(&out, species.as_deref(), variants, cols, tile, seed),
         Command::Render { scene, out } => run_render(&scene, &out),
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
         Command::Lint { scene, strict, cell, phase } => run_lint(&scene, envelope::capturing(), strict, cell, phase.as_deref()),

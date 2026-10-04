@@ -148,7 +148,7 @@ pub const SPECIES: &[Species] = &[
         cool: (0.0, 0.75),
         wet: (0.1, 0.9),
         wood: (0.0, 0.8),
-        colors: &["#f2b4c8", "#f7c8d6", "#eb9fb7"],
+        colors: &["#e888aa", "#f09cb8", "#e47a9e"],
     },
     // Shrubs.
     Species {

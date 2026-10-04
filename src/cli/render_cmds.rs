@@ -178,6 +178,32 @@ pub(crate) fn run_procgen(
     Ok(())
 }
 
+/// `flora`: a contact sheet of plant models.
+pub(crate) fn run_flora(out: &Path, species: Option<&str>, variants: u32, cols: u32, tile: u32, seed: u32) -> Result<(), String> {
+    use red_engine2::procgen::flora;
+    let ids: Vec<flora::SpeciesId> = match species {
+        Some(list) => list
+            .split(',')
+            .map(|k| {
+                flora::by_key(k.trim())
+                    .ok_or_else(|| format!("no species `{}` (try: {})", k.trim(), flora::SPECIES.iter().map(|s| s.key).collect::<Vec<_>>().join(", ")))
+            })
+            .collect::<Result<_, _>>()?,
+        None => Vec::new(),
+    };
+    if !(32..=1024).contains(&tile) || variants > 16 {
+        return Err("--tile must be 32 to 1024 pixels and --variants at most 16".into());
+    }
+    let tiles = red_engine2::tools::flora_sheet::tiles(&ids, variants, seed);
+    let img = red_engine2::tools::flora_sheet::sheet(&tiles, cols, tile);
+    if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    img.save(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    println!("wrote {} ({} plants)", out.display(), tiles.len());
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
