@@ -3,10 +3,10 @@
 //! arpeggio with a bouncing echo and a pad, everything ducking a little on each kick so the mix pumps. It is finished by wrapping its own tails
 //! round the end, so the loop has no seam.
 //!
-//! Pure: [`loop_samples`] returns interleaved stereo `f32` at [`crate::audio::SAMPLE_RATE`]; tests check its length, level, seam, rhythm and that the
+//! Pure: [`loop_samples`] returns interleaved stereo `f32` at [`crate::synth::SAMPLE_RATE`]; tests check its length, level, seam, rhythm and that the
 //! bass and the arpeggio play the notes the chords say (a piece of music cannot be looked at, but its pitches can be measured).
 
-use crate::audio::SAMPLE_RATE;
+use crate::synth::SAMPLE_RATE;
 use std::f32::consts::TAU;
 
 /// Tempo of the loop.

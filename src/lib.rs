@@ -5,6 +5,7 @@ pub mod arsenal;
 pub mod atmosphere;
 #[cfg(feature = "gfx")]
 pub mod audio;
+pub mod audio_analysis;
 pub mod avatar;
 #[cfg(feature = "gfx")]
 pub mod capture;
@@ -36,7 +37,6 @@ pub mod macros;
 pub mod menu;
 #[cfg(feature = "gfx")]
 pub mod mesh;
-#[cfg(feature = "gfx")]
 pub mod music;
 pub mod net;
 #[cfg(feature = "gfx")]
@@ -59,7 +59,6 @@ pub mod scene_pool;
 pub mod schema;
 #[cfg(feature = "gfx")]
 pub mod settings;
-#[cfg(feature = "gfx")]
 pub mod sfx;
 #[cfg(feature = "gfx")]
 pub mod shooter_world;
@@ -68,6 +67,7 @@ pub mod skeleton;
 pub mod stats;
 pub mod streaks;
 pub mod strict;
+pub mod synth;
 pub mod terrain;
 pub mod tools;
 pub mod track;

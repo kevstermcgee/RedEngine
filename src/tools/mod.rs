@@ -9,6 +9,7 @@ pub const NO_GFX: &str = "this build has no renderer (built with --no-default-fe
 pub mod adr;
 pub mod affected;
 pub mod analysis;
+pub mod audio;
 pub mod blueprint;
 pub mod catalog;
 pub mod context;
