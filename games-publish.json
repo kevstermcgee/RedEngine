@@ -5,7 +5,8 @@
   "collections": {
     "games": [
       {"source": "examples/prop_hunt_yard.json", "destination": "prop-hunt"},
-      {"source": "recipes/coin_run.json", "destination": "coin-run"}
+      {"source": "recipes/coin_run.json", "destination": "coin-run"},
+      {"source": "examples/marcel", "destination": "marcel"}
     ],
     "prototypes": [
       {"source": "recipes", "destination": "recipes"}
@@ -34,6 +35,13 @@
       "entry": "games/coin-run/coin_run.json",
       "files": ["games/coin-run"],
       "arguments": ["content/games/coin-run/coin_run.json"]
+    },
+    {
+      "slug": "marcel",
+      "name": "Marcel",
+      "entry": "games/marcel/marcel.json",
+      "files": ["games/marcel"],
+      "arguments": ["content/games/marcel/marcel.json"]
     },
     {
       "slug": "red-test-lab",
