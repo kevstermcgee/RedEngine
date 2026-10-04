@@ -81,7 +81,7 @@ impl ProcgenGround {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::player::{step_horizontal, PLAYER_RADIUS};
+    use crate::player::step_horizontal;
 
     fn ground() -> ProcgenGround {
         ProcgenGround::new(Config { seed: 7, ..Config::default() })
@@ -124,7 +124,6 @@ mod tests {
             pos = step_horizontal(&near, pos, foot_y, Vec2::new(0.03, 0.02));
         }
         assert!(pos.x > t.x as f32 + 0.5, "never got past: {pos:?}");
-        assert!(PLAYER_RADIUS > 0.0);
     }
 
     #[test]

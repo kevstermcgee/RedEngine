@@ -217,7 +217,7 @@ mod tests {
             assert_eq!(p[1], w.height(x0 + p[0] as f64, z0 + p[2] as f64));
         }
         // Every triangle faces up (counter-clockwise from above).
-        for t in g.idx.chunks_exact(3) {
+        for t in g.idx.as_chunks::<3>().0 {
             let (a, b, c) = (Vec3::from(g.pos[t[0] as usize]), Vec3::from(g.pos[t[1] as usize]), Vec3::from(g.pos[t[2] as usize]));
             assert!((b - a).cross(c - a).y > 0.0, "a ground triangle faces down");
         }
