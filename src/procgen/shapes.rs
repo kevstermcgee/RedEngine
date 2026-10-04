@@ -29,10 +29,29 @@ pub fn tint_colour(id: SpeciesId, tint: f32) -> Rgb {
 
 /// Builds the model of a species at a height (metres), varied by a seed and coloured by a tint (0 to 1).
 pub fn build(id: SpeciesId, height: f32, seed: u32, tint: f32) -> Geo {
+    build_lod(id, height, seed, tint, false)
+}
+
+/// How much of a species' height sways in the wind: grass and flowers move freely, willow strands and crowns a little, trunks hardly.
+fn sway_amount(key: &str) -> f32 {
+    match key {
+        "meadow_grass" | "timothy" => 1.0,
+        "bracken" | "bluebell" | "harebell" | "ox_eye_daisy" | "poppy" | "cornflower" | "buttercup" | "dandelion" | "red_clover" => 0.9,
+        "lavender" | "foxglove" => 0.6,
+        "willow" => 0.45,
+        "birch" | "cherry" => 0.3,
+        "oak" | "hawthorn" => 0.22,
+        "pine" => 0.16,
+        _ => 0.1,
+    }
+}
+
+/// [`build`], or (`far`) a cheaper model for distant plants: spherical clumps drop from 80 to 20 triangles.
+pub fn build_lod(id: SpeciesId, height: f32, seed: u32, tint: f32, far: bool) -> Geo {
     let mut rng = Rng::at(seed, id.0 as i32, 7);
     let c = tint_colour(id, tint);
     let h = height;
-    let mut g = Geo::default();
+    let mut g = Geo { max_subdiv: if far { 0 } else { 2 }, far, ..Geo::default() };
     match flora::species(id).key {
         "oak" => oak(&mut g, h, c, &mut rng),
         "birch" => birch(&mut g, h, c, &mut rng),
@@ -56,6 +75,7 @@ pub fn build(id: SpeciesId, height: f32, seed: u32, tint: f32) -> Geo {
         "timothy" => grass(&mut g, h, c, &mut rng, 5, true),
         other => unreachable!("no shape for species {other}"),
     }
+    g.set_sway(sway_amount(flora::species(id).key), h);
     g
 }
 
@@ -97,7 +117,9 @@ fn oak(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
     for i in 0..4 {
         let d = dir(a0 + i as f32 * TAU / 4.0 + rng.range(-0.3, 0.3));
         let from = Vec3::new(0.0, trunk * 0.9, 0.0);
-        g.tube(from, from + d * 0.2 * h + Vec3::Y * 0.2 * h, r * 0.7, r * 0.3, 5, bark, bark, false);
+        if !g.far {
+            g.tube(from, from + d * 0.2 * h + Vec3::Y * 0.2 * h, r * 0.7, r * 0.3, 5, bark, bark, false);
+        }
     }
     let (lo, hi) = leafy(c);
     g.blob(Vec3::new(0.0, 0.68 * h, 0.0), Vec3::new(0.27, 0.22, 0.27) * h, 1, rng.bits(), 0.17, lo, hi);
@@ -122,7 +144,9 @@ fn birch(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
         let (r0, r1) = (0.020 * h * (1.0 - 0.55 * (t - 1.0 / segs as f32)), 0.020 * h * (1.0 - 0.55 * t));
         g.tube(prev, p, r0 * 1.3, r1 * 1.3, 6, white, white, false);
         // A dark scar where the segments meet.
-        g.tube(p - Vec3::Y * 0.012 * h, p + Vec3::Y * 0.012 * h, r1 * 1.12, r1 * 1.12, 6, scar, scar, false);
+        if !g.far {
+            g.tube(p - Vec3::Y * 0.012 * h, p + Vec3::Y * 0.012 * h, r1 * 1.12, r1 * 1.12, 6, scar, scar, false);
+        }
         prev = p;
     }
     let (lo, hi) = leafy(c);
@@ -176,7 +200,7 @@ fn willow(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
     }
     let (lo, hi) = leafy(c);
     g.blob(Vec3::new(0.0, 0.66 * h, 0.0), Vec3::new(0.34, 0.2, 0.34) * h, 1, rng.bits(), 0.14, shade(lo, 0.8), shade(hi, 0.9));
-    let n = 26;
+    let n = if g.far { 10 } else { 26 };
     for i in 0..n {
         let a = a0 + i as f32 / n as f32 * TAU + rng.range(-0.15, 0.15);
         let d = dir(a);
@@ -290,7 +314,7 @@ fn disc(g: &mut Geo, at: Vec3, r: f32, sides: u32, c: Rgb) {
 
 fn daisy(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
     clump(g, h, rng, 3, 0.012 * h, |g, top, rng| {
-        let r = 0.15 * h;
+        let r = 0.21 * h;
         rays(g, top, 8, r * 0.2, r * 1.5, r * 0.34, r * 0.15, rng.range(0.0, TAU), shade(c, 0.85), c);
         disc(g, top + Vec3::Y * r * 0.12, r * 0.5, 6, hex("#f2b807"));
     });
@@ -298,7 +322,7 @@ fn daisy(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
 
 fn poppy(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
     clump(g, h, rng, 2, 0.012 * h, |g, top, rng| {
-        let r = 0.2 * h;
+        let r = 0.27 * h;
         rays(g, top, 4, r * 0.1, r * 1.45, r * 0.95, r * 0.7, rng.range(0.0, TAU), shade(c, 0.6), c);
         disc(g, top + Vec3::Y * r * 0.2, r * 0.32, 6, hex("#2a1a1a"));
     });
@@ -306,7 +330,7 @@ fn poppy(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
 
 fn cornflower(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
     clump(g, h, rng, 3, 0.011 * h, |g, top, rng| {
-        let r = 0.13 * h;
+        let r = 0.18 * h;
         rays(g, top, 8, r * 0.2, r * 1.7, r * 0.32, r * 0.5, rng.range(0.0, TAU), shade(c, 0.75), c);
         disc(g, top + Vec3::Y * r * 0.2, r * 0.5, 6, mix(c, hex("#3a1c5a"), 0.7));
     });
@@ -363,14 +387,14 @@ fn dandelion(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
 
 fn buttercup(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
     clump(g, h, rng, 3, 0.011 * h, |g, top, rng| {
-        let r = 0.1 * h;
+        let r = 0.14 * h;
         rays(g, top, 5, 0.0, r * 1.5, r * 0.8, r * 0.5, rng.range(0.0, TAU), shade(c, 0.8), c);
     });
 }
 
 fn clover(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng) {
     clump(g, h, rng, 2, 0.014 * h, |g, top, rng| {
-        g.blob(top, Vec3::new(0.2, 0.25, 0.2) * h, 0, rng.bits(), 0.12, shade(c, 0.7), shade(c, 1.1));
+        g.blob(top, Vec3::new(0.27, 0.32, 0.27) * h, 0, rng.bits(), 0.12, shade(c, 0.7), shade(c, 1.1));
     });
     for i in 0..3 {
         let d = dir(i as f32 * 2.1 + rng.range(0.0, 1.0));
@@ -421,7 +445,7 @@ fn grass(g: &mut Geo, h: f32, c: Rgb, rng: &mut Rng, blades: u32, seedheads: boo
         let len = h * rng.range(0.65, 1.0);
         let lean = rng.range(0.15, 0.55);
         let tip = d * lean * len + Vec3::Y * len;
-        let w = 0.06 * h.max(0.3);
+        let w = 0.11 * h.max(0.35);
         g.ribbon(&[d * 0.02, tip], &[w, 0.0], d.cross(Vec3::Y), shade(c, 0.5), shade(c, rng.range(1.0, 1.2)));
     }
     if seedheads {

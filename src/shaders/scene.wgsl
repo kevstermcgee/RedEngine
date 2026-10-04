@@ -7,6 +7,7 @@ struct VsIn {
     @location(0) pos: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) color: vec3<f32>,
+    @location(3) sway: f32,
 };
 struct VsOut {
     @builtin(position) clip_pos: vec4<f32>,
@@ -17,7 +18,8 @@ struct VsOut {
 
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
-    let world = obj.model * vec4<f32>(in.pos, 1.0);
+    var world = obj.model * vec4<f32>(in.pos, 1.0);
+    world = vec4<f32>(world.xyz + wind_offset(in.sway, world.xyz), 1.0);
     var out: VsOut;
     out.clip_pos = globals.view_proj * world;
     out.world_pos = world.xyz;

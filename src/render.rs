@@ -253,6 +253,20 @@ fn align_up(value: u64, alignment: u64) -> u64 {
     value.div_ceil(alignment) * alignment
 }
 
+/// How far from the world's origin the camera may be before the renderer measures from somewhere nearer (m). f32 has about 7 digits: at 4 km a position is
+/// good to half a millimetre, at 20 km to two, and the inverse of a view matrix (the sky, the fog) starts to fall apart. Scenes within this are drawn exactly
+/// as before; an endless world is not.
+pub const REBASE_DISTANCE: f32 = 4096.0;
+
+/// The point the renderer measures from for a camera at `eye`: the world origin, or (far out) the multiple of 2048 m nearest to the camera. Everything the
+/// GPU sees (camera, lights, objects, chunks) is shifted by it, so the numbers it works with stay small however far the player has walked.
+pub fn render_origin(eye: Vec3) -> Vec3 {
+    if eye.x.abs().max(eye.z.abs()) < REBASE_DISTANCE {
+        return Vec3::ZERO;
+    }
+    Vec3::new((eye.x / 2048.0).round() * 2048.0, 0.0, (eye.z / 2048.0).round() * 2048.0)
+}
+
 /// The translations at which the scene is drawn: `[0]`, or on a looping world (`world.wrap`) the scene itself plus its two neighbours
 /// one period away along the loop axis, so what lies past the seam is drawn where the player expects it and the seam cannot be seen.
 /// Index 0 is always the scene as authored.
@@ -286,6 +300,8 @@ pub struct Renderer {
     meshes: Vec<GpuMesh>,
     /// The scene's ocean, when it has one.
     ocean: Option<crate::ocean_pass::OceanPass>,
+    /// The scene's endless generated world, when it has a `procgen` block.
+    stream: Option<crate::stream_gpu::StreamLayer>,
     out_width: u32,
     out_height: u32,
 }
@@ -349,6 +365,10 @@ impl Renderer {
             }],
         });
 
+        let stream = scene
+            .procgen
+            .clone()
+            .map(|cfg| crate::stream_gpu::StreamLayer::new(&gpu.device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), 0));
         Ok(Renderer {
             gpu,
             pipelines,
@@ -363,14 +383,16 @@ impl Renderer {
             post_bind_group,
             meshes,
             ocean,
+            stream,
             out_width: scene.width,
             out_height: scene.height,
         })
     }
 
     fn build_globals(&self, scene: &Scene, t: f32) -> GlobalUniform {
-        let cam_pos = scene.camera.position.sample(t);
-        let cam_target = scene.camera.target.sample(t);
+        let origin = render_origin(scene.camera.position.sample(t));
+        let cam_pos = scene.camera.position.sample(t) - origin;
+        let cam_target = scene.camera.target.sample(t) - origin;
         let fov = scene.camera.fov.sample(t).max(1.0).to_radians();
         let aspect = self.targets.width as f32 / self.targets.height as f32;
         let proj = glam::camera::rh::proj::directx::perspective(fov, aspect, scene.camera.near, scene.camera.far);
@@ -382,7 +404,7 @@ impl Renderer {
         let view = glam::camera::rh::view::look_at_mat4(cam_pos, cam_target, up);
         let view_proj = proj * view;
 
-        build_globals_common(scene, t, cam_pos, view_proj)
+        build_globals_common(scene, t, cam_pos, view_proj, origin)
     }
 
     /// Renders one frame at time `t` (seconds) and returns tightly-packed RGB8 pixels,
@@ -390,15 +412,21 @@ impl Renderer {
     pub fn render_frame(&mut self, scene: &Scene, t: f32) -> Vec<u8> {
         let globals = self.build_globals(scene, t);
         self.gpu.queue.write_buffer(&self.global_buf, 0, bytemuck::bytes_of(&globals));
+        // A still frame cannot wait for the world to stream in: build everything around the camera first.
+        let origin = render_origin(scene.camera.position.sample(t));
+        if let Some(stream) = &mut self.stream {
+            stream.fill(&self.gpu.device, &self.gpu.queue, scene.camera.position.sample(t));
+            stream.set_origin(&self.gpu.queue, origin);
+        }
 
         let mut transforms = Vec::with_capacity(self.meshes.len());
         collect_leaf_transforms(&scene.objects, t, Mat4::IDENTITY, &mut transforms);
         debug_assert_eq!(transforms.len(), self.meshes.len());
 
-        let offsets = wrap_offsets(scene);
+        let offsets: Vec<Vec3> = wrap_offsets(scene).into_iter().map(|o| o - origin).collect();
         let n_meshes = self.meshes.len();
         // See-through leaves (`opacity` < 1), drawn after the solid ones, far to near: `(distance from the camera squared, slot)`.
-        let eye = scene.camera.position.sample(t);
+        let eye = scene.camera.position.sample(t) - origin;
         let mut blended: Vec<(f32, usize)> = Vec::new();
         let mut is_blended = vec![false; n_meshes * offsets.len()];
         for (image, offset) in offsets.iter().enumerate() {
@@ -451,6 +479,9 @@ impl Renderer {
                     shadow_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
             }
+            if let Some(stream) = &self.stream {
+                stream.draw_shadow(&mut shadow_pass, &crate::object_staging::frustum_planes(Mat4::from_cols_array_2d(&globals.light_view_proj)));
+            }
         }
 
         {
@@ -502,6 +533,9 @@ impl Renderer {
                     main_pass.set_index_buffer(mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
+            }
+            if let Some(stream) = &self.stream {
+                stream.draw_main(&mut main_pass, Mat4::from_cols_array_2d(&globals.view_proj));
             }
             if !blended.is_empty() {
                 blended.sort_by(|a, b| b.0.total_cmp(&a.0));
@@ -579,7 +613,8 @@ impl Renderer {
 /// Packs lights/ambient/background into a [`GlobalUniform`] given an already-computed camera
 /// (position + view-projection matrix). Shared by the offline [`Renderer`] (camera driven by the
 /// scene's `camera` track) and the live viewer (camera driven by player input instead).
-pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_proj: Mat4) -> GlobalUniform {
+/// `cam_pos` and `view_proj` are already measured from `origin` (see [`render_origin`]); the scene's own light positions are shifted here.
+pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_proj: Mat4, origin: Vec3) -> GlobalUniform {
     let mut light_pos_or_dir = [[0f32; 4]; MAX_LIGHTS];
     let mut light_color_intensity = [[0f32; 4]; MAX_LIGHTS];
     let mut shadow_idx: i32 = -1;
@@ -599,7 +634,7 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
         .iter()
         .enumerate()
         .filter_map(|(i, light)| match &light.kind {
-            LightKind::Point { position, .. } => Some((i, position.sample(t).distance_squared(cam_pos))),
+            LightKind::Point { position, .. } => Some((i, (position.sample(t) - origin).distance_squared(cam_pos))),
             LightKind::Directional { .. } => None,
         })
         .collect();
@@ -641,7 +676,7 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
                 }
             }
             LightKind::Point { position, range } => {
-                let p = position.sample(t);
+                let p = position.sample(t) - origin;
                 light_pos_or_dir[i] = [p.x, p.y, p.z, 1.0];
                 light_color_intensity[i] = [color.x, color.y, color.z, *range];
             }
@@ -698,7 +733,8 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
             [d.glow.x, d.glow.y, d.glow.z, d.glow_strength],
             [d.horizon.x, d.horizon.y, d.horizon.z, c.fog],
         ),
-        _ => ([0.0, 1.0, 0.0, 0.0], [0.0; 4], [[0.0; 4]; 3], [0.0; 4], [0.0; 4]),
+        // No clock: no stars, moon or glow, but the scene time still reaches the shaders (the wind blows in any scene with plants).
+        _ => ([0.0, 1.0, 0.0, 0.0], [0.0, t, 0.0, 0.0], [[0.0; 4]; 3], [0.0; 4], [0.0; 4]),
     };
 
     GlobalUniform {
@@ -816,7 +852,7 @@ mod tests {
             .collect::<Vec<_>>();
         let text = serde_json::json!({"camera": {}, "lights": lights, "objects": []}).to_string();
         let scene = crate::schema::parse_scene(&text).expect("more than 16 authored lights should parse");
-        let globals = build_globals_common(&scene, 0.0, Vec3::new(18.0, 0.0, 0.0), Mat4::IDENTITY);
+        let globals = build_globals_common(&scene, 0.0, Vec3::new(18.0, 0.0, 0.0), Mat4::IDENTITY, Vec3::ZERO);
 
         assert_eq!(globals.counts[0], MAX_LIGHTS as f32);
         assert_eq!(globals.light_pos_or_dir[0], [18.0, 0.0, 0.0, 1.0]);

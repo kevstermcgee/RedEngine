@@ -217,7 +217,18 @@ pub fn step_player_on_tuned(
     let before = state.pos;
     let intended = state.velocity * FIXED_DT;
     if intended.length_squared() > 0.0 {
-        state.pos = step_horizontal_band(colliders, state.pos, state.foot_y, intended, body.radius, body.band_top);
+        // In a generated world the trees near the player are walls too (looked up per tick, from the generator).
+        state.pos = match ground.procgen() {
+            Some(world) => step_horizontal_band(
+                &world.colliders_near(state.pos, 2.0 + intended.length(), colliders),
+                state.pos,
+                state.foot_y,
+                intended,
+                body.radius,
+                body.band_top,
+            ),
+            None => step_horizontal_band(colliders, state.pos, state.foot_y, intended, body.radius, body.band_top),
+        };
     }
     let actual = state.pos - before;
     // Remove blocked components instead of banking velocity into a wall.

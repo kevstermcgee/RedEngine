@@ -4,28 +4,30 @@ use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
 use std::f32::consts::PI;
 
-/// One mesh vertex: position, normal and a colour that multiplies the object's material colour (white for every primitive;
-/// a `terrain` paints its dunes, wet sand and grass through it).
+/// One mesh vertex: position, normal, a colour that multiplies the object's material colour (white for every primitive;
+/// a `terrain` paints its dunes, wet sand and grass through it) and a sway weight for plants moved by the wind.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Vertex {
     pub pos: [f32; 3],
     pub normal: [f32; 3],
     pub color: [f32; 3],
+    /// How far the wind moves this vertex, in metres at full gust (0 for everything that is not a plant).
+    pub sway: f32,
 }
 
 impl Vertex {
-    /// Vertex attribute layout matching `Vertex` (location 0 position, 1 normal, 2 colour).
-    pub const ATTRS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3];
+    /// Vertex attribute layout matching `Vertex` (location 0 position, 1 normal, 2 colour, 3 sway).
+    pub const ATTRS: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3, 3 => Float32];
 
     /// A white (uncoloured) vertex.
     pub fn new(pos: [f32; 3], normal: [f32; 3]) -> Self {
-        Vertex { pos, normal, color: [1.0; 3] }
+        Vertex { pos, normal, color: [1.0; 3], sway: 0.0 }
     }
 
     /// A vertex with its own colour (linear RGB multiplier).
     pub fn colored(pos: [f32; 3], normal: [f32; 3], color: [f32; 3]) -> Self {
-        Vertex { pos, normal, color }
+        Vertex { pos, normal, color, sway: 0.0 }
     }
 
     /// The wgpu vertex-buffer layout for `Vertex`.

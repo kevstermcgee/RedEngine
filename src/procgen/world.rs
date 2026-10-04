@@ -11,7 +11,7 @@
 //! broadleaf forest, conifer woods and sunny glades cut into the forest. Biomes are labels for the map and for things like which birds sing;
 //! what actually grows is decided by densities and by each species' liking for the local climate ([`super::flora`]).
 //!
-//! **Placement** uses one jittered grid per layer (trees on 6 m cells, shrubs 4 m, flower patches 12 m, grass tufts 1.5 m), aligned so a cell
+//! **Placement** uses one jittered grid per layer (trees on 6 m cells, shrubs 4 m, flower patches 12 m, grass tufts 1 m), aligned so a cell
 //! belongs to exactly one chunk and the content of a cell depends only on its own coordinates. Flower patches spill over chunk borders, so a
 //! chunk also reads its neighbours' patch cells and keeps only the flowers that land inside it. Each plant has a `rank` in `[0, 1)`; keeping
 //! only those below a threshold thins a layer evenly (and the thinned set always nests inside the fuller one), which is how far chunks stay cheap.
@@ -30,7 +30,7 @@ const SHRUB_CELL: f64 = 4.0;
 /// Flower patch cell size in metres.
 const PATCH_CELL: f64 = 12.0;
 /// Grass tuft cell size in metres.
-const GRASS_CELL: f64 = 1.5;
+const GRASS_CELL: f64 = 1.0;
 /// The radius around the start that stays an open, flowery meadow.
 const SPAWN_CLEARING: f64 = 30.0;
 
@@ -178,6 +178,15 @@ pub struct Plant {
     pub rank: f32,
 }
 
+/// The scene's `procgen` block, if it has one.
+pub fn parse_procgen(root: &Map<String, Value>) -> Result<Option<Config>, Vec<String>> {
+    let Some(raw) = root.get("procgen") else { return Ok(None) };
+    match raw.as_object() {
+        Some(o) => parse_config(o).map(Some),
+        None => Err(vec!["procgen: must be an object like {\"seed\": 7}".to_string()]),
+    }
+}
+
 /// A generated world.
 #[derive(Debug, Clone)]
 pub struct World {
@@ -226,7 +235,7 @@ impl World {
     /// The ground height at a position, metres.
     pub fn height(&self, x: f64, z: f64) -> f32 {
         let hilly = 0.2 + 0.8 * smooth(-0.35, 0.45, fbm(self.seed(salt::HILLY), x / 700.0, z / 700.0, 2));
-        let hills = fbm(self.seed(salt::HILLS), x / 190.0, z / 190.0, 3) * 8.0 * hilly;
+        let hills = fbm(self.seed(salt::HILLS), x / 240.0, z / 240.0, 3) * 15.0 * hilly;
         let detail = fbm(self.seed(salt::DETAIL), x / 23.0, z / 23.0, 2) * 0.45;
         (hills + detail) * self.cfg.relief
     }
@@ -306,12 +315,17 @@ impl World {
         let glade = self.glade(x, z);
         let shade = self.forest_density(&c, glade) * Self::near_start(x, z);
         let lush = [0.085, 0.30, 0.045];
-        let sunny = [0.20, 0.40, 0.065];
+        let sunny = [0.16, 0.42, 0.055];
         let dry = [0.38, 0.40, 0.085];
         let litter = [0.115, 0.14, 0.04];
         let mut col = lerp3(sunny, lush, c.wet);
         col = lerp3(col, dry, smooth(0.55, 0.0, c.wet) * 0.55);
         col = lerp3(col, litter, shade * 0.75);
+        // Wildflower fields tint the ground, so a far field reads as flowers when the flowers themselves are not drawn.
+        let bloom = self.bloom(x, z) * (1.0 - shade) * Self::near_start(x, z).max(0.35);
+        let field = fbm(self.seed(salt::BLOOM + 40), x / 9.0, z / 9.0, 2);
+        let hue = if field > 0.0 { [0.34, 0.2, 0.09] } else { [0.30, 0.27, 0.05] };
+        col = lerp3(col, hue, bloom * 0.45 * smooth(-0.3, 0.3, field.abs() * 2.0 - 0.2));
         // A mottle at metre scale so a field is never flat colour, and slightly bluer cool country.
         let mottle = fbm(self.seed(salt::GROUND), x / 4.5, z / 4.5, 2) * 0.12;
         let k = 1.0 + mottle;
@@ -471,7 +485,7 @@ impl World {
                 let secondary = self.pick(Kind::Flower, cx, cz, &c, rng.white());
                 let (Some(primary), Some(secondary)) = (primary, secondary) else { continue };
                 let mix = rng.range(0.15, 0.4);
-                let per_m2 = rng.range(1.2, 3.0) * (0.6 + 2.2 * bloom) * self.cfg.flowers.min(1.6);
+                let per_m2 = rng.range(1.2, 3.0) * (0.6 + 2.2 * bloom + 1.5 * start) * self.cfg.flowers.min(1.6);
                 let count = (std::f64::consts::PI * radius * radius * per_m2 as f64) as u32;
                 for _ in 0..count {
                     let (dx, dz) = (rng.range(-1.0, 1.0) as f64 * radius, rng.range(-1.0, 1.0) as f64 * radius);
@@ -566,7 +580,7 @@ mod tests {
         // If this changes, every world changes: only update it on purpose (and say so in the ADR).
         assert_eq!(fingerprint(&world(), 2), PINNED, "the generator changed: the world is different");
     }
-    const PINNED: u32 = 4242586199;
+    const PINNED: u32 = 1421298761;
 
     #[test]
     fn ground_is_walkable_everywhere_and_never_cliffs() {

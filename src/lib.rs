@@ -71,6 +71,8 @@ pub mod sim;
 pub mod skeleton;
 pub mod stats;
 pub mod streaks;
+#[cfg(feature = "gfx")]
+pub mod stream_gpu;
 pub mod strict;
 pub mod synth;
 pub mod terrain;
