@@ -766,7 +766,7 @@ fn commands_text(commands: &Value, brief: bool) -> String {
         let name = c["name"].as_str().unwrap_or("?");
         let about = c["about"].as_str().unwrap_or("");
         if brief {
-            out.push_str(&format!("  {name:<11} {}\n", first_sentence(about, 96)));
+            out.push_str(&format!("  {name:<11} {}\n", first_sentence(about, 88)));
             continue;
         }
         let args: Vec<String> = c["args"]

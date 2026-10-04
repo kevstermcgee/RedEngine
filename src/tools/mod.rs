@@ -19,6 +19,7 @@ pub mod doctor;
 pub mod edit;
 pub mod envelope;
 pub mod features;
+pub mod flora_sheet;
 pub mod font;
 pub mod game;
 pub mod gamepublish;
