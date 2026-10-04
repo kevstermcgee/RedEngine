@@ -51,24 +51,5 @@
       "yaw_deg": 0
     }
   ],
-  "objects": [],
-  "player": {
-    "humans_play_as": "boy",
-    "view": "third",
-    "mode": "peaceful",
-    "walk_speed": 2.9,
-    "sprint_speed": 5.4,
-    "fov": 70
-  },
-  "audio": {
-    "ambience": "nature",
-    "music": {
-      "dawn": "marcel/audio/marcel_dawn.json",
-      "day": "marcel/audio/marcel_day.json",
-      "dusk": "marcel/audio/marcel_dusk.json",
-      "night": "marcel/audio/marcel_night.json"
-    },
-    "music_volume": 0.6,
-    "ambience_volume": 0.8
-  }
+  "objects": []
 }

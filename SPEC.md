@@ -111,6 +111,10 @@ multipliers (a scene with none gets a shadow-casting sun), a dim cool moonlight 
 over 29.5 days (`moon_phase` sets day 0), and `fog` (density per metre, 0 for none) fades the distance into the horizon colour, warmed toward the sun at dusk. Without a `clock` the sky is whatever `sky`/`background` say.
 Draw any moment with `frame scene.json out.png --hour 18.5`, and a whole day as a labelled contact sheet with `sky scene.json out.png [--hours 5,6,7,12,18,19,22] [--look sun|moon]`. Presentation only: the simulation does not read it.
 
+### Keeping what the player did (`persist`) and a day's events
+
+`"persist": ["days_lived"]` names scene `vars` the game keeps between sessions: they are loaded before the first tick and saved whenever one changes (per game, next to its settings). With a `clock`, the engine raises the events `sunrise` and `sunset` as the sun crosses the horizon, so `{"when": {"event": "sunrise"}, "do": [{"add": ["days_lived", 1]}]}` counts days lived. In `ui` text, `{days_lived:day|days}` is the number and the right word: "1 day", "12 days". `examples/marcel/marcel.json` uses all of it: its start card is the menu.
+
 ### The sounds of a world (`audio`)
 
 ```json

@@ -1,0 +1,108 @@
+{
+  "camera": {
+    "fov": 75,
+    "position": [
+      0,
+      1.6,
+      0
+    ],
+    "target": [
+      0,
+      1.7,
+      -10
+    ],
+    "far": 700
+  },
+  "clock": {
+    "day_secs": 1200,
+    "start": 0.235,
+    "fog": 0.0028,
+    "stars": 1.0,
+    "moon": true,
+    "night_light": 0.3,
+    "sun_max_deg": 50
+  },
+  "procgen": {
+    "seed": 7
+  },
+  "lights": [
+    {
+      "id": "sun",
+      "type": "directional",
+      "direction": [
+        -0.4,
+        -1,
+        -0.3
+      ],
+      "cast_shadows": true,
+      "shadow_radius": 60,
+      "shadow_follow": true,
+      "intensity": 1.0
+    }
+  ],
+  "spawns": [
+    {
+      "id": "start",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "yaw_deg": 0
+    }
+  ],
+  "objects": [],
+  "player": {
+    "humans_play_as": "boy",
+    "view": "third",
+    "mode": "peaceful",
+    "walk_speed": 2.9,
+    "sprint_speed": 5.4,
+    "fov": 70
+  },
+  "audio": {
+    "ambience": "nature",
+    "music": {
+      "dawn": "audio/marcel_dawn.json",
+      "day": "audio/marcel_day.json",
+      "dusk": "audio/marcel_dusk.json",
+      "night": "audio/marcel_night.json"
+    },
+    "music_volume": 0.6,
+    "ambience_volume": 0.8
+  },
+  "vars": {
+    "days_lived": 0
+  },
+  "persist": [
+    "days_lived"
+  ],
+  "rules": [
+    {
+      "id": "another_day",
+      "when": {
+        "event": "sunrise"
+      },
+      "do": [
+        {
+          "add": [
+            "days_lived",
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "ui": {
+    "title": "Marcel",
+    "labels": {
+      "days_lived": "Days"
+    },
+    "counters": [],
+    "start": {
+      "title": "Marcel",
+      "text": "{days_lived:day|days} lived in this world so far.",
+      "button": "Wander"
+    }
+  }
+}
