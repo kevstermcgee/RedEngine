@@ -17,6 +17,186 @@
       "clipped": 0,
       "dominant_hz": 50.0
     },
+    "ambience.nature.bees": {
+      "secs": 16.0,
+      "peak_dbfs": -26.399999618530273,
+      "lufs": -38.0,
+      "centroid_hz": 315.0,
+      "bands_pct": [
+        0.0,
+        70.0,
+        30.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 236.0
+    },
+    "ambience.nature.crickets": {
+      "secs": 18.0,
+      "peak_dbfs": -20.799999237060547,
+      "lufs": -33.0,
+      "centroid_hz": 4443.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        0.0,
+        100.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 4380.0
+    },
+    "ambience.nature.leaves": {
+      "secs": 24.0,
+      "peak_dbfs": -19.399999618530273,
+      "lufs": -33.0,
+      "centroid_hz": 7862.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        13.0,
+        36.0,
+        51.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "ambience.nature.night_air": {
+      "secs": 28.0,
+      "peak_dbfs": -20.799999237060547,
+      "lufs": -37.0,
+      "centroid_hz": 1069.0,
+      "bands_pct": [
+        28.0,
+        29.0,
+        31.0,
+        7.0,
+        5.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "ambience.nature.wind": {
+      "secs": 30.0,
+      "peak_dbfs": -13.5,
+      "lufs": -29.0,
+      "centroid_hz": 1144.0,
+      "bands_pct": [
+        29.0,
+        27.0,
+        31.0,
+        8.0,
+        5.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "bird.blackbird": {
+      "secs": 2.9200000762939453,
+      "peak_dbfs": -20.399999618530273,
+      "lufs": -23.0,
+      "centroid_hz": 1495.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        96.0,
+        4.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 1364.0
+    },
+    "bird.chaffinch": {
+      "secs": 1.149999976158142,
+      "peak_dbfs": -23.299999237060547,
+      "lufs": -24.0,
+      "centroid_hz": 4109.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        0.0,
+        97.0,
+        3.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 3741.0
+    },
+    "bird.cuckoo": {
+      "secs": 0.9700000286102295,
+      "peak_dbfs": -19.100000381469727,
+      "lufs": -22.0,
+      "centroid_hz": 707.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        100.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 640.0
+    },
+    "bird.owl": {
+      "secs": 2.430000066757202,
+      "peak_dbfs": -19.399999618530273,
+      "lufs": -23.0,
+      "centroid_hz": 398.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        100.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 376.0
+    },
+    "bird.pigeon": {
+      "secs": 1.9800000190734863,
+      "peak_dbfs": -22.799999237060547,
+      "lufs": -26.0,
+      "centroid_hz": 521.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        100.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 473.0
+    },
+    "bird.robin": {
+      "secs": 1.9199999570846558,
+      "peak_dbfs": -22.700000762939453,
+      "lufs": -24.0,
+      "centroid_hz": 4258.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        0.0,
+        96.0,
+        4.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 3626.0
+    },
+    "bird.wren": {
+      "secs": 1.559999942779541,
+      "peak_dbfs": -21.600000381469727,
+      "lufs": -21.0,
+      "centroid_hz": 5431.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        0.0,
+        59.0,
+        41.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 4410.0
+    },
     "fx.alert": {
       "secs": 1.0,
       "peak_dbfs": -6.0,

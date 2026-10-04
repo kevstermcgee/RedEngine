@@ -126,6 +126,7 @@ impl App {
                 "dead": self.own_dead(),
                 "carrying": self.carrying(),
             },
+            "audio": self.ambient_state(),
             "online": online,
             "remote": remote,
             "card": self.card_content().map(|(c, button)| json!({"kind": self.card.map(|k| format!("{:?}", k.kind).to_lowercase()), "title": c.title, "text": c.text, "button": c.button.map(|label| json!({"id": button, "label": label}))})),

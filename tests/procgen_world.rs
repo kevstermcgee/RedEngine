@@ -86,3 +86,18 @@ fn the_same_walk_twice_gives_the_same_place() {
     };
     assert_eq!(walk(), walk());
 }
+
+#[test]
+fn the_example_scene_has_a_countryside_and_four_scores_that_parse() {
+    let s = scene();
+    let audio = s.audio.clone().expect("an audio block");
+    assert!(audio.nature);
+    assert_eq!(audio.music.len(), 4, "a score for each time of day");
+    for (mood, path) in &audio.music {
+        let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples").join(path))
+            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let value: serde_json::Value = serde_json::from_str(&text).expect("json");
+        let score = red_engine2::score::parse_score(&value).unwrap_or_else(|e| panic!("{}: {e:?}", mood.name()));
+        assert!(score.lufs <= -24.0, "{} should sit quietly under the world", mood.name());
+    }
+}
