@@ -59,8 +59,14 @@ pub fn motes(world: &World, eye: [f64; 3], t: f32, sun_elev_deg: f32) -> Vec<Mot
                 let density = (0.25 + 1.5 * c.wet) * (1.0 - 0.6 * c.wood);
                 for _ in 0..3 {
                     let (keep, bx, bz, lift) = (rng.white(), rng.range(0.0, CELL as f32) as f64, rng.range(0.0, CELL as f32) as f64, rng.range(0.35, 2.1));
-                    let (p1, p2, p3, p4, p5, rate) =
-                        (rng.range(0.0, 6.28), rng.range(0.0, 6.28), rng.range(0.0, 6.28), rng.range(0.0, 6.28), rng.range(0.0, 6.28), rng.range(0.9, 2.1));
+                    let (p1, p2, p3, p4, p5, rate) = (
+                        rng.range(0.0, std::f32::consts::TAU),
+                        rng.range(0.0, std::f32::consts::TAU),
+                        rng.range(0.0, std::f32::consts::TAU),
+                        rng.range(0.0, std::f32::consts::TAU),
+                        rng.range(0.0, std::f32::consts::TAU),
+                        rng.range(0.9, 2.1),
+                    );
                     if keep * 1.9 > density {
                         continue;
                     }
@@ -84,7 +90,7 @@ pub fn motes(world: &World, eye: [f64; 3], t: f32, sun_elev_deg: f32) -> Vec<Mot
                         rng.range(0.0, CELL as f32) as f64,
                         rng.range(0.0, CELL as f32) as f64,
                         rng.range(0.0, 3.0),
-                        rng.range(0.0, 6.28),
+                        rng.range(0.0, std::f32::consts::TAU),
                         rng.range(0.6, 1.6),
                     );
                     if keep > 0.12 + 0.7 * bloom {
