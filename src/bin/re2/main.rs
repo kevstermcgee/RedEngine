@@ -59,6 +59,7 @@ mod ambient;
 mod avatar;
 mod cards;
 mod controller;
+mod coop;
 mod dump;
 mod events;
 mod feedback;
@@ -233,6 +234,22 @@ struct App {
     /// The loose prop under the crosshair that this character can pick up.
     pickup_target: Option<usize>,
     camera: FpsCamera,
+    /// Which local player the per-player fields above belong to right now (0 is the first; see `coop.rs`).
+    slot: usize,
+    /// What drives that player.
+    device: red_engine2::splitscreen::Device,
+    /// The other local players' state, swapped in when it is their turn (`coop.rs`); empty with one player.
+    locals: Vec<Option<coop::PlayerCtx>>,
+    /// Local players asked for (`--players`), 1 to 4.
+    want_players: usize,
+    /// `--pads-only`: player 1 plays on a gamepad too.
+    pads_only: bool,
+    /// Every connected gamepad, for the guests.
+    pads: red_engine2::controller::Pads,
+    /// The split-screen compositor, when there is more than one local player.
+    split: Option<red_engine2::split_gpu::SplitScreen>,
+    /// Which local player a script's input steps drive (`{"player": 2}`).
+    script_player: usize,
     phase: Phase,
     /// Who the player is.
     character: Character,
@@ -324,6 +341,8 @@ struct App {
     rule_event_until: u64,
     /// Last `(width, height, content)` painted into the offline rules HUD.
     rule_hud_painted: Option<(u32, u32, String)>,
+    /// What each split-screen view's HUD was last painted from (nothing is repainted while it is the same).
+    split_hud_painted: Vec<Option<String>>,
     /// The start or end card of the scene's `ui` block, when one is up (offline only; `cards.rs`).
     card: Option<cards::CardState>,
     /// A restart does not show the start card again.
@@ -540,6 +559,14 @@ impl App {
             body,
             forced_character,
             backdrop_scene: menu::backdrop_scene(),
+            slot: 0,
+            device: red_engine2::splitscreen::Device::KeyboardMouse,
+            locals: Vec::new(),
+            want_players: 1,
+            pads_only: false,
+            pads: Default::default(),
+            split: None,
+            script_player: 0,
             keys: HashSet::new(),
             controller: Default::default(),
             pad: Default::default(),
@@ -583,6 +610,7 @@ impl App {
             rule_event: None,
             rule_event_until: 0,
             rule_hud_painted: None,
+            split_hud_painted: Vec::new(),
             card: None,
             skip_start_card: false,
             swing_timer: None,
@@ -701,6 +729,8 @@ struct Args {
     debug_help: bool,
     transport: TransportChoice,
     fullscreen: bool,
+    players: usize,
+    pads_only: bool,
 }
 
 /// Red Engine 2 real-time game client.
@@ -783,6 +813,12 @@ struct CliArgs {
     /// Join a development server over plain UDP (not encrypted; trusted LAN only). Loopback servers use it without the flag.
     #[arg(long)]
     dev_udp: bool,
+    /// Local players sharing this screen (1 to 4): split-screen co-op in a single-player game. Player 1 uses the keyboard and mouse, each other player a gamepad.
+    #[arg(long, value_name = "N", default_value_t = 1)]
+    players: usize,
+    /// With `--players`: player 1 plays on a gamepad too (a couch with no keyboard).
+    #[arg(long)]
+    pads_only: bool,
 }
 
 fn parse_character_arg(value: &str) -> Result<Character, String> {
@@ -848,6 +884,8 @@ fn parse_args() -> Args {
         debug_help: cli.debug_help,
         transport,
         fullscreen: cli.fullscreen,
+        players: if cli.players > 1 { cli.players } else { std::env::var("RE2_PLAYERS").ok().and_then(|v| v.parse().ok()).unwrap_or(1) }.clamp(1, 4),
+        pads_only: cli.pads_only,
     }
 }
 
@@ -876,6 +914,8 @@ fn main() {
         debug_help,
         transport,
         fullscreen,
+        players,
+        pads_only,
     } = parse_args();
     if debug_help {
         print!("{}", help::text());
@@ -967,6 +1007,8 @@ fn main() {
     app.host_pause = local_host.as_ref().map(|h| h.pause_flag());
     app.transport = transport;
     app.start_fullscreen = fullscreen;
+    app.want_players = if connect.is_some() || host { 1 } else { players };
+    app.pads_only = pads_only;
     if key.is_some() {
         app.join_key = key;
     }

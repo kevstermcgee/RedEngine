@@ -92,6 +92,8 @@ pub enum CameraSpec {
     Overview,
     /// Behind and above a remote player (`None`: the nearest).
     Follow(Option<u8>),
+    /// Every local player's view at once, as the shared screen shows them.
+    Split,
     /// Anywhere.
     Free {
         /// Camera position.
@@ -138,6 +140,8 @@ pub struct Expect {
 /// One step of a script.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Step {
+    /// Hands the controls to local player N (1 is the first; split-screen co-op) until the next `player` step.
+    Player(usize),
     /// Do nothing for that long.
     Wait(f32),
     /// Face a direction, degrees.
@@ -236,7 +240,7 @@ pub struct Script {
 /// Actions a step can be, for the "did you mean" of a typo.
 pub const ACTIONS: &[&str] = &[
     "wait", "look", "turn", "hold", "jump", "fire", "aim_at", "switch", "interact", "press", "approach", "look_at", "view", "policy", "shot", "snapshot",
-    "expect", "wait_for", "say",
+    "player", "expect", "wait_for", "say",
 ];
 
 /// Keys a step may carry besides its action (checked so a typo in one is an error, not silently ignored).
@@ -267,10 +271,11 @@ fn parse_camera(v: &Value, path: &str, errs: &mut Vec<String>) -> CameraSpec {
             "third" => CameraSpec::Third,
             "overview" => CameraSpec::Overview,
             "follow" | "follow:nearest" => CameraSpec::Follow(None),
+            "split" => CameraSpec::Split,
             other => match other.strip_prefix("follow:").and_then(|id| id.parse::<u8>().ok()) {
                 Some(id) => CameraSpec::Follow(Some(id)),
                 None => {
-                    errs.push(format!("{path}: unknown camera '{other}' (first, third, overview, follow, follow:ID, or {{eye, at, fov}})"));
+                    errs.push(format!("{path}: unknown camera '{other}' (first, third, overview, split, follow, follow:ID, or {{eye, at, fov}})"));
                     CameraSpec::First
                 }
             },
@@ -463,6 +468,13 @@ fn parse_step(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<Step> {
             Step::AimAt
         }
         "switch" => Step::Switch(num(val, &format!("{path}.switch"), errs)?),
+        "player" => match val.as_u64().filter(|n| (1..=4).contains(n)) {
+            Some(n) => Step::Player(n as usize),
+            None => {
+                errs.push(format!("{path}.player: a local player number from 1 to 4"));
+                return None;
+            }
+        },
         "press" => match val.as_str().filter(|id| !id.is_empty()) {
             Some(id) => Step::Press(id.to_string()),
             None => {
@@ -610,6 +622,10 @@ pub trait Driver {
     fn state(&self) -> Value;
     /// Prints a line.
     fn say(&mut self, text: &str);
+    /// Hands the controls to local player `player` (0 is the first); `Err` says why that is not possible (a client with one player).
+    fn set_player(&mut self, _player: usize) -> Result<(), String> {
+        Err("this client has a single player".to_string())
+    }
     /// Uses the on-screen button with this id; `Err` says why there is none.
     fn press(&mut self, _id: &str) -> Result<(), String> {
         Err("this client has no buttons to press".to_string())
@@ -888,6 +904,11 @@ impl Runner {
                     }
                 }
                 Step::Switch(n) => d.scroll(n),
+                Step::Player(n) => {
+                    if let Err(e) = d.set_player(n - 1) {
+                        self.failures.push(format!("player {n}: {e}"));
+                    }
+                }
                 Step::View { third } => d.set_view(third),
                 Step::Policy(p) => d.set_policy(p),
                 Step::AimAt => {

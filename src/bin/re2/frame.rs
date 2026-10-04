@@ -166,6 +166,18 @@ impl App {
     /// `prev_foot_y` first, so `update` can interpolate between them for the actual rendered
     /// frame instead of drawing exactly on whichever physics step boundary just landed.
     pub(crate) fn fixed_step_physics(&mut self) {
+        self.fixed_step_player();
+        // The other local players take the same step with their own state; the rules then see all of them where they have got to.
+        for slot in 1..self.local_player_count() {
+            self.as_player(slot, |app| app.fixed_step_player());
+        }
+        if self.net.is_none() {
+            self.fixed_step_rules();
+        }
+    }
+
+    /// One tick of the player swapped in: their movement, the props they shove, their feel and their combat.
+    fn fixed_step_player(&mut self) {
         self.prev_physics_pos = self.physics_pos;
         self.prev_foot_y = self.foot_y;
         if self.online_frozen() {
@@ -207,16 +219,13 @@ impl App {
         self.horizontal_velocity = st.velocity;
 
         // Loose props: the player's body shoves what it walks into, then the world steps.
-        if let Some(props) = &mut self.props {
+        if let Some(props) = self.props.as_mut().filter(|_| self.slot == 0) {
             props.set_player(Vec3::new(self.physics_pos.x, self.foot_y, self.physics_pos.y), self.body.radius, self.body.body_height);
             props.step();
         }
 
         self.feel.observe_motion(self.last_move_speed, FIXED_DT, self.vertical_velocity, self.vertical_velocity == 0.0, self.pad_launch, self.sprint_held);
         self.fixed_step_combat(attack_now);
-        if self.net.is_none() {
-            self.fixed_step_rules();
-        }
     }
 
     /// Saves the `persist` variables when any of them has changed since the last save.
@@ -254,37 +263,55 @@ impl App {
         if self.rules.ended().is_some() {
             return;
         }
-        let player = RulePlayer {
+        let mut players = vec![RulePlayer {
             slot: 0,
             pos: Vec3::new(self.physics_pos.x, self.foot_y, self.physics_pos.y),
             radius: self.body.radius,
             height: self.body.body_height,
             character: self.character,
             team: 0,
-        };
+        }];
+        for ctx in self.locals.iter().flatten() {
+            players.push(RulePlayer {
+                slot: ctx.slot,
+                pos: Vec3::new(ctx.physics_pos.x, ctx.foot_y, ctx.physics_pos.y),
+                radius: ctx.body.radius,
+                height: ctx.body.body_height,
+                character: ctx.character,
+                team: 0,
+            });
+        }
         let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
         // The same prop view the authoritative simulation feeds its rules (built only when a rule looks at props).
         let mut prop_views: Vec<red_engine2::sim::rules_run::RuleProp> = Vec::new();
         if let (true, Some(props)) = (self.rules.needs_props(), self.props.as_ref()) {
             prop_views.extend((0..props.props().len()).map(|k| red_engine2::sim::rules_run::RuleProp::of(props, k)));
         }
-        for effect in self.rules.step_props(tick, &[player], &prop_views) {
+        for effect in self.rules.step_props(tick, &players, &prop_views) {
             match effect {
-                red_engine2::sim::rules_run::Effect::Teleport { slot: 0, target } => {
+                red_engine2::sim::rules_run::Effect::Teleport { slot, target } => {
                     let target = match target {
                         Target::Point(p) => Some(p),
                         Target::Spawn(id) => self.spawns.iter().find(|s| s.id == id).map(|s| Vec3::from(s.position)),
                     };
                     if let Some(p) = target {
-                        self.physics_pos = Vec2::new(p.x, p.z);
-                        self.prev_physics_pos = self.physics_pos;
-                        self.foot_y = p.y;
-                        self.prev_foot_y = p.y;
-                        self.vertical_velocity = 0.0;
-                        self.horizontal_velocity = Vec2::ZERO;
+                        if slot == 0 {
+                            self.physics_pos = Vec2::new(p.x, p.z);
+                            self.prev_physics_pos = self.physics_pos;
+                            self.foot_y = p.y;
+                            self.prev_foot_y = p.y;
+                            self.vertical_velocity = 0.0;
+                            self.horizontal_velocity = Vec2::ZERO;
+                        } else if let Some(Some(ctx)) = self.locals.get_mut(slot - 1) {
+                            ctx.physics_pos = Vec2::new(p.x, p.z);
+                            ctx.prev_physics_pos = ctx.physics_pos;
+                            ctx.foot_y = p.y;
+                            ctx.prev_foot_y = p.y;
+                            ctx.vertical_velocity = 0.0;
+                            ctx.horizontal_velocity = Vec2::ZERO;
+                        }
                     }
                 }
-                red_engine2::sim::rules_run::Effect::Teleport { .. } => {}
                 red_engine2::sim::rules_run::Effect::Impulse { object, dir, speed } => {
                     let object_index = self.scene.objects.iter().position(|o| o.id == object);
                     if let (Some(props), Some(object_index)) = (self.props.as_mut(), object_index) {
@@ -323,6 +350,134 @@ impl App {
     /// Unlike `self.eye` it does not depend on the render frame.
     pub(crate) fn tick_eye(&self) -> Vec3 {
         Vec3::new(self.physics_pos.x, self.foot_y + self.eye_height, self.physics_pos.y)
+    }
+
+    /// Everything about the player swapped in that follows the render frame rather than the tick: where they are drawn between two ticks, their eye and crouch, their
+    /// body and its walk, their camera (first or third person), field of view, what they could pick up and what the crosshair is on.
+    fn update_player_view(&mut self, dt: f32, alpha: f32) {
+        // Between two physics states, the short way round (a looping world's seam is crossed between two ticks now and then).
+        let mut planar_pos = self.prev_physics_pos + self.scene.player.expanse.delta(self.prev_physics_pos, self.physics_pos) * alpha;
+        if let Some(net) = &self.net {
+            planar_pos += net.visual_offset();
+        }
+        let foot_y = self.prev_foot_y + (self.foot_y - self.prev_foot_y) * alpha;
+
+        let crouching =
+            self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight) || self.pad.down(red_engine2::controller::button::CROUCH);
+        let forward_held = self.keys.contains(&KeyCode::KeyW) || self.keys.contains(&KeyCode::ArrowUp) || self.pad.movement.y > 0.0;
+        let back_held = self.keys.contains(&KeyCode::KeyS) || self.keys.contains(&KeyCode::ArrowDown);
+        let sprinting = (self.sprint_held || self.pad.down(red_engine2::controller::button::SPRINT))
+            && forward_held
+            && !back_held
+            && !crouching
+            && self.scene.player.sprint_speed > self.scene.player.walk_speed;
+
+        // Crouch: blend the eye height toward its target instead of snapping, so the camera
+        // doesn't jump-cut when Ctrl is pressed/released.
+        let dead = self.own_dead();
+        let target_eye_height = if dead {
+            feedback::DEAD_EYE_HEIGHT
+        } else if crouching {
+            self.body.crouch_eye
+        } else {
+            self.body.stand_eye
+        };
+        let blend = (dt / if dead { 0.4 } else { CROUCH_TRANSITION_TIME }).min(1.0);
+        self.eye_height += (target_eye_height - self.eye_height) * blend;
+
+        // Update the player's own body (position/facing/pose) from the interpolated
+        // (pre-third-person-pullback) planar position, then place the camera: directly at the
+        // eye in first person, or pulled back behind/above it in third person. This order
+        // matters — the body must be placed before `self.camera.position` is potentially
+        // overwritten by the third-person pullback below.
+        let body_yaw_deg = 180.0 - self.camera.yaw.to_degrees();
+        self.update_player_body(planar_pos, body_yaw_deg, self.last_move_speed, dt);
+
+        let anchor = Vec3::new(planar_pos.x, foot_y + self.eye_height, planar_pos.y);
+        self.eye = anchor;
+        if self.slot == 0 {
+            self.sync_flashlight();
+        }
+        // Cosmetic timers run on render time; everything that decides a hit is in `fixed_step_combat`.
+        self.since_shot += dt;
+        self.flash_left = (self.flash_left - dt).max(0.0);
+        // The animation reads mirrors of the tick-based swing/switch state, smoothed by `alpha`.
+        self.swing_timer = self.swing.elapsed_secs(alpha);
+        self.switching = self.switch.elapsed_secs(alpha);
+        self.camera.position = match self.view_mode {
+            ViewMode::FirstPerson => anchor,
+            ViewMode::ThirdPerson => {
+                let desired = anchor - self.camera.forward() * self.body.third_person_distance + Vec3::Y * self.body.third_person_lift;
+                // In a generated world the trees are walls for the camera too, and it never dips under the hill behind the character.
+                let walls = match self.ground.procgen() {
+                    Some(world) => world.colliders_near(Vec2::new(desired.x, desired.z), 4.0, &self.colliders),
+                    None => self.colliders.clone(),
+                };
+                let active = colliders_on_floor(&walls, foot_y);
+                let cam_radius = THIRD_PERSON_CAM_RADIUS.min(self.body.radius * 0.7);
+                let clamped = resolve_collision(Vec2::new(desired.x, desired.z), cam_radius, &active);
+                let floor = self.ground.terrain_height_at(clamped).map_or(f32::NEG_INFINITY, |h| h + 0.4);
+                Vec3::new(clamped.x, desired.y.max(floor), clamped.y)
+            }
+        };
+
+        // Aim-down-sights and sprint FOV transitions use the same smooth presentation path.
+        let wants_ads = (self.ads_held || self.pad.down(red_engine2::controller::button::AIM))
+            && self.shown_weapon().is_firearm()
+            && !self.carrying()
+            && self.view_mode == ViewMode::FirstPerson;
+        let ads_target = if wants_ads { 1.0 } else { 0.0 };
+        self.ads_blend += (ads_target - self.ads_blend) * (dt / ADS_TRANSITION_TIME).min(1.0);
+        let hip_fov = if sprinting { self.scene.player.fov_deg + SPRINT_FOV_BOOST_DEG } else { self.scene.player.fov_deg };
+        let aim_fov = 2.0 * ((0.5 * self.scene.player.fov_deg.to_radians()).tan() / self.shown_weapon().aim_magnification()).atan().to_degrees();
+        let target_fov = hip_fov + (aim_fov - hip_fov) * self.ads_blend;
+        let fov_blend = (dt / FOV_TRANSITION_TIME).min(1.0);
+        self.fov_deg += (target_fov - self.fov_deg) * fov_blend;
+        self.camera.fov_deg = self.fov_deg;
+        // A kart race is seen from behind and above the kart: the chase camera decides where the camera is and what it looks at.
+        if let Some(view) = self.net.as_ref().and_then(|n| n.kart_view()) {
+            let pose = self.chase.update(&view, dt);
+            self.camera.position = pose.eye;
+            self.camera.yaw = pose.yaw;
+            self.camera.pitch = pose.pitch;
+            self.camera.fov_deg = pose.fov_deg;
+        }
+
+        // Loose props: keep a carried one in front of the player, write every prop's physics pose into
+        // the scene, and see what the crosshair could pick up.
+        if let Some(props) = self.props.as_mut().filter(|_| self.slot == 0) {
+            if let Some(h) = props.held() {
+                let pose = props.hold_pose(h, anchor, self.camera.forward(), self.body.radius, self.body.hold_drop, foot_y);
+                props.set_held_pose(pose);
+            }
+            props.sync_scene(&mut self.scene);
+            self.pickup_target = props.pick_target(anchor, self.camera.forward(), self.body.pickup_reach, &self.body.carry);
+        }
+
+        // What's the crosshair aimed at, within bat reach? (Drives the crosshair's gold "you
+        // could hit this" state.) Tested against the objects' real shapes, not bounding boxes, so
+        // it is gold only where a swing would actually connect. Only the human has a bat. The ray
+        // starts at the player's eye (`anchor`), not the camera: in third person the camera hangs
+        // metres behind the player, and testing from there "hit" things behind them.
+        let reach = self.shown_weapon().firearm().map_or(MELEE_REACH, |s| s.range);
+        // Online with a firearm the crosshair means something else: red when an enemy is in the sights and nothing solid is in front of them (gold on
+        // any wall within 80 m would be on nearly all the time).
+        let online_gun = self.net.is_some() && self.shown_weapon().is_firearm();
+        self.target_index = if self.body.has_bat && !self.carrying() && !online_gun { self.probe(anchor, reach).map(|(o, _, _)| o) } else { None };
+        self.aim_enemy = false;
+        if online_gun && !self.carrying() && !self.own_dead() {
+            let dir = self.camera.forward();
+            let wall = raycast_shapes(anchor, dir, reach, &self.hit_shapes).map_or(f32::INFINITY, |h| h.distance);
+            self.aim_enemy = self.net.as_ref().and_then(|n| n.player_in_sight(anchor, dir, reach)).is_some_and(|(_, d)| d < wall);
+        }
+
+        if let Some(t) = self.freeze_shot {
+            self.since_shot = t;
+            self.flash_left = if t < MUZZLE_FLASH_TIME { MUZZLE_FLASH_TIME * 0.9 } else { 0.0 };
+        }
+        if let Some(t) = self.freeze_swing {
+            self.swing_timer = Some(t);
+        }
     }
 
     pub(crate) fn update(&mut self, dt: f32) {
@@ -401,130 +556,13 @@ impl App {
             self.fixed_step_physics();
         }
         let alpha = self.clock.alpha();
-        // Between two physics states, the short way round (a looping world's seam is crossed between two ticks now and then).
-        let mut planar_pos = self.prev_physics_pos + self.scene.player.expanse.delta(self.prev_physics_pos, self.physics_pos) * alpha;
-        if let Some(net) = &self.net {
-            planar_pos += net.visual_offset();
+        self.update_player_view(dt, alpha);
+        for slot in 1..self.local_player_count() {
+            self.as_player(slot, |app| app.update_player_view(dt, alpha));
         }
-        let foot_y = self.prev_foot_y + (self.foot_y - self.prev_foot_y) * alpha;
-
-        let crouching =
-            self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight) || self.pad.down(red_engine2::controller::button::CROUCH);
-        let forward_held = self.keys.contains(&KeyCode::KeyW) || self.keys.contains(&KeyCode::ArrowUp) || self.pad.movement.y > 0.0;
-        let back_held = self.keys.contains(&KeyCode::KeyS) || self.keys.contains(&KeyCode::ArrowDown);
-        let sprinting = (self.sprint_held || self.pad.down(red_engine2::controller::button::SPRINT))
-            && forward_held
-            && !back_held
-            && !crouching
-            && self.scene.player.sprint_speed > self.scene.player.walk_speed;
-
-        // Crouch: blend the eye height toward its target instead of snapping, so the camera
-        // doesn't jump-cut when Ctrl is pressed/released.
-        let dead = self.own_dead();
-        let target_eye_height = if dead {
-            feedback::DEAD_EYE_HEIGHT
-        } else if crouching {
-            self.body.crouch_eye
-        } else {
-            self.body.stand_eye
-        };
-        let blend = (dt / if dead { 0.4 } else { CROUCH_TRANSITION_TIME }).min(1.0);
-        self.eye_height += (target_eye_height - self.eye_height) * blend;
-
-        // Update the player's own body (position/facing/pose) from the interpolated
-        // (pre-third-person-pullback) planar position, then place the camera: directly at the
-        // eye in first person, or pulled back behind/above it in third person. This order
-        // matters — the body must be placed before `self.camera.position` is potentially
-        // overwritten by the third-person pullback below.
-        let body_yaw_deg = 180.0 - self.camera.yaw.to_degrees();
-        self.update_player_body(planar_pos, body_yaw_deg, self.last_move_speed, dt);
-
-        let anchor = Vec3::new(planar_pos.x, foot_y + self.eye_height, planar_pos.y);
-        self.eye = anchor;
-        self.sync_flashlight();
         self.update_ambient(dt);
         if let Some(audio) = &self.audio {
             audio.tick();
-        }
-        // Cosmetic timers run on render time; everything that decides a hit is in `fixed_step_combat`.
-        self.since_shot += dt;
-        self.flash_left = (self.flash_left - dt).max(0.0);
-        // The animation reads mirrors of the tick-based swing/switch state, smoothed by `alpha`.
-        self.swing_timer = self.swing.elapsed_secs(alpha);
-        self.switching = self.switch.elapsed_secs(alpha);
-        self.camera.position = match self.view_mode {
-            ViewMode::FirstPerson => anchor,
-            ViewMode::ThirdPerson => {
-                let desired = anchor - self.camera.forward() * self.body.third_person_distance + Vec3::Y * self.body.third_person_lift;
-                // In a generated world the trees are walls for the camera too, and it never dips under the hill behind the character.
-                let walls = match self.ground.procgen() {
-                    Some(world) => world.colliders_near(Vec2::new(desired.x, desired.z), 4.0, &self.colliders),
-                    None => self.colliders.clone(),
-                };
-                let active = colliders_on_floor(&walls, foot_y);
-                let cam_radius = THIRD_PERSON_CAM_RADIUS.min(self.body.radius * 0.7);
-                let clamped = resolve_collision(Vec2::new(desired.x, desired.z), cam_radius, &active);
-                let floor = self.ground.terrain_height_at(clamped).map_or(f32::NEG_INFINITY, |h| h + 0.4);
-                Vec3::new(clamped.x, desired.y.max(floor), clamped.y)
-            }
-        };
-
-        // Aim-down-sights and sprint FOV transitions use the same smooth presentation path.
-        let wants_ads = (self.ads_held || self.pad.down(red_engine2::controller::button::AIM))
-            && self.shown_weapon().is_firearm()
-            && !self.carrying()
-            && self.view_mode == ViewMode::FirstPerson;
-        let ads_target = if wants_ads { 1.0 } else { 0.0 };
-        self.ads_blend += (ads_target - self.ads_blend) * (dt / ADS_TRANSITION_TIME).min(1.0);
-        let hip_fov = if sprinting { self.scene.player.fov_deg + SPRINT_FOV_BOOST_DEG } else { self.scene.player.fov_deg };
-        let aim_fov = 2.0 * ((0.5 * self.scene.player.fov_deg.to_radians()).tan() / self.shown_weapon().aim_magnification()).atan().to_degrees();
-        let target_fov = hip_fov + (aim_fov - hip_fov) * self.ads_blend;
-        let fov_blend = (dt / FOV_TRANSITION_TIME).min(1.0);
-        self.fov_deg += (target_fov - self.fov_deg) * fov_blend;
-        self.camera.fov_deg = self.fov_deg;
-        // A kart race is seen from behind and above the kart: the chase camera decides where the camera is and what it looks at.
-        if let Some(view) = self.net.as_ref().and_then(|n| n.kart_view()) {
-            let pose = self.chase.update(&view, dt);
-            self.camera.position = pose.eye;
-            self.camera.yaw = pose.yaw;
-            self.camera.pitch = pose.pitch;
-            self.camera.fov_deg = pose.fov_deg;
-        }
-
-        // Loose props: keep a carried one in front of the player, write every prop's physics pose into
-        // the scene, and see what the crosshair could pick up.
-        if let Some(props) = &mut self.props {
-            if let Some(h) = props.held() {
-                let pose = props.hold_pose(h, anchor, self.camera.forward(), self.body.radius, self.body.hold_drop, foot_y);
-                props.set_held_pose(pose);
-            }
-            props.sync_scene(&mut self.scene);
-            self.pickup_target = props.pick_target(anchor, self.camera.forward(), self.body.pickup_reach, &self.body.carry);
-        }
-
-        // What's the crosshair aimed at, within bat reach? (Drives the crosshair's gold "you
-        // could hit this" state.) Tested against the objects' real shapes, not bounding boxes, so
-        // it is gold only where a swing would actually connect. Only the human has a bat. The ray
-        // starts at the player's eye (`anchor`), not the camera: in third person the camera hangs
-        // metres behind the player, and testing from there "hit" things behind them.
-        let reach = self.shown_weapon().firearm().map_or(MELEE_REACH, |s| s.range);
-        // Online with a firearm the crosshair means something else: red when an enemy is in the sights and nothing solid is in front of them (gold on
-        // any wall within 80 m would be on nearly all the time).
-        let online_gun = self.net.is_some() && self.shown_weapon().is_firearm();
-        self.target_index = if self.body.has_bat && !self.carrying() && !online_gun { self.probe(anchor, reach).map(|(o, _, _)| o) } else { None };
-        self.aim_enemy = false;
-        if online_gun && !self.carrying() && !self.own_dead() {
-            let dir = self.camera.forward();
-            let wall = raycast_shapes(anchor, dir, reach, &self.hit_shapes).map_or(f32::INFINITY, |h| h.distance);
-            self.aim_enemy = self.net.as_ref().and_then(|n| n.player_in_sight(anchor, dir, reach)).is_some_and(|(_, d)| d < wall);
-        }
-
-        if let Some(t) = self.freeze_shot {
-            self.since_shot = t;
-            self.flash_left = if t < MUZZLE_FLASH_TIME { MUZZLE_FLASH_TIME * 0.9 } else { 0.0 };
-        }
-        if let Some(t) = self.freeze_swing {
-            self.swing_timer = Some(t);
         }
         if let Some(net) = self.net.as_mut() {
             // Other players and the server's props, interpolated, into the scene the renderer draws.
@@ -544,6 +582,10 @@ impl App {
         // Pictures asked for (`--shot-at`, F12, a script) are drawn first, offscreen: they need neither a visible window nor focus, and the window's own frame below
         // may well not be presented at all (a minimised or occluded window).
         self.take_due_shots();
+        if self.split.is_some() {
+            self.draw_split();
+            return;
+        }
         let weapon_transform = self.weapon_transform();
         let carrying = self.carrying();
         let dead = self.own_dead();
@@ -607,6 +649,13 @@ impl App {
         self.body = who.body();
         self.player_object_index = self.scene.objects.len();
         self.scene.objects.push(build_player_object(who));
+        // Local co-op: the other players' bodies join the scene now, before the renderer takes its meshes from it.
+        if self.want_players > 1 && self.net_server.is_none() && self.pending_net.is_none() {
+            if let Err(e) = self.add_local_guests(self.want_players, self.pads.count(), self.pads_only) {
+                eprintln!("split-screen: {e}");
+                std::process::exit(2);
+            }
+        }
         // Loose props (chairs, crates, apples...) live in the rigid-body world, not in the static
         // collider lists: they move.
         let online = self.net_server.is_some();
@@ -665,9 +714,10 @@ impl App {
         let _ = online;
         // The player's own body is in `scene.objects` so the renderer can draw it, but the bat must
         // never be able to hit it (e.g. looking down at your own feet), so it is skipped here.
-        let player_index = self.player_object_index;
-        self.hit_shapes = collect_hit_shapes_where(&self.scene, |i| i != player_index && !loose.contains(&i));
+        let bodies: Vec<usize> = std::iter::once(self.player_object_index).chain(self.locals.iter().flatten().map(|c| c.player_object_index)).collect();
+        self.hit_shapes = collect_hit_shapes_where(&self.scene, |i| !bodies.contains(&i) && !loose.contains(&i));
         self.props = props;
+        self.settle_guests();
         self.eye_height = self.body.stand_eye;
         self.camera.position.y = self.body.stand_eye;
         self.camera.near = self.body.near_plane;
@@ -686,17 +736,27 @@ impl App {
         }
         // The pool of glowing boxes that draws tracers and sparks joins the scene now: the renderer takes its meshes from the scene as it is built.
         self.streaks = Some(red_engine2::streaks::Streaks::new(red_engine2::streaks::add_pool(&mut self.scene)));
+        let split = self.gpu.as_ref().and_then(|gpu| self.split_for(&gpu.device, gpu.config.format, (gpu.config.width, gpu.config.height)));
+        let players = self.local_player_count();
         if let Some(gpu) = self.gpu.as_mut() {
+            // With several players on the screen the renderer is sized for one view; the compositor puts the views in the window.
+            let (w, h) = split.as_ref().map_or((gpu.config.width, gpu.config.height), |s| s.view_size());
             // A peaceful scene has no weapons: none of their meshes are built or uploaded.
-            gpu.live = Some(if self.scene.player.mode.is_peaceful() {
-                LiveRenderer::world(&gpu.device, gpu.config.format, &self.scene, gpu.config.width, gpu.config.height)
+            let mut live = if self.scene.player.mode.is_peaceful() {
+                LiveRenderer::world(&gpu.device, gpu.config.format, &self.scene, w, h)
             } else {
-                LiveRenderer::new(&gpu.device, gpu.config.format, &self.scene, gpu.config.width, gpu.config.height)
-            });
+                LiveRenderer::new(&gpu.device, gpu.config.format, &self.scene, w, h)
+            };
+            if players > 1 {
+                live.set_view_distance(red_engine2::splitscreen::view_distance(players));
+            }
+            gpu.live = Some(live);
             gpu.backdrop = None;
         }
+        self.split = split;
         self.phase = Phase::Playing;
         self.rule_hud_painted = None;
+        self.split_hud_painted.clear();
         self.start_music();
         println!("Playing as {}.", who.name());
         if let Some(window) = &self.window {

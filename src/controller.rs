@@ -156,7 +156,7 @@ impl Controller {
     }
     /// Poll the first connected controller, retaining ownership until it disconnects.
     pub fn poll(&mut self, focused: bool) -> Sample {
-        use gilrs::{Axis, Button, EventType};
+        use gilrs::EventType;
         let Some(native) = self.native.as_mut() else {
             return Sample::default();
         };
@@ -173,41 +173,111 @@ impl Controller {
         let Some(id) = self.active else {
             return Sample::default();
         };
-        let pad = native.gamepad(id);
-        let trigger = |b: Button| pad.button_data(b).map_or(0.0, |d| d.value()).clamp(0.0, 1.0);
-        // A small dead zone so a resting trigger that reads 0.02 does not creep the kart forward.
-        let shaped = |v: f32| if v < 0.05 { 0.0 } else { (v - 0.05) / 0.95 };
-        let mut raw = Sample {
-            movement: stick(Vec2::new(pad.value(Axis::LeftStickX), pad.value(Axis::LeftStickY)), 0.18),
-            look: stick(Vec2::new(pad.value(Axis::RightStickX), pad.value(Axis::RightStickY)), 0.15),
-            triggers: Vec2::new(shaped(trigger(Button::LeftTrigger2)), shaped(trigger(Button::RightTrigger2))),
-            ..Default::default()
-        };
-        for (physical, logical) in [
-            (Button::South, button::JUMP),
-            (Button::East, button::CROUCH),
-            (Button::West, button::INTERACT),
-            (Button::North, button::RELOAD),
-            (Button::LeftTrigger, button::PREVIOUS),
-            (Button::RightTrigger, button::NEXT),
-            (Button::Select, button::VIEW),
-            (Button::Start, button::PAUSE),
-            (Button::LeftThumb, button::SPRINT),
-            (Button::DPadLeft, button::LEFT),
-            (Button::DPadRight, button::RIGHT),
-            (Button::DPadUp, button::UP),
-            (Button::DPadDown, button::DOWN),
-        ] {
-            if pad.is_pressed(physical) {
-                raw.held |= logical;
-            }
-        }
-        for (physical, logical) in [(Button::LeftTrigger2, button::AIM), (Button::RightTrigger2, button::FIRE)] {
-            if pad.button_data(physical).is_some_and(|b| b.value() > 0.25) {
-                raw.held |= logical;
-            }
-        }
+        let raw = read_pad(native.gamepad(id));
         self.gate.sample(raw, focused)
+    }
+}
+
+/// One raw sample of a gamepad: the sticks shaped, the triggers, and the Xbox-named logical buttons held.
+#[cfg(feature = "gfx")]
+fn read_pad(pad: gilrs::Gamepad<'_>) -> Sample {
+    use gilrs::{Axis, Button};
+    let trigger = |b: Button| pad.button_data(b).map_or(0.0, |d| d.value()).clamp(0.0, 1.0);
+    // A small dead zone so a resting trigger that reads 0.02 does not creep the kart forward.
+    let shaped = |v: f32| if v < 0.05 { 0.0 } else { (v - 0.05) / 0.95 };
+    let mut raw = Sample {
+        movement: stick(Vec2::new(pad.value(Axis::LeftStickX), pad.value(Axis::LeftStickY)), 0.18),
+        look: stick(Vec2::new(pad.value(Axis::RightStickX), pad.value(Axis::RightStickY)), 0.15),
+        triggers: Vec2::new(shaped(trigger(Button::LeftTrigger2)), shaped(trigger(Button::RightTrigger2))),
+        ..Default::default()
+    };
+    for (physical, logical) in [
+        (Button::South, button::JUMP),
+        (Button::East, button::CROUCH),
+        (Button::West, button::INTERACT),
+        (Button::North, button::RELOAD),
+        (Button::LeftTrigger, button::PREVIOUS),
+        (Button::RightTrigger, button::NEXT),
+        (Button::Select, button::VIEW),
+        (Button::Start, button::PAUSE),
+        (Button::LeftThumb, button::SPRINT),
+        (Button::DPadLeft, button::LEFT),
+        (Button::DPadRight, button::RIGHT),
+        (Button::DPadUp, button::UP),
+        (Button::DPadDown, button::DOWN),
+    ] {
+        if pad.is_pressed(physical) {
+            raw.held |= logical;
+        }
+    }
+    for (physical, logical) in [(Button::LeftTrigger2, button::AIM), (Button::RightTrigger2, button::FIRE)] {
+        if pad.button_data(physical).is_some_and(|b| b.value() > 0.25) {
+            raw.held |= logical;
+        }
+    }
+    raw
+}
+
+/// Every connected gamepad, in the order they were plugged in, each with its own gate: what split-screen reads (player 1 plays on the keyboard, every other
+/// player on the next pad). [`Controller`] stays "the first pad" for the menus and a single player.
+#[cfg(feature = "gfx")]
+pub struct Pads {
+    native: Option<gilrs::Gilrs>,
+    /// Connection order; a pad that is unplugged leaves a gap that closes, so the others keep their order.
+    order: Vec<gilrs::GamepadId>,
+    gates: std::collections::HashMap<gilrs::GamepadId, Gate>,
+}
+
+#[cfg(feature = "gfx")]
+impl Default for Pads {
+    fn default() -> Self {
+        let native = gilrs::Gilrs::new().map_err(|e| eprintln!("Controller input unavailable: {e}")).ok();
+        let order = native.as_ref().map(|n| n.gamepads().filter(|(_, p)| p.is_connected()).map(|(id, _)| id).collect()).unwrap_or_default();
+        Pads { native, order, gates: Default::default() }
+    }
+}
+
+#[cfg(feature = "gfx")]
+impl Pads {
+    /// Polls every connected pad: one sample per pad in connection order, and the numbers (0 is the first) of pads unplugged since the last poll.
+    pub fn poll(&mut self, focused: bool) -> (Vec<Sample>, Vec<usize>) {
+        use gilrs::EventType;
+        let Some(native) = self.native.as_mut() else { return (Vec::new(), Vec::new()) };
+        let mut lost = Vec::new();
+        while let Some(event) = native.next_event() {
+            match event.event {
+                EventType::Connected if !self.order.contains(&event.id) => self.order.push(event.id),
+                EventType::Disconnected => {
+                    if let Some(i) = self.order.iter().position(|id| *id == event.id) {
+                        self.order.remove(i);
+                        self.gates.remove(&event.id);
+                        lost.push(i);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let samples = self
+            .order
+            .iter()
+            .map(|id| {
+                let raw = read_pad(native.gamepad(*id));
+                self.gates.entry(*id).or_default().sample(raw, focused)
+            })
+            .collect();
+        (samples, lost)
+    }
+
+    /// How many pads are connected.
+    pub fn count(&self) -> usize {
+        self.order.len()
+    }
+
+    /// Require release before resuming play after a menu transition.
+    pub fn reset(&mut self) {
+        for g in self.gates.values_mut() {
+            g.reset();
+        }
     }
 }
 

@@ -101,8 +101,19 @@ impl ApplicationHandler for App {
                     if let Some(surface) = &gpu.surface {
                         surface.configure(&gpu.device, &gpu.config);
                     }
-                    for r in [gpu.live.as_mut(), gpu.backdrop.as_mut()].into_iter().flatten() {
-                        r.resize(&gpu.device, gpu.config.width, gpu.config.height);
+                    // With several players the renderer is one view's size; the compositor says what that is now.
+                    let (rw, rh) = match self.split.as_mut() {
+                        Some(split) => {
+                            split.resize(&gpu.device, (gpu.config.width, gpu.config.height));
+                            split.view_size()
+                        }
+                        None => (gpu.config.width, gpu.config.height),
+                    };
+                    if let Some(live) = gpu.live.as_mut() {
+                        live.resize(&gpu.device, rw, rh);
+                    }
+                    if let Some(backdrop) = gpu.backdrop.as_mut() {
+                        backdrop.resize(&gpu.device, gpu.config.width, gpu.config.height);
                     }
                 }
                 if self.paused {
@@ -110,6 +121,7 @@ impl ApplicationHandler for App {
                 }
                 self.online.painted = None;
                 self.rule_hud_painted = None;
+                self.split_hud_painted.clear();
                 self.repaint_maps();
                 // A mode change (fullscreen on or off) released the mouse: take it back now that the window has settled.
                 if std::mem::take(&mut self.regrab) && !self.paused && self.phase == Phase::Playing && !self.online.takeover {
@@ -293,6 +305,7 @@ impl ApplicationHandler for App {
                 self.last_frame = now;
                 let pad_t0 = Instant::now();
                 self.poll_controller(dt, event_loop);
+                self.poll_guest_pads(dt);
                 let pad_ms = pad_t0.elapsed().as_secs_f32() * 1000.0;
                 // Online, the same line says how the other players fared: drawn, undrawn, stood in for, left out by interest management.
                 let remote_summary = self

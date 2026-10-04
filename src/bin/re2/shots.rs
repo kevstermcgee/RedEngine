@@ -24,7 +24,7 @@ pub(crate) struct Shots {
     schedule: Vec<f32>,
     next: usize,
     queue: Vec<(String, CameraSpec)>,
-    capture: Option<Capture>,
+    pub(crate) capture: Option<Capture>,
     pub taken: Vec<ShotRecord>,
     pub errors: Vec<String>,
 }
@@ -57,7 +57,7 @@ impl Shots {
         self.next < self.schedule.len() || !self.queue.is_empty()
     }
 
-    fn path_for(&self, name: &str) -> PathBuf {
+    pub(crate) fn path_for(&self, name: &str) -> PathBuf {
         self.dir.join(format!("{:03}-{name}.png", self.taken.len() + 1))
     }
 }
@@ -67,6 +67,7 @@ fn describe(camera: &CameraSpec) -> String {
         CameraSpec::First => "first".into(),
         CameraSpec::Third => "third".into(),
         CameraSpec::Overview => "overview".into(),
+        CameraSpec::Split => "split".into(),
         CameraSpec::Follow(None) => "follow".into(),
         CameraSpec::Follow(Some(id)) => format!("follow:{id}"),
         CameraSpec::Free { .. } => "free".into(),
@@ -124,6 +125,7 @@ impl App {
                 let eye = head + toward_me * 3.0 + Vec3::Y * 0.8;
                 look_from(eye, head, fov, mine)
             }
+            CameraSpec::Split => return Err("a split picture has no single camera".into()),
             CameraSpec::Free { eye, at, fov: f } => look_from(Vec3::from(*eye), Vec3::from(*at), f.unwrap_or(fov), mine),
         })
     }
@@ -147,6 +149,9 @@ impl App {
 
     /// Renders the current frame from `camera` into an offscreen target the size of the window's (or the headless frame's) and saves it as a PNG.
     pub(crate) fn capture_shot(&mut self, name: &str, camera: &CameraSpec) -> Result<ShotRecord, String> {
+        if *camera == CameraSpec::Split {
+            return self.capture_split(name);
+        }
         let cam = self.shot_camera(camera)?;
         let first = *camera == CameraSpec::First;
         let path = self.shots.path_for(name);

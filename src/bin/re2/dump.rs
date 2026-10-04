@@ -126,6 +126,7 @@ impl App {
                 "dead": self.own_dead(),
                 "carrying": self.carrying(),
             },
+            "players": self.players_state(),
             "audio": self.ambient_state(),
             "online": online,
             "remote": remote,
