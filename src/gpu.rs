@@ -7,7 +7,7 @@ use glam::Vec3;
 use wgpu::util::DeviceExt;
 
 /// Shadow-map resolution in texels (square).
-pub const SHADOW_SIZE: u32 = 2048;
+pub const SHADOW_SIZE: u32 = crate::shadow::MAIN_SIZE;
 pub use crate::schema::MAX_LIGHTS;
 /// Offline-render supersampling factor per axis (the live viewer uses MSAA instead).
 pub const SUPERSAMPLE: u32 = 2;
@@ -21,7 +21,10 @@ pub const MSAA_SAMPLES: u32 = 4;
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct GlobalUniform {
     pub view_proj: [[f32; 4]; 4],
-    pub light_view_proj: [[f32; 4]; 4],
+    /// The sun's shadow cascades: matrices, atlas rectangles (uv offset and scale) and per-cascade `[metres per texel, depth per metre, 0, 0]`.
+    pub cascade_vp: [[[f32; 4]; 4]; 3],
+    pub cascade_rect: [[f32; 4]; 3],
+    pub cascade_params: [[f32; 4]; 3],
     pub camera_pos: [f32; 4],
     pub ambient: [f32; 4],
     pub light_pos_or_dir: [[f32; 4]; MAX_LIGHTS],
@@ -47,6 +50,34 @@ pub struct GlobalUniform {
     pub glow: [f32; 4],
     /// Haze: the colour distance fades into (rgb) and its density per metre (w); density 0 means none.
     pub fog: [f32; 4],
+}
+
+impl GlobalUniform {
+    /// How many shadow cascades are in use (0 when no light casts shadows).
+    pub fn cascade_count(&self) -> usize {
+        if self.counts[1] < 0.0 {
+            0
+        } else {
+            (self.counts[2] as usize).clamp(1, crate::shadow::MAX_CASCADES)
+        }
+    }
+
+    /// Cascade `k`'s rectangle of the shadow atlas in pixels: `[x, y, width, height]`.
+    pub fn cascade_viewport(&self, k: usize) -> [f32; 4] {
+        let r = self.cascade_rect[k];
+        let (w, h) = (crate::shadow::ATLAS.0 as f32, crate::shadow::ATLAS.1 as f32);
+        [(r[0] * w).round(), (r[1] * h).round(), (r[2] * w).round(), (r[3] * h).round()]
+    }
+
+    /// Which plants cascade `k` draws: the nearest of three also the flowers and grass it covers, the farthest only trees.
+    pub fn cascade_detail(&self, k: usize) -> crate::stream_gpu::ShadowDetail {
+        use crate::stream_gpu::ShadowDetail;
+        match (self.cascade_count(), k) {
+            (3, 0) => ShadowDetail::SolidAndFlora,
+            (3, 2) => ShadowDetail::Trees,
+            _ => ShadowDetail::Solid,
+        }
+    }
 }
 
 /// Per-object uniform block (transform and material); one slot per mesh.
@@ -468,7 +499,7 @@ impl FrameTargets {
         });
         let shadow_tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("shadow-map"),
-            size: wgpu::Extent3d { width: SHADOW_SIZE, height: SHADOW_SIZE, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d { width: crate::shadow::ATLAS.0, height: crate::shadow::ATLAS.1, depth_or_array_layers: 1 },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,

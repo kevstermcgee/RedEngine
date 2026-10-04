@@ -2,8 +2,8 @@
 //!
 //! A scene with a `procgen` block gets one of these in each renderer. It owns its own object-uniform buffer (one slot per draw, written when the chunk
 //! arrives and never again, because chunks do not move), so it needs nothing from the renderer's object slots: the renderer hands it the render pass and the
-//! frustum planes and it issues the draws. A chunk is up to three draws (ground, solid plants, flora). The ground is not drawn in the shadow pass, flowers and
-//! grass neither, so the shadow map holds only the trees and bushes near the light's box.
+//! frustum planes and it issues the draws. A chunk is up to three draws (ground, solid plants, flora). The ground is not drawn in the shadow pass. Which plants are
+//! depends on the cascade ([`ShadowDetail`]): the far map holds only trees, the middle one trees and shrubs, the nearest also the squares of flowers and grass it covers.
 //!
 //! Live, [`StreamLayer::update`] is called every frame: it asks the streamer (which builds on worker threads) for what changed and uploads a few chunks.
 //! Offline, [`StreamLayer::fill`] builds everything around the camera first, because a still frame cannot wait.
@@ -26,6 +26,19 @@ const SLOTS: u32 = 3 * 400;
 struct Part {
     mesh: GpuMesh,
     slot: u32,
+    /// Runs of the index buffer that matter on their own: the trees of a solid part (one run), the squares of a flora part (one each, in grid order). Empty otherwise.
+    runs: Vec<(u32, u32)>,
+}
+
+/// What a shadow cascade draws (see `shadow.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShadowDetail {
+    /// Only the trees: the far map, whose texels are too coarse for anything smaller.
+    Trees,
+    /// Trees and shrubs.
+    Solid,
+    /// Trees, shrubs, and the squares of flowers and grass that touch the map's box: the nearest map.
+    SolidAndFlora,
 }
 
 /// A chunk on the GPU.
@@ -50,6 +63,8 @@ pub struct DrawStats {
     pub draws: u32,
     /// Triangles those draws hold.
     pub tris: u64,
+    /// Triangles drawn into the shadow cascades for that frame.
+    pub shadow_tris: u64,
 }
 
 /// The streamed world.
@@ -63,6 +78,8 @@ pub struct StreamLayer {
     /// The point the renderer measures from; chunks are placed relative to it.
     origin: Vec3,
     drawn: std::cell::Cell<DrawStats>,
+    /// Triangles drawn into the shadow cascades since the last main pass (reset when the main pass starts).
+    shadow_tris: std::cell::Cell<u64>,
     lights: MoteLights,
 }
 
@@ -151,6 +168,7 @@ impl StreamLayer {
             stride,
             origin: Vec3::ZERO,
             drawn: Default::default(),
+            shadow_tris: Default::default(),
         }
     }
 
@@ -251,13 +269,13 @@ impl StreamLayer {
         queue.write_buffer(&self.object_buf, slot as u64 * self.stride, bytemuck::bytes_of(&uniform));
     }
 
-    fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, g: &Geo, corner: Vec3) -> Option<Part> {
+    fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, g: &Geo, corner: Vec3, runs: Vec<(u32, u32)>) -> Option<Part> {
         if g.idx.is_empty() {
             return None;
         }
         let slot = self.free.pop()?;
         self.write_uniform(queue, slot, corner);
-        Some(Part { mesh: GpuMesh::upload(device, &to_mesh(g)), slot })
+        Some(Part { mesh: GpuMesh::upload(device, &to_mesh(g)), slot, runs })
     }
 
     /// Tells the layer where the renderer measures from; when that moves (every couple of kilometres of walking) every chunk is re-placed.
@@ -291,9 +309,9 @@ impl StreamLayer {
         // Plants sway a little: pad the box by their largest reach so a swaying crown is never culled while visible.
         let pad = Vec3::splat(0.5);
         Resident {
-            ground: self.upload(device, queue, &c.ground, origin),
-            solid: self.upload(device, queue, &c.solid, origin),
-            flora: self.upload(device, queue, &c.flora, origin),
+            ground: self.upload(device, queue, &c.ground, origin, Vec::new()),
+            solid: self.upload(device, queue, &c.solid, origin, vec![(0, c.solid_trees as u32)]),
+            flora: self.upload(device, queue, &c.flora, origin, c.flora_cells.clone()),
             centre: (lo + hi) * 0.5,
             half: (hi - lo) * 0.5 + pad,
             tris: c.tris() as u32,
@@ -301,16 +319,42 @@ impl StreamLayer {
         }
     }
 
-    /// Draws the trees and bushes into the shadow pass (`pass` has the shadow pipeline and the global uniform set), skipping chunks off the light's box.
-    pub fn draw_shadow(&self, pass: &mut wgpu::RenderPass<'_>, light_planes: &[Vec4; 6]) {
+    /// Draws into the shadow pass for the cascade `instance` (`pass` has the shadow pipeline and the global uniform set): what `detail` says, in the chunks (and flora squares)
+    /// that touch the cascade's box. Returns the triangles drawn.
+    pub fn draw_shadow(&self, pass: &mut wgpu::RenderPass<'_>, light_planes: &[Vec4; 6], detail: ShadowDetail, instance: std::ops::Range<u32>) -> u64 {
+        let mut tris = 0u64;
         for r in self.resident.values() {
-            if aabb_outside_frustum(r.corner - self.origin + r.centre, r.half, light_planes) {
+            let centre = r.corner - self.origin + r.centre;
+            if aabb_outside_frustum(centre, r.half, light_planes) {
                 continue;
             }
             if let Some(p) = &r.solid {
-                self.draw(pass, p);
+                let count = if detail == ShadowDetail::Trees { p.runs.first().map_or(0, |t| t.1) } else { p.mesh.index_count };
+                if count > 0 {
+                    self.draw_range(pass, p, 0, count, instance.clone());
+                    tris += count as u64 / 3;
+                }
+            }
+            if let (ShadowDetail::SolidAndFlora, Some(p)) = (detail, &r.flora) {
+                let corner = r.corner - self.origin;
+                let half_cell = crate::procgen::chunk::FLORA_CELL * 0.5;
+                for (k, &(start, count)) in p.runs.iter().enumerate() {
+                    if count == 0 {
+                        continue;
+                    }
+                    let (cx, cz) = ((k % crate::procgen::chunk::FLORA_CELLS) as f32, (k / crate::procgen::chunk::FLORA_CELLS) as f32);
+                    let cell_centre = Vec3::new(corner.x + (cx + 0.5) * half_cell * 2.0, centre.y, corner.z + (cz + 0.5) * half_cell * 2.0);
+                    // A square of flowers and grass overhangs its edges by a plant's width at most.
+                    if aabb_outside_frustum(cell_centre, Vec3::new(half_cell + 1.0, r.half.y, half_cell + 1.0), light_planes) {
+                        continue;
+                    }
+                    self.draw_range(pass, p, start, count, instance.clone());
+                    tris += count as u64 / 3;
+                }
             }
         }
+        self.shadow_tris.set(self.shadow_tris.get() + tris);
+        tris
     }
 
     /// Draws the ground, trees, bushes, flowers and grass into the main pass (`pass` has the main pipeline and the global bindings set).
@@ -327,13 +371,17 @@ impl StreamLayer {
             }
             tris += r.tris as u64;
         }
-        self.drawn.set(DrawStats { resident: self.resident.len(), draws, tris });
+        self.drawn.set(DrawStats { resident: self.resident.len(), draws, tris, shadow_tris: self.shadow_tris.replace(0) });
     }
 
     fn draw(&self, pass: &mut wgpu::RenderPass<'_>, p: &Part) {
+        self.draw_range(pass, p, 0, p.mesh.index_count, 0..1);
+    }
+
+    fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, p: &Part, start: u32, count: u32, instance: std::ops::Range<u32>) {
         pass.set_bind_group(1, &self.bind_group, &[(p.slot as u64 * self.stride) as u32]);
         pass.set_vertex_buffer(0, p.mesh.vertex_buf.slice(..));
         pass.set_index_buffer(p.mesh.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..p.mesh.index_count, 0, 0..1);
+        pass.draw_indexed(start..start + count, 0, instance);
     }
 }

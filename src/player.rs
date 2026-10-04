@@ -199,7 +199,7 @@ pub enum Character {
     Nightfall,
     /// A too-tall, too-thin, featureless figure on the human rig — a monster, not a costume.
     Hollow,
-    /// A boy of about nine in a red-orange jumper with a backpack and a scarf: a child's proportions on the human rig, and slower, smaller, with no bat.
+    /// A boy of about nine in a red-orange jumper and a yellow scarf, smiling: a picture-book child (big round head, sturdy limbs) on the human rig, and slower, smaller, with no bat.
     Boy,
 }
 

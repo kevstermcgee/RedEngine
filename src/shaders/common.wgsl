@@ -8,7 +8,11 @@ const MAX_LIGHTS: u32 = 16u;
 
 struct Globals {
     view_proj: mat4x4<f32>,
-    light_view_proj: mat4x4<f32>,
+    // Sun shadow cascades (see shadow.rs): the matrix of each, its rectangle of the atlas (uv offset xy, scale zw) and
+    // x: metres per shadow texel, y: depth units per metre. counts.z says how many are in use.
+    cascade_vp: array<mat4x4<f32>, 3>,
+    cascade_rect: array<vec4<f32>, 3>,
+    cascade_params: array<vec4<f32>, 3>,
     camera_pos: vec4<f32>,
     ambient: vec4<f32>,
     light_pos_or_dir: array<vec4<f32>, 16>,
