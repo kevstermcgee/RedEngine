@@ -2,485 +2,20 @@
   "format": 1,
   "note": "audio golden: how each built-in sound measures. Regenerate with `red_engine2 audio golden --write` and review the diff.",
   "sounds": {
-    "gun.r9_service_pistol": {
-      "secs": 0.44999998807907104,
-      "peak_dbfs": -4.199999809265137,
-      "lufs": -19.299999237060547,
-      "centroid_hz": 469.0,
-      "bands_pct": [
-        1.0,
-        87.0,
-        7.0,
-        3.0,
-        2.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 150.0
-    },
-    "gun.viper_machine_pistol": {
-      "secs": 0.20000000298023224,
-      "peak_dbfs": -7.5,
-      "lufs": -22.299999237060547,
-      "centroid_hz": 861.0,
-      "bands_pct": [
-        1.0,
-        80.0,
-        11.0,
-        5.0,
-        4.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 181.0
-    },
-    "gun.ember_smg": {
-      "secs": 0.2199999988079071,
-      "peak_dbfs": -7.099999904632568,
-      "lufs": -21.100000381469727,
-      "centroid_hz": 604.0,
-      "bands_pct": [
-        1.0,
-        86.0,
-        7.0,
-        4.0,
-        2.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 141.0
-    },
-    "gun.rook_carbine": {
-      "secs": 0.5,
-      "peak_dbfs": -5.699999809265137,
-      "lufs": -19.100000381469727,
-      "centroid_hz": 440.0,
-      "bands_pct": [
-        4.0,
-        82.0,
-        9.0,
-        3.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 113.0
-    },
-    "gun.redline_rifle": {
-      "secs": 0.6000000238418579,
-      "peak_dbfs": -5.199999809265137,
-      "lufs": -20.100000381469727,
-      "centroid_hz": 363.0,
-      "bands_pct": [
-        13.0,
-        75.0,
-        8.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 94.0
-    },
-    "gun.kestrel_bullpup": {
-      "secs": 0.550000011920929,
-      "peak_dbfs": -6.0,
-      "lufs": -18.899999618530273,
-      "centroid_hz": 413.0,
-      "bands_pct": [
-        3.0,
-        84.0,
-        10.0,
-        3.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 112.0
-    },
-    "gun.longbow_marksman_rifle": {
-      "secs": 0.8500000238418579,
+    "ambience.map": {
+      "secs": 20.0,
       "peak_dbfs": -4.400000095367432,
-      "lufs": -19.200000762939453,
-      "centroid_hz": 344.0,
-      "bands_pct": [
-        39.0,
-        47.0,
-        10.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 73.0
-    },
-    "gun.breach_shotgun": {
-      "secs": 0.949999988079071,
-      "peak_dbfs": -3.299999952316284,
-      "lufs": -17.799999237060547,
-      "centroid_hz": 380.0,
+      "lufs": -20.899999618530273,
+      "centroid_hz": 282.0,
       "bands_pct": [
         52.0,
-        33.0,
-        12.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 62.0
-    },
-    "gun.atlas_lmg": {
-      "secs": 0.4000000059604645,
-      "peak_dbfs": -6.0,
-      "lufs": -18.899999618530273,
-      "centroid_hz": 296.0,
-      "bands_pct": [
-        18.0,
-        73.0,
-        7.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 76.0
-    },
-    "gun.warden_scout_rifle": {
-      "secs": 1.2000000476837158,
-      "peak_dbfs": -4.199999809265137,
-      "lufs": -18.899999618530273,
-      "centroid_hz": 365.0,
-      "bands_pct": [
-        60.0,
-        23.0,
+        32.0,
         13.0,
-        3.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 52.0
-    },
-    "gun.bulldog_.45": {
-      "secs": 0.5,
-      "peak_dbfs": -4.400000095367432,
-      "lufs": -18.200000762939453,
-      "centroid_hz": 360.0,
-      "bands_pct": [
-        3.0,
-        87.0,
-        6.0,
         2.0,
         1.0
       ],
       "clipped": 0,
-      "dominant_hz": 126.0
-    },
-    "gun.hand_cannon_.50": {
-      "secs": 0.8999999761581421,
-      "peak_dbfs": -3.0999999046325684,
-      "lufs": -17.5,
-      "centroid_hz": 405.0,
-      "bands_pct": [
-        26.0,
-        56.0,
-        14.0,
-        3.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 80.0
-    },
-    "gun.marshal_.357": {
-      "secs": 0.800000011920929,
-      "peak_dbfs": -3.5999999046325684,
-      "lufs": -18.899999618530273,
-      "centroid_hz": 355.0,
-      "bands_pct": [
-        20.0,
-        67.0,
-        10.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 91.0
-    },
-    "gun.stinger_smg": {
-      "secs": 0.25,
-      "peak_dbfs": -6.699999809265137,
-      "lufs": -20.600000381469727,
-      "centroid_hz": 520.0,
-      "bands_pct": [
-        1.0,
-        88.0,
-        6.0,
-        3.0,
-        2.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 137.0
-    },
-    "gun.ranger_pdw": {
-      "secs": 0.18000000715255737,
-      "peak_dbfs": -8.399999618530273,
-      "lufs": -23.100000381469727,
-      "centroid_hz": 1093.0,
-      "bands_pct": [
-        0.0,
-        78.0,
-        9.0,
-        7.0,
-        5.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 201.0
-    },
-    "gun.wasp_smg": {
-      "secs": 0.18000000715255737,
-      "peak_dbfs": -8.0,
-      "lufs": -22.0,
-      "centroid_hz": 863.0,
-      "bands_pct": [
-        1.0,
-        81.0,
-        9.0,
-        5.0,
-        4.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 170.0
-    },
-    "gun.ironside_battle_rifle": {
-      "secs": 0.699999988079071,
-      "peak_dbfs": -4.699999809265137,
-      "lufs": -19.700000762939453,
-      "centroid_hz": 356.0,
-      "bands_pct": [
-        23.0,
-        64.0,
-        10.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 86.0
-    },
-    "gun.gale_sniper": {
-      "secs": 0.8999999761581421,
-      "peak_dbfs": -4.400000095367432,
-      "lufs": -18.700000762939453,
-      "centroid_hz": 324.0,
-      "bands_pct": [
-        43.0,
-        43.0,
-        11.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 65.0
-    },
-    "gun.sentinel_.338": {
-      "secs": 1.399999976158142,
-      "peak_dbfs": -2.9000000953674316,
-      "lufs": -17.100000381469727,
-      "centroid_hz": 316.0,
-      "bands_pct": [
-        69.0,
-        16.0,
-        12.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 40.0
-    },
-    "gun.auto-12_shotgun": {
-      "secs": 0.800000011920929,
-      "peak_dbfs": -3.9000000953674316,
-      "lufs": -18.0,
-      "centroid_hz": 374.0,
-      "bands_pct": [
-        50.0,
-        37.0,
-        9.0,
-        3.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 66.0
-    },
-    "gun.coach_gun": {
-      "secs": 1.0,
-      "peak_dbfs": -2.200000047683716,
-      "lufs": -15.699999809265137,
-      "centroid_hz": 335.0,
-      "bands_pct": [
-        68.0,
-        18.0,
-        10.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 48.0
-    },
-    "gun.hammer_mg": {
-      "secs": 0.41999998688697815,
-      "peak_dbfs": -6.0,
-      "lufs": -18.799999237060547,
-      "centroid_hz": 294.0,
-      "bands_pct": [
-        26.0,
-        65.0,
-        6.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 71.0
-    },
-    "gun.lancer_rocket_launcher": {
-      "secs": 1.5,
-      "peak_dbfs": -2.5999999046325684,
-      "lufs": -16.399999618530273,
-      "centroid_hz": 400.0,
-      "bands_pct": [
-        72.0,
-        9.0,
-        15.0,
-        3.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 33.0
-    },
-    "gun.thumper_grenade_launcher": {
-      "secs": 0.6000000238418579,
-      "peak_dbfs": -4.400000095367432,
-      "lufs": -18.299999237060547,
-      "centroid_hz": 371.0,
-      "bands_pct": [
-        44.0,
-        41.0,
-        12.0,
-        3.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 62.0
-    },
-    "fx.bat_swing": {
-      "secs": 0.23999999463558197,
-      "peak_dbfs": -9.899999618530273,
-      "lufs": -12.800000190734863,
-      "centroid_hz": 6237.0,
-      "bands_pct": [
-        2.0,
-        4.0,
-        24.0,
-        31.0,
-        39.0
-      ],
-      "clipped": 0,
-      "dominant_hz": null
-    },
-    "fx.bat_hit": {
-      "secs": 0.23999999463558197,
-      "peak_dbfs": -1.899999976158142,
-      "lufs": -13.0,
-      "centroid_hz": 95.0,
-      "bands_pct": [
-        0.0,
-        97.0,
-        3.0,
-        0.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 82.0
-    },
-    "fx.hit_tick": {
-      "secs": 0.07000000029802322,
-      "peak_dbfs": -6.900000095367432,
-      "lufs": -14.300000190734863,
-      "centroid_hz": 2204.0,
-      "bands_pct": [
-        0.0,
-        0.0,
-        0.0,
-        100.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 2100.0
-    },
-    "fx.kill_ding": {
-      "secs": 0.75,
-      "peak_dbfs": -4.400000095367432,
-      "lufs": -14.399999618530273,
-      "centroid_hz": 1159.0,
-      "bands_pct": [
-        0.0,
-        8.0,
-        91.0,
-        1.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 1047.0
-    },
-    "fx.hurt": {
-      "secs": 0.2800000011920929,
-      "peak_dbfs": -3.5999999046325684,
-      "lufs": -14.699999809265137,
-      "centroid_hz": 124.0,
-      "bands_pct": [
-        3.0,
-        95.0,
-        1.0,
-        0.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 70.0
-    },
-    "fx.death": {
-      "secs": 1.100000023841858,
-      "peak_dbfs": -4.400000095367432,
-      "lufs": -16.299999237060547,
-      "centroid_hz": 338.0,
-      "bands_pct": [
-        2.0,
-        29.0,
-        69.0,
-        1.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 332.0
-    },
-    "fx.respawn": {
-      "secs": 0.44999998807907104,
-      "peak_dbfs": -6.0,
-      "lufs": -12.300000190734863,
-      "centroid_hz": 2556.0,
-      "bands_pct": [
-        1.0,
-        8.0,
-        60.0,
-        18.0,
-        13.0
-      ],
-      "clipped": 0,
-      "dominant_hz": null
-    },
-    "fx.pad_launch": {
-      "secs": 0.44999998807907104,
-      "peak_dbfs": -6.0,
-      "lufs": -15.399999618530273,
-      "centroid_hz": 835.0,
-      "bands_pct": [
-        0.0,
-        0.0,
-        100.0,
-        0.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 656.0
+      "dominant_hz": 50.0
     },
     "fx.alert": {
       "secs": 1.0,
@@ -497,257 +32,32 @@
       "clipped": 0,
       "dominant_hz": 660.0
     },
-    "fx.go": {
-      "secs": 0.41999998688697815,
-      "peak_dbfs": -7.5,
-      "lufs": -6.900000095367432,
-      "centroid_hz": 1341.0,
+    "fx.bat_hit": {
+      "secs": 0.23999999463558197,
+      "peak_dbfs": -1.899999976158142,
+      "lufs": -13.0,
+      "centroid_hz": 95.0,
       "bands_pct": [
-        0.0,
-        0.0,
-        99.0,
-        1.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 1320.0
-    },
-    "fx.victory": {
-      "secs": 1.7000000476837158,
-      "peak_dbfs": -4.199999809265137,
-      "lufs": -8.899999618530273,
-      "centroid_hz": 1022.0,
-      "bands_pct": [
-        0.0,
         0.0,
         97.0,
         3.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 784.0
-    },
-    "fx.defeat": {
-      "secs": 1.600000023841858,
-      "peak_dbfs": -6.0,
-      "lufs": -12.199999809265137,
-      "centroid_hz": 369.0,
-      "bands_pct": [
-        0.0,
-        9.0,
-        91.0,
         0.0,
         0.0
       ],
       "clipped": 0,
-      "dominant_hz": 294.0
+      "dominant_hz": 82.0
     },
-    "fx.heartbeat": {
-      "secs": 0.550000011920929,
-      "peak_dbfs": -5.199999809265137,
-      "lufs": -19.5,
-      "centroid_hz": 54.0,
-      "bands_pct": [
-        71.0,
-        29.0,
-        0.0,
-        0.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 55.0
-    },
-    "fx.landing": {
-      "secs": 0.20000000298023224,
-      "peak_dbfs": -3.0999999046325684,
-      "lufs": -14.0,
-      "centroid_hz": 197.0,
-      "bands_pct": [
-        55.0,
-        38.0,
-        5.0,
-        1.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 58.0
-    },
-    "fx.jump": {
-      "secs": 0.1599999964237213,
-      "peak_dbfs": -10.5,
-      "lufs": -13.600000381469727,
-      "centroid_hz": 4747.0,
-      "bands_pct": [
-        1.0,
-        4.0,
-        36.0,
-        31.0,
-        27.0
-      ],
-      "clipped": 0,
-      "dominant_hz": null
-    },
-    "fx.explosion": {
-      "secs": 1.899999976158142,
-      "peak_dbfs": -0.4000000059604645,
-      "lufs": -10.899999618530273,
-      "centroid_hz": 228.0,
-      "bands_pct": [
-        30.0,
-        59.0,
-        9.0,
-        1.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 86.0
-    },
-    "fx.flash_pop": {
-      "secs": 2.0,
-      "peak_dbfs": -0.8999999761581421,
-      "lufs": -9.199999809265137,
-      "centroid_hz": 4296.0,
-      "bands_pct": [
-        0.0,
-        6.0,
-        0.0,
-        80.0,
-        14.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 4200.0
-    },
-    "fx.smoke_pop": {
-      "secs": 1.5,
-      "peak_dbfs": -4.400000095367432,
-      "lufs": -17.200000762939453,
-      "centroid_hz": 8045.0,
-      "bands_pct": [
-        0.0,
-        21.0,
-        10.0,
-        16.0,
-        52.0
-      ],
-      "clipped": 0,
-      "dominant_hz": null
-    },
-    "fx.fire_burst": {
-      "secs": 1.399999976158142,
-      "peak_dbfs": -2.5,
-      "lufs": -11.199999809265137,
-      "centroid_hz": 1358.0,
-      "bands_pct": [
-        5.0,
-        33.0,
-        46.0,
-        11.0,
-        5.0
-      ],
-      "clipped": 0,
-      "dominant_hz": null
-    },
-    "fx.grenade_bounce": {
-      "secs": 0.30000001192092896,
-      "peak_dbfs": -6.0,
-      "lufs": -18.700000762939453,
-      "centroid_hz": 1389.0,
-      "bands_pct": [
-        0.0,
-        0.0,
-        84.0,
-        16.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 1250.0
-    },
-    "fx.reload_mag": {
-      "secs": 0.949999988079071,
-      "peak_dbfs": -6.0,
-      "lufs": -27.100000381469727,
-      "centroid_hz": 2060.0,
-      "bands_pct": [
-        0.0,
-        1.0,
-        85.0,
-        7.0,
-        7.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 1300.0
-    },
-    "fx.reload_shell": {
-      "secs": 0.18000000715255737,
-      "peak_dbfs": -7.5,
-      "lufs": -22.100000381469727,
-      "centroid_hz": 538.0,
-      "bands_pct": [
-        0.0,
-        0.0,
-        100.0,
-        0.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 520.0
-    },
-    "fx.bolt_cycle": {
-      "secs": 0.550000011920929,
-      "peak_dbfs": -6.0,
-      "lufs": -21.600000381469727,
-      "centroid_hz": 545.0,
-      "bands_pct": [
-        1.0,
-        7.0,
-        91.0,
-        0.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 300.0
-    },
-    "fx.pickup": {
-      "secs": 0.2199999988079071,
-      "peak_dbfs": -6.900000095367432,
-      "lufs": -15.100000381469727,
-      "centroid_hz": 1471.0,
-      "bands_pct": [
-        0.0,
-        0.0,
-        100.0,
-        0.0,
-        0.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 1560.0
-    },
-    "fx.throw_whoosh": {
-      "secs": 0.30000001192092896,
-      "peak_dbfs": -8.0,
-      "lufs": -12.699999809265137,
-      "centroid_hz": 4124.0,
+    "fx.bat_swing": {
+      "secs": 0.23999999463558197,
+      "peak_dbfs": -9.899999618530273,
+      "lufs": -12.800000190734863,
+      "centroid_hz": 6237.0,
       "bands_pct": [
         2.0,
-        7.0,
-        38.0,
-        32.0,
-        22.0
-      ],
-      "clipped": 0,
-      "dominant_hz": null
-    },
-    "fx.blade_swish": {
-      "secs": 0.20000000298023224,
-      "peak_dbfs": -8.899999618530273,
-      "lufs": -11.399999618530273,
-      "centroid_hz": 7408.0,
-      "bands_pct": [
-        0.0,
-        0.0,
-        14.0,
-        39.0,
-        47.0
+        4.0,
+        24.0,
+        31.0,
+        39.0
       ],
       "clipped": 0,
       "dominant_hz": null
@@ -766,6 +76,261 @@
       ],
       "clipped": 0,
       "dominant_hz": 130.0
+    },
+    "fx.blade_swish": {
+      "secs": 0.20000000298023224,
+      "peak_dbfs": -8.899999618530273,
+      "lufs": -11.399999618530273,
+      "centroid_hz": 7408.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        14.0,
+        39.0,
+        47.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "fx.bolt_cycle": {
+      "secs": 0.550000011920929,
+      "peak_dbfs": -6.0,
+      "lufs": -21.600000381469727,
+      "centroid_hz": 545.0,
+      "bands_pct": [
+        1.0,
+        7.0,
+        91.0,
+        0.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 300.0
+    },
+    "fx.countdown_beep": {
+      "secs": 0.10999999940395355,
+      "peak_dbfs": -7.5,
+      "lufs": -8.0,
+      "centroid_hz": 893.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        99.0,
+        1.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 880.0
+    },
+    "fx.death": {
+      "secs": 1.100000023841858,
+      "peak_dbfs": -4.400000095367432,
+      "lufs": -16.299999237060547,
+      "centroid_hz": 338.0,
+      "bands_pct": [
+        2.0,
+        29.0,
+        69.0,
+        1.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 332.0
+    },
+    "fx.defeat": {
+      "secs": 1.600000023841858,
+      "peak_dbfs": -6.0,
+      "lufs": -12.199999809265137,
+      "centroid_hz": 369.0,
+      "bands_pct": [
+        0.0,
+        9.0,
+        91.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 294.0
+    },
+    "fx.explosion": {
+      "secs": 1.899999976158142,
+      "peak_dbfs": -0.4000000059604645,
+      "lufs": -10.899999618530273,
+      "centroid_hz": 228.0,
+      "bands_pct": [
+        30.0,
+        59.0,
+        9.0,
+        1.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 86.0
+    },
+    "fx.fire_burst": {
+      "secs": 1.399999976158142,
+      "peak_dbfs": -2.5,
+      "lufs": -11.199999809265137,
+      "centroid_hz": 1358.0,
+      "bands_pct": [
+        5.0,
+        33.0,
+        46.0,
+        11.0,
+        5.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "fx.flash_pop": {
+      "secs": 2.0,
+      "peak_dbfs": -0.8999999761581421,
+      "lufs": -9.199999809265137,
+      "centroid_hz": 4296.0,
+      "bands_pct": [
+        0.0,
+        6.0,
+        0.0,
+        80.0,
+        14.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 4200.0
+    },
+    "fx.footstep": {
+      "secs": 0.10000000149011612,
+      "peak_dbfs": -6.0,
+      "lufs": -18.100000381469727,
+      "centroid_hz": 1353.0,
+      "bands_pct": [
+        5.0,
+        57.0,
+        22.0,
+        9.0,
+        7.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "fx.go": {
+      "secs": 0.41999998688697815,
+      "peak_dbfs": -7.5,
+      "lufs": -6.900000095367432,
+      "centroid_hz": 1341.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        99.0,
+        1.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 1320.0
+    },
+    "fx.grenade_bounce": {
+      "secs": 0.30000001192092896,
+      "peak_dbfs": -6.0,
+      "lufs": -18.700000762939453,
+      "centroid_hz": 1389.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        84.0,
+        16.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 1250.0
+    },
+    "fx.heartbeat": {
+      "secs": 0.550000011920929,
+      "peak_dbfs": -5.199999809265137,
+      "lufs": -19.5,
+      "centroid_hz": 54.0,
+      "bands_pct": [
+        71.0,
+        29.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 55.0
+    },
+    "fx.hit_tick": {
+      "secs": 0.07000000029802322,
+      "peak_dbfs": -6.900000095367432,
+      "lufs": -14.300000190734863,
+      "centroid_hz": 2204.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        0.0,
+        100.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 2100.0
+    },
+    "fx.hurt": {
+      "secs": 0.2800000011920929,
+      "peak_dbfs": -3.5999999046325684,
+      "lufs": -14.699999809265137,
+      "centroid_hz": 124.0,
+      "bands_pct": [
+        3.0,
+        95.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 70.0
+    },
+    "fx.jump": {
+      "secs": 0.1599999964237213,
+      "peak_dbfs": -10.5,
+      "lufs": -13.600000381469727,
+      "centroid_hz": 4747.0,
+      "bands_pct": [
+        1.0,
+        4.0,
+        36.0,
+        31.0,
+        27.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "fx.kill_ding": {
+      "secs": 0.75,
+      "peak_dbfs": -4.400000095367432,
+      "lufs": -14.399999618530273,
+      "centroid_hz": 1159.0,
+      "bands_pct": [
+        0.0,
+        8.0,
+        91.0,
+        1.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 1047.0
+    },
+    "fx.landing": {
+      "secs": 0.20000000298023224,
+      "peak_dbfs": -3.0999999046325684,
+      "lufs": -14.0,
+      "centroid_hz": 197.0,
+      "bands_pct": [
+        55.0,
+        38.0,
+        5.0,
+        1.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 58.0
     },
     "fx.level_up": {
       "secs": 0.7599999904632568,
@@ -797,35 +362,515 @@
       "clipped": 0,
       "dominant_hz": 1047.0
     },
-    "fx.footstep": {
-      "secs": 0.10000000149011612,
+    "fx.pad_launch": {
+      "secs": 0.44999998807907104,
       "peak_dbfs": -6.0,
-      "lufs": -18.100000381469727,
-      "centroid_hz": 1353.0,
+      "lufs": -15.399999618530273,
+      "centroid_hz": 835.0,
       "bands_pct": [
-        5.0,
-        57.0,
-        22.0,
-        9.0,
+        0.0,
+        0.0,
+        100.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 656.0
+    },
+    "fx.pickup": {
+      "secs": 0.2199999988079071,
+      "peak_dbfs": -6.900000095367432,
+      "lufs": -15.100000381469727,
+      "centroid_hz": 1471.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        100.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 1560.0
+    },
+    "fx.reload_mag": {
+      "secs": 0.949999988079071,
+      "peak_dbfs": -6.0,
+      "lufs": -27.100000381469727,
+      "centroid_hz": 2060.0,
+      "bands_pct": [
+        0.0,
+        1.0,
+        85.0,
+        7.0,
         7.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 1300.0
+    },
+    "fx.reload_shell": {
+      "secs": 0.18000000715255737,
+      "peak_dbfs": -7.5,
+      "lufs": -22.100000381469727,
+      "centroid_hz": 538.0,
+      "bands_pct": [
+        0.0,
+        0.0,
+        100.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 520.0
+    },
+    "fx.respawn": {
+      "secs": 0.44999998807907104,
+      "peak_dbfs": -6.0,
+      "lufs": -12.300000190734863,
+      "centroid_hz": 2556.0,
+      "bands_pct": [
+        1.0,
+        8.0,
+        60.0,
+        18.0,
+        13.0
       ],
       "clipped": 0,
       "dominant_hz": null
     },
-    "fx.countdown_beep": {
-      "secs": 0.10999999940395355,
-      "peak_dbfs": -7.5,
-      "lufs": -8.0,
-      "centroid_hz": 893.0,
+    "fx.smoke_pop": {
+      "secs": 1.5,
+      "peak_dbfs": -4.400000095367432,
+      "lufs": -17.200000762939453,
+      "centroid_hz": 8045.0,
+      "bands_pct": [
+        0.0,
+        21.0,
+        10.0,
+        16.0,
+        52.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "fx.throw_whoosh": {
+      "secs": 0.30000001192092896,
+      "peak_dbfs": -8.0,
+      "lufs": -12.699999809265137,
+      "centroid_hz": 4124.0,
+      "bands_pct": [
+        2.0,
+        7.0,
+        38.0,
+        32.0,
+        22.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "fx.victory": {
+      "secs": 1.7000000476837158,
+      "peak_dbfs": -4.199999809265137,
+      "lufs": -8.899999618530273,
+      "centroid_hz": 1022.0,
       "bands_pct": [
         0.0,
         0.0,
-        99.0,
-        1.0,
+        97.0,
+        3.0,
         0.0
       ],
       "clipped": 0,
-      "dominant_hz": 880.0
+      "dominant_hz": 784.0
+    },
+    "gun.atlas_lmg": {
+      "secs": 0.4000000059604645,
+      "peak_dbfs": -6.0,
+      "lufs": -18.899999618530273,
+      "centroid_hz": 296.0,
+      "bands_pct": [
+        18.0,
+        73.0,
+        7.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 76.0
+    },
+    "gun.auto-12_shotgun": {
+      "secs": 0.800000011920929,
+      "peak_dbfs": -3.9000000953674316,
+      "lufs": -18.0,
+      "centroid_hz": 374.0,
+      "bands_pct": [
+        50.0,
+        37.0,
+        9.0,
+        3.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 66.0
+    },
+    "gun.breach_shotgun": {
+      "secs": 0.949999988079071,
+      "peak_dbfs": -3.299999952316284,
+      "lufs": -17.799999237060547,
+      "centroid_hz": 382.0,
+      "bands_pct": [
+        52.0,
+        33.0,
+        12.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 62.0
+    },
+    "gun.bulldog_.45": {
+      "secs": 0.5,
+      "peak_dbfs": -4.400000095367432,
+      "lufs": -18.200000762939453,
+      "centroid_hz": 360.0,
+      "bands_pct": [
+        3.0,
+        87.0,
+        6.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 126.0
+    },
+    "gun.coach_gun": {
+      "secs": 1.0,
+      "peak_dbfs": -2.200000047683716,
+      "lufs": -15.699999809265137,
+      "centroid_hz": 335.0,
+      "bands_pct": [
+        68.0,
+        18.0,
+        10.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 48.0
+    },
+    "gun.ember_smg": {
+      "secs": 0.2199999988079071,
+      "peak_dbfs": -7.099999904632568,
+      "lufs": -21.100000381469727,
+      "centroid_hz": 604.0,
+      "bands_pct": [
+        1.0,
+        86.0,
+        7.0,
+        4.0,
+        2.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 141.0
+    },
+    "gun.gale_sniper": {
+      "secs": 0.8999999761581421,
+      "peak_dbfs": -4.400000095367432,
+      "lufs": -18.700000762939453,
+      "centroid_hz": 324.0,
+      "bands_pct": [
+        43.0,
+        43.0,
+        11.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 65.0
+    },
+    "gun.hammer_mg": {
+      "secs": 0.41999998688697815,
+      "peak_dbfs": -6.0,
+      "lufs": -18.799999237060547,
+      "centroid_hz": 294.0,
+      "bands_pct": [
+        26.0,
+        65.0,
+        6.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 71.0
+    },
+    "gun.hand_cannon_.50": {
+      "secs": 0.8999999761581421,
+      "peak_dbfs": -3.0999999046325684,
+      "lufs": -17.5,
+      "centroid_hz": 405.0,
+      "bands_pct": [
+        26.0,
+        56.0,
+        14.0,
+        3.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 80.0
+    },
+    "gun.ironside_battle_rifle": {
+      "secs": 0.699999988079071,
+      "peak_dbfs": -4.699999809265137,
+      "lufs": -19.700000762939453,
+      "centroid_hz": 356.0,
+      "bands_pct": [
+        23.0,
+        64.0,
+        10.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 86.0
+    },
+    "gun.kestrel_bullpup": {
+      "secs": 0.550000011920929,
+      "peak_dbfs": -6.0,
+      "lufs": -18.899999618530273,
+      "centroid_hz": 413.0,
+      "bands_pct": [
+        3.0,
+        84.0,
+        10.0,
+        3.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 112.0
+    },
+    "gun.lancer_rocket_launcher": {
+      "secs": 1.5,
+      "peak_dbfs": -2.5999999046325684,
+      "lufs": -16.399999618530273,
+      "centroid_hz": 400.0,
+      "bands_pct": [
+        72.0,
+        9.0,
+        15.0,
+        3.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 33.0
+    },
+    "gun.longbow_marksman_rifle": {
+      "secs": 0.8500000238418579,
+      "peak_dbfs": -4.400000095367432,
+      "lufs": -19.200000762939453,
+      "centroid_hz": 344.0,
+      "bands_pct": [
+        39.0,
+        47.0,
+        10.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 73.0
+    },
+    "gun.marshal_.357": {
+      "secs": 0.800000011920929,
+      "peak_dbfs": -3.5999999046325684,
+      "lufs": -18.899999618530273,
+      "centroid_hz": 355.0,
+      "bands_pct": [
+        20.0,
+        67.0,
+        10.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 91.0
+    },
+    "gun.r9_service_pistol": {
+      "secs": 0.44999998807907104,
+      "peak_dbfs": -4.199999809265137,
+      "lufs": -19.299999237060547,
+      "centroid_hz": 469.0,
+      "bands_pct": [
+        1.0,
+        87.0,
+        7.0,
+        3.0,
+        2.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 150.0
+    },
+    "gun.ranger_pdw": {
+      "secs": 0.18000000715255737,
+      "peak_dbfs": -8.399999618530273,
+      "lufs": -23.100000381469727,
+      "centroid_hz": 1093.0,
+      "bands_pct": [
+        0.0,
+        78.0,
+        9.0,
+        7.0,
+        5.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 201.0
+    },
+    "gun.redline_rifle": {
+      "secs": 0.6000000238418579,
+      "peak_dbfs": -5.199999809265137,
+      "lufs": -20.100000381469727,
+      "centroid_hz": 363.0,
+      "bands_pct": [
+        13.0,
+        75.0,
+        8.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 94.0
+    },
+    "gun.rook_carbine": {
+      "secs": 0.5,
+      "peak_dbfs": -5.699999809265137,
+      "lufs": -19.100000381469727,
+      "centroid_hz": 440.0,
+      "bands_pct": [
+        4.0,
+        82.0,
+        9.0,
+        3.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 113.0
+    },
+    "gun.sentinel_.338": {
+      "secs": 1.399999976158142,
+      "peak_dbfs": -2.9000000953674316,
+      "lufs": -17.100000381469727,
+      "centroid_hz": 316.0,
+      "bands_pct": [
+        69.0,
+        16.0,
+        12.0,
+        2.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 40.0
+    },
+    "gun.stinger_smg": {
+      "secs": 0.25,
+      "peak_dbfs": -6.699999809265137,
+      "lufs": -20.600000381469727,
+      "centroid_hz": 520.0,
+      "bands_pct": [
+        1.0,
+        88.0,
+        6.0,
+        3.0,
+        2.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 137.0
+    },
+    "gun.thumper_grenade_launcher": {
+      "secs": 0.6000000238418579,
+      "peak_dbfs": -4.400000095367432,
+      "lufs": -18.299999237060547,
+      "centroid_hz": 371.0,
+      "bands_pct": [
+        44.0,
+        41.0,
+        12.0,
+        3.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 62.0
+    },
+    "gun.viper_machine_pistol": {
+      "secs": 0.20000000298023224,
+      "peak_dbfs": -7.5,
+      "lufs": -22.299999237060547,
+      "centroid_hz": 861.0,
+      "bands_pct": [
+        1.0,
+        80.0,
+        11.0,
+        5.0,
+        4.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 181.0
+    },
+    "gun.warden_scout_rifle": {
+      "secs": 1.2000000476837158,
+      "peak_dbfs": -4.199999809265137,
+      "lufs": -18.899999618530273,
+      "centroid_hz": 365.0,
+      "bands_pct": [
+        60.0,
+        23.0,
+        13.0,
+        3.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 52.0
+    },
+    "gun.wasp_smg": {
+      "secs": 0.18000000715255737,
+      "peak_dbfs": -8.0,
+      "lufs": -22.0,
+      "centroid_hz": 863.0,
+      "bands_pct": [
+        1.0,
+        81.0,
+        9.0,
+        5.0,
+        4.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 170.0
+    },
+    "music.loop": {
+      "secs": 14.550000190734863,
+      "peak_dbfs": -0.8999999761581421,
+      "lufs": -9.800000190734863,
+      "centroid_hz": 266.0,
+      "bands_pct": [
+        35.0,
+        49.0,
+        14.0,
+        1.0,
+        1.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 48.0
+    },
+    "score.ambient_drift": {
+      "secs": 40.0,
+      "peak_dbfs": -14.699999809265137,
+      "lufs": -26.0,
+      "centroid_hz": 263.0,
+      "bands_pct": [
+        0.0,
+        60.0,
+        40.0,
+        0.0,
+        0.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 231.0
     },
     "synth.bat_hit": {
       "secs": 0.20000000298023224,
@@ -857,6 +902,51 @@
       "clipped": 0,
       "dominant_hz": 2400.0
     },
+    "tactical.beep": {
+      "secs": 0.10999999940395355,
+      "peak_dbfs": -11.100000381469727,
+      "lufs": -25.299999237060547,
+      "centroid_hz": 1315.0,
+      "bands_pct": [
+        2.0,
+        2.0,
+        83.0,
+        9.0,
+        5.0
+      ],
+      "clipped": 0,
+      "dominant_hz": 442.0
+    },
+    "tactical.defeat": {
+      "secs": 0.550000011920929,
+      "peak_dbfs": -9.399999618530273,
+      "lufs": -25.5,
+      "centroid_hz": 1070.0,
+      "bands_pct": [
+        12.0,
+        53.0,
+        22.0,
+        9.0,
+        5.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
+    "tactical.go": {
+      "secs": 0.25,
+      "peak_dbfs": -8.899999618530273,
+      "lufs": -23.0,
+      "centroid_hz": 1174.0,
+      "bands_pct": [
+        2.0,
+        60.0,
+        24.0,
+        10.0,
+        5.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
+    },
     "tactical.hit_tick": {
       "secs": 0.07000000029802322,
       "peak_dbfs": -11.699999809265137,
@@ -871,6 +961,21 @@
       ],
       "clipped": 0,
       "dominant_hz": 760.0
+    },
+    "tactical.jump": {
+      "secs": 0.10000000149011612,
+      "peak_dbfs": -18.399999618530273,
+      "lufs": -32.599998474121094,
+      "centroid_hz": 1083.0,
+      "bands_pct": [
+        1.0,
+        64.0,
+        20.0,
+        9.0,
+        5.0
+      ],
+      "clipped": 0,
+      "dominant_hz": null
     },
     "tactical.kill": {
       "secs": 0.18000000715255737,
@@ -902,36 +1007,6 @@
       "clipped": 0,
       "dominant_hz": null
     },
-    "tactical.beep": {
-      "secs": 0.10999999940395355,
-      "peak_dbfs": -11.100000381469727,
-      "lufs": -25.299999237060547,
-      "centroid_hz": 1315.0,
-      "bands_pct": [
-        2.0,
-        2.0,
-        83.0,
-        9.0,
-        5.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 442.0
-    },
-    "tactical.go": {
-      "secs": 0.25,
-      "peak_dbfs": -8.899999618530273,
-      "lufs": -23.0,
-      "centroid_hz": 1174.0,
-      "bands_pct": [
-        2.0,
-        60.0,
-        24.0,
-        10.0,
-        5.0
-      ],
-      "clipped": 0,
-      "dominant_hz": null
-    },
     "tactical.victory": {
       "secs": 0.6499999761581421,
       "peak_dbfs": -7.5,
@@ -946,66 +1021,6 @@
       ],
       "clipped": 0,
       "dominant_hz": null
-    },
-    "tactical.defeat": {
-      "secs": 0.550000011920929,
-      "peak_dbfs": -9.399999618530273,
-      "lufs": -25.5,
-      "centroid_hz": 1070.0,
-      "bands_pct": [
-        12.0,
-        53.0,
-        22.0,
-        9.0,
-        5.0
-      ],
-      "clipped": 0,
-      "dominant_hz": null
-    },
-    "tactical.jump": {
-      "secs": 0.10000000149011612,
-      "peak_dbfs": -18.399999618530273,
-      "lufs": -32.599998474121094,
-      "centroid_hz": 1083.0,
-      "bands_pct": [
-        1.0,
-        64.0,
-        20.0,
-        9.0,
-        5.0
-      ],
-      "clipped": 0,
-      "dominant_hz": null
-    },
-    "music.loop": {
-      "secs": 14.550000190734863,
-      "peak_dbfs": -0.8999999761581421,
-      "lufs": -9.800000190734863,
-      "centroid_hz": 266.0,
-      "bands_pct": [
-        35.0,
-        49.0,
-        14.0,
-        1.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 48.0
-    },
-    "ambience.map": {
-      "secs": 20.0,
-      "peak_dbfs": -4.400000095367432,
-      "lufs": -20.899999618530273,
-      "centroid_hz": 282.0,
-      "bands_pct": [
-        52.0,
-        32.0,
-        13.0,
-        2.0,
-        1.0
-      ],
-      "clipped": 0,
-      "dominant_hz": 50.0
     }
   }
 }

@@ -11,6 +11,9 @@ use crate::tools::font::draw_text;
 use image::{Rgb, RgbImage};
 use serde_json::{json, Value};
 
+/// The scores built into the engine, by name.
+const SCORES: &[(&str, &str)] = &[("ambient_drift", include_str!("../../assets/audio/ambient_drift.json"))];
+
 /// A named generator of one mono clip.
 type Generator = (&'static str, fn() -> Vec<f32>);
 /// A named pick of one clip out of the tactical sound bank.
@@ -28,17 +31,19 @@ pub struct Entry {
     pub channels: usize,
     /// The sound as data, when it is built as a [`Voice`] (what `audio export` prints).
     pub voice: Option<Voice>,
+    /// The JSON text of a score the engine ships (what `audio export` prints for one).
+    pub text: Option<&'static str>,
     render: Box<dyn Fn() -> Vec<f32>>,
 }
 
 impl Entry {
     fn new(name: impl Into<String>, group: &'static str, kind: Kind, channels: usize, render: impl Fn() -> Vec<f32> + 'static) -> Entry {
-        Entry { name: name.into(), group, kind, channels, voice: None, render: Box::new(render) }
+        Entry { name: name.into(), group, kind, channels, voice: None, text: None, render: Box::new(render) }
     }
 
     fn voiced(name: String, group: &'static str, voice: Voice) -> Entry {
         let v = voice.clone();
-        Entry { name, group, kind: Kind::OneShot, channels: 1, voice: Some(voice), render: Box::new(move || v.clone().render()) }
+        Entry { name, group, kind: Kind::OneShot, channels: 1, voice: Some(voice), text: None, render: Box::new(move || v.clone().render()) }
     }
 
     /// The samples (interleaved when stereo), generated fresh.
@@ -98,9 +103,40 @@ pub fn catalog() -> Vec<Entry> {
     for (name, pick) in tactical {
         v.push(Entry::new(format!("tactical.{name}"), "tactical", Kind::OneShot, 1, move || pick(&sfx::SoundBank::new_tactical())));
     }
+    // Scores shipped with the engine: templates to copy (`audio export score.ambient_drift`) and loops the standard holds.
+    for &(name, text) in SCORES {
+        let mut e = Entry::new(format!("score.{name}"), "score", Kind::Loop, 2, move || {
+            render_score_text(text).map(|r| r.samples).unwrap_or_else(|e| panic!("the built-in score {name} is broken: {e}"))
+        });
+        e.text = Some(text);
+        v.push(e);
+    }
     v.push(Entry::new("music.loop", "music", Kind::Loop, 2, crate::music::loop_samples));
     v.push(Entry::new("ambience.map", "ambience", Kind::Loop, 2, || sfx::ambience(20.0)));
     v
+}
+
+/// Parses and renders a score from JSON text.
+fn render_score_text(text: &str) -> Result<crate::score::Rendered, String> {
+    // The shipped scores take seconds to render and the catalog is listed often (every `audio` command that takes no name, every test that walks it): render each once.
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<usize, crate::score::Rendered>>> = std::sync::OnceLock::new();
+    let key = text.as_ptr() as usize;
+    if let Some(r) = CACHE.get().and_then(|c| c.lock().ok()).and_then(|c| c.get(&key).cloned()) {
+        return Ok(r);
+    }
+    let r = render_score_uncached(text)?;
+    if SCORES.iter().any(|(_, s)| s.as_ptr() as usize == key) {
+        if let Ok(mut c) = CACHE.get_or_init(Default::default).lock() {
+            c.insert(key, r.clone());
+        }
+    }
+    Ok(r)
+}
+
+fn render_score_uncached(text: &str) -> Result<crate::score::Rendered, String> {
+    let value: Value = serde_json::from_str(text).map_err(|e| format!("not valid JSON: {e}"))?;
+    let score = crate::score::parse_score(&value).map_err(|errs| format!("not a valid score:\n  {}", errs.join("\n  ")))?;
+    Ok(score.render())
 }
 
 /// The entry called `name`, or an error with the closest names.
@@ -122,6 +158,9 @@ pub fn find(name: &str) -> Result<Entry, String> {
 /// `audio export`: the JSON of a built-in sound that is built as a voice.
 pub fn export_json(name: &str) -> Result<String, String> {
     let e = find(name)?;
+    if let Some(text) = e.text {
+        return Ok(text.to_string());
+    }
     match e.voice {
         Some(v) => Ok(serde_json::to_string_pretty(&crate::voice_spec::voice_to_json(&v)).unwrap_or_default() + "\n"),
         None => Err(format!(
@@ -181,6 +220,11 @@ pub fn source(name: &str) -> Result<Source, String> {
     if name.to_lowercase().ends_with(".json") {
         let text = std::fs::read_to_string(name).map_err(|e| format!("{name}: {e}"))?;
         let value: Value = serde_json::from_str(&text).map_err(|e| format!("{name}: not valid JSON: {e}"))?;
+        // A score has tracks; a sound has layers.
+        if value.get("tracks").is_some() {
+            let r = render_score_text(&text).map_err(|e| format!("{name}: {e}"))?;
+            return Ok(Source { name: name.to_string(), samples: r.samples, channels: 2, rate: SAMPLE_RATE, kind: Kind::Loop, group: "file" });
+        }
         let voice = crate::voice_spec::parse_voice(&value).map_err(|errs| format!("{name}: not a valid sound:\n  {}", errs.join("\n  ")))?;
         return Ok(Source { name: name.to_string(), samples: voice.render(), channels: 1, rate: SAMPLE_RATE, kind: Kind::OneShot, group: "file" });
     }
@@ -284,7 +328,10 @@ pub fn check_text(names: &[String]) -> Result<(String, bool), String> {
 /// tonal sounds (a noisy spectrum's strongest bin can flip between neighbours on another platform without the sound changing).
 pub fn golden() -> Value {
     let mut sounds = serde_json::Map::new();
-    for e in catalog() {
+    let mut entries = catalog();
+    // Alphabetical, so a diff of the stored file shows only what changed.
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    for e in entries {
         let r = e.report();
         let tonal = r.flatness < 0.1;
         sounds.insert(

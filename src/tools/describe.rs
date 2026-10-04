@@ -479,7 +479,14 @@ fn audio_text() -> String {
      \x20 source   \"sine\":hz (+\"harmonics\":[[multiple,amp]..]) | \"glide\":[from,to,rate] | \"sweep\":[from,to,rate] (clean pitch glide) | \"noise\":\"white\"|\"lp K\"|\"hp K\"|\"lp A..B\" (K 0..1, smaller=duller; A..B opens with the swell)\n\
      \x20 shaping  \"decay\":rate (e^-rate*t) \"fade_in\":rate \"delay\":s \"attack\":s \"release\":s (smooth swells; both = half the length is a bump) \"gain\":g. Layers share one noise stream.\n\
      \x20 e.g. a bell: {\"seconds\":3,\"layers\":[{\"sine\":440,\"harmonics\":[[2.76,0.3],[5.4,0.12]],\"decay\":1.6,\"release\":0.6}]}\n\
-     Same model in Rust: `dsp::Voice::new(secs, level, seed).with(Layer::sine(hz, Env::decay(r), gain))`; code in `crate::dsp`, `voice_spec`, `sfx`, `music`, `synth`, `audio_analysis`.\n"
+     SCORE JSON (music; a .json with `tracks` is a score anywhere a sound is accepted; `audio export score.ambient_drift` is a template):\n\
+     \x20 {\"bpm\":48,\"bars\":8,\"key\":\"D\",\"scale\":\"minor\",\"seed\":11,\"lufs\":-26,\"reverb\":{\"decay\":8,\"mix\":0.6},\"delay\":{\"time\":1.5,\"feedback\":0.45,\"mix\":0.3},\n\
+     \x20  \"instruments\":{\"pad\":{VOICE}...}   an instrument is a voice whose sine values are MULTIPLES of the note (1 = the note, 2 = octave), so attack/release give a pad, decay a bell\n\
+     \x20  \"tracks\":[{\"inst\":\"pad\",\"play\":\"chords\",\"chords\":\"i VI III VII\",\"every\":\"2 bars\",\"octave\":3}, {\"play\":\"pattern\",\"pattern\":\"x.x. ..x.\",\"notes\":\"1 3 5\"},\n\
+     \x20           {\"play\":\"walk\",\"every\":\"1 beat\",\"density\":0.22,\"range\":[3,10],\"leap\":2,\"pan\":\"spread\"}]   also hold, gain, send 0..1, vel [lo,hi], from/to (bars), strum, voicing, seed\n\
+     \x20 Notes are scale DEGREES (1 = key, 8 = octave of a 7-note scale), so all stays in tune. Scales: major minor dorian phrygian lydian mixolydian harmonic_minor pentatonic minor_pentatonic blues whole_tone chromatic.\n\
+     \x20 The loop is `bars` long with tails wrapped (no seam), effects included, and scaled to `lufs` exactly (turned down, never clipped). `reverb.mix`/`delay.mix` = wet level relative to the dry send.\n\
+     Same model in Rust: `dsp::Voice::new(secs, level, seed).with(Layer::sine(hz, Env::decay(r), gain))`; code in `crate::dsp`, `voice_spec`, `score`, `audio_fx`, `sfx`, `music`, `synth`, `audio_analysis`.\n"
         .to_string()
 }
 

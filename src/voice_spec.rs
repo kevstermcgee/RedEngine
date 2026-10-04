@@ -21,7 +21,7 @@ use serde_json::{json, Value};
 const MAX_LAYERS: usize = 64;
 const MAX_SECONDS: f32 = 30.0;
 const LAYER_KEYS: &[&str] = &["sine", "harmonics", "glide", "sweep", "noise", "decay", "fade_in", "delay", "attack", "release", "gain"];
-const VOICE_KEYS: &[&str] = &["seconds", "level", "seed", "attack", "layers"];
+const VOICE_KEYS: &[&str] = &["seconds", "level", "seed", "attack", "pitched", "layers"];
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
@@ -93,7 +93,7 @@ fn parse_noise(text: &str, path: &str, errs: &mut Vec<String>) -> Filter {
     }
 }
 
-fn layer_from(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<Layer> {
+fn layer_from(v: &Value, path: &str, pitched: bool, errs: &mut Vec<String>) -> Option<Layer> {
     let Some(obj) = v.as_object() else {
         errs.push(format!("{path}: must be an object like {{\"sine\": 440, \"decay\": 3}}"));
         return None;
@@ -125,7 +125,12 @@ fn layer_from(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<Layer> {
     };
     let hz = |name: &str, x: f32, errs: &mut Vec<String>| range(name, Some(x), 1.0, 20000.0, errs);
     let src = if let Some(f) = spec.sine {
-        hz("sine", f, errs);
+        if pitched {
+            // In an instrument the number is a multiple of the note, not a frequency.
+            range("sine", Some(f), 0.1, 64.0, errs);
+        } else {
+            hz("sine", f, errs);
+        }
         let partials: Vec<(f32, f32)> = spec.harmonics.clone().unwrap_or_default().into_iter().map(|[m, a]| (m, a)).collect();
         if partials.iter().any(|(m, _)| !(0.1..=64.0).contains(m)) {
             errs.push(format!("{path}.harmonics: a multiple must be 0.1 to 64"));
@@ -162,6 +167,11 @@ fn layer_from(v: &Value, path: &str, errs: &mut Vec<String>) -> Option<Layer> {
 
 /// Parses the JSON form of a voice; every problem is reported with its path.
 pub fn parse_voice(v: &Value) -> Result<Voice, Vec<String>> {
+    parse_voice_up_to(v, MAX_SECONDS)
+}
+
+/// [`parse_voice`] allowing a length up to `max_seconds` (an instrument in a score may ring for a whole loop).
+pub fn parse_voice_up_to(v: &Value, max_seconds: f32) -> Result<Voice, Vec<String>> {
     let Some(obj) = v.as_object() else {
         return Err(vec!["a sound is an object like {\"seconds\": 0.3, \"layers\": [{\"sine\": 440, \"decay\": 8}]}".to_string()]);
     };
@@ -183,8 +193,8 @@ pub fn parse_voice(v: &Value) -> Result<Voice, Vec<String>> {
     };
     let seconds = num("seconds", None, &mut errs);
     let level = num("level", Some(0.5), &mut errs);
-    if !(0.01..=MAX_SECONDS).contains(&seconds) {
-        errs.push(format!("seconds: {seconds} is outside 0.01 to {MAX_SECONDS}"));
+    if !(0.01..=max_seconds).contains(&seconds) {
+        errs.push(format!("seconds: {seconds} is outside 0.01 to {max_seconds}"));
     }
     if !(0.0..=0.98).contains(&level) || level == 0.0 {
         errs.push(format!("level: {level} is outside 0 (exclusive) to 0.98 (the peak the clip is normalised to)"));
@@ -203,12 +213,20 @@ pub fn parse_voice(v: &Value) -> Result<Voice, Vec<String>> {
             true
         }),
     };
+    let pitched = match obj.get("pitched") {
+        None => false,
+        Some(x) => x.as_bool().unwrap_or_else(|| {
+            errs.push("pitched: must be true or false (an instrument: sine frequencies are multiples of the note)".to_string());
+            false
+        }),
+    };
     let mut voice = Voice::new(seconds, level, seed);
     voice.attack = attack;
+    voice.pitched = pitched;
     match obj.get("layers").and_then(Value::as_array) {
         Some(list) if !list.is_empty() && list.len() <= MAX_LAYERS => {
             for (i, l) in list.iter().enumerate() {
-                if let Some(layer) = layer_from(l, &format!("layers[{i}]"), &mut errs) {
+                if let Some(layer) = layer_from(l, &format!("layers[{i}]"), pitched, &mut errs) {
                     voice.layers.push(layer);
                 }
             }
@@ -282,6 +300,9 @@ fn voice_json(v: &Voice) -> Value {
     }
     if !v.attack {
         out["attack"] = json!(false);
+    }
+    if v.pitched {
+        out["pitched"] = json!(true);
     }
     out["layers"] = Value::Array(layers);
     out

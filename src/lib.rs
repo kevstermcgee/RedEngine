@@ -6,6 +6,7 @@ pub mod atmosphere;
 #[cfg(feature = "gfx")]
 pub mod audio;
 pub mod audio_analysis;
+pub mod audio_fx;
 pub mod avatar;
 #[cfg(feature = "gfx")]
 pub mod capture;
@@ -58,6 +59,7 @@ pub mod props;
 pub mod render;
 pub mod scene_pool;
 pub mod schema;
+pub mod score;
 #[cfg(feature = "gfx")]
 pub mod settings;
 pub mod sfx;
