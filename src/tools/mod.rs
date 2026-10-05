@@ -13,6 +13,7 @@ pub mod audio;
 pub mod audio_checks;
 pub mod blueprint;
 pub mod catalog;
+pub mod check_schema;
 pub mod context;
 pub mod describe;
 pub mod diff;
