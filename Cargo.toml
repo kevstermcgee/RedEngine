@@ -87,6 +87,8 @@ debug = false
 
 [dev-dependencies]
 criterion = "0.8.2"
+# The same shader compiler wgpu uses, here to validate every WGSL module and translate it to Direct3D's HLSL on any machine (tests/shader_validation.rs).
+naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out"] }
 
 # Benches only need to be *comparable run to run*, not maximally fast: thin LTO keeps `cargo bench`
 # builds to about a minute instead of the several a full-LTO release build takes.

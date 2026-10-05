@@ -2873,6 +2873,7 @@ dependencies = [
  "hmac",
  "image",
  "libm",
+ "naga",
  "pollster 1.0.1",
  "quinn",
  "rapier3d",
