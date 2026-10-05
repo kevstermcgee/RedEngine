@@ -835,8 +835,7 @@ pub(crate) enum Command {
         #[arg(long)]
         scene: Option<PathBuf>,
     },
-    /// What RedEngine can deliver: the presentation (2d/3d) x platform (web/windows/linux) x networking x input matrix, a game's `capabilities` held to it, or one question
-    /// (`capabilities 3d web`). Anything a game declares that is not built fails early with the reason; nothing is downgraded silently.
+    /// What can be built: presentation x platform x networking x input. Ask one question (`capabilities 3d web`), check a game's declaration, or print the matrix. Anything a game declares that is not built fails early with the reason; nothing is downgraded silently.
     Capabilities {
         /// A game file whose `capabilities` block to check.
         #[arg(long)]
@@ -844,8 +843,7 @@ pub(crate) enum Command {
         /// A question like `2d web` or `3d web authoritative`; empty prints the whole matrix.
         query: Vec<String>,
     },
-    /// Plan a game before writing it: from an idea, a title, genre, presentation (the simplest that fits: never 3D by default), targets, input, networking, saves, session length
-    /// and the cost to expect. Every choice can be changed with a flag and is checked against `capabilities`: what cannot be built is reported, not quietly shrunk.
+    /// Plan a game from an idea: genre, 2d or 3d (never 3D by default), targets, input, cost. The plan covers title, networking, saves and session length too. Every choice can be changed with a flag and is checked against `capabilities`: what cannot be built is reported, not quietly shrunk.
     Propose {
         /// The idea in plain words.
         idea: Vec<String>,
@@ -868,8 +866,7 @@ pub(crate) enum Command {
         #[arg(long)]
         session: Option<u32>,
     },
-    /// Publish a 2D game: validate, play the scenarios, build the WebAssembly package, check it, play it in a real browser, then upload it and (when a URL exists) play
-    /// the deployed copy too. Each stage says whether it passed; BUILD, LOCAL BROWSER, UPLOAD and REMOTE PLAYABLE success are reported separately and a URL only if one exists.
+    /// Publish a 2D game: test, build, browser-check, upload, check the copy. Ten named stages; each stage says whether it passed; BUILD, LOCAL BROWSER, UPLOAD and REMOTE PLAYABLE success are reported separately and a URL only if one exists.
     Publish {
         /// The `*.game2d.json` (or, with `--package`, nothing).
         game: Option<PathBuf>,
@@ -904,7 +901,7 @@ pub(crate) enum Command {
         #[arg(long)]
         wasm: Option<PathBuf>,
     },
-    /// 2D games in the browser: `build` a static WebAssembly package, `check` its integrity, `serve` it locally, `verify` it in a real headless browser,
+    /// 2D games in the browser: build, check, serve, browser-verify. In detail: `build` a static WebAssembly package, `check` its integrity, `serve` it locally, `verify` it in a real headless browser,
     /// `setup-browser` once per machine. Building and verifying need no credentials and no internet; `publish` is a separate command.
     Web {
         #[command(subcommand)]

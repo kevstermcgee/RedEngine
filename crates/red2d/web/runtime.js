@@ -21,6 +21,7 @@
     audio: 'locked',           // locked | running | suspended | unsupported | failed
     sounds_played: 0,          // sound requests handed to Web Audio
     music: 'off',              // off | playing | none
+    music_ms: 0,               // how long rendering the loop blocked the page (the module renders it on the main thread)
     gamepad: false,
   };
   let wasm = null, mem = null, canvas, ctx2d, imageData = null, manifest = null;
@@ -129,12 +130,14 @@
     const want = x().music_on() === 1 && !!audio && audio.state === 'running' && status.started;
     if (want && !musicSource) {
       if (!musicBuffer) {
+        const t0 = performance.now();
         const n = x().music_pcm();
         if (!n) { status.music = 'none'; musicWanted = false; return; }
         const f = new Float32Array(out(n).buffer);
         musicBuffer = audio.createBuffer(2, f.length / 2, x().sample_rate());
         const l = musicBuffer.getChannelData(0), r = musicBuffer.getChannelData(1);
         for (let i = 0; i < l.length; i++) { l[i] = f[2 * i]; r[i] = f[2 * i + 1]; }
+        status.music_ms = Math.round(performance.now() - t0);
       }
       musicSource = audio.createBufferSource(); musicSource.buffer = musicBuffer; musicSource.loop = true;
       musicSource.connect(audio.destination); musicSource.start(); status.music = 'playing';

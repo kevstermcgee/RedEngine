@@ -210,7 +210,7 @@ def main():
                     except Exception:
                         pass
                     s = pg.evaluate("__red2d.status()")
-                    check("music starts after the gesture", s["music"] == "playing", "music state: %s (rendering the loop takes a moment)" % s["music"], claim="browser-audio")
+                    check("music starts after the gesture", s["music"] == "playing", "music state: %s (rendering the loop blocked the page for %s ms)" % (s["music"], s.get("music_ms")), claim="browser-audio")
             before = pg.evaluate("__red2d.snapshot()")["tick"]
             pg.wait_for_timeout(1000)
             after = pg.evaluate("__red2d.snapshot()")["tick"]

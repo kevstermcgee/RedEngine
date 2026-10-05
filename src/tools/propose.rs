@@ -58,10 +58,55 @@ fn has(text: &str, words: &[&str]) -> bool {
     })
 }
 
-fn title_of(idea: &str) -> String {
+fn title_of(idea: &str, genre: &str) -> String {
     const SKIP: &[&str] = &[
-        "a", "an", "the", "small", "little", "simple", "tiny", "game", "where", "you", "your", "that", "with", "and", "of", "to", "in", "on", "make", "create",
-        "build", "me", "for", "my", "is", "it", "browser", "playable",
+        "a",
+        "an",
+        "the",
+        "small",
+        "little",
+        "simple",
+        "tiny",
+        "game",
+        "where",
+        "you",
+        "your",
+        "that",
+        "with",
+        "and",
+        "of",
+        "to",
+        "in",
+        "on",
+        "make",
+        "create",
+        "build",
+        "me",
+        "for",
+        "my",
+        "is",
+        "it",
+        "browser",
+        "playable",
+        "2d",
+        "3d",
+        "publish",
+        "publishing",
+        "arcade",
+        "puzzle",
+        "platformer",
+        "mouse",
+        "keyboard",
+        "web",
+        "url",
+        "just",
+        "like",
+        "want",
+        "please",
+        "can",
+        "be",
+        "so",
+        "about",
     ];
     let words: Vec<String> = idea
         .split(|c: char| !c.is_alphanumeric())
@@ -70,7 +115,7 @@ fn title_of(idea: &str) -> String {
         .map(|w| w.chars().next().map(|c| c.to_uppercase().collect::<String>() + &w[1..].to_lowercase()).unwrap_or_default())
         .collect();
     if words.is_empty() {
-        "Untitled".into()
+        format!("Untitled {}", genre.split(' ').next().map(|g| g[..1].to_uppercase() + &g[1..]).unwrap_or_default())
     } else {
         words.join(" ")
     }
@@ -229,7 +274,7 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
         problems.push("playing with others in a browser is not supported (see `capabilities 2d web authoritative`); ship a 3D game for windows/linux, or make the browser version single-player".to_string());
     }
     let warnings = caps::warnings(&c);
-    Proposal { title: o.title.clone().unwrap_or_else(|| title_of(idea)), genre, caps: c, session: minutes, complexity, reasons, problems, warnings }
+    Proposal { title: o.title.clone().unwrap_or_else(|| title_of(idea, genre)), genre, caps: c, session: minutes, complexity, reasons, problems, warnings }
 }
 
 impl Proposal {
@@ -425,6 +470,7 @@ mod tests {
         }
         assert!(j["cost"]["basis"].as_str().unwrap().contains("no token counts are claimed"));
         assert!(!r.render().to_lowercase().contains("tokens saved"));
-        assert_eq!(title_of("Create a small 2D arcade game"), "2d Arcade");
+        assert_eq!(title_of("Create a small 2D arcade game", "arcade"), "Untitled Arcade");
+        assert_eq!(title_of("a game about space snails", "arcade"), "Space Snails");
     }
 }

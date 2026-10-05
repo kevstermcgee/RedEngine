@@ -1,0 +1,335 @@
+{
+ "camera": {
+  "position": [
+   0,
+   16,
+   -14
+  ],
+  "target": [
+   0,
+   0,
+   0
+  ]
+ },
+ "spawns": [
+  {
+   "id": "start",
+   "position": [
+    0,
+    0,
+    0
+   ],
+   "yaw_deg": 0
+  }
+ ],
+ "vars": {
+  "gems_left": 5,
+  "timeleft": 20
+ },
+ "rules": [
+  {
+   "id": "take_gem0",
+   "when": {
+    "enter": {
+     "object": "gem0",
+     "pad": 0.5
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "add": [
+      "gems_left",
+      -1
+     ]
+    },
+    {
+     "hide": "gem0"
+    },
+    {
+     "emit": "gem"
+    }
+   ]
+  },
+  {
+   "id": "take_gem1",
+   "when": {
+    "enter": {
+     "object": "gem1",
+     "pad": 0.5
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "add": [
+      "gems_left",
+      -1
+     ]
+    },
+    {
+     "hide": "gem1"
+    },
+    {
+     "emit": "gem"
+    }
+   ]
+  },
+  {
+   "id": "take_gem2",
+   "when": {
+    "enter": {
+     "object": "gem2",
+     "pad": 0.5
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "add": [
+      "gems_left",
+      -1
+     ]
+    },
+    {
+     "hide": "gem2"
+    },
+    {
+     "emit": "gem"
+    }
+   ]
+  },
+  {
+   "id": "take_gem3",
+   "when": {
+    "enter": {
+     "object": "gem3",
+     "pad": 0.5
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "add": [
+      "gems_left",
+      -1
+     ]
+    },
+    {
+     "hide": "gem3"
+    },
+    {
+     "emit": "gem"
+    }
+   ]
+  },
+  {
+   "id": "take_gem4",
+   "when": {
+    "enter": {
+     "object": "gem4",
+     "pad": 0.5
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "add": [
+      "gems_left",
+      -1
+     ]
+    },
+    {
+     "hide": "gem4"
+    },
+    {
+     "emit": "gem"
+    }
+   ]
+  },
+  {
+   "id": "clock",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "timeleft",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "win",
+   "when": {
+    "every": 0.05
+   },
+   "if": "gems_left <= 0",
+   "do": [
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "lose",
+   "when": {
+    "every": 0.05
+   },
+   "if": "timeleft <= 0 && gems_left > 0",
+   "do": [
+    {
+     "end": "lose"
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "sim": [
+   {
+    "name": "walking over every gem wins",
+    "players": [
+     {
+      "id": "p1",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "0,0; -6,-5; 6,-5; 6,5; -6,5; 0,9"
+     }
+    ],
+    "expect": [
+     {
+      "event": "gem",
+      "count": 5
+     },
+     {
+      "ended": "win"
+     },
+     {
+      "var": "gems_left",
+      "eq": 0
+     }
+    ]
+   },
+   {
+    "name": "standing still runs out the clock",
+    "players": [
+     {
+      "id": "p1",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "wait": 22
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     },
+     {
+      "var": "gems_left",
+      "eq": 5
+     }
+    ]
+   }
+  ]
+ },
+ "objects": [
+  {
+   "id": "floor",
+   "type": "plane",
+   "size": [
+    24,
+    24
+   ],
+   "position": [
+    0,
+    0.01,
+    0
+   ]
+  },
+  {
+   "id": "gem0",
+   "type": "cylinder",
+   "radius": 0.3,
+   "height": 0.1,
+   "position": [
+    -6,
+    0.45,
+    -5
+   ],
+   "collide": false,
+   "material": {
+    "color": "#5cf2ff"
+   }
+  },
+  {
+   "id": "gem1",
+   "type": "cylinder",
+   "radius": 0.3,
+   "height": 0.1,
+   "position": [
+    6,
+    0.45,
+    -5
+   ],
+   "collide": false,
+   "material": {
+    "color": "#5cf2ff"
+   }
+  },
+  {
+   "id": "gem2",
+   "type": "cylinder",
+   "radius": 0.3,
+   "height": 0.1,
+   "position": [
+    -6,
+    0.45,
+    5
+   ],
+   "collide": false,
+   "material": {
+    "color": "#5cf2ff"
+   }
+  },
+  {
+   "id": "gem3",
+   "type": "cylinder",
+   "radius": 0.3,
+   "height": 0.1,
+   "position": [
+    6,
+    0.45,
+    5
+   ],
+   "collide": false,
+   "material": {
+    "color": "#5cf2ff"
+   }
+  },
+  {
+   "id": "gem4",
+   "type": "cylinder",
+   "radius": 0.3,
+   "height": 0.1,
+   "position": [
+    0,
+    0.45,
+    9
+   ],
+   "collide": false,
+   "material": {
+    "color": "#5cf2ff"
+   }
+  }
+ ]
+}

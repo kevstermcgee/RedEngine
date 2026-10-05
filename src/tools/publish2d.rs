@@ -203,8 +203,11 @@ pub fn game_meta(manifest: &Value, v: &Verification, epoch: u64, previous_builds
     let g = &manifest["game"];
     let id = g["id"].as_str().unwrap_or("");
     let build_id = manifest["package_id"].as_str().unwrap_or("");
+    // A build that was published before keeps the time it was first published (re-publishing it is idempotent); it becomes the newest again.
+    let built_at =
+        previous_builds.iter().find(|b| b["build_id"] == build_id).and_then(|b| b["built_at"].as_str().map(str::to_string)).unwrap_or_else(|| iso8601(epoch));
     let mut builds: Vec<Value> = previous_builds.iter().filter(|b| b["build_id"] != build_id).cloned().collect();
-    builds.push(json!({"build_id": build_id, "built_at": iso8601(epoch), "game_revision": g["game_revision"], "engine_revision": manifest["engine"]["revision"], "path": format!("games/{id}/builds/{build_id}/")}));
+    builds.push(json!({"build_id": build_id, "built_at": built_at, "game_revision": g["game_revision"], "engine_revision": manifest["engine"]["revision"], "path": format!("games/{id}/builds/{build_id}/")}));
     json!({
         "schema": META_SCHEMA,
         "id": id,
@@ -221,7 +224,7 @@ pub fn game_meta(manifest: &Value, v: &Verification, epoch: u64, previous_builds
         "engine_revision": manifest["engine"]["revision"],
         "engine_dirty": manifest["engine"]["dirty"],
         "build_id": build_id,
-        "build_timestamp": iso8601(epoch),
+        "build_timestamp": built_at,
         "compatibility": {"requires": manifest["compat"]["requires"], "optional": manifest["compat"]["optional"], "networking": manifest["compat"]["networking"], "browsers_verified": [v.browser.clone()], "browsers_other": "untested"},
         "verification": {
             "native": {"scenarios": manifest["native"]["scenarios"].as_array().map_or(0, Vec::len), "passed": true},
@@ -807,6 +810,7 @@ mod tests {
         // Re-publishing a build is idempotent and does not duplicate it in the record.
         let m3 = write_site(&site, &p2, &ver("2222"), 3_000).unwrap();
         assert_eq!(m3["builds"].as_array().unwrap().len(), 2);
+        assert_eq!(m3["build_timestamp"], m2["build_timestamp"], "re-publishing keeps the original build time");
         // The catalog and the page list the game, with the record's fields.
         let c: Value = serde_json::from_str(&std::fs::read_to_string(site.join("catalog.json")).unwrap()).unwrap();
         assert_eq!(c["schema"], CATALOG_SCHEMA);

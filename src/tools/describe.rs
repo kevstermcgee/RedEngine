@@ -37,7 +37,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("playtest", "see the game without a screen: `playtest`, headless scripts, state dump"),
     ("custom-client", "a non-first-person game: your own crate on `red_engine2::app`"),
     ("2d", "2D games for the browser: the file format, the commands, what each check proves"),
-    ("capabilities", "what can be built: presentation x platform x networking x input"),
+    ("capabilities", "what is built: presentation x platform x networking x input"),
     ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
 
