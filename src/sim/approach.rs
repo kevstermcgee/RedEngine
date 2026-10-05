@@ -65,6 +65,18 @@ pub fn default_within(pickup_reach: f32) -> f32 {
     (pickup_reach * 0.6).clamp(0.3, 1.5)
 }
 
+/// How close `interact` walks before it presses E: close enough that the *eye-to-object* distance, which is what the pick-up reach is measured in, is at most 80% of
+/// `pickup_reach`, never looser than [`default_within`]. On flat ground that is the same ~1.4 m as ever; on a slope, where a low prop sits well below the eye, the walker
+/// must come closer, because the vertical part of the distance uses up some of the reach (a prop 1.9 m below the eye is out of reach at 1.4 m horizontally).
+pub fn pickup_within(pickup_reach: f32, eye: Vec3, target: &Target) -> f32 {
+    let dy = (eye.y - target.aim_point().y).abs();
+    let budget = pickup_reach * 0.8;
+    let half = 0.5 * (target.max.x - target.min.x).max(target.max.z - target.min.z);
+    // Horizontal distance from the eye to the object's middle that keeps the 3-D distance within budget; the gap is measured to its footprint, so take the half-width off.
+    let centre = (budget * budget - dy * dy).max(0.0).sqrt();
+    (centre - half).clamp(0.3, default_within(pickup_reach))
+}
+
 /// `(yaw, pitch)` in radians that point a view at `at` from `eye`.
 pub fn aim(eye: Vec3, at: Vec3) -> (f32, f32) {
     let d = at - eye;
@@ -230,5 +242,20 @@ mod tests {
         let m = failure_message("approach", "parcel_1", Failure::Stuck, 3.2, 1.38, Vec2::new(1.0, -2.0), 4.0);
         assert!(m.contains("`parcel_1`") && m.contains("(1.00, -2.00)") && m.contains("3.20 m") && m.contains("in the way"), "{m}");
         assert!(failure_message("interact", "x", Failure::Timeout, 5.0, 1.0, Vec2::ZERO, 12.0).contains("raise `timeout`"));
+    }
+
+    #[test]
+    fn interact_walks_closer_when_the_prop_is_far_below_the_eye() {
+        let flat = Target::from_prop(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.3, 0.4, 0.3));
+        let eye_flat = Vec3::new(0.0, 1.6, 2.0);
+        let on_flat = pickup_within(2.3, eye_flat, &flat);
+        assert!(on_flat <= default_within(2.3) && on_flat > 0.9, "flat ground keeps about the old distance: {on_flat}");
+        let downhill = pickup_within(2.3, Vec3::new(0.0, 1.6 + 0.4, 2.0), &flat);
+        assert!(downhill < on_flat - 0.1, "standing 0.4 m higher means coming closer: {downhill} against {on_flat}");
+        // At the extreme the vertical distance alone eats the reach: still a sensible minimum, never zero or negative.
+        assert_eq!(pickup_within(2.3, Vec3::new(0.0, 9.0, 0.0), &flat), 0.3);
+        // A big object's footprint edge is nearer than its middle, so the walker may stop a little farther out.
+        let wide = Target::from_prop(Vec3::ZERO, Vec3::new(1.0, 0.4, 1.0));
+        assert!(pickup_within(2.3, eye_flat, &wide) <= default_within(2.3));
     }
 }

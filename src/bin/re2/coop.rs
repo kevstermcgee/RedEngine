@@ -165,6 +165,10 @@ impl App {
             splitscreen::assign(players, pads, pads_only).map_err(|e| e.to_string())?
         };
         self.device = devices[0];
+        // Say, before the second player finds out, what in this scene a guest cannot do (see `splitscreen::GUEST_LIMITS`).
+        for note in splitscreen::guest_limits_for(&self.scene) {
+            eprintln!("note: split-screen: {note}");
+        }
         // Colours of the guests' jumpers, so players can tell each other apart at a glance.
         const JUMPERS: [&str; 3] = ["#3a7fd5", "#3fae5a", "#e4b72f"];
         for slot in 1..players {

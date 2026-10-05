@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 
 fn scene() -> Value {
     let aim = |name: &str, at: [f64; 3]| {
-        json!({"name": name, "players": [{"id": "p1", "spawn": "s"}], "max_seconds": 10, "expect": [],
+        json!({"name": name, "players": [{"id": "p1", "spawn": "s"}], "max_seconds": 10, "expect": [{"not_ended": true}],
                "script": [{"player": "p1", "hold": {"look_at": at, "seconds": 0.2}},
                           {"player": "p1", "hold": {"look_at": at, "interact": true, "seconds": 0.2}},
                           {"player": "p1", "wait": 0.3}]})

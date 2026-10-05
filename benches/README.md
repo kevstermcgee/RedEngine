@@ -24,6 +24,33 @@ assertions in `physics::tests` / `tests/prop_physics.rs`. Prefer adding those wh
 `benches/history/` keeps dated before/after tables for significant changes (e.g. static-prop promotion).
 Add a bench: write it in `benches/sim.rs` with a stable id, run, `--bless`.
 
+## Render trend (`render_trend.py`, `red_engine2 render-trend`)
+
+What the live client's renderer draws and how long it takes, for the fixed scenes in `render_scenes.json` (Marcel at morning, dusk and night, Marcel with four
+players on one screen, the house). `red_engine2 render-trend` draws them through the same path a player's window uses (`splitshot`'s renderer) and writes one record;
+`render_trend.py` keeps the records in `benches/history/render.json` and compares them.
+
+```bash
+python3 benches/render_trend.py run --label "what changed"   # draw the scenes here, append to benches/history/render.json
+python3 benches/render_trend.py compare                      # the two newest runs ON THE SAME ADAPTER, scene by scene
+python3 benches/render_trend.py list                         # every run, with its adapter and whether it is `software` or a `gpu`
+```
+
+**Three kinds of number, kept apart.** Triangles, shadow triangles and draw calls are exact and identical on every machine: a change in them is a change in the engine or the
+content. Milliseconds belong to **one adapter**: every record names its adapter and says `software` (a rasteriser such as llvmpipe, which is what a dev box or a CI runner
+without a usable GPU has, and says little about a player's GPU) or `gpu`; it moves about 2-3% run to run on its own. What a player's GPU actually does is a third thing,
+measured only by running the scenes there. `compare` therefore never sets milliseconds beside a run on a different adapter: it pairs the newest run with the previous run on
+the same adapter (or says there is none; `--adapter TEXT` picks one). Nothing gates on any of it: the hard guards are the triangle budget tests (`tests/split_render.rs`).
+
+**On a real GPU** (a player's PC, or this one once its GPU is usable: `red_engine2 doctor` names the permission problem when a GPU exists that the user cannot open):
+
+```bash
+red_engine2 render-trend --label "RTX 3060, driver 560" --out gpu.json   # no Python needed there; cargo run --release --bin red_engine2 -- render-trend ... in a checkout
+python3 benches/render_trend.py add gpu.json                             # back here: files it next to the software runs, never compared with them
+```
+
+The `render-trend` workflow runs the software path on pushes to `main` and keeps the result as a downloadable artifact.
+
 ## Idea-to-game flows (`flow_bench.py`)
 
 Not a micro-benchmark: how long each step of making a whole game takes, and how much output an agent would read doing it. A flow

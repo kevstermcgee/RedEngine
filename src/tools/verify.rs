@@ -157,42 +157,6 @@ fn item_selected(opts: &Options, name: &str) -> bool {
     }
 }
 
-/// Unknown keys anywhere in a `checks` block, as `checks.path.key: unknown field ...` messages.
-fn unknown_check_keys(checks: &Value) -> Vec<String> {
-    use crate::strict::check_keys;
-    let mut errs = Vec::new();
-    let Some(root) = checks.as_object() else { return errs };
-    check_keys(&mut errs, "checks", root, &["lint", "reach", "walk", "objects", "views", "sim", "perf", "nav", "audio"]);
-    if let Some(n) = root.get("nav").and_then(Value::as_object) {
-        check_keys(&mut errs, "checks.nav", n, &["max_failures"]);
-    }
-    if let Some(p) = root.get("perf").and_then(Value::as_object) {
-        check_keys(&mut errs, "checks.perf", p, super::perf::PERF_KEYS);
-    }
-    let each = |errs: &mut Vec<String>, name: &str, allowed: &[&str]| {
-        for (i, item) in root.get(name).and_then(Value::as_array).into_iter().flatten().enumerate() {
-            if let Some(o) = item.as_object() {
-                check_keys(errs, &format!("checks.{name}[{i}]"), o, allowed);
-            }
-        }
-    };
-    if let Some(l) = root.get("lint").and_then(Value::as_object) {
-        check_keys(&mut errs, "checks.lint", l, &["max_errors", "max_warnings", "forbid", "ignore"]);
-    }
-    each(&mut errs, "reach", &["to", "from", "from_y", "why", "phase", "reachable"]);
-    each(&mut errs, "walk", &["name", "path", "from", "from_y", "to", "to_y", "auto", "ends_near", "tol", "floor_y", "phase"]);
-    each(&mut errs, "views", &["name", "eye", "at", "fov", "max_diff"]);
-    if let Some(o) = root.get("objects").and_then(Value::as_object) {
-        check_keys(&mut errs, "checks.objects", o, &["exist", "absent", "min_count", "max_count", "count"]);
-        for (i, item) in o.get("count").and_then(Value::as_array).into_iter().flatten().enumerate() {
-            if let Some(c) = item.as_object() {
-                check_keys(&mut errs, &format!("checks.objects.count[{i}]"), c, &["kind", "min", "max"]);
-            }
-        }
-    }
-    errs
-}
-
 /// What a cached reachability grid was computed for: the phase, the `from` start and the `from_y` bits (all `None` = the base grid).
 type ReachKey = (Option<String>, Option<Vec2>, Option<u32>);
 
@@ -220,8 +184,8 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
         ));
         return Ok(Report { scene: path.to_path_buf(), results });
     }
-    // A misspelled group or field would mean a check silently never runs: report each as a failed check.
-    for msg in unknown_check_keys(&checks) {
+    // A misspelled group or field, a value of the wrong type or a group that asserts nothing would mean a check silently never runs (or proves nothing): report each as a failed check.
+    for msg in super::check_schema::invalid_fields(&checks) {
         results.push(fail("checks", msg));
     }
     // The reachability grid is the expensive part (seconds on a big map): compute it once, and only when a selected check needs it.
@@ -311,7 +275,18 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
             let mut r = match (got, want) {
                 (true, true) => pass(name, format!("({:.1}, {:.1}) reachable{at}", p.x, p.y)),
                 (false, false) => pass(name, format!("({:.1}, {:.1}) not reachable, as expected{at}", p.x, p.y)),
-                (false, true) => fail(name, format!("({:.1}, {:.1}) is NOT reachable from the start{at}", p.x, p.y)),
+                (false, true) => {
+                    let why = super::pathing::unreachable_why(w, rr, p);
+                    fail(
+                        name,
+                        format!(
+                            "({:.1}, {:.1}) is NOT reachable from the start{at}{}",
+                            p.x,
+                            p.y,
+                            if why.is_empty() { String::new() } else { format!(": {why}") }
+                        ),
+                    )
+                }
                 (true, false) => fail(name, format!("({:.1}, {:.1}) IS reachable{at}, but the check says it should not be", p.x, p.y)),
             };
             r.ms = t0.elapsed().as_millis() as u64 + std::mem::take(&mut pending_ms);
@@ -772,7 +747,7 @@ mod tests {
         );
         // `auto` without a destination is a readable failure, not a panic.
         let r = run_text(r#"{"walk":[{"name":"x","auto":true}]}"#);
-        assert_eq!(r.failed(), 1);
+        assert!(r.failed() >= 1 && r.render().contains("checks.walk[0]: asserts nothing"), "refused up front, with the reason: {}", r.render());
     }
 
     #[test]

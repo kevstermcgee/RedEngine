@@ -597,12 +597,31 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
             }
         }
     }
-    let max_secs = o.get("max_seconds").and_then(Value::as_f64).unwrap_or(30.0);
-    if !(max_secs > 0.0 && max_secs.is_finite()) {
-        errs.push(format!("{p}.max_seconds: must be a number of seconds greater than 0"));
-    }
-    let settle = o.get("settle_seconds").and_then(Value::as_f64).unwrap_or(0.5).max(0.0);
+    // A limit written as text (`"60"`) is an error, never the default: a scenario that silently ran for 30 s proves less than its author meant.
+    let seconds = |key: &str, default: f64, floor_zero: bool, errs: &mut Vec<String>| -> f64 {
+        let Some(v) = o.get(key) else { return default };
+        match v.as_f64().filter(|n| n.is_finite() && if floor_zero { *n >= 0.0 } else { *n > 0.0 }) {
+            Some(n) => n,
+            None => {
+                let rule = if floor_zero { "0 or more" } else { "greater than 0" };
+                errs.push(format!("{p}.{key}: expected a number of seconds {rule}, got {}", crate::strict::describe_value(v)));
+                default
+            }
+        }
+    };
+    let max_secs = seconds("max_seconds", 30.0, false, &mut errs);
+    let settle = seconds("settle_seconds", 0.5, true, &mut errs);
     let mut expect = Vec::new();
+    match o.get("expect") {
+        None => errs.push(format!(
+            "{p}.expect: needs at least one expectation: a scenario with none proves only that nobody got stuck (like {{\"event\": \"coin\", \"count\": 1}}, {{\"var\": \"score\", \"gte\": 1}}, {{\"ended\": \"victory\"}})"
+        )),
+        Some(Value::Array(list)) if list.is_empty() => {
+            errs.push(format!("{p}.expect: is empty, so the scenario proves only that nobody got stuck; add an expectation like {{\"ended\": \"victory\"}}"))
+        }
+        Some(Value::Array(_)) => {}
+        Some(other) => errs.push(format!("{p}.expect: expected a list of expectations, got {}", crate::strict::describe_value(other))),
+    }
     for (i, ev) in o.get("expect").and_then(Value::as_array).into_iter().flatten().enumerate() {
         let ep = format!("{p}.expect[{i}]");
         let Some(eo) = ev.as_object() else {
@@ -993,7 +1012,7 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                                 break;
                             }
                             if cur.phase == 0 {
-                                let goal = within.unwrap_or_else(|| default_within(state.character.body().pickup_reach));
+                                let goal = within.unwrap_or_else(|| approach::pickup_within(state.character.body().pickup_reach, eye, &target));
                                 let gap = target.gap(state.pos);
                                 match cur.approach.get_or_insert_with(|| Approach::new(goal, *timeout)).step(tick_secs, gap) {
                                     Progress::Arrived => (cur.phase, cur.ticks_in_step) = (1, 0),
@@ -1266,6 +1285,37 @@ mod tests {
         rules.var_names.push("flag".into());
         rules.var_init.push(0.0);
         rules
+    }
+
+    /// A scenario that cannot fail for the reason its author meant is an error: no expectations, a limit written as text, or an `expect` that is not a list.
+    #[test]
+    fn a_scenario_that_asserts_nothing_or_reads_a_limit_as_text_is_refused() {
+        let base = |extra: Value| {
+            let mut s = json!({"name": "s", "players": [{"id": "p"}], "script": [{"player": "p", "wait": 0}]});
+            s.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            s
+        };
+        let cases = [
+            ("no expect", base(json!({})), "expect: needs at least one expectation"),
+            ("an empty expect", base(json!({"expect": []})), "expect: is empty"),
+            ("an expect that is one object", base(json!({"expect": {"ended": "victory"}})), "expect: expected a list of expectations, got an object"),
+            ("a misspelled expect", base(json!({"expects": [{"ended": "victory"}]})), "expects: unknown field"),
+            (
+                "a duration as text",
+                base(json!({"expect": [{"ended": "victory"}], "max_seconds": "60"})),
+                "max_seconds: expected a number of seconds greater than 0, got string \"60\"",
+            ),
+            ("a zero duration", base(json!({"expect": [{"ended": "victory"}], "max_seconds": 0})), "max_seconds: expected a number of seconds greater than 0"),
+            (
+                "a settle time as text",
+                base(json!({"expect": [{"ended": "victory"}], "settle_seconds": "1"})),
+                "settle_seconds: expected a number of seconds 0 or more, got string \"1\"",
+            ),
+        ];
+        for (what, scenario, want) in cases {
+            let err = parse(&scenario, &rules(), &[]).err().unwrap_or_else(|| panic!("{what}: parsed")).join(" | ");
+            assert!(err.contains(want), "{what}: wanted `{want}` in `{err}`");
+        }
     }
 
     #[test]

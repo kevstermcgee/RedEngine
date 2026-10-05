@@ -1,8 +1,15 @@
 //! Every WGSL module the engine builds is parsed, validated (naga's uniformity analysis included) and translated to Direct3D's HLSL on any machine.
 //!
-//! Why: wgpu on Linux (Vulkan) accepted a shadow lookup that Windows' Direct3D compiler refused, and only hosted CI on Windows saw it. naga is the compiler wgpu
-//! itself uses, so a module it rejects here would not have reached a player either. The modules are composed exactly as `gpu.rs`, `ocean_pass.rs` and the other
-//! pipeline builders compose them (shared `common.wgsl` first, `DEPTH_TEXTURE_TYPE` filled in for the post pass).
+//! **What this proves, and what it does not.** It proves that naga (the compiler wgpu uses) parses and validates every module as the engine composes it, that naga's HLSL
+//! backend can write each one, and that no lookup needing screen-space derivatives sits inside a loop (the rule that would have caught the Windows failure below). It does
+//! NOT run Microsoft's compiler (FXC/DXC): an error only that compiler makes still reaches hosted CI, and **the Windows job there stays authoritative for Direct3D**. Nothing
+//! here replaces it, and a green run here is never evidence that a shader compiles on Windows, only that it is free of the errors listed above.
+//!
+//! Why it exists: wgpu on Linux (Vulkan) accepted a shadow lookup that Windows' Direct3D compiler refused, and only hosted CI on Windows saw it.
+//!
+//! **Coverage is derived, not listed.** The compositions checked are compared with the ones the engine's pipeline builders actually contain (every `include_str!` of a
+//! shader in `src/`, grouped by the `concat!` that joins them), so a shader added or re-composed in `gpu.rs` and not here fails
+//! `every_composition_the_engine_builds_is_checked`, and one here that no builder uses fails the same test.
 
 use naga::back::hlsl;
 use naga::valid::{Capabilities, ValidationFlags, Validator};
@@ -16,25 +23,90 @@ fn shaders_dir() -> PathBuf {
 }
 
 fn read(name: &str) -> String {
-    fs::read_to_string(shaders_dir().join(name)).unwrap_or_else(|e| panic!("src/shaders/{name}: {e}"))
+    fs::read_to_string(shaders_dir().join(format!("{name}.wgsl"))).unwrap_or_else(|e| panic!("src/shaders/{name}.wgsl: {e}"))
 }
 
-/// `(label, source)` for each module the pipeline builders create, in the order those builders concatenate them.
+/// The modules the pipeline builders create, as `(label, shader files in the order they are joined)`. Must equal what `src/` contains (see the test below).
+const COMPOSITIONS: &[(&str, &[&str])] = &[
+    ("scene", &["common", "scene"]),
+    ("shadow", &["common", "shadow"]),
+    ("sky background", &["common", "sky", "background"]),
+    ("ocean", &["common", "sky", "ocean"]),
+    ("crosshair", &["crosshair"]),
+    ("fx", &["fx"]),
+    ("overlay", &["overlay"]),
+    ("postfx", &["postfx"]),
+];
+
+/// `(label, source)` for each module, with the post pass filled in for both depth texture types the engine builds.
 fn modules() -> Vec<(String, String)> {
-    let join = |parts: &[&str]| parts.iter().map(|p| read(p)).collect::<String>();
-    let mut out = vec![
-        ("scene".to_string(), join(&["common.wgsl", "scene.wgsl"])),
-        ("shadow".to_string(), join(&["common.wgsl", "shadow.wgsl"])),
-        ("sky background".to_string(), join(&["common.wgsl", "sky.wgsl", "background.wgsl"])),
-        ("ocean".to_string(), join(&["common.wgsl", "sky.wgsl", "ocean.wgsl"])),
-        ("crosshair".to_string(), read("crosshair.wgsl")),
-        ("fx".to_string(), read("fx.wgsl")),
-        ("overlay".to_string(), read("overlay.wgsl")),
-    ];
-    for depth_ty in ["texture_depth_2d", "texture_depth_multisampled_2d"] {
-        out.push((format!("postfx ({depth_ty})"), read("postfx.wgsl").replace("DEPTH_TEXTURE_TYPE", depth_ty)));
+    let mut out = Vec::new();
+    for (label, files) in COMPOSITIONS {
+        let source: String = files.iter().map(|f| read(f)).collect();
+        if *label == "postfx" {
+            for depth_ty in ["texture_depth_2d", "texture_depth_multisampled_2d"] {
+                out.push((format!("postfx ({depth_ty})"), source.replace("DEPTH_TEXTURE_TYPE", depth_ty)));
+            }
+        } else {
+            out.push((label.to_string(), source));
+        }
     }
     out
+}
+
+/// Every shader composition `src/` builds, found by reading it: each `include_str!("shaders/NAME.wgsl")` outside test code, grouped with its neighbours when they sit in
+/// one `concat!( ... )`. Returned as the file names (no extension) in order, one entry per distinct composition.
+fn compositions_in_source() -> BTreeSet<Vec<String>> {
+    fn rust_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
+        for e in fs::read_dir(dir).into_iter().flatten().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                rust_files(&p, out);
+            } else if p.extension().is_some_and(|x| x == "rs") {
+                out.push(p);
+            }
+        }
+    }
+    const NEEDLE: &str = "include_str!(\"shaders/";
+    let names = |text: &str| -> Vec<String> {
+        text.match_indices(NEEDLE).filter_map(|(i, _)| text[i + NEEDLE.len()..].split_once(".wgsl\")").map(|(n, _)| n.to_string())).collect()
+    };
+    let mut files = Vec::new();
+    rust_files(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
+    let mut found = BTreeSet::new();
+    for f in files {
+        let text = fs::read_to_string(&f).unwrap_or_default();
+        // Test modules read shader text to check layouts; they build no pipeline.
+        let code = text.split("#[cfg(test)]").next().unwrap_or("");
+        let mut rest = code.to_string();
+        // A `concat!( ... )` with balanced parentheses is one composition; blank it out so its parts are not also counted alone.
+        while let Some(start) = rest.find("concat!(") {
+            let (mut depth, mut end) = (0usize, None);
+            for (i, c) in rest[start + "concat!".len()..].char_indices() {
+                match c {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = Some(start + "concat!".len() + i + 1);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let end = end.expect("a concat! with no closing parenthesis");
+            let group = names(&rest[start..end]);
+            if !group.is_empty() {
+                found.insert(group);
+            }
+            rest.replace_range(start..end, "");
+        }
+        for single in names(&rest) {
+            found.insert(vec![single]);
+        }
+    }
+    found
 }
 
 // naga's uniformity analysis (run by `validate`) accepts a derivative-needing lookup after a `continue` or `break` taken under a per-pixel condition, and treats
@@ -164,14 +236,30 @@ fn every_shader_module_validates_and_translates_to_hlsl() {
     assert!(failures.is_empty(), "{}", failures.join("\n\n"));
 }
 
-/// A shader file that is in no composition above is never checked: a new one must be added to `modules()` (and to the pipeline builder that uses it).
+/// The compositions this test checks are exactly the ones the engine builds: a new shader, or a changed `concat!`, in `src/` that is not mirrored in `COMPOSITIONS`
+/// would otherwise never be validated, and a stale entry here would give a false sense of coverage.
 #[test]
-fn every_shader_file_is_in_a_checked_module() {
-    let on_disk: BTreeSet<String> =
-        fs::read_dir(shaders_dir()).expect("src/shaders").filter_map(|e| e.ok()?.file_name().into_string().ok()).filter(|n| n.ends_with(".wgsl")).collect();
-    let used: BTreeSet<String> =
-        ["common", "scene", "shadow", "sky", "background", "ocean", "crosshair", "fx", "overlay", "postfx"].iter().map(|n| format!("{n}.wgsl")).collect();
-    assert_eq!(on_disk, used, "src/shaders/*.wgsl and the modules in tests/shader_validation.rs disagree: add the new file to `modules()` and to this list");
+fn every_composition_the_engine_builds_is_checked() {
+    let built = compositions_in_source();
+    let checked: BTreeSet<Vec<String>> = COMPOSITIONS.iter().map(|(_, files)| files.iter().map(|f| f.to_string()).collect()).collect();
+    let unchecked: Vec<_> = built.difference(&checked).collect();
+    let stale: Vec<_> = checked.difference(&built).collect();
+    assert!(
+        unchecked.is_empty() && stale.is_empty(),
+        "src/ builds shader compositions this test does not check: {unchecked:?}; this test checks compositions src/ no longer builds: {stale:?}. Update COMPOSITIONS in tests/shader_validation.rs."
+    );
+}
+
+/// And every shader file on disk is part of a composition that is built: an orphaned `.wgsl` is dead weight that nothing validates.
+#[test]
+fn every_shader_file_is_part_of_a_built_composition() {
+    let on_disk: BTreeSet<String> = fs::read_dir(shaders_dir())
+        .expect("src/shaders")
+        .filter_map(|e| e.ok()?.file_name().into_string().ok())
+        .filter_map(|n| n.strip_suffix(".wgsl").map(str::to_string))
+        .collect();
+    let used: BTreeSet<String> = compositions_in_source().into_iter().flatten().collect();
+    assert_eq!(on_disk, used, "src/shaders/*.wgsl and the shaders the pipeline builders include disagree");
 }
 
 // The rule itself, on small modules: what Direct3D refused (a lookup in a loop that exits under a per-pixel condition) is refused, and so is any other loop (this
@@ -212,4 +300,48 @@ fn level_lookups_in_loops_and_plain_lookups_outside_them_are_accepted() {
     let level = "for (var i = 0u; i < count; i = i + 1u) { if (uv.x > f32(i)) { continue; } acc = acc + textureSampleLevel(tex, smp, uv, 0.0); }";
     assert_eq!(check("level in a loop", &fragment(level)), Ok(()));
     assert_eq!(check("outside a loop", &fragment("acc = textureSample(tex, smp, uv); for (var i = 0u; i < count; i = i + 1u) { acc = acc * 0.5; }")), Ok(()));
+}
+
+/// The shape that broke Windows, kept as a permanent fixture: the cascaded-shadow lookup as first written (reduced from `scene.wgsl` at commit 85ce0b4). `textureSampleCompare`
+/// sits in `cascade_lit`'s tap loop, which `shadow_factor` calls inside a cascade loop that `continue`s and `return`s under per-pixel conditions. Linux/Vulkan accepted it;
+/// Direct3D's compiler refused the pipeline ("gradient instruction used in a loop with varying iteration"). naga alone validates it too, which is exactly why
+/// `check` has its own rule: this fixture must stay refused, naming the call chain. If it ever passes, the guard against that class of failure is gone.
+const THE_SHADOW_LOOP_THAT_BROKE_DIRECT3D: &str = "
+@group(0) @binding(0) var shadow_map: texture_depth_2d;
+@group(0) @binding(1) var shadow_sampler: sampler_comparison;
+@group(0) @binding(2) var<uniform> counts: vec4<f32>;
+
+fn cascade_lit(uv: vec2<f32>, z: f32) -> f32 {
+    var lit = 0.0;
+    for (var i = 0; i < 8; i = i + 1) {
+        lit = lit + textureSampleCompare(shadow_map, shadow_sampler, uv + vec2<f32>(f32(i) * 0.001, 0.0), z);
+    }
+    return lit / 8.0;
+}
+
+fn shadow_factor(uv: vec2<f32>, edge: f32) -> f32 {
+    let count = u32(counts.z);
+    for (var c = 0u; c < count; c = c + 1u) {
+        if (edge >= 1.0) {
+            continue;
+        }
+        let lit = cascade_lit(uv, 0.5);
+        return lit;
+    }
+    return 1.0;
+}
+
+@fragment fn fs(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
+    let s = shadow_factor(uv, uv.x);
+    return vec4<f32>(s, s, s, 1.0);
+}
+";
+
+#[test]
+fn the_shadow_loop_that_broke_direct3d_stays_refused() {
+    let err = check("the 85ce0b4 shadow lookup", THE_SHADOW_LOOP_THAT_BROKE_DIRECT3D).expect_err("the shape that Direct3D refused must be refused here too");
+    assert!(err.contains("`cascade_lit`") && err.contains("inside a loop"), "the report names the lookup: {err}");
+    // The fix that shipped, in the same shape: the Level variant needs no derivatives, so the identical control flow is accepted.
+    let fixed = THE_SHADOW_LOOP_THAT_BROKE_DIRECT3D.replace("textureSampleCompare(", "textureSampleCompareLevel(");
+    assert_eq!(check("the fixed shadow lookup", &fixed), Ok(()));
 }

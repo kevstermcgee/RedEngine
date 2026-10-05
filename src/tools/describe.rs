@@ -273,7 +273,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("world", "{wrap: {axis: x|z, min, max}, bounds: {x: [lo, hi], z: [lo, hi]}} an endless world: the axis loops every max-min metres (author one period; the seam is invisible), bounds are the invisible edge of the other axes"),
     ("sky", "{sun: {direction:[x,y,z] toward the sun, size_deg, color, glow}, haze, zenith, gradient_power} a sky dome shaded by view direction with a sun at infinity that sets behind the horizon instead of dipping under the ground; without it `background` is a screen-space gradient"),
     ("ocean", "{y, color_deep, color_shallow, foam_color, wave_amplitude, wave_frequency, wave_speed, roughness} an endless animated water plane to the horizon, translucent over a shore (reads the scene's first terrain), fading into the sky haze"),
-    ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views, sim, perf} — see SPEC; `perf` = budgets for tick time, bandwidth, promoted props (`red_engine2 perf`)"),
+    ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views, sim, perf, nav, audio} — see SPEC; every field is typed (a string is never a number) and a group or item that asserts nothing is an error; `perf` = budgets for tick time, bandwidth, promoted props (`red_engine2 perf`)"),
     ("objects", "the scene graph: array of objects (see `describe objects`)"),
     ("x-*, _*, notes, $comment", "the extension namespace: always allowed, never interpreted — put notes and tool data here. ANY OTHER unknown key is an error with a did-you-mean"),
 ];
@@ -469,7 +469,7 @@ fn audio_text() -> String {
     "All sound is synthesized in code (nothing imported) and builds headless, so it can be measured without a sound card or ears.\n\n\
      red_engine2 audio list                       every built-in sound: name, group, one-shot or loop, length\n\
      red_engine2 audio report [NAME|file.wav ...] one line each (no names = all): length, peak, RMS, LUFS (ITU BS.1770, gated), crest, clipped samples, DC,\n\
-     \x20                                            silence before/after, `end` (last samples, dBFS), loop `seam` (1 = clean), brightness (centroid Hz), strongest\n\
+     \x20                                            silence before/after, `end` (last samples, dBFS), `endjump` (a ONE-SHOT's last frame vs its usual step: ~0 = fades out, 7+ = cut off, a click), loop `seam` (a LOOP's end-to-start jump, 1 = clean; ignore it on one-shots), brightness (centroid Hz), strongest\n\
      \x20                                            pitch (note), flatness (0 tone .. 1 noise), % energy in sub/bass/lowmid/highmid/air, stereo correlation; --json\n\
      red_engine2 audio render NAME out.wav        write the 16-bit WAV (to listen to, or to send someone)\n\
      red_engine2 audio picture NAME|f.wav out.png waveform over a spectrogram (log frequency up, time right): LOOK at it\n\
@@ -567,7 +567,7 @@ fn rules_text() -> String {
 }
 
 fn multiplayer_text() -> String {
-    String::from(
+    let mut s = String::from(
         "HOST     red_server --map maps/main.json [--port 27015] [--key SECRET|auto] [--lobby] [--upnp] [--record trace.json]\n\
          \x20         [--tls-cert DIR/cert.pem --tls-key DIR/key.pem] [--max-connections 16]      (identity: red_engine2 net-identity --out DIR)\n\
          \x20 TRANSPORT with --tls-cert/--tls-key: QUIC + TLS 1.3, encrypted, the server verified by its printed fingerprint (ADR 0044). Without:\n\
@@ -597,7 +597,14 @@ fn multiplayer_text() -> String {
          SHIP     red_engine2 package out.zip / package --verify out.zip   reproducible zip + SHA-256 manifest; headless binaries proven graphics-free\n\
          LAG      the server rewinds the players a hitscan shot can hit by the shooter's view lag (ADR 0053); `--lag-comp-ms` caps it.\n\
          NOT DONE client certificates, server key rotation, a spectator seat (the playtest's camera is client-side), teams, kick/ban.\n",
-    )
+    );
+    // Local split-screen (`re2 --players N`, 2 to 4 people on one screen, offline only): what a guest cannot do, from the one list the client and the scripts also use.
+    s.push_str("\nSPLIT-SCREEN  re2 MAP --players N (2-4 local players; player 1 keyboard+mouse, the others gamepads; `splitshot` draws it; script step {\"player\": N} plays each). What a guest cannot do:\n");
+    for (topic, what) in crate::splitscreen::GUEST_LIMITS {
+        s.push_str(&format!("  - {topic}: {what}\n"));
+    }
+    s.push_str("  `re2` prints the ones a scene runs into when it starts with --players; a scripted `interact` as a guest fails with this explanation.\n");
+    s
 }
 
 fn playtest_text() -> String {
@@ -1030,5 +1037,15 @@ mod tests {
         let cut = first_sentence(long, 60);
         assert!(cut.ends_with("...") && cut.len() <= 63 && long.starts_with(cut.trim_end_matches("...")), "{cut}");
         assert!(!cut.trim_end_matches("...").ends_with(' ') && !cut.contains("unpro"), "cut between words: {cut}");
+    }
+
+    /// The split-screen limits an AI is told are the ones the client and the scripts enforce: `describe multiplayer` prints the shared list, so it cannot drift.
+    #[test]
+    fn describe_multiplayer_states_every_split_screen_limit() {
+        let text = multiplayer_text();
+        for (topic, sentence) in crate::splitscreen::GUEST_LIMITS {
+            assert!(text.contains(&format!("- {topic}: {sentence}")), "describe multiplayer is missing the `{topic}` limit");
+        }
+        assert!(text.contains("SPLIT-SCREEN") && text.contains("--players N"));
     }
 }

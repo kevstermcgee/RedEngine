@@ -1,0 +1,408 @@
+{
+  "camera": {
+    "position": [
+      0,
+      1.6,
+      0
+    ],
+    "target": [
+      0,
+      1.6,
+      -5
+    ],
+    "far": 500
+  },
+  "clock": {
+    "day_secs": 600,
+    "start": 0.72,
+    "fog": 0.002,
+    "stars": 1.0,
+    "moon": true,
+    "night_light": 0.3
+  },
+  "procgen": {
+    "seed": 11
+  },
+  "player": {
+    "mode": "peaceful",
+    "walk_speed": 3.2,
+    "sprint_speed": 5.5
+  },
+  "spawns": [
+    {
+      "id": "start",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "yaw_deg": 0
+    }
+  ],
+  "vars": {
+    "delivered": 0
+  },
+  "zones": [
+    {
+      "id": "shrine_zone",
+      "rect": [
+        -2,
+        -27,
+        2,
+        -23
+      ],
+      "y": -0.8
+    }
+  ],
+  "objects": [
+    {
+      "id": "lantern_1",
+      "type": "prefab",
+      "prefab": "garden_lantern",
+      "position": [
+        9,
+        -0.5,
+        -12
+      ],
+      "movable": true
+    },
+    {
+      "id": "lantern_2",
+      "type": "prefab",
+      "prefab": "garden_lantern",
+      "position": [
+        -10,
+        -0.32,
+        -16
+      ],
+      "movable": true
+    },
+    {
+      "id": "lantern_3",
+      "type": "prefab",
+      "prefab": "garden_lantern",
+      "position": [
+        4,
+        -0.87,
+        -30
+      ],
+      "movable": true
+    },
+    {
+      "id": "shrine",
+      "type": "box",
+      "size": [
+        1.2,
+        0.4,
+        1.2
+      ],
+      "position": [
+        0,
+        -0.52,
+        -25
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "lit",
+      "when": {
+        "prop_enter": {
+          "zone": "shrine_zone",
+          "height": 2.5
+        }
+      },
+      "do": [
+        {
+          "add": [
+            "delivered",
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "win",
+      "when": {
+        "every": 0.5
+      },
+      "if": "delivered >= 3",
+      "once": true,
+      "do": [
+        {
+          "end": "victory"
+        }
+      ]
+    },
+    {
+      "id": "dark",
+      "when": {
+        "after": 420
+      },
+      "if": "delivered < 3",
+      "once": true,
+      "do": [
+        {
+          "end": "defeat"
+        }
+      ]
+    }
+  ],
+  "audio": {
+    "ambience": "nature",
+    "music": {
+      "dusk": "audio/dusk.json",
+      "night": "audio/dusk.json"
+    }
+  },
+  "checks": {
+    "lint": {
+      "max_errors": 0
+    },
+    "reach": [
+      {
+        "to": [
+          9,
+          -11
+        ],
+        "why": "beside lantern 1"
+      },
+      {
+        "to": [
+          -10,
+          -15
+        ],
+        "why": "beside lantern 2"
+      },
+      {
+        "to": [
+          4,
+          -29
+        ],
+        "why": "beside lantern 3"
+      },
+      {
+        "to": [
+          0,
+          -22
+        ],
+        "why": "the shrine's front step"
+      }
+    ],
+    "sim": [
+      {
+        "name": "one lantern carried to the shrine",
+        "players": [
+          {
+            "id": "p1",
+            "spawn": "start"
+          }
+        ],
+        "script": [
+          {
+            "player": "p1",
+            "interact": "lantern_1"
+          },
+          {
+            "player": "p1",
+            "approach": "shrine"
+          },
+          {
+            "player": "p1",
+            "hold": {
+              "interact": true,
+              "seconds": 0.2
+            }
+          },
+          {
+            "player": "p1",
+            "wait": 1.0
+          }
+        ],
+        "max_seconds": 60,
+        "expect": [
+          {
+            "prop": "lantern_1",
+            "in_zone": "shrine_zone"
+          },
+          {
+            "var": "delivered",
+            "eq": 1
+          },
+          {
+            "not_ended": true
+          }
+        ]
+      },
+      {
+        "name": "all three lanterns lit before dark",
+        "players": [
+          {
+            "id": "p1",
+            "spawn": "start"
+          }
+        ],
+        "script": [
+          {
+            "player": "p1",
+            "interact": "lantern_1"
+          },
+          {
+            "player": "p1",
+            "approach": "shrine"
+          },
+          {
+            "player": "p1",
+            "hold": {
+              "interact": true,
+              "seconds": 0.2
+            }
+          },
+          {
+            "player": "p1",
+            "wait": 0.6
+          },
+          {
+            "player": "p1",
+            "interact": "lantern_2"
+          },
+          {
+            "player": "p1",
+            "approach": "shrine"
+          },
+          {
+            "player": "p1",
+            "hold": {
+              "interact": true,
+              "seconds": 0.2
+            }
+          },
+          {
+            "player": "p1",
+            "wait": 0.6
+          },
+          {
+            "player": "p1",
+            "interact": "lantern_3"
+          },
+          {
+            "player": "p1",
+            "approach": "shrine"
+          },
+          {
+            "player": "p1",
+            "hold": {
+              "interact": true,
+              "seconds": 0.2
+            }
+          },
+          {
+            "player": "p1",
+            "wait": 0.6
+          }
+        ],
+        "max_seconds": 240,
+        "expect": [
+          {
+            "var": "delivered",
+            "eq": 3
+          },
+          {
+            "ended": "victory"
+          }
+        ]
+      },
+      {
+        "name": "night falls with the shrine unlit",
+        "players": [
+          {
+            "id": "p1",
+            "spawn": "start"
+          }
+        ],
+        "script": [
+          {
+            "player": "p1",
+            "wait": 430
+          }
+        ],
+        "max_seconds": 450,
+        "expect": [
+          {
+            "var": "delivered",
+            "eq": 0
+          },
+          {
+            "ended": "defeat"
+          }
+        ]
+      }
+    ],
+    "audio": {
+      "scores": {
+        "lufs": [
+          -34,
+          -24
+        ],
+        "peak_max": -6
+      },
+      "soundscape": [
+        {
+          "name": "night has owls and no songbirds",
+          "sun": -30,
+          "rising": false,
+          "biome": "meadow",
+          "secs": 600,
+          "calls": {
+            "owl": [
+              1,
+              400
+            ],
+            "robin": [
+              0,
+              0
+            ],
+            "blackbird": [
+              0,
+              0
+            ]
+          },
+          "beds": {
+            "crickets": [
+              0.3,
+              1
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "ui": {
+    "title": "Lantern Walk",
+    "counters": [
+      {
+        "var": "delivered",
+        "of": 3,
+        "label": "Lanterns lit"
+      }
+    ],
+    "objective": "Carry the three lanterns to the shrine before night",
+    "start": {
+      "title": "Lantern Walk",
+      "text": "Three lanterns lie in the meadow. Carry each one to the shrine before night falls.",
+      "button": "Begin"
+    },
+    "end": {
+      "victory": {
+        "title": "The shrine is lit",
+        "text": "You lit {delivered} lanterns.",
+        "button": "Walk again"
+      },
+      "defeat": {
+        "title": "Night has fallen",
+        "text": "The shrine is still dark.",
+        "button": "Try again"
+      }
+    }
+  }
+}

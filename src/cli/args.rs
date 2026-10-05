@@ -405,7 +405,7 @@ pub(crate) enum Command {
         #[arg(long)]
         grass: Option<f32>,
     },
-    /// Plant models, as a sheet: `flora sheet.png`
+    /// Plant models, as a sheet
     Flora {
         out: PathBuf,
         /// Species keys (comma separated); one species with --variants shows its variation. Default: all.
@@ -443,6 +443,27 @@ pub(crate) enum Command {
         /// Pixels between the views.
         #[arg(long, default_value_t = 6)]
         gutter: u32,
+        /// Render this many more times after the picture and time each (the first render also builds pipelines and uploads, so it is not counted).
+        #[arg(long, default_value_t = 0)]
+        repeat: u32,
+        /// Write what was drawn and how long it took (adapter, triangles, draws, best and median milliseconds) to this JSON file; needs `--repeat`.
+        #[arg(long)]
+        stats: Option<PathBuf>,
+    },
+    /// Time fixed render scenes (run on a real GPU)
+    RenderTrend {
+        /// The scene list (default `benches/render_scenes.json` in the engine checkout).
+        #[arg(long)]
+        scenes: Option<PathBuf>,
+        /// Timed renders per scene after one untimed warm-up render.
+        #[arg(long, default_value_t = 5)]
+        repeat: u32,
+        /// Write the record here (JSON); `python3 benches/render_trend.py add FILE` files it in `benches/history/render.json`.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// A note stored in the record, like "RTX 3060, driver 560".
+        #[arg(long)]
+        label: Option<String>,
     },
     /// Render the full scene to an MP4.
     Render { scene: PathBuf, out: PathBuf },

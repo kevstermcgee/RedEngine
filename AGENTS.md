@@ -36,6 +36,7 @@ Most of the cost of working on this engine is reading things and running things 
   escalate to the full run on their own. A green run is remembered by the *content* of the changed files: asking again with nothing edited is free; any edit re-runs.
   The green stamp also keys on the base commit, the cargo feature set, the toolchain and result-affecting environment, so a result is never reused across them, and an `iterate` (partial) pass is never accepted as any other tier.
   Output is a few lines per step; full logs are in `out/logs/`. `--dry-run` prints the plan and its configuration. The feature index is read from the checkout at run time: editing `docs/features.json` needs no rebuild.
+- **Shader edits** (`src/shaders/**`) run `shader_validation` and the `gpu`/`fx`/`ocean_pass` layout tests: naga parses, validates and writes HLSL for every module the engine builds, and no derivative lookup may sit in a loop. That is *not* Microsoft's compiler: **Windows hosted CI stays authoritative for Direct3D**, so a green local run says "free of the known failure class", never "compiles on Windows".
 - **Do not run the whole suite as a habit** (`scripts/dev test`, bare `cargo test`): that is what `--full` and CI are for. Game projects: `scripts/red check` re-verifies only maps
   whose bytes (or the project's other JSON, or the engine binary) changed.
 - **Never wait for a person.** Servers, bots, `play-local`, `net-test` and `perf` listen on loopback only, which never raises an OS firewall prompt. `red_server` needs an explicit

@@ -62,10 +62,10 @@ fn interact_by_id_walks_up_aims_and_picks_up_a_crate_nine_metres_away() {
 #[test]
 fn each_failure_names_the_object_the_place_and_the_reason() {
     let report = run(vec![
-        scenario("walled off", json!([{"player": "p1", "approach": "behind_wall"}]), json!([])),
-        scenario("too slow", json!([{"player": "p1", "approach": "far_crate", "timeout": 0.5}]), json!([])),
-        scenario("too heavy", json!([{"player": "p1", "interact": "heavy"}]), json!([])),
-        scenario("hands full", json!([{"player": "p1", "interact": "near_crate"}, {"player": "p1", "interact": "far_crate"}]), json!([])),
+        scenario("walled off", json!([{"player": "p1", "approach": "behind_wall"}]), json!([{"not_ended": true}])),
+        scenario("too slow", json!([{"player": "p1", "approach": "far_crate", "timeout": 0.5}]), json!([{"not_ended": true}])),
+        scenario("too heavy", json!([{"player": "p1", "interact": "heavy"}]), json!([{"not_ended": true}])),
+        scenario("hands full", json!([{"player": "p1", "interact": "near_crate"}, {"player": "p1", "interact": "far_crate"}]), json!([{"not_ended": true}])),
     ]);
     let by = |n: &str| report.results.iter().find(|r| r.name == n).unwrap_or_else(|| panic!("no scenario {n}"));
     let text = |n: &str| by(n).render();
@@ -87,8 +87,8 @@ fn each_failure_names_the_object_the_place_and_the_reason() {
 fn an_unknown_object_is_a_parse_error_with_a_suggestion_and_a_nested_one_is_refused_at_run() {
     let path = std::env::temp_dir().join(format!("re2_object_actions_bad_{}.json", std::process::id()));
     let bad = scene(vec![
-        scenario("typo", json!([{"player": "p1", "interact": "far_crat"}]), json!([])),
-        scenario("wrong key", json!([{"player": "p1", "walk": "1,1", "within": 1.0}]), json!([])),
+        scenario("typo", json!([{"player": "p1", "interact": "far_crat"}]), json!([{"not_ended": true}])),
+        scenario("wrong key", json!([{"player": "p1", "walk": "1,1", "within": 1.0}]), json!([{"not_ended": true}])),
     ]);
     std::fs::write(&path, serde_json::to_string(&bad).unwrap()).unwrap();
     let err = simrun::run(&path, None, None, None).err().expect("a scenario with a typo is rejected");

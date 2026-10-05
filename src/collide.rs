@@ -412,6 +412,12 @@ impl GroundCandidates {
         self.procgen.as_deref()
     }
 
+    /// Whether the ground is anything but the flat `y = 0` floor: a heightfield `terrain` or a generated `procgen` world. Loose props must rest on *that* surface, not on
+    /// a flat floor the player never stands on (see `physics::PropWorld`).
+    pub fn has_natural_ground(&self) -> bool {
+        !self.terrains.is_empty() || self.procgen.is_some()
+    }
+
     /// The indices (into `box_tops`) of every box top whose footprint may contain `xz`: a superset of the tops that do, never missing one.
     fn box_candidates(&self, xz: glam::Vec2) -> &[u32] {
         let index = self.box_index.get_or_init(|| BoxIndex::build(&self.box_tops));

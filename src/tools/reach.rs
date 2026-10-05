@@ -112,6 +112,11 @@ impl<'a> ColliderGrid<'a> {
     }
 }
 
+/// How far (half-size, metres) an endless world is analysed around the start unless asked otherwise: the world has no edge, so the analysis looks at a window of it.
+pub const ENDLESS_RADIUS: f32 = 48.0;
+/// The finest grid used for an endless world (metres): its trees are 0.4 m or more across, and a window of it at 0.1 m would be millions of cells.
+pub const ENDLESS_CELL: f32 = 0.25;
+
 /// Inputs to reachability: grid resolution, start point, margin.
 pub struct ReachParams {
     /// Grid resolution in meters. 0.1 is fast; 0.05 resolves tight gaps more faithfully.
@@ -122,26 +127,34 @@ pub struct ReachParams {
     pub start_y: Option<f32>,
     /// Extra room around the map's solid bounds to flood into (the perimeter-leak test).
     pub margin: f32,
+    /// Endless worlds only (a `procgen` block): the half-size of the window analysed around the start. Default [`ENDLESS_RADIUS`].
+    pub radius: Option<f32>,
+    /// Points the analysis box must contain (the targets of reach and walk checks): in an endless world the window grows to hold them, so a far target is not
+    /// reported unreachable merely because it fell outside the window.
+    pub include: Vec<Vec2>,
 }
 
 impl Default for ReachParams {
     fn default() -> Self {
-        ReachParams { cell: 0.1, start: None, start_y: None, margin: 3.0 }
+        ReachParams { cell: 0.1, start: None, start_y: None, margin: 3.0, radius: None, include: Vec::new() }
     }
 }
 
 /// Flood-fills the walkable grid from the start using the game's real per-tick movement functions.
 pub fn compute(world: &MapWorld, params: &ReachParams) -> Reach {
-    let (smin, smax) = world.solid_bounds();
-    let mut bmin = smin - Vec2::splat(params.margin);
-    let mut bmax = smax + Vec2::splat(params.margin);
     let start = params.start.unwrap_or(world.spawn);
+    let endless = world.is_endless();
+    // The box to flood: a bounded map's solid bounds plus a margin (so a gap in the perimeter is found); an endless world's window around the start and every target.
+    let points: Vec<Vec2> = std::iter::once(start).chain(params.include.iter().copied()).collect();
+    let (mut bmin, mut bmax) = world.analysis_box(&points, params.margin, params.radius.unwrap_or(ENDLESS_RADIUS));
     bmin = bmin.min(start - Vec2::splat(1.0));
     bmax = bmax.max(start + Vec2::splat(1.0));
-    let cell = params.cell.max(0.02);
+    let cell = if endless { params.cell.max(ENDLESS_CELL) } else { params.cell.max(0.02) };
     let nx = ((bmax.x - bmin.x) / cell).ceil() as usize + 1;
     let nz = ((bmax.y - bmin.y) / cell).ceil() as usize + 1;
-    let grid = ColliderGrid::new(&world.colliders, bmin, bmax);
+    // What stops the player: the authored colliders and, in a generated world, its trees and shrubs: the same list the player's own movement uses.
+    let blockers = world.blockers_in(bmin, bmax);
+    let grid = ColliderGrid::new(&blockers, bmin, bmax);
     let center = |ix: usize, iz: usize| Vec2::new(bmin.x + ix as f32 * cell, bmin.y + iz as f32 * cell);
 
     let mut reach = Reach {
@@ -226,7 +239,8 @@ pub fn compute(world: &MapWorld, params: &ReachParams) -> Reach {
                 reach.drops.push(DropEvent { pos: p, from_y: y, to_y: ny });
             }
             reach.levels[jz * nx + jx].push(ny);
-            if jx == 0 || jz == 0 || jx + 1 == nx || jz + 1 == nz {
+            // Walking off the edge of the box is a leak only where the box is the map's edge; the edge of an endless world's window is just where the looking stopped.
+            if !endless && (jx == 0 || jz == 0 || jx + 1 == nx || jz + 1 == nz) {
                 reach.leaks.push(p);
             }
             queue.push_back((jx, jz, ny));
@@ -240,7 +254,9 @@ pub fn compute(world: &MapWorld, params: &ReachParams) -> Reach {
 /// stand that connects to the opening without leaving the neighbourhood (a chair or shelf parked
 /// right in front of a door defeats it even if the room is reachable some other way).
 pub fn local_reach(world: &MapWorld, center: Vec2, y: f32, radius: f32, cell: f32) -> Vec<Vec2> {
-    let grid = ColliderGrid::new(&world.colliders, center - Vec2::splat(radius + 1.0), center + Vec2::splat(radius + 1.0));
+    let (lo, hi) = (center - Vec2::splat(radius + 1.0), center + Vec2::splat(radius + 1.0));
+    let blockers = world.blockers_in(lo, hi);
+    let grid = ColliderGrid::new(&blockers, lo, hi);
     let n = (radius / cell).ceil() as i32;
     let at = |ix: i32, iz: i32| center + Vec2::new(ix as f32 * cell, iz as f32 * cell);
     let mut seen: HashSet<(i32, i32)> = HashSet::new();
@@ -296,10 +312,30 @@ impl Reach {
         self.idx(p).is_some_and(|i| self.levels[i].iter().any(|l| (l - y).abs() <= tol))
     }
 
+    /// The standing height most of the reachable cells inside `min..max` are at (to 0.1 m), if the player can stand there at all: what a zone, spawn or object in that
+    /// rectangle should be authored at on ground that is not flat.
+    pub fn dominant_level_in(&self, min: Vec2, max: Vec2) -> Option<f32> {
+        let x0 = (((min.x - self.min.x) / self.cell).ceil().max(0.0)) as usize;
+        let x1 = (((max.x - self.min.x) / self.cell).floor().max(0.0) as usize).min(self.nx.saturating_sub(1));
+        let z0 = (((min.y - self.min.y) / self.cell).ceil().max(0.0)) as usize;
+        let z1 = (((max.y - self.min.y) / self.cell).floor().max(0.0) as usize).min(self.nz.saturating_sub(1));
+        let mut counts: HashMap<i32, usize> = HashMap::new();
+        for iz in z0..=z1 {
+            for ix in x0..=x1 {
+                for l in self.levels.get(iz * self.nx + ix).into_iter().flatten() {
+                    *counts.entry((l * 10.0).round() as i32).or_default() += 1;
+                }
+            }
+        }
+        counts.into_iter().max_by_key(|(level, n)| (*n, std::cmp::Reverse(level.abs()))).map(|(level, _)| level as f32 / 10.0)
+    }
+
     /// Reachable and blocked-free area (m^2) in `[min, max]` at floor height `y`, plus the total
     /// standable area there (cells the player circle *could* occupy if nothing sealed them off).
     pub fn area_in(&self, world: &MapWorld, min: Vec2, max: Vec2, y: f32, tol: f32) -> (f32, f32) {
-        let grid = ColliderGrid::new(&world.colliders, self.min, self.min + Vec2::new(self.nx as f32, self.nz as f32) * self.cell);
+        let (lo, hi) = (self.min, self.min + Vec2::new(self.nx as f32, self.nz as f32) * self.cell);
+        let blockers = world.blockers_in(lo, hi);
+        let grid = ColliderGrid::new(&blockers, lo, hi);
         let (mut reach_n, mut free_n) = (0usize, 0usize);
         let x0 = (((min.x - self.min.x) / self.cell).ceil().max(0.0)) as usize;
         let x1 = (((max.x - self.min.x) / self.cell).floor().max(0.0) as usize).min(self.nx - 1);

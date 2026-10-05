@@ -76,6 +76,12 @@ pub(crate) fn run_reach(scene: &Path, from: Option<&str>, to: Option<&str>, cell
                 format!("  (standing heights there: {})", heights.iter().map(|h| format!("{h:.2}")).collect::<Vec<_>>().join(", "))
             }
         );
+        if !ok {
+            let why = red_engine2::tools::pathing::unreachable_why(&world, &r, p);
+            if !why.is_empty() {
+                println!("  why: {why}");
+            }
+        }
         return if ok { Ok(()) } else { Err(String::new()) };
     }
     let floors = r.floors();
