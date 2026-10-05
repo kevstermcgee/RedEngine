@@ -127,7 +127,7 @@ fn saved_progress_needs_the_declaration_and_the_declaration_needs_a_real_variabl
 
 #[test]
 fn input_that_is_used_must_be_declared() {
-    refused(&mutate("coin-dash", |g| g["capabilities"]["input"] = json!(["keyboard"])), &["mouse", "not declared"]);
+    refused(&mutate("coin-dash", |g| g["capabilities"]["input"] = json!(["keyboard"])), &["neither `mouse` nor `touch` is declared"]);
     refused(&mutate("coin-dash", |g| g["capabilities"]["input"] = json!(["mouse"])), &["keyboard", "not declared"]);
 }
 
@@ -254,4 +254,34 @@ fn searching_for_a_2d_question_finds_the_2d_material() {
             "`search {q}` found no 2D material in its top 3:\n{text}"
         );
     }
+}
+
+/// Every example says what a phone shows, and a phone controller that could not work is refused.
+#[test]
+fn every_example_has_a_phone_controller_and_the_mistakes_are_refused() {
+    use red2d::controls::PadLayout;
+    let layouts: Vec<(String, PadLayout, bool)> = examples()
+        .iter()
+        .map(|p| {
+            let d = red2d::game::parse(&std::fs::read_to_string(p).unwrap()).unwrap();
+            assert!(d.caps.input.contains(&red2d::caps::Input::Touch), "{} should declare touch", d.id);
+            (d.id.clone(), d.controls.layout, d.controls.visible())
+        })
+        .collect();
+    assert!(layouts.contains(&("coin-dash".into(), PadLayout::Dpad, true)), "{layouts:?}");
+    assert!(layouts.contains(&("moon-hopper".into(), PadLayout::Platformer, true)), "{layouts:?}");
+    assert!(layouts.contains(&("tiny-station".into(), PadLayout::Tap, true)), "a tap game shows only its pause button: {layouts:?}");
+    refused(&mutate("coin-dash", |g| g["controls"] = json!("platformer")), &["controls.layout", "platformer", "`platformer` mode"]);
+    refused(
+        &mutate("coin-dash", |g| g["controls"] = json!({"layout": "dpad", "b": "BOOST"})),
+        &["controls.b", "drives `secondary`", "nothing in the game reads it"],
+    );
+    refused(&mutate("coin-dash", |g| g["controls"] = json!("dpda")), &["did you mean `dpad`"]);
+    refused(
+        &mutate("coin-dash", |g| {
+            g["controls"] = json!("dpad");
+            g["capabilities"]["input"] = json!(["keyboard", "mouse"]);
+        }),
+        &["`touch` is not declared"],
+    );
 }

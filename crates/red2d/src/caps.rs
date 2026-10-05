@@ -172,9 +172,8 @@ pub fn networking_support(presentation: Presentation, platform: Platform, networ
 pub fn input_support(presentation: Presentation, platform: Platform, input: Input) -> Support {
     match (input, presentation, platform) {
         (Input::Keyboard | Input::Mouse, _, _) => Support::Supported,
-        (Input::Touch, Presentation::TwoD, Platform::Web) => {
-            Support::Unverified("pointer events cover touch, and the pointer path is tested with a mouse; no touch device or emulated touch run exists here")
-        }
+        // Touch: `web verify` drives a phone-sized emulated device with real touch events (a pad below the game, sliding thumbs, two thumbs at once, taps on the picture).
+        (Input::Touch, Presentation::TwoD, Platform::Web) => Support::Supported,
         (Input::Touch, _, _) => Support::NotSupported("touch input exists only for 2D games in a browser"),
         (Input::Gamepad, Presentation::TwoD, Platform::Web) => {
             Support::Unverified("the browser's Gamepad API is mapped to the game's actions (move, action), but no controller was available to test it")

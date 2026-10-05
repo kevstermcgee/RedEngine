@@ -35,6 +35,7 @@ pub mod prefabs {
 }
 
 pub mod caps;
+pub mod controls;
 pub mod font;
 pub mod game;
 pub mod host;

@@ -319,7 +319,7 @@ pub const STARTER_2D: &str = r##"{
   "id": "{{ID}}",
   "title": "{{TITLE}}",
   "description": "Collect every gem before the clock runs out.",
-  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["progress"] },
+  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse", "touch"], "persistence": ["progress"] },
   "view": { "width": 320, "height": 180, "background": "#16202e" },
 
   "sounds": { "ding": { "seconds": 0.2, "level": 0.5, "layers": [{ "sine": 880, "decay": 16 }, { "sine": 1320, "decay": 20, "delay": 0.05, "gain": 0.7 }] } },

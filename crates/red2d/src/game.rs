@@ -705,6 +705,8 @@ pub struct GameDef {
     pub scenarios: Vec<Scenario>,
     /// Browser input checks.
     pub browser: Vec<BrowserCheck>,
+    /// The touch controller a phone shows below the game (written in `controls`, else chosen from what the game reads).
+    pub controls: crate::controls::Controls,
     /// Hash of the game text: its revision.
     pub rev: String,
 }
@@ -741,6 +743,7 @@ pub const ROOT: &[&str] = &[
     "map",
     "ui",
     "rules",
+    "controls",
     "checks",
 ];
 
@@ -2373,6 +2376,19 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         }
     }
 
+    // controls: the pad a phone shows (declared, else inferred from what the game reads)
+    let controls = match root.get("controls") {
+        Some(cv) => {
+            let mut errs = Vec::new();
+            let c = crate::controls::parse(cv, &prefabs, &rules, &mut errs);
+            for e in errs {
+                ctx.errs.push(if e.starts_with("controls") { e } else { format!("controls: {e}") });
+            }
+            c
+        }
+        None => Some(crate::controls::infer(&prefabs, &rules)),
+    };
+
     // checks
     let mut scenarios = Vec::new();
     let mut browser = Vec::new();
@@ -2470,10 +2486,16 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 "the game reads keys (a `keys` mover, a `press` rule or a button `key`) but `keyboard` is not declared: add it to `input`",
             );
         }
-        if uses_pointer && !c.input.contains(&Input::Mouse) {
+        if uses_pointer && !c.input.contains(&Input::Mouse) && !c.input.contains(&Input::Touch) {
             ctx.err(
                 "capabilities.input",
-                "the game reads the pointer (a `pointer` mover, a `click` rule or a button) but `mouse` is not declared: add it to `input`",
+                "the game reads the pointer (a `pointer` mover, a `click` rule or a button) but neither `mouse` nor `touch` is declared: add one to `input`",
+            );
+        }
+        if root.contains_key("controls") && !c.input.contains(&Input::Touch) {
+            ctx.err(
+                "capabilities.input",
+                "`controls` describes the on-screen pad of a phone, but `touch` is not declared: add \"touch\" to `input` (or remove `controls`)",
             );
         }
         if !persist.is_empty() && !c.persistence.contains(&Persistence::Progress) {
@@ -2511,6 +2533,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         tags,
         scenarios,
         browser,
+        controls: controls.expect("controls parsed when there are no errors"),
         rev: revision(text),
     })
 }

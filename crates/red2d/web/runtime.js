@@ -25,8 +25,10 @@
     music_blocked_ms: 0,       // how long that stalled the page (a few ms: the loop is rendered in a worker)
     music_worker: null,        // true when audio-worker.js rendered it
     gamepad: false,
+    pad: 'hidden',             // hidden | shown (the touch controller below the game)
+    held: [],                  // input actions the touch controller is holding right now
   };
-  let wasm = null, mem = null, canvas, ctx2d, imageData = null, manifest = null;
+  let wasm = null, mem = null, canvas, stage, ctx2d, imageData = null, manifest = null;
   let audio = null, soundBuffers = new Map(), musicSource = null, musicBuffer = null, musicWanted = false;
   let storageKey = null, last = 0, acc = 0, rafId = 0;
   const TICK_MS = 1000 / 60;
@@ -52,8 +54,8 @@
   function outText(len) { return dec.decode(out(len)); }
 
   // ---- layout, canvas, drawing -----------------------------------------------------------------------------------------------------------------------
-  function relayout() {
-    x().window(window.innerWidth, window.innerHeight);
+  function relayout() {                                // the picture is fitted into the stage: the whole window, or what is left above the touch controller
+    x().window(stage.clientWidth, stage.clientHeight);
     const l = { x: x().layout_x(), y: x().layout_y(), w: x().layout_w(), h: x().layout_h() };
     canvas.style.left = l.x + 'px'; canvas.style.top = l.y + 'px';
     canvas.style.width = l.w + 'px'; canvas.style.height = l.h + 'px';
@@ -184,7 +186,8 @@
     last = performance.now();
   }
   function toView(clientX, clientY) {                  // the module owns the mapping, so a click lands where the picture says it does
-    return x().to_view(clientX, clientY) ? [x().view_x(), x().view_y()] : null;
+    const r = stage.getBoundingClientRect();
+    return x().to_view(clientX - r.left, clientY - r.top) ? [x().view_x(), x().view_y()] : null;
   }
   function onKey(e, down) {
     if (status.state === 'error') return;
@@ -195,8 +198,9 @@
   }
   window.addEventListener('keydown', (e) => onKey(e, true));
   window.addEventListener('keyup', (e) => onKey(e, false));
-  window.addEventListener('blur', () => { // never leave a key stuck when focus is lost
+  window.addEventListener('blur', () => { // never leave a key (or a thumb) stuck when focus is lost
     for (const a of ['left', 'right', 'up', 'down', 'action', 'secondary', 'pause']) withText(a, (p, n) => x().action(p, n, 0));
+    held.clear(); status.held = []; padVisual();
   });
   function bindPointer() {
     window.addEventListener('pointermove', (e) => { if (!wasm) return; const p = toView(e.clientX, e.clientY); if (p) x().pointer(p[0], p[1]); });
@@ -224,6 +228,95 @@
     }
   }
 
+  // ---- the touch controller ---------------------------------------------------------------------------------------------------------------------------
+  // Drawn by the page BELOW the game, only when the main pointer is a finger (`pointer: coarse`); a desktop has none and keeps keyboard, mouse and gamepad. A pad holds and
+  // releases the same input actions as the keyboard and a gamepad, so the module cannot tell them apart. The layout comes from the manifest (`game.controls`).
+  const held = new Set();
+  const coarse = window.matchMedia ? window.matchMedia('(pointer: coarse)') : { matches: false };
+  function setHeld(name, on) {
+    if (held.has(name) === on) return;
+    if (on) held.add(name); else held.delete(name);
+    withText(name, (p, n) => x().action(p, n, on ? 1 : 0));
+    status.held = [...held];
+    if (on && navigator.vibrate) { try { navigator.vibrate(8); } catch (e) { /* not everywhere */ } }
+  }
+  function padVisual() {
+    for (const e of document.querySelectorAll('#pad [data-action]')) e.classList.toggle('on', held.has(e.dataset.action));
+    for (const d of document.querySelectorAll('#pad .dir')) for (const a of ['left', 'right', 'up', 'down']) d.classList.toggle('on-' + a, held.has(a));
+  }
+  const make = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+  function bindDir(elm, horizontalOnly) {
+    let pid = null;
+    const knob = elm.querySelector('.knob');
+    const update = (e) => {
+      const r = elm.getBoundingClientRect();
+      const dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2), dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+      const dead = horizontalOnly ? 0.05 : 0.24;
+      let l = dx < -dead, rt = dx > dead, u = dy < -dead, d = dy > dead;
+      if (horizontalOnly) { u = d = false; }
+      else if ((l || rt) && (u || d)) {                // a diagonal only when the thumb is clearly between two directions
+        const ax = Math.abs(dx), ay = Math.abs(dy);
+        if (Math.min(ax, ay) / Math.max(ax, ay) < 0.5) { if (ax > ay) { u = d = false; } else { l = rt = false; } }
+      }
+      setHeld('left', l); setHeld('right', rt); setHeld('up', u); setHeld('down', d);
+      if (knob) knob.style.transform = 'translate(' + Math.max(-1, Math.min(1, dx)) * 28 + '%,' + Math.max(-1, Math.min(1, dy)) * 28 + '%)';
+      padVisual();
+    };
+    const end = (e) => {
+      if (e.pointerId !== pid) return;
+      pid = null;
+      for (const a of ['left', 'right', 'up', 'down']) setHeld(a, false);
+      if (knob) knob.style.transform = '';
+      padVisual();
+    };
+    elm.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!status.started) { begin(); return; } pid = e.pointerId; elm.setPointerCapture(pid); update(e); });
+    elm.addEventListener('pointermove', (e) => { if (e.pointerId === pid) update(e); });
+    elm.addEventListener('pointerup', end); elm.addEventListener('pointercancel', end); elm.addEventListener('lostpointercapture', end);
+    elm.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+  function bindButton(elm, action, tap) {
+    let pid = null;
+    const off = (e) => { if (e.pointerId !== pid) return; pid = null; setHeld(action, false); padVisual(); };
+    elm.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); if (!status.started) { begin(); return; }
+      pid = e.pointerId; elm.setPointerCapture(pid); setHeld(action, true); padVisual();
+      if (tap) setTimeout(() => { pid = null; setHeld(action, false); padVisual(); }, 80);   // pause is a press, not a hold
+    });
+    elm.addEventListener('pointerup', off); elm.addEventListener('pointercancel', off); elm.addEventListener('lostpointercapture', off);
+    elm.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+  function buildPad(c) {
+    const pad = document.getElementById('pad');
+    pad.textContent = ''; pad.dataset.layout = c.layout;
+    const left = make('div', 'side left'), mid = make('div', 'mid'), right = make('div', 'side right');
+    if (c.layout === 'dpad' || c.layout === 'stick') {
+      const d = make('div', 'dir ' + c.layout);
+      if (c.layout === 'dpad') { d.append(make('i', 'up', '\u25B2'), make('i', 'down', '\u25BC'), make('i', 'left', '\u25C0'), make('i', 'right', '\u25B6')); }
+      else { d.append(make('b', 'knob')); }
+      d.dataset.testid = 'dir'; left.append(d); bindDir(d, false);
+    } else if (c.layout === 'platformer' || c.layout === 'lr') {
+      const d = make('div', 'dir lr'); d.append(make('i', 'left', '\u25C0'), make('i', 'right', '\u25B6'));
+      d.dataset.testid = 'dir'; left.append(d); bindDir(d, true);
+    }
+    for (const b of [...c.buttons].reverse()) {       // B then A, so A is the outermost on the right
+      const e = make('div', 'btn ' + b.id, b.label); e.dataset.action = b.action; e.dataset.testid = 'btn-' + b.id; right.append(e); bindButton(e, b.action, false);
+    }
+    if (c.pause) { const p = make('div', 'pause', 'PAUSE'); p.dataset.action = 'pause'; p.dataset.testid = 'pause'; mid.append(p); bindButton(p, 'pause', true); }
+    pad.append(left, mid, right);
+  }
+  function applyPad() {
+    const c = manifest && manifest.game && manifest.game.controls;
+    const q = params.get('pad');                      // ?pad=1 forces the controller on a desktop (for testing), ?pad=0 turns it off
+    const touchDevice = q === '1' ? true : q === '0' ? false : coarse.matches;
+    document.body.classList.toggle('touch', touchDevice);
+    const on = !!(c && c.visible && touchDevice);
+    const pad = document.getElementById('pad');
+    if (on && !pad.firstChild) buildPad(c);
+    pad.hidden = !on; status.pad = on ? 'shown' : 'hidden';
+    if (!on) { for (const a of [...held]) setHeld(a, false); }
+    if (wasm) { relayout(); draw(); }
+  }
+
   // ---- the loop ------------------------------------------------------------------------------------------------------------------------------------------
   function advance(n) {                                // run n ticks and show them (also the test hook)
     x().step(n); status.ticks += n; draw(); playSounds(); syncMusic(); flushSave();
@@ -243,7 +336,7 @@
 
   async function main() {
     try {
-      canvas = document.getElementById('screen');
+      canvas = document.getElementById('screen'); stage = document.getElementById('stage');
       ctx2d = canvas.getContext('2d', { alpha: false });
       const [mres, gres, wres] = await Promise.all([fetch('manifest.json'), fetch('assets/game.json'), fetch('game.wasm')]);
       for (const [name, r] of [['manifest.json', mres], ['assets/game.json', gres], ['game.wasm', wres]]) if (!r.ok) throw new Error('could not load ' + name + ' (HTTP ' + r.status + ')');
@@ -258,7 +351,13 @@
       canvas.width = x().view_w(); canvas.height = x().view_h();
       storageKey = 'red2d:' + manifest.game.id;
       storageProbe(); loadSave();
-      relayout(); window.addEventListener('resize', () => { relayout(); draw(); });
+      applyPad();
+      relayout(); draw();
+      if (window.ResizeObserver) new ResizeObserver(() => { relayout(); draw(); }).observe(stage); else window.addEventListener('resize', () => { relayout(); draw(); });
+      if (coarse.addEventListener) coarse.addEventListener('change', applyPad);
+      document.addEventListener('visibilitychange', () => { if (document.hidden) { for (const a of [...held]) setHeld(a, false); padVisual(); } });
+      // iOS only lets a gesture END resume audio; the first touch begins the game, and any touch afterwards resumes a suspended context.
+      window.addEventListener('touchend', () => { if (audio && audio.state === 'suspended') audio.resume(); }, { passive: true });
       bindPointer();
       draw();
       const t = document.getElementById('title'); if (t) t.textContent = manifest.game.title;
@@ -281,7 +380,9 @@
       for (let i = 0; i < d.length; i += 0x8000) s += String.fromCharCode.apply(null, d.subarray(i, i + 0x8000));
       return { w, h, b64: btoa(s) };
     },
-    toView: (cx, cy) => (x().to_view(cx, cy) ? [x().view_x(), x().view_y()] : null),
+    toView: (cx, cy) => toView(cx, cy),
+    held: () => [...held],
+    padInfo: () => { const p = document.getElementById('pad'); const r = p.getBoundingClientRect(); return { shown: !p.hidden, x: r.left, y: r.top, w: r.width, h: r.height }; },
     testSound: (i) => {                                       // run sound i through the real Web Audio pipeline: samples from the module, an AudioBuffer, a source node
       ensureAudio(); if (!audio) return { ok: false, reason: 'no audio context: ' + status.audio };
       const b = soundBuffer(i); if (!b) return { ok: false, reason: 'the module could not render sound ' + i };
@@ -289,7 +390,7 @@
       return { ok: true, seconds: b.duration, rate: b.sampleRate, state: audio.state };
     },
     resetSave: () => { try { localStorage.removeItem(storageKey); } catch (e) { /* nothing to remove */ } },
-    layout: () => ({ x: x().layout_x(), y: x().layout_y(), w: x().layout_w(), h: x().layout_h() }),
+    layout: () => { const r = stage.getBoundingClientRect(); return { x: x().layout_x() + r.left, y: x().layout_y() + r.top, w: x().layout_w(), h: x().layout_h() }; },
   };
   main();
 })();

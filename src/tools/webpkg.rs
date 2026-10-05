@@ -272,14 +272,43 @@ fn input_blurb(d: &red2d::game::GameDef) -> String {
     use red2d::caps::Input;
     let mut parts = Vec::new();
     for i in &d.caps.input {
-        parts.push(match i {
-            Input::Keyboard => "keyboard (arrows or WASD, Space, Enter)",
-            Input::Mouse => "mouse",
-            Input::Touch => "touch",
-            Input::Gamepad => "gamepad",
-        });
+        match i {
+            Input::Keyboard => parts.push("keyboard (arrows or WASD, Space, Enter)"),
+            Input::Mouse => parts.push("mouse"),
+            Input::Gamepad => parts.push("gamepad"),
+            Input::Touch => {}
+        }
     }
-    format!("Play with {}.", parts.join(", "))
+    if parts.is_empty() {
+        "Play with the keyboard or mouse.".to_string()
+    } else {
+        format!("Play with {}.", parts.join(", "))
+    }
+}
+
+/// What the start card says on a phone.
+fn touch_blurb(d: &red2d::game::GameDef) -> String {
+    use red2d::caps::Input;
+    if !d.caps.input.contains(&Input::Touch) {
+        return "This game is made for a keyboard or mouse and does not have touch controls.".to_string();
+    }
+    if d.controls.visible() {
+        "Play with the on-screen controls below the game.".to_string()
+    } else {
+        "Tap and drag the picture to play.".to_string()
+    }
+}
+
+/// The manifest's record of the phone controller.
+fn controls_json(d: &red2d::game::GameDef) -> Value {
+    let c = &d.controls;
+    json!({
+        "layout": c.layout.name(),
+        "visible": c.visible() && d.caps.input.contains(&red2d::caps::Input::Touch),
+        "declared": c.declared,
+        "buttons": c.buttons.iter().map(|b| json!({"id": b.id, "label": b.label, "action": b.action})).collect::<Vec<_>>(),
+        "pause": c.pause,
+    })
 }
 
 fn engine_revision(root: &Path) -> (String, bool) {
@@ -348,7 +377,8 @@ pub fn build(game: &Path, out: &Path, wasm_override: Option<&Path>) -> Result<Bu
         .replace("{{ID}}", &esc(&def.id))
         .replace("{{WIDTH}}", &def.view.width.to_string())
         .replace("{{HEIGHT}}", &def.view.height.to_string())
-        .replace("{{INPUT}}", &esc(&input_blurb(&def)));
+        .replace("{{INPUT}}", &esc(&input_blurb(&def)))
+        .replace("{{TOUCH}}", &esc(&touch_blurb(&def)));
     let mut files: Vec<(String, Vec<u8>)> = vec![
         ("assets/game.json".into(), text.clone().into_bytes()),
         ("audio-worker.js".into(), AUDIO_WORKER_JS.as_bytes().to_vec()),
@@ -380,6 +410,7 @@ pub fn build(game: &Path, out: &Path, wasm_override: Option<&Path>) -> Result<Bu
             "networking": c.networking.name(),
             "input": names(c.input.iter().map(|i| i.name()).collect()),
             "persistence": names(c.persistence.iter().map(|p| p.name()).collect()),
+            "controls": controls_json(&def),
             "screen": {"width": def.view.width, "height": def.view.height, "scale": if def.view.scale == red2d::game::Scale::Integer { "integer" } else { "fit" }},
         },
         "engine": {"revision": rev, "dirty": dirty, "player": "red2d", "player_version": env!("CARGO_PKG_VERSION"), "player_build": wasm_how},

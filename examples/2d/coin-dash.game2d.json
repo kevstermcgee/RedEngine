@@ -3,7 +3,7 @@
   "id": "coin-dash",
   "title": "Coin Dash",
   "description": "A top-down arcade dash: grab 12 coins in 45 seconds while the ghosts hunt you.",
-  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["settings", "progress"] },
+  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse", "touch"], "persistence": ["settings", "progress"] },
   "view": { "width": 320, "height": 180, "background": "#1b2233" },
 
   "sprites": {

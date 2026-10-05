@@ -3,7 +3,7 @@
 
 /// The reference text.
 pub const REFERENCE: &str = r##"FILE: NAME.game2d.json (JSON; begin it with "game2d": 1). Positions are CENTRES in virtual-screen pixels; y grows downward.
-KEYS: game2d id title description capabilities view sprites sounds music vars persist prefabs scene|map ui rules checks
+KEYS: game2d id title description capabilities view sprites sounds music vars persist prefabs scene|map ui rules controls checks
 capabilities: {"presentation":"2d","platforms":["web"],"networking":"offline","input":["keyboard","mouse"],"persistence":["settings","progress"]}
   declare what the game uses: buttons/click/pointer need mouse; keys/press need keyboard; `persist` needs progress; a `music` action needs settings.
   `red_engine2 capabilities` prints what is built; web is 2D-only and offline-only; touch and gamepad exist but are unverified; windows/linux 2D is prepared, not built.
@@ -23,6 +23,9 @@ rules: [{"id":"x","when":{TRIGGER},"if":"lives > 0","once":true,"cooldown":1,"do
   ACTIONS: set:[var,value] add:[var,value] emit:name spawn:{prefab,at,vel,count} destroy:"self"|"other"|"tag:T"|"id:I" play:sound music:"on"|"off"|"toggle" burst:{at,n,color,speed,life,size,gravity}
     shake:px end:"win"|"lose" restart:true reset_save:true velocity:{target,v:[x,y]} teleport:{target,to}     `at`: "self"|"other"|"pointer"|[x,y]|{"x":[min,max],"y":[min,max]}
   values and `if` are expressions: numbers, variables, + - * / %, == != < <= > >=, && || ! (division by zero is 0). Rules run in order, each seeing the changes before it.
+controls (phones; declare "touch" in input): a pad drawn BELOW the game on touch devices only; desktop keeps keyboard, mouse, gamepad. Pick one, or omit it and the engine infers from what the game reads:
+  "dpad" cross + A/B (top-down) | "stick" round stick + A/B | "platformer" left/right + JUMP/B | "lr" left/right (+A) (catch, dodge, paddle) | "tap" no pad: tap/drag the picture (clicks, management, puzzles)
+  {"controls":{"layout":"platformer","a":"HOP","b":{"label":"DASH","action":"secondary"},"pause":true}}  a/b: label | false (hide) | {label,action}; a button must drive an action something reads (a keys mover or a press rule)
 input actions: left right up down action secondary pause. Keys: arrows/WASD, Space/Z/J, Shift/X/K, Esc/P. Mouse/touch: `click` and buttons (a button `key` is any KeyboardEvent.code: Enter, KeyM, Digit1).
   A gamepad's stick/d-pad and A/B/Start map to the same actions.
 checks: {"scenarios":[{"name":"...","seed":1,"max_seconds":30,"smoke":true,"script":[STEPS],"expect":[EXPECT]}],"browser":[{"name":"...","keys":["ArrowRight"],"click":[x,y],"ms":400,"changes":["p_x"],"persists":["music_on"]}]}
