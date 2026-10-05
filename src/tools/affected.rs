@@ -167,7 +167,7 @@ pub struct StampKey {
 }
 
 /// Bump when the planner's steps change in a way that an old green result should not vouch for.
-const PLANNER_REV: &str = "3";
+const PLANNER_REV: &str = "4";
 
 /// One command of a plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -214,6 +214,55 @@ pub struct Plan {
     pub features: Features,
     /// Why full verification is still required after this plan (a partial plan only; empty for every other scope): never empty for `Scope::Partial`.
     pub full_required: Vec<String>,
+}
+
+/// Engine files the 2D crate (`crates/red2d`) includes by path: changing one changes that crate too, so its tests and lints run.
+const RED2D_SHARED: &[&str] = &[
+    "src/fields.rs",
+    "src/suggest.rs",
+    "src/sim/rules_expr.rs",
+    "src/synth.rs",
+    "src/dsp.rs",
+    "src/audio_analysis.rs",
+    "src/voice_spec.rs",
+    "src/audio_fx.rs",
+    "src/score.rs",
+];
+
+/// Whether a change reaches the 2D crate: a file in it, or an engine file it includes.
+pub fn touches_red2d(changed: &[String]) -> bool {
+    changed.iter().any(|c| c.starts_with("crates/red2d/") || RED2D_SHARED.contains(&c.as_str()))
+}
+
+/// The steps the 2D crate adds. Cargo's package selection is by `-p`, so none of the engine-crate steps above covers it. `browser` (the full tier only) adds the
+/// WebAssembly lint and the real-browser run, which fails rather than skips when no browser is set up: a green `affected` must not mean "browser skipped".
+fn red2d_steps(changed: &[String], tests: bool, browser: bool) -> Vec<Step> {
+    if !touches_red2d(changed) {
+        return Vec::new();
+    }
+    let mut v = vec![Step::new(
+        "red2d-clippy",
+        &["cargo", "clippy", "--locked", "-p", "red2d", "--all-targets", "--", "-D", "warnings"],
+        "the 2D crate (crates/red2d) or a file it includes changed",
+    )];
+    if tests {
+        v.push(Step::new("red2d", &["cargo", "test", "--locked", "-p", "red2d"], "unit tests of the 2D crate: parser, simulation, renderer, sound, host"));
+    }
+    if browser {
+        v.push(Step::new(
+            "red2d-wasm",
+            &["cargo", "clippy", "--locked", "-p", "red2d", "--target", "wasm32-unknown-unknown", "--", "-D", "warnings"],
+            "the WebAssembly surface (web.rs) only compiles for wasm32",
+        ));
+        v.push(Step {
+            name: "web".into(),
+            argv: vec!["bash".into(), "scripts/web_check.sh".into()],
+            env: vec![("RED_CI_REQUIRE_BROWSER".into(), "1".into())],
+            why: "the 2D games run in a real headless browser (needs `red_engine2 web setup-browser` once); a missing browser fails this step, never skips it"
+                .into(),
+        });
+    }
+    v
 }
 
 /// Paths that never need verification (generated output, logs, the handoff file).
@@ -529,6 +578,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
             why: format!("real-time network suites, one test at a time: {}", list.join(", ")),
         });
     }
+    plan.steps.extend(red2d_steps(&changed, true, !opts.quick));
     plan.deferred = deferred.into_iter().collect();
     plan.suggest.sort();
     plan.suggest.dedup();
@@ -693,6 +743,7 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
             plan.steps.push(Step { name: name.into(), argv, env, why: "a changed test file runs itself".into() });
         }
     }
+    plan.steps.extend(red2d_steps(&changed, !opts.check_only, false));
     if opts.check_only {
         plan.notes.push("--check-only: formatting and type-check only, no tests".into());
     }
@@ -1114,6 +1165,24 @@ mod tests {
         assert_eq!(names(&p), ["fmt", "clippy", "bin", "suites"]);
         assert_eq!(step(&p, "clippy").argv.join(" "), "cargo clippy --locked --bin red_engine2 -- -D warnings");
         assert_eq!(step(&p, "bin").argv.join(" "), "cargo test --locked --bin red_engine2");
+    }
+
+    #[test]
+    fn a_change_to_the_2d_crate_or_a_file_it_includes_plans_the_crates_own_checks() {
+        for f in ["crates/red2d/src/sim.rs", "crates/red2d/web/runtime.js", "src/sim/rules_expr.rs", "src/synth.rs"] {
+            assert!(touches_red2d(&[f.to_string()]), "{f}");
+        }
+        assert!(!touches_red2d(&["src/tools/lint.rs".to_string(), "src/net/mod.rs".to_string()]));
+        let p = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options::default());
+        assert_eq!(step(&p, "red2d").argv.join(" "), "cargo test --locked -p red2d");
+        assert!(step(&p, "red2d-clippy").argv.join(" ").contains("-p red2d --all-targets"));
+        let web = step(&p, "web");
+        assert_eq!(web.env, vec![("RED_CI_REQUIRE_BROWSER".to_string(), "1".to_string())], "a missing browser must fail the full tier, not skip it");
+        assert!(step(&p, "red2d-wasm").argv.join(" ").contains("--target wasm32-unknown-unknown"));
+        let quick = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options { quick: true, ..Options::default() });
+        assert!(quick.steps.iter().any(|s| s.name == "red2d") && quick.steps.iter().all(|s| s.name != "web"), "{:?}", names(&quick));
+        let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
+        assert!(none.steps.iter().all(|s| !s.name.starts_with("red2d") && s.name != "web"), "{:?}", names(&none));
     }
 
     #[test]

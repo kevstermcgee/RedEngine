@@ -8,6 +8,10 @@ never need to read Rust to change a map or a game: read [`SPEC.md`](SPEC.md) for
 **Read `red_engine2 describe --brief` first (about 1 KB)**, then ask `search "<your question>"`; open SPEC/AGENTS only for a topic
 you cannot get from `describe <topic>`. Every command takes the global `--json` for one stable envelope (`describe diagnostics`).
 
+**Making a 2D or browser game? Do not read any of the 3D material.** `red_engine2 describe 2d` is the whole front door (one page: file format, commands, what each check proves);
+`red_engine2 propose "<idea>"` plans it; `new-game DIR --kind 2d` starts from a verified game; then `validate` -> `verify` -> `web verify` -> `publish`. `red_engine2 capabilities`
+says what is built (2D runs in a browser and headless; 3D runs on windows/linux; 3D in a browser and browser multiplayer are not supported, and say so).
+
 > **The one rule:** never trust a map edit you haven't run through `lint`, and never judge a
 > layout you haven't *looked at* (`plan` / `tour`). The tools use the game's real collision code, so
 > "lint is clean and the walk test passes" means the level is playable.

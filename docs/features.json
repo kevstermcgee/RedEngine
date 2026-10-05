@@ -5,10 +5,18 @@
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, authored player tuning and jump pads, wall/fence sugar, prefabs, tracks and easing, colours.",
-      "files": ["src/schema.rs", "src/strict.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/**", "SPEC.md"],
+      "files": ["src/schema.rs", "src/strict.rs", "src/fields.rs", "src/suggest.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/*.json", "examples/*.rs", "examples/external/**", "examples/golden/**", "examples/lantern_walk/**", "examples/marcel/**", "SPEC.md"],
       "tests": ["lib:schema", "lib:strict", "lib:prefabs", "lib:macros", "lib:track", "examples_validate", "render_prep", "fields"],
       "commands": ["red_engine2 validate examples/test_lab.json"],
       "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-03-lettering-and-arrays-as-macros.md"]
+    },
+    "web2d": {
+      "summary": "2D games for the browser: the red2d crate (declarative game format, deterministic simulation, CPU renderer, sound), its WebAssembly player and static package, headless-browser verification, and the presentation x platform capability matrix.",
+      "files": ["crates/red2d/**", "src/font_glyphs.rs", "src/tools/game2d.rs", "src/tools/webpkg.rs", "src/tools/webverify.rs", "src/tools/publish2d.rs", "src/tools/propose.rs", "src/cli/web.rs", "examples/2d/**", "docs/WEB_PLATFORM.md", "docs/PUBLISHING_2D.md", "scripts/web_check.sh", "scripts/patch_pages_generator.py"],
+      "tests": ["web2d_games", "web2d_package", "lib:tools::game2d", "lib:tools::webpkg", "web2d_publish"],
+      "commands": ["red_engine2 verify examples/2d/coin-dash.game2d.json", "red_engine2 web verify examples/2d/coin-dash.game2d.json", "red_engine2 capabilities"],
+      "docs": ["docs/WEB_PLATFORM.md", "docs/PUBLISHING_2D.md"],
+      "depends_on": ["scene_format", "audio", "game_rules"]
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
@@ -157,7 +165,7 @@
     },
     "ui_kit": {
       "summary": "The headless, audited 2-D UI: layouts, menus, connect form, lobby, HUD, results; `ui-shot` and `ui-check`.",
-      "files": ["src/ui/**", "src/ui_config.rs", "src/menu.rs", "src/tools/font.rs"],
+      "files": ["src/ui/**", "src/ui_config.rs", "src/menu.rs", "src/tools/font.rs", "src/font_glyphs.rs"],
       "tests": ["lib:ui", "lib:ui_config", "lib:menu"],
       "commands": ["red_engine2 ui-check", "red_engine2 ui-shot lobby out/lobby.png"],
       "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-03-a-scene-declared-game-ui.md"],

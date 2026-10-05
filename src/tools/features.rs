@@ -239,7 +239,7 @@ fn walk(root: &Path, dir: &str, ext: &str, out: &mut Vec<String>) {
 /// Every file the index is about: the directories it covers and the top-level project files, as paths relative to `root` using `/`.
 pub fn repo_files(root: &Path) -> Vec<String> {
     let mut all_files = Vec::new();
-    for dir in ["src", "tests", "benches", "docs", "assets", "recipes", "examples", "scripts", "deploy", ".github"] {
+    for dir in ["src", "crates", "tests", "benches", "docs", "assets", "recipes", "examples", "scripts", "deploy", ".github"] {
         walk(root, dir, "", &mut all_files);
     }
     for top in [
@@ -270,6 +270,7 @@ pub fn unowned(features: &[Feature], files: &[String]) -> Vec<String> {
         .iter()
         .filter(|f| {
             (f.starts_with("src/") && f.ends_with(".rs"))
+                || (f.starts_with("crates/") && f.ends_with(".rs"))
                 || (f.starts_with("tests/") && f.ends_with(".rs"))
                 || (f.starts_with("benches/") && f.ends_with(".rs"))
         })

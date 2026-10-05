@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 /// The most bytes `describe --brief` may take: it is the first thing every session reads (`tests/ai_tasks.rs` and `preflight` enforce it).
 pub const BRIEF_BUDGET: usize = 2_500;
 /// The most bytes the `describe` overview may take. A new command adds a line: keep its `about` short and put the detail in `docs/AGENT_REFERENCE.md`.
-pub const OVERVIEW_BUDGET: usize = 7_300;
+pub const OVERVIEW_BUDGET: usize = 7_800;
 
 /// Topic names and one-line descriptions for `describe`; a test renders every one.
 pub const TOPICS: &[(&str, &str)] = &[
@@ -36,6 +36,8 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("multiplayer", "hosting and playing online: keys, lobby, rounds, UPnP, net-test, package"),
     ("playtest", "see the game without a screen: `playtest`, headless scripts, state dump"),
     ("custom-client", "a non-first-person game: your own crate on `red_engine2::app`"),
+    ("2d", "2D games for the browser: the file format, the commands, what each check proves"),
+    ("capabilities", "what is built: presentation x platform x networking x input"),
     ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
 
@@ -447,6 +449,7 @@ fn brief_text(commands: &Value) -> String {
     out.push_str(&format!("Topics (describe <topic>): {}\n", list("topics")));
     out.push_str("Next: search \"<question>\" | catalog <word> | recipe | SPEC.md (scene language) | AGENTS.md (workflow)\n");
     out.push_str("Not first-person? describe custom-client: your own crate on red_engine2::app; gameplay stays in scene rules\n");
+    out.push_str("A 2D or browser game? `describe 2d` (one JSON file; build, verify, publish); `capabilities` says what is built\n");
     out
 }
 
@@ -657,6 +660,16 @@ fn playtest_text() -> String {
     s
 }
 
+/// `describe 2d`: the front door for "make a 2D game" (the file format is `red2d::reference`).
+fn twod_text() -> String {
+    format!(
+        "2D games run in the browser (WebAssembly) and headless; the file is one JSON, `NAME.game2d.json`. You never need the 3D renderer, the scene format or any Rust.\n\
+         START: `red_engine2 new-game DIR --kind 2d` (a working, verified starter), or copy one of examples/2d/: coin-dash (top-down arcade), moon-hopper (platformer), tiny-station (mouse-driven management).\n\
+         PLAN:  `red_engine2 propose \"<idea>\"` suggests title, presentation, input, persistence, size and cost; the simplest presentation that fits wins (2D unless you need a 3D world).\n\n{}",
+        red2d::reference::REFERENCE
+    )
+}
+
 /// `describe custom-client`: the route for a game that is not the built-in first-person client (ADR 0043).
 fn custom_client_text() -> String {
     String::from(
@@ -826,6 +839,8 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "multiplayer" => json!({"text": multiplayer_text()}),
             "playtest" => json!({"text": playtest_text()}),
             "custom-client" => json!({"text": custom_client_text()}),
+            "2d" => json!({"text": twod_text()}),
+            "capabilities" => json!({"text": red2d::caps::matrix_text()}),
             "diagnostics" => {
                 json!({"envelope_schema": crate::tools::envelope::ENVELOPE_SCHEMA, "codes": crate::tools::envelope::CODES.iter().map(|(c, d, f)| json!({"code": c, "about": d, "fix": f})).collect::<Vec<_>>()})
             }
@@ -853,6 +868,8 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "multiplayer" => out.push_str(&multiplayer_text()),
         "playtest" => out.push_str(&playtest_text()),
         "custom-client" => out.push_str(&custom_client_text()),
+        "2d" => out.push_str(&twod_text()),
+        "capabilities" => out.push_str(&red2d::caps::matrix_text()),
         "overview" => {
             let (props, prefabs) = (crate::props::PropKind::ALL.len(), crate::prefabs::builtin().0.defs.len());
             out.push_str("Red Engine 2: maps are JSON scenes. `re2 <map>` plays one; `red_engine2` validates, analyzes, edits and renders them.\n");

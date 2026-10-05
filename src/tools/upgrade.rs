@@ -1263,6 +1263,7 @@ mod tests {
             blueprints: vec!["blueprints/main.blueprint.json".into()],
             maps: vec!["maps/main.json".into()],
             server: game::ServerCfg { map: "maps/main.json".into(), port: 28000, spawn_group: String::new(), args: Vec::new() },
+            capabilities: None,
         };
         assert_eq!(classify(&cfg, &[]), ProjectClass::StandardBlueprint);
         let cargo_ref = CargoEngineRef { manifest: dir.join("client/Cargo.toml"), kind: "path", location: "../engine".into(), sha: None };
@@ -1291,6 +1292,7 @@ mod tests {
                         blueprints: vec![],
                         maps: vec!["maps/main.json".into()],
                         server: game::ServerCfg { map: "maps/main.json".into(), port: 1, spawn_group: String::new(), args: vec![] },
+                        capabilities: None,
                     },
                     current: ResolvedEngine { kind: "path", location: ".".into(), sha: Some(baseline.into()), dirty: false },
                     cargo: vec![],
@@ -1324,6 +1326,7 @@ mod tests {
                 blueprints: vec![],
                 maps: vec![],
                 server: game::ServerCfg { map: String::new(), port: 1, spawn_group: String::new(), args: vec![] },
+                capabilities: None,
             },
             current: ResolvedEngine { kind: "path", location: ".".into(), sha: None, dirty: false },
             cargo: vec![],
@@ -1409,6 +1412,7 @@ mod tests {
                 blueprints: vec!["blueprints/main.blueprint.json".into()],
                 maps: vec!["maps/main.json".into()],
                 server: game::ServerCfg { map: "maps/main.json".into(), port: 1, spawn_group: String::new(), args: vec![] },
+                capabilities: None,
             },
             current: ResolvedEngine { kind: "path", location: "../engine".into(), sha: Some("a".repeat(40)), dirty: false },
             cargo: vec![],

@@ -98,7 +98,9 @@ fn the_first_read_is_a_small_fraction_of_the_docs() {
         overview.len().saturating_sub(budget)
     );
     assert!(a.context * 8 < docs_bytes(), "orientation costs {} bytes vs {} bytes of AGENTS.md + SPEC.md", a.context, docs_bytes());
-    a.within(9_500);
+    // 9.5 KB before the 2D/browser path added `capabilities`, `propose`, `publish` and `web` (four command lines) and the `2d` and `capabilities` topics (about 300 bytes); the
+    // 2D front door itself is `describe 2d` (5.6 KB), read only by someone making a 2D game.
+    a.within(9_800);
 }
 
 #[test]
