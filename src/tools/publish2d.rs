@@ -267,10 +267,14 @@ pub fn write_site(site: &Path, pkg: &Path, v: &Verification, epoch: u64) -> Resu
     let game_dir = site.join("games").join(&id);
     let build_dir = game_dir.join("builds").join(&build_id);
     if build_dir.join("manifest.json").is_file() {
-        let old = std::fs::read(build_dir.join("manifest.json")).unwrap_or_default();
-        let new = std::fs::read(pkg.join("manifest.json")).map_err(|e| e.to_string())?;
-        if old != new {
-            return Err(format!("{} already exists with a different manifest: published builds are immutable (the build id is a hash of the contents, so this should be impossible)", build_dir.display()));
+        // The build id is a hash of the files (path + SHA-256), so a build that exists must list the same files. (The manifest's other fields, such as the engine revision
+        // or its dirty flag, can differ between two builds of identical files; the first one published is the record and is never rewritten.)
+        let old: Value = std::fs::read_to_string(build_dir.join("manifest.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+        if old["files"] != manifest["files"] {
+            return Err(format!(
+                "{} already exists with different files: published builds are immutable (the build id is a hash of the files, so this should be impossible)",
+                build_dir.display()
+            ));
         }
     } else {
         copy_package(pkg, &build_dir)?;
@@ -700,15 +704,14 @@ fn remote_smoke(url: &str, ver: &Verification, out: &Path, wait_for_deploy: bool
     }
 }
 
-/// A minimal HTTP/1.1 GET (http only; the https case goes through `curl`, which every supported machine has).
+/// GET a URL and return the body. `curl` (on every supported machine: Linux, macOS, Windows 10+) does it, with redirects and TLS; without it plain `http://` still works through
+/// a small built-in client that understands HTTP/1.0 and 1.1 replies with a `Content-Length` or a closed connection.
 pub fn http_get(url: &str) -> Result<String, String> {
-    if url.starts_with("https://") {
-        let o = std::process::Command::new("curl").args(["-fsSL", "--max-time", "20", url]).output().map_err(|e| format!("curl: {e}"))?;
-        return if o.status.success() {
-            Ok(String::from_utf8_lossy(&o.stdout).to_string())
-        } else {
-            Err(format!("curl {url}: {}", String::from_utf8_lossy(&o.stderr).trim()))
-        };
+    match std::process::Command::new("curl").args(["-fsSL", "--max-time", "20", url]).output() {
+        Ok(o) if o.status.success() => return Ok(String::from_utf8_lossy(&o.stdout).to_string()),
+        Ok(o) => return Err(format!("curl {url}: {}", String::from_utf8_lossy(&o.stderr).trim())),
+        Err(_) if url.starts_with("https://") => return Err(format!("{url}: https needs `curl` on this machine")),
+        Err(_) => {}
     }
     use std::io::{Read, Write};
     let rest = url.strip_prefix("http://").ok_or_else(|| format!("{url}: not an http(s) URL"))?;
@@ -720,7 +723,7 @@ pub fn http_get(url: &str) -> Result<String, String> {
     s.read_to_end(&mut buf).map_err(|e| e.to_string())?;
     let text = String::from_utf8_lossy(&buf).to_string();
     let (head, body) = text.split_once("\r\n\r\n").ok_or("malformed response")?;
-    if !head.starts_with("HTTP/1.1 200") {
+    if head.split_whitespace().nth(1) != Some("200") {
         return Err(format!("{url}: {}", head.lines().next().unwrap_or("")));
     }
     Ok(body.to_string())
@@ -818,8 +821,17 @@ mod tests {
         assert_eq!(c["games"][0]["build_id"], "2222");
         assert_eq!(c["games"][0]["compatibility"]["browsers_verified"][0], "Chromium 1");
         assert!(std::fs::read_to_string(site.join("index.html")).unwrap().contains("href=\"games/demo/\""));
-        // A different package under an existing build id is refused: builds are immutable.
+        // The same files with another engine revision in the manifest are the same build (the first published manifest stays).
+        let mut m = serde_json::from_str::<Value>(&std::fs::read_to_string(p2.join("manifest.json")).unwrap()).unwrap();
+        m["engine"]["revision"] = json!("another");
+        std::fs::write(p2.join("manifest.json"), m.to_string()).unwrap();
+        write_site(&site, &p2, &ver("2222"), 3_500).unwrap();
+        assert!(std::fs::read_to_string(site.join("games/demo/builds/2222/manifest.json")).unwrap().contains("deadbeef"));
+        // Different files under an existing build id are refused: builds are immutable.
         pkg_with(&p1, "demo", "2222", "tampered");
+        let mut m = serde_json::from_str::<Value>(&std::fs::read_to_string(p1.join("manifest.json")).unwrap()).unwrap();
+        m["files"][0]["sha256"] = json!("different");
+        std::fs::write(p1.join("manifest.json"), m.to_string()).unwrap();
         let e = write_site(&site, &p1, &ver("2222"), 4_000).unwrap_err();
         assert!(e.contains("immutable"), "{e}");
         let _ = std::fs::remove_dir_all(root);
