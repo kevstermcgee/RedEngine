@@ -24,6 +24,22 @@ assertions in `physics::tests` / `tests/prop_physics.rs`. Prefer adding those wh
 `benches/history/` keeps dated before/after tables for significant changes (e.g. static-prop promotion).
 Add a bench: write it in `benches/sim.rs` with a stable id, run, `--bless`.
 
+## Render trend (`render_trend.py`)
+
+What the live client's renderer draws and how long it takes, for the fixed scenes in `render_scenes.json` (Marcel at morning, dusk and night, Marcel with four
+players on one screen, the house). It runs `red_engine2 splitshot --repeat N --stats`, so it measures the same path a player's window uses.
+
+```bash
+python3 benches/render_trend.py run --label "what changed"   # draws the scenes, appends to benches/history/render.json
+python3 benches/render_trend.py compare                      # the last two runs, scene by scene
+```
+
+Triangles, shadow triangles and draw calls are exact and identical on every machine; a change in them is a change in the engine or the content. Milliseconds
+depend on the GPU. With none (this dev box, a CI runner) the adapter is a software rasteriser (llvmpipe), which is geometry-bound and says little about a real
+GPU, and run to run it moves about 2-3% on its own. Every record names its adapter, and `compare` calls milliseconds comparable only on the same adapter. Take a
+record before and after a rendering change; run it on a machine with a real GPU to learn what a player gets. Nothing gates on it: the hard guards are the
+triangle budget tests (`tests/split_render.rs`). The `render-trend` workflow runs it on pushes to `main` and keeps the result as a downloadable artifact.
+
 ## Idea-to-game flows (`flow_bench.py`)
 
 Not a micro-benchmark: how long each step of making a whole game takes, and how much output an agent would read doing it. A flow
