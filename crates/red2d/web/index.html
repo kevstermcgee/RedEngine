@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0d12; overflow: hidden; color: #cfd6e6; font: 16px/1.4 system-ui, sans-serif; }
+  #screen { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; background: #000; }
+  #start, #loading, #error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1rem; }
+  #start { background: rgba(8, 10, 16, 0.72); cursor: pointer; }
+  #start h1 { margin: 0 0 .25rem; font-size: clamp(1.4rem, 5vw, 2.4rem); }
+  #start p { margin: .25rem 0; max-width: 34rem; opacity: .85; }
+  #start .go { margin-top: 1rem; padding: .6rem 1.2rem; border: 2px solid #cfd6e6; border-radius: 6px; font-weight: 600; letter-spacing: .04em; }
+  #error { background: #2a0d12; color: #ffd7dc; white-space: pre-wrap; z-index: 5; }
+  [hidden] { display: none !important; }
+  noscript { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body data-state="loading" data-game-id="{{ID}}">
+<canvas id="screen" width="{{WIDTH}}" height="{{HEIGHT}}" aria-label="{{TITLE}}" role="img"></canvas>
+<div id="loading">Loading {{TITLE}}…</div>
+<div id="start" hidden>
+  <h1 id="title">{{TITLE}}</h1>
+  <p>{{DESCRIPTION}}</p>
+  <p>{{INPUT}}</p>
+  <div class="go">Press any key or click to play</div>
+</div>
+<div id="error" hidden></div>
+<noscript>This game needs JavaScript and WebAssembly.</noscript>
+<script src="runtime.js"></script>
+</body>
+</html>

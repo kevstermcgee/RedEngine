@@ -12,7 +12,7 @@ use red_engine2::tools::plan::{self, Labels, PlanOptions};
 use red_engine2::tools::reach::{self, ReachParams};
 use red_engine2::tools::shots::{self, FrameOpts, View};
 use red_engine2::tools::world::{load_or_report, load_or_report_phase, MapWorld};
-use red_engine2::tools::{catalog, describe, recipes, search, simrun, symbols, verify};
+use red_engine2::tools::{catalog, describe, game2d, recipes, search, simrun, symbols, verify};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -90,8 +90,18 @@ fn main() {
 
 fn run(command: Command) -> Result<(), String> {
     match command {
+        Command::Validate { scene } if game2d::is_game(&scene) => report(game2d::validate(&scene)),
+        Command::Verify { scene, only, .. } if game2d::is_game(&scene) => report(game2d::verify(&scene, only.as_deref())),
+        Command::Sim { scene, only, .. } if game2d::is_game(&scene) => report(game2d::sim(&scene, only.as_deref())),
+        Command::Frame { scene, out, t, scenario, size, .. } if game2d::is_game(&scene) => {
+            let size = size.as_deref().map(parse_size).transpose()?;
+            print!("{}", game2d::frame(&scene, &out, scenario.as_deref(), t, size)?);
+            println!();
+            Ok(())
+        }
+        Command::Capabilities { file, query } => report(game2d::capabilities(file.as_deref(), &query)?),
         Command::Validate { scene } => run_validate(&scene),
-        Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size } => {
+        Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size, .. } => {
             run_frame(&scene, &out, t, hour, eye.as_deref(), at.as_deref(), fov, hide, cut_above, size.as_deref())
         }
         Command::Sky { scene, out, hours, cols, tile, eye, at, fov, size, look } => {
@@ -283,5 +293,24 @@ fn run(command: Command) -> Result<(), String> {
 }
 
 // ---- parsing helpers ------------------------------------------------------------------------
+
+/// Prints a 2D report and turns its verdict into the exit status.
+fn report(r: game2d::Report) -> Result<(), String> {
+    println!("{}", r.text);
+    if r.ok {
+        Ok(())
+    } else {
+        Err(String::new())
+    }
+}
+
+/// `WIDTHxHEIGHT`.
+fn parse_size(s: &str) -> Result<(u32, u32), String> {
+    let (w, h) = s.split_once(['x', 'X']).ok_or_else(|| format!("size `{s}` is not WIDTHxHEIGHT, like 1280x720"))?;
+    match (w.trim().parse::<u32>(), h.trim().parse::<u32>()) {
+        (Ok(w), Ok(h)) if (16..=8192).contains(&w) && (16..=8192).contains(&h) => Ok((w, h)),
+        _ => Err(format!("size `{s}` is not WIDTHxHEIGHT with each side from 16 to 8192, like 1280x720")),
+    }
+}
 
 // ---- commands ---------------------------------------------------------------------------------

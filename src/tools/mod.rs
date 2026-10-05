@@ -24,6 +24,7 @@ pub mod features;
 pub mod flora_sheet;
 pub mod font;
 pub mod game;
+pub mod game2d;
 pub mod gamepublish;
 pub mod gen;
 pub mod inspect;

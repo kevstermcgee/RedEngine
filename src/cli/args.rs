@@ -320,6 +320,9 @@ pub(crate) enum Command {
         out: PathBuf,
         #[arg(long, default_value_t = 0.0)]
         t: f32,
+        /// A 2D game only: play this scenario (default: the first) for `--t` seconds before drawing.
+        #[arg(long)]
+        scenario: Option<String>,
         /// For a scene with a `clock`: draw it at this clock hour (0 to 24, e.g. 18.5 for half past six in the evening) instead of at `--t`.
         #[arg(long)]
         hour: Option<f32>,
@@ -788,6 +791,15 @@ pub(crate) enum Command {
         /// Also audit this scene's own `ui` block (its HUD, start card and every end card) at every size.
         #[arg(long)]
         scene: Option<PathBuf>,
+    },
+    /// What RedEngine can deliver: the presentation (2d/3d) x platform (web/windows/linux) x networking x input matrix, a game's `capabilities` held to it, or one question
+    /// (`capabilities 3d web`). Anything a game declares that is not built fails early with the reason; nothing is downgraded silently.
+    Capabilities {
+        /// A game file whose `capabilities` block to check.
+        #[arg(long)]
+        file: Option<PathBuf>,
+        /// A question like `2d web` or `3d web authoritative`; empty prints the whole matrix.
+        query: Vec<String>,
     },
     /// Scaffold a game project that USES the engine (pinned in game.json) instead of forking it: a starter blueprint and the map it builds,
     /// CLAUDE.md, STATUS.md, `scripts/red` (finds/builds the pinned engine) and a CI workflow. The result already passes `game check`.
