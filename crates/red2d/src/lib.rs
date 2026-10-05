@@ -37,7 +37,10 @@ pub mod prefabs {
 pub mod caps;
 pub mod font;
 pub mod game;
+pub mod render;
+pub mod script;
 pub mod sim;
+pub mod sound;
 
 /// The shared files' own unit tests reach for a few items of the main crate; the 2D crate's test build supplies just enough of them (the catalog of built-in 3D game sounds is
 /// the main crate's, and its golden test runs there).
