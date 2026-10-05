@@ -92,6 +92,142 @@
           "adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)"
         }
       ]
+    },
+    {
+      "schema": "red-render/1",
+      "label": "reliability milestone (after: strict checks, shared world query, prop floor), dev-profile CLI, llvmpipe on the 4-core N97",
+      "unix_time": 1791178371,
+      "engine_version": "0.1.0",
+      "adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)",
+      "adapter_kind": "software",
+      "repeat": 5,
+      "machine": {
+        "os": "linux",
+        "arch": "x86_64",
+        "cores": 4
+      },
+      "scenes": [
+        {
+          "id": "marcel-morning",
+          "players": 1,
+          "window": [
+            960,
+            540
+          ],
+          "view": [
+            960,
+            540
+          ],
+          "hour": 9.0,
+          "adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)",
+          "adapter_kind": "software",
+          "repeat": 5,
+          "ms_best": 369.295822,
+          "ms_median": 371.80681599999997,
+          "streamed": true,
+          "resident": 96,
+          "draws": 91,
+          "tris": 897067,
+          "shadow_tris": 324701
+        },
+        {
+          "id": "marcel-dusk",
+          "players": 1,
+          "window": [
+            960,
+            540
+          ],
+          "view": [
+            960,
+            540
+          ],
+          "hour": 18.5,
+          "adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)",
+          "adapter_kind": "software",
+          "repeat": 5,
+          "ms_best": 356.528267,
+          "ms_median": 358.683837,
+          "streamed": true,
+          "resident": 96,
+          "draws": 91,
+          "tris": 897067,
+          "shadow_tris": 297167
+        },
+        {
+          "id": "marcel-night",
+          "players": 1,
+          "window": [
+            960,
+            540
+          ],
+          "view": [
+            960,
+            540
+          ],
+          "hour": 0.0,
+          "adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)",
+          "adapter_kind": "software",
+          "repeat": 5,
+          "ms_best": 326.879837,
+          "ms_median": 329.638027,
+          "streamed": true,
+          "resident": 96,
+          "draws": 91,
+          "tris": 897067,
+          "shadow_tris": 247421
+        },
+        {
+          "id": "marcel-4-players",
+          "players": 4,
+          "window": [
+            960,
+            540
+          ],
+          "view": [
+            476,
+            266
+          ],
+          "hour": 9.0,
+          "adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)",
+          "adapter_kind": "software",
+          "repeat": 5,
+          "ms_best": 749.8048259999999,
+          "ms_median": 754.756122,
+          "streamed": true,
+          "resident": 52,
+          "draws": 59,
+          "tris": 745177,
+          "shadow_tris": 303011
+        },
+        {
+          "id": "house",
+          "players": 1,
+          "window": [
+            960,
+            540
+          ],
+          "view": [
+            960,
+            540
+          ],
+          "hour": null,
+          "adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)",
+          "adapter_kind": "software",
+          "repeat": 5,
+          "ms_best": 554.956129,
+          "ms_median": 556.739183,
+          "streamed": false,
+          "resident": null,
+          "draws": null,
+          "tris": null,
+          "shadow_tris": null
+        }
+      ],
+      "date": "2026-10-04T22:32:51-07:00",
+      "engine_commit": "283fd45",
+      "dirty": true,
+      "profile": "debug",
+      "source": "this machine"
     }
   ]
 }

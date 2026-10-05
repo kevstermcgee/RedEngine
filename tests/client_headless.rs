@@ -366,7 +366,13 @@ fn the_soundscape_follows_the_hour_a_rule_variable_fades_a_layer_in_and_an_event
     let dir = scratch("soundscape");
     // A flat scene: a clock starting just after sunrise, the nature ambience, one score layer driven by `tension`, and the music ducking when `boom` is raised.
     let scene = dir.join("s.json");
-    std::fs::write(dir.join("chase.json"), r#"{"bpm": 100, "bars": 2, "tracks": []}"#).unwrap();
+    std::fs::write(
+        dir.join("chase.json"),
+        r#"{"bpm": 100, "beats": 4, "bars": 2, "key": "D", "scale": "major", "seed": 3, "lufs": -27,
+            "instruments": {"pad": {"seconds": 4, "level": 0.5, "layers": [{"sine": 1, "attack": 0.5, "release": 1}]}},
+            "tracks": [{"inst": "pad", "play": "chords", "chords": "I V", "every": "1 bar", "octave": 3}]}"#,
+    )
+    .unwrap();
     std::fs::write(
         &scene,
         json!({

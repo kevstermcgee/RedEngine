@@ -595,15 +595,32 @@ mod tests {
         assert!(run(7).iter().all(|h| (0.0..=1.0).contains(&h.gain) && (-1.0..=1.0).contains(&h.pan)));
     }
 
+    /// A folder holding a real (minimal) score under each of `names`: a scene may only name score files that exist and parse.
+    fn scores_in_a_folder(tag: &str, names: &[&str]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("re2_ambience_{}_{tag}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for name in names {
+            let file = dir.join(name);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(
+                file,
+                r#"{"bpm": 120, "beats": 4, "bars": 2, "key": "D", "scale": "major", "seed": 3, "lufs": -27,
+                    "instruments": {"pad": {"seconds": 4, "level": 0.5, "layers": [{"sine": 1, "attack": 0.5, "release": 1}]}},
+                    "tracks": [{"inst": "pad", "play": "chords", "chords": "I V", "every": "1 bar", "octave": 3}]}"#,
+            )
+            .unwrap();
+        }
+        dir
+    }
+
     #[test]
     fn an_audio_block_is_checked() {
-        let parse = |v: serde_json::Value| parse_audio(v.as_object().unwrap(), Some(std::path::Path::new("/games/m")));
+        let base = scores_in_a_folder("block", &["a/d.json", "n.json", "x.json"]);
+        let parse = |v: serde_json::Value| parse_audio(v.as_object().unwrap(), Some(base.as_path()));
         let ok = parse(serde_json::json!({"audio": {"ambience": "nature", "music": {"dawn": "a/d.json", "night": "n.json"}, "music_volume": 0.4}}))
             .unwrap()
             .unwrap();
-        assert!(
-            ok.nature && ok.music.len() == 2 && ok.music[0] == (Mood::Dawn, "/games/m/a/d.json".into()) && ok.music_volume == 0.4 && ok.ambience_volume == 0.8
-        );
+        assert!(ok.nature && ok.music.len() == 2 && ok.music[0] == (Mood::Dawn, base.join("a/d.json")) && ok.music_volume == 0.4 && ok.ambience_volume == 0.8);
         assert_eq!(parse(serde_json::json!({})).unwrap(), None);
         for (bad, needle) in [
             (serde_json::json!({"audio": {"ambience": "jungle"}}), "audio.ambience"),
@@ -619,13 +636,14 @@ mod tests {
 
     #[test]
     fn reverb_duck_and_layers_are_checked() {
-        let parse = |v: serde_json::Value| parse_audio(v.as_object().unwrap(), Some(std::path::Path::new("/g")));
+        let base = scores_in_a_folder("layers", &["c.json", "x.json"]);
+        let parse = |v: serde_json::Value| parse_audio(v.as_object().unwrap(), Some(base.as_path()));
         let ok = parse(serde_json::json!({"audio": {"reverb": {"decay": 2, "mix": 0.3}, "duck": {"events": ["hit"], "depth": 0.6, "hold": 1}, "layers": [{"score": "c.json", "var": "danger", "above": 2}]}}))
             .unwrap()
             .unwrap();
         assert_eq!(ok.reverb, Some(RoomSpec { decay: 2.0, mix: 0.3 }));
         assert_eq!(ok.duck.as_ref().map(|d| (d.events.clone(), d.duck.depth, d.hold)), Some((vec!["hit".to_string()], 0.6, 1.0)));
-        assert_eq!((ok.layers[0].score.clone(), ok.layers[0].var.as_str(), ok.layers[0].above, ok.layers[0].fade), ("/g/c.json".into(), "danger", 2.0, 3.0));
+        assert_eq!((ok.layers[0].score.clone(), ok.layers[0].var.as_str(), ok.layers[0].above, ok.layers[0].fade), (base.join("c.json"), "danger", 2.0, 3.0));
         for (bad, needle) in [
             (serde_json::json!({"audio": {"reverb": {"decay": 99}}}), "audio.reverb.decay"),
             (serde_json::json!({"audio": {"reverb": {"wet": 1}}}), "wet"),

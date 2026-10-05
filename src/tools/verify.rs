@@ -747,7 +747,7 @@ mod tests {
         );
         // `auto` without a destination is a readable failure, not a panic.
         let r = run_text(r#"{"walk":[{"name":"x","auto":true}]}"#);
-        assert_eq!(r.failed(), 1);
+        assert!(r.failed() >= 1 && r.render().contains("checks.walk[0]: asserts nothing"), "refused up front, with the reason: {}", r.render());
     }
 
     #[test]
