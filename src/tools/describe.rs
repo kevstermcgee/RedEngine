@@ -469,7 +469,7 @@ fn audio_text() -> String {
     "All sound is synthesized in code (nothing imported) and builds headless, so it can be measured without a sound card or ears.\n\n\
      red_engine2 audio list                       every built-in sound: name, group, one-shot or loop, length\n\
      red_engine2 audio report [NAME|file.wav ...] one line each (no names = all): length, peak, RMS, LUFS (ITU BS.1770, gated), crest, clipped samples, DC,\n\
-     \x20                                            silence before/after, `end` (last samples, dBFS), loop `seam` (1 = clean), brightness (centroid Hz), strongest\n\
+     \x20                                            silence before/after, `end` (last samples, dBFS), `endjump` (a ONE-SHOT's last frame vs its usual step: ~0 = fades out, 7+ = cut off, a click), loop `seam` (a LOOP's end-to-start jump, 1 = clean; ignore it on one-shots), brightness (centroid Hz), strongest\n\
      \x20                                            pitch (note), flatness (0 tone .. 1 noise), % energy in sub/bass/lowmid/highmid/air, stereo correlation; --json\n\
      red_engine2 audio render NAME out.wav        write the 16-bit WAV (to listen to, or to send someone)\n\
      red_engine2 audio picture NAME|f.wav out.png waveform over a spectrogram (log frequency up, time right): LOOK at it\n\
