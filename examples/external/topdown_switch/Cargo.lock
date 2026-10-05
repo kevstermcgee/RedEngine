@@ -2688,6 +2688,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "red2d"
+version = "0.1.0"
+dependencies = [
+ "libm",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "red_engine2"
 version = "0.1.0"
 dependencies = [
@@ -2710,6 +2719,7 @@ dependencies = [
  "quinn",
  "rapier3d",
  "rcgen",
+ "red2d",
  "rfd",
  "rodio",
  "rustls",
