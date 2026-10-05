@@ -16,7 +16,11 @@ pub fn browser_home() -> PathBuf {
     if let Ok(p) = std::env::var("RED2D_BROWSER_HOME") {
         return PathBuf::from(p);
     }
-    let base = std::env::var("XDG_CACHE_HOME").map(PathBuf::from).or_else(|_| std::env::var("HOME").map(|h| Path::new(&h).join(".cache"))).or_else(|_| std::env::var("LOCALAPPDATA").map(PathBuf::from)).unwrap_or_else(|_| PathBuf::from("."));
+    let base = std::env::var("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|_| std::env::var("HOME").map(|h| Path::new(&h).join(".cache")))
+        .or_else(|_| std::env::var("LOCALAPPDATA").map(PathBuf::from))
+        .unwrap_or_else(|_| PathBuf::from("."));
     base.join("red_engine2/browser")
 }
 
@@ -61,12 +65,17 @@ pub fn setup_browser() -> Result<String, String> {
         if o.status.success() {
             Ok(())
         } else {
-            Err(format!("{log}{}\n{}", String::from_utf8_lossy(&o.stdout).lines().rev().take(8).collect::<Vec<_>>().join("\n"), String::from_utf8_lossy(&o.stderr).lines().rev().take(12).collect::<Vec<_>>().join("\n")))
+            Err(format!(
+                "{log}{}\n{}",
+                String::from_utf8_lossy(&o.stdout).lines().rev().take(8).collect::<Vec<_>>().join("\n"),
+                String::from_utf8_lossy(&o.stderr).lines().rev().take(12).collect::<Vec<_>>().join("\n")
+            ))
         }
     };
     std::fs::create_dir_all(&home).map_err(|e| format!("{}: {e}", home.display()))?;
     if !venv_python(&home).is_file() {
-        run(Command::new("python3").args(["-m", "venv"]).arg(&home), "python3 -m venv", &mut log).map_err(|e| format!("{e}\nfix: install Python 3 with venv (Debian/Ubuntu: `sudo apt install python3-venv`)"))?;
+        run(Command::new("python3").args(["-m", "venv"]).arg(&home), "python3 -m venv", &mut log)
+            .map_err(|e| format!("{e}\nfix: install Python 3 with venv (Debian/Ubuntu: `sudo apt install python3-venv`)"))?;
     }
     let py = venv_python(&home);
     run(Command::new(&py).args(["-m", "pip", "install", "--quiet", "playwright"]), "pip install playwright", &mut log)?;
@@ -100,9 +109,19 @@ pub fn verify(dir: Option<&Path>, url: Option<&str>, out: &Path) -> Result<Verif
     let o = cmd.output().map_err(|e| format!("could not start the browser driver: {e}"))?;
     let stdout = String::from_utf8_lossy(&o.stdout);
     let last = stdout.lines().rev().find(|l| l.starts_with('{')).unwrap_or("");
-    let v: Value = serde_json::from_str(last).map_err(|_| format!("the browser driver printed no report (exit {:?}):\n{}\n{}", o.status.code(), stdout.lines().rev().take(10).collect::<Vec<_>>().join("\n"), String::from_utf8_lossy(&o.stderr).lines().rev().take(15).collect::<Vec<_>>().join("\n")))?;
+    let v: Value = serde_json::from_str(last).map_err(|_| {
+        format!(
+            "the browser driver printed no report (exit {:?}):\n{}\n{}",
+            o.status.code(),
+            stdout.lines().rev().take(10).collect::<Vec<_>>().join("\n"),
+            String::from_utf8_lossy(&o.stderr).lines().rev().take(15).collect::<Vec<_>>().join("\n")
+        )
+    })?;
     if let Some(e) = v.get("harness_error").and_then(|e| e.as_str()) {
-        return Err(format!("the browser driver failed: {e}{}", if e.contains("Executable doesn't exist") || e.contains("playwright install") { "\nfix: `red_engine2 web setup-browser`" } else { "" }));
+        return Err(format!(
+            "the browser driver failed: {e}{}",
+            if e.contains("Executable doesn't exist") || e.contains("playwright install") { "\nfix: `red_engine2 web setup-browser`" } else { "" }
+        ));
     }
     let rows = v["rows"]
         .as_array()

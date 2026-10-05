@@ -252,12 +252,22 @@ pub(crate) fn run_new_game(
     let kind = match kind {
         "walk" => newgame::Kind::Walk,
         "race" => newgame::Kind::Race,
-        other => return Err(format!("--kind '{other}': use walk or race")),
+        "2d" => newgame::Kind::TwoD,
+        other => return Err(format!("--kind '{other}': use walk, race or 2d")),
     };
     let files = newgame::scaffold_kind(dir, &name, &engine, kind)?;
     println!("created game project '{name}' in {} ({} files)", dir.display(), files.len());
     println!("next:");
     println!("  cd {}", dir.display());
+    if kind == newgame::Kind::TwoD {
+        let id = newgame::game_id(&name);
+        println!(
+            "  scripts/red verify {id}.game2d.json    # (scripts\\red.ps1 on Windows) fetches + builds the engine on first use; the starter already passes"
+        );
+        println!("  scripts/red describe 2d               # the file format on one page");
+        println!("  scripts/red web verify {id}.game2d.json   # run it in a real headless browser (`scripts/red web setup-browser` once)");
+        return Ok(());
+    }
     println!("  scripts/red check            # (scripts\\red.ps1 on Windows) fetches + builds the engine on first use, then verifies the starter map");
     if kind == newgame::Kind::Race {
         println!("  scripts/red race-test maps/main.json   # 8 bots race the generated circuit; `scripts/red race-track --help` reshapes it");

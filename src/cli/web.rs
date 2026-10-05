@@ -99,7 +99,12 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
             let (t, failed) = rows_text(&all);
             print!("{t}");
             std::fs::write(out.join("report.json"), serde_json::to_string_pretty(&v.raw).unwrap_or_default()).ok();
-            println!("{} in {browser} ({} checks; screenshots and report.json in {})", if failed == 0 { "LOCAL BROWSER SUCCESS" } else { "BROWSER VERIFICATION FAILED" }, all.len(), out.display());
+            println!(
+                "{} in {browser} ({} checks; screenshots and report.json in {})",
+                if failed == 0 { "LOCAL BROWSER SUCCESS" } else { "BROWSER VERIFICATION FAILED" },
+                all.len(),
+                out.display()
+            );
             if failed == 0 {
                 println!("PROVEN: the page loads over HTTP, the module initialises, the first frame is pixel-identical to the native renderer, the game's scenarios replay to the native hashes, real key/mouse events change the state, saves survive a reload and bad storage does not break the game, audio starts after a gesture (browser-audio rows), the console is clean.");
                 println!("NOT PROVEN: that a human played it, that it is fun, that it sounds right, other browsers or devices (touch and gamepad paths are unverified).");

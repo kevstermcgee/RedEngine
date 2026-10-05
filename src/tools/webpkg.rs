@@ -31,8 +31,39 @@ const INDEX_HTML: &str = include_str!("../../crates/red2d/web/index.html");
 
 /// Functions the runtime calls on the module; the module must export every one (and the runtime must use no other).
 pub const ABI: &[&str] = &[
-    "alloc", "dealloc", "init", "error", "step", "render", "view_w", "view_h", "frame_ptr", "frame_len", "key", "action", "pointer", "click", "window", "layout_x", "layout_y", "layout_w", "layout_h",
-    "to_view", "view_x", "view_y", "snapshot", "save_take", "save_load", "scenarios", "sounds_take", "sound_pcm", "music_pcm", "music_on", "sample_rate", "out_ptr", "out_len",
+    "alloc",
+    "dealloc",
+    "init",
+    "error",
+    "step",
+    "render",
+    "view_w",
+    "view_h",
+    "frame_ptr",
+    "frame_len",
+    "key",
+    "action",
+    "pointer",
+    "click",
+    "window",
+    "layout_x",
+    "layout_y",
+    "layout_w",
+    "layout_h",
+    "to_view",
+    "view_x",
+    "view_y",
+    "snapshot",
+    "save_take",
+    "save_load",
+    "scenarios",
+    "sounds_take",
+    "sound_pcm",
+    "music_pcm",
+    "music_on",
+    "sample_rate",
+    "out_ptr",
+    "out_len",
 ];
 
 /// What was built.
@@ -70,7 +101,10 @@ pub fn engine_root() -> Result<PathBuf, String> {
             }
         }
     }
-    Err(format!("cannot find the engine checkout (a directory with crates/red2d): set RED2D_ENGINE_ROOT, or set RED2D_WASM to a prebuilt game player (tried {})", tried.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")))
+    Err(format!(
+        "cannot find the engine checkout (a directory with crates/red2d): set RED2D_ENGINE_ROOT, or set RED2D_WASM to a prebuilt game player (tried {})",
+        tried.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+    ))
 }
 
 fn cargo_path() -> PathBuf {
@@ -247,7 +281,16 @@ fn input_blurb(d: &red2d::game::GameDef) -> String {
 }
 
 fn engine_revision(root: &Path) -> (String, bool) {
-    let git = |args: &[&str]| Command::new("git").arg("-C").arg(root).args(args).output().ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+    let git = |args: &[&str]| {
+        Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(args)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    };
     let rev = git(&["rev-parse", "--short=12", "HEAD"]).unwrap_or_else(|| "unknown".into());
     let dirty = git(&["status", "--porcelain", "--", "crates/red2d", "src", "Cargo.toml", "Cargo.lock"]).is_some_and(|s| !s.is_empty());
     (rev, dirty)
@@ -257,7 +300,11 @@ fn engine_revision(root: &Path) -> (String, bool) {
 pub fn build(game: &Path, out: &Path, wasm_override: Option<&Path>) -> Result<Built, String> {
     let (def, text) = game2d::load(game)?;
     if !def.caps.platforms.contains(&red2d::caps::Platform::Web) {
-        return Err(format!("{}: this game does not declare the `web` platform (platforms: {}): add \"web\" to capabilities.platforms to build it for the browser", game.display(), def.caps.platforms.iter().map(|p| p.name()).collect::<Vec<_>>().join(", ")));
+        return Err(format!(
+            "{}: this game does not declare the `web` platform (platforms: {}): add \"web\" to capabilities.platforms to build it for the browser",
+            game.display(),
+            def.caps.platforms.iter().map(|p| p.name()).collect::<Vec<_>>().join(", ")
+        ));
     }
     let (wasm_path, wasm_how) = match wasm_override {
         Some(p) => (p.to_path_buf(), "given".to_string()),
@@ -341,7 +388,8 @@ pub fn build(game: &Path, out: &Path, wasm_override: Option<&Path>) -> Result<Bu
 
     // Replace only a previous package (or an empty/missing directory).
     if out.exists() {
-        let is_pkg = std::fs::read_to_string(out.join("manifest.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).is_some_and(|m| m["schema"] == SCHEMA);
+        let is_pkg =
+            std::fs::read_to_string(out.join("manifest.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).is_some_and(|m| m["schema"] == SCHEMA);
         let empty = std::fs::read_dir(out).map(|mut d| d.next().is_none()).unwrap_or(false);
         if !is_pkg && !empty {
             return Err(format!("{} exists and is not a web package: refusing to replace it (choose another --out)", out.display()));
@@ -374,7 +422,14 @@ pub fn check(dir: &Path) -> Vec<Row> {
         return vec![row(false, "manifest", "manifest.json is not valid JSON")];
     };
     rows.push(row(m["schema"] == SCHEMA, "manifest schema", format!("{}", m["schema"])));
-    let listed: Vec<(String, u64, String)> = m["files"].as_array().map(|a| a.iter().map(|f| (f["path"].as_str().unwrap_or("").to_string(), f["bytes"].as_u64().unwrap_or(0), f["sha256"].as_str().unwrap_or("").to_string())).collect()).unwrap_or_default();
+    let listed: Vec<(String, u64, String)> = m["files"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|f| (f["path"].as_str().unwrap_or("").to_string(), f["bytes"].as_u64().unwrap_or(0), f["sha256"].as_str().unwrap_or("").to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
 
     // Every listed file is there, intact; nothing else is.
     let mut bad = Vec::new();
@@ -396,7 +451,11 @@ pub fn check(dir: &Path) -> Vec<Row> {
             Err(_) => bad.push(format!("{p}: listed but missing")),
         }
     }
-    rows.push(row(bad.is_empty() && !listed.is_empty(), "files and hashes", if bad.is_empty() { format!("{} file(s), every size and SHA-256 matches", listed.len()) } else { bad.join("; ") }));
+    rows.push(row(
+        bad.is_empty() && !listed.is_empty(),
+        "files and hashes",
+        if bad.is_empty() { format!("{} file(s), every size and SHA-256 matches", listed.len()) } else { bad.join("; ") },
+    ));
     let mut extra = Vec::new();
     fn walk(base: &Path, dir: &Path, out: &mut Vec<String>) {
         if let Ok(rd) = std::fs::read_dir(dir) {
@@ -419,7 +478,11 @@ pub fn check(dir: &Path) -> Vec<Row> {
             extra.push(p);
         }
     }
-    rows.push(row(extra.is_empty(), "no undeclared files", if extra.is_empty() { "every file in the directory is listed".to_string() } else { format!("not in the manifest: {}", extra.join(", ")) }));
+    rows.push(row(
+        extra.is_empty(),
+        "no undeclared files",
+        if extra.is_empty() { "every file in the directory is listed".to_string() } else { format!("not in the manifest: {}", extra.join(", ")) },
+    ));
 
     // package_id
     let mut all = Vec::new();
@@ -436,11 +499,28 @@ pub fn check(dir: &Path) -> Vec<Row> {
     match std::fs::read(dir.join("game.wasm")) {
         Ok(b) => match wasm_info(&b) {
             Ok(info) => {
-                rows.push(row(info.imports.is_empty(), "wasm imports nothing", if info.imports.is_empty() { "no env, filesystem, clock, network or JavaScript imports: the module is a pure function of its inputs".to_string() } else { format!("imports {}", info.imports.join(", ")) }));
+                rows.push(row(
+                    info.imports.is_empty(),
+                    "wasm imports nothing",
+                    if info.imports.is_empty() {
+                        "no env, filesystem, clock, network or JavaScript imports: the module is a pure function of its inputs".to_string()
+                    } else {
+                        format!("imports {}", info.imports.join(", "))
+                    },
+                ));
                 let missing: Vec<&str> = ABI.iter().copied().chain(["memory"]).filter(|n| !info.exports.iter().any(|e| e == n)).collect();
-                rows.push(row(missing.is_empty(), "wasm exports the player ABI", if missing.is_empty() { format!("{} exports", info.exports.len()) } else { format!("missing {}", missing.join(", ")) }));
-                let leaks: Vec<&str> = ["/home/", "/Users/", "C:\\Users", "/root/"].into_iter().filter(|n| b.windows(n.len()).any(|w| w == n.as_bytes())).collect();
-                rows.push(row(leaks.is_empty(), "wasm has no build-machine paths", if leaks.is_empty() { "none of /home/, /Users/, C:\\Users, /root/".to_string() } else { format!("contains {}", leaks.join(", ")) }));
+                rows.push(row(
+                    missing.is_empty(),
+                    "wasm exports the player ABI",
+                    if missing.is_empty() { format!("{} exports", info.exports.len()) } else { format!("missing {}", missing.join(", ")) },
+                ));
+                let leaks: Vec<&str> =
+                    ["/home/", "/Users/", "C:\\Users", "/root/"].into_iter().filter(|n| b.windows(n.len()).any(|w| w == n.as_bytes())).collect();
+                rows.push(row(
+                    leaks.is_empty(),
+                    "wasm has no build-machine paths",
+                    if leaks.is_empty() { "none of /home/, /Users/, C:\\Users, /root/".to_string() } else { format!("contains {}", leaks.join(", ")) },
+                ));
             }
             Err(e) => rows.push(row(false, "wasm module", e)),
         },
@@ -475,7 +555,11 @@ pub fn check(dir: &Path) -> Vec<Row> {
             }
         }
     }
-    rows.push(row(problems.is_empty(), "self-contained", if problems.is_empty() { "no absolute paths, no external URLs, every loaded file is declared".to_string() } else { problems.join("; ") }));
+    rows.push(row(
+        problems.is_empty(),
+        "self-contained",
+        if problems.is_empty() { "no absolute paths, no external URLs, every loaded file is declared".to_string() } else { problems.join("; ") },
+    ));
 
     // The runtime calls only what the module exports.
     if let Ok(js) = std::fs::read_to_string(dir.join("runtime.js")) {
@@ -489,16 +573,32 @@ pub fn check(dir: &Path) -> Vec<Row> {
             }
         }
         let unknown: Vec<&String> = used.iter().filter(|n| !ABI.contains(&n.as_str())).collect();
-        rows.push(row(unknown.is_empty(), "runtime uses the declared ABI", if unknown.is_empty() { format!("{} calls, all in the ABI", used.len()) } else { format!("calls {}", unknown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")) }));
+        rows.push(row(
+            unknown.is_empty(),
+            "runtime uses the declared ABI",
+            if unknown.is_empty() {
+                format!("{} calls, all in the ABI", used.len())
+            } else {
+                format!("calls {}", unknown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "))
+            },
+        ));
     }
 
     // The game parses and is the game the manifest names.
     match std::fs::read_to_string(dir.join("assets/game.json")) {
         Ok(t) => match red2d::game::parse(&t) {
             Ok(d) => {
-                rows.push(row(d.rev == m["game"]["game_revision"].as_str().unwrap_or(""), "game revision", format!("assets/game.json is revision {}; manifest says {}", d.rev, m["game"]["game_revision"])));
+                rows.push(row(
+                    d.rev == m["game"]["game_revision"].as_str().unwrap_or(""),
+                    "game revision",
+                    format!("assets/game.json is revision {}; manifest says {}", d.rev, m["game"]["game_revision"]),
+                ));
                 let web = d.caps.platforms.iter().any(|p| p.name() == "web");
-                rows.push(row(web && d.id == m["game"]["id"].as_str().unwrap_or(""), "game identity and target", format!("`{}`, platforms {}", d.id, d.caps.platforms.iter().map(|p| p.name()).collect::<Vec<_>>().join("+"))));
+                rows.push(row(
+                    web && d.id == m["game"]["id"].as_str().unwrap_or(""),
+                    "game identity and target",
+                    format!("`{}`, platforms {}", d.id, d.caps.platforms.iter().map(|p| p.name()).collect::<Vec<_>>().join("+")),
+                ));
             }
             Err(e) => rows.push(row(false, "game parses", e.join("; "))),
         },
@@ -548,7 +648,11 @@ pub fn serve(dir: &Path, port: u16, announce: impl Fn(u16)) -> Result<(), String
             let body = if ok { std::fs::read(dir.join(rel)).ok() } else { None };
             let _ = match body {
                 Some(b) => {
-                    let head = format!("HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n", mime(rel), b.len());
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+                        mime(rel),
+                        b.len()
+                    );
                     conn.write_all(head.as_bytes()).and_then(|_| conn.write_all(&b))
                 }
                 None => conn.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\nConnection: close\r\n\r\nnot found"),

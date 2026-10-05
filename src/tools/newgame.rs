@@ -15,6 +15,8 @@ pub enum Kind {
     Walk,
     /// A kart race: `race-track` builds the circuit (the eight animals come with the engine), with a lobby-and-rounds `match` block and bots.
     Race,
+    /// A 2D game for the browser: one `NAME.game2d.json` (see `describe 2d`), already verified.
+    TwoD,
 }
 
 /// The hosting script every project gets as `deploy/install.sh` (a per-user systemd service; `deploy/install.sh --info` says how friends connect).
@@ -299,6 +301,139 @@ fn write(dir: &Path, rel: &str, text: &str, out: &mut Vec<PathBuf>) -> Result<()
     Ok(())
 }
 
+/// The 2D starter: the smallest game that has every part a real one has (a player, things to collect, a HUD, a sound, an end with a restart, a saved best, a scripted
+/// playthrough and a browser check). `{{ID}}` and `{{TITLE}}` are filled in.
+pub const STARTER_2D: &str = r##"{
+  "game2d": 1,
+  "id": "{{ID}}",
+  "title": "{{TITLE}}",
+  "description": "Collect every gem before the clock runs out.",
+  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["progress"] },
+  "view": { "width": 320, "height": 180, "background": "#16202e" },
+
+  "sounds": { "ding": { "seconds": 0.2, "level": 0.5, "layers": [{ "sine": 880, "decay": 16 }, { "sine": 1320, "decay": 20, "delay": 0.05, "gain": 0.7 }] } },
+
+  "vars": { "gems_left": 5, "timeleft": 20, "best": 0 },
+  "persist": ["best"],
+
+  "prefabs": {
+    "player": { "tag": "player", "shape": { "rect": [10, 10], "color": "#ffd166" }, "layer": 2, "clamp": true, "move": { "keys": { "mode": "topdown", "speed": 90 } } },
+    "gem": { "tag": "gem", "shape": { "circle": 5, "color": "#5cf2ff" }, "emit": { "rate": 4, "life": [0.3, 0.6], "speed": [5, 12], "angle": [240, 300], "color": "#bff8ff" } }
+  },
+
+  "scene": [
+    { "prefab": "player", "at": [160, 90], "id": "p" },
+    { "prefab": "gem", "at": [40, 40] }, { "prefab": "gem", "at": [280, 40] }, { "prefab": "gem", "at": [40, 150] },
+    { "prefab": "gem", "at": [280, 150] }, { "prefab": "gem", "at": [160, 30] }
+  ],
+
+  "ui": [
+    { "text": "GEMS LEFT {count_gem}", "at": [6, 6], "color": "#5cf2ff" },
+    { "text": "TIME {timeleft:2}", "at": [314, 6], "align": "right" },
+    { "text": "BEST {best}", "at": [160, 6], "align": "center", "color": "#9fb3d9", "show": "best > 0" },
+    { "text": "YOU WIN!", "at": [160, 70], "scale": 2, "align": "center", "color": "#8cff9b", "show": "ended == 1" },
+    { "text": "TIME UP", "at": [160, 70], "scale": 2, "align": "center", "color": "#ff7a8c", "show": "ended == 2" },
+    { "button": { "id": "again", "label": "PLAY AGAIN (ENTER)", "at": [100, 100], "size": [120, 14], "key": "Enter", "do": [{ "restart": true }] }, "show": "ended" }
+  ],
+
+  "rules": [
+    { "id": "collect", "when": { "touch": ["player", "gem"] }, "do": [
+      { "add": ["gems_left", -1] }, { "play": "ding" }, { "burst": { "at": "other", "n": 10, "color": "#5cf2ff", "speed": [20, 60], "life": [0.2, 0.5] } }, { "destroy": "other" }] },
+    { "id": "clock", "when": { "every": 1 }, "do": [{ "add": ["timeleft", -1] }] },
+    { "id": "win", "when": { "every": 0.05 }, "if": "count_gem == 0", "do": [{ "end": "win" }] },
+    { "id": "lose", "when": { "every": 0.05 }, "if": "timeleft <= 0 && count_gem > 0", "do": [{ "end": "lose" }] },
+    { "id": "best", "when": { "end": "win" }, "if": "timeleft > best", "do": [{ "set": ["best", "timeleft"] }] }
+  ],
+
+  "checks": {
+    "scenarios": [
+      { "name": "walking over every gem wins", "max_seconds": 30, "smoke": true,
+        "script": [{ "approach": "gem", "seconds": 15 }],
+        "expect": [{ "ended": "win" }, { "count": "gem", "eq": 0 }, { "sound": "ding", "min": 5 }, { "var": "best", "gt": 0 }] },
+      { "name": "standing still runs out the clock", "max_seconds": 40,
+        "script": [{ "wait_until": { "ended": "lose" }, "timeout": 30 }],
+        "expect": [{ "ended": "lose" }, { "count": "gem", "eq": 5 }, { "var": "best", "eq": 0 }] }
+    ],
+    "browser": [{ "name": "the arrow keys move the player", "keys": ["ArrowRight"], "ms": 400, "changes": ["p_x"] }]
+  }
+}
+"##;
+
+const CLAUDE_MD_2D: &str = r#"# {{NAME}}
+
+A Red Engine 2 **2D browser game**: the whole game is `{{ID}}.game2d.json`. **The engine is not in this repo**: `game.json` pins it, and `scripts/red` fetches and builds that version on first use.
+Never copy engine source here.
+
+## The loop
+```bash
+scripts/red describe 2d                          # the file format on one page (read it once; do not open any source)
+scripts/red validate {{ID}}.game2d.json          # well formed? every sprite/sound/tag/variable name resolves? (errors say the fix)
+scripts/red sim {{ID}}.game2d.json [--every 5]   # the scripted playthroughs, with the variables every 5 s when a balance is off
+scripts/red verify {{ID}}.game2d.json            # simulation + render + audio waveform; exit 1 on any failure
+scripts/red frame {{ID}}.game2d.json out/look.png --t 8 --size 1280x720   # LOOK at it (the same renderer the browser uses)
+scripts/red web verify {{ID}}.game2d.json        # build the WebAssembly package and run it in a real headless browser (`scripts/red web setup-browser` once)
+scripts/red publish {{ID}}.game2d.json           # the pipeline to a URL; it says exactly which stage failed, and never invents a URL
+```
+- Edit the JSON only. A scenario that asserts nothing is refused; write the playthrough and its `expect` first, then the rules.
+- `validate`/`verify` prove the rules, the picture and the sound waveform. They do not prove it is fun or that it sounds right: play it (`scripts/red web serve out/web/{{ID}}`).
+- Record progress: `scripts/red status --note "what changed" --section done|now|next`.
+"#;
+
+const CI_YML_2D: &str = r#"name: check
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - run: RED_HEADLESS=1 bash scripts/red verify {{ID}}.game2d.json
+"#;
+
+fn title_case(name: &str) -> String {
+    name.split(['-', '_'])
+        .filter(|w| !w.is_empty())
+        .map(|w| w.chars().next().map(|c| c.to_uppercase().collect::<String>() + &w[1..]).unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The id a game gets from a project name: lowercase, hyphens.
+pub fn game_id(name: &str) -> String {
+    name.to_lowercase().replace('_', "-")
+}
+
+fn scaffold_2d(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBuf>, String> {
+    let id = game_id(name);
+    let mut out = Vec::new();
+    let engine_json = match (&engine.path, &engine.git) {
+        (Some(p), _) => format!("{{ \"path\": \"{}\" }}", p.replace('\\', "/")),
+        (None, g) => format!(
+            "{{ \"git\": \"{}\", \"ref\": \"{}\" }}",
+            g.clone().unwrap_or_else(|| "https://github.com/kevstermcgee/RedEngine.git".into()),
+            engine.git_ref.clone().unwrap_or_else(|| "master".into())
+        ),
+    };
+    write(
+        dir,
+        "game.json",
+        &format!("{{\n  \"game\": 1,\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"blueprints\": [],\n  \"maps\": []\n}}\n"),
+        &mut out,
+    )?;
+    let game = STARTER_2D.replace("{{ID}}", &id).replace("{{TITLE}}", &title_case(name));
+    write(dir, &format!("{id}.game2d.json"), &game, &mut out)?;
+    write(dir, "CLAUDE.md", &CLAUDE_MD_2D.replace("{{NAME}}", name).replace("{{ID}}", &id), &mut out)?;
+    write(dir, "scripts/red", RED_SH, &mut out)?;
+    write(dir, "scripts/red.ps1", RED_PS1, &mut out)?;
+    write(dir, ".github/workflows/check.yml", &CI_YML_2D.replace("{{ID}}", &id), &mut out)?;
+    write(dir, ".gitignore", ".red/\nout/\ntarget/\n", &mut out)?;
+    write(dir, ".gitattributes", "* text=auto eol=lf\n*.png binary\n", &mut out)?;
+    out.push(super::status::init(dir)?);
+    Ok(out)
+}
+
 /// Creates a game project in `dir` (which may exist but must not contain any of the files). Returns the files written.
 pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBuf>, String> {
     scaffold_kind(dir, name, engine, Kind::Walk)
@@ -308,6 +443,9 @@ pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBu
 pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> Result<Vec<PathBuf>, String> {
     if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
         return Err(format!("--name '{name}' must be letters, digits, _ or - (it becomes the blueprint and map name)"));
+    }
+    if kind == Kind::TwoD {
+        return scaffold_2d(dir, name, engine);
     }
     let mut out = Vec::new();
     let engine_json = match (&engine.path, &engine.git) {
@@ -373,6 +511,26 @@ pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The starter a fresh author gets is itself a verified game (so it can never ship broken), and a project made from it validates, verifies, and names its own game.
+    #[test]
+    fn the_2d_starter_is_a_green_project() {
+        let dir = std::env::temp_dir().join(format!("re2_newgame2d_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let files = scaffold_kind(&dir, "gem-grab", &EngineRef { path: Some("../engine".into()), ..Default::default() }, Kind::TwoD).unwrap();
+        assert!(files.iter().any(|f| f.ends_with("gem-grab.game2d.json")), "{files:?}");
+        let game = dir.join("gem-grab.game2d.json");
+        let r = super::super::game2d::validate(&game);
+        assert!(r.ok, "{}", r.text);
+        let v = super::super::game2d::verify(&game, None);
+        assert!(v.ok, "{}", v.text);
+        assert!(v.text.contains("scenario `walking over every gem wins`") && v.text.contains("save round trip"), "{}", v.text);
+        let guide = std::fs::read_to_string(dir.join("CLAUDE.md")).unwrap();
+        assert!(guide.contains("scripts/red verify gem-grab.game2d.json") && guide.contains("describe 2d"), "{guide}");
+        assert!(super::super::game::load(&dir).is_ok(), "the project has a loadable game.json (scripts/red reads the engine pin from it)");
+        assert!(scaffold_kind(&dir, "gem-grab", &EngineRef::default(), Kind::TwoD).is_err(), "never overwrites");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn scaffold_writes_a_green_project_and_refuses_to_overwrite() {

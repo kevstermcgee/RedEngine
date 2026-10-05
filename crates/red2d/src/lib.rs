@@ -38,6 +38,7 @@ pub mod caps;
 pub mod font;
 pub mod game;
 pub mod host;
+pub mod reference;
 pub mod render;
 pub mod script;
 pub mod sim;

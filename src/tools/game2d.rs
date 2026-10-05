@@ -130,7 +130,15 @@ pub fn sim(path: &Path, only: Option<&str>, every: Option<f32>) -> Report {
         ran += 1;
         let (r, _) = script::run_scenario(&d, sc, None);
         ok &= r.ok;
-        t.push_str(&format!("{}  scenario `{}`: {} ticks ({:.1} s), ended {}, hash {}\n", if r.ok { "PASS" } else { "FAIL" }, r.name, r.ticks, r.ticks as f64 / 60.0, r.ended.unwrap_or("not"), r.hash));
+        t.push_str(&format!(
+            "{}  scenario `{}`: {} ticks ({:.1} s), ended {}, hash {}\n",
+            if r.ok { "PASS" } else { "FAIL" },
+            r.name,
+            r.ticks,
+            r.ticks as f64 / 60.0,
+            r.ended.unwrap_or("not"),
+            r.hash
+        ));
         t.push_str(&format!("      vars: {}\n", r.vars.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>().join(" ")));
         if !r.ids.is_empty() {
             t.push_str(&format!("      at: {}\n", r.ids.iter().map(|(n, x, y)| format!("{n}=({x:.1}, {y:.1})")).collect::<Vec<_>>().join(" ")));
@@ -145,7 +153,14 @@ pub fn sim(path: &Path, only: Option<&str>, every: Option<f32>) -> Report {
             let mut at = step;
             while at < r.ticks as f32 / 60.0 {
                 let (rr, _) = script::run_scenario(&d, sc, Some((at * 60.0).round() as u64));
-                t.push_str(&format!("      t={at:>6.1}s  {}\n", rr.vars.iter().map(|(n, v)| format!("{n}={}", if v.fract() == 0.0 { format!("{v}") } else { format!("{v:.1}") })).collect::<Vec<_>>().join(" ")));
+                t.push_str(&format!(
+                    "      t={at:>6.1}s  {}\n",
+                    rr.vars
+                        .iter()
+                        .map(|(n, v)| format!("{n}={}", if v.fract() == 0.0 { format!("{v}") } else { format!("{v:.1}") }))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ));
                 at += step;
             }
         }
@@ -157,7 +172,10 @@ pub fn sim(path: &Path, only: Option<&str>, every: Option<f32>) -> Report {
         }
     }
     if ran == 0 {
-        return Report { text: format!("no scenario{} in {} (add `checks.scenarios`)", only.map(|o| format!(" matching `{o}`")).unwrap_or_default(), path.display()), ok: false };
+        return Report {
+            text: format!("no scenario{} in {} (add `checks.scenarios`)", only.map(|o| format!(" matching `{o}`")).unwrap_or_default(), path.display()),
+            ok: false,
+        };
     }
     Report { text: t.trim_end().to_string(), ok }
 }
@@ -167,7 +185,12 @@ pub fn sim(path: &Path, only: Option<&str>, every: Option<f32>) -> Report {
 pub fn frame(path: &Path, out: &Path, scenario: Option<&str>, t: f32, size: Option<(u32, u32)>) -> Result<String, String> {
     let (d, _) = load(path)?;
     let sc = match scenario {
-        Some(n) => Some(d.scenarios.iter().find(|s| s.name == n).ok_or_else(|| format!("no scenario `{n}` (scenarios: {})", d.scenarios.iter().map(|s| s.name.clone()).collect::<Vec<_>>().join(", ")))?),
+        Some(n) => Some(
+            d.scenarios
+                .iter()
+                .find(|s| s.name == n)
+                .ok_or_else(|| format!("no scenario `{n}` (scenarios: {})", d.scenarios.iter().map(|s| s.name.clone()).collect::<Vec<_>>().join(", ")))?,
+        ),
         None => d.scenarios.first().filter(|_| t > 0.0),
     };
     let sim = match sc {
@@ -203,7 +226,9 @@ pub fn capabilities(path: Option<&Path>, query: &[String]) -> Result<Report, Str
     if let Some(p) = path {
         let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?;
         let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| format!("{}: not JSON: {e}", p.display()))?;
-        let Some(c) = v.get("capabilities") else { return Err(format!("{}: no `capabilities` block (a 2D game declares one; see `red_engine2 describe capabilities`)", p.display())) };
+        let Some(c) = v.get("capabilities") else {
+            return Err(format!("{}: no `capabilities` block (a 2D game declares one; see `red_engine2 describe capabilities`)", p.display()));
+        };
         let (parsed, problems) = caps::parse(c);
         let mut t = String::new();
         let Some(c) = parsed else {
@@ -230,12 +255,18 @@ pub fn capabilities(path: Option<&Path>, query: &[String]) -> Result<Report, Str
         return Ok(Report { text: caps::matrix_text(), ok: true });
     }
     // `capabilities 3d web [authoritative]`: one verdict.
-    let words: Vec<String> = query.iter().flat_map(|q| q.split(&[' ', ','][..]).map(|s| s.to_lowercase()).collect::<Vec<_>>()).filter(|s| !s.is_empty()).collect();
+    let words: Vec<String> =
+        query.iter().flat_map(|q| q.split(&[' ', ','][..]).map(|s| s.to_lowercase()).collect::<Vec<_>>()).filter(|s| !s.is_empty()).collect();
     let pres = words.iter().find_map(|w| caps::Presentation::parse(w));
     let plat = words.iter().find_map(|w| caps::Platform::parse(w));
     let net = words.iter().find_map(|w| caps::Networking::parse(w)).unwrap_or(caps::Networking::Offline);
     let (Some(pres), Some(plat)) = (pres, plat) else {
-        return Err(format!("say a presentation ({}) and a platform ({}), like `capabilities 2d web` (optionally a networking mode: {})", caps::Presentation::names().join(", "), caps::Platform::names().join(", "), caps::Networking::names().join(", ")));
+        return Err(format!(
+            "say a presentation ({}) and a platform ({}), like `capabilities 2d web` (optionally a networking mode: {})",
+            caps::Presentation::names().join(", "),
+            caps::Platform::names().join(", "),
+            caps::Networking::names().join(", ")
+        ));
     };
     let c = caps::Capabilities { presentation: pres, platforms: vec![plat], networking: net, input: vec![], persistence: vec![] };
     let problems = caps::check(&c);

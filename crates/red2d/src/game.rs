@@ -702,7 +702,34 @@ pub const BUILTINS: &[&str] = &["time", "tick", "ended", "mouse_x", "mouse_y", "
 /// Actions a game responds to (keys and controllers map onto them).
 pub const ACTIONS: &[&str] = &["left", "right", "up", "down", "action", "secondary", "pause"];
 
-const ROOT: &[&str] = &["game2d", "id", "title", "description", "capabilities", "view", "sprites", "sounds", "music", "vars", "persist", "prefabs", "scene", "map", "ui", "rules", "checks"];
+/// The triggers a rule's `when` takes.
+pub const TRIGGERS: &[&str] = &["start", "every", "after", "touch", "touching", "press", "click", "event", "end"];
+/// The movers a prefab's `move` takes.
+pub const MOVERS: &[&str] = &["keys", "pointer", "chase", "drift", "wander", "patrol"];
+/// The steps of a scripted playthrough.
+pub const STEP_KEYS: &[&str] = &["wait", "hold", "hold_until", "press", "click", "button", "point", "approach", "wait_until"];
+/// The assertions of a scenario.
+pub const EXPECT_KEYS: &[&str] = &["var", "ended", "not_ended", "count", "entity", "event", "sound", "hash"];
+/// The keys at the root of a game file.
+pub const ROOT: &[&str] = &[
+    "game2d",
+    "id",
+    "title",
+    "description",
+    "capabilities",
+    "view",
+    "sprites",
+    "sounds",
+    "music",
+    "vars",
+    "persist",
+    "prefabs",
+    "scene",
+    "map",
+    "ui",
+    "rules",
+    "checks",
+];
 
 fn fnv(text: &str) -> u64 {
     text.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ b as u64).wrapping_mul(0x0100_0000_01b3))
@@ -746,7 +773,12 @@ fn pair(v: &Value) -> Option<[f32; 2]> {
 }
 
 fn slug_ok(s: &str) -> bool {
-    !s.is_empty() && s.len() <= 40 && !s.starts_with('-') && !s.ends_with('-') && !s.contains("--") && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    !s.is_empty()
+        && s.len() <= 40
+        && !s.starts_with('-')
+        && !s.ends_with('-')
+        && !s.contains("--")
+        && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
 const SPRITE_FIELDS: &[Field] = &[
@@ -758,7 +790,10 @@ const SPRITE_FIELDS: &[Field] = &[
 ];
 
 fn frames_ok(v: &Value) -> Result<(), String> {
-    let list = v.as_array().filter(|a| !a.is_empty()).ok_or_else(|| format!("expected a non-empty list of frames (each a list of row strings), got {}", describe_value(v)))?;
+    let list = v
+        .as_array()
+        .filter(|a| !a.is_empty())
+        .ok_or_else(|| format!("expected a non-empty list of frames (each a list of row strings), got {}", describe_value(v)))?;
     for (i, f) in list.iter().enumerate() {
         if !f.as_array().is_some_and(|rows| !rows.is_empty() && rows.iter().all(Value::is_string)) {
             return Err(format!("frame {i} must be a non-empty list of row strings, got {}", describe_value(f)));
@@ -787,7 +822,10 @@ fn parse_sprite(ctx: &mut Ctx, name: &str, v: &Value) -> Option<Sprite> {
     let before = ctx.errs.len();
     check_fields(&mut ctx.errs, &path, o, SPRITE_FIELDS);
     if o.contains_key("file") {
-        ctx.err(&path, "an image file cannot be read here: the loader inlines `{\"file\": \"x.json\"}` assets before parsing, and a sprite is written as pixel `rows`");
+        ctx.err(
+            &path,
+            "an image file cannot be read here: the loader inlines `{\"file\": \"x.json\"}` assets before parsing, and a sprite is written as pixel `rows`",
+        );
     }
     if ctx.errs.len() > before {
         return None;
@@ -833,7 +871,10 @@ fn parse_sprite(ctx: &mut Ctx, name: &str, v: &Value) -> Option<Sprite> {
                         Some(col) => px.push(*col),
                         None => {
                             let known: Vec<String> = palette.keys().map(char::to_string).collect();
-                            ctx.err(&path, format!("row {ri} of frame {fi} uses `{c}`, which is not in `palette` (palette has: {}; . is transparent)", known.join(" ")));
+                            ctx.err(
+                                &path,
+                                format!("row {ri} of frame {fi} uses `{c}`, which is not in `palette` (palette has: {}; . is transparent)", known.join(" ")),
+                            );
                             return None;
                         }
                     },
@@ -862,7 +903,11 @@ const PREFAB_FIELDS: &[Field] = &[
     opt("layer", Ty::Custom(int_ok), "draw order, higher on top (default 0)"),
     opt("body", Ty::Custom(object_ok), "{ \"type\": \"dynamic\"|\"static\", \"gravity\": 300, \"bounce\": 0.5 ... }"),
     opt("collide", Ty::Strs, "tags this thing is stopped by"),
-    opt("move", Ty::Custom(object_ok), "{ \"keys\": {...} } | { \"pointer\": \"x\" } | { \"chase\": {...} } | { \"drift\": [vx, vy] } | { \"wander\": {...} } | { \"patrol\": {...} }"),
+    opt(
+        "move",
+        Ty::Custom(object_ok),
+        "{ \"keys\": {...} } | { \"pointer\": \"x\" } | { \"chase\": {...} } | { \"drift\": [vx, vy] } | { \"wander\": {...} } | { \"patrol\": {...} }",
+    ),
     opt("ttl", Ty::Num(Some((0.01, 100_000.0))), "seconds to live"),
     opt("emit", Ty::Custom(object_ok), "a continuous particle emitter"),
     opt("clamp", Ty::Bool, "keep inside the world"),
@@ -917,7 +962,10 @@ fn parse_shape(ctx: &mut Ctx, path: &str, v: &Value, sprites: &[Sprite]) -> (Sha
     check_keys(&mut ctx.errs, path, o, SHAPE_KEYS);
     let kinds: Vec<&str> = ["sprite", "rect", "circle", "text"].into_iter().filter(|k| o.contains_key(*k)).collect();
     if kinds.len() != 1 {
-        ctx.err(path, format!("give exactly one of sprite, rect, circle, text (found {})", if kinds.is_empty() { "none".to_string() } else { kinds.join(" and ") }));
+        ctx.err(
+            path,
+            format!("give exactly one of sprite, rect, circle, text (found {})", if kinds.is_empty() { "none".to_string() } else { kinds.join(" and ") }),
+        );
         return (Shape::None, [8.0, 8.0]);
     }
     match kinds[0] {
@@ -988,7 +1036,8 @@ const KEYS_FIELDS: &[Field] = &[
     opt("jump", Ty::Num(Some((1.0, 2000.0))), "jump speed, px/s (platformer)"),
 ];
 const CHASE_FIELDS: &[Field] = &[req("target", Ty::Str, "the tag to chase"), req("speed", Ty::Num(Some((1.0, 2000.0))), "px/s")];
-const WANDER_FIELDS: &[Field] = &[req("speed", Ty::Num(Some((1.0, 2000.0))), "px/s"), opt("turn", Ty::Num(Some((0.05, 60.0))), "seconds between turns, default 1")];
+const WANDER_FIELDS: &[Field] =
+    &[req("speed", Ty::Num(Some((1.0, 2000.0))), "px/s"), opt("turn", Ty::Num(Some((0.05, 60.0))), "seconds between turns, default 1")];
 const PATROL_FIELDS: &[Field] = &[
     req("axis", Ty::OneOf(&["x", "y"]), ""),
     req("range", Ty::Num(Some((1.0, 5000.0))), "how far each way from the start, px"),
@@ -997,10 +1046,10 @@ const PATROL_FIELDS: &[Field] = &[
 
 fn parse_move(ctx: &mut Ctx, path: &str, v: &Value) -> Move {
     let Some(o) = ctx.obj(path, v) else { return Move::None };
-    check_keys(&mut ctx.errs, path, o, &["keys", "pointer", "chase", "drift", "wander", "patrol"]);
-    let found: Vec<&String> = o.keys().filter(|k| ["keys", "pointer", "chase", "drift", "wander", "patrol"].contains(&k.as_str())).collect();
+    check_keys(&mut ctx.errs, path, o, MOVERS);
+    let found: Vec<&String> = o.keys().filter(|k| MOVERS.contains(&k.as_str())).collect();
     if found.len() != 1 {
-        ctx.err(path, format!("give exactly one mover (keys, pointer, chase, drift, wander, patrol), found {}", found.len()));
+        ctx.err(path, format!("give exactly one mover ({}), found {}", MOVERS.join(", "), found.len()));
         return Move::None;
     }
     let key = found[0].as_str();
@@ -1042,7 +1091,11 @@ fn parse_move(ctx: &mut Ctx, path: &str, v: &Value) -> Move {
         }),
         _ => ctx.obj(&sub, val).map(|m| {
             check_fields(&mut ctx.errs, &sub, m, PATROL_FIELDS);
-            Move::Patrol { x: m.get("axis").and_then(Value::as_str) == Some("x"), range: m.get("range").and_then(num).unwrap_or(0.0) as f32, speed: m.get("speed").and_then(num).unwrap_or(0.0) as f32 }
+            Move::Patrol {
+                x: m.get("axis").and_then(Value::as_str) == Some("x"),
+                range: m.get("range").and_then(num).unwrap_or(0.0) as f32,
+                speed: m.get("speed").and_then(num).unwrap_or(0.0) as f32,
+            }
         }),
     };
     if ctx.errs.len() > before {
@@ -1159,7 +1212,13 @@ fn place(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Place> {
             Some(Place::Xy(coord(ctx, &format!("{path}.x"), x, names)?, coord(ctx, &format!("{path}.y"), y, names)?))
         }
         other => {
-            ctx.err(path, format!("expected a place (\"self\", \"other\", \"pointer\", [x, y] or {{\"x\": [min, max], \"y\": [min, max]}}), got {}", describe_value(other)));
+            ctx.err(
+                path,
+                format!(
+                    "expected a place (\"self\", \"other\", \"pointer\", [x, y] or {{\"x\": [min, max], \"y\": [min, max]}}), got {}",
+                    describe_value(other)
+                ),
+            );
             None
         }
     }
@@ -1192,13 +1251,18 @@ fn target(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Target>
     }
 }
 
-const ACT_KEYS: &[&str] = &["set", "add", "emit", "spawn", "destroy", "play", "music", "burst", "shake", "end", "restart", "reset_save", "velocity", "teleport"];
+/// Every action a rule or button can do.
+pub const ACT_KEYS: &[&str] =
+    &["set", "add", "emit", "spawn", "destroy", "play", "music", "burst", "shake", "end", "restart", "reset_save", "velocity", "teleport"];
 
 fn declared(ctx: &mut Ctx, path: &str, name: &str, names: &Names) -> Option<usize> {
     match names.vars.iter().position(|v| v == name) {
         Some(i) if i < names.n_declared => Some(i),
         Some(_) => {
-            ctx.err(path, format!("`{name}` is built in and cannot be assigned: assign one of your own variables ({})", names.vars[..names.n_declared].join(", ")));
+            ctx.err(
+                path,
+                format!("`{name}` is built in and cannot be assigned: assign one of your own variables ({})", names.vars[..names.n_declared].join(", ")),
+            );
             None
         }
         None => {
@@ -1284,7 +1348,9 @@ fn parse_actions(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, in_button:
                     None => Place::Own,
                 };
                 let vel = match o.get("vel") {
-                    Some(Value::Array(a)) if a.len() == 2 => Some([coord(ctx, &format!("{ap}.vel[0]"), &a[0], names)?, coord(ctx, &format!("{ap}.vel[1]"), &a[1], names)?]),
+                    Some(Value::Array(a)) if a.len() == 2 => {
+                        Some([coord(ctx, &format!("{ap}.vel[0]"), &a[0], names)?, coord(ctx, &format!("{ap}.vel[1]"), &a[1], names)?])
+                    }
                     Some(other) => {
                         ctx.err(format!("{ap}.vel"), format!("expected [vx, vy], got {}", describe_value(other)));
                         return None;
@@ -1369,7 +1435,14 @@ fn parse_actions(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, in_button:
             }),
             other => {
                 let near = crate::suggest::suggest(other, ACT_KEYS.iter().copied());
-                ctx.err(&p, format!("unknown action `{other}`{} (actions: {})", near.first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default(), ACT_KEYS.join(", ")));
+                ctx.err(
+                    &p,
+                    format!(
+                        "unknown action `{other}`{} (actions: {})",
+                        near.first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default(),
+                        ACT_KEYS.join(", ")
+                    ),
+                );
                 None
             }
         };
@@ -1385,11 +1458,10 @@ fn parse_actions(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, in_button:
 
 fn parse_when(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<When> {
     let o = ctx.obj(path, v)?;
-    const KEYS: &[&str] = &["start", "every", "after", "touch", "touching", "press", "click", "event", "end"];
-    check_keys(&mut ctx.errs, path, o, KEYS);
-    let found: Vec<&String> = o.keys().filter(|k| KEYS.contains(&k.as_str())).collect();
+    check_keys(&mut ctx.errs, path, o, TRIGGERS);
+    let found: Vec<&String> = o.keys().filter(|k| TRIGGERS.contains(&k.as_str())).collect();
     if found.len() != 1 {
-        ctx.err(path, format!("`when` takes exactly one trigger ({}), found {}", KEYS.join(", "), found.len()));
+        ctx.err(path, format!("`when` takes exactly one trigger ({}), found {}", TRIGGERS.join(", "), found.len()));
         return None;
     }
     let key = found[0].as_str();
@@ -1422,7 +1494,17 @@ fn parse_when(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Whe
         "press" => match arg.as_str() {
             Some(a) if ACTIONS.contains(&a) => Some(When::Press(a.to_string())),
             _ => {
-                ctx.err(&ap, format!("expected an action ({}), got {}{}", ACTIONS.join(", "), describe_value(arg), arg.as_str().map(|s| Ctx::near(s, ACTIONS.iter().map(|x| x.to_string())).split(" (known").next().unwrap_or("").to_string()).unwrap_or_default()));
+                ctx.err(
+                    &ap,
+                    format!(
+                        "expected an action ({}), got {}{}",
+                        ACTIONS.join(", "),
+                        describe_value(arg),
+                        arg.as_str()
+                            .map(|s| Ctx::near(s, ACTIONS.iter().map(|x| x.to_string())).split(" (known").next().unwrap_or("").to_string())
+                            .unwrap_or_default()
+                    ),
+                );
                 None
             }
         },
@@ -1502,7 +1584,8 @@ const BAR_FIELDS: &[Field] = &[
     opt("color", Ty::Custom(color_ok), "fill"),
     opt("back", Ty::Custom(color_ok), "empty part"),
 ];
-const PANEL_FIELDS: &[Field] = &[req("at", Ty::Nums(&[2]), "[x, y]"), req("size", Ty::Nums(&[2]), "[w, h]"), opt("color", Ty::Custom(color_ok), "default dark")];
+const PANEL_FIELDS: &[Field] =
+    &[req("at", Ty::Nums(&[2]), "[x, y]"), req("size", Ty::Nums(&[2]), "[w, h]"), opt("color", Ty::Custom(color_ok), "default dark")];
 const BUTTON_FIELDS: &[Field] = &[
     req("id", Ty::Str, "a name a scenario can click"),
     req("label", Ty::Str, "the text on it"),
@@ -1549,7 +1632,13 @@ fn parse_widget(ctx: &mut Ctx, i: usize, v: &Value, names: &Names) -> Option<Wid
     } else {
         check_keys(&mut ctx.errs, &path, o, &["bar", "panel", "button", "show"]);
         if kinds.len() != 1 {
-            ctx.err(&path, format!("a widget is text ({{\"text\": \"...\", \"at\": [x, y]}}) or one of bar, panel, button; found {}", if kinds.is_empty() { "none".to_string() } else { kinds.join(" and ") }));
+            ctx.err(
+                &path,
+                format!(
+                    "a widget is text ({{\"text\": \"...\", \"at\": [x, y]}}) or one of bar, panel, button; found {}",
+                    if kinds.is_empty() { "none".to_string() } else { kinds.join(" and ") }
+                ),
+            );
             return None;
         }
         let k = kinds[0];
@@ -1632,13 +1721,12 @@ fn check_template(ctx: &mut Ctx, path: &str, text: &str, names: &Names) {
 
 fn step(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Step> {
     let o = ctx.obj(path, v)?;
-    const KEYS: &[&str] = &["wait", "hold", "hold_until", "press", "click", "button", "point", "approach", "wait_until"];
-    let found: Vec<&String> = o.keys().filter(|k| KEYS.contains(&k.as_str())).collect();
-    let mut allowed: Vec<&str> = KEYS.to_vec();
+    let found: Vec<&String> = o.keys().filter(|k| STEP_KEYS.contains(&k.as_str())).collect();
+    let mut allowed: Vec<&str> = STEP_KEYS.to_vec();
     allowed.extend(["seconds", "until", "timeout"]);
     check_keys(&mut ctx.errs, path, o, &allowed);
     if found.len() != 1 {
-        ctx.err(path, format!("a step has exactly one of {}, found {}", KEYS.join(", "), found.len()));
+        ctx.err(path, format!("a step has exactly one of {}, found {}", STEP_KEYS.join(", "), found.len()));
         return None;
     }
     let key = found[0].as_str();
@@ -1696,10 +1784,13 @@ fn step(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Step> {
 
 fn expect_one(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Expect> {
     let o = ctx.obj(path, v)?;
-    const KEYS: &[&str] = &["var", "ended", "not_ended", "count", "entity", "event", "sound", "hash", "eq", "ne", "gt", "gte", "lt", "lte", "near", "tol", "min", "max"];
+    const KEYS: &[&str] =
+        &["var", "ended", "not_ended", "count", "entity", "event", "sound", "hash", "eq", "ne", "gt", "gte", "lt", "lte", "near", "tol", "min", "max"];
     check_keys(&mut ctx.errs, path, o, KEYS);
     let cmp = || -> Option<(Cmp, f64)> {
-        [("eq", Cmp::Eq), ("ne", Cmp::Ne), ("gt", Cmp::Gt), ("gte", Cmp::Gte), ("lt", Cmp::Lt), ("lte", Cmp::Lte)].iter().find_map(|(k, c)| Some((*c, num(o.get(*k)?)?)))
+        [("eq", Cmp::Eq), ("ne", Cmp::Ne), ("gt", Cmp::Gt), ("gte", Cmp::Gte), ("lt", Cmp::Lt), ("lte", Cmp::Lte)]
+            .iter()
+            .find_map(|(k, c)| Some((*c, num(o.get(*k)?)?)))
     };
     let no_cmp = |ctx: &mut Ctx, what: &str| {
         ctx.err(path, format!("{what} needs a comparison: one of eq, ne, gt, gte, lt, lte with a number, like {{\"{what}\": ..., \"gte\": 1}}"));
@@ -1776,7 +1867,9 @@ fn scenario(ctx: &mut Ctx, i: usize, v: &Value, names: &Names) -> Option<Scenari
                 }
             }
         }
-        Some(Value::Array(_)) | None => ctx.err(&path, "needs a non-empty `script`: the steps a player takes (wait, hold, press, click, button, point, approach, wait_until)"),
+        Some(Value::Array(_)) | None => {
+            ctx.err(&path, "needs a non-empty `script`: the steps a player takes (wait, hold, press, click, button, point, approach, wait_until)")
+        }
         Some(other) => ctx.err(format!("{path}.script"), format!("expected a list of steps, got {}", describe_value(other))),
     }
     let mut expect = Vec::new();
@@ -1802,7 +1895,14 @@ fn scenario(ctx: &mut Ctx, i: usize, v: &Value, names: &Names) -> Option<Scenari
             30.0
         }
     };
-    Some(Scenario { name, seed: o.get("seed").and_then(Value::as_u64).unwrap_or(1), max_seconds: max, script, expect, smoke: o.get("smoke").and_then(Value::as_bool).unwrap_or(false) })
+    Some(Scenario {
+        name,
+        seed: o.get("seed").and_then(Value::as_u64).unwrap_or(1),
+        max_seconds: max,
+        script,
+        expect,
+        smoke: o.get("smoke").and_then(Value::as_bool).unwrap_or(false),
+    })
 }
 
 /// Parses and fully validates a game text.
@@ -1817,7 +1917,13 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
     // identity
     let id = root.get("id").and_then(Value::as_str).unwrap_or("").to_string();
     if !slug_ok(&id) {
-        ctx.err("id", format!("a game id is 1 to 40 lowercase letters and digits with single hyphens (like \"tiny-station\"), got {}", describe_value(root.get("id").unwrap_or(&Value::Null))));
+        ctx.err(
+            "id",
+            format!(
+                "a game id is 1 to 40 lowercase letters and digits with single hyphens (like \"tiny-station\"), got {}",
+                describe_value(root.get("id").unwrap_or(&Value::Null))
+            ),
+        );
     }
     let title = root.get("title").and_then(Value::as_str).unwrap_or("").to_string();
     if title.is_empty() {
@@ -1831,7 +1937,15 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
     // capabilities
     let (caps, problems) = match root.get("capabilities") {
         Some(c) => caps::parse(c),
-        None => (None, vec![caps::Problem { path: "capabilities".into(), message: "needs `capabilities`, like {\"presentation\": \"2d\", \"platforms\": [\"web\"], \"networking\": \"offline\", \"input\": [\"keyboard\"]}".into() }]),
+        None => (
+            None,
+            vec![caps::Problem {
+                path: "capabilities".into(),
+                message:
+                    "needs `capabilities`, like {\"presentation\": \"2d\", \"platforms\": [\"web\"], \"networking\": \"offline\", \"input\": [\"keyboard\"]}"
+                        .into(),
+            }],
+        ),
     };
     for p in &problems {
         ctx.errs.push(p.to_string());
@@ -1946,7 +2060,8 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 if crate::fields::is_extension_key(name) {
                     continue;
                 }
-                let ident_ok = !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && !name.starts_with(|c: char| c.is_ascii_digit());
+                let ident_ok =
+                    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && !name.starts_with(|c: char| c.is_ascii_digit());
                 if !ident_ok {
                     ctx.err(format!("vars.{name}"), "a variable name is letters, digits and _ (not starting with a digit)");
                     continue;
@@ -1996,7 +2111,17 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 for (i, item) in list.iter().enumerate() {
                     let path = format!("scene[{i}]");
                     let Some(o) = ctx.obj(&path, item) else { continue };
-                    check_fields(&mut ctx.errs, &path, o, &[req("prefab", Ty::Str, "the prefab"), req("at", Ty::Nums(&[2]), "[x, y]"), opt("id", Ty::Str, "a unique name for this one"), opt("count", Ty::Custom(count_ok), "how many copies at this spot")]);
+                    check_fields(
+                        &mut ctx.errs,
+                        &path,
+                        o,
+                        &[
+                            req("prefab", Ty::Str, "the prefab"),
+                            req("at", Ty::Nums(&[2]), "[x, y]"),
+                            opt("id", Ty::Str, "a unique name for this one"),
+                            opt("count", Ty::Custom(count_ok), "how many copies at this spot"),
+                        ],
+                    );
                     if let (Some(p), Some(at)) = (o.get("prefab").and_then(Value::as_str), o.get("at").and_then(pair)) {
                         let count = o.get("count").and_then(Value::as_u64).unwrap_or(1);
                         for _ in 0..count {
@@ -2037,7 +2162,10 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                         }
                         match legend.get(&ch.to_string()).and_then(Value::as_str) {
                             Some(p) => raw_placements.push((p.to_string(), [origin[0] + (rx as f32 + 0.5) * tile, origin[1] + (ry as f32 + 0.5) * tile], None)),
-                            None => ctx.err(format!("map.rows[{ry}]"), format!("`{ch}` (column {rx}) is not in `legend`{}", Ctx::near(&ch.to_string(), legend.keys().cloned()))),
+                            None => ctx.err(
+                                format!("map.rows[{ry}]"),
+                                format!("`{ch}` (column {rx}) is not in `legend`{}", Ctx::near(&ch.to_string(), legend.keys().cloned())),
+                            ),
                         }
                     }
                 }
@@ -2068,7 +2196,10 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         let mut seen: Vec<&String> = Vec::new();
         for n in &var_names {
             if seen.contains(&n) {
-                ctx.err("vars", format!("the name `{n}` is used twice (declared variables, built-ins, `count_<tag>` and `<id>_x`/`<id>_y` share one namespace)"));
+                ctx.err(
+                    "vars",
+                    format!("the name `{n}` is used twice (declared variables, built-ins, `count_<tag>` and `<id>_x`/`<id>_y` share one namespace)"),
+                );
             }
             seen.push(n);
         }
@@ -2094,7 +2225,8 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             }
             let size = d.get("size").and_then(pair).unwrap_or(shape_size);
             let body = d.get("body").and_then(|b| parse_body(&mut ctx, &format!("{path}.body"), b));
-            let collide: Vec<String> = d.get("collide").and_then(Value::as_array).map(|a| a.iter().filter_map(|t| t.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            let collide: Vec<String> =
+                d.get("collide").and_then(Value::as_array).map(|a| a.iter().filter_map(|t| t.as_str().map(str::to_string)).collect()).unwrap_or_default();
             for (i, t) in collide.iter().enumerate() {
                 if !tags.contains(t) {
                     ctx.err(format!("{path}.collide[{i}]"), format!("no tag `{t}`{}", Ctx::near(t, tags.iter().cloned())));
@@ -2157,7 +2289,10 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 for (i, n) in list.iter().enumerate() {
                     match n.as_str().and_then(|s| declared_names.iter().position(|d| d == s)) {
                         Some(ix) => persist.push(ix),
-                        None => ctx.err(format!("persist[{i}]"), format!("{} is not a declared variable{}", describe_value(n), Ctx::near(n.as_str().unwrap_or(""), declared_names.iter().cloned()))),
+                        None => ctx.err(
+                            format!("persist[{i}]"),
+                            format!("{} is not a declared variable{}", describe_value(n), Ctx::near(n.as_str().unwrap_or(""), declared_names.iter().cloned())),
+                        ),
                     }
                 }
             }
@@ -2244,23 +2379,41 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                     if !bo.contains_key("keys") && !bo.contains_key("click") {
                         ctx.err(&path, "needs `keys` or `click`: the real input the browser check performs");
                     }
-                    let changes: Vec<String> = bo.get("changes").and_then(Value::as_array).map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect()).unwrap_or_default();
+                    let changes: Vec<String> = bo
+                        .get("changes")
+                        .and_then(Value::as_array)
+                        .map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect())
+                        .unwrap_or_default();
                     for (j, c) in changes.iter().enumerate() {
                         if !var_names.contains(c) {
                             ctx.err(format!("{path}.changes[{j}]"), format!("no variable `{c}`{}", Ctx::near(c, var_names.iter().cloned())));
                         }
                     }
-                    let persists: Vec<String> = bo.get("persists").and_then(Value::as_array).map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect()).unwrap_or_default();
+                    let persists: Vec<String> = bo
+                        .get("persists")
+                        .and_then(Value::as_array)
+                        .map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect())
+                        .unwrap_or_default();
                     for (j, c) in persists.iter().enumerate() {
                         let saved = c == "music_on" || declared_names.iter().position(|d| d == c).is_some_and(|ix| persist.contains(&ix));
                         if !saved {
-                            ctx.err(format!("{path}.persists[{j}]"), format!("`{c}` is not saved: `persists` names a variable listed in `persist`, or `music_on`{}", Ctx::near(c, persist.iter().map(|&i| declared_names[i].clone()).chain(["music_on".to_string()]))));
+                            ctx.err(
+                                format!("{path}.persists[{j}]"),
+                                format!(
+                                    "`{c}` is not saved: `persists` names a variable listed in `persist`, or `music_on`{}",
+                                    Ctx::near(c, persist.iter().map(|&i| declared_names[i].clone()).chain(["music_on".to_string()]))
+                                ),
+                            );
                         }
                     }
                     browser.push(BrowserCheck {
                         persists,
                         name: bo.get("name").and_then(Value::as_str).map_or_else(|| format!("browser check {i}"), str::to_string),
-                        keys: bo.get("keys").and_then(Value::as_array).map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect()).unwrap_or_default(),
+                        keys: bo
+                            .get("keys")
+                            .and_then(Value::as_array)
+                            .map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect())
+                            .unwrap_or_default(),
                         click: bo.get("click").and_then(pair),
                         ms: bo.get("ms").and_then(Value::as_u64).unwrap_or(400) as u32,
                         changes,
@@ -2272,19 +2425,32 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
 
     // capabilities versus what the game actually uses
     if let Some(c) = &caps {
-        let uses_keys = prefabs.iter().any(|p| matches!(p.mv, Move::Keys { .. })) || rules.iter().any(|r| matches!(&r.when, When::Press(_))) || ui.iter().any(|w| matches!(&w.kind, WidgetKind::Button { key: Some(_), .. }));
-        let uses_pointer = prefabs.iter().any(|p| matches!(p.mv, Move::Pointer { .. })) || rules.iter().any(|r| matches!(&r.when, When::Click(_))) || ui.iter().any(|w| matches!(&w.kind, WidgetKind::Button { .. }));
+        let uses_keys = prefabs.iter().any(|p| matches!(p.mv, Move::Keys { .. }))
+            || rules.iter().any(|r| matches!(&r.when, When::Press(_)))
+            || ui.iter().any(|w| matches!(&w.kind, WidgetKind::Button { key: Some(_), .. }));
+        let uses_pointer = prefabs.iter().any(|p| matches!(p.mv, Move::Pointer { .. }))
+            || rules.iter().any(|r| matches!(&r.when, When::Click(_)))
+            || ui.iter().any(|w| matches!(&w.kind, WidgetKind::Button { .. }));
         if uses_keys && !c.input.contains(&Input::Keyboard) {
-            ctx.err("capabilities.input", "the game reads keys (a `keys` mover, a `press` rule or a button `key`) but `keyboard` is not declared: add it to `input`");
+            ctx.err(
+                "capabilities.input",
+                "the game reads keys (a `keys` mover, a `press` rule or a button `key`) but `keyboard` is not declared: add it to `input`",
+            );
         }
         if uses_pointer && !c.input.contains(&Input::Mouse) {
-            ctx.err("capabilities.input", "the game reads the pointer (a `pointer` mover, a `click` rule or a button) but `mouse` is not declared: add it to `input`");
+            ctx.err(
+                "capabilities.input",
+                "the game reads the pointer (a `pointer` mover, a `click` rule or a button) but `mouse` is not declared: add it to `input`",
+            );
         }
         if !persist.is_empty() && !c.persistence.contains(&Persistence::Progress) {
             ctx.err("capabilities.persistence", "`persist` saves variables but `progress` is not declared: add \"progress\" to `persistence`");
         }
         let toggles_music = |acts: &[Act]| acts.iter().any(|a| matches!(a, Act::Music(_)));
-        if (rules.iter().any(|r| toggles_music(&r.actions)) || ui.iter().any(|w| matches!(&w.kind, WidgetKind::Button { actions, .. } if toggles_music(actions)))) && !c.persistence.contains(&Persistence::Settings) {
+        if (rules.iter().any(|r| toggles_music(&r.actions))
+            || ui.iter().any(|w| matches!(&w.kind, WidgetKind::Button { actions, .. } if toggles_music(actions))))
+            && !c.persistence.contains(&Persistence::Settings)
+        {
             ctx.err("capabilities.persistence", "the game has a music setting (`music` action) but `settings` is not declared: add \"settings\" to `persistence`, or the setting is lost on reload");
         }
     }
@@ -2317,7 +2483,10 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
 }
 
 fn dim_ok(v: &Value) -> Result<(), String> {
-    v.as_u64().filter(|n| (64..=MAX_VIEW as u64).contains(n)).map(|_| ()).ok_or_else(|| format!("expected a whole number of pixels from 64 to {MAX_VIEW}, got {}", describe_value(v)))
+    v.as_u64()
+        .filter(|n| (64..=MAX_VIEW as u64).contains(n))
+        .map(|_| ())
+        .ok_or_else(|| format!("expected a whole number of pixels from 64 to {MAX_VIEW}, got {}", describe_value(v)))
 }
 
 fn count_ok_ms(v: &Value) -> Result<(), String> {

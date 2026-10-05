@@ -855,7 +855,7 @@ pub(crate) enum Command {
     NewGame {
         /// Directory to create the project in.
         dir: PathBuf,
-        /// `walk` (rooms and people on foot, built from a blueprint; the default) or `race` (a kart race: a generated circuit, the eight animals, bots, a lobby).
+        /// `walk` (rooms and people on foot, built from a blueprint; the default), `race` (a kart race: a generated circuit, the eight animals, bots, a lobby) or `2d` (a browser game: one JSON file).
         #[arg(long, default_value = "walk")]
         kind: String,
         /// Project name (default: the directory name).

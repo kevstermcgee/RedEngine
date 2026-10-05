@@ -14,3 +14,10 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
 # Trigonometry for anything visual (particles): a pure-Rust libm gives the same bits natively and in the browser.
 libm = "0.2"
+
+# The same style policy as the engine crate (which this crate shares source files with): the lints those files already allow.
+[lints.clippy]
+needless_range_loop = "allow"
+field_reassign_with_default = "allow"
+too_many_arguments = "allow"
+doc_lazy_continuation = "allow"

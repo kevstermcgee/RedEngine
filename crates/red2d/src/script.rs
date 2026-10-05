@@ -99,7 +99,10 @@ pub fn check(sim: &Sim, e: &Expect) -> Result<(), String> {
             if k >= *min && max.is_none_or(|m| k <= m) {
                 Ok(())
             } else {
-                fail(format!("{k} time(s) (events seen: {})", if sim.event_counts.is_empty() { "none".into() } else { sim.event_counts.keys().cloned().collect::<Vec<_>>().join(", ") }))
+                fail(format!(
+                    "{k} time(s) (events seen: {})",
+                    if sim.event_counts.is_empty() { "none".into() } else { sim.event_counts.keys().cloned().collect::<Vec<_>>().join(", ") }
+                ))
             }
         }
         Expect::Sound(i, n) => {
@@ -138,7 +141,10 @@ impl Runner<'_> {
             return false;
         }
         if self.sim.tick >= self.budget {
-            self.failures.push(format!("the scenario ran past max_seconds ({}): raise `max_seconds`, or a step is waiting for something that never happens", self.sc.max_seconds));
+            self.failures.push(format!(
+                "the scenario ran past max_seconds ({}): raise `max_seconds`, or a step is waiting for something that never happens",
+                self.sc.max_seconds
+            ));
             return false;
         }
         self.sim.step();
@@ -182,7 +188,7 @@ impl Runner<'_> {
                     let (dx, dy) = (tx - px, ty - py);
                     match mode {
                         KeyMode::TopDown => (dx < -2.0, dx > 2.0, dy < -2.0, dy > 2.0),
-                        KeyMode::Platformer => (dx < -2.0, dx > 2.0, dy < -6.0 && grounded && self.sim.tick % 2 == 0, false),
+                        KeyMode::Platformer => (dx < -2.0, dx > 2.0, dy < -6.0 && grounded && self.sim.tick.is_multiple_of(2), false),
                     }
                 }
                 None => (false, false, false, false),
@@ -337,11 +343,23 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
         st.distinct_colors >= 2 && st.covered >= 0.002,
         "render",
         "first frame",
-        format!("{}x{}, {} colours, {:.1}% of pixels differ from the background{}", st.width, st.height, st.distinct_colors, st.covered * 100.0, if st.distinct_colors < 2 || st.covered < 0.002 { " — the first frame is blank: nothing is on screen" } else { "" }),
+        format!(
+            "{}x{}, {} colours, {:.1}% of pixels differ from the background{}",
+            st.width,
+            st.height,
+            st.distinct_colors,
+            st.covered * 100.0,
+            if st.distinct_colors < 2 || st.covered < 0.002 { " — the first frame is blank: nothing is on screen" } else { "" }
+        ),
     ));
     // Scenarios.
     if def.scenarios.is_empty() {
-        rows.push(Row::new(false, "simulation", "scenarios", "the game has no `checks.scenarios`: nothing proves it can be played (add a scripted playthrough with an `expect`)"));
+        rows.push(Row::new(
+            false,
+            "simulation",
+            "scenarios",
+            "the game has no `checks.scenarios`: nothing proves it can be played (add a scripted playthrough with an `expect`)",
+        ));
     }
     for sc in &def.scenarios {
         let (rep, end) = run_scenario(def, sc, None);
@@ -355,14 +373,33 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
         for n in &rep.notes {
             rows.push(Row::new(false, "authoring", format!("scenario `{}` note", sc.name), n.clone()));
         }
-        rows.push(Row::new(frame.covered >= 0.002, "render", format!("final frame of `{}`", sc.name), format!("{} colours, {:.1}% covered", frame.distinct_colors, frame.covered * 100.0)));
+        rows.push(Row::new(
+            frame.covered >= 0.002,
+            "render",
+            format!("final frame of `{}`", sc.name),
+            format!("{} colours, {:.1}% covered", frame.distinct_colors, frame.covered * 100.0),
+        ));
         // The same scenario twice must end in the same state.
         let (again, _) = run_scenario(def, sc, None);
-        rows.push(Row::new(again.hash == rep.hash, "simulation", format!("determinism of `{}`", sc.name), if again.hash == rep.hash { "two runs, one hash".to_string() } else { format!("two runs disagree: {} vs {}", rep.hash, again.hash) }));
+        rows.push(Row::new(
+            again.hash == rep.hash,
+            "simulation",
+            format!("determinism of `{}`", sc.name),
+            if again.hash == rep.hash { "two runs, one hash".to_string() } else { format!("two runs disagree: {} vs {}", rep.hash, again.hash) },
+        ));
     }
     // Sounds named by rules exist (the parser guarantees it); every sound and track is measured.
     for c in crate::sound::check_all(def) {
-        rows.push(Row::new(c.problems.is_empty(), "audio-waveform", format!("{} `{}`", c.kind, c.name), if c.problems.is_empty() { format!("{:.2} s, peak {:.1} dBFS, {:.1} LUFS", c.report.secs, c.report.peak_dbfs, c.report.lufs) } else { c.problems.join("; ") }));
+        rows.push(Row::new(
+            c.problems.is_empty(),
+            "audio-waveform",
+            format!("{} `{}`", c.kind, c.name),
+            if c.problems.is_empty() {
+                format!("{:.2} s, peak {:.1} dBFS, {:.1} LUFS", c.report.secs, c.report.peak_dbfs, c.report.lufs)
+            } else {
+                c.problems.join("; ")
+            },
+        ));
     }
     // Saved progress survives a round trip.
     if !def.persist.is_empty() || def.caps.persistence.contains(&crate::caps::Persistence::Settings) {
@@ -374,7 +411,8 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
         let text = a.save_json();
         let mut b = Sim::new(def.clone(), 1);
         let status = b.load_save(&text);
-        let same = def.persist.iter().all(|&i| (b.vars[i] - a.vars[i]).abs() < 1e-9) && (b.music_on == a.music_on || !def.caps.persistence.contains(&crate::caps::Persistence::Settings));
+        let same = def.persist.iter().all(|&i| (b.vars[i] - a.vars[i]).abs() < 1e-9)
+            && (b.music_on == a.music_on || !def.caps.persistence.contains(&crate::caps::Persistence::Settings));
         rows.push(Row::new(same, "simulation", "save round trip", format!("{status}")));
     }
     // Declared browser input checks refer to things that exist (the parser checked); say they are not run here.
@@ -418,7 +456,13 @@ mod tests {
     fn a_failed_expectation_says_what_was_found() {
         let def = arcade();
         let mut sc = def.scenarios[1].clone();
-        sc.expect = vec![Expect::Var(0, Cmp::Eq, 5.0), Expect::Ended(Outcome::Win), Expect::Event("nothing".into(), 1, None), Expect::Count("coin".into(), Cmp::Eq, 0.0), Expect::Near("p".into(), [0.0, 0.0], 1.0)];
+        sc.expect = vec![
+            Expect::Var(0, Cmp::Eq, 5.0),
+            Expect::Ended(Outcome::Win),
+            Expect::Event("nothing".into(), 1, None),
+            Expect::Count("coin".into(), Cmp::Eq, 0.0),
+            Expect::Near("p".into(), [0.0, 0.0], 1.0),
+        ];
         let (rep, _) = run_scenario(&def, &sc, None);
         assert!(!rep.ok);
         let all = rep.failures.join("\n");

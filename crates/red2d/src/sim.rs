@@ -199,7 +199,13 @@ impl Sim {
     pub fn new(def: Arc<GameDef>, seed: u64) -> Sim {
         let nd = def.vars.len();
         let count_idx = def.tags.iter().enumerate().filter_map(|(ti, t)| Some((ti, def.var_names.iter().position(|n| *n == format!("count_{t}"))?))).collect();
-        let id_idx = def.var_names.iter().enumerate().skip(nd + BUILTINS.len() + def.tags.len()).filter_map(|(i, n)| n.strip_suffix("_x").map(|id| (id.to_string(), i))).collect();
+        let id_idx = def
+            .var_names
+            .iter()
+            .enumerate()
+            .skip(nd + BUILTINS.len() + def.tags.len())
+            .filter_map(|(i, n)| n.strip_suffix("_x").map(|id| (id.to_string(), i)))
+            .collect();
         let collides = def.prefabs.iter().map(|a| def.prefabs.iter().map(|b| a.collide.iter().any(|t| b.tags.contains(t))).collect()).collect();
         let mut sim = Sim {
             vars: vec![0.0; def.var_names.len()],
@@ -256,9 +262,7 @@ impl Sim {
         self.restart = false;
         self.shake = 0.0;
         self.shake_off = [0.0; 2];
-        for st in &mut self.rule_state {
-            *st = RuleState { fired: 0, last: f64::NEG_INFINITY, next_tick: 0 };
-        }
+        self.rule_state.fill(RuleState { fired: 0, last: f64::NEG_INFINITY, next_tick: 0 });
         for (ri, r) in def.rules.iter().enumerate() {
             match r.when {
                 When::Every(s) => self.rule_state[ri].next_tick = (s * TPS as f32).ceil().max(1.0) as u64,
@@ -328,8 +332,17 @@ impl Sim {
                 ids.push(bid.clone());
             }
         }
-        let shown: Vec<String> = def.ui.iter().filter(|w| self.widget_shown(w)).filter_map(|w| if let WidgetKind::Button { id, .. } = &w.kind { Some(id.clone()) } else { None }).collect();
-        Err(format!("no visible button `{id}` (visible now: {}; all buttons: {})", if shown.is_empty() { "none".into() } else { shown.join(", ") }, if ids.is_empty() { "none".into() } else { ids.join(", ") }))
+        let shown: Vec<String> = def
+            .ui
+            .iter()
+            .filter(|w| self.widget_shown(w))
+            .filter_map(|w| if let WidgetKind::Button { id, .. } = &w.kind { Some(id.clone()) } else { None })
+            .collect();
+        Err(format!(
+            "no visible button `{id}` (visible now: {}; all buttons: {})",
+            if shown.is_empty() { "none".into() } else { shown.join(", ") },
+            if ids.is_empty() { "none".into() } else { ids.join(", ") }
+        ))
     }
 
     /// The pointer in world px.
@@ -461,7 +474,9 @@ impl Sim {
             Err(e) => return SaveStatus::Corrupt(format!("not JSON: {e}")),
         };
         let Some(o) = v.as_object() else { return SaveStatus::Corrupt("not an object".into()) };
-        let Some(ver) = o.get("red2d_save").and_then(|x| x.as_u64()) else { return SaveStatus::Corrupt("no `red2d_save` version: not a RedEngine 2D save".into()) };
+        let Some(ver) = o.get("red2d_save").and_then(|x| x.as_u64()) else {
+            return SaveStatus::Corrupt("no `red2d_save` version: not a RedEngine 2D save".into());
+        };
         if ver != SAVE_VERSION {
             return SaveStatus::Incompatible(format!("save format {ver}, this game reads {SAVE_VERSION}"));
         }
@@ -655,7 +670,22 @@ impl Sim {
         let id = self.next_id;
         self.next_id += 1;
         let _ = def;
-        self.entities.push(Entity { id, prefab, scene_id, x, y, vx: v[0], vy: v[1], age: 0.0, grounded: false, alive: true, home: [x, y], dir: 1.0, timer: 0.0, emit_acc: 0.0 });
+        self.entities.push(Entity {
+            id,
+            prefab,
+            scene_id,
+            x,
+            y,
+            vx: v[0],
+            vy: v[1],
+            age: 0.0,
+            grounded: false,
+            alive: true,
+            home: [x, y],
+            dir: 1.0,
+            timer: 0.0,
+            emit_acc: 0.0,
+        });
         self.vars_dirty = true;
         Some(id)
     }
@@ -815,7 +845,10 @@ impl Sim {
         let mut rounds = 0;
         while !self.events.is_empty() {
             if rounds >= MAX_EVENT_ROUNDS {
-                let note = format!("events keep triggering events (more than {MAX_EVENT_ROUNDS} rounds in one tick; last: `{}`): a rule loop, the rest were dropped", self.events[0]);
+                let note = format!(
+                    "events keep triggering events (more than {MAX_EVENT_ROUNDS} rounds in one tick; last: `{}`): a rule loop, the rest were dropped",
+                    self.events[0]
+                );
                 if !self.notes.contains(&note) {
                     self.notes.push(note);
                 }
@@ -1404,7 +1437,8 @@ pub(crate) mod tests {
 
     #[test]
     fn clicks_hit_the_topmost_tagged_thing_a_button_or_nothing() {
-        let prefabs = r##""card":{"tag":"card","shape":{"rect":[20,20],"color":"#44f"},"layer":1},"back":{"tag":"card","shape":{"rect":[40,40],"color":"#222"}}"##;
+        let prefabs =
+            r##""card":{"tag":"card","shape":{"rect":[20,20],"color":"#44f"},"layer":1},"back":{"tag":"card","shape":{"rect":[40,40],"color":"#222"}}"##;
         let rules = r##"{"when":{"click":"card"},"do":[{"add":["score",1]},{"destroy":"self"}]},{"when":{"click":"*"},"do":[{"add":["best",1]}]}"##;
         let text = format!(
             r##"{{"game2d":1,"id":"t","title":"T","description":"d","capabilities":{{"presentation":"2d","platforms":["web"],"networking":"offline","input":["mouse"],"persistence":["progress"]}},
@@ -1435,7 +1469,14 @@ pub(crate) mod tests {
             "g":{"tag":"g","shape":{"rect":[6,6],"color":"#f00"},"move":{"chase":{"target":"p","speed":30}}},
             "w":{"tag":"w","shape":{"rect":[6,6],"color":"#0f0"},"move":{"wander":{"speed":20,"turn":0.5}}},
             "r":{"tag":"r","shape":{"rect":[6,6],"color":"#00f"},"move":{"patrol":{"axis":"x","range":20,"speed":40}}}"##;
-        let mut s = Sim::new(game("", prefabs, r#"{"prefab":"p","at":[80,80],"id":"p"},{"prefab":"g","at":[10,10],"id":"g"},{"prefab":"w","at":[80,40],"id":"w"},{"prefab":"r","at":[80,60],"id":"r"}"#), 3);
+        let mut s = Sim::new(
+            game(
+                "",
+                prefabs,
+                r#"{"prefab":"p","at":[80,80],"id":"p"},{"prefab":"g","at":[10,10],"id":"g"},{"prefab":"w","at":[80,40],"id":"w"},{"prefab":"r","at":[80,60],"id":"r"}"#,
+            ),
+            3,
+        );
         s.set_pointer(120.0, 0.0);
         let g0 = s.by_id("g").unwrap().x;
         let (mut rmin, mut rmax) = (80.0f32, 80.0f32);

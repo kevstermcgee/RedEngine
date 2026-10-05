@@ -55,8 +55,8 @@ impl Frame {
             return;
         }
         let a = c[3] as u32;
-        for k in 0..3 {
-            self.rgba[i + k] = ((c[k] as u32 * a + self.rgba[i + k] as u32 * (255 - a) + 127) / 255) as u8;
+        for (k, &channel) in c.iter().take(3).enumerate() {
+            self.rgba[i + k] = ((channel as u32 * a + self.rgba[i + k] as u32 * (255 - a) + 127) / 255) as u8;
         }
         self.rgba[i + 3] = 255;
     }
@@ -98,7 +98,7 @@ impl Frame {
         let mut seen = std::collections::BTreeSet::new();
         let mut covered = 0usize;
         let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for px in self.rgba.chunks_exact(4) {
+        for px in self.rgba.as_chunks::<4>().0 {
             seen.insert([px[0], px[1], px[2]]);
             if px[..3] != bg[..3] {
                 covered += 1;
@@ -107,7 +107,13 @@ impl Frame {
                 h = (h ^ *b as u64).wrapping_mul(0x0100_0000_01b3);
             }
         }
-        FrameStats { width: self.w, height: self.h, distinct_colors: seen.len(), covered: covered as f32 / (self.w * self.h).max(1) as f32, hash: format!("{h:016x}") }
+        FrameStats {
+            width: self.w,
+            height: self.h,
+            distinct_colors: seen.len(),
+            covered: covered as f32 / (self.w * self.h).max(1) as f32,
+            hash: format!("{h:016x}"),
+        }
     }
 }
 
@@ -137,10 +143,13 @@ pub fn fill_template(text: &str, sim: &Sim) -> String {
             Some(d) => (0, d.parse::<usize>().ok()),
             None => (fmt.parse::<usize>().unwrap_or(0), None),
         };
-        let v = sim.var(name).map_or_else(|| "?".to_string(), |x| match decimals {
-            Some(d) => format!("{x:.d$}"),
-            None => fmt_num(x),
-        });
+        let v = sim.var(name).map_or_else(
+            || "?".to_string(),
+            |x| match decimals {
+                Some(d) => format!("{x:.d$}"),
+                None => fmt_num(x),
+            },
+        );
         if width > 0 {
             out.push_str(&format!("{v:0>width$}"));
         } else {
@@ -169,7 +178,9 @@ pub fn render(sim: &Sim) -> Frame {
         let (cx, cy) = (e.x - off[0], e.y - off[1]);
         match &p.shape {
             Shape::None => {}
-            Shape::Rect { color } => f.rect((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, p.size[1].round() as i32, *color),
+            Shape::Rect { color } => {
+                f.rect((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, p.size[1].round() as i32, *color)
+            }
             Shape::Circle { color } => f.disc((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, *color),
             Shape::Sprite { sprite, scale } => {
                 let sp = &def.sprites[*sprite];
@@ -198,7 +209,9 @@ pub fn render(sim: &Sim) -> Frame {
         let s = p.size.max(1.0).round() as i32;
         f.rect((p.x - off[0]).round() as i32 - s / 2, (p.y - off[1]).round() as i32 - s / 2, s, s, c);
     }
-    let hover = |at: &[f32; 2], size: &[f32; 2]| sim_pointer(sim)[0] >= at[0] && sim_pointer(sim)[0] < at[0] + size[0] && sim_pointer(sim)[1] >= at[1] && sim_pointer(sim)[1] < at[1] + size[1];
+    let hover = |at: &[f32; 2], size: &[f32; 2]| {
+        sim_pointer(sim)[0] >= at[0] && sim_pointer(sim)[0] < at[0] + size[0] && sim_pointer(sim)[1] >= at[1] && sim_pointer(sim)[1] < at[1] + size[1]
+    };
     for w in &def.ui {
         if !sim.widget_shown(w) {
             continue;
