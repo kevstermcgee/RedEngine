@@ -32,7 +32,7 @@ Most of the cost of working on this engine is reading things and running things 
   | `scripts/dev affected` | before you say "done" | owners plus every feature built on them |
   | `scripts/dev affected --full` (= `scripts/ci.sh`) | before pushing / any integration boundary | everything CI runs |
 
-  Boundary changes (`Cargo.toml`/`Cargo.lock`, `src/lib.rs`, `rustfmt.toml`, `.cargo/`, CI files, a very large diff, or an affected set that is most of the suite)
+  Boundary changes (`Cargo.toml`/`Cargo.lock`, `src/lib.rs` (unless it only gained `mod` lines), `rustfmt.toml`, `.cargo/`, CI files, a very large diff, or an affected set that is most of the suite)
   escalate to the full run on their own. A green run is remembered by the *content* of the changed files: asking again with nothing edited is free; any edit re-runs.
   The green stamp also keys on the base commit, the cargo feature set, the toolchain and result-affecting environment, so a result is never reused across them, and an `iterate` (partial) pass is never accepted as any other tier.
   Output is a few lines per step; full logs are in `out/logs/`. `--dry-run` prints the plan and its configuration. The feature index is read from the checkout at run time: editing `docs/features.json` needs no rebuild.

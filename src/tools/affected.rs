@@ -13,7 +13,7 @@
 //! | `suites` | `cargo test --test A --test B` (parallel threads) | owning features' integration suites (+ dependents unless `--quick`) |
 //! | `suites-serial` | the same with `RUST_TEST_THREADS=1` | the suites listed under `serial_suites` (real-time UDP) |
 //!
-//! **Escalation.** Some changes cannot be verified by a subset: `Cargo.toml`/`Cargo.lock`, `src/lib.rs`, `rustfmt.toml`, `.cargo/`, `scripts/ci.sh`, a very
+//! **Escalation.** Some changes cannot be verified by a subset: `Cargo.toml`/`Cargo.lock`, `src/lib.rs` (unless it only gained module declarations, see [`crate_root_only_adds_modules`]), `rustfmt.toml`, `.cargo/`, `scripts/ci.sh`, a very
 //! large diff, or an affected set that is most of the suite. Those (and `--full`) plan exactly one step: `bash scripts/ci.sh`, the same as CI.
 //!
 //! **Tiers.** `--quick` verifies the features that *own* the changed files (the inner edit loop, seconds); the default also verifies every feature built on
@@ -236,6 +236,35 @@ fn boundary_reason(path: &str) -> Option<&'static str> {
         p if p.starts_with(".cargo/") => Some("cargo configuration changed"),
         _ => None,
     }
+}
+
+/// The module declarations of a crate root and everything else in it: `(declarations, rest)`. A declaration is `(its line, the attributes above it)`; the rest is every
+/// other line, trimmed, with blank lines and plain `//`/`///` comments dropped (they change no behaviour).
+fn crate_root_parts(text: &str) -> (Vec<(String, Vec<String>)>, Vec<String>) {
+    let (mut decls, mut rest, mut attrs) = (Vec::new(), Vec::new(), Vec::new());
+    for line in text.lines().map(str::trim) {
+        if line.is_empty() || (line.starts_with("//") && !line.starts_with("//!")) {
+            continue;
+        }
+        if line.starts_with("#[") && line.ends_with(']') {
+            attrs.push(line.to_string());
+        } else if (line.starts_with("pub mod ") || line.starts_with("mod ")) && line.ends_with(';') {
+            decls.push((line.to_string(), std::mem::take(&mut attrs)));
+        } else {
+            rest.append(&mut attrs);
+            rest.push(line.to_string());
+        }
+    }
+    rest.append(&mut attrs);
+    (decls, rest)
+}
+
+/// Whether `new` differs from `old` (two versions of `src/lib.rs`) only by added module declarations (`pub mod x;`, with its own `#[cfg(..)]` gate). Such a change cannot move
+/// any existing code or feature gate, and the new file owns its own tests, so it needs no more than the file itself does. Anything else (a removed or re-gated module, a `use`,
+/// a function, the crate docs) is a crate-root change that only the whole suite can vouch for.
+pub fn crate_root_only_adds_modules(old: &str, new: &str) -> bool {
+    let ((old_decls, old_rest), (new_decls, new_rest)) = (crate_root_parts(old), crate_root_parts(new));
+    old_rest == new_rest && new_decls.len() > old_decls.len() && old_decls.iter().all(|d| new_decls.contains(d))
 }
 
 /// The cargo target a changed Rust file belongs to.
@@ -1103,6 +1132,36 @@ mod tests {
             assert_eq!(p.steps.len(), 1);
             assert_eq!(p.steps[0].argv, ["bash", "scripts/ci.sh"]);
             assert!(p.escalated.as_deref().unwrap_or("").contains(f), "{f}: {:?}", p.escalated);
+        }
+    }
+
+    const ROOT: &str = "//! Crate docs.\npub mod a;\n#[cfg(feature = \"gfx\")]\npub mod b;\n\npub fn load() -> u32 {\n    1\n}\n";
+
+    #[test]
+    fn a_crate_root_that_only_gains_modules_does_not_escalate() {
+        let plain = ROOT.replace("pub mod a;\n", "pub mod a;\npub mod c;\n");
+        assert!(crate_root_only_adds_modules(ROOT, &plain), "a bare `pub mod`");
+        let gated = ROOT.replace("pub fn load", "// A new module.\n#[cfg(feature = \"gfx\")]\npub mod c;\n\npub fn load");
+        assert!(crate_root_only_adds_modules(ROOT, &gated), "a gated module with a comment");
+    }
+
+    #[test]
+    fn any_other_crate_root_change_still_escalates() {
+        let cases = [
+            ("no change at all", ROOT.to_string()),
+            ("a module removed", ROOT.replace("pub mod a;\n", "")),
+            ("a module re-gated", ROOT.replace("pub mod a;", "#[cfg(feature = \"gfx\")]\npub mod a;")),
+            ("a gate taken off", ROOT.replace("#[cfg(feature = \"gfx\")]\n", "")),
+            (
+                "a module added in front of an existing gate (the gate moves to it)",
+                ROOT.replace("#[cfg(feature = \"gfx\")]\npub mod b;", "#[cfg(feature = \"gfx\")]\npub mod c;\npub mod b;"),
+            ),
+            ("a module and a function change", ROOT.replace("pub mod a;\n", "pub mod a;\npub mod c;\n").replace("1\n", "2\n")),
+            ("a module and a use", ROOT.replace("pub mod a;\n", "pub mod a;\npub mod c;\npub use glam;\n")),
+            ("the crate docs", ROOT.replace("Crate docs.", "Other docs.").replace("pub mod a;\n", "pub mod a;\npub mod c;\n")),
+        ];
+        for (what, new) in cases {
+            assert!(!crate_root_only_adds_modules(ROOT, &new), "{what}");
         }
     }
 
