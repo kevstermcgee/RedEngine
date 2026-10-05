@@ -10,7 +10,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 fn examples() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/2d");
-    let mut v: Vec<PathBuf> = std::fs::read_dir(&dir).expect("examples/2d").flatten().map(|e| e.path()).filter(|p| p.to_string_lossy().ends_with(".game2d.json")).collect();
+    let mut v: Vec<PathBuf> =
+        std::fs::read_dir(&dir).expect("examples/2d").flatten().map(|e| e.path()).filter(|p| p.to_string_lossy().ends_with(".game2d.json")).collect();
     v.sort();
     v
 }
@@ -60,7 +61,10 @@ fn the_games_are_genuinely_different_kinds_of_game() {
     use red2d::game::{parse, KeyMode, Move, When};
     let defs: Vec<_> = examples().iter().map(|p| parse(&std::fs::read_to_string(p).unwrap()).unwrap()).collect();
     let topdown = defs.iter().any(|d| d.prefabs.iter().any(|p| matches!(p.mv, Move::Keys { mode: KeyMode::TopDown, .. })));
-    let platformer = defs.iter().any(|d| d.prefabs.iter().any(|p| matches!(p.mv, Move::Keys { mode: KeyMode::Platformer, .. })) && d.prefabs.iter().any(|p| p.body.is_some_and(|b| b.gravity > 0.0)));
+    let platformer = defs.iter().any(|d| {
+        d.prefabs.iter().any(|p| matches!(p.mv, Move::Keys { mode: KeyMode::Platformer, .. }))
+            && d.prefabs.iter().any(|p| p.body.is_some_and(|b| b.gravity > 0.0))
+    });
     let mouse = defs.iter().any(|d| d.rules.iter().any(|r| matches!(&r.when, When::Click(_))));
     assert!(topdown && platformer && mouse, "arcade (top-down keys), platformer (gravity + jump) and mouse-driven management must all be present");
     let ids: std::collections::BTreeSet<&str> = defs.iter().map(|d| d.id.as_str()).collect();
@@ -88,13 +92,21 @@ fn a_3d_game_cannot_target_the_browser() {
 fn a_browser_game_cannot_ask_for_native_udp_networking() {
     refused(
         &mutate("coin-dash", |g| g["capabilities"]["networking"] = json!("authoritative")),
-        &["capabilities.networking", "Browser target cannot use the native UDP transport", "Supported networking for web games: offline", "architecturally prepared"],
+        &[
+            "capabilities.networking",
+            "Browser target cannot use the native UDP transport",
+            "Supported networking for web games: offline",
+            "architecturally prepared",
+        ],
     );
 }
 
 #[test]
 fn a_native_window_for_a_2d_game_is_prepared_not_built_and_says_so() {
-    refused(&mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!(["web", "windows"])), &["capabilities.platforms[1]", "cannot target `windows`", "prepared", "not built yet"]);
+    refused(
+        &mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!(["web", "windows"])),
+        &["capabilities.platforms[1]", "cannot target `windows`", "prepared", "not built yet"],
+    );
 }
 
 #[test]

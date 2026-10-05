@@ -54,7 +54,8 @@ fn rehash(dir: &Path) {
         f["bytes"] = json!(b.len());
         f["sha256"] = json!(hex(&sha256(&b)));
     }
-    let mut sorted: Vec<(String, String)> = files.iter().map(|f| (f["path"].as_str().unwrap().to_string(), f["sha256"].as_str().unwrap().to_string())).collect();
+    let mut sorted: Vec<(String, String)> =
+        files.iter().map(|f| (f["path"].as_str().unwrap().to_string(), f["sha256"].as_str().unwrap().to_string())).collect();
     sorted.sort();
     for (p, h) in sorted {
         all.extend_from_slice(p.as_bytes());
@@ -80,7 +81,10 @@ fn a_built_package_is_complete_consistent_and_names_what_it_is() {
     assert!(m["native"]["scenarios"].as_array().unwrap().len() >= 3 && m["native"]["initial"]["frame"].as_str().unwrap().len() == 16);
     assert!(m["browser_checks"].as_array().unwrap().iter().any(|c| c["persists"].as_array().is_some_and(|p| !p.is_empty())));
     let text = std::fs::read_to_string(dir.join("manifest.json")).unwrap();
-    assert!(m.get("built_at").is_none() && !text.contains("timestamp") && !text.contains("T00:") && !text.contains("2026-"), "a deterministic package carries no timestamp");
+    assert!(
+        m.get("built_at").is_none() && !text.contains("timestamp") && !text.contains("T00:") && !text.contains("2026-"),
+        "a deterministic package carries no timestamp"
+    );
     let html = std::fs::read_to_string(dir.join("index.html")).unwrap();
     assert!(html.contains("<title>Coin Dash</title>") && html.contains("wasm-unsafe-eval") && !html.contains("{{"), "the page is filled in and keeps its CSP");
     let _ = std::fs::remove_dir_all(dir);
