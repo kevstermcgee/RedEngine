@@ -45,11 +45,7 @@ fn modules() -> Vec<(String, String)> {
 
 /// Does this expression need screen-space derivatives (so it must sit in uniform control flow)?
 fn needs_derivatives(expr: &Expression) -> bool {
-    match expr {
-        Expression::Derivative { .. } => true,
-        Expression::ImageSample { gather: None, level: SampleLevel::Auto | SampleLevel::Bias(_), .. } => true,
-        _ => false,
-    }
+    matches!(expr, Expression::Derivative { .. } | Expression::ImageSample { gather: None, level: SampleLevel::Auto | SampleLevel::Bias(_), .. })
 }
 
 /// The statements nested directly in `st` (branches, cases, loop bodies).
