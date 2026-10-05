@@ -66,6 +66,9 @@ pub extern "C" fn alloc(n: usize) -> *mut u8 {
 }
 
 /// Frees a buffer from [`alloc`].
+///
+/// The host calls it exactly once per buffer, with the length it allocated; an exported C function cannot be `unsafe` in the module's ABI listing.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[no_mangle]
 pub extern "C" fn dealloc(p: *mut u8, n: usize) {
     // SAFETY: `p` came from `alloc(n)` with this capacity.

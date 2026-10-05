@@ -45,7 +45,8 @@ with sync_playwright() as p:
     check("the favourites filter shows only hearted games", ids() == [last], str(ids()))
     pg.select_option("#kind", "")
     pg.select_option("#pres", "3d")
-    check("the 3D filter hides 2D games", ids() == [], str(ids()))
+    # A hybrid game has 3D parts, so it shows under both filters; plain 2D games do not.
+    check("the 3D filter hides plain 2D games and keeps hybrid ones", ids() and all(i in ("web:warden-arena", "web:lantern-yard") for i in ids()), str(ids()))
     pg.select_option("#pres", "2d")
     check("the 2D filter shows them", len(ids()) == len(first), str(ids()))
     pg.click('.card[data-id="%s"] .heart' % last)

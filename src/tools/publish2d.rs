@@ -337,9 +337,9 @@ pub fn write_catalog(site: &Path) -> Result<(), String> {
         .map(|g| {
             let text = format!("{} {}", g["title"].as_str().unwrap_or(""), g["description"].as_str().unwrap_or("")).to_lowercase();
             format!(
-                "<article class=\"card\" data-id=\"{id}\" data-pres=\"{pres}\" data-text=\"{text}\"><button class=\"heart\" type=\"button\" aria-pressed=\"false\" aria-label=\"Favourite {title}\">&#x2661;</button>\
+                "<article class=\"card\" data-id=\"web:{id}\" data-pres=\"{pres}\" data-text=\"{text}\"><button class=\"heart\" type=\"button\" aria-pressed=\"false\" aria-label=\"Favourite {title}\">&#x2661;</button>\
                  <a class=\"open\" href=\"{url}\"><img src=\"{thumb}\" alt=\"\"><h2>{title}</h2><p>{desc}</p><small><span class=\"pres\">{presu}</span>{input} · {when}</small></a></article>\n",
-                id = format!("web:{}", g["id"].as_str().unwrap_or("")),
+                id = g["id"].as_str().unwrap_or(""),
                 pres = g["presentation"].as_str().unwrap_or(""),
                 presu = g["presentation"].as_str().unwrap_or("").to_uppercase(),
                 text = text.replace('&', "&amp;").replace('"', "&quot;").replace('<', "&lt;"),
