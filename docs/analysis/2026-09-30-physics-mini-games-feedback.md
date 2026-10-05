@@ -37,3 +37,7 @@ Measured by tracing (all should be listed, so an agent does not have to measure)
 ## What worked (keep)
 
 The rule language reading physics directly (`tilt`, `prop_y`, `held`, `mass`, `moved`, `prop_below`, `prop_enter` with a `prop:` filter, `collision`, `reset`), `sim` scenarios that drive real pick-up, drop, throw and push through the authoritative simulation (`hold {look_at, interact}`, `hold {forward, yaw_deg}`), `sim --trace --dump-every` (found real bugs), `plan` (caught a design flaw at a glance), and `frame --cut-above`. Effort: Plate Chamber about 4 rounds, Castle Crash about 9, Skyline Stacker about 14, almost all of it physics tuning rather than rules.
+
+## Status (checked 2026-10-04 against `red_engine2 describe rules|lint` and `sim --help`)
+- **Done:** lint and rule-opened doors (item 4: scene `phases`, ADR 2026-10-03); a per-prop zone test (item 10: `in_zone(id, zone)`); the atomic `deactivate`/`activate` action (RedEngine patch R-1 of the ten-minigames note).
+- **Still open:** `sim --sweep` (6), `sim --watch` (7), a ballistic aim helper (9), a dwell trigger for `prop_enter` bounces (11), `new-game --kind blank` (13); from the ten-minigames note a `rotate` action (R-4) and zone `enter` for a player who spawns inside (R-3).
