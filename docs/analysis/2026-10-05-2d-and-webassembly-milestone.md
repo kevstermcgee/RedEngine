@@ -105,7 +105,12 @@ Shared semantics (one implementation): simulation (2D native and 2D web run the 
 
 ## 12. Native and 3D regression, full verification
 
-Recorded in the final section below (filled from the last full run of `scripts/ci.sh` and the hosted CI of the pull request).
+Local, on Linux, a clean worktree (`scripts/ci.sh`, the exact stages CI runs):
+
+* Revision `3fbe42d`: **rustfmt ok; clippy `-D warnings` ok (both packages); tests 1445 passed, 0 failed (lib, every integration suite incl. the real-UDP ones, doctests); benches compile; headless dependency tree has no graphics/audio crate; headless build and clippy ok; headless tests 1352 passed, 0 failed.** The 3D engine's suites (rendering-independent ones, networking, physics, rules, replay, audio, shaders) all ran and passed; no existing test was weakened. Two budgets were raised on purpose and say why: `describe` overview 7.3 -> 7.8 KB and the first-read budget 9.5 -> 9.8 KB (four new commands, two topics).
+* Revision `eef53f5` (adds only: the Pages-generator patch script, ownership entries, and the external example's refreshed `Cargo.lock`): **external custom client ok; 2D browser stage ok** (WebAssembly player built, all three games `web verify`: 38/39/39 checks, then `publish` to the local site: BUILD yes, LOCAL BROWSER yes, UPLOAD yes, REMOTE PLAYABLE no).
+* What the first full runs found (all fixed): the checks walker treating 2D games as 3D scenes (`checks_wellformed`), unregistered new files (`features_index`, `docs_fresh`), the first-read budget, a stale package-file list in a test after the worker was added, the external example's lock behind the new `red2d` dependency.
+* Not run: the Windows leg and the hosted workflow (they run on the pull request); the Windows leg compiles `red2d` for the first time there. `scripts/ci.sh` does not run the 3D GPU-dependent presentation tests when no adapter exists (`RED_OFFSCREEN_OPTIONAL=1`, as hosted CI).
 
 ## 13. Known unsupported or unverified combinations
 
