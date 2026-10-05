@@ -38,7 +38,7 @@ Module ownership: simulation `sim.rs` · 2D presentation `render.rs` + `font.rs`
 | Rendering | CPU rasteriser -> RGBA -> PNG | same rasteriser -> canvas `putImageData`, CSS scaling, `image-rendering: pixelated` | no GPU path; pixel-identical (checked) |
 | Event loop | the caller steps `Sim` | `requestAnimationFrame` + fixed-step accumulator (max 6 ticks/frame, 100 ms clamp) | simulation never sees wall time |
 | Input | `Sim::key/set_action/click/set_pointer` | DOM key + pointer events + Gamepad polling, all become the same actions | blur releases every key; first key/click only starts the game |
-| Audio | voices/scores -> samples -> measured | the module renders the same samples; `AudioContext` created inside the first gesture; buffers cached | autoplay policy honoured; music starts after the gesture |
+| Audio | voices/scores -> samples -> measured | the module renders the same samples (the music loop in `audio-worker.js`, off the main thread: rendering it on the page stalled it for up to 1.6 s); `AudioContext` created inside the first gesture; buffers cached | autoplay policy honoured; music starts after the gesture |
 | Storage | save text returned by `take_save_if_dirty` | `localStorage` key `red2d:<game id>` behind try/catch | see below |
 | Assets | everything is in `game.json` (sprites/sounds/music are descriptions) | `assets/game.json` + `game.wasm`, relative URLs only | no external files; SHA-256 of each in the manifest |
 | Timing | `DT = 1/60`, tick counts | same | `time` is `t_ticks / 60`, never a clock |
@@ -80,7 +80,7 @@ Module ownership: simulation `sim.rs` · 2D presentation `render.rs` + `font.rs`
 ## The static package
 
 ```
-index.html  runtime.js  game.wasm  assets/game.json  thumbnail.png  manifest.json
+index.html  runtime.js  audio-worker.js  game.wasm  assets/game.json  thumbnail.png  manifest.json
 ```
 
 Deterministic: no timestamp, no absolute path, sorted files, `package_id` = hash of (path, SHA-256) pairs; the same game and the same engine give the same bytes. The manifest also holds the game's declared capabilities, screen, engine revision (`+dirty` if the tree was), and the **native** initial state hash, first-frame pixel hash and every scenario's final state hash, which `web verify` makes the browser reproduce.

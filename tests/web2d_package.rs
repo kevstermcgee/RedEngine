@@ -77,7 +77,11 @@ fn a_built_package_is_complete_consistent_and_names_what_it_is() {
     assert!(m["game"]["persistence"].as_array().unwrap().iter().any(|p| p == "progress"));
     assert_eq!(m["game"]["screen"], json!({"width": 320, "height": 180, "scale": "fit"}));
     let paths: Vec<&str> = m["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
-    assert_eq!(paths, ["assets/game.json", "game.wasm", "index.html", "runtime.js", "thumbnail.png"], "sorted, and exactly the declared files");
+    assert_eq!(
+        paths,
+        ["assets/game.json", "audio-worker.js", "game.wasm", "index.html", "runtime.js", "thumbnail.png"],
+        "sorted, and exactly the declared files"
+    );
     assert!(m["native"]["scenarios"].as_array().unwrap().len() >= 3 && m["native"]["initial"]["frame"].as_str().unwrap().len() == 16);
     assert!(m["browser_checks"].as_array().unwrap().iter().any(|c| c["persists"].as_array().is_some_and(|p| !p.is_empty())));
     let text = std::fs::read_to_string(dir.join("manifest.json")).unwrap();

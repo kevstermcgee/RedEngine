@@ -14,7 +14,7 @@ red_engine2 publish --package out/web/ID   # upload a package `web verify` alrea
 | 1 | validate | parse the game, resolve every name, check the declared capabilities | the file's errors, with paths and fixes |
 | 2 | gameplay tests | `verify`: scripted playthroughs, first/last frame, audio waveform, save round trip | the failing rows, with what was found |
 | 3 | wasm build | the player (`red2d`, `--profile web`) or `RED2D_WASM` | cargo's tail and the fix (`rustup target add wasm32-unknown-unknown`) |
-| 4 | static package | `index.html runtime.js game.wasm assets/game.json thumbnail.png manifest.json` | the reason (a non-web game, a directory that is not a package) |
+| 4 | static package | `index.html runtime.js audio-worker.js game.wasm assets/game.json thumbnail.png manifest.json` | the reason (a non-web game, a directory that is not a package) |
 | 5 | integrity check | `web check` | the files that differ, the path that leaks, the import the module has |
 | 6 | browser smoke | `web verify` in headless Chromium | the failing checks (a screenshot is in `out/publish/ID/browser/`) |
 | 7 | publication metadata | the game's record: ids, revisions, capabilities, verification, build time | |
