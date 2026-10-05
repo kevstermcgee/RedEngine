@@ -29,6 +29,7 @@ use std::process::Command;
 pub const SCHEMA: &str = "red2d-web-package/1";
 const RUNTIME_JS: &str = include_str!("../../crates/red2d/web/runtime.js");
 const AUDIO_WORKER_JS: &str = include_str!("../../crates/red2d/web/audio-worker.js");
+const SERVICE_WORKER_JS: &str = include_str!("../../crates/red2d/web/sw.js");
 const INDEX_HTML: &str = include_str!("../../crates/red2d/web/index.html");
 
 /// Functions the runtime calls on the module; the module must export every one (and the runtime must use no other).
@@ -327,6 +328,52 @@ fn engine_revision(root: &Path) -> (String, bool) {
     (rev, dirty)
 }
 
+/// An app icon: the middle square of a frame of the game, scaled up in whole-number-free nearest steps to 80% of a `size` square on the game's background colour (the
+/// 10% margin keeps it inside the safe zone of a maskable icon). Integer arithmetic only, so it is byte-identical on every machine.
+fn icon_png(frame: &render::Frame, size: u32, bg: [u8; 4]) -> Result<Vec<u8>, String> {
+    let side = frame.w.min(frame.h);
+    let (ox, oy) = ((frame.w - side) / 2, (frame.h - side) / 2);
+    let inner = size * 8 / 10;
+    let margin = (size - inner) / 2;
+    let mut img = image::RgbaImage::from_pixel(size, size, image::Rgba(bg));
+    for y in 0..inner {
+        for x in 0..inner {
+            let (sx, sy) = (ox + (u64::from(x) * u64::from(side) / u64::from(inner)) as u32, oy + (u64::from(y) * u64::from(side) / u64::from(inner)) as u32);
+            let i = ((sy * frame.w + sx) * 4) as usize;
+            img.put_pixel(margin + x, margin + y, image::Rgba([frame.rgba[i], frame.rgba[i + 1], frame.rgba[i + 2], 255]));
+        }
+    }
+    let mut png = Vec::new();
+    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).map_err(|e| format!("icon: {e}"))?;
+    Ok(png)
+}
+
+fn hex_color(c: [u8; 4]) -> String {
+    format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2])
+}
+
+/// The web app manifest that makes the page installable.
+fn web_app_manifest(d: &red2d::game::GameDef) -> Value {
+    let short: String = d.title.chars().take(12).collect();
+    json!({
+        "name": d.title,
+        "short_name": short,
+        "description": d.description,
+        "id": "./",
+        "start_url": "./index.html",
+        "scope": "./",
+        "display": "standalone",
+        "orientation": "any",
+        "background_color": hex_color(d.view.background),
+        "theme_color": "#0b0d12",
+        "categories": ["games"],
+        "icons": [
+            {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+        ],
+    })
+}
+
 /// Builds the package for a game into `out` (replacing a previous package there, never any other directory).
 pub fn build(game: &Path, out: &Path, wasm_override: Option<&Path>) -> Result<Built, String> {
     let (def, text) = game2d::load(game)?;
@@ -386,6 +433,10 @@ pub fn build(game: &Path, out: &Path, wasm_override: Option<&Path>) -> Result<Bu
         ("index.html".into(), html.into_bytes()),
         ("runtime.js".into(), RUNTIME_JS.as_bytes().to_vec()),
         ("thumbnail.png".into(), png),
+        ("icon-192.png".into(), icon_png(&render::render(&thumb_sim), 192, def.view.background)?),
+        ("icon-512.png".into(), icon_png(&render::render(&thumb_sim), 512, def.view.background)?),
+        ("manifest.webmanifest".into(), (serde_json::to_string_pretty(&web_app_manifest(&def)).unwrap_or_default() + "\n").into_bytes()),
+        ("sw.js".into(), SERVICE_WORKER_JS.as_bytes().to_vec()),
     ];
     files.sort_by(|a, b| a.0.cmp(&b.0));
     let listing: Vec<Value> = files.iter().map(|(p, b)| json!({"path": p, "bytes": b.len(), "sha256": hex(&sha256(b))})).collect();
@@ -411,6 +462,8 @@ pub fn build(game: &Path, out: &Path, wasm_override: Option<&Path>) -> Result<Bu
             "input": names(c.input.iter().map(|i| i.name()).collect()),
             "persistence": names(c.persistence.iter().map(|p| p.name()).collect()),
             "controls": controls_json(&def),
+            "distribution": names(c.distribution.iter().map(|d| d.name()).collect()),
+            "install": {"web_app": true, "offline": true, "icons": ["icon-192.png", "icon-512.png"], "native_installer": false},
             "screen": {"width": def.view.width, "height": def.view.height, "scale": if def.view.scale == red2d::game::Scale::Integer { "integer" } else { "fit" }},
         },
         "engine": {"revision": rev, "dirty": dirty, "player": "red2d", "player_version": env!("CARGO_PKG_VERSION"), "player_build": wasm_how},
@@ -563,15 +616,15 @@ pub fn check(dir: &Path) -> Vec<Row> {
 
     // Text files: no absolute paths, no external references, only declared fetches.
     let mut problems = Vec::new();
-    for p in ["index.html", "runtime.js", "audio-worker.js", "assets/game.json", "manifest.json"] {
+    for p in ["index.html", "runtime.js", "audio-worker.js", "sw.js", "manifest.webmanifest", "assets/game.json", "manifest.json"] {
         let Ok(t) = std::fs::read_to_string(dir.join(p)) else { continue };
         for pat in ["/home/", "/Users/", "C:\\\\", "C:/", "file://", "localhost", "127.0.0.1"] {
             if t.contains(pat) && !(p == "runtime.js" && pat == "C:/") {
                 problems.push(format!("{p} contains `{pat}`"));
             }
         }
-        if p == "index.html" || p == "runtime.js" || p == "audio-worker.js" {
-            for attr in ["src=\"", "href=\"", "fetch('", "new Worker('"] {
+        if p == "index.html" || p == "runtime.js" || p == "audio-worker.js" || p == "sw.js" {
+            for attr in ["src=\"", "href=\"", "fetch('", "new Worker('", "register('"] {
                 let mut rest = t.as_str();
                 while let Some(i) = rest.find(attr) {
                     rest = &rest[i + attr.len()..];
@@ -638,6 +691,48 @@ pub fn check(dir: &Path) -> Vec<Row> {
             Err(e) => rows.push(row(false, "game parses", e.join("; "))),
         },
         Err(e) => rows.push(row(false, "game parses", format!("assets/game.json: {e}"))),
+    }
+    // The web app manifest and icons make the page installable.
+    match std::fs::read_to_string(dir.join("manifest.webmanifest")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) {
+        Some(w) => {
+            let mut bad = Vec::new();
+            for k in ["name", "start_url", "scope", "display", "icons", "background_color"] {
+                if w.get(k).is_none() {
+                    bad.push(format!("missing `{k}`"));
+                }
+            }
+            for k in ["start_url", "scope"] {
+                if w[k].as_str().is_some_and(|u| u.starts_with('/') || u.contains("://")) {
+                    bad.push(format!("`{k}` must be relative (a package can live at any path)"));
+                }
+            }
+            let mut sizes = Vec::new();
+            for icon in w["icons"].as_array().into_iter().flatten() {
+                let src = icon["src"].as_str().unwrap_or("");
+                match std::fs::read(dir.join(src)) {
+                    Ok(b) if b.len() > 24 && b.starts_with(&[0x89, b'P', b'N', b'G']) => {
+                        let (pw, ph) = (u32::from_be_bytes([b[16], b[17], b[18], b[19]]), u32::from_be_bytes([b[20], b[21], b[22], b[23]]));
+                        sizes.push(pw);
+                        if icon["sizes"].as_str() != Some(&format!("{pw}x{ph}")) {
+                            bad.push(format!("{src} is {pw}x{ph} but the manifest says {}", icon["sizes"]));
+                        }
+                    }
+                    _ => bad.push(format!("icon {src} is missing or not a PNG")),
+                }
+            }
+            if !(sizes.contains(&192) && sizes.contains(&512)) {
+                bad.push("an installable app needs a 192x192 and a 512x512 icon".to_string());
+            }
+            if !dir.join("sw.js").is_file() {
+                bad.push("no sw.js (a service worker with a fetch handler is what makes it work offline)".to_string());
+            }
+            rows.push(row(
+                bad.is_empty(),
+                "installable web app",
+                if bad.is_empty() { "manifest.webmanifest, icons 192 and 512, sw.js".to_string() } else { bad.join("; ") },
+            ));
+        }
+        None => rows.push(row(false, "installable web app", "manifest.webmanifest is missing or not JSON")),
     }
     // A thumbnail that is a real PNG.
     match std::fs::read(dir.join("thumbnail.png")) {

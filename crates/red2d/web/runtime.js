@@ -25,6 +25,12 @@
     music_blocked_ms: 0,       // how long that stalled the page (a few ms: the loop is rendered in a worker)
     music_worker: null,        // true when audio-worker.js rendered it
     gamepad: false,
+    offline: 'unknown',        // unknown | installing | ready | unavailable (a service worker stored the whole game: it plays with no network)
+    installable: false,        // the browser offered to install it as an app
+    standalone: false,         // running as an installed app
+    persistent: null,          // true when the browser promised not to clear this game's storage
+    quota: null,
+    backup: '',
     pad: 'hidden',             // hidden | shown (the touch controller below the game)
     held: [],                  // input actions the touch controller is holding right now
   };
@@ -182,7 +188,7 @@
     if (status.started || status.state === 'error') return;
     status.started = true; status.state = 'running'; document.body.dataset.state = 'running';
     const o = document.getElementById('start'); if (o) o.hidden = true;
-    ensureAudio();
+    ensureAudio(); requestDurableStorage();
     last = performance.now();
   }
   function toView(clientX, clientY) {                  // the module owns the mapping, so a click lands where the picture says it does
@@ -206,6 +212,7 @@
     window.addEventListener('pointermove', (e) => { if (!wasm) return; const p = toView(e.clientX, e.clientY); if (p) x().pointer(p[0], p[1]); });
     window.addEventListener('pointerdown', (e) => {
       if (!wasm || status.state === 'error') return;
+      if (e.target.closest && e.target.closest('[data-nostart]')) return;      // install / backup links on the start card
       if (!status.started) { begin(); return; }
       const p = toView(e.clientX, e.clientY); if (p) x().click(p[0], p[1]);
     });
@@ -226,6 +233,64 @@
     for (const [a, on] of Object.entries(want)) {
       if (padState[a] !== on) { padState[a] = on; withText(a, (p, n) => x().action(p, n, on ? 1 : 0)); }
     }
+  }
+
+  // ---- install, offline, durable storage, backup ------------------------------------------------------------------------------------------------------
+  // The page is also an installable app: a web app manifest + icons + a service worker (sw.js) that stores the package, so an installed game plays with no network and
+  // keeps its progress. The browser decides how to offer it; on iOS the player is shown the Share menu hint.
+  let installEvent = null;
+  const isStandalone = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  function setupInstall() {
+    status.standalone = isStandalone();
+    const btn = document.getElementById('install');
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; status.installable = true; if (btn && !status.standalone) btn.hidden = false; });
+    window.addEventListener('appinstalled', () => { status.standalone = true; if (btn) btn.hidden = true; });
+    if (btn) btn.addEventListener('click', async () => { if (!installEvent) return; installEvent.prompt(); try { await installEvent.userChoice; } catch (e) { /* dismissed */ } installEvent = null; btn.hidden = true; });
+    const hint = document.getElementById('ioshint');
+    if (hint && /iphone|ipad|ipod/i.test(navigator.userAgent) && !status.standalone) hint.hidden = false;
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+      status.offline = 'installing';
+      navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => { status.offline = 'ready'; }).catch((e) => { status.offline = 'unavailable'; console.warn('red2d: offline support unavailable: ' + (e && e.message)); });
+    } else { status.offline = 'unavailable'; }
+  }
+  function requestDurableStorage() {                   // after the first gesture: ask the browser not to evict this game's saves under storage pressure
+    const s = navigator.storage;
+    if (!s) return;
+    if (s.persist) s.persist().then((ok) => { status.persistent = !!ok; }).catch(() => { status.persistent = false; });
+    if (s.estimate) s.estimate().then((e) => { status.quota = { used: e.usage, quota: e.quota }; }).catch(() => {});
+  }
+  function backupText() {
+    const raw = status.storage === 'ok' ? localStorage.getItem(storageKey) : null;
+    return JSON.stringify({ red2d_backup: 1, game: manifest.game.id, save: raw });
+  }
+  function restoreText(text) {                         // returns '' on success, else why not
+    let b; try { b = JSON.parse(text); } catch (e) { return 'that file is not a RedEngine backup (not JSON)'; }
+    if (!b || b.red2d_backup !== 1) return 'that file is not a RedEngine backup';
+    if (b.game !== manifest.game.id) return 'that backup is for the game "' + b.game + '", not this one';
+    if (typeof b.save !== 'string') return 'that backup holds no progress yet';
+    if (status.storage !== 'ok') return 'this browser is not letting the game store anything (private mode?)';
+    try { localStorage.setItem(storageKey, b.save); } catch (e) { return 'could not store the backup (' + (e && e.name) + ')'; }
+    return '';
+  }
+  function setupBackup() {
+    const wrap = document.getElementById('saves');
+    if (!wrap || !(manifest.game.persistence || []).length) return;
+    wrap.hidden = false;
+    document.getElementById('backup').addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([backupText()], { type: 'application/json' }));
+      a.download = manifest.game.id + '-progress.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      status.backup = 'saved';
+    });
+    const file = document.getElementById('restorefile');
+    document.getElementById('restore').addEventListener('click', () => file.click());
+    file.addEventListener('change', async () => {
+      const f = file.files && file.files[0]; if (!f) return;
+      const why = restoreText(await f.text());
+      status.backup = why ? 'failed: ' + why : 'restored';
+      if (why) alert(why); else location.reload();
+    });
   }
 
   // ---- the touch controller ---------------------------------------------------------------------------------------------------------------------------
@@ -351,7 +416,7 @@
       canvas.width = x().view_w(); canvas.height = x().view_h();
       storageKey = 'red2d:' + manifest.game.id;
       storageProbe(); loadSave();
-      applyPad();
+      applyPad(); setupInstall(); setupBackup();
       relayout(); draw();
       if (window.ResizeObserver) new ResizeObserver(() => { relayout(); draw(); }).observe(stage); else window.addEventListener('resize', () => { relayout(); draw(); });
       if (coarse.addEventListener) coarse.addEventListener('change', applyPad);
@@ -382,6 +447,7 @@
     },
     toView: (cx, cy) => toView(cx, cy),
     held: () => [...held],
+    backupText, restoreText,
     padInfo: () => { const p = document.getElementById('pad'); const r = p.getBoundingClientRect(); return { shown: !p.hidden, x: r.left, y: r.top, w: r.width, h: r.height }; },
     testSound: (i) => {                                       // run sound i through the real Web Audio pipeline: samples from the module, an AudioBuffer, a source node
       ensureAudio(); if (!audio) return { ok: false, reason: 'no audio context: ' + status.audio };

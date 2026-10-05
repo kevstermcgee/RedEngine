@@ -319,6 +319,78 @@ def main():
                 check("reset: removing the save returns the game to a fresh start", had is not None and gone and st["save"] == "fresh", "had a save: %s; removed: %s; after reload: %s" % (had is not None, gone, st["save"]))
                 ctx.close()
 
+        # ---- phase E: installable, offline, durable, backed up -----------------------------------------------------------------------------------------------
+        ctx, pg, log = new_page()
+        pg.goto(base + "/index.html")
+        st = ready(pg)
+        try:
+            wait_js(pg, "__red2d.status().offline === 'ready' || __red2d.status().offline === 'unavailable'", 10000)
+        except Exception:
+            pass
+        st = pg.evaluate("__red2d.status()")
+        check("install: a service worker stores the whole game", st["offline"] == "ready", "offline support: %s (a service worker needs https or localhost)" % st["offline"])
+        if st["offline"] == "ready":
+            pg.reload()
+            ready(pg)
+            cdp = ctx.new_cdp_session(pg)
+            try:
+                errs = cdp.send("Page.getInstallabilityErrors").get("installabilityErrors", [])
+                check("install: the browser says the page is installable", not errs, "no installability errors (manifest, icons, service worker with a fetch handler)" if not errs else "; ".join("%s %s" % (e.get("errorId"), e.get("errorArguments")) for e in errs))
+            except Exception as e:
+                check("install: the browser says the page is installable", False, "could not ask the browser: %s" % e)
+            ctx.set_offline(True)
+            try:
+                pg.reload()
+                st2 = ready(pg)
+                tick0 = pg.evaluate("__red2d.snapshot()")["tick"]
+                pg.evaluate("__red2d.advance(30)")
+                tick1 = pg.evaluate("__red2d.snapshot()")["tick"]
+                check("install: it plays with the network off", st2["state"] == "ready" and tick1 - tick0 == 30, "reloaded offline: state=%s, advanced %d ticks" % (st2["state"], tick1 - tick0))
+            except Exception as e:
+                check("install: it plays with the network off", False, "reload with no network failed: %s" % e)
+            ctx.set_offline(False)
+        pg.keyboard.press("Enter")
+        wait_js(pg, "__red2d.status().state === 'running'", 5000)
+        try:
+            wait_js(pg, "__red2d.status().persistent !== null", 3000)
+        except Exception:
+            pass
+        st = pg.evaluate("__red2d.status()")
+        check("storage: the game asked the browser to keep its saves", st["persistent"] is not None, "navigator.storage.persist() answered %s (a browser may say no; the answer is shown, not assumed)" % st["persistent"])
+        if game["persistence"]:
+            pc = next((bc for bc in manifest.get("browser_checks", []) if bc.get("persists")), None)
+            if pc:
+                lay = pg.evaluate("__red2d.layout()")
+                if pc.get("click"):
+                    pg.mouse.click(lay["x"] + pc["click"][0] * lay["w"] / vw, lay["y"] + pc["click"][1] * lay["h"] / vh)
+                pg.wait_for_timeout(400)
+                before = pg.evaluate("__red2d.snapshot()")["vars"]
+                pg.reload()
+                ready(pg)
+                try:
+                    with pg.expect_download(timeout=5000) as dl:
+                        pg.evaluate("document.getElementById('backup').click()")
+                    path = dl.value.path()
+                    text = open(path).read()
+                    b = json.loads(text)
+                    ok = b.get("red2d_backup") == 1 and b.get("game") == gid and isinstance(b.get("save"), str) and json.loads(b["save"]).get("game") == gid
+                    check("backup: 'Back up progress' downloads the saved progress", ok, "%d bytes, game %s" % (len(text), b.get("game")))
+                    pg.evaluate("__red2d.resetSave()")
+                    pg.reload()
+                    fresh = ready(pg)["save"]
+                    pg.set_input_files("#restorefile", path)
+                    wait_js(pg, "__red2d.status().state === 'ready' && __red2d.status().save === 'loaded'", 8000)
+                    after = pg.evaluate("__red2d.snapshot()")["vars"]
+                    same = all(after.get(n) == before.get(n) for n in pc["persists"])
+                    check("backup: restoring the file brings the progress back", fresh == "fresh" and same, "after the reset the save was %s; after restoring, %s" % (fresh, {n: after.get(n) for n in pc["persists"]}))
+                    wrong = pg.evaluate("__red2d.restoreText(%s)" % json.dumps(json.dumps({"red2d_backup": 1, "game": "some-other-game", "save": "{}"})))
+                    check("backup: another game's backup is refused", "not this one" in wrong, wrong)
+                except Exception as e:
+                    check("backup: download and restore", False, "%s: %s" % (type(e).__name__, e))
+        errs = fatal(log)
+        check("install: no console errors", not errs, "none" if not errs else "; ".join(errs[:5]))
+        ctx.close()
+
         # ---- phase D: a phone (touch, small screen): the controller sits below the game, never over it, and real touches drive the game ----------------------------------
         controls = game.get("controls") or {}
         if "touch" in game["input"]:

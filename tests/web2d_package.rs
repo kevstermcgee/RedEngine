@@ -79,7 +79,18 @@ fn a_built_package_is_complete_consistent_and_names_what_it_is() {
     let paths: Vec<&str> = m["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
     assert_eq!(
         paths,
-        ["assets/game.json", "audio-worker.js", "game.wasm", "index.html", "runtime.js", "thumbnail.png"],
+        [
+            "assets/game.json",
+            "audio-worker.js",
+            "game.wasm",
+            "icon-192.png",
+            "icon-512.png",
+            "index.html",
+            "manifest.webmanifest",
+            "runtime.js",
+            "sw.js",
+            "thumbnail.png"
+        ],
         "sorted, and exactly the declared files"
     );
     assert!(m["native"]["scenarios"].as_array().unwrap().len() >= 3 && m["native"]["initial"]["frame"].as_str().unwrap().len() == 16);
@@ -88,6 +99,14 @@ fn a_built_package_is_complete_consistent_and_names_what_it_is() {
     assert!(
         m.get("built_at").is_none() && !text.contains("timestamp") && !text.contains("T00:") && !text.contains("2026-"),
         "a deterministic package carries no timestamp"
+    );
+    assert_eq!(m["game"]["install"]["web_app"], true, "every package is an installable, offline web app");
+    assert_eq!(m["game"]["distribution"], json!(["online", "install"]));
+    let wm: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("manifest.webmanifest")).unwrap()).unwrap();
+    assert_eq!(
+        (wm["start_url"].as_str(), wm["scope"].as_str(), wm["display"].as_str()),
+        (Some("./index.html"), Some("./"), Some("standalone")),
+        "relative: the package can live at any path"
     );
     let html = std::fs::read_to_string(dir.join("index.html")).unwrap();
     assert!(html.contains("<title>Coin Dash</title>") && html.contains("wasm-unsafe-eval") && !html.contains("{{"), "the page is filled in and keeps its CSP");
@@ -250,4 +269,24 @@ fn a_directory_that_is_not_a_package_says_so() {
     let rows = webpkg::check(&d);
     assert!(rows.len() == 1 && !rows[0].ok && rows[0].detail.contains("not a web package"), "{rows:?}");
     let _ = std::fs::remove_dir_all(d);
+}
+
+#[test]
+fn the_web_app_manifest_icons_and_service_worker_are_checked() {
+    let Some((dir, _)) = built("pwa") else { return };
+    // An icon that is the wrong size, a missing service worker and an absolute start_url are each refused (with honest hashes, so only the app checks can catch them).
+    let wm = dir.join("manifest.webmanifest");
+    let original = std::fs::read_to_string(&wm).unwrap();
+    std::fs::write(&wm, original.replace("\"./index.html\"", "\"/index.html\"")).unwrap();
+    rehash(&dir);
+    assert!(failed(&dir).iter().any(|m| m.contains("installable web app") && m.contains("`start_url` must be relative")), "{:?}", failed(&dir));
+    std::fs::write(&wm, original.replace("192x192", "100x100")).unwrap();
+    rehash(&dir);
+    assert!(failed(&dir).iter().any(|m| m.contains("installable web app") && m.contains("is 192x192 but the manifest says")), "{:?}", failed(&dir));
+    std::fs::write(&wm, &original).unwrap();
+    let icon = std::fs::read(dir.join("icon-512.png")).unwrap();
+    assert_eq!(u32::from_be_bytes([icon[16], icon[17], icon[18], icon[19]]), 512);
+    let sw = std::fs::read_to_string(dir.join("sw.js")).unwrap();
+    assert!(sw.contains("addEventListener('fetch'") && sw.contains("cache.put"), "a service worker with a fetch handler");
+    let _ = std::fs::remove_dir_all(dir);
 }

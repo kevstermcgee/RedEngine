@@ -62,6 +62,15 @@ pub enum Persistence {
     Progress,
 }
 
+/// How a game reaches players.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Distribution {
+    /// A URL anyone opens: the game is a static web package.
+    Online,
+    /// Installed on the player's device: an installable offline app (a PWA from the browser) or a native installer.
+    Install,
+}
+
 macro_rules! names {
     ($t:ident { $($v:ident => $n:literal),+ $(,)? }) => {
         impl $t {
@@ -81,6 +90,7 @@ names!(Platform { Web => "web", Windows => "windows", Linux => "linux", MacOs =>
 names!(Networking { Offline => "offline", Authoritative => "authoritative" });
 names!(Input { Keyboard => "keyboard", Mouse => "mouse", Touch => "touch", Gamepad => "gamepad" });
 names!(Persistence { Settings => "settings", Progress => "progress" });
+names!(Distribution { Online => "online", Install => "install" });
 
 /// A game's declared capabilities.
 #[derive(Debug, Clone, PartialEq)]
@@ -95,6 +105,19 @@ pub struct Capabilities {
     pub input: Vec<Input>,
     /// What it keeps.
     pub persistence: Vec<Persistence>,
+    /// How players get it (`online` = a URL, `install` = an app on the device). Omitted: both where both exist.
+    pub distribution: Vec<Distribution>,
+}
+
+impl Capabilities {
+    /// The distribution a game gets when it does not say: online and install for a game that runs in a browser, install alone for a native one.
+    pub fn default_distribution(platforms: &[Platform]) -> Vec<Distribution> {
+        if platforms.contains(&Platform::Web) {
+            vec![Distribution::Online, Distribution::Install]
+        } else {
+            vec![Distribution::Install]
+        }
+    }
 }
 
 /// How far a combination is built.
@@ -192,6 +215,27 @@ pub fn persistence_support(presentation: Presentation, platform: Platform, _kind
     }
 }
 
+/// What RedEngine delivers for a way of reaching players, for a presentation on a platform.
+pub fn distribution_support(presentation: Presentation, platform: Platform, how: Distribution) -> Support {
+    use Distribution::*;
+    use Platform::*;
+    use Presentation::*;
+    match (presentation, platform, how) {
+        (TwoD, Web, Online) => Support::Supported,
+        // An installable, offline-capable web app: the package carries a web app manifest, icons and a service worker; `web verify` checks installability and an offline reload.
+        (TwoD, Web, Install) => Support::Supported,
+        (ThreeD, Windows, Install) => Support::Supported,
+        (ThreeD, Linux, Install) => Support::Unverified("the portable build packages for Linux (`package`), but the installer, the updater and the download page are Windows-only today"),
+        (ThreeD, Windows | Linux, Online) => Support::NotSupported(
+            "a 3D game cannot be played from a URL: the 3D renderer and engine library do not run in a browser yet. Ship it as an installable game (`install`), or build the game as a 2D/hybrid game for the browser",
+        ),
+        (TwoD, Windows | Linux, Install) => Support::Prepared("a native installer for 2D games needs the native window, which is not built; the web app (`web` + `install`) installs on Windows, Linux, macOS, Android and iOS"),
+        (TwoD, Windows | Linux, Online) => Support::NotSupported("`online` means a URL, which is the `web` platform: add \"web\" to platforms"),
+        (_, MacOs, _) => Support::NotSupported("no macOS build or test exists"),
+        (ThreeD, Web, _) => Support::NotSupported("3D games do not run in a browser yet"),
+    }
+}
+
 /// One thing wrong with a declaration: where, and what to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Problem {
@@ -207,7 +251,7 @@ impl std::fmt::Display for Problem {
     }
 }
 
-const KEYS: &[&str] = &["presentation", "platforms", "networking", "input", "persistence"];
+const KEYS: &[&str] = &["presentation", "platforms", "networking", "input", "persistence", "distribution"];
 
 fn list_of<T: Copy>(obj: &Map<String, Value>, key: &str, parse: fn(&str) -> Option<T>, names: &[&str], problems: &mut Vec<Problem>) -> Vec<T> {
     let Some(v) = obj.get(key) else { return Vec::new() };
@@ -282,8 +326,19 @@ pub fn parse(v: &Value) -> (Option<Capabilities>, Vec<Problem>) {
     }
     let input = list_of(obj, "input", Input::parse, &Input::names(), &mut problems);
     let persistence = list_of(obj, "persistence", Persistence::parse, &Persistence::names(), &mut problems);
+    let distribution = if obj.contains_key("distribution") {
+        list_of(obj, "distribution", Distribution::parse, &Distribution::names(), &mut problems)
+    } else {
+        Capabilities::default_distribution(&platforms)
+    };
+    if obj.get("distribution").and_then(Value::as_array).is_some_and(Vec::is_empty) {
+        problems.push(Problem {
+            path: "capabilities.distribution".into(),
+            message: "is empty: list online (a URL), install (an app on the device) or both; omit it for the default".into(),
+        });
+    }
     let caps = match (presentation, networking) {
-        (Some(presentation), Some(networking)) => Some(Capabilities { presentation, platforms, networking, input, persistence }),
+        (Some(presentation), Some(networking)) => Some(Capabilities { presentation, platforms, networking, input, persistence, distribution }),
         _ => None,
     };
     (caps, problems)
@@ -329,6 +384,37 @@ pub fn check(c: &Capabilities) -> Vec<Problem> {
             }
         }
     }
+    for (i, &how) in c.distribution.iter().enumerate() {
+        let path = format!("capabilities.distribution[{i}]");
+        match how {
+            Distribution::Online => {
+                if !c.platforms.contains(&Platform::Web) {
+                    out.push(Problem { path, message: "`online` (a URL) needs the `web` platform: add \"web\" to `platforms`, or remove `online`".into() });
+                } else {
+                    let s = distribution_support(c.presentation, Platform::Web, how);
+                    if !s.allowed() {
+                        out.push(Problem { path, message: format!("`online` is {} for {}: {}", s.label().to_lowercase(), c.presentation.name(), s.note()) });
+                    }
+                }
+            }
+            Distribution::Install => {
+                let ok = c.platforms.iter().any(|&p| distribution_support(c.presentation, p, how).allowed());
+                if !ok {
+                    let why: Vec<String> =
+                        c.platforms.iter().map(|&p| format!("{}: {}", p.name(), distribution_support(c.presentation, p, how).note())).collect();
+                    out.push(Problem {
+                        path,
+                        message: format!(
+                            "`install` is not available for {} on {} ({})",
+                            c.presentation.name(),
+                            c.platforms.iter().map(|p| p.name()).collect::<Vec<_>>().join("+"),
+                            why.join("; ")
+                        ),
+                    });
+                }
+            }
+        }
+    }
     out.dedup();
     out
 }
@@ -344,6 +430,13 @@ pub fn warnings(c: &Capabilities) -> Vec<String> {
         }
         if let Support::Unverified(note) = support(c.presentation, platform) {
             out.push(format!("{} on `{}` is built but unverified: {note}", c.presentation.name().to_uppercase(), platform.name()));
+        }
+    }
+    for &how in &c.distribution {
+        for &platform in &c.platforms {
+            if let Support::Unverified(note) = distribution_support(c.presentation, platform, how) {
+                out.push(format!("`{}` on `{}` is built but unverified: {note}", Distribution::name(how), platform.name()));
+            }
         }
     }
     out.sort();
@@ -368,6 +461,18 @@ pub fn matrix_text() -> String {
     let sup = networking_support(Presentation::TwoD, Platform::Windows, Networking::Authoritative);
     s.push_str(&format!("  2d  authoritative on native {:<13} {}\n", sup.label(), sup.note()));
     s.push_str("  3d  authoritative on native SUPPORTED\n");
+    s.push_str("DISTRIBUTION (online = a URL, install = an app on the device)\n");
+    for (pres, plat, how) in [
+        (Presentation::TwoD, Platform::Web, Distribution::Online),
+        (Presentation::TwoD, Platform::Web, Distribution::Install),
+        (Presentation::TwoD, Platform::Windows, Distribution::Install),
+        (Presentation::ThreeD, Platform::Windows, Distribution::Install),
+        (Presentation::ThreeD, Platform::Linux, Distribution::Install),
+        (Presentation::ThreeD, Platform::Windows, Distribution::Online),
+    ] {
+        let sup = distribution_support(pres, plat, how);
+        s.push_str(&format!("  {:<3} {:<7} on {:<8} {:<13} {}\n", pres.name(), how.name(), plat.name(), sup.label(), sup.note()));
+    }
     s
 }
 
@@ -465,5 +570,25 @@ mod tests {
         assert!(t.lines().any(|l| l.starts_with("2d on windows") && l.contains("PREPARED")));
         assert!(t.lines().any(|l| l.starts_with("3d on web") && l.contains("NOT SUPPORTED")));
         assert!(!Support::Prepared("x").allowed() && !Support::NotSupported("x").allowed() && Support::Unverified("x").allowed());
+    }
+
+    #[test]
+    fn distribution_defaults_to_online_and_install_for_the_web_and_is_checked() {
+        let (c, p, r) = caps(json!({"presentation": "2d", "platforms": ["web"]}));
+        assert!(p.is_empty() && r.is_empty());
+        assert_eq!(c.unwrap().distribution, vec![Distribution::Online, Distribution::Install]);
+        let (c, _, _) = caps(json!({"presentation": "3d", "platforms": ["windows", "linux"], "networking": "authoritative"}));
+        assert_eq!(c.unwrap().distribution, vec![Distribution::Install], "a native game is installed, not played from a URL");
+        // The mistakes: online without the web, online for a 3D game, install of a 2D game that only targets native, an empty list, a typo.
+        let t = all(json!({"presentation": "3d", "platforms": ["windows"], "networking": "offline", "distribution": ["online"]}));
+        assert!(t.contains("capabilities.distribution[0]") && t.contains("needs the `web` platform"), "{t}");
+        let t = all(json!({"presentation": "2d", "platforms": ["windows"], "networking": "offline", "distribution": ["install"]}));
+        assert!(t.contains("`install` is not available") && t.contains("native window"), "{t}");
+        let t = all(json!({"presentation": "2d", "platforms": ["web"], "distribution": []}));
+        assert!(t.contains("is empty"), "{t}");
+        let t = all(json!({"presentation": "2d", "platforms": ["web"], "distribution": ["onlin"]}));
+        assert!(t.contains("did you mean `online`"), "{t}");
+        assert!(all(json!({"presentation": "2d", "platforms": ["web"], "distribution": ["online"]})).is_empty());
+        assert!(matrix_text().contains("DISTRIBUTION") && matrix_text().contains("install"));
     }
 }

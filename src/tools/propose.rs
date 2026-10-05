@@ -266,7 +266,8 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
     }
     let minutes = o.session_minutes.map(|m| (m, m)).unwrap_or(session);
 
-    let c = Capabilities { presentation, platforms, networking, input, persistence };
+    let distribution = Capabilities::default_distribution(&platforms);
+    let c = Capabilities { presentation, platforms, networking, input, persistence, distribution };
     for p in caps::check(&c) {
         problems.push(p.to_string());
     }

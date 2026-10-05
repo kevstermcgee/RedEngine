@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'">
 <meta name="theme-color" content="#0b0d12">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>{{TITLE}}</title>
 <meta name="description" content="{{DESCRIPTION}}">
 <style>
@@ -19,6 +24,10 @@
   #start h1 { margin: 0 0 .25rem; font-size: clamp(1.4rem, 5vw, 2.4rem); }
   #start p { margin: .25rem 0; max-width: 34rem; opacity: .85; }
   #start .go { margin-top: 1rem; padding: .6rem 1.2rem; border: 2px solid #cfd6e6; border-radius: 6px; font-weight: 600; letter-spacing: .04em; }
+  #start .extras { margin-top: .9rem; font-size: .85rem; opacity: .9; }
+  #start .extras button { font: inherit; font-weight: 600; color: #cfd6e6; background: #1c2438; border: 1px solid #3a4768; border-radius: 6px; padding: .35rem .8rem; cursor: pointer; }
+  #start .extras a { color: #9fb0d8; cursor: pointer; text-decoration: underline; }
+  #start .extras p { margin: .35rem 0 0; }
   .only-touch { display: none; }
   body.touch .only-touch { display: block; }
   body.touch .only-desktop { display: none; }
@@ -64,6 +73,11 @@
       <p class="only-desktop">{{INPUT}}</p>
       <p class="only-touch">{{TOUCH}}</p>
       <div class="go"><span class="only-desktop">Press any key or click to play</span><span class="only-touch">Tap to play</span></div>
+      <div class="extras" data-nostart>
+        <button id="install" type="button" hidden>Install this game</button>
+        <p id="ioshint" hidden>To install: tap Share, then &ldquo;Add to Home Screen&rdquo;.</p>
+        <p id="saves" hidden><a id="backup" role="button">Back up progress</a> &middot; <a id="restore" role="button">Restore</a><input id="restorefile" type="file" accept="application/json,.json" hidden></p>
+      </div>
     </div>
   </div>
   <div id="error" hidden></div>

@@ -268,7 +268,7 @@ pub fn capabilities(path: Option<&Path>, query: &[String]) -> Result<Report, Str
             caps::Networking::names().join(", ")
         ));
     };
-    let c = caps::Capabilities { presentation: pres, platforms: vec![plat], networking: net, input: vec![], persistence: vec![] };
+    let c = caps::Capabilities { presentation: pres, platforms: vec![plat], networking: net, input: vec![], persistence: vec![], distribution: vec![] };
     let problems = caps::check(&c);
     let s = caps::support(pres, plat);
     let mut t = format!("{} on {}: {}{}\n", pres.name(), plat.name(), s.label(), if s.note().is_empty() { String::new() } else { format!(" — {}", s.note()) });
