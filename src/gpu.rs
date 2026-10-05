@@ -145,6 +145,8 @@ pub struct Gpu {
     pub queue: wgpu::Queue,
     /// Which adapter this is, for reports: `name (backend, device type)`, e.g. `llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)`.
     pub adapter: String,
+    /// Whether it is a software rasteriser (a CPU "device", like Mesa's llvmpipe or Windows' WARP) rather than a GPU: timings from one say little about a player's hardware.
+    pub software: bool,
 }
 
 impl Gpu {
@@ -168,6 +170,7 @@ impl Gpu {
         };
         let info = adapter.get_info();
         let adapter_name = format!("{} ({:?}, {:?})", info.name, info.backend, info.device_type);
+        let software = info.device_type == wgpu::DeviceType::Cpu;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("forge3d-device"),
@@ -179,7 +182,7 @@ impl Gpu {
             })
             .await
             .context("failed to create GPU device")?;
-        Ok(Gpu { device, queue, adapter: adapter_name })
+        Ok(Gpu { device, queue, adapter: adapter_name, software })
     }
 }
 

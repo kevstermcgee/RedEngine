@@ -9,6 +9,7 @@
       "profile": "debug",
       "repeat": 5,
       "adapter": "llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)",
+      "adapter_kind": "software",
       "machine": {
         "cpu": "x86_64",
         "cores": 4,

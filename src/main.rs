@@ -104,6 +104,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Splitshot { scene, out, players, size, hour, spread, gutter, repeat, stats } => {
             run_splitshot(&scene, &out, players, &size, hour, spread, gutter, repeat, stats.as_deref())
         }
+        Command::RenderTrend { scenes, repeat, out, label } => run_render_trend(scenes.as_deref(), repeat, out.as_deref(), label.as_deref()),
         Command::Render { scene, out } => run_render(&scene, &out),
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
         Command::Lint { scene, strict, cell, phase } => run_lint(&scene, envelope::capturing(), strict, cell, phase.as_deref()),
