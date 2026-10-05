@@ -21,8 +21,9 @@ if ! rustup target list --installed 2>/dev/null | grep -qx wasm32-unknown-unknow
   if [ "${CI:-}" = "true" ]; then rustup target add wasm32-unknown-unknown; else skip "the wasm32-unknown-unknown target is not installed (fix: rustup target add wasm32-unknown-unknown)"; fi
 fi
 
-R=(cargo run --locked -q --bin red_engine2 --)
-if ! "${R[@]}" web verify --help >/dev/null 2>&1; then echo "the red_engine2 binary could not be built"; exit 1; fi
+# The 2D path needs no window, GPU or audio device, so the CLI is built without the `gfx` feature (no system graphics/audio libraries; also proves the path is headless).
+R=(cargo run --locked -q --no-default-features --bin red_engine2 --)
+if ! "${R[@]}" web verify --help >/dev/null; then echo "the red_engine2 binary could not be built (cargo's message is above)"; exit 1; fi
 
 # Is a browser available? (`web verify` reports the fix itself; this only decides skip vs run.)
 probe() {
