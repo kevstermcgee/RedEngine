@@ -31,6 +31,9 @@ fn every_shipped_scene_has_well_formed_checks() {
     for f in files {
         let Ok(text) = std::fs::read_to_string(&f) else { continue };
         let Ok(v) = serde_json::from_str::<Value>(&text) else { continue };
+        if v.get("game2d").is_some() {
+            continue; // a 2D game: its `checks` are scenarios, held to the 2D parser by `tests/web2d_games.rs`
+        }
         let Some(checks) = v.get("checks").filter(|c| c.is_object()) else { continue };
         scenes += 1;
         let mut problems = check_schema::invalid_fields(checks);

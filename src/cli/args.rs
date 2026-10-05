@@ -844,6 +844,66 @@ pub(crate) enum Command {
         /// A question like `2d web` or `3d web authoritative`; empty prints the whole matrix.
         query: Vec<String>,
     },
+    /// Plan a game before writing it: from an idea, a title, genre, presentation (the simplest that fits: never 3D by default), targets, input, networking, saves, session length
+    /// and the cost to expect. Every choice can be changed with a flag and is checked against `capabilities`: what cannot be built is reported, not quietly shrunk.
+    Propose {
+        /// The idea in plain words.
+        idea: Vec<String>,
+        /// Use this title.
+        #[arg(long)]
+        title: Option<String>,
+        /// `2d` or `3d` (default: the simplest that delivers the idea).
+        #[arg(long)]
+        presentation: Option<String>,
+        /// A target: web, windows, linux (repeatable).
+        #[arg(long = "platform")]
+        platforms: Vec<String>,
+        /// An input method: keyboard, mouse, touch, gamepad (repeatable).
+        #[arg(long = "input")]
+        inputs: Vec<String>,
+        /// `offline` or `authoritative`.
+        #[arg(long)]
+        networking: Option<String>,
+        /// Minutes per session.
+        #[arg(long)]
+        session: Option<u32>,
+    },
+    /// Publish a 2D game: validate, play the scenarios, build the WebAssembly package, check it, play it in a real browser, then upload it and (when a URL exists) play
+    /// the deployed copy too. Each stage says whether it passed; BUILD, LOCAL BROWSER, UPLOAD and REMOTE PLAYABLE success are reported separately and a URL only if one exists.
+    Publish {
+        /// The `*.game2d.json` (or, with `--package`, nothing).
+        game: Option<PathBuf>,
+        /// Publish a package directory that `web verify` already passed (its verification record must match the package id).
+        #[arg(long)]
+        package: Option<PathBuf>,
+        /// `local` (a static site directory; the default) or `github-pages` (a RedEngineGames checkout).
+        #[arg(long, default_value = "local")]
+        backend: String,
+        /// Local backend: the site directory (default `out/site`).
+        #[arg(long)]
+        site: Option<PathBuf>,
+        /// Local backend: the address that directory is served from, if somewhere serves it. Without it no URL is claimed.
+        #[arg(long)]
+        base_url: Option<String>,
+        /// GitHub Pages backend: a checkout of the RedEngineGames repository.
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        /// GitHub Pages backend: `git push` after committing (nothing leaves this machine without it).
+        #[arg(long)]
+        push: bool,
+        /// GitHub Pages backend: the site address (default https://kevstermcgee.github.io/RedEngineGames).
+        #[arg(long)]
+        pages_url: Option<String>,
+        /// Run every stage up to the metadata and upload nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Where the package, screenshots and report go (default `out/publish/<game id>`).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Use this prebuilt `red2d.wasm` (also `RED2D_WASM`).
+        #[arg(long)]
+        wasm: Option<PathBuf>,
+    },
     /// 2D games in the browser: `build` a static WebAssembly package, `check` its integrity, `serve` it locally, `verify` it in a real headless browser,
     /// `setup-browser` once per machine. Building and verifying need no credentials and no internet; `publish` is a separate command.
     Web {

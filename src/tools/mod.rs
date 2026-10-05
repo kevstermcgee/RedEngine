@@ -41,6 +41,8 @@ pub mod plan;
 pub mod portmap;
 pub mod preflight;
 pub mod procgen_map;
+pub mod propose;
+pub mod publish2d;
 pub mod publish_check;
 pub mod racetest;
 pub mod racetrack;
