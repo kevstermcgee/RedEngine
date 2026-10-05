@@ -6,6 +6,12 @@ license = "MIT"
 repository = "https://github.com/kevstermcgee/RedEngine"
 description = "AI-first Rust game engine: JSON scenes, self-verifying maps, authoritative multiplayer, headless tooling"
 
+# The 2D game crate (`red2d`): a declarative 2D game, its headless simulation, CPU renderer and WebAssembly player. A workspace member so one lock file covers it and
+# the browser build (`red_engine2 web build`); `default-members` keeps plain `cargo build/test/clippy` covering it too.
+[workspace]
+members = ["crates/red2d"]
+default-members = [".", "crates/red2d"]
+
 # `gfx` (default) = everything that draws or plays sound: wgpu, winit, rodio, ffmpeg. The dedicated server, the bot and the
 # map-analysis CLI build without it (`cargo build --no-default-features --bin red_server`); CI enforces that on Linux.
 [features]
@@ -13,6 +19,7 @@ default = ["gfx"]
 gfx = ["dep:wgpu", "dep:winit", "dep:rodio", "dep:pollster", "dep:ffmpeg-sidecar", "dep:gilrs", "dep:rfd"]
 
 [dependencies]
+red2d = { path = "crates/red2d" }
 gilrs = { version = "0.11.2", optional = true }
 anyhow = "1.0.104"
 bytemuck = { version = "1.25.2", features = ["derive"] }

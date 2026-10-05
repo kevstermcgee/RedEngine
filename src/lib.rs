@@ -23,6 +23,7 @@ pub mod dsp;
 pub mod easing;
 pub mod expanse;
 pub mod feel;
+pub mod fields;
 #[cfg(feature = "gfx")]
 pub mod firearms;
 #[cfg(feature = "gfx")]
@@ -81,6 +82,7 @@ pub mod streaks;
 #[cfg(feature = "gfx")]
 pub mod stream_gpu;
 pub mod strict;
+pub mod suggest;
 pub mod synth;
 pub mod terrain;
 pub mod tools;
