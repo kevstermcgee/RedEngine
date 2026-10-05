@@ -20,8 +20,10 @@
     saves: 0,                  // writes to storage
     audio: 'locked',           // locked | running | suspended | unsupported | failed
     sounds_played: 0,          // sound requests handed to Web Audio
-    music: 'off',              // off | playing | none
-    music_ms: 0,               // how long rendering the loop blocked the page (the module renders it on the main thread)
+    music: 'off',              // off | rendering | playing | none | failed
+    music_ms: 0,               // how long the loop took to render
+    music_blocked_ms: 0,       // how long that stalled the page (a few ms: the loop is rendered in a worker)
+    music_worker: null,        // true when audio-worker.js rendered it
     gamepad: false,
   };
   let wasm = null, mem = null, canvas, ctx2d, imageData = null, manifest = null;
@@ -126,21 +128,48 @@
       status.sounds_played++;
     }
   }
+  // The loop is made in a worker (audio-worker.js) so rendering it never stalls the game; if a worker cannot be started it is made here, and `music_blocked_ms` says what that cost.
+  let musicWorker = null, musicRequested = false;
+  function startMusic() {
+    if (!musicBuffer || musicSource || !audio || audio.state !== 'running' || x().music_on() !== 1) return;
+    musicSource = audio.createBufferSource(); musicSource.buffer = musicBuffer; musicSource.loop = true;
+    musicSource.connect(audio.destination); musicSource.start(); status.music = 'playing';
+  }
+  function haveMusic(pcm, rate, ms, blocked) {
+    if (!pcm.length) { status.music = 'none'; return; }
+    musicBuffer = audio.createBuffer(2, pcm.length / 2, rate);
+    const l = musicBuffer.getChannelData(0), r = musicBuffer.getChannelData(1);
+    for (let i = 0; i < l.length; i++) { l[i] = pcm[2 * i]; r[i] = pcm[2 * i + 1]; }
+    status.music_ms = ms; status.music_blocked_ms = blocked;
+    startMusic();
+  }
+  function requestMusic() {
+    musicRequested = true; status.music = 'rendering';
+    try {
+      musicWorker = new Worker('audio-worker.js');
+      status.music_worker = true;
+      musicWorker.onmessage = (e) => {
+        musicWorker.terminate(); musicWorker = null;
+        if (!e.data.ok) { status.music = 'failed'; console.warn('red2d: music could not be rendered: ' + e.data.error); return; }
+        const t0 = performance.now();
+        haveMusic(e.data.pcm, e.data.rate, e.data.ms, Math.round(performance.now() - t0));
+      };
+      musicWorker.onerror = () => { musicWorker = null; status.music_worker = false; renderMusicHere(); };
+      musicWorker.postMessage('render');
+    } catch (e) { status.music_worker = false; renderMusicHere(); }
+  }
+  function renderMusicHere() {
+    const t0 = performance.now();
+    const n = x().music_pcm();
+    const f = n ? new Float32Array(out(n).buffer) : new Float32Array(0);
+    const ms = Math.round(performance.now() - t0);
+    haveMusic(f, x().sample_rate(), ms, ms);
+  }
   function syncMusic() {
     const want = x().music_on() === 1 && !!audio && audio.state === 'running' && status.started;
     if (want && !musicSource) {
-      if (!musicBuffer) {
-        const t0 = performance.now();
-        const n = x().music_pcm();
-        if (!n) { status.music = 'none'; musicWanted = false; return; }
-        const f = new Float32Array(out(n).buffer);
-        musicBuffer = audio.createBuffer(2, f.length / 2, x().sample_rate());
-        const l = musicBuffer.getChannelData(0), r = musicBuffer.getChannelData(1);
-        for (let i = 0; i < l.length; i++) { l[i] = f[2 * i]; r[i] = f[2 * i + 1]; }
-        status.music_ms = Math.round(performance.now() - t0);
-      }
-      musicSource = audio.createBufferSource(); musicSource.buffer = musicBuffer; musicSource.loop = true;
-      musicSource.connect(audio.destination); musicSource.start(); status.music = 'playing';
+      if (musicBuffer) startMusic();
+      else if (!musicRequested) requestMusic();
     } else if (!want && musicSource) {
       musicSource.stop(); musicSource.disconnect(); musicSource = null; status.music = 'off';
     }

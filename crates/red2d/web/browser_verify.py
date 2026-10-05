@@ -180,7 +180,7 @@ def main():
         ctx.close()
 
         # ---- phase B: the real-time page with real input ----------------------------------------------------------------------------------------------
-        ctx, pg, log = new_page()
+        ctx, pg, log = new_page("window.__longtasks = []; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__longtasks.push(Math.round(e.duration)); }).observe({entryTypes: ['longtask']}); } catch (e) {}")
         pg.goto(base + "/index.html")
         st = ready(pg)
         if st["state"] != "ready":
@@ -210,7 +210,9 @@ def main():
                     except Exception:
                         pass
                     s = pg.evaluate("__red2d.status()")
-                    check("music starts after the gesture", s["music"] == "playing", "music state: %s (rendering the loop blocked the page for %s ms)" % (s["music"], s.get("music_ms")), claim="browser-audio")
+                    check("music starts after the gesture", s["music"] == "playing", "music state: %s (the loop took %s ms to render, in a worker: %s; it stalled the page for %s ms)" % (s["music"], s.get("music_ms"), s.get("music_worker"), s.get("music_blocked_ms")), claim="browser-audio")
+                    longest = max(pg.evaluate("window.__longtasks") or [0])
+                    check("the page stays responsive while the music is made", longest < 250, "the longest main-thread task from page load to music playing was %d ms (limit 250 ms; a render on the main thread would show here)" % longest)
             before = pg.evaluate("__red2d.snapshot()")["tick"]
             pg.wait_for_timeout(1000)
             after = pg.evaluate("__red2d.snapshot()")["tick"]

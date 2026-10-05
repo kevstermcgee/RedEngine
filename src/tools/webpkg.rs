@@ -2,7 +2,8 @@
 //!
 //! ```text
 //! index.html          the page (title, description, start screen), no external references
-//! runtime.js          the browser side: loop, canvas, input, localStorage, Web Audio (one file, no dependencies)
+//! runtime.js          the browser side: loop, canvas, input, localStorage, Web Audio (no dependencies)
+//! audio-worker.js     renders the music loop off the main thread (same module, same samples)
 //! game.wasm           the engine player: the same for every game, imports nothing (no env, files, clock or network)
 //! assets/game.json    the game, verbatim
 //! thumbnail.png       a frame from the game's own playthrough
@@ -27,6 +28,7 @@ use std::process::Command;
 /// The manifest schema name.
 pub const SCHEMA: &str = "red2d-web-package/1";
 const RUNTIME_JS: &str = include_str!("../../crates/red2d/web/runtime.js");
+const AUDIO_WORKER_JS: &str = include_str!("../../crates/red2d/web/audio-worker.js");
 const INDEX_HTML: &str = include_str!("../../crates/red2d/web/index.html");
 
 /// Functions the runtime calls on the module; the module must export every one (and the runtime must use no other).
@@ -349,6 +351,7 @@ pub fn build(game: &Path, out: &Path, wasm_override: Option<&Path>) -> Result<Bu
         .replace("{{INPUT}}", &esc(&input_blurb(&def)));
     let mut files: Vec<(String, Vec<u8>)> = vec![
         ("assets/game.json".into(), text.clone().into_bytes()),
+        ("audio-worker.js".into(), AUDIO_WORKER_JS.as_bytes().to_vec()),
         ("game.wasm".into(), wasm),
         ("index.html".into(), html.into_bytes()),
         ("runtime.js".into(), RUNTIME_JS.as_bytes().to_vec()),
@@ -529,15 +532,15 @@ pub fn check(dir: &Path) -> Vec<Row> {
 
     // Text files: no absolute paths, no external references, only declared fetches.
     let mut problems = Vec::new();
-    for p in ["index.html", "runtime.js", "assets/game.json", "manifest.json"] {
+    for p in ["index.html", "runtime.js", "audio-worker.js", "assets/game.json", "manifest.json"] {
         let Ok(t) = std::fs::read_to_string(dir.join(p)) else { continue };
         for pat in ["/home/", "/Users/", "C:\\\\", "C:/", "file://", "localhost", "127.0.0.1"] {
             if t.contains(pat) && !(p == "runtime.js" && pat == "C:/") {
                 problems.push(format!("{p} contains `{pat}`"));
             }
         }
-        if p == "index.html" || p == "runtime.js" {
-            for attr in ["src=\"", "href=\"", "fetch('"] {
+        if p == "index.html" || p == "runtime.js" || p == "audio-worker.js" {
+            for attr in ["src=\"", "href=\"", "fetch('", "new Worker('"] {
                 let mut rest = t.as_str();
                 while let Some(i) = rest.find(attr) {
                     rest = &rest[i + attr.len()..];
@@ -562,7 +565,8 @@ pub fn check(dir: &Path) -> Vec<Row> {
     ));
 
     // The runtime calls only what the module exports.
-    if let Ok(js) = std::fs::read_to_string(dir.join("runtime.js")) {
+    if let Ok(runtime) = std::fs::read_to_string(dir.join("runtime.js")) {
+        let js = format!("{runtime}\n{}", std::fs::read_to_string(dir.join("audio-worker.js")).unwrap_or_default());
         let mut used = BTreeSet::new();
         let mut rest = js.as_str();
         while let Some(i) = rest.find("x().") {
@@ -669,7 +673,8 @@ mod tests {
     #[test]
     fn the_runtime_calls_exactly_the_abi_the_module_documents() {
         let mut used = BTreeSet::new();
-        let mut rest = RUNTIME_JS;
+        let both = format!("{RUNTIME_JS}\n{AUDIO_WORKER_JS}");
+        let mut rest = both.as_str();
         while let Some(i) = rest.find("x().") {
             rest = &rest[i + 4..];
             let n: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
