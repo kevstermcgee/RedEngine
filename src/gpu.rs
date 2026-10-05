@@ -143,6 +143,8 @@ impl GpuMesh {
 pub struct Gpu {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
+    /// Which adapter this is, for reports: `name (backend, device type)`, e.g. `llvmpipe (LLVM 20.1.2, 256 bits) (Vulkan, Cpu)`.
+    pub adapter: String,
 }
 
 impl Gpu {
@@ -164,6 +166,8 @@ impl Gpu {
                 .await
                 .context("no compatible GPU adapter found, not even a software one (needs Vulkan, DX12 or Metal; on Linux install mesa-vulkan-drivers; `red_engine2 doctor` explains)")?,
         };
+        let info = adapter.get_info();
+        let adapter_name = format!("{} ({:?}, {:?})", info.name, info.backend, info.device_type);
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("forge3d-device"),
@@ -175,7 +179,7 @@ impl Gpu {
             })
             .await
             .context("failed to create GPU device")?;
-        Ok(Gpu { device, queue })
+        Ok(Gpu { device, queue, adapter: adapter_name })
     }
 }
 
