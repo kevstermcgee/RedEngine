@@ -144,12 +144,26 @@ pub(crate) fn run_sky(
 
 /// `splitshot`: the split screen a scene would show with `players` local players.
 #[cfg(feature = "gfx")]
-pub(crate) fn run_splitshot(scene_path: &Path, out: &Path, players: usize, size: &str, hour: Option<f32>, spread: f32, gutter: u32) -> Result<(), String> {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_splitshot(
+    scene_path: &Path,
+    out: &Path,
+    players: usize,
+    size: &str,
+    hour: Option<f32>,
+    spread: f32,
+    gutter: u32,
+    repeat: u32,
+    stats: Option<&Path>,
+) -> Result<(), String> {
     use red_engine2::app::{OffscreenSplit, ViewCamera};
     use red_engine2::split_gpu::PlayerView;
     let (w, h) = size.split_once('x').and_then(|(w, h)| Some((w.parse::<u32>().ok()?, h.parse::<u32>().ok()?))).ok_or("--size must look like 1280x720")?;
     if !(1..=4).contains(&players) || !(64..=7680).contains(&w) || !(64..=4320).contains(&h) {
         return Err("--players is 1 to 4 and --size from 64x64 to 7680x4320".into());
+    }
+    if stats.is_some() && repeat == 0 {
+        return Err("--stats needs --repeat N (how many timed renders to take after the picture)".into());
     }
     let started = Instant::now();
     let scene = red_engine2::load_scene(scene_path).map_err(|e| e.join("\n"))?;
@@ -178,6 +192,36 @@ pub(crate) fn run_splitshot(scene_path: &Path, out: &Path, players: usize, size:
     split.set_view_distance(red_engine2::splitscreen::view_distance(players));
     let px = split.render(&scene, t, &views, &[]).map_err(|e| e.to_string())?;
     let rendered = started.elapsed().as_secs_f32();
+    let mut millis = Vec::new();
+    for _ in 0..repeat {
+        let t0 = Instant::now();
+        split.render(&scene, t, &views, &[]).map_err(|e| e.to_string())?;
+        millis.push(t0.elapsed().as_secs_f64() * 1000.0);
+    }
+    if let Some(path) = stats {
+        millis.sort_by(|a, b| a.total_cmp(b));
+        let draw = split.last_draw_stats();
+        let report = serde_json::json!({
+            "scene": scene_path.file_name().map(|n| n.to_string_lossy().to_string()),
+            "players": players,
+            "window": [w, h],
+            "view": [layout.size.0, layout.size.1],
+            "hour": hour,
+            "adapter": split.adapter(),
+            "repeat": repeat,
+            "ms_best": millis[0],
+            "ms_median": millis[millis.len() / 2],
+            "streamed": draw.is_some(),
+            "resident": draw.map(|d| d.resident),
+            "draws": draw.map(|d| d.draws),
+            "tris": draw.map(|d| d.tris),
+            "shadow_tris": draw.map(|d| d.shadow_tris),
+        });
+        if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+            std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        }
+        std::fs::write(path, serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n").map_err(|e| format!("{}: {e}", path.display()))?;
+    }
     if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
@@ -193,7 +237,8 @@ pub(crate) fn run_splitshot(scene_path: &Path, out: &Path, players: usize, size:
 }
 
 #[cfg(not(feature = "gfx"))]
-pub(crate) fn run_splitshot(_: &Path, _: &Path, _: usize, _: &str, _: Option<f32>, _: f32, _: u32) -> Result<(), String> {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_splitshot(_: &Path, _: &Path, _: usize, _: &str, _: Option<f32>, _: f32, _: u32, _: u32, _: Option<&Path>) -> Result<(), String> {
     Err("this build has no renderer (built with --no-default-features); rebuild with `cargo build --release` (feature `gfx`, on by default) to use splitshot"
         .into())
 }

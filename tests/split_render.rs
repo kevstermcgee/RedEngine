@@ -248,3 +248,40 @@ fn where_the_time_goes() {
         eprintln!("{name}: {best:.0} ms (views {:?}, last view drew {:?})", l.size, split.last_draw_stats());
     }
 }
+
+/// `splitshot --repeat N --stats FILE` is what `benches/render_trend.py` records: the adapter, the draw counts of a streamed world and a time per render.
+#[test]
+fn splitshot_reports_what_was_drawn_and_how_long_it_took() {
+    let _gpu = GPU.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = std::env::temp_dir().join(format!("splitshot_stats_{}", std::process::id()));
+    let (png, json) = (dir.join("shot.png"), dir.join("stats.json"));
+    let scene = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/endless_meadow.json");
+    let run = |extra: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_red_engine2"))
+            .arg("splitshot")
+            .arg(&scene)
+            .arg(&png)
+            .args(["--players", "2", "--size", "320x180", "--hour", "9"])
+            .args(extra)
+            .output()
+            .expect("run red_engine2")
+    };
+    let out = run(&["--repeat", "2", "--stats", json.to_str().unwrap()]);
+    if !out.status.success() {
+        let text = String::from_utf8_lossy(&out.stderr);
+        if text.contains("GPU adapter") {
+            return; // no adapter on this machine (not even a software one)
+        }
+        panic!("splitshot failed: {text}");
+    }
+    let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&json).expect("the stats file")).expect("JSON");
+    assert_eq!(v["players"], 2);
+    assert_eq!(v["streamed"], true);
+    assert!(v["adapter"].as_str().is_some_and(|a| !a.is_empty()), "names the adapter: {v}");
+    assert!(v["tris"].as_u64().unwrap() > 1000 && v["draws"].as_u64().unwrap() > 0 && v["shadow_tris"].as_u64().is_some(), "{v}");
+    assert!(v["ms_best"].as_f64().unwrap() > 0.0 && v["ms_best"].as_f64() <= v["ms_median"].as_f64(), "{v}");
+    // `--stats` without `--repeat` has nothing to time: it says so rather than writing an empty report.
+    let bad = run(&["--stats", json.to_str().unwrap()]);
+    assert!(!bad.status.success() && String::from_utf8_lossy(&bad.stderr).contains("--repeat"), "{}", String::from_utf8_lossy(&bad.stderr));
+    std::fs::remove_dir_all(&dir).ok();
+}

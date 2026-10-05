@@ -443,6 +443,12 @@ pub(crate) enum Command {
         /// Pixels between the views.
         #[arg(long, default_value_t = 6)]
         gutter: u32,
+        /// Render this many more times after the picture and time each (the first render also builds pipelines and uploads, so it is not counted).
+        #[arg(long, default_value_t = 0)]
+        repeat: u32,
+        /// Write what was drawn and how long it took (adapter, triangles, draws, best and median milliseconds) to this JSON file; needs `--repeat`.
+        #[arg(long)]
+        stats: Option<PathBuf>,
     },
     /// Render the full scene to an MP4.
     Render { scene: PathBuf, out: PathBuf },

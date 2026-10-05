@@ -353,7 +353,7 @@ gameplay in the scene's rules. `describe custom-client` is the one-screen API; t
 | `audio` | Sound without ears: list, report (LUFS, peaks, seam, pitch), render, picture, check | |
 | `procgen` | A generated world, mapped: `procgen map.png --seed 7` | |
 | `flora` | Plant models, as a sheet: `flora sheet.png` | |
-| `splitshot` | A split screen, drawn: `splitshot scene.json out.png --players 4 [--hour 7 --spread 12]` shows the views one to four players would have (their cameras on a ring round the scene's camera), plus how many triangles each draws | |
+| `splitshot` | A split screen, drawn: `splitshot scene.json out.png --players 4 [--hour 7 --spread 12]` shows the views one to four players would have (their cameras on a ring round the scene's camera), plus how many triangles each draws; `--repeat N --stats out.json` also times N more renders and writes the adapter, triangles, draws and best/median ms (`benches/render_trend.py` keeps these as a trend) | |
 
 `examples/external/topdown_switch` (own `Cargo.toml` and `[workspace]`, engine by path): top-down camera that turns (Q/E) and zooms
 (wheel), WASD relative to the view, click-to-move through `pick_ground` + `input_toward`, two switch plates and a gate that the rules
