@@ -40,6 +40,7 @@ pub mod plan;
 pub mod portmap;
 pub mod preflight;
 pub mod procgen_map;
+pub mod publish_check;
 pub mod racetest;
 pub mod racetrack;
 pub mod reach;

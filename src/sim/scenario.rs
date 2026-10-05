@@ -1012,7 +1012,7 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                                 break;
                             }
                             if cur.phase == 0 {
-                                let goal = within.unwrap_or_else(|| default_within(state.character.body().pickup_reach));
+                                let goal = within.unwrap_or_else(|| approach::pickup_within(state.character.body().pickup_reach, eye, &target));
                                 let gap = target.gap(state.pos);
                                 match cur.approach.get_or_insert_with(|| Approach::new(goal, *timeout)).step(tick_secs, gap) {
                                     Progress::Arrived => (cur.phase, cur.ticks_in_step) = (1, 0),

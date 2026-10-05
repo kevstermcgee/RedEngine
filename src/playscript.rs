@@ -777,7 +777,14 @@ impl Runner {
                 }
             ));
         };
-        let goal = within.unwrap_or_else(|| approach::default_within(pose.pickup_reach));
+        // `interact` presses E from the eye, so its stopping distance accounts for how far below the eye the prop is (a slope, a low prop); a plain `approach` does not.
+        let goal = within.unwrap_or_else(|| {
+            if what == "interact" {
+                approach::pickup_within(pose.pickup_reach, pose.eye, &target)
+            } else {
+                approach::default_within(pose.pickup_reach)
+            }
+        });
         let gap = target.gap(pose.pos);
         match self.approach.get_or_insert_with(|| Approach::new(goal, timeout)).step(dt, gap) {
             Progress::Arrived => {

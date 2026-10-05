@@ -275,7 +275,18 @@ pub fn run(path: &Path, opts: &Options) -> Result<Report, String> {
             let mut r = match (got, want) {
                 (true, true) => pass(name, format!("({:.1}, {:.1}) reachable{at}", p.x, p.y)),
                 (false, false) => pass(name, format!("({:.1}, {:.1}) not reachable, as expected{at}", p.x, p.y)),
-                (false, true) => fail(name, format!("({:.1}, {:.1}) is NOT reachable from the start{at}", p.x, p.y)),
+                (false, true) => {
+                    let why = super::pathing::unreachable_why(w, rr, p);
+                    fail(
+                        name,
+                        format!(
+                            "({:.1}, {:.1}) is NOT reachable from the start{at}{}",
+                            p.x,
+                            p.y,
+                            if why.is_empty() { String::new() } else { format!(": {why}") }
+                        ),
+                    )
+                }
                 (true, false) => fail(name, format!("({:.1}, {:.1}) IS reachable{at}, but the check says it should not be", p.x, p.y)),
             };
             r.ms = t0.elapsed().as_millis() as u64 + std::mem::take(&mut pending_ms);

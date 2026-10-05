@@ -521,7 +521,11 @@ fn check_support(world: &MapWorld, out: &mut Vec<Finding>) {
 }
 
 fn check_headroom(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
-    let ceilings: Vec<&Item> = world.items.iter().filter(|i| i.is_solid() && !matches!(i.kind, ItemKind::Stairs)).collect();
+    // A loose prop (a crate, a lantern, anything `movable`) is carried and shoved, never a ceiling: on sloping ground a lantern's roof sits "0.1 m" above the higher ground beside it.
+    let loose: HashSet<&str> =
+        crate::physics::loose_props(&world.scene, None).iter().filter_map(|(i, _)| world.scene.objects.get(*i)).map(|o| o.id.as_str()).collect();
+    let ceilings: Vec<&Item> =
+        world.items.iter().filter(|i| i.is_solid() && !matches!(i.kind, ItemKind::Stairs) && !loose.contains(i.top_id.as_str())).collect();
     // worst clearance per ceiling owner
     let mut worst: HashMap<String, (f32, Vec3)> = HashMap::new();
     let stride = ((0.4 / reach.cell).round() as usize).max(1);
@@ -849,6 +853,21 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
     // Zones.
     for z in &world.zones {
         let (got, free) = reach.area_in(world, z.min, z.max, z.y, 0.35);
+        // On ground that is not flat the usual mistake is a zone authored at y = 0 over ground that is somewhere else: name the height the player actually stands at.
+        let ground = reach.dominant_level_in(z.min, z.max).filter(|g| (g - z.y).abs() > 0.35);
+        if let (Some(g), true) = (ground, got < 0.5) {
+            out.push(finding(
+                Severity::Error,
+                "zone",
+                format!(
+                    "zone '{}' sits at y={:.1} but the ground the player can walk on in its rect is at y={:.1}: a zone at the wrong height is never entered, and a prop is only \"in\" it at that height — set its \"y\" to {:.1}",
+                    z.id, z.y, g, g
+                ),
+                Some(Vec3::new((z.min.x + z.max.x) * 0.5, z.y, (z.min.y + z.max.y) * 0.5)),
+                &[],
+            ));
+            continue;
+        }
         if free < 0.5 {
             out.push(finding(
                 Severity::Warn,

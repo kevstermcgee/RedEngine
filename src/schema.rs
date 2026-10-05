@@ -158,6 +158,14 @@ pub struct Material {
     pub opacity: f32,
 }
 
+impl Scene {
+    /// The files this scene refers to, as paths resolved against its folder (when it was loaded from one): the score files of its `audio` block. A game that is shipped
+    /// without one of these loses it silently, so `tools::publish_check` holds every published playable to this list. Add a field that names a file here, and it is held too.
+    pub fn referenced_files(&self) -> Vec<std::path::PathBuf> {
+        self.audio.as_ref().map(|a| a.files()).unwrap_or_default()
+    }
+}
+
 impl Material {
     fn default_gray() -> Self {
         Material { color: Track::constant(Vec3::splat(0.7)), metallic: 0.0, roughness: 0.6, emissive: Vec3::ZERO, opacity: 1.0 }

@@ -43,7 +43,7 @@ const LINT: &[Field] = &[
     opt("ignore", Ty::Custom(lint_code), "lint codes not counted"),
 ];
 const REACH: &[Field] = &[
-    req("to", Ty::Nums(&[2, 3]), "[x, z] or [x, y, z]"),
+    req("to", Ty::Nums(&[2, 3]), "[x, z] or [x, z, y]: height last"),
     opt("from", Ty::Nums(&[2]), "[x, z]; default the spawn"),
     opt("from_y", Ty::Num(None), "foot height to start at"),
     opt("why", Ty::Str, "shown in the row's name"),
@@ -233,7 +233,7 @@ mod tests {
             (
                 "a target as a string",
                 json!({"reach": [{"to": "3,4"}]}),
-                "checks.reach[0].to: expected a list of 2 or 3 numbers ([x, z] or [x, y, z]), got string \"3,4\"",
+                "checks.reach[0].to: expected a list of 2 or 3 numbers ([x, z] or [x, z, y]: height last), got string \"3,4\"",
             ),
             ("a missing target", json!({"reach": [{"why": "gate"}]}), "checks.reach[0]: needs `to`"),
             ("a walk with neither path nor target", json!({"walk": [{"name": "w"}]}), "checks.walk[0]: asserts nothing"),

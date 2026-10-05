@@ -51,6 +51,13 @@ pub struct AudioSpec {
     pub layers: Vec<LayerSpec>,
 }
 
+impl AudioSpec {
+    /// Every file the block names (the mood scores and the layer scores), as the paths the scene resolved them to.
+    pub fn files(&self) -> Vec<std::path::PathBuf> {
+        self.music.iter().map(|(_, f)| f.clone()).chain(self.layers.iter().map(|l| l.score.clone())).collect()
+    }
+}
+
 /// `audio.reverb`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RoomSpec {
@@ -102,6 +109,34 @@ pub fn layer_target(value: f64, above: f64) -> f32 {
     }
 }
 
+/// A score file a scene names must exist next to the scene and parse as a score: otherwise the game would silently play without that music. `base` is the scene's
+/// folder (`None` for a scene parsed from text with no folder: nothing to check against). `what` is the path of the field, for the message.
+fn check_score_file(errs: &mut Vec<String>, what: &str, named: &str, base: Option<&std::path::Path>) {
+    let Some(base) = base else { return };
+    let path = base.join(named);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => {
+            errs.push(format!(
+                "{what}: `{named}` not found (looked for {}): a score file lives next to the scene, and a game published without it plays no music",
+                path.display()
+            ));
+            return;
+        }
+    };
+    match serde_json::from_str::<serde_json::Value>(&text) {
+        Err(e) => errs.push(format!("{what}: `{named}` is not valid JSON: {e}")),
+        Ok(v) if v.get("tracks").is_none() => {
+            errs.push(format!("{what}: `{named}` is not a score (it has no `tracks`; `red_engine2 audio export score.ambient_drift` is a template)"))
+        }
+        Ok(v) => {
+            if let Err(e) = crate::score::parse_score(&v) {
+                errs.push(format!("{what}: `{named}` is not a valid score: {}", e.join("; ")));
+            }
+        }
+    }
+}
+
 /// Parses a scene's `audio` block (`base` is the folder the scene lives in, for the score paths).
 pub fn parse_audio(root: &serde_json::Map<String, serde_json::Value>, base: Option<&std::path::Path>) -> Result<Option<AudioSpec>, Vec<String>> {
     use serde_json::Value;
@@ -133,7 +168,10 @@ pub fn parse_audio(root: &serde_json::Map<String, serde_json::Value>, base: Opti
             for mood in Mood::ALL {
                 match m.get(mood.name()) {
                     None => {}
-                    Some(Value::String(file)) => music.push((mood, base.map_or_else(|| file.into(), |b| b.join(file)))),
+                    Some(Value::String(file)) => {
+                        check_score_file(&mut errs, &format!("audio.music.{}", mood.name()), file, base);
+                        music.push((mood, base.map_or_else(|| file.into(), |b| b.join(file))))
+                    }
                     Some(_) => errs.push(format!("audio.music.{}: must be a score file name", mood.name())),
                 }
             }
@@ -211,6 +249,7 @@ pub fn parse_audio(root: &serde_json::Map<String, serde_json::Value>, base: Opti
                     errs.push(format!("{path}: needs a `score` file and the rule `var` that drives it"));
                     continue;
                 };
+                check_score_file(&mut errs, &format!("{path}.score"), score, base);
                 layers.push(LayerSpec {
                     score: base.map_or_else(|| score.into(), |b| b.join(score)),
                     var: var.to_string(),

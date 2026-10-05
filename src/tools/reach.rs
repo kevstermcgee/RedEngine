@@ -312,6 +312,24 @@ impl Reach {
         self.idx(p).is_some_and(|i| self.levels[i].iter().any(|l| (l - y).abs() <= tol))
     }
 
+    /// The standing height most of the reachable cells inside `min..max` are at (to 0.1 m), if the player can stand there at all: what a zone, spawn or object in that
+    /// rectangle should be authored at on ground that is not flat.
+    pub fn dominant_level_in(&self, min: Vec2, max: Vec2) -> Option<f32> {
+        let x0 = (((min.x - self.min.x) / self.cell).ceil().max(0.0)) as usize;
+        let x1 = (((max.x - self.min.x) / self.cell).floor().max(0.0) as usize).min(self.nx.saturating_sub(1));
+        let z0 = (((min.y - self.min.y) / self.cell).ceil().max(0.0)) as usize;
+        let z1 = (((max.y - self.min.y) / self.cell).floor().max(0.0) as usize).min(self.nz.saturating_sub(1));
+        let mut counts: HashMap<i32, usize> = HashMap::new();
+        for iz in z0..=z1 {
+            for ix in x0..=x1 {
+                for l in self.levels.get(iz * self.nx + ix).into_iter().flatten() {
+                    *counts.entry((l * 10.0).round() as i32).or_default() += 1;
+                }
+            }
+        }
+        counts.into_iter().max_by_key(|(level, n)| (*n, std::cmp::Reverse(level.abs()))).map(|(level, _)| level as f32 / 10.0)
+    }
+
     /// Reachable and blocked-free area (m^2) in `[min, max]` at floor height `y`, plus the total
     /// standable area there (cells the player circle *could* occupy if nothing sealed them off).
     pub fn area_in(&self, world: &MapWorld, min: Vec2, max: Vec2, y: f32, tol: f32) -> (f32, f32) {

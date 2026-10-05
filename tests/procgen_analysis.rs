@@ -183,3 +183,68 @@ fn the_shipped_endless_scenes_lint_clean() {
         assert!(reach.total_area() > 1000.0, "{scene}: the analysis window holds real ground ({} m2)", reach.total_area());
     }
 }
+
+/// A zone authored at y = 0 over ground that is somewhere else is never entered; the lint says where the ground is instead of "is its rect/y right?".
+#[test]
+fn a_zone_at_the_wrong_height_names_the_height_of_the_ground_under_it() {
+    let (tree, start, _) = tree_between_two_clearings();
+    let dir = scratch("zone");
+    let path = write_scene(&dir, start, r#"{"lint": {"max_errors": 0}}"#);
+    let world = MapWorld::load(&path).unwrap();
+    let ground = world.ground.procgen().expect("endless").height(start + Vec2::new(0.0, 3.0));
+    // A 2 m square clear of the tree, a metre above (wrong) and at the ground (right).
+    let (lo, hi) = (start + Vec2::new(-1.0, 2.0), start + Vec2::new(1.0, 4.0));
+    let zone = |y: f32| {
+        let text = std::fs::read_to_string(&path).unwrap().replace(
+            "\"objects\": []",
+            &format!("\"zones\": [{{\"id\": \"z\", \"rect\": [{}, {}, {}, {}], \"y\": {y}}}], \"objects\": []", lo.x, lo.y, hi.x, hi.y),
+        );
+        let p = dir.join(format!("zone_{y}.json"));
+        std::fs::write(&p, text).unwrap();
+        let w = MapWorld::load(&p).unwrap();
+        let reach = compute(&w, &ReachParams { radius: Some(24.0), ..Default::default() });
+        lint(&w, &reach).iter().filter(|f| f.code == "zone").map(|f| f.message.clone()).collect::<Vec<_>>()
+    };
+    let wrong = zone(ground + 1.0);
+    assert!(
+        wrong.len() == 1 && wrong[0].contains("is never entered") && wrong[0].contains(&format!("y={ground:.1}")) && wrong[0].contains("set its \"y\""),
+        "{wrong:?}"
+    );
+    assert_eq!(zone(ground), Vec::<String>::new(), "at the ground's own height the zone is fine");
+    let _ = (tree, std::fs::remove_dir_all(&dir));
+}
+
+/// An unreachable point says what covers it and where the player can stand instead, so the thing placed there can be moved without exploring.
+#[test]
+fn an_unreachable_point_says_what_covers_it_and_the_nearest_place_to_stand() {
+    use red_engine2::tools::pathing::unreachable_why;
+    let (tree, start, _) = tree_between_two_clearings();
+    let dir = scratch("why");
+    let world = MapWorld::load(&write_scene(&dir, start, r#"{"lint": {"max_errors": 0}}"#)).unwrap();
+    let reach = compute(&world, &ReachParams { radius: Some(24.0), ..Default::default() });
+    let centre = Vec2::new(tree.x as f32, tree.z as f32);
+    let why = unreachable_why(&world, &reach, centre);
+    assert!(why.contains("a generated tree or shrub covers it") && why.contains("the nearest place the player can stand and reach is"), "{why}");
+    assert!(why.contains(" at y="), "the nearest spot comes with its height: {why}");
+    assert_eq!(unreachable_why(&world, &reach, start), "", "a reachable point needs no explanation");
+    // Far outside the analysed window nothing reachable is near: cut off, not covered.
+    let far = unreachable_why(&world, &reach, start + Vec2::new(200.0, 0.0));
+    assert!(far.contains("nothing the player can reach is within 8 m"), "{far}");
+    // An authored object covers its own spot, and is named.
+    let boxed = dir.join("boxed.json");
+    let text = std::fs::read_to_string(dir.join("scene.json")).unwrap().replace(
+        "\"objects\": []",
+        &format!(
+            "\"objects\": [{{\"id\": \"altar\", \"type\": \"box\", \"size\": [1, 1, 1], \"position\": [{}, {}, {}]}}]",
+            start.x,
+            world.ground.procgen().unwrap().height(start + Vec2::new(0.0, 3.0)) + 0.5,
+            start.y + 3.0
+        ),
+    );
+    std::fs::write(&boxed, text).unwrap();
+    let w2 = MapWorld::load(&boxed).unwrap();
+    let r2 = compute(&w2, &ReachParams { radius: Some(24.0), ..Default::default() });
+    let why = unreachable_why(&w2, &r2, start + Vec2::new(0.0, 3.0));
+    assert!(why.contains("'altar'"), "{why}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

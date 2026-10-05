@@ -273,7 +273,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("world", "{wrap: {axis: x|z, min, max}, bounds: {x: [lo, hi], z: [lo, hi]}} an endless world: the axis loops every max-min metres (author one period; the seam is invisible), bounds are the invisible edge of the other axes"),
     ("sky", "{sun: {direction:[x,y,z] toward the sun, size_deg, color, glow}, haze, zenith, gradient_power} a sky dome shaded by view direction with a sun at infinity that sets behind the horizon instead of dipping under the ground; without it `background` is a screen-space gradient"),
     ("ocean", "{y, color_deep, color_shallow, foam_color, wave_amplitude, wave_frequency, wave_speed, roughness} an endless animated water plane to the horizon, translucent over a shore (reads the scene's first terrain), fading into the sky haze"),
-    ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views, sim, perf} — see SPEC; `perf` = budgets for tick time, bandwidth, promoted props (`red_engine2 perf`)"),
+    ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views, sim, perf, nav, audio} — see SPEC; every field is typed (a string is never a number) and a group or item that asserts nothing is an error; `perf` = budgets for tick time, bandwidth, promoted props (`red_engine2 perf`)"),
     ("objects", "the scene graph: array of objects (see `describe objects`)"),
     ("x-*, _*, notes, $comment", "the extension namespace: always allowed, never interpreted — put notes and tool data here. ANY OTHER unknown key is an error with a did-you-mean"),
 ];

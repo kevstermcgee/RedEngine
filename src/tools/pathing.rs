@@ -189,6 +189,50 @@ fn passage_width(colliders: &[Collider2D], foot_y: f32, at: Vec2, heading: Vec2)
     Some(l + r)
 }
 
+/// Why `p` (XZ) is not somewhere the player can stand and reach, and what to do about it, as one sentence for the person who placed something there: what covers the spot
+/// (a generated tree or shrub, or an authored object), and the nearest place the player *can* stand with its height (so the thing can be moved to it), or that nothing
+/// reachable is near (the spot is cut off from the start). Empty when `p` is in fact reachable.
+pub fn unreachable_why(world: &MapWorld, rr: &super::reach::Reach, p: Vec2) -> String {
+    if !rr.levels_at(p).is_empty() {
+        return String::new();
+    }
+    let all = world.blockers_in(p - Vec2::splat(4.0), p + Vec2::splat(4.0));
+    let authored = world.colliders.len().min(all.len());
+    // A collider the player's body (a circle of PLAYER_RADIUS) overlaps at p; the generated ones come after the authored ones in the list.
+    let covering = all.iter().enumerate().find(|(_, c)| (p - p.clamp(c.min, c.max)).length() < PLAYER_RADIUS);
+    let mut why = match covering {
+        Some((i, c)) if i >= authored => {
+            let (mid, size) = ((c.min + c.max) * 0.5, c.max.x - c.min.x);
+            format!(
+                "a generated tree or shrub covers it (centred ({:.1}, {:.1}), {:.1} m across): move whatever is there, or keep it clear of the bushes",
+                mid.x, mid.y, size
+            )
+        }
+        Some((_, c)) => match owners(world, c).into_iter().next() {
+            Some((id, _, kind)) => format!("'{id}' ({kind}) covers it"),
+            None => "a solid object covers it".to_string(),
+        },
+        None => "no object covers it, but the player cannot walk there from the start (it is behind something, or on the far side of a drop)".to_string(),
+    };
+    // The nearest standable, reachable cell.
+    let nearest = rr
+        .levels
+        .iter()
+        .enumerate()
+        .filter(|(_, lv)| !lv.is_empty())
+        .map(|(i, lv)| (rr.cell_center(i), lv[0]))
+        .map(|(c, y)| ((c - p).length(), c, y))
+        .filter(|(d, _, _)| *d <= 8.0)
+        .min_by(|a, b| a.0.total_cmp(&b.0));
+    match nearest {
+        Some((d, c, y)) => {
+            why.push_str(&format!("; the nearest place the player can stand and reach is ({:.1}, {:.1}) at y={:.2}, {:.1} m away", c.x, c.y, y, d))
+        }
+        None => why.push_str("; nothing the player can reach is within 8 m: it is cut off from the start"),
+    }
+    why
+}
+
 /// Explains where and why a walk leg stopped at `pos` (feet at `foot_y`) heading for `target`. Computes the reachability
 /// grid itself; use [`diagnose_with`] to share one you already have (it is the slow part on a big map).
 pub fn diagnose(world: &MapWorld, pos: Vec2, foot_y: f32, target: Vec2) -> Diagnosis {
