@@ -66,3 +66,7 @@ lines say what the author would do first. Anything not measured is marked *unmea
 
 ## Not verified
 Code signing (no certificate), the installers on a player's own desktop (only the runner), any physical gamepad with split-screen, and GPU timings.
+
+## Status (2026-10-05)
+- **Done:** 1 (shader validation test, ADR 2026-10-05), 2 (`affected` no longer escalates on a bare `pub mod`), 3, 9 and 14 (drift guards), 8 (`splitshot --stats`, `benches/render_trend.py`, the render-trend workflow), 4 (`game.json` `id`, ADR "A game's progress is filed under its id"; the Killchain stats file and host identity were left alone on purpose, see the ADR).
+- **Open:** 5 (torus/lathe primitive, per-object outlines), 6 (`around: player` camera, `character --sheet`), 7 (`--hour` in the live client), 10 (`Local` struct), 11 (`PauseScreen` options), 12 (`lint` on procgen worlds), 13 (engine installed once).

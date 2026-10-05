@@ -318,6 +318,8 @@ pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> 
             engine.git_ref.clone().unwrap_or_else(|| "master".into())
         ),
     };
+    // The saved-progress identity: the name in the shape an id takes (lowercase, hyphens), so a game keeps its progress wherever it is unpacked.
+    let id = Some(crate::tools::adr::slugify(name, 40)).filter(|s| crate::tools::game::valid_id(s)).unwrap_or_else(|| "game".to_string());
     let race = kind == Kind::Race;
     let blueprints = if race { "[]" } else { "[\"blueprints/main.blueprint.json\"]" };
     let group = if race { "race" } else { "duel" };
@@ -325,7 +327,7 @@ pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> 
         dir,
         "game.json",
         &format!(
-            "{{\n  \"game\": 1,\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"blueprints\": {blueprints},\n  \"maps\": [\"maps/main.json\"],\n  \"server\": {{ \"map\": \"maps/main.json\", \"port\": 27015, \"spawn_group\": \"{group}\" }}\n}}\n"
+            "{{\n  \"game\": 1,\n  \"id\": \"{id}\",\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"blueprints\": {blueprints},\n  \"maps\": [\"maps/main.json\"],\n  \"server\": {{ \"map\": \"maps/main.json\", \"port\": 27015, \"spawn_group\": \"{group}\" }}\n}}\n"
         ),
         &mut out,
     )?;
