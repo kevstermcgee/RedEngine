@@ -566,6 +566,38 @@ mod tests {
         assert_eq!(shapes(&rest), shapes(&moved), "meshes are built once from the rest pose");
     }
 
+    /// Parts `0..12` of every style on the human rig are the rig's bones, in `pose_to_parts`' order (torso, head, each arm's upper and fore, each leg's thigh, shin and foot):
+    /// `re2` welds the third-person bat to part 3 and the animation code finds a limb by its index, so a style that adds, drops or reorders a part breaks both silently.
+    /// Every bone's part sits on the bone's centre with its shape (the head a sphere, the rest capsules of the bone's own radius and length).
+    #[test]
+    fn every_style_starts_with_the_rigs_twelve_bones_in_order() {
+        use crate::player::Character::*;
+        let rig = HumanoidRig::new(1.8, 1.0);
+        let mut pose = PoseSample::default();
+        pose.l_hip = Vec3::new(30.0, 0.0, 0.0);
+        pose.r_knee = 40.0;
+        pose.l_shoulder = Vec3::new(-50.0, 0.0, 8.0);
+        pose.head = Vec3::new(10.0, 25.0, 0.0);
+        let bones = pose_to_parts(&rig, &pose);
+        assert_eq!(bones.len(), 12, "the rig has twelve bones");
+        for style in [Human, Wizard, Cowboy, Alien, Robot, Ridgeback, Boy] {
+            let look = HumanLook { style, ..HumanLook::default() };
+            let parts = human_parts(&rig, &pose, &look);
+            assert!(parts.len() > 12, "{style:?}: details follow the bones");
+            for (i, (part, bone)) in parts.iter().zip(&bones).enumerate() {
+                let (_, _, at) = part.local.to_scale_rotation_translation();
+                assert!(at.distance(bone.center) < 1e-4, "{style:?} part {i} must sit on bone {i}'s centre: {at} vs {}", bone.center);
+                match (&part.shape, i) {
+                    (PrimKind::Sphere { .. }, 1) => {}
+                    (PrimKind::Capsule { radius, height }, _) if i != 1 => {
+                        assert!((radius - bone.radius).abs() < 1e-5 && (height - bone.length).abs() < 1e-5, "{style:?} part {i} is not bone {i}'s capsule");
+                    }
+                    (shape, _) => panic!("{style:?} part {i} has shape {shape:?}: bone 1 is the head sphere, the other eleven are capsules"),
+                }
+            }
+        }
+    }
+
     #[test]
     fn human_is_about_as_tall_as_asked_and_stands_on_the_floor() {
         let parts = human_parts(&HumanoidRig::new(1.8, 1.0), &PoseSample::default(), &HumanLook::default());

@@ -778,4 +778,21 @@ mod tests {
             assert!(!src.contains("struct ObjectUniform"), "{file} defines its own `struct ObjectUniform`: it lives only in common.wgsl");
         }
     }
+
+    /// `scene.wgsl` repeats two numbers that `shadow.rs` owns (the atlas size and the cascade count); a shader that disagrees samples the wrong texel or reads past the
+    /// cascades without any error, so the text is pinned to the constants.
+    #[test]
+    fn the_shadow_numbers_in_the_shaders_are_the_ones_shadow_rs_owns() {
+        let scene = include_str!("shaders/scene.wgsl");
+        let (w, h) = crate::shadow::ATLAS;
+        let texel = format!("const ATLAS_TEXEL: vec2<f32> = vec2<f32>(1.0 / {w}.0, 1.0 / {h}.0);");
+        assert!(scene.contains(&texel), "scene.wgsl must say `{texel}` (shadow::ATLAS is {w}x{h})");
+        let n = crate::shadow::MAX_CASCADES;
+        for needle in [format!("var chosen = {n}u;"), format!("c < {n}u;"), format!("chosen == {n}u")] {
+            assert!(scene.contains(&needle), "scene.wgsl must contain `{needle}` (shadow::MAX_CASCADES is {n})");
+        }
+        for field in ["cascade_vp: array<mat4x4<f32>", "cascade_rect: array<vec4<f32>", "cascade_params: array<vec4<f32>"] {
+            assert!(COMMON.contains(&format!("{field}, {n}>")), "common.wgsl `{field}` must hold {n} cascades (shadow::MAX_CASCADES)");
+        }
+    }
 }
