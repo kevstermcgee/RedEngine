@@ -804,7 +804,8 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
 
     // Perimeter leaks: group border cells into ~4 m clusters. A world with its own edge (`world.bounds`, a looping axis) has no perimeter
     // to seal: its limit is the clamp in the player step, not a wall the flood fill could find.
-    let open_world = !world.scene.player.expanse.is_plain();
+    // An endless generated world (`procgen`) has no edge either: its flood-fill window is where the looking stopped, not a perimeter with a gap.
+    let open_world = !world.scene.player.expanse.is_plain() || world.is_endless();
     if !reach.leaks.is_empty() && !open_world {
         let mut clusters: Vec<(Vec2, usize)> = Vec::new();
         for p in &reach.leaks {

@@ -253,6 +253,47 @@ impl MapWorld {
         })
     }
 
+    /// Whether the scene is an endless generated world (a `procgen` block): ground everywhere, no edge, and trees that block the player which no authored object lists.
+    /// Analysis of such a scene cannot use "the bounds of the solid things" (there are none worth the name) or look for a perimeter to seal; it looks at a *window* of
+    /// the world around the points that matter ([`Self::analysis_box`]) and asks [`Self::blockers_in`] what stops the player there.
+    pub fn is_endless(&self) -> bool {
+        self.ground.procgen().is_some()
+    }
+
+    /// Every collider that can stop the player's body inside the XZ box `min..max`: the authored ones, then (in an endless world) the generated trunks and shrub crowns
+    /// the player's own movement collides with (`ProcgenGround::colliders_near`, the very call `sim::player` makes each tick). One answer for every tool that reasons about
+    /// where the player can stand, so reachability, routes and diagnostics agree with a real walk. Borrowed, and free, when the scene has no generated world.
+    /// Purely visual vegetation (the grass and flowers that do not block) is not here, because it does not stop the player either.
+    pub fn blockers_in(&self, min: Vec2, max: Vec2) -> std::borrow::Cow<'_, [Collider2D]> {
+        match self.ground.procgen() {
+            None => std::borrow::Cow::Borrowed(&self.colliders),
+            Some(world) => {
+                let (centre, half) = ((min + max) * 0.5, (max - min) * 0.5);
+                std::borrow::Cow::Owned(world.colliders_near(centre, half.x.max(half.y).max(0.0) + 1.0, &self.colliders))
+            }
+        }
+    }
+
+    /// The XZ box an analysis of this world should cover, as `(min, max)`. A bounded scene: its solid bounds plus `margin` (so a leak at the edge is found), widened to
+    /// hold every one of `points`. An endless world: a square of half-size `radius` around the first point (the start), widened to hold every other point with
+    /// `margin` to spare, because there is no edge to measure.
+    pub fn analysis_box(&self, points: &[Vec2], margin: f32, radius: f32) -> (Vec2, Vec2) {
+        let hold = |(mut lo, mut hi): (Vec2, Vec2), pts: &[Vec2], pad: f32| {
+            for p in pts {
+                lo = lo.min(*p - Vec2::splat(pad));
+                hi = hi.max(*p + Vec2::splat(pad));
+            }
+            (lo, hi)
+        };
+        if self.is_endless() {
+            let centre = points.first().copied().unwrap_or(self.spawn);
+            hold((centre - Vec2::splat(radius), centre + Vec2::splat(radius)), points, margin)
+        } else {
+            let (smin, smax) = self.solid_bounds();
+            hold((smin - Vec2::splat(margin), smax + Vec2::splat(margin)), points, 1.0)
+        }
+    }
+
     /// XZ bounds of everything solid (planes excluded, so a giant ground plane doesn't count).
     pub fn solid_bounds(&self) -> (Vec2, Vec2) {
         let mut min = Vec2::splat(f32::INFINITY);

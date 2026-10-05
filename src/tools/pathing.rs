@@ -200,14 +200,18 @@ pub fn diagnose(world: &MapWorld, pos: Vec2, foot_y: f32, target: Vec2) -> Diagn
 pub fn diagnose_with(world: &MapWorld, pos: Vec2, foot_y: f32, target: Vec2, rr: &super::reach::Reach) -> Diagnosis {
     let heading = (target - pos).normalize_or_zero();
     let mut blockers: Vec<Blocker> = Vec::new();
-    for c in world.colliders.iter().filter(|c| collider_blocks_at(c, foot_y)) {
+    // What is around the player: the authored colliders and, in a generated world, the trees and shrubs that stopped the real walk.
+    let around = world.blockers_in(pos - Vec2::splat(12.0), pos + Vec2::splat(12.0));
+    for c in around.iter().filter(|c| collider_blocks_at(c, foot_y)) {
         let closest = pos.clamp(c.min, c.max);
         let dist = (pos - closest).length();
         if dist > PLAYER_RADIUS + TOUCH {
             continue;
         }
         let toward = (closest - pos).normalize_or_zero();
-        let (id, top_id, kind) = owners(world, c).into_iter().next().unwrap_or(("?".into(), "?".into(), "collider".into()));
+        let unowned =
+            if world.is_endless() { ("tree".into(), "procgen".into(), "generated tree or shrub".into()) } else { ("?".into(), "?".into(), "collider".into()) };
+        let (id, top_id, kind) = owners(world, c).into_iter().next().unwrap_or(unowned);
         blockers.push(Blocker { id, top_id, kind, gap: dist - PLAYER_RADIUS, ahead: toward.dot(heading) > 0.2 || dist < 1e-3, bounds: (c.min, c.max) });
     }
     blockers.sort_by(|a, b| b.ahead.cmp(&a.ahead).then(a.gap.partial_cmp(&b.gap).unwrap_or(std::cmp::Ordering::Equal)));
@@ -217,7 +221,7 @@ pub fn diagnose_with(world: &MapWorld, pos: Vec2, foot_y: f32, target: Vec2, rr:
     let probes = [pos, pos + heading * 0.35, pos + heading * 0.7];
     let clearance = probes
         .iter()
-        .filter_map(|&p| passage_width(&world.colliders, foot_y, p, heading))
+        .filter_map(|&p| passage_width(&around, foot_y, p, heading))
         .fold(None, |m: Option<f32>, w| Some(m.map_or(w, |m| m.min(w))))
         .map(|width| Clearance { width, needed });
 
@@ -294,13 +298,14 @@ fn round2(v: Vec2) -> Vec2 {
 
 /// Grid A* from `from` to `to` for a body of `PLAYER_RADIUS + margin`. Returns the cell centres with the floor height at each.
 fn astar(world: &MapWorld, from: Vec2, from_y: f32, to: Vec2, opts: &RouteOptions, margin: f32) -> Result<Vec<(Vec2, f32)>, String> {
-    let (smin, smax) = world.solid_bounds();
-    let bmin = (smin - Vec2::splat(3.0)).min(from.min(to) - Vec2::splat(1.0));
-    let bmax = (smax + Vec2::splat(3.0)).max(from.max(to) + Vec2::splat(1.0));
-    let cell = opts.cell.max(0.05);
+    // A bounded map is planned inside its solid bounds; an endless world inside the box round the two ends with room to go around a grove (it has no bounds to use).
+    let endless = world.is_endless();
+    let (bmin, bmax) = world.analysis_box(&[from, to], if endless { 12.0 } else { 3.0 }, 0.0);
+    let cell = if endless { opts.cell.max(super::reach::ENDLESS_CELL) } else { opts.cell.max(0.05) };
     let nx = ((bmax.x - bmin.x) / cell).ceil() as usize + 1;
     let nz = ((bmax.y - bmin.y) / cell).ceil() as usize + 1;
-    let grid = ColliderGrid::with_margin(&world.colliders, bmin, bmax, margin);
+    let blockers = world.blockers_in(bmin, bmax);
+    let grid = ColliderGrid::with_margin(&blockers, bmin, bmax, margin);
     let radius = PLAYER_RADIUS + margin;
     let center = |ix: usize, iz: usize| Vec2::new(bmin.x + ix as f32 * cell, bmin.y + iz as f32 * cell);
     let cell_of = |p: Vec2| (((p.x - bmin.x) / cell).round() as isize, ((p.y - bmin.y) / cell).round() as isize);
@@ -468,7 +473,13 @@ pub fn plan_route(world: &MapWorld, from: Vec2, to: Vec2, opts: &RouteOptions) -
         let simplified: Vec<Vec2> = simplify(world, &cells).into_iter().map(round2).collect();
         let dense: Vec<Vec2> =
             cells.iter().skip(1).step_by(((0.6 / opts.cell).round() as usize).max(1)).map(|c| round2(c.0)).chain(std::iter::once(round2(to))).collect();
-        for wps in [simplified, dense] {
+        // The grid snaps the goal to a cell centre (up to half a diagonal away: 0.18 m at the endless world's 0.25 m cells), so first try the same route ending on the goal
+        // itself; the replay below accepts it only if the real physics walks it, and the snapped route and the dense one remain the fallbacks.
+        let mut exact_end = simplified.clone();
+        if let Some(last) = exact_end.last_mut() {
+            *last = round2(to);
+        }
+        for wps in [exact_end, simplified, dense] {
             let steps = walk_from(world, from, from_y, &wps);
             if steps.len() == wps.len()
                 && steps.iter().all(|s| s.reached)

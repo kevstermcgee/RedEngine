@@ -214,7 +214,7 @@
     "map_analysis": {
       "summary": "lint, reach, walk (incl. auto-planned routes), plan, tour, ray, ls/info, diff: what the map will do, answered with the game's own physics.",
       "files": ["src/tools/lint.rs", "src/tools/reach.rs", "src/tools/walk.rs", "src/tools/pathing.rs", "src/tools/plan.rs", "src/tools/sight.rs", "src/tools/world.rs", "src/tools/shots.rs", "src/tools/inspect.rs", "src/tools/diff.rs", "src/cli/analyze.rs", "src/cli/render_cmds.rs"],
-      "tests": ["lib:tools::lint", "lib:tools::reach", "lib:tools::walk", "lib:tools::plan", "house_walk", "maps_verify", "test_lab"],
+      "tests": ["lib:tools::lint", "lib:tools::reach", "lib:tools::walk", "lib:tools::plan", "house_walk", "maps_verify", "test_lab", "procgen_analysis"],
       "commands": ["red_engine2 lint examples/test_lab.json", "red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["AGENTS.md", "docs/adr/0023-walk-failures-name-their-blocker-routes-are-planned.md", "docs/adr/2026-10-03-level-states-phases-for-lint-reach-and-walk.md"],
       "depends_on": ["player_physics", "scene_format"]
@@ -228,8 +228,8 @@
     },
     "verification": {
       "summary": "`verify`: a scene's own checks (lint budget, reach, walks, objects, golden views, sim scenarios, perf) in one command.",
-      "files": ["src/tools/verify.rs", "src/tools/simrun.rs"],
-      "tests": ["lib:tools::verify", "maps_verify", "verify_map", "pickup_misses"],
+      "files": ["src/tools/verify.rs", "src/tools/simrun.rs", "src/tools/check_schema.rs"],
+      "tests": ["lib:tools::verify", "maps_verify", "verify_map", "pickup_misses", "lib:tools::check_schema", "checks_wellformed"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/2026-09-29-verification-honours-the-map.md"],
       "depends_on": ["map_analysis", "game_rules", "performance_contract"]
