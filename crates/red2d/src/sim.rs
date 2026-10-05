@@ -347,9 +347,27 @@ impl Sim {
         ))
     }
 
-    /// The pointer in world px.
+    /// The pointer in world px (through the 3D camera in a `world3d` view).
     pub fn pointer_world(&self) -> [f32; 2] {
-        [self.pointer[0] + self.cam[0], self.pointer[1] + self.cam[1]]
+        self.world_from_screen(self.pointer)
+    }
+
+    /// The pointer on the virtual screen, in px.
+    pub fn pointer_screen(&self) -> [f32; 2] {
+        self.pointer
+    }
+
+    /// A point of the virtual screen as a point of the world: the camera offset in a flat view, the ray to the ground in a 3D one.
+    pub fn world_from_screen(&self, p: [f32; 2]) -> [f32; 2] {
+        if let Some(w) = &self.def.world3d {
+            let (vw, vh) = (self.def.view.width as f32, self.def.view.height as f32);
+            let center = [self.cam[0] + vw * 0.5, self.cam[1] + vh * 0.5];
+            if let Some(q) = crate::game3d::world_point(w, &self.vars, center, self.def.view.width, self.def.view.height, p[0], p[1]) {
+                return q;
+            }
+            return center;
+        }
+        [p[0] + self.cam[0], p[1] + self.cam[1]]
     }
 
     /// Whether an action is held now.
@@ -912,7 +930,7 @@ impl Sim {
                 }
             }
         }
-        let wp = [p[0] + self.cam[0], p[1] + self.cam[1]];
+        let wp = self.world_from_screen(p);
         let clickable: Vec<&str> = def.rules.iter().filter_map(|r| if let When::Click(t) = &r.when { Some(t.as_str()) } else { None }).collect();
         let mut best: Option<(i32, u32)> = None;
         for e in self.entities.iter().filter(|e| e.alive) {
@@ -1248,6 +1266,10 @@ impl Sim {
             if let Some(e) = self.entities.iter().find(|e| e.alive && def.prefabs[e.prefab].tags.contains(tag)) {
                 c = [e.x - vw * 0.5, e.y - vh * 0.5];
             }
+        }
+        if def.world3d.is_some() {
+            // The 3D camera looks at the middle of the view and sees a different part of the world than the flat screen would: only its focus has to stay inside the world.
+            return [c[0].clamp(-vw * 0.5, def.view.world.0 - vw * 0.5), c[1].clamp(-vh * 0.5, def.view.world.1 - vh * 0.5)];
         }
         [c[0].clamp(0.0, (def.view.world.0 - vw).max(0.0)), c[1].clamp(0.0, (def.view.world.1 - vh).max(0.0))]
     }

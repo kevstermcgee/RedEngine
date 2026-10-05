@@ -1,12 +1,36 @@
 # The web platform: 2D games in the browser
 
-RedEngine has two independent axes: **presentation** (`2d` or `3d`) and **platform** (`web`, `windows`, `linux`). `red_engine2 capabilities` prints what is built for every pair; a game
+RedEngine has independent axes: **presentation** (`2d`, `3d` or `hybrid`), **platform** (`web`, `windows`, `linux`) and **distribution** (`online` = played from a URL, `install` = an app on the player's device). `red_engine2 capabilities` prints what is built for every pair; a game
 declares what it needs in its `capabilities` block and an unsupported pair fails at `validate`, naming the target and the way out. Nothing is ever downgraded silently.
 
 | | web (browser) | windows / linux |
 |---|---|---|
 | **2d** | **SUPPORTED**: `*.game2d.json` -> `web build` -> static package -> `web verify` in a real headless Chromium | PREPARED: runs headless (`sim`, `verify`, `frame`) today; a native window is not built (the app layer's `shell` could show the CPU frame) |
+| **hybrid** | **SUPPORTED**: a 2D game that draws some of itself in 3D (below); exactly the 2D row | the same as 2D |
 | **3d** | NOT SUPPORTED: needs wgpu and the engine library on WebAssembly | SUPPORTED: the existing engine |
+
+### Distribution: online and install, for every kind of game
+
+A game declares `capabilities.distribution` (default: inferred from its platforms) and every combination is checked by `capabilities`, never assumed:
+
+| | online (a URL) | install (an app on the device) |
+|---|---|---|
+| **2d / hybrid** | SUPPORTED: the static package on any host, e.g. GitHub Pages | SUPPORTED as a web app: the same package is installable (manifest, icons, service worker), works offline and keeps its saves; a native installer is PREPARED |
+| **3d** | NOT SUPPORTED yet (the wgpu engine has no browser build; the reason is printed) | SUPPORTED: the Windows installer from `game publish` |
+
+Every engine feature behaves the same in both modes for a 2D or hybrid game, because both run the identical package: simulation, rules, audio, saves, touch pad, gamepad, minimap, 3D parts. The browser keeps the player's progress in `localStorage` (`red2d:<id>`), asks for durable storage so it is not evicted, and offers a backup and a restore of the save as text.
+A 3D game reaches players by install only until the engine can run in a browser; a game that needs the browser today is built as hybrid (3D parts, one JSON file), which is the honest way to get both.
+
+### Hybrid games: 2D and 3D in one game, chosen per game
+
+A hybrid game is still one `*.game2d.json` with one simulation, one set of input actions and one save. Only **drawing** changes, and only where the game asks (`red_engine2 describe hybrid` prints the format):
+
+* `models` + a prefab `shape` of `{"model": ...}`: a thing in the 2D world drawn as a spinning 3D model (a boss in a 2D game);
+* `view3d` in `ui` or in `layers3d`: a 3D scene in a rectangle (a rotating portrait in the HUD, a 3D backdrop behind the sprites);
+* `view.world3d`: the whole world in perspective (ground or wall plane, hedges as boxes via `height3d`, sprites as camera-facing pictures), the HUD still flat on top, clicks unprojected onto the ground;
+* `minimap`: a flat map over any game, 2D or 3D.
+
+It is drawn by a small deterministic software renderer (`raster3d.rs`: flat or toon shading, one light, a depth buffer, `libm` trigonometry so native and WebAssembly agree to the bit), so it keeps the properties of the 2D path: runs headless, `web verify` compares the browser's first frame to the native one, no GPU. It is not the wgpu engine and does not try to be (no textures, one light, no shadows, small worlds). The AI picks per game; `propose` recommends hybrid when an idea wants a 3D *part* and 3D when it wants a 3D *world*. `examples/2d/warden-arena` (3D boss, HUD portrait, 3D backdrop, minimap) and `examples/2d/lantern-yard` (the world in perspective with a minimap) are the two worked examples.
 
 "Supported" means a test runs it. "Unverified" means it is built and nothing here has run it (touch, gamepad). "Prepared" means the design allows it and the code does not exist.
 
@@ -80,7 +104,7 @@ Module ownership: simulation `sim.rs` · 2D presentation `render.rs` + `font.rs`
 ## The static package
 
 ```
-index.html  runtime.js  audio-worker.js  game.wasm  assets/game.json  thumbnail.png  manifest.json
+index.html  runtime.js  sw.js  audio-worker.js  game.wasm  assets/game.json  thumbnail.png  manifest.json  manifest.webmanifest  icon-192.png  icon-512.png
 ```
 
 Deterministic: no timestamp, no absolute path, sorted files, `package_id` = hash of (path, SHA-256) pairs; the same game and the same engine give the same bytes. The manifest also holds the game's declared capabilities, screen, engine revision (`+dirty` if the tree was), and the **native** initial state hash, first-frame pixel hash and every scenario's final state hash, which `web verify` makes the browser reproduce.

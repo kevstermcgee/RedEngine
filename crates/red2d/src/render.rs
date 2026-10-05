@@ -7,6 +7,7 @@
 use crate::font;
 use crate::game::*;
 use crate::sim::Sim;
+use crate::{game3d, raster3d};
 
 /// An RGBA picture.
 #[derive(Debug, Clone, PartialEq)]
@@ -165,55 +166,287 @@ fn lighten(c: Color, by: u8) -> Color {
     [c[0].saturating_add(by), c[1].saturating_add(by), c[2].saturating_add(by), c[3]]
 }
 
+/// What is drawn in the flat world, in order.
+enum Draw {
+    Entity(usize),
+    Layer(usize),
+}
+
+fn sprite_frame(sim: &Sim, sp: &Sprite) -> usize {
+    if sp.frames.len() > 1 {
+        ((sim.tick as f32 * sp.fps / 60.0) as usize) % sp.frames.len()
+    } else {
+        0
+    }
+}
+
+/// Puts a 3D picture on the screen at `(x0, y0)`; pixels nothing was drawn on stay as they were.
+fn composite(f: &mut Frame, t: &raster3d::Target, x0: i32, y0: i32) {
+    for y in 0..t.h as i32 {
+        for x in 0..t.w as i32 {
+            let i = ((y as u32 * t.w + x as u32) * 4) as usize;
+            f.blend(x0 + x, y0 + y, [t.rgba[i], t.rgba[i + 1], t.rgba[i + 2], t.rgba[i + 3]]);
+        }
+    }
+}
+
+fn items_of<'a>(def: &'a GameDef, vars: &[f64], list: &[game3d::ModelItem]) -> Vec<raster3d::Item<'a>> {
+    list.iter()
+        .map(|m| raster3d::Item {
+            mesh: &def.models[m.model].mesh,
+            pos: m.at,
+            rot: [m.yaw.eval(vars) as f32, m.pitch.eval(vars) as f32, m.roll.eval(vars) as f32],
+            scale: m.scale,
+            tint: m.tint.map(|c| [c[0], c[1], c[2]]),
+        })
+        .collect()
+}
+
+/// A small 3D scene in a rectangle of the screen.
+fn draw_view3d(f: &mut Frame, sim: &Sim, v: &game3d::View3d) {
+    let (w, h) = (v.size[0].round().max(1.0) as u32, v.size[1].round().max(1.0) as u32);
+    let mut t = raster3d::Target::new(w, h);
+    t.clear(v.background);
+    let cam = raster3d::Camera { eye: v.eye, target: v.target, up: [0.0, 1.0, 0.0], fov: v.fov, ortho: v.ortho };
+    raster3d::render(&mut t, &cam, &v.light.light(), &items_of(&sim.def, &sim.vars, &v.items), &[]);
+    composite(f, &t, v.at[0].round() as i32, v.at[1].round() as i32);
+}
+
+/// A prefab drawn as a 3D model inside its box, as seen from a fixed camera that looks down by `elevation` degrees.
+fn draw_model_entity(f: &mut Frame, sim: &Sim, ms: &game3d::ModelShape, size: [f32; 2], c: [f32; 2]) {
+    let m = &sim.def.models[ms.model];
+    let (w, h) = (size[0].round().max(1.0) as u32, size[1].round().max(1.0) as u32);
+    let reach = (m.radius * ms.scale).max(0.001);
+    let el = ms.elevation.to_radians();
+    let d = reach * 4.0;
+    let cam = raster3d::Camera {
+        eye: [0.0, libm::sinf(el) * d, libm::cosf(el) * d],
+        target: [0.0; 3],
+        up: [0.0, 1.0, 0.0],
+        fov: 30.0,
+        ortho: Some(reach * h as f32 / w.min(h) as f32),
+    };
+    let item = raster3d::Item {
+        mesh: &m.mesh,
+        pos: [0.0; 3],
+        rot: [ms.yaw.eval(&sim.vars) as f32, ms.pitch.eval(&sim.vars) as f32, ms.roll.eval(&sim.vars) as f32],
+        scale: ms.scale,
+        tint: ms.tint.map(|c| [c[0], c[1], c[2]]),
+    };
+    let mut t = raster3d::Target::new(w, h);
+    raster3d::render(&mut t, &cam, &ms.light.light(), &[item], &[]);
+    composite(f, &t, (c[0] - w as f32 * 0.5).round() as i32, (c[1] - h as f32 * 0.5).round() as i32);
+}
+
+fn average_color(px: &[Color]) -> [u8; 3] {
+    let (mut sum, mut n) = ([0u32; 3], 0u32);
+    for p in px.iter().filter(|p| p[3] > 0) {
+        for k in 0..3 {
+            sum[k] += p[k] as u32;
+        }
+        n += 1;
+    }
+    let n = n.max(1);
+    [(sum[0] / n) as u8, (sum[1] / n) as u8, (sum[2] / n) as u8]
+}
+
+fn disc_pixels(color: Color) -> Vec<Color> {
+    const N: usize = 16;
+    (0..N * N)
+        .map(|k| {
+            let (dx, dy) = ((k % N) as f32 + 0.5 - N as f32 * 0.5, (k / N) as f32 + 0.5 - N as f32 * 0.5);
+            if dx * dx + dy * dy <= (N * N) as f32 * 0.25 {
+                color
+            } else {
+                [0; 4]
+            }
+        })
+        .collect()
+}
+
+/// What an entity is in the 3D world.
+enum Body3 {
+    Mesh { mesh: raster3d::Mesh, pos: raster3d::V3 },
+    Model { model: usize, pos: raster3d::V3, rot: raster3d::V3, scale: f32, tint: Option<[u8; 3]> },
+    Board { pos: raster3d::V3, size: [f32; 2], pixels: Vec<Color>, pw: usize, ph: usize },
+}
+
+fn body_of(sim: &Sim, w: &game3d::World3d, e: &crate::sim::Entity, p: &Prefab) -> Option<Body3> {
+    let def = &*sim.def;
+    let [sx, sy] = p.size;
+    let (x, y) = (e.x, e.y);
+    // A thing with `height3d` is a box on its footprint (on a wall the number is how thick it is).
+    let boxed = |color: [u8; 3], h: f32| {
+        let (dims, pos) = match w.plane {
+            game3d::Plane::Ground => ([sx, h, sy], w.plane.to3(x, y, h * 0.5)),
+            game3d::Plane::Wall => ([sx, sy, h], w.plane.to3(x, y, 0.0)),
+        };
+        Body3::Mesh { mesh: raster3d::Mesh { tris: raster3d::build(&raster3d::Shape::Box(dims), color) }, pos }
+    };
+    // A flat thing stands up facing the camera; its bottom edge is on the ground (on a wall, `y` is its middle).
+    let board = |pixels: Vec<Color>, pw: usize, ph: usize| {
+        let pos = match w.plane {
+            game3d::Plane::Ground => w.plane.to3(x, y, 0.0),
+            game3d::Plane::Wall => w.plane.to3(x, y + sy * 0.5, 0.0),
+        };
+        Body3::Board { pos, size: [sx, sy], pixels, pw, ph }
+    };
+    match &p.shape {
+        Shape::None | Shape::Text { .. } => None,
+        Shape::Rect { color } => Some(match p.height3d {
+            Some(h) => boxed([color[0], color[1], color[2]], h),
+            None => board(vec![*color], 1, 1),
+        }),
+        Shape::Circle { color } => Some(match p.height3d {
+            Some(h) => boxed([color[0], color[1], color[2]], h),
+            None => board(disc_pixels(*color), 16, 16),
+        }),
+        Shape::Sprite { sprite, flip, .. } => {
+            let sp = &def.sprites[*sprite];
+            let px = &sp.frames[sprite_frame(sim, sp)];
+            Some(match p.height3d {
+                Some(h) => boxed(average_color(px), h),
+                None => {
+                    let mirror = *flip == Flip::X || (*flip == Flip::Auto && e.face_left);
+                    let pixels = if mirror { (0..px.len()).map(|k| px[(k / sp.w) * sp.w + (sp.w - 1 - k % sp.w)]).collect() } else { px.clone() };
+                    board(pixels, sp.w, sp.h)
+                }
+            })
+        }
+        Shape::Model(ms) => {
+            let m = &def.models[ms.model];
+            let s = (sx.min(sy) * 0.5 / m.radius.max(0.001)) * ms.scale;
+            let lift = m.radius * s;
+            Some(Body3::Model {
+                model: ms.model,
+                pos: match w.plane {
+                    game3d::Plane::Ground => w.plane.to3(x, y, lift),
+                    game3d::Plane::Wall => w.plane.to3(x, y, 0.0),
+                },
+                rot: [ms.yaw.eval(&sim.vars) as f32, ms.pitch.eval(&sim.vars) as f32, ms.roll.eval(&sim.vars) as f32],
+                scale: s,
+                tint: ms.tint.map(|c| [c[0], c[1], c[2]]),
+            })
+        }
+    }
+}
+
+/// The whole world in perspective: the floor, then every thing as a box, a model or a camera-facing picture, then particles and text projected on top.
+fn draw_world3d(f: &mut Frame, sim: &Sim, w: &game3d::World3d, off: [f32; 2]) {
+    let def = &*sim.def;
+    let (vw, vh) = (def.view.width, def.view.height);
+    let center = [off[0] + vw as f32 * 0.5, off[1] + vh as f32 * 0.5];
+    let cam = game3d::world_camera(w, &sim.vars, center);
+    let mut t = raster3d::Target::new(vw, vh);
+    t.clear(w.sky);
+    if let Some(g) = &w.ground {
+        let (origin, n) = w.plane.surface();
+        let world = def.view.world;
+        raster3d::paint_plane(&mut t, &cam, origin, n, |p| {
+            let [x, y] = w.plane.from3(p);
+            if x < 0.0 || y < 0.0 || x > world.0 || y > world.1 {
+                return None;
+            }
+            let odd = (libm::floorf(x / g.tile) as i64 + libm::floorf(y / g.tile) as i64).rem_euclid(2) == 1;
+            Some(if odd { g.alt.unwrap_or(g.color) } else { g.color })
+        });
+    }
+    let bodies: Vec<Body3> =
+        sim.entities.iter().filter(|e| e.alive && !def.prefabs[e.prefab].hidden).filter_map(|e| body_of(sim, w, e, &def.prefabs[e.prefab])).collect();
+    let mut items = Vec::new();
+    let mut boards = Vec::new();
+    for b in &bodies {
+        match b {
+            Body3::Mesh { mesh, pos } => items.push(raster3d::Item { mesh, pos: *pos, rot: [0.0; 3], scale: 1.0, tint: None }),
+            Body3::Model { model, pos, rot, scale, tint } => {
+                items.push(raster3d::Item { mesh: &def.models[*model].mesh, pos: *pos, rot: *rot, scale: *scale, tint: *tint })
+            }
+            Body3::Board { pos, size, pixels, pw, ph } => boards.push(raster3d::Billboard { pos: *pos, size: *size, pixels, pw: *pw, ph: *ph }),
+        }
+    }
+    raster3d::render(&mut t, &cam, &w.light.light(), &items, &boards);
+    composite(f, &t, 0, 0);
+    let flat = |x: f32, y: f32, lift: f32| raster3d::project(&cam, vw, vh, w.plane.to3(x, y, lift));
+    for p in &sim.particles {
+        let Some((s, z)) = flat(p.x, p.y, 0.0) else { continue };
+        let mut c = p.color;
+        c[3] = (c[3] as f32 * (p.life / p.max_life).clamp(0.0, 1.0)) as u8;
+        let k = (w.distance / z.max(1.0)).clamp(0.2, 4.0);
+        let side = (p.size.max(1.0) * k).round().max(1.0) as i32;
+        f.rect(s[0].round() as i32 - side / 2, s[1].round() as i32 - side / 2, side, side, c);
+    }
+    for e in sim.entities.iter().filter(|e| e.alive) {
+        let p = &def.prefabs[e.prefab];
+        if let (Shape::Text { text, color, scale }, false) = (&p.shape, p.hidden) {
+            let Some((s, _)) = flat(e.x, e.y, 0.0) else { continue };
+            let t = fill_template(text, sim);
+            let tw = font::text_width(&t, *scale as i32);
+            f.text(s[0].round() as i32 - tw / 2, s[1].round() as i32 - (font::GLYPH_H * *scale as i32) / 2, &t, *scale as i32, *color);
+        }
+    }
+}
+
+/// A flat map of the world.
+fn draw_minimap(f: &mut Frame, sim: &Sim, at: [f32; 2], size: [f32; 2], colors: &[(String, Color)], back: Color, border: Color, dot: f32, viewport: bool) {
+    let def = &*sim.def;
+    let (x0, y0, w, h) = (at[0] as i32, at[1] as i32, size[0] as i32, size[1] as i32);
+    f.rect(x0, y0, w, h, back);
+    let (ww, wh) = (def.view.world.0.max(1.0), def.view.world.1.max(1.0));
+    let to = |x: f32, y: f32| [x0 as f32 + (x / ww).clamp(0.0, 1.0) * size[0], y0 as f32 + (y / wh).clamp(0.0, 1.0) * size[1]];
+    let d = dot.round().max(1.0) as i32;
+    for e in sim.entities.iter().filter(|e| e.alive) {
+        let p = &def.prefabs[e.prefab];
+        if let Some((_, c)) = colors.iter().find(|(tag, _)| p.tags.iter().any(|t| t == tag)) {
+            let s = to(e.x, e.y);
+            f.rect(s[0].round() as i32 - d / 2, s[1].round() as i32 - d / 2, d, d, *c);
+        }
+    }
+    if viewport {
+        let (a, b) = (to(sim.cam[0], sim.cam[1]), to(sim.cam[0] + def.view.width as f32, sim.cam[1] + def.view.height as f32));
+        let (rx, ry, rw, rh) = (a[0].round() as i32, a[1].round() as i32, (b[0] - a[0]).round() as i32, (b[1] - a[1]).round() as i32);
+        let c = [255, 255, 255, 200];
+        f.rect(rx, ry, rw, 1, c);
+        f.rect(rx, ry + rh - 1, rw, 1, c);
+        f.rect(rx, ry, 1, rh, c);
+        f.rect(rx + rw - 1, ry, 1, rh, c);
+    }
+    f.rect(x0, y0, w, 1, border);
+    f.rect(x0, y0 + h - 1, w, 1, border);
+    f.rect(x0, y0, 1, h, border);
+    f.rect(x0 + w - 1, y0, 1, h, border);
+}
+
 /// Draws the current state of the game at its virtual resolution.
 pub fn render(sim: &Sim) -> Frame {
     let def = &*sim.def;
     let mut f = Frame::new(def.view.width, def.view.height, def.view.background);
     let off = [sim.cam[0] - sim.shake_off[0], sim.cam[1] - sim.shake_off[1]];
-    let mut order: Vec<usize> = (0..sim.entities.len()).filter(|&i| sim.entities[i].alive && !def.prefabs[sim.entities[i].prefab].hidden).collect();
-    order.sort_by_key(|&i| (def.prefabs[sim.entities[i].prefab].layer, sim.entities[i].id));
-    for i in order {
-        let e = &sim.entities[i];
-        let p = &def.prefabs[e.prefab];
-        let (cx, cy) = (e.x - off[0], e.y - off[1]);
-        match &p.shape {
-            Shape::None => {}
-            Shape::Rect { color } => {
-                f.rect((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, p.size[1].round() as i32, *color)
-            }
-            Shape::Circle { color } => f.disc((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, *color),
-            Shape::Sprite { sprite, scale, flip } => {
-                let sp = &def.sprites[*sprite];
-                let s = *scale as i32;
-                let frame = if sp.frames.len() > 1 { ((sim.tick as f32 * sp.fps / 60.0) as usize) % sp.frames.len() } else { 0 };
-                let (x0, y0) = ((cx - (sp.w as i32 * s) as f32 * 0.5).round() as i32, (cy - (sp.h as i32 * s) as f32 * 0.5).round() as i32);
-                for (k, px) in sp.frames[frame].iter().enumerate() {
-                    if px[3] == 0 {
-                        continue;
-                    }
-                    let (mut sx, sy) = ((k % sp.w) as i32, (k / sp.w) as i32);
-                    if *flip == Flip::X || (*flip == Flip::Auto && e.face_left) {
-                        sx = sp.w as i32 - 1 - sx;
-                    }
-                    f.rect(x0 + sx * s, y0 + sy * s, s, s, *px);
-                }
-            }
-            Shape::Text { text, color, scale } => {
-                let t = fill_template(text, sim);
-                let w = font::text_width(&t, *scale as i32);
-                f.text((cx - w as f32 * 0.5).round() as i32, (cy - (font::GLYPH_H * *scale as i32) as f32 * 0.5).round() as i32, &t, *scale as i32, *color);
+    if let Some(w) = &def.world3d {
+        draw_world3d(&mut f, sim, w, off);
+    } else {
+        let mut order: Vec<(i32, u8, u32, Draw)> = (0..sim.entities.len())
+            .filter(|&i| sim.entities[i].alive && !def.prefabs[sim.entities[i].prefab].hidden)
+            .map(|i| (def.prefabs[sim.entities[i].prefab].layer, 1, sim.entities[i].id, Draw::Entity(i)))
+            .collect();
+        order.extend(def.layers3d.iter().enumerate().map(|(k, l)| (l.layer, 0, k as u32, Draw::Layer(k))));
+        order.sort_by_key(|o| (o.0, o.1, o.2));
+        for (_, _, _, d) in order {
+            match d {
+                Draw::Layer(k) => draw_view3d(&mut f, sim, &def.layers3d[k].view),
+                Draw::Entity(i) => draw_entity(&mut f, sim, &sim.entities[i], off),
             }
         }
-    }
-    for p in &sim.particles {
-        let mut c = p.color;
-        let k = (p.life / p.max_life).clamp(0.0, 1.0);
-        c[3] = (c[3] as f32 * k) as u8;
-        let s = p.size.max(1.0).round() as i32;
-        f.rect((p.x - off[0]).round() as i32 - s / 2, (p.y - off[1]).round() as i32 - s / 2, s, s, c);
+        for p in &sim.particles {
+            let mut c = p.color;
+            let k = (p.life / p.max_life).clamp(0.0, 1.0);
+            c[3] = (c[3] as f32 * k) as u8;
+            let s = p.size.max(1.0).round() as i32;
+            f.rect((p.x - off[0]).round() as i32 - s / 2, (p.y - off[1]).round() as i32 - s / 2, s, s, c);
+        }
     }
     let hover = |at: &[f32; 2], size: &[f32; 2]| {
-        sim_pointer(sim)[0] >= at[0] && sim_pointer(sim)[0] < at[0] + size[0] && sim_pointer(sim)[1] >= at[1] && sim_pointer(sim)[1] < at[1] + size[1]
+        let ptr = sim.pointer_screen();
+        ptr[0] >= at[0] && ptr[0] < at[0] + size[0] && ptr[1] >= at[1] && ptr[1] < at[1] + size[1]
     };
     for w in &def.ui {
         if !sim.widget_shown(w) {
@@ -237,6 +470,10 @@ pub fn render(sim: &Sim) -> Frame {
                 f.rect(at[0] as i32, at[1] as i32, (size[0] as f64 * k).round() as i32, size[1] as i32, *color);
             }
             WidgetKind::Panel { at, size, color } => f.rect(at[0] as i32, at[1] as i32, size[0] as i32, size[1] as i32, *color),
+            WidgetKind::View3d(v) => draw_view3d(&mut f, sim, v),
+            WidgetKind::Minimap { at, size, colors, back, border, dot, viewport } => {
+                draw_minimap(&mut f, sim, *at, *size, colors, *back, *border, *dot, *viewport)
+            }
             WidgetKind::Button { label, at, size, color, .. } => {
                 let c = if hover(at, size) { lighten(*color, 30) } else { *color };
                 f.rect(at[0] as i32, at[1] as i32, size[0] as i32, size[1] as i32, lighten(c, 50));
@@ -249,9 +486,39 @@ pub fn render(sim: &Sim) -> Frame {
     f
 }
 
-fn sim_pointer(sim: &Sim) -> [f32; 2] {
-    let w = sim.pointer_world();
-    [w[0] - sim.cam[0], w[1] - sim.cam[1]]
+fn draw_entity(f: &mut Frame, sim: &Sim, e: &crate::sim::Entity, off: [f32; 2]) {
+    let def = &*sim.def;
+    let p = &def.prefabs[e.prefab];
+    let (cx, cy) = (e.x - off[0], e.y - off[1]);
+    match &p.shape {
+        Shape::None => {}
+        Shape::Rect { color } => {
+            f.rect((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, p.size[1].round() as i32, *color)
+        }
+        Shape::Circle { color } => f.disc((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, *color),
+        Shape::Model(ms) => draw_model_entity(f, sim, ms, p.size, [cx, cy]),
+        Shape::Sprite { sprite, scale, flip } => {
+            let sp = &def.sprites[*sprite];
+            let s = *scale as i32;
+            let frame = sprite_frame(sim, sp);
+            let (x0, y0) = ((cx - (sp.w as i32 * s) as f32 * 0.5).round() as i32, (cy - (sp.h as i32 * s) as f32 * 0.5).round() as i32);
+            for (k, px) in sp.frames[frame].iter().enumerate() {
+                if px[3] == 0 {
+                    continue;
+                }
+                let (mut sx, sy) = ((k % sp.w) as i32, (k / sp.w) as i32);
+                if *flip == Flip::X || (*flip == Flip::Auto && e.face_left) {
+                    sx = sp.w as i32 - 1 - sx;
+                }
+                f.rect(x0 + sx * s, y0 + sy * s, s, s, *px);
+            }
+        }
+        Shape::Text { text, color, scale } => {
+            let t = fill_template(text, sim);
+            let w = font::text_width(&t, *scale as i32);
+            f.text((cx - w as f32 * 0.5).round() as i32, (cy - (font::GLYPH_H * *scale as i32) as f32 * 0.5).round() as i32, &t, *scale as i32, *color);
+        }
+    }
 }
 
 /// Where the virtual screen lands in a window.
@@ -419,5 +686,68 @@ mod tests {
         assert!(st.distinct_colors >= 4 && st.covered > 0.5, "{st:?}");
         // Deterministic.
         assert_eq!(render(&s), f);
+    }
+
+    fn hybrid(view_extra: &str, prefabs: &str, scene: &str, ui: &str) -> Sim {
+        let text = format!(
+            r##"{{"game2d":1,"id":"h","title":"H","description":"d",
+            "capabilities":{{"presentation":"hybrid","platforms":["web"],"networking":"offline","input":["keyboard"],"persistence":[]}},
+            "view":{{"width":160,"height":90,"background":"#000000"{view_extra}}},
+            "models":{{"m":{{"parts":[{{"shape":"box","size":[2,2,2],"color":"#ff0000"}}]}}}},
+            "prefabs":{{{prefabs}}},"scene":[{scene}],"ui":[{ui}]}}"##
+        );
+        Sim::new(Arc::new(parse(&text).unwrap_or_else(|e| panic!("{e:?}\n{text}"))), 1)
+    }
+
+    fn px(f: &Frame, x: usize, y: usize) -> Vec<u8> {
+        f.rgba[(y * f.w as usize + x) * 4..][..3].to_vec()
+    }
+
+    #[test]
+    fn a_model_is_drawn_inside_its_box_and_nowhere_else() {
+        let s = hybrid("", r##""boss":{"shape":{"model":"m","fit":[40,40],"yaw":30,"elevation":20}}"##, r#"{"prefab":"boss","at":[80,45]}"#, "");
+        let f = render(&s);
+        let c = px(&f, 80, 45);
+        assert!(c[0] > 100 && c[1] == 0 && c[2] == 0, "a red model in the middle: {c:?}");
+        assert_eq!(px(&f, 10, 10), vec![0, 0, 0], "the corner is the background");
+        assert_eq!(render(&s), f, "deterministic");
+        let st = f.stats([0, 0, 0, 255]);
+        assert!(st.covered > 0.05 && st.covered < 0.3, "{st:?}");
+    }
+
+    #[test]
+    fn a_viewport_in_the_hud_and_a_minimap_draw_where_they_are_put() {
+        let ui = r##"{"view3d":{"at":[4,4],"size":[40,40],"background":"#0000ff","camera":{"eye":[0,0,6],"target":[0,0,0]},"items":[{"model":"m"}]}},
+            {"minimap":{"at":[100,4],"size":[50,30],"colors":{"dot":"#00ff00"},"dot":4,"background":"#202020","border":"#ffffff"}}"##;
+        let s = hybrid(r#","world":[320,180]"#, r##""dot":{"tag":"dot","shape":{"rect":[4,4],"color":"#888888"}}"##, r#"{"prefab":"dot","at":[160,90]}"#, ui);
+        let f = render(&s);
+        let c = px(&f, 24, 24);
+        assert!(c[0] > 100 && c[2] == 0, "the model is in the middle of the viewport: {c:?}");
+        assert_eq!(px(&f, 6, 6), vec![0, 0, 255], "the viewport's own background");
+        assert_eq!(px(&f, 125, 19), vec![0, 255, 0], "a thing in the middle of the world is a dot in the middle of the map");
+        assert_eq!(px(&f, 100, 10), vec![255, 255, 255], "border");
+        assert_eq!(px(&f, 110, 10), vec![0x20, 0x20, 0x20], "map background");
+    }
+
+    #[test]
+    fn a_world_view_draws_the_ground_boxes_and_pictures_and_clicks_land_on_the_ground() {
+        let prefabs = r##""hedge":{"tag":"wall","shape":{"rect":[20,20],"color":"#00ff00"},"height3d":20,"body":{"type":"static"}},
+            "me":{"tag":"me","shape":{"rect":[10,10],"color":"#ff00ff"},"clamp":true}"##;
+        let view = r##","world":[320,320],"camera":{"follow":"me","lerp":1},"world3d":{"pitch":60,"distance":160,"sky":"#101010","ground":{"color":"#404040","alt":"#505050","tile":20}}"##;
+        let s = hybrid(view, prefabs, r#"{"prefab":"me","at":[160,160],"id":"me"},{"prefab":"hedge","at":[100,160]}"#, "");
+        let f = render(&s);
+        let st = f.stats([0, 0, 0, 255]);
+        assert!(st.distinct_colors >= 5 && st.covered > 0.6, "sky, two ground tones, a box and a picture: {st:?}");
+        assert_eq!(render(&s), f, "deterministic");
+        assert!((0..90).any(|y| (0..160).any(|x| px(&f, x, y) == vec![255, 0, 255])), "the picture of `me` is drawn");
+        assert!((0..90).any(|y| (0..160).any(|x| px(&f, x, y)[1] > 0 && px(&f, x, y)[0] == 0)), "the hedge box is drawn");
+        // Looking at the thing in the middle of the screen: the pointer there is over its feet.
+        let mut s = s;
+        s.set_pointer(80.0, 45.0);
+        let w = s.pointer_world();
+        assert!((w[0] - 160.0).abs() < 25.0 && (w[1] - 160.0).abs() < 25.0, "the centre of the screen is the point looked at: {w:?}");
+        // Higher on the screen is farther from the camera: smaller y in the world.
+        s.set_pointer(80.0, 20.0);
+        assert!(s.pointer_world()[1] < w[1] - 20.0, "{:?} vs {w:?}", s.pointer_world());
     }
 }

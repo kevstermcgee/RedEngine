@@ -35,7 +35,7 @@ pub fn parse_color(s: &str) -> Option<Color> {
     }
 }
 
-fn color_ok(v: &Value) -> Result<(), String> {
+pub(crate) fn color_ok(v: &Value) -> Result<(), String> {
     match v.as_str() {
         Some(s) if parse_color(s).is_some() => Ok(()),
         Some(s) => Err(format!("`{s}` is not a color: write #rgb, #rrggbb or #rrggbbaa, like \"#ffcc00\"")),
@@ -121,6 +121,8 @@ pub enum Shape {
         /// Colour.
         color: Color,
     },
+    /// A 3D model, drawn into the thing's box (a hybrid game).
+    Model(crate::game3d::ModelShape),
     /// Text, with `{var}` placeholders.
     Text {
         /// The template.
@@ -264,6 +266,8 @@ pub struct Prefab {
     pub clamp: bool,
     /// Not drawn.
     pub hidden: bool,
+    /// In a `world3d` view: stands this tall (a box with the thing's footprint). None = a flat billboard.
+    pub height3d: Option<f32>,
 }
 
 /// A number or an expression over the variables.
@@ -496,6 +500,25 @@ pub enum WidgetKind {
         /// Colour.
         color: Color,
     },
+    /// A small 3D scene in a rectangle (a hybrid game).
+    View3d(crate::game3d::View3d),
+    /// A flat map of the world: a dot for each thing with a listed tag.
+    Minimap {
+        /// Top-left.
+        at: [f32; 2],
+        /// Size.
+        size: [f32; 2],
+        /// Tag and dot colour; the first listed tag a thing has decides its colour.
+        colors: Vec<(String, Color)>,
+        /// Background.
+        back: Color,
+        /// Border.
+        border: Color,
+        /// Dot side in px.
+        dot: f32,
+        /// Outline the part of the world the camera shows.
+        viewport: bool,
+    },
     /// A clickable button.
     Button {
         /// Its id (a scenario can click it by id).
@@ -705,10 +728,40 @@ pub struct GameDef {
     pub scenarios: Vec<Scenario>,
     /// Browser input checks.
     pub browser: Vec<BrowserCheck>,
+    /// 3D models (a hybrid game).
+    pub models: Vec<crate::game3d::Model>,
+    /// 3D viewports drawn among the entities.
+    pub layers3d: Vec<crate::game3d::Layer3d>,
+    /// The whole world seen in 3D.
+    pub world3d: Option<crate::game3d::World3d>,
     /// The touch controller a phone shows below the game (written in `controls`, else chosen from what the game reads).
     pub controls: crate::controls::Controls,
     /// Hash of the game text: its revision.
     pub rev: String,
+}
+
+impl GameDef {
+    /// The 3D elements the game uses, by name: a hybrid game has at least one.
+    pub fn elements_3d(&self) -> Vec<&'static str> {
+        let mut v = Vec::new();
+        if self.prefabs.iter().any(|p| matches!(p.shape, Shape::Model(_))) {
+            v.push("a prefab drawn as a 3D model");
+        }
+        if self.ui.iter().any(|w| matches!(w.kind, WidgetKind::View3d(_))) {
+            v.push("a `view3d` widget");
+        }
+        if !self.layers3d.is_empty() {
+            v.push("`layers3d`");
+        }
+        if self.world3d.is_some() {
+            v.push("`view.world3d`");
+        }
+        v
+    }
+    /// Whether any 3D element is used.
+    pub fn uses_3d(&self) -> bool {
+        !self.elements_3d().is_empty()
+    }
 }
 
 /// The built-in variables after the declared ones.
@@ -744,6 +797,8 @@ pub const ROOT: &[&str] = &[
     "ui",
     "rules",
     "controls",
+    "models",
+    "layers3d",
     "checks",
 ];
 
@@ -756,22 +811,22 @@ pub fn revision(text: &str) -> String {
     format!("{:016x}", fnv(text))
 }
 
-struct Ctx {
-    errs: Vec<String>,
+pub(crate) struct Ctx {
+    pub(crate) errs: Vec<String>,
 }
 
 impl Ctx {
-    fn err(&mut self, path: impl Into<String>, msg: impl Into<String>) {
+    pub(crate) fn err(&mut self, path: impl Into<String>, msg: impl Into<String>) {
         self.errs.push(format!("{}: {}", path.into(), msg.into()));
     }
-    fn obj<'a>(&mut self, path: &str, v: &'a Value) -> Option<&'a Map<String, Value>> {
+    pub(crate) fn obj<'a>(&mut self, path: &str, v: &'a Value) -> Option<&'a Map<String, Value>> {
         let o = v.as_object();
         if o.is_none() {
             self.err(path, format!("expected an object, got {}", describe_value(v)));
         }
         o
     }
-    fn near(name: &str, all: impl Iterator<Item = String>) -> String {
+    pub(crate) fn near(name: &str, all: impl Iterator<Item = String>) -> String {
         let all: Vec<String> = all.collect();
         let near = crate::suggest::suggest(name, all.iter().map(String::as_str));
         let did = near.first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
@@ -779,11 +834,11 @@ impl Ctx {
     }
 }
 
-fn num(v: &Value) -> Option<f64> {
+pub(crate) fn num(v: &Value) -> Option<f64> {
     v.as_f64().filter(|n| n.is_finite())
 }
 
-fn pair(v: &Value) -> Option<[f32; 2]> {
+pub(crate) fn pair(v: &Value) -> Option<[f32; 2]> {
     let a = v.as_array()?;
     (a.len() == 2).then(|| Some([num(&a[0])? as f32, num(&a[1])? as f32]))?
 }
@@ -928,6 +983,7 @@ const PREFAB_FIELDS: &[Field] = &[
     opt("emit", Ty::Custom(object_ok), "a continuous particle emitter"),
     opt("clamp", Ty::Bool, "keep inside the world"),
     opt("hidden", Ty::Bool, "not drawn"),
+    opt("height3d", Ty::Num(Some((0.5, 1000.0))), "in a `world3d` view the thing stands this tall (a box on its footprint); omitted = a flat billboard"),
 ];
 
 fn object_ok(v: &Value) -> Result<(), String> {
@@ -940,7 +996,8 @@ fn tag_value_ok(v: &Value) -> Result<(), String> {
     tags_of(Some(v)).map(|_| ())
 }
 
-const SHAPE_KEYS: &[&str] = &["sprite", "rect", "circle", "text", "color", "scale", "flip"];
+const SHAPE_KEYS: &[&str] =
+    &["sprite", "rect", "circle", "text", "model", "color", "scale", "flip", "fit", "yaw", "pitch", "roll", "elevation", "tint", "light"];
 
 fn color_of(ctx: &mut Ctx, path: &str, o: &Map<String, Value>, default: Color) -> Color {
     match o.get("color") {
@@ -990,18 +1047,25 @@ fn text_size(text: &str, scale: u32) -> [f32; 2] {
     [n * 6.0 * scale as f32, 7.0 * scale as f32]
 }
 
-fn parse_shape(ctx: &mut Ctx, path: &str, v: &Value, sprites: &[Sprite]) -> (Shape, [f32; 2]) {
+fn parse_shape(ctx: &mut Ctx, path: &str, v: &Value, sprites: &[Sprite], models: &[crate::game3d::Model], names: &Names) -> (Shape, [f32; 2]) {
     let Some(o) = ctx.obj(path, v) else { return (Shape::None, [8.0, 8.0]) };
     check_keys(&mut ctx.errs, path, o, SHAPE_KEYS);
-    let kinds: Vec<&str> = ["sprite", "rect", "circle", "text"].into_iter().filter(|k| o.contains_key(*k)).collect();
+    let kinds: Vec<&str> = ["sprite", "rect", "circle", "text", "model"].into_iter().filter(|k| o.contains_key(*k)).collect();
     if kinds.len() != 1 {
         ctx.err(
             path,
-            format!("give exactly one of sprite, rect, circle, text (found {})", if kinds.is_empty() { "none".to_string() } else { kinds.join(" and ") }),
+            format!(
+                "give exactly one of sprite, rect, circle, text, model (found {})",
+                if kinds.is_empty() { "none".to_string() } else { kinds.join(" and ") }
+            ),
         );
         return (Shape::None, [8.0, 8.0]);
     }
     match kinds[0] {
+        "model" => match crate::game3d::parse_model_shape(ctx, path, o, models, names) {
+            Some((ms, fit)) => (Shape::Model(ms), fit),
+            None => (Shape::None, [48.0, 48.0]),
+        },
         "sprite" => {
             let name = o["sprite"].as_str().unwrap_or("");
             let scale = scale_of(ctx, path, o);
@@ -1184,13 +1248,13 @@ fn parse_emit(ctx: &mut Ctx, path: &str, v: &Value) -> Option<Emitter> {
     })
 }
 
-struct Names<'a> {
-    vars: &'a [String],
-    n_declared: usize,
-    sounds: &'a [SoundDef],
-    prefabs: &'a [String],
-    ids: &'a [String],
-    tags: &'a [String],
+pub(crate) struct Names<'a> {
+    pub(crate) vars: &'a [String],
+    pub(crate) n_declared: usize,
+    pub(crate) sounds: &'a [SoundDef],
+    pub(crate) prefabs: &'a [String],
+    pub(crate) ids: &'a [String],
+    pub(crate) tags: &'a [String],
 }
 
 fn expr(ctx: &mut Ctx, path: &str, src: &str, names: &Names) -> Option<Expr> {
@@ -1203,7 +1267,7 @@ fn expr(ctx: &mut Ctx, path: &str, src: &str, names: &Names) -> Option<Expr> {
     }
 }
 
-fn val(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Val> {
+pub(crate) fn val(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Val> {
     match v {
         Value::Number(n) => n.as_f64().filter(|x| x.is_finite()).map(Val::Num),
         Value::Bool(b) => Some(Val::Num(f64::from(*b))),
@@ -1636,7 +1700,7 @@ fn scale_ok(v: &Value) -> Result<(), String> {
     v.as_u64().filter(|s| (1..=16).contains(s)).map(|_| ()).ok_or_else(|| format!("expected a whole number from 1 to 16, got {}", describe_value(v)))
 }
 
-fn parse_widget(ctx: &mut Ctx, i: usize, v: &Value, names: &Names) -> Option<Widget> {
+fn parse_widget(ctx: &mut Ctx, i: usize, v: &Value, names: &Names, models: &[crate::game3d::Model], screen: [f32; 2]) -> Option<Widget> {
     let path = format!("ui[{i}]");
     let o = ctx.obj(&path, v)?;
     let kinds: Vec<&str> = ["text", "bar", "panel", "button"].into_iter().filter(|k| o.contains_key(*k)).collect();
@@ -1649,6 +1713,57 @@ fn parse_widget(ctx: &mut Ctx, i: usize, v: &Value, names: &Names) -> Option<Wid
     };
     let before = ctx.errs.len();
     let col = |o: &Map<String, Value>, k: &str, d: Color| o.get(k).and_then(Value::as_str).and_then(parse_color).unwrap_or(d);
+    if let Some(vv) = o.get("view3d") {
+        check_keys(&mut ctx.errs, &path, o, &["view3d", "show"]);
+        let v3 = crate::game3d::parse_view3d(ctx, &format!("{path}.view3d"), vv, models, names, screen)?;
+        return Some(Widget { kind: WidgetKind::View3d(v3), show });
+    }
+    if let Some(mv) = o.get("minimap") {
+        check_keys(&mut ctx.errs, &path, o, &["minimap", "show"]);
+        let mp = format!("{path}.minimap");
+        let inner = ctx.obj(&mp, mv)?;
+        check_fields(
+            &mut ctx.errs,
+            &mp,
+            inner,
+            &[
+                req("at", Ty::Nums(&[2]), "[x, y] top-left"),
+                req("size", Ty::Nums(&[2]), "[w, h]"),
+                req("colors", Ty::Custom(object_ok), "{ \"player\": \"#ffffff\", \"enemy\": \"#ff4040\" }: a dot for each thing with that tag"),
+                opt("background", Ty::Custom(color_ok), "default dark"),
+                opt("border", Ty::Custom(color_ok), "default grey"),
+                opt("dot", Ty::Num(Some((1.0, 16.0))), "dot side in px, default 2"),
+                opt("viewport", Ty::Bool, "outline what the camera shows"),
+            ],
+        );
+        let mut colors = Vec::new();
+        if let Some(c) = inner.get("colors").and_then(Value::as_object) {
+            for (tag, cv) in c {
+                if !names.tags.iter().any(|t| t == tag) {
+                    ctx.err(format!("{mp}.colors.{tag}"), format!("no tag `{tag}`{}", Ctx::near(tag, names.tags.iter().cloned())));
+                } else if let Some(color) = cv.as_str().and_then(parse_color) {
+                    colors.push((tag.clone(), color));
+                } else {
+                    ctx.err(format!("{mp}.colors.{tag}"), format!("expected a color string like \"#ffcc00\", got {}", describe_value(cv)));
+                }
+            }
+        }
+        if ctx.errs.len() > before {
+            return None;
+        }
+        return Some(Widget {
+            kind: WidgetKind::Minimap {
+                at: pair(&inner["at"])?,
+                size: pair(&inner["size"])?,
+                colors,
+                back: col(inner, "background", [10, 14, 24, 200]),
+                border: col(inner, "border", [90, 104, 140, 255]),
+                dot: inner.get("dot").and_then(num).unwrap_or(2.0) as f32,
+                viewport: inner.get("viewport").and_then(Value::as_bool).unwrap_or(false),
+            },
+            show,
+        });
+    }
     let kind = if flat_text {
         check_fields(&mut ctx.errs, &path, o, TEXT_FIELDS);
         if ctx.errs.len() > before {
@@ -1987,8 +2102,8 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         ctx.errs.push(p.to_string());
     }
     if let Some(c) = &caps {
-        if c.presentation != caps::Presentation::TwoD {
-            ctx.err("capabilities.presentation", "a `game2d` file is a 2D game: write \"2d\" (3D games are scenes, `red_engine2 describe scene`)");
+        if !matches!(c.presentation, caps::Presentation::TwoD | caps::Presentation::Hybrid) {
+            ctx.err("capabilities.presentation", "a `game2d` file is a 2D or hybrid game: write \"2d\", or \"hybrid\" if it uses 3D elements (full 3D games are scenes, `red_engine2 describe scene`)");
         }
         for p in caps::check(c) {
             ctx.errs.push(p.to_string());
@@ -2012,6 +2127,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                         opt("scale", Ty::OneOf(&["fit", "integer"]), "fit: any size; integer: whole-number scale for crisp pixels"),
                         opt("world", Ty::Nums(&[2]), "[w, h] of the world when it is bigger than the screen"),
                         opt("camera", Ty::Custom(object_ok), "{ \"follow\": tag, \"lerp\": 0.15 }"),
+                        opt("world3d", Ty::Custom(object_ok), "draw the whole world in 3D: { \"pitch\": 55, \"distance\": 150, \"ground\": {...} }"),
                     ],
                 );
                 view.width = o.get("width").and_then(Value::as_u64).unwrap_or(320) as u32;
@@ -2049,6 +2165,9 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             }
         }
     }
+
+    // 3D models (a hybrid game)
+    let models = crate::game3d::parse_models(&mut ctx, root, &sprites);
 
     // sounds and music
     let mut sounds = Vec::new();
@@ -2242,6 +2361,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
     }
 
     // prefabs: pass 2
+    let pf_names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags };
     let mut prefabs = Vec::new();
     if let Some(o) = root.get("prefabs").and_then(Value::as_object) {
         for (name, def) in o {
@@ -2252,7 +2372,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             let Some(d) = ctx.obj(&path, def) else { continue };
             check_fields(&mut ctx.errs, &path, d, PREFAB_FIELDS);
             let (shape, shape_size) = match d.get("shape") {
-                Some(s) => parse_shape(&mut ctx, &format!("{path}.shape"), s, &sprites),
+                Some(s) => parse_shape(&mut ctx, &format!("{path}.shape"), s, &sprites, &models, &pf_names),
                 None => (Shape::None, [8.0, 8.0]),
             };
             if let Shape::Text { text, .. } = &shape {
@@ -2294,6 +2414,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 emit: d.get("emit").and_then(|e| parse_emit(&mut ctx, &format!("{path}.emit"), e)),
                 clamp: d.get("clamp").and_then(Value::as_bool).unwrap_or(false),
                 hidden: d.get("hidden").and_then(Value::as_bool).unwrap_or(false),
+                height3d: d.get("height3d").and_then(num).map(|h| h as f32),
             });
         }
     }
@@ -2316,6 +2437,33 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
     }
 
     let names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags };
+
+    // 3D world view and viewports among the entities
+    let world3d = root.get("view").and_then(|v| v.get("world3d")).and_then(|w| crate::game3d::parse_world3d(&mut ctx, w, &names));
+    let mut layers3d = Vec::new();
+    if let Some(lv) = root.get("layers3d") {
+        match lv.as_array() {
+            Some(list) => {
+                for (i, item) in list.iter().enumerate() {
+                    let path = format!("layers3d[{i}]");
+                    let Some(o) = ctx.obj(&path, item) else { continue };
+                    check_keys(&mut ctx.errs, &path, o, &["layer", "view3d"]);
+                    let layer = o.get("layer").and_then(Value::as_i64).unwrap_or(-1) as i32;
+                    match o.get("view3d") {
+                        Some(vv) => {
+                            if let Some(v3) =
+                                crate::game3d::parse_view3d(&mut ctx, &format!("{path}.view3d"), vv, &models, &names, [view.width as f32, view.height as f32])
+                            {
+                                layers3d.push(crate::game3d::Layer3d { layer, view: v3 });
+                            }
+                        }
+                        None => ctx.err(&path, "needs `view3d`: {\"layer\": -5, \"view3d\": {\"camera\": {...}, \"items\": [...]}}"),
+                    }
+                }
+            }
+            None => ctx.err("layers3d", format!("expected a list, got {}", describe_value(lv))),
+        }
+    }
 
     // persist
     let mut persist = Vec::new();
@@ -2343,7 +2491,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             Some(list) => {
                 let mut button_ids: Vec<String> = Vec::new();
                 for (i, w) in list.iter().enumerate() {
-                    if let Some(w) = parse_widget(&mut ctx, i, w, &names) {
+                    if let Some(w) = parse_widget(&mut ctx, i, w, &names, &models, [view.width as f32, view.height as f32]) {
                         if let WidgetKind::Text { text, .. } = &w.kind {
                             check_template(&mut ctx, &format!("ui[{i}].text"), text, &names);
                         }
@@ -2480,6 +2628,31 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         let uses_pointer = prefabs.iter().any(|p| matches!(p.mv, Move::Pointer { .. }))
             || rules.iter().any(|r| matches!(&r.when, When::Click(_)))
             || ui.iter().any(|w| matches!(&w.kind, WidgetKind::Button { .. }));
+        let mut elements: Vec<&str> = Vec::new();
+        if prefabs.iter().any(|p| matches!(p.shape, Shape::Model(_))) {
+            elements.push("a prefab drawn as a 3D model (`shape.model`)");
+        }
+        if ui.iter().any(|w| matches!(w.kind, WidgetKind::View3d(_))) {
+            elements.push("a `view3d` widget");
+        }
+        if !layers3d.is_empty() {
+            elements.push("`layers3d`");
+        }
+        if world3d.is_some() {
+            elements.push("`view.world3d`");
+        }
+        if !elements.is_empty() && c.presentation == caps::Presentation::TwoD {
+            ctx.err(
+                "capabilities.presentation",
+                format!(
+                    "the game uses 3D elements ({}) but declares \"2d\": declare \"hybrid\" so tools and players know it mixes 2D and 3D",
+                    elements.join(", ")
+                ),
+            );
+        }
+        if elements.is_empty() && c.presentation == caps::Presentation::Hybrid {
+            ctx.err("capabilities.presentation", "declares \"hybrid\" but uses no 3D element (a prefab `shape.model`, a `view3d` widget, `layers3d` or `view.world3d`): declare \"2d\", or add the 3D element that makes it hybrid");
+        }
         if uses_keys && !c.input.contains(&Input::Keyboard) {
             ctx.err(
                 "capabilities.input",
@@ -2533,6 +2706,9 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         tags,
         scenarios,
         browser,
+        models,
+        layers3d,
+        world3d,
         controls: controls.expect("controls parsed when there are no errors"),
         rev: revision(text),
     })

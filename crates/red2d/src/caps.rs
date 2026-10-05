@@ -16,6 +16,15 @@ pub enum Presentation {
     TwoD,
     /// The 3D renderer (wgpu) and the authoritative simulation.
     ThreeD,
+    /// A 2D game that also uses 3D elements (models, 3D viewports, a 3D view of its world) drawn by the portable software renderer: it runs wherever a 2D game runs.
+    Hybrid,
+}
+
+impl Presentation {
+    /// Whether this is drawn by the portable runtime (`red2d`): 2D and hybrid games share everything but a few drawing calls.
+    pub fn portable(self) -> bool {
+        matches!(self, Presentation::TwoD | Presentation::Hybrid)
+    }
 }
 
 /// Where a game runs.
@@ -85,7 +94,7 @@ macro_rules! names {
         }
     };
 }
-names!(Presentation { TwoD => "2d", ThreeD => "3d" });
+names!(Presentation { TwoD => "2d", ThreeD => "3d", Hybrid => "hybrid" });
 names!(Platform { Web => "web", Windows => "windows", Linux => "linux", MacOs => "macos" });
 names!(Networking { Offline => "offline", Authoritative => "authoritative" });
 names!(Input { Keyboard => "keyboard", Mouse => "mouse", Touch => "touch", Gamepad => "gamepad" });
@@ -158,15 +167,17 @@ impl Support {
 
 /// What RedEngine delivers for a presentation on a platform. (Networking is judged by [`networking_support`].)
 pub fn support(presentation: Presentation, platform: Platform) -> Support {
+    // A hybrid game is a 2D game that also draws some 3D with the portable renderer: it is supported exactly where a 2D game is.
+    let presentation = if presentation == Presentation::Hybrid { Presentation::TwoD } else { presentation };
     use Platform::*;
     use Presentation::*;
     match (presentation, platform) {
-        (TwoD, Web) => Support::Supported,
-        (TwoD, Windows | Linux) => Support::Prepared(
+        (TwoD | Hybrid, Web) => Support::Supported,
+        (TwoD | Hybrid, Windows | Linux) => Support::Prepared(
             "a native window for 2D games is not built yet. `red_engine2 frame`/`sim`/`verify` already run a 2D game natively with no window, and the same game plays in a browser; \
              a windowed player belongs to the app layer (`red_engine2::app::shell`), where a 2D game would show the CPU frame",
         ),
-        (TwoD, MacOs) | (ThreeD, MacOs) => Support::NotSupported("no macOS build or test exists; supported platforms are web (2D games), windows and linux (3D games)"),
+        (TwoD | Hybrid, MacOs) | (ThreeD, MacOs) => Support::NotSupported("no macOS build or test exists; supported platforms are web (2D games), windows and linux (3D games)"),
         (ThreeD, Windows | Linux) => Support::Supported,
         (ThreeD, Web) => Support::NotSupported(
             "3D games need the wgpu renderer and the engine library, neither of which builds for WebAssembly yet. Browser games are 2D: declare `presentation: \"2d\"`, \
@@ -177,6 +188,8 @@ pub fn support(presentation: Presentation, platform: Platform) -> Support {
 
 /// What RedEngine delivers for a networking mode in a presentation on a platform.
 pub fn networking_support(presentation: Presentation, platform: Platform, networking: Networking) -> Support {
+    // A hybrid game is a 2D game that also draws some 3D with the portable renderer: it is supported exactly where a 2D game is.
+    let presentation = if presentation == Presentation::Hybrid { Presentation::TwoD } else { presentation };
     match (networking, presentation, platform) {
         (Networking::Offline, _, _) => Support::Supported,
         (Networking::Authoritative, _, Platform::Web) => Support::NotSupported(
@@ -184,7 +197,7 @@ pub fn networking_support(presentation: Presentation, platform: Platform, networ
              (WebTransport, or a WebSocket relay in front of the existing server) is architecturally prepared, since the simulation does not depend on the transport, but it is \
              not implemented yet",
         ),
-        (Networking::Authoritative, Presentation::TwoD, _) => Support::NotSupported(
+        (Networking::Authoritative, Presentation::TwoD | Presentation::Hybrid, _) => Support::NotSupported(
             "2D games are offline: the authoritative server runs the 3D simulation (`MatchSim`), and there is no 2D netcode. Declare `networking: \"offline\"`, or make a 3D game",
         ),
         (Networking::Authoritative, Presentation::ThreeD, _) => Support::Supported,
@@ -193,6 +206,8 @@ pub fn networking_support(presentation: Presentation, platform: Platform, networ
 
 /// What RedEngine delivers for an input method on a platform.
 pub fn input_support(presentation: Presentation, platform: Platform, input: Input) -> Support {
+    // A hybrid game is a 2D game that also draws some 3D with the portable renderer: it is supported exactly where a 2D game is.
+    let presentation = if presentation == Presentation::Hybrid { Presentation::TwoD } else { presentation };
     match (input, presentation, platform) {
         (Input::Keyboard | Input::Mouse, _, _) => Support::Supported,
         // Touch: `web verify` drives a phone-sized emulated device with real touch events (a pad below the game, sliding thumbs, two thumbs at once, taps on the picture).
@@ -208,6 +223,8 @@ pub fn input_support(presentation: Presentation, platform: Platform, input: Inpu
 
 /// What RedEngine delivers for saving on a platform (the same two kinds of data everywhere; only the place differs).
 pub fn persistence_support(presentation: Presentation, platform: Platform, _kind: Persistence) -> Support {
+    // A hybrid game is a 2D game that also draws some 3D with the portable renderer: it is supported exactly where a 2D game is.
+    let presentation = if presentation == Presentation::Hybrid { Presentation::TwoD } else { presentation };
     match (presentation, platform) {
         (Presentation::TwoD, Platform::Web) => Support::Supported,
         (Presentation::ThreeD, Platform::Windows | Platform::Linux) => Support::Supported,
@@ -217,20 +234,22 @@ pub fn persistence_support(presentation: Presentation, platform: Platform, _kind
 
 /// What RedEngine delivers for a way of reaching players, for a presentation on a platform.
 pub fn distribution_support(presentation: Presentation, platform: Platform, how: Distribution) -> Support {
+    // A hybrid game is a 2D game that also draws some 3D with the portable renderer: it is supported exactly where a 2D game is.
+    let presentation = if presentation == Presentation::Hybrid { Presentation::TwoD } else { presentation };
     use Distribution::*;
     use Platform::*;
     use Presentation::*;
     match (presentation, platform, how) {
-        (TwoD, Web, Online) => Support::Supported,
+        (TwoD | Hybrid, Web, Online) => Support::Supported,
         // An installable, offline-capable web app: the package carries a web app manifest, icons and a service worker; `web verify` checks installability and an offline reload.
-        (TwoD, Web, Install) => Support::Supported,
+        (TwoD | Hybrid, Web, Install) => Support::Supported,
         (ThreeD, Windows, Install) => Support::Supported,
         (ThreeD, Linux, Install) => Support::Unverified("the portable build packages for Linux (`package`), but the installer, the updater and the download page are Windows-only today"),
         (ThreeD, Windows | Linux, Online) => Support::NotSupported(
             "a 3D game cannot be played from a URL: the 3D renderer and engine library do not run in a browser yet. Ship it as an installable game (`install`), or build the game as a 2D/hybrid game for the browser",
         ),
-        (TwoD, Windows | Linux, Install) => Support::Prepared("a native installer for 2D games needs the native window, which is not built; the web app (`web` + `install`) installs on Windows, Linux, macOS, Android and iOS"),
-        (TwoD, Windows | Linux, Online) => Support::NotSupported("`online` means a URL, which is the `web` platform: add \"web\" to platforms"),
+        (TwoD | Hybrid, Windows | Linux, Install) => Support::Prepared("a native installer for 2D games needs the native window, which is not built; the web app (`web` + `install`) installs on Windows, Linux, macOS, Android and iOS"),
+        (TwoD | Hybrid, Windows | Linux, Online) => Support::NotSupported("`online` means a URL, which is the `web` platform: add \"web\" to platforms"),
         (_, MacOs, _) => Support::NotSupported("no macOS build or test exists"),
         (ThreeD, Web, _) => Support::NotSupported("3D games do not run in a browser yet"),
     }

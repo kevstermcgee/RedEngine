@@ -285,3 +285,38 @@ fn every_example_has_a_phone_controller_and_the_mistakes_are_refused() {
         &["`touch` is not declared"],
     );
 }
+
+#[test]
+fn hybrid_games_use_3d_where_asked_and_everything_else_stays_2d() {
+    use red2d::game::parse;
+    for name in ["warden-arena", "lantern-yard"] {
+        let text = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("examples/2d/{name}.game2d.json"))).unwrap();
+        let d = parse(&text).unwrap();
+        assert_eq!(d.caps.presentation, red2d::caps::Presentation::Hybrid, "{name}");
+        assert!(d.uses_3d() && d.ui.iter().any(|w| matches!(w.kind, red2d::game::WidgetKind::Minimap { .. })), "{name} has a 3D element and a minimap");
+    }
+    let q = |w: &[&str]| game2d::capabilities(None, &w.iter().map(|s| s.to_string()).collect::<Vec<_>>()).unwrap();
+    let r = q(&["hybrid", "web"]);
+    assert!(
+        r.ok && r.text.contains("SUPPORTED") && r.text.contains("online distribution: SUPPORTED") && r.text.contains("install distribution: SUPPORTED"),
+        "{}",
+        r.text
+    );
+    let r = q(&["3d", "windows", "install"]);
+    assert!(r.ok && r.text.contains("install distribution: SUPPORTED") && !r.text.contains("online distribution"), "{}", r.text);
+    let r = q(&["3d", "web", "online"]);
+    assert!(!r.ok && r.text.contains("NOT SUPPORTED"), "{}", r.text);
+}
+
+#[test]
+fn a_3d_element_needs_the_hybrid_declaration_and_its_mistakes_are_named() {
+    // A model in a game that says it is 2D: refused, with the way out.
+    refused(&mutate("warden-arena", |g| g["capabilities"]["presentation"] = json!("2d")), &["uses 3D elements", "shape.model", "declare \"hybrid\""]);
+    // A hybrid game with nothing 3D in it is refused too: declare what it is.
+    refused(&mutate("coin-dash", |g| g["capabilities"]["presentation"] = json!("hybrid")), &["hybrid", "no 3D element"]);
+    refused(&mutate("warden-arena", |g| g["models"]["warden"]["parts"][0]["shape"] = json!("bos")), &["bos", "did you mean `box`"]);
+    refused(&mutate("warden-arena", |g| g["prefabs"]["warden"]["shape"]["model"] = json!("wardn")), &["no model `wardn`", "did you mean `warden`"]);
+    refused(&mutate("lantern-yard", |g| g["view"]["world3d"]["plane"] = json!("floor")), &["\"ground\"", "\"wall\""]);
+    refused(&mutate("warden-arena", |g| g["ui"][5]["view3d"]["camera"]["eye"] = json!([0, 1.5, 0])), &["same point"]);
+    refused(&mutate("warden-arena", |g| g["ui"][6]["minimap"]["colors"] = json!({"nobody": "#fff"})), &["no tag `nobody`"]);
+}
