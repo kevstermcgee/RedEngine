@@ -34,6 +34,8 @@ pub struct ScenarioReport {
     pub events: BTreeMap<String, u32>,
     /// Authoring notes from the simulation (rule loops, runaway spawns).
     pub notes: Vec<String>,
+    /// Where each scene thing with an id ended up.
+    pub ids: Vec<(String, f32, f32)>,
 }
 
 fn describe_expect(def: &GameDef, e: &Expect) -> String {
@@ -209,6 +211,28 @@ impl Runner<'_> {
                     self.sim.set_action(a, false);
                 }
             }
+            Step::HoldUntil(actions, until, timeout) => {
+                for a in actions {
+                    self.sim.set_action(a, true);
+                }
+                let limit = self.sim.tick + (timeout * TPS as f32).round() as u64;
+                loop {
+                    if check(&self.sim, until).is_ok() {
+                        break;
+                    }
+                    if self.sim.tick >= limit {
+                        let why = check(&self.sim, until).err().unwrap_or_default();
+                        self.failures.push(format!("held {} for {timeout} s and it never became true: {why}", actions.join("+")));
+                        break;
+                    }
+                    if !self.tick() {
+                        break;
+                    }
+                }
+                for a in actions {
+                    self.sim.set_action(a, false);
+                }
+            }
             Step::Press(a) => {
                 self.sim.set_action(a, true);
                 self.tick();
@@ -279,6 +303,7 @@ pub fn run_scenario(def: &Arc<GameDef>, sc: &Scenario, stop_at: Option<u64>) -> 
         sounds: def.sounds.iter().enumerate().filter(|(i, _)| sim.sound_counts[*i] > 0).map(|(i, s)| (s.name.clone(), sim.sound_counts[i])).collect(),
         events: sim.event_counts.clone(),
         notes: sim.notes.clone(),
+        ids: sim.entities.iter().filter(|e| e.alive).filter_map(|e| Some((e.scene_id.clone()?, e.x, e.y))).collect(),
     };
     (rep, sim)
 }

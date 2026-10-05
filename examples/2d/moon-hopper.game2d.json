@@ -1,0 +1,146 @@
+{
+  "game2d": 1,
+  "id": "moon-hopper",
+  "title": "Moon Hopper",
+  "description": "A small platformer: hop over the spikes, grab every gem and reach the flag in as few falls as you can.",
+  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse", "gamepad"], "persistence": ["settings", "progress"] },
+  "view": { "width": 320, "height": 180, "background": "#0f1530", "world": [640, 180], "camera": { "follow": "player", "lerp": 0.15 } },
+
+  "sprites": {
+    "ground": { "palette": { "g": "#4cc38a", "d": "#6b4a3a", "e": "#51382b" },
+      "rows": ["gggggggggggggggg", "gggggggggggggggg", "dddddddddddddddd", "ddeddddddddedddd", "dddddddedddddddd", "dddddddddddddddd", "dddeddddddddeddd", "dddddddddddddddd", "dddddddddddddddd", "ddddddeddddddddd", "dddddddddddddddd", "dddeddddddddddde", "dddddddddddddddd", "dddddddddddddddd", "dddddddedddddddd", "dddddddddddddddd"] },
+    "spike": { "palette": { "s": "#cfd8ff", "d": "#8d98c9" },
+      "rows": ["................", "................", "................", "................", "................", "................", "....s......s....", "...sds....sds...", "...sds....sds...", "..sddds..sddds..", "..sddds..sddds..", ".sdddds.sdddds..", ".sdddds.sdddds..", "sdddddssdddddds.", "sdddddssdddddds.", "dddddddddddddddd"] },
+    "gem": { "fps": 6, "palette": { "c": "#5cf2ff", "w": "#ffffff", "b": "#2a8fb0" },
+      "frames": [["...cc...", "..cwcc..", ".cwccbc.", "cwccccbc", ".cccbbc.", "..cbbc..", "...bb...", "........"], ["...cc...", "..cccc..", ".ccwcbc.", "cccwccbc", ".cccbbc.", "..cbbc..", "...bb...", "........"]] },
+    "flag": { "fps": 4, "palette": { "p": "#8a6a4a", "r": "#ff5d73", "o": "#ff9aa8" },
+      "frames": [["..pr....", "..prrr..", "..prrrr.", "..prrr..", "..pr....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", ".ppp...."], ["..pr....", "..prrr..", "..proor.", "..prrr..", "..pr....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", "..p.....", ".ppp...."]] },
+    "hopper": { "fps": 8, "palette": { "w": "#f4f1de", "b": "#3d5a80", "k": "#1d2433", "o": "#ee6c4d" },
+      "frames": [["..wwww..", ".wwwwww.", ".wkwwkw.", ".wwwwww.", "..bbbb..", ".bbbbbb.", ".bbbbbb.", "..o..o.."], ["..wwww..", ".wwwwww.", ".wkwwkw.", ".wwwwww.", "..bbbb..", ".bbbbbb.", ".bbbbbb.", "...oo..."]] },
+    "pad": { "palette": { "y": "#ffd166", "o": "#ef8f00" },
+      "rows": ["................", "................", "................", "................", "................", "................", "................", "................", "................", "................", "................", "..yyyyyyyyyyyy..", ".yoooooooooooyy.", ".yoooooooooooyy.", "yyyyyyyyyyyyyyyy", "yyyyyyyyyyyyyyyy"] }
+  },
+
+  "sounds": {
+    "gem": { "seconds": 0.2, "level": 0.5, "layers": [{ "sine": 988, "decay": 16 }, { "sine": 1480, "decay": 18, "delay": 0.06, "gain": 0.8 }] },
+    "jump": { "seconds": 0.18, "level": 0.45, "layers": [{ "glide": [260, 520, 4], "decay": 14, "attack": 0.004 }] },
+    "bounce": { "seconds": 0.25, "level": 0.5, "layers": [{ "glide": [300, 800, 5], "decay": 9, "attack": 0.004 }, { "sine": 1200, "decay": 12, "delay": 0.05, "gain": 0.4 }] },
+    "fall": { "seconds": 0.4, "level": 0.5, "layers": [{ "sine": 330, "decay": 9, "attack": 0.004 }, { "sine": 247, "decay": 9, "delay": 0.1, "attack": 0.004 }, { "noise": "hp 0.3", "decay": 18, "gain": 0.5 }] },
+    "win": { "seconds": 0.9, "level": 0.5, "layers": [{ "sine": 523.25, "decay": 4 }, { "sine": 659.25, "decay": 4, "delay": 0.15 }, { "sine": 783.99, "decay": 4, "delay": 0.3 }, { "sine": 1046.5, "decay": 3, "delay": 0.45 }] }
+  },
+  "music": {
+    "theme": { "bpm": 96, "beats": 4, "bars": 8, "key": "A", "scale": "minor", "seed": 9, "lufs": -26,
+      "reverb": { "decay": 2, "mix": 0.3 },
+      "instruments": {
+        "pad": { "seconds": 3, "level": 0.5, "layers": [{ "sine": 1, "attack": 0.4, "release": 1.2 }, { "sine": 2, "attack": 0.5, "release": 1.2, "gain": 0.2 }] },
+        "bell": { "seconds": 2, "level": 0.45, "layers": [{ "sine": 1, "decay": 3 }, { "sine": 2.76, "decay": 5, "gain": 0.2 }] } },
+      "tracks": [
+        { "inst": "pad", "play": "chords", "chords": "1 6 4 5", "every": "2 bars", "octave": 3, "gain": 0.8 },
+        { "inst": "bell", "play": "walk", "every": "1 beats", "density": 0.35, "range": [1, 8], "octave": 5, "gain": 0.5, "vel": [0.4, 0.8] }] }
+  },
+
+  "vars": { "gems": 0, "falls": 0, "best_falls": 99, "done": 0 },
+  "persist": ["best_falls"],
+
+  "prefabs": {
+    "ground": { "tag": "solid", "shape": { "sprite": "ground" }, "body": { "type": "static" } },
+    "spike": { "tag": "hazard", "shape": { "sprite": "spike" }, "size": [12, 8], "body": { "type": "static" } },
+    "gem": { "tag": "gem", "shape": { "sprite": "gem" }, "layer": 1, "emit": { "rate": 4, "life": [0.3, 0.7], "speed": [3, 8], "angle": [240, 300], "color": "#bff8ff" } },
+    "flag": { "tag": "exit", "shape": { "sprite": "flag" }, "size": [10, 16] },
+    "pad": { "tag": "pad", "shape": { "sprite": "pad" }, "size": [16, 6], "body": { "type": "static" } },
+    "hopper": { "tag": "player", "shape": { "sprite": "hopper" }, "size": [8, 8], "layer": 3, "clamp": true,
+      "body": { "type": "dynamic", "gravity": 640, "max_fall": 420 }, "collide": ["solid"],
+      "move": { "keys": { "mode": "platformer", "speed": 85, "jump": 250 } } }
+  },
+
+  "map": {
+    "tile": 16,
+    "legend": { "#": "ground", "^": "spike", "o": "gem", "F": "flag", "P": "pad" },
+    "rows": [
+      "........................................",
+      "........................................",
+      "........................................",
+      "........................................",
+      "........................................",
+      "............................o...........",
+      "........................................",
+      ".........o..........o...................",
+      "........###........###..................",
+      ".............^^.............P....^^...F.",
+      "########################################"
+    ]
+  },
+
+  "scene": [{ "prefab": "hopper", "at": [24, 150], "id": "p" }],
+
+  "ui": [
+    { "text": "GEMS LEFT {count_gem}", "at": [4, 4], "color": "#5cf2ff" },
+    { "text": "FALLS {falls}", "at": [110, 4], "color": "#ff9aa8" },
+    { "text": "BEST {best_falls}", "at": [190, 4], "color": "#cfd8ff", "show": "best_falls < 99" },
+    { "panel": { "at": [60, 56], "size": [200, 70], "color": "#0b0f22ee" }, "show": "ended" },
+    { "text": "YOU MADE IT!", "at": [160, 66], "scale": 2, "align": "center", "color": "#8cff9b", "show": "ended" },
+    { "text": "{falls} FALL(S)", "at": [160, 88], "align": "center", "show": "ended" },
+    { "button": { "id": "again", "label": "AGAIN (ENTER)", "at": [110, 102], "size": [100, 14], "key": "Enter", "do": [{ "restart": true }] }, "show": "ended" },
+    { "button": { "id": "music", "label": "MUSIC", "at": [276, 166], "size": [40, 12], "key": "KeyM", "do": [{ "music": "toggle" }] } }
+  ],
+
+  "rules": [
+    { "id": "gem", "when": { "touch": ["player", "gem"] }, "do": [{ "add": ["gems", 1] }, { "play": "gem" }, { "burst": { "at": "other", "n": 8, "color": "#5cf2ff", "speed": [20, 50], "life": [0.2, 0.5] } }, { "destroy": "other" }] },
+    { "id": "hazard", "when": { "touch": ["player", "hazard"] }, "do": [
+      { "add": ["falls", 1] }, { "play": "fall" }, { "shake": 3 }, { "burst": { "at": "self", "n": 14, "color": "#f4f1de", "speed": [30, 80], "life": [0.3, 0.6], "gravity": 200 } },
+      { "teleport": { "target": "self", "to": [24, 140] } }, { "velocity": { "target": "self", "v": [0, 0] } }] },
+    { "id": "bounce pad", "when": { "touch": ["player", "pad"] }, "do": [{ "velocity": { "target": "self", "v": [0, -420] } }, { "play": "bounce" }, { "burst": { "at": "other", "n": 6, "color": "#ffd166", "speed": [20, 40], "life": [0.2, 0.4] } }] },
+    { "id": "jump sound", "when": { "press": "up" }, "if": "count_player > 0", "do": [{ "play": "jump" }] },
+    { "id": "finish", "when": { "touch": ["player", "exit"] }, "if": "count_gem == 0", "do": [{ "end": "win" }] },
+    { "id": "need gems", "when": { "touch": ["player", "exit"] }, "if": "count_gem > 0", "cooldown": 2, "do": [{ "emit": "need gems" }] },
+    { "id": "record", "when": { "end": "win" }, "do": [{ "play": "win" }, { "set": ["done", 1] }] },
+    { "id": "best", "when": { "end": "win" }, "if": "falls < best_falls", "do": [{ "set": ["best_falls", "falls"] }] },
+    { "id": "again key", "when": { "press": "action" }, "if": "ended", "do": [{ "restart": true }] }
+  ],
+
+  "checks": {
+    "scenarios": [
+      { "name": "a clean run: three gems, no falls, the flag", "max_seconds": 60, "smoke": true, "script": [
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 112 }, "timeout": 4 },
+        { "hold": ["right", "up"], "seconds": 0.5 },
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 190 }, "timeout": 4 },
+        { "wait": 0.3 },
+        { "hold": ["right", "up"], "seconds": 0.7 },
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 280 }, "timeout": 4 },
+        { "hold": ["right", "up"], "seconds": 0.5 },
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 340 }, "timeout": 4 },
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 456 }, "timeout": 8 },
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 500 }, "timeout": 4 },
+        { "wait": 1.5 },
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 512 }, "timeout": 4 },
+        { "hold": ["right", "up"], "seconds": 0.7 },
+        { "hold_until": ["right"], "until": { "ended": "win" }, "timeout": 8 }
+      ], "expect": [{ "ended": "win" }, { "var": "gems", "eq": 3 }, { "var": "falls", "eq": 0 }, { "var": "best_falls", "eq": 0 }, { "sound": "gem", "min": 3 }, { "sound": "bounce" }, { "sound": "win" }] },
+
+      { "name": "the spikes cost a fall and send you back to the start", "max_seconds": 20, "script": [
+        { "hold_until": ["right"], "until": { "var": "falls", "gte": 1 }, "timeout": 8 },
+        { "wait": 0.5 }
+      ], "expect": [{ "var": "falls", "eq": 1 }, { "entity": "p", "near": [24, 156], "tol": 6 }, { "not_ended": true }, { "sound": "fall" }] },
+
+      { "name": "the flag does nothing until every gem is collected", "max_seconds": 60, "script": [
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 190 }, "timeout": 8 },
+        { "wait": 0.3 },
+        { "hold": ["right", "up"], "seconds": 0.7 },
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 500 }, "timeout": 12 },
+        { "wait": 1.5 },
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 512 }, "timeout": 4 },
+        { "hold": ["right", "up"], "seconds": 0.7 },
+        { "hold_until": ["right"], "until": { "var": "p_x", "gte": 616 }, "timeout": 6 }
+      ], "expect": [{ "not_ended": true }, { "event": "need gems" }, { "count": "gem", "gte": 1 }] },
+
+      { "name": "falling alone does not record a best score", "max_seconds": 20, "script": [
+        { "hold_until": ["right"], "until": { "var": "falls", "gte": 1 }, "timeout": 8 }
+      ], "expect": [{ "var": "best_falls", "eq": 99 }] }
+    ],
+    "browser": [
+      { "name": "arrow keys run the hopper", "keys": ["ArrowRight"], "ms": 500, "changes": ["p_x"] },
+      { "name": "up arrow jumps", "keys": ["ArrowUp"], "ms": 150, "changes": ["p_y"] },
+      { "name": "the music button turns music off and the choice survives a reload", "click": [296, 172], "changes": ["music_on"], "persists": ["music_on"] }
+    ]
+  }
+}

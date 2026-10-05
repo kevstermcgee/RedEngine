@@ -132,6 +132,9 @@ pub fn sim(path: &Path, only: Option<&str>) -> Report {
         ok &= r.ok;
         t.push_str(&format!("{}  scenario `{}`: {} ticks ({:.1} s), ended {}, hash {}\n", if r.ok { "PASS" } else { "FAIL" }, r.name, r.ticks, r.ticks as f64 / 60.0, r.ended.unwrap_or("not"), r.hash));
         t.push_str(&format!("      vars: {}\n", r.vars.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>().join(" ")));
+        if !r.ids.is_empty() {
+            t.push_str(&format!("      at: {}\n", r.ids.iter().map(|(n, x, y)| format!("{n}=({x:.1}, {y:.1})")).collect::<Vec<_>>().join(" ")));
+        }
         if !r.sounds.is_empty() {
             t.push_str(&format!("      sounds: {}\n", r.sounds.iter().map(|(n, c)| format!("{n} x{c}")).collect::<Vec<_>>().join(", ")));
         }

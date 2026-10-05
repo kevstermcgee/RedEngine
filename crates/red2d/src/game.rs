@@ -531,6 +531,8 @@ pub enum Step {
     Wait(f32),
     /// Hold actions for seconds.
     Hold(Vec<String>, f32),
+    /// Hold actions until something is true (or the timeout, which fails).
+    HoldUntil(Vec<String>, Expect, f32),
     /// Tap an action.
     Press(String),
     /// Move the pointer and click.
@@ -1630,10 +1632,10 @@ fn check_template(ctx: &mut Ctx, path: &str, text: &str, names: &Names) {
 
 fn step(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Step> {
     let o = ctx.obj(path, v)?;
-    const KEYS: &[&str] = &["wait", "hold", "press", "click", "button", "point", "approach", "wait_until"];
+    const KEYS: &[&str] = &["wait", "hold", "hold_until", "press", "click", "button", "point", "approach", "wait_until"];
     let found: Vec<&String> = o.keys().filter(|k| KEYS.contains(&k.as_str())).collect();
     let mut allowed: Vec<&str> = KEYS.to_vec();
-    allowed.extend(["seconds", "tag", "timeout"]);
+    allowed.extend(["seconds", "until", "timeout"]);
     check_keys(&mut ctx.errs, path, o, &allowed);
     if found.len() != 1 {
         ctx.err(path, format!("a step has exactly one of {}, found {}", KEYS.join(", "), found.len()));
@@ -1662,6 +1664,11 @@ fn step(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Step> {
             let list: Vec<String> = arg.as_array()?.iter().filter_map(|a| action(ctx, a, &format!("{path}.hold"))).collect();
             let s = secs(ctx, o.get("seconds")?, &format!("{path}.seconds"))?;
             Some(Step::Hold(list, s))
+        }
+        "hold_until" => {
+            let list: Vec<String> = arg.as_array()?.iter().filter_map(|a| action(ctx, a, &format!("{path}.hold_until"))).collect();
+            let until = expect_one(ctx, &format!("{path}.until"), o.get("until")?, names)?;
+            Some(Step::HoldUntil(list, until, o.get("timeout").and_then(num).unwrap_or(10.0) as f32))
         }
         "press" => action(ctx, arg, &format!("{path}.press")).map(Step::Press),
         "click" | "point" => match pair(arg) {
