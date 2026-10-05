@@ -55,7 +55,14 @@ fn package(dir: &Path, edit: impl FnOnce(&mut Value)) -> Option<(PathBuf, Value)
 }
 
 fn ver(manifest: &Value) -> Verification {
-    Verification { package_id: manifest["package_id"].as_str().unwrap().into(), ok: true, browser: "Chromium test".into(), checks: 3, audio_claims: vec![] }
+    Verification {
+        package_id: manifest["package_id"].as_str().unwrap().into(),
+        ok: true,
+        browser: "Chromium test".into(),
+        checks: 3,
+        audio_claims: vec![],
+        features: vec![],
+    }
 }
 
 // ---- gates ---------------------------------------------------------------------------------------------------------------------------------------

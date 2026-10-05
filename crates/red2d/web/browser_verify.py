@@ -41,8 +41,12 @@ def wait_js(pg, expr, timeout=20000):
     rightly, forbids; a CDP evaluate is not subject to it, so the real policy stays on for every test.)"""
     end = time.time() + timeout / 1000.0
     while time.time() < end:
-        if pg.evaluate("() => !!(" + expr + ")"):
-            return True
+        try:
+            if pg.evaluate("() => !!(" + expr + ")"):
+                return True
+        except Exception as e:                      # the page navigated under us (a reload, a service worker taking control): look again
+            if "context was destroyed" not in str(e) and "navigation" not in str(e):
+                raise
         time.sleep(0.04)
     raise TimeoutError("timed out waiting for: " + expr)
 
@@ -367,6 +371,8 @@ def main():
                 before = pg.evaluate("__red2d.snapshot()")["vars"]
                 pg.reload()
                 ready(pg)
+                pg.wait_for_load_state("load")
+                pg.wait_for_timeout(300)
                 try:
                     with pg.expect_download(timeout=5000) as dl:
                         pg.evaluate("document.getElementById('backup').click()")
@@ -378,6 +384,8 @@ def main():
                     pg.evaluate("__red2d.resetSave()")
                     pg.reload()
                     fresh = ready(pg)["save"]
+                    pg.wait_for_load_state("load")
+                    pg.wait_for_timeout(300)
                     pg.set_input_files("#restorefile", path)
                     wait_js(pg, "__red2d.status().state === 'ready' && __red2d.status().save === 'loaded'", 8000)
                     after = pg.evaluate("__red2d.snapshot()")["vars"]

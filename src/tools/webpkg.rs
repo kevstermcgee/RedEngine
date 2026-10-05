@@ -773,7 +773,13 @@ pub fn serve(dir: &Path, port: u16, announce: impl Fn(u16)) -> Result<(), String
             }
             let path = line.split_whitespace().nth(1).unwrap_or("/").split(['?', '#']).next().unwrap_or("/").to_string();
             let rel = path.trim_start_matches('/');
-            let rel = if rel.is_empty() { "index.html" } else { rel };
+            let indexed;
+            let rel = if rel.is_empty() || rel.ends_with('/') || dir.join(rel).is_dir() {
+                indexed = format!("{}/index.html", rel.trim_end_matches('/')).trim_start_matches('/').to_string(); // a directory serves its index.html, as every static host does
+                indexed.as_str()
+            } else {
+                rel
+            };
             let ok = !rel.contains("..") && !rel.contains('\\');
             let body = if ok { std::fs::read(dir.join(rel)).ok() } else { None };
             let _ = match body {
