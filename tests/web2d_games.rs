@@ -242,3 +242,16 @@ fn routing_is_by_file_so_the_3d_verbs_still_mean_3d() {
     assert!(!game2d::is_game(Path::new("examples/nonexistent.json")));
     assert!(game2d::is_game(&examples()[0]));
 }
+
+/// A fresh author's first `search` for a 2D question returned only 3D fragments; the 2D reference and docs are in the corpus now.
+#[test]
+fn searching_for_a_2d_question_finds_the_2d_material() {
+    for q in ["spawn falling objects random position 2d", "how do I publish a 2d game to the browser", "sprite palette rows animation frames"] {
+        let o = std::process::Command::new(env!("CARGO_BIN_EXE_red_engine2")).args(["search", q, "--limit", "3"]).output().unwrap();
+        let text = String::from_utf8_lossy(&o.stdout);
+        assert!(
+            text.contains("describe 2d") || text.contains("PUBLISHING_2D") || text.contains("WEB_PLATFORM"),
+            "`search {q}` found no 2D material in its top 3:\n{text}"
+        );
+    }
+}

@@ -288,6 +288,17 @@ Use the structured `meta` fields shown by `scripts/red catalog --manifest`. If a
 across games, propose it for the narrowest engine pack; do not copy the whole local library into core.
 "#;
 
+/// `chmod +x` (a scaffolded `scripts/red` that is not executable fails with "Permission denied" on the very command the `next:` hint tells you to run).
+fn make_executable(p: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o755)).map_err(|e| format!("{}: {e}", p.display()))?;
+    }
+    let _ = p;
+    Ok(())
+}
+
 fn write(dir: &Path, rel: &str, text: &str, out: &mut Vec<PathBuf>) -> Result<(), String> {
     let p = dir.join(rel);
     if let Some(parent) = p.parent() {
@@ -426,6 +437,7 @@ fn scaffold_2d(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBuf
     write(dir, &format!("{id}.game2d.json"), &game, &mut out)?;
     write(dir, "CLAUDE.md", &CLAUDE_MD_2D.replace("{{NAME}}", name).replace("{{ID}}", &id), &mut out)?;
     write(dir, "scripts/red", RED_SH, &mut out)?;
+    make_executable(&dir.join("scripts/red"))?;
     write(dir, "scripts/red.ps1", RED_PS1, &mut out)?;
     write(dir, ".github/workflows/check.yml", &CI_YML_2D.replace("{{ID}}", &id), &mut out)?;
     write(dir, ".gitignore", ".red/\nout/\ntarget/\n", &mut out)?;
@@ -491,6 +503,7 @@ pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> 
         std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).map_err(|e| format!("{}: {e}", p.display()))?;
     }
     write(dir, "scripts/red", RED_SH, &mut out)?;
+    make_executable(&dir.join("scripts/red"))?;
     write(dir, "scripts/red.ps1", RED_PS1, &mut out)?;
     write(dir, ".github/workflows/check.yml", CI_YML, &mut out)?;
     write(dir, ".gitignore", ".red/\nout/\ntarget/\n", &mut out)?;
@@ -525,6 +538,14 @@ mod tests {
         let v = super::super::game2d::verify(&game, None);
         assert!(v.ok, "{}", v.text);
         assert!(v.text.contains("scenario `walking over every gem wins`") && v.text.contains("save round trip"), "{}", v.text);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert!(
+                std::fs::metadata(dir.join("scripts/red")).unwrap().permissions().mode() & 0o111 != 0,
+                "scripts/red must be executable: the next: hint runs it directly"
+            );
+        }
         let guide = std::fs::read_to_string(dir.join("CLAUDE.md")).unwrap();
         assert!(guide.contains("scripts/red verify gem-grab.game2d.json") && guide.contains("describe 2d"), "{guide}");
         assert!(super::super::game::load(&dir).is_ok(), "the project has a loadable game.json (scripts/red reads the engine pin from it)");

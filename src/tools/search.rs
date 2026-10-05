@@ -14,6 +14,8 @@ use std::collections::{HashMap, HashSet};
 const SPEC: &str = include_str!("../../SPEC.md");
 const AGENTS: &str = include_str!("../../AGENTS.md");
 const AGENT_REFERENCE: &str = include_str!("../../docs/AGENT_REFERENCE.md");
+const WEB_PLATFORM: &str = include_str!("../../docs/WEB_PLATFORM.md");
+const PUBLISHING_2D: &str = include_str!("../../docs/PUBLISHING_2D.md");
 /// `docs/GLOSSARY.md`, embedded (`describe glossary`, `search --kind glossary`).
 pub const GLOSSARY: &str = include_str!("../../docs/GLOSSARY.md");
 /// The ADR index table (`describe decisions`).
@@ -176,6 +178,18 @@ pub fn corpus(commands: &Value) -> Vec<Doc> {
     chunk_markdown("AGENTS.md", "doc", AGENTS, &mut docs);
     chunk_markdown("docs/AGENT_REFERENCE.md", "doc", AGENT_REFERENCE, &mut docs);
     chunk_markdown("docs/GLOSSARY.md", "glossary", GLOSSARY, &mut docs);
+    // The 2D path: a question about a 2D game, a sprite, a scenario or publishing to the browser must find the 2D material, not scene objects (a fresh author's first `search` did).
+    chunk_markdown("docs/WEB_PLATFORM.md", "doc", WEB_PLATFORM, &mut docs);
+    chunk_markdown("docs/PUBLISHING_2D.md", "doc", PUBLISHING_2D, &mut docs);
+    for (k, group) in red2d::reference::REFERENCE.lines().collect::<Vec<_>>().chunks(2).enumerate() {
+        docs.push(Doc {
+            kind: "doc",
+            title: "2D game file format (describe 2d)".to_string(),
+            body: format!("2D game .game2d.json sprites prefabs rules scenarios\n{}", group.join("\n")),
+            loc: format!("describe 2d:{}", k * 2 + 1),
+            extra: String::new(),
+        });
+    }
     for (file, text) in ADRS {
         // One doc per ADR (they are short): the title line names the decision, the rest is the body.
         let title = text.lines().next().unwrap_or("").trim_start_matches('#').trim();
