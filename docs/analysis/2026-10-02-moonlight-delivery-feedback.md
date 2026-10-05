@@ -41,4 +41,5 @@ not established (CLAUDE.md already advises `CARGO_TARGET_DIR`; worth checking wh
 - Full CI green with both (2007 passed).
 - Side finding: the `interact` event a peaceful scene injects cannot be used as a rule trigger (the validator says nothing emits it).
 - **#4 done:** ADR 2026-10-03 "Lettering and arrays as macros": a `text` macro (signs from the engine font as merged boxes, generated ids) and an `array` macro (copies with generated ids).
-- #5 (Linux authoring binaries + bootstrap/doctor) is not done.
+- **#3 done:** ADR 2026-10-03 "A scene-declared game UI" (labels, counters, objective, start/end cards, restart).
+- **#5 done:** ADR 2026-10-04 "Prebuilt Linux binaries and a bootstrap script" (PR #24).
