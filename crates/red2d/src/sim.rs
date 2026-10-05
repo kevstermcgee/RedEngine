@@ -63,6 +63,8 @@ pub struct Entity {
     pub grounded: bool,
     /// False once destroyed (removed at the end of the tick).
     pub alive: bool,
+    /// Last moved to the left (what `flip: "auto"` mirrors).
+    pub face_left: bool,
     home: [f32; 2],
     dir: f32,
     timer: f32,
@@ -407,6 +409,7 @@ impl Sim {
             put(e.y.to_bits() as u64);
             put(e.vx.to_bits() as u64);
             put(e.vy.to_bits() as u64);
+            put(u64::from(e.face_left));
         }
         put(self.particles.len() as u64);
         put(self.rng);
@@ -681,6 +684,7 @@ impl Sim {
             age: 0.0,
             grounded: false,
             alive: true,
+            face_left: false,
             home: [x, y],
             dir: 1.0,
             timer: 0.0,
@@ -1132,6 +1136,11 @@ impl Sim {
         e.vx = vx;
         e.vy = vy;
         e.grounded = grounded;
+        if vx < -1.0 {
+            e.face_left = true;
+        } else if vx > 1.0 {
+            e.face_left = false;
+        }
     }
 
     fn update_particles_and_emitters(&mut self, def: &GameDef) {

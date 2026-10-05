@@ -26,6 +26,7 @@ pub mod feel;
 pub mod fields;
 #[cfg(feature = "gfx")]
 pub mod firearms;
+pub mod font_glyphs;
 #[cfg(feature = "gfx")]
 pub mod fx;
 pub mod geometry;

@@ -11,7 +11,7 @@ view: {"width":320,"height":180,"background":"#1b2233","scale":"fit"|"integer","
 sprites: {"name":{"rows":["..aa..","aaaa"],"palette":{"a":"#ff0000"},"fps":8}} or "frames":[rows,...] for animation; "." is transparent; at most 64 px a side
 sounds: {"name":{"seconds":0.2,"layers":[{"sine":880,"decay":18}]}} (a voice: `describe audio`, `audio list`)   music: {"name":{score}} (`describe audio`)
 vars: {"score":0}   builtins: time tick ended(0, 1 win, 2 lose) mouse_x mouse_y music_on   plus count_<tag> and <sceneid>_x, <sceneid>_y   persist: ["best"] (saved between sessions)
-prefabs: {"name":{"tag":"coin"|[tags],"shape":{"sprite":n|"rect":[w,h]|"circle":r|"text":"SCORE {score}","color":"#fc0","scale":1},"size":[w,h],"layer":0,
+prefabs: {"name":{"tag":"coin"|[tags],"shape":{"sprite":n|"rect":[w,h]|"circle":r|"text":"SCORE {score}","color":"#fc0","scale":1,"flip":"x"|"auto"},"size":[w,h],"layer":0,
   "body":{"type":"dynamic"|"static","gravity":600,"bounce":0.5,"friction":0.1,"drag":0,"max_fall":600},"collide":[tags it is stopped by],
   "move":{"keys":{"mode":"topdown"|"platformer","speed":90,"jump":250}} | {"pointer":"x"|"y"|"xy"} | {"chase":{"target":tag,"speed":30}} | {"drift":[vx,vy]} | {"wander":{"speed":20,"turn":1}} | {"patrol":{"axis":"x","range":20,"speed":40}},
   "ttl":seconds,"emit":{"rate":3,"life":[.3,.6],"speed":[4,10],"angle":[250,290],"color":"#fff"},"clamp":true,"hidden":true}}

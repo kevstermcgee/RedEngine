@@ -86,6 +86,17 @@ pub struct Sprite {
     pub fps: f32,
 }
 
+/// Mirroring a sprite.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Flip {
+    /// As drawn.
+    None,
+    /// Mirrored left-right.
+    X,
+    /// Mirrored while the thing last moved left (it keeps facing that way when it stops).
+    Auto,
+}
+
 /// What a prefab looks like.
 #[derive(Debug, Clone)]
 pub enum Shape {
@@ -97,6 +108,8 @@ pub enum Shape {
         sprite: usize,
         /// Integer scale.
         scale: u32,
+        /// Mirroring.
+        flip: Flip,
     },
     /// A filled rectangle.
     Rect {
@@ -924,7 +937,7 @@ fn tag_value_ok(v: &Value) -> Result<(), String> {
     tags_of(Some(v)).map(|_| ())
 }
 
-const SHAPE_KEYS: &[&str] = &["sprite", "rect", "circle", "text", "color", "scale"];
+const SHAPE_KEYS: &[&str] = &["sprite", "rect", "circle", "text", "color", "scale", "flip"];
 
 fn color_of(ctx: &mut Ctx, path: &str, o: &Map<String, Value>, default: Color) -> Color {
     match o.get("color") {
@@ -952,6 +965,23 @@ fn scale_of(ctx: &mut Ctx, path: &str, o: &Map<String, Value>) -> u32 {
     }
 }
 
+fn flip_of(ctx: &mut Ctx, path: &str, o: &Map<String, Value>) -> Flip {
+    match o.get("flip") {
+        None => Flip::None,
+        Some(v) => match v.as_str() {
+            Some("x") => Flip::X,
+            Some("auto") => Flip::Auto,
+            _ => {
+                ctx.err(
+                    format!("{path}.flip"),
+                    format!("expected \"x\" (always mirrored) or \"auto\" (mirrored while it last moved left), got {}", describe_value(v)),
+                );
+                Flip::None
+            }
+        },
+    }
+}
+
 fn text_size(text: &str, scale: u32) -> [f32; 2] {
     let n = text.chars().count().max(1) as f32;
     [n * 6.0 * scale as f32, 7.0 * scale as f32]
@@ -973,7 +1003,10 @@ fn parse_shape(ctx: &mut Ctx, path: &str, v: &Value, sprites: &[Sprite]) -> (Sha
             let name = o["sprite"].as_str().unwrap_or("");
             let scale = scale_of(ctx, path, o);
             match sprites.iter().position(|s| s.name == name) {
-                Some(i) => (Shape::Sprite { sprite: i, scale }, [(sprites[i].w as u32 * scale) as f32, (sprites[i].h as u32 * scale) as f32]),
+                Some(i) => (
+                    Shape::Sprite { sprite: i, scale, flip: flip_of(ctx, path, o) },
+                    [(sprites[i].w as u32 * scale) as f32, (sprites[i].h as u32 * scale) as f32],
+                ),
                 None => {
                     ctx.err(format!("{path}.sprite"), format!("no sprite `{name}`{}", Ctx::near(name, sprites.iter().map(|s| s.name.clone()))));
                     (Shape::None, [8.0, 8.0])

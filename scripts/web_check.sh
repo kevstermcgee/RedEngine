@@ -41,4 +41,9 @@ for g in "${games[@]}"; do
   echo "== web verify $g"
   "${R[@]}" web verify "$g" || status=1
 done
+# The whole pipeline once, to the local backend: it must end with a catalog, and without a URL (nothing here serves the site to anyone else).
+echo "== publish ${games[0]} (local backend)"
+rm -rf out/site-ci out/publish-ci
+"${R[@]}" publish "${games[0]}" --site out/site-ci --out out/publish-ci || status=1
+[ -f out/site-ci/catalog.json ] || { echo "publish wrote no catalog.json"; status=1; }
 exit $status

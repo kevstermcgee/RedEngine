@@ -48,7 +48,7 @@
     "gem": { "tag": "gem", "shape": { "sprite": "gem" }, "layer": 1, "emit": { "rate": 4, "life": [0.3, 0.7], "speed": [3, 8], "angle": [240, 300], "color": "#bff8ff" } },
     "flag": { "tag": "exit", "shape": { "sprite": "flag" }, "size": [10, 16] },
     "pad": { "tag": "pad", "shape": { "sprite": "pad" }, "size": [16, 6], "body": { "type": "static" } },
-    "hopper": { "tag": "player", "shape": { "sprite": "hopper" }, "size": [8, 8], "layer": 3, "clamp": true,
+    "hopper": { "tag": "player", "shape": { "sprite": "hopper", "flip": "auto" }, "size": [8, 8], "layer": 3, "clamp": true,
       "body": { "type": "dynamic", "gravity": 640, "max_fall": 420 }, "collide": ["solid"],
       "move": { "keys": { "mode": "platformer", "speed": 85, "jump": 250 } } }
   },

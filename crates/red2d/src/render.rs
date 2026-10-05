@@ -182,7 +182,7 @@ pub fn render(sim: &Sim) -> Frame {
                 f.rect((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, p.size[1].round() as i32, *color)
             }
             Shape::Circle { color } => f.disc((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, *color),
-            Shape::Sprite { sprite, scale } => {
+            Shape::Sprite { sprite, scale, flip } => {
                 let sp = &def.sprites[*sprite];
                 let s = *scale as i32;
                 let frame = if sp.frames.len() > 1 { ((sim.tick as f32 * sp.fps / 60.0) as usize) % sp.frames.len() } else { 0 };
@@ -191,7 +191,10 @@ pub fn render(sim: &Sim) -> Frame {
                     if px[3] == 0 {
                         continue;
                     }
-                    let (sx, sy) = ((k % sp.w) as i32, (k / sp.w) as i32);
+                    let (mut sx, sy) = ((k % sp.w) as i32, (k / sp.w) as i32);
+                    if *flip == Flip::X || (*flip == Flip::Auto && e.face_left) {
+                        sx = sp.w as i32 - 1 - sx;
+                    }
                     f.rect(x0 + sx * s, y0 + sy * s, s, s, *px);
                 }
             }
@@ -312,6 +315,7 @@ pub fn present(frame: &Frame, ww: u32, wh: u32, scale: Scale) -> Frame {
 mod tests {
     use super::*;
     use crate::sim::tests::game;
+    use std::sync::Arc;
 
     #[test]
     fn layout_keeps_the_aspect_ratio_and_centres_with_bars() {
@@ -369,6 +373,35 @@ mod tests {
         assert_eq!(fmt_num(2.5), "2.5");
         assert_eq!(fmt_num(3.0), "3");
         assert_eq!(fmt_num(1.0 / 3.0), "0.33");
+    }
+
+    #[test]
+    fn a_sprite_is_mirrored_always_or_while_it_last_moved_left() {
+        let text = |flip: &str, vx: i32| {
+            format!(
+                r##"{{"game2d":1,"id":"t","title":"T","description":"d","capabilities":{{"presentation":"2d","platforms":["web"],"networking":"offline","input":[],"persistence":[]}},
+                "view":{{"width":64,"height":64,"background":"#000000"}},"sprites":{{"two":{{"palette":{{"a":"#ff0000","b":"#0000ff"}},"rows":["ab"]}}}},
+                "prefabs":{{"s":{{"shape":{{"sprite":"two","scale":2{flip}}},"move":{{"drift":[{vx},0]}}}}}},"scene":[{{"prefab":"s","at":[32,32]}}],"rules":[]}}"##
+            )
+        };
+        let px = |s: &Sim| {
+            let f = render(s);
+            // The sprite is 4x2 px at scale 2; find its first lit pixel's colour.
+            let i = f.rgba.chunks(4).position(|p| p[0] != 0 || p[2] != 0).unwrap();
+            f.rgba[i * 4..i * 4 + 3].to_vec()
+        };
+        let run = |flip: &str, vx: i32| {
+            let mut s = Sim::new(Arc::new(parse(&text(flip, vx)).unwrap_or_else(|e| panic!("{e:?}"))), 1);
+            s.run_ticks(10);
+            px(&s)
+        };
+        assert_eq!(run("", 0), vec![255, 0, 0], "as drawn: red on the left");
+        assert_eq!(run(r#","flip":"x""#, 0), vec![0, 0, 255], "always mirrored");
+        assert_eq!(run(r#","flip":"auto""#, 0), vec![255, 0, 0], "auto: not moving left, as drawn");
+        assert_eq!(run(r#","flip":"auto""#, 30), vec![255, 0, 0], "auto: moving right, as drawn");
+        assert_eq!(run(r#","flip":"auto""#, -30), vec![0, 0, 255], "auto: moving left, mirrored");
+        let bad = parse(&text(r#","flip":"y""#, 0)).unwrap_err().join(" ");
+        assert!(bad.contains("flip") && bad.contains("\"auto\""), "{bad}");
     }
 
     #[test]

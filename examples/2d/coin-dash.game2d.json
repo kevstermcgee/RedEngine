@@ -41,7 +41,7 @@
 
   "prefabs": {
     "pillar": { "tag": "wall", "shape": { "rect": [16, 16], "color": "#3a4a6b" }, "body": { "type": "static" } },
-    "player": { "tag": "player", "shape": { "sprite": "player" }, "size": [8, 8], "layer": 2, "clamp": true,
+    "player": { "tag": "player", "shape": { "sprite": "player", "flip": "auto" }, "size": [8, 8], "layer": 2, "clamp": true,
       "body": { "type": "dynamic" }, "collide": ["wall"], "move": { "keys": { "mode": "topdown", "speed": 100 } } },
     "coin": { "tag": "coin", "shape": { "sprite": "coin" }, "layer": 1, "emit": { "rate": 3, "life": [0.3, 0.6], "speed": [4, 10], "angle": [250, 290], "color": "#fff3b0" } },
     "ghost": { "tag": "ghost", "shape": { "sprite": "ghost" }, "layer": 2, "move": { "chase": { "target": "player", "speed": 26 } } }

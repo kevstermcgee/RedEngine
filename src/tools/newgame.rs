@@ -463,7 +463,7 @@ pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> 
         dir,
         "game.json",
         &format!(
-            "{{\n  \"game\": 1,\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"blueprints\": {blueprints},\n  \"maps\": [\"maps/main.json\"],\n  \"server\": {{ \"map\": \"maps/main.json\", \"port\": 27015, \"spawn_group\": \"{group}\" }}\n}}\n"
+            "{{\n  \"game\": 1,\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"capabilities\": {{ \"presentation\": \"3d\", \"platforms\": [\"windows\", \"linux\"], \"networking\": \"authoritative\", \"input\": [\"keyboard\", \"mouse\", \"gamepad\"] }},\n  \"blueprints\": {blueprints},\n  \"maps\": [\"maps/main.json\"],\n  \"server\": {{ \"map\": \"maps/main.json\", \"port\": 27015, \"spawn_group\": \"{group}\" }}\n}}\n"
         ),
         &mut out,
     )?;
