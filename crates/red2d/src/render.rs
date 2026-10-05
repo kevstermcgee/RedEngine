@@ -120,7 +120,7 @@ fn fmt_num(v: f64) -> String {
     }
 }
 
-/// Replaces `{var}` and `{var:3}` (zero-padded to 3 digits) with the variables' values.
+/// Replaces `{var}`, `{var:3}` (zero-padded to 3 characters) and `{var:.1}` (one decimal) with the variables' values.
 pub fn fill_template(text: &str, sim: &Sim) -> String {
     let mut out = String::new();
     let mut rest = text;
@@ -132,11 +132,15 @@ pub fn fill_template(text: &str, sim: &Sim) -> String {
             return out;
         };
         let spec = &after[..close];
-        let (name, width) = match spec.split_once(':') {
-            Some((n, w)) => (n, w.parse::<usize>().unwrap_or(0)),
-            None => (spec, 0),
+        let (name, fmt) = spec.split_once(':').unwrap_or((spec, ""));
+        let (width, decimals) = match fmt.strip_prefix('.') {
+            Some(d) => (0, d.parse::<usize>().ok()),
+            None => (fmt.parse::<usize>().unwrap_or(0), None),
         };
-        let v = sim.var(name).map_or_else(|| "?".to_string(), fmt_num);
+        let v = sim.var(name).map_or_else(|| "?".to_string(), |x| match decimals {
+            Some(d) => format!("{x:.d$}"),
+            None => fmt_num(x),
+        });
         if width > 0 {
             out.push_str(&format!("{v:0>width$}"));
         } else {
@@ -348,6 +352,7 @@ mod tests {
         assert_eq!(fill_template("SCORE {score}", &s), "SCORE 0");
         assert_eq!(fill_template("{score:4}!", &s), "0000!");
         assert_eq!(fill_template("{nope}", &s), "?");
+        assert_eq!(fill_template("{score:.2}", &s), "0.00");
         assert_eq!(fmt_num(2.5), "2.5");
         assert_eq!(fmt_num(3.0), "3");
         assert_eq!(fmt_num(1.0 / 3.0), "0.33");

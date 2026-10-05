@@ -912,6 +912,9 @@ pub(crate) enum Command {
         /// Only scenarios whose name contains this.
         #[arg(long)]
         only: Option<String>,
+        /// A 2D game only: print every variable every this many seconds of the playthrough (find out when a balance goes wrong).
+        #[arg(long)]
+        every: Option<f32>,
         /// Record the first scenario's run (inputs, events, checksums) to this trace file.
         #[arg(long)]
         trace: Option<PathBuf>,

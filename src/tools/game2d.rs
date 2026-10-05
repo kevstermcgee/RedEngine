@@ -118,7 +118,7 @@ pub fn verify(path: &Path, only: Option<&str>) -> Report {
 }
 
 /// `sim`: each scenario's outcome in detail.
-pub fn sim(path: &Path, only: Option<&str>) -> Report {
+pub fn sim(path: &Path, only: Option<&str>, every: Option<f32>) -> Report {
     let (d, _) = match load(path) {
         Ok(x) => x,
         Err(e) => return Report { text: e, ok: false },
@@ -140,6 +140,14 @@ pub fn sim(path: &Path, only: Option<&str>) -> Report {
         }
         if !r.events.is_empty() {
             t.push_str(&format!("      events: {}\n", r.events.iter().map(|(n, c)| format!("{n} x{c}")).collect::<Vec<_>>().join(", ")));
+        }
+        if let Some(step) = every.filter(|e| *e > 0.0) {
+            let mut at = step;
+            while at < r.ticks as f32 / 60.0 {
+                let (rr, _) = script::run_scenario(&d, sc, Some((at * 60.0).round() as u64));
+                t.push_str(&format!("      t={at:>6.1}s  {}\n", rr.vars.iter().map(|(n, v)| format!("{n}={}", if v.fract() == 0.0 { format!("{v}") } else { format!("{v:.1}") })).collect::<Vec<_>>().join(" ")));
+                at += step;
+            }
         }
         for f in &r.failures {
             t.push_str(&format!("      FAILED: {f}\n"));
