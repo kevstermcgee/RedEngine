@@ -101,8 +101,18 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
             std::fs::write(out.join("report.json"), serde_json::to_string_pretty(&v.raw).unwrap_or_default()).ok();
             if let Some(d) = &dir {
                 // The record `publish --package` requires: which package was played, and whether every check passed.
-                if let Some(id) = std::fs::read_to_string(d.join("manifest.json")).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).and_then(|m| m["package_id"].as_str().map(str::to_string)) {
-                    let ver = publish2d::Verification { package_id: id, ok: failed == 0, browser: browser.clone(), checks: all.len(), audio_claims: all.iter().filter(|r| r.claim == "browser-audio" && r.ok).map(|r| r.name.clone()).collect() };
+                if let Some(id) = std::fs::read_to_string(d.join("manifest.json"))
+                    .ok()
+                    .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+                    .and_then(|m| m["package_id"].as_str().map(str::to_string))
+                {
+                    let ver = publish2d::Verification {
+                        package_id: id,
+                        ok: failed == 0,
+                        browser: browser.clone(),
+                        checks: all.len(),
+                        audio_claims: all.iter().filter(|r| r.claim == "browser-audio" && r.ok).map(|r| r.name.clone()).collect(),
+                    };
                     std::fs::write(out.join("verification.json"), serde_json::to_string_pretty(&ver.to_json()).unwrap_or_default()).ok();
                 }
             }
@@ -159,7 +169,15 @@ pub(crate) fn run_publish(
         (Some(g), None) => {
             let out = out.unwrap_or_else(|| PathBuf::from("out/publish").join(id_of(g).unwrap_or_else(|_| "game".into())));
             let opts = Options { backend, dry_run, out, wasm };
-            publish2d::publish(g, &opts, |s| println!("{:>2}. {} {:<20} {}", publish2d::STAGES.iter().position(|n| *n == s.stage).map_or(0, |i| i + 1), if s.ok { "ok  " } else { "FAIL" }, s.stage, s.detail.lines().next().unwrap_or("")))
+            publish2d::publish(g, &opts, |s| {
+                println!(
+                    "{:>2}. {} {:<20} {}",
+                    publish2d::STAGES.iter().position(|n| *n == s.stage).map_or(0, |i| i + 1),
+                    if s.ok { "ok  " } else { "FAIL" },
+                    s.stage,
+                    s.detail.lines().next().unwrap_or("")
+                )
+            })
         }
         (None, Some(p)) => {
             // Publishing without playing it is refused: the package must carry a passing browser record for exactly this package.
@@ -180,7 +198,10 @@ pub(crate) fn run_publish(
                 return Err(format!("the browser verification at {} is for package {}, not {id}: the package changed after it was verified; run `web verify --package {}` again", rec_path.display(), ver.package_id, p.display()));
             }
             if !ver.ok {
-                return Err(format!("the browser verification of package {id} FAILED ({}): fix it and `web verify` again; a failing game is not published", rec_path.display()));
+                return Err(format!(
+                    "the browser verification of package {id} FAILED ({}): fix it and `web verify` again; a failing game is not published",
+                    rec_path.display()
+                ));
             }
             let bad: Vec<String> = webpkg::check(p).into_iter().filter(|r| !r.ok).map(|r| format!("{}: {}", r.name, r.detail)).collect();
             if !bad.is_empty() {
@@ -191,7 +212,21 @@ pub(crate) fn run_publish(
             o.states.local_browser = true;
             o.build_id = Some(id.to_string());
             let opts = Options { backend, dry_run, out: out.unwrap_or_else(|| PathBuf::from("out/publish").join(gid)), wasm };
-            publish2d::upload_and_confirm(&mut o, &mut |s| println!("{:>2}. {} {:<20} {}", publish2d::STAGES.iter().position(|n| *n == s.stage).map_or(0, |i| i + 1), if s.ok { "ok  " } else { "FAIL" }, s.stage, s.detail.lines().next().unwrap_or("")), p, &ver, &opts);
+            publish2d::upload_and_confirm(
+                &mut o,
+                &mut |s| {
+                    println!(
+                        "{:>2}. {} {:<20} {}",
+                        publish2d::STAGES.iter().position(|n| *n == s.stage).map_or(0, |i| i + 1),
+                        if s.ok { "ok  " } else { "FAIL" },
+                        s.stage,
+                        s.detail.lines().next().unwrap_or("")
+                    )
+                },
+                p,
+                &ver,
+                &opts,
+            );
             o
         }
         _ => return Err("give a game file, or --package DIR (a package `web verify` passed)".into()),
@@ -207,7 +242,15 @@ pub(crate) fn run_publish(
 }
 
 /// `propose`: a plan from an idea.
-pub(crate) fn run_propose(idea: &str, title: Option<String>, presentation: Option<String>, platforms: Vec<String>, inputs: Vec<String>, networking: Option<String>, session: Option<u32>) -> Result<(), String> {
+pub(crate) fn run_propose(
+    idea: &str,
+    title: Option<String>,
+    presentation: Option<String>,
+    platforms: Vec<String>,
+    inputs: Vec<String>,
+    networking: Option<String>,
+    session: Option<u32>,
+) -> Result<(), String> {
     use red2d::caps::{Input, Networking, Platform, Presentation};
     if idea.trim().is_empty() {
         return Err("say the idea in a few words, like `propose \"a small arcade game where you dodge asteroids\"`".into());

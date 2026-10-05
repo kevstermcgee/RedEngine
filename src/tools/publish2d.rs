@@ -24,7 +24,18 @@ pub const META_SCHEMA: &str = "red2d-game-meta/1";
 pub const CATALOG_SCHEMA: &str = "red2d-catalog/1";
 
 /// The stages, in order.
-pub const STAGES: &[&str] = &["validate", "gameplay tests", "wasm build", "static package", "integrity check", "browser smoke", "publication metadata", "upload", "remote smoke", "url"];
+pub const STAGES: &[&str] = &[
+    "validate",
+    "gameplay tests",
+    "wasm build",
+    "static package",
+    "integrity check",
+    "browser smoke",
+    "publication metadata",
+    "upload",
+    "remote smoke",
+    "url",
+];
 
 /// Where a build goes.
 #[derive(Debug, Clone)]
@@ -128,7 +139,10 @@ impl Outcome {
 
 /// Seconds since the Unix epoch (`SOURCE_DATE_EPOCH` when set, so a build can be made reproducible).
 pub fn now_epoch() -> u64 {
-    std::env::var("SOURCE_DATE_EPOCH").ok().and_then(|s| s.parse().ok()).unwrap_or_else(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0))
+    std::env::var("SOURCE_DATE_EPOCH")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0))
 }
 
 /// `2026-10-05T17:03:09Z` for an epoch second.
@@ -222,8 +236,10 @@ pub fn game_meta(manifest: &Value, v: &Verification, epoch: u64, previous_builds
 
 fn copy_package(from: &Path, to: &Path) -> Result<(), String> {
     std::fs::create_dir_all(to).map_err(|e| format!("{}: {e}", to.display()))?;
-    let manifest: Value = serde_json::from_str(&std::fs::read_to_string(from.join("manifest.json")).map_err(|e| format!("manifest.json: {e}"))?).map_err(|e| format!("manifest.json: {e}"))?;
-    let mut files: Vec<String> = manifest["files"].as_array().map(|a| a.iter().filter_map(|f| f["path"].as_str().map(str::to_string)).collect()).unwrap_or_default();
+    let manifest: Value = serde_json::from_str(&std::fs::read_to_string(from.join("manifest.json")).map_err(|e| format!("manifest.json: {e}"))?)
+        .map_err(|e| format!("manifest.json: {e}"))?;
+    let mut files: Vec<String> =
+        manifest["files"].as_array().map(|a| a.iter().filter_map(|f| f["path"].as_str().map(str::to_string)).collect()).unwrap_or_default();
     files.push("manifest.json".into());
     for f in files {
         let dest = to.join(&f);
@@ -238,7 +254,8 @@ fn copy_package(from: &Path, to: &Path) -> Result<(), String> {
 /// Writes a verified package into a static site (`games/<id>/builds/<build_id>/`, `games/<id>/` = newest, `games/<id>/game.json`, `catalog.json`, `index.html`).
 /// A build directory that already exists must hold the same bytes (builds are immutable). Returns the game's record.
 pub fn write_site(site: &Path, pkg: &Path, v: &Verification, epoch: u64) -> Result<Value, String> {
-    let manifest: Value = serde_json::from_str(&std::fs::read_to_string(pkg.join("manifest.json")).map_err(|e| format!("manifest.json: {e}"))?).map_err(|e| format!("manifest.json: {e}"))?;
+    let manifest: Value = serde_json::from_str(&std::fs::read_to_string(pkg.join("manifest.json")).map_err(|e| format!("manifest.json: {e}"))?)
+        .map_err(|e| format!("manifest.json: {e}"))?;
     let id = manifest["game"]["id"].as_str().ok_or("manifest has no game id")?.to_string();
     let build_id = manifest["package_id"].as_str().ok_or("manifest has no package id")?.to_string();
     if v.package_id != build_id {
@@ -268,7 +285,11 @@ pub fn write_site(site: &Path, pkg: &Path, v: &Verification, epoch: u64) -> Resu
         }
     }
     copy_package(pkg, &game_dir)?;
-    let previous: Vec<Value> = std::fs::read_to_string(game_dir.join("game.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).and_then(|v| v["builds"].as_array().cloned()).unwrap_or_default();
+    let previous: Vec<Value> = std::fs::read_to_string(game_dir.join("game.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v["builds"].as_array().cloned())
+        .unwrap_or_default();
     let meta = game_meta(&manifest, v, epoch, &previous);
     std::fs::write(game_dir.join("game.json"), serde_json::to_string_pretty(&meta).unwrap_or_default() + "\n").map_err(|e| e.to_string())?;
     write_catalog(site)?;
@@ -341,7 +362,12 @@ pub fn github_upload(repo: &Path, pkg: &Path, v: &Verification, epoch: u64, push
     let meta = write_site(&site, pkg, v, epoch)?;
     git(repo, &["add", "webgames"])?;
     let id = meta["id"].as_str().unwrap_or("game");
-    let msg = format!("Browser game {id}: build {} (game {}, engine {})", meta["build_id"].as_str().unwrap_or(""), meta["game_revision"].as_str().unwrap_or(""), meta["engine_revision"].as_str().unwrap_or(""));
+    let msg = format!(
+        "Browser game {id}: build {} (game {}, engine {})",
+        meta["build_id"].as_str().unwrap_or(""),
+        meta["game_revision"].as_str().unwrap_or(""),
+        meta["engine_revision"].as_str().unwrap_or("")
+    );
     let staged = git(repo, &["status", "--porcelain", "--", "webgames"])?;
     if !staged.is_empty() {
         git(repo, &["-c", "user.name=RedEngine publish", "-c", "user.email=publish@redengine.invalid", "commit", "-q", "-m", &msg])?;
@@ -432,7 +458,12 @@ pub fn publish(game: &Path, opts: &Options, mut progress: impl FnMut(&StageResul
                 let t = Instant::now();
                 match webpkg::build(game, &pkg_dir, Some(&w)) {
                     Ok(b) => {
-                        out.set("static package", true, format!("package {} in {}", b.manifest["package_id"].as_str().unwrap_or(""), pkg_dir.display()), t.elapsed().as_secs_f32());
+                        out.set(
+                            "static package",
+                            true,
+                            format!("package {} in {}", b.manifest["package_id"].as_str().unwrap_or(""), pkg_dir.display()),
+                            t.elapsed().as_secs_f32(),
+                        );
                         progress(&out.stages[3]);
                         b
                     }
@@ -495,7 +526,18 @@ pub fn upload_and_confirm(out: &mut Outcome, progress: &mut impl FnMut(&StageRes
     let t = Instant::now();
     let manifest: Value = std::fs::read_to_string(pkg.join("manifest.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
     let meta = game_meta(&manifest, ver, epoch, &[]);
-    out.set("publication metadata", true, format!("{} · {} · build {} · engine {}", meta["id"].as_str().unwrap_or(""), meta["build_timestamp"].as_str().unwrap_or(""), meta["build_id"].as_str().unwrap_or(""), meta["engine_revision"].as_str().unwrap_or("")), t.elapsed().as_secs_f32());
+    out.set(
+        "publication metadata",
+        true,
+        format!(
+            "{} · {} · build {} · engine {}",
+            meta["id"].as_str().unwrap_or(""),
+            meta["build_timestamp"].as_str().unwrap_or(""),
+            meta["build_id"].as_str().unwrap_or(""),
+            meta["engine_revision"].as_str().unwrap_or("")
+        ),
+        t.elapsed().as_secs_f32(),
+    );
     progress(&out.stages[6]);
     if opts.dry_run {
         out.set("upload", true, "dry run: nothing uploaded", 0.0);
@@ -507,8 +549,11 @@ pub fn upload_and_confirm(out: &mut Outcome, progress: &mut impl FnMut(&StageRes
     let t = Instant::now();
     let uploaded = match &opts.backend {
         Backend::Local { site, .. } => write_site(site, pkg, ver, epoch).map(|m| (format!("site written to {}", site.display()), site.clone(), m)),
-        Backend::GithubPages { repo, push, .. } => github_upload(repo, pkg, ver, epoch, *push)
-            .and_then(|(site, pushed)| write_site_meta_only(&site).map(|m| (format!("committed in {}{}", repo.display(), if pushed { " and pushed" } else { " (NOT pushed: nothing has left this machine)" }), site, m))),
+        Backend::GithubPages { repo, push, .. } => github_upload(repo, pkg, ver, epoch, *push).and_then(|(site, pushed)| {
+            write_site_meta_only(&site).map(|m| {
+                (format!("committed in {}{}", repo.display(), if pushed { " and pushed" } else { " (NOT pushed: nothing has left this machine)" }), site, m)
+            })
+        }),
     };
     let (detail, location, meta) = match uploaded {
         Ok(x) => x,
@@ -536,7 +581,9 @@ pub fn upload_and_confirm(out: &mut Outcome, progress: &mut impl FnMut(&StageRes
             let t = Instant::now();
             let r = loopback_check(site, &id, ver, &opts.out);
             match r {
-                Ok(msg) => out.set("remote smoke", true, format!("{msg} (served from this machine's loopback; this is not a remote check)"), t.elapsed().as_secs_f32()),
+                Ok(msg) => {
+                    out.set("remote smoke", true, format!("{msg} (served from this machine's loopback; this is not a remote check)"), t.elapsed().as_secs_f32())
+                }
                 Err(e) => out.set("remote smoke", false, e, t.elapsed().as_secs_f32()),
             }
             progress(&out.stages[8]);
@@ -547,8 +594,14 @@ pub fn upload_and_confirm(out: &mut Outcome, progress: &mut impl FnMut(&StageRes
         out.set("url", true, "unavailable: no remote backend published this game", 0.0);
         out.stages[9].skipped = true;
         out.external_step = Some(match &opts.backend {
-            Backend::Local { site, .. } => format!("serve {} from a static host (or `red_engine2 web serve {}`) and pass --base-url, or use --backend github-pages", site.display(), site.display()),
-            Backend::GithubPages { repo, .. } => format!("review and push: git -C {} push origin HEAD (or rerun with --push); the site workflow then deploys it", repo.display()),
+            Backend::Local { site, .. } => format!(
+                "serve {} from a static host (or `red_engine2 web serve {}`) and pass --base-url, or use --backend github-pages",
+                site.display(),
+                site.display()
+            ),
+            Backend::GithubPages { repo, .. } => {
+                format!("review and push: git -C {} push origin HEAD (or rerun with --push); the site workflow then deploys it", repo.display())
+            }
         });
         return;
     };
@@ -648,7 +701,11 @@ fn remote_smoke(url: &str, ver: &Verification, out: &Path, wait_for_deploy: bool
 pub fn http_get(url: &str) -> Result<String, String> {
     if url.starts_with("https://") {
         let o = std::process::Command::new("curl").args(["-fsSL", "--max-time", "20", url]).output().map_err(|e| format!("curl: {e}"))?;
-        return if o.status.success() { Ok(String::from_utf8_lossy(&o.stdout).to_string()) } else { Err(format!("curl {url}: {}", String::from_utf8_lossy(&o.stderr).trim())) };
+        return if o.status.success() {
+            Ok(String::from_utf8_lossy(&o.stdout).to_string())
+        } else {
+            Err(format!("curl {url}: {}", String::from_utf8_lossy(&o.stderr).trim()))
+        };
     }
     use std::io::{Read, Write};
     let rest = url.strip_prefix("http://").ok_or_else(|| format!("{url}: not an http(s) URL"))?;
@@ -670,7 +727,13 @@ pub fn http_get(url: &str) -> Result<String, String> {
 pub fn render(o: &Outcome) -> String {
     let mut t = String::new();
     for (i, s) in o.stages.iter().enumerate() {
-        let mark = if s.skipped { "skip" } else if s.ok { "ok  " } else { "FAIL" };
+        let mark = if s.skipped {
+            "skip"
+        } else if s.ok {
+            "ok  "
+        } else {
+            "FAIL"
+        };
         t.push_str(&format!("{:>2}. {mark} {:<20} {}\n", i + 1, s.stage, s.detail.lines().next().unwrap_or("")));
     }
     if let Some(f) = o.failed_stage() {
@@ -774,7 +837,24 @@ mod tests {
         let manifest = json!({"package_id": "abcd", "game": {"id": "g", "title": "G", "description": "d", "game_revision": "r", "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["mouse"], "persistence": ["settings"], "screen": {}},
             "engine": {"revision": "e", "dirty": true}, "compat": {"requires": [], "optional": [], "networking": "n"}, "native": {"scenarios": [1, 2, 3]}});
         let r = game_meta(&manifest, &ver("abcd"), 0, &[]);
-        for k in ["id", "title", "description", "engine_revision", "game_revision", "presentation", "platforms", "input", "networking", "persistence", "thumbnail", "build_timestamp", "compatibility", "urls", "builds", "verification"] {
+        for k in [
+            "id",
+            "title",
+            "description",
+            "engine_revision",
+            "game_revision",
+            "presentation",
+            "platforms",
+            "input",
+            "networking",
+            "persistence",
+            "thumbnail",
+            "build_timestamp",
+            "compatibility",
+            "urls",
+            "builds",
+            "verification",
+        ] {
             assert!(r.get(k).is_some(), "the record lacks `{k}`");
         }
         assert_eq!(r["verification"]["audio"]["human_listening_verified"], false);
@@ -793,7 +873,13 @@ mod tests {
         o.location = Some("/tmp/site".into());
         o.external_step = Some("push".into());
         let t = render(&o);
-        assert!(t.contains("BUILD SUCCESS: yes") && t.contains("LOCAL BROWSER SUCCESS: yes") && t.contains("UPLOAD SUCCESS: no") && t.contains("REMOTE PLAYABLE SUCCESS: no"), "{t}");
+        assert!(
+            t.contains("BUILD SUCCESS: yes")
+                && t.contains("LOCAL BROWSER SUCCESS: yes")
+                && t.contains("UPLOAD SUCCESS: no")
+                && t.contains("REMOTE PLAYABLE SUCCESS: no"),
+            "{t}"
+        );
         assert!(t.contains("URL: none. PUBLICATION UNAVAILABLE") && t.contains("Remaining external step: push"), "{t}");
         assert!(!t.contains("http"), "no URL is invented");
         o.set("browser smoke", false, "boom", 0.0);

@@ -102,7 +102,9 @@ fn run(command: Command) -> Result<(), String> {
             Ok(())
         }
         Command::Web { cmd } => web::run_web(cmd),
-        Command::Propose { idea, title, presentation, platforms, inputs, networking, session } => web::run_propose(&idea.join(" "), title, presentation, platforms, inputs, networking, session),
+        Command::Propose { idea, title, presentation, platforms, inputs, networking, session } => {
+            web::run_propose(&idea.join(" "), title, presentation, platforms, inputs, networking, session)
+        }
         Command::Publish { game, package, backend, site, base_url, repo, push, pages_url, dry_run, out, wasm } => {
             web::run_publish(game.as_deref(), package.as_deref(), &backend, site, base_url, repo, push, pages_url, dry_run, out, wasm)
         }

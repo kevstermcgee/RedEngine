@@ -59,9 +59,21 @@ fn has(text: &str, words: &[&str]) -> bool {
 }
 
 fn title_of(idea: &str) -> String {
-    const SKIP: &[&str] = &["a", "an", "the", "small", "little", "simple", "tiny", "game", "where", "you", "your", "that", "with", "and", "of", "to", "in", "on", "make", "create", "build", "me", "for", "my", "is", "it", "browser", "playable"];
-    let words: Vec<String> = idea.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty() && !SKIP.contains(&w.to_lowercase().as_str())).take(3).map(|w| w.chars().next().map(|c| c.to_uppercase().collect::<String>() + &w[1..].to_lowercase()).unwrap_or_default()).collect();
-    if words.is_empty() { "Untitled".into() } else { words.join(" ") }
+    const SKIP: &[&str] = &[
+        "a", "an", "the", "small", "little", "simple", "tiny", "game", "where", "you", "your", "that", "with", "and", "of", "to", "in", "on", "make", "create",
+        "build", "me", "for", "my", "is", "it", "browser", "playable",
+    ];
+    let words: Vec<String> = idea
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty() && !SKIP.contains(&w.to_lowercase().as_str()))
+        .take(3)
+        .map(|w| w.chars().next().map(|c| c.to_uppercase().collect::<String>() + &w[1..].to_lowercase()).unwrap_or_default())
+        .collect();
+    if words.is_empty() {
+        "Untitled".into()
+    } else {
+        words.join(" ")
+    }
 }
 
 /// Plans a game from an idea.
@@ -70,26 +82,92 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
     let mut reasons = Vec::new();
     let mut problems = Vec::new();
 
-    let wants_3d_world = has(&t, &["3d", "first person", "first-person", "fps", "open world", "walk around", "explore a house", "kart", "driving", "racing in 3d", "third person", "third-person"]);
+    let wants_3d_world = has(
+        &t,
+        &[
+            "3d",
+            "first person",
+            "first-person",
+            "fps",
+            "open world",
+            "walk around",
+            "explore a house",
+            "kart",
+            "driving",
+            "racing in 3d",
+            "third person",
+            "third-person",
+        ],
+    );
     let wants_others = has(&t, &["multiplayer", "online", "with friends", "co-op", "coop", "versus", "pvp", "play with my", "with my cousin", "with others"]);
     let wants_web = has(&t, &["browser", "web", "url", "link", "online game", "publish"]);
 
     // Genre -> default input, session, mechanics weight.
-    let (genre, input_default, session, weight): (&'static str, &[Input], (u32, u32), u32) = if has(&t, &["platformer", "jump", "side-scroll", "side scroll", "hop"]) {
-        ("platformer", &[Input::Keyboard], (5, 10), 3)
-    } else if has(&t, &["strategy", "management", "tycoon", "manage", "simulation", "build a station", "city", "farm", "idle", "clicker", "card", "tower defense", "tower defence"]) {
-        ("management", &[Input::Mouse, Input::Keyboard], (8, 15), 5)
-    } else if has(&t, &["puzzle", "match", "sokoban", "word", "sudoku", "memory"]) {
-        ("puzzle", &[Input::Mouse], (5, 15), 3)
-    } else if has(&t, &["shooter", "shmup", "space invaders", "asteroid", "dodge", "survive", "arena"]) {
-        ("arcade shooter", &[Input::Keyboard, Input::Mouse], (2, 6), 3)
-    } else if has(&t, &["arcade", "collect", "coin", "catch", "chase", "maze", "snake", "pong", "breakout"]) {
-        ("arcade", &[Input::Keyboard], (2, 5), 2)
+    let (genre, input_default, session, weight): (&'static str, &[Input], (u32, u32), u32) =
+        if has(&t, &["platformer", "jump", "side-scroll", "side scroll", "hop"]) {
+            ("platformer", &[Input::Keyboard], (5, 10), 3)
+        } else if has(
+            &t,
+            &[
+                "strategy",
+                "management",
+                "tycoon",
+                "manage",
+                "simulation",
+                "build a station",
+                "city",
+                "farm",
+                "idle",
+                "clicker",
+                "card",
+                "tower defense",
+                "tower defence",
+            ],
+        ) {
+            ("management", &[Input::Mouse, Input::Keyboard], (8, 15), 5)
+        } else if has(&t, &["puzzle", "match", "sokoban", "word", "sudoku", "memory"]) {
+            ("puzzle", &[Input::Mouse], (5, 15), 3)
+        } else if has(&t, &["shooter", "shmup", "space invaders", "asteroid", "dodge", "survive", "arena"]) {
+            ("arcade shooter", &[Input::Keyboard, Input::Mouse], (2, 6), 3)
+        } else if has(&t, &["arcade", "collect", "coin", "catch", "chase", "maze", "snake", "pong", "breakout"]) {
+            ("arcade", &[Input::Keyboard], (2, 5), 2)
+        } else {
+            ("arcade", &[Input::Keyboard], (3, 8), 2)
+        };
+    let mechanics = [
+        "enemy",
+        "enemies",
+        "boss",
+        "inventory",
+        "crafting",
+        "shop",
+        "levels",
+        "score",
+        "timer",
+        "lives",
+        "power-up",
+        "powerup",
+        "upgrade",
+        "quest",
+        "dialog",
+        "story",
+        "procedural",
+        "random",
+        "physics",
+        "gravity",
+        "particles",
+    ]
+    .iter()
+    .filter(|w| has(&t, &[w]))
+    .count() as u32
+        + weight;
+    let complexity = if mechanics <= 3 {
+        "small"
+    } else if mechanics <= 6 {
+        "medium"
     } else {
-        ("arcade", &[Input::Keyboard], (3, 8), 2)
+        "large"
     };
-    let mechanics = ["enemy", "enemies", "boss", "inventory", "crafting", "shop", "levels", "score", "timer", "lives", "power-up", "powerup", "upgrade", "quest", "dialog", "story", "procedural", "random", "physics", "gravity", "particles"].iter().filter(|w| has(&t, &[w])).count() as u32 + weight;
-    let complexity = if mechanics <= 3 { "small" } else if mechanics <= 6 { "medium" } else { "large" };
 
     // Presentation: the simplest one that delivers the idea.
     let presentation = match o.presentation {
@@ -126,7 +204,11 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
         vec![Platform::Windows, Platform::Linux]
     };
 
-    let input: Vec<Input> = if o.input.is_empty() { input_default.iter().copied().filter(|i| presentation == Presentation::TwoD || *i != Input::Touch).collect() } else { o.input.clone() };
+    let input: Vec<Input> = if o.input.is_empty() {
+        input_default.iter().copied().filter(|i| presentation == Presentation::TwoD || *i != Input::Touch).collect()
+    } else {
+        o.input.clone()
+    };
     let mut persistence = Vec::new();
     if has(&t, &["score", "high score", "best", "progress", "save", "unlock", "level"]) || genre != "puzzle" && complexity != "small" {
         persistence.push(Persistence::Progress);
@@ -219,7 +301,11 @@ impl Proposal {
                 "red_engine2 publish DIR/NAME.game2d.json  # to a URL when a backend is configured".into(),
             ]
         } else {
-            vec!["red_engine2 new-game DIR [--kind race]  # a verified 3D starter".into(), "red_engine2 describe rules   # game logic as data".into(), "scripts/red check          # after every change".into()]
+            vec![
+                "red_engine2 new-game DIR [--kind race]  # a verified 3D starter".into(),
+                "red_engine2 describe rules   # game logic as data".into(),
+                "scripts/red check          # after every change".into(),
+            ]
         }
     }
 
@@ -244,7 +330,14 @@ impl Proposal {
             t.push_str(&format!("  why: {r}\n"));
         }
         let cost = self.cost();
-        t.push_str(&format!("  cost: {} file(s) to write, {}; read first: {}; loop: {}\n        ({})\n", cost["files_to_write"], cost["size"].as_str().unwrap_or(""), cost["files_to_read_first"].as_array().map_or(String::new(), |a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")), cost["loop_commands"].as_array().map_or(String::new(), |a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" > ")), cost["basis"].as_str().unwrap_or("")));
+        t.push_str(&format!(
+            "  cost: {} file(s) to write, {}; read first: {}; loop: {}\n        ({})\n",
+            cost["files_to_write"],
+            cost["size"].as_str().unwrap_or(""),
+            cost["files_to_read_first"].as_array().map_or(String::new(), |a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")),
+            cost["loop_commands"].as_array().map_or(String::new(), |a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" > ")),
+            cost["basis"].as_str().unwrap_or("")
+        ));
         for p in &self.problems {
             t.push_str(&format!("  CANNOT BUILD AS STATED: {p}\n"));
         }
@@ -304,7 +397,10 @@ mod tests {
         let r = p("an online co-op shooter I can play in the browser with my cousin");
         assert!(!r.buildable(), "{}", r.render());
         let text = r.render();
-        assert!(text.contains("CANNOT BUILD AS STATED") && text.contains("Browser target cannot use the native UDP transport") && text.contains("single-player"), "{text}");
+        assert!(
+            text.contains("CANNOT BUILD AS STATED") && text.contains("Browser target cannot use the native UDP transport") && text.contains("single-player"),
+            "{text}"
+        );
         assert_eq!(r.caps.networking, Networking::Authoritative, "the networking the user asked for is kept, not quietly dropped");
     }
 
@@ -312,7 +408,10 @@ mod tests {
     fn overrides_are_checked_not_trusted() {
         let r = propose("a small arcade game", &Overrides { presentation: Some(Presentation::ThreeD), platforms: vec![Platform::Web], ..Overrides::default() });
         assert!(!r.buildable() && r.problems.iter().any(|x| x.contains("3D cannot target `web`")), "{:?}", r.problems);
-        let r = propose("a small arcade game", &Overrides { title: Some("Zip".into()), session_minutes: Some(4), input: vec![Input::Gamepad], ..Overrides::default() });
+        let r = propose(
+            "a small arcade game",
+            &Overrides { title: Some("Zip".into()), session_minutes: Some(4), input: vec![Input::Gamepad], ..Overrides::default() },
+        );
         assert!(r.buildable() && r.title == "Zip" && r.session == (4, 4));
         assert!(r.warnings.iter().any(|w| w.contains("gamepad") && w.contains("unverified")), "{:?}", r.warnings);
     }
