@@ -261,6 +261,49 @@ pub(crate) enum GameUpgradeCmd {
 }
 
 #[derive(Subcommand)]
+pub(crate) enum WebCmd {
+    /// Validate a 2D game, build the WebAssembly player and write the static package (index.html, runtime.js, game.wasm, assets/game.json, thumbnail.png, manifest.json),
+    /// then check its integrity. Deterministic: the same game and engine give the same package id.
+    Build {
+        /// The `*.game2d.json`.
+        game: PathBuf,
+        /// Where to write the package (default `out/web/<game id>`).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Use this prebuilt `red2d.wasm` instead of building one (also `RED2D_WASM`).
+        #[arg(long)]
+        wasm: Option<PathBuf>,
+    },
+    /// Check a package directory with nothing but the directory: hashes, undeclared files, absolute paths, the module's imports and exports, the game's revision.
+    Check { dir: PathBuf },
+    /// Serve a package directory on http://127.0.0.1:PORT until Ctrl-C (correct content types, no caching).
+    Serve {
+        dir: PathBuf,
+        /// Port (0 = any free one).
+        #[arg(long, default_value_t = 8080)]
+        port: u16,
+    },
+    /// Run a built package in a real headless Chromium: the page loads, the module initialises, the first frame equals the native frame, scripted keys and clicks change the
+    /// state, saves survive a reload (and failing/foreign/corrupt storage does not break the game), audio starts after a gesture, console and network are clean.
+    /// Builds the package first if `--package` is not given. Needs `setup-browser` once.
+    Verify {
+        /// The game, or (with `--package`) nothing.
+        game: Option<PathBuf>,
+        /// Verify an already-built package directory instead of building one.
+        #[arg(long)]
+        package: Option<PathBuf>,
+        /// Where screenshots and the JSON report go (default `out/web-verify/<game id>`).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Verify a package served from this URL (a deployed game) instead of a local directory.
+        #[arg(long)]
+        url: Option<String>,
+    },
+    /// Install the headless browser used by `verify`: a Python virtual environment with Playwright and its Chromium, under `~/.cache/red_engine2/browser`.
+    SetupBrowser,
+}
+
+#[derive(Subcommand)]
 pub(crate) enum AudioCmd {
     /// Every built-in sound with its group, kind and length.
     List,
@@ -800,6 +843,12 @@ pub(crate) enum Command {
         file: Option<PathBuf>,
         /// A question like `2d web` or `3d web authoritative`; empty prints the whole matrix.
         query: Vec<String>,
+    },
+    /// 2D games in the browser: `build` a static WebAssembly package, `check` its integrity, `serve` it locally, `verify` it in a real headless browser,
+    /// `setup-browser` once per machine. Building and verifying need no credentials and no internet; `publish` is a separate command.
+    Web {
+        #[command(subcommand)]
+        cmd: WebCmd,
     },
     /// Scaffold a game project that USES the engine (pinned in game.json) instead of forking it: a starter blueprint and the map it builds,
     /// CLAUDE.md, STATUS.md, `scripts/red` (finds/builds the pinned engine) and a CI workflow. The result already passes `game check`.

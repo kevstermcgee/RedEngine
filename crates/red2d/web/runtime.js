@@ -151,11 +151,8 @@
     ensureAudio();
     last = performance.now();
   }
-  function toView(clientX, clientY) {
-    const r = canvas.getBoundingClientRect();
-    const vw = x().view_w(), vh = x().view_h();
-    const px = (clientX - r.left) * vw / r.width, py = (clientY - r.top) * vh / r.height;
-    return (px >= 0 && py >= 0 && px < vw && py < vh) ? [px, py] : null;
+  function toView(clientX, clientY) {                  // the module owns the mapping, so a click lands where the picture says it does
+    return x().to_view(clientX, clientY) ? [x().view_x(), x().view_y()] : null;
   }
   function onKey(e, down) {
     if (status.state === 'error') return;
@@ -221,7 +218,7 @@
       manifest = await mres.json();
       const gameText = await gres.text();
       const bytes = await wres.arrayBuffer();
-      wasm = await WebAssembly.instantiate(bytes, {});
+      wasm = (await WebAssembly.instantiate(bytes, {})).instance;
       status.wasm = true; status.game = manifest.game || null;
       const seed = (Number(params.get('seed')) || 1) >>> 0;
       const rc = withText(gameText, (p, n) => x().init(p, n, seed));
@@ -247,7 +244,18 @@
     advance: (n) => { advance(n | 0); return snapshot(); },     // with ?paused=1 the page advances only when asked
     begin,
     scenarios: () => JSON.parse(outText(x().scenarios())),
-    pixels: () => { const w = x().view_w(), h = x().view_h(); return { w, h, data: Array.from(ctx2d.getImageData(0, 0, w, h).data) }; },
+    pixels: () => {                                           // the canvas as it is right now, base64 RGBA (what getImageData returns)
+      const w = x().view_w(), h = x().view_h(), d = ctx2d.getImageData(0, 0, w, h).data; let s = '';
+      for (let i = 0; i < d.length; i += 0x8000) s += String.fromCharCode.apply(null, d.subarray(i, i + 0x8000));
+      return { w, h, b64: btoa(s) };
+    },
+    toView: (cx, cy) => (x().to_view(cx, cy) ? [x().view_x(), x().view_y()] : null),
+    testSound: (i) => {                                       // run sound i through the real Web Audio pipeline: samples from the module, an AudioBuffer, a source node
+      ensureAudio(); if (!audio) return { ok: false, reason: 'no audio context: ' + status.audio };
+      const b = soundBuffer(i); if (!b) return { ok: false, reason: 'the module could not render sound ' + i };
+      const s = audio.createBufferSource(); s.buffer = b; s.connect(audio.destination); s.start();
+      return { ok: true, seconds: b.duration, rate: b.sampleRate, state: audio.state };
+    },
     resetSave: () => { try { localStorage.removeItem(storageKey); } catch (e) { /* nothing to remove */ } },
     layout: () => ({ x: x().layout_x(), y: x().layout_y(), w: x().layout_w(), h: x().layout_h() }),
   };

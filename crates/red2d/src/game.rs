@@ -638,6 +638,8 @@ pub struct BrowserCheck {
     pub ms: u32,
     /// Names (variables, `<id>_x`, `count_<tag>`) of which at least one must change.
     pub changes: Vec<String>,
+    /// Saved values (a persisted variable, or `music_on`) that must be the same after the page is reloaded.
+    pub persists: Vec<String>,
 }
 
 /// A sound.
@@ -2229,6 +2231,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                             opt("click", Ty::Nums(&[2]), "[x, y] in virtual screen pixels"),
                             opt("ms", Ty::Custom(count_ok_ms), "milliseconds to hold the keys, default 400"),
                             req("changes", Ty::Strs, "names (variables, <id>_x, count_<tag>) of which at least one must change"),
+                            opt("persists", Ty::Strs, "saved values (a `persist`ed variable, or music_on) that must survive reloading the page"),
                         ],
                     );
                     if !bo.contains_key("keys") && !bo.contains_key("click") {
@@ -2240,7 +2243,15 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                             ctx.err(format!("{path}.changes[{j}]"), format!("no variable `{c}`{}", Ctx::near(c, var_names.iter().cloned())));
                         }
                     }
+                    let persists: Vec<String> = bo.get("persists").and_then(Value::as_array).map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect()).unwrap_or_default();
+                    for (j, c) in persists.iter().enumerate() {
+                        let saved = c == "music_on" || declared_names.iter().position(|d| d == c).is_some_and(|ix| persist.contains(&ix));
+                        if !saved {
+                            ctx.err(format!("{path}.persists[{j}]"), format!("`{c}` is not saved: `persists` names a variable listed in `persist`, or `music_on`{}", Ctx::near(c, persist.iter().map(|&i| declared_names[i].clone()).chain(["music_on".to_string()]))));
+                        }
+                    }
                     browser.push(BrowserCheck {
+                        persists,
                         name: bo.get("name").and_then(Value::as_str).map_or_else(|| format!("browser check {i}"), str::to_string),
                         keys: bo.get("keys").and_then(Value::as_array).map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect()).unwrap_or_default(),
                         click: bo.get("click").and_then(pair),

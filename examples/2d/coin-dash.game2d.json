@@ -105,7 +105,8 @@
         "expect": [{ "var": "score", "eq": 0 }, { "var": "best", "gte": 12 }, { "not_ended": true }, { "var": "lives", "eq": 3 }] }
     ],
     "browser": [
-      { "name": "arrow keys move the player", "keys": ["ArrowRight"], "ms": 500, "changes": ["p_x"] }
+      { "name": "arrow keys move the player", "keys": ["ArrowRight"], "ms": 500, "changes": ["p_x"] },
+      { "name": "the music button turns music off and the choice survives a reload", "click": [296, 172], "changes": ["music_on"], "persists": ["music_on"] }
     ]
   }
 }

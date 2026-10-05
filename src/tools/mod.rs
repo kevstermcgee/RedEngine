@@ -57,4 +57,6 @@ pub mod symbols;
 pub mod upgrade;
 pub mod verify;
 pub mod walk;
+pub mod webpkg;
+pub mod webverify;
 pub mod world;

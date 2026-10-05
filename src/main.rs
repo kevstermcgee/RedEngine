@@ -49,6 +49,8 @@ mod repo;
 mod servers;
 #[path = "cli/util.rs"]
 mod util;
+#[path = "cli/web.rs"]
+mod web;
 
 use analyze::*;
 use args::*;
@@ -99,6 +101,7 @@ fn run(command: Command) -> Result<(), String> {
             println!();
             Ok(())
         }
+        Command::Web { cmd } => web::run_web(cmd),
         Command::Capabilities { file, query } => report(game2d::capabilities(file.as_deref(), &query)?),
         Command::Validate { scene } => run_validate(&scene),
         Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size, .. } => {
