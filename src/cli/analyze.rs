@@ -501,6 +501,16 @@ fn resolve_rev(root: &Path, rev: &str) -> String {
         .unwrap_or_else(|| rev.to_string())
 }
 
+/// `src/lib.rs` in the working tree against `base_ref`: only module declarations were added (false when either version cannot be read).
+fn lib_rs_only_adds_modules(root: &std::path::Path, base_ref: &str) -> bool {
+    let old =
+        std::process::Command::new("git").args(["show", &format!("{base_ref}:src/lib.rs")]).current_dir(root).output().ok().filter(|o| o.status.success());
+    match (old, std::fs::read_to_string(root.join("src/lib.rs"))) {
+        (Some(old), Ok(new)) => red_engine2::tools::affected::crate_root_only_adds_modules(&String::from_utf8_lossy(&old.stdout), &new),
+        _ => false,
+    }
+}
+
 pub(crate) fn run_affected(files: &[String], base: Option<&str>, flags: AffectedFlags) -> Result<(), String> {
     use red_engine2::tools::{affected, features, symbols};
     let AffectedFlags { quick, full, dry_run, keep_going, no_cache, partial, check_only, headless } = flags;
@@ -510,7 +520,13 @@ pub(crate) fn run_affected(files: &[String], base: Option<&str>, flags: Affected
     // A partial run looks at what you just did (changes since HEAD); the other tiers look at everything you would push (changes since the merge base).
     let explicit = !files.is_empty();
     let base_ref = base.map(str::to_string).unwrap_or_else(|| if partial { "HEAD".to_string() } else { features::default_base(&root) });
-    let changed: Vec<String> = if explicit { files.to_vec() } else { features::changed_files(&root, &base_ref)? };
+    let mut changed: Vec<String> = if explicit { files.to_vec() } else { features::changed_files(&root, &base_ref)? };
+    // A crate root that only gained module declarations is not a boundary change: the new files carry their own tests (see `crate_root_only_adds_modules`).
+    let mut notes = Vec::new();
+    if !explicit && changed.iter().any(|c| c == "src/lib.rs") && lib_rs_only_adds_modules(&root, &base_ref) {
+        changed.retain(|c| c != "src/lib.rs");
+        notes.push("src/lib.rs only gained module declarations: not treated as a crate-root change (the new files own their tests)".to_string());
+    }
     let opts = affected::Options { quick, full, partial, check_only, headless, ..Default::default() };
     let mut headless_note = None;
     let feature_set = if partial && headless {
@@ -525,6 +541,7 @@ pub(crate) fn run_affected(files: &[String], base: Option<&str>, flags: Affected
         affected::Features::Default
     };
     let mut plan = if partial { affected::plan_partial(&all, &serial, &changed, &opts, feature_set) } else { affected::plan(&all, &serial, &changed, &opts) };
+    plan.notes.extend(notes);
     if let Some(n) = headless_note {
         plan.notes.push(n);
     }

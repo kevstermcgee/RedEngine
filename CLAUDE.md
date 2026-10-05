@@ -14,7 +14,7 @@ $R adr new "Title" --summary "one sentence"   # a decision record: dated id, ind
 scripts/dev iterate              # 1. THE EDIT LOOP (seconds): only what changed since HEAD: fmt + type-check + clippy + the touched modules' unit tests. NEVER verification: it prints what it skipped
 scripts/dev affected --quick     # 2. the features that own your branch's changes, with their integration suites (the change set is everything since origin/main; on a long branch use --base HEAD)
 scripts/dev affected             # 3. + every feature built on them: before you say "done" (a green run is remembered by file content, base commit, feature set and toolchain)
-scripts/dev affected --full      # 4. = scripts/ci.sh: before pushing (Cargo.*, src/lib.rs, CI files escalate to it by themselves)
+scripts/dev affected --full      # 4. = scripts/ci.sh: before pushing (Cargo.*, a src/lib.rs change beyond new `mod` lines, CI files escalate to it by themselves)
 ```
 Do not run the whole suite (`scripts/dev test`, bare `cargo test`) as an edit-loop habit, and never iterate with `--release` (measured on the 4-core dev box: type-check 2-4 s, lib-test rebuild 4 s, release binary 3 min 18 s, release test suite about 15 min). Servers, bots and tests listen on loopback only
 (no OS firewall prompt to wait on); `red_server --public`/`--bind IP`/`--upnp` is the explicit way to face other machines.
