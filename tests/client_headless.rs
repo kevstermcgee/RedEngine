@@ -287,6 +287,80 @@ fn the_start_card_holds_the_game_until_pressed_and_the_end_card_restarts_it() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// What an online player reads when the game ends. End cards (like start cards) are an offline presentation: the card replaces the plain outcome banner only where a card
+/// is actually shown. A hosted/online client shows no card, so a scene that declares an end card must still show its players the outcome as the plain banner: an online
+/// player never loses the result because the scene was written for the card.
+#[test]
+fn an_online_player_still_reads_the_outcome_when_the_scene_declares_an_end_card() {
+    let dir = scratch("online_outcome");
+    let scene = dir.join("tiny.json");
+    std::fs::write(&scene, tiny_game().to_string()).unwrap(); // a `ui` block with a start card and a "victory" end card; the rule ends the game 0.4 s in
+    let script = dir.join("play.json");
+    let dump = dir.join("state.json");
+    std::fs::write(
+        &script,
+        json!({"steps": [
+            {"wait_for": {"at": "/online/connected", "eq": true, "within": 20, "msg": "never joined the hosted match"}},
+            {"wait": 3.0},
+            {"snapshot": "end"}]})
+        .to_string(),
+    )
+    .unwrap();
+    let o = re2(&[
+        scene.to_str().unwrap(),
+        "--host",
+        "--as",
+        "human",
+        "--name",
+        "Tester",
+        "--headless",
+        "--script",
+        script.to_str().unwrap(),
+        "--dump",
+        dump.to_str().unwrap(),
+    ]);
+    assert!(o.status.success(), "{}", text(&o));
+    let d: Value = serde_json::from_str(&std::fs::read_to_string(&dump).unwrap()).unwrap();
+    let lines: Vec<String> = d["hud"]["lines"].as_array().unwrap().iter().filter_map(|l| l["text"].as_str().map(str::to_string)).collect();
+    assert!(d["card"].is_null(), "an online client shows no card: {}", d["card"]);
+    assert!(
+        lines.iter().any(|l| l.to_lowercase().contains("victory")),
+        "the outcome must be on screen online, whatever the scene declares for a card: {lines:?}"
+    );
+    // The declared HUD is still the one shown beside it (friendly label and counter, the objective), not the generic variable list.
+    assert!(lines.iter().any(|l| l == "WINS: 1 / 1"), "{lines:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Split-screen guests do not carry props, and the engine says so instead of letting a game find out: the client names the limit when it starts with `--players`, and a
+/// script that makes a guest `interact` with a crate fails at once with the reason and the way out. Player 1, in the same scene, can. If guests are ever given props,
+/// this test fails and `splitscreen::GUEST_LIMITS` (and with it `describe multiplayer`) must change with them.
+#[test]
+fn split_screen_guests_cannot_carry_props_and_the_engine_says_so() {
+    let dir = scratch("guest_props");
+    let scene = dir.join("parcel.json");
+    std::fs::write(&scene, parcel_scene().to_string()).unwrap();
+    let run = |steps: Value| {
+        let script = dir.join("play.json");
+        std::fs::write(&script, json!({"steps": steps}).to_string()).unwrap();
+        re2(&[scene.to_str().unwrap(), "--as", "human", "--players", "2", "--headless", "--script", script.to_str().unwrap()])
+    };
+    // Player 1 picks the crate up (the scene's far crate).
+    let first = run(json!([{"interact": "far_crate"}, {"expect": {"at": "/player/carrying", "eq": true, "msg": "player 1 carries it"}}]));
+    assert!(first.status.success(), "{}", text(&first));
+    assert!(
+        text(&first).contains("note: split-screen: this scene has") && text(&first).contains("loose prop"),
+        "the client names the limit at start-up: {}",
+        text(&first)
+    );
+    // A guest cannot: the script fails immediately and says why.
+    let guest = run(json!([{"player": 2}, {"interact": "far_crate"}]));
+    assert_eq!(guest.status.code(), Some(1), "{}", text(&guest));
+    let t = text(&guest);
+    assert!(t.contains("split-screen guest") && t.contains("only player 1 can pick up") && t.contains("{\"player\": 1}"), "{t}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn the_soundscape_follows_the_hour_a_rule_variable_fades_a_layer_in_and_an_event_ducks_the_music() {
     let dir = scratch("soundscape");

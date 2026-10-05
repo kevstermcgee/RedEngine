@@ -118,6 +118,10 @@ impl Driver for App {
         self.acting(App::interact);
     }
 
+    fn guest_cannot_carry(&self) -> bool {
+        self.script_player > 0
+    }
+
     fn aim_at_nearest(&mut self) -> bool {
         self.acting(App::aim_at_nearest_visible)
     }

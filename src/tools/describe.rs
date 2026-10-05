@@ -567,7 +567,7 @@ fn rules_text() -> String {
 }
 
 fn multiplayer_text() -> String {
-    String::from(
+    let mut s = String::from(
         "HOST     red_server --map maps/main.json [--port 27015] [--key SECRET|auto] [--lobby] [--upnp] [--record trace.json]\n\
          \x20         [--tls-cert DIR/cert.pem --tls-key DIR/key.pem] [--max-connections 16]      (identity: red_engine2 net-identity --out DIR)\n\
          \x20 TRANSPORT with --tls-cert/--tls-key: QUIC + TLS 1.3, encrypted, the server verified by its printed fingerprint (ADR 0044). Without:\n\
@@ -597,7 +597,14 @@ fn multiplayer_text() -> String {
          SHIP     red_engine2 package out.zip / package --verify out.zip   reproducible zip + SHA-256 manifest; headless binaries proven graphics-free\n\
          LAG      the server rewinds the players a hitscan shot can hit by the shooter's view lag (ADR 0053); `--lag-comp-ms` caps it.\n\
          NOT DONE client certificates, server key rotation, a spectator seat (the playtest's camera is client-side), teams, kick/ban.\n",
-    )
+    );
+    // Local split-screen (`re2 --players N`, 2 to 4 people on one screen, offline only): what a guest cannot do, from the one list the client and the scripts also use.
+    s.push_str("\nSPLIT-SCREEN  re2 MAP --players N (2-4 local players; player 1 keyboard+mouse, the others gamepads; `splitshot` draws it; script step {\"player\": N} plays each). What a guest cannot do:\n");
+    for (topic, what) in crate::splitscreen::GUEST_LIMITS {
+        s.push_str(&format!("  - {topic}: {what}\n"));
+    }
+    s.push_str("  `re2` prints the ones a scene runs into when it starts with --players; a scripted `interact` as a guest fails with this explanation.\n");
+    s
 }
 
 fn playtest_text() -> String {
@@ -1030,5 +1037,15 @@ mod tests {
         let cut = first_sentence(long, 60);
         assert!(cut.ends_with("...") && cut.len() <= 63 && long.starts_with(cut.trim_end_matches("...")), "{cut}");
         assert!(!cut.trim_end_matches("...").ends_with(' ') && !cut.contains("unpro"), "cut between words: {cut}");
+    }
+
+    /// The split-screen limits an AI is told are the ones the client and the scripts enforce: `describe multiplayer` prints the shared list, so it cannot drift.
+    #[test]
+    fn describe_multiplayer_states_every_split_screen_limit() {
+        let text = multiplayer_text();
+        for (topic, sentence) in crate::splitscreen::GUEST_LIMITS {
+            assert!(text.contains(&format!("- {topic}: {sentence}")), "describe multiplayer is missing the `{topic}` limit");
+        }
+        assert!(text.contains("SPLIT-SCREEN") && text.contains("--players N"));
     }
 }
