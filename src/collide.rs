@@ -492,9 +492,16 @@ pub fn collect_ground_candidates_grouped_except(scene: &Scene, skip: &std::colle
 
 /// [`collect_ground_candidates`] leaving out the top-level objects in `skip` (loose physics props).
 pub fn collect_ground_candidates_except(scene: &Scene, skip: &std::collections::HashSet<usize>) -> GroundCandidates {
-    let mut out = GroundCandidates::default();
-    for group in collect_ground_candidates_grouped_except(scene, skip) {
-        out.append(&group);
+    ground_from_groups(scene, &collect_ground_candidates_grouped_except(scene, skip))
+}
+
+/// The ground under a scene made of per-object `groups` (the ones whose object is switched on): every standable surface they hold, plus what belongs to the *scene* and to no
+/// object: the looping axis and the generated world (`procgen`). A scene with no objects at all (an endless meadow) is all world, so building the ground from the groups
+/// alone gives a flat floor at `y = 0` and trees that do not block: the single-player client and the server both build their ground through here.
+pub fn ground_from_groups<'a>(scene: &Scene, groups: impl IntoIterator<Item = &'a GroundCandidates>) -> GroundCandidates {
+    let mut out = GroundCandidates { wrap: scene.player.expanse.wrap, ..Default::default() };
+    for group in groups {
+        out.append(group);
     }
     out.procgen = scene.procgen.clone().map(|cfg| std::sync::Arc::new(crate::procgen::ProcgenGround::new(cfg)));
     out

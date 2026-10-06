@@ -29,7 +29,7 @@
     "player_physics": {
       "summary": "One shared, scene-tunable player movement and jump-pad simulation used by the game, server, client prediction and map tools.",
       "files": ["src/player.rs", "src/controller.rs", "src/collide.rs", "src/sim/player.rs"],
-      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env", "loadout"],
+      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env", "loadout", "marcel_walk"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
       "depends_on": ["scene_format"]
