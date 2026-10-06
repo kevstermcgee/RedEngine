@@ -417,6 +417,19 @@ fn another_git_process_holding_the_index_stops_the_run_cleanly_and_the_retry_wor
     assert_eq!(git(&r.origin, &["rev-parse", "main"]), git(&r.root, &["rev-parse", "HEAD"]));
 }
 
+/// Sets a directory's modification time. Windows refuses `File::open(dir)` + `set_modified` ("Access is denied"): a directory handle needs backup semantics and write access.
+fn set_dir_modified(dir: &std::path::Path, when: std::time::SystemTime) {
+    #[cfg(windows)]
+    let f = {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        std::fs::OpenOptions::new().write(true).custom_flags(FILE_FLAG_BACKUP_SEMANTICS).open(dir).unwrap()
+    };
+    #[cfg(not(windows))]
+    let f = std::fs::File::open(dir).unwrap();
+    f.set_modified(when).unwrap();
+}
+
 #[test]
 fn scratch_left_by_a_crashed_run_is_swept_and_never_shows_in_git_status() {
     let r = repo("crashed");
@@ -424,9 +437,7 @@ fn scratch_left_by_a_crashed_run_is_swept_and_never_shows_in_git_status() {
     std::fs::create_dir_all(old.join("work/webgames")).unwrap();
     std::fs::write(old.join("work/webgames/leftover.txt"), "x").unwrap();
     // Make it look an hour and a half old.
-    let f = std::fs::File::open(&old).unwrap();
-    f.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(5400)).unwrap();
-    drop(f);
+    set_dir_modified(&old, std::time::SystemTime::now() - std::time::Duration::from_secs(5400));
     assert_eq!(git(&r.root, &["status", "--porcelain", "-uall"]), "", "scratch lives inside .git: status never sees it");
     publish_second(&r, "second", "2222", false).unwrap();
     assert!(!old.exists(), "the stale scratch of a crashed run was removed");
