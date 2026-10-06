@@ -189,7 +189,7 @@ fn a_saved_game_reloads_into_an_open_gate_and_can_be_finished() {
 #[test]
 fn a_save_with_nothing_in_it_changes_nothing_and_fires_no_rebuild() {
     let def = def();
-    let mut page = Sim::new(def.clone(), 1);
+    let page = Sim::new(def.clone(), 1);
     let fresh = page.save_json();
     let mut other = Sim::new(def.clone(), 1);
     other.load_save(&fresh);
