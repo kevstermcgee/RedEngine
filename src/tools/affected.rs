@@ -265,9 +265,13 @@ fn red2d_steps(changed: &[String], tests: bool, browser: bool) -> Vec<Step> {
     v
 }
 
-/// Whether a change reaches the browser build of the 3D player: anything in the engine crate (it compiles the same sources for wasm32) or the wrapper crate.
+/// Whether a change reaches the browser build of the 3D player: engine code that is compiled for wasm32 (the binaries, the map-analysis toolchain and the command line are
+/// compiled out there) or the wrapper crate and the files that set its build up.
 pub fn touches_web3d(changed: &[String]) -> bool {
-    changed.iter().any(|c| c.starts_with("src/") || c.starts_with("crates/web3d/") || c == "Cargo.toml" || c == "Cargo.lock" || c.starts_with(".cargo/"))
+    changed.iter().any(|c| {
+        let engine = c.starts_with("src/") && !["src/bin/", "src/tools/", "src/cli/"].iter().any(|p| c.starts_with(p)) && c != "src/main.rs";
+        engine || c.starts_with("crates/web3d/") || c == "Cargo.toml" || c == "Cargo.lock" || c.starts_with(".cargo/")
+    })
 }
 
 /// The step the 3D browser build adds (full tier): a wasm32 lint of the engine crate under `--features web`, because nothing else compiles those cfgs.
@@ -1208,7 +1212,13 @@ mod tests {
         for f in ["src/viewer.rs", "src/web3d.rs", "crates/web3d/src/lib.rs", "Cargo.toml", ".cargo/config.toml"] {
             assert!(touches_web3d(&[f.to_string()]), "{f}");
         }
-        assert!(!touches_web3d(&["docs/WEB_PLATFORM.md".to_string(), "crates/red2d/src/sim.rs".to_string()]));
+        assert!(!touches_web3d(&[
+            "docs/WEB_PLATFORM.md".to_string(),
+            "crates/red2d/src/sim.rs".to_string(),
+            "src/tools/lint.rs".to_string(),
+            "src/bin/re2/main.rs".to_string(),
+            "src/cli/args.rs".to_string()
+        ]));
         let p = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options::default());
         assert_eq!(step(&p, "web3d-wasm").argv.join(" "), "bash scripts/ci.sh web3d");
         let quick = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options { quick: true, ..Options::default() });
