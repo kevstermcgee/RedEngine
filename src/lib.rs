@@ -72,6 +72,7 @@ pub mod score;
 pub mod settings;
 pub mod sfx;
 pub mod shadow;
+pub mod soundscape;
 #[cfg(feature = "render")]
 pub mod shooter_world;
 pub mod sim;
