@@ -180,7 +180,8 @@ def reference(a):
         code, out = run(engine, args, cwd, env)
         print("$ red_engine2 %s -> %d" % (" ".join(args), code))
         if must and code != 0:
-            print(out[-1500:])
+            print("\n".join(l[:300] for l in out.splitlines() if l.startswith("FAIL") or " FAIL " in l or "FAILED" in l)[:2500])
+            print(out[-800:])
             sys.exit("reference agent: `%s` failed" % " ".join(args))
         return out
 

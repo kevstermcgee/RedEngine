@@ -367,8 +367,8 @@ pub const STARTER_2D: &str = r##"{
         "expect": [{ "ended": "lose" }, { "count": "gem", "gt": 0 }, { "var": "best", "eq": 0 }] }
     ],
     "browser": [
-      { "name": "the arrow keys move the player", "keys": ["ArrowRight"], "ms": 400, "changes": ["p_x"] },
-      { "name": "taking a gem is remembered after a reload", "keys": ["ArrowUp"], "ms": 900, "changes": ["gems_total"], "persists": ["gems_total"] }
+      { "name": "taking a gem is remembered after a reload", "keys": ["ArrowUp"], "ms": 900, "changes": ["gems_total"], "persists": ["gems_total"] },
+      { "name": "the arrow keys move the player", "keys": ["ArrowRight"], "ms": 400, "changes": ["p_x"] }
     ]
   }
 }

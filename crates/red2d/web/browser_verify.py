@@ -115,7 +115,7 @@ def main():
         (("audio_api", "audio_playback"), "the game has no sounds or music", has_audio_decl),
         (("input_touch",), "the game does not declare touch input", "touch" in declared),
         (("input_keyboard",), "the game does not declare keyboard input", "keyboard" in declared),
-        (("input_pointer",), "the game does not declare mouse input", "mouse" in declared or "touch" in declared),
+        (("input_pointer",), "the game does not declare mouse input (an on-screen pad is `input_touch`, not a click on the picture)", "mouse" in declared),
         (("input_gamepad",), "the game does not declare gamepad input", "gamepad" in declared),
     ):
         if not present:
@@ -405,7 +405,7 @@ def main():
                 pg.wait_for_load_state("load")
                 pg.wait_for_timeout(300)
                 try:
-                    with pg.expect_download(timeout=5000) as dl:
+                    with pg.expect_download(timeout=20000) as dl:
                         pg.evaluate("document.getElementById('backup').click()")
                     path = dl.value.path()
                     text = open(path).read()

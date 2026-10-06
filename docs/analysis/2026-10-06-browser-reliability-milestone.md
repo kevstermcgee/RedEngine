@@ -34,8 +34,8 @@ Levels: `built`, `locally_verified`, `uploaded`, `remotely_playable`, `human_pla
 ## The fresh-agent benchmark
 
 `bench/fresh-agent/TASK.md` is the whole prompt; `scripts/agent_bench.py score` judges the end state from the engine's own answers; `RED_TRACE` + `summary` report the friction (documentation topics read, failed commands, retries,
-repair cycles, CLI source exploration; with a transcript, direct reads of engine source). The reference agent (what `describe web` says, nothing else) passes with **8 commands, 0 failures, 0 retries, 0 source exploration**.
-Running the reference agent found two friction points that were removed in the **template**, not documented: the starter's expectations counted gems (`gems_total eq 5`, `count gem eq 5`), so the first honest edit (a sixth star)
+repair cycles, CLI source exploration; with a transcript, direct reads of engine source). The reference agent (what `describe web` says, nothing else) passes with **0 failures, 0 retries, 0 source exploration**: 8 commands for the native half, 12 with `web verify` and `publish` in a real browser (scorecard 16 of 16).
+Running the reference agent found three friction points that were removed in the **template**, not documented (the third only in a real browser, in the CI run: the starter's save check ran after a check that had moved the player away from the gem): the starter's expectations counted gems (`gems_total eq 5`, `count gem eq 5`), so the first honest edit (a sixth star)
 failed `verify`; and the starter did not prove a save and reload in the browser, so an agent had to invent that check. **No live model run has been made** (it spends tokens; the memory of earlier sessions says to ask first):
 the harness, the command and the scoring are ready (`bench/fresh-agent/README.md`), and the table of live results is empty.
 

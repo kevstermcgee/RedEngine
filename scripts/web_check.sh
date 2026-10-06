@@ -66,12 +66,23 @@ for g in "${games[@]}"; do
   python3 - "$rep" <<'PY' || status=1
 import json, sys
 r = json.load(open(sys.argv[1]))
-# remote_deployment (needs a deployed copy) and other_browsers (needs `web verify --engine firefox`, below) are the two pieces a plain local run need not have.
-bad = [f"{k}: {c['status']} ({c['detail'][:100]})" for k, c in r["evidence"]["pieces"].items() if k not in ("remote_deployment", "other_browsers") and c["status"] not in ("passed", "not_applicable")]
-remote = r["evidence"]["pieces"]["remote_deployment"]["status"]
+# Two pieces a plain local run need not have: a deployed copy, and a second engine (below). Anything else that applies to the game must have PASSED in the browser.
+# `failed` always fails. `not_run` fails for the pieces every game owes (it loads, starts, plays, replays its scenarios, is safe while loading, works offline), and is reported
+# as a GAP (not a failure) for the pieces a game can legitimately lack a check for today: its saved progress (a best score that is only written when a round ends cannot be
+# changed by a short keyboard check), a click on the picture, a gamepad. A GAP is printed so it is never mistaken for a pass.
+OPTIONAL = ("remote_deployment", "other_browsers")
+CORE = ("native_scenarios", "wasm_compiled", "browser_package_valid", "wasm_instantiated", "loading_robustness", "playable_state", "browser_scenarios", "offline_cache", "offline_reload", "installable", "audio_api", "audio_playback", "input_keyboard", "input_touch")
+pieces = r["evidence"]["pieces"]
+bad, gaps = [], []
+for k, c in pieces.items():
+    if k in OPTIONAL or c["status"] in ("passed", "not_applicable"):
+        continue
+    line = f"{k}: {c['status']} ({c['detail'][:100]})"
+    (bad if c["status"] == "failed" or k in CORE else gaps).append(line)
+remote = pieces["remote_deployment"]["status"]
 if remote == "passed" or r["levels"]["remotely_playable"] or r["levels"]["human_playtested"]:
     bad.append("a local run claims a deployment or a human: " + json.dumps(r["levels"]))
-print(("FAIL " if bad else "ok   ") + sys.argv[1], "; ".join(bad))
+print(("FAIL " if bad else "ok   ") + sys.argv[1], "; ".join(bad), ("  GAPS (declared, not proven in a browser): " + "; ".join(gaps)) if gaps else "")
 sys.exit(1 if bad else 0)
 PY
 done

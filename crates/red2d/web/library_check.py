@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Checks a published library page (index.html of a site written by `publish`) in a real browser: hearts keep favourites at the top and survive a reload,
 the 2D/3D and favourites filters work. usage: library_check.py SITE_DIR   Prints PASS/FAIL lines; exit 1 on any failure."""
-import http.server, os, socketserver, sys, threading
+import http.server, json, os, socketserver, sys, threading
 from playwright.sync_api import sync_playwright
 
 site = sys.argv[1]
@@ -46,7 +46,8 @@ with sync_playwright() as p:
     pg.select_option("#kind", "")
     pg.select_option("#pres", "3d")
     # A hybrid game has 3D parts, so it shows under both filters; plain 2D games do not.
-    check("the 3D filter hides plain 2D games and keeps hybrid ones", ids() and all(i in ("web:warden-arena", "web:lantern-yard") for i in ids()), str(ids()))
+    hybrid = {"web:" + g["id"] for g in json.load(open(os.path.join(site, "catalog.json")))["games"] if g.get("presentation") == "hybrid"}
+    check("the 3D filter hides plain 2D games and keeps exactly the hybrid ones the catalog lists", bool(hybrid) and set(ids()) == hybrid, "shown %s, catalog hybrids %s" % (sorted(ids()), sorted(hybrid)))
     pg.select_option("#pres", "2d")
     check("the 2D filter shows them", len(ids()) == len(first), str(ids()))
     pg.click('.card[data-id="%s"] .heart' % last)
