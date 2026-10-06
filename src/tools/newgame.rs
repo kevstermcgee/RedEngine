@@ -378,6 +378,7 @@ Never copy engine source here.
 ## The loop
 ```bash
 scripts/red describe 2d                          # the file format on one page (read it once; do not open any source)
+scripts/red recipe                               # verified mechanics to copy (a key and a door, a countdown, checkpoints, a spawner, a whole collect-survive-escape game)
 scripts/red validate {{ID}}.game2d.json          # well formed? every sprite/sound/tag/variable name resolves? (errors say the fix)
 scripts/red sim {{ID}}.game2d.json [--every 5]   # the scripted playthroughs, with the variables every 5 s when a balance is off
 scripts/red verify {{ID}}.game2d.json            # simulation + render + audio waveform; exit 1 on any failure

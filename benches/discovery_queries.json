@@ -1,0 +1,22 @@
+{
+  "schema": "red-discovery-queries/1",
+  "about": "What an agent asks before it writes anything. Each query is a plain-language request; `accept` lists substrings of a result's title or where-to-read-more line, any one of which means the right place was found in the top results. Keep the queries honest: written the way a request is phrased, not the way the docs are.",
+  "queries": [
+    {"q": "add a door that opens with a key", "accept": ["key-door", "gated_garden"]},
+    {"q": "add a countdown timer that ends the game", "accept": ["timer-lose", "coin_run"]},
+    {"q": "collect five items then open the exit", "accept": ["collect-then-exit", "survive-then-escape"]},
+    {"q": "player has health and takes damage from enemies", "accept": ["health-damage", "spawner-waves"]},
+    {"q": "respawn at a checkpoint after dying", "accept": ["checkpoint-respawn"]},
+    {"q": "spawn enemies over time but not too many", "accept": ["spawner-waves"]},
+    {"q": "collect artifacts, activate a generator, survive, then escape", "accept": ["survive-then-escape"]},
+    {"q": "how do I test that my game mechanic works", "accept": ["recipe", "scenarios", "verify", "describe 2d"]},
+    {"q": "save high score between sessions", "accept": ["persist", "Browser persistence", "describe 2d"]},
+    {"q": "make the camera follow the player in 2d", "accept": ["2D game file format", "describe 2d"]},
+    {"q": "add touch controls for phones", "accept": ["controls", "describe 2d", "phone"]},
+    {"q": "a boss that is a 3d model in a 2d game", "accept": ["hybrid", "Hybrid"]},
+    {"q": "play music that changes with the time of day", "accept": ["ambience", "audio", "music"]},
+    {"q": "multiplayer lobby and rounds", "accept": ["match", "lobby", "flow"]},
+    {"q": "make a map with two rooms and a door", "accept": ["rooms_and_door"]},
+    {"q": "publish my browser game", "accept": ["publish", "PUBLISHING_2D"]}
+  ]
+}

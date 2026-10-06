@@ -15,6 +15,7 @@ scripts/dev iterate              # 1. THE EDIT LOOP (seconds): only what changed
 scripts/dev affected --quick     # 2. the features that own your branch's changes, with their integration suites (the change set is everything since origin/main; on a long branch use --base HEAD)
 scripts/dev affected             # 3. + every feature built on them: before you say "done" (a green run is remembered by file content, base commit, feature set and toolchain)
 scripts/dev affected --full      # 4. = scripts/ci.sh: before pushing (Cargo.*, a src/lib.rs change beyond new `mod` lines, CI files escalate to it by themselves)
+scripts/dev worktree NAME        # a second checkout (a branch, another agent) with its dependencies already compiled, instead of a cold multi-minute build
 ```
 Do not run the whole suite (`scripts/dev test`, bare `cargo test`) as an edit-loop habit, and never iterate with `--release` (measured on the 4-core dev box: type-check 2-4 s, lib-test rebuild 4 s, release binary 3 min 18 s, release test suite about 15 min). Servers, bots and tests listen on loopback only
 (no OS firewall prompt to wait on); `red_server --public`/`--bind IP`/`--upnp` is the explicit way to face other machines.
@@ -40,6 +41,7 @@ scripts/red build-all && scripts/red check && scripts/red plan maps/main.json   
 scripts/red serve                                                   # headless multiplayer server; `scripts/red play HOST:PORT` joins
 ```
 A 2D browser game (one JSON file, no 3D concepts): `$R describe 2d`, then `$R new-game ../mygame --kind 2d`, `$R verify G.game2d.json`, `$R web verify G.game2d.json`, `$R publish G.game2d.json`; `$R propose "<idea>"` plans it, `$R capabilities` says what is built.
+A mechanic (a door and key, a countdown, checkpoints, a spawner, a whole collect-survive-escape game)? `$R recipe` lists verified 2D ones to copy; `$R search "<what you want>"` finds them.
 A kart racer: `$R new-game ../mykarts --kind race --engine-path ../red-engine-2` (a generated circuit, the eight animals, bots, a lobby); then `race-test`, `frame`, the scaffolded hosting script (host it), `game publish ../RedEngineGames` (ship it).
 Do not fork this repository to make a game (the fork's docs and engine fixes drift; ADR 0024). `$R describe rules` covers game logic as data.
 

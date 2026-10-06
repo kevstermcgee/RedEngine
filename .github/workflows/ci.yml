@@ -83,7 +83,8 @@ jobs:
       # benches compile. Wall-clock bench regressions are NOT gated here: shared runners are too noisy. Run
       # `cargo bench --bench sim && python benches/check.py` locally (benches/README.md). The deterministic performance guards
       # (tests/alloc_budget.rs, body/entity counts) run in the tests stage.
-      - run: bash scripts/ci.sh clippy tests benches
+      # The lock files first: a stale one is the commonest reason a dependency change fails CI, and it takes seconds to see.
+      - run: bash scripts/ci.sh lockfiles clippy tests benches
       # The browser build of the 3D player compiles for wasm32 (the target is installed above).
       - run: bash scripts/ci.sh web3d
         if: runner.os == 'Linux'

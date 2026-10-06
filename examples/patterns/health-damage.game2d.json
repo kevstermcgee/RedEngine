@@ -1,0 +1,30 @@
+{
+  "game2d": 1, "id": "pattern-health-damage", "title": "Pattern: health, damage and healing",
+  "description": "Spikes cost a life once a second while the player stands on them; a heart gives one back; no lives left ends the game. Mechanic: a lives variable, a `touching` rule with a cooldown, a pickup, a lose rule.",
+  "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#161b2b"},
+  "vars": {"lives": 3},
+  "prefabs": {
+    "player": {"tag": "player", "shape": {"rect": [8, 8], "color": "#ffd166"}, "layer": 2, "clamp": true, "body": {"type": "dynamic"}, "collide": [], "move": {"keys": {"mode": "topdown", "speed": 90}}},
+    "spikes": {"tag": "hazard", "shape": {"rect": [40, 40], "color": "#d94f4f"}},
+    "heart": {"tag": "heart", "shape": {"circle": 5, "color": "#ff6b9a"}}
+  },
+  "scene": [
+    {"prefab": "spikes", "at": [160, 90]},
+    {"prefab": "heart", "at": [40, 150]},
+    {"prefab": "player", "at": [160, 90], "id": "p"}
+  ],
+  "ui": [
+    {"text": "LIVES {lives}", "at": [6, 4], "color": "#ffffff", "show": "ended == 0"},
+    {"text": "GAME OVER", "at": [160, 80], "color": "#ff7a8c", "show": "ended == 2", "scale": 2, "align": "center"}
+  ],
+  "rules": [
+    {"id": "hurt", "when": {"touching": ["player", "hazard"]}, "cooldown": 1, "do": [{"add": ["lives", -1]}, {"shake": 3}]},
+    {"id": "heal", "when": {"touch": ["player", "heart"]}, "do": [{"add": ["lives", 1]}, {"destroy": "other"}]},
+    {"id": "no lives", "when": {"every": 0.05}, "if": "lives <= 0 && ended == 0", "do": [{"end": "lose"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "standing on the spikes costs a life a second until the game ends", "seed": 1, "max_seconds": 12, "script": [{"wait_until": {"ended": "lose"}, "timeout": 8}], "expect": [{"ended": "lose"}, {"var": "lives", "lte": 0}]},
+    {"name": "a heart gives a life back", "seed": 1, "max_seconds": 12, "script": [{"approach": "heart", "seconds": 6}], "expect": [{"var": "lives", "gte": 3}, {"count": "heart", "eq": 0}]}
+  ]}
+}

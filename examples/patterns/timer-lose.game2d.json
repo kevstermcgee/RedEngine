@@ -1,0 +1,29 @@
+{
+  "game2d": 1, "id": "pattern-timer-lose", "title": "Pattern: countdown that ends the game",
+  "description": "Reach the goal before the clock runs out. Mechanic: a `timeleft` variable counted down by an `every` rule, a lose rule on `timeleft <= 0`, a win rule on touch.",
+  "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#161b2b"},
+  "vars": {"timeleft": 12},
+  "prefabs": {
+    "player": {"tag": "player", "shape": {"rect": [8, 8], "color": "#ffd166"}, "layer": 2, "clamp": true, "body": {"type": "dynamic"}, "collide": [], "move": {"keys": {"mode": "topdown", "speed": 90}}},
+    "goal": {"tag": "goal", "shape": {"rect": [14, 14], "color": "#5cf2ff"}}
+  },
+  "scene": [
+    {"prefab": "player", "at": [30, 90], "id": "p"},
+    {"prefab": "goal", "at": [290, 90]}
+  ],
+  "ui": [
+    {"text": "TIME {timeleft:2}", "at": [6, 4], "color": "#ffffff", "show": "ended == 0"},
+    {"text": "YOU WIN", "at": [160, 80], "color": "#8cff9b", "show": "ended == 1", "scale": 2, "align": "center"},
+    {"text": "GAME OVER", "at": [160, 80], "color": "#ff7a8c", "show": "ended == 2", "scale": 2, "align": "center"}
+  ],
+  "rules": [
+    {"id": "clock", "when": {"every": 1}, "do": [{"add": ["timeleft", -1]}]},
+    {"id": "time up", "when": {"every": 0.05}, "if": "timeleft <= 0 && ended == 0", "do": [{"end": "lose"}]},
+    {"id": "reach the goal", "when": {"touch": ["player", "goal"]}, "do": [{"end": "win"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "standing still runs the clock out", "seed": 1, "max_seconds": 30, "script": [{"wait_until": {"ended": "lose"}, "timeout": 20}], "expect": [{"ended": "lose"}, {"var": "timeleft", "lte": 0}]},
+    {"name": "walking to the goal in time wins", "seed": 1, "max_seconds": 30, "script": [{"approach": "goal", "seconds": 10}], "expect": [{"ended": "win"}, {"var": "timeleft", "gt": 0}]}
+  ]}
+}

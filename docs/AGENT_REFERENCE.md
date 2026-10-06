@@ -70,6 +70,7 @@ prints waypoints and a paste-ready `checks.walk` entry (or put `{"from": [..], "
 cargo build --release          # once; then use target/release/red_engine2(.exe) and re2(.exe)   (or just `scripts/dev red <command>`, any OS, any directory)
 alias re='./target/release/red_engine2'      # the examples below write it as `red_engine2`
 scripts/dev iterate            # the edit loop: what changed since HEAD, fmt + type-check + clippy + touched unit tests; never verification (then `affected`, then `affected --full`)
+scripts/dev worktree NAME      # a second checkout (another agent, a branch) with its dependencies pre-built: first build minutes -> a fraction; `scripts/dev seed` does it for a fresh clone; `scripts/dev prune` reports build leftovers
 scripts/dev test               # the whole suite (catalogue, recipes, verify, search, docs-vs-code checks, netcode, sim replay...): a summary, full log in out/logs/
 ```
 
@@ -101,7 +102,7 @@ Play a map: `cargo run --release --bin re2 -- examples/house.json` (`RE2_STATS=1
 | `describe [topic]` | The engine describing itself (commands come from the real CLI definition) | `--brief`; topics: brief overview commands objects scene lint physics conventions glossary decisions diagnostics rules sim multiplayer all |
 | `search <words>` | Best fragments across docs/assets/lint/recipes/commands/Rust symbols | `--kind doc\|adr\|glossary\|asset\|lint\|rule\|type\|recipe\|command\|src`, `--limit` |
 | `catalog [words\|name]` | Asset catalogue (props + prefabs) with tags, real sizes, params, snippets | `--tag`, `--category`, `--kind`, `--long`, `--sheet out.png --cols 5` |
-| `recipe [name]` | Known-good example maps; `--new out.json` copies one, `--print` dumps it | each is lint-clean and passes its own `verify` (test-enforced) |
+| `recipe [name]` | Known-good example maps **and 2D mechanics** (key-door, timer-lose, collect-then-exit, health-damage, checkpoint-respawn, spawner-waves, survive-then-escape: a tiny complete game each, with the scenarios that prove it); `--new out.json` copies one, `--print` dumps it | each is lint-clean / passes its own `verify` (test-enforced); a mechanic is found by `search "door that opens with a key"` too |
 | `verify <scene>` | Run the scene's `checks` block (lint, reach, walk incl. auto routes, objects, views, **sim**, **perf**); PASS/FAIL with evidence and timings; exit 1 on failure | `--bless` (record golden views), `--no-views`, `--only walk[1]` / `--only "name text"` |
 | `sim <scene>` | Play scripted players through the real simulation, headless: the scene's `checks.sim` or `--scenario file.json` | `--only name`, `--trace out.json` (record), `--dump-every 1` |
 | `perf <scene>` | Real players walk the scene in an in-process server: tick p50/p95/p99/worst, bytes per client, largest datagram, promoted props, judged against `checks.perf` (or `--budget file`) | `--players N --secs S --windows N`; best-of windows because noise only adds time; failing output gives advice |

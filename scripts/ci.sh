@@ -75,15 +75,24 @@ stage_headless_clippy() { echo "== headless clippy =="; cargo clippy --locked --
 stage_headless_tests() { echo "== headless tests (incl. real-UDP server tests) =="; run_tests --no-default-features; }
 # A game outside the engine crate that uses only the public client layer (`red_engine2::app`, ADR 0043): if the API breaks it, CI says so.
 # Its presentation test renders offscreen; a runner with no GPU adapter at all sets RED_OFFSCREEN_OPTIONAL=1 to skip just that check.
+# Every example crate that is its own workspace has its own Cargo.lock; it must follow the engine's dependencies or `--locked` refuses it with a message that does not say so.
+# Seconds, and the commonest reason a dependency change fails CI: so it is its own stage and runs FIRST (measured on PR #44: found by the last stage of a 14-minute job).
+check_example_locks() {
+  local manifest
+  for manifest in examples/external/*/Cargo.toml; do
+    # Only crates that use the engine and keep a lock of their own (a standalone experiment such as wgpu-web-spike has neither to fall behind).
+    [ -f "$manifest" ] && [ -f "$(dirname "$manifest")/Cargo.lock" ] && grep -q '^red_engine2' "$manifest" || continue
+    if ! cargo metadata --locked --manifest-path "$manifest" --format-version 1 >/dev/null 2>&1; then
+      echo "$(dirname "$manifest")/Cargo.lock is behind the engine's dependencies: run"
+      echo "  cargo metadata --manifest-path $manifest --format-version 1 >/dev/null"
+      echo "and commit the updated lock."; exit 1
+    fi
+  done
+}
+stage_lockfiles() { echo "== example crates' lock files follow the engine's dependencies =="; check_example_locks; echo "ok"; }
 stage_external_client() {
   echo "== external custom client (examples/external/topdown_switch) =="
-  # The example has its own Cargo.lock (it is a separate crate that uses the engine by path): whenever the engine's dependencies
-  # change it must be refreshed and committed, or --locked refuses it below with a message that does not say so.
-  if ! cargo metadata --locked --manifest-path examples/external/topdown_switch/Cargo.toml --format-version 1 >/dev/null 2>&1; then
-    echo "examples/external/topdown_switch/Cargo.lock is behind the engine's dependencies: run"
-    echo "  cargo metadata --manifest-path examples/external/topdown_switch/Cargo.toml --format-version 1 >/dev/null"
-    echo "and commit the updated lock."; exit 1
-  fi
+  check_example_locks
   cargo clippy --locked --manifest-path examples/external/topdown_switch/Cargo.toml --all-targets -- -D warnings
   cargo test --locked --manifest-path examples/external/topdown_switch/Cargo.toml
 }
@@ -101,7 +110,8 @@ stage_web3d() {
 }
 
 stages=("$@")
-[ ${#stages[@]} -gt 0 ] || stages=(fmt clippy tests benches headless-tree headless-build headless-clippy headless-tests external-client web web3d)
+# Cheapest, most-likely-to-fail first: formatting, the lock files and the headless dependency tree take seconds; the long stages come after them.
+[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client web web3d)
 # Every stage is timed, and the table at the end says where the minutes went (the first thing to read when CI feels slow).
 timings=()
 t_all=$SECONDS
