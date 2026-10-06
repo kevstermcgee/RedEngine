@@ -755,6 +755,8 @@ pub(crate) enum Command {
         #[arg(long)]
         example: bool,
     },
+    /// An MCP server on stdio: eleven tools that run in this process.
+    Mcp,
     /// What can this machine do? Probes for real: GPU adapter (hardware or software), audio, ffmpeg, UDP loopback and the default server
     /// port, a writable output dir, git. Ends with a plain "what works here" list. Exit 1 only if UDP or the output dir is broken.
     Doctor {

@@ -36,11 +36,31 @@ pub(crate) fn run_describe(topic: Option<&str>, brief: bool, json: bool) -> Resu
     Ok(())
 }
 
+/// The search corpus, built once per process and kept for 30 s: building it (the docs, ADRs, assets and every public symbol of a checkout) costs about 0.25 s, which a long-lived
+/// process such as `red_engine2 mcp` would otherwise pay on every question. The short life keeps the symbol index honest while the engine's own source is being edited.
+fn cached_corpus() -> std::sync::Arc<Vec<search::Doc>> {
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+    /// When it was built, for which checkout, and the corpus.
+    type Cached = Option<(Instant, Option<std::path::PathBuf>, Arc<Vec<search::Doc>>)>;
+    static CACHE: Mutex<Cached> = Mutex::new(None);
+    let root = symbols::find_root();
+    let mut guard = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((at, key, docs)) = guard.as_ref() {
+        if *key == root && at.elapsed() < Duration::from_secs(30) {
+            return Arc::clone(docs);
+        }
+    }
+    let docs = Arc::new(search::corpus(&commands_json()));
+    *guard = Some((Instant::now(), root, Arc::clone(&docs)));
+    docs
+}
+
 pub(crate) fn run_search(query: &str, kind: Option<&str>, limit: usize) -> Result<(), String> {
     if query.trim().is_empty() {
         return Err("give some words to search for: `red_engine2 search how do stairs work`".to_string());
     }
-    let docs = search::corpus(&commands_json());
+    let docs = cached_corpus();
     let hits = search::search(&docs, query, kind, limit);
     if envelope::capturing() {
         println!("{}", search::to_json(&hits, query));

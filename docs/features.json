@@ -266,9 +266,17 @@
       "docs": ["docs/adr/2026-10-06-an-ai-launchpad-and-one-executable-resolver.md"],
       "depends_on": ["self_description", "blueprints_and_games"]
     },
+    "mcp_server": {
+      "summary": "`red_engine2 mcp`: the engine as a native MCP server on stdio (eleven typed tools that run the CLI's commands in process), its launcher `mcp_server.py`, and the benchmark that prices a tool surface.",
+      "files": ["src/cli/mcp.rs", "mcp_server.py", "scripts/mcp_bench.py", "tests/support/mcp.rs"],
+      "tests": ["mcp_server", "ai_tasks"],
+      "commands": ["red_engine2 mcp", "python3 scripts/mcp_bench.py --server \"red_engine2 mcp\" --task new"],
+      "docs": ["docs/adr/2026-10-06-a-native-mcp-server.md"],
+      "depends_on": ["self_description", "map_analysis", "map_editing", "verification"]
+    },
     "self_description": {
       "summary": "The engine describing itself and choosing its own verification: describe, search, src navigation, context work packets, impact/affected (minimal verification), catalog, doctor, status, the JSON envelope and the MCP wrapper.",
-      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py", "src/tools/racetrack.rs", "src/tools/gamepublish.rs", "src/cli/servers.rs", "src/tools/servers.rs", "src/tools/publish_check.rs", "src/tools/webstatus.rs", "src/tools/agent_trace.rs"],
+      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "src/tools/racetrack.rs", "src/tools/gamepublish.rs", "src/cli/servers.rs", "src/tools/servers.rs", "src/tools/publish_check.rs", "src/tools/webstatus.rs", "src/tools/agent_trace.rs"],
       "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context", "cli_envelope", "docs_fresh", "features_index", "lib:tools::publish_check", "ai_tasks"],
       "commands": ["red_engine2 describe --brief", "red_engine2 features --check", "red_engine2 affected --dry-run"],
       "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md"]

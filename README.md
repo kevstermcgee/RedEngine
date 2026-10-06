@@ -98,7 +98,7 @@ The scene language gained matching sugar: a **`wall`** object with `openings` (d
 arches, with trim and baseboards) and a **`fence`** object along a polyline both expand to plain
 boxes at parse time, so nobody hand-computes wall pieces around a doorway again; optional `zones`
 name the rooms so every tool can talk about them; and `lint_ignore` marks intentional oddities.
-The MCP server (`mcp_server.py`) exposes the same tools to MCP clients.
+`red_engine2 mcp` serves the same commands to MCP clients (eleven tools, in process).
 
 ## Rendering clarity
 
@@ -226,8 +226,6 @@ binary the first time it's needed, so nothing else has to be on `PATH`. The bina
 `target/release/red_engine2` (the offline CLI) and `target/release/re2` (the live viewer),
 `.exe` on Windows.
 
-For the MCP server: `python -m pip install -r requirements.txt` (Python 3.10+).
-
 ## Usage
 
 ### CLI
@@ -242,27 +240,25 @@ red_engine2 render examples/hello_world.json out/hello_world.mp4
 ### MCP server
 
 ```bash
-python mcp_server.py
+red_engine2 mcp          # stdio; the client starts it
 ```
 
-It exposes validation and rendering plus the map-analysis, editing, discovery,
-catalogue, recipe, verification, simulation, replay, performance, network-test,
-blueprint, source-navigation and project-status tools documented at the top of
-`mcp_server.py`. It is a thin wrapper around the compiled binary — build that first
-with `cargo build --release`.
+A native MCP server: eleven tools (`describe`, `search`, `context`, `validate`, `lint`, `analyze`, `patch`, `verify`, `sim`, `view`, `run`) that run the CLI's own commands
+in the server's process, with typed argument schemas. Files are passed by path in the server's working directory, so a scene is never sent as text; `view` returns a
+picture; `run` reaches every other command (servers and interactive play are refused). `tools/list` is about 5 KB, a fifth of the Python adapter it replaced.
+No Python packages are needed.
 
 To register it with Claude Code, add to your MCP config:
 
 ```json
 {
   "mcpServers": {
-    "red_engine2": {
-      "command": "python",
-      "args": ["C:\\path\\to\\red-engine-2\\mcp_server.py"]
-    }
+    "red_engine2": { "command": "red_engine2", "args": ["mcp"] }
   }
 }
 ```
+
+`python mcp_server.py` (a 45-line launcher that finds the executable and runs `red_engine2 mcp`) still works for existing configurations.
 
 ## Examples
 
@@ -320,7 +316,7 @@ src/
   bin/red_server.rs, bin/red_bot.rs   # the headless authoritative server and scripted client (build with --no-default-features)
   sim/          # headless simulation: match, interactions, interest, game rules, scenarios, traces/replay
   net/          # UDP protocol, server, client, prediction, interpolation
-mcp_server.py   # MCP tool wrapper around the compiled binary (render + lint/plan/reach/walk/tour/edit tools)
+mcp_server.py   # launcher for the native MCP server (`red_engine2 mcp`)
 AGENTS.md       # START HERE (AI agents): the map-editing workflow, tool reference, conventions
 SPEC.md         # the scene-language reference (read this, not the source, to use the tool)
 examples/       # runnable example scenes

@@ -931,10 +931,10 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "capabilities" => out.push_str(&red2d::caps::matrix_text()),
         "overview" => {
             let (props, prefabs) = (crate::props::PropKind::ALL.len(), crate::prefabs::builtin().0.defs.len());
-            out.push_str("Red Engine 2: maps are JSON scenes. `re2 <map>` plays one; `red_engine2` validates, analyzes, edits and renders them.\n");
+            out.push_str("Red Engine 2: maps are JSON scenes. `re2 <map>` plays one; `red_engine2` checks, edits and renders them.\n");
             out.push_str("You should never need to read Rust: everything is reachable through these commands.\n\n");
             out.push_str(&format!(
-                "Building blocks: {props} props (Rust-made, real collision) + {prefabs} prefabs (JSON, parametric) + primitives + wall/fence/stairs macros.\n"
+                "Building blocks: {props} props (Rust, real collision) + {prefabs} prefabs (JSON) + primitives + wall/fence/stairs macros.\n"
             ));
             out.push_str(&format!("Known-good starting points: {} recipes (`red_engine2 recipe`).\n\n", crate::tools::recipes::all().len()));
             out.push_str("Workflow:  recipe/catalog -> add/set/move (auto-validated) -> lint -> plan/tour/frame (LOOK) -> verify\n\n");
@@ -944,9 +944,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             for (n, d) in TOPICS {
                 out.push_str(&format!("  {n:<12} {d}\n"));
             }
-            out.push_str(
-                "\nAlso: `red_engine2 search <words>` finds docs/assets/symbols; `red_engine2 src find|show|refs` explores the Rust without reading it.\n",
-            );
+            out.push_str("\nAlso: `search <words>` finds docs/assets/symbols; `src find|show|refs` explores the Rust.\n");
         }
         "commands" => out.push_str(&commands_text(commands, false)),
         "objects" => {
