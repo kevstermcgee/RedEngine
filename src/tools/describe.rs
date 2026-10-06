@@ -886,6 +886,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "web" => {
                 json!({"text": web_text(), "limits": super::webstatus::LIMITS, "evidence": super::evidence::KEYS.iter().map(|(k, d)| json!({"key": k, "proves": d})).collect::<Vec<_>>()})
             }
+            "web3d" => json!({"text": web3d_text()}),
             "2d" => json!({"text": twod_text()}),
             "hybrid" => json!({"text": red2d::reference::HYBRID}),
             "capabilities" => json!({"text": red2d::caps::matrix_text()}),
