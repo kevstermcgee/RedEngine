@@ -1,0 +1,153 @@
+{
+ "schema": "red-launchpad-measure/1",
+ "purpose": "What the AI launchpad itself costs on a real checkout: start time, output size, commands run, builds triggered. Append a new run; never edit an old one. No token or model-success claims.",
+ "runs": [
+  {
+   "label": "2026-10-06 launchpad first run",
+   "engine_commit": "a121502",
+   "machine": "4-core Intel N97, 15 GB (the dev box)",
+   "scenarios": {
+    "fresh_checkout": {
+     "text_seconds": 0.26,
+     "text_bytes": 2009,
+     "json_seconds": 0.26,
+     "json_bytes": 5392,
+     "exit": [
+      0,
+      0
+     ],
+     "workflow": "game-create",
+     "executable": "missing",
+     "capabilities_checked": false,
+     "engine_commands_run": [],
+     "next_action": "Build the engine CLI once (the starter, `propose` and `capabilities` all need it)",
+     "next_compiles": true,
+     "clone_seconds": 0.15,
+     "target_dir_created": false,
+     "build_artifacts_written": 0,
+     "reference_scripts_dev_doctor": {
+      "seconds": 0.18,
+      "bytes": 489
+     }
+    },
+    "warm_checkout": {
+     "text_seconds": 0.08,
+     "text_bytes": 2085,
+     "json_seconds": 0.08,
+     "json_bytes": 6074,
+     "exit": [
+      0,
+      0
+     ],
+     "workflow": "game-create",
+     "executable": "ready",
+     "capabilities_checked": true,
+     "engine_commands_run": [
+      [
+       "red_engine2",
+       "propose"
+      ]
+     ],
+     "next_action": "Create the starter (2d) pinned to this engine; it is green from its first commit",
+     "next_compiles": false,
+     "build_artifacts_written": 0
+    },
+    "game_authoring": {
+     "steps": [
+      {
+       "step": "new-game (the launchpad's next action)",
+       "seconds": 0.0,
+       "exit": 0,
+       "stdout_bytes": 476
+      },
+      {
+       "step": "validate coin-browser.game2d.json",
+       "claim": "validation",
+       "seconds": 0.02,
+       "exit": 0,
+       "stdout_bytes": 380,
+       "last_line": "  (validate proves the file is well formed and its names resolve; `verify` plays it)",
+       "stderr_tail": ""
+      },
+      {
+       "step": "verify coin-browser.game2d.json",
+       "claim": "behavior",
+       "seconds": 0.02,
+       "exit": 0,
+       "stdout_bytes": 1441,
+       "last_line": "NOT PROVEN HERE: that it runs in a browser (`red_engine2 web verify`), that anything is audible or sounds good, that it is fun.",
+       "stderr_tail": ""
+      },
+      {
+       "step": "frame coin-browser.game2d.json out/look.png",
+       "claim": "visual/input inspection",
+       "seconds": 0.02,
+       "exit": 0,
+       "stdout_bytes": 194,
+       "last_line": "This is the same CPU renderer the browser uses; it shows the screen, not how it feels in motion.",
+       "stderr_tail": ""
+      },
+      {
+       "step": "web verify coin-browser.game2d.json",
+       "claim": "target execution (browser)",
+       "seconds": 18.82,
+       "exit": 0,
+       "stdout_bytes": 11597,
+       "last_line": "NOT PROVEN: that a human played it, that it is fun, that it sounds right, other browsers or devices (touch and gamepad paths are unverified).",
+       "stderr_tail": ""
+      }
+     ],
+     "build_artifacts_written": 0,
+     "total_seconds": 18.9,
+     "outcome": "all steps exit 0"
+    },
+    "interrupted_resumed": {
+     "project_check": {
+      "exit": 0,
+      "seconds": 36.84
+     },
+     "start_seconds": 0.07,
+     "resume_unchanged": {
+      "seconds": 0.07,
+      "bytes": 4651,
+      "changes": [],
+      "recorded_results": [
+       "unverified"
+      ]
+     },
+     "resume_after_edit": {
+      "seconds": 0.07,
+      "bytes": 4772,
+      "changes": [
+       "source or game inputs"
+      ],
+      "recorded_results": [
+       "stale"
+      ],
+      "next": "Re-check the project as it is before changing it"
+     }
+    },
+    "engine_change": {
+     "start_seconds": 0.09,
+     "start_bytes": 5334,
+     "workflow": "engine-change",
+     "owners": [
+      "self_description"
+     ],
+     "context_packet": {
+      "seconds": 0.14,
+      "bytes": 11877,
+      "exit": 0
+     },
+     "iterate_after_one_doc_edit": {
+      "seconds": 21.63,
+      "exit": 0,
+      "last_line": "full verification still required: a partial pass is not verification: run `scripts/dev affected` before you say done, `--full` before pushing"
+     },
+     "build_artifacts_written_by_iterate": 15
+    }
+   },
+   "note": "no model was involved: these are the launchpad's own costs. Token savings, completion time and smaller-model success are NOT measured here."
+  }
+ ]
+}
