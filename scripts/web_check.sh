@@ -42,6 +42,14 @@ for g in "${games[@]}"; do
   echo "== web verify $g"
   "${R[@]}" web verify "$g" || status=1
 done
+# Another engine, when one is installed (RED2D_EXTRA_ENGINES="firefox", after `red_engine2 web setup-browser --engines firefox`): the same checks, its own record. A failure is a failure;
+# an engine that is not installed is reported as skipped, never as passed.
+for eng in ${RED2D_EXTRA_ENGINES:-}; do
+  for g in "${games[@]}"; do
+    echo "== web verify $g --engine $eng"
+    "${R[@]}" web verify "$g" --engine "$eng" || status=1
+  done
+done
 # The whole pipeline, for every game, to the local backend: it must end with a catalog, and without a URL (nothing here serves the site to anyone else).
 rm -rf out/site-ci out/publish-ci
 for g in "${games[@]}"; do
@@ -58,7 +66,8 @@ for g in "${games[@]}"; do
   python3 - "$rep" <<'PY' || status=1
 import json, sys
 r = json.load(open(sys.argv[1]))
-bad = [f"{k}: {c['status']} ({c['detail'][:100]})" for k, c in r["evidence"]["pieces"].items() if k != "remote_deployment" and c["status"] not in ("passed", "not_applicable")]
+# remote_deployment (needs a deployed copy) and other_browsers (needs `web verify --engine firefox`, below) are the two pieces a plain local run need not have.
+bad = [f"{k}: {c['status']} ({c['detail'][:100]})" for k, c in r["evidence"]["pieces"].items() if k not in ("remote_deployment", "other_browsers") and c["status"] not in ("passed", "not_applicable")]
 remote = r["evidence"]["pieces"]["remote_deployment"]["status"]
 if remote == "passed" or r["levels"]["remotely_playable"] or r["levels"]["human_playtested"]:
     bad.append("a local run claims a deployment or a human: " + json.dumps(r["levels"]))
@@ -70,4 +79,8 @@ done
 echo "== library page"
 py="${RED2D_BROWSER_PYTHON:-}"; [ -n "$py" ] || { home="${RED2D_BROWSER_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/red_engine2/browser}"; [ -x "$home/bin/python" ] && py="$home/bin/python" || py=python3; }
 "$py" crates/red2d/web/library_check.py out/site-ci || status=1
+# The fresh-agent benchmark's reference agent, browser half included: only what `describe web` says, from an empty directory to a published, modified, re-published game.
+echo "== fresh-agent reference run"
+engine_bin="$(cargo metadata --format-version 1 --no-deps 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')/debug/red_engine2"
+[ -x "$engine_bin" ] && { python3 scripts/agent_bench.py reference out/bench-reference --engine "$engine_bin" || status=1; } || echo "SKIPPED: no $engine_bin"
 exit $status

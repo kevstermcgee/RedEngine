@@ -298,6 +298,9 @@ pub(crate) enum WebCmd {
         /// Verify a package served from this URL (a deployed game) instead of a local directory.
         #[arg(long)]
         url: Option<String>,
+        /// The engine: `chromium` (default, writes verification.json), `firefox` or `webkit` (write verification-<engine>.json; `setup-browser --engines` installs them).
+        #[arg(long, default_value = "chromium")]
+        engine: String,
     },
     /// Where a browser game stands and the exact next command: reads the game, its package, the browser record and the publication report, never builds or publishes.
     /// With the global `--json`: schema red2d-web-status/1 (valid, native, package, browser.evidence, publication.levels, next[], limits[]).
@@ -306,7 +309,11 @@ pub(crate) enum WebCmd {
         game: PathBuf,
     },
     /// Install the headless browser used by `verify`: a Python virtual environment with Playwright and its Chromium, under `~/.cache/red_engine2/browser`.
-    SetupBrowser,
+    SetupBrowser {
+        /// Also install these engines, comma separated: `firefox`, `webkit` (the default is Chromium alone).
+        #[arg(long, value_delimiter = ',')]
+        engines: Vec<String>,
+    },
 }
 
 #[derive(Subcommand)]

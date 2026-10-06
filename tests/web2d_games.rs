@@ -392,3 +392,26 @@ fn web_status_walks_a_new_game_from_nothing_to_the_next_command_each_time() {
     let (_, t) = cli(&["web", "status", bad.to_str().unwrap()], &dir);
     assert!(t.contains("NOT VALID") && t.contains("NEXT: red_engine2 validate"), "{t}");
 }
+
+#[test]
+fn describe_web3d_keeps_proven_experimental_hybrid_and_planned_apart() {
+    let (ok, t) = cli(&["describe", "web3d"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    assert!(ok, "{t}");
+    for must in [
+        "PROVEN (the full engine)",
+        "EXPERIMENTAL",
+        "HYBRID (shipped and verified, a different thing)",
+        "PLANNED",
+        "SAME simulation checksum",
+        "SOFTWARE renderer",
+        "do not call the hybrid renderer a port of the engine",
+        "no WebGL2 fallback",
+    ] {
+        assert!(t.contains(must), "describe web3d lacks `{must}`:\n{t}");
+    }
+    // The capability matrix agrees: a 3D game still cannot declare the web, and the reason names the experiment instead of claiming nothing builds.
+    let r = game2d::capabilities(None, &["3d".to_string(), "web".to_string()]).unwrap();
+    assert!(!r.ok && r.text.contains("NOT SUPPORTED") && r.text.contains("experiment") && r.text.contains("describe web3d"), "{}", r.text);
+    let (_, web) = cli(&["describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    assert!(web.contains("describe web3d"), "describe web points to the 3D page");
+}

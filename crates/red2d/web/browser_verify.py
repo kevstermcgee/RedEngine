@@ -73,7 +73,9 @@ def main():
     ap.add_argument("--dir")
     ap.add_argument("--url")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--engine", default="chromium", choices=["chromium", "firefox", "webkit"], help="the browser engine (Chromium is the default and the only one with an installability probe and a phone emulation)")
     a = ap.parse_args()
+    chromium_only = a.engine == "chromium"
     os.makedirs(a.out, exist_ok=True)
     rows = ROWS
 
@@ -134,8 +136,9 @@ def main():
             pg.keyboard.up(k)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        out["browser"] = "Chromium " + browser.version
+        browser = getattr(p, a.engine).launch()
+        out["browser"] = {"chromium": "Chromium", "firefox": "Firefox", "webkit": "WebKit"}[a.engine] + " " + browser.version
+        out["engine"] = a.engine
 
         def new_page(init_script=None, viewport=(960, 540), has_touch=False):
             ctx = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]}, has_touch=has_touch)
@@ -246,8 +249,9 @@ def main():
                         pass
                     s = pg.evaluate("__red2d.status()")
                     check("music starts after the gesture", s["music"] == "playing", "music state: %s (the loop took %s ms to render, in a worker: %s; it stalled the page for %s ms)" % (s["music"], s.get("music_ms"), s.get("music_worker"), s.get("music_blocked_ms")), claim="browser-audio", ev="audio_playback")
-                    longest = max(pg.evaluate("window.__longtasks") or [0])
-                    check("the page stays responsive while the music is made", longest < 250, "the longest main-thread task from page load to music playing was %d ms (limit 250 ms; a render on the main thread would show here)" % longest)
+                    if chromium_only:  # the long-task observer exists only in Chromium: elsewhere nothing is measured, so nothing is claimed
+                        longest = max(pg.evaluate("window.__longtasks") or [0])
+                        check("the page stays responsive while the music is made", longest < 250, "the longest main-thread task from page load to music playing was %d ms (limit 250 ms; a render on the main thread would show here)" % longest)
             before = pg.evaluate("__red2d.snapshot()")["tick"]
             pg.wait_for_timeout(1000)
             after = pg.evaluate("__red2d.snapshot()")["tick"]
@@ -364,12 +368,13 @@ def main():
         if st["offline"] == "ready":
             pg.reload()
             ready(pg)
-            cdp = ctx.new_cdp_session(pg)
-            try:
-                errs = cdp.send("Page.getInstallabilityErrors").get("installabilityErrors", [])
-                check("install: the browser says the page is installable", not errs, "no installability errors (manifest, icons, service worker with a fetch handler)" if not errs else "; ".join("%s %s" % (e.get("errorId"), e.get("errorArguments")) for e in errs), ev="installable")
-            except Exception as e:
-                check("install: the browser says the page is installable", False, "could not ask the browser: %s" % e, ev="installable")
+            if chromium_only:  # `Page.getInstallabilityErrors` is a Chromium protocol call: another engine makes no installability claim
+                cdp = ctx.new_cdp_session(pg)
+                try:
+                    errs = cdp.send("Page.getInstallabilityErrors").get("installabilityErrors", [])
+                    check("install: the browser says the page is installable", not errs, "no installability errors (manifest, icons, service worker with a fetch handler)" if not errs else "; ".join("%s %s" % (e.get("errorId"), e.get("errorArguments")) for e in errs), ev="installable")
+                except Exception as e:
+                    check("install: the browser says the page is installable", False, "could not ask the browser: %s" % e, ev="installable")
             ctx.set_offline(True)
             try:
                 pg.reload()
@@ -388,7 +393,7 @@ def main():
         except Exception:
             pass
         st = pg.evaluate("__red2d.status()")
-        check("storage: the game asked the browser to keep its saves", st["persistent"] is not None, "navigator.storage.persist() answered %s (a browser may say no; the answer is shown, not assumed)" % st["persistent"])
+        check("storage: the game asked the browser to keep its saves", st["persistent"] is not None or not chromium_only, "navigator.storage.persist() answered %s (a browser may say no, or ask the user and not answer for a while: Firefox does; the answer is shown, not assumed)" % st["persistent"])
         if game["persistence"]:
             pc = next((bc for bc in manifest.get("browser_checks", []) if bc.get("persists")), None)
             if pc:
@@ -427,7 +432,7 @@ def main():
 
         # ---- phase D: a phone (touch, small screen): the controller sits below the game, never over it, and real touches drive the game ----------------------------------
         controls = game.get("controls") or {}
-        if "touch" in game["input"]:
+        if "touch" in game["input"] and chromium_only:  # the phone emulation (is_mobile, CDP touch points) exists in Chromium only
             KEY_ACTION = {"ArrowLeft": "left", "KeyA": "left", "ArrowRight": "right", "KeyD": "right", "ArrowUp": "up", "KeyW": "up", "ArrowDown": "down", "KeyS": "down", "Space": "action", "KeyZ": "action", "KeyJ": "action", "ShiftLeft": "secondary", "KeyX": "secondary", "KeyK": "secondary", "Escape": "pause", "KeyP": "pause"}
             UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
             ctx = browser.new_context(viewport={"width": 390, "height": 760}, device_scale_factor=3, is_mobile=True, has_touch=True, user_agent=UA)

@@ -80,11 +80,11 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
             }
             Ok(())
         }
-        WebCmd::SetupBrowser => {
-            println!("{}", webverify::setup_browser()?);
+        WebCmd::SetupBrowser { engines } => {
+            println!("{}", webverify::setup_browser(&engines)?);
             Ok(())
         }
-        WebCmd::Verify { game, package, out, url } => {
+        WebCmd::Verify { game, package, out, url, engine } => {
             // 1. Build (or take) the package. 2. Check it. 3. Run it in the browser.
             let (dir, id) = match (&package, &game, &url) {
                 (Some(p), _, None) => (Some(p.clone()), p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()),
@@ -114,7 +114,7 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
                 });
             }
             let out = out.unwrap_or_else(|| PathBuf::from("out/web-verify").join(&id));
-            let v = webverify::verify(dir.as_deref(), url.as_deref(), &out)?;
+            let v = webverify::verify_engine(dir.as_deref(), url.as_deref(), &out, &engine)?;
             let browser = v.browser.clone();
             evidence.set_browser(&v);
             if url.is_some() {
@@ -154,8 +154,11 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
                         audio_claims: all.iter().filter(|r| r.claim == "browser-audio" && r.ok).map(|r| r.name.clone()).collect(),
                         features: publish2d::features_of(&all),
                         evidence: evidence.clone(),
+                        also_browsers: Vec::new(),
                     };
-                    std::fs::write(out.join("verification.json"), serde_json::to_string_pretty(&ver.to_json()).unwrap_or_default()).ok();
+                    // Chromium's record is the one `publish --package` requires; another engine's is kept beside it and only ever adds to what the game record says.
+                    let file = if engine == "chromium" { "verification.json".to_string() } else { format!("verification-{engine}.json") };
+                    std::fs::write(out.join(file), serde_json::to_string_pretty(&ver.to_json()).unwrap_or_default()).ok();
                 }
             }
             println!(
@@ -255,6 +258,9 @@ pub(crate) fn run_publish(
                 return Err(format!("the package fails its integrity check: {}", bad.join("; ")));
             }
             ver.evidence.set_package(&package_rows); // checked again now, at publication time
+            let others = publish2d::other_engine_runs(rec_path.parent().unwrap_or(Path::new(".")), id);
+            ver.evidence.set_other_browsers(&others);
+            ver.also_browsers = others.iter().filter(|(_, ok)| *ok).map(|(n, _)| n.clone()).collect();
             let mut o = publish2d::Outcome::default();
             o.states.build = true;
             o.states.local_browser = true;

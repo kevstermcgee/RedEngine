@@ -33,10 +33,11 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("ui", "game HUD, objective, start/end cards"),
     ("audio", "measure sound: LUFS, peaks, seam, pitch, spectrogram"),
     ("sim", "scripted headless play-throughs (`sim`) and match traces (`replay`)"),
-    ("multiplayer", "hosting and playing online: keys, lobby, rounds, UPnP, net-test, package"),
-    ("playtest", "see the game without a screen: `playtest`, headless scripts, state dump"),
+    ("multiplayer", "hosting and playing online"),
+    ("playtest", "see the game without a screen"),
     ("custom-client", "a non-first-person game: a crate on `red_engine2::app`"),
     ("web", "browser games: choose, create, publish, evidence"),
+    ("web3d", "the 3D engine in a browser: proven, experimental, hybrid, planned"),
     ("2d", "the 2D game file format"),
     ("hybrid", "3D parts in a 2D game"),
     ("capabilities", "what is built: presentation x platform x network x input"),
@@ -701,6 +702,18 @@ READ THE EVIDENCE (publication.json, game.json, catalog.json): five levels that 
     t
 }
 
+/// `describe web3d`: four different things that are all "3D in a browser", kept apart.
+fn web3d_text() -> String {
+    String::from(
+        "3D IN A BROWSER is four different things. Do not mix them up, and do not call the hybrid renderer a port of the engine.\n\
+PROVEN (the full engine): the engine's own wgpu renderer (LiveRenderer) and simulation (LocalSession: rapier, rules, ground) compiled for wasm32 (`--features web`, `crates/web3d`) and run in Chromium on WebGPU: one player, offline, keyboard and mouse look. A scripted run in the browser ends in the SAME simulation checksum as the native engine, bit for bit, on Marcel and on recipes/gated_garden (a gate opened by a rule: collision changes in the browser exactly as natively). Measured, not a CI gate.\n\
+EXPERIMENTAL (runs, nobody ships it): `scripts/web3d_measure.sh [scene.json ...]` builds it and measures build size, startup, shaders and pipelines, frame time, memory, asset loading, input and native parity. No packaging, `web verify`, publish or install for 3D; no audio, HUD, menus, touch or gamepad; no WebGL2 fallback (it refuses to start and says why: the renderer is 4x multisampled); a 7 MB module (about 2 MB gzip). Only a software GPU has been measured: frame times describe it, not a laptop or a phone.\n\
+HYBRID (shipped and verified, a different thing): a 2D game with 3D parts drawn by a built-in SOFTWARE renderer (`describe hybrid`). Any browser, no GPU, pixel-identical natively. It is not the engine, it has no textures, one light and small worlds.\n\
+PLANNED: audio, HUD and menus, touch pads, a single-sample WebGL2 path, `web build/verify/publish` for 3D games, installability, a real-device performance floor. Browser multiplayer is a separate project.\n\
+NUMBERS and the plan: docs/analysis/2026-10-06-3d-browser-measurements.md and docs/analysis/2026-10-05-3d-in-the-browser.md. For a game people can play in a browser today: `describe web`.\n",
+    )
+}
+
 /// `describe custom-client`: the route for a game that is not the built-in first-person client (ADR 0043).
 fn custom_client_text() -> String {
     String::from(
@@ -904,6 +917,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "playtest" => out.push_str(&playtest_text()),
         "custom-client" => out.push_str(&custom_client_text()),
         "web" => out.push_str(&web_text()),
+        "web3d" => out.push_str(&web3d_text()),
         "2d" => out.push_str(&twod_text()),
         "hybrid" => out.push_str(red2d::reference::HYBRID),
         "capabilities" => out.push_str(&red2d::caps::matrix_text()),

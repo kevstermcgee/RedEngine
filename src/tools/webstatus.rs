@@ -23,6 +23,38 @@ pub const LIMITS: &[&str] = &[
     "A passing run never means a human played, heard or enjoyed the game: human_playtested is always false until a person records it.",
 ];
 
+/// What a person answers on a real device (docs/DEVICE_QUALIFICATION.md), in order. Each is `pass`, `fail`, or `unsupported` (the device or browser has no such thing, said by the tester).
+pub const DEVICE_CHECKS: &[&str] = &["startup", "touch_controls", "orientation", "audio_unlock", "save_load", "offline_restart", "install", "fullscreen"];
+
+/// The records a person wrote in `<game dir>/qualification/*.json` (schema `red2d-device-record/1`), read against the build that exists now.
+/// A record counts for the build it names; it is "complete" when every check in [`DEVICE_CHECKS`] is answered; the run is "all passed" when no answer is `fail`.
+/// `physical` must be `true`: an emulator is what the automated run already is, and is not a person's device.
+pub fn device_records(game: &Path, package_id: Option<&str>) -> Vec<Value> {
+    let dir = game.parent().unwrap_or(Path::new(".")).join("qualification");
+    let mut files: Vec<_> =
+        std::fs::read_dir(&dir).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect();
+    files.sort();
+    files
+        .iter()
+        .map(|p| {
+            let file = p.display().to_string();
+            let Some(r) = read_json(p).filter(|r| r["schema"] == "red2d-device-record/1") else {
+                return json!({"file": file, "valid": false, "problem": "not a red2d-device-record/1 JSON file"});
+            };
+            let answers = &r["results"];
+            let missing: Vec<&str> = DEVICE_CHECKS.iter().copied().filter(|k| !matches!(answers[*k].as_str(), Some("pass" | "fail" | "unsupported"))).collect();
+            let failed: Vec<&str> = DEVICE_CHECKS.iter().copied().filter(|k| answers[*k] == "fail").collect();
+            let is_current = package_id.is_some() && r["build_id"].as_str() == package_id;
+            let physical = r["physical"] == true;
+            json!({
+                "file": file, "valid": true, "device": r["device"], "tester": r["tester"], "date": r["date"], "build_id": r["build_id"],
+                "for_this_build": is_current, "physical_device": physical, "missing": missing, "failed": failed,
+                "complete_and_passed": is_current && physical && missing.is_empty() && failed.is_empty(),
+            })
+        })
+        .collect()
+}
+
 fn read_json(p: &Path) -> Option<Value> {
     std::fs::read_to_string(p).ok().and_then(|t| serde_json::from_str(&t).ok())
 }
@@ -103,6 +135,8 @@ pub fn status(game: &Path, base: &Path) -> Value {
         );
     }
 
+    let records = device_records(game, package_id.as_deref());
+    let human = records.iter().any(|r| r["complete_and_passed"] == true);
     let (p, f, n, na) = evidence.as_ref().map_or((0, 0, 0, 0), Evidence::count);
     json!({
         "schema": SCHEMA,
@@ -124,9 +158,10 @@ pub fn status(game: &Path, base: &Path) -> Value {
             "levels": publication.as_ref().map(|p| p["levels"].clone()),
             "url": publication.as_ref().and_then(|p| p["url"].as_str()),
         },
-        "human_playtested": false,
+        "human_playtested": human,
+        "device_records": records,
         "next": next,
-        "after_that_a_person": "play it on a real phone and a real desktop browser and record it: docs/DEVICE_QUALIFICATION.md",
+        "after_that_a_person": "play it on a real phone and a real desktop browser and write a device record: docs/DEVICE_QUALIFICATION.md (this tool never plays for a person)",
         "limits": LIMITS,
     })
 }
@@ -175,6 +210,24 @@ pub fn render(v: &Value) -> String {
             yn(&lv["remotely_playable"]),
             yn(&lv["human_playtested"])
         ));
+    }
+    if v["valid"] == true {
+        let recs = v["device_records"].as_array().cloned().unwrap_or_default();
+        if recs.is_empty() {
+            t.push_str("  real devices       none recorded (docs/DEVICE_QUALIFICATION.md): human playtested NO\n");
+        }
+        for r in &recs {
+            t.push_str(&format!(
+                "  real device        {} ({}): {}\n",
+                r["device"].as_str().unwrap_or(r["file"].as_str().unwrap_or("?")),
+                if r["for_this_build"] == true { "this build" } else { "ANOTHER build or invalid" },
+                if r["complete_and_passed"] == true {
+                    "all checks answered, none failed".to_string()
+                } else {
+                    format!("missing {:?}, failed {:?}", r["missing"], r["failed"])
+                }
+            ));
+        }
     }
     match v["next"].as_array().and_then(|a| a.first()) {
         Some(n) => t.push_str(&format!("NEXT: {}\n      ({})\n", n["command"].as_str().unwrap_or(""), n["why"].as_str().unwrap_or(""))),
@@ -263,5 +316,40 @@ mod tests {
         assert!(v["next"].as_array().unwrap().is_empty(), "{v}");
         let text = render(&v);
         assert!(text.contains("remotely playable yes") && text.contains("human playtested NO") && text.contains("a person's"), "{text}");
+    }
+
+    #[test]
+    fn a_persons_device_record_counts_only_for_its_build_on_a_physical_device_with_every_check_answered() {
+        let dir = scratch("devices");
+        let game = game_in(&dir);
+        let q = dir.join("qualification");
+        std::fs::create_dir_all(&q).unwrap();
+        let all = |v: &str| DEVICE_CHECKS.iter().map(|k| (k.to_string(), json!(v))).collect::<serde_json::Map<_, _>>();
+        let write = |name: &str, build: &str, physical: bool, results: serde_json::Map<String, Value>| {
+            std::fs::write(q.join(name), json!({"schema": "red2d-device-record/1", "device": "Pixel 8, Android 15, Chrome", "tester": "a person", "date": "2026-10-06", "build_id": build, "physical": physical, "results": results}).to_string()).unwrap();
+        };
+        assert_eq!(status(&game, &dir)["human_playtested"], false, "no record: nobody has played it");
+        write("emulated.json", "aaaa", false, all("pass"));
+        write("other-build.json", "bbbb", true, all("pass"));
+        let mut partial = all("pass");
+        partial.remove("fullscreen");
+        partial.insert("audio_unlock".into(), json!("fail"));
+        write("partial.json", "aaaa", true, partial);
+        std::fs::write(q.join("junk.json"), "{}").unwrap();
+        let rev = status(&game, &dir)["game_revision"].as_str().unwrap().to_string();
+        std::fs::create_dir_all(dir.join("out/web/coin-dash")).unwrap();
+        std::fs::write(dir.join("out/web/coin-dash/manifest.json"), json!({"package_id": "aaaa", "game": {"game_revision": rev}}).to_string()).unwrap();
+        let v = status(&game, &dir);
+        let recs = v["device_records"].as_array().unwrap();
+        assert_eq!(recs.len(), 4);
+        assert!(
+            recs.iter().all(|r| r["complete_and_passed"] != true),
+            "an emulated device, another build, a failed or unanswered check and a junk file never count: {recs:?}"
+        );
+        assert_eq!(v["human_playtested"], false);
+        write("good.json", "aaaa", true, all("pass"));
+        let v = status(&game, &dir);
+        assert_eq!(v["human_playtested"], true, "{:?}", v["device_records"]);
+        assert!(render(&v).contains("all checks answered, none failed"));
     }
 }

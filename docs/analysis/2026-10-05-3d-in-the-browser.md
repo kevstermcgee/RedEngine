@@ -1,5 +1,7 @@
 # 3D games in the browser: what is measured, what is not, and a plan
 
+> Follow-up (2026-10-06): a second scene, `recipes/gated_garden`, and a measurement and native-parity harness: `2026-10-06-3d-browser-measurements.md`.
+
 > **Status (phase 1 done on WebGPU):** the engine's own renderer and simulation compile for wasm32 (`--features web`), and **Marcel draws and walks in headless Chromium** through the engine's own pipelines (see "Phase 1 results" at the end). Not done: audio, menus, packaging/publish, the WebGL2 fallback, real-hardware performance.
 
 Question: can the real 3D engine (wgpu, rapier, the scene renderer) run in a browser, so a 3D game can be played from a URL like the 2D and hybrid ones?

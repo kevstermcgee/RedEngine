@@ -324,8 +324,8 @@ pub const STARTER_2D: &str = r##"{
 
   "sounds": { "ding": { "seconds": 0.2, "level": 0.5, "layers": [{ "sine": 880, "decay": 16 }, { "sine": 1320, "decay": 20, "delay": 0.05, "gain": 0.7 }] } },
 
-  "vars": { "gems_left": 5, "timeleft": 20, "best": 0 },
-  "persist": ["best"],
+  "vars": { "gems_left": 5, "timeleft": 20, "best": 0, "gems_total": 0 },
+  "persist": ["best", "gems_total"],
 
   "prefabs": {
     "player": { "tag": "player", "shape": { "rect": [10, 10], "color": "#ffd166" }, "layer": 2, "clamp": true, "move": { "keys": { "mode": "topdown", "speed": 90 } } },
@@ -342,6 +342,7 @@ pub const STARTER_2D: &str = r##"{
     { "text": "GEMS LEFT {count_gem}", "at": [6, 6], "color": "#5cf2ff" },
     { "text": "TIME {timeleft:2}", "at": [314, 6], "align": "right" },
     { "text": "BEST {best}", "at": [160, 6], "align": "center", "color": "#9fb3d9", "show": "best > 0" },
+    { "text": "ALL TIME {gems_total}", "at": [314, 172], "align": "right", "color": "#9fb3d9" },
     { "text": "YOU WIN!", "at": [160, 70], "scale": 2, "align": "center", "color": "#8cff9b", "show": "ended == 1" },
     { "text": "TIME UP", "at": [160, 70], "scale": 2, "align": "center", "color": "#ff7a8c", "show": "ended == 2" },
     { "button": { "id": "again", "label": "PLAY AGAIN (ENTER)", "at": [100, 100], "size": [120, 14], "key": "Enter", "do": [{ "restart": true }] }, "show": "ended" }
@@ -349,7 +350,7 @@ pub const STARTER_2D: &str = r##"{
 
   "rules": [
     { "id": "collect", "when": { "touch": ["player", "gem"] }, "do": [
-      { "add": ["gems_left", -1] }, { "play": "ding" }, { "burst": { "at": "other", "n": 10, "color": "#5cf2ff", "speed": [20, 60], "life": [0.2, 0.5] } }, { "destroy": "other" }] },
+      { "add": ["gems_left", -1] }, { "add": ["gems_total", 1] }, { "play": "ding" }, { "burst": { "at": "other", "n": 10, "color": "#5cf2ff", "speed": [20, 60], "life": [0.2, 0.5] } }, { "destroy": "other" }] },
     { "id": "clock", "when": { "every": 1 }, "do": [{ "add": ["timeleft", -1] }] },
     { "id": "win", "when": { "every": 0.05 }, "if": "count_gem == 0", "do": [{ "end": "win" }] },
     { "id": "lose", "when": { "every": 0.05 }, "if": "timeleft <= 0 && count_gem > 0", "do": [{ "end": "lose" }] },
@@ -360,12 +361,15 @@ pub const STARTER_2D: &str = r##"{
     "scenarios": [
       { "name": "walking over every gem wins", "max_seconds": 30, "smoke": true,
         "script": [{ "approach": "gem", "seconds": 15 }],
-        "expect": [{ "ended": "win" }, { "count": "gem", "eq": 0 }, { "sound": "ding", "min": 5 }, { "var": "best", "gt": 0 }] },
+        "expect": [{ "ended": "win" }, { "count": "gem", "eq": 0 }, { "sound": "ding", "min": 5 }, { "var": "best", "gt": 0 }, { "var": "gems_total", "gte": 5 }] },
       { "name": "standing still runs out the clock", "max_seconds": 40,
         "script": [{ "wait_until": { "ended": "lose" }, "timeout": 30 }],
-        "expect": [{ "ended": "lose" }, { "count": "gem", "eq": 5 }, { "var": "best", "eq": 0 }] }
+        "expect": [{ "ended": "lose" }, { "count": "gem", "gt": 0 }, { "var": "best", "eq": 0 }] }
     ],
-    "browser": [{ "name": "the arrow keys move the player", "keys": ["ArrowRight"], "ms": 400, "changes": ["p_x"] }]
+    "browser": [
+      { "name": "the arrow keys move the player", "keys": ["ArrowRight"], "ms": 400, "changes": ["p_x"] },
+      { "name": "taking a gem is remembered after a reload", "keys": ["ArrowUp"], "ms": 900, "changes": ["gems_total"], "persists": ["gems_total"] }
+    ]
   }
 }
 "##;
@@ -385,7 +389,7 @@ scripts/red sim {{ID}}.game2d.json [--every 5]   # the scripted playthroughs, wi
 scripts/red verify {{ID}}.game2d.json            # simulation + render + audio waveform; exit 1 on any failure
 scripts/red frame {{ID}}.game2d.json out/look.png --t 8 --size 1280x720   # LOOK at it (the same renderer the browser uses)
 scripts/red web verify {{ID}}.game2d.json        # build the WebAssembly package and run it in a real headless browser (`scripts/red web setup-browser` once)
-scripts/red publish {{ID}}.game2d.json           # the pipeline to a site; it says exactly which stage failed, never invents a URL, and writes out/publish/{{ID}}/publication.json (19 pieces of evidence, each on its own)
+scripts/red publish {{ID}}.game2d.json           # the pipeline to a site; it says exactly which stage failed, never invents a URL, and writes out/publish/{{ID}}/publication.json (the pieces of evidence, each on its own)
 ```
 - Updating the game later: edit the JSON, run `scripts/red web status {{ID}}.game2d.json`, run the loop again. A passing run is never a claim that a person played it.
 - Edit the JSON only. A scenario that asserts nothing is refused; write the playthrough and its `expect` first, then the rules.

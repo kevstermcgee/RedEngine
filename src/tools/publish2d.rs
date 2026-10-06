@@ -219,12 +219,14 @@ pub struct Verification {
     pub features: Vec<String>,
     /// Every piece of evidence the native run, the build, the package check and the browser produced, each on its own ([`Evidence`]).
     pub evidence: Evidence,
+    /// Other engines that passed for this very build (`Firefox 155.0`), from `verification-<engine>.json` records.
+    pub also_browsers: Vec<String>,
 }
 
 impl Verification {
     /// The JSON form stored beside the screenshots.
     pub fn to_json(&self) -> Value {
-        json!({"schema": "red2d-browser-verification/1", "package_id": self.package_id, "ok": self.ok, "browser": self.browser, "checks": self.checks, "audio_claims": self.audio_claims, "features": self.features, "evidence": self.evidence.to_json(), "human_listening_verified": false, "human_playtest": false})
+        json!({"schema": "red2d-browser-verification/1", "package_id": self.package_id, "ok": self.ok, "browser": self.browser, "checks": self.checks, "audio_claims": self.audio_claims, "features": self.features, "evidence": self.evidence.to_json(), "also_browsers": self.also_browsers, "human_listening_verified": false, "human_playtest": false})
     }
     /// Reads one back.
     pub fn from_json(v: &Value) -> Option<Verification> {
@@ -236,6 +238,7 @@ impl Verification {
             audio_claims: v["audio_claims"].as_array()?.iter().filter_map(|a| a.as_str().map(str::to_string)).collect(),
             features: v["features"].as_array().map(|a| a.iter().filter_map(|f| f.as_str().map(str::to_string)).collect()).unwrap_or_default(),
             evidence: Evidence::from_json(&v["evidence"]),
+            also_browsers: v["also_browsers"].as_array().map(|a| a.iter().filter_map(|f| f.as_str().map(str::to_string)).collect()).unwrap_or_default(),
         })
     }
 }
@@ -272,7 +275,7 @@ pub fn game_meta(manifest: &Value, v: &Verification, epoch: u64, previous_builds
         "engine_dirty": manifest["engine"]["dirty"],
         "build_id": build_id,
         "build_timestamp": built_at,
-        "compatibility": {"requires": manifest["compat"]["requires"], "optional": manifest["compat"]["optional"], "networking": manifest["compat"]["networking"], "browsers_verified": [v.browser.clone()], "browsers_other": "untested"},
+        "compatibility": {"requires": manifest["compat"]["requires"], "optional": manifest["compat"]["optional"], "networking": manifest["compat"]["networking"], "browsers_verified": std::iter::once(v.browser.clone()).chain(v.also_browsers.iter().cloned()).collect::<Vec<_>>(), "browsers_other": "untested"},
         "verification": {
             "native": {"scenarios": manifest["native"]["scenarios"].as_array().map_or(0, Vec::len), "passed": v.evidence.passed("native_scenarios")},
             "browser": {"engine": v.browser, "checks": v.checks, "passed": v.ok, "package_id": v.package_id},
@@ -710,9 +713,34 @@ fn msg_for_evidence(url: &str) -> String {
     format!("a real browser ran the checks against {url}, which serves this build")
 }
 
+/// The records other engines wrote for this very build (`verification-firefox.json` ...) in `dir`: `(browser name, passed)`.
+pub fn other_engine_runs(dir: &Path, package_id: &str) -> Vec<(String, bool)> {
+    let mut out = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        let mut files: Vec<_> = rd
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("verification-") && n.ends_with(".json")))
+            .collect();
+        files.sort();
+        for p in files {
+            if let Some(v) = std::fs::read_to_string(&p).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).and_then(|j| Verification::from_json(&j)) {
+                if v.package_id == package_id {
+                    out.push((v.browser, v.ok));
+                }
+            }
+        }
+    }
+    out
+}
+
 fn verification_of(build_id: &str, v: &webverify::Verified, evidence: &Evidence) -> Verification {
+    let others = other_engine_runs(&Path::new("out/web-verify").join(v.raw["game"].as_str().unwrap_or("")), build_id);
+    let mut evidence = evidence.clone();
+    evidence.set_other_browsers(&others);
     Verification {
-        evidence: evidence.clone(),
+        also_browsers: others.iter().filter(|(_, ok)| *ok).map(|(n, _)| n.clone()).collect(),
+        evidence,
         package_id: build_id.to_string(),
         ok: v.rows.iter().all(|r| r.ok),
         browser: v.browser.clone(),
@@ -877,7 +905,34 @@ mod tests {
             audio_claims: vec!["browser audio initialised".into()],
             features: vec!["installable".into()],
             evidence: Default::default(),
+            also_browsers: vec![],
         }
+    }
+
+    #[test]
+    fn other_engines_count_only_for_the_build_they_played_and_never_fake_a_pass() {
+        let dir = std::env::temp_dir().join(format!("re2_engines_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let rec = |file: &str, package: &str, browser: &str, ok: bool| {
+            let mut v = ver(package);
+            v.browser = browser.into();
+            v.ok = ok;
+            std::fs::write(dir.join(file), v.to_json().to_string()).unwrap();
+        };
+        rec("verification.json", "1111", "Chromium 1", true); // the main record is never an "other" engine
+        rec("verification-firefox.json", "1111", "Firefox 155.0", true);
+        rec("verification-webkit.json", "2222", "WebKit 26", true); // another build
+        assert_eq!(other_engine_runs(&dir, "1111"), vec![("Firefox 155.0".to_string(), true)]);
+        let mut e = Evidence::default();
+        e.set_other_browsers(&other_engine_runs(&dir, "9999"));
+        assert_eq!(e.get("other_browsers").unwrap().status, Status::NotRun, "no record for this build: not run, never passed");
+        e.set_other_browsers(&other_engine_runs(&dir, "1111"));
+        assert!(e.passed("other_browsers") && e.get("other_browsers").unwrap().detail.contains("Firefox 155.0"));
+        rec("verification-firefox.json", "1111", "Firefox 155.0", false);
+        e.set_other_browsers(&other_engine_runs(&dir, "1111"));
+        assert_eq!(e.get("other_browsers").unwrap().status, Status::Failed);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

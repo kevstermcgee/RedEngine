@@ -1,0 +1,12 @@
+# 2026-10-06. Publishing builds its commit from HEAD on a private index
+Status: accepted
+Summary: A publication into a shared checkout is a commit made from HEAD plus the game's files on a temporary index, never from the checkout's index, so no staged or edited work of anyone else is committed or touched.
+
+## Context
+`publish --backend github-pages` staged `webgames/` and ran a plain `git commit`, which commits the whole index. Whatever another person or another AI had already staged in the RedEngineGames checkout rode along in a publication commit. Options weighed: an isolated worktree (a second checkout of a growing repository and metadata under `.git/worktrees`), a refusal whenever anything is staged (blocks the normal case of a busy checkout and teaches nobody anything), or a commit that never reads the index.
+
+## Decision
+`tools::gitscope::commit_subtree` takes `HEAD`'s `webgames/` into a scratch directory inside `.git`, lets `write_site` change it there, builds the tree with a temporary index (`read-tree HEAD`, `add -A -- webgames`, `write-tree`) and commits it with `commit-tree`. The checkout follows by `read-tree -m -u HEAD NEW`, the way a branch switch does: only the changed paths are rewritten and git refuses, changing nothing, if one holds other content. The branch moves by compare-and-swap (`update-ref HEAD NEW OLD`), a failed push takes the commit back out, and unsafe states (detached HEAD, merge or rebase in progress, no commit, unpushed commits that are not publications under `--push`, staged or modified files at the game's own paths) are refused before anything is written, naming the files and the command that fixes it. Interrupted leftovers that are byte-identical to what would be written are cleared; nothing else is ever deleted, reset, stashed or unstaged. Publication commits are authored `RedEngine publish <publish@redengine.invalid>`, which is how a later `--push` recognises its own unpushed commits.
+
+## Consequences
+Staged, partly staged, unstaged and untracked work, other games' files and unpushed commits of other people are neither committed nor changed (`tests/publish_git_isolation.rs`, fifteen cases). The catalog is built from `HEAD`, so another game's uncommitted edits never reach it. Harder: the commit does not run `pre-commit` hooks, and the code depends on `read-tree -m -u`'s refusal semantics (git 2.x). To undo: call `git add webgames && git commit` again in `github_upload`; nothing else depends on the mechanism.

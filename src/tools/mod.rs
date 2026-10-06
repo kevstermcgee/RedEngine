@@ -12,6 +12,8 @@ pub mod adr;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod affected;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod agent_trace;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod analysis;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod audio;

@@ -63,6 +63,7 @@ fn ver(manifest: &Value) -> Verification {
         audio_claims: vec![],
         features: vec![],
         evidence: Default::default(),
+        also_browsers: vec![],
     }
 }
 

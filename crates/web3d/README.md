@@ -14,3 +14,6 @@ $HOME/.cache/red_engine2/browser/bin/python3 crates/web3d/verify.py             
 
 Open `http://127.0.0.1:8770/index.html?run=1` in a WebGPU browser to play (WASD, Shift, Space; `look(dx, dy)` is wired by the page, not yet by this one).
 `cargo clippy -p red_engine2 --lib --target wasm32-unknown-unknown --no-default-features --features web -- -D warnings` is the CI stage `scripts/ci.sh web3d`.
+
+Measure it (build size, startup, pipelines, frame time, memory, input, and the native parity check of a scripted run's simulation checksum): `scripts/web3d_measure.sh [scene.json ...]`.
+Results and what they do and do not prove: `docs/analysis/2026-10-06-3d-browser-measurements.md`; the one-page version: `red_engine2 describe web3d`.

@@ -68,10 +68,10 @@ Anything a human must do: review and `git push` when `--push` was not given; ena
 
 ## Evidence (what a record claims, piece by piece)
 
-`publish` writes `out/publish/<id>/publication.json` (schema `red2d-publication/1`), `web verify` writes `verification.json`, and both end up in the game's `game.json` / `catalog.json` entry
+`publish` writes `out/publish/<id>/publication.json` (schema `red2d-publication/1`), `web verify` writes `verification.json` (Chromium; `--engine firefox|webkit` writes `verification-<engine>.json` and feeds `other_browsers`), and both end up in the game's `game.json` / `catalog.json` entry
 (`verification.evidence`). Five **levels** never merge into one flag: `built`, `locally_verified`, `uploaded`, `remotely_playable`, `human_playtested` (always `false` here: nothing in this tool can set it).
-Under them are 19 **pieces**, each `passed`, `failed`, `not_run` or `not_applicable` with the sentence that says what was seen (`red_engine2 describe web` lists them with what each proves):
-`native_scenarios wasm_compiled browser_package_valid wasm_instantiated loading_robustness playable_state input_keyboard input_pointer input_touch input_gamepad persistence_write persistence_reload audio_api audio_playback offline_cache offline_reload installable browser_scenarios remote_deployment`.
+Under them are the **pieces**, each `passed`, `failed`, `not_run` or `not_applicable` with the sentence that says what was seen (`red_engine2 describe web` lists them with what each proves):
+`native_scenarios wasm_compiled browser_package_valid wasm_instantiated loading_robustness playable_state input_keyboard input_pointer input_touch input_gamepad persistence_write persistence_reload audio_api audio_playback offline_cache offline_reload installable browser_scenarios other_browsers remote_deployment`.
 `not_applicable` is the game's own declaration (no saves, no sound, no gamepad), never the verifier's silence; `not_run` is never a pass. A record cannot contain the result of checking its own deployment, so
 `remote_deployment` is `not_run` in `game.json` and its real answer is in `publication.json`. `red_engine2 web status G` reads these files and prints the one next command.
 

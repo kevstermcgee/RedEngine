@@ -180,8 +180,8 @@ pub fn support(presentation: Presentation, platform: Platform) -> Support {
         (TwoD | Hybrid, MacOs) | (ThreeD, MacOs) => Support::NotSupported("no macOS build or test exists; supported platforms are web (2D games), windows and linux (3D games)"),
         (ThreeD, Windows | Linux) => Support::Supported,
         (ThreeD, Web) => Support::NotSupported(
-            "3D games need the wgpu renderer and the engine library, neither of which builds for WebAssembly yet. Browser games are 2D: declare `presentation: \"2d\"`, \
-             or drop `web` from `platforms` and ship the 3D game for windows/linux",
+            "the engine's wgpu renderer and simulation run in a browser only as an experiment (`describe web3d`: one scene, WebGPU, no audio, touch or menus), and there is no build, verify, \
+             publish or install path for a 3D game yet. Browser games are 2D or hybrid: declare `presentation: \"2d\"` (or `hybrid`), or drop `web` from `platforms` and ship the 3D game for windows/linux",
         ),
     }
 }
@@ -246,7 +246,7 @@ pub fn distribution_support(presentation: Presentation, platform: Platform, how:
         (ThreeD, Windows, Install) => Support::Supported,
         (ThreeD, Linux, Install) => Support::Unverified("the portable build packages for Linux (`package`), but the installer, the updater and the download page are Windows-only today"),
         (ThreeD, Windows | Linux, Online) => Support::NotSupported(
-            "a 3D game cannot be played from a URL: the 3D renderer and engine library do not run in a browser yet. Ship it as an installable game (`install`), or build the game as a 2D/hybrid game for the browser",
+            "a 3D game cannot be published to a URL yet: the engine's renderer runs in a browser only as an experiment (`describe web3d`), with no package, verify or publish path. Ship it as an installable game (`install`), or build the game as a 2D/hybrid game for the browser",
         ),
         (TwoD | Hybrid, Windows | Linux, Install) => Support::Prepared("a native installer for 2D games needs the native window, which is not built; the web app (`web` + `install`) installs on Windows, Linux, macOS, Android and iOS"),
         (TwoD | Hybrid, Windows | Linux, Online) => Support::NotSupported("`online` means a URL, which is the `web` platform: add \"web\" to platforms"),

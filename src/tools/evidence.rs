@@ -40,6 +40,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("offline_reload", "the game reloaded and ran with the network switched off"),
     ("installable", "the browser reported the page as installable"),
     ("browser_scenarios", "the game's own scenarios replayed in the browser's WebAssembly to the native state hashes"),
+    ("other_browsers", "another engine (Firefox or WebKit, `web verify --engine firefox`) also passed the browser checks it can run for this build; optional, and never a claim about Safari itself"),
     ("remote_deployment", "a real browser played the deployed copy at a non-loopback URL"),
 ];
 
@@ -188,6 +189,21 @@ impl Evidence {
             } else {
                 self.set(key, Status::Failed, rows.iter().filter(|r| !r.ok).map(|r| format!("{}: {}", r.name, r.detail)).collect::<Vec<_>>().join("; "));
             }
+        }
+    }
+
+    /// Other engines' records for this very build: `(browser name, passed)`. None run is `not_run` (it is optional), never a pass.
+    pub fn set_other_browsers(&mut self, runs: &[(String, bool)]) {
+        if runs.is_empty() {
+            self.set("other_browsers", Status::NotRun, "no other engine was run for this build (`red_engine2 web verify GAME --engine firefox`)");
+        } else if runs.iter().all(|(_, ok)| *ok) {
+            self.set("other_browsers", Status::Passed, format!("passed in {}", runs.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", ")));
+        } else {
+            self.set(
+                "other_browsers",
+                Status::Failed,
+                format!("failed in {}", runs.iter().filter(|(_, ok)| !*ok).map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", ")),
+            );
         }
     }
 
