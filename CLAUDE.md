@@ -24,6 +24,7 @@ game with it) and `release` (LTO, 4+ minutes: ship with it). Put build output on
 
 ## First 60 seconds
 ```bash
+scripts/dev start "<your task>"  # THE FIRST COMMAND: picks the workflow (new game / change a game / change the engine / diagnose / upgrade), names the executable it will use and why, and prints ONE next action. Read-only: never builds, installs or downloads. (In a game project: scripts/red start; MCP: the `start` tool; then `next` / `resume` after an interruption)
 scripts/dev doctor               # toolchain, binaries, git (Windows: powershell -File scripts\dev.ps1 doctor)
 # No Rust on this Linux machine? curl -fsSL https://raw.githubusercontent.com/kevstermcgee/RedEngine/main/scripts/bootstrap.sh | sh   # prebuilt binaries + doctor
 R="scripts/dev red"              # builds the CLI on first use, then runs it from any directory

@@ -24,7 +24,7 @@ MP4 renderer remains as a fast way to look at scenes while authoring. `examples/
 the primary development map; `house`, `school`, `office` and `store` are legacy reference maps
 kept as regression fixtures (ADR 0015).
 
-**Start here if you're an AI being pointed at this project: read [`AGENTS.md`](AGENTS.md)** (the
+**Start here if you're an AI being pointed at this project: run `scripts/dev start "<your task>"`** (it picks the workflow and the executable and prints one next action, without building anything), **then read [`AGENTS.md`](AGENTS.md)** (the
 workflow: how to inspect, edit, lint and visually review a map with the built-in tools), then
 [`SPEC.md`](SPEC.md), the complete scene-language reference (coordinates, object types, walls,
 stairs, props, keyframes, the humanoid rig). Both are written to be read once and used directly —

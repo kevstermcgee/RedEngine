@@ -426,6 +426,7 @@ pub fn brief_json(commands: &Value) -> Value {
     json!({
         "engine": "Red Engine 2: maps are JSON scenes; you never need to read Rust",
         "binaries": BINARIES.iter().map(|(n, d)| json!({"name": n, "about": d})).collect::<Vec<_>>(),
+        "start": "scripts/dev start \"<task>\": the workflow and ONE next action (builds nothing)",
         "workflow": "recipe/catalog -> add/set/move (validated) -> lint -> plan/tour (look) -> verify",
         "engine_changes": "context <feature|file|words> (5-15 KB work packet) -> edit -> affected --quick (owners, seconds) -> affected (+dependents) -> affected --full (= CI) before pushing",
         "commands": names,
@@ -444,14 +445,15 @@ fn brief_text(commands: &Value) -> String {
     for (n, d) in BINARIES {
         out.push_str(&format!("  {n:<12} {d}\n"));
     }
+    out.push_str(&format!("Start: {}\n", b["start"].as_str().unwrap_or("")));
     out.push_str(&format!("Workflow: {}\n", b["workflow"].as_str().unwrap_or("")));
     out.push_str(&format!("Changing the engine (Rust): {}\n", b["engine_changes"].as_str().unwrap_or("")));
     out.push_str(&format!("Commands: {}\n", list("commands")));
-    out.push_str("Every command takes --json: one stable envelope {schema, command, ok, exit, data, diagnostics, stderr}.\n");
-    out.push_str("Errors are `path: message` with a stable code and a did-you-mean fix (`describe diagnostics`).\n");
+    out.push_str("Every command takes --json: the envelope {schema, command, ok, exit, data, diagnostics, stderr}.\n");
+    out.push_str("Errors: `path: message`, a stable code, a did-you-mean fix (`describe diagnostics`).\n");
     out.push_str(&format!("Topics (describe <topic>): {}\n", list("topics")));
-    out.push_str("Next: search \"<question>\" | catalog <word> | recipe | SPEC.md (scene language) | AGENTS.md (workflow)\n");
-    out.push_str("Not first-person? describe custom-client: your own crate on red_engine2::app; gameplay stays in scene rules\n");
+    out.push_str("Next: search \"<question>\" | catalog <word> | recipe | SPEC.md (scenes) | AGENTS.md\n");
+    out.push_str("Not first-person? describe custom-client (your own crate on red_engine2::app)\n");
     out.push_str("A browser game (2D/hybrid)? `describe web`; `web status G` says what to run next; `describe 2d` is the file format\n");
     out
 }

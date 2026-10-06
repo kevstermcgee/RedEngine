@@ -3,12 +3,14 @@
 red_engine2's engine is a compiled Rust binary (for stability/speed/token-efficiency — see
 SPEC.md and README.md for why). This server is a thin wrapper: every tool call writes the
 scene JSON to a temp file, shells out to the `red_engine2` binary, and reads back its output.
-Build the binary once with `cargo build --release` before running this server.
+Call `start(task)` first: it picks the workflow, names the executable it will use (the same rule as `scripts/dev` and `scripts/red`) and gives ONE next
+action, without building anything. If no fresh binary exists, build it with `scripts/dev red describe --brief` (what `start` tells you to run).
 
 Run directly (stdio transport):
     python mcp_server.py
 
 Tools:
+    start(task, project, workflow, targets)  -> THE FIRST CALL: workflow, executable, context pointers and one next action (read-only; JSON `red-launchpad/1`)
     get_spec()                              -> the scene-language reference (read this first)
     list_examples()                         -> names of all bundled example scenes
     get_example(name)                       -> one of the bundled example scenes, as JSON text
@@ -54,24 +56,21 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from mcp.server.fastmcp import FastMCP, Image
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import red_resolve  # noqa: E402  (the one executable-selection rule, shared with scripts/dev and scripts/red)
+
 mcp = FastMCP("red_engine2")
 
 
 def _binary_path() -> str:
-    exe = "red_engine2.exe" if os.name == "nt" else "red_engine2"
-    release = os.path.join(ROOT, "target", "release", exe)
-    debug = os.path.join(ROOT, "target", "debug", exe)
-    if os.path.isfile(release):
-        return release
-    if os.path.isfile(debug):
-        return debug
-    raise RuntimeError(
-        "red_engine2 binary not found. Build it first: `cargo build --release` in " + ROOT
-    )
+    """The executable to run, chosen by the same rules as `scripts/dev` and `scripts/red` (scripts/red_resolve.py): CARGO_TARGET_DIR and RED_PROFILE are
+    honoured, a binary older than the sources is never used, and the error says what to run. It used to look only in <repo>/target and prefer `release`."""
+    return red_resolve.require(ROOT)
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
@@ -293,6 +292,22 @@ def describe(topic: str = "overview") -> str:
     """The engine describing itself. Topics: brief, overview (default), commands, objects, scene, lint,
     physics, conventions, rules, sim, diagnostics, glossary, decisions, all. Start with `brief`."""
     return _text(_run("describe", topic))
+
+
+@mcp.tool()
+def start(task: str, project: str = "", workflow: str = "", targets: list[str] | None = None) -> str:
+    """THE FIRST CALL for a task: which workflow (new game, change a game, change the engine, diagnose, upgrade), which executable and why, what is
+    missing, a small context packet and ONE next action with its working directory, arguments and success condition. Read-only: it never builds,
+    installs, downloads or verifies. `project` is a game directory (game.json); `workflow` forces one; `targets` are web, native, headless, multiplayer."""
+    cmd = [sys.executable, os.path.join(ROOT, "scripts", "launchpad.py"), "start", task, "--json"]
+    if project:
+        cmd += ["--project", project]
+    if workflow:
+        cmd += ["--workflow", workflow]
+    for t in targets or []:
+        cmd += ["--target", t]
+    r = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
+    return r.stdout or r.stderr
 
 
 @mcp.tool()

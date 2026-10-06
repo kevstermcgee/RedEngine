@@ -258,6 +258,14 @@
       "docs": ["docs/adr/0024-the-framework-layer-blueprints-and-game-projects.md", "docs/adr/0041-native-input-and-sandbox-workflow.md", "SPEC.md"],
       "depends_on": ["verification", "match_flow"]
     },
+    "launchpad": {
+      "summary": "The AI launchpad (`scripts/dev start|next|resume`, `scripts/red start`, the MCP `start` tool) and the one executable resolver every entry point shares: read-only workflow routing, executable selection and freshness, one next action, resume after changes.",
+      "files": ["scripts/launchpad.py", "scripts/red_resolve.py", "scripts/test_launchpad.py", "scripts/dev", "scripts/dev.ps1", "mcp_server.py", "src/tools/newgame.rs"],
+      "tests": ["launchpad", "lib:tools::newgame"],
+      "commands": ["scripts/dev start \"make a small 2d coin game\" --no-save", "python3 scripts/red_resolve.py"],
+      "docs": ["docs/adr/2026-10-06-an-ai-launchpad-and-one-executable-resolver.md"],
+      "depends_on": ["self_description", "blueprints_and_games"]
+    },
     "self_description": {
       "summary": "The engine describing itself and choosing its own verification: describe, search, src navigation, context work packets, impact/affected (minimal verification), catalog, doctor, status, the JSON envelope and the MCP wrapper.",
       "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py", "src/tools/racetrack.rs", "src/tools/gamepublish.rs", "src/cli/servers.rs", "src/tools/servers.rs", "src/tools/publish_check.rs", "src/tools/webstatus.rs", "src/tools/agent_trace.rs"],
