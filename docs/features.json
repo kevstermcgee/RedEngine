@@ -166,7 +166,7 @@
     },
     "release_packaging": {
       "summary": "`package`: a reproducible zip with a SHA-256 manifest, provenance, feature-isolated binaries and `--verify`; prebuilt Linux binaries on a tag and `scripts/bootstrap.sh` to install them.",
-      "files": ["src/tools/package.rs", "src/tools/pe.rs", "tests/bootstrap_script.rs"],
+      "files": ["scripts/bootstrap.sh", "scripts/package_release.sh", "scripts/publish_games.py", "scripts/smoke_release.sh", "src/tools/package.rs", "src/tools/pe.rs", "tests/bootstrap_script.rs"],
       "tests": ["lib:tools::package", "lib:tools::pe", "bootstrap_script"],
       "commands": ["red_engine2 package out/release.zip", "red_engine2 package --verify out/release.zip", "sh scripts/bootstrap.sh --help"],
       "docs": ["docs/adr/0032-provable-releases.md", "docs/adr/2026-10-04-prebuilt-linux-binaries-and-a-bootstrap-script-for-a.md"]
@@ -252,7 +252,7 @@
     },
     "blueprints_and_games": {
       "summary": "Blueprints compile rooms/doors/spawns into complete self-checking maps; `new-game` scaffolds a game project that pins the engine; recipes.",
-      "files": ["src/tools/blueprint.rs", "src/tools/newgame.rs", "src/tools/game.rs", "src/project_browser.rs", "src/tools/recipes.rs", "recipes/**"],
+      "files": ["examples/patterns/**", "src/tools/blueprint.rs", "src/tools/newgame.rs", "src/tools/game.rs", "src/project_browser.rs", "src/tools/recipes.rs", "recipes/**"],
       "tests": ["lib:tools::blueprint", "lib:tools::newgame", "lib:tools::game", "lib:tools::gamepublish", "lib:project_browser", "lib:tools::recipes", "ai_tasks", "docs_fresh"],
       "commands": ["red_engine2 build --example"],
       "docs": ["docs/adr/0024-the-framework-layer-blueprints-and-game-projects.md", "docs/adr/0041-native-input-and-sandbox-workflow.md", "SPEC.md"],
@@ -273,7 +273,7 @@
     },
     "build_and_ci": {
       "summary": "Cargo features (the headless build), CI script, dev scripts, the dependency boundary.",
-      "files": ["Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
+      "files": ["scripts/seed_target.py", "scripts/prune_target.py", "benches/flow_bench.py", "benches/discovery_bench.py", "benches/discovery_queries.json", "benches/flows/**", "Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
       "tests": ["headless_boundary"],
       "commands": ["scripts/ci.sh"],
       "docs": ["docs/adr/0017-headless-build-gfx-feature.md"]
