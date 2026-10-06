@@ -71,6 +71,15 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
             }
             webpkg::serve(&dir, port, |p| println!("serving {} on http://127.0.0.1:{p}/ (Ctrl-C to stop)", dir.display()))
         }
+        WebCmd::Status { game } => {
+            let v = red_engine2::tools::webstatus::status(&game, Path::new("."));
+            if red_engine2::tools::envelope::capturing() {
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+            } else {
+                print!("{}", red_engine2::tools::webstatus::render(&v));
+            }
+            Ok(())
+        }
         WebCmd::SetupBrowser => {
             println!("{}", webverify::setup_browser()?);
             Ok(())

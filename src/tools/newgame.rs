@@ -377,14 +377,17 @@ Never copy engine source here.
 
 ## The loop
 ```bash
+scripts/red describe web                         # the whole browser workflow on one page: 2d vs hybrid vs 3d, the loop, publishing, the evidence, the limits
+scripts/red web status {{ID}}.game2d.json        # where this game stands and the exact next command (add --json for a program)
 scripts/red describe 2d                          # the file format on one page (read it once; do not open any source)
 scripts/red validate {{ID}}.game2d.json          # well formed? every sprite/sound/tag/variable name resolves? (errors say the fix)
 scripts/red sim {{ID}}.game2d.json [--every 5]   # the scripted playthroughs, with the variables every 5 s when a balance is off
 scripts/red verify {{ID}}.game2d.json            # simulation + render + audio waveform; exit 1 on any failure
 scripts/red frame {{ID}}.game2d.json out/look.png --t 8 --size 1280x720   # LOOK at it (the same renderer the browser uses)
 scripts/red web verify {{ID}}.game2d.json        # build the WebAssembly package and run it in a real headless browser (`scripts/red web setup-browser` once)
-scripts/red publish {{ID}}.game2d.json           # the pipeline to a URL; it says exactly which stage failed, and never invents a URL
+scripts/red publish {{ID}}.game2d.json           # the pipeline to a site; it says exactly which stage failed, never invents a URL, and writes out/publish/{{ID}}/publication.json (19 pieces of evidence, each on its own)
 ```
+- Updating the game later: edit the JSON, run `scripts/red web status {{ID}}.game2d.json`, run the loop again. A passing run is never a claim that a person played it.
 - Edit the JSON only. A scenario that asserts nothing is refused; write the playthrough and its `expect` first, then the rules.
 - `validate`/`verify` prove the rules, the picture and the sound waveform. They do not prove it is fun or that it sounds right: play it (`scripts/red web serve out/web/{{ID}}`).
 - Record progress: `scripts/red status --note "what changed" --section done|now|next`.

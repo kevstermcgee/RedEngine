@@ -62,5 +62,6 @@ pub mod upgrade;
 pub mod verify;
 pub mod walk;
 pub mod webpkg;
+pub mod webstatus;
 pub mod webverify;
 pub mod world;

@@ -430,7 +430,10 @@ fn scratch_left_by_a_crashed_run_is_swept_and_never_shows_in_git_status() {
     assert_eq!(git(&r.root, &["status", "--porcelain", "-uall"]), "", "scratch lives inside .git: status never sees it");
     publish_second(&r, "second", "2222", false).unwrap();
     assert!(!old.exists(), "the stale scratch of a crashed run was removed");
-    assert!(std::fs::read_dir(r.root.join(".git")).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().starts_with("redengine-publish-")), "and this run left none");
+    assert!(
+        std::fs::read_dir(r.root.join(".git")).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().starts_with("redengine-publish-")),
+        "and this run left none"
+    );
     assert_eq!(git(&r.root, &["status", "--porcelain", "-uall"]), "");
 }
 

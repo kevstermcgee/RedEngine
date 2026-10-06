@@ -320,3 +320,75 @@ fn a_3d_element_needs_the_hybrid_declaration_and_its_mistakes_are_named() {
     refused(&mutate("warden-arena", |g| g["ui"][5]["view3d"]["camera"]["eye"] = json!([0, 1.5, 0])), &["same point"]);
     refused(&mutate("warden-arena", |g| g["ui"][6]["minimap"]["colors"] = json!({"nobody": "#fff"})), &["no tag `nobody`"]);
 }
+
+// ---- the front door: a model that has never seen the engine finds the whole workflow with commands -------------------------------------------------------
+
+fn cli(args: &[&str], cwd: &Path) -> (bool, String) {
+    let o = std::process::Command::new(env!("CARGO_BIN_EXE_red_engine2")).args(args).current_dir(cwd).output().expect("run red_engine2");
+    (o.status.success(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr)))
+}
+
+#[test]
+fn describe_web_is_one_page_that_answers_every_question_a_fresh_model_has() {
+    let (ok, t) = cli(&["describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    assert!(ok, "{t}");
+    for must in [
+        "new-game DIR --kind 2d", // how to create
+        "2d ",
+        "hybrid",
+        "3d ", // when to choose which
+        "web status G",
+        "validate G -> verify G -> web verify G -> publish G", // the loop
+        "web setup-browser",
+        "publish G --backend github-pages --repo ../RedEngineGames", // how to publish
+        "ONLY this game",
+        "human_playtested", // how to read the evidence
+        "not_run and not_applicable are not passes",
+        "UPDATE an existing game",
+        "LIMITS (today)",
+        "SOFTWARE renderer",
+    ] {
+        assert!(t.contains(must), "describe web lacks `{must}`:\n{t}");
+    }
+    for (key, _) in red_engine2::tools::evidence::KEYS {
+        assert!(t.contains(key), "describe web does not explain the evidence piece `{key}`");
+    }
+    assert!(t.len() < 7_000, "one page, not a manual: {} bytes", t.len());
+    // The brief and the 2D page both point to it; the machine form carries the same facts.
+    let (_, brief) = cli(&["describe", "--brief"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    assert!(brief.contains("describe web") && brief.contains("web status"), "{brief}");
+    let (_, j) = cli(&["--json", "describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    let v: Value = serde_json::from_str(&j).unwrap();
+    assert!(
+        v["data"]["limits"].as_array().unwrap().len() >= 5 && v["data"]["evidence"].as_array().unwrap().len() == red_engine2::tools::evidence::KEYS.len(),
+        "{j}"
+    );
+}
+
+#[test]
+fn web_status_walks_a_new_game_from_nothing_to_the_next_command_each_time() {
+    let dir = std::env::temp_dir().join(format!("re2_web_status_cli_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let game = dir.join("gate-meadow.game2d.json");
+    std::fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/2d/gate-meadow.game2d.json"), &game).unwrap();
+    let (ok, j) = cli(&["--json", "web", "status", game.to_str().unwrap()], &dir);
+    assert!(ok, "{j}");
+    let v: Value = serde_json::from_str(&j).unwrap();
+    let d = &v["data"];
+    assert_eq!(d["schema"], "red2d-web-status/1");
+    assert_eq!(d["valid"], true);
+    assert_eq!(d["presentation"], "hybrid");
+    assert_eq!(d["native"]["ok"], true);
+    assert_eq!(d["package"]["built"], false);
+    assert!(d["next"][0]["command"].as_str().unwrap().starts_with("red_engine2 web verify "), "{d}");
+    assert_eq!(d["human_playtested"], false);
+    // The text form ends in the command to run.
+    let (_, t) = cli(&["web", "status", game.to_str().unwrap()], &dir);
+    assert!(t.contains("NEXT: red_engine2 web verify") && t.contains("package built      NO"), "{t}");
+    // A broken file says `validate` and shows the problems.
+    let bad = dir.join("bad.game2d.json");
+    std::fs::write(&bad, r#"{"game2d":1,"id":"bad","title":"x"}"#).unwrap();
+    let (_, t) = cli(&["web", "status", bad.to_str().unwrap()], &dir);
+    assert!(t.contains("NOT VALID") && t.contains("NEXT: red_engine2 validate"), "{t}");
+}

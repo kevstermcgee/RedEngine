@@ -299,6 +299,12 @@ pub(crate) enum WebCmd {
         #[arg(long)]
         url: Option<String>,
     },
+    /// Where a browser game stands and the exact next command: reads the game, its package, the browser record and the publication report, never builds or publishes.
+    /// With the global `--json`: schema red2d-web-status/1 (valid, native, package, browser.evidence, publication.levels, next[], limits[]).
+    Status {
+        /// The `*.game2d.json`.
+        game: PathBuf,
+    },
     /// Install the headless browser used by `verify`: a Python virtual environment with Playwright and its Chromium, under `~/.cache/red_engine2/browser`.
     SetupBrowser,
 }
@@ -901,7 +907,7 @@ pub(crate) enum Command {
         #[arg(long)]
         wasm: Option<PathBuf>,
     },
-    /// 2D games in the browser: build, check, serve, browser-verify. In detail: `build` a static WebAssembly package, `check` its integrity, `serve` it locally, `verify` it in a real headless browser,
+    /// Browser games: status, build, check, serve, browser-verify. In detail: `build` a static WebAssembly package, `check` its integrity, `serve` it locally, `verify` it in a real headless browser,
     /// `setup-browser` once per machine. Building and verifying need no credentials and no internet; `publish` is a separate command.
     Web {
         #[command(subcommand)]
