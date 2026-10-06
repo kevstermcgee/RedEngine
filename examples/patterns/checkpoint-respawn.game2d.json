@@ -17,7 +17,7 @@
     {"prefab": "pit", "at": [140, 90]},
     {"prefab": "flag2", "at": [190, 90], "id": "f2"},
     {"prefab": "pit", "at": [230, 90]},
-    {"prefab": "goal", "at": [290, 90]}
+    {"prefab": "pit", "at": [30, 30]}, {"prefab": "goal", "at": [290, 90]}
   ],
   "ui": [
     {"text": "RESPAWN AT {cpx:3},{cpy:3}", "at": [6, 4], "color": "#ffffff", "show": "ended == 0"},
@@ -30,6 +30,7 @@
     {"id": "goal", "when": {"touch": ["player", "goal"]}, "do": [{"end": "win"}]}
   ],
   "checks": {"scenarios": [
+    {"name": "a hazard hit before any flag sends the player back to the start", "seed": 1, "max_seconds": 10, "script": [{"hold": ["up"], "seconds": 0.8}], "expect": [{"event": "respawned", "min": 1}, {"var": "cpx", "eq": 30}, {"entity": "p", "near": [30, 80], "tol": 20}, {"not_ended": true}]},
     {"name": "touching a flag remembers it", "seed": 1, "max_seconds": 10, "script": [{"hold": ["right"], "seconds": 1.0}], "expect": [{"var": "cpx", "eq": 100}, {"var": "cpy", "eq": 90}, {"not_ended": true}]},
     {"name": "a hazard after the flag sends the player back to it", "seed": 1, "max_seconds": 10, "script": [{"hold": ["right"], "seconds": 2.0}], "expect": [{"event": "respawned", "min": 1}, {"var": "cpx", "eq": 100}, {"entity": "p", "near": [117, 90], "tol": 22}, {"not_ended": true}]}
   ]}
