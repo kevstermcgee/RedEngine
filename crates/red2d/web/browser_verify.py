@@ -108,8 +108,8 @@ def main():
         browser = p.chromium.launch()
         out["browser"] = "Chromium " + browser.version
 
-        def new_page(init_script=None, viewport=(960, 540)):
-            ctx = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]})
+        def new_page(init_script=None, viewport=(960, 540), has_touch=False):
+            ctx = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]}, has_touch=has_touch)
             if init_script:
                 ctx.add_init_script(init_script)
             pg = ctx.new_page()
@@ -545,6 +545,117 @@ def main():
             pg.screenshot(path=os.path.join(a.out, "mobile-playing.png"))
             errs = fatal(log)
             check("phone: no console errors", not errs, "none" if not errs else "; ".join(errs[:5]))
+            ctx.close()
+
+        # ---- phase F: the page is used while the game is still loading, and when loading fails -----------------------------------------------------------------
+        # A held `game.wasm` response keeps the page in `loading` for as long as the test wants. Every kind of input is sent meanwhile; none may throw, start the game, show
+        # the start card early or leak into the game afterwards. Then the same page is allowed to finish and must behave like a page that was never poked.
+        FAKE_PAD = ("window.__fakepad = {on: false}; navigator.getGamepads = () => [window.__fakepad.on ? {connected: true, id: 'test pad', axes: [0, 0], "
+                    "buttons: Array.from({length: 16}, (_, i) => ({pressed: i === 0, value: i === 0 ? 1 : 0}))} : null];")
+        pending = []
+        ctx, pg, log = new_page(FAKE_PAD, has_touch=True)
+        ctx.route("**/game.wasm", lambda route: pending.append(route))
+        pg.goto(base + "/index.html", wait_until="domcontentloaded")
+        wait_js(pg, "window.__red2d")
+        poked, poke_errors = [], []
+
+        def poke(what, fn):
+            try:
+                fn()
+                poked.append(what)
+            except Exception as e:                       # the harness could not send it: say so, never count it as tested
+                poke_errors.append("%s: %s" % (what, str(e).splitlines()[0]))
+
+        poke("key down/up", lambda: [pg.keyboard.down(k) or pg.keyboard.up(k) for k in ("Space", "ArrowLeft", "KeyZ")])
+        poke("Enter (Start)", lambda: pg.keyboard.press("Enter"))
+        poke("pointer click", lambda: pg.mouse.click(480, 270))
+        poke("pointer move", lambda: pg.mouse.move(300, 200))
+        poke("touch tap", lambda: pg.touchscreen.tap(200, 300))
+        poke("gamepad button", lambda: (pg.evaluate("window.__fakepad.on = true"), pg.wait_for_timeout(120), pg.evaluate("window.__fakepad.on = false")))
+        poke("focus loss", lambda: pg.evaluate("window.dispatchEvent(new Event('blur'))"))
+        poke("focus return", lambda: pg.evaluate("window.dispatchEvent(new Event('focus'))"))
+        poke("page hidden", lambda: pg.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, get: () => true}); document.dispatchEvent(new Event('visibilitychange'))"))
+        poke("page visible", lambda: pg.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, get: () => false}); document.dispatchEvent(new Event('visibilitychange'))"))
+        poke("begin() called directly", lambda: pg.evaluate("__red2d.begin()"))
+        st = pg.evaluate("__red2d.status()")
+        shown = pg.evaluate("({start: !document.getElementById('start').hidden, loading: !document.getElementById('loading').hidden, error: !document.getElementById('error').hidden, body: document.body.dataset.state})")
+        errs = fatal(log) + poke_errors
+        check("startup: every kind of input while loading is safe", len(poked) == 11 and not errs and st["state"] == "loading" and not st["started"] and st.get("early_input", 0) >= 8,
+              ("%d input kinds sent while game.wasm was still pending (%s): no error, still loading, not started, %d events ignored on purpose" % (len(poked), ", ".join(poked), st.get("early_input", 0)))
+              if not errs and len(poked) == 11 else "sent %d/11; errors: %s; state=%s started=%s early_input=%s" % (len(poked), "; ".join(errs[:4]), st["state"], st["started"], st.get("early_input", 0)))
+        check("startup: the start screen stays logically consistent while loading", shown["loading"] and not shown["start"] and not shown["error"] and shown["body"] == "loading",
+              "loading text shown=%s, start card shown=%s, error shown=%s, page state=%s (the start card appears only when the game can start)" % (shown["loading"], shown["start"], shown["error"], shown["body"]))
+        pg.screenshot(path=os.path.join(a.out, "browser-loading.png"))
+        for route in pending:
+            route.continue_()
+        st = ready(pg)
+        errs = fatal(log)
+        if st["state"] != "ready":
+            check("startup: the page finishes loading after being used early", False, "state=%s error=%s" % (st["state"], st["error"]))
+        else:
+            snap = pg.evaluate("__red2d.snapshot()")
+            shown = pg.evaluate("({start: !document.getElementById('start').hidden, loading: !document.getElementById('loading').hidden})")
+            leaked = (snap["tick"], snap["hash"] != native["initial"]["state_hash"], pg.evaluate("__red2d.held()"), st["started"])
+            check("startup: early input leaves nothing behind", snap["tick"] == 0 and snap["hash"] == native["initial"]["state_hash"] and not pg.evaluate("__red2d.held()") and not st["started"] and shown["start"] and not shown["loading"] and not errs,
+                  "after loading finished: tick %s, state equals the native initial state: %s, nothing held, not started, start card shown, no errors%s" % (snap["tick"], snap["hash"] == native["initial"]["state_hash"], "" if not errs else "; " + "; ".join(errs[:3])) if not errs else "; ".join(errs[:4]) + " / leaked=%s" % (leaked,))
+            pg.keyboard.press("Enter")
+            wait_js(pg, "__red2d.status().state === 'running'")
+            pg.wait_for_timeout(300)
+            s2 = pg.evaluate("__red2d.status()")
+            check("startup: input works as normal once the game is ready", s2["state"] == "running" and s2["started"] and s2["ticks"] > 5 and not s2["error"],
+                  "state=%s started=%s ticks=%d" % (s2["state"], s2["started"], s2["ticks"]))
+            # the same events once running: released, resumed, nothing thrown
+            pg.keyboard.down("ArrowRight")
+            for js in ("window.dispatchEvent(new Event('blur'))", "window.dispatchEvent(new Event('focus'))",
+                       "Object.defineProperty(document, 'hidden', {configurable: true, get: () => true}); document.dispatchEvent(new Event('visibilitychange'))",
+                       "Object.defineProperty(document, 'hidden', {configurable: true, get: () => false}); document.dispatchEvent(new Event('visibilitychange'))"):
+                pg.evaluate(js)
+            pg.keyboard.up("ArrowRight")
+            pg.wait_for_timeout(200)
+            s3 = pg.evaluate("__red2d.status()")
+            errs = fatal(log)
+            check("startup: focus loss, focus return and visibility changes while playing are safe", s3["state"] == "running" and not errs and s3["ticks"] > s2["ticks"],
+                  "state=%s, ticks %d -> %d, errors: %s" % (s3["state"], s2["ticks"], s3["ticks"], "none" if not errs else "; ".join(errs[:3])))
+        ctx.close()
+
+        # A gamepad press starts a game that is ready (and only then).
+        ctx, pg, log = new_page(FAKE_PAD, has_touch=True)
+        pg.goto(base + "/index.html")
+        st = ready(pg)
+        if st["state"] == "ready":
+            pg.evaluate("window.__fakepad.on = true")
+            try:
+                wait_js(pg, "__red2d.status().started", 3000)
+                got = True
+            except TimeoutError:
+                got = False
+            s = pg.evaluate("__red2d.status()")
+            check("startup: a gamepad press starts the game once it is ready", got and s["state"] == "running" and s["gamepad"] and not fatal(log), "started=%s gamepad seen=%s state=%s" % (s["started"], s["gamepad"], s["state"]))
+        ctx.close()
+
+        # Loading that fails: a useful message, no start card, no controller, and nothing that reacts.
+        FAILS = [
+            ("game.wasm is not WebAssembly", "**/game.wasm", dict(status=200, body=b"this is not a wasm module", content_type="application/wasm"), "game.wasm"),
+            ("game.wasm missing (HTTP 404)", "**/game.wasm", dict(status=404, body=b"nope"), "game.wasm"),
+            ("assets/game.json missing (HTTP 500)", "**/assets/game.json", dict(status=500, body=b"boom"), "assets/game.json"),
+            ("assets/game.json is not a game", "**/assets/game.json", dict(status=200, body=b"{\"nonsense\": true}", content_type="application/json"), "refused"),
+        ]
+        for label, pattern, resp, needle in FAILS:
+            ctx, pg, log = new_page(FAKE_PAD, has_touch=True)
+            ctx.route(pattern, lambda route, request, r=resp: route.fulfill(**r))
+            pg.goto(base + "/index.html")
+            wait_js(pg, "window.__red2d && window.__red2d.status().state === 'error'")
+            for fn in (lambda: pg.keyboard.press("Enter"), lambda: pg.keyboard.press("Space"), lambda: pg.mouse.click(480, 270), lambda: pg.touchscreen.tap(200, 300),
+                       lambda: pg.evaluate("window.dispatchEvent(new Event('blur')); window.dispatchEvent(new Event('focus'))"), lambda: pg.evaluate("__red2d.begin()")):
+                fn()
+            pg.wait_for_timeout(150)
+            st = pg.evaluate("__red2d.status()")
+            ui = pg.evaluate("({start: !document.getElementById('start').hidden, loading: !document.getElementById('loading').hidden, pad: !document.getElementById('pad').hidden, error: document.getElementById('error').hidden ? '' : document.getElementById('error').textContent})")
+            unexpected = [e for e in log["pageerrors"]]
+            useful = ui["error"].startswith("The game could not run") and needle in ui["error"]
+            check("startup failure (%s): a useful error and no live controls" % label,
+                  st["state"] == "error" and useful and not ui["start"] and not ui["loading"] and not ui["pad"] and not st["started"] and st["ticks"] == 0 and not st["held"] and not unexpected,
+                  "state=%s; message %r; start card=%s loading=%s pad=%s; started=%s ticks=%s; uncaught errors: %s" % (st["state"], ui["error"][:140], ui["start"], ui["loading"], ui["pad"], st["started"], st["ticks"], unexpected or "none"))
             ctx.close()
         browser.close()
 
