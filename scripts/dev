@@ -29,8 +29,8 @@
 #   scripts/dev status [...]           `red_engine2 status` (handoff: what is done / in flight / next)
 #
 # Env: RED_TIMEOUT=seconds per command (default 900), RED_PROFILE=debug|release|fast (default debug; the dev profile is
-# already opt-level 1 so it is fast enough for maps and tests: measured, a one-line edit is 2-4 s to type-check, 4 s to rebuild the lib tests, against
-# 3+ minutes for a release build; never use --release to iterate). CARGO_TARGET_DIR is honoured (put build output on another drive).
+# already opt-level 1 so it is fast enough for maps and tests: measured 2026-10-06 on the 4-core N97, `iterate` after a one-function edit costs about 17 CPU-seconds warm
+# (18-35 s wall) and about 300 CPU-seconds the first time in a tree, against 3+ minutes for a release build; never use --release to iterate). CARGO_TARGET_DIR is honoured (put build output on another drive).
 # RED_WAIT=1 queues behind another heavy job (build/test/affected/ci) instead of refusing: two at once on a 4-core box slow both.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
