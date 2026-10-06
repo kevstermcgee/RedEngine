@@ -84,6 +84,16 @@ impl LocalSession {
         self.clock.alpha()
     }
 
+    /// Brings back the variables the scene keeps between sessions (`persist`), before the first tick. Unknown names are ignored.
+    pub fn restore_vars(&mut self, saved: &std::collections::BTreeMap<String, f64>) {
+        self.sim.restore_vars(saved);
+    }
+
+    /// The variables the scene keeps between sessions (`persist`) with their values now: what to save.
+    pub fn persisted(&self) -> std::collections::BTreeMap<String, f64> {
+        self.sim.rules().persisted().into_iter().collect()
+    }
+
     /// The player's state after the latest tick.
     pub fn player(&self) -> PlayerState {
         self.sim.player(self.slot).map(|p| p.state).unwrap_or(self.prev)

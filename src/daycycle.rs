@@ -26,6 +26,28 @@ pub const CLOCK_KEYS: &[&str] = &["day_secs", "start", "sun_max_deg", "latitude_
 /// The synodic month in days: how long the moon takes to go through its phases.
 const MOON_MONTH: f32 = 29.53;
 
+/// Turns the sun crossing the horizon into the `sunrise` and `sunset` events a scene's rules may wait for (`when: {event: "sunrise"}`): call [`SunWatch::at`] once per simulation
+/// tick. One definition for every simulation that runs a clock scene (the offline client's own rules, and the match behind a server or a `LocalSession`), so a day is counted the same
+/// way wherever the game is played.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SunWatch {
+    last_elevation: Option<f32>,
+}
+
+impl SunWatch {
+    /// The event, if the sun crossed the horizon since the last call, for the sky `clock` shows at scene time `t` seconds.
+    pub fn at(&mut self, clock: &Clock, t: f32) -> Option<&'static str> {
+        let elevation = clock.state(t, 0).sun_elev_deg;
+        let event = match self.last_elevation {
+            Some(before) if before < 0.0 && elevation >= 0.0 => Some("sunrise"),
+            Some(before) if before >= 0.0 && elevation < 0.0 => Some("sunset"),
+            _ => None,
+        };
+        self.last_elevation = Some(elevation);
+        event
+    }
+}
+
 /// The clock block.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Clock {

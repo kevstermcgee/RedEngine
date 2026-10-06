@@ -1,24 +1,43 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>web3d</title>
-<style>html,body{margin:0;background:#000;height:100%;overflow:hidden}canvas{display:block;width:100vw;height:100vh;touch-action:none}#hud{position:fixed;left:8px;top:8px;color:#fff;font:12px/1.4 system-ui,sans-serif;opacity:.7;pointer-events:none}</style></head>
+<style>html,body{margin:0;background:#000;height:100%;overflow:hidden}canvas{display:block;width:100vw;height:100vh;touch-action:none;cursor:default}#hud{position:fixed;left:8px;bottom:8px;color:#fff;font:12px/1.4 system-ui,sans-serif;opacity:.75;pointer-events:none;text-shadow:0 1px 2px #000}</style></head>
 <body><canvas id="c" width="960" height="540"></canvas><div id="hud">loading…</div>
 <script type="module">
 import init, { web3d_start } from "./web3d.js";
 const q = new URLSearchParams(location.search), c = document.getElementById("c"), hud = document.getElementById("hud");
+const SAVE = "web3d:" + (q.get("scene") || "scene.json");
 window.__state = "loading";
 try {
   await init();
-  const text = await (await fetch("scene.json")).text();
+  const text = await (await fetch(q.get("scene") || "scene.json")).text();
   const size = () => { const r = devicePixelRatio || 1; return [Math.max(2, Math.round(c.clientWidth * r)), Math.max(2, Math.round(c.clientHeight * r))]; };
   if (q.get("w")) { c.width = +q.get("w"); c.height = +q.get("h"); } else { [c.width, c.height] = size(); }
-  const g = await web3d_start("c", text, q.get("gl") === "1");
-  window.__g = g; window.__info = g.info(); window.__state = "ready"; hud.textContent = g.info() + " — click to look around, WASD to walk, Shift to run";
-  addEventListener("keydown", (e) => { g.key(e.code, true); if (e.code === "Space") e.preventDefault(); });
+  let saved = ""; try { saved = localStorage.getItem(SAVE) || ""; } catch (e) { /* private mode: progress lasts for this visit */ }
+  const g = await web3d_start("c", text, saved);
+  window.__g = g; window.__info = g.info(); window.__state = "ready";
+  // Canvas pixels from a mouse position (the canvas is drawn at its own resolution and stretched by CSS).
+  const at = (e) => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height]; };
+  const locked = () => document.pointerLockElement === c;
+  const hint = () => { hud.textContent = g.card_up() ? "" : locked() ? "WASD to walk, Shift to run, Esc to pause" : "click to look around"; };
+  addEventListener("keydown", (e) => { g.key(e.code, true); if (e.code === "Space" || e.code.startsWith("Arrow")) e.preventDefault(); });
   addEventListener("keyup", (e) => g.key(e.code, false));
-  c.addEventListener("click", () => c.requestPointerLock?.());
-  addEventListener("mousemove", (e) => { if (document.pointerLockElement === c) g.look(e.movementX, e.movementY); });
+  c.addEventListener("pointermove", (e) => { if (!locked()) g.pointer_move(...at(e)); });
+  c.addEventListener("click", (e) => {
+    if (g.card_up()) { if (g.pointer_click(...at(e))) c.requestPointerLock?.(); }
+    else if (!locked()) c.requestPointerLock?.();
+  });
+  addEventListener("mousemove", (e) => { if (locked()) g.look(e.movementX, e.movementY); });
+  document.addEventListener("pointerlockchange", () => { g.set_paused(!locked() && !g.card_up()); hint(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) g.set_paused(true); });
   if (!q.get("w")) addEventListener("resize", () => { const [w, h] = size(); c.width = w; c.height = h; g.resize(w, h); });
-  if (q.get("run") === "1") { const loop = (t) => { g.frame(t); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+  // Progress is saved as it changes (a day lived), and when the page goes away.
+  const store = () => { const s = g.save_text(); if (s) { try { localStorage.setItem(SAVE, s); } catch (e) { /* storage full or off */ } } };
+  addEventListener("pagehide", store);
+  if (q.get("run") === "1" || !q.get("w")) {
+    let n = 0;
+    const loop = (t) => { g.frame(t); if (++n % 30 === 0) { store(); hint(); } requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
 } catch (e) { window.__state = "ERROR " + e; hud.textContent = "" + e; }
 </script></body></html>

@@ -22,39 +22,10 @@ pub(crate) struct CardState {
     pub hover: bool,
 }
 
-/// Adds `other`'s widgets after `layout`'s, re-pointing their containers.
-fn append(layout: &mut red_engine2::ui::Layout, other: red_engine2::ui::Layout) {
-    let offset = layout.widgets.len();
-    for mut widget in other.widgets {
-        widget.container = widget.container.map(|i| i + offset);
-        layout.widgets.push(widget);
-    }
-}
-
-/// Whether the plain outcome banner is drawn for an outcome. **Cards are an offline presentation** (a start card holds the game, an end card has a restart button; neither
-/// exists online, where the server owns the round and its restart), so the banner stands in for the card wherever no card is actually shown: always when online, and
-/// offline only for outcomes the scene declared no end card for. A scene written for cards must still tell its online players how the game ended.
-pub(crate) fn outcome_banner_needed(online: bool, has_end_card: bool) -> bool {
-    online || !has_end_card
-}
-
 impl App {
-    /// The rules overlay for a scene: its `ui` block's HUD when it has one (friendly labels, counters, the objective), else the generic variables
-    /// panel. An outcome without a card on screen (no end card declared, or the player is online and cards are offline-only) gets the plain banner. Does not include a card.
+    /// The rules overlay for a scene (see [`red_engine2::ui::game::rules_overlay`]); online, outcomes get the plain banner because cards are offline-only.
     pub(crate) fn rules_overlay(&self, w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outcome: Option<&str>) -> red_engine2::ui::Layout {
-        let hud = &self.scene.hud;
-        let Some(ui) = self.scene.ui.as_ref() else {
-            return red_engine2::ui::rules::hud_layout_for(w, h, vars, event, outcome, hud);
-        };
-        let mut layout = if hud.enabled {
-            game::hud_layout(w, h, ui, vars, &hud.visible_vars(vars), event.filter(|_| hud.shows_events()))
-        } else {
-            red_engine2::ui::Layout::new(w, h)
-        };
-        if let Some(o) = outcome.filter(|o| outcome_banner_needed(self.net.is_some(), ui.end_card(o).is_some())) {
-            append(&mut layout, red_engine2::ui::rules::hud_layout_for(w, h, &[], None, Some(o), hud));
-        }
-        layout
+        game::rules_overlay(&self.scene, w, h, vars, event, outcome, self.net.is_some())
     }
 
     /// The card's text and the id of its button, as it reads now.
@@ -181,19 +152,5 @@ impl App {
         next.start_game(who);
         next.grabbed = self.grabbed || self.headless;
         *self = next;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::outcome_banner_needed;
-
-    /// The intended behaviour, all four cases: a card replaces the banner only where a card is shown, which is offline.
-    #[test]
-    fn the_banner_stands_in_for_the_card_wherever_no_card_is_shown() {
-        assert!(outcome_banner_needed(false, false), "offline, no card declared: the banner");
-        assert!(!outcome_banner_needed(false, true), "offline, a card declared: the card, not both");
-        assert!(outcome_banner_needed(true, false), "online, no card declared: the banner");
-        assert!(outcome_banner_needed(true, true), "online, a card declared that never shows: the banner, or the result is invisible");
     }
 }
