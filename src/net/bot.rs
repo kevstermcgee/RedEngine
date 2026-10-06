@@ -3,7 +3,7 @@
 //! `red_bot` binary), and it shares [`ClientWorld`] with the graphical client so both see the same
 //! static map.
 
-use crate::collide::{collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, Collider2D, GroundCandidates};
+use crate::collide::{Collider2D, GroundCandidates, PhysicalWorld};
 use crate::net::client::{ConnState, NetClient, NetEvent, TICK_SECS};
 use crate::net::interp::{PlayerPose, PropPose};
 use crate::net::predict::Predictor;
@@ -29,9 +29,8 @@ pub struct ClientWorld {
     pub player_tuning: crate::player::PlayerTuning,
     /// Authoritative vertical launch surfaces.
     pub jump_pads: Vec<crate::player::JumpPad>,
-    collider_groups: Vec<Vec<Collider2D>>,
-    ground_groups: Vec<GroundCandidates>,
-    collision_object_ids: Vec<String>,
+    /// The same definition of "what physically exists" the server uses ([`PhysicalWorld`]); `colliders` and `ground` above are its current result.
+    physical: PhysicalWorld,
     collision_disabled: Vec<u16>,
     /// Prop id (as used in snapshots) -> index into `scene.objects`.
     pub prop_objects: Vec<usize>,
@@ -58,21 +57,13 @@ impl ClientWorld {
     }
 
     fn from_parts(scene: &Scene, loose: &std::collections::HashSet<usize>, prop_objects: Vec<usize>, map_hash: u32) -> ClientWorld {
-        let collider_groups = collect_box_colliders_grouped_except(scene, loose);
-        let ground_groups = collect_ground_candidates_grouped_except(scene, loose);
-        let colliders = collider_groups.iter().flatten().copied().collect();
-        let mut ground = GroundCandidates::default();
-        for group in &ground_groups {
-            ground.append(group);
-        }
+        let physical = PhysicalWorld::new(scene, loose);
         ClientWorld {
-            colliders,
-            ground,
+            colliders: physical.colliders().to_vec(),
+            ground: physical.ground().clone(),
             player_tuning: scene.player,
             jump_pads: scene.jump_pads.clone(),
-            collider_groups,
-            ground_groups,
-            collision_object_ids: scene.objects.iter().map(|object| object.id.clone()).collect(),
+            physical,
             collision_disabled: Vec::new(),
             prop_objects,
             rule_object_ids: crate::schema::object_ids(&scene.objects),
@@ -87,16 +78,10 @@ impl ClientWorld {
             return;
         }
         self.collision_disabled = disabled.to_vec();
-        let names: std::collections::HashSet<&str> =
-            disabled.iter().filter_map(|&index| self.rule_object_ids.get(index as usize).map(String::as_str)).collect();
-        self.colliders.clear();
-        self.ground = GroundCandidates::default();
-        for (i, id) in self.collision_object_ids.iter().enumerate() {
-            if names.contains(id.as_str()) {
-                continue;
-            }
-            self.colliders.extend_from_slice(&self.collider_groups[i]);
-            self.ground.append(&self.ground_groups[i]);
+        let names: Vec<&str> = disabled.iter().filter_map(|&index| self.rule_object_ids.get(index as usize).map(String::as_str)).collect();
+        if self.physical.set_collision_disabled(names) {
+            self.colliders = self.physical.colliders().to_vec();
+            self.ground = self.physical.ground().clone();
         }
     }
 }
