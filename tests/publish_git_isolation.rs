@@ -381,3 +381,79 @@ fn publishing_the_same_build_twice_commits_nothing_the_second_time() {
     assert!(again.commit.is_none() && again.changed.is_empty());
     assert_eq!(git(&r.root, &["rev-parse", "HEAD"]), head);
 }
+
+// ---- a publication that was interrupted, and one that is stopped by the machine ------------------------------------------------------------------------
+
+#[test]
+fn a_publication_committed_but_not_pushed_is_pushed_by_the_next_run_with_the_new_game() {
+    let r = repo("interrupted");
+    std::fs::write(r.root.join("elsewhere.txt"), "somebody's staged work\n").unwrap();
+    git(&r.root, &["add", "elsewhere.txt"]);
+    let before = unrelated_state(&r.root);
+    // The first run committed and was killed before (or did not ask for) the push.
+    publish_second(&r, "second", "2222", false).unwrap();
+    assert_ne!(git(&r.origin, &["rev-parse", "main"]), git(&r.root, &["rev-parse", "HEAD"]));
+    // The next run, with --push, recognises that commit as a publication, publishes the new game and sends both.
+    publish_second(&r, "third", "3333", true).unwrap();
+    assert_eq!(git(&r.origin, &["rev-parse", "main"]), git(&r.root, &["rev-parse", "HEAD"]), "everything is on origin");
+    let listing = git(&r.origin, &["ls-tree", "-r", "--name-only", "main"]);
+    assert!(listing.contains("webgames/games/second/") && listing.contains("webgames/games/third/") && !listing.contains("elsewhere"), "{listing}");
+    assert_eq!(unrelated_state(&r.root), before, "the staged file is still only staged");
+}
+
+#[test]
+fn another_git_process_holding_the_index_stops_the_run_cleanly_and_the_retry_works() {
+    let r = repo("locked");
+    let head = git(&r.root, &["rev-parse", "HEAD"]);
+    let before = unrelated_state(&r.root);
+    std::fs::write(r.root.join(".git/index.lock"), "").unwrap();
+    let e = publish_second(&r, "second", "2222", true).unwrap_err();
+    assert!(e.contains("index.lock") && e.contains("Nothing was committed and nothing was changed"), "{e}");
+    assert_eq!(git(&r.root, &["rev-parse", "HEAD"]), head);
+    assert!(!r.root.join("webgames/games/second").exists(), "no half-published game in the working tree");
+    std::fs::remove_file(r.root.join(".git/index.lock")).unwrap();
+    assert_eq!(unrelated_state(&r.root), before);
+    publish_second(&r, "second", "2222", true).unwrap();
+    assert_eq!(git(&r.origin, &["rev-parse", "main"]), git(&r.root, &["rev-parse", "HEAD"]));
+}
+
+#[test]
+fn scratch_left_by_a_crashed_run_is_swept_and_never_shows_in_git_status() {
+    let r = repo("crashed");
+    let old = r.root.join(".git/redengine-publish-1-1");
+    std::fs::create_dir_all(old.join("work/webgames")).unwrap();
+    std::fs::write(old.join("work/webgames/leftover.txt"), "x").unwrap();
+    // Make it look an hour and a half old.
+    let f = std::fs::File::open(&old).unwrap();
+    f.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(5400)).unwrap();
+    drop(f);
+    assert_eq!(git(&r.root, &["status", "--porcelain", "-uall"]), "", "scratch lives inside .git: status never sees it");
+    publish_second(&r, "second", "2222", false).unwrap();
+    assert!(!old.exists(), "the stale scratch of a crashed run was removed");
+    assert!(std::fs::read_dir(r.root.join(".git")).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().starts_with("redengine-publish-")), "and this run left none");
+    assert_eq!(git(&r.root, &["status", "--porcelain", "-uall"]), "");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_branch_that_refuses_to_move_leaves_the_checkout_as_it_was() {
+    use std::os::unix::fs::PermissionsExt;
+    let r = repo("refused");
+    std::fs::write(r.root.join("README.md"), "dirty\n").unwrap();
+    let head = git(&r.root, &["rev-parse", "HEAD"]);
+    let before = unrelated_state(&r.root);
+    let webgames_before = git(&r.root, &["ls-files", "-s", "webgames"]);
+    // The ref update is vetoed (what would happen if somebody else's commit had moved the branch in the meantime).
+    let hook = r.root.join(".git/hooks/reference-transaction");
+    std::fs::write(&hook, "#!/bin/sh\n[ \"$1\" = prepared ] && { echo 'vetoed by the test' >&2; exit 1; }\nexit 0\n").unwrap();
+    std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let e = publish_second(&r, "second", "2222", false).unwrap_err();
+    assert!(e.contains("moved while publishing") && e.contains("nothing was committed"), "{e}");
+    std::fs::remove_file(&hook).unwrap();
+    assert_eq!(git(&r.root, &["rev-parse", "HEAD"]), head);
+    assert_eq!(unrelated_state(&r.root), before);
+    assert_eq!(git(&r.root, &["ls-files", "-s", "webgames"]), webgames_before, "the index follows HEAD again");
+    assert!(!r.root.join("webgames/games/second").exists(), "the working tree has no half-published game");
+    publish_second(&r, "second", "2222", false).unwrap();
+    only_game_files(&committed_files(&r.root), "second");
+}
