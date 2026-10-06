@@ -7,7 +7,7 @@
 //! Embeddings were deliberately skipped: for a corpus this small and this jargon-heavy, weighted
 //! keyword search with synonyms finds the right section reliably, and adds zero dependencies.
 
-use super::{catalog, describe, recipes, symbols};
+use super::{catalog, describe, features, recipes, symbols};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
@@ -311,6 +311,18 @@ fn expand(query: &str) -> Vec<(String, f32)> {
     out
 }
 
+/// How much a hit's source file matters to someone building their own game: engine files 1.0, one game's code or content, legacy fixtures and past
+/// reports less (`content` in `docs/features.json`). A query that names the game still finds it: the penalty only reorders, it never hides.
+fn content_bias(d: &Doc) -> f32 {
+    let file = d.loc.split([':', ' ']).next().unwrap_or_default();
+    match features::content_tier(file) {
+        Some("game") => 0.75,
+        Some("legacy") => 0.7,
+        Some("history") => 0.8,
+        _ => 1.0,
+    }
+}
+
 /// Ranks the corpus for `query`, optionally only one `kind`, returning at most `limit` hits (diversified per kind).
 pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize) -> Vec<Hit<'a>> {
     let q = expand(query);
@@ -359,7 +371,7 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
                 "asset" | "lint" | "type" | "command" => 1.05,
                 _ => 0.9,
             };
-            hits.push(Hit { doc: d, score: score * kind_bias, fragment: fragment(d, &q) });
+            hits.push(Hit { doc: d, score: score * kind_bias * content_bias(d), fragment: fragment(d, &q) });
         }
     }
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());

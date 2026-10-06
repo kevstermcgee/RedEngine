@@ -179,11 +179,9 @@ without asking.
 
 ## Prop-hunt game terms (the game itself is not built; the engine parts it needs are)
 
-- **hider / prop** — a player disguised as a map prop. **seeker** — the player who finds and strikes
-  them. (Game-mode logic — rounds, disguises, scoring — does not exist yet.) Design intent: the
-  seeker's primary action on objects is **hitting them with the bat** (built); the hider will use
-  right-click to pick an object, then **R** to replicate it (not built). (**E** now picks up and
-  drops loose props — see "Loose props" below.)
+- **hider / prop** — the original prop-hunt idea: a player disguised as a map prop, found and struck by a
+  **seeker**. Not built as a game mode (no disguises); only the bat hit on objects exists. Rounds and scoring are
+  generic (`match`, `rules`). (**E** picks up and drops loose props — see "Loose props" below.)
 - **match server** — built: `red_server` (ADR 0016). ADR 0010 is the historical proposal it replaced.
 
 - **sight anchor** — a model-space point on the aiming axis, aligned with the camera ray in ADS.

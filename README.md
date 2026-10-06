@@ -4,15 +4,25 @@
 in RedEngineGames/projects/redengine-sandbox. The engine includes native gamepad input, six playable
 characters and an in-window local project map browser. See [controls and workflow](docs/CONTROLLERS_AND_SANDBOX.md).
 
-An AI-first game engine in Rust for online first-person games. It grew out of a
-JSON-scene 3D renderer and began as the base for a prop hunt game. The primary
-development map is `examples/test_lab.json`; the house, school, office and store
-remain tested legacy reference maps. The same AI-authorable JSON-scene core, purpose-built for the real-time
-first-person viewer (**Red Engine 2** — see below) rather than the offline MP4 renderer,
-which is kept around only as a fast way to eyeball scenes/props while authoring them. You
-describe a scenario as one compact JSON scene file — primitives, props, a posable humanoid
-rig, lights, materials, camera moves, keyframed motion — and it renders with real shading and
-shadows, either offline to an MP4 or live in a walk-around window.
+An AI-first game engine in Rust. A game is data: JSON scenes (geometry, props, lights, a posable
+humanoid rig), game rules (`vars`/`rules`), and blueprints that compile rooms and doors into a
+complete, self-checking map. The engine describes itself, checks the work with the same collision
+and simulation code the game runs (`lint`, `walk`, `verify`, `sim`), and shows what a player would
+see (`frame`, `plan`, `ui-shot`), so an author spends its time on the game, not on the engine.
+
+What you can build on it:
+
+- **First-person online games** (`re2`, `red_server`): authoritative multiplayer, lobby and rounds,
+  prediction, bots, kart racing, a reusable firearm arsenal. Windows and Linux.
+- **2D and hybrid browser games** (`crates/red2d`): one JSON file, a deterministic simulation, a
+  CPU renderer and a WebAssembly player (`describe web`). 3D in a browser is experimental.
+- **Other views** (top-down, strategy, spectator): keep the gameplay in scene rules and write only
+  a small client on `red_engine2::app` (`describe custom-client`).
+
+History: the project began as a JSON-scene renderer and the base for a prop hunt game. The offline
+MP4 renderer remains as a fast way to look at scenes while authoring. `examples/test_lab.json` is
+the primary development map; `house`, `school`, `office` and `store` are legacy reference maps
+kept as regression fixtures (ADR 0015).
 
 **Start here if you're an AI being pointed at this project: read [`AGENTS.md`](AGENTS.md)** (the
 workflow: how to inspect, edit, lint and visually review a map with the built-in tools), then
@@ -148,8 +158,7 @@ over. A person carries chairs, crates, barrels, plants, TVs and everything small
 things about the size of his head (apples, mugs, books) but can shove or bat-knock anything loose.
 Walking into a small prop pushes it; a bat hit sends light props flying. While carrying, the human
 cannot swing the bat. Physics is [rapier](https://rapier.rs) (see ADR 0012); props sit exactly where
-the map put them until something disturbs them. (Right-click is still reserved for the hider's
-"choose an object to replicate" — not built yet.) Walls, furniture built from `box` primitives, and every `prop` (one
+the map put them until something disturbs them. (Right-click aims down the sights of a firearm.) Walls, furniture built from `box` primitives, and every `prop` (one
 collider per prop's overall footprint, not per part) block movement (a simple
 circle-vs-AABB push-out, axis-aligned); other primitive shapes and the `humanoid` rig don't
 collide yet. Any keyframed objects in the scene still animate on their own clock while you walk

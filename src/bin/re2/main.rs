@@ -1,5 +1,5 @@
-//! Red Engine 2 — a first-person, walk-around viewer for a red_engine2 scene, forked from
-//! the original Red Engine to be the base for an online prop hunt game.
+//! Red Engine 2 — the first-person, walk-around client for a red_engine2 scene: offline, in split screen, or
+//! online against `red_server`. It began as the base for a prop hunt game.
 //!
 //! `re2 [scene.json]` opens a window, drops you inside the scene at the camera's
 //! default position, and lets you walk around and look at things: WASD or the arrow keys to
@@ -12,8 +12,7 @@
 //! and flashes — a swing through empty air is silent. Hitting things is the seeker's primary
 //! action on objects; the crosshair turns gold when something is within bat reach. Cheddar is
 //! small and moves at a human's sprint speed all the time. E picks up (and drops) a loose prop —
-//! see `red_engine2::physics`. (Right-click is reserved for the hider's "choose an object to
-//! replicate", then R — not built yet.)
+//! see `red_engine2::physics`.
 
 use clap::Parser;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4};

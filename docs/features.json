@@ -295,5 +295,32 @@
       ],
       "depends_on": ["blueprints_and_games", "verification", "map_analysis", "self_description"]
     }
+  },
+  "content": {
+    "killchain_client": {
+      "tier": "game",
+      "summary": "Killchain, one shipped loadout team-deathmatch game: its windowed client and 2-D screens. The reusable shooter engine (arsenal, ordnance, killcam, sim::shooter) is NOT here; it is engine.",
+      "files": ["src/bin/re2/kc/**", "src/ui/killchain.rs", "examples/killchain_screens.rs", "docs/adr/2026-09-30-killchain-loadout-shooter.md", "docs/adr/2026-10-01-killchain-player-feedback.md"]
+    },
+    "marcel_world": {
+      "tier": "game",
+      "summary": "Marcel, the endless-meadow game: its world, the boy character and their ADRs. Procgen, the day cycle and the soundscape they use are engine.",
+      "files": ["examples/marcel/**", "examples/endless_meadow.json", "examples/endless_shore.json", "tests/marcel_walk.rs", "docs/adr/2026-10-04-marcel-opens-in-first-person-from-black-and-the-boy-stands-on-the-ground.md", "docs/adr/2026-10-04-the-boy-the-third-person-start-and-a-clock-that-runs-in.md", "docs/adr/2026-10-04-cascaded-sun-shadows-and-a-picture-book-boy.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"]
+    },
+    "lantern_walk": {
+      "tier": "game",
+      "summary": "Lantern Walk, a small example game with its own audio and walk test.",
+      "files": ["examples/lantern_walk/**", "tests/lantern_walk.rs"]
+    },
+    "legacy_maps": {
+      "tier": "legacy",
+      "summary": "The original prop-hunt era maps (house, school, office, store, prop_hunt_yard), kept as regression fixtures for lint, reach and walk (ADR 0015); not examples to copy.",
+      "files": ["examples/house.json", "examples/school.json", "examples/office.json", "examples/store.json", "examples/prop_hunt_yard.json", "tests/house_walk.rs", "docs/adr/0009-four-maps-one-asset-library.md"]
+    },
+    "past_reports": {
+      "tier": "history",
+      "summary": "What earlier builders reported and what was done about it: per-game feedback, milestone and survey notes. Evidence, not instructions; the decisions that came out of them are ADRs.",
+      "files": ["docs/analysis/*feedback*.md", "docs/analysis/*milestone*.md", "docs/analysis/*plan.md", "docs/analysis/*-findings.md", "docs/analysis/minigames/**", "docs/analysis/2026-09-24-blue-comparison.md", "docs/analysis/2026-09-29-what-building-three-physics-games-taught-us-about-red.md", "docs/analysis/2026-10-06-3d-browser-measurements.md"]
+    }
   }
 }
