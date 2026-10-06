@@ -314,6 +314,276 @@
           "first_line": " 1. ok   validate             OK: 2D game `dash` (revision b41435a4245b5118)"
         }
       ]
+    },
+    {
+      "schema": "red-flows/1",
+      "flow": "engine_edit_loop",
+      "label": "BASELINE inner loop: one real edit in the UI kit, then scripts/dev iterate (warm tree, shared busy machine)",
+      "date": "2026-10-06T06:30:13-07:00",
+      "engine_commit": "5890945",
+      "profile": "debug",
+      "machine": {
+        "cpu": "Intel(R) N97",
+        "cores": 4,
+        "os": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39"
+      },
+      "load_avg_1m_at_start": 4.05,
+      "ok": true,
+      "total_seconds": 170.85,
+      "total_cpu_seconds": 295.31,
+      "total_output_bytes": 14606,
+      "total_approx_tokens": 3651,
+      "commands": 3,
+      "by_kind": {
+        "discovery": {
+          "steps": 2,
+          "seconds": 0.16,
+          "cpu_seconds": 0.14,
+          "output_bytes": 13079
+        },
+        "edit": {
+          "steps": 1,
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "output_bytes": 0
+        },
+        "verify": {
+          "steps": 1,
+          "seconds": 170.69,
+          "cpu_seconds": 295.17,
+          "output_bytes": 1527
+        }
+      },
+      "steps": [
+        {
+          "id": "context",
+          "kind": "discovery",
+          "seconds": 0.15,
+          "cpu_seconds": 0.14,
+          "max_rss_mb": 25,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 11877,
+          "approx_tokens": 2969,
+          "first_line": "== ui_kit: The headless, audited 2-D UI: layouts, menus, connect form, lobby, HUD, results; `ui-shot` and `ui-check`."
+        },
+        {
+          "id": "plan",
+          "kind": "discovery",
+          "seconds": 0.01,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 11,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1202,
+          "approx_tokens": 300,
+          "first_line": "config: features=default profile=dev/test toolchain=unknown jobs=auto target-dir=target"
+        },
+        {
+          "id": "edit",
+          "kind": "edit",
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 0,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 0,
+          "approx_tokens": 0,
+          "first_line": "edited game.rs"
+        },
+        {
+          "id": "iterate",
+          "kind": "verify",
+          "seconds": 170.69,
+          "cpu_seconds": 295.17,
+          "max_rss_mb": 1426,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1527,
+          "approx_tokens": 381,
+          "first_line": "config: features=default profile=dev/test toolchain=1.98.1 (48a229cea) jobs=auto target-dir=target"
+        }
+      ]
+    },
+    {
+      "schema": "red-flows/1",
+      "flow": "engine_edit_loop",
+      "label": "STEADY STATE inner loop (second run: test binaries already built), UI-kit edit",
+      "date": "2026-10-06T06:32:51-07:00",
+      "engine_commit": "5890945+dirty",
+      "profile": "debug",
+      "machine": {
+        "cpu": "Intel(R) N97",
+        "cores": 4,
+        "os": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39"
+      },
+      "load_avg_1m_at_start": 8.07,
+      "ok": true,
+      "total_seconds": 34.26,
+      "total_cpu_seconds": 17.31,
+      "total_output_bytes": 14742,
+      "total_approx_tokens": 3685,
+      "commands": 3,
+      "by_kind": {
+        "discovery": {
+          "steps": 2,
+          "seconds": 0.17,
+          "cpu_seconds": 0.14,
+          "output_bytes": 13079
+        },
+        "edit": {
+          "steps": 1,
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "output_bytes": 0
+        },
+        "verify": {
+          "steps": 1,
+          "seconds": 34.09,
+          "cpu_seconds": 17.17,
+          "output_bytes": 1663
+        }
+      },
+      "steps": [
+        {
+          "id": "context",
+          "kind": "discovery",
+          "seconds": 0.16,
+          "cpu_seconds": 0.14,
+          "max_rss_mb": 25,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 11877,
+          "approx_tokens": 2969,
+          "first_line": "== ui_kit: The headless, audited 2-D UI: layouts, menus, connect form, lobby, HUD, results; `ui-shot` and `ui-check`."
+        },
+        {
+          "id": "plan",
+          "kind": "discovery",
+          "seconds": 0.01,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 11,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1202,
+          "approx_tokens": 300,
+          "first_line": "config: features=default profile=dev/test toolchain=unknown jobs=auto target-dir=target"
+        },
+        {
+          "id": "edit",
+          "kind": "edit",
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 0,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 0,
+          "approx_tokens": 0,
+          "first_line": "edited game.rs"
+        },
+        {
+          "id": "iterate",
+          "kind": "verify",
+          "seconds": 34.09,
+          "cpu_seconds": 17.17,
+          "max_rss_mb": 1268,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1663,
+          "approx_tokens": 415,
+          "first_line": "config: features=default profile=dev/test toolchain=1.98.1 (48a229cea) jobs=auto target-dir=target"
+        }
+      ]
+    },
+    {
+      "schema": "red-flows/1",
+      "flow": "net_edit_loop",
+      "label": "inner loop for a networking edit (net/interp.rs); first run after the UI-kit one",
+      "date": "2026-10-06T06:33:09-07:00",
+      "engine_commit": "5890945+dirty",
+      "profile": "debug",
+      "machine": {
+        "cpu": "Intel(R) N97",
+        "cores": 4,
+        "os": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39"
+      },
+      "load_avg_1m_at_start": 6.5,
+      "ok": true,
+      "total_seconds": 18.31,
+      "total_cpu_seconds": 17.53,
+      "total_output_bytes": 14902,
+      "total_approx_tokens": 3725,
+      "commands": 3,
+      "by_kind": {
+        "discovery": {
+          "steps": 2,
+          "seconds": 0.18,
+          "cpu_seconds": 0.15,
+          "output_bytes": 13268
+        },
+        "edit": {
+          "steps": 1,
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "output_bytes": 0
+        },
+        "verify": {
+          "steps": 1,
+          "seconds": 18.13,
+          "cpu_seconds": 17.38,
+          "output_bytes": 1634
+        }
+      },
+      "steps": [
+        {
+          "id": "context",
+          "kind": "discovery",
+          "seconds": 0.17,
+          "cpu_seconds": 0.15,
+          "max_rss_mb": 24,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 11999,
+          "approx_tokens": 2999,
+          "first_line": "== net_client: Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue;"
+        },
+        {
+          "id": "plan",
+          "kind": "discovery",
+          "seconds": 0.01,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 10,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1269,
+          "approx_tokens": 317,
+          "first_line": "config: features=default profile=dev/test toolchain=unknown jobs=auto target-dir=target"
+        },
+        {
+          "id": "edit",
+          "kind": "edit",
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 0,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 0,
+          "approx_tokens": 0,
+          "first_line": "edited interp.rs"
+        },
+        {
+          "id": "iterate",
+          "kind": "verify",
+          "seconds": 18.13,
+          "cpu_seconds": 17.38,
+          "max_rss_mb": 1340,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1634,
+          "approx_tokens": 408,
+          "first_line": "config: features=default profile=dev/test toolchain=1.98.1 (48a229cea) jobs=auto target-dir=target"
+        }
+      ]
     }
   ]
 }
