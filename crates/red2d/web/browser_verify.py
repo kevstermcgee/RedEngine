@@ -36,6 +36,14 @@ def serve(directory):
     return srv, srv.server_address[1]
 
 
+def wait_saved(pg, key, timeout=5000):
+    """Waits until the game has written its save (a fixed sleep after an input was a race on a slow machine). If it never does, the caller's own check says so."""
+    try:
+        wait_js(pg, "localStorage.getItem(%s) !== null" % json.dumps(key), timeout)
+    except TimeoutError:
+        pass
+
+
 def wait_js(pg, expr, timeout=20000):
     """Poll a JavaScript expression from outside the page. (`page.wait_for_function` evaluates a string inside the page, which the package's Content-Security-Policy,
     rightly, forbids; a CDP evaluate is not subject to it, so the real policy stays on for every test.)"""
@@ -350,7 +358,7 @@ def main():
                 pg.keyboard.press("Enter")
                 wait_js(pg, "__red2d.status().state === 'running'", 5000)
                 do_input(pg, persists_check)
-                pg.wait_for_timeout(400)
+                wait_saved(pg, key)
                 had = pg.evaluate("localStorage.getItem(%s)" % json.dumps(key))
                 pg.evaluate("__red2d.resetSave()")
                 gone = pg.evaluate("localStorage.getItem(%s)" % json.dumps(key)) is None
@@ -402,7 +410,7 @@ def main():
             pc = next((bc for bc in manifest.get("browser_checks", []) if bc.get("persists")), None)
             if pc:
                 do_input(pg, pc)
-                pg.wait_for_timeout(400)
+                wait_saved(pg, key)
                 before = pg.evaluate("__red2d.snapshot()")["vars"]
                 pg.reload()
                 ready(pg)
