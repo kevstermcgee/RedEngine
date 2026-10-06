@@ -50,3 +50,15 @@ fn nothing_in_the_repository_is_orphaned_from_the_index() {
         assert!(!features::owners(&all, f).is_empty(), "{f} has no owner");
     }
 }
+
+/// `tests/ai_tasks.rs` asserts on what `context` and `affected` print (a one-file change must not plan the whole of CI). It was attached to three unrelated features and not to the
+/// one that owns those tools, so editing the planner never scheduled it, and the failure first showed up in hosted CI, three rounds late. A suite belongs to the feature whose
+/// behaviour it asserts on.
+#[test]
+fn a_change_to_the_planner_or_the_context_tool_schedules_the_suite_that_asserts_on_them() {
+    let all = features::load().unwrap();
+    for file in ["src/tools/affected.rs", "src/tools/context.rs", "src/tools/features.rs"] {
+        let i = features::impact(&all, &[file.to_string()]);
+        assert!(i.suites.contains("ai_tasks"), "{file}: the suite that asserts on the planner's output is not scheduled: {:?}", i.suites);
+    }
+}

@@ -22,11 +22,15 @@
 #   scripts/dev walk <scene> [...]     `red_engine2 walk` (--auto --from X,Z --to X,Z, --explain out.png)
 #   scripts/dev server <scene> [...]   the headless authoritative server (UDP 27015)
 #   scripts/dev ci                     what CI runs (fmt, clippy -D warnings, tests, headless build)
+#   scripts/dev worktree NAME [BASE]   a new git worktree next to this checkout (branch NAME from BASE, default origin/main) with its target/ already seeded from this one's
+#                                      compiled dependencies: its first build compiles only the workspace crates (measured 378 CPU-s against a cold ~1700 for the CLI), not ~420 crates
+#   scripts/dev seed [--from DIR]      the same warm start for the checkout you are in (a fresh clone, or a worktree made by hand)
+#   scripts/dev prune [--apply] [--days N]   report (or delete) incremental build directories idle for N days (default 14): a busy checkout's target/ reaches tens of GB
 #   scripts/dev status [...]           `red_engine2 status` (handoff: what is done / in flight / next)
 #
 # Env: RED_TIMEOUT=seconds per command (default 900), RED_PROFILE=debug|release|fast (default debug; the dev profile is
-# already opt-level 1 so it is fast enough for maps and tests: measured, a one-line edit is 2-4 s to type-check, 4 s to rebuild the lib tests, against
-# 3+ minutes for a release build; never use --release to iterate). CARGO_TARGET_DIR is honoured (put build output on another drive).
+# already opt-level 1 so it is fast enough for maps and tests: measured 2026-10-06 on the 4-core N97, `iterate` after a one-function edit costs about 17 CPU-seconds warm
+# (18-35 s wall) and about 300 CPU-seconds the first time in a tree, against 3+ minutes for a release build; never use --release to iterate). CARGO_TARGET_DIR is honoured (put build output on another drive).
 # RED_WAIT=1 queues behind another heavy job (build/test/affected/ci) instead of refusing: two at once on a 4-core box slow both.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -190,7 +194,19 @@ case "$cmd" in
     exec "$exe" preflight ${args[@]+"${args[@]}"} ;;
   context) need_cargo; exe="$(planner)" || exit $?; exec "$exe" context "$@" ;;
   ci)     need_cargo; heavy_lock; logged ci bash scripts/ci.sh ;;
+  seed)   need_cargo; exec python3 "$ROOT/scripts/seed_target.py" "$@" ;;
+  prune)  exec python3 "$ROOT/scripts/prune_target.py" --target "$TARGET_DIR" "$@" ;;
+  worktree)
+    need_cargo
+    name="${1:?usage: scripts/dev worktree NAME [BASE]}"; base="${2:-origin/main}"
+    dir="$(dirname "$ROOT")/$(basename "$ROOT")-$name"
+    [ -e "$dir" ] && { echo "dev: $dir already exists" >&2; exit 1; }
+    git -C "$ROOT" fetch -q origin 2>/dev/null || true
+    git -C "$ROOT" worktree add -q -b "$name" "$dir" "$base" || exit $?
+    echo "dev: worktree $dir on branch $name (from $base); seeding its target/ from $TARGET_DIR"
+    (cd "$dir" && python3 scripts/seed_target.py --from "$TARGET_DIR") || echo "dev: seeding failed; the first build there will compile everything (scripts/dev seed retries)" >&2
+    echo "dev: next: cd $dir && scripts/dev iterate" ;;
   doctor-full) exe="$(cli)" || exit $?; "$exe" doctor ;;
-  help|-h|--help) sed -n '2,25p' "$0" ;;
+  help|-h|--help) awk 'NR>1 && /^#/ {print; next} NR>1 {exit}' "$0" ;;
   *) echo "dev: unknown command '$cmd' (try: scripts/dev help)" >&2; exit 2 ;;
 esac

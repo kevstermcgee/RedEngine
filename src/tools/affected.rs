@@ -1067,6 +1067,60 @@ pub fn record_green(root: &Path, changed: &[String], scope: Scope) {
     record_green_in(root, changed, scope, &StampKey::default());
 }
 
+/// One area of verification an agent might wonder about, and whether this plan needs it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Need {
+    /// `network`, `browser`, `packaging`.
+    pub area: &'static str,
+    /// Whether the plan includes checks for it (or its files changed).
+    pub required: bool,
+    /// Why it is, or is not, needed.
+    pub why: String,
+}
+
+/// What this plan does and does not cover, said out loud: an agent that sees only a list of commands has to guess whether networking, a browser or packaging were considered.
+/// Derived from the plan's own steps and changed files, so it cannot disagree with them.
+pub fn needs(p: &Plan) -> Vec<Need> {
+    let step_has = |needle: &str| p.steps.iter().any(|s| s.name == needle || s.command_line().contains(needle));
+    let changed_in = |prefixes: &[&str]| p.changed.iter().any(|c| prefixes.iter().any(|x| c.starts_with(x)));
+    let full = p.scope == Scope::Full;
+    let one = |area: &'static str, required: bool, yes: &str, no: &str| Need {
+        area,
+        required: required || full,
+        why: if required || full { yes.to_string() } else { no.to_string() },
+    };
+    vec![
+        one(
+            "network",
+            changed_in(&["src/net/", "src/sim/match_sim.rs"]) || step_has("--test net_"),
+            "a networking file changed or a net_* suite is in the plan",
+            "no networking file changed and no net_* suite is in the plan",
+        ),
+        one(
+            "browser",
+            changed_in(&["crates/red2d/", "crates/web3d/", "src/web3d.rs", "src/tools/webpkg.rs", "src/tools/webverify.rs"])
+                || p.steps.iter().any(|s| s.name == "web" || s.command_line().contains("web_check.sh") || s.command_line().contains("--test web2d_")),
+            "the browser runtime or its package changed (a real-browser run is in the full tier)",
+            "no browser runtime or 2D/3D web file changed (`web verify` / the `web` stage are not needed yet)",
+        ),
+        one(
+            "packaging",
+            changed_in(&["src/tools/package.rs", "src/tools/publish2d.rs", "src/tools/gamepublish.rs", "src/tools/webpkg.rs", "scripts/release", "deploy/"]),
+            "packaging or publishing code changed",
+            "no packaging or publishing file changed",
+        ),
+    ]
+}
+
+/// The one command to run before pushing, by scope: a partial or closure plan is not the shipping loop.
+pub fn before_merge(p: &Plan) -> &'static str {
+    if p.scope == Scope::Full {
+        "this plan already is the full CI run"
+    } else {
+        "scripts/dev affected --full (= scripts/ci.sh), or hosted CI: a focused plan is for iterating, not for shipping"
+    }
+}
+
 /// The plan as text: what changed, the scope, each step with its reason, what was deferred.
 pub fn render_plan(p: &Plan) -> String {
     let mut s = format!("{} changed file(s), scope {}", p.changed.len(), p.scope.name());
@@ -1093,6 +1147,11 @@ pub fn render_plan(p: &Plan) -> String {
     for r in &p.full_required {
         s.push_str(&format!("full verification still required: {r}\n"));
     }
+    let skipped: Vec<String> = needs(p).into_iter().filter(|n| !n.required).map(|n| format!("{} ({})", n.area, n.why)).collect();
+    if !skipped.is_empty() {
+        s.push_str(&format!("not needed yet: {}\n", skipped.join("; ")));
+    }
+    s.push_str(&format!("before pushing: {}\n", before_merge(p)));
     if !p.suggest.is_empty() {
         s.push_str("worth a look (not run):\n");
         for c in &p.suggest {
@@ -1115,6 +1174,8 @@ pub fn plan_json(p: &Plan) -> serde_json::Value {
         "partial": p.scope == Scope::Partial,
         "features": p.features.name(),
         "full_verification_required": p.full_required,
+        "needs": needs(p).iter().map(|n| (n.area.to_string(), serde_json::json!({"required": n.required, "why": n.why}))).collect::<serde_json::Map<_, _>>(),
+        "before_merge": before_merge(p),
     })
 }
 
@@ -1220,6 +1281,26 @@ mod tests {
         assert!(quick.steps.iter().any(|s| s.name == "red2d") && quick.steps.iter().all(|s| s.name != "web"), "{:?}", names(&quick));
         let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
         assert!(none.steps.iter().all(|s| !s.name.starts_with("red2d") && s.name != "web"), "{:?}", names(&none));
+    }
+
+    #[test]
+    fn a_plan_says_what_it_does_not_need_and_what_to_run_before_pushing() {
+        let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
+        let n = needs(&none);
+        assert!(n.iter().all(|x| !x.required), "a leaf engine file needs neither network, browser nor packaging checks: {n:?}");
+        let text = render_plan(&none);
+        assert!(text.contains("not needed yet: network (") && text.contains("browser (") && text.contains("packaging ("), "{text}");
+        assert!(text.contains("before pushing: scripts/dev affected --full"), "{text}");
+        let j = plan_json(&none);
+        assert_eq!(j["needs"]["network"]["required"], false);
+        assert!(j["needs"]["browser"]["why"].as_str().unwrap().contains("no browser"), "{j}");
+        // A networking file does need network checks, and the browser stays unneeded.
+        let net = plan(&world(), &serial(), &["src/net/interp.rs".to_string()], &Options::default());
+        assert!(needs(&net).iter().any(|x| x.area == "network" && x.required), "{:?}", needs(&net));
+        assert!(!render_plan(&net).contains("network ("), "a required area is not listed as skipped");
+        // The full tier covers everything by definition.
+        let full = plan(&world(), &serial(), &["Cargo.toml".to_string()], &Options::default());
+        assert!(needs(&full).iter().all(|x| x.required) && before_merge(&full).contains("already is the full"));
     }
 
     #[test]

@@ -76,6 +76,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+          # The external example crate is its own workspace with its own target/: without listing it here its ~420 dependencies were compiled from scratch on every run
+          # (measured on hosted CI: 339 s of an 856 s Linux job, 583 s on Windows). A cache miss costs exactly what it costs today.
+          workspaces: |
+            . -> target
+            examples/external/topdown_switch -> target
       - name: Linux system libraries (audio backend for rodio)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
@@ -83,7 +88,8 @@ jobs:
       # benches compile. Wall-clock bench regressions are NOT gated here: shared runners are too noisy. Run
       # `cargo bench --bench sim && python benches/check.py` locally (benches/README.md). The deterministic performance guards
       # (tests/alloc_budget.rs, body/entity counts) run in the tests stage.
-      - run: bash scripts/ci.sh clippy tests benches
+      # The lock files first: a stale one is the commonest reason a dependency change fails CI, and it takes seconds to see.
+      - run: bash scripts/ci.sh lockfiles clippy tests benches
       # The browser build of the 3D player compiles for wasm32 (the target is installed above).
       - run: bash scripts/ci.sh web3d
         if: runner.os == 'Linux'

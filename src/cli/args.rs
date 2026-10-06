@@ -700,7 +700,7 @@ pub(crate) enum Command {
     /// fragments with where to read more, e.g. `search <a question in plain words>`.
     Search {
         query: Vec<String>,
-        /// doc | asset | lint | rule | type | recipe | command | src
+        /// doc | asset | lint | rule | type | recipe | mechanic | command | src
         #[arg(long)]
         kind: Option<String>,
         #[arg(long, default_value_t = 8)]

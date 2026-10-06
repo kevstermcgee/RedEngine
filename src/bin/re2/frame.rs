@@ -252,13 +252,9 @@ impl App {
         self.persist_vars();
         // A scene with a clock tells its rules when the sun comes up and goes down (`when: {event: "sunrise"}`).
         if let Some(clock) = &self.scene.clock {
-            let elev = clock.state(tick as f32 * FIXED_DT, 0).sun_elev_deg;
-            match self.last_sun_elev {
-                Some(before) if before < 0.0 && elev >= 0.0 => self.rules.inject(tick, "sunrise", None),
-                Some(before) if before >= 0.0 && elev < 0.0 => self.rules.inject(tick, "sunset", None),
-                _ => {}
+            if let Some(event) = self.sun_watch.at(clock, tick as f32 * FIXED_DT) {
+                self.rules.inject(tick, event, None);
             }
-            self.last_sun_elev = Some(elev);
         }
         if self.rules.ended().is_some() {
             return;

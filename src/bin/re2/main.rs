@@ -332,8 +332,8 @@ struct App {
     rules: RulesEngine,
     /// The `persist` variables as last saved, so a save happens only when one changes.
     saved_vars: std::collections::BTreeMap<String, f64>,
-    /// The sun's height at the previous tick (for the `sunrise` and `sunset` events).
-    last_sun_elev: Option<f32>,
+    /// Watches the sun cross the horizon (for the `sunrise` and `sunset` events).
+    sun_watch: red_engine2::daycycle::SunWatch,
     /// Named targets for the rule `teleport` action.
     spawns: Vec<Spawn>,
     /// Most recent non-terminal rule event, shown briefly by the generic rules HUD.
@@ -607,7 +607,7 @@ impl App {
             clock: TickClock::default(),
             rules,
             saved_vars,
-            last_sun_elev: None,
+            sun_watch: Default::default(),
             spawns,
             rule_event: None,
             rule_event_until: 0,

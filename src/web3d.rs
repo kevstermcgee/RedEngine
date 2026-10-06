@@ -10,6 +10,7 @@
 use crate::app::camera::{FpsCamera, ViewCamera};
 use crate::app::session::LocalSession;
 use crate::sim::player::PlayerInput;
+use crate::ui::game;
 use crate::viewer::LiveRenderer;
 use wasm_bindgen::prelude::*;
 
@@ -25,6 +26,13 @@ struct Keys {
     crouch: bool,
 }
 
+/// Which card is up, as in the desktop client: the start card holds the game until its button is used; the end card, after an outcome, has the restart button.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Card {
+    Start,
+    End,
+}
+
 /// A running 3D game on a canvas.
 #[wasm_bindgen]
 pub struct Web3d {
@@ -36,6 +44,18 @@ pub struct Web3d {
     color: wgpu::TextureFormat,
     renderer: LiveRenderer,
     session: LocalSession,
+    /// The scene as text, to start the game over from the top.
+    scene_text: String,
+    card: Option<Card>,
+    card_hover: bool,
+    /// Pointer position in canvas pixels.
+    pointer: (f32, f32),
+    /// The page has the game paused (focus left it).
+    paused: bool,
+    /// What the overlay shows now, to repaint it only when that changes.
+    overlay_key: String,
+    /// The save last handed to the page, to hand over another only when something changed.
+    saved: std::collections::BTreeMap<String, f64>,
     keys: Keys,
     yaw: f32,
     pitch: f32,
@@ -57,18 +77,20 @@ async fn tick() -> Result<(), JsValue> {
     wasm_bindgen_futures::JsFuture::from(promise).await.map(|_| ())
 }
 
-/// Starts the game in `<canvas id=canvas_id>` from the scene JSON text. `force_gl` asks for the WebGL2 backend instead of WebGPU (the fallback, and what a headless test
-/// browser without a GPU can present).
+/// Starts the game in `<canvas id=canvas_id>` from the scene JSON text. `saved` is what [`Web3d::save_text`] last returned (empty for a first visit): the variables the scene keeps
+/// between sessions (Marcel's days) come back before the first tick. WebGPU only: without it the error says so.
 #[wasm_bindgen]
-pub async fn web3d_start(canvas_id: &str, scene_text: &str, force_gl: bool) -> Result<Web3d, JsValue> {
+pub async fn web3d_start(canvas_id: &str, scene_text: &str, saved: &str) -> Result<Web3d, JsValue> {
     console_error_panic_hook::set_once();
     let document = web_sys::window().and_then(|w| w.document()).ok_or("no document")?;
     let canvas: web_sys::HtmlCanvasElement = document.get_element_by_id(canvas_id).ok_or("no such canvas")?.dyn_into()?;
     let (w, h) = (canvas.width().max(1), canvas.height().max(1));
-    let session = LocalSession::from_json(scene_text).map_err(|e| JsValue::from_str(&e.join("\n")))?;
+    let mut session = LocalSession::from_json(scene_text).map_err(|e| JsValue::from_str(&e.join("\n")))?;
+    let saved: std::collections::BTreeMap<String, f64> = serde_json::from_str::<std::collections::BTreeMap<String, f64>>(saved).unwrap_or_default();
+    session.restore_vars(&saved);
 
-    let backends = if force_gl { wgpu::Backends::GL } else { wgpu::Backends::all() };
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor { backends, ..wgpu::InstanceDescriptor::new_without_display_handle() });
+    let instance =
+        wgpu::Instance::new(wgpu::InstanceDescriptor { backends: wgpu::Backends::BROWSER_WEBGPU, ..wgpu::InstanceDescriptor::new_without_display_handle() });
     let surface = instance.create_surface(wgpu::SurfaceTarget::Canvas(canvas)).map_err(js("surface"))?;
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
@@ -77,16 +99,10 @@ pub async fn web3d_start(canvas_id: &str, scene_text: &str, force_gl: bool) -> R
             ..Default::default()
         })
         .await
-        .map_err(js("no GPU adapter (no WebGPU and no WebGL2)"))?;
+        .map_err(|_| JsValue::from_str("this game needs WebGPU, which this browser does not have (try a current Chrome, Edge or Safari)"))?;
     let ai = adapter.get_info();
-    // The live renderer is multisampled (4x) and WebGL2 has no multisampled textures: that fallback needs a single-sample path first (docs/analysis/2026-10-05-3d-in-the-browser.md).
-    if ai.backend == wgpu::Backend::Gl {
-        return Err(JsValue::from_str("this browser has no WebGPU, and the WebGL2 fallback is not built yet (the renderer needs a single-sample path first)"));
-    }
     let info = format!("{:?} | {} | {:?}", ai.backend, ai.name, ai.device_type);
-    // WebGL2's conservative defaults cap textures at 2048 px, below the shadow atlas; the device itself allows what the adapter reports.
-    let limits =
-        if ai.backend == wgpu::Backend::Gl { wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()) } else { wgpu::Limits::default() };
+    let limits = wgpu::Limits::default();
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor { label: Some("web3d-device"), required_limits: limits, ..Default::default() })
         .await
@@ -123,7 +139,28 @@ pub async fn web3d_start(canvas_id: &str, scene_text: &str, force_gl: bool) -> R
     surface.configure(&device, &config);
     let renderer = LiveRenderer::world(&device, color, session.scene(), w, h);
     let yaw = session.player().yaw;
-    Ok(Web3d { device, queue, surface, config, color, renderer, session, keys: Keys::default(), yaw, pitch: 0.0, last_ms: None, info })
+    let card = session.scene().ui.as_ref().is_some_and(|u| u.start.is_some()).then_some(Card::Start);
+    Ok(Web3d {
+        device,
+        queue,
+        surface,
+        config,
+        color,
+        renderer,
+        session,
+        scene_text: scene_text.to_string(),
+        card,
+        card_hover: false,
+        pointer: (0.0, 0.0),
+        paused: false,
+        overlay_key: String::new(),
+        saved,
+        keys: Keys::default(),
+        yaw,
+        pitch: 0.0,
+        last_ms: None,
+        info,
+    })
 }
 
 #[wasm_bindgen]
@@ -143,6 +180,14 @@ impl Web3d {
 
     /// A key went down or up (`KeyboardEvent.code`).
     pub fn key(&mut self, code: &str, down: bool) {
+        if self.card.is_some() {
+            // No key-up arrives for a key held through a card, so nothing stays held across one; the card's button answers to Enter, Space and E.
+            self.keys = Keys::default();
+            if down && matches!(code, "Enter" | "NumpadEnter" | "Space" | "KeyE") {
+                self.card_activate();
+            }
+            return;
+        }
         match code {
             "KeyW" | "ArrowUp" => self.keys.forward = down,
             "KeyS" | "ArrowDown" => self.keys.back = down,
@@ -201,6 +246,120 @@ impl Web3d {
         self.renderer.stream_draw_stats().map_or(-1, |s| s.resident as i32)
     }
 
+    /// The pointer moved over the canvas (canvas pixels): highlights the card's button.
+    pub fn pointer_move(&mut self, x: f32, y: f32) {
+        self.pointer = (x, y);
+        let over = self.card_layout().is_some_and(|l| l.button_at(x, y).is_some());
+        self.card_hover = over;
+    }
+
+    /// A click at `(x, y)` (canvas pixels): uses the card's button if that is where it landed. Returns whether it did (the page then takes the mouse for looking).
+    pub fn pointer_click(&mut self, x: f32, y: f32) -> bool {
+        self.pointer = (x, y);
+        if self.card_layout().is_some_and(|l| l.button_at(x, y).is_some()) {
+            return self.card_activate();
+        }
+        false
+    }
+
+    /// Runs `ticks` simulation ticks with the keys as they are now, without drawing (a card or a pause still holds the game): scripted play, and what tests use so they do not
+    /// depend on how fast a GPU is. Returns the ticks run so far.
+    pub fn step(&mut self, ticks: u32) -> f64 {
+        if self.card.is_none() && !self.paused {
+            let input = self.input();
+            for _ in 0..ticks {
+                self.session.step(input);
+            }
+        }
+        self.session.tick() as f64
+    }
+
+    /// The page paused or resumed the game (the tab lost focus, the mouse was let go): the simulation waits.
+    pub fn set_paused(&mut self, paused: bool) {
+        self.paused = paused;
+        if paused {
+            self.keys = Keys::default();
+        }
+    }
+
+    /// Whether a card (start or end) is up.
+    pub fn card_up(&self) -> bool {
+        self.card.is_some()
+    }
+
+    /// What the game keeps between sessions as JSON text, when it differs from what this last returned; the page stores it and hands it back to `web3d_start` next time.
+    pub fn save_text(&mut self) -> Option<String> {
+        let now = self.session.persisted();
+        if now.is_empty() || now == self.saved {
+            return None;
+        }
+        self.saved = now.clone();
+        serde_json::to_string(&now).ok()
+    }
+
+    fn card_content(&self) -> Option<(crate::ui_config::Card, &'static str)> {
+        let ui = self.session.scene().ui.as_ref()?;
+        let hud = self.session.hud();
+        let vars: Vec<(&str, f64)> = hud.vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();
+        match self.card? {
+            Card::Start => ui.start_card(&vars).map(|c| (c, "start")),
+            Card::End => ui.filled_end_card(self.session.rules().ended()?, &vars).map(|c| (c, "restart")),
+        }
+    }
+
+    fn card_layout(&self) -> Option<crate::ui::Layout> {
+        let (card, id) = self.card_content()?;
+        Some(game::card_layout(self.config.width, self.config.height, &card, id, self.card_hover))
+    }
+
+    /// The card's button was used. False when the card has none.
+    fn card_activate(&mut self) -> bool {
+        if !self.card_content().is_some_and(|(c, _)| c.button.is_some()) {
+            return false;
+        }
+        match self.card {
+            Some(Card::Start) => self.card = None,
+            Some(Card::End) => {
+                // Play again from the top, keeping what the game keeps between sessions (the days lived).
+                if let Ok(mut fresh) = LocalSession::from_json(&self.scene_text) {
+                    fresh.restore_vars(&self.session.persisted());
+                    self.session = fresh;
+                    self.yaw = self.session.player().yaw;
+                    self.pitch = 0.0;
+                    self.last_ms = None;
+                    self.card = None;
+                }
+            }
+            None => return false,
+        }
+        self.card_hover = false;
+        true
+    }
+
+    /// Paints the overlay (a card, or the rules HUD) when what it shows has changed.
+    fn sync_overlay(&mut self) {
+        let (w, h) = (self.config.width, self.config.height);
+        let hud = self.session.hud();
+        let key = format!("{:?}|{}|{w}x{h}|{}", self.card, self.card_hover, hud.key());
+        if key == self.overlay_key {
+            return;
+        }
+        self.overlay_key = key;
+        let layout = match self.card_layout() {
+            Some(card) => card,
+            None => {
+                let vars: Vec<(&str, f64)> = hud.vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();
+                // While a card is up the HUD is hidden behind it; with none, the HUD of the scene's `ui` block, or the generic panel.
+                game::rules_overlay(self.session.scene(), w, h, &vars, hud.event.as_deref(), hud.outcome.as_deref(), false)
+            }
+        };
+        if layout.widgets.is_empty() {
+            self.renderer.overlay.hide();
+        } else {
+            self.renderer.overlay.set(&self.device, &self.queue, w, h, &layout.paint().px);
+        }
+    }
+
     fn input(&self) -> PlayerInput {
         let k = self.keys;
         PlayerInput {
@@ -232,7 +391,19 @@ impl Web3d {
         let dt = self.last_ms.map_or(0.0, |l| ((now_ms - l) / 1000.0).clamp(0.0, 0.1)) as f32;
         self.last_ms = Some(now_ms);
         let input = self.input();
-        self.session.advance(dt, |_| input);
+        if self.card.is_none() && !self.paused {
+            self.session.advance(dt, |_| input);
+        }
+        // An outcome with an end card declared for it puts the card up, as the desktop client does.
+        if self.card.is_none() {
+            if let (Some(ui), Some(outcome)) = (self.session.scene().ui.as_ref(), self.session.rules().ended()) {
+                if ui.end_card(outcome).is_some() {
+                    self.card = Some(Card::End);
+                    self.keys = Keys::default();
+                }
+            }
+        }
+        self.sync_overlay();
         self.renderer.set_hidden_objects(self.session.hidden().map(str::to_string).collect::<Vec<_>>().iter().map(String::as_str));
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(f) | wgpu::CurrentSurfaceTexture::Suboptimal(f) => f,
@@ -255,6 +426,7 @@ impl Web3d {
     /// fill the world in over a second or two instead).
     pub async fn snapshot(&mut self, settle: bool) -> Result<Vec<u8>, JsValue> {
         let (w, h) = (self.config.width, self.config.height);
+        self.sync_overlay();
         let cam = self.camera();
         if settle {
             self.renderer.settle_stream(&self.device, &self.queue, cam.eye);
@@ -291,7 +463,7 @@ impl Web3d {
             let _ = tx.send(r.is_ok());
         });
         let mut mapped = false;
-        for _ in 0..2000 {
+        for _ in 0..8000 {
             let _ = self.device.poll(wgpu::PollType::Poll);
             if let Ok(ok) = rx.try_recv() {
                 mapped = ok;

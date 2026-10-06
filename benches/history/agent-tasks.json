@@ -1,0 +1,39 @@
+{
+  "schema": "red-agent-tasks/1",
+  "runs": [
+    {
+      "schema": "red-agent-tasks/1",
+      "date": "2026-10-06T06:39:40-07:00",
+      "about": "Fresh small-model agent (haiku), identical bounded task, one run per side. n=1: variance between runs of the same side was not measured, so differences are indicative, not significant.",
+      "task": "2D game 'lighthouse': 3 oil cans open a door, spikes cost lives with a cooldown, a checkpoint flag with pit respawn (before the flag: the start), 60 s countdown, HUD, three scenarios (door blocks, bot wins, standing still loses), verify passes. A composition of four mechanics; none is a copy of one pattern.",
+      "before": {
+        "engine": "main + browser phase 2a (no mechanics catalogue, search without the lane)",
+        "duration_s": 313.5,
+        "tokens": 78157,
+        "tool_uses": 39,
+        "files_read_by_agent_report": 4,
+        "game_bytes": 21415,
+        "verify": "20 passed (includes audio checks for the sounds it added)",
+        "requirements_met": "all, plus music, sounds, a restart button (not asked for)"
+      },
+      "after": {
+        "engine": "this pass (recipe lists 7 verified mechanics, search lane, describe 2d pointer)",
+        "duration_s": 146.6,
+        "tokens": 57717,
+        "tool_uses": 32,
+        "files_read_by_agent_report": 8,
+        "game_bytes": 4123,
+        "verify": "10 passed",
+        "requirements_met": "all but one sub-requirement: a pit hit BEFORE the flag does not send the player back to the start; spikes and pits share one hazard tag",
+        "report_overclaim": "its own report said 'nothing fails'; grading found the gap"
+      },
+      "delta": {
+        "duration": "-53%",
+        "tokens": "-26%",
+        "tool_uses": "-18%",
+        "game_file_size": "-81%",
+        "correctness": "one sub-requirement short (not equal)"
+      }
+    }
+  ]
+}

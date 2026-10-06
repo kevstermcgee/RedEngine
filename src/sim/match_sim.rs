@@ -87,6 +87,8 @@ pub struct MatchSim {
     pub(super) tick: u64,
     /// The scene's game rules, running (see `sim::rules`).
     pub(super) rules: RulesEngine,
+    /// The scene's sky clock, when it has one, and the watcher that turns the sun crossing the horizon into `sunrise` / `sunset` events for the rules.
+    sky: Option<(crate::daycycle::Clock, crate::daycycle::SunWatch)>,
     /// Every loose prop as the rules see it this tick, rebuilt in place (only when a rule looks at props).
     prop_views: Vec<crate::sim::rules_run::RuleProp>,
     /// Top-level object id to index, to find the prop an `impulse` rule names.
@@ -154,6 +156,7 @@ impl MatchSim {
             history: VecDeque::with_capacity(HISTORY_TICKS + 1),
             tick: 0,
             rules,
+            sky: scene.clock.clone().map(|c| (c, Default::default())),
             prop_views: Vec::new(),
             object_index,
             rule_object_index: crate::schema::object_ids(&scene.objects)
@@ -621,6 +624,11 @@ impl MatchSim {
             }
         }
         self.apply_fields();
+        if let Some((clock, watch)) = self.sky.as_mut() {
+            if let Some(event) = watch.at(clock, self.tick as f32 * crate::sim::clock::TICK_DT) {
+                self.rules.inject(self.tick, event, None);
+            }
+        }
         let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
         let effects = self.rules.step_props(self.tick, &views, &self.prop_views);
         for effect in effects {
@@ -718,6 +726,13 @@ impl MatchSim {
     }
 
     /// The scene's rules state (variables, hidden objects, outcome, event history).
+    /// Sets scene variables from saved values (the game's `persist` variables coming back at the start of a session); names the scene does not have are ignored.
+    pub fn restore_vars(&mut self, saved: &std::collections::BTreeMap<String, f64>) {
+        for (name, value) in saved {
+            self.rules.set_var(name, *value);
+        }
+    }
+
     pub fn rules(&self) -> &RulesEngine {
         &self.rules
     }
