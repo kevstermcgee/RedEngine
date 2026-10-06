@@ -395,6 +395,10 @@ pub fn run_mcp() -> Result<(), String> {
     })
 }
 
+/// The most bytes `tools/list` may take (it is loaded into the agent's context every session).
+#[cfg(test)]
+pub const TOOLS_LIST_BUDGET: usize = 5_200;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -435,7 +439,3 @@ mod tests {
         assert!(!o.err.is_empty());
     }
 }
-
-/// The most bytes `tools/list` may take (it is loaded into the agent's context every session).
-#[cfg(test)]
-pub const TOOLS_LIST_BUDGET: usize = 5_200;

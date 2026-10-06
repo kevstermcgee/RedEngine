@@ -41,7 +41,9 @@ pub(crate) fn run_describe(topic: Option<&str>, brief: bool, json: bool) -> Resu
 fn cached_corpus() -> std::sync::Arc<Vec<search::Doc>> {
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
-    static CACHE: Mutex<Option<(Instant, Option<std::path::PathBuf>, Arc<Vec<search::Doc>>)>> = Mutex::new(None);
+    /// When it was built, for which checkout, and the corpus.
+    type Cached = Option<(Instant, Option<std::path::PathBuf>, Arc<Vec<search::Doc>>)>;
+    static CACHE: Mutex<Cached> = Mutex::new(None);
     let root = symbols::find_root();
     let mut guard = CACHE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((at, key, docs)) = guard.as_ref() {
