@@ -181,8 +181,14 @@ fn check_facts(root: &Path) -> Vec<Problem> {
     out
 }
 
-/// Modules and directories (relative to `src/`) that are built only with the `gfx` feature: every `#[cfg(feature = "gfx")] pub mod x;` of `src/lib.rs`, and
-/// the directory or file of each `[[bin]]` that `required-features` gfx.
+/// The `cfg` lines that keep a module out of the headless server build: `gfx` (the desktop client), `render` (the wgpu renderer alone, which `gfx` includes) and the
+/// browser player (`web` on wasm32). None of them is on by default without `gfx`, so none is in `--no-default-features`.
+fn is_graphics_gate(line: &str) -> bool {
+    matches!(line.trim(), "#[cfg(feature = \"gfx\")]" | "#[cfg(feature = \"render\")]" | "#[cfg(all(feature = \"web\", target_arch = \"wasm32\"))]")
+}
+
+/// Modules and directories (relative to `src/`) that are built only with the `gfx` feature (or `render`, or the browser build): every `#[cfg(feature = "gfx")] pub mod x;` of
+/// `src/lib.rs`, and the directory or file of each `[[bin]]` that `required-features` gfx.
 pub fn gfx_only_paths(root: &Path) -> Vec<String> {
     let mut out = Vec::new();
     // `src/lib.rs` gates top-level modules; a module directory's `mod.rs` gates its own parts the same way (`src/app/mod.rs`
@@ -197,7 +203,7 @@ pub fn gfx_only_paths(root: &Path) -> Vec<String> {
         let text = read(root, &file);
         let mut lines = text.lines();
         while let Some(l) = lines.next() {
-            if l.trim() == "#[cfg(feature = \"gfx\")]" {
+            if is_graphics_gate(l) {
                 if let Some(next) = lines.next() {
                     if let Some(name) = next.trim().strip_prefix("pub mod ").or_else(|| next.trim().strip_prefix("mod ")).and_then(|n| n.strip_suffix(';')) {
                         out.push(format!("{prefix}{name}.rs"));
@@ -610,7 +616,7 @@ mod tests {
         let w = |p: &str, t: &str| std::fs::write(d.join(p), t).unwrap();
         w("scripts/dev", "#!/bin/sh\n"); // the facts block points at it
         w("Cargo.toml", "[package]\nname = \"demo\"\n\n[features]\ndefault = [\"gfx\"]\ngfx = []\n\n[[bin]]\nname = \"win\"\npath = \"src/bin/win/main.rs\"\nrequired-features = [\"gfx\"]\n");
-        w("src/lib.rs", "#[cfg(feature = \"gfx\")]\npub mod render;\npub mod net;\n");
+        w("src/lib.rs", "#[cfg(feature = \"gfx\")]\npub mod render;\n#[cfg(feature = \"render\")]\npub mod mesh;\npub mod net;\n");
         w("src/render.rs", "use wgpu::Device;\n");
         w("src/bin/win/main.rs", "use winit::window::Window;\n");
         w("src/net/protocol.rs", "pub const PROTOCOL_VERSION: u16 = 5;\n");
@@ -656,6 +662,7 @@ mod tests {
         let d = repo("gfx");
         let g = gfx_only_paths(&d);
         assert!(g.contains(&"render.rs".to_string()) && g.contains(&"bin/win/".to_string()), "{g:?}");
+        assert!(g.contains(&"mesh.rs".to_string()), "a module behind `render` is not in the headless build either: {g:?}");
         assert!(headless_violations(&d).is_empty(), "{:?}", headless_violations(&d));
         std::fs::write(
             d.join("src/net/leak.rs"),

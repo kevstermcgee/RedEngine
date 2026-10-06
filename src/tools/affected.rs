@@ -265,6 +265,23 @@ fn red2d_steps(changed: &[String], tests: bool, browser: bool) -> Vec<Step> {
     v
 }
 
+/// Whether a change reaches the browser build of the 3D player: anything in the engine crate (it compiles the same sources for wasm32) or the wrapper crate.
+pub fn touches_web3d(changed: &[String]) -> bool {
+    changed.iter().any(|c| c.starts_with("src/") || c.starts_with("crates/web3d/") || c == "Cargo.toml" || c == "Cargo.lock" || c.starts_with(".cargo/"))
+}
+
+/// The step the 3D browser build adds (full tier): a wasm32 lint of the engine crate under `--features web`, because nothing else compiles those cfgs.
+fn web3d_steps(changed: &[String], browser: bool) -> Vec<Step> {
+    if !browser || !touches_web3d(changed) {
+        return Vec::new();
+    }
+    vec![Step::new(
+        "web3d-wasm",
+        &["bash", "scripts/ci.sh", "web3d"],
+        "the browser build of the 3D player: the engine's renderer and simulation must still compile (and lint clean) for wasm32 with the `web` feature",
+    )]
+}
+
 /// Paths that never need verification (generated output, logs, the handoff file).
 fn ignorable(path: &str) -> bool {
     path.starts_with("out/")
@@ -579,6 +596,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
         });
     }
     plan.steps.extend(red2d_steps(&changed, true, !opts.quick));
+    plan.steps.extend(web3d_steps(&changed, !opts.quick));
     plan.deferred = deferred.into_iter().collect();
     plan.suggest.sort();
     plan.suggest.dedup();
@@ -1183,6 +1201,18 @@ mod tests {
         assert!(quick.steps.iter().any(|s| s.name == "red2d") && quick.steps.iter().all(|s| s.name != "web"), "{:?}", names(&quick));
         let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
         assert!(none.steps.iter().all(|s| !s.name.starts_with("red2d") && s.name != "web"), "{:?}", names(&none));
+    }
+
+    #[test]
+    fn a_change_to_the_engine_plans_the_3d_browser_build_in_the_full_tier_only() {
+        for f in ["src/viewer.rs", "src/web3d.rs", "crates/web3d/src/lib.rs", "Cargo.toml", ".cargo/config.toml"] {
+            assert!(touches_web3d(&[f.to_string()]), "{f}");
+        }
+        assert!(!touches_web3d(&["docs/WEB_PLATFORM.md".to_string(), "crates/red2d/src/sim.rs".to_string()]));
+        let p = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options::default());
+        assert_eq!(step(&p, "web3d-wasm").argv.join(" "), "bash scripts/ci.sh web3d");
+        let quick = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options { quick: true, ..Options::default() });
+        assert!(quick.steps.iter().all(|s| s.name != "web3d-wasm"), "{:?}", names(&quick));
     }
 
     #[test]

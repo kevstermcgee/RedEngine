@@ -92,8 +92,16 @@ stage_external_client() {
 # is missing, and fails instead when RED_CI_REQUIRE_BROWSER=1 (hosted CI). See docs/WEB_PLATFORM.md.
 stage_web() { echo "== 2D games in a real browser (WebAssembly player + headless Chromium) =="; bash scripts/web_check.sh; }
 
+# The 3D player for browsers (docs/analysis/2026-10-05-3d-in-the-browser.md): the engine's renderer and simulation must keep compiling for wasm32 under the `web` feature, and lint clean.
+# Compile-only: that it draws is `crates/web3d/verify.py`, which needs a browser.
+stage_web3d() {
+  echo "== 3D browser build (wasm32, feature web) =="
+  cargo clippy --locked -p red_engine2 --lib --target wasm32-unknown-unknown --no-default-features --features web -- -D warnings
+  cargo clippy --locked -p web3d --target wasm32-unknown-unknown -- -D warnings
+}
+
 stages=("$@")
-[ ${#stages[@]} -gt 0 ] || stages=(fmt clippy tests benches headless-tree headless-build headless-clippy headless-tests external-client web)
+[ ${#stages[@]} -gt 0 ] || stages=(fmt clippy tests benches headless-tree headless-build headless-clippy headless-tests external-client web web3d)
 # Every stage is timed, and the table at the end says where the minutes went (the first thing to read when CI feels slow).
 timings=()
 t_all=$SECONDS

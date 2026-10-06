@@ -9,14 +9,20 @@ description = "AI-first Rust game engine: JSON scenes, self-verifying maps, auth
 # The 2D game crate (`red2d`): a declarative 2D game, its headless simulation, CPU renderer and WebAssembly player. A workspace member so one lock file covers it and
 # the browser build (`red_engine2 web build`); `default-members` keeps plain `cargo build/test/clippy` covering it too.
 [workspace]
-members = ["crates/red2d"]
+members = ["crates/red2d", "crates/web3d"]
 default-members = [".", "crates/red2d"]
 
 # `gfx` (default) = everything that draws or plays sound: wgpu, winit, rodio, ffmpeg. The dedicated server, the bot and the
 # map-analysis CLI build without it (`cargo build --no-default-features --bin red_server`); CI enforces that on Linux.
+#
+# `render` = the wgpu renderer on its own (no window, no sound device, no ffmpeg); `gfx` = `render` plus the desktop around it (a window, audio, video, a pad, dialogs).
+# What a browser cannot have (the UDP/QUIC network stack, the map-analysis toolchain, process helpers) is compiled out on `wasm32` by target, not by feature, so no native
+# workflow changes. The browser build is `--target wasm32-unknown-unknown --no-default-features --features web`.
 [features]
 default = ["gfx"]
-gfx = ["dep:wgpu", "dep:winit", "dep:rodio", "dep:pollster", "dep:ffmpeg-sidecar", "dep:gilrs", "dep:rfd"]
+render = ["dep:wgpu", "dep:pollster"]
+gfx = ["render", "dep:winit", "dep:rodio", "dep:ffmpeg-sidecar", "dep:gilrs", "dep:rfd"]
+web = ["render", "wgpu/webgpu", "wgpu/webgl", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:js-sys", "dep:console_error_panic_hook"]
 
 [dependencies]
 red2d = { path = "crates/red2d" }
@@ -34,7 +40,6 @@ ffmpeg-sidecar = { version = "2.5.2", optional = true }
 glam = { version = "0.33.8", features = ["serde", "libm"] }
 libm = "0.2"
 # Graceful Ctrl-C and SIGTERM (`docker stop`) for `red_server` (tell clients bye, write the `--record` trace).
-ctrlc = { version = "3", features = ["termination"] }
 image = { version = "0.25.9", default-features = false, features = ["png"] }
 pollster = { version = "1.0.1", optional = true }
 rodio = { version = "0.20", default-features = false, optional = true }
@@ -44,18 +49,34 @@ serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtr
 thiserror = "2.0.20"
 # The production network transport (ADR 0044): QUIC datagrams + TLS 1.3 from maintained implementations, and the primitives the
 # remaining application-level proofs use. All graphics-free: they are part of the headless server build.
-quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring", "log"] }
-rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging", "tls12"] }
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "sync", "time", "macros"] }
-rcgen = { version = "0.14", default-features = false, features = ["pem", "ring", "crypto"] }
 sha2 = "0.10"
 hmac = "0.12"
 subtle = "2.6"
 getrandom = "0.3"
 bytes = "1"
 wgpu = { version = "30.0.1", optional = true }
+# The browser build's glue: only with `--features web`.
+wasm-bindgen = { version = "=0.2.128", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "HtmlCanvasElement", "Element", "Performance"] }
+js-sys = { version = "0.3", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
 winit = { version = "0.30", optional = true }
 rfd = { version = "0.17.2", optional = true }
+
+# The network stack and the Ctrl-C hook: native only (`mio` does not exist in a browser).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ctrlc = { version = "3", features = ["termination"] }
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring", "log"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging", "tls12"] }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "sync", "time", "macros"] }
+rcgen = { version = "0.14", default-features = false, features = ["pem", "ring", "crypto"] }
+
+# In a browser `getrandom` reads `crypto.getRandomValues` (it also needs the cfg in `.cargo/config.toml`).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+# `std::time::Instant::now()` panics in a browser; this is the same type backed by `performance.now()`.
+web-time = "1"
 
 [profile.release]
 lto = true

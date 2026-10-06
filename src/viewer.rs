@@ -26,6 +26,10 @@ use crate::weapons::Weapon;
 use glam::{Mat4, Quat, Vec3, Vec4};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
 
 /// Other players' weapons drawn at once (one per possible remote player).
 pub const REMOTE_HANDS: usize = crate::sim::match_sim::MAX_PLAYERS;
@@ -385,7 +389,7 @@ pub struct LiveRenderer {
     /// Every local viewer's eye, when several views are drawn in a frame (split-screen): the streamed world follows all of them.
     stream_eyes: Vec<Vec3>,
     /// Drives the water's animation (it must not loop with the scene's `duration`).
-    clock: std::time::Instant,
+    clock: Instant,
     /// Scene object ids suppressed by a game rule or application.
     hidden_objects: HashSet<String>,
     /// Whether each scene mesh is under a hidden object (same order as `meshes`; recomputed only when the hidden set changes).
@@ -575,6 +579,10 @@ impl LiveRenderer {
         let post_bind_group = post.bind(device, &targets.depth_view);
         let ocean = crate::ocean_pass::OceanPass::new(device, color_format, MSAA_SAMPLES, scene, &pipelines.layouts.global_uniform);
         let stream = scene.procgen.clone().map(|cfg| {
+            // A browser has no threads to spawn: the streamer then builds chunks a few per frame on the calling thread.
+            #[cfg(target_arch = "wasm32")]
+            let workers = 0;
+            #[cfg(not(target_arch = "wasm32"))]
             let workers = std::thread::available_parallelism().map_or(1, |n| (n.get() / 2).clamp(1, 3));
             crate::stream_gpu::StreamLayer::new(device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), workers)
         });
@@ -612,7 +620,7 @@ impl LiveRenderer {
             ocean,
             stream,
             stream_eyes: Vec::new(),
-            clock: std::time::Instant::now(),
+            clock: Instant::now(),
             hidden_objects: HashSet::new(),
             held,
             remote_hands: Vec::new(),
