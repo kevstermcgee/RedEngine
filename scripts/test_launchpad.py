@@ -252,6 +252,7 @@ class Routing(Sandbox):
         self.assertEqual(na["argv"][na["argv"].index("--kind") + 1], "2d")
         self.assertEqual(na["cwd"], self.engine)
         self.assertEqual([i["argv"][1] for i in out["invoked"]], ["propose"], "only the read-only `propose` ran")
+        self.assertEqual(out["next_action"]["then"]["argv"], ["scripts/red", "verify", "coin-browser.game2d.json"], "a 2D starter is verified with `verify`, never `check`")
         claims = {c["claim"] for c in out["final_requirements"]}
         self.assertTrue({"validation", "behavior", "visual/input inspection", "target execution (browser)", "networking"} <= claims, "separate claims, never merged")
         self.assertTrue(all(c["state"] in ("planned", "not_applicable") for c in out["evidence"]["claims"]), "nothing starts passed")
@@ -304,6 +305,10 @@ class Routing(Sandbox):
         self.assertEqual(out["workflow"]["id"], "game-change")
         self.assertEqual(out["next_action"]["cwd"], proj)
         self.assertEqual(out["next_action"]["argv"], ["scripts/red", "check"])
+        d2 = self.project("proj2d")
+        write(os.path.join(d2, "coins.game2d.json"), "{}")
+        out, _ = self.lp("start", "make the coins worth more", "--project", d2, "--no-save")
+        self.assertEqual(out["next_action"]["argv"], ["scripts/red", "verify", "coins.game2d.json"], "`check` is the walk-project check and fails on a 2D starter")
         out, _ = self.lp("start", "upgrade the engine pin", "--project", proj, "--no-save")
         self.assertEqual(out["workflow"]["id"], "upgrade")
         self.assertEqual(out["next_action"]["argv"], ["scripts/red", "game", "upgrade", "plan"])

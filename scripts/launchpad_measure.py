@@ -31,21 +31,19 @@ def timed(argv, cwd, env, timeout=1500):
     return {"argv": argv, "cwd": cwd, "exit": p.returncode, "seconds": round(time.time() - t0, 2), "stdout_bytes": len(p.stdout.encode()), "stderr_bytes": len(p.stderr.encode())}, p
 
 
-def shim(dirpath, log):
-    """A `cargo` that logs the call, then runs the real one: counts builds without preventing them."""
-    real = shutil.which("cargo")
-    os.makedirs(dirpath, exist_ok=True)
-    path = os.path.join(dirpath, "cargo")
-    with open(path, "w") as f:
-        f.write(f'#!/bin/sh\necho "$@" >> "{log}"\nexec "{real}" "$@"\n')
-    os.chmod(path, 0o755)
-
-
-def builds(log):
-    try:
-        return [line.strip() for line in open(log) if line.strip()]
-    except OSError:
-        return []
+def artifacts_since(target_dir, t0):
+    """How many build products were written under a target directory since t0 (binaries, dependency artifacts, fingerprints). A `cargo` on the PATH can be bypassed
+    (the scripts source ~/.cargo/env), so what is counted is what a build leaves on disk: 0 means nothing was compiled."""
+    n = 0
+    for sub in ("debug", "debug/deps", "debug/.fingerprint", "debug/build"):
+        d = os.path.join(target_dir, sub)
+        try:
+            for e in os.scandir(d):
+                if e.stat().st_mtime > t0 and not e.name.startswith(".red-"):
+                    n += 1
+        except OSError:
+            pass
+    return n
 
 
 def launch(cwd, env, *extra, script="scripts/dev"):
@@ -65,10 +63,8 @@ def main():
     ap.add_argument("--skip", action="append", default=[])
     a = ap.parse_args()
     tmp = tempfile.mkdtemp(prefix="re2_lpm_")
-    log = os.path.join(tmp, "cargo.log")
-    shim(os.path.join(tmp, "shim"), log)
     # HOME stays: it holds the Rust toolchain. RED_PREFIX hides any prebuilt install from the resolver instead.
-    base_env = {**os.environ, "PATH": os.path.join(tmp, "shim") + os.pathsep + os.environ["PATH"], "RED_PREFIX": os.path.join(tmp, "prefix")}
+    base_env = {**os.environ, "RED_PREFIX": os.path.join(tmp, "prefix")}
     base_env.pop("CARGO_TARGET_DIR", None)
     run = {"label": a.label, "engine_commit": subprocess.run(["git", "-C", REPO, "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip(),
            "machine": "4-core Intel N97, 15 GB (the dev box)", "scenarios": {}}
@@ -78,18 +74,18 @@ def main():
         clone = os.path.join(tmp, "fresh")
         t0 = time.time()
         subprocess.run(["git", "clone", "-q", "--local", REPO, clone], check=True)
-        before = len(builds(log))
+        t1 = time.time()
         m, doc = launch(clone, base_env)
-        m.update(clone_seconds=round(time.time() - t0, 2), builds_triggered=len(builds(log)) - before, target_dir_created=os.path.isdir(os.path.join(clone, "target")))
+        m.update(clone_seconds=round(t1 - t0, 2), target_dir_created=os.path.isdir(os.path.join(clone, "target")), build_artifacts_written=0 if not os.path.isdir(os.path.join(clone, "target")) else artifacts_since(os.path.join(clone, "target"), t1))
         d, _ = timed(["bash", os.path.join(clone, "scripts/dev"), "doctor"], clone, base_env)
         m["reference_scripts_dev_doctor"] = {"seconds": d["seconds"], "bytes": d["stdout_bytes"]}
         run["scenarios"]["fresh_checkout"] = m
 
     # 2. warm checkout: this tree with a fresh binary in --target-dir.
     env = {**base_env, "CARGO_TARGET_DIR": a.target_dir}
-    before = len(builds(log))
+    t1 = time.time()
     m, doc = launch(REPO, env)
-    m["builds_triggered"] = len(builds(log)) - before
+    m["build_artifacts_written"] = artifacts_since(a.target_dir, t1)
     run["scenarios"]["warm_checkout"] = m
     exe = doc["identity"]["executable"]["path"]
 
@@ -99,7 +95,7 @@ def main():
     if "game" not in a.skip and doc["next_action"]["argv"][1:2] == ["new-game"]:
         argv = [exe, "new-game", proj, *doc["next_action"]["argv"][3:]]
         argv[argv.index("--engine-path") + 1] = os.path.relpath(REPO, proj)
-        before = len(builds(log))
+        t1 = time.time()
         r, p = timed(argv, REPO, env)
         steps.append({"step": "new-game (the launchpad's next action)", **{k: r[k] for k in ("seconds", "exit", "stdout_bytes")}})
         game = "coin-browser.game2d.json"
@@ -107,9 +103,11 @@ def main():
                            ("target execution (browser)", ["web", "verify", game])):
             r, p = timed(["bash", os.path.join(proj, "scripts", "red"), *cmd], proj, env, timeout=900)
             steps.append({"step": " ".join(cmd), "claim": claim, **{k: r[k] for k in ("seconds", "exit", "stdout_bytes")}, "last_line": (p.stdout.strip().splitlines() or [""])[-1][:160], "stderr_tail": p.stderr.strip()[-200:] if r["exit"] else ""})
-        run["scenarios"]["game_authoring"] = {"steps": steps, "builds_triggered": len(builds(log)) - before, "total_seconds": round(sum(s["seconds"] for s in steps), 1),
+        run["scenarios"]["game_authoring"] = {"steps": steps, "build_artifacts_written": artifacts_since(a.target_dir, t1), "total_seconds": round(sum(s["seconds"] for s in steps), 1),
                                               "outcome": "all steps exit 0" if all(s["exit"] == 0 for s in steps) else "a step failed: see steps"}
         # 5. interrupted and resumed: save a task in the project, change an input, resume.
+        # `publish` (local backend: no network) leaves out/publish/<game>/publication.json, the existing record `web status` reads: a recorded result for resume to find.
+        c_, cp = timed(["bash", os.path.join(proj, "scripts", "red"), "publish", game], proj, env, timeout=900)
         s_, _ = timed(["bash", os.path.join(proj, "scripts", "red"), "start", "make the coins worth more", "--json"], proj, env)
         r_idle, p_idle = timed(["bash", os.path.join(proj, "scripts", "red"), "resume", "--json"], proj, env)
         with open(os.path.join(proj, game)) as f:
@@ -119,13 +117,12 @@ def main():
         r_changed, p_changed = timed(["bash", os.path.join(proj, "scripts", "red"), "resume", "--json"], proj, env)
         rd = json.loads(p_changed.stdout)
         run["scenarios"]["interrupted_resumed"] = {
-            "start_seconds": s_["seconds"], "resume_unchanged": {"seconds": r_idle["seconds"], "bytes": r_idle["stdout_bytes"], "changes": json.loads(p_idle.stdout)["since_start"]["changes"]},
+            "project_check": {"exit": c_["exit"], "seconds": c_["seconds"]}, "start_seconds": s_["seconds"], "resume_unchanged": {"seconds": r_idle["seconds"], "bytes": r_idle["stdout_bytes"], "changes": json.loads(p_idle.stdout)["since_start"]["changes"], "recorded_results": [o["state"] for o in json.loads(p_idle.stdout)["evidence"]["observed"]]},
             "resume_after_edit": {"seconds": r_changed["seconds"], "bytes": r_changed["stdout_bytes"], "changes": [c["what"] for c in rd["since_start"]["changes"]],
                                   "recorded_results": [o["state"] for o in rd["evidence"]["observed"]], "next": rd["next_action"]["summary"]}}
 
     # 4. a focused engine change: the launchpad, the packet, one real edit, `iterate`, then undo the edit.
     if "engine-change" not in a.skip:
-        before = len(builds(log))
         r, p = timed(["bash", os.path.join(REPO, "scripts/dev"), "start", ENGINE_TASK, "--no-save", "--json"], REPO, env)
         doc = json.loads(p.stdout)
         m = {"start_seconds": r["seconds"], "start_bytes": r["stdout_bytes"], "workflow": doc["workflow"]["id"], "owners": [o["feature"] for o in doc["context"]["packet"]["owners"]]}
@@ -133,6 +130,8 @@ def main():
         m["context_packet"] = {"seconds": ctx["seconds"], "bytes": ctx["stdout_bytes"], "exit": ctx["exit"]}
         target = os.path.join(REPO, "src", "tools", "search.rs")
         original = open(target).read()
+        stat = os.stat(target)
+        t2 = time.time()
         try:
             with open(target, "w") as f:
                 f.write(original.replace("/// A scored search result with the best-matching fragment.", "/// A scored search result with the best-matching fragment (launchpad measurement edit).", 1))
@@ -141,9 +140,9 @@ def main():
         finally:
             with open(target, "w") as f:
                 f.write(original)
-        m["builds_triggered"] = len(builds(log)) - before
+            os.utime(target, (stat.st_atime, stat.st_mtime))  # the edit is undone: restore the timestamp so the binary is not left stale
+        m["build_artifacts_written_by_iterate"] = artifacts_since(a.target_dir, t2)
         run["scenarios"]["engine_change"] = m
-    run["cargo_calls_total"] = len(builds(log))
     run["note"] = "no model was involved: these are the launchpad's own costs. Token savings, completion time and smaller-model success are NOT measured here."
     print(json.dumps(run, indent=1))
     if not a.no_record:

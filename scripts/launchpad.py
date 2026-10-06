@@ -331,6 +331,15 @@ def dev_argv(root, *args):
     return ["powershell", "-File", "scripts\\dev.ps1", *args] if os.name == "nt" else ["scripts/dev", *args]
 
 
+def game2d_file(project):
+    """The `<name>.game2d.json` of a 2D project, else None. A 2D project is verified with `verify`/`web verify`; `scripts/red check` is the walk-project check
+    (on a 2D starter it reports `server.map '' is not one of the project's maps`), so 2D routes must never recommend it."""
+    try:
+        return next((f for f in sorted(os.listdir(project)) if f.endswith(".game2d.json")), None)
+    except OSError:
+        return None
+
+
 def action(summary, cwd, argv, success, compiles=False, network=False, after=None, kind="run"):
     return {"summary": summary, "kind": kind, "cwd": cwd, "argv": argv, "success": success, "compiles": compiles, "network": network, "then": after}
 
@@ -390,12 +399,13 @@ def plan_game_create(ctx):
         nxt = action("The requested combination is not supported by the engine: decide between a supported combination and an engine extension (see blockers)", ctx["cwd"],
                      ctx["red"] + ["capabilities"] if exe else ctx["self"] + ["start", "--help"], "the matrix names the supported neighbours", kind="decide")
     elif exe and os.path.isfile(os.path.join(target_dir, "game.json")):
-        nxt = action("The project already exists here: continue it", target_dir, ["scripts/red", "check"], "exit 0 (the starter's own checks pass)", kind="run")
+        g2 = game2d_file(target_dir)
+        nxt = action("The project already exists here: continue it", target_dir, ["scripts/red", "verify", g2] if g2 else ["scripts/red", "check"], "exit 0 (the project's own checks pass)", kind="run")
     elif exe:
         nxt = action(f"Create the starter ({kind}) pinned to this engine; it is green from its first commit", root,
                      [exe, "new-game", target_dir, "--kind", kind, "--name", plan["name"], "--engine-path", rel_engine],
-                     f"exit 0 and {os.path.join(target_dir, 'game.json')} exists; then run `scripts/red check` there",
-                     after={"argv": ["scripts/red", "check"], "cwd": target_dir})
+                     f"exit 0 and {os.path.join(target_dir, 'game.json')} exists; then run `{'scripts/red verify ' + plan['name'] + '.game2d.json' if kind == '2d' else 'scripts/red check'}` there",
+                     after={"argv": ["scripts/red", "verify", f"{plan['name']}.game2d.json"] if kind == "2d" else ["scripts/red", "check"], "cwd": target_dir})
     else:
         nb = res.get("next_build") or {}
         nxt = action("Build the engine CLI once (the starter, `propose` and `capabilities` all need it)", nb.get("cwd", root), nb.get("argv", dev_argv(root, "red", "describe", "--brief")),
@@ -463,7 +473,9 @@ def plan_delegated(ctx, workflow):
     missing = [] if exe else ["engine CLI: no fresh executable"]
     if workflow == "game-change":
         base = ["scripts/red"] if proj else ctx["red"]
-        nxt = action("Re-check the project as it is before changing it", proj or ctx["cwd"], base + ["check"], "exit 0 (cheap: only changed maps are re-verified)")
+        g2 = game2d_file(proj) if proj else None
+        nxt = action("Re-check the project as it is before changing it", proj or ctx["cwd"], base + (["verify", g2] if g2 else ["check"]),
+                     "exit 0 (the game's scenarios, picture and sound pass)" if g2 else "exit 0 (cheap: only changed maps are re-verified)")
         pointers = [{"what": "edit the blueprint, then build and check", "file": "CLAUDE.md (in the project)", "section": "the loop"}, {"what": "rules as data", "argv": ctx["red"] + ["describe", "rules"]}]
         loops = loop_commands("walk", os.path.basename(proj or "game"), proj, ctx["constraints"]) if proj and not any(f.endswith(".game2d.json") for f in os.listdir(proj)) else \
             loop_commands("2d", (next((f[:-len(".game2d.json")] for f in os.listdir(proj) if f.endswith(".game2d.json")), "game")), proj, ctx["constraints"]) if proj else {"iteration_checks": [], "final_requirements": []}
