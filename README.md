@@ -138,6 +138,11 @@ pickup/drop/shot/hit/kill/respawn/swing/prop_hit events can trigger rules, and r
 Online uses the same presentation: protocol v5 repeats a bounded authoritative rule-state snapshot (up to 16 variables, 256 hidden
 object indices and 64 collision-disabled objects, plus the recent event and outcome). Packet loss, reconnects and late joins recover current truth without replaying events.
 
+**Live reload.** `re2` watches the scene file it was started on: saving it re-validates it and applies it in place (the player keeps their place, view, weapon and ammunition;
+rule variables and loose props start again from the new scene). An invalid save changes nothing: the old content keeps running and the same `error:` lines `validate` prints appear in the
+terminal, the first one on screen. It is off online (the server's map hash would reject a different map), in split screen, and with `RE2_RELOAD=0`. For a 2D game in a browser,
+`red_engine2 web serve out/web/<id> --watch G.game2d.json` does the same for the open page. See ADR 2026-10-06-hot-reload-of-scene-content.
+
 This is a viewer, not an editor. The seeker's primary action on objects is **hitting them with
 the bat**: a raycast from the player's eye against the objects' *real shapes* finds what is
 within bat reach, the crosshair turns gold when something is in range, and only a swing that

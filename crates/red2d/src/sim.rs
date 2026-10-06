@@ -196,6 +196,11 @@ fn overlaps(ax: f32, ay: f32, aw: f32, ah: f32, bx: f32, by: f32, bw: f32, bh: f
     (ax - bx).abs() < (aw + bw) * 0.5 - eps && (ay - by).abs() < (ah + bh) * 0.5 - eps
 }
 
+/// One decimal place (a snapshot is read by people and agents).
+fn round1(v: f32) -> f64 {
+    (f64::from(v) * 10.0).round() / 10.0
+}
+
 impl Sim {
     /// A fresh game with the random seed `seed`.
     pub fn new(def: Arc<GameDef>, seed: u64) -> Sim {
@@ -434,6 +439,23 @@ impl Sim {
         h
     }
 
+    /// Hot reload: takes over what a player would not want to lose when the game's text is replaced while it runs. Every living entity of `self` (the new game) that has a scene
+    /// id also present in `old` gets the old entity's place, velocity and facing, and the camera and the music setting come across; everything else starts as the new
+    /// game says (variables, timers, entities without an id). Returns how many entities were carried.
+    pub fn carry_over(&mut self, old: &Sim) -> usize {
+        let mut carried = 0;
+        for e in self.entities.iter_mut().filter(|e| e.alive) {
+            let Some(id) = e.scene_id.as_deref() else { continue };
+            if let Some(o) = old.entities.iter().find(|o| o.alive && o.scene_id.as_deref() == Some(id)) {
+                (e.x, e.y, e.vx, e.vy, e.grounded, e.face_left) = (o.x, o.y, o.vx, o.vy, o.grounded, o.face_left);
+                carried += 1;
+            }
+        }
+        self.cam = old.cam;
+        self.music_on = old.music_on;
+        carried
+    }
+
     /// The hash as 16 hex digits.
     pub fn hash_hex(&self) -> String {
         format!("{:016x}", self.state_hash())
@@ -445,6 +467,13 @@ impl Sim {
         for (n, v) in self.def.var_names.iter().zip(&self.vars) {
             vars.insert(n.clone(), serde_json::json!(*v));
         }
+        // Where the entities that have a scene id are (the player is `p` by convention): what a hot reload keeps, and what an agent asks "where is it?".
+        let mut named = serde_json::Map::new();
+        for e in self.entities.iter().filter(|e| e.alive) {
+            if let Some(id) = &e.scene_id {
+                named.insert(id.clone(), serde_json::json!([round1(e.x), round1(e.y)]));
+            }
+        }
         serde_json::json!({
             "tick": self.tick,
             "seconds": self.t_ticks as f64 / TPS as f64,
@@ -454,6 +483,7 @@ impl Sim {
             "music_on": self.music_on,
             "hash": self.hash_hex(),
             "vars": vars,
+            "named": named,
         })
     }
 

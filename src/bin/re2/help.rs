@@ -16,6 +16,7 @@ pub(crate) const SWITCHES: &[(&str, &str)] = &[
     ("RE2_AUTOWALK", "forward | circle[:deg/s] | still: play by itself (a walker; combine with the next two)"),
     ("RE2_AUTOFIRE", "1: pull the trigger five times a second (with RE2_AUTOWALK)"),
     ("RE2_AUTOAIM", "1: a sentry that turns to the nearest enemy it can see and fires (with RE2_AUTOWALK)"),
+    ("RE2_RELOAD", "0: do not watch the scene file (by default saving it re-validates and applies it in place; off online and in split screen)"),
     ("RE2_PLAYERS", "N (1-4): local players sharing the screen, as --players N"),
     (
         "RE2_SAVE_DIR",

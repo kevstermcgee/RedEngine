@@ -282,6 +282,9 @@ pub(crate) enum WebCmd {
         /// Port (0 = any free one).
         #[arg(long, default_value_t = 8080)]
         port: u16,
+        /// Live reload: watch this `.game2d.json`; saving it validates it and the open page applies it in place (named entities stay where they are) or shows the problems.
+        #[arg(long)]
+        watch: Option<PathBuf>,
     },
     /// Run a built package in a real headless Chromium: the page loads, the module initialises, the first frame equals the native frame, scripted keys and clicks change the
     /// state, saves survive a reload (and failing/foreign/corrupt storage does not break the game), audio starts after a gesture, console and network are clean.

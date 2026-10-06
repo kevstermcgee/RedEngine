@@ -115,6 +115,7 @@ impl App {
             "gpu": self.gpu_kind,
             "size": size,
             "phase": self.phase_name(),
+            "scene": {"objects": self.scene.objects.len(), "reloads": self.reloads, "reload_failed": self.reload_failed},
             "view": if self.view_mode == ViewMode::ThirdPerson { "third" } else { "first" },
             "player": {
                 "character": self.character.name(),

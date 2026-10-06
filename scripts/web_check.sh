@@ -94,4 +94,8 @@ py="${RED2D_BROWSER_PYTHON:-}"; [ -n "$py" ] || { home="${RED2D_BROWSER_HOME:-${
 echo "== fresh-agent reference run"
 engine_bin="$(cargo metadata --format-version 1 --no-deps 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')/debug/red_engine2"
 [ -x "$engine_bin" ] && { python3 scripts/agent_bench.py reference out/bench-reference --engine "$engine_bin" || status=1; } || echo "SKIPPED: no $engine_bin"
+# Live reload (ADR 2026-10-06-hot-reload-of-scene-content): `web serve --watch` and the player page in a real browser: a valid save applies in place and keeps the player, an invalid
+# one shows validate's words and changes nothing, and a plain `web serve` never polls.
+echo "== live reload"
+[ -x "$engine_bin" ] && { mkdir -p out; "$py" crates/red2d/web/dev_reload_check.py --engine "$engine_bin" --game examples/2d/coin-dash.game2d.json --runs 3 > out/dev-reload.json || { cat out/dev-reload.json; status=1; }; } || echo "SKIPPED: no $engine_bin"
 exit $status

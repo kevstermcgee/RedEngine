@@ -430,6 +430,36 @@
     } catch (e) { cancelAnimationFrame(rafId); fail(e); }
   }
 
+  // ---- live reload (only a `web serve --watch` server turns this on: it adds `dev_reload` to the manifest it serves; a published package never polls) -----------------------
+  let devSeed = 1, devVersion = null, devBox = null;
+  function devNote(text) {                              // the problems of a save that was not applied (the game keeps running), or nothing
+    if (!devBox) {
+      devBox = document.createElement('pre'); devBox.id = 'devnote';
+      devBox.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;max-height:40vh;overflow:auto;margin:0;padding:8px 10px;background:#300c;color:#fcc;font:12px/1.4 monospace;border:1px solid #f66;z-index:99;white-space:pre-wrap';
+      document.body.appendChild(devBox);
+    }
+    devBox.hidden = !text; devBox.textContent = text || '';
+    status.dev_error = text || null;
+  }
+  async function devPoll() {
+    try {
+      const r = await fetch('__dev/state', { cache: 'no-store' });
+      if (!r.ok) return;
+      const st = await r.json();
+      if (devVersion === null) { devVersion = st.version; if (!st.error) return; }   // the first look only learns the version (and shows a problem that was already there)
+      else if (st.version === devVersion) return;
+      devVersion = st.version;
+      if (st.error) { devNote('SAVED FILE NOT APPLIED: the game keeps running\n' + st.error.join('\n')); return; }
+      const g = await fetch('assets/game.json', { cache: 'no-store' });
+      const rc = withText(await g.text(), (p, n) => x().reload(p, n, devSeed));
+      if (rc !== 0) { devNote('SAVED FILE NOT APPLIED: the game keeps running\n' + outText(x().error())); return; }
+      devNote(null);
+      canvas.width = x().view_w(); canvas.height = x().view_h();
+      loadSave(); relayout(); draw();
+      status.reloads = (status.reloads || 0) + 1;
+    } catch (e) { /* the dev server went away: nothing to do */ }
+  }
+
   async function main() {
     try {
       canvas = document.getElementById('screen'); stage = document.getElementById('stage');
@@ -444,6 +474,7 @@
       catch (e) { throw new Error('game.wasm could not be started: ' + ((e && e.message) || e)); }
       status.wasm = true; status.game = manifest.game || null;
       const seed = (Number(params.get('seed')) || 1) >>> 0;
+      devSeed = seed;
       const rc = withText(gameText, (p, n) => x().init(p, n, seed));
       if (rc !== 0) throw new Error('the game was refused:\n' + outText(x().error()));
       canvas.width = x().view_w(); canvas.height = x().view_h();
@@ -457,6 +488,7 @@
       window.addEventListener('touchend', () => { if (audio && audio.state === 'suspended') audio.resume(); }, { passive: true });
       draw();
       const t = document.getElementById('title'); if (t) t.textContent = manifest.game.title;
+      if (manifest.dev_reload) setInterval(devPoll, 400);
       status.ready_ms = Math.round(performance.now());
       status.state = 'ready'; document.body.dataset.state = 'ready';
       const o = document.getElementById('start'); if (o) o.hidden = false;

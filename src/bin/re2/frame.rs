@@ -489,6 +489,8 @@ impl App {
     }
 
     pub(crate) fn update(&mut self, dt: f32) {
+        // Content hot reload runs first and even while paused or unfocused: an editor in front of the window is the usual case.
+        self.hot_reload_check();
         // Online, the connection must be serviced even when the window is not focused (or the server
         // would time us out), so the simulation keeps ticking; offline it pauses like before.
         // A start or end card is up: the game waits for its button (the clock still runs for scripts and pictures).
@@ -763,6 +765,7 @@ impl App {
         }
         self.split = split;
         self.phase = Phase::Playing;
+        self.start_hot_reload_watch();
         self.rule_hud_painted = None;
         self.split_hud_painted.clear();
         self.start_music();
@@ -777,7 +780,7 @@ impl App {
     }
 
     /// Brings `colliders` and `ground` to what [`PhysicalWorld`] says exists now: the scene's generated world, and every object whose collision the rules have not switched off.
-    fn rebuild_collision_world(&mut self) {
+    pub(crate) fn rebuild_collision_world(&mut self) {
         let Some(world) = self.physical.as_mut() else { return };
         world.set_collision_disabled(self.rules.collision_disabled());
         self.colliders = world.colliders().to_vec();

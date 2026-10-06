@@ -37,6 +37,7 @@ pub const ABI: &[&str] = &[
     "alloc",
     "dealloc",
     "init",
+    "reload",
     "error",
     "step",
     "render",
@@ -68,6 +69,10 @@ pub const ABI: &[&str] = &[
     "out_ptr",
     "out_len",
 ];
+
+/// The one URL `runtime.js` loads that is not a package file: the live-reload state only `web serve --watch` answers. The page polls it only when the manifest it was served
+/// says `dev_reload` (which only that server adds), so a published package never requests it; the self-containment check allows this literal and no other.
+pub const DEV_STATE_ENDPOINT: &str = "__dev/state";
 
 /// What was built.
 pub struct Built {
@@ -635,7 +640,7 @@ pub fn check(dir: &Path) -> Vec<Row> {
                     }
                     if target.starts_with('/') || target.contains("://") {
                         problems.push(format!("{p} refers to `{target}`: only relative, packaged files are allowed"));
-                    } else if target != "manifest.json" && !listed_paths.contains(target) {
+                    } else if target != "manifest.json" && target != DEV_STATE_ENDPOINT && !listed_paths.contains(target) {
                         problems.push(format!("{p} loads `{target}`, which the manifest does not declare"));
                     }
                 }
@@ -759,12 +764,65 @@ pub fn mime(path: &str) -> &'static str {
 
 /// Serves a package directory on 127.0.0.1 until the process is stopped; returns only on a bind error.
 pub fn serve(dir: &Path, port: u16, announce: impl Fn(u16)) -> Result<(), String> {
+    serve_with(dir, port, announce, None)
+}
+
+/// What the live-reload dev server knows about the game file it watches.
+#[derive(Default)]
+pub struct DevState {
+    /// Counts every save seen (valid or not): the page reloads when it changes.
+    pub version: u64,
+    /// The newest text that validated (served as `assets/game.json` from memory; the package on disk is never touched).
+    pub text: Option<String>,
+    /// The problems of the newest save, when it did not validate (the page keeps its game and shows them).
+    pub error: Option<Vec<String>>,
+}
+
+/// Looks at `game` every quarter second and, when its content changed, validates it the way `validate` does and records the result in `state`.
+fn watch_game(game: PathBuf, state: std::sync::Arc<std::sync::Mutex<DevState>>) {
+    let mut seen = std::fs::read_to_string(&game).unwrap_or_default();
+    let mut mtime = std::fs::metadata(&game).and_then(|m| m.modified()).ok();
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        let now = std::fs::metadata(&game).and_then(|m| m.modified()).ok();
+        if now == mtime {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&game) else { continue }; // mid-save: look again
+        mtime = now;
+        if text == seen {
+            continue;
+        }
+        seen = text.clone();
+        let report = super::game2d::validate(&game);
+        let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
+        st.version += 1;
+        if report.ok {
+            st.text = Some(text);
+            st.error = None;
+        } else {
+            st.error = Some(report.text.lines().filter(|l| !l.trim().is_empty()).map(str::to_string).collect());
+        }
+    }
+}
+
+/// [`serve`], and with `watch` set (a `.game2d.json` source) also a live-reload dev server: saving that file validates it, and a player page started from this server
+/// applies a valid save in place (keeping the named entities where they are) or shows the problems and keeps running. Only this server turns it on (it adds
+/// `dev_reload` to the manifest it serves); a published package never polls.
+pub fn serve_with(dir: &Path, port: u16, announce: impl Fn(u16), watch: Option<PathBuf>) -> Result<(), String> {
     use std::io::{BufRead, BufReader, Write};
     let l = std::net::TcpListener::bind(("127.0.0.1", port)).map_err(|e| format!("cannot listen on 127.0.0.1:{port}: {e}"))?;
     announce(l.local_addr().map(|a| a.port()).unwrap_or(port));
     let dir = dir.to_path_buf();
+    let dev = watch.map(|g| {
+        let state = std::sync::Arc::new(std::sync::Mutex::new(DevState::default()));
+        let s2 = std::sync::Arc::clone(&state);
+        std::thread::spawn(move || watch_game(g, s2));
+        state
+    });
     for conn in l.incoming().flatten() {
         let dir = dir.clone();
+        let dev = dev.clone();
         std::thread::spawn(move || {
             let mut conn = conn;
             let mut line = String::new();
@@ -775,18 +833,40 @@ pub fn serve(dir: &Path, port: u16, announce: impl Fn(u16)) -> Result<(), String
             let rel = path.trim_start_matches('/');
             let indexed;
             let rel = if rel.is_empty() || rel.ends_with('/') || dir.join(rel).is_dir() {
-                indexed = format!("{}/index.html", rel.trim_end_matches('/')).trim_start_matches('/').to_string(); // a directory serves its index.html, as every static host does
+                indexed = format!("{}/index.html", rel.trim_end_matches('/')).trim_start_matches('/').to_string(); // a directory serves its index.html, as every static h
                 indexed.as_str()
             } else {
                 rel
             };
             let ok = !rel.contains("..") && !rel.contains('\\');
-            let body = if ok { std::fs::read(dir.join(rel)).ok() } else { None };
+            let mut mime_type = mime(rel);
+            let body = if !ok {
+                None
+            } else if let (Some(dev), "__dev/state") = (&dev, rel) {
+                mime_type = "application/json; charset=utf-8";
+                let st = dev.lock().unwrap_or_else(|e| e.into_inner());
+                Some(serde_json::json!({"version": st.version, "error": st.error}).to_string().into_bytes())
+            } else if let (Some(dev), "assets/game.json") = (&dev, rel) {
+                // The newest text that validated, from memory; before the first save, the package's own file.
+                let live = dev.lock().unwrap_or_else(|e| e.into_inner()).text.clone();
+                live.map(String::into_bytes).or_else(|| std::fs::read(dir.join(rel)).ok())
+            } else if let (Some(_), "manifest.json") = (&dev, rel) {
+                // Only the dev server asks the page to poll for saves.
+                std::fs::read(dir.join(rel)).ok().map(|b| match serde_json::from_slice::<serde_json::Value>(&b) {
+                    Ok(mut m) => {
+                        m["dev_reload"] = serde_json::json!(true);
+                        m.to_string().into_bytes()
+                    }
+                    Err(_) => b,
+                })
+            } else {
+                std::fs::read(dir.join(rel)).ok()
+            };
             let _ = match body {
                 Some(b) => {
                     let head = format!(
                         "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
-                        mime(rel),
+                        mime_type,
                         b.len()
                     );
                     conn.write_all(head.as_bytes()).and_then(|_| conn.write_all(&b))

@@ -65,11 +65,27 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
                 Err(format!("{failed} check(s) failed"))
             }
         }
-        WebCmd::Serve { dir, port } => {
+        WebCmd::Serve { dir, port, watch } => {
             if !dir.join("manifest.json").is_file() {
                 return Err(format!("{} has no manifest.json: build a package first (`red_engine2 web build GAME`)", dir.display()));
             }
-            webpkg::serve(&dir, port, |p| println!("serving {} on http://127.0.0.1:{p}/ (Ctrl-C to stop)", dir.display()))
+            if let Some(g) = &watch {
+                if !g.is_file() {
+                    return Err(format!("--watch {}: no such game file", g.display()));
+                }
+            }
+            let announced = watch.clone();
+            webpkg::serve_with(
+                &dir,
+                port,
+                |p| {
+                    println!("serving {} on http://127.0.0.1:{p}/ (Ctrl-C to stop)", dir.display());
+                    if let Some(g) = &announced {
+                        println!("live reload: save {} and the open page applies it (or shows what is wrong)", g.display());
+                    }
+                },
+                watch,
+            )
         }
         WebCmd::Status { game } => {
             let v = red_engine2::tools::webstatus::status(&game, Path::new("."));

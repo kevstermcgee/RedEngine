@@ -424,7 +424,7 @@ scripts/red publish {{ID}}.game2d.json           # the pipeline to a site; it sa
 ```
 - Updating the game later: edit the JSON, run `scripts/red web status {{ID}}.game2d.json`, run the loop again. A passing run is never a claim that a person played it.
 - Edit the JSON only. A scenario that asserts nothing is refused; write the playthrough and its `expect` first, then the rules.
-- `validate`/`verify` prove the rules, the picture and the sound waveform. They do not prove it is fun or that it sounds right: play it (`scripts/red web serve out/web/{{ID}}`).
+- `validate`/`verify` prove the rules, the picture and the sound waveform. They do not prove it is fun or that it sounds right: play it (`scripts/red web serve out/web/{{ID}} --watch {{ID}}.game2d.json`: every save applies live, or shows what is wrong).
 - Record progress: `scripts/red status --note "what changed" --section done|now|next`.
 "#;
 

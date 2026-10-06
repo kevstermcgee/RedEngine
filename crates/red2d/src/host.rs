@@ -46,6 +46,25 @@ impl Host {
         Ok(())
     }
 
+    /// Hot reload: replaces the running game with `game_text` and carries over the named entities' places (see [`Sim::carry_over`]); returns how many. On an error nothing
+    /// changes and the old game keeps running.
+    pub fn reload(&mut self, game_text: &str, seed: u64) -> Result<usize, String> {
+        let def = game::parse(game_text).map_err(|e| e.join("\n"))?;
+        let mut sim = Sim::new(Arc::new(def), seed);
+        let carried = self.sim.as_ref().map_or(0, |old| sim.carry_over(old));
+        self.frame = Frame::new(sim.def.view.width, sim.def.view.height, sim.def.view.background);
+        self.sim = Some(sim);
+        self.set_window(self.window.0, self.window.1);
+        self.render();
+        Ok(carried)
+    }
+
+    /// Test helper: the x of the scene entity `p`.
+    #[cfg(test)]
+    fn player_x(&self) -> f32 {
+        self.sim.as_ref().and_then(|s| s.entities.iter().find(|e| e.scene_id.as_deref() == Some("p"))).map(|e| e.x).unwrap()
+    }
+
     fn sim(&mut self) -> &mut Sim {
         self.sim.as_mut().expect("init first")
     }
@@ -234,6 +253,26 @@ mod tests {
         let rows: serde_json::Value = serde_json::from_str(&h.scenarios_json()).unwrap();
         assert_eq!(rows[0]["ok"], true, "{rows}");
         assert_eq!(rows[0]["smoke"], true);
+    }
+
+    #[test]
+    fn a_reload_keeps_named_entities_where_they_were_and_a_refused_text_changes_nothing() {
+        let mut h = Host::default();
+        h.init(GAME, 1).unwrap();
+        h.key("ArrowRight", true);
+        h.step(30);
+        let moved = h.player_x();
+        assert!(moved > 21.0, "the player walked ({moved})");
+        // An edit that changes the game (a wider view, a new prefab and entity) keeps the player where they are.
+        let edited =
+            GAME.replace("\"width\":160", "\"width\":200").replace("\"scene\":[", "\"scene\":[{\"prefab\":\"player\",\"at\":[100,10],\"id\":\"other\"},");
+        assert_eq!(h.reload(&edited, 1), Ok(1), "one named entity existed in both: the player");
+        assert_eq!(h.view_size(), (200, 90), "the new game's view");
+        assert_eq!(h.player_x(), moved, "the player stays where they were");
+        // A refused text: the error names the problem and the running game is untouched.
+        let e = h.reload(&GAME.replace("\"persist\":[\"best\"]", "\"persist\":[\"nope\"]"), 1).unwrap_err();
+        assert!(e.contains("persist[0]"), "{e}");
+        assert_eq!((h.view_size(), h.player_x()), ((200, 90), moved));
     }
 
     #[test]

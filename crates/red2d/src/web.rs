@@ -88,6 +88,20 @@ pub extern "C" fn init(p: *const u8, n: usize, seed: u32) -> i32 {
     }
 }
 
+/// Hot reload: replaces the running game with new text, carrying over the named entities' places (see `Sim::carry_over`); 0 = applied, 1 = refused (the old game keeps running;
+/// see [`error`]).
+#[no_mangle]
+pub extern "C" fn reload(p: *const u8, n: usize, seed: u32) -> i32 {
+    let t = text(p, n).to_string();
+    match with(|h| h.reload(&t, u64::from(seed))) {
+        Ok(_) => 0,
+        Err(e) => {
+            ERR.with(|x| *x.borrow_mut() = e);
+            1
+        }
+    }
+}
+
 /// The refusal text of the last failed [`init`], placed in the output buffer; its length.
 #[no_mangle]
 pub extern "C" fn error() -> usize {

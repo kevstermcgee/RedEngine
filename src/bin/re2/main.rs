@@ -66,6 +66,7 @@ mod help;
 mod kc;
 mod online;
 mod project_browser;
+mod reload;
 mod shots;
 mod weapons;
 mod window;
@@ -475,6 +476,12 @@ struct App {
     snapshots: Vec<(String, serde_json::Value)>,
     /// Everything that went wrong that a person would only notice by looking: warnings from the session, failed expectations, shots that could not be taken.
     failures: Vec<String>,
+    /// Watches the scene file for hot reload (`reload.rs`); `None` online, in split screen, before the game starts, and with `RE2_RELOAD=0`.
+    reload_watch: Option<reload::Watch>,
+    /// The errors of the last save that could not be applied (the old content kept running), until a save applies.
+    reload_failed: Option<Vec<String>>,
+    /// How many times the content was replaced in place.
+    reloads: u32,
     /// `F3`: the debug overlay (frame rate, ping, the remote-player counters), its lines and the smoothed frame rate.
     debug_hud: bool,
     debug_text: Vec<String>,
@@ -690,6 +697,9 @@ impl App {
             kart_sound: Default::default(),
             snapshots: Vec::new(),
             failures: Vec::new(),
+            reload_watch: None,
+            reload_failed: None,
+            reloads: 0,
             debug_hud: false,
             debug_text: Vec::new(),
             fps_avg: 60.0,
