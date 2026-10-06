@@ -73,12 +73,15 @@ def main():
     ap.add_argument("--dir")
     ap.add_argument("--url")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--engine", default="chromium", choices=["chromium", "firefox", "webkit"], help="the browser engine (Chromium is the default and the only one with an installability probe and a phone emulation)")
     a = ap.parse_args()
+    chromium_only = a.engine == "chromium"
     os.makedirs(a.out, exist_ok=True)
     rows = ROWS
 
-    def check(name, ok, detail, claim="browser"):
-        rows.append({"ok": bool(ok), "claim": claim, "name": name, "detail": detail})
+    def check(name, ok, detail, claim="browser", ev=None):
+        """One row. `ev` names the piece of publication evidence this row is a proof of (a key of publish2d::EVIDENCE); a row without one is context, never a claim."""
+        rows.append({"ok": bool(ok), "claim": claim, "name": name, "detail": detail, "evidence": ev})
 
     srv = None
     if a.dir:
@@ -103,13 +106,42 @@ def main():
     native = manifest["native"]
     persists_caps = bool(game["persistence"])
     out = {"base": base, "game": gid, "package_id": manifest.get("package_id")}
+    # Evidence this game cannot produce because it never claimed the feature: said here, so "not applicable" is the game's declaration and never the verifier's silence.
+    declared = set(game["input"])
+    has_audio_decl = bool(gjson.get("sounds")) or bool(gjson.get("music"))
+    out["not_applicable"] = {}
+    for keys, reason, present in (
+        (("persistence_write", "persistence_reload"), "the game declares no persistence", persists_caps),
+        (("audio_api", "audio_playback"), "the game has no sounds or music", has_audio_decl),
+        (("input_touch",), "the game does not declare touch input", "touch" in declared),
+        (("input_keyboard",), "the game does not declare keyboard input", "keyboard" in declared),
+        (("input_pointer",), "the game does not declare mouse input (an on-screen pad is `input_touch`, not a click on the picture)", "mouse" in declared),
+        (("input_gamepad",), "the game does not declare gamepad input", "gamepad" in declared),
+    ):
+        if not present:
+            for k in keys:
+                out["not_applicable"][k] = reason
+
+
+    def do_input(pg, bc):
+        """Performs a browser check's real input (a click, held keys) on a page that is running: what makes the game write the progress the check is about."""
+        lay = pg.evaluate("__red2d.layout()")
+        if bc.get("click"):
+            pg.mouse.click(lay["x"] + bc["click"][0] * lay["w"] / vw, lay["y"] + bc["click"][1] * lay["h"] / vh)
+        for k in bc.get("keys", []):
+            pg.keyboard.down(k)
+        if bc.get("keys"):
+            pg.wait_for_timeout(bc.get("ms", 300) + 300)
+        for k in reversed(bc.get("keys", [])):
+            pg.keyboard.up(k)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        out["browser"] = "Chromium " + browser.version
+        browser = getattr(p, a.engine).launch()
+        out["browser"] = {"chromium": "Chromium", "firefox": "Firefox", "webkit": "WebKit"}[a.engine] + " " + browser.version
+        out["engine"] = a.engine
 
-        def new_page(init_script=None, viewport=(960, 540)):
-            ctx = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]})
+        def new_page(init_script=None, viewport=(960, 540), has_touch=False):
+            ctx = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]}, has_touch=has_touch)
             if init_script:
                 ctx.add_init_script(init_script)
             pg = ctx.new_page()
@@ -133,7 +165,7 @@ def main():
         resp = pg.goto(base + "/index.html?paused=1")
         check("html loads", resp is not None and resp.status == 200 and pg.title() == game["title"], "HTTP %s, title %r" % (resp and resp.status, pg.title()))
         st = ready(pg)
-        check("wasm initialises", st["wasm"] and st["state"] == "ready", "state=%s wasm=%s%s" % (st["state"], st["wasm"], (" error=" + str(st["error"])) if st["error"] else ""))
+        check("wasm initialises", st["wasm"] and st["state"] == "ready", "state=%s wasm=%s%s" % (st["state"], st["wasm"], (" error=" + str(st["error"])) if st["error"] else ""), ev="wasm_instantiated")
         if st["state"] == "ready":
             snap = pg.evaluate("__red2d.snapshot()")
             check("initial state equals native", snap["hash"] == native["initial"]["state_hash"] and snap["tick"] == 0, "browser %s, native %s (tick %s)" % (snap["hash"], native["initial"]["state_hash"], snap["tick"]))
@@ -159,7 +191,7 @@ def main():
             want = {s["name"]: s for s in native["scenarios"]}
             wrong = ["%s: browser %s vs native %s" % (s["name"], s["hash"], want[s["name"]]["hash"]) for s in sc if s["name"] in want and s["hash"] != want[s["name"]]["hash"]]
             failed = ["%s: %s" % (s["name"], "; ".join(s["failures"])) for s in sc if not s["ok"]]
-            check("scenarios replay identically in the browser", sc and not wrong and not failed, ("%d scenario(s), every final state hash equals the native run" % len(sc)) if sc and not wrong and not failed else "; ".join(wrong + failed) or "the game has no scenarios")
+            check("scenarios replay identically in the browser", sc and not wrong and not failed, ("%d scenario(s), every final state hash equals the native run" % len(sc)) if sc and not wrong and not failed else "; ".join(wrong + failed) or "the game has no scenarios", ev="browser_scenarios")
             # resolution independence
             lay_bad = []
             for (w, hh) in [(800, 600), (1600, 400), (400, 800), (1280, 720)]:
@@ -206,23 +238,24 @@ def main():
                 except Exception:
                     pass
                 s = pg.evaluate("__red2d.status()")
-                check("browser audio initialised", s["audio"] == "running", "Web Audio context state after the first key press: %s (it starts only inside a user gesture)" % s["audio"], claim="browser-audio")
+                check("browser audio initialised", s["audio"] == "running", "Web Audio context state after the first key press: %s (it starts only inside a user gesture)" % s["audio"], claim="browser-audio", ev="audio_api")
                 if gjson.get("sounds"):
                     r = pg.evaluate("__red2d.testSound(0)")
-                    check("a sound plays through Web Audio", r.get("ok") and r.get("seconds", 0) > 0.05, json.dumps(r), claim="browser-audio")
+                    check("a sound plays through Web Audio", r.get("ok") and r.get("seconds", 0) > 0.05, json.dumps(r), claim="browser-audio", ev="audio_playback")
                 if gjson.get("music"):
                     try:
                         wait_js(pg, "__red2d.status().music === 'playing'", 6000)
                     except Exception:
                         pass
                     s = pg.evaluate("__red2d.status()")
-                    check("music starts after the gesture", s["music"] == "playing", "music state: %s (the loop took %s ms to render, in a worker: %s; it stalled the page for %s ms)" % (s["music"], s.get("music_ms"), s.get("music_worker"), s.get("music_blocked_ms")), claim="browser-audio")
-                    longest = max(pg.evaluate("window.__longtasks") or [0])
-                    check("the page stays responsive while the music is made", longest < 250, "the longest main-thread task from page load to music playing was %d ms (limit 250 ms; a render on the main thread would show here)" % longest)
+                    check("music starts after the gesture", s["music"] == "playing", "music state: %s (the loop took %s ms to render, in a worker: %s; it stalled the page for %s ms)" % (s["music"], s.get("music_ms"), s.get("music_worker"), s.get("music_blocked_ms")), claim="browser-audio", ev="audio_playback")
+                    if chromium_only:  # the long-task observer exists only in Chromium: elsewhere nothing is measured, so nothing is claimed
+                        longest = max(pg.evaluate("window.__longtasks") or [0])
+                        check("the page stays responsive while the music is made", longest < 250, "the longest main-thread task from page load to music playing was %d ms (limit 250 ms; a render on the main thread would show here)" % longest)
             before = pg.evaluate("__red2d.snapshot()")["tick"]
             pg.wait_for_timeout(1000)
             after = pg.evaluate("__red2d.snapshot()")["tick"]
-            check("time advances in real time", 30 <= after - before <= 120, "%d ticks in ~1 s (60 expected)" % (after - before))
+            check("time advances in real time", 30 <= after - before <= 120, "%d ticks in ~1 s (60 expected)" % (after - before), ev="playable_state")
             # the game's own browser checks, with real key and mouse events
             for bc in manifest.get("browser_checks", []):
                 snap0 = pg.evaluate("__red2d.snapshot()")
@@ -242,7 +275,7 @@ def main():
                     pg.keyboard.up(k)
                 snap1 = pg.evaluate("__red2d.snapshot()")
                 changed = [n for n in bc["changes"] if snap0["vars"].get(n) != snap1["vars"].get(n)]
-                check("input: " + bc["name"], bool(changed), ("%s changed (%s -> %s)" % (changed[0], snap0["vars"].get(changed[0]), snap1["vars"].get(changed[0]))) if changed else "none of %s changed after the input" % bc["changes"])
+                check("input: " + bc["name"], bool(changed), ("%s changed (%s -> %s)" % (changed[0], snap0["vars"].get(changed[0]), snap1["vars"].get(changed[0]))) if changed else "none of %s changed after the input" % bc["changes"], ev="input_keyboard" if bc.get("keys") else "input_pointer")
                 if bc.get("persists") and changed:
                     pg.wait_for_timeout(250)
                     saved = pg.evaluate("localStorage.getItem(%s)" % json.dumps(key))
@@ -252,14 +285,15 @@ def main():
                     snap2 = pg.evaluate("__red2d.snapshot()")
                     st2 = pg.evaluate("__red2d.status()")
                     got = {n: snap2["vars"].get(n) for n in bc["persists"]}
-                    check("persistence survives reload: " + bc["name"], saved is not None and got == want and st2["save"] == "loaded", "saved %s; after reload %s (wanted %s); save status %s" % ("yes" if saved else "NO", got, want, st2["save"]))
+                    check("persistence: progress was written to browser storage: " + bc["name"], saved is not None, "localStorage[%s] %s after the input" % (key, "holds a save" if saved else "is EMPTY"), ev="persistence_write")
+                    check("persistence survives reload: " + bc["name"], saved is not None and got == want and st2["save"] == "loaded", "saved %s; after reload %s (wanted %s); save status %s" % ("yes" if saved else "NO", got, want, st2["save"]), ev="persistence_reload")
                     # leave the page running again for the next check
                     pg.keyboard.press("Enter")
                     wait_js(pg, "__red2d.status().state === 'running'", 5000)
             pg.wait_for_timeout(300)
             pg.screenshot(path=os.path.join(a.out, "browser-running.png"))
             s = pg.evaluate("__red2d.status()")
-            check("game still running", s["state"] == "running", "state=%s frames=%d ticks=%d" % (s["state"], s["frames"], s["ticks"]))
+            check("game still running", s["state"] == "running", "state=%s frames=%d ticks=%d" % (s["state"], s["frames"], s["ticks"]), ev="playable_state")
         errs = fatal(log)
         check("no console errors (played page)", not errs, "none" if not errs else "; ".join(errs[:5]))
         ctx.close()
@@ -311,9 +345,7 @@ def main():
                 ready(pg)
                 pg.keyboard.press("Enter")
                 wait_js(pg, "__red2d.status().state === 'running'", 5000)
-                lay = pg.evaluate("__red2d.layout()")
-                if persists_check.get("click"):
-                    pg.mouse.click(lay["x"] + persists_check["click"][0] * lay["w"] / vw, lay["y"] + persists_check["click"][1] * lay["h"] / vh)
+                do_input(pg, persists_check)
                 pg.wait_for_timeout(400)
                 had = pg.evaluate("localStorage.getItem(%s)" % json.dumps(key))
                 pg.evaluate("__red2d.resetSave()")
@@ -332,16 +364,17 @@ def main():
         except Exception:
             pass
         st = pg.evaluate("__red2d.status()")
-        check("install: a service worker stores the whole game", st["offline"] == "ready", "offline support: %s (a service worker needs https or localhost)" % st["offline"])
+        check("install: a service worker stores the whole game", st["offline"] == "ready", "offline support: %s (a service worker needs https or localhost)" % st["offline"], ev="offline_cache")
         if st["offline"] == "ready":
             pg.reload()
             ready(pg)
-            cdp = ctx.new_cdp_session(pg)
-            try:
-                errs = cdp.send("Page.getInstallabilityErrors").get("installabilityErrors", [])
-                check("install: the browser says the page is installable", not errs, "no installability errors (manifest, icons, service worker with a fetch handler)" if not errs else "; ".join("%s %s" % (e.get("errorId"), e.get("errorArguments")) for e in errs))
-            except Exception as e:
-                check("install: the browser says the page is installable", False, "could not ask the browser: %s" % e)
+            if chromium_only:  # `Page.getInstallabilityErrors` is a Chromium protocol call: another engine makes no installability claim
+                cdp = ctx.new_cdp_session(pg)
+                try:
+                    errs = cdp.send("Page.getInstallabilityErrors").get("installabilityErrors", [])
+                    check("install: the browser says the page is installable", not errs, "no installability errors (manifest, icons, service worker with a fetch handler)" if not errs else "; ".join("%s %s" % (e.get("errorId"), e.get("errorArguments")) for e in errs), ev="installable")
+                except Exception as e:
+                    check("install: the browser says the page is installable", False, "could not ask the browser: %s" % e, ev="installable")
             ctx.set_offline(True)
             try:
                 pg.reload()
@@ -349,9 +382,9 @@ def main():
                 tick0 = pg.evaluate("__red2d.snapshot()")["tick"]
                 pg.evaluate("__red2d.advance(30)")
                 tick1 = pg.evaluate("__red2d.snapshot()")["tick"]
-                check("install: it plays with the network off", st2["state"] == "ready" and tick1 - tick0 == 30, "reloaded offline: state=%s, advanced %d ticks" % (st2["state"], tick1 - tick0))
+                check("install: it plays with the network off", st2["state"] == "ready" and tick1 - tick0 == 30, "reloaded offline: state=%s, advanced %d ticks" % (st2["state"], tick1 - tick0), ev="offline_reload")
             except Exception as e:
-                check("install: it plays with the network off", False, "reload with no network failed: %s" % e)
+                check("install: it plays with the network off", False, "reload with no network failed: %s" % e, ev="offline_reload")
             ctx.set_offline(False)
         pg.keyboard.press("Enter")
         wait_js(pg, "__red2d.status().state === 'running'", 5000)
@@ -360,13 +393,11 @@ def main():
         except Exception:
             pass
         st = pg.evaluate("__red2d.status()")
-        check("storage: the game asked the browser to keep its saves", st["persistent"] is not None, "navigator.storage.persist() answered %s (a browser may say no; the answer is shown, not assumed)" % st["persistent"])
+        check("storage: the game asked the browser to keep its saves", st["persistent"] is not None or not chromium_only, "navigator.storage.persist() answered %s (a browser may say no, or ask the user and not answer for a while: Firefox does; the answer is shown, not assumed)" % st["persistent"])
         if game["persistence"]:
             pc = next((bc for bc in manifest.get("browser_checks", []) if bc.get("persists")), None)
             if pc:
-                lay = pg.evaluate("__red2d.layout()")
-                if pc.get("click"):
-                    pg.mouse.click(lay["x"] + pc["click"][0] * lay["w"] / vw, lay["y"] + pc["click"][1] * lay["h"] / vh)
+                do_input(pg, pc)
                 pg.wait_for_timeout(400)
                 before = pg.evaluate("__red2d.snapshot()")["vars"]
                 pg.reload()
@@ -374,7 +405,7 @@ def main():
                 pg.wait_for_load_state("load")
                 pg.wait_for_timeout(300)
                 try:
-                    with pg.expect_download(timeout=5000) as dl:
+                    with pg.expect_download(timeout=20000) as dl:
                         pg.evaluate("document.getElementById('backup').click()")
                     path = dl.value.path()
                     text = open(path).read()
@@ -401,7 +432,7 @@ def main():
 
         # ---- phase D: a phone (touch, small screen): the controller sits below the game, never over it, and real touches drive the game ----------------------------------
         controls = game.get("controls") or {}
-        if "touch" in game["input"]:
+        if "touch" in game["input"] and chromium_only:  # the phone emulation (is_mobile, CDP touch points) exists in Chromium only
             KEY_ACTION = {"ArrowLeft": "left", "KeyA": "left", "ArrowRight": "right", "KeyD": "right", "ArrowUp": "up", "KeyW": "up", "ArrowDown": "down", "KeyS": "down", "Space": "action", "KeyZ": "action", "KeyJ": "action", "ShiftLeft": "secondary", "KeyX": "secondary", "KeyK": "secondary", "Escape": "pause", "KeyP": "pause"}
             UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
             ctx = browser.new_context(viewport={"width": 390, "height": 760}, device_scale_factor=3, is_mobile=True, has_touch=True, user_agent=UA)
@@ -506,7 +537,7 @@ def main():
                     snap1 = pg.evaluate("__red2d.snapshot()")
                     after = pg.evaluate("__red2d.held()")
                     changed = [n for n in bc["changes"] if snap0["vars"].get(n) != snap1["vars"].get(n)]
-                    check("phone touch: " + bc["name"], bool(changed) and (acts == ["pause"] or all(ac in held_now for ac in acts)) and not after, ("touching %s held %s, %s changed (%s -> %s), released: %s" % (acts, held_now, changed[0] if changed else "nothing", snap0["vars"].get(changed[0]) if changed else "", snap1["vars"].get(changed[0]) if changed else "", not after)))
+                    check("phone touch: " + bc["name"], bool(changed) and (acts == ["pause"] or all(ac in held_now for ac in acts)) and not after, ("touching %s held %s, %s changed (%s -> %s), released: %s" % (acts, held_now, changed[0] if changed else "nothing", snap0["vars"].get(changed[0]) if changed else "", snap1["vars"].get(changed[0]) if changed else "", not after)), ev="input_touch")
                     tested += 1
                     break
                 dirs = [ac for ac in ("left", "right", "up", "down") if point_for(ac)]
@@ -519,7 +550,7 @@ def main():
                     touch([p2], "touchMove"); pg.wait_for_timeout(120)
                     h2 = pg.evaluate("__red2d.held()")
                     touch([], "touchEnd"); pg.wait_for_timeout(100)
-                    check("phone touch: sliding the thumb changes direction", h1 == [a1] and h2 == [a2], "start on %s held %s; slid to %s held %s" % (a1, h1, a2, h2))
+                    check("phone touch: sliding the thumb changes direction", h1 == [a1] and h2 == [a2], "start on %s held %s; slid to %s held %s" % (a1, h1, a2, h2), ev="input_touch")
                 btns = [b for b in controls.get("buttons", []) if point_for(b["action"])]
                 if btns and dirs:
                     # two thumbs at once: a direction and a button
@@ -527,10 +558,10 @@ def main():
                     touch([d1, b1], "touchStart"); pg.wait_for_timeout(150)
                     both = pg.evaluate("__red2d.held()")
                     touch([], "touchEnd"); pg.wait_for_timeout(100)
-                    check("phone touch: two thumbs at once", dirs[0] in both and btns[0]["action"] in both, "touching %s and %s held %s" % (dirs[0], btns[0]["action"], both))
+                    check("phone touch: two thumbs at once", dirs[0] in both and btns[0]["action"] in both, "touching %s and %s held %s" % (dirs[0], btns[0]["action"], both), ev="input_touch")
                 if controls.get("pause"):
                     touch([point_for("pause")], "touchStart"); pg.wait_for_timeout(60); touch([], "touchEnd"); pg.wait_for_timeout(250)
-                    check("phone touch: the pause button is a press", pg.evaluate("__red2d.held()") == [], "held after the tap: %s" % pg.evaluate("__red2d.held()"))
+                    check("phone touch: the pause button is a press", pg.evaluate("__red2d.held()") == [], "held after the tap: %s" % pg.evaluate("__red2d.held()"), ev="input_touch")
             # tapping and dragging the picture works for click games on a phone
             for bc in manifest.get("browser_checks", []):
                 if bc.get("click") and not bc.get("persists"):
@@ -540,11 +571,124 @@ def main():
                     pg.wait_for_timeout(250)
                     snap1 = pg.evaluate("__red2d.snapshot()")
                     changed = [n for n in bc["changes"] if snap0["vars"].get(n) != snap1["vars"].get(n)]
-                    check("phone touch: tapping the picture: " + bc["name"], bool(changed), ("%s changed" % changed[0]) if changed else "none of %s changed after the tap" % bc["changes"])
+                    check("phone touch: tapping the picture: " + bc["name"], bool(changed), ("%s changed" % changed[0]) if changed else "none of %s changed after the tap" % bc["changes"], ev="input_touch")
                     break
             pg.screenshot(path=os.path.join(a.out, "mobile-playing.png"))
             errs = fatal(log)
             check("phone: no console errors", not errs, "none" if not errs else "; ".join(errs[:5]))
+            ctx.close()
+
+        # ---- phase F: the page is used while the game is still loading, and when loading fails -----------------------------------------------------------------
+        # A held `game.wasm` response keeps the page in `loading` for as long as the test wants. Every kind of input is sent meanwhile; none may throw, start the game, show
+        # the start card early or leak into the game afterwards. Then the same page is allowed to finish and must behave like a page that was never poked.
+        FAKE_PAD = ("window.__fakepad = {on: false}; navigator.getGamepads = () => [window.__fakepad.on ? {connected: true, id: 'test pad', axes: [0, 0], "
+                    "buttons: Array.from({length: 16}, (_, i) => ({pressed: i === 0, value: i === 0 ? 1 : 0}))} : null];")
+        pending = []
+        ctx, pg, log = new_page(FAKE_PAD, has_touch=True)
+        ctx.route("**/game.wasm", lambda route: pending.append(route))
+        pg.goto(base + "/index.html", wait_until="domcontentloaded")
+        wait_js(pg, "window.__red2d")
+        poked, poke_errors = [], []
+
+        def poke(what, fn):
+            try:
+                fn()
+                poked.append(what)
+            except Exception as e:                       # the harness could not send it: say so, never count it as tested
+                poke_errors.append("%s: %s" % (what, str(e).splitlines()[0]))
+
+        poke("key down/up", lambda: [pg.keyboard.down(k) or pg.keyboard.up(k) for k in ("Space", "ArrowLeft", "KeyZ")])
+        poke("Enter (Start)", lambda: pg.keyboard.press("Enter"))
+        poke("pause and resume keys", lambda: [pg.keyboard.press(k) for k in ("Escape", "KeyP", "KeyP")])
+        poke("pointer click", lambda: pg.mouse.click(480, 270))
+        poke("pointer move", lambda: pg.mouse.move(300, 200))
+        poke("touch tap", lambda: pg.touchscreen.tap(200, 300))
+        poke("gamepad button", lambda: (pg.evaluate("window.__fakepad.on = true"), pg.wait_for_timeout(120), pg.evaluate("window.__fakepad.on = false")))
+        poke("focus loss", lambda: pg.evaluate("window.dispatchEvent(new Event('blur'))"))
+        poke("focus return", lambda: pg.evaluate("window.dispatchEvent(new Event('focus'))"))
+        poke("page hidden", lambda: pg.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, get: () => true}); document.dispatchEvent(new Event('visibilitychange'))"))
+        poke("page visible", lambda: pg.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, get: () => false}); document.dispatchEvent(new Event('visibilitychange'))"))
+        poke("begin() called directly", lambda: pg.evaluate("__red2d.begin()"))
+        st = pg.evaluate("__red2d.status()")
+        shown = pg.evaluate("({start: !document.getElementById('start').hidden, loading: !document.getElementById('loading').hidden, error: !document.getElementById('error').hidden, body: document.body.dataset.state})")
+        errs = fatal(log) + poke_errors
+        check("startup: every kind of input while loading is safe", len(poked) == 12 and not errs and st["state"] == "loading" and not st["started"] and st.get("early_input", 0) >= 8,
+              ("%d input kinds sent while game.wasm was still pending (%s): no error, still loading, not started, %d events ignored on purpose" % (len(poked), ", ".join(poked), st.get("early_input", 0)))
+              if not errs and len(poked) == 12 else "sent %d/12; errors: %s; state=%s started=%s early_input=%s" % (len(poked), "; ".join(errs[:4]), st["state"], st["started"], st.get("early_input", 0)), ev="loading_robustness")
+        check("startup: the start screen stays logically consistent while loading", shown["loading"] and not shown["start"] and not shown["error"] and shown["body"] == "loading",
+              "loading text shown=%s, start card shown=%s, error shown=%s, page state=%s (the start card appears only when the game can start)" % (shown["loading"], shown["start"], shown["error"], shown["body"]), ev="loading_robustness")
+        pg.screenshot(path=os.path.join(a.out, "browser-loading.png"))
+        for route in pending:
+            route.continue_()
+        st = ready(pg)
+        errs = fatal(log)
+        if st["state"] != "ready":
+            check("startup: the page finishes loading after being used early", False, "state=%s error=%s" % (st["state"], st["error"]), ev="loading_robustness")
+        else:
+            snap = pg.evaluate("__red2d.snapshot()")
+            shown = pg.evaluate("({start: !document.getElementById('start').hidden, loading: !document.getElementById('loading').hidden})")
+            leaked = (snap["tick"], snap["hash"] != native["initial"]["state_hash"], pg.evaluate("__red2d.held()"), st["started"])
+            check("startup: early input leaves nothing behind", snap["tick"] == 0 and snap["hash"] == native["initial"]["state_hash"] and not pg.evaluate("__red2d.held()") and not st["started"] and shown["start"] and not shown["loading"] and not errs,
+                  "after loading finished: tick %s, state equals the native initial state: %s, nothing held, not started, start card shown, no errors%s" % (snap["tick"], snap["hash"] == native["initial"]["state_hash"], "" if not errs else "; " + "; ".join(errs[:3])) if not errs else "; ".join(errs[:4]) + " / leaked=%s" % (leaked,), ev="loading_robustness")
+            pg.keyboard.press("Enter")
+            wait_js(pg, "__red2d.status().state === 'running'")
+            pg.wait_for_timeout(300)
+            s2 = pg.evaluate("__red2d.status()")
+            check("startup: input works as normal once the game is ready", s2["state"] == "running" and s2["started"] and s2["ticks"] > 5 and not s2["error"],
+                  "state=%s started=%s ticks=%d" % (s2["state"], s2["started"], s2["ticks"]), ev="loading_robustness")
+            # the same events once running: released, resumed, nothing thrown
+            pg.keyboard.down("ArrowRight")
+            pg.keyboard.press("KeyP")   # the pause action, pressed and released while playing: nothing may throw
+            for js in ("window.dispatchEvent(new Event('blur'))", "window.dispatchEvent(new Event('focus'))",
+                       "Object.defineProperty(document, 'hidden', {configurable: true, get: () => true}); document.dispatchEvent(new Event('visibilitychange'))",
+                       "Object.defineProperty(document, 'hidden', {configurable: true, get: () => false}); document.dispatchEvent(new Event('visibilitychange'))"):
+                pg.evaluate(js)
+            pg.keyboard.up("ArrowRight")
+            pg.wait_for_timeout(200)
+            s3 = pg.evaluate("__red2d.status()")
+            errs = fatal(log)
+            check("startup: focus loss, focus return and visibility changes while playing are safe", s3["state"] == "running" and not errs and s3["ticks"] > s2["ticks"],
+                  "state=%s, ticks %d -> %d, errors: %s" % (s3["state"], s2["ticks"], s3["ticks"], "none" if not errs else "; ".join(errs[:3])), ev="loading_robustness")
+        ctx.close()
+
+        # A gamepad press starts a game that is ready (and only then).
+        ctx, pg, log = new_page(FAKE_PAD, has_touch=True)
+        pg.goto(base + "/index.html")
+        st = ready(pg)
+        if st["state"] == "ready":
+            pg.evaluate("window.__fakepad.on = true")
+            try:
+                wait_js(pg, "__red2d.status().started", 3000)
+                got = True
+            except TimeoutError:
+                got = False
+            s = pg.evaluate("__red2d.status()")
+            check("startup: a gamepad press starts the game once it is ready", got and s["state"] == "running" and s["gamepad"] and not fatal(log), "started=%s gamepad seen=%s state=%s" % (s["started"], s["gamepad"], s["state"]), ev="input_gamepad")
+        ctx.close()
+
+        # Loading that fails: a useful message, no start card, no controller, and nothing that reacts.
+        FAILS = [
+            ("game.wasm is not WebAssembly", "**/game.wasm", dict(status=200, body=b"this is not a wasm module", content_type="application/wasm"), "game.wasm"),
+            ("game.wasm missing (HTTP 404)", "**/game.wasm", dict(status=404, body=b"nope"), "game.wasm"),
+            ("assets/game.json missing (HTTP 500)", "**/assets/game.json", dict(status=500, body=b"boom"), "assets/game.json"),
+            ("assets/game.json is not a game", "**/assets/game.json", dict(status=200, body=b"{\"nonsense\": true}", content_type="application/json"), "refused"),
+        ]
+        for label, pattern, resp, needle in FAILS:
+            ctx, pg, log = new_page(FAKE_PAD, has_touch=True)
+            ctx.route(pattern, lambda route, request, r=resp: route.fulfill(**r))
+            pg.goto(base + "/index.html")
+            wait_js(pg, "window.__red2d && window.__red2d.status().state === 'error'")
+            for fn in (lambda: pg.keyboard.press("Enter"), lambda: pg.keyboard.press("Space"), lambda: pg.mouse.click(480, 270), lambda: pg.touchscreen.tap(200, 300),
+                       lambda: pg.evaluate("window.dispatchEvent(new Event('blur')); window.dispatchEvent(new Event('focus'))"), lambda: pg.evaluate("__red2d.begin()")):
+                fn()
+            pg.wait_for_timeout(150)
+            st = pg.evaluate("__red2d.status()")
+            ui = pg.evaluate("({start: !document.getElementById('start').hidden, loading: !document.getElementById('loading').hidden, pad: !document.getElementById('pad').hidden, error: document.getElementById('error').hidden ? '' : document.getElementById('error').textContent})")
+            unexpected = [e for e in log["pageerrors"]]
+            useful = ui["error"].startswith("The game could not run") and needle in ui["error"]
+            check("startup failure (%s): a useful error and no live controls" % label,
+                  st["state"] == "error" and useful and not ui["start"] and not ui["loading"] and not ui["pad"] and not st["started"] and st["ticks"] == 0 and not st["held"] and not unexpected,
+                  "state=%s; message %r; start card=%s loading=%s pad=%s; started=%s ticks=%s; uncaught errors: %s" % (st["state"], ui["error"][:140], ui["start"], ui["loading"], ui["pad"], st["started"], st["ticks"], unexpected or "none"), ev="loading_robustness")
             ctx.close()
         browser.close()
 

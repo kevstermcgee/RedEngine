@@ -40,8 +40,7 @@ cd ../mygame && scripts/red check                                   # green from
 scripts/red build-all && scripts/red check && scripts/red plan maps/main.json   # build, verify, LOOK
 scripts/red serve                                                   # headless multiplayer server; `scripts/red play HOST:PORT` joins
 ```
-A 2D browser game (one JSON file, no 3D concepts): `$R describe 2d`, then `$R new-game ../mygame --kind 2d`, `$R verify G.game2d.json`, `$R web verify G.game2d.json`, `$R publish G.game2d.json`; `$R propose "<idea>"` plans it, `$R capabilities` says what is built.
-A mechanic (a door and key, a countdown, checkpoints, a spawner, a whole collect-survive-escape game)? `$R recipe` lists verified 2D ones to copy; `$R search "<what you want>"` finds them.
+
 A kart racer: `$R new-game ../mykarts --kind race --engine-path ../red-engine-2` (a generated circuit, the eight animals, bots, a lobby); then `race-test`, `frame`, the scaffolded hosting script (host it), `game publish ../RedEngineGames` (ship it).
 Do not fork this repository to make a game (the fork's docs and engine fixes drift; ADR 0024). `$R describe rules` covers game logic as data.
 

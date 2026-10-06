@@ -72,11 +72,11 @@ pub mod score;
 pub mod settings;
 pub mod sfx;
 pub mod shadow;
-pub mod soundscape;
 #[cfg(feature = "render")]
 pub mod shooter_world;
 pub mod sim;
 pub mod skeleton;
+pub mod soundscape;
 #[cfg(feature = "gfx")]
 pub mod split_gpu;
 pub mod splitscreen;

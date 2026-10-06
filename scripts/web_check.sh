@@ -42,6 +42,14 @@ for g in "${games[@]}"; do
   echo "== web verify $g"
   "${R[@]}" web verify "$g" || status=1
 done
+# Another engine, when one is installed (RED2D_EXTRA_ENGINES="firefox", after `red_engine2 web setup-browser --engines firefox`): the same checks, its own record. A failure is a failure;
+# an engine that is not installed is reported as skipped, never as passed.
+for eng in ${RED2D_EXTRA_ENGINES:-}; do
+  for g in "${games[@]}"; do
+    echo "== web verify $g --engine $eng"
+    "${R[@]}" web verify "$g" --engine "$eng" || status=1
+  done
+done
 # The whole pipeline, for every game, to the local backend: it must end with a catalog, and without a URL (nothing here serves the site to anyone else).
 rm -rf out/site-ci out/publish-ci
 for g in "${games[@]}"; do
@@ -49,8 +57,41 @@ for g in "${games[@]}"; do
   "${R[@]}" publish "$g" --site out/site-ci --out "out/publish-ci/$(basename "$g" .game2d.json)" || status=1
 done
 [ -f out/site-ci/catalog.json ] || { echo "publish wrote no catalog.json"; status=1; }
+# The evidence of every published game, piece by piece: every piece that applies must have PASSED in the browser (not_applicable only where the game never claimed the feature),
+# and the one piece a local run cannot have (a deployed copy) must say so instead of passing.
+echo "== evidence"
+for g in "${games[@]}"; do
+  rep="out/publish-ci/$(basename "$g" .game2d.json)/publication.json"
+  [ -f "$rep" ] || { echo "no $rep"; status=1; continue; }
+  python3 - "$rep" <<'PY' || status=1
+import json, sys
+r = json.load(open(sys.argv[1]))
+# Two pieces a plain local run need not have: a deployed copy, and a second engine (below). Anything else that applies to the game must have PASSED in the browser.
+# `failed` always fails. `not_run` fails for the pieces every game owes (it loads, starts, plays, replays its scenarios, is safe while loading, works offline), and is reported
+# as a GAP (not a failure) for the pieces a game can legitimately lack a check for today: its saved progress (a best score that is only written when a round ends cannot be
+# changed by a short keyboard check), a click on the picture, a gamepad. A GAP is printed so it is never mistaken for a pass.
+OPTIONAL = ("remote_deployment", "other_browsers")
+CORE = ("native_scenarios", "wasm_compiled", "browser_package_valid", "wasm_instantiated", "loading_robustness", "playable_state", "browser_scenarios", "offline_cache", "offline_reload", "installable", "audio_api", "audio_playback", "input_keyboard", "input_touch")
+pieces = r["evidence"]["pieces"]
+bad, gaps = [], []
+for k, c in pieces.items():
+    if k in OPTIONAL or c["status"] in ("passed", "not_applicable"):
+        continue
+    line = f"{k}: {c['status']} ({c['detail'][:100]})"
+    (bad if c["status"] == "failed" or k in CORE else gaps).append(line)
+remote = pieces["remote_deployment"]["status"]
+if remote == "passed" or r["levels"]["remotely_playable"] or r["levels"]["human_playtested"]:
+    bad.append("a local run claims a deployment or a human: " + json.dumps(r["levels"]))
+print(("FAIL " if bad else "ok   ") + sys.argv[1], "; ".join(bad), ("  GAPS (declared, not proven in a browser): " + "; ".join(gaps)) if gaps else "")
+sys.exit(1 if bad else 0)
+PY
+done
 # The library page those games are listed on: hearts, filters, in a real browser.
 echo "== library page"
 py="${RED2D_BROWSER_PYTHON:-}"; [ -n "$py" ] || { home="${RED2D_BROWSER_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/red_engine2/browser}"; [ -x "$home/bin/python" ] && py="$home/bin/python" || py=python3; }
 "$py" crates/red2d/web/library_check.py out/site-ci || status=1
+# The fresh-agent benchmark's reference agent, browser half included: only what `describe web` says, from an empty directory to a published, modified, re-published game.
+echo "== fresh-agent reference run"
+engine_bin="$(cargo metadata --format-version 1 --no-deps 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')/debug/red_engine2"
+[ -x "$engine_bin" ] && { python3 scripts/agent_bench.py reference out/bench-reference --engine "$engine_bin" || status=1; } || echo "SKIPPED: no $engine_bin"
 exit $status

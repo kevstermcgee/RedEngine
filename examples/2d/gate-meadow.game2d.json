@@ -1,0 +1,1025 @@
+{
+ "game2d": 1,
+ "id": "gate-meadow",
+ "title": "Gate Meadow",
+ "description": "Cross a generated meadow, take the key, open the gate and light the lantern beyond it. A test game: every feature at once.",
+ "capabilities": {
+  "presentation": "hybrid",
+  "platforms": [
+   "web"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard",
+   "mouse",
+   "touch"
+  ],
+  "persistence": [
+   "settings",
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 320,
+  "height": 180,
+  "background": "#0d1b1e",
+  "world": [
+   480,
+   192
+  ],
+  "camera": {
+   "follow": "player",
+   "lerp": 0.15
+  },
+  "world3d": {
+   "plane": "ground",
+   "pitch": 55,
+   "distance": 150,
+   "fov": 50,
+   "sky": "#0d1b1e",
+   "ground": {
+    "color": "#2b4a35",
+    "alt": "#305239",
+    "tile": 16
+   },
+   "light": {
+    "toon": true,
+    "dir": [
+     -0.5,
+     -0.9,
+     -0.35
+    ],
+    "ambient": 0.45
+   }
+  }
+ },
+ "sprites": {
+  "player": {
+   "palette": {
+    "d": "#1e5fa8",
+    "b": "#4aa3ff",
+    "s": "#ffd9b0",
+    "k": "#222222"
+   },
+   "rows": [
+    "..dddd..",
+    ".dddddd.",
+    ".dskksd.",
+    ".dssssd.",
+    "..bbbb..",
+    ".bbbbbb.",
+    ".b.bb.b.",
+    "..d..d.."
+   ]
+  }
+ },
+ "models": {
+  "lantern": {
+   "parts": [
+    {
+     "shape": "cylinder",
+     "radius": 0.5,
+     "height": 0.2,
+     "at": [
+      0,
+      -0.7,
+      0
+     ],
+     "color": "#3b2f2f"
+    },
+    {
+     "shape": "box",
+     "size": [
+      0.8,
+      1.1,
+      0.8
+     ],
+     "color": "#ffd23f"
+    },
+    {
+     "shape": "pyramid",
+     "base": 1.1,
+     "height": 0.6,
+     "at": [
+      0,
+      0.9,
+      0
+     ],
+     "color": "#7a2f3a"
+    }
+   ]
+  },
+  "key": {
+   "parts": [
+    {
+     "shape": "torus",
+     "major": 0.45,
+     "minor": 0.16,
+     "at": [
+      0,
+      0.5,
+      0
+     ],
+     "color": "#ffd23f"
+    },
+    {
+     "shape": "cylinder",
+     "radius": 0.14,
+     "height": 1.3,
+     "at": [
+      0,
+      -0.35,
+      0
+     ],
+     "color": "#ffd23f"
+    },
+    {
+     "shape": "box",
+     "size": [
+      0.5,
+      0.18,
+      0.18
+     ],
+     "at": [
+      0.25,
+      -0.75,
+      0
+     ],
+     "color": "#ffd23f"
+    }
+   ]
+  }
+ },
+ "sounds": {
+  "pick": {
+   "seconds": 0.18,
+   "level": 0.5,
+   "layers": [
+    {
+     "sine": 880,
+     "decay": 18
+    },
+    {
+     "sine": 1320,
+     "decay": 22,
+     "delay": 0.05,
+     "gain": 0.8
+    }
+   ]
+  },
+  "unlock": {
+   "seconds": 0.5,
+   "level": 0.5,
+   "layers": [
+    {
+     "sine": 330,
+     "decay": 7
+    },
+    {
+     "sine": 495,
+     "decay": 7,
+     "delay": 0.08,
+     "gain": 0.8
+    },
+    {
+     "sine": 660,
+     "decay": 6,
+     "delay": 0.16,
+     "gain": 0.7
+    }
+   ]
+  },
+  "win": {
+   "seconds": 0.7,
+   "level": 0.5,
+   "layers": [
+    {
+     "sine": 523.25,
+     "decay": 5
+    },
+    {
+     "sine": 659.25,
+     "decay": 5,
+     "delay": 0.12
+    },
+    {
+     "sine": 783.99,
+     "decay": 4,
+     "delay": 0.24
+    },
+    {
+     "sine": 1046.5,
+     "decay": 3,
+     "delay": 0.36
+    }
+   ]
+  }
+ },
+ "music": {
+  "theme": {
+   "bpm": 120,
+   "beats": 4,
+   "bars": 8,
+   "key": "C",
+   "scale": "pentatonic",
+   "seed": 4,
+   "lufs": -24,
+   "reverb": {
+    "decay": 1.2,
+    "mix": 0.2
+   },
+   "instruments": {
+    "pluck": {
+     "seconds": 0.7,
+     "level": 0.5,
+     "layers": [
+      {
+       "sine": 1,
+       "decay": 7
+      },
+      {
+       "sine": 2,
+       "decay": 10,
+       "gain": 0.3
+      }
+     ]
+    },
+    "bass": {
+     "seconds": 1.0,
+     "level": 0.6,
+     "layers": [
+      {
+       "sine": 0.5,
+       "decay": 4,
+       "attack": 0.01
+      }
+     ]
+    }
+   },
+   "tracks": [
+    {
+     "inst": "bass",
+     "play": "chords",
+     "chords": "1 5 6 4",
+     "every": "2 bars",
+     "octave": 2,
+     "gain": 0.8
+    },
+    {
+     "inst": "pluck",
+     "play": "walk",
+     "every": "1 beats",
+     "density": 0.5,
+     "range": [
+      1,
+      8
+     ],
+     "octave": 4,
+     "gain": 0.6,
+     "vel": [
+      0.5,
+      0.9
+     ]
+    }
+   ]
+  }
+ },
+ "vars": {
+  "gate_open": 0,
+  "wins": 0
+ },
+ "persist": [
+  "gate_open",
+  "wins"
+ ],
+ "prefabs": {
+  "tree": {
+   "tag": [
+    "wall",
+    "tree"
+   ],
+   "shape": {
+    "rect": [
+     14,
+     14
+    ],
+    "color": "#1f5a2a"
+   },
+   "size": [
+    16,
+    16
+   ],
+   "height3d": 22,
+   "body": {
+    "type": "static"
+   }
+  },
+  "rise": {
+   "tag": "rise",
+   "shape": {
+    "rect": [
+     16,
+     16
+    ],
+    "color": "#4a7a48"
+   },
+   "layer": -1,
+   "height3d": 4
+  },
+  "fence": {
+   "tag": [
+    "wall",
+    "fence"
+   ],
+   "shape": {
+    "rect": [
+     16,
+     16
+    ],
+    "color": "#8a6a3a"
+   },
+   "height3d": 10,
+   "body": {
+    "type": "static"
+   }
+  },
+  "gate": {
+   "tag": [
+    "wall",
+    "gate"
+   ],
+   "shape": {
+    "rect": [
+     14,
+     32
+    ],
+    "color": "#c9892f"
+   },
+   "size": [
+    16,
+    32
+   ],
+   "height3d": 12,
+   "body": {
+    "type": "static"
+   }
+  },
+  "player": {
+   "tag": "player",
+   "shape": {
+    "sprite": "player",
+    "flip": "auto"
+   },
+   "size": [
+    8,
+    8
+   ],
+   "layer": 2,
+   "clamp": true,
+   "body": {
+    "type": "dynamic"
+   },
+   "collide": [
+    "wall"
+   ],
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 100
+    }
+   }
+  },
+  "key": {
+   "tag": "key",
+   "shape": {
+    "model": "key",
+    "yaw": "time * 140",
+    "elevation": 25,
+    "fit": [
+     16,
+     16
+    ]
+   },
+   "layer": 1
+  },
+  "lantern": {
+   "tag": "lantern",
+   "shape": {
+    "model": "lantern",
+    "yaw": "time * 120",
+    "elevation": 25,
+    "fit": [
+     18,
+     18
+    ]
+   },
+   "layer": 1
+  }
+ },
+ "map": {
+  "tile": 16,
+  "origin": [
+   0,
+   0
+  ],
+  "rows": [
+   "h...TT...........F............",
+   "h.......T......T.F...T........",
+   "h...T............F.....T......",
+   ".................F............",
+   "..........T.T....F............",
+   "..............................",
+   "..............................",
+   "h................F....T.......",
+   "hhhh.....T.......F............",
+   "hhhhT.T.T........F......T.....",
+   "............T....F.........T..",
+   "....T............F.........T.."
+  ],
+  "legend": {
+   "T": "tree",
+   "h": "rise",
+   "F": "fence"
+  }
+ },
+ "scene": [
+  {
+   "prefab": "player",
+   "at": [
+    40,
+    96
+   ],
+   "id": "p"
+  },
+  {
+   "prefab": "key",
+   "at": [
+    152,
+    96
+   ],
+   "id": "key"
+  },
+  {
+   "prefab": "gate",
+   "at": [
+    280,
+    96
+   ],
+   "id": "gate"
+  },
+  {
+   "prefab": "lantern",
+   "at": [
+    424,
+    96
+   ],
+   "id": "lantern"
+  }
+ ],
+ "ui": [
+  {
+   "panel": {
+    "at": [
+     0,
+     0
+    ],
+    "size": [
+     320,
+     16
+    ],
+    "color": "#0d1b1edd"
+   }
+  },
+  {
+   "text": "GATE LOCKED",
+   "at": [
+    6,
+    4
+   ],
+   "color": "#ff9b8c",
+   "show": "gate_open == 0"
+  },
+  {
+   "text": "GATE OPEN",
+   "at": [
+    6,
+    4
+   ],
+   "color": "#8cff9b",
+   "show": "gate_open == 1"
+  },
+  {
+   "text": "CROSSED {wins:2}",
+   "at": [
+    120,
+    4
+   ],
+   "color": "#ffd23f"
+  },
+  {
+   "panel": {
+    "at": [
+     60,
+     56
+    ],
+    "size": [
+     200,
+     64
+    ],
+    "color": "#0d1b1eee"
+   },
+   "show": "ended"
+  },
+  {
+   "text": "MEADOW CROSSED!",
+   "at": [
+    160,
+    66
+   ],
+   "scale": 2,
+   "align": "center",
+   "color": "#8cff9b",
+   "show": "ended == 1"
+  },
+  {
+   "button": {
+    "id": "restart",
+    "label": "PLAY AGAIN (ENTER)",
+    "at": [
+     100,
+     96
+    ],
+    "size": [
+     120,
+     14
+    ],
+    "key": "Enter",
+    "do": [
+     {
+      "restart": true
+     }
+    ]
+   },
+   "show": "ended"
+  },
+  {
+   "button": {
+    "id": "music",
+    "label": "MUSIC",
+    "at": [
+     276,
+     166
+    ],
+    "size": [
+     40,
+     12
+    ],
+    "key": "KeyM",
+    "do": [
+     {
+      "music": "toggle"
+     }
+    ]
+   }
+  },
+  {
+   "text": "OFF",
+   "at": [
+    260,
+    168
+   ],
+   "color": "#ff7a8c",
+   "show": "!music_on"
+  },
+  {
+   "minimap": {
+    "at": [
+     236,
+     20
+    ],
+    "size": [
+     80,
+     36
+    ],
+    "colors": {
+     "tree": "#2f8a3a",
+     "gate": "#c9892f",
+     "fence": "#8a6a3a",
+     "key": "#ffd23f",
+     "lantern": "#ffd23f",
+     "player": "#ffffff"
+    },
+    "dot": 2,
+    "viewport": true,
+    "background": "#0d1b1ecc"
+   }
+  }
+ ],
+ "rules": [
+  {
+   "id": "take the key",
+   "when": {
+    "touch": [
+     "player",
+     "key"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "gate_open",
+      1
+     ]
+    },
+    {
+     "play": "pick"
+    },
+    {
+     "destroy": "other"
+    },
+    {
+     "destroy": "id:gate"
+    },
+    {
+     "play": "unlock"
+    },
+    {
+     "burst": {
+      "at": [
+       280,
+       96
+      ],
+      "n": 14,
+      "color": "#c9892f",
+      "speed": [
+       30,
+       80
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    },
+    {
+     "emit": "gate_opened"
+    }
+   ]
+  },
+  {
+   "id": "the gate stays open after a restart",
+   "when": {
+    "start": true
+   },
+   "if": "gate_open == 1",
+   "do": [
+    {
+     "destroy": "id:gate"
+    },
+    {
+     "destroy": "tag:key"
+    }
+   ]
+  },
+  {
+   "id": "the gate is open again after the save is loaded",
+   "when": {
+    "event": "loaded"
+   },
+   "if": "gate_open == 1",
+   "do": [
+    {
+     "destroy": "id:gate"
+    },
+    {
+     "destroy": "tag:key"
+    }
+   ]
+  },
+  {
+   "id": "reach the lantern",
+   "when": {
+    "touch": [
+     "player",
+     "lantern"
+    ]
+   },
+   "do": [
+    {
+     "add": [
+      "wins",
+      1
+     ]
+    },
+    {
+     "set": [
+      "gate_open",
+      0
+     ]
+    },
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "win jingle",
+   "when": {
+    "end": "win"
+   },
+   "do": [
+    {
+     "play": "win"
+    }
+   ]
+  },
+  {
+   "id": "again",
+   "when": {
+    "press": "action"
+   },
+   "if": "ended",
+   "do": [
+    {
+     "restart": true
+    }
+   ]
+  }
+ ],
+ "controls": {
+  "layout": "dpad",
+  "a": false,
+  "b": false
+ },
+ "checks": {
+  "reach": [
+   {
+    "from": "p",
+    "to": "tag:key",
+    "why": "the key is in the west meadow, reachable at the start"
+   },
+   {
+    "from": "p",
+    "to": "tag:lantern",
+    "reachable": false,
+    "why": "the gate keeps the lantern out of reach"
+   },
+   {
+    "from": "p",
+    "to": "tag:lantern",
+    "open": [
+     "gate"
+    ],
+    "why": "with the gate open the lantern can be reached"
+   }
+  ],
+  "scenarios": [
+   {
+    "name": "the meadow at the start",
+    "seed": 1,
+    "max_seconds": 5,
+    "script": [
+     {
+      "wait": 0.2
+     }
+    ],
+    "expect": [
+     {
+      "count": "tree",
+      "eq": 19
+     },
+     {
+      "count": "gate",
+      "eq": 1
+     },
+     {
+      "count": "key",
+      "eq": 1
+     },
+     {
+      "var": "gate_open",
+      "eq": 0
+     },
+     {
+      "reach": "tag:key",
+      "from": "p"
+     },
+     {
+      "reach": "tag:lantern",
+      "from": "p",
+      "reachable": false
+     },
+     {
+      "not_ended": true
+     }
+    ]
+   },
+   {
+    "name": "the fence holds while the gate is shut",
+    "seed": 1,
+    "max_seconds": 12,
+    "script": [
+     {
+      "hold": [
+       "up"
+      ],
+      "seconds": 0.4
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 5
+     }
+    ],
+    "expect": [
+     {
+      "entity": "p",
+      "near": [
+       268,
+       56
+      ],
+      "tol": 3
+     },
+     {
+      "var": "gate_open",
+      "eq": 0
+     },
+     {
+      "count": "gate",
+      "eq": 1
+     },
+     {
+      "not_ended": true
+     }
+    ]
+   },
+   {
+    "name": "the key opens the gate and the generated meadow is still there",
+    "seed": 1,
+    "max_seconds": 15,
+    "script": [
+     {
+      "approach": "key",
+      "seconds": 6
+     }
+    ],
+    "expect": [
+     {
+      "var": "gate_open",
+      "eq": 1
+     },
+     {
+      "count": "gate",
+      "eq": 0
+     },
+     {
+      "count": "key",
+      "eq": 0
+     },
+     {
+      "count": "tree",
+      "eq": 19
+     },
+     {
+      "event": "gate_opened",
+      "min": 1
+     },
+     {
+      "sound": "unlock"
+     },
+     {
+      "reach": "tag:lantern",
+      "from": "p"
+     },
+     {
+      "not_ended": true
+     }
+    ]
+   },
+   {
+    "name": "through the open gate to the lantern",
+    "seed": 1,
+    "max_seconds": 30,
+    "smoke": true,
+    "script": [
+     {
+      "approach": "key",
+      "seconds": 6
+     },
+     {
+      "approach": "lantern",
+      "seconds": 12
+     }
+    ],
+    "expect": [
+     {
+      "ended": "win"
+     },
+     {
+      "var": "wins",
+      "eq": 1
+     },
+     {
+      "var": "gate_open",
+      "eq": 0
+     },
+     {
+      "count": "tree",
+      "eq": 19
+     },
+     {
+      "sound": "win"
+     },
+     {
+      "sound": "pick"
+     }
+    ]
+   },
+   {
+    "name": "play again closes the gate and keeps the count",
+    "seed": 1,
+    "max_seconds": 30,
+    "script": [
+     {
+      "approach": "key",
+      "seconds": 6
+     },
+     {
+      "approach": "lantern",
+      "seconds": 12
+     },
+     {
+      "button": "restart"
+     },
+     {
+      "wait": 0.2
+     }
+    ],
+    "expect": [
+     {
+      "count": "gate",
+      "eq": 1
+     },
+     {
+      "count": "key",
+      "eq": 1
+     },
+     {
+      "var": "wins",
+      "eq": 1
+     },
+     {
+      "not_ended": true
+     },
+     {
+      "reach": "tag:lantern",
+      "from": "p",
+      "reachable": false
+     }
+    ]
+   }
+  ],
+  "browser": [
+   {
+    "name": "walking to the key opens the gate and the progress is saved",
+    "keys": [
+     "ArrowRight"
+    ],
+    "ms": 1500,
+    "changes": [
+     "gate_open"
+    ],
+    "persists": [
+     "gate_open"
+    ]
+   },
+   {
+    "name": "after the reload the gate is open: the lantern can be reached",
+    "keys": [
+     "ArrowRight"
+    ],
+    "ms": 4800,
+    "changes": [
+     "wins"
+    ],
+    "persists": [
+     "wins"
+    ]
+   },
+   {
+    "name": "the music button turns music off and the choice survives a reload",
+    "click": [
+     296,
+     172
+    ],
+    "changes": [
+     "music_on"
+    ],
+    "persists": [
+     "music_on"
+    ]
+   }
+  ]
+ }
+}

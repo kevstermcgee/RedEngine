@@ -602,6 +602,8 @@ pub enum Expect {
     Sound(usize, u32),
     /// The state hash.
     Hash(String),
+    /// Whether the thing `from` (a scene id) can walk to touch `to` (a scene id or `tag:NAME`) in the world as it stands: `true` when it must be able to, `false` when it must not.
+    Reach(String, String, bool),
 }
 
 /// A comparison.
@@ -661,6 +663,21 @@ pub struct Scenario {
     pub expect: Vec<Expect>,
     /// This is the playthrough the browser repeats: its final state hash must match.
     pub smoke: bool,
+}
+
+/// Map analysis of the starting world: whether one thing can walk to another, optionally with some things (a gate) assumed gone.
+#[derive(Debug, Clone)]
+pub struct ReachCheck {
+    /// Its name (the `why`, or from -> to).
+    pub name: String,
+    /// The walker: a scene id.
+    pub from: String,
+    /// The destination: a scene id or `tag:NAME`.
+    pub to: String,
+    /// Scene ids or `tag:NAME`s assumed removed first (what a rule would open).
+    pub open: Vec<String>,
+    /// Whether the walker must be able to get there.
+    pub reachable: bool,
 }
 
 /// A browser input check: real key and pointer events, then something must have changed.
@@ -728,6 +745,8 @@ pub struct GameDef {
     pub scenarios: Vec<Scenario>,
     /// Browser input checks.
     pub browser: Vec<BrowserCheck>,
+    /// Map analysis of the starting world.
+    pub reach: Vec<ReachCheck>,
     /// 3D models (a hybrid game).
     pub models: Vec<crate::game3d::Model>,
     /// 3D viewports drawn among the entities.
@@ -1933,10 +1952,51 @@ fn step(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Step> {
     }
 }
 
+/// A scene id (or, for a destination, `tag:NAME`) that exists.
+fn reach_name_ok(ctx: &mut Ctx, path: &str, name: &str, names: &Names, allow_tag: bool) -> bool {
+    if let Some(t) = name.strip_prefix("tag:") {
+        if !allow_tag {
+            ctx.err(path, "the walker is one thing: give its scene id, not a tag");
+            return false;
+        }
+        if !names.tags.iter().any(|x| x == t) {
+            ctx.err(path, format!("no tag `{t}`{}", Ctx::near(t, names.tags.iter().cloned())));
+            return false;
+        }
+        return true;
+    }
+    if !names.ids.iter().any(|x| x == name) {
+        ctx.err(path, format!("no scene id `{name}`{}", Ctx::near(name, names.ids.iter().cloned())));
+        return false;
+    }
+    true
+}
+
 fn expect_one(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Expect> {
     let o = ctx.obj(path, v)?;
-    const KEYS: &[&str] =
-        &["var", "ended", "not_ended", "count", "entity", "event", "sound", "hash", "eq", "ne", "gt", "gte", "lt", "lte", "near", "tol", "min", "max"];
+    const KEYS: &[&str] = &[
+        "var",
+        "ended",
+        "not_ended",
+        "count",
+        "entity",
+        "event",
+        "sound",
+        "hash",
+        "reach",
+        "from",
+        "reachable",
+        "eq",
+        "ne",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "near",
+        "tol",
+        "min",
+        "max",
+    ];
     check_keys(&mut ctx.errs, path, o, KEYS);
     let cmp = || -> Option<(Cmp, f64)> {
         [("eq", Cmp::Eq), ("ne", Cmp::Ne), ("gt", Cmp::Gt), ("gte", Cmp::Gte), ("lt", Cmp::Lt), ("lte", Cmp::Lte)]
@@ -2000,7 +2060,17 @@ fn expect_one(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Exp
     if let Some(h) = o.get("hash").and_then(Value::as_str) {
         return Some(Expect::Hash(h.to_string()));
     }
-    ctx.err(path, "an expectation has one of var, ended, not_ended, count, entity, event, sound, hash (for example {\"var\": \"score\", \"gte\": 10} or {\"ended\": \"win\"})");
+    if let Some(to) = o.get("reach").and_then(Value::as_str) {
+        let from = o.get("from").and_then(Value::as_str);
+        let (from_ok, to_ok) =
+            (from.is_some_and(|f| reach_name_ok(ctx, &format!("{path}.from"), f, names, false)), reach_name_ok(ctx, &format!("{path}.reach"), to, names, true));
+        if from.is_none() {
+            ctx.err(path, "`reach` needs `from`: the scene id of the walker, like {\"reach\": \"tag:goal\", \"from\": \"p\"}");
+        }
+        return (from_ok && to_ok)
+            .then(|| Expect::Reach(from.unwrap_or("").to_string(), to.to_string(), o.get("reachable").and_then(Value::as_bool).unwrap_or(true)));
+    }
+    ctx.err(path, "an expectation has one of var, ended, not_ended, count, entity, event, sound, hash, reach (for example {\"var\": \"score\", \"gte\": 10} or {\"ended\": \"win\"})");
     None
 }
 
@@ -2540,9 +2610,49 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
     // checks
     let mut scenarios = Vec::new();
     let mut browser = Vec::new();
+    let mut reach = Vec::new();
     if let Some(cv) = root.get("checks") {
         if let Some(o) = ctx.obj("checks", cv) {
-            check_keys(&mut ctx.errs, "checks", o, &["scenarios", "browser"]);
+            check_keys(&mut ctx.errs, "checks", o, &["scenarios", "browser", "reach"]);
+            if let Some(list) = o.get("reach").and_then(Value::as_array) {
+                for (i, r) in list.iter().enumerate() {
+                    let path = format!("checks.reach[{i}]");
+                    let Some(ro) = ctx.obj(&path, r) else { continue };
+                    check_fields(
+                        &mut ctx.errs,
+                        &path,
+                        ro,
+                        &[
+                            req("from", Ty::Str, "the walker's scene id"),
+                            req("to", Ty::Str, "a scene id, or tag:NAME for any thing with that tag"),
+                            opt(
+                                "open",
+                                Ty::Strs,
+                                "scene ids or tag:NAMEs assumed gone first (what a rule opens): the analysis asks what the world allows with them removed",
+                            ),
+                            opt("reachable", Ty::Bool, "false when the walker must NOT be able to get there (default true)"),
+                            opt("why", Ty::Str, "what this proves, shown in the report"),
+                        ],
+                    );
+                    let (Some(from), Some(to)) = (ro.get("from").and_then(Value::as_str), ro.get("to").and_then(Value::as_str)) else { continue };
+                    let open: Vec<String> =
+                        ro.get("open").and_then(Value::as_array).map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect()).unwrap_or_default();
+                    let ok = reach_name_ok(&mut ctx, &format!("{path}.from"), from, &names, false)
+                        & reach_name_ok(&mut ctx, &format!("{path}.to"), to, &names, true)
+                        & open.iter().enumerate().fold(true, |acc, (j, o)| reach_name_ok(&mut ctx, &format!("{path}.open[{j}]"), o, &names, true) & acc);
+                    if ok {
+                        reach.push(ReachCheck {
+                            name: ro.get("why").and_then(Value::as_str).map_or_else(|| format!("{from} -> {to}"), str::to_string),
+                            from: from.to_string(),
+                            to: to.to_string(),
+                            open,
+                            reachable: ro.get("reachable").and_then(Value::as_bool).unwrap_or(true),
+                        });
+                    }
+                }
+            } else if o.contains_key("reach") {
+                ctx.err("checks.reach", "expected a list of reach checks");
+            }
             if let Some(list) = o.get("scenarios").and_then(Value::as_array) {
                 for (i, s) in list.iter().enumerate() {
                     if let Some(sc) = scenario(&mut ctx, i, s, &names) {
@@ -2706,6 +2816,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         tags,
         scenarios,
         browser,
+        reach,
         models,
         layers3d,
         world3d,

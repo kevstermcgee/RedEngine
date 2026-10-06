@@ -72,6 +72,7 @@ fn main() {
     if cli.json_output {
         envelope::begin_capture();
     }
+    let started = std::time::Instant::now();
     let result = run(cli.command);
     let code = match &result {
         Ok(()) => 0,
@@ -82,6 +83,7 @@ fn main() {
             1
         }
     };
+    red_engine2::tools::agent_trace::record(&command_name, code, started.elapsed().as_millis(), result.as_ref().err().map_or("", String::as_str));
     if cli.json_output {
         let (out, err) = envelope::end_capture();
         let doc = serde_json::to_string_pretty(&envelope::envelope(&command_name, code, &out, &err)).unwrap_or_default();
@@ -309,6 +311,7 @@ fn report(r: game2d::Report) -> Result<(), String> {
     if r.ok {
         Ok(())
     } else {
+        red_engine2::tools::agent_trace::failure_detail(&r.text);
         Err(String::new())
     }
 }

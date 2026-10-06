@@ -8,19 +8,8 @@ import init, { web3d_start } from "./web3d.js";
 const q = new URLSearchParams(location.search), c = document.getElementById("c"), hud = document.getElementById("hud");
 const SAVE = "web3d:" + (q.get("scene") || "scene.json");
 window.__state = "loading";
+window.__t = {};
 try {
-  await init();
-  const text = await (await fetch(q.get("scene") || "scene.json")).text();
-  const size = () => { const r = devicePixelRatio || 1; return [Math.max(2, Math.round(c.clientWidth * r)), Math.max(2, Math.round(c.clientHeight * r))]; };
-  if (q.get("w")) { c.width = +q.get("w"); c.height = +q.get("h"); } else { [c.width, c.height] = size(); }
-  let saved = ""; try { saved = localStorage.getItem(SAVE) || ""; } catch (e) { /* private mode: progress lasts for this visit */ }
-  const g = await web3d_start("c", text, saved);
-  window.__g = g; window.__info = g.info(); window.__state = "ready";
-  // Canvas pixels from a mouse position (the canvas is drawn at its own resolution and stretched by CSS).
-  const at = (e) => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height]; };
-  const locked = () => document.pointerLockElement === c;
-  const hint = () => { hud.textContent = g.card_up() ? "" : locked() ? "WASD to walk, Shift to run, Esc to pause" : "click to look around"; };
-  addEventListener("keydown", (e) => { g.key(e.code, true); if (e.code === "Space" || e.code.startsWith("Arrow")) e.preventDefault(); });
   addEventListener("keyup", (e) => g.key(e.code, false));
   c.addEventListener("pointermove", (e) => { if (!locked()) g.pointer_move(...at(e)); });
   c.addEventListener("click", (e) => {

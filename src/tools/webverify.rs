@@ -56,7 +56,7 @@ pub fn browser_python() -> Result<PathBuf, String> {
 }
 
 /// Creates the Python environment and downloads Chromium. Needs internet; run once per machine.
-pub fn setup_browser() -> Result<String, String> {
+pub fn setup_browser(extra_engines: &[String]) -> Result<String, String> {
     let home = browser_home();
     let mut log = String::new();
     let run = |cmd: &mut Command, what: &str, log: &mut String| -> Result<(), String> {
@@ -80,6 +80,13 @@ pub fn setup_browser() -> Result<String, String> {
     let py = venv_python(&home);
     run(Command::new(&py).args(["-m", "pip", "install", "--quiet", "playwright"]), "pip install playwright", &mut log)?;
     run(Command::new(&py).args(["-m", "playwright", "install", "chromium"]), "playwright install chromium", &mut log)?;
+    for e in extra_engines {
+        if !["firefox", "webkit"].contains(&e.as_str()) {
+            return Err(format!("{log}--engines: `{e}` is not one of firefox, webkit (Chromium is always installed)"));
+        }
+        run(Command::new(&py).args(["-m", "playwright", "install", e]), &format!("playwright install {e}"), &mut log)
+            .map_err(|er| format!("{er}\nnote: WebKit needs system libraries on Linux (`playwright install-deps webkit`, root); Firefox usually does not"))?;
+    }
     Ok(format!("{log}browser ready under {}", home.display()))
 }
 
@@ -91,16 +98,26 @@ pub struct Verified {
     pub browser: String,
     /// The full JSON report.
     pub raw: Value,
+    /// For each row, the evidence key it proves (see `publish2d::EVIDENCE`), or `None` for a row that is context only.
+    pub tags: Vec<Option<String>>,
+    /// Evidence keys the game never claimed (no persistence, no audio ...) and why: "not applicable" is the game's own declaration.
+    pub not_applicable: std::collections::BTreeMap<String, String>,
 }
 
 /// Runs the driver against a package directory or a URL; writes screenshots into `out`.
 pub fn verify(dir: Option<&Path>, url: Option<&str>, out: &Path) -> Result<Verified, String> {
+    verify_engine(dir, url, out, "chromium")
+}
+
+/// [`verify`] in another engine (`chromium`, `firefox` or `webkit`: Playwright's builds; `red_engine2 web setup-browser --engines firefox,webkit` installs them). Chromium-only checks
+/// (the installability probe, the long-task observer, the phone emulation) are not run elsewhere, and their evidence says `not_run`: nothing is claimed that was not measured.
+pub fn verify_engine(dir: Option<&Path>, url: Option<&str>, out: &Path, engine: &str) -> Result<Verified, String> {
     let py = browser_python()?;
     std::fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
     let script = out.join("browser_verify.py");
     std::fs::write(&script, SCRIPT).map_err(|e| format!("{}: {e}", script.display()))?;
     let mut cmd = Command::new(py);
-    cmd.arg(&script).arg("--out").arg(out);
+    cmd.arg(&script).arg("--out").arg(out).arg("--engine").arg(engine);
     match (dir, url) {
         (Some(d), None) => cmd.arg("--dir").arg(d),
         (None, Some(u)) => cmd.arg("--url").arg(u),
@@ -139,5 +156,8 @@ pub fn verify(dir: Option<&Path>, url: Option<&str>, out: &Path) -> Result<Verif
                 .collect()
         })
         .unwrap_or_default();
-    Ok(Verified { rows, browser: v["browser"].as_str().unwrap_or("unknown").to_string(), raw: v })
+    let tags = v["rows"].as_array().map(|a| a.iter().map(|r| r["evidence"].as_str().map(str::to_string)).collect()).unwrap_or_default();
+    let not_applicable =
+        v["not_applicable"].as_object().map(|m| m.iter().filter_map(|(k, r)| r.as_str().map(|r| (k.clone(), r.to_string()))).collect()).unwrap_or_default();
+    Ok(Verified { rows, browser: v["browser"].as_str().unwrap_or("unknown").to_string(), raw: v, tags, not_applicable })
 }

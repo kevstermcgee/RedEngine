@@ -212,6 +212,30 @@ impl Web3d {
         vec![p.x, p.y, p.z]
     }
 
+    /// Runs exactly `ticks` simulation ticks with the keys and the look direction as they are now: no drawing and no real time, so a script run here and the same script run
+    /// natively (`examples/web3d_parity.rs`) are the same match.
+    pub fn run(&mut self, ticks: u32) {
+        let input = self.input();
+        for _ in 0..ticks {
+            self.session.step(input);
+        }
+    }
+
+    /// The match as JSON text: `tick`, `checksum` (16 hex digits: the simulation's own 64-bit state checksum), `pos` (`[x, foot y, z]`), `ended`, `collision_disabled` and `hidden`
+    /// (what the scene's rules have switched off or hidden). `examples/web3d_parity.rs` prints the same keys natively.
+    pub fn state(&self) -> String {
+        let p = self.session.player_feet();
+        serde_json::json!({
+            "tick": self.session.tick(),
+            "checksum": format!("{:016x}", self.session.sim().checksum()),
+            "pos": [p.x, p.y, p.z],
+            "ended": self.session.outcome(),
+            "collision_disabled": self.session.rules().collision_disabled().collect::<Vec<_>>(),
+            "hidden": self.session.hidden().collect::<Vec<_>>(),
+        })
+        .to_string()
+    }
+
     /// Simulation ticks run so far.
     pub fn ticks(&self) -> f64 {
         self.session.tick() as f64

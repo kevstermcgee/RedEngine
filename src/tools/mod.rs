@@ -12,6 +12,8 @@ pub mod adr;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod affected;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod agent_trace;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod analysis;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod audio;
@@ -36,6 +38,8 @@ pub mod edit;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod envelope;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod evidence;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod features;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod flora_sheet;
@@ -48,6 +52,8 @@ pub mod game2d;
 pub mod gamepublish;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod gen;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod gitscope;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod inspect;
 #[cfg(not(target_arch = "wasm32"))]
@@ -114,6 +120,8 @@ pub mod verify;
 pub mod walk;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod webpkg;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod webstatus;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod webverify;
 #[cfg(not(target_arch = "wasm32"))]

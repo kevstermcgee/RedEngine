@@ -1,5 +1,5 @@
-//! Red Engine 2 — a first-person, walk-around viewer for a red_engine2 scene, forked from
-//! the original Red Engine to be the base for an online prop hunt game.
+//! Red Engine 2 — the first-person, walk-around client for a red_engine2 scene: offline, in split screen, or
+//! online against `red_server`. It began as the base for a prop hunt game.
 //!
 //! `re2 [scene.json]` opens a window, drops you inside the scene at the camera's
 //! default position, and lets you walk around and look at things: WASD or the arrow keys to
@@ -12,17 +12,13 @@
 //! and flashes — a swing through empty air is silent. Hitting things is the seeker's primary
 //! action on objects; the crosshair turns gold when something is within bat reach. Cheddar is
 //! small and moves at a human's sprint speed all the time. E picks up (and drops) a loose prop —
-//! see `red_engine2::physics`. (Right-click is reserved for the hider's "choose an object to
-//! replicate", then R — not built yet.)
+//! see `red_engine2::physics`.
 
 use clap::Parser;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use red_engine2::audio::{synth_bat_hit, synth_weapon_click, Audio};
 use red_engine2::characters::HUMAN_HEIGHT;
-use red_engine2::collide::{
-    collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, colliders_on_floor, ground_from_groups, resolve_collision, Collider2D,
-    GroundCandidates,
-};
+use red_engine2::collide::{colliders_on_floor, resolve_collision, Collider2D, GroundCandidates, PhysicalWorld};
 use red_engine2::easing::Ease;
 use red_engine2::hit::{collect_hit_shapes_where, raycast_shapes, HitShape};
 use red_engine2::menu::{self, PauseAction};
@@ -229,9 +225,8 @@ struct App {
     scene_path: PathBuf,
     colliders: Vec<Collider2D>,
     ground: GroundCandidates,
-    collider_groups: Vec<Vec<Collider2D>>,
-    ground_groups: Vec<GroundCandidates>,
-    collision_object_ids: Vec<String>,
+    /// What physically exists under the scene's current collision state (offline play; `colliders` and `ground` above are its result).
+    physical: Option<PhysicalWorld>,
     /// Every solid leaf shape a swing can strike (see `red_engine2::hit`), excluding the player.
     hit_shapes: Vec<HitShape>,
     /// Loose props (pick up with E, drop, knock over); built when the game starts.
@@ -556,9 +551,7 @@ impl App {
             scene_path,
             colliders: Vec::new(),
             ground: GroundCandidates::default(),
-            collider_groups: Vec::new(),
-            ground_groups: Vec::new(),
-            collision_object_ids: Vec::new(),
+            physical: None,
             hit_shapes: Vec::new(),
             props: None,
             pickup_target: None,

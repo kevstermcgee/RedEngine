@@ -19,7 +19,7 @@ scene: [{"prefab":"coin","at":[40,30],"id":"p","count":1}]   map: {"tile":16,"or
 ui: {"text":"SCORE {score:3}","at":[4,4],"color":"#fff","scale":1,"align":"left"|"center"|"right","show":"ended"}  {"bar":{"var":"lives","max":3,"at":[0,0],"size":[40,6]}}
   {"panel":{"at":[0,0],"size":[100,20],"color":"#10141fdd"}}  {"button":{"id":"go","label":"GO","at":[0,0],"size":[40,12],"key":"Enter","do":[actions]}}   {v}=value {v:3}=zero-padded {v:.1}=one decimal
 rules: [{"id":"x","when":{TRIGGER},"if":"lives > 0","once":true,"cooldown":1,"do":[ACTIONS]}]
-  TRIGGER (exactly one): start | every:seconds | after:seconds | touch:[tagA,tagB] (on first overlap) | touching:[a,b] (every tick) | press:action | click:tag ("*" = nothing) | event:name | end:"win"|"lose"|"any"
+  TRIGGER (exactly one): start | every:seconds | after:seconds | touch:[tagA,tagB] (on first overlap) | touching:[a,b] (every tick) | press:action | click:tag ("*" = nothing) | event:name (built in: `loaded` fires once after saved progress is restored: rebuild the world from saved vars) | end:"win"|"lose"|"any"
   ACTIONS: set:[var,value] add:[var,value] emit:name spawn:{prefab,at,vel,count} destroy:"self"|"other"|"tag:T"|"id:I" play:sound music:"on"|"off"|"toggle" burst:{at,n,color,speed,life,size,gravity}
     shake:px end:"win"|"lose" restart:true reset_save:true velocity:{target,v:[x,y]} teleport:{target,to}     `at`: "self"|"other"|"pointer"|[x,y]|{"x":[min,max],"y":[min,max]}
   values and `if` are expressions: numbers, variables, + - * / %, == != < <= > >=, && || ! (division by zero is 0). Rules run in order, each seeing the changes before it.
@@ -30,9 +30,10 @@ HYBRID (3D where it helps, same file, same sim, still runs in the browser and he
   {"view3d":{..}}, view.world3d (the whole world in perspective), {"minimap":{..}}. Choose 2D unless a 3D part adds something. `red_engine2 describe hybrid` has the format.
 input actions: left right up down action secondary pause. Keys: arrows/WASD, Space/Z/J, Shift/X/K, Esc/P. Mouse/touch: `click` and buttons (a button `key` is any KeyboardEvent.code: Enter, KeyM, Digit1).
   A gamepad's stick/d-pad and A/B/Start map to the same actions.
-checks: {"scenarios":[{"name":"...","seed":1,"max_seconds":30,"smoke":true,"script":[STEPS],"expect":[EXPECT]}],"browser":[{"name":"...","keys":["ArrowRight"],"click":[x,y],"ms":400,"changes":["p_x"],"persists":["music_on"]}]}
+checks: {"scenarios":[{"name":"...","seed":1,"max_seconds":30,"smoke":true,"script":[STEPS],"expect":[EXPECT]}],"browser":[{"name":"...","keys":["ArrowRight"],"click":[x,y],"ms":400,"changes":["p_x"],"persists":["music_on"]}],
+  "reach":[{"from":"p","to":"tag:goal","open":["gate"],"reachable":true,"why":"..."}]}   reach = map analysis with the game's own collision: can top-down walker `from` (scene id) touch `to` (id or tag:NAME), with `open` things assumed gone?
   STEPS: wait:s | hold:[actions],seconds:s | hold_until:[actions],until:EXPECT,timeout:s | press:action | click:[x,y] | button:id | point:[x,y] | approach:tag,seconds:s | wait_until:EXPECT,timeout:s
-  EXPECT: {var,eq|ne|gt|gte|lt|lte:n} {ended:"win"|"lose"} {not_ended:true} {count:tag,eq..} {entity:id,near:[x,y],tol:px} {event:name,min,max} {sound:name,min} {hash:"..."}
+  EXPECT: {var,eq|ne|gt|gte|lt|lte:n} {ended:"win"|"lose"} {not_ended:true} {count:tag,eq..} {entity:id,near:[x,y],tol:px} {event:name,min,max} {sound:name,min} {hash:"..."} {reach:"tag:goal",from:"p",reachable:false} (live: from where it stands now)
   Every scenario needs an `expect` (one that asserts nothing proves nothing). `smoke:true` marks the playthrough the browser replays and must match hash for hash.
 MECHANICS (verified, each with the scenarios that prove it; copy one instead of inventing it): `red_engine2 recipe` lists key-door timer-lose collect-then-exit health-damage checkpoint-respawn spawner-waves survive-then-escape; `recipe NAME --new g.game2d.json`.
 LOOP: validate G -> sim G [--only NAME --every SECONDS] -> verify G -> frame G out.png [--scenario NAME --t SECONDS --size 1280x720] (LOOK) -> web verify G -> publish G

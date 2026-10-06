@@ -243,14 +243,14 @@ fn routing_is_by_file_so_the_3d_verbs_still_mean_3d() {
     assert!(game2d::is_game(&examples()[0]));
 }
 
-/// A fresh author's first `search` for a 2D question returned only 3D fragments; the 2D reference and docs are in the corpus now.
+/// A fresh author's first `search` for a 2D question returned only 3D fragments; the 2D reference, docs and verified mechanics are in the corpus now.
 #[test]
 fn searching_for_a_2d_question_finds_the_2d_material() {
     for q in ["spawn falling objects random position 2d", "how do I publish a 2d game to the browser", "sprite palette rows animation frames"] {
         let o = std::process::Command::new(env!("CARGO_BIN_EXE_red_engine2")).args(["search", q, "--limit", "3"]).output().unwrap();
         let text = String::from_utf8_lossy(&o.stdout);
         assert!(
-            text.contains("describe 2d") || text.contains("PUBLISHING_2D") || text.contains("WEB_PLATFORM"),
+            text.contains("describe 2d") || text.contains("PUBLISHING_2D") || text.contains("WEB_PLATFORM") || text.contains("[mechanic] 2D mechanic"),
             "`search {q}` found no 2D material in its top 3:\n{text}"
         );
     }
@@ -319,4 +319,99 @@ fn a_3d_element_needs_the_hybrid_declaration_and_its_mistakes_are_named() {
     refused(&mutate("lantern-yard", |g| g["view"]["world3d"]["plane"] = json!("floor")), &["\"ground\"", "\"wall\""]);
     refused(&mutate("warden-arena", |g| g["ui"][5]["view3d"]["camera"]["eye"] = json!([0, 1.5, 0])), &["same point"]);
     refused(&mutate("warden-arena", |g| g["ui"][6]["minimap"]["colors"] = json!({"nobody": "#fff"})), &["no tag `nobody`"]);
+}
+
+// ---- the front door: a model that has never seen the engine finds the whole workflow with commands -------------------------------------------------------
+
+fn cli(args: &[&str], cwd: &Path) -> (bool, String) {
+    let o = std::process::Command::new(env!("CARGO_BIN_EXE_red_engine2")).args(args).current_dir(cwd).output().expect("run red_engine2");
+    (o.status.success(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr)))
+}
+
+#[test]
+fn describe_web_is_one_page_that_answers_every_question_a_fresh_model_has() {
+    let (ok, t) = cli(&["describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    assert!(ok, "{t}");
+    for must in [
+        "new-game DIR --kind 2d", // how to create
+        "2d ",
+        "hybrid",
+        "3d ", // when to choose which
+        "web status G",
+        "validate G -> verify G -> web verify G -> publish G", // the loop
+        "web setup-browser",
+        "publish G --backend github-pages --repo ../RedEngineGames", // how to publish
+        "ONLY this game",
+        "human_playtested", // how to read the evidence
+        "not_run and not_applicable are not passes",
+        "UPDATE an existing game",
+        "LIMITS (today)",
+        "SOFTWARE renderer",
+    ] {
+        assert!(t.contains(must), "describe web lacks `{must}`:\n{t}");
+    }
+    for (key, _) in red_engine2::tools::evidence::KEYS {
+        assert!(t.contains(key), "describe web does not explain the evidence piece `{key}`");
+    }
+    assert!(t.len() < 7_000, "one page, not a manual: {} bytes", t.len());
+    // The brief and the 2D page both point to it; the machine form carries the same facts.
+    let (_, brief) = cli(&["describe", "--brief"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    assert!(brief.contains("describe web") && brief.contains("web status"), "{brief}");
+    let (_, j) = cli(&["--json", "describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    let v: Value = serde_json::from_str(&j).unwrap();
+    assert!(
+        v["data"]["limits"].as_array().unwrap().len() >= 5 && v["data"]["evidence"].as_array().unwrap().len() == red_engine2::tools::evidence::KEYS.len(),
+        "{j}"
+    );
+}
+
+#[test]
+fn web_status_walks_a_new_game_from_nothing_to_the_next_command_each_time() {
+    let dir = std::env::temp_dir().join(format!("re2_web_status_cli_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let game = dir.join("gate-meadow.game2d.json");
+    std::fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/2d/gate-meadow.game2d.json"), &game).unwrap();
+    let (ok, j) = cli(&["--json", "web", "status", game.to_str().unwrap()], &dir);
+    assert!(ok, "{j}");
+    let v: Value = serde_json::from_str(&j).unwrap();
+    let d = &v["data"];
+    assert_eq!(d["schema"], "red2d-web-status/1");
+    assert_eq!(d["valid"], true);
+    assert_eq!(d["presentation"], "hybrid");
+    assert_eq!(d["native"]["ok"], true);
+    assert_eq!(d["package"]["built"], false);
+    assert!(d["next"][0]["command"].as_str().unwrap().starts_with("red_engine2 web verify "), "{d}");
+    assert_eq!(d["human_playtested"], false);
+    // The text form ends in the command to run.
+    let (_, t) = cli(&["web", "status", game.to_str().unwrap()], &dir);
+    assert!(t.contains("NEXT: red_engine2 web verify") && t.contains("package built      NO"), "{t}");
+    // A broken file says `validate` and shows the problems.
+    let bad = dir.join("bad.game2d.json");
+    std::fs::write(&bad, r#"{"game2d":1,"id":"bad","title":"x"}"#).unwrap();
+    let (_, t) = cli(&["web", "status", bad.to_str().unwrap()], &dir);
+    assert!(t.contains("NOT VALID") && t.contains("NEXT: red_engine2 validate"), "{t}");
+}
+
+#[test]
+fn describe_web3d_keeps_proven_experimental_hybrid_and_planned_apart() {
+    let (ok, t) = cli(&["describe", "web3d"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    assert!(ok, "{t}");
+    for must in [
+        "PROVEN (the full engine)",
+        "EXPERIMENTAL",
+        "HYBRID (shipped and verified, a different thing)",
+        "PLANNED",
+        "SAME simulation checksum",
+        "SOFTWARE renderer",
+        "do not call the hybrid renderer a port of the engine",
+        "no WebGL2 fallback",
+    ] {
+        assert!(t.contains(must), "describe web3d lacks `{must}`:\n{t}");
+    }
+    // The capability matrix agrees: a 3D game still cannot declare the web, and the reason names the experiment instead of claiming nothing builds.
+    let r = game2d::capabilities(None, &["3d".to_string(), "web".to_string()]).unwrap();
+    assert!(!r.ok && r.text.contains("NOT SUPPORTED") && r.text.contains("experiment") && r.text.contains("describe web3d"), "{}", r.text);
+    let (_, web) = cli(&["describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    assert!(web.contains("describe web3d"), "describe web points to the 3D page");
 }

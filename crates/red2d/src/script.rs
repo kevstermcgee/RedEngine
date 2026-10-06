@@ -48,6 +48,7 @@ fn describe_expect(def: &GameDef, e: &Expect) -> String {
         Expect::Event(n, min, max) => format!("event `{n}` emitted {min}..{}", max.map_or("any".to_string(), |m| m.to_string())),
         Expect::Sound(i, n) => format!("sound `{}` played at least {n} time(s)", def.sounds[*i].name),
         Expect::Hash(h) => format!("state hash {h}"),
+        Expect::Reach(from, to, want) => format!("`{from}` {} walk to `{to}`", if *want { "can" } else { "cannot" }),
     }
 }
 
@@ -119,6 +120,11 @@ pub fn check(sim: &Sim, e: &Expect) -> Result<(), String> {
                 fail(sim.hash_hex())
             }
         }
+        Expect::Reach(from, to, want) => match sim.can_reach(from, to) {
+            Ok(got) if got == *want => Ok(()),
+            Ok(got) => fail(format!("it {} (the game's own collision, from where `{from}` stands now)", if got { "can" } else { "cannot" })),
+            Err(e) => fail(e),
+        },
     }
 }
 
@@ -414,6 +420,28 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
         let same = def.persist.iter().all(|&i| (b.vars[i] - a.vars[i]).abs() < 1e-9)
             && (b.music_on == a.music_on || !def.caps.persistence.contains(&crate::caps::Persistence::Settings));
         rows.push(Row::new(same, "simulation", "save round trip", format!("{status}")));
+    }
+    // Map analysis of the starting world, with what a rule opens assumed gone: the same `can_reach` a scenario's `reach` expectation asks of the live world.
+    for rc in &def.reach {
+        let mut sim = Sim::new(def.clone(), 1);
+        let removed: usize = rc.open.iter().map(|o| sim.remove_for_analysis(o)).sum();
+        let name = format!("reach: {}", rc.name);
+        match sim.can_reach(&rc.from, &rc.to) {
+            Ok(got) => rows.push(Row::new(
+                got == rc.reachable,
+                "analysis",
+                name,
+                format!(
+                    "`{}` {} walk to `{}`{} (expected: {})",
+                    rc.from,
+                    if got { "can" } else { "cannot" },
+                    rc.to,
+                    if rc.open.is_empty() { String::new() } else { format!(" with {} removed ({removed} thing(s))", rc.open.join(", ")) },
+                    if rc.reachable { "can" } else { "cannot" }
+                ),
+            )),
+            Err(e) => rows.push(Row::new(false, "analysis", name, e)),
+        }
     }
     // Declared browser input checks refer to things that exist (the parser checked); say they are not run here.
     for b in &def.browser {

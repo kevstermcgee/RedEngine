@@ -7,7 +7,7 @@ declares what it needs in its `capabilities` block and an unsupported pair fails
 |---|---|---|
 | **2d** | **SUPPORTED**: `*.game2d.json` -> `web build` -> static package -> `web verify` in a real headless Chromium | PREPARED: runs headless (`sim`, `verify`, `frame`) today; a native window is not built (the app layer's `shell` could show the CPU frame) |
 | **hybrid** | **SUPPORTED**: a 2D game that draws some of itself in 3D (below); exactly the 2D row | the same as 2D |
-| **3d** | NOT SUPPORTED: needs wgpu and the engine library on WebAssembly | SUPPORTED: the existing engine |
+| **3d** | NOT SUPPORTED as a game you can build, verify and publish. EXPERIMENT: the engine's own renderer and simulation run in Chromium on WebGPU for one scene at a time and match the native simulation bit for bit (`describe web3d`, `scripts/web3d_measure.sh`) | SUPPORTED: the existing engine |
 
 ### Distribution: online and install, for every kind of game
 
@@ -31,6 +31,21 @@ A hybrid game is still one `*.game2d.json` with one simulation, one set of input
 * `minimap`: a flat map over any game, 2D or 3D.
 
 It is drawn by a small deterministic software renderer (`raster3d.rs`: flat or toon shading, one light, a depth buffer, `libm` trigonometry so native and WebAssembly agree to the bit), so it keeps the properties of the 2D path: runs headless, `web verify` compares the browser's first frame to the native one, no GPU. It is not the wgpu engine and does not try to be (no textures, one light, no shadows, small worlds). The AI picks per game; `propose` recommends hybrid when an idea wants a 3D *part* and 3D when it wants a 3D *world*. `examples/2d/warden-arena` (3D boss, HUD portrait, 3D backdrop, minimap) and `examples/2d/lantern-yard` (the world in perspective with a minimap) are the two worked examples.
+
+### What is proven, experimental, hybrid and planned (never confuse the hybrid renderer with a port of the engine)
+
+| | what | state |
+|---|---|---|
+| **proven, full engine** | the engine's wgpu renderer + `LocalSession` in a browser (`crates/web3d`), WebGPU, one player, offline, keyboard and mouse look; the simulation checksum after a scripted run equals the native one (Marcel, `recipes/gated_garden` with its rule-opened gate) | measured by `scripts/web3d_measure.sh`; not a CI gate; software adapter only |
+| **experimental** | everything around it: the measurement harness, the 7 MB module, the page in `crates/web3d/web` | runs; no packaging, `web verify`, publish or install for 3D; no audio, HUD, menus, touch or gamepad; no WebGL2 fallback (it refuses to start, saying why) |
+| **hybrid (shipped)** | 2D games with 3D parts drawn by the built-in software renderer (`raster3d.rs`) | verified in a real browser on every CI run; a different renderer, not a smaller engine |
+| **planned** | audio, HUD and menus, touch pads, a single-sample WebGL2 path, a 3D `web build/verify/publish`, a real-device performance floor, browser multiplayer (its own project) | not started |
+
+### Browsers and devices
+
+The automated run is headless Chromium (with an emulated phone). `web verify --engine firefox` runs the same checks in Playwright's Firefox (`web setup-browser --engines firefox`); the Chromium-only probes (installability, the long-task observer,
+the phone emulation) are not run there and their evidence says `not_run`. Nothing automated is Safari, a physical phone or a speaker: `docs/DEVICE_QUALIFICATION.md` is the procedure and the record format.
+`red_engine2 web status G` prints the facts about one game, the exact next command and the limits; `red_engine2 describe web` is the same on one page.
 
 "Supported" means a test runs it. "Unverified" means it is built and nothing here has run it (touch, gamepad). "Prepared" means the design allows it and the code does not exist.
 

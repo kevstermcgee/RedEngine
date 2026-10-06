@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn a_call_is_a_stereo_clip_and_a_bed_a_loop() {
         let clip = call_clip(0, 1, None);
-        assert!(clip.len() > 1000 && clip.len() % 2 == 0 && clip.iter().any(|s| *s != 0.0));
-        assert!(bed_loop(0).len() % 2 == 0);
+        assert!(clip.len() > 1000 && clip.len().is_multiple_of(2) && clip.iter().any(|s| *s != 0.0));
+        assert!(bed_loop(0).len().is_multiple_of(2));
     }
 }

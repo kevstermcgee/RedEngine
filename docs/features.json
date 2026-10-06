@@ -12,8 +12,8 @@
     },
     "web2d": {
       "summary": "2D games for the browser: the red2d crate (declarative game format, deterministic simulation, CPU renderer, sound), its WebAssembly player and static package, headless-browser verification, and the presentation x platform capability matrix.",
-      "files": ["crates/red2d/**", "src/font_glyphs.rs", "src/tools/game2d.rs", "src/tools/webpkg.rs", "src/tools/webverify.rs", "src/tools/publish2d.rs", "src/tools/propose.rs", "src/cli/web.rs", "examples/2d/**", "docs/WEB_PLATFORM.md", "docs/PUBLISHING_2D.md", "scripts/web_check.sh", "scripts/patch_pages_generator.py"],
-      "tests": ["web2d_games", "web2d_package", "lib:tools::game2d", "lib:tools::webpkg", "web2d_publish"],
+      "files": ["crates/red2d/**", "src/font_glyphs.rs", "src/tools/game2d.rs", "src/tools/webpkg.rs", "src/tools/webverify.rs", "src/tools/publish2d.rs", "src/tools/gitscope.rs", "tests/fresh_agent_bench.rs", "scripts/agent_bench.py", "src/tools/evidence.rs", "src/tools/propose.rs", "src/cli/web.rs", "examples/2d/**", "docs/WEB_PLATFORM.md", "docs/PUBLISHING_2D.md", "scripts/web_check.sh", "scripts/patch_pages_generator.py"],
+      "tests": ["web2d_games", "web2d_package", "lib:tools::game2d", "lib:tools::webpkg", "web2d_publish", "publish_git_isolation", "gate_meadow", "fresh_agent_bench"],
       "commands": ["red_engine2 verify examples/2d/coin-dash.game2d.json", "red_engine2 web verify examples/2d/coin-dash.game2d.json", "red_engine2 capabilities"],
       "docs": ["docs/WEB_PLATFORM.md", "docs/PUBLISHING_2D.md", "docs/adr/2026-10-05-hybrid-games-draw-3d-parts-with-a-small-portable.md"],
       "depends_on": ["scene_format", "audio", "game_rules"]
@@ -37,7 +37,7 @@
     "player_physics": {
       "summary": "One shared, scene-tunable player movement and jump-pad simulation used by the game, server, client prediction and map tools.",
       "files": ["src/player.rs", "src/controller.rs", "src/collide.rs", "src/sim/player.rs"],
-      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env", "loadout", "marcel_walk"],
+      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env", "loadout", "marcel_walk", "ground_consistency"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
       "depends_on": ["scene_format"]
@@ -189,7 +189,7 @@
     },
     "audio": {
       "summary": "Sound you can measure: the procedural synthesis (guns, effects, music, ambience) and WAV encoder build headless; `audio list|report|render|picture|check` give loudness (BS.1770 LUFS), peaks, clipping, silence, loop seam, spectrum and pitch as numbers or one picture, and hold every built-in sound to a standard.",
-      "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/audio_fx.rs", "src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json", "src/nature.rs", "src/ambience.rs", "src/mixer.rs", "src/tools/audio_checks.rs", "examples/marcel/audio/*.json"],
+      "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/audio_fx.rs", "src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json", "src/nature.rs", "src/ambience.rs", "src/mixer.rs", "src/tools/audio_checks.rs", "examples/marcel/audio/*.json", "src/soundscape.rs"],
       "tests": ["lib:synth", "lib:dsp", "lib:voice_spec", "lib:audio_fx", "lib:score", "lib:sfx", "lib:music", "lib:audio_analysis", "lib:tools::audio", "lib:nature", "lib:ambience", "lib:mixer", "lib:tools::audio_checks"],
       "commands": ["red_engine2 audio check", "red_engine2 audio golden", "red_engine2 audio report fx.explosion", "red_engine2 audio picture music.loop out/music.png"],
       "docs": ["docs/adr/0008-procedural-assets-only.md", "docs/adr/0056-music-in-code.md", "docs/adr/2026-10-04-audio-you-can-measure-headless-synthesis-and-the-audio.md", "docs/adr/2026-10-04-a-sound-kit-voices-made-of-layers.md", "docs/adr/2026-10-04-sounds-as-data-the-json-voice-and-audio-export.md", "docs/adr/2026-10-04-music-as-data-scores-pitched-instruments-and-loop-safe.md", "docs/adr/2026-10-04-a-living-soundscape-nature-sounds-birdsong-by-the-hour.md", "docs/adr/2026-10-04-a-mixing-desk-buses-voice-limits-ducking-rule-driven.md"],
@@ -260,8 +260,8 @@
     },
     "self_description": {
       "summary": "The engine describing itself and choosing its own verification: describe, search, src navigation, context work packets, impact/affected (minimal verification), catalog, doctor, status, the JSON envelope and the MCP wrapper.",
-      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py", "src/tools/racetrack.rs", "src/tools/gamepublish.rs", "src/cli/servers.rs", "src/tools/servers.rs", "src/tools/publish_check.rs"],
-      "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context", "cli_envelope", "docs_fresh", "features_index", "ai_tasks", "lib:tools::publish_check"],
+      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py", "src/tools/racetrack.rs", "src/tools/gamepublish.rs", "src/cli/servers.rs", "src/tools/servers.rs", "src/tools/publish_check.rs", "src/tools/webstatus.rs", "src/tools/agent_trace.rs"],
+      "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context", "cli_envelope", "docs_fresh", "features_index", "lib:tools::publish_check", "ai_tasks"],
       "commands": ["red_engine2 describe --brief", "red_engine2 features --check", "red_engine2 affected --dry-run"],
       "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md"]
     },
@@ -294,6 +294,33 @@
         "docs/adr/2026-09-29-develop-on-a-path-ship-on-a-pin.md"
       ],
       "depends_on": ["blueprints_and_games", "verification", "map_analysis", "self_description"]
+    }
+  },
+  "content": {
+    "killchain_client": {
+      "tier": "game",
+      "summary": "Killchain, one shipped loadout team-deathmatch game: its windowed client and 2-D screens. The reusable shooter engine (arsenal, ordnance, killcam, sim::shooter) is NOT here; it is engine.",
+      "files": ["src/bin/re2/kc/**", "src/ui/killchain.rs", "examples/killchain_screens.rs", "docs/adr/2026-09-30-killchain-loadout-shooter.md", "docs/adr/2026-10-01-killchain-player-feedback.md"]
+    },
+    "marcel_world": {
+      "tier": "game",
+      "summary": "Marcel, the endless-meadow game: its world, the boy character and their ADRs. Procgen, the day cycle and the soundscape they use are engine.",
+      "files": ["examples/marcel/**", "examples/endless_meadow.json", "examples/endless_shore.json", "tests/marcel_walk.rs", "docs/adr/2026-10-04-marcel-opens-in-first-person-from-black-and-the-boy-stands-on-the-ground.md", "docs/adr/2026-10-04-the-boy-the-third-person-start-and-a-clock-that-runs-in.md", "docs/adr/2026-10-04-cascaded-sun-shadows-and-a-picture-book-boy.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"]
+    },
+    "lantern_walk": {
+      "tier": "game",
+      "summary": "Lantern Walk, a small example game with its own audio and walk test.",
+      "files": ["examples/lantern_walk/**", "tests/lantern_walk.rs"]
+    },
+    "legacy_maps": {
+      "tier": "legacy",
+      "summary": "The original prop-hunt era maps (house, school, office, store, prop_hunt_yard), kept as regression fixtures for lint, reach and walk (ADR 0015); not examples to copy.",
+      "files": ["examples/house.json", "examples/school.json", "examples/office.json", "examples/store.json", "examples/prop_hunt_yard.json", "tests/house_walk.rs", "docs/adr/0009-four-maps-one-asset-library.md"]
+    },
+    "past_reports": {
+      "tier": "history",
+      "summary": "What earlier builders reported and what was done about it: per-game feedback, milestone and survey notes. Evidence, not instructions; the decisions that came out of them are ADRs.",
+      "files": ["docs/analysis/*feedback*.md", "docs/analysis/*milestone*.md", "docs/analysis/*plan.md", "docs/analysis/*-findings.md", "docs/analysis/minigames/**", "docs/analysis/2026-09-24-blue-comparison.md", "docs/analysis/2026-09-29-what-building-three-physics-games-taught-us-about-red.md", "docs/analysis/2026-10-06-3d-browser-measurements.md"]
     }
   }
 }

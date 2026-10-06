@@ -6,10 +6,7 @@
 //! builds, plus the optional authoring metadata that lives in the raw JSON but not in the
 //! compiled scene (`zones`, per-object `lint_ignore`).
 
-use crate::collide::{
-    collect_box_colliders, collect_box_colliders_grouped_except, collect_ground_candidates, collect_ground_candidates_grouped_except, Collider2D,
-    GroundCandidates,
-};
+use crate::collide::{Collider2D, GroundCandidates, PhysicalWorld};
 use crate::geometry::trs;
 use crate::props::{collision, collision_box, local_bounds, prop_parts, Collision, PropKind};
 use crate::schema::{Object, ObjectKind, PrimKind, Scene};
@@ -217,7 +214,6 @@ impl MapWorld {
         // What the unconditional `start` rules open on the first tick is open to the tools too, and so is what the chosen phase's rules
         // open (a gate a game keeps closed until something happens stays solid in the initial state: the tools cannot know when).
         let collision_disabled: Vec<String> = scene.rules.open_objects(phase).map_err(|e| vec![format!("phase: {e}")])?;
-        let disabled_indices: HashSet<usize> = scene.objects.iter().enumerate().filter(|(_, o)| collision_disabled.contains(&o.id)).map(|(i, _)| i).collect();
         let mut items = Vec::new();
         for o in &scene.objects {
             flatten_object(o, &o.id, Mat4::IDENTITY, !collision_disabled.contains(&o.id), &ignores, &mut items);
@@ -229,15 +225,10 @@ impl MapWorld {
             Some(s) => (Vec2::new(s.position[0], s.position[2]), s.position[1]),
             None => (Vec2::new(cam.x, cam.z), 0.0),
         };
-        let (colliders, ground) = if disabled_indices.is_empty() {
-            (collect_box_colliders(&scene), collect_ground_candidates(&scene))
-        } else {
-            let mut ground = GroundCandidates::default();
-            for g in &collect_ground_candidates_grouped_except(&scene, &disabled_indices) {
-                ground.append(g);
-            }
-            (collect_box_colliders_grouped_except(&scene, &disabled_indices).into_iter().flatten().collect(), ground)
-        };
+        // The same definition of the physical world the runtime uses: the scene's generated terrain and every object whose collision is on, nothing from the ones a rule or
+        // phase opened. (Built per object group here once, by hand, it dropped the scene-level generated world as soon as any gate was open.)
+        let physical = PhysicalWorld::of(&scene, &HashSet::new(), &collision_disabled);
+        let (colliders, ground) = (physical.colliders().to_vec(), physical.ground().clone());
         Ok(MapWorld {
             path: path.to_path_buf(),
             colliders,

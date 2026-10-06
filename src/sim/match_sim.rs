@@ -11,7 +11,7 @@
 //! [`PropWorld`]), and the props are simulated here, so a prop moved by one player is seen moved by
 //! every other.
 
-use crate::collide::{collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, scene_ground, Collider2D, GroundCandidates};
+use crate::collide::{Collider2D, GroundCandidates, PhysicalWorld};
 use crate::hit::{collect_hit_shapes_where, HitShape};
 use crate::physics::PropWorld;
 use crate::player::Character;
@@ -63,13 +63,8 @@ pub struct ServerPlayer {
 /// The authoritative world. See the module docs.
 pub struct MatchSim {
     pub(super) props: PropWorld,
-    colliders: Vec<Collider2D>,
-    ground: GroundCandidates,
-    collider_groups: Vec<Vec<Collider2D>>,
-    ground_groups: Vec<GroundCandidates>,
-    /// The ground that belongs to the scene rather than to an object (its generated world, its loop): the base every rebuild of `ground` starts from.
-    scene_ground: GroundCandidates,
-    collision_object_ids: Vec<String>,
+    /// What physically exists, given the scene and which objects' collision the rules have switched off ([`PhysicalWorld`]: the one definition every tool shares).
+    world: PhysicalWorld,
     /// Exact shapes of the fixed world, for bat swings and bullets.
     pub(super) hit_shapes: Vec<HitShape>,
     /// The scene's weapon numbers.
@@ -140,24 +135,12 @@ impl MatchSim {
         }
         let props = PropWorld::new(scene, None);
         let loose = props.movable_indices();
-        let collider_groups = collect_box_colliders_grouped_except(scene, &loose);
-        let ground_groups = collect_ground_candidates_grouped_except(scene, &loose);
-        let colliders = collider_groups.iter().flatten().copied().collect();
-        let scene_ground = scene_ground(scene);
-        let mut ground = scene_ground.clone();
-        for group in &ground_groups {
-            ground.append(group);
-        }
+        let world = PhysicalWorld::new(scene, &loose);
         let object_index: HashMap<String, usize> = scene.objects.iter().enumerate().map(|(i, o)| (o.id.clone(), i)).collect();
         let mut rules = RulesEngine::new(scene.rules.clone()).with_wrap(scene.player.expanse.wrap);
         rules.bind_props(|id| object_index.get(id).and_then(|i| props.prop_of_object(*i)));
         Ok(MatchSim {
-            colliders,
-            ground,
-            collider_groups,
-            ground_groups,
-            scene_ground,
-            collision_object_ids: scene.objects.iter().map(|object| object.id.clone()).collect(),
+            world,
             hit_shapes: collect_hit_shapes_where(scene, |i| !loose.contains(&i)),
             weapons: scene.weapons,
             combat_cfg: scene.combat,
@@ -276,7 +259,7 @@ impl MatchSim {
 
     /// The static collision world players walk through (a client predicts against the same data).
     pub fn static_world(&self) -> (&[Collider2D], &GroundCandidates) {
-        (&self.colliders, &self.ground)
+        (self.world.colliders(), self.world.ground())
     }
 
     /// A map-authored single-character policy, enforced by the authoritative server.
@@ -499,7 +482,8 @@ impl MatchSim {
                     let spec = self.drivers[slot].spec();
                     // What is under the kart at the start of the tick: clients predict with the same lookup, so they agree.
                     let surface = course.as_ref().map_or(Surface::Road, |c| c.surface_at(p.state.pos));
-                    let (speed, events) = step_kart_ex(&mut p.state, &mut self.karts[slot], &input, &spec, surface, &self.colliders, &self.ground);
+                    let (speed, events) =
+                        step_kart_ex(&mut p.state, &mut self.karts[slot], &input, &spec, surface, self.world.colliders(), self.world.ground());
                     p.speed = speed;
                     kart_events[slot].throw_acorn |= events.throw_acorn;
                     kart_events[slot].lay_plank |= events.lay_plank;
@@ -516,7 +500,7 @@ impl MatchSim {
                         tuning.sprint_speed *= m;
                         tuning.max_speed *= m;
                     }
-                    p.speed = step_player_tuned(&mut p.state, &input, &self.colliders, &self.ground, tuning, &self.jump_pads);
+                    p.speed = step_player_tuned(&mut p.state, &input, self.world.colliders(), self.world.ground(), tuning, &self.jump_pads);
                     p.crouching = input.crouch;
                 }
                 p.last_processed_seq = input.seq;
@@ -590,7 +574,7 @@ impl MatchSim {
             }
         }
         let karts = &mut self.karts;
-        self.hazards.step(positions, &self.colliders, |slot, spin| {
+        self.hazards.step(positions, self.world.colliders(), |slot, spin| {
             karts[slot].spin_out(spin);
         });
         // Boxes: only a kart with a free hand can take one; the roll knows the taker's place.
@@ -696,19 +680,7 @@ impl MatchSim {
     }
 
     fn rebuild_static_world(&mut self) {
-        self.colliders.clear();
-        self.ground = self.scene_ground.clone();
-        for (i, id) in self.collision_object_ids.iter().enumerate() {
-            if self.rules.collision_disabled().any(|disabled| disabled == id) {
-                continue;
-            }
-            if let Some(group) = self.collider_groups.get(i) {
-                self.colliders.extend_from_slice(group);
-            }
-            if let Some(group) = self.ground_groups.get(i) {
-                self.ground.append(group);
-            }
-        }
+        self.world.set_collision_disabled(self.rules.collision_disabled());
     }
 
     fn teleport(&mut self, slot: usize, target: &Target) {

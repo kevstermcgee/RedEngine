@@ -33,6 +33,8 @@
     backup: '',
     pad: 'hidden',             // hidden | shown (the touch controller below the game)
     held: [],                  // input actions the touch controller is holding right now
+    early_input: 0,            // input events that arrived before the game was ready (or after it failed) and were ignored on purpose
+    ready_ms: null,            // milliseconds from navigation start to the start screen
   };
   let wasm = null, mem = null, canvas, stage, ctx2d, imageData = null, manifest = null;
   let audio = null, soundBuffers = new Map(), musicSource = null, musicBuffer = null, musicWanted = false;
@@ -40,15 +42,29 @@
   const TICK_MS = 1000 / 60;
   const enc = new TextEncoder(), dec = new TextDecoder();
 
+  // ---- ONE state model: loading -> ready -> running, and `error` from anywhere -------------------------------------------------------------------------
+  // Everything that reacts to the player (keys, pointer, touch pad, gamepad, focus, visibility) asks `live()` first. It is true only from the moment the start screen is shown (the
+  // module is instantiated and initialised, the layout and the touch pad exist) until a failure; before that an event is counted in `status.early_input` and dropped, and after a
+  // failure no control does anything. So no handler can reach `wasm.exports` while it is null, and no control is half-active.
+  const live = () => wasm !== null && (status.state === 'ready' || status.state === 'running');
+  const early = () => { status.early_input++; };
+  const noise = (e) => /ResizeObserver loop/.test(String((e && e.message) || e)) || (e && !e.error && /^Script error\.?$/.test(e.message || ''));   // reported by the browser, not a failure of the game
+
   const fail = (e) => {
+    if (status.state === 'error') return;               // the first error is the cause; whatever follows is a consequence
     const msg = (e && e.message) ? e.message : String(e);
     status.state = 'error'; status.error = msg;
     document.body.dataset.state = 'error';
     console.error('red2d fatal: ' + msg);
+    cancelAnimationFrame(rafId);
+    releaseAll();
+    stopAudio();
+    for (const id of ['start', 'loading', 'pad']) { const el = document.getElementById(id); if (el) el.hidden = true; }   // no start card, no spinner, no controller: nothing that looks usable
+    status.pad = 'hidden';
     const box = document.getElementById('error');
     if (box) { box.textContent = 'The game could not run: ' + msg; box.hidden = false; }
   };
-  window.addEventListener('error', (e) => fail(e.error || e.message));
+  window.addEventListener('error', (e) => { if (!noise(e)) fail(e.error || e.message); });
   window.addEventListener('unhandledrejection', (e) => fail(e.reason));
 
   // ---- wasm helpers ---------------------------------------------------------------------------------------------------------------------------------
@@ -113,6 +129,9 @@
       audio.onstatechange = () => { status.audio = audio.state; };
       status.audio = audio.state;
     } catch (e) { status.audio = 'failed'; console.warn('red2d: audio failed: ' + e); }
+  }
+  function stopAudio() {
+    try { if (musicSource) { musicSource.stop(); musicSource.disconnect(); musicSource = null; } if (musicWorker) { musicWorker.terminate(); musicWorker = null; } if (audio && audio.state === 'running') audio.suspend(); } catch (e) { /* best effort */ }
   }
   function soundBuffer(i) {
     if (soundBuffers.has(i)) return soundBuffers.get(i);
@@ -185,7 +204,8 @@
 
   // ---- input --------------------------------------------------------------------------------------------------------------------------------------------
   function begin() {
-    if (status.started || status.state === 'error') return;
+    if (!live()) { early(); return; }
+    if (status.started) return;
     status.started = true; status.state = 'running'; document.body.dataset.state = 'running';
     const o = document.getElementById('start'); if (o) o.hidden = true;
     ensureAudio(); requestDurableStorage();
@@ -196,7 +216,7 @@
     return x().to_view(clientX - r.left, clientY - r.top) ? [x().view_x(), x().view_y()] : null;
   }
   function onKey(e, down) {
-    if (status.state === 'error') return;
+    if (!live()) { early(); return; }
     if (down && !status.started) { begin(); e.preventDefault(); return; }   // the first key press only starts (it unlocks audio)
     if (e.repeat) { e.preventDefault(); return; }
     withText(e.code, (p, n) => x().key(p, n, down ? 1 : 0));
@@ -204,14 +224,23 @@
   }
   window.addEventListener('keydown', (e) => onKey(e, true));
   window.addEventListener('keyup', (e) => onKey(e, false));
-  window.addEventListener('blur', () => { // never leave a key (or a thumb) stuck when focus is lost
-    for (const a of ['left', 'right', 'up', 'down', 'action', 'secondary', 'pause']) withText(a, (p, n) => x().action(p, n, 0));
+  // Never leave a key (or a thumb) stuck when focus or visibility is lost; when it comes back, do not make up for the time that passed (no burst of ticks).
+  function releaseAll() {
+    if (wasm) for (const a of ['left', 'right', 'up', 'down', 'action', 'secondary', 'pause']) { try { withText(a, (p, n) => x().action(p, n, 0)); } catch (e) { /* the module is gone: nothing is held */ } }
+    for (const k of Object.keys(padState)) padState[k] = false;
     held.clear(); status.held = []; padVisual();
+  }
+  const resync = () => { last = performance.now(); acc = 0; };
+  window.addEventListener('blur', () => { if (!live()) { early(); return; } releaseAll(); });
+  window.addEventListener('focus', () => { if (!live()) { early(); return; } resync(); if (audio && audio.state === 'suspended') audio.resume().catch(() => {}); });
+  document.addEventListener('visibilitychange', () => {
+    if (!live()) { early(); return; }
+    if (document.hidden) releaseAll(); else resync();
   });
   function bindPointer() {
-    window.addEventListener('pointermove', (e) => { if (!wasm) return; const p = toView(e.clientX, e.clientY); if (p) x().pointer(p[0], p[1]); });
+    window.addEventListener('pointermove', (e) => { if (!live()) return; const p = toView(e.clientX, e.clientY); if (p) x().pointer(p[0], p[1]); });
     window.addEventListener('pointerdown', (e) => {
-      if (!wasm || status.state === 'error') return;
+      if (!live()) { early(); return; }
       if (e.target.closest && e.target.closest('[data-nostart]')) return;      // install / backup links on the start card
       if (!status.started) { begin(); return; }
       const p = toView(e.clientX, e.clientY); if (p) x().click(p[0], p[1]);
@@ -219,9 +248,10 @@
   }
   const padState = {};
   function pollGamepad() {
+    if (!live()) return;
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const pad = [...pads].find((g) => g && g.connected);
-    if (!pad) return;
+    if (!pad) { if (status.gamepad) { status.gamepad = false; for (const k of Object.keys(padState)) if (padState[k]) { padState[k] = false; withText(k, (p, n) => x().action(p, n, 0)); } } return; }
     status.gamepad = true;
     const ax = pad.axes || [], b = (i) => !!(pad.buttons[i] && pad.buttons[i].pressed);
     const want = {
@@ -299,9 +329,10 @@
   const held = new Set();
   const coarse = window.matchMedia ? window.matchMedia('(pointer: coarse)') : { matches: false };
   function setHeld(name, on) {
+    if (on && !live()) { early(); return; }
     if (held.has(name) === on) return;
     if (on) held.add(name); else held.delete(name);
-    withText(name, (p, n) => x().action(p, n, on ? 1 : 0));
+    if (wasm) withText(name, (p, n) => x().action(p, n, on ? 1 : 0));
     status.held = [...held];
     if (on && navigator.vibrate) { try { navigator.vibrate(8); } catch (e) { /* not everywhere */ } }
   }
@@ -408,7 +439,9 @@
       manifest = await mres.json();
       const gameText = await gres.text();
       const bytes = await wres.arrayBuffer();
-      wasm = (await WebAssembly.instantiate(bytes, {})).instance;
+      if (!window.WebAssembly) throw new Error('this browser has no WebAssembly support, which the game needs');
+      try { wasm = (await WebAssembly.instantiate(bytes, {})).instance; }
+      catch (e) { throw new Error('game.wasm could not be started: ' + ((e && e.message) || e)); }
       status.wasm = true; status.game = manifest.game || null;
       const seed = (Number(params.get('seed')) || 1) >>> 0;
       const rc = withText(gameText, (p, n) => x().init(p, n, seed));
@@ -420,12 +453,11 @@
       relayout(); draw();
       if (window.ResizeObserver) new ResizeObserver(() => { relayout(); draw(); }).observe(stage); else window.addEventListener('resize', () => { relayout(); draw(); });
       if (coarse.addEventListener) coarse.addEventListener('change', applyPad);
-      document.addEventListener('visibilitychange', () => { if (document.hidden) { for (const a of [...held]) setHeld(a, false); padVisual(); } });
       // iOS only lets a gesture END resume audio; the first touch begins the game, and any touch afterwards resumes a suspended context.
       window.addEventListener('touchend', () => { if (audio && audio.state === 'suspended') audio.resume(); }, { passive: true });
-      bindPointer();
       draw();
       const t = document.getElementById('title'); if (t) t.textContent = manifest.game.title;
+      status.ready_ms = Math.round(performance.now());
       status.state = 'ready'; document.body.dataset.state = 'ready';
       const o = document.getElementById('start'); if (o) o.hidden = false;
       document.getElementById('loading').hidden = true;
@@ -458,5 +490,6 @@
     resetSave: () => { try { localStorage.removeItem(storageKey); } catch (e) { /* nothing to remove */ } },
     layout: () => { const r = stage.getBoundingClientRect(); return { x: x().layout_x() + r.left, y: x().layout_y() + r.top, w: x().layout_w(), h: x().layout_h() }; },
   };
+  bindPointer();                                       // from the first moment: until the game is ready these only count the event (status.early_input)
   main();
 })();

@@ -522,6 +522,17 @@ impl Sim {
         self.saved_snapshot = self.persisted_values();
         self.vars_dirty = true;
         self.refresh_vars();
+        if n > 0 {
+            // `start` rules ran before the save was read, so a world that depends on saved progress (a gate already opened, a level reached) is rebuilt by a rule that reacts to this:
+            // the built-in event `loaded`, fired once right now, so the very first frame already shows the restored world.
+            let def = self.def.clone();
+            self.events.push("loaded".to_string());
+            self.drain_events(&def);
+            self.cleanup();
+            self.refresh_vars();
+            self.save_dirty = false;
+            self.saved_snapshot = self.persisted_values();
+        }
         SaveStatus::Loaded(n)
     }
 
@@ -1095,6 +1106,80 @@ impl Sim {
         self.vars_dirty = true;
     }
 
+    /// Map analysis: can the thing with scene id `from` walk to touch `to` (touch = overlap, or within one 1 px cell) (a scene id, or `tag:NAME` for any living thing with that tag), as the world stands *now*?
+    ///
+    /// It uses the game's own collision (`solid_hit`, the call a real step makes) on a grid of 1 px cells over the world, from where `from` is. Only a top-down walker has a reach:
+    /// a platformer's depends on jumps, which a scenario plays instead. Whatever is solid at this moment blocks: ask it of a sim after a rule opened the gate and it says what
+    /// the player can do now; ask it of a fresh sim with the gate removed ([`Sim::remove_for_analysis`]) and it says what the gate was keeping out. Both must agree.
+    pub fn can_reach(&self, from: &str, to: &str) -> Result<bool, String> {
+        let (w, h) = self.def.view.world;
+        // 1 px cells (a gap barely wider than the walker must not vanish between grid lines), coarser only when the world is huge: at most about 300 000 cells.
+        let cell: f32 = (w * h / 300_000.0).sqrt().max(1.0);
+        let (nx, ny) = (((w / cell).ceil() as i64).max(1), ((h / cell).ceil() as i64).max(1));
+        let i =
+            self.entities.iter().position(|e| e.alive && e.scene_id.as_deref() == Some(from)).ok_or_else(|| format!("`{from}` does not exist (destroyed?)"))?;
+        let p = &self.def.prefabs[self.entities[i].prefab];
+        if !matches!(p.mv, crate::game::Move::Keys { mode: crate::game::KeyMode::TopDown, .. }) {
+            return Err(format!("`{from}` is not a top-down walker (`move.keys` with mode topdown): reach analysis cannot tell where a jumper or a drifting thing can get; use a scenario"));
+        }
+        let at = |cx: i64, cy: i64| ((cx as f32 + 0.5) * cell, (cy as f32 + 0.5) * cell);
+        let start = ((self.entities[i].x / cell).floor() as i64, (self.entities[i].y / cell).floor() as i64);
+        let (sx, sy) = (start.0.clamp(0, nx - 1), start.1.clamp(0, ny - 1));
+        let mut seen = vec![false; (nx * ny) as usize];
+        let mut queue = std::collections::VecDeque::from([(sx, sy)]);
+        seen[(sy * nx + sx) as usize] = true;
+        // The walker starts where it stands (even if the grid centre of that cell is a hair inside something); every other cell must be free.
+        let mut cells = vec![(self.entities[i].x, self.entities[i].y)];
+        while let Some((cx, cy)) = queue.pop_front() {
+            for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                let (ax, ay) = (cx + dx, cy + dy);
+                if ax < 0 || ay < 0 || ax >= nx || ay >= ny || seen[(ay * nx + ax) as usize] {
+                    continue;
+                }
+                let (x, y) = at(ax, ay);
+                if self.solid_hit(i, x, y).is_some() {
+                    continue;
+                }
+                seen[(ay * nx + ax) as usize] = true;
+                cells.push((x, y));
+                queue.push_back((ax, ay));
+            }
+        }
+        let wanted = |e: &Entity| {
+            e.alive
+                && e.id != self.entities[i].id
+                && match to.strip_prefix("tag:") {
+                    Some(t) => self.def.prefabs[e.prefab].tags.iter().any(|x| x == t),
+                    None => e.scene_id.as_deref() == Some(to),
+                }
+        };
+        let targets: Vec<&Entity> = self.entities.iter().filter(|e| wanted(e)).collect();
+        if targets.is_empty() {
+            return Err(format!("there is nothing called `{to}` in the world now"));
+        }
+        Ok(targets.iter().any(|t| {
+            let q = &self.def.prefabs[t.prefab];
+            // "Touch": overlapping, or standing within one cell of it, so a solid thing (a gate, a wall) can be walked up to.
+            cells.iter().any(|&(x, y)| overlaps(x, y, p.size[0], p.size[1], t.x, t.y, q.size[0], q.size[1], -cell))
+        }))
+    }
+
+    /// Takes things out of the world for an analysis: `selector` is a scene id or `tag:NAME`. Returns how many were removed. (A gate a rule would open, assumed open.)
+    pub fn remove_for_analysis(&mut self, selector: &str) -> usize {
+        let mut n = 0;
+        for k in 0..self.entities.len() {
+            let hit = match selector.strip_prefix("tag:") {
+                Some(t) => self.def.prefabs[self.entities[k].prefab].tags.iter().any(|x| x == t),
+                None => self.entities[k].scene_id.as_deref() == Some(selector),
+            };
+            if hit && self.entities[k].alive {
+                self.entities[k].alive = false;
+                n += 1;
+            }
+        }
+        n
+    }
+
     fn solid_hit(&self, i: usize, x: f32, y: f32) -> Option<usize> {
         let e = &self.entities[i];
         let p = &self.def.prefabs[e.prefab];
@@ -1492,6 +1577,53 @@ pub(crate) mod tests {
         assert_eq!(s.var("best"), Some(1.0), "a click on nothing");
         assert!(s.press_button("go").is_ok());
         assert!(s.press_button("gone").unwrap_err().contains("all buttons: go"));
+    }
+
+    #[test]
+    fn reach_analysis_stops_at_a_wall_follows_a_gap_and_sees_a_removed_gate() {
+        let def = game(
+            "",
+            r##""wall":{"tag":"wall","shape":{"rect":[8,8],"color":"#888"},"body":{"type":"static"}},
+                "gate":{"tag":["wall","gate"],"shape":{"rect":[8,8],"color":"#a60"},"body":{"type":"static"}},
+                "goal":{"tag":"goal","shape":{"circle":3,"color":"#ff0"}},
+                "player":{"tag":"player","shape":{"rect":[6,6],"color":"#fc0"},"size":[6,6],"clamp":true,"body":{"type":"dynamic"},"collide":["wall"],"move":{"keys":{"mode":"topdown","speed":80}}}"##,
+            // a wall at x = 60 from y = 0..56, a gate in its gap at y = 60, open floor below y = 68? no: a full wall, so only the gate is a way through
+            &format!(
+                "{{\"prefab\":\"player\",\"at\":[20,40],\"id\":\"p\"}},{{\"prefab\":\"goal\",\"at\":[100,40],\"id\":\"goal\"}},{{\"prefab\":\"gate\",\"at\":[60,44],\"id\":\"gate\"}},{}",
+                (0..12).filter(|k| *k != 5).map(|k| format!("{{\"prefab\":\"wall\",\"at\":[60,{}]}}", 4 + k * 8)).collect::<Vec<_>>().join(",")
+            ),
+        );
+        let mut sim = Sim::new(def, 1);
+        assert_eq!(sim.can_reach("p", "goal"), Ok(false), "a wall with a shut gate");
+        assert_eq!(sim.can_reach("p", "gate"), Ok(true), "the walker can walk up to the gate");
+        assert!(sim.can_reach("goal", "p").is_err(), "a goal is not a walker");
+        assert!(sim.can_reach("p", "tag:nothing").is_err());
+        assert_eq!(sim.remove_for_analysis("gate"), 1);
+        assert_eq!(sim.can_reach("p", "goal"), Ok(true), "the gate gone, the way is open");
+        assert_eq!(sim.remove_for_analysis("tag:wall"), 11, "a tag removes every thing that has it");
+    }
+
+    #[test]
+    fn loading_saved_progress_fires_the_loaded_event_once_and_an_empty_save_does_not() {
+        let text = r##"{"game2d":1,"id":"t","title":"T","description":"d",
+          "capabilities":{"presentation":"2d","platforms":["web"],"networking":"offline","input":["keyboard"],"persistence":["progress"]},
+          "view":{"width":160,"height":90},"vars":{"opened":0},"persist":["opened"],
+          "prefabs":{"door":{"tag":"door","shape":{"rect":[8,8],"color":"#a60"},"body":{"type":"static"}}},
+          "scene":[{"prefab":"door","at":[20,20],"id":"door"}],
+          "rules":[{"id":"rebuild","when":{"event":"loaded"},"if":"opened == 1","do":[{"destroy":"id:door"}]}]}"##;
+        let def = Arc::new(crate::game::parse(text).unwrap_or_else(|e| panic!("{e:?}")));
+        let mut opened = Sim::new(def.clone(), 1);
+        opened.vars[0] = 1.0;
+        let save = opened.save_json();
+        let mut page = Sim::new(def.clone(), 1);
+        assert_eq!(page.count_tag("door"), 1);
+        page.load_save(&save);
+        assert_eq!(page.count_tag("door"), 0, "the rule that reacts to `loaded` ran inside the load");
+        assert!(page.take_save_if_dirty().is_none(), "restoring a save is not a change worth saving again");
+        // A save that restores nothing (nothing persisted differs) still fires the event harmlessly; one for another game is refused and fires nothing.
+        let mut other = Sim::new(def.clone(), 1);
+        assert!(matches!(other.load_save("{\"red2d_save\":1,\"game\":\"someone-else\",\"vars\":{}}"), SaveStatus::Incompatible(_)));
+        assert_eq!(other.count_tag("door"), 1);
     }
 
     #[test]
