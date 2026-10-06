@@ -13,7 +13,7 @@ glossary` prints the lot). Terms are grouped; each line says what it *is* and wh
   searches maps; no window. Also the engine's self-description (`describe`, `search`, `src`).
 - **the tools** — everything under `src/tools/`. They call the *same* collision/physics functions as
   `re2` (see ADR 0003), so "the tools say it's walkable" means it is.
-- **MCP server** — `mcp_server.py`, a thin wrapper exposing the CLI commands as MCP tools.
+- **MCP server** — `red_engine2 mcp`: a native stdio server (eleven tools) that runs the CLI commands in its own process; `mcp_server.py` is only a launcher for it.
 - **custom client** — a game's own program built on the client layer `red_engine2::app` (`LocalSession`, `ViewCamera`,
   `InputState`, `LiveRenderer::render_view`, `HudState`) instead of `re2`; gameplay stays in scene rules (ADR 0043,
   `describe custom-client`, `examples/external/topdown_switch`).

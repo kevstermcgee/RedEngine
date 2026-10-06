@@ -27,28 +27,34 @@ use std::io::Write;
 pub const ENVELOPE_SCHEMA: u32 = 1;
 
 thread_local! {
-    static CAPTURE: RefCell<Option<(String, String)>> = const { RefCell::new(None) };
+    /// (stdout, stderr, json form): the buffers, and whether commands should print their JSON form (`--json`) or their text form (the MCP server).
+    static CAPTURE: RefCell<Option<(String, String, bool)>> = const { RefCell::new(None) };
 }
 
-/// Starts buffering stdout/stderr (this thread).
+/// Starts buffering stdout/stderr (this thread); commands print their JSON form (`--json`).
 pub fn begin_capture() {
-    CAPTURE.with(|c| *c.borrow_mut() = Some((String::new(), String::new())));
+    CAPTURE.with(|c| *c.borrow_mut() = Some((String::new(), String::new(), true)));
 }
 
-/// True while output is being buffered (commands use it to pick their JSON form).
+/// Starts buffering stdout/stderr (this thread) but keeps the commands' text form: what an in-process caller (the MCP server) wants to show an agent.
+pub fn begin_capture_text() {
+    CAPTURE.with(|c| *c.borrow_mut() = Some((String::new(), String::new(), false)));
+}
+
+/// True while output is being buffered for `--json` (commands use it to pick their JSON form).
 pub fn capturing() -> bool {
-    CAPTURE.with(|c| c.borrow().is_some())
+    CAPTURE.with(|c| c.borrow().as_ref().is_some_and(|(_, _, json)| *json))
 }
 
 /// Stops buffering; returns `(stdout, stderr)`.
 pub fn end_capture() -> (String, String) {
-    CAPTURE.with(|c| c.borrow_mut().take()).unwrap_or_default()
+    CAPTURE.with(|c| c.borrow_mut().take()).map(|(o, e, _)| (o, e)).unwrap_or_default()
 }
 
 /// The target of the CLI's `print!`: the capture buffer, or stdout.
 pub fn write_out(args: Arguments) {
     let done = CAPTURE.with(|c| match c.borrow_mut().as_mut() {
-        Some((out, _)) => {
+        Some((out, _, _)) => {
             let _ = std::fmt::write(out, args);
             true
         }
@@ -62,7 +68,7 @@ pub fn write_out(args: Arguments) {
 /// The target of the CLI's `eprint!`: the capture buffer, or stderr.
 pub fn write_err(args: Arguments) {
     let done = CAPTURE.with(|c| match c.borrow_mut().as_mut() {
-        Some((_, err)) => {
+        Some((_, err, _)) => {
             let _ = std::fmt::write(err, args);
             true
         }

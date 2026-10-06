@@ -1,0 +1,44 @@
+{
+ "schema": "red-mcp-bench/1",
+ "purpose": "What a tool surface costs an agent on one fixed nine-call task (scripts/mcp_bench.py): the tools/list loaded at session start, the bytes sent, the text read, calls and wall time. Append a run; never edit an old one. No model is involved: this prices the tool surface, not an agent's skill.",
+ "runs": [
+  {
+   "label": "2026-10-06 before: Python adapter (36 tools)",
+   "server": "/tmp/claude-1000/-home-kevin/72438a0e-f5a7-410f-8b1b-19b06ad95529/scratchpad/venv/bin/python /tmp/claude-1000/-home-kevin/72438a0e-f5a7-410f-8b1b-19b06ad95529/scratchpad/old_mcp/mcp_server.py",
+   "task": "old",
+   "scene": "recipes/rooms_and_door.json",
+   "tools": 36,
+   "tools_list_bytes": 21618,
+   "calls": 9,
+   "sent_bytes": 73431,
+   "read_text_bytes": 9462,
+   "images": 1,
+   "image_base64_bytes": 68096,
+   "call_seconds": 0.46,
+   "wall_seconds_including_startup": 1.074,
+   "errors": 0,
+   "median_call_seconds": 0.46,
+   "median_wall_seconds_including_startup": 1.074,
+   "repeat": 5
+  },
+  {
+   "label": "2026-10-06 after: native red_engine2 mcp (11 tools)",
+   "server": "/home/kevin/build/redengine/debug/red_engine2 mcp",
+   "task": "new",
+   "scene": "recipes/rooms_and_door.json",
+   "tools": 11,
+   "tools_list_bytes": 4927,
+   "calls": 9,
+   "sent_bytes": 225,
+   "read_text_bytes": 4857,
+   "images": 1,
+   "image_base64_bytes": 68096,
+   "call_seconds": 0.364,
+   "wall_seconds_including_startup": 0.371,
+   "errors": 3,
+   "median_call_seconds": 0.364,
+   "median_wall_seconds_including_startup": 0.371,
+   "repeat": 5
+  }
+ ]
+}

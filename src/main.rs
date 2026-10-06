@@ -39,6 +39,8 @@ mod args;
 mod editing;
 #[path = "cli/info.rs"]
 mod info;
+#[path = "cli/mcp.rs"]
+mod mcp;
 #[path = "cli/playtest.rs"]
 mod playtest;
 #[path = "cli/render_cmds.rs"]
@@ -130,6 +132,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
         Command::Lint { scene, strict, cell, phase } => run_lint(&scene, envelope::capturing(), strict, cell, phase.as_deref()),
         Command::Reach { scene, from, to, cell, phase } => run_reach(&scene, from.as_deref(), to.as_deref(), cell, envelope::capturing(), phase.as_deref()),
+        Command::Mcp => mcp::run_mcp(),
         Command::Doctor { out_dir } => run_doctor(&out_dir),
         Command::Ray { scene, from, to, skip } => run_ray(&scene, &from, &to, &skip),
         Command::Nav { scene, route, all } => run_nav(&scene, &route, all),
