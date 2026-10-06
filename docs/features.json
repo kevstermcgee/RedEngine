@@ -189,7 +189,7 @@
     },
     "audio": {
       "summary": "Sound you can measure: the procedural synthesis (guns, effects, music, ambience) and WAV encoder build headless; `audio list|report|render|picture|check` give loudness (BS.1770 LUFS), peaks, clipping, silence, loop seam, spectrum and pitch as numbers or one picture, and hold every built-in sound to a standard.",
-      "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/audio_fx.rs", "src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json", "src/nature.rs", "src/ambience.rs", "src/mixer.rs", "src/tools/audio_checks.rs", "examples/marcel/audio/*.json"],
+      "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/audio_fx.rs", "src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json", "src/nature.rs", "src/ambience.rs", "src/mixer.rs", "src/tools/audio_checks.rs", "examples/marcel/audio/*.json", "src/soundscape.rs"],
       "tests": ["lib:synth", "lib:dsp", "lib:voice_spec", "lib:audio_fx", "lib:score", "lib:sfx", "lib:music", "lib:audio_analysis", "lib:tools::audio", "lib:nature", "lib:ambience", "lib:mixer", "lib:tools::audio_checks"],
       "commands": ["red_engine2 audio check", "red_engine2 audio golden", "red_engine2 audio report fx.explosion", "red_engine2 audio picture music.loop out/music.png"],
       "docs": ["docs/adr/0008-procedural-assets-only.md", "docs/adr/0056-music-in-code.md", "docs/adr/2026-10-04-audio-you-can-measure-headless-synthesis-and-the-audio.md", "docs/adr/2026-10-04-a-sound-kit-voices-made-of-layers.md", "docs/adr/2026-10-04-sounds-as-data-the-json-voice-and-audio-export.md", "docs/adr/2026-10-04-music-as-data-scores-pitched-instruments-and-loop-safe.md", "docs/adr/2026-10-04-a-living-soundscape-nature-sounds-birdsong-by-the-hour.md", "docs/adr/2026-10-04-a-mixing-desk-buses-voice-limits-ducking-rule-driven.md"],
@@ -260,6 +260,8 @@
     },
     "self_description": {
       "summary": "The engine describing itself and choosing its own verification: describe, search, src navigation, context work packets, impact/affected (minimal verification), catalog, doctor, status, the JSON envelope and the MCP wrapper.",
+      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py", "src/tools/racetrack.rs", "src/tools/gamepublish.rs", "src/cli/servers.rs", "src/tools/servers.rs", "src/tools/publish_check.rs", "src/tools/webstatus.rs", "src/tools/agent_trace.rs"],
+      "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context", "cli_envelope", "docs_fresh", "features_index", "lib:tools::publish_check", "ai_tasks"],
       "commands": ["red_engine2 describe --brief", "red_engine2 features --check", "red_engine2 affected --dry-run"],
       "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md"]
     },
