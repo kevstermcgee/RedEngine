@@ -167,7 +167,7 @@ pub fn iso8601(epoch: u64) -> String {
 // ---- verification record ---------------------------------------------------------------------------------------------------------------------------
 
 /// What a browser run says about a package (written by `web verify` next to its screenshots, read by `publish --package`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Verification {
     /// The package it ran against.
     pub package_id: String,
@@ -358,39 +358,44 @@ pub fn write_catalog(site: &Path) -> Result<(), String> {
 
 // ---- backends ---------------------------------------------------------------------------------------------------------------------------------------
 
-fn git(repo: &Path, args: &[&str]) -> Result<String, String> {
-    let o = std::process::Command::new("git").arg("-C").arg(repo).args(args).output().map_err(|e| format!("git: {e}"))?;
-    if o.status.success() {
-        Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
-    } else {
-        Err(format!("git {}: {}", args.join(" "), String::from_utf8_lossy(&o.stderr).trim()))
-    }
+/// What the GitHub Pages upload did.
+#[derive(Debug, Clone)]
+pub struct GithubPublication {
+    /// `<repo>/webgames`.
+    pub site: PathBuf,
+    /// The game's record as committed.
+    pub meta: Value,
+    /// The publication commit, or `None` when the site already held exactly this build.
+    pub commit: Option<String>,
+    /// The files the commit changed.
+    pub changed: Vec<String>,
+    /// It reached `origin`.
+    pub pushed: bool,
 }
 
 /// The GitHub Pages backend's upload: the verified package goes into `webgames/<id>/` of a RedEngineGames checkout (a site, `catalog.json` included, under `webgames/site`),
-/// committed. Returns the path written and whether it was pushed.
-pub fn github_upload(repo: &Path, pkg: &Path, v: &Verification, epoch: u64, push: bool) -> Result<(PathBuf, bool), String> {
+/// committed **in isolation** ([`super::gitscope`]): the commit is built from `HEAD` plus this game's files, never from the checkout's index, so staged, modified, untracked or
+/// other games' files in the checkout are neither committed nor touched, and a failed push takes the commit back out. It stops with the exact recovery step, having changed
+/// nothing, if the checkout holds other content at a path this publication must replace.
+pub fn github_upload(repo: &Path, pkg: &Path, v: &Verification, epoch: u64, push: bool) -> Result<GithubPublication, String> {
     if !repo.join(".git").exists() {
         return Err(format!("{} is not a git checkout (clone https://github.com/kevstermcgee/RedEngineGames and pass its path with --repo)", repo.display()));
     }
-    let site = repo.join("webgames");
-    let meta = write_site(&site, pkg, v, epoch)?;
-    git(repo, &["add", "webgames"])?;
-    let id = meta["id"].as_str().unwrap_or("game");
-    let msg = format!(
+    let manifest: Value = std::fs::read_to_string(pkg.join("manifest.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+    let id = manifest["game"]["id"].as_str().unwrap_or("game");
+    let message = format!(
         "Browser game {id}: build {} (game {}, engine {})",
-        meta["build_id"].as_str().unwrap_or(""),
-        meta["game_revision"].as_str().unwrap_or(""),
-        meta["engine_revision"].as_str().unwrap_or("")
+        manifest["package_id"].as_str().unwrap_or(""),
+        manifest["game"]["game_revision"].as_str().unwrap_or(""),
+        manifest["engine"]["revision"].as_str().unwrap_or("")
     );
-    let staged = git(repo, &["status", "--porcelain", "--", "webgames"])?;
-    if !staged.is_empty() {
-        git(repo, &["-c", "user.name=RedEngine publish", "-c", "user.email=publish@redengine.invalid", "commit", "-q", "-m", &msg])?;
-    }
-    if push {
-        git(repo, &["push", "origin", "HEAD"])?;
-    }
-    Ok((site, push))
+    let mut meta = Value::Null;
+    let scope = super::gitscope::Scope { repo, subtree: "webgames", message: &message, push };
+    let done = super::gitscope::commit_subtree(&scope, |site| {
+        meta = write_site(site, pkg, v, epoch)?;
+        Ok(())
+    })?;
+    Ok(GithubPublication { site: repo.join("webgames"), meta, commit: done.commit, changed: done.changed, pushed: done.pushed })
 }
 
 // ---- the pipeline ----------------------------------------------------------------------------------------------------------------------------------
@@ -564,10 +569,16 @@ pub fn upload_and_confirm(out: &mut Outcome, progress: &mut impl FnMut(&StageRes
     let t = Instant::now();
     let uploaded = match &opts.backend {
         Backend::Local { site, .. } => write_site(site, pkg, ver, epoch).map(|m| (format!("site written to {}", site.display()), site.clone(), m)),
-        Backend::GithubPages { repo, push, .. } => github_upload(repo, pkg, ver, epoch, *push).and_then(|(site, pushed)| {
-            write_site_meta_only(&site).map(|m| {
-                (format!("committed in {}{}", repo.display(), if pushed { " and pushed" } else { " (NOT pushed: nothing has left this machine)" }), site, m)
-            })
+        Backend::GithubPages { repo, push, .. } => github_upload(repo, pkg, ver, epoch, *push).map(|p| {
+            let how = match (&p.commit, p.pushed) {
+                (None, true) => "already committed (nothing new to commit); pushed".to_string(),
+                (None, false) => "already committed (nothing new to commit); NOT pushed: nothing has left this machine".to_string(),
+                (Some(c), true) => format!("committed {} ({} files, only this game's) and pushed", &c[..c.len().min(10)], p.changed.len()),
+                (Some(c), false) => {
+                    format!("committed {} ({} files, only this game's) (NOT pushed: nothing has left this machine)", &c[..c.len().min(10)], p.changed.len())
+                }
+            };
+            (format!("{how} in {}", repo.display()), p.site, p.meta)
         }),
     };
     let (detail, location, meta) = match uploaded {
@@ -636,24 +647,6 @@ pub fn upload_and_confirm(out: &mut Outcome, progress: &mut impl FnMut(&StageRes
             progress(&out.stages[8]);
         }
     }
-}
-
-fn write_site_meta_only(site: &Path) -> Result<Value, String> {
-    // Read back the record `write_site` just wrote (the most recently modified game).
-    let mut newest: Option<(std::time::SystemTime, Value)> = None;
-    if let Ok(rd) = std::fs::read_dir(site.join("games")) {
-        for e in rd.flatten() {
-            let p = e.path().join("game.json");
-            if let (Ok(md), Ok(t)) = (std::fs::metadata(&p), std::fs::read_to_string(&p)) {
-                if let (Ok(m), Ok(v)) = (md.modified(), serde_json::from_str::<Value>(&t)) {
-                    if newest.as_ref().is_none_or(|(n, _)| m >= *n) {
-                        newest = Some((m, v));
-                    }
-                }
-            }
-        }
-    }
-    newest.map(|(_, v)| v).ok_or_else(|| "the site has no game record".to_string())
 }
 
 fn verification_of(build_id: &str, v: &webverify::Verified) -> Verification {

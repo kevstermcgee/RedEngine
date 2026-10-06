@@ -27,6 +27,7 @@ pub mod game;
 pub mod game2d;
 pub mod gamepublish;
 pub mod gen;
+pub mod gitscope;
 pub mod inspect;
 pub mod lint;
 pub mod nav;

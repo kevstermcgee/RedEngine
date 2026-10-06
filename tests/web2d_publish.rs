@@ -194,8 +194,8 @@ fn the_pages_backend_commits_pushes_keeps_every_build_and_does_not_recommit_the_
     git(&repo, &["push", "-q", "origin", "main"]);
 
     // Not pushed: committed locally, the remote has nothing new, and the function says so.
-    let (site, pushed) = publish2d::github_upload(&repo, &pkg1, &ver(&m1), 1_000, false).unwrap();
-    assert!(!pushed && site.ends_with("webgames"));
+    let p1 = publish2d::github_upload(&repo, &pkg1, &ver(&m1), 1_000, false).unwrap();
+    assert!(!p1.pushed && p1.site.ends_with("webgames") && p1.commit.is_some());
     assert_eq!(git(&origin, &["rev-list", "--count", "main"]), "1", "nothing left the machine");
     assert_eq!(git(&repo, &["rev-list", "--count", "HEAD"]), "2");
     assert!(git(&repo, &["log", "-1", "--format=%s"]).contains("Browser game coin-dash: build"));
@@ -245,4 +245,35 @@ fn the_pages_generator_patch_lists_browser_games_when_they_exist() {
     assert!(site.join(g["thumbnail"].as_str().unwrap()).is_file(), "the thumbnail path resolves inside the site");
     assert!(site.join(g["url"].as_str().unwrap()).join("index.html").is_file(), "the url resolves to the game");
     assert_eq!(g["build_timestamp"], "1970-01-01T00:50:00Z");
+}
+
+#[test]
+fn the_publish_command_into_a_busy_checkout_commits_only_the_game_and_says_so() {
+    // The whole command, not just the library call: a real package, a checkout where somebody else has staged and edited files.
+    let Some((pkg, m)) = package(&scratch("busy"), |_| {}) else { return };
+    let tmp = scratch("busy_repo");
+    let repo = tmp.join("games");
+    assert!(Command::new("git").args(["init", "-q", "-b", "main"]).arg(&repo).status().unwrap().success());
+    std::fs::write(repo.join("README.md"), "games\n").unwrap();
+    git(&repo, &["add", "."]);
+    git(&repo, &["commit", "-q", "-m", "init"]);
+    std::fs::write(repo.join("other_ai.rs"), "// staged by another AI\n").unwrap();
+    git(&repo, &["add", "other_ai.rs"]);
+    std::fs::write(repo.join("README.md"), "games, edited\n").unwrap();
+    let rec = tmp.join("rec");
+    std::fs::create_dir_all(&rec).unwrap();
+    std::fs::write(rec.join("verification.json"), ver(&m).to_json().to_string()).unwrap();
+    let (o, t) = run(
+        &["publish", "--package", pkg.to_str().unwrap(), "--backend", "github-pages", "--repo", repo.to_str().unwrap(), "--out", rec.to_str().unwrap()],
+        &tmp,
+    );
+    assert!(o.status.success(), "{t}");
+    assert!(t.contains("committed") && t.contains("only this game's") && t.contains("NOT pushed"), "{t}");
+    let files = git(&repo, &["show", "--name-only", "--format=", "HEAD"]);
+    assert!(files.lines().all(|f| f.starts_with("webgames/")), "only the game was committed:\n{files}");
+    let status = git(&repo, &["status", "--porcelain"]);
+    let mut lines: Vec<&str> = status.lines().map(str::trim).collect();
+    lines.sort();
+    assert_eq!(lines, ["A  other_ai.rs", "M README.md"], "the other work is exactly as it was (staged stays staged, edited stays unstaged): {status}");
+    assert_eq!(git(&repo, &["diff", "--cached", "--name-only"]), "other_ai.rs");
 }

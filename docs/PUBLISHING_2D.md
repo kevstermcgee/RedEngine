@@ -38,7 +38,7 @@ Not claimed by any of them: that a human played it, that it is fun, that it soun
 ## Backends
 
 * **local** (default, `--site DIR`, default `out/site`): writes the static library. With `--base-url` (where something serves that directory) the URL is real and the remote smoke runs against it. Without it **no URL is claimed**: the stage-9 check runs against a loopback server on the directory and says "this is not a remote check"; the report ends `URL: none. PUBLICATION UNAVAILABLE: the files are at DIR` and names the remaining external step.
-* **github-pages** (`--repo` = a checkout of `kevstermcgee/RedEngineGames`): the site is written to `webgames/` and committed. Nothing leaves the machine unless `--push`; the Pages workflow (`site/generate.py`) copies `webgames/` to `<site>/play/`. With `--push` stage 9 waits (up to 10 minutes) for `<site>/play/games/<id>/manifest.json` to serve this build, then runs the browser against it.
+* **github-pages** (`--repo` = a checkout of `kevstermcgee/RedEngineGames`): the site is built from `HEAD`'s `webgames/` plus this game and committed *in isolation* (see Git safety below). Nothing leaves the machine unless `--push`; the Pages workflow (`site/generate.py`) copies `webgames/` to `<site>/play/`. With `--push` stage 9 waits (up to 10 minutes) for `<site>/play/games/<id>/manifest.json` to serve this build, then runs the browser against it.
 
 ## The site (one static library)
 
@@ -65,3 +65,15 @@ It is not a storefront: no accounts, prices or ratings. A host that already has 
 ## What is not done by this tool
 
 Anything a human must do: review and `git push` when `--push` was not given; enabling GitHub Pages for the repository; a custom domain. The report names the remaining external step, never a URL that does not exist.
+
+## Git safety (publishing into a busy checkout)
+
+Assume the RedEngineGames checkout has other work in it: files another AI staged, a half-edited game, an unpushed commit. `publish` never uses the checkout's index to make its commit
+(`src/tools/gitscope.rs`):
+
+1. `webgames/` is taken from `HEAD` into a scratch directory (inside `.git`, removed afterwards), this game is written there, and the commit is made with `git commit-tree` on a temporary index: the commit holds `HEAD` plus this game's files and nothing else, whatever is staged, modified or untracked.
+2. The checkout then follows the commit the way a branch switch does (`read-tree -m -u`): only the paths the commit changed are rewritten. Staged, partially staged, unstaged and untracked work elsewhere, and other games' files, are not read or changed.
+3. The branch moves by compare-and-swap; if someone committed meanwhile, nothing is published and the files are put back.
+4. `--push` pushes; if the push fails the commit is taken back out, so a failed publication leaves the repository as it found it.
+
+It refuses before writing anything, naming the files and the command that fixes it, when: a file this game replaces is staged or modified (the report lists them, with `stash`/`restore` commands), HEAD is detached, a merge/rebase/cherry-pick is in progress, there is no commit yet, or `--push` would also publish commits that are not publications. Leftovers of an interrupted publication that are byte-identical to what is about to be written are cleared automatically; anything else is never deleted. Commits without `--push` are authored `RedEngine publish <publish@redengine.invalid>`, which is how a later `--push` recognises them as its own. Hooks (`pre-commit`) do not run on these commits.
