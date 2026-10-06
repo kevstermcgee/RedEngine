@@ -36,6 +36,9 @@ use std::collections::{HashMap, HashSet};
 /// Variables every rule can read but not set: seconds elapsed, ticks elapsed, connected players.
 pub const BUILTIN_VARS: &[&str] = &["time", "tick", "players"];
 
+/// The most per-player variables a scene may declare (each player has a copy; the count is bounded so a snapshot of them stays small).
+pub const MAX_PLAYER_VARS: usize = 8;
+
 /// Events the engine itself raises (a rule can react with `when: {event: name}` without any rule emitting them):
 /// `pickup` / `drop` (a player took / released a prop), `shot` (a firearm was fired), `hit` (a player was damaged),
 /// `kill` (a player was killed; the player is the killer), `respawn` (a dead player came back), `swing` (a bat swing
@@ -183,6 +186,13 @@ pub enum Action {
         /// The new value.
         value: Expr,
     },
+    /// `me.name = value` for the player that triggered the rule (an `add` is compiled to a `SetMe` of `me.name + n`). Does nothing when no player did.
+    SetMe {
+        /// Index in [`RuleSet::player_var_names`].
+        var: usize,
+        /// The new value.
+        value: Expr,
+    },
     /// Record an event.
     Emit(String),
     /// Mark an object hidden.
@@ -250,6 +260,10 @@ pub struct RuleSet {
     pub var_names: Vec<String>,
     /// Initial value of every variable (built-ins start at 0).
     pub var_init: Vec<f64>,
+    /// Per-player variable names (`player_vars`), in declaration order: every player has their own copy, read and written in rules as `me.name`.
+    pub player_var_names: Vec<String>,
+    /// Initial value of every per-player variable (a player's copy starts here when they join).
+    pub player_var_init: Vec<f64>,
     /// The rules, in evaluation order.
     pub rules: Vec<Rule>,
     /// Every loose prop of the scene, by object id, sorted: prop triggers, `reset`/`place` and the expression
@@ -285,6 +299,8 @@ impl Default for RuleSet {
         RuleSet {
             var_names: BUILTIN_VARS.iter().map(|s| s.to_string()).collect(),
             var_init: vec![0.0; BUILTIN_VARS.len()],
+            player_var_names: Vec::new(),
+            player_var_init: Vec::new(),
             rules: Vec::new(),
             prop_ids: Vec::new(),
             zone_ids: Vec::new(),
@@ -337,7 +353,7 @@ impl RuleSet {
 
     /// The expression scope: the loose props and zones a built-in function may name.
     pub fn scope(&self) -> Scope<'_> {
-        Scope { props: &self.prop_ids, zones: &self.zone_ids }
+        Scope { props: &self.prop_ids, zones: &self.zone_ids, player_vars: &self.player_var_names }
     }
 }
 
@@ -636,6 +652,15 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                 errs.push(format!("{sub}: must be [variable, value]"));
                 return None;
             };
+            if let Some(me) = p[0].as_str().and_then(|n| n.strip_prefix("me.")) {
+                let Some(var) = set.player_var_names.iter().position(|n| n == me) else {
+                    errs.push(format!("{sub}[0]: {}", rules_expr::unknown_player_var(me, &set.player_var_names)));
+                    return None;
+                };
+                let value = parse_value(&p[1], set, &format!("{sub}[1]"), errs)?;
+                let value = if key.as_str() == "add" { Expr::Bin(Op::Add, Box::new(Expr::Me(var)), Box::new(value)) } else { value };
+                return Some(Action::SetMe { var, value });
+            }
             let var = var_index(p[0].as_str(), names, &format!("{sub}[0]"), errs)?;
             let value = parse_value(&p[1], set, &format!("{sub}[1]"), errs)?;
             let value = if key.as_str() == "add" { Expr::Bin(Op::Add, Box::new(Expr::Var(var)), Box::new(value)) } else { value };
@@ -801,6 +826,35 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             }
         }
     }
+    if let Some(pv) = root.get("player_vars") {
+        match pv.as_object() {
+            None => errs.push("player_vars: must be an object like {\"laps\": 0, \"lives\": 3}".to_string()),
+            Some(o) => {
+                for (name, v) in o.iter().filter(|(k, _)| !(k.starts_with("x-") || *k == "$comment" || *k == "notes")) {
+                    let ok_name = !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') && !name.starts_with(|c: char| c.is_ascii_digit());
+                    if !ok_name {
+                        errs.push(format!("player_vars.{name}: a variable name is letters, digits and `_`, not starting with a digit"));
+                        continue;
+                    }
+                    let init = match v {
+                        Value::Number(n) => n.as_f64(),
+                        Value::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+                        _ => None,
+                    };
+                    match init {
+                        Some(_) if set.player_var_names.len() >= MAX_PLAYER_VARS => {
+                            errs.push(format!("player_vars.{name}: at most {MAX_PLAYER_VARS} per-player variables (each player has a copy)"))
+                        }
+                        Some(x) => {
+                            set.player_var_names.push(name.clone());
+                            set.player_var_init.push(x);
+                        }
+                        None => errs.push(format!("player_vars.{name}: must be a number or true/false")),
+                    }
+                }
+            }
+        }
+    }
     if let Some(p) = root.get("persist") {
         match p.as_array() {
             None => errs.push("persist: must be a list of variable names like [\"days_lived\"]".to_string()),
@@ -870,6 +924,29 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             }
             _ => errs
                 .push(format!("{p}.do: missing or empty (a rule needs at least one action: {})", ACTIONS.iter().map(|a| a.0).collect::<Vec<_>>().join(", "))),
+        }
+        if let Some(when) = &when {
+            // A timer or the match start has no player: `me.*` there would read 0 and write nothing, which is never what the author meant.
+            let slotless = match when {
+                When::Start => Some("start"),
+                When::Every(_) => Some("every"),
+                When::After(_) => Some("after"),
+                When::PropEnter { .. } => Some("prop_enter"),
+                When::PropExit { .. } => Some("prop_exit"),
+                When::PropBelow { .. } => Some("prop_below"),
+                _ => None,
+            };
+            let uses_me = cond.as_ref().is_some_and(Expr::uses_me)
+                || actions.iter().any(|a| match a {
+                    Action::SetMe { .. } => true,
+                    Action::Set { value, .. } => value.uses_me(),
+                    _ => false,
+                });
+            if let (Some(kind), true) = (slotless, uses_me) {
+                errs.push(format!(
+                    "{p}: uses `me.` but a `{kind}` trigger has no player (use enter, exit, or an event a player causes, such as `kill` or an `emit` from such a rule)"
+                ));
+            }
         }
         if let Some(when) = when {
             set.rules.push(Rule { id: id.to_string(), when, who, cond, once, cooldown_ticks, actions });
@@ -1136,5 +1213,52 @@ mod tests {
         assert_eq!((&set.var_names, &set.var_init, &set.rules, set.needs_props), (&default.var_names, &default.var_init, &default.rules, false));
         assert_eq!(set.prop_ids, ["bell", "crate"], "the scene's loose props and zones are always in scope");
         assert!(parse_rules(json!({}).as_object().unwrap(), &Refs::default()).unwrap() == default, "no scene, no tables");
+    }
+
+    #[test]
+    fn player_vars_parse_and_me_resolves_in_conditions_and_actions() {
+        let set = parse(json!({
+            "vars": {"total": 0},
+            "player_vars": {"laps": 0, "lives": 3, "alive": true},
+            "rules": [{"id": "lap", "when": {"enter": {"zone": "exit"}}, "if": "me.laps < 3 && me.alive", "do": [{"add": ["me.laps", 1]}, {"set": ["total", "me.laps * 10"]}]}]
+        }))
+        .unwrap();
+        assert_eq!(
+            (set.player_var_names.as_slice(), set.player_var_init.as_slice()),
+            (&["laps".to_string(), "lives".to_string(), "alive".to_string()][..], &[0.0, 3.0, 1.0][..])
+        );
+        assert!(matches!(set.rules[0].actions[0], Action::SetMe { var: 0, .. }));
+        assert!(set.rules[0].cond.as_ref().is_some_and(Expr::uses_me));
+        assert!(!set.needs_props, "me.* does not need the props described to the rules");
+    }
+
+    #[test]
+    fn player_var_mistakes_name_the_fix() {
+        let e = parse(json!({
+            "player_vars": {"laps": 0, "bad name": 1, "x": "s"},
+            "rules": [
+                {"id": "a", "when": {"enter": {"zone": "exit"}}, "if": "me.lapz > 1", "do": [{"add": ["me.lap", 1]}]},
+                {"id": "b", "when": {"every": 1.0}, "do": [{"add": ["me.laps", 1]}]},
+                {"id": "c", "when": {"start": true}, "if": "me.laps == 0", "do": [{"emit": "x"}]},
+                {"id": "d", "when": {"prop_below": ["bell", 0.5]}, "do": [{"add": ["me.laps", 1]}]}
+            ]
+        }))
+        .unwrap_err()
+        .join("\n");
+        for want in [
+            "player_vars.bad name: a variable name is letters",
+            "player_vars.x: must be a number or true/false",
+            "unknown per-player variable `me.lapz` — did you mean `me.laps`?",
+            "unknown per-player variable `me.lap` — did you mean `me.laps`?",
+            "rules[1] (b): uses `me.` but a `every` trigger has no player",
+            "rules[2] (c): uses `me.` but a `start` trigger has no player",
+            "rules[3] (d): uses `me.` but a `prop_below` trigger has no player",
+        ] {
+            assert!(e.contains(want), "missing `{want}` in:\n{e}");
+        }
+        let many: serde_json::Map<String, Value> = (0..=MAX_PLAYER_VARS).map(|i| (format!("v{i}"), json!(0))).collect();
+        let e = parse(json!({"player_vars": many})).unwrap_err().join("\n");
+        assert!(e.contains(&format!("at most {MAX_PLAYER_VARS} per-player variables")), "{e}");
+        assert!(parse(json!({"vars": {"laps": 0}, "player_vars": {"laps": 0}})).is_ok(), "a per-player name may match a global one: `me.` tells them apart");
     }
 }

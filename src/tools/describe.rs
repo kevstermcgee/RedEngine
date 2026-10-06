@@ -254,6 +254,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("portals", "[{id, between:[zoneA,zoneB], center:[x,z], width, height, open}] doorway connectivity between zones (network interest, roadmap)"),
     ("interest", "{cell_size, note} network-interest settings (roadmap; rooms are the cells)"),
     ("vars", "{name: number|bool} game variables rules read and write (`describe rules`); built-ins: time, tick, players"),
+    ("player_vars", "{name: number|bool} per-player variables: every player has their own copy (laps, lives, a personal score); rules read and write them as `me.name` for the player that triggered the rule (`describe rules`)"),
     ("rules", "[{id, when, who, if, once, cooldown, do}] game logic as data: triggers, conditions, actions (`describe rules`)"),
     ("phases", "{name: [rule ids]} named level states for lint/reach/walk/verify: the rules assumed to have fired, so a gate they open is open (`describe rules`)"),
     ("fields", "[{id, zone|object|box, velocity:[x,z], lift, rate}] force volumes on loose props: a river current, a conveyor, a wind tunnel; pulls props inside toward a target speed (SPEC \"Force fields\")"),
@@ -543,6 +544,10 @@ fn rules_text() -> String {
     out.push_str(
         "VOLUME = {zone: id [, height]} | {object: top-level id [, pad]} | {box: [x0,y0,z0,x1,y1,z1]}   (pad grows it, metres)\n\
          Expressions: numbers, true/false, variables, + - * / %, < <= > >= == !=, && || !, parentheses. x/0 = 0 (never NaN).\n\
+         Per-player variables: declare `\"player_vars\": {\"laps\": 0}`; every player has their own copy, reset when they join. `me.laps` reads the\n\
+         copy of the player that triggered the rule (enter/exit, or an event a player caused: kill, pickup, or an `emit` from such a rule),\n\
+         and `{\"add\": [\"me.laps\", 1]}` / `set` write it; `me.` in a start/every/after rule is a validate error. Prove it in `sim` with\n\
+         `{\"player_var\": \"laps\", \"of\": \"p1\", \"gte\": 3}`.\n\
          Built-in functions read the loose props (a prop's id, or a zone's, as the argument; a prop that is not loose is a validate error):\n",
     );
     for (_, _, help) in crate::sim::rules_expr::Func::ALL {

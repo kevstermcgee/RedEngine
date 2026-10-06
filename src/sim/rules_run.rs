@@ -8,6 +8,7 @@
 //! as [`RuleProp`]s in the physics world's order; [`RulesEngine::bind_props`] maps the ids a rule set names to that order once.
 
 use super::clock::TICK_RATE_HZ;
+use super::match_sim::MAX_PLAYERS;
 use super::rules::{Action, ResetTarget, Rule, RuleSet, Target, Volume, When, Who};
 use super::rules_expr::{Func, World};
 use crate::player::Character;
@@ -124,6 +125,24 @@ impl World for Ctx<'_> {
     }
 }
 
+/// A [`Ctx`] plus the per-player variables of the player a rule is running for: answers `me.name` from that row.
+struct MeView<'a> {
+    base: &'a dyn World,
+    row: &'a [f64],
+}
+
+impl World for MeView<'_> {
+    fn call(&self, f: Func, index: usize) -> f64 {
+        self.base.call(f, index)
+    }
+    fn call2(&self, f: Func, prop: usize, zone: usize) -> f64 {
+        self.base.call2(f, prop, zone)
+    }
+    fn me(&self, index: usize) -> f64 {
+        self.row.get(index).copied().unwrap_or(0.0)
+    }
+}
+
 /// Something that happened because a rule ran.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GameEvent {
@@ -175,6 +194,10 @@ pub enum Effect {
 pub struct RulesEngine {
     set: RuleSet,
     vars: Vec<f64>,
+    /// Per-player variables: `MAX_PLAYERS` rows of `pn` values, one row per player slot.
+    pvars: Vec<f64>,
+    /// How many per-player variables the scene declares (a row's length). Kept here because `self.set` is taken out of the engine while a tick runs.
+    pn: usize,
     fired: Vec<bool>,
     next_ok: Vec<u64>,
     inside: BTreeMap<(usize, usize), bool>,
@@ -202,6 +225,8 @@ impl RulesEngine {
     pub fn new(set: RuleSet) -> Self {
         RulesEngine {
             vars: set.var_init.clone(),
+            pvars: set.player_var_init.iter().copied().cycle().take(set.player_var_init.len() * MAX_PLAYERS).collect(),
+            pn: set.player_var_init.len(),
             fired: vec![false; set.rules.len()],
             next_ok: vec![0; set.rules.len()],
             prop_slot: vec![None; set.prop_ids.len()],
@@ -256,6 +281,35 @@ impl RulesEngine {
     /// The value of a variable by name (built-ins included).
     pub fn var(&self, name: &str) -> Option<f64> {
         self.set.var_names.iter().position(|n| n == name).map(|i| self.vars[i])
+    }
+
+    /// Player `slot`'s per-player variables as `(name, value)` (empty when the scene declares none or the slot is out of range).
+    pub fn player_vars(&self, slot: usize) -> Vec<(&str, f64)> {
+        let row = self.row(Some(slot));
+        self.set.player_var_names.iter().zip(row).map(|(n, v)| (n.as_str(), *v)).collect()
+    }
+
+    /// One per-player variable of player `slot`.
+    pub fn player_var(&self, slot: usize, name: &str) -> Option<f64> {
+        let k = self.set.player_var_names.iter().position(|n| n == name)?;
+        self.row(Some(slot)).get(k).copied()
+    }
+
+    /// Puts player `slot`'s per-player variables back to their declared starting values: a player joined that slot.
+    pub fn reset_player(&mut self, slot: usize) {
+        let n = self.pn;
+        if slot < MAX_PLAYERS && n > 0 {
+            self.pvars[slot * n..(slot + 1) * n].copy_from_slice(&self.set.player_var_init);
+        }
+    }
+
+    /// The row of per-player variables for `slot` (empty without a player or a declaration).
+    fn row(&self, slot: Option<usize>) -> &[f64] {
+        let n = self.pn;
+        match slot {
+            Some(s) if n > 0 && s < MAX_PLAYERS => &self.pvars[s * n..(s + 1) * n],
+            _ => &[],
+        }
     }
 
     /// The scene's own variables (not the built-ins) as `(name, value)`.
@@ -367,7 +421,8 @@ impl RulesEngine {
             return;
         }
         if let Some(c) = &rule.cond {
-            if !c.truthy_in(&self.vars, ctx) {
+            let me = MeView { base: ctx, row: self.row(slot) };
+            if !c.truthy_in(&self.vars, &me) {
                 return;
             }
         }
@@ -376,9 +431,18 @@ impl RulesEngine {
         for a in &rule.actions {
             match a {
                 Action::Set { var, value } => {
-                    let v = value.eval_in(&self.vars, ctx);
+                    let v = value.eval_in(&self.vars, &MeView { base: ctx, row: self.row(slot) });
                     if let Some(slot_v) = self.vars.get_mut(*var) {
                         *slot_v = v;
+                    }
+                }
+                Action::SetMe { var, value } => {
+                    let n = self.pn;
+                    if let Some(s) = slot.filter(|s| *s < MAX_PLAYERS) {
+                        let v = value.eval_in(&self.vars, &MeView { base: ctx, row: self.row(slot) });
+                        if let Some(cell) = self.pvars.get_mut(s * n + *var) {
+                            *cell = v;
+                        }
                     }
                 }
                 Action::Emit(name) => {
@@ -543,6 +607,10 @@ impl RulesEngine {
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
         };
         for v in &self.vars {
+            mix(v.to_bits());
+        }
+        // Only a scene with `player_vars` folds them in, so the checksum of every older scene (and its recorded traces) is unchanged.
+        for v in &self.pvars {
             mix(v.to_bits());
         }
         for (f, n) in self.fired.iter().zip(&self.next_ok) {
@@ -855,5 +923,44 @@ mod tests {
         quiet.step(1, &[]);
         quiet.step(2, &[]);
         assert!(quiet.history().is_empty() && quiet.var("score") == Some(0.0));
+    }
+
+    #[test]
+    fn per_player_variables_belong_to_the_player_that_triggered_the_rule() {
+        let mut e = engine(json!({
+            "vars": {"total": 0},
+            "player_vars": {"laps": 0, "lives": 3},
+            "rules": [
+                {"id": "lap", "when": {"enter": {"zone": "exit"}}, "do": [{"add": ["me.laps", 1]}, {"add": ["total", 1]}]},
+                {"id": "win", "when": {"event": "lap_done"}, "if": "me.laps >= 2", "do": [{"set": ["total", 100]}]},
+                {"id": "mark", "when": {"enter": {"zone": "exit"}}, "if": "me.laps >= 2", "do": [{"emit": "lap_done"}, {"set": ["me.lives", "me.lives - 1"]}]}
+            ]
+        }));
+        let away = |slot| at(slot, 0.0, 0.0, Character::Human);
+        let on = |slot| at(slot, 9.0, 0.0, Character::Human);
+        // Both start outside (a player's first sighting only records where they are); player 1 then laps twice, player 0 never moves.
+        e.step(0, &[away(0), away(1)]);
+        for _ in 0..2 {
+            e.step(1, &[away(0), on(1)]);
+            e.step(2, &[away(0), away(1)]);
+        }
+        assert_eq!((e.player_var(0, "laps"), e.player_var(1, "laps")), (Some(0.0), Some(2.0)));
+        assert_eq!((e.player_var(0, "lives"), e.player_var(1, "lives")), (Some(3.0), Some(2.0)), "the second lap marked player 1 only");
+        assert_eq!(e.var("total"), Some(100.0), "the event rule saw player 1's laps (the emitter's slot carries over)");
+        assert_eq!(e.player_vars(1), vec![("laps", 2.0), ("lives", 2.0)]);
+        e.reset_player(1);
+        assert_eq!(e.player_vars(1), vec![("laps", 0.0), ("lives", 3.0)], "a player joining the slot starts from the declared values");
+        assert_eq!(e.player_var(1, "nope"), None);
+    }
+
+    #[test]
+    fn per_player_variables_are_part_of_the_checksum_and_a_scene_without_them_is_unchanged() {
+        let scene = json!({"player_vars": {"n": 0}, "rules": [{"id": "r", "when": {"enter": {"zone": "exit"}}, "do": [{"add": ["me.n", 1]}]}]});
+        let (mut a, mut b) = (engine(scene.clone()), engine(scene));
+        assert_eq!(a.checksum(), b.checksum());
+        a.step(1, &[at(0, 9.0, 0.0, Character::Human)]);
+        b.step(1, &[at(1, 9.0, 0.0, Character::Human)]);
+        assert_ne!(a.checksum(), b.checksum(), "who got the lap matters");
+        assert_eq!(engine(json!({"vars": {}})).checksum(), RulesEngine::new(RuleSet::default()).checksum());
     }
 }
