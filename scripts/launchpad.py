@@ -206,6 +206,8 @@ def feature_owners(features, task):
         if s:
             hits.append((s, name, why))
     hits.sort(key=lambda h: (-h[0], h[1]))
+    # Weak word matches ("hit" in "hitscan") are noise next to a feature that owns the named file: keep what scores near the best.
+    hits = [h for h in hits if h[0] >= 0.4 * hits[0][0]] if hits else hits
     return [{"feature": n, "score": s, "because": w[:3], "summary": features[n].get("summary", "")[:160], "tests": features[n].get("tests", [])[:8],
              "verify_commands": features[n].get("commands", [])[:3], "docs": features[n].get("docs", [])[:4], "depends_on": features[n].get("depends_on", [])[:6]}
             for s, n, w in hits[:3]]

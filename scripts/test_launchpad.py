@@ -23,7 +23,7 @@ import red_resolve  # noqa: E402
 FEATURES = {"features": {
     "net_server": {"summary": "The authoritative UDP server: sessions, handshake, snapshots.", "files": ["src/net/server.rs", "src/net/session.rs"],
                    "tests": ["net_flow", "lib:net::server"], "commands": ["red_engine2 net-test examples/test_lab.json"], "docs": ["docs/adr/0016.md"], "depends_on": []},
-    "ui_kit": {"summary": "The headless audited 2-D UI.", "files": ["src/ui/**"], "tests": ["lib:ui"], "commands": [], "docs": [], "depends_on": ["net_server"]}}}
+    "ui_kit": {"summary": "The headless audited 2-D UI; draws the handshake state.", "files": ["src/ui/**"], "tests": ["lib:ui"], "commands": [], "docs": [], "depends_on": ["net_server"]}}}
 
 PROPOSE_OK = {"schema": 1, "ok": True, "data": {"title": "Coin Dash", "genre": "arcade", "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline"},
               "complexity": "small", "session_minutes": [2, 5], "reasons": ["2D is the simplest"], "problems": [], "warnings": [], "buildable": True}}
@@ -282,7 +282,7 @@ class Routing(Sandbox):
         out, _ = self.lp("start", "fix a bug in src/net/server.rs where the handshake drops a client", "--no-save")
         self.assertEqual(out["workflow"]["id"], "engine-change")
         owners = out["context"]["packet"]["owners"]
-        self.assertEqual(owners[0]["feature"], "net_server")
+        self.assertEqual([o["feature"] for o in owners], ["net_server"], "a feature that merely mentions `handshake` is noise next to the owner of the named file")
         self.assertIn("net_flow", owners[0]["tests"])
         self.assertIn("reproduce_first", out["context"]["packet"], "a bug report asks for the failing test first")
         self.assertEqual(out["next_action"]["argv"], [exe, "context", "net_server"])
