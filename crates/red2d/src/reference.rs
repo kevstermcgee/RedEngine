@@ -34,6 +34,7 @@ checks: {"scenarios":[{"name":"...","seed":1,"max_seconds":30,"smoke":true,"scri
   STEPS: wait:s | hold:[actions],seconds:s | hold_until:[actions],until:EXPECT,timeout:s | press:action | click:[x,y] | button:id | point:[x,y] | approach:tag,seconds:s | wait_until:EXPECT,timeout:s
   EXPECT: {var,eq|ne|gt|gte|lt|lte:n} {ended:"win"|"lose"} {not_ended:true} {count:tag,eq..} {entity:id,near:[x,y],tol:px} {event:name,min,max} {sound:name,min} {hash:"..."}
   Every scenario needs an `expect` (one that asserts nothing proves nothing). `smoke:true` marks the playthrough the browser replays and must match hash for hash.
+MECHANICS (verified, each with the scenarios that prove it; copy one instead of inventing it): `red_engine2 recipe` lists key-door timer-lose collect-then-exit health-damage checkpoint-respawn spawner-waves survive-then-escape; `recipe NAME --new g.game2d.json`.
 LOOP: validate G -> sim G [--only NAME --every SECONDS] -> verify G -> frame G out.png [--scenario NAME --t SECONDS --size 1280x720] (LOOK) -> web verify G -> publish G
 PROVES: validate = well formed, names resolve. verify = simulation (scripted play, deterministic) + render (frames not blank) + audio waveform. web verify = a real headless browser:
   pixels equal native, scenarios replay hash for hash, real keys/clicks change state, saves survive reload and bad storage does not break play, audio starts after a gesture, console clean.

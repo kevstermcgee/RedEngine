@@ -1,0 +1,44 @@
+{
+  "name": "net_edit_loop",
+  "description": "Task 4: a networking change (a documented pub fn in the interpolation module) through the same inner loop: the owning feature and its dependents decide what iterate runs.",
+  "steps": [
+    {
+      "id": "context",
+      "kind": "discovery",
+      "cmd": [
+        "{RED}",
+        "context",
+        "src/net/interp.rs"
+      ]
+    },
+    {
+      "id": "plan",
+      "kind": "discovery",
+      "cmd": [
+        "{RED}",
+        "affected",
+        "--dry-run",
+        "src/net/interp.rs"
+      ]
+    },
+    {
+      "id": "edit",
+      "kind": "edit",
+      "edit": {
+        "file": "{ENGINE}/src/net/interp.rs",
+        "append": "\n/// A benchmark edit (reverted when the flow ends).\npub fn bench_probe(n: u32) -> u32 {\n    n.wrapping_add(1)\n}\n"
+      }
+    },
+    {
+      "id": "iterate",
+      "kind": "verify",
+      "cmd": [
+        "bash",
+        "{ENGINE}/scripts/dev",
+        "iterate"
+      ],
+      "cwd": "{ENGINE}",
+      "timeout": 1500
+    }
+  ]
+}

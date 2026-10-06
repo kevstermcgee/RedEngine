@@ -1,0 +1,44 @@
+{
+  "name": "engine_edit_loop",
+  "description": "Task 3: add a small reusable engine function (a documented pub fn in the UI kit) and run the inner loop on it: what an agent reads first (the context packet, the plan), the real edit, then `scripts/dev iterate` (fmt, type-check, clippy and the touched modules' unit tests). Run with --engine pointing at a checkout whose target is warm.",
+  "steps": [
+    {
+      "id": "context",
+      "kind": "discovery",
+      "cmd": [
+        "{RED}",
+        "context",
+        "src/ui/game.rs"
+      ]
+    },
+    {
+      "id": "plan",
+      "kind": "discovery",
+      "cmd": [
+        "{RED}",
+        "affected",
+        "--dry-run",
+        "src/ui/game.rs"
+      ]
+    },
+    {
+      "id": "edit",
+      "kind": "edit",
+      "edit": {
+        "file": "{ENGINE}/src/ui/game.rs",
+        "append": "\n/// A benchmark edit (reverted when the flow ends).\npub fn bench_probe(n: u32) -> u32 {\n    n.wrapping_add(1)\n}\n"
+      }
+    },
+    {
+      "id": "iterate",
+      "kind": "verify",
+      "cmd": [
+        "bash",
+        "{ENGINE}/scripts/dev",
+        "iterate"
+      ],
+      "cwd": "{ENGINE}",
+      "timeout": 1500
+    }
+  ]
+}

@@ -45,6 +45,7 @@ const STOP: &[&str] = &[
 ];
 
 const SYNONYMS: &[(&str, &str)] = &[
+    ("test", "scenario scenarios verify expect"),
     ("collide", "collision collider blocks block solid"),
     ("collision", "collide collider blocks solid walk-through"),
     ("block", "collision collider solid"),
@@ -264,6 +265,15 @@ pub fn corpus(commands: &Value) -> Vec<Doc> {
             extra: r.name.replace('_', " "),
         });
     }
+    for p in recipes::patterns() {
+        docs.push(Doc {
+            kind: "mechanic",
+            title: format!("2D mechanic `{}`: {}", p.name, p.title()),
+            body: format!("{} Rules: {}. Scenarios: {}.", p.description(), p.rules().join("; "), p.scenarios().join("; ")),
+            loc: format!("red_engine2 recipe {}", p.name),
+            extra: format!("{} 2d", p.name.replace('-', " ")),
+        });
+    }
     for c in commands.as_array().into_iter().flatten() {
         let name = c["name"].as_str().unwrap_or("?");
         let flags: Vec<String> =
@@ -311,7 +321,8 @@ fn expand(query: &str) -> Vec<(String, f32)> {
     out
 }
 
-/// Ranks the corpus for `query`, optionally only one `kind`, returning at most `limit` hits (diversified per kind).
+/// Ranks the corpus for `query`, optionally only one `kind`, returning at most `limit` hits (diversified per kind), preceded by up to two verified 2D mechanics when the query clearly asks
+/// for one (they do not count toward `limit` and never displace an ordinary hit).
 pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize) -> Vec<Hit<'a>> {
     let q = expand(query);
     if q.is_empty() {
@@ -319,17 +330,34 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
     }
     let toks: Vec<(Vec<String>, Vec<String>, Vec<String>)> =
         docs.iter().map(|d| (tokens_snake(&d.title), tokens_snake(&d.body), tokens_snake(&d.extra))).collect();
+    // The statistics (how common a word is, how many documents there are) leave the mechanics out, so that having them in the corpus cannot nudge any other result's score.
     let mut df: HashMap<&str, usize> = HashMap::new();
-    for (t, b, e) in &toks {
+    for (d, (t, b, e)) in docs.iter().zip(&toks) {
+        if d.kind == "mechanic" {
+            continue;
+        }
         let set: HashSet<&str> = t.iter().chain(b).chain(e).map(String::as_str).collect();
         for w in set {
             *df.entry(w).or_default() += 1;
         }
     }
-    let n = docs.len() as f32;
+    let n = docs.iter().filter(|d| d.kind != "mechanic").count() as f32;
     let mut hits: Vec<Hit> = Vec::new();
+    // Verified 2D mechanics (`recipes::patterns`) are a lane of their own: they are tiny, dense documents that would outrank the real answer to a query from another domain
+    // ("player shoots another player damage health" is a 3D multiplayer question), so they never take an ordinary slot; the best one or two are shown first when the query
+    // clearly asks for one (at least two of the query's words are words that single out that mechanic).
+    let mut lane: Vec<(usize, f32, Hit)> = Vec::new();
+    // A word that occurs in nearly every mechanic ("game", "player", "2d") says nothing about which one is wanted: only words found in at most three of them count.
+    let mut mech_df: HashMap<&str, usize> = HashMap::new();
+    for (d, (t, b, e)) in docs.iter().zip(&toks) {
+        if d.kind == "mechanic" {
+            for w in t.iter().chain(b).chain(e).map(String::as_str).collect::<HashSet<_>>() {
+                *mech_df.entry(w).or_default() += 1;
+            }
+        }
+    }
     for (i, d) in docs.iter().enumerate() {
-        if kind.is_some_and(|k| d.kind != k) {
+        if kind.is_some_and(|k| d.kind != k && !(k == "recipe" && d.kind == "mechanic")) {
             continue;
         }
         let (t, b, e) = &toks[i];
@@ -359,13 +387,26 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
                 "asset" | "lint" | "type" | "command" => 1.05,
                 _ => 0.9,
             };
-            hits.push(Hit { doc: d, score: score * kind_bias, fragment: fragment(d, &q) });
+            let hit = Hit { doc: d, score: score * kind_bias, fragment: fragment(d, &q) };
+            if d.kind == "mechanic" && kind.is_none() {
+                let distinctive = q
+                    .iter()
+                    .filter(|(term, w)| *w >= 1.0 && mech_df.get(term.as_str()).is_some_and(|n| *n <= 3) && t.iter().chain(b).chain(e).any(|x| x == term))
+                    .count();
+                if distinctive >= 2 {
+                    lane.push((distinctive, hit.score, hit));
+                }
+            } else {
+                hits.push(hit);
+            }
         }
     }
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+    lane.sort_by(|a, b| (b.0, b.1).partial_cmp(&(a.0, a.1)).unwrap());
     // diversity: at most 4 per kind unless a kind filter is on
     let mut per: HashMap<&str, usize> = HashMap::new();
-    let mut out = Vec::new();
+    let mut out: Vec<Hit> = lane.into_iter().take(2).map(|(_, _, h)| h).collect();
+    let lane_len = out.len();
     for h in hits {
         let c = per.entry(h.doc.kind).or_default();
         if kind.is_none() && *c >= 4 {
@@ -373,7 +414,7 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
         }
         *c += 1;
         out.push(h);
-        if out.len() >= limit {
+        if out.len() - lane_len >= limit {
             break;
         }
     }
@@ -436,6 +477,49 @@ mod tests {
         let docs = corpus(&cmds());
         let hits = search(&docs, query, Some(kind), 3);
         hits.first().map(|h| format!("{} | {} | {}", h.doc.title, h.doc.loc, h.fragment)).unwrap_or_default()
+    }
+
+    /// Adding the verified 2D mechanics to the corpus must change nothing for anyone who is not asking for one: the ordinary results are the same with and without them (found the
+    /// hard way: a tiny dense `health-damage` entry once outranked the multiplayer docs for "player shoots another player damage health").
+    #[test]
+    fn the_mechanics_lane_never_displaces_an_ordinary_result() {
+        let all = corpus(&cmds());
+        let without: Vec<Doc> = corpus(&cmds()).into_iter().filter(|d| d.kind != "mechanic").collect();
+        assert!(all.iter().any(|d| d.kind == "mechanic") && all.len() > without.len());
+        for q in [
+            "player shoots another player damage health",
+            "why does my door block the player",
+            "how do stairs connect two floors",
+            "multiplayer lobby and rounds",
+            "spawn enemies in a room",
+            "save game progress",
+            "timer countdown for a match",
+        ] {
+            let titles =
+                |docs: &[Doc]| search(docs, q, None, 6).into_iter().filter(|h| h.doc.kind != "mechanic").map(|h| h.doc.title.clone()).collect::<Vec<_>>();
+            assert_eq!(titles(&all), titles(&without), "`{q}`: a mechanic changed the ordinary results");
+        }
+    }
+
+    #[test]
+    fn a_request_for_a_mechanic_finds_it_first_and_a_vague_one_does_not_invent_one() {
+        let docs = corpus(&cmds());
+        let first = |q: &str| search(&docs, q, None, 3).first().map(|h| (h.doc.kind, h.doc.title.clone()));
+        for (q, name) in [
+            ("add a door that opens with a key", "key-door"),
+            ("add a countdown timer that ends the game", "timer-lose"),
+            ("respawn at a checkpoint after dying", "checkpoint-respawn"),
+            ("spawn enemies over time but not too many", "spawner-waves"),
+            ("collect artifacts, activate a generator, survive, then escape", "survive-then-escape"),
+        ] {
+            let (kind, title) = first(q).unwrap();
+            assert!(kind == "mechanic" && title.contains(name), "`{q}` should open with `{name}`, got {kind}: {title}");
+        }
+        // Words every mechanic shares ("game", "player", "2d") single out none of them.
+        for q in ["make the camera follow the player in 2d", "a boss that is a 3d model in a 2d game", "publish my browser game"] {
+            assert!(search(&docs, q, None, 3).iter().all(|h| h.doc.kind != "mechanic"), "`{q}` asks for no particular mechanic");
+        }
+        assert!(search(&docs, "door key", Some("recipe"), 5).iter().any(|h| h.doc.kind == "mechanic"), "`--kind recipe` lists mechanics too");
     }
 
     #[test]
