@@ -2,12 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'">
+<meta name="theme-color" content="#0b0d12">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>{{TITLE}}</title>
 <meta name="description" content="{{DESCRIPTION}}">
 <style>
+  :root { --pad-h: clamp(150px, 28vh, 230px); }
   html, body { margin: 0; height: 100%; background: #0b0d12; overflow: hidden; color: #cfd6e6; font: 16px/1.4 system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  #stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
   #screen { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; background: #000; }
   #start, #loading, #error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1rem; }
   #start { background: rgba(8, 10, 16, 0.6); cursor: pointer; }
@@ -15,23 +24,65 @@
   #start h1 { margin: 0 0 .25rem; font-size: clamp(1.4rem, 5vw, 2.4rem); }
   #start p { margin: .25rem 0; max-width: 34rem; opacity: .85; }
   #start .go { margin-top: 1rem; padding: .6rem 1.2rem; border: 2px solid #cfd6e6; border-radius: 6px; font-weight: 600; letter-spacing: .04em; }
+  #start .extras { margin-top: .9rem; font-size: .85rem; opacity: .9; }
+  #start .extras button { font: inherit; font-weight: 600; color: #cfd6e6; background: #1c2438; border: 1px solid #3a4768; border-radius: 6px; padding: .35rem .8rem; cursor: pointer; }
+  #start .extras a { color: #9fb0d8; cursor: pointer; text-decoration: underline; }
+  #start .extras p { margin: .35rem 0 0; }
+  .only-touch { display: none; }
+  body.touch .only-touch { display: block; }
+  body.touch .only-desktop { display: none; }
   #error { background: #2a0d12; color: #ffd7dc; white-space: pre-wrap; z-index: 5; }
   [hidden] { display: none !important; }
   noscript { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+
+  /* The touch controller: a row BELOW the game (never over it), only on a device whose main pointer is a finger. */
+  #pad { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; box-sizing: border-box; height: var(--pad-h); padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #10141d; border-top: 1px solid #222a3c; touch-action: none; }
+  @media (orientation: landscape) and (max-height: 520px) { :root { --pad-h: clamp(112px, 36vh, 150px); } }
+  #pad[data-layout="tap"] { height: 56px; padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); justify-content: center; }
+  #pad .side { flex: 1 1 0; display: flex; align-items: center; height: 100%; }
+  #pad .side.left { justify-content: flex-start; }
+  #pad .side.right { justify-content: flex-end; gap: 14px; }
+  #pad .mid { flex: 0 0 auto; display: flex; align-items: flex-start; height: 100%; }
+  #pad .dir, #pad .btn, #pad .pause { touch-action: none; -webkit-user-select: none; user-select: none; }
+  #pad .dir { position: relative; height: 100%; aspect-ratio: 1; max-height: 190px; background: #19202e; border: 2px solid #2b3550; border-radius: 22px; box-sizing: border-box; }
+  #pad .dir i { position: absolute; font-style: normal; font-size: calc(var(--pad-h) * .16); color: #5d6a8c; line-height: 1; }
+  #pad .dir i.up { top: 8%; left: 50%; transform: translateX(-50%); } #pad .dir i.down { bottom: 8%; left: 50%; transform: translateX(-50%); }
+  #pad .dir i.left { left: 8%; top: 50%; transform: translateY(-50%); } #pad .dir i.right { right: 8%; top: 50%; transform: translateY(-50%); }
+  #pad .dir.on-up i.up, #pad .dir.on-down i.down, #pad .dir.on-left i.left, #pad .dir.on-right i.right { color: #ffd166; }
+  #pad .dir.stick { border-radius: 50%; }
+  #pad .dir .knob { position: absolute; left: 50%; top: 50%; width: 38%; height: 38%; margin: -19% 0 0 -19%; border-radius: 50%; background: #3a4768; border: 2px solid #5d6a8c; }
+  #pad .dir.lr { aspect-ratio: auto; width: min(100%, 360px); max-height: none; display: flex; border-radius: 18px; }
+  #pad .dir.lr i { font-size: calc(var(--pad-h) * .26); }
+  #pad .dir.lr i.left { left: 22%; } #pad .dir.lr i.right { right: 22%; }
+  #pad .dir.lr::after { content: ""; position: absolute; left: 50%; top: 14%; bottom: 14%; width: 2px; background: #2b3550; }
+  #pad .btn { height: calc(var(--pad-h) * .46); aspect-ratio: 1; max-height: 92px; border-radius: 50%; border: 3px solid #4a5a82; background: #1f2840; color: #cfd6e6; font: 700 clamp(12px, 3.6vw, 18px)/1 system-ui, sans-serif; display: flex; align-items: center; justify-content: center; letter-spacing: .02em; }
+  #pad .btn.a { margin-bottom: 26px; } #pad .btn.b { margin-top: 26px; }
+  #pad .btn.on { background: #ffd166; color: #10141d; border-color: #ffd166; }
+  #pad .pause { height: 30px; padding: 0 14px; border-radius: 15px; border: 2px solid #3a4768; background: #19202e; color: #9fb0d8; font: 600 12px/26px system-ui, sans-serif; letter-spacing: .08em; margin-top: 2px; }
+  #pad .pause.on { background: #3a4768; }
 </style>
 </head>
 <body data-state="loading" data-game-id="{{ID}}">
-<canvas id="screen" width="{{WIDTH}}" height="{{HEIGHT}}" aria-label="{{TITLE}}" role="img"></canvas>
-<div id="loading">Loading {{TITLE}}…</div>
-<div id="start" hidden>
-  <div class="card">
-    <h1 id="title">{{TITLE}}</h1>
-    <p>{{DESCRIPTION}}</p>
-    <p>{{INPUT}}</p>
-    <div class="go">Press any key or click to play</div>
+<div id="stage">
+  <canvas id="screen" width="{{WIDTH}}" height="{{HEIGHT}}" aria-label="{{TITLE}}" role="img"></canvas>
+  <div id="loading">Loading {{TITLE}}…</div>
+  <div id="start" hidden>
+    <div class="card">
+      <h1 id="title">{{TITLE}}</h1>
+      <p>{{DESCRIPTION}}</p>
+      <p class="only-desktop">{{INPUT}}</p>
+      <p class="only-touch">{{TOUCH}}</p>
+      <div class="go"><span class="only-desktop">Press any key or click to play</span><span class="only-touch">Tap to play</span></div>
+      <div class="extras" data-nostart>
+        <button id="install" type="button" hidden>Install this game</button>
+        <p id="ioshint" hidden>To install: tap Share, then &ldquo;Add to Home Screen&rdquo;.</p>
+        <p id="saves" hidden><a id="backup" role="button">Back up progress</a> &middot; <a id="restore" role="button">Restore</a><input id="restorefile" type="file" accept="application/json,.json" hidden></p>
+      </div>
+    </div>
   </div>
+  <div id="error" hidden></div>
 </div>
-<div id="error" hidden></div>
+<div id="pad" hidden aria-label="touch controls"></div>
 <noscript>This game needs JavaScript and WebAssembly.</noscript>
 <script src="runtime.js"></script>
 </body>

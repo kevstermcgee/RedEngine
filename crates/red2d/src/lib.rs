@@ -35,9 +35,12 @@ pub mod prefabs {
 }
 
 pub mod caps;
+pub mod controls;
 pub mod font;
 pub mod game;
+pub mod game3d;
 pub mod host;
+pub mod raster3d;
 pub mod reference;
 pub mod render;
 pub mod script;

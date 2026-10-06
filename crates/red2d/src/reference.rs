@@ -3,7 +3,7 @@
 
 /// The reference text.
 pub const REFERENCE: &str = r##"FILE: NAME.game2d.json (JSON; begin it with "game2d": 1). Positions are CENTRES in virtual-screen pixels; y grows downward.
-KEYS: game2d id title description capabilities view sprites sounds music vars persist prefabs scene|map ui rules checks
+KEYS: game2d id title description capabilities view sprites sounds music vars persist prefabs scene|map ui rules controls checks   (3D parts, optional: models layers3d, see HYBRID)
 capabilities: {"presentation":"2d","platforms":["web"],"networking":"offline","input":["keyboard","mouse"],"persistence":["settings","progress"]}
   declare what the game uses: buttons/click/pointer need mouse; keys/press need keyboard; `persist` needs progress; a `music` action needs settings.
   `red_engine2 capabilities` prints what is built; web is 2D-only and offline-only; touch and gamepad exist but are unverified; windows/linux 2D is prepared, not built.
@@ -23,6 +23,11 @@ rules: [{"id":"x","when":{TRIGGER},"if":"lives > 0","once":true,"cooldown":1,"do
   ACTIONS: set:[var,value] add:[var,value] emit:name spawn:{prefab,at,vel,count} destroy:"self"|"other"|"tag:T"|"id:I" play:sound music:"on"|"off"|"toggle" burst:{at,n,color,speed,life,size,gravity}
     shake:px end:"win"|"lose" restart:true reset_save:true velocity:{target,v:[x,y]} teleport:{target,to}     `at`: "self"|"other"|"pointer"|[x,y]|{"x":[min,max],"y":[min,max]}
   values and `if` are expressions: numbers, variables, + - * / %, == != < <= > >=, && || ! (division by zero is 0). Rules run in order, each seeing the changes before it.
+controls (phones; declare "touch" in input): a pad drawn BELOW the game on touch devices only; desktop keeps keyboard, mouse, gamepad. Pick one, or omit it and the engine infers from what the game reads:
+  "dpad" cross + A/B (top-down) | "stick" round stick + A/B | "platformer" left/right + JUMP/B | "lr" left/right (+A) (catch, dodge, paddle) | "tap" no pad: tap/drag the picture (clicks, management, puzzles)
+  {"controls":{"layout":"platformer","a":"HOP","b":{"label":"DASH","action":"secondary"},"pause":true}}  a/b: label | false (hide) | {label,action}; a button must drive an action something reads (a keys mover or a press rule)
+HYBRID (3D where it helps, same file, same sim, still runs in the browser and headless): "presentation":"hybrid", then any of `models` (named 3D objects), a prefab shape {"model":name}, a ui/layers3d
+  {"view3d":{..}}, view.world3d (the whole world in perspective), {"minimap":{..}}. Choose 2D unless a 3D part adds something. `red_engine2 describe hybrid` has the format.
 input actions: left right up down action secondary pause. Keys: arrows/WASD, Space/Z/J, Shift/X/K, Esc/P. Mouse/touch: `click` and buttons (a button `key` is any KeyboardEvent.code: Enter, KeyM, Digit1).
   A gamepad's stick/d-pad and A/B/Start map to the same actions.
 checks: {"scenarios":[{"name":"...","seed":1,"max_seconds":30,"smoke":true,"script":[STEPS],"expect":[EXPECT]}],"browser":[{"name":"...","keys":["ArrowRight"],"click":[x,y],"ms":400,"changes":["p_x"],"persists":["music_on"]}]}
@@ -33,6 +38,25 @@ LOOP: validate G -> sim G [--only NAME --every SECONDS] -> verify G -> frame G o
 PROVES: validate = well formed, names resolve. verify = simulation (scripted play, deterministic) + render (frames not blank) + audio waveform. web verify = a real headless browser:
   pixels equal native, scenarios replay hash for hash, real keys/clicks change state, saves survive reload and bad storage does not break play, audio starts after a gesture, console clean.
 NOT PROVEN by any of it: that it is fun, that it sounds good, touch or gamepad, other browsers.
+"##;
+
+/// The hybrid (2D + software 3D) reference: what `red_engine2 describe hybrid` prints.
+pub const HYBRID: &str = r##"HYBRID GAMES: a 2D game (`describe 2d`) that draws some of itself in 3D. One file, one simulation, one input model; 3D only changes how things are DRAWN. Declare "presentation":"hybrid".
+  It is a small software renderer (flat or toon shading, one light, depth buffer, no GPU), identical natively, headless and in a browser, so every distribution target keeps it. Not the wgpu engine: pick a
+  3D game (`describe`, not this) for real lighting, textures and big worlds. The AI chooses per game; use none of this when plain 2D reads better.
+models: {"boss":{"parts":[{"shape":"box","size":[2,2,2],"color":"#a33","at":[0,0,0],"rot":[yaw,pitch,roll]}, {"shape":"sphere","radius":1,"segments":16}, {"shape":"voxels","sprite":"hero","depth":3,"cell":0.1}]}}
+  shapes: box(size) sphere(radius) cylinder(radius,height) cone(radius,height) pyramid(base,height) torus(major,minor) plane(size [x,z]) voxels(a sprite pressed into 3D). +Y is up; 6000 triangles a model, 30000 in all.
+  angles are degrees, a number or an expression ("time * 60").
+IN THE WORLD (a model as a thing): prefab {"shape":{"model":"boss","yaw":"time*40","pitch":0,"roll":0,"scale":1,"elevation":25,"tint":"#ffffff","light":{"toon":true,"dir":[-.4,-.8,-.4],"ambient":.4},"fit":[64,64]}}
+  drawn into its box (`fit`, also the collision size) from a fixed camera looking down `elevation` degrees: a boss, a pickup, a ship in an otherwise flat game. Collisions, rules and tags work as for any prefab.
+VIEWPORT (a 3D scene in a rectangle): ui {"view3d":{"at":[4,4],"size":[40,40],"camera":{"eye":[0,2,5],"target":[0,1,0],"fov":45|"ortho":3},"background":"#00000000","items":[{"model":"boss","at":[0,0,0],"yaw":"time*30","scale":1}]}}
+  the same object is a world layer: top-level "layers3d":[{"layer":-5,"view3d":{..}}] draws between entities by `layer` (below 0: behind most things; `at`/`size` default to the whole screen).
+WORLD VIEW (everything in perspective): view {"world3d":{"plane":"ground"|"wall","pitch":55,"distance":150,"yaw":"time*5","fov":50,"ground":{"color":"#223","alt":"#334","tile":32},"light":{..},"sky":"#14182c"}}
+  "ground": 2D y becomes depth (top-down, arena, maze); "wall": 2D y becomes height (side-scroller seen from the front). The camera follows `view.camera` as it does in 2D. Things become: a flat picture that
+  faces the camera (default), a box on their footprint when the prefab has "height3d": N (thickness on a wall), a model, or projected text. UI stays flat on top; clicks and `at:"pointer"` are unprojected to the plane.
+MINIMAP (a flat map over any game): ui {"minimap":{"at":[236,4],"size":[80,60],"colors":{"player":"#fff","enemy":"#f44"},"dot":3,"viewport":true,"background":"#0a0e18c8","border":"#5a688c"}}
+  a dot per living thing with a listed tag (first match decides the colour), scaled from view.world; `viewport` outlines what the camera shows.
+CHECK: `validate` names every mistake (unknown shape, missing model, equal eye and target); `frame G out.png` shows it; `web verify` proves the browser draws the same pixels as the native renderer.
 "##;
 
 #[cfg(test)]
@@ -61,6 +85,14 @@ mod tests {
         for b in game::BUILTINS {
             assert!(REFERENCE.contains(b), "the 2D reference does not mention the built-in variable `{b}`");
         }
+    }
+
+    #[test]
+    fn the_hybrid_reference_names_every_3d_key_and_stays_short() {
+        for k in ["models", "layers3d", "world3d", "view3d", "minimap", "height3d", "ortho", "elevation", "fit", "viewport"] {
+            assert!(HYBRID.contains(k), "the hybrid reference does not mention `{k}`");
+        }
+        assert!(HYBRID.len() < 5_500, "{} bytes: trim it", HYBRID.len());
     }
 
     #[test]

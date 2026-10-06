@@ -3,7 +3,7 @@
   "id": "moon-hopper",
   "title": "Moon Hopper",
   "description": "A small platformer: hop over the spikes, grab every gem and reach the flag in as few falls as you can.",
-  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse", "gamepad"], "persistence": ["settings", "progress"] },
+  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse", "touch", "gamepad"], "persistence": ["settings", "progress"] },
   "view": { "width": 320, "height": 180, "background": "#0f1530", "world": [640, 180], "camera": { "follow": "player", "lerp": 0.15 } },
 
   "sprites": {

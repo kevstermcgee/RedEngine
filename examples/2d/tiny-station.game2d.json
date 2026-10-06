@@ -7,7 +7,7 @@
     "presentation": "2d",
     "platforms": ["web"],
     "networking": "offline",
-    "input": ["keyboard", "mouse"],
+    "input": ["keyboard", "mouse", "touch"],
     "persistence": ["settings", "progress"]
   },
   "view": {"width": 480, "height": 270, "background": "#070b1a", "scale": "fit"},

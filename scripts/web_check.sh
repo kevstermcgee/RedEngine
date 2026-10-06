@@ -42,9 +42,15 @@ for g in "${games[@]}"; do
   echo "== web verify $g"
   "${R[@]}" web verify "$g" || status=1
 done
-# The whole pipeline once, to the local backend: it must end with a catalog, and without a URL (nothing here serves the site to anyone else).
-echo "== publish ${games[0]} (local backend)"
+# The whole pipeline, for every game, to the local backend: it must end with a catalog, and without a URL (nothing here serves the site to anyone else).
 rm -rf out/site-ci out/publish-ci
-"${R[@]}" publish "${games[0]}" --site out/site-ci --out out/publish-ci || status=1
+for g in "${games[@]}"; do
+  echo "== publish $g (local backend)"
+  "${R[@]}" publish "$g" --site out/site-ci --out "out/publish-ci/$(basename "$g" .game2d.json)" || status=1
+done
 [ -f out/site-ci/catalog.json ] || { echo "publish wrote no catalog.json"; status=1; }
+# The library page those games are listed on: hearts, filters, in a real browser.
+echo "== library page"
+py="${RED2D_BROWSER_PYTHON:-}"; [ -n "$py" ] || { home="${RED2D_BROWSER_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/red_engine2/browser}"; [ -x "$home/bin/python" ] && py="$home/bin/python" || py=python3; }
+"$py" crates/red2d/web/library_check.py out/site-ci || status=1
 exit $status

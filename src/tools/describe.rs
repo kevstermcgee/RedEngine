@@ -22,7 +22,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("overview", "what the engine is + the topics below"),
     ("commands", "every CLI command and flag (11 KB; one: `search <name>`)"),
     ("objects", "every object `type` with its fields and a working example"),
-    ("scene", "top-level scene keys: meta, camera, lights, zones, prefabs, checks, ..."),
+    ("scene", "top-level scene keys: meta, camera, lights, zones, prefabs, checks"),
     ("lint", "every lint code: what it means and how to fix it"),
     ("physics", "player size/speed/step rules that decide what is walkable (live constants)"),
     ("conventions", "coordinates, origins, facing, naming: what causes silent mistakes"),
@@ -35,9 +35,10 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("sim", "scripted headless play-throughs (`sim`) and match traces (`replay`)"),
     ("multiplayer", "hosting and playing online: keys, lobby, rounds, UPnP, net-test, package"),
     ("playtest", "see the game without a screen: `playtest`, headless scripts, state dump"),
-    ("custom-client", "a non-first-person game: your own crate on `red_engine2::app`"),
-    ("2d", "2D games for the browser: the file format, the commands, what each check proves"),
-    ("capabilities", "what is built: presentation x platform x networking x input"),
+    ("custom-client", "a non-first-person game: a crate on `red_engine2::app`"),
+    ("2d", "2D browser games: format, commands, what checks prove"),
+    ("hybrid", "3D parts in a 2D game"),
+    ("capabilities", "what is built: presentation x platform x network x input"),
     ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
 
@@ -840,6 +841,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "playtest" => json!({"text": playtest_text()}),
             "custom-client" => json!({"text": custom_client_text()}),
             "2d" => json!({"text": twod_text()}),
+            "hybrid" => json!({"text": red2d::reference::HYBRID}),
             "capabilities" => json!({"text": red2d::caps::matrix_text()}),
             "diagnostics" => {
                 json!({"envelope_schema": crate::tools::envelope::ENVELOPE_SCHEMA, "codes": crate::tools::envelope::CODES.iter().map(|(c, d, f)| json!({"code": c, "about": d, "fix": f})).collect::<Vec<_>>()})
@@ -869,6 +871,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "playtest" => out.push_str(&playtest_text()),
         "custom-client" => out.push_str(&custom_client_text()),
         "2d" => out.push_str(&twod_text()),
+        "hybrid" => out.push_str(red2d::reference::HYBRID),
         "capabilities" => out.push_str(&red2d::caps::matrix_text()),
         "overview" => {
             let (props, prefabs) = (crate::props::PropKind::ALL.len(), crate::prefabs::builtin().0.defs.len());

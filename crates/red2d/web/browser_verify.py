@@ -41,8 +41,12 @@ def wait_js(pg, expr, timeout=20000):
     rightly, forbids; a CDP evaluate is not subject to it, so the real policy stays on for every test.)"""
     end = time.time() + timeout / 1000.0
     while time.time() < end:
-        if pg.evaluate("() => !!(" + expr + ")"):
-            return True
+        try:
+            if pg.evaluate("() => !!(" + expr + ")"):
+                return True
+        except Exception as e:                      # the page navigated under us (a reload, a service worker taking control): look again
+            if "context was destroyed" not in str(e) and "navigation" not in str(e):
+                raise
         time.sleep(0.04)
     raise TimeoutError("timed out waiting for: " + expr)
 
@@ -191,6 +195,8 @@ def main():
             t1 = pg.evaluate("__red2d.snapshot()")["tick"]
             check("waits for the player", t0 == 0 and t1 == 0, "ticks before any input: %s -> %s; start screen visible: %s" % (t0, t1, pg.is_visible("#start")))
             pg.screenshot(path=os.path.join(a.out, "browser-start.png"))
+            pad_state = pg.evaluate("({hidden: document.getElementById('pad').hidden, touchClass: document.body.classList.contains('touch'), pad: __red2d.status().pad})")
+            check("desktop: no touch controller", pad_state["hidden"] and not pad_state["touchClass"] and pad_state["pad"] == "hidden", "a mouse-and-keyboard browser shows no on-screen pad (hidden=%s, touch class=%s)" % (pad_state["hidden"], pad_state["touchClass"]))
             pg.keyboard.press("Enter")
             wait_js(pg, "__red2d.status().state === 'running'", 5000)
             has_audio = bool(gjson.get("sounds")) or bool(gjson.get("music"))
@@ -316,6 +322,230 @@ def main():
                 st = ready(pg)
                 check("reset: removing the save returns the game to a fresh start", had is not None and gone and st["save"] == "fresh", "had a save: %s; removed: %s; after reload: %s" % (had is not None, gone, st["save"]))
                 ctx.close()
+
+        # ---- phase E: installable, offline, durable, backed up -----------------------------------------------------------------------------------------------
+        ctx, pg, log = new_page()
+        pg.goto(base + "/index.html")
+        st = ready(pg)
+        try:
+            wait_js(pg, "__red2d.status().offline === 'ready' || __red2d.status().offline === 'unavailable'", 10000)
+        except Exception:
+            pass
+        st = pg.evaluate("__red2d.status()")
+        check("install: a service worker stores the whole game", st["offline"] == "ready", "offline support: %s (a service worker needs https or localhost)" % st["offline"])
+        if st["offline"] == "ready":
+            pg.reload()
+            ready(pg)
+            cdp = ctx.new_cdp_session(pg)
+            try:
+                errs = cdp.send("Page.getInstallabilityErrors").get("installabilityErrors", [])
+                check("install: the browser says the page is installable", not errs, "no installability errors (manifest, icons, service worker with a fetch handler)" if not errs else "; ".join("%s %s" % (e.get("errorId"), e.get("errorArguments")) for e in errs))
+            except Exception as e:
+                check("install: the browser says the page is installable", False, "could not ask the browser: %s" % e)
+            ctx.set_offline(True)
+            try:
+                pg.reload()
+                st2 = ready(pg)
+                tick0 = pg.evaluate("__red2d.snapshot()")["tick"]
+                pg.evaluate("__red2d.advance(30)")
+                tick1 = pg.evaluate("__red2d.snapshot()")["tick"]
+                check("install: it plays with the network off", st2["state"] == "ready" and tick1 - tick0 == 30, "reloaded offline: state=%s, advanced %d ticks" % (st2["state"], tick1 - tick0))
+            except Exception as e:
+                check("install: it plays with the network off", False, "reload with no network failed: %s" % e)
+            ctx.set_offline(False)
+        pg.keyboard.press("Enter")
+        wait_js(pg, "__red2d.status().state === 'running'", 5000)
+        try:
+            wait_js(pg, "__red2d.status().persistent !== null", 3000)
+        except Exception:
+            pass
+        st = pg.evaluate("__red2d.status()")
+        check("storage: the game asked the browser to keep its saves", st["persistent"] is not None, "navigator.storage.persist() answered %s (a browser may say no; the answer is shown, not assumed)" % st["persistent"])
+        if game["persistence"]:
+            pc = next((bc for bc in manifest.get("browser_checks", []) if bc.get("persists")), None)
+            if pc:
+                lay = pg.evaluate("__red2d.layout()")
+                if pc.get("click"):
+                    pg.mouse.click(lay["x"] + pc["click"][0] * lay["w"] / vw, lay["y"] + pc["click"][1] * lay["h"] / vh)
+                pg.wait_for_timeout(400)
+                before = pg.evaluate("__red2d.snapshot()")["vars"]
+                pg.reload()
+                ready(pg)
+                pg.wait_for_load_state("load")
+                pg.wait_for_timeout(300)
+                try:
+                    with pg.expect_download(timeout=5000) as dl:
+                        pg.evaluate("document.getElementById('backup').click()")
+                    path = dl.value.path()
+                    text = open(path).read()
+                    b = json.loads(text)
+                    ok = b.get("red2d_backup") == 1 and b.get("game") == gid and isinstance(b.get("save"), str) and json.loads(b["save"]).get("game") == gid
+                    check("backup: 'Back up progress' downloads the saved progress", ok, "%d bytes, game %s" % (len(text), b.get("game")))
+                    pg.evaluate("__red2d.resetSave()")
+                    pg.reload()
+                    fresh = ready(pg)["save"]
+                    pg.wait_for_load_state("load")
+                    pg.wait_for_timeout(300)
+                    pg.set_input_files("#restorefile", path)
+                    wait_js(pg, "__red2d.status().state === 'ready' && __red2d.status().save === 'loaded'", 8000)
+                    after = pg.evaluate("__red2d.snapshot()")["vars"]
+                    same = all(after.get(n) == before.get(n) for n in pc["persists"])
+                    check("backup: restoring the file brings the progress back", fresh == "fresh" and same, "after the reset the save was %s; after restoring, %s" % (fresh, {n: after.get(n) for n in pc["persists"]}))
+                    wrong = pg.evaluate("__red2d.restoreText(%s)" % json.dumps(json.dumps({"red2d_backup": 1, "game": "some-other-game", "save": "{}"})))
+                    check("backup: another game's backup is refused", "not this one" in wrong, wrong)
+                except Exception as e:
+                    check("backup: download and restore", False, "%s: %s" % (type(e).__name__, e))
+        errs = fatal(log)
+        check("install: no console errors", not errs, "none" if not errs else "; ".join(errs[:5]))
+        ctx.close()
+
+        # ---- phase D: a phone (touch, small screen): the controller sits below the game, never over it, and real touches drive the game ----------------------------------
+        controls = game.get("controls") or {}
+        if "touch" in game["input"]:
+            KEY_ACTION = {"ArrowLeft": "left", "KeyA": "left", "ArrowRight": "right", "KeyD": "right", "ArrowUp": "up", "KeyW": "up", "ArrowDown": "down", "KeyS": "down", "Space": "action", "KeyZ": "action", "KeyJ": "action", "ShiftLeft": "secondary", "KeyX": "secondary", "KeyK": "secondary", "Escape": "pause", "KeyP": "pause"}
+            UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+            ctx = browser.new_context(viewport={"width": 390, "height": 760}, device_scale_factor=3, is_mobile=True, has_touch=True, user_agent=UA)
+            pg = ctx.new_page()
+            log = {"console": [], "pageerrors": [], "failed": [], "http": []}
+            pg.on("console", lambda m: log["console"].append((m.type, m.text)) if m.type in ("error", "warning") else None)
+            pg.on("pageerror", lambda e: log["pageerrors"].append(str(e)))
+            pg.on("requestfailed", lambda r: log["failed"].append(r.url + " " + str(r.failure)))
+            pg.on("response", lambda r: log["http"].append((r.status, r.url)) if r.status >= 400 else None)
+            pg.goto(base + "/index.html")
+            st = ready(pg)
+            geo_js = "(() => { const q = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; }; return {stage: q('stage'), canvas: q('screen'), pad: q('pad'), padHidden: document.getElementById('pad').hidden, vw: innerWidth, vh: innerHeight, scrollH: document.documentElement.scrollHeight, coarse: matchMedia('(pointer: coarse)').matches}; })()"
+
+            def geometry(tag):
+                g = pg.evaluate(geo_js)
+                cx, cy, cw, ch = g["canvas"]
+                px, py, pw, ph = g["pad"]
+                sx, sy, sw, sh = g["stage"]
+                problems = []
+                want_pad = bool(controls.get("visible"))
+                if want_pad and g["padHidden"]:
+                    problems.append("the controller is hidden")
+                if not want_pad and not g["padHidden"]:
+                    problems.append("a controller is shown for a game that needs none")
+                if want_pad and not g["padHidden"]:
+                    if py < cy + ch - 0.6 or py < sy + sh - 0.6:
+                        problems.append("the controller (top %.0f) is not below the picture (bottom %.0f)" % (py, cy + ch))
+                    if py + ph > g["vh"] + 0.6:
+                        problems.append("the controller runs off the bottom of the screen")
+                    if pw > g["vw"] + 0.6:
+                        problems.append("the controller is wider than the screen")
+                if cx < -0.6 or cx + cw > g["vw"] + 0.6 or cy < -0.6:
+                    problems.append("the picture is outside the screen")
+                if abs(cw / ch - vw / vh) > 0.02 * vw / vh + 0.01:
+                    problems.append("the picture lost its aspect ratio (%.3f vs %.3f)" % (cw / ch, vw / vh))
+                if g["scrollH"] > g["vh"] + 1:
+                    problems.append("the page scrolls (%d > %d)" % (g["scrollH"], g["vh"]))
+                if cw < sw - 1.5 and ch < sh - 1.5:
+                    problems.append("the picture does not use the space it has (%dx%d in a %dx%d stage)" % (cw, ch, sw, sh))
+                check("phone %s: the controller is below the game and nothing overlaps" % tag, g["coarse"] and not problems, ("pad shown=%s, picture %dx%d at y=%d, controller y=%d h=%d on a %dx%d screen" % (not g["padHidden"], cw, ch, cy, py, ph, g["vw"], g["vh"])) if not problems else "; ".join(problems) + " (coarse pointer: %s)" % g["coarse"])
+                return g
+
+            geometry("portrait")
+            pg.screenshot(path=os.path.join(a.out, "mobile-portrait.png"))
+            pg.set_viewport_size({"width": 844, "height": 390})
+            pg.wait_for_timeout(250)
+            geometry("landscape")
+            pg.screenshot(path=os.path.join(a.out, "mobile-landscape.png"))
+            pg.set_viewport_size({"width": 390, "height": 760})
+            pg.wait_for_timeout(250)
+
+            # a touch starts the game (and is the gesture that unlocks audio)
+            g = pg.evaluate(geo_js)
+            sx, sy, sw, sh = g["stage"]
+            pg.touchscreen.tap(sx + sw / 2, sy + sh / 2)
+            wait_js(pg, "__red2d.status().state === 'running'", 5000)
+            has_audio = bool(gjson.get("sounds")) or bool(gjson.get("music"))
+            if has_audio:
+                try:
+                    wait_js(pg, "__red2d.status().audio === 'running'", 4000)
+                except Exception:
+                    pass
+                check("phone: audio starts after the first touch", pg.evaluate("__red2d.status().audio") == "running", "Web Audio context state after a tap: %s" % pg.evaluate("__red2d.status().audio"), claim="browser-audio")
+            over = pg.evaluate("(() => { const g = document.getElementById('screen').getBoundingClientRect(); const e = document.elementFromPoint(g.left + g.width / 2, g.top + g.height / 2); return e ? e.id : null; })()")
+            check("phone: nothing covers the picture", over == "screen", "the element at the centre of the picture is #%s" % over)
+
+            cdp = ctx.new_cdp_session(pg)
+
+            def touch(points, kind):
+                cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": [{"x": x, "y": y, "id": i} for i, (x, y) in enumerate(points)] if kind != "touchEnd" else []})
+
+            def centre(sel):
+                r = pg.evaluate("(sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; }", sel)
+                return r
+
+            def point_for(action):
+                if action in ("left", "right", "up", "down"):
+                    d = centre("#pad .dir")
+                    if not d:
+                        return None
+                    x0, y0, w, h = d
+                    off = {"left": (-0.34, 0), "right": (0.34, 0), "up": (0, -0.34), "down": (0, 0.34)}[action]
+                    return (x0 + w / 2 + off[0] * w, y0 + h / 2 + off[1] * h)
+                r = centre('#pad [data-action="%s"]' % action)
+                return (r[0] + r[2] / 2, r[1] + r[3] / 2) if r else None
+
+            if controls.get("visible"):
+                tested = 0
+                for bc in manifest.get("browser_checks", []):
+                    acts = [KEY_ACTION.get(k) for k in bc.get("keys", [])]
+                    if not acts or None in acts:
+                        continue
+                    pts = [point_for(ac) for ac in acts]
+                    if None in pts:
+                        continue
+                    snap0 = pg.evaluate("__red2d.snapshot()")
+                    touch(pts[:1] if len(pts) == 1 else pts, "touchStart")
+                    pg.wait_for_timeout(bc.get("ms", 400))
+                    held_now = pg.evaluate("__red2d.held()")
+                    touch([], "touchEnd")
+                    pg.wait_for_timeout(120)
+                    snap1 = pg.evaluate("__red2d.snapshot()")
+                    after = pg.evaluate("__red2d.held()")
+                    changed = [n for n in bc["changes"] if snap0["vars"].get(n) != snap1["vars"].get(n)]
+                    check("phone touch: " + bc["name"], bool(changed) and (acts == ["pause"] or all(ac in held_now for ac in acts)) and not after, ("touching %s held %s, %s changed (%s -> %s), released: %s" % (acts, held_now, changed[0] if changed else "nothing", snap0["vars"].get(changed[0]) if changed else "", snap1["vars"].get(changed[0]) if changed else "", not after)))
+                    tested += 1
+                    break
+                dirs = [ac for ac in ("left", "right", "up", "down") if point_for(ac)]
+                if len(dirs) >= 2:
+                    # sliding the thumb across the pad switches direction without lifting
+                    a1, a2 = ("left", "right") if "left" in dirs and "right" in dirs else (dirs[0], dirs[1])
+                    p1, p2 = point_for(a1), point_for(a2)
+                    touch([p1], "touchStart"); pg.wait_for_timeout(120)
+                    h1 = pg.evaluate("__red2d.held()")
+                    touch([p2], "touchMove"); pg.wait_for_timeout(120)
+                    h2 = pg.evaluate("__red2d.held()")
+                    touch([], "touchEnd"); pg.wait_for_timeout(100)
+                    check("phone touch: sliding the thumb changes direction", h1 == [a1] and h2 == [a2], "start on %s held %s; slid to %s held %s" % (a1, h1, a2, h2))
+                btns = [b for b in controls.get("buttons", []) if point_for(b["action"])]
+                if btns and dirs:
+                    # two thumbs at once: a direction and a button
+                    d1, b1 = point_for(dirs[0]), point_for(btns[0]["action"])
+                    touch([d1, b1], "touchStart"); pg.wait_for_timeout(150)
+                    both = pg.evaluate("__red2d.held()")
+                    touch([], "touchEnd"); pg.wait_for_timeout(100)
+                    check("phone touch: two thumbs at once", dirs[0] in both and btns[0]["action"] in both, "touching %s and %s held %s" % (dirs[0], btns[0]["action"], both))
+                if controls.get("pause"):
+                    touch([point_for("pause")], "touchStart"); pg.wait_for_timeout(60); touch([], "touchEnd"); pg.wait_for_timeout(250)
+                    check("phone touch: the pause button is a press", pg.evaluate("__red2d.held()") == [], "held after the tap: %s" % pg.evaluate("__red2d.held()"))
+            # tapping and dragging the picture works for click games on a phone
+            for bc in manifest.get("browser_checks", []):
+                if bc.get("click") and not bc.get("persists"):
+                    lay = pg.evaluate("__red2d.layout()")
+                    snap0 = pg.evaluate("__red2d.snapshot()")
+                    pg.touchscreen.tap(lay["x"] + bc["click"][0] * lay["w"] / vw, lay["y"] + bc["click"][1] * lay["h"] / vh)
+                    pg.wait_for_timeout(250)
+                    snap1 = pg.evaluate("__red2d.snapshot()")
+                    changed = [n for n in bc["changes"] if snap0["vars"].get(n) != snap1["vars"].get(n)]
+                    check("phone touch: tapping the picture: " + bc["name"], bool(changed), ("%s changed" % changed[0]) if changed else "none of %s changed after the tap" % bc["changes"])
+                    break
+            pg.screenshot(path=os.path.join(a.out, "mobile-playing.png"))
+            errs = fatal(log)
+            check("phone: no console errors", not errs, "none" if not errs else "; ".join(errs[:5]))
+            ctx.close()
         browser.close()
 
     out["rows"] = rows

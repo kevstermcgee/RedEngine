@@ -20,6 +20,8 @@ use std::time::Instant;
 
 /// Schema of a game's record.
 pub const META_SCHEMA: &str = "red2d-game-meta/1";
+/// The library page: hearts keep favourites at the top, a 2D/3D filter, search.
+const LIBRARY_HTML: &str = include_str!("../../crates/red2d/web/library.html");
 /// Schema of the catalog.
 pub const CATALOG_SCHEMA: &str = "red2d-catalog/1";
 
@@ -177,12 +179,14 @@ pub struct Verification {
     pub checks: usize,
     /// The audio claims that were made, by name (`browser audio initialised`...), never listening.
     pub audio_claims: Vec<String>,
+    /// What else a real browser showed working: `installable`, `offline`, `phone-touch`, `backup`.
+    pub features: Vec<String>,
 }
 
 impl Verification {
     /// The JSON form stored beside the screenshots.
     pub fn to_json(&self) -> Value {
-        json!({"schema": "red2d-browser-verification/1", "package_id": self.package_id, "ok": self.ok, "browser": self.browser, "checks": self.checks, "audio_claims": self.audio_claims, "human_listening_verified": false, "human_playtest": false})
+        json!({"schema": "red2d-browser-verification/1", "package_id": self.package_id, "ok": self.ok, "browser": self.browser, "checks": self.checks, "audio_claims": self.audio_claims, "features": self.features, "human_listening_verified": false, "human_playtest": false})
     }
     /// Reads one back.
     pub fn from_json(v: &Value) -> Option<Verification> {
@@ -192,6 +196,7 @@ impl Verification {
             browser: v["browser"].as_str()?.to_string(),
             checks: v["checks"].as_u64()? as usize,
             audio_claims: v["audio_claims"].as_array()?.iter().filter_map(|a| a.as_str().map(str::to_string)).collect(),
+            features: v["features"].as_array().map(|a| a.iter().filter_map(|f| f.as_str().map(str::to_string)).collect()).unwrap_or_default(),
         })
     }
 }
@@ -219,6 +224,9 @@ pub fn game_meta(manifest: &Value, v: &Verification, epoch: u64, previous_builds
         "networking": g["networking"],
         "persistence": g["persistence"],
         "screen": g["screen"],
+        "controls": g["controls"],
+        "distribution": g["distribution"],
+        "install": g["install"],
         "thumbnail": "thumbnail.png",
         "game_revision": g["game_revision"],
         "engine_revision": manifest["engine"]["revision"],
@@ -230,6 +238,7 @@ pub fn game_meta(manifest: &Value, v: &Verification, epoch: u64, previous_builds
             "native": {"scenarios": manifest["native"]["scenarios"].as_array().map_or(0, Vec::len), "passed": true},
             "browser": {"engine": v.browser, "checks": v.checks, "passed": v.ok, "package_id": v.package_id},
             "audio": {"claims": v.audio_claims, "human_listening_verified": false},
+            "features": v.features,
             "human_playtest": false,
         },
         "urls": {"stable": format!("games/{id}/"), "immutable": format!("games/{id}/builds/{build_id}/")},
@@ -313,7 +322,7 @@ pub fn write_catalog(site: &Path) -> Result<(), String> {
             if let Some(m) = std::fs::read_to_string(e.path().join("game.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) {
                 games.push(json!({
                     "id": m["id"], "title": m["title"], "description": m["description"], "url": m["urls"]["stable"], "thumbnail": format!("{}thumbnail.png", m["urls"]["stable"].as_str().unwrap_or("")),
-                    "presentation": m["presentation"], "platforms": m["platforms"], "input": m["input"], "networking": m["networking"], "persistence": m["persistence"],
+                    "presentation": m["presentation"], "platforms": m["platforms"], "input": m["input"], "distribution": m["distribution"], "install": m["install"], "controls": m["controls"], "networking": m["networking"], "persistence": m["persistence"],
                     "build_id": m["build_id"], "build_timestamp": m["build_timestamp"], "game_revision": m["game_revision"], "engine_revision": m["engine_revision"],
                     "compatibility": m["compatibility"], "verification": m["verification"], "record": format!("games/{}/game.json", m["id"].as_str().unwrap_or("")),
                 }));
@@ -326,25 +335,24 @@ pub fn write_catalog(site: &Path) -> Result<(), String> {
     let cards: String = games
         .iter()
         .map(|g| {
+            let text = format!("{} {}", g["title"].as_str().unwrap_or(""), g["description"].as_str().unwrap_or("")).to_lowercase();
             format!(
-                "<a class=\"card\" href=\"{}\"><img src=\"{}\" alt=\"\"><h2>{}</h2><p>{}</p><small>{} · {} · {}</small></a>\n",
-                esc(&g["url"]),
-                esc(&g["thumbnail"]),
-                esc(&g["title"]),
-                esc(&g["description"]),
-                g["presentation"].as_str().unwrap_or(""),
-                g["input"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("+")).unwrap_or_default(),
-                esc(&g["build_timestamp"])
+                "<article class=\"card\" data-id=\"web:{id}\" data-pres=\"{pres}\" data-text=\"{text}\"><button class=\"heart\" type=\"button\" aria-pressed=\"false\" aria-label=\"Favourite {title}\">&#x2661;</button>\
+                 <a class=\"open\" href=\"{url}\"><img src=\"{thumb}\" alt=\"\"><h2>{title}</h2><p>{desc}</p><small><span class=\"pres\">{presu}</span>{input} · {when}</small></a></article>\n",
+                id = g["id"].as_str().unwrap_or(""),
+                pres = g["presentation"].as_str().unwrap_or(""),
+                presu = g["presentation"].as_str().unwrap_or("").to_uppercase(),
+                text = text.replace('&', "&amp;").replace('"', "&quot;").replace('<', "&lt;"),
+                url = esc(&g["url"]),
+                thumb = esc(&g["thumbnail"]),
+                title = esc(&g["title"]),
+                desc = esc(&g["description"]),
+                input = g["input"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("+")).unwrap_or_default(),
+                when = esc(&g["build_timestamp"]),
             )
         })
         .collect();
-    let html = format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>RedEngine games</title>\
-         <style>body{{margin:0;background:#0b0d12;color:#cfd6e6;font:16px/1.4 system-ui,sans-serif}}main{{max-width:60rem;margin:0 auto;padding:1.5rem}}\
-         .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(14rem,1fr));gap:1rem}}.card{{display:block;background:#141a26;border-radius:8px;padding:.75rem;color:inherit;text-decoration:none}}\
-         .card img{{width:100%;image-rendering:pixelated;border-radius:4px}}.card h2{{margin:.5rem 0 .25rem;font-size:1.1rem}}.card p{{margin:0 0 .5rem;opacity:.85}}small{{opacity:.6}}</style></head>\
-         <body><main><h1>Games</h1><div class=\"grid\">\n{cards}</div><p><small>Data: <a href=\"catalog.json\">catalog.json</a></small></p></main></body></html>\n"
-    );
+    let html = LIBRARY_HTML.replace("{{CARDS}}", &cards);
     std::fs::write(site.join("index.html"), html).map_err(|e| e.to_string())
 }
 
@@ -655,7 +663,25 @@ fn verification_of(build_id: &str, v: &webverify::Verified) -> Verification {
         browser: v.browser.clone(),
         checks: v.rows.len(),
         audio_claims: v.rows.iter().filter(|r| r.claim == "browser-audio" && r.ok).map(|r| r.name.clone()).collect(),
+        features: features_of(&v.rows),
     }
+}
+
+/// The capabilities a browser run demonstrated, from the rows that passed (a feature is listed only if every row about it passed and at least one exists).
+pub fn features_of(rows: &[red2d::script::Row]) -> Vec<String> {
+    let mut out = Vec::new();
+    for (feature, prefix) in [
+        ("installable", "install: the browser says"),
+        ("offline", "install: it plays with the network off"),
+        ("phone-touch", "phone touch:"),
+        ("backup", "backup: restoring"),
+    ] {
+        let about: Vec<&red2d::script::Row> = rows.iter().filter(|r| r.name.starts_with(prefix)).collect();
+        if !about.is_empty() && about.iter().all(|r| r.ok) {
+            out.push(feature.to_string());
+        }
+    }
+    out
 }
 
 /// Serves the site directory on loopback and runs the browser against `games/<id>/` there.
@@ -785,7 +811,14 @@ mod tests {
     }
 
     fn ver(build: &str) -> Verification {
-        Verification { package_id: build.into(), ok: true, browser: "Chromium 1".into(), checks: 38, audio_claims: vec!["browser audio initialised".into()] }
+        Verification {
+            package_id: build.into(),
+            ok: true,
+            browser: "Chromium 1".into(),
+            checks: 38,
+            audio_claims: vec!["browser audio initialised".into()],
+            features: vec!["installable".into()],
+        }
     }
 
     #[test]

@@ -127,10 +127,32 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
     let mut reasons = Vec::new();
     let mut problems = Vec::new();
 
+    // A 3D *part* (a boss model, a minimap, the world in perspective) in an otherwise 2D game is hybrid; a 3D *world* to walk or drive through is 3D.
+    let wants_hybrid = has(
+        &t,
+        &[
+            "hybrid",
+            "minimap",
+            "mini-map",
+            "mini map",
+            "map overlay",
+            "3d boss",
+            "3d model",
+            "3d element",
+            "3d hud",
+            "3d portrait",
+            "3d backdrop",
+            "2d and 3d",
+            "3d and 2d",
+            "2d with 3d",
+            "in perspective",
+            "rotating model",
+            "spinning model",
+        ],
+    );
     let wants_3d_world = has(
         &t,
         &[
-            "3d",
             "first person",
             "first-person",
             "fps",
@@ -144,6 +166,7 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
             "third-person",
         ],
     );
+    let wants_plain_3d = has(&t, &["3d"]);
     let wants_others = has(&t, &["multiplayer", "online", "with friends", "co-op", "coop", "versus", "pvp", "play with my", "with my cousin", "with others"]);
     let wants_web = has(&t, &["browser", "web", "url", "link", "online game", "publish"]);
 
@@ -220,8 +243,14 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
             reasons.push(format!("presentation {} was requested; it is checked below, not assumed", p.name()));
             p
         }
-        None if wants_3d_world || wants_others && !wants_web => {
-            reasons.push(if wants_3d_world {
+        None if wants_hybrid && !wants_3d_world && !(wants_others && !wants_web) => {
+            reasons.push(
+                "the idea wants 3D parts (a model, a perspective view, a minimap) inside an otherwise 2D game: hybrid keeps one JSON file, the 2D loop and browser play, and draws only those parts in 3D".to_string(),
+            );
+            Presentation::Hybrid
+        }
+        None if wants_3d_world || wants_plain_3d || wants_others && !wants_web => {
+            reasons.push(if wants_3d_world || wants_plain_3d {
                 "the idea needs a 3D world (first-person, driving or exploration), which 2D cannot show".to_string()
             } else {
                 "playing with others needs the authoritative server, which only the 3D engine has".to_string()
@@ -241,7 +270,7 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
 
     let platforms: Vec<Platform> = if !o.platforms.is_empty() {
         o.platforms.clone()
-    } else if presentation == Presentation::TwoD || wants_web && networking == Networking::Offline {
+    } else if presentation.portable() || wants_web && networking == Networking::Offline {
         reasons.push("web is the 2D target: a static package that plays from a URL".to_string());
         vec![Platform::Web]
     } else {
@@ -249,11 +278,8 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
         vec![Platform::Windows, Platform::Linux]
     };
 
-    let input: Vec<Input> = if o.input.is_empty() {
-        input_default.iter().copied().filter(|i| presentation == Presentation::TwoD || *i != Input::Touch).collect()
-    } else {
-        o.input.clone()
-    };
+    let input: Vec<Input> =
+        if o.input.is_empty() { input_default.iter().copied().filter(|i| presentation.portable() || *i != Input::Touch).collect() } else { o.input.clone() };
     let mut persistence = Vec::new();
     if has(&t, &["score", "high score", "best", "progress", "save", "unlock", "level"]) || genre != "puzzle" && complexity != "small" {
         persistence.push(Persistence::Progress);
@@ -266,7 +292,8 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
     }
     let minutes = o.session_minutes.map(|m| (m, m)).unwrap_or(session);
 
-    let c = Capabilities { presentation, platforms, networking, input, persistence };
+    let distribution = Capabilities::default_distribution(&platforms);
+    let c = Capabilities { presentation, platforms, networking, input, persistence, distribution };
     for p in caps::check(&c) {
         problems.push(p.to_string());
     }
@@ -297,7 +324,7 @@ impl Proposal {
 
     /// The plan as JSON.
     pub fn to_json(&self) -> Value {
-        let two_d = self.caps.presentation == Presentation::TwoD;
+        let two_d = self.caps.presentation.portable();
         json!({
             "title": self.title,
             "genre": self.genre,
@@ -315,7 +342,7 @@ impl Proposal {
 
     /// Sizes to expect. The 2D figures are the example games' (a small one is Coin Dash's size, a large one Tiny Station's); the 3D figures are the walk/race starters'.
     pub fn cost(&self) -> Value {
-        let two_d = self.caps.presentation == Presentation::TwoD;
+        let two_d = self.caps.presentation.portable();
         let (bytes, files): (&str, u32) = match (two_d, self.complexity) {
             (true, "small") => ("6-9 KB of JSON", 1),
             (true, "medium") => ("9-16 KB of JSON", 1),
@@ -327,7 +354,7 @@ impl Proposal {
         json!({
             "files_to_write": files,
             "size": bytes,
-            "files_to_read_first": if two_d { json!(["`describe 2d` (one page, ~8 KB)"]) } else { json!(["`describe --brief`", "`describe rules`", "`recipe`/`catalog`"]) },
+            "files_to_read_first": if self.caps.presentation == Presentation::Hybrid { json!(["`describe 2d` (one page, ~8 KB)", "`describe hybrid` (the 3D parts, ~4 KB)"]) } else if two_d { json!(["`describe 2d` (one page, ~8 KB)"]) } else { json!(["`describe --brief`", "`describe rules`", "`recipe`/`catalog`"]) },
             "loop_commands": if two_d { json!(["validate", "sim", "verify", "frame", "web verify", "publish"]) } else { json!(["validate", "lint", "verify", "plan/frame", "playtest"]) },
             "basis": "sizes of the example games and starters in this repository; no token counts are claimed",
         })
@@ -390,7 +417,7 @@ impl Proposal {
             t.push_str(&format!("  note: {w}\n"));
         }
         t.push_str(&format!("  capabilities: {}\n  next:\n", self.capabilities_json()));
-        for n in self.next(c.presentation == Presentation::TwoD) {
+        for n in self.next(c.presentation.portable()) {
             t.push_str(&format!("    {n}\n"));
         }
         t.push_str("  Change any choice with --presentation/--platform/--input/--networking/--session/--title and run again; each is checked, not trusted.\n");
@@ -416,6 +443,19 @@ mod tests {
         assert!(r.reasons.iter().any(|x| x.contains("simplest presentation")));
         assert_eq!(p("a game about a cat").caps.presentation, Presentation::TwoD, "no hint of a 3D world means 2D");
         assert_eq!(r.complexity, "small");
+    }
+
+    #[test]
+    fn a_3d_part_in_a_2d_game_is_hybrid_and_a_3d_world_is_3d() {
+        let r = p("a top-down arena with a 3D boss and a minimap");
+        assert_eq!(r.caps.presentation, Presentation::Hybrid, "{}", r.render());
+        assert_eq!(r.caps.platforms, vec![Platform::Web], "hybrid ships to the browser like 2D");
+        assert!(r.buildable() && r.reasons.iter().any(|x| x.contains("hybrid")), "{}", r.render());
+        assert!(r.to_json()["cost"]["files_to_read_first"].to_string().contains("describe hybrid"));
+        assert!(r.render().contains("red_engine2 describe 2d"), "hybrid is planned with the 2D loop");
+        assert_eq!(p("a 3D racing game").caps.presentation, Presentation::ThreeD);
+        assert_eq!(p("a first-person game with a minimap").caps.presentation, Presentation::ThreeD, "a world to walk through is 3D even with a flat map");
+        assert_eq!(p("a puzzle game with a spinning model as the prize").caps.presentation, Presentation::Hybrid);
     }
 
     #[test]

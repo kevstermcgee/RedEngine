@@ -112,6 +112,7 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
                         browser: browser.clone(),
                         checks: all.len(),
                         audio_claims: all.iter().filter(|r| r.claim == "browser-audio" && r.ok).map(|r| r.name.clone()).collect(),
+                        features: publish2d::features_of(&all),
                     };
                     std::fs::write(out.join("verification.json"), serde_json::to_string_pretty(&ver.to_json()).unwrap_or_default()).ok();
                 }

@@ -51,7 +51,7 @@ pub fn validate(path: &Path) -> Report {
             let c = &d.caps;
             let mut t = format!(
                 "OK: {} `{}` (revision {})\n  {} presentation, platforms {}, networking {}, input {}, saves {}\n  screen {}x{}, {} sprite(s), {} sound(s), {} music, {} prefab(s), {} placement(s), {} rule(s), {} HUD widget(s), {} scenario(s), {} browser check(s)\n",
-                if c.presentation == caps::Presentation::TwoD { "2D game" } else { "game" },
+                if c.presentation.portable() { "2D game" } else { "game" },
                 d.id,
                 d.rev,
                 c.presentation.name(),
@@ -268,11 +268,18 @@ pub fn capabilities(path: Option<&Path>, query: &[String]) -> Result<Report, Str
             caps::Networking::names().join(", ")
         ));
     };
-    let c = caps::Capabilities { presentation: pres, platforms: vec![plat], networking: net, input: vec![], persistence: vec![] };
+    let asked: Vec<caps::Distribution> = words.iter().filter_map(|w| caps::Distribution::parse(w)).collect();
+    let c = caps::Capabilities { presentation: pres, platforms: vec![plat], networking: net, input: vec![], persistence: vec![], distribution: asked.clone() };
     let problems = caps::check(&c);
     let s = caps::support(pres, plat);
     let mut t = format!("{} on {}: {}{}\n", pres.name(), plat.name(), s.label(), if s.note().is_empty() { String::new() } else { format!(" — {}", s.note()) });
     let n = caps::networking_support(pres, plat, net);
     t.push_str(&format!("{} networking: {}{}", net.name(), n.label(), if n.note().is_empty() { String::new() } else { format!(" — {}", n.note()) }));
+    // Distribution: both ways unless the question names one.
+    let ways = if asked.is_empty() { vec![caps::Distribution::Online, caps::Distribution::Install] } else { asked };
+    for how in ways {
+        let d = caps::distribution_support(pres, plat, how);
+        t.push_str(&format!("\n{} distribution: {}{}", how.name(), d.label(), if d.note().is_empty() { String::new() } else { format!(" — {}", d.note()) }));
+    }
     Ok(Report { text: t, ok: problems.is_empty() })
 }
