@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>web3d</title>
+<style>html,body{margin:0;background:#000;height:100%;overflow:hidden}canvas{display:block;width:100vw;height:100vh;touch-action:none}#hud{position:fixed;left:8px;top:8px;color:#fff;font:12px/1.4 system-ui,sans-serif;opacity:.7;pointer-events:none}</style></head>
+<body><canvas id="c" width="960" height="540"></canvas><div id="hud">loading…</div>
+<script type="module">
+import init, { web3d_start } from "./web3d.js";
+const q = new URLSearchParams(location.search), c = document.getElementById("c"), hud = document.getElementById("hud");
+window.__state = "loading";
+try {
+  await init();
+  const text = await (await fetch("scene.json")).text();
+  const size = () => { const r = devicePixelRatio || 1; return [Math.max(2, Math.round(c.clientWidth * r)), Math.max(2, Math.round(c.clientHeight * r))]; };
+  if (q.get("w")) { c.width = +q.get("w"); c.height = +q.get("h"); } else { [c.width, c.height] = size(); }
+  const g = await web3d_start("c", text, q.get("gl") === "1");
+  window.__g = g; window.__info = g.info(); window.__state = "ready"; hud.textContent = g.info() + " — click to look around, WASD to walk, Shift to run";
+  addEventListener("keydown", (e) => { g.key(e.code, true); if (e.code === "Space") e.preventDefault(); });
+  addEventListener("keyup", (e) => g.key(e.code, false));
+  c.addEventListener("click", () => c.requestPointerLock?.());
+  addEventListener("mousemove", (e) => { if (document.pointerLockElement === c) g.look(e.movementX, e.movementY); });
+  if (!q.get("w")) addEventListener("resize", () => { const [w, h] = size(); c.width = w; c.height = h; g.resize(w, h); });
+  if (q.get("run") === "1") { const loop = (t) => { g.frame(t); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+} catch (e) { window.__state = "ERROR " + e; hud.textContent = "" + e; }
+</script></body></html>
