@@ -18,7 +18,19 @@ REPO = os.path.dirname(HERE)
 LAUNCHPAD = os.path.join(HERE, "launchpad.py")
 RESOLVE = os.path.join(HERE, "red_resolve.py")
 sys.path.insert(0, HERE)
+import launchpad  # noqa: E402
 import red_resolve  # noqa: E402
+
+WINDOWS = os.name == "nt"
+# Windows has no `#!/bin/sh`: a fake binary that must RUN (the read-only `propose`/`context` calls) cannot be written there. Resolution-only tests still run on Windows.
+NEEDS_SH = unittest.skipIf(WINDOWS, "a fake executable here is a shell script")
+
+
+def clean_path():
+    """PATH without any directory that already holds a red_engine2: `cargo test` puts the repository's own target/debug on PATH (on Windows), and the resolver would
+    find that real binary as an installed candidate."""
+    exe = red_resolve.exe_name()
+    return os.pathsep.join(p for p in os.environ.get("PATH", "").split(os.pathsep) if p and not os.path.isfile(os.path.join(p, exe)))
 
 FEATURES = {"features": {
     "net_server": {"summary": "The authoritative UDP server: sessions, handshake, snapshots.", "files": ["src/net/server.rs", "src/net/session.rs"],
@@ -55,6 +67,8 @@ def make_engine(root, features=True):
 
 def fake_exe(path, propose=None, marker=None, mtime=None):
     """An executable that answers the three read-only commands with canned JSON and records that it ran."""
+    if WINDOWS and not path.endswith(".exe"):
+        path += ".exe"
     body = "#!/bin/sh\n"
     if marker:
         body += f'echo "$@" >> "{marker}"\n'
@@ -77,7 +91,7 @@ class Sandbox(unittest.TestCase):
         bindir = os.path.join(self.tmp, "bin")
         write(os.path.join(bindir, "cargo"), f'#!/bin/sh\necho "$@" >> "{self.cargo_marker}"\nexit 1\n')
         os.chmod(os.path.join(bindir, "cargo"), 0o755)
-        self.env = {"PATH": bindir + os.pathsep + os.environ.get("PATH", ""), "HOME": self.tmp, "RED_PREFIX": os.path.join(self.tmp, "prefix")}
+        self.env = {"PATH": bindir + os.pathsep + clean_path(), "HOME": self.tmp, "USERPROFILE": self.tmp, **{k: os.environ[k] for k in ("SYSTEMROOT", "TEMP", "TMP", "PATHEXT") if k in os.environ}, "RED_PREFIX": os.path.join(self.tmp, "prefix")}
 
     def lp(self, *args, cwd=None, env=None, engine=None):
         e = dict(self.env)
@@ -194,7 +208,7 @@ class ProjectPins(Sandbox):
         proj = self.project(pin={"git": "https://example.invalid/engine.git", "ref": "v1"})
         r = self.resolve(project=proj)
         self.assertEqual((r["selected"]["status"], r["engine"]["root"]), ("missing", None))
-        self.assertIn("scripts/red", r["next_build"]["argv"][0])
+        self.assertTrue(any("red" in a for a in r["next_build"]["argv"]), r["next_build"])
         self.assertFalse(os.path.exists(os.path.join(proj, ".red")), "no .red/engine clone was made")
         out, p = self.lp("start", "make a game", "--project", proj, "--no-save", engine=self.engine)
         self.assertEqual(p.returncode, 0)
@@ -233,7 +247,7 @@ class ProjectPins(Sandbox):
     def test_the_mcp_adapter_rule_raises_with_the_command_to_run(self):
         with self.assertRaises(RuntimeError) as cm:
             red_resolve.require(self.engine, env=self.env)
-        self.assertIn("scripts/dev red describe --brief", str(cm.exception))
+        self.assertIn("describe --brief", str(cm.exception))
         exe = fake_exe(os.path.join(self.engine, "target", "debug", "red_engine2"))
         self.assertEqual(red_resolve.require(self.engine, env=self.env), exe)
 
@@ -242,6 +256,7 @@ class Routing(Sandbox):
     def ready(self, propose=None):
         return fake_exe(os.path.join(self.engine, "target", "debug", "red_engine2"), propose=propose, marker=os.path.join(self.tmp, "exe_ran"))
 
+    @NEEDS_SH
     def test_a_supported_small_game_gets_the_starter_command_and_checked_capabilities(self):
         exe = self.ready()
         out, _ = self.lp("start", "make a small 2d coin game for the browser", "--no-save")
@@ -257,6 +272,7 @@ class Routing(Sandbox):
         self.assertTrue({"validation", "behavior", "visual/input inspection", "target execution (browser)", "networking"} <= claims, "separate claims, never merged")
         self.assertTrue(all(c["state"] in ("planned", "not_applicable") for c in out["evidence"]["claims"]), "nothing starts passed")
 
+    @NEEDS_SH
     def test_an_unsupported_combination_is_a_blocker_with_an_extension_route_not_a_silently_smaller_game(self):
         self.ready(PROPOSE_NO)
         out, _ = self.lp("start", "make a 3d multiplayer shooter that runs in the browser", "--no-save")
@@ -278,6 +294,7 @@ class Routing(Sandbox):
         out, _ = self.lp("start", "hmm", "--workflow", "diagnose", "--no-save")
         self.assertEqual(out["workflow"]["id"], "diagnose")
 
+    @NEEDS_SH
     def test_a_focused_engine_change_names_the_owner_the_context_packet_and_the_ladder(self):
         exe = self.ready()
         out, _ = self.lp("start", "fix a bug in src/net/server.rs where the handshake drops a client", "--no-save")
@@ -288,8 +305,8 @@ class Routing(Sandbox):
         self.assertIn("reproduce_first", out["context"]["packet"], "a bug report asks for the failing test first")
         self.assertEqual(out["next_action"]["argv"], [exe, "context", "net_server"])
         ladder = [" ".join(c["argv"]) for c in out["iteration_checks"] + out["final_requirements"]]
-        for want in ("scripts/dev iterate", "scripts/dev affected --quick", "scripts/dev affected", "scripts/dev affected --full", "scripts/dev preflight"):
-            self.assertIn(want, ladder)
+        for args in (("iterate",), ("affected", "--quick"), ("affected",), ("affected", "--full"), ("preflight",)):
+            self.assertIn(" ".join(launchpad.dev_argv(self.engine, *args)), ladder)
         self.assertEqual(out["invoked"], [], "engine-change asks the CLI nothing: the owners come from docs/features.json and the packet is the next action")
 
     def test_an_engine_change_without_a_binary_still_gets_owners_from_the_repository_and_says_what_the_cli_is_for(self):
