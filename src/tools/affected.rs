@@ -265,6 +265,42 @@ fn red2d_steps(changed: &[String], tests: bool, browser: bool) -> Vec<Step> {
     v
 }
 
+/// Whether a change reaches the browser build of the 3D player: engine code that is compiled for wasm32 (the binaries, the map-analysis toolchain and the command line are
+/// compiled out there) or the wrapper crate and the files that set its build up.
+pub fn touches_web3d(changed: &[String]) -> bool {
+    changed.iter().any(|c| {
+        let engine = c.starts_with("src/") && !["src/bin/", "src/tools/", "src/cli/"].iter().any(|p| c.starts_with(p)) && c != "src/main.rs";
+        engine || c.starts_with("crates/web3d/") || c == "Cargo.toml" || c == "Cargo.lock" || c.starts_with(".cargo/")
+    })
+}
+
+/// The step the 3D browser build adds (full tier): a wasm32 lint of the engine crate under `--features web`, because nothing else compiles those cfgs.
+fn web3d_steps(changed: &[String], browser: bool) -> Vec<Step> {
+    if !browser || !touches_web3d(changed) {
+        return Vec::new();
+    }
+    vec![Step::new(
+        "web3d-wasm",
+        &[
+            "cargo",
+            "clippy",
+            "--locked",
+            "-p",
+            "red_engine2",
+            "--lib",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--no-default-features",
+            "--features",
+            "web",
+            "--",
+            "-D",
+            "warnings",
+        ],
+        "the browser build of the 3D player: the engine's renderer and simulation must still compile (and lint clean) for wasm32 with the `web` feature",
+    )]
+}
+
 /// Paths that never need verification (generated output, logs, the handoff file).
 fn ignorable(path: &str) -> bool {
     path.starts_with("out/")
@@ -579,6 +615,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
         });
     }
     plan.steps.extend(red2d_steps(&changed, true, !opts.quick));
+    plan.steps.extend(web3d_steps(&changed, !opts.quick));
     plan.deferred = deferred.into_iter().collect();
     plan.suggest.sort();
     plan.suggest.dedup();
@@ -1183,6 +1220,25 @@ mod tests {
         assert!(quick.steps.iter().any(|s| s.name == "red2d") && quick.steps.iter().all(|s| s.name != "web"), "{:?}", names(&quick));
         let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
         assert!(none.steps.iter().all(|s| !s.name.starts_with("red2d") && s.name != "web"), "{:?}", names(&none));
+    }
+
+    #[test]
+    fn a_change_to_the_engine_plans_the_3d_browser_build_in_the_full_tier_only() {
+        for f in ["src/viewer.rs", "src/web3d.rs", "crates/web3d/src/lib.rs", "Cargo.toml", ".cargo/config.toml"] {
+            assert!(touches_web3d(&[f.to_string()]), "{f}");
+        }
+        assert!(!touches_web3d(&[
+            "docs/WEB_PLATFORM.md".to_string(),
+            "crates/red2d/src/sim.rs".to_string(),
+            "src/tools/lint.rs".to_string(),
+            "src/bin/re2/main.rs".to_string(),
+            "src/cli/args.rs".to_string()
+        ]));
+        let p = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options::default());
+        assert!(step(&p, "web3d-wasm").argv.join(" ").contains("--target wasm32-unknown-unknown --no-default-features --features web"));
+        assert!(p.steps.iter().all(|s| !s.argv.join(" ").contains("scripts/ci.sh")), "one engine file does not escalate to the whole of CI");
+        let quick = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options { quick: true, ..Options::default() });
+        assert!(quick.steps.iter().all(|s| s.name != "web3d-wasm"), "{:?}", names(&quick));
     }
 
     #[test]

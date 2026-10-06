@@ -1,5 +1,7 @@
 # 3D games in the browser: what is measured, what is not, and a plan
 
+> **Status (phase 1 done on WebGPU):** the engine's own renderer and simulation compile for wasm32 (`--features web`), and **Marcel draws and walks in headless Chromium** through the engine's own pipelines (see "Phase 1 results" at the end). Not done: audio, menus, packaging/publish, the WebGL2 fallback, real-hardware performance.
+
 Question: can the real 3D engine (wgpu, rapier, the scene renderer) run in a browser, so a 3D game can be played from a URL like the 2D and hybrid ones?
 Short answer: **yes in principle, and the two scariest unknowns are now measured and fine; the work is a bounded engine refactor, not research.** Nothing of the engine itself runs in a browser yet.
 Evidence: `examples/external/wgpu-web-spike/` (a standalone crate, never built by CI) and the commands below.
@@ -66,3 +68,21 @@ One structural consequence: a wgpu module needs `wasm-bindgen` glue (about 110 K
 ```bash
 cd examples/external/wgpu-web-spike && cat README.md      # build, serve, and run.py / shaders.py
 ```
+
+## Phase 1 results (Marcel in a browser)
+
+The user chose Marcel as the proving ground. What was built, and what it showed (headless Chromium 153 with a **software** WebGPU adapter, so no performance claim):
+
+* **The library compiles for wasm32.** `cargo check --lib --target wasm32-unknown-unknown --no-default-features --features web` passes and `cargo clippy ... -D warnings` is clean (CI stage `web3d`). The change was smaller than the blocker table suggested: `std::net`/`std::thread`/`std::fs` all compile for wasm32 (they fail at run time), so only crates had to move: tokio/quinn/rustls/rcgen/ctrlc are now target dependencies for `not(wasm32)`, and `net` (transports, server, client), `tools`, `project_browser` and the network snapshots are compiled out on wasm32 **by target, not by feature**, so no native workflow changed (`--no-default-features` still means what it did). New features: `render` (wgpu renderer alone) under `gfx`, and `web`.
+* **`red_engine2::web3d`** (+ the `crates/web3d` cdylib wrapper): `web3d_start(canvas, scene_text, force_gl)`, then `frame(now_ms)`, `key`, `look`, `resize`, `snapshot(settle)`. It is `LocalSession` (the match) plus `LiveRenderer` (the renderer) behind a canvas: no second simulation or renderer. The streamed world builds its chunks a few per frame on the one thread (no workers on wasm32); `Instant` is `web_time` there.
+* **Marcel renders**: sunrise sky, trees, flowers, fireflies; 49,091 distinct colours, 96 chunks resident after settling; read back from the GPU. Walking works (WASD/Shift through the same `PlayerInput` as the desktop) and the feet follow the hills.
+* **A real bug found on the way, in the simulation, not the browser**: a scene with no objects (Marcel) had a flat ground at y = 0 and trees that did not block, in single-player (fixed in the client), and in the *match* that every server and every `LocalSession` runs (fixed in `MatchSim`): both assembled their ground from per-object groups only, and the generated world belongs to the scene. `collide::scene_ground` is now its one home.
+* **Sizes**: the module is 7.0 MB after `wasm-bindgen` (release profile, not size-optimised; includes the engine, rapier, wgpu with both backends) plus 124 KB of glue.
+
+Limits found, not yet solved:
+
+* **The WebGL2 fallback does not work yet.** The live renderer is 4x multisampled and WebGL2 has no multisampled textures (`texStorage2DMultisample` is unsupported); it needs a single-sample path (the pipelines already take a sample count; the passes and the resolve do not). Two smaller WebGL2 findings on the way: the device must be asked for the adapter's real texture limit (the shadow atlas is 3072 px wide, above the 2048 default), and an sRGB surface format must be chosen directly when the canvas offers one. `web3d_start` now says "no WebGPU and the fallback is not built yet" instead of panicking. The ocean's storage buffer is still open.
+* **Streaming speed in a browser is unmeasured on real hardware.** On this software adapter the page drew about 1 frame per 1.5 s and streamed 4 chunks per frame, which says nothing about a player's machine.
+* **No audio, menu, HUD or touch yet**: phase 2.
+
+To reproduce: `crates/web3d/README.md`.

@@ -19,30 +19,46 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
 
 pub mod auth;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod bot;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod client;
 pub mod fleet;
 pub mod happenings;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod host;
 pub mod interp;
 pub mod join_code;
 pub mod limits;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod memnet;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod netsim;
 pub mod predict;
 pub mod protocol;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod quic;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod relay;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod relay_server;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod server;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod session;
+#[cfg(not(target_arch = "wasm32"))]
 mod sessions;
+#[cfg(not(target_arch = "wasm32"))]
 mod snapshots;
 /// The per-client prop selection, exposed only so `benches/settled_world.rs` can time it without a socket.
+#[cfg(not(target_arch = "wasm32"))]
 #[doc(hidden)]
 pub use snapshots::props_to_send;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod testkit;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod transport;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod upnp;
 
 /// The default UDP port of a Red server.
