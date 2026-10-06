@@ -784,14 +784,16 @@ impl App {
 
     fn rebuild_collision_world(&mut self) {
         self.colliders.clear();
-        self.ground = GroundCandidates::default();
+        let mut on = Vec::new();
         for (i, id) in self.collision_object_ids.iter().enumerate() {
             if self.rules.collision_disabled().any(|disabled| disabled == id) {
                 continue;
             }
             self.colliders.extend_from_slice(&self.collider_groups[i]);
-            self.ground.append(&self.ground_groups[i]);
+            on.push(i);
         }
+        // Through `ground_from_groups`, not by appending the groups alone: the generated world belongs to the scene, not to any object (see there).
+        self.ground = ground_from_groups(&self.scene, on.iter().map(|&i| &self.ground_groups[i]));
     }
 }
 

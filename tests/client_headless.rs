@@ -63,6 +63,22 @@ fn a_script_plays_the_solo_game_and_the_dump_says_what_the_player_would_see() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Marcel is all world and no objects, so the single-player client's ground used to be a flat floor at y = 0 (and its trees did not block): the boy walked through the hills.
+/// His spawn is at y = 0 and the hill there is at about -0.74, so his feet must settle below zero.
+#[test]
+fn in_a_generated_world_the_boys_feet_follow_the_hills_in_the_real_client() {
+    let dir = scratch("marcel");
+    let script = dir.join("play.json");
+    let dump = dir.join("state.json");
+    std::fs::write(&script, json!({"steps": [{"press": "start"}, {"wait": 1.5}, {"expect": {"at": "/player/pos/1", "max": -0.5, "msg": "the feet are on the hill, not on a flat floor"}}]}).to_string()).unwrap();
+    let marcel = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/marcel/marcel.json");
+    let o = re2(&[marcel.to_str().unwrap(), "--headless", "--script", script.to_str().unwrap(), "--dump", dump.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", text(&o));
+    let d: Value = serde_json::from_str(&std::fs::read_to_string(&dump).unwrap()).unwrap();
+    assert!(d["failures"].as_array().unwrap().is_empty(), "{d}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn split_screen_co_op_gives_each_player_their_own_body_and_the_script_plays_them_in_turn() {
     let dir = scratch("coop");

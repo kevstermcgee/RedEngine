@@ -20,7 +20,8 @@ use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use red_engine2::audio::{synth_bat_hit, synth_weapon_click, Audio};
 use red_engine2::characters::HUMAN_HEIGHT;
 use red_engine2::collide::{
-    collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, colliders_on_floor, resolve_collision, Collider2D, GroundCandidates,
+    collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, colliders_on_floor, ground_from_groups, resolve_collision, Collider2D,
+    GroundCandidates,
 };
 use red_engine2::easing::Ease;
 use red_engine2::hit::{collect_hit_shapes_where, raycast_shapes, HitShape};
