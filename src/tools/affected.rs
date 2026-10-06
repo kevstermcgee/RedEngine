@@ -281,7 +281,22 @@ fn web3d_steps(changed: &[String], browser: bool) -> Vec<Step> {
     }
     vec![Step::new(
         "web3d-wasm",
-        &["bash", "scripts/ci.sh", "web3d"],
+        &[
+            "cargo",
+            "clippy",
+            "--locked",
+            "-p",
+            "red_engine2",
+            "--lib",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--no-default-features",
+            "--features",
+            "web",
+            "--",
+            "-D",
+            "warnings",
+        ],
         "the browser build of the 3D player: the engine's renderer and simulation must still compile (and lint clean) for wasm32 with the `web` feature",
     )]
 }
@@ -1220,7 +1235,8 @@ mod tests {
             "src/cli/args.rs".to_string()
         ]));
         let p = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options::default());
-        assert_eq!(step(&p, "web3d-wasm").argv.join(" "), "bash scripts/ci.sh web3d");
+        assert!(step(&p, "web3d-wasm").argv.join(" ").contains("--target wasm32-unknown-unknown --no-default-features --features web"));
+        assert!(p.steps.iter().all(|s| !s.argv.join(" ").contains("scripts/ci.sh")), "one engine file does not escalate to the whole of CI");
         let quick = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options { quick: true, ..Options::default() });
         assert!(quick.steps.iter().all(|s| s.name != "web3d-wasm"), "{:?}", names(&quick));
     }
