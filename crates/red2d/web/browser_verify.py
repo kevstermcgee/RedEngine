@@ -599,6 +599,7 @@ def main():
 
         poke("key down/up", lambda: [pg.keyboard.down(k) or pg.keyboard.up(k) for k in ("Space", "ArrowLeft", "KeyZ")])
         poke("Enter (Start)", lambda: pg.keyboard.press("Enter"))
+        poke("pause and resume keys", lambda: [pg.keyboard.press(k) for k in ("Escape", "KeyP", "KeyP")])
         poke("pointer click", lambda: pg.mouse.click(480, 270))
         poke("pointer move", lambda: pg.mouse.move(300, 200))
         poke("touch tap", lambda: pg.touchscreen.tap(200, 300))
@@ -611,9 +612,9 @@ def main():
         st = pg.evaluate("__red2d.status()")
         shown = pg.evaluate("({start: !document.getElementById('start').hidden, loading: !document.getElementById('loading').hidden, error: !document.getElementById('error').hidden, body: document.body.dataset.state})")
         errs = fatal(log) + poke_errors
-        check("startup: every kind of input while loading is safe", len(poked) == 11 and not errs and st["state"] == "loading" and not st["started"] and st.get("early_input", 0) >= 8,
+        check("startup: every kind of input while loading is safe", len(poked) == 12 and not errs and st["state"] == "loading" and not st["started"] and st.get("early_input", 0) >= 8,
               ("%d input kinds sent while game.wasm was still pending (%s): no error, still loading, not started, %d events ignored on purpose" % (len(poked), ", ".join(poked), st.get("early_input", 0)))
-              if not errs and len(poked) == 11 else "sent %d/11; errors: %s; state=%s started=%s early_input=%s" % (len(poked), "; ".join(errs[:4]), st["state"], st["started"], st.get("early_input", 0)), ev="loading_robustness")
+              if not errs and len(poked) == 12 else "sent %d/12; errors: %s; state=%s started=%s early_input=%s" % (len(poked), "; ".join(errs[:4]), st["state"], st["started"], st.get("early_input", 0)), ev="loading_robustness")
         check("startup: the start screen stays logically consistent while loading", shown["loading"] and not shown["start"] and not shown["error"] and shown["body"] == "loading",
               "loading text shown=%s, start card shown=%s, error shown=%s, page state=%s (the start card appears only when the game can start)" % (shown["loading"], shown["start"], shown["error"], shown["body"]), ev="loading_robustness")
         pg.screenshot(path=os.path.join(a.out, "browser-loading.png"))
@@ -637,6 +638,7 @@ def main():
                   "state=%s started=%s ticks=%d" % (s2["state"], s2["started"], s2["ticks"]), ev="loading_robustness")
             # the same events once running: released, resumed, nothing thrown
             pg.keyboard.down("ArrowRight")
+            pg.keyboard.press("KeyP")   # the pause action, pressed and released while playing: nothing may throw
             for js in ("window.dispatchEvent(new Event('blur'))", "window.dispatchEvent(new Event('focus'))",
                        "Object.defineProperty(document, 'hidden', {configurable: true, get: () => true}); document.dispatchEvent(new Event('visibilitychange'))",
                        "Object.defineProperty(document, 'hidden', {configurable: true, get: () => false}); document.dispatchEvent(new Event('visibilitychange'))"):

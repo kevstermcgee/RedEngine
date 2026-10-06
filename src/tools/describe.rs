@@ -452,7 +452,7 @@ fn brief_text(commands: &Value) -> String {
     out.push_str(&format!("Topics (describe <topic>): {}\n", list("topics")));
     out.push_str("Next: search \"<question>\" | catalog <word> | recipe | SPEC.md (scene language) | AGENTS.md (workflow)\n");
     out.push_str("Not first-person? describe custom-client: your own crate on red_engine2::app; gameplay stays in scene rules\n");
-    out.push_str("A browser game (2D or hybrid)? `describe web` (choose, create, check, publish, evidence); `web status G` says what to run next; `describe 2d` is the file format\n");
+    out.push_str("A browser game (2D/hybrid)? `describe web`; `web status G` says what to run next; `describe 2d` is the file format\n");
     out
 }
 

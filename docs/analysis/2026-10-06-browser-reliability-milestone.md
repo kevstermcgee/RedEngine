@@ -29,7 +29,7 @@ browser: key opens gate, progress written, reload, gate open, win, music button.
 
 Levels: `built`, `locally_verified`, `uploaded`, `remotely_playable`, `human_playtested` (the tool never sets the last). Pieces: `native_scenarios`, `wasm_compiled`, `browser_package_valid`, `wasm_instantiated`,
 `loading_robustness`, `playable_state`, `input_keyboard`, `input_pointer`, `input_touch`, `input_gamepad`, `persistence_write`, `persistence_reload`, `audio_api`, `audio_playback`, `offline_cache`, `offline_reload`,
-`installable`, `browser_scenarios`, `other_browsers`, `remote_deployment`. A local run of gate-meadow: 17 passed, 1 not applicable (gamepad), 1 not run (remote), plus `other_browsers` when Firefox ran.
+`installable`, `browser_scenarios`, `other_browsers`, `remote_deployment`. A local Chromium run of gate-meadow: 17 passed, 1 not applicable (gamepad), 2 not run (`remote_deployment`, and `other_browsers` until `web verify --engine firefox` has run for the same build).
 
 ## The fresh-agent benchmark
 
