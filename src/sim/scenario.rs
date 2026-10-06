@@ -38,6 +38,8 @@ const EXPECT_KEYS: &[&str] = &[
     "event",
     "no_event",
     "var",
+    "player_var",
+    "of",
     "ended",
     "not_ended",
     "hidden",
@@ -189,6 +191,17 @@ pub enum Expect {
     /// A variable compares as given.
     Var {
         /// Variable name.
+        name: String,
+        /// Comparison.
+        cmp: Cmp,
+        /// Value.
+        value: f64,
+    },
+    /// One player's per-player variable compares as given.
+    PlayerVar {
+        /// Scenario player id.
+        player: String,
+        /// Per-player variable name.
         name: String,
         /// Comparison.
         cmp: Cmp,
@@ -648,14 +661,43 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
     }
 }
 
+/// The one comparison (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`) of a `var` or `player_var` check.
+fn parse_cmp(eo: &Map<String, Value>, ep: &str, what: &str, errs: &mut Vec<String>) -> Option<(Cmp, f64)> {
+    let cmps = [("eq", Cmp::Eq), ("ne", Cmp::Ne), ("gt", Cmp::Gt), ("gte", Cmp::Ge), ("lt", Cmp::Lt), ("lte", Cmp::Le)];
+    let mut given = Vec::new();
+    for (key, cmp) in cmps {
+        let Some(value) = eo.get(key) else { continue };
+        match value {
+            Value::Number(n) => {
+                if let Some(value) = n.as_f64() {
+                    given.push((cmp, value));
+                }
+            }
+            Value::Bool(value) if matches!(cmp, Cmp::Eq | Cmp::Ne) => given.push((cmp, if *value { 1.0 } else { 0.0 })),
+            Value::Bool(_) => errs.push(format!("{ep}.{key}: boolean values are only valid with eq or ne")),
+            _ => errs.push(format!("{ep}.{key}: expected a number, or true/false with eq or ne")),
+        }
+    }
+    match given.as_slice() {
+        [(cmp, value)] => Some((*cmp, *value)),
+        _ => {
+            if given.len() != 1 && !errs.iter().any(|e| e.starts_with(ep)) {
+                errs.push(format!("{ep}: a `{what}` check needs exactly one of eq, ne, gt, gte, lt, lte; eq/ne also accept true/false"));
+            }
+            None
+        }
+    }
+}
+
 fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: &[String], players: &[PlayerSpec], errs: &mut Vec<String>) -> Option<Expect> {
-    let main: Vec<&str> = ["event", "no_event", "var", "ended", "not_ended", "hidden", "shown", "collision_disabled", "collision_enabled", "player", "prop"]
-        .into_iter()
-        .filter(|k| eo.contains_key(*k))
-        .collect();
+    let main: Vec<&str> =
+        ["event", "no_event", "var", "player_var", "ended", "not_ended", "hidden", "shown", "collision_disabled", "collision_enabled", "player", "prop"]
+            .into_iter()
+            .filter(|k| eo.contains_key(*k))
+            .collect();
     if main.len() != 1 {
         errs.push(format!(
-            "{ep}: give exactly one of event, no_event, var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop (got {})",
+            "{ep}: give exactly one of event, no_event, var, player_var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop (got {})",
             if main.is_empty() { "none".to_string() } else { main.join(" + ") }
         ));
         return None;
@@ -681,30 +723,26 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
                 ));
                 return None;
             }
-            let cmps = [("eq", Cmp::Eq), ("ne", Cmp::Ne), ("gt", Cmp::Gt), ("gte", Cmp::Ge), ("lt", Cmp::Lt), ("lte", Cmp::Le)];
-            let mut given = Vec::new();
-            for (key, cmp) in cmps {
-                let Some(value) = eo.get(key) else { continue };
-                match value {
-                    Value::Number(n) => {
-                        if let Some(value) = n.as_f64() {
-                            given.push((cmp, value));
-                        }
-                    }
-                    Value::Bool(value) if matches!(cmp, Cmp::Eq | Cmp::Ne) => given.push((cmp, if *value { 1.0 } else { 0.0 })),
-                    Value::Bool(_) => errs.push(format!("{ep}.{key}: boolean values are only valid with eq or ne")),
-                    _ => errs.push(format!("{ep}.{key}: expected a number, or true/false with eq or ne")),
-                }
+            let (cmp, value) = parse_cmp(eo, ep, "var", errs)?;
+            Some(Expect::Var { name: text, cmp, value })
+        }
+        "player_var" => {
+            if !rules.player_var_names.contains(&text) {
+                let known = if rules.player_var_names.is_empty() { "none declared".to_string() } else { rules.player_var_names.join(", ") };
+                errs.push(format!(
+                    "{ep}.player_var: no per-player variable `{text}`{} (declare it in the scene's `player_vars`; known: {known})",
+                    near_names(&text, rules.player_var_names.iter().cloned())
+                ));
+                return None;
             }
-            match given.as_slice() {
-                [(cmp, value)] => Some(Expect::Var { name: text, cmp: *cmp, value: *value }),
-                _ => {
-                    if given.len() != 1 && !errs.iter().any(|e| e.starts_with(ep)) {
-                        errs.push(format!("{ep}: a `var` check needs exactly one of eq, ne, gt, gte, lt, lte; eq/ne also accept true/false"));
-                    }
-                    None
-                }
+            let who = eo.get("of").and_then(Value::as_str).unwrap_or("");
+            if !players.iter().any(|p| p.id == who) {
+                let ids: Vec<&str> = players.iter().map(|p| p.id.as_str()).collect();
+                errs.push(format!("{ep}.of: a `player_var` check names the player it reads with `of`: one of {}", ids.join(", ")));
+                return None;
             }
+            let (cmp, value) = parse_cmp(eo, ep, "player_var", errs)?;
+            Some(Expect::PlayerVar { player: who.to_string(), name: text, cmp, value })
         }
         "ended" => Some(Expect::Ended(Some(text))),
         "not_ended" => Some(Expect::Ended(None)),
@@ -1191,6 +1229,10 @@ fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], histo
             let got = sim.rules().var(name).unwrap_or(f64::NAN);
             done(format!("var {name} {} {value}", cmp.word()), cmp.holds(got, *value), format!("{name} = {got}"))
         }
+        Expect::PlayerVar { player, name, cmp, value } => {
+            let got = scenario.players.iter().position(|p| &p.id == player).and_then(|pi| sim.rules().player_var(slots[pi], name)).unwrap_or(f64::NAN);
+            done(format!("{player} {name} {} {value}", cmp.word()), cmp.holds(got, *value), format!("{player}.{name} = {got}"))
+        }
         Expect::Ended(want) => {
             let got = sim.rules().ended();
             let ok = got == want.as_deref();
@@ -1349,5 +1391,39 @@ mod tests {
         )
         .unwrap_err();
         assert!(errors.iter().any(|e| e.contains("only valid with eq or ne")), "{errors:?}");
+    }
+
+    const LAPS_SCENE: &str = r##"{"camera":{"position":[0,1.7,-6],"target":[0,1,0]},
+     "zones":[{"id":"gate","rect":[4,-2,6,2],"y":0}],
+     "spawns":[{"id":"a","position":[-6,0,0],"yaw_deg":90},{"id":"b","position":[-6,0,4],"yaw_deg":90}],
+     "player_vars":{"laps":0},
+     "rules":[{"id":"lap","when":{"enter":{"zone":"gate"}},"do":[{"add":["me.laps",1]}]}],
+     "checks":{"sim":[{"name":"only the runner laps","players":[{"id":"runner","spawn":"a"},{"id":"idle","spawn":"b"}],
+       "script":[{"player":"runner","walk":"5,0; 0,0; 5,0"}],
+       "expect":[{"player_var":"laps","of":"runner","gte":2},{"player_var":"laps","of":"idle","eq":0}]}]},
+     "objects":[{"id":"floor","type":"plane","size":[20,10],"position":[0,0.01,0]}]}"##;
+
+    fn run_scene(name: &str, text: &str) -> Result<crate::tools::simrun::SimReport, String> {
+        let dir = std::env::temp_dir().join(format!("re2_scenario_{name}"));
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = dir.join("scene.json");
+        std::fs::write(&path, text).map_err(|e| e.to_string())?;
+        crate::tools::simrun::run(&path, None, None, None).map(|(report, _)| report)
+    }
+
+    #[test]
+    fn a_scenario_proves_per_player_variables_for_each_player_separately() {
+        let report = run_scene("laps", LAPS_SCENE).unwrap();
+        assert!(report.all_passed(), "{}", report.render());
+    }
+
+    #[test]
+    fn a_player_var_check_names_the_fix_for_a_wrong_variable_or_player() {
+        let typo = LAPS_SCENE.replace(r#""player_var":"laps","of":"idle""#, r#""player_var":"lapz","of":"idle""#);
+        let e = run_scene("typo", &typo).map(|r| r.render()).unwrap_or_else(|e| e);
+        assert!(e.contains("no per-player variable `lapz`") && e.contains("did you mean"), "{e}");
+        let who = LAPS_SCENE.replace(r#""of":"idle""#, r#""of":"nobody""#);
+        let e = run_scene("who", &who).map(|r| r.render()).unwrap_or_else(|e| e);
+        assert!(e.contains("names the player it reads with `of`") && e.contains("runner, idle"), "{e}");
     }
 }

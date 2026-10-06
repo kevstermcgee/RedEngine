@@ -577,6 +577,13 @@ condition holds, and then **does** its actions:
   `{box: [x0,y0,z0,x1,y1,z1]}`. A player is *inside* when its body circle overlaps the volume in x/z and its body height overlaps in y.
 - **`who`**: `any` (default), `human`, `rat`, `team1`, `team2` (the last two need the scene's own `"teams": true`,
   or a `shooter` block, to put anyone on a team at all). **`once`**: at most once per match. **`cooldown`**: seconds between firings.
+- **`player_vars`** (`"player_vars": {"laps": 0, "lives": 3}`, at most 8): variables every player has their own copy of, reset to the declared
+  value when a player joins a slot. A rule reads and writes the copy of the player that triggered it as `me.name`: `"if": "me.laps >= 3"`,
+  `{"add": ["me.laps", 1]}`, `{"set": ["me.lives", "me.lives - 1"]}`. The triggering player is the one who entered or left a volume, or
+  who caused the event (`kill`, `pickup`, ...; an `emit` passes it on to the rules that react). `me.` in a `start`, `every`, `after` or prop
+  trigger is a `validate` error (nobody triggered it). A scenario checks one player's copy with
+  `{"player_var": "laps", "of": "runner", "gte": 2}`. Per-player variables are part of the match checksum and of replay; they are not
+  yet sent to clients or saved (`persist`), and a native race still keeps its own laps (`race`).
 - **`if`**: an expression over the `vars` and the built-ins `time` (s), `tick`, `players`: numbers, `true`/`false`,
   `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`. Built-in functions read the loose props:
   `prop_y(id)` (origin height, m), `tilt(id)` (degrees from how the map placed it: 0 upright, ~90 on its side), `held(id)`

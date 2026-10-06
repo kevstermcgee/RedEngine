@@ -70,6 +70,8 @@ pub struct Scope<'a> {
     pub props: &'a [String],
     /// Zone ids (`props_in` resolves to an index into this).
     pub zones: &'a [String],
+    /// Per-player variable names (`me.name` resolves to an index into this).
+    pub player_vars: &'a [String],
 }
 
 /// Answers the built-in functions at evaluation time: `index` is the position in the [`Scope`] the expression was
@@ -80,6 +82,11 @@ pub trait World {
 
     /// The value of the two-argument `f` (`in_zone`) for the prop at `prop` and the zone at `zone`; 0 by default.
     fn call2(&self, _f: Func, _prop: usize, _zone: usize) -> f64 {
+        0.0
+    }
+
+    /// The value of the per-player variable at `index` (`me.name`) for the player that triggered the rule; 0 by default and when no player did.
+    fn me(&self, _index: usize) -> f64 {
         0.0
     }
 }
@@ -128,6 +135,8 @@ pub enum Expr {
     Num(f64),
     /// A variable, by index into the table it was compiled against.
     Var(usize),
+    /// A per-player variable of the player that triggered the rule (`me.name`), by index into the scene's `player_vars`.
+    Me(usize),
     /// Unary minus.
     Neg(Box<Expr>),
     /// Logical not.
@@ -151,6 +160,7 @@ impl Expr {
         match self {
             Expr::Num(n) => *n,
             Expr::Var(i) => vars.get(*i).copied().unwrap_or(0.0),
+            Expr::Me(i) => world.me(*i),
             Expr::Call(f, i) => world.call(*f, *i),
             Expr::Call2(f, p, z) => world.call2(*f, *p, *z),
             Expr::Neg(e) => -e.eval_in(vars, world),
@@ -203,10 +213,21 @@ impl Expr {
         self.eval_in(vars, world) != 0.0
     }
 
+    /// Whether the expression reads a per-player variable (`me.name`), so it needs a triggering player.
+    pub fn uses_me(&self) -> bool {
+        match self {
+            Expr::Me(_) => true,
+            Expr::Num(_) | Expr::Var(_) | Expr::Call(..) | Expr::Call2(..) => false,
+            Expr::Neg(e) | Expr::Not(e) => e.uses_me(),
+            Expr::Bin(_, l, r) => l.uses_me() || r.uses_me(),
+        }
+    }
+
     /// Whether the expression calls any built-in function (so evaluating it needs a real [`World`]).
     pub fn reads_world(&self) -> bool {
         match self {
             Expr::Num(_) | Expr::Var(_) => false,
+            Expr::Me(_) => false,
             Expr::Call(..) | Expr::Call2(..) => true,
             Expr::Neg(e) | Expr::Not(e) => e.reads_world(),
             Expr::Bin(_, l, r) => l.reads_world() || r.reads_world(),
@@ -270,6 +291,13 @@ fn lex(src: &str) -> Result<Vec<(Tok, usize)>, ParseError> {
             let start = i;
             while i < cs.len() && (cs[i].is_alphanumeric() || cs[i] == '_') {
                 i += 1;
+            }
+            // `me.name`: a per-player variable, one identifier.
+            if cs[start..i].iter().collect::<String>() == "me" && cs.get(i) == Some(&'.') && cs.get(i + 1).is_some_and(|d| d.is_alphabetic() || *d == '_') {
+                i += 1;
+                while i < cs.len() && (cs[i].is_alphanumeric() || cs[i] == '_') {
+                    i += 1;
+                }
             }
             out.push((Tok::Ident(cs[start..i].iter().collect()), at));
         } else {
@@ -365,6 +393,12 @@ impl Parser<'_> {
                 if self.peek() == Some(&Tok::LParen) {
                     return self.call(&name, at);
                 }
+                if let Some(pv) = name.strip_prefix("me.") {
+                    return match self.scope.player_vars.iter().position(|n| n == pv) {
+                        Some(i) => Ok(Expr::Me(i)),
+                        None => Err(ParseError { message: unknown_player_var(pv, self.scope.player_vars), at }),
+                    };
+                }
                 match name.as_str() {
                     "true" => Ok(Expr::Num(1.0)),
                     "false" => Ok(Expr::Num(0.0)),
@@ -459,6 +493,14 @@ pub fn unknown_var(name: &str, names: &[String]) -> String {
     let near = crate::prefabs::suggest(name, names.iter().map(String::as_str));
     let hint = near.first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
     format!("unknown variable `{name}`{hint} (declare it in `vars`; known: {})", names.join(", "))
+}
+
+/// The message for `me.name` where `name` is not a declared per-player variable.
+pub fn unknown_player_var(name: &str, names: &[String]) -> String {
+    let near = crate::prefabs::suggest(name, names.iter().map(String::as_str));
+    let hint = near.first().map(|n| format!(" — did you mean `me.{n}`?")).unwrap_or_default();
+    let known = if names.is_empty() { "none declared".to_string() } else { names.join(", ") };
+    format!("unknown per-player variable `me.{name}`{hint} (declare it in `player_vars`; known: {known})")
 }
 
 /// Compiles `src` against the variable `names` (a variable's index is its position in `names`) with no props or zones
@@ -562,7 +604,7 @@ mod tests {
     fn built_in_functions_resolve_ids_in_scope_and_read_the_world() {
         let props = vec!["bell".to_string(), "crate".to_string()];
         let zones = vec!["pit".to_string()];
-        let scope = Scope { props: &props, zones: &zones };
+        let scope = Scope { props: &props, zones: &zones, ..Default::default() };
         let e = |src: &str| parse_in(src, &names(), scope).unwrap_or_else(|e| panic!("{src}: {e}"));
         assert_eq!(e("prop_y(crate)").eval_in(&[0.0; 3], &Fake), -2.5);
         assert_eq!(e("tilt(bell) > 60 && held(bell)").eval_in(&[0.0; 3], &Fake), 1.0);
@@ -581,7 +623,7 @@ mod tests {
     fn a_bad_function_call_names_the_fix() {
         let props = vec!["bell".to_string()];
         let zones = vec!["pit".to_string()];
-        let scope = Scope { props: &props, zones: &zones };
+        let scope = Scope { props: &props, zones: &zones, ..Default::default() };
         let err = |src: &str| parse_in(src, &names(), scope).unwrap_err().message;
         assert!(err("prop_y(bel)").contains("no loose prop `bel` — did you mean `bell`?"), "{}", err("prop_y(bel)"));
         assert!(err("props_in(bell)").contains("no zone `bell`"), "{}", err("props_in(bell)"));

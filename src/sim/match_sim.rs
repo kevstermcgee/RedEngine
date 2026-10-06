@@ -376,6 +376,7 @@ impl MatchSim {
             queue: VecDeque::new(),
         });
         self.karts[slot] = KartState::default();
+        self.rules.reset_player(slot);
         self.sync_kit(slot);
         let body = state.character.body();
         self.props.set_player_slot(slot, glam::Vec3::new(state.pos.x, state.foot_y, state.pos.y), body.radius, body.body_height);

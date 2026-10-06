@@ -29,6 +29,7 @@ pub const ROOT_KEYS: &[&str] = &[
     "checks",
     "prefabs",
     "vars",
+    "player_vars",
     "persist",
     "rules",
     "phases",
