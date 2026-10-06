@@ -19,6 +19,7 @@ pub mod describe;
 pub mod diff;
 pub mod doctor;
 pub mod edit;
+pub mod evidence;
 pub mod envelope;
 pub mod features;
 pub mod flora_sheet;

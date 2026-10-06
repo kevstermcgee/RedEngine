@@ -91,6 +91,10 @@ pub struct Verified {
     pub browser: String,
     /// The full JSON report.
     pub raw: Value,
+    /// For each row, the evidence key it proves (see `publish2d::EVIDENCE`), or `None` for a row that is context only.
+    pub tags: Vec<Option<String>>,
+    /// Evidence keys the game never claimed (no persistence, no audio ...) and why: "not applicable" is the game's own declaration.
+    pub not_applicable: std::collections::BTreeMap<String, String>,
 }
 
 /// Runs the driver against a package directory or a URL; writes screenshots into `out`.
@@ -139,5 +143,7 @@ pub fn verify(dir: Option<&Path>, url: Option<&str>, out: &Path) -> Result<Verif
                 .collect()
         })
         .unwrap_or_default();
-    Ok(Verified { rows, browser: v["browser"].as_str().unwrap_or("unknown").to_string(), raw: v })
+    let tags = v["rows"].as_array().map(|a| a.iter().map(|r| r["evidence"].as_str().map(str::to_string)).collect()).unwrap_or_default();
+    let not_applicable = v["not_applicable"].as_object().map(|m| m.iter().filter_map(|(k, r)| r.as_str().map(|r| (k.clone(), r.to_string()))).collect()).unwrap_or_default();
+    Ok(Verified { rows, browser: v["browser"].as_str().unwrap_or("unknown").to_string(), raw: v, tags, not_applicable })
 }

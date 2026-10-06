@@ -89,12 +89,39 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
                 _ => return Err("give a game file, a --package directory, or a --url".into()),
             };
             let mut all = Vec::new();
+            let mut evidence = red_engine2::tools::evidence::Evidence::default();
             if let Some(d) = &dir {
-                all.extend(webpkg::check(d));
+                let package_rows = webpkg::check(d);
+                evidence.set_package(&package_rows);
+                all.extend(package_rows);
+            }
+            // The native half is only claimed when this run played the game's own scenarios: a bare --package or --url has no game file to run.
+            if let Some(g) = &game {
+                let r = game2d::verify(g, None);
+                evidence.set_native(if r.ok {
+                    Ok(r.text.lines().find(|l| l.contains("passed,")).unwrap_or("passed").to_string())
+                } else {
+                    Err(r.text.lines().filter(|l| l.starts_with("FAIL")).collect::<Vec<_>>().join("\n"))
+                });
             }
             let out = out.unwrap_or_else(|| PathBuf::from("out/web-verify").join(&id));
             let v = webverify::verify(dir.as_deref(), url.as_deref(), &out)?;
             let browser = v.browser.clone();
+            evidence.set_browser(&v);
+            if url.is_some() {
+                // A URL run is a check of a deployed copy only when the URL is not this machine's own.
+                let remote = url.as_deref().is_some_and(|u| !u.contains("://127.0.0.1") && !u.contains("://localhost") && !u.contains("://[::1]"));
+                let failed_rows = v.rows.iter().filter(|r| !r.ok).count();
+                evidence.set(
+                    "remote_deployment",
+                    match (remote, failed_rows) {
+                        (true, 0) => red_engine2::tools::evidence::Status::Passed,
+                        (true, _) => red_engine2::tools::evidence::Status::Failed,
+                        _ => red_engine2::tools::evidence::Status::NotRun,
+                    },
+                    if remote { format!("{} checks against {}", v.rows.len(), url.as_deref().unwrap_or("")) } else { "a loopback URL is not a deployed copy".to_string() },
+                );
+            }
             all.extend(v.rows);
             let (t, failed) = rows_text(&all);
             print!("{t}");
@@ -113,6 +140,7 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
                         checks: all.len(),
                         audio_claims: all.iter().filter(|r| r.claim == "browser-audio" && r.ok).map(|r| r.name.clone()).collect(),
                         features: publish2d::features_of(&all),
+                        evidence: evidence.clone(),
                     };
                     std::fs::write(out.join("verification.json"), serde_json::to_string_pretty(&ver.to_json()).unwrap_or_default()).ok();
                 }
@@ -123,6 +151,8 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
                 all.len(),
                 out.display()
             );
+            println!("EVIDENCE (each piece stands alone; `not_run` and `not_applicable` are never counted as passed):");
+            print!("{}", evidence.render());
             if failed == 0 {
                 println!("PROVEN: the page loads over HTTP, the module initialises, the first frame is pixel-identical to the native renderer, the game's scenarios replay to the native hashes, real key/mouse events change the state, saves survive a reload and bad storage does not break the game, audio starts after a gesture (browser-audio rows), the console is clean.");
                 println!("NOT PROVEN: that a human played it, that it is fun, that it sounds right, other browsers or devices (touch and gamepad paths are unverified).");
@@ -166,9 +196,11 @@ pub(crate) fn run_publish(
     let wasm = wasm.or_else(|| std::env::var("RED2D_WASM").ok().map(PathBuf::from));
     let id_of = |g: &Path| game2d::load(g).map(|(d, _)| d.id.clone());
     let started = std::time::Instant::now();
+    let report_dir;
     let outcome = match (game, package) {
         (Some(g), None) => {
             let out = out.unwrap_or_else(|| PathBuf::from("out/publish").join(id_of(g).unwrap_or_else(|_| "game".into())));
+            report_dir = out.clone();
             let opts = Options { backend, dry_run, out, wasm };
             publish2d::publish(g, &opts, |s| {
                 println!(
@@ -190,7 +222,7 @@ pub(crate) fn run_publish(
             let gid = manifest["game"]["id"].as_str().unwrap_or("game");
             let rec_path = PathBuf::from("out/web-verify").join(p.file_name().unwrap_or_default()).join("verification.json");
             let rec_path = if let Some(o) = &out { o.join("verification.json") } else { rec_path };
-            let ver = std::fs::read_to_string(&rec_path)
+            let mut ver = std::fs::read_to_string(&rec_path)
                 .ok()
                 .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
                 .and_then(|v| publish2d::Verification::from_json(&v))
@@ -204,15 +236,19 @@ pub(crate) fn run_publish(
                     rec_path.display()
                 ));
             }
-            let bad: Vec<String> = webpkg::check(p).into_iter().filter(|r| !r.ok).map(|r| format!("{}: {}", r.name, r.detail)).collect();
+            let package_rows = webpkg::check(p);
+            let bad: Vec<String> = package_rows.iter().filter(|r| !r.ok).map(|r| format!("{}: {}", r.name, r.detail)).collect();
             if !bad.is_empty() {
                 return Err(format!("the package fails its integrity check: {}", bad.join("; ")));
             }
+            ver.evidence.set_package(&package_rows); // checked again now, at publication time
             let mut o = publish2d::Outcome::default();
             o.states.build = true;
             o.states.local_browser = true;
             o.build_id = Some(id.to_string());
-            let opts = Options { backend, dry_run, out: out.unwrap_or_else(|| PathBuf::from("out/publish").join(gid)), wasm };
+            let out_dir = out.unwrap_or_else(|| PathBuf::from("out/publish").join(gid));
+            report_dir = out_dir.clone();
+            let opts = Options { backend, dry_run, out: out_dir, wasm };
             publish2d::upload_and_confirm(
                 &mut o,
                 &mut |s| {
@@ -234,6 +270,10 @@ pub(crate) fn run_publish(
     };
     println!();
     print!("{}", publish2d::render(&outcome));
+    match publish2d::write_report(&report_dir, &outcome) {
+        Ok(p) => println!("Machine-readable report: {}", p.display()),
+        Err(e) => eprintln!("could not write publication.json: {e}"),
+    }
     println!("({:.1} s)", started.elapsed().as_secs_f32());
     if outcome.ok() {
         Ok(())

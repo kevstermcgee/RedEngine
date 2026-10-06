@@ -49,6 +49,23 @@ for g in "${games[@]}"; do
   "${R[@]}" publish "$g" --site out/site-ci --out "out/publish-ci/$(basename "$g" .game2d.json)" || status=1
 done
 [ -f out/site-ci/catalog.json ] || { echo "publish wrote no catalog.json"; status=1; }
+# The evidence of every published game, piece by piece: every piece that applies must have PASSED in the browser (not_applicable only where the game never claimed the feature),
+# and the one piece a local run cannot have (a deployed copy) must say so instead of passing.
+echo "== evidence"
+for g in "${games[@]}"; do
+  rep="out/publish-ci/$(basename "$g" .game2d.json)/publication.json"
+  [ -f "$rep" ] || { echo "no $rep"; status=1; continue; }
+  python3 - "$rep" <<'PY' || status=1
+import json, sys
+r = json.load(open(sys.argv[1]))
+bad = [f"{k}: {c['status']} ({c['detail'][:100]})" for k, c in r["evidence"]["pieces"].items() if k != "remote_deployment" and c["status"] not in ("passed", "not_applicable")]
+remote = r["evidence"]["pieces"]["remote_deployment"]["status"]
+if remote == "passed" or r["levels"]["remotely_playable"] or r["levels"]["human_playtested"]:
+    bad.append("a local run claims a deployment or a human: " + json.dumps(r["levels"]))
+print(("FAIL " if bad else "ok   ") + sys.argv[1], "; ".join(bad))
+sys.exit(1 if bad else 0)
+PY
+done
 # The library page those games are listed on: hearts, filters, in a real browser.
 echo "== library page"
 py="${RED2D_BROWSER_PYTHON:-}"; [ -n "$py" ] || { home="${RED2D_BROWSER_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/red_engine2/browser}"; [ -x "$home/bin/python" ] && py="$home/bin/python" || py=python3; }

@@ -13,6 +13,7 @@
 //! The site is one static library: `games/<id>/` is the stable URL (always the newest build), `games/<id>/builds/<build_id>/` is the immutable copy of every build, `games/<id>/game.json`
 //! is the machine-readable record of that game and `catalog.json` lists them all (see `docs/PUBLISHING_2D.md` for the contract).
 
+use super::evidence::{Evidence, Status};
 use super::{game2d, webpkg, webverify};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -75,7 +76,7 @@ pub struct StageResult {
     pub secs: f32,
 }
 
-/// The four separate results.
+/// The separate results: five claims that are never merged into one.
 #[derive(Debug, Clone, Default)]
 pub struct States {
     /// The package exists and is internally consistent.
@@ -86,6 +87,8 @@ pub struct States {
     pub upload: bool,
     /// A real browser played the deployed copy at a non-loopback URL.
     pub remote_playable: bool,
+    /// A person played it. Nothing in this tool can set this: it is always `false` here, and a human's own record (docs/DEVICE_QUALIFICATION.md) is where it is claimed.
+    pub human_playtested: bool,
 }
 
 /// The pipeline's result.
@@ -103,6 +106,8 @@ pub struct Outcome {
     pub build_id: Option<String>,
     /// What is left to do outside this tool, if anything.
     pub external_step: Option<String>,
+    /// Every piece of evidence this run holds, separately ([`Evidence`]); `remote_deployment` is filled by the last stages.
+    pub evidence: Evidence,
 }
 
 impl Default for Outcome {
@@ -120,6 +125,7 @@ impl Outcome {
             location: None,
             build_id: None,
             external_step: None,
+            evidence: Evidence::default(),
         }
     }
     fn set(&mut self, stage: &'static str, ok: bool, detail: impl Into<String>, secs: f32) {
@@ -135,6 +141,36 @@ impl Outcome {
     pub fn ok(&self) -> bool {
         self.failed_stage().is_none()
     }
+
+    /// The machine-readable report of one run (`publication.json`): the stages, the five separate levels, every piece of evidence on its own, and what is left to do.
+    pub fn to_json(&self) -> Value {
+        json!({
+            "schema": "red2d-publication/1",
+            "ok": self.ok(),
+            "build_id": self.build_id,
+            "failed_stage": self.failed_stage().map(|s| json!({"stage": s.stage, "detail": s.detail})),
+            "stages": self.stages.iter().map(|s| json!({"stage": s.stage, "status": if s.skipped { "skipped" } else if s.ok { "passed" } else { "failed" }, "detail": s.detail, "secs": s.secs})).collect::<Vec<_>>(),
+            "levels": {
+                "built": self.states.build,
+                "locally_verified": self.states.local_browser,
+                "uploaded": self.states.upload,
+                "remotely_playable": self.states.remote_playable,
+                "human_playtested": self.states.human_playtested,
+            },
+            "evidence": self.evidence.to_json(),
+            "url": self.url,
+            "location": self.location,
+            "external_step": self.external_step,
+        })
+    }
+}
+
+/// Writes [`Outcome::to_json`] as `publication.json` in `dir` (the run's output directory) and returns its path.
+pub fn write_report(dir: &Path, o: &Outcome) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let p = dir.join("publication.json");
+    std::fs::write(&p, serde_json::to_string_pretty(&o.to_json()).unwrap_or_default() + "\n").map_err(|e| format!("{}: {e}", p.display()))?;
+    Ok(p)
 }
 
 // ---- time ------------------------------------------------------------------------------------------------------------------------------------------
@@ -181,12 +217,14 @@ pub struct Verification {
     pub audio_claims: Vec<String>,
     /// What else a real browser showed working: `installable`, `offline`, `phone-touch`, `backup`.
     pub features: Vec<String>,
+    /// Every piece of evidence the native run, the build, the package check and the browser produced, each on its own ([`Evidence`]).
+    pub evidence: Evidence,
 }
 
 impl Verification {
     /// The JSON form stored beside the screenshots.
     pub fn to_json(&self) -> Value {
-        json!({"schema": "red2d-browser-verification/1", "package_id": self.package_id, "ok": self.ok, "browser": self.browser, "checks": self.checks, "audio_claims": self.audio_claims, "features": self.features, "human_listening_verified": false, "human_playtest": false})
+        json!({"schema": "red2d-browser-verification/1", "package_id": self.package_id, "ok": self.ok, "browser": self.browser, "checks": self.checks, "audio_claims": self.audio_claims, "features": self.features, "evidence": self.evidence.to_json(), "human_listening_verified": false, "human_playtest": false})
     }
     /// Reads one back.
     pub fn from_json(v: &Value) -> Option<Verification> {
@@ -197,6 +235,7 @@ impl Verification {
             checks: v["checks"].as_u64()? as usize,
             audio_claims: v["audio_claims"].as_array()?.iter().filter_map(|a| a.as_str().map(str::to_string)).collect(),
             features: v["features"].as_array().map(|a| a.iter().filter_map(|f| f.as_str().map(str::to_string)).collect()).unwrap_or_default(),
+            evidence: Evidence::from_json(&v["evidence"]),
         })
     }
 }
@@ -235,10 +274,12 @@ pub fn game_meta(manifest: &Value, v: &Verification, epoch: u64, previous_builds
         "build_timestamp": built_at,
         "compatibility": {"requires": manifest["compat"]["requires"], "optional": manifest["compat"]["optional"], "networking": manifest["compat"]["networking"], "browsers_verified": [v.browser.clone()], "browsers_other": "untested"},
         "verification": {
-            "native": {"scenarios": manifest["native"]["scenarios"].as_array().map_or(0, Vec::len), "passed": true},
+            "native": {"scenarios": manifest["native"]["scenarios"].as_array().map_or(0, Vec::len), "passed": v.evidence.passed("native_scenarios")},
             "browser": {"engine": v.browser, "checks": v.checks, "passed": v.ok, "package_id": v.package_id},
             "audio": {"claims": v.audio_claims, "human_listening_verified": false},
             "features": v.features,
+            "evidence": v.evidence.to_json(),
+            "levels": {"built": v.evidence.passed("browser_package_valid"), "locally_verified": v.ok, "human_playtested": false, "uploaded_and_remote": "not in this record: it cannot contain the result of its own upload; see publication.json of the publish run"},
             "human_playtest": false,
         },
         "urls": {"stable": format!("games/{id}/"), "immutable": format!("games/{id}/builds/{build_id}/")},
@@ -453,9 +494,13 @@ pub fn publish(game: &Path, opts: &Options, mut progress: impl FnMut(&StageResul
     stage!("gameplay tests", {
         let r = game2d::verify(game, None);
         if r.ok {
-            Ok(r.text.lines().find(|l| l.contains("passed,")).unwrap_or("passed").to_string())
+            let d = r.text.lines().find(|l| l.contains("passed,")).unwrap_or("passed").to_string();
+            out.evidence.set_native(Ok(d.clone()));
+            Ok(d)
         } else {
-            Err(r.text.lines().filter(|l| l.starts_with("FAIL")).collect::<Vec<_>>().join("\n"))
+            let e = r.text.lines().filter(|l| l.starts_with("FAIL")).collect::<Vec<_>>().join("\n");
+            out.evidence.set_native(Err(e.clone()));
+            Err(e)
         }
     });
     // 3 + 4 wasm build and static package (one call builds the module and writes the package)
@@ -499,8 +544,10 @@ pub fn publish(game: &Path, opts: &Options, mut progress: impl FnMut(&StageResul
     let build_id = built.manifest["package_id"].as_str().unwrap_or("").to_string();
     out.build_id = Some(build_id.clone());
     // 5 integrity
+    let package_rows = webpkg::check(&built.dir);
+    out.evidence.set_package(&package_rows);
     stage!("integrity check", {
-        let bad = rows_failed(&webpkg::check(&built.dir));
+        let bad = rows_failed(&package_rows);
         if bad.is_empty() {
             out.states.build = true;
             Ok("the package is intact and self-contained".to_string())
@@ -520,7 +567,8 @@ pub fn publish(game: &Path, opts: &Options, mut progress: impl FnMut(&StageResul
             }
             Ok(v) => {
                 let bad = rows_failed(&v.rows);
-                let ver = verification_of(&build_id, &v);
+                out.evidence.set_browser(&v);
+                let ver = verification_of(&build_id, &v, &out.evidence);
                 std::fs::write(shots.join("verification.json"), serde_json::to_string_pretty(&ver.to_json()).unwrap_or_default()).ok();
                 if bad.is_empty() {
                     out.states.local_browser = true;
@@ -542,6 +590,9 @@ pub fn publish(game: &Path, opts: &Options, mut progress: impl FnMut(&StageResul
 /// Stages 7-10 for a package that has already passed the browser: used by [`publish`] and by `publish --package`.
 pub fn upload_and_confirm(out: &mut Outcome, progress: &mut impl FnMut(&StageResult), pkg: &Path, ver: &Verification, opts: &Options) {
     let epoch = now_epoch();
+    // What the record holds is what the browser run held; the deployed copy is a separate piece of evidence, claimed only if stage 9 reaches and plays it.
+    out.evidence = ver.evidence.clone();
+    out.evidence.set("remote_deployment", Status::NotRun, "no deployed copy was checked (see the remaining external step)");
     // 7 metadata
     let t = Instant::now();
     let manifest: Value = std::fs::read_to_string(pkg.join("manifest.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
@@ -639,18 +690,29 @@ pub fn upload_and_confirm(out: &mut Outcome, progress: &mut impl FnMut(&StageRes
             progress(&out.stages[8]);
             out.url = Some(url.clone());
             out.states.remote_playable = !is_loopback(&url);
+            if out.states.remote_playable {
+                out.evidence.set("remote_deployment", Status::Passed, msg_for_evidence(&url));
+            } else {
+                out.evidence.set("remote_deployment", Status::NotRun, format!("{url} is this machine's loopback: that is not a deployed copy"));
+            }
             out.set("url", true, url, 0.0);
             progress(&out.stages[9]);
         }
         Err(e) => {
+            out.evidence.set("remote_deployment", Status::Failed, e.clone());
             out.set("remote smoke", false, e, t.elapsed().as_secs_f32());
             progress(&out.stages[8]);
         }
     }
 }
 
-fn verification_of(build_id: &str, v: &webverify::Verified) -> Verification {
+fn msg_for_evidence(url: &str) -> String {
+    format!("a real browser ran the checks against {url}, which serves this build")
+}
+
+fn verification_of(build_id: &str, v: &webverify::Verified, evidence: &Evidence) -> Verification {
     Verification {
+        evidence: evidence.clone(),
         package_id: build_id.to_string(),
         ok: v.rows.iter().all(|r| r.ok),
         browser: v.browser.clone(),
@@ -767,12 +829,15 @@ pub fn render(o: &Outcome) -> String {
     let st = &o.states;
     let yn = |b: bool| if b { "yes" } else { "no" };
     t.push_str(&format!(
-        "\nBUILD SUCCESS: {}   LOCAL BROWSER SUCCESS: {}   UPLOAD SUCCESS: {}   REMOTE PLAYABLE SUCCESS: {}\n",
+        "\nBUILD SUCCESS: {}   LOCAL BROWSER SUCCESS: {}   UPLOAD SUCCESS: {}   REMOTE PLAYABLE SUCCESS: {}   HUMAN PLAYTESTED: {}\n",
         yn(st.build),
         yn(st.local_browser),
         yn(st.upload),
-        yn(st.remote_playable)
+        yn(st.remote_playable),
+        yn(st.human_playtested)
     ));
+    t.push_str("EVIDENCE (each piece stands alone):\n");
+    t.push_str(&o.evidence.render());
     match (&o.url, &o.location) {
         (Some(u), _) => t.push_str(&format!("URL: {u}{}\n", if st.remote_playable { "" } else { "   (loopback only: not reachable by anyone else)" })),
         (None, Some(l)) => t.push_str(&format!("URL: none. PUBLICATION UNAVAILABLE: the files are at {l}\n")),
@@ -811,6 +876,7 @@ mod tests {
             checks: 38,
             audio_claims: vec!["browser audio initialised".into()],
             features: vec!["installable".into()],
+            evidence: Default::default(),
         }
     }
 

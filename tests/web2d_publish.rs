@@ -62,6 +62,7 @@ fn ver(manifest: &Value) -> Verification {
         checks: 3,
         audio_claims: vec![],
         features: vec![],
+        evidence: Default::default(),
     }
 }
 
@@ -133,6 +134,28 @@ fn a_verified_package_is_published_to_a_local_site_and_the_report_claims_no_url(
     let c: Value = serde_json::from_str(&std::fs::read_to_string(site.join("catalog.json")).unwrap()).unwrap();
     assert_eq!(c["games"][0]["id"], "coin-dash");
     assert_eq!(c["games"][0]["verification"]["browser"]["engine"], "Chromium test");
+    // The evidence is granular: this record was made without a native run, a browser run of the pieces or a deployment, and says so piece by piece, never as one flag.
+    let pieces = &c["games"][0]["verification"]["evidence"]["pieces"];
+    for key in red_engine2::tools::evidence::KEYS.iter().map(|(k, _)| *k) {
+        assert!(pieces[key]["status"].is_string() && pieces[key]["detail"].is_string(), "the catalog entry lacks evidence `{key}`: {pieces}");
+        // `publish --package` checks the package itself at publication time, so those two are real; nothing else was run for this record.
+        if !["browser_package_valid", "wasm_compiled"].contains(&key) {
+            assert_ne!(pieces[key]["status"], "passed", "`{key}` passed with no run behind it");
+        } else {
+            assert_eq!(pieces[key]["status"], "passed", "{key}");
+        }
+    }
+    assert_eq!(c["games"][0]["verification"]["native"]["passed"], false, "native scenarios were not run for this record");
+    assert_eq!(c["games"][0]["verification"]["levels"]["human_playtested"], false);
+    // The run's own report: five separate levels, the same pieces, and a remote check that did not happen.
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(rec.join("publication.json")).unwrap()).unwrap();
+    assert_eq!(report["schema"], "red2d-publication/1");
+    assert_eq!(report["levels"]["built"], true);
+    assert_eq!(report["levels"]["locally_verified"], true);
+    assert_eq!(report["levels"]["remotely_playable"], false);
+    assert_eq!(report["levels"]["human_playtested"], false);
+    assert_eq!(report["evidence"]["pieces"]["remote_deployment"]["status"], "not_run");
+    assert!(t.contains("EVIDENCE (each piece stands alone)") && t.contains("HUMAN PLAYTESTED: no") && t.contains("publication.json"), "{t}");
 }
 
 #[test]
