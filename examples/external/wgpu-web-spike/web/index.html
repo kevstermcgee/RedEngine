@@ -1,0 +1,7 @@
+<!doctype html><html><body style="margin:0;background:#000"><canvas id="c" width="640" height="360"></canvas>
+<script type="module">
+import init, { start } from "./spike.js";
+const gl = new URLSearchParams(location.search).get("gl") === "1";
+window.__result = "starting";
+try { await init(); window.__result = await start(gl); } catch (e) { window.__result = "ERROR " + e; }
+</script></body></html>
