@@ -139,3 +139,18 @@ fn the_ground_the_client_builds_from_object_groups_has_the_world_in_it() {
     }
     assert!((s.foot_y - world.height(0.0, 0.0)).abs() < 0.02, "his feet are at {} on ground at {}", s.foot_y, world.height(0.0, 0.0));
 }
+
+/// What a browser (or any custom client) runs: `LocalSession`, whose match builds its own ground. The boy must stand on the hill here too.
+#[test]
+fn a_local_session_in_marcels_world_puts_the_boy_on_the_hill() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/marcel/marcel.json")).unwrap();
+    let mut session = red_engine2::app::session::LocalSession::from_json(&text).unwrap_or_else(|e| panic!("{e:?}"));
+    for _ in 0..120 {
+        session.step(PlayerInput::default());
+    }
+    let feet = session.player().foot_y;
+    let scene = marcel();
+    let ground = collect_ground_candidates_except(&scene, &Default::default());
+    let want = ground.procgen().unwrap().world().height(0.0, 0.0);
+    assert!((feet - want).abs() < 0.05, "in a LocalSession the feet are at {feet}, the hill is at {want}");
+}

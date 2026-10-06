@@ -495,15 +495,23 @@ pub fn collect_ground_candidates_except(scene: &Scene, skip: &std::collections::
     ground_from_groups(scene, &collect_ground_candidates_grouped_except(scene, skip))
 }
 
-/// The ground under a scene made of per-object `groups` (the ones whose object is switched on): every standable surface they hold, plus what belongs to the *scene* and to no
-/// object: the looping axis and the generated world (`procgen`). A scene with no objects at all (an endless meadow) is all world, so building the ground from the groups
-/// alone gives a flat floor at `y = 0` and trees that do not block: the single-player client and the server both build their ground through here.
+/// The part of a scene's ground that belongs to the *scene* and to no object: its looping axis and its generated world (`procgen`). A scene with no objects at all (an endless
+/// meadow) is all of this, so a ground built from per-object groups alone is a flat floor at `y = 0` under hills and trees that do not block. Everything that assembles a ground from
+/// groups (the single-player client, the match behind a server or a `LocalSession`) starts from this, and keeps it to start from again when it rebuilds.
+pub fn scene_ground(scene: &Scene) -> GroundCandidates {
+    GroundCandidates {
+        wrap: scene.player.expanse.wrap,
+        procgen: scene.procgen.clone().map(|cfg| std::sync::Arc::new(crate::procgen::ProcgenGround::new(cfg))),
+        ..Default::default()
+    }
+}
+
+/// The ground under a scene made of per-object `groups` (the ones whose object is switched on) on top of [`scene_ground`].
 pub fn ground_from_groups<'a>(scene: &Scene, groups: impl IntoIterator<Item = &'a GroundCandidates>) -> GroundCandidates {
-    let mut out = GroundCandidates { wrap: scene.player.expanse.wrap, ..Default::default() };
+    let mut out = scene_ground(scene);
     for group in groups {
         out.append(group);
     }
-    out.procgen = scene.procgen.clone().map(|cfg| std::sync::Arc::new(crate::procgen::ProcgenGround::new(cfg)));
     out
 }
 

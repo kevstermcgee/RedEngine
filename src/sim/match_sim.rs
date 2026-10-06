@@ -11,7 +11,7 @@
 //! [`PropWorld`]), and the props are simulated here, so a prop moved by one player is seen moved by
 //! every other.
 
-use crate::collide::{collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, Collider2D, GroundCandidates};
+use crate::collide::{collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, scene_ground, Collider2D, GroundCandidates};
 use crate::hit::{collect_hit_shapes_where, HitShape};
 use crate::physics::PropWorld;
 use crate::player::Character;
@@ -67,6 +67,8 @@ pub struct MatchSim {
     ground: GroundCandidates,
     collider_groups: Vec<Vec<Collider2D>>,
     ground_groups: Vec<GroundCandidates>,
+    /// The ground that belongs to the scene rather than to an object (its generated world, its loop): the base every rebuild of `ground` starts from.
+    scene_ground: GroundCandidates,
     collision_object_ids: Vec<String>,
     /// Exact shapes of the fixed world, for bat swings and bullets.
     pub(super) hit_shapes: Vec<HitShape>,
@@ -139,7 +141,8 @@ impl MatchSim {
         let collider_groups = collect_box_colliders_grouped_except(scene, &loose);
         let ground_groups = collect_ground_candidates_grouped_except(scene, &loose);
         let colliders = collider_groups.iter().flatten().copied().collect();
-        let mut ground = GroundCandidates::default();
+        let scene_ground = scene_ground(scene);
+        let mut ground = scene_ground.clone();
         for group in &ground_groups {
             ground.append(group);
         }
@@ -151,6 +154,7 @@ impl MatchSim {
             ground,
             collider_groups,
             ground_groups,
+            scene_ground,
             collision_object_ids: scene.objects.iter().map(|object| object.id.clone()).collect(),
             hit_shapes: collect_hit_shapes_where(scene, |i| !loose.contains(&i)),
             weapons: scene.weapons,
@@ -685,7 +689,7 @@ impl MatchSim {
 
     fn rebuild_static_world(&mut self) {
         self.colliders.clear();
-        self.ground = GroundCandidates::default();
+        self.ground = self.scene_ground.clone();
         for (i, id) in self.collision_object_ids.iter().enumerate() {
             if self.rules.collision_disabled().any(|disabled| disabled == id) {
                 continue;
