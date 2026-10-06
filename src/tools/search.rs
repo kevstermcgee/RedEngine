@@ -320,6 +320,21 @@ fn expand(query: &str) -> Vec<(String, f32)> {
     }
     out
 }
+
+/// How much a hit's source file matters to someone building their own game: engine files 1.0, one game's code or content, legacy fixtures and past
+/// reports less (`content` in `docs/features.json`). A query that names the game still finds it: the penalty only reorders, it never hides.
+fn content_bias(d: &Doc) -> f32 {
+    let file = d.loc.split([':', ' ']).next().unwrap_or_default();
+    match features::content_tier(file) {
+        Some("game") => 0.75,
+        Some("legacy") => 0.7,
+        Some("history") => 0.8,
+        _ => 1.0,
+    }
+}
+
+/// Ranks the corpus for `query`, optionally only one `kind`, returning at most `limit` hits (diversified per kind), preceded by up to two verified 2D mechanics when the query clearly asks
+/// for one (they do not count toward `limit` and never displace an ordinary hit).
 pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize) -> Vec<Hit<'a>> {
     let q = expand(query);
     if q.is_empty() {
@@ -384,6 +399,18 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
                 "asset" | "lint" | "type" | "command" => 1.05,
                 _ => 0.9,
             };
+            let hit = Hit { doc: d, score: score * kind_bias * content_bias(d), fragment: fragment(d, &q) };
+            if d.kind == "mechanic" && kind.is_none() {
+                let distinctive = q
+                    .iter()
+                    .filter(|(term, w)| *w >= 1.0 && mech_df.get(term.as_str()).is_some_and(|n| *n <= 3) && t.iter().chain(b).chain(e).any(|x| x == term))
+                    .count();
+                if distinctive >= 2 {
+                    lane.push((distinctive, hit.score, hit));
+                }
+            } else {
+                hits.push(hit);
+            }
         }
     }
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
