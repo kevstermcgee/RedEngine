@@ -120,6 +120,19 @@ def main():
             for k in keys:
                 out["not_applicable"][k] = reason
 
+
+    def do_input(pg, bc):
+        """Performs a browser check's real input (a click, held keys) on a page that is running: what makes the game write the progress the check is about."""
+        lay = pg.evaluate("__red2d.layout()")
+        if bc.get("click"):
+            pg.mouse.click(lay["x"] + bc["click"][0] * lay["w"] / vw, lay["y"] + bc["click"][1] * lay["h"] / vh)
+        for k in bc.get("keys", []):
+            pg.keyboard.down(k)
+        if bc.get("keys"):
+            pg.wait_for_timeout(bc.get("ms", 300) + 300)
+        for k in reversed(bc.get("keys", [])):
+            pg.keyboard.up(k)
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         out["browser"] = "Chromium " + browser.version
@@ -328,9 +341,7 @@ def main():
                 ready(pg)
                 pg.keyboard.press("Enter")
                 wait_js(pg, "__red2d.status().state === 'running'", 5000)
-                lay = pg.evaluate("__red2d.layout()")
-                if persists_check.get("click"):
-                    pg.mouse.click(lay["x"] + persists_check["click"][0] * lay["w"] / vw, lay["y"] + persists_check["click"][1] * lay["h"] / vh)
+                do_input(pg, persists_check)
                 pg.wait_for_timeout(400)
                 had = pg.evaluate("localStorage.getItem(%s)" % json.dumps(key))
                 pg.evaluate("__red2d.resetSave()")
@@ -381,9 +392,7 @@ def main():
         if game["persistence"]:
             pc = next((bc for bc in manifest.get("browser_checks", []) if bc.get("persists")), None)
             if pc:
-                lay = pg.evaluate("__red2d.layout()")
-                if pc.get("click"):
-                    pg.mouse.click(lay["x"] + pc["click"][0] * lay["w"] / vw, lay["y"] + pc["click"][1] * lay["h"] / vh)
+                do_input(pg, pc)
                 pg.wait_for_timeout(400)
                 before = pg.evaluate("__red2d.snapshot()")["vars"]
                 pg.reload()

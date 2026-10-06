@@ -144,6 +144,7 @@ pub fn verify(dir: Option<&Path>, url: Option<&str>, out: &Path) -> Result<Verif
         })
         .unwrap_or_default();
     let tags = v["rows"].as_array().map(|a| a.iter().map(|r| r["evidence"].as_str().map(str::to_string)).collect()).unwrap_or_default();
-    let not_applicable = v["not_applicable"].as_object().map(|m| m.iter().filter_map(|(k, r)| r.as_str().map(|r| (k.clone(), r.to_string()))).collect()).unwrap_or_default();
+    let not_applicable =
+        v["not_applicable"].as_object().map(|m| m.iter().filter_map(|(k, r)| r.as_str().map(|r| (k.clone(), r.to_string()))).collect()).unwrap_or_default();
     Ok(Verified { rows, browser: v["browser"].as_str().unwrap_or("unknown").to_string(), raw: v, tags, not_applicable })
 }

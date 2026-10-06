@@ -119,7 +119,11 @@ pub(crate) fn run_web(cmd: WebCmd) -> Result<(), String> {
                         (true, _) => red_engine2::tools::evidence::Status::Failed,
                         _ => red_engine2::tools::evidence::Status::NotRun,
                     },
-                    if remote { format!("{} checks against {}", v.rows.len(), url.as_deref().unwrap_or("")) } else { "a loopback URL is not a deployed copy".to_string() },
+                    if remote {
+                        format!("{} checks against {}", v.rows.len(), url.as_deref().unwrap_or(""))
+                    } else {
+                        "a loopback URL is not a deployed copy".to_string()
+                    },
                 );
             }
             all.extend(v.rows);

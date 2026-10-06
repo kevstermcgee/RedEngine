@@ -18,9 +18,15 @@ pub const SCHEMA: &str = "red2d-evidence/1";
 pub const KEYS: &[(&str, &str)] = &[
     ("native_scenarios", "the game's own scenarios pass in the native, headless simulation"),
     ("wasm_compiled", "the WebAssembly player was built (or supplied) and packaged with the game, and exports the player ABI"),
-    ("browser_package_valid", "the static package is internally consistent: every file and hash, self-contained, no build-machine paths, installable web app files"),
+    (
+        "browser_package_valid",
+        "the static package is internally consistent: every file and hash, self-contained, no build-machine paths, installable web app files",
+    ),
     ("wasm_instantiated", "a real browser instantiated game.wasm and the game initialised (the start screen appeared)"),
-    ("loading_robustness", "input, focus and visibility changes while the game is still loading do nothing wrong, and a failed load shows a useful message with no live controls"),
+    (
+        "loading_robustness",
+        "input, focus and visibility changes while the game is still loading do nothing wrong, and a failed load shows a useful message with no live controls",
+    ),
     ("playable_state", "the game reached a running state after the player started it, and time advanced"),
     ("input_keyboard", "real key events changed the game's state"),
     ("input_pointer", "a real mouse click changed the game's state"),
@@ -142,7 +148,11 @@ impl Evidence {
         match (abi.is_empty(), abi.iter().all(|r| r.ok)) {
             (true, _) => self.set("wasm_compiled", Status::NotRun, "the package check has no row about game.wasm"),
             (false, true) => self.set("wasm_compiled", Status::Passed, abi.iter().map(|r| r.detail.as_str()).collect::<Vec<_>>().join("; ")),
-            (false, false) => self.set("wasm_compiled", Status::Failed, abi.iter().filter(|r| !r.ok).map(|r| format!("{}: {}", r.name, r.detail)).collect::<Vec<_>>().join("; ")),
+            (false, false) => self.set(
+                "wasm_compiled",
+                Status::Failed,
+                abi.iter().filter(|r| !r.ok).map(|r| format!("{}: {}", r.name, r.detail)).collect::<Vec<_>>().join("; "),
+            ),
         }
     }
 
