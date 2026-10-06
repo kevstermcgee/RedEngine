@@ -40,15 +40,19 @@ def wait_js(pg, expr, timeout=20000):
     """Poll a JavaScript expression from outside the page. (`page.wait_for_function` evaluates a string inside the page, which the package's Content-Security-Policy,
     rightly, forbids; a CDP evaluate is not subject to it, so the real policy stays on for every test.)"""
     end = time.time() + timeout / 1000.0
+    last = ""
     while time.time() < end:
         try:
             if pg.evaluate("() => !!(" + expr + ")"):
                 return True
         except Exception as e:                      # the page navigated under us (a reload, a service worker taking control): look again
-            if "context was destroyed" not in str(e) and "navigation" not in str(e):
+            last = str(e)
+            # A reload (a restored backup reloads the page) also leaves a moment in which the new document has not defined `__red2d` yet: that is "not there yet", not a failure; the
+            # timeout below still fails the check, and says what the page last answered, if the condition never becomes true.
+            if "context was destroyed" not in last and "navigation" not in last and "is not defined" not in last:
                 raise
         time.sleep(0.04)
-    raise TimeoutError("timed out waiting for: " + expr)
+    raise TimeoutError("timed out waiting for: " + expr + (f" (the page last answered: {last[:160]})" if last else ""))
 
 
 def fnv(data):

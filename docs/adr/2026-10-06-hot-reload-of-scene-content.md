@@ -28,3 +28,15 @@ Measured with the real code: `re2` hot reload applies in 4-5 ms (test_lab), 8-10
 381-405 ms (median 403 over 5 saves), the player where they were, no page reload, validate's diagnostics on an invalid save and cleared by the fix, and a plain `web serve` never asks for `__dev/state`.
 Not verified: a windowed `re2` on a real GPU (the tests drive the same `App` headlessly), Windows (hosted CI runs the unit tests), split screen (off), content that changes the character or the player's object model,
 and games whose named entity is removed by an edit (it simply starts as the new game says). Not carried: rule variables and loose-prop state in `re2`; any 2D entity without a scene id.
+
+## Part 2b: Rust hot patching (Subsecond): spiked, not shipped
+The request was to put Dioxus' Subsecond around a custom client's update function behind a dev-only feature. Evidence from a Linux spike (a plain binary, `subsecond::call` around its update step, `dioxus-devtools`' `connect_subsecond`,
+run under `dx serve --hotpatch --platform linux`; dx 0.7.10, subsecond 0.7.10, stable Rust 1.98.1, the 4-core dev box):
+* It needs an external tool: **the Dioxus CLI** (`cargo install dioxus-cli` compiled in about 25 minutes on this box; the CLI builds on stable Rust). Subsecond alone only provides the jump table; the library says so.
+* It is experimental (`--hotpatch` is opt-in) and patches **only the crate containing `main.rs`**: for a custom client on `red_engine2::app` that is the game's own crate, which is the intended target, but nothing in `red_engine2` itself.
+* A first build under `dx` took 238 s (cold). `dx` reported "Hot-patching" four times (205 ms for an editor's temporary file, 27.7 s under heavy machine load, 0.73 s and 1.26 s when quieter) and the process kept its state across
+  every patch (the tick counter never reset), **but none of three edits changed the running behaviour**: one in a function called from the anchored closure, one restructuring the closure, and one changing a constant inside the closure
+  itself kept executing the old code (`pos` kept adding 1.0 per tick). No warning explained it; the cause is undiagnosed.
+* Not verified on Windows at all (no Windows machine here; hosted CI cannot run an interactive patching session).
+Under the rule that an unreliable tool stops the item, **no Subsecond feature was added**: no cargo feature, no wrapper around `App`. What would reopen it: a diagnosis of why the patch is reported but not effective (the likely suspects
+are the closure anchoring and the dev profile's debug/link settings), then a Windows run. Until then, the supported edit loop for Rust is `scripts/dev iterate` (about 17 CPU-seconds warm).
