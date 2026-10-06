@@ -154,3 +154,26 @@ fn a_local_session_in_marcels_world_puts_the_boy_on_the_hill() {
     let want = ground.procgen().unwrap().world().height(0.0, 0.0);
     assert!((feet - want).abs() < 0.05, "in a LocalSession the feet are at {feet}, the hill is at {want}");
 }
+
+/// Marcel counts the days you live: each sunrise adds one, and the count is what a session saves and the next one restores. A `LocalSession` (what a browser runs) must count
+/// them like the desktop client does; the clock's `sunrise` event used to be raised only by the desktop client.
+#[test]
+fn a_local_session_counts_the_days_and_brings_the_saved_ones_back() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/marcel/marcel.json")).unwrap();
+    let days = |s: &red_engine2::app::session::LocalSession| s.persisted().get("days_lived").copied().unwrap_or(-1.0);
+    let mut fresh = red_engine2::app::session::LocalSession::from_json(&text).unwrap_or_else(|e| panic!("{e:?}"));
+    assert_eq!(days(&fresh), 0.0, "persisted: {:?}", fresh.persisted());
+    let mut returning = red_engine2::app::session::LocalSession::from_json(&text).unwrap();
+    returning.restore_vars(&[("days_lived".to_string(), 41.0), ("not_a_variable".to_string(), 1.0)].into_iter().collect());
+    assert_eq!(days(&returning), 41.0);
+    // The day is 20 minutes and begins before sunrise: the first sunrise is within a minute, the second a day later.
+    for _ in 0..(60 * 60) {
+        fresh.step(PlayerInput::default());
+        returning.step(PlayerInput::default());
+    }
+    assert_eq!((days(&fresh), days(&returning)), (1.0, 42.0), "one sunrise in the first minute");
+    for _ in 0..(60 * 1200) {
+        fresh.step(PlayerInput::default());
+    }
+    assert_eq!(days(&fresh), 2.0, "a second sunrise one day later");
+}
