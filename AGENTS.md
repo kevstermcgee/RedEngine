@@ -5,7 +5,9 @@ Red Engine 2 is a Rust + wgpu engine whose maps are **JSON scene files** — and
 server; `red_engine2` (the CLI) validates, renders, **analyzes, edits and plays scripted matches** on maps. You almost
 never need to read Rust to change a map or a game: read [`SPEC.md`](SPEC.md) for the scene language, then use the tools below.
 
-**Read `red_engine2 describe --brief` first (about 1 KB)**, then ask `search "<your question>"`; open SPEC/AGENTS only for a topic
+**First command: `scripts/dev start "<your task>"`** (in a game project `scripts/red start "<task>"`; MCP: the `start` tool). It picks the workflow, names the executable it will use and why, and prints ONE next action; it never builds, installs or downloads. `next` and `resume` pick up after an interruption.
+
+**Then `red_engine2 describe --brief` (about 1 KB)**, then ask `search "<your question>"`; open SPEC/AGENTS only for a topic
 you cannot get from `describe <topic>`. Every command takes the global `--json` for one stable envelope (`describe diagnostics`).
 
 **Making a 2D or browser game? Do not read any of the 3D material.** `red_engine2 describe web` is the front door (one page: choose 2d / hybrid / 3d, create, check, publish, read the evidence, limits);

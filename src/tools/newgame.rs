@@ -29,6 +29,7 @@ Never copy engine source here; if the engine needs a change, make it in the engi
 
 ## First 60 seconds
 ```bash
+scripts/red start "<task>"        # the first command: workflow, executable and ONE next action (read-only; `next` / `resume` after an interruption)
 scripts/red doctor               # which engine, is it built, is the toolchain there? (scripts\red.ps1 on Windows)
 scripts/red status               # resume: facts + git + STATUS.md (what is done / in flight / next)
 scripts/red describe --brief     # the engine's own ~1 KB manual; then `scripts/red search "<question>"`
@@ -68,6 +69,7 @@ builds that version on first use. Never copy engine source here; if the engine n
 
 ## First 60 seconds
 ```bash
+scripts/red start "<task>"        # the first command: workflow, executable and ONE next action (read-only; `next` / `resume` after an interruption)
 scripts/red doctor               # which engine, is it built, is the toolchain there? (scripts\red.ps1 on Windows)
 scripts/red status               # resume: facts + git + STATUS.md (what is done / in flight / next)
 scripts/red describe --brief     # the engine's own ~1 KB manual; then `scripts/red search "<question>"`
@@ -109,6 +111,7 @@ scripts/red play 127.0.0.1:27015   # the graphical client (run two)
 const RED_SH: &str = r##"#!/usr/bin/env bash
 # scripts/red: run the Red Engine version this project pins (game.json "engine"), building it on first use.
 #   scripts/red doctor | check | build-all | info | play-local | serve | play [HOST:PORT] | status ... | <any red_engine2 command>
+#   scripts/red start "<task>" | next | resume    the AI launchpad: which workflow, which executable and why, ONE next action (read-only: never builds or downloads)
 # Env: RED_ENGINE=/path/to/checkout (override), RED_UPDATE=1 (git fetch the pinned ref), RED_REBUILD=1 (force a build),
 # RED_HEADLESS=1 (no graphics crates: CLI + server only, ideal for CI and containers), RED_PROFILE=debug|release (default debug).
 set -eu
@@ -118,6 +121,19 @@ for f in "$HOME/.local/toolchain/env.sh" "$HOME/.cargo/env"; do [ -f "$f" ] && .
 export CARGO_TERM_COLOR=never
 
 json_get() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" game.json | head -1; }
+
+# The launchpad is read-only: it must not clone, build or download, so it runs BEFORE the engine is resolved below (which clones a missing pinned engine).
+case "${1:-}" in start|next|resume)
+  E="${RED_ENGINE:-}"
+  if [ -z "$E" ]; then
+    P="$(json_get path)"
+    case "$P" in "") ;; /*|[A-Za-z]:*) E="$P" ;; *) E="$ROOT/$P" ;; esac
+  fi
+  [ -z "$E" ] && E="$ROOT/.red/engine"
+  if [ -f "$E/scripts/launchpad.py" ] && command -v python3 >/dev/null 2>&1; then exec python3 "$E/scripts/launchpad.py" "$@" --project "$ROOT"; fi
+  echo "red: no engine checkout to read yet at '$E' (game.json pins it). Run \`scripts/red describe --brief\` once: it clones the pinned engine (needs the network) and builds the CLI; then \`scripts/red $1\` works." >&2
+  exit 2 ;;
+esac
 
 ENGINE="${RED_ENGINE:-}"
 if [ -z "$ENGINE" ]; then
@@ -155,6 +171,8 @@ if [ "$cmd" = "doctor" ]; then
   echo "project  $ROOT"; echo "engine   $ENGINE ($(git -C "$ENGINE" rev-parse --short HEAD 2>/dev/null || echo 'not a git checkout'))"
   command -v cargo >/dev/null 2>&1 && echo "cargo    $(cargo --version)" || echo "cargo    NOT FOUND (install Rust: https://rustup.rs)"
   for b in red_engine2 red_server re2; do [ -f "$(exe $b)" ] && echo "built    $b" || echo "missing  $b (built on first use)"; done
+  # Which executable would run, and is it fresh? (the same rules scripts/dev and the MCP adapter use)
+  [ -f "$ENGINE/scripts/red_resolve.py" ] && command -v python3 >/dev/null 2>&1 && python3 "$ENGINE/scripts/red_resolve.py" --project "$ROOT" 2>/dev/null | sed -n 's/^selected /exe      selected /p;s/^  - /         /p'
   exit 0
 fi
 command -v cargo >/dev/null 2>&1 || { echo "red: cargo not found (install Rust: https://rustup.rs)" >&2; exit 127; }
@@ -169,8 +187,8 @@ needs_build() {
   [ -f "$STAMP" ] || return 0
   [ "$(cat "$STAMP")" != "$MODE" ] && return 0
   for f in "$ENGINE/Cargo.toml" "$ENGINE/Cargo.lock" "$ENGINE/build.rs"; do [ -f "$f" ] && [ "$f" -nt "$OUT" ] && return 0; done
-  for d in "$ENGINE/src" "$ENGINE/assets"; do
-    [ -d "$d" ] && [ -n "$(find "$d" -type f -newer "$OUT" -print -quit)" ] && return 0
+  for d in "$ENGINE/src" "$ENGINE/assets" "$ENGINE/crates"; do
+    [ -d "$d" ] && [ -n "$(find "$d" -type f ! -name '*.md' ! -name '*.py' ! -name '*.txt' -newer "$OUT" -print -quit)" ] && return 0
   done
   return 1
 }
@@ -191,6 +209,7 @@ esac
 
 const RED_PS1: &str = r##"# scripts/red.ps1: the Windows-native twin of scripts/red (same commands and env vars).
 #   powershell -File scripts\red.ps1 doctor | check | build-all | info | play-local | serve | play [HOST:PORT] | status ... | <any red_engine2 command>
+#   powershell -File scripts\red.ps1 start "<task>" | next | resume    the AI launchpad (read-only: never builds or downloads)
 param([Parameter(Position = 0)][string]$Cmd = 'help', [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -199,6 +218,16 @@ $env:CARGO_TERM_COLOR = 'never'
 $cargoBin = Join-Path $HOME '.cargo\bin'
 if ((Test-Path $cargoBin) -and (($env:PATH -split ';') -notcontains $cargoBin)) { $env:PATH = "$cargoBin;$env:PATH" }
 $game = Get-Content game.json -Raw | ConvertFrom-Json
+
+# The launchpad is read-only: it must not clone, build or download, so it runs BEFORE the engine is resolved below (which clones a missing pinned engine).
+if ($Cmd -in 'start', 'next', 'resume') {
+    $e = $env:RED_ENGINE
+    if (-not $e -and $game.engine.path) { $e = if ([IO.Path]::IsPathRooted($game.engine.path)) { $game.engine.path } else { Join-Path $Root $game.engine.path } }
+    if (-not $e) { $e = Join-Path $Root '.red\engine' }
+    $lp = Join-Path $e 'scripts\launchpad.py'
+    if ((Test-Path $lp) -and (Get-Command python -ErrorAction SilentlyContinue)) { & python $lp $Cmd @Rest --project $Root; exit $LASTEXITCODE }
+    Write-Error "red: no engine checkout to read yet at '$e' (game.json pins it). Run scripts\red.ps1 describe --brief once: it clones the pinned engine (needs the network) and builds the CLI; then $Cmd works."; exit 2
+}
 
 $Engine = $env:RED_ENGINE
 if (-not $Engine -and $game.engine.path) { $p = if ([IO.Path]::IsPathRooted($game.engine.path)) { $game.engine.path } else { Join-Path $Root $game.engine.path }; if (Test-Path $p) { $Engine = (Resolve-Path $p).Path } }
@@ -239,7 +268,8 @@ function Needs-Build([string]$n) {
     $stamp = Join-Path $Target "$Profile_\.red-wrapper-$n.mode"
     if (-not (Test-Path $stamp) -or (Get-Content $stamp -Raw) -ne $mode) { return $true }
     $inputs = @((Join-Path $Engine 'Cargo.toml'), (Join-Path $Engine 'Cargo.lock'), (Join-Path $Engine 'build.rs'))
-    $inputs += Get-ChildItem (Join-Path $Engine 'src'), (Join-Path $Engine 'assets') -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+    # crates/ (red2d, web3d) is part of the build; docs and helper scripts are not.
+    $inputs += Get-ChildItem (Join-Path $Engine 'src'), (Join-Path $Engine 'assets'), (Join-Path $Engine 'crates') -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -notin '.md', '.py', '.txt' } | Select-Object -ExpandProperty FullName
     $built = (Get-Item $out).LastWriteTimeUtc
     return $null -ne ($inputs | Where-Object { (Test-Path $_) -and (Get-Item $_).LastWriteTimeUtc -gt $built } | Select-Object -First 1)
 }

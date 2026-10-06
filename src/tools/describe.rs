@@ -426,6 +426,7 @@ pub fn brief_json(commands: &Value) -> Value {
     json!({
         "engine": "Red Engine 2: maps are JSON scenes; you never need to read Rust",
         "binaries": BINARIES.iter().map(|(n, d)| json!({"name": n, "about": d})).collect::<Vec<_>>(),
+        "start": "scripts/dev start \"<task>\" (in a game project: scripts/red start \"<task>\"): the workflow, the executable and ONE next action; it never builds",
         "workflow": "recipe/catalog -> add/set/move (validated) -> lint -> plan/tour (look) -> verify",
         "engine_changes": "context <feature|file|words> (5-15 KB work packet) -> edit -> affected --quick (owners, seconds) -> affected (+dependents) -> affected --full (= CI) before pushing",
         "commands": names,
@@ -444,6 +445,7 @@ fn brief_text(commands: &Value) -> String {
     for (n, d) in BINARIES {
         out.push_str(&format!("  {n:<12} {d}\n"));
     }
+    out.push_str(&format!("Start: {}\n", b["start"].as_str().unwrap_or("")));
     out.push_str(&format!("Workflow: {}\n", b["workflow"].as_str().unwrap_or("")));
     out.push_str(&format!("Changing the engine (Rust): {}\n", b["engine_changes"].as_str().unwrap_or("")));
     out.push_str(&format!("Commands: {}\n", list("commands")));
