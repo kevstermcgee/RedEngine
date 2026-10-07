@@ -20,9 +20,9 @@ env:
 jobs:
   render-trend:
     name: render trend (ubuntu, software Vulkan)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -43,7 +43,7 @@ jobs:
               n = lambda v: "-" if v is None else f"{v:,}"
               print(f"| {s['id']} | {n(s['tris'])} | {n(s['shadow_tris'])} | {n(s['draws'])} | {s['ms_median']:.0f} |")
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: render-trend-${{ github.sha }}
           path: render-trend.json
