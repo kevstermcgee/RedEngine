@@ -22,7 +22,7 @@ jobs:
     name: linux-x86_64
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -44,7 +44,7 @@ jobs:
         run: sudo apt-get install -y mesa-vulkan-drivers
       - name: Smoke test from an empty directory
         run: bash scripts/smoke_release.sh dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: redengine-linux-x86_64
           path: dist/*

@@ -294,9 +294,9 @@ const CI_YML: &str = r#"name: check
 on: [push, pull_request]
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       # Headless engine build: CLI + server only, no GPU or windowing libraries needed.
       - run: RED_HEADLESS=1 bash scripts/red check
@@ -425,9 +425,9 @@ const CI_YML_2D: &str = r#"name: check
 on: [push, pull_request]
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - run: RED_HEADLESS=1 bash scripts/red verify {{ID}}.game2d.json
 "#;
