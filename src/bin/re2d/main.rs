@@ -4,7 +4,7 @@
 //! game's sounds and music through the engine's mixer and keeps the game's save in the user's data folder. All rules, drawing and sound come from the same `Host` the
 //! browser, `verify` and `frame` use, so a game that passes `verify` plays the same here.
 //!
-//! usage: `re2d [GAME.game2d.json]` (with no argument: `game.game2d.json` next to the program). `F11` toggles fullscreen. The release build on Windows has no console window, so every
+//! `RE2D_TRACE=1` prints where starting the game spent its time. usage: `re2d [GAME.game2d.json]` (with no argument: `game.game2d.json` next to the program). `F11` toggles fullscreen. The release build on Windows has no console window, so every
 //! failure is also written to `re2d.log` next to the program (and is the only place a player double-clicking it would find it).
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
@@ -23,6 +23,13 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Fullscreen, Window, WindowId};
 
 const TPS: f64 = 60.0;
+
+/// `RE2D_TRACE=1` prints how long each part of starting the game took (to stderr), the first place to look when a game feels slow to open.
+fn trace(what: &str, since: Instant) {
+    if std::env::var_os("RE2D_TRACE").is_some() {
+        eprintln!("re2d: {what}: {:.1} ms", since.elapsed().as_secs_f64() * 1000.0);
+    }
+}
 
 /// Reports a failure on stderr and in `re2d.log` next to the program (a GUI-subsystem build has no stderr a player can see), then exits with `code`.
 fn fail(msg: &str, code: i32) -> ! {
@@ -45,6 +52,10 @@ struct Player {
     acc: f64,
     cursor: PhysicalPosition<f64>,
     save_path: PathBuf,
+    started: Instant,
+    shown: bool,
+    /// The music loop, synthesized on another thread so the first frame does not wait for it (about 0.4 s of work).
+    music_rx: Option<std::sync::mpsc::Receiver<Vec<f32>>>,
 }
 
 /// Where a game keeps its save: the platform's per-user data folder, one file per game id.
@@ -59,9 +70,11 @@ fn save_path(id: &str) -> PathBuf {
 
 impl Player {
     fn new(text: &str) -> Result<Player, String> {
+        let t0 = Instant::now();
         let mut host = Host::default();
         let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u64);
         host.init(text, seed)?;
+        trace("parse, build the world, draw the first frame", t0);
         let game_id = host.def().map_or_else(|| "game".to_string(), |d| d.id.clone());
         let save_path = save_path(&game_id);
         if let Ok(saved) = std::fs::read_to_string(&save_path) {
@@ -70,8 +83,20 @@ impl Player {
                 eprintln!("re2d: ignoring the saved progress: {why}");
             }
         }
+        let music_rx = host.def().filter(|d| !d.music.is_empty()).cloned().map(|def| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let t = Instant::now();
+                if let Ok((pcm, _)) = red2d::sound::music_pcm(&def, 0) {
+                    trace("synthesize the music loop (background)", t);
+                    let _ = tx.send(pcm);
+                }
+            });
+            rx
+        });
         Ok(Player {
             host,
+            music_rx,
             game_id,
             window: None,
             surface: None,
@@ -82,6 +107,8 @@ impl Player {
             acc: 0.0,
             cursor: PhysicalPosition::new(0.0, 0.0),
             save_path,
+            started: t0,
+            shown: false,
         })
     }
 
@@ -110,6 +137,10 @@ impl Player {
             }
         }
         self.present();
+        if !self.shown {
+            self.shown = true;
+            trace("first frame on screen (from launch)", self.started);
+        }
     }
 
     fn play_sounds(&mut self) {
@@ -117,9 +148,10 @@ impl Player {
         let music_on = self.host.music_on();
         let Some(audio) = self.audio.as_mut() else { return };
         if music_on && !self.music_started {
-            if let Ok(Some(pcm)) = self.host.music_pcm() {
+            if let Some(pcm) = self.music_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
                 audio.start_music(pcm, 1.0);
                 self.music_started = true;
+                self.music_rx = None;
             }
         }
         if self.music_started {
@@ -127,8 +159,10 @@ impl Player {
         }
         for i in wanted {
             if !self.clips.contains_key(&i) {
+                let t = Instant::now();
                 match self.host.sound_pcm(i as usize) {
                     Ok(pcm) => {
+                        trace(&format!("synthesize sound {i}"), t);
                         self.clips.insert(i, pcm);
                     }
                     Err(e) => eprintln!("re2d: sound {i}: {e}"),
@@ -200,6 +234,7 @@ impl ApplicationHandler for Player {
             }
         }
         self.window = Some(window);
+        trace("window and surface ready", self.started);
         self.last = Instant::now();
     }
 

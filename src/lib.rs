@@ -138,12 +138,26 @@ fn load_scene_or_bail(scene_path: &Path) -> Result<schema::Scene> {
     load_scene(scene_path).map_err(|errs| anyhow::anyhow!(errs.join("\n")))
 }
 
+/// `RE2_LOAD_TRACE=1` prints how long each phase of loading took (to stderr): the first place to look when a game is slow to open. A no-op otherwise.
+pub fn load_phase(what: &str, since: std::time::Instant) {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *ON.get_or_init(|| std::env::var_os("RE2_LOAD_TRACE").is_some()) {
+        eprintln!("load: {what}: {:.1} ms", since.elapsed().as_secs_f64() * 1000.0);
+    }
+}
+
 /// Renders one frame of a scene at time `t` seconds to a PNG.
 #[cfg(feature = "render")]
 pub fn render_frame_png(scene_path: &Path, out_png: &Path, t: f32) -> Result<()> {
+    let t0 = std::time::Instant::now();
     let scene = load_scene_or_bail(scene_path)?;
+    load_phase("read and validate the scene", t0);
+    let t0 = std::time::Instant::now();
     let mut renderer = render::Renderer::new(&scene)?;
+    load_phase("build the renderer (total)", t0);
+    let t0 = std::time::Instant::now();
     let rgb = renderer.render_frame(&scene, t);
+    load_phase("draw the first frame", t0);
     ensure_parent_dir(out_png)?;
     image::save_buffer(out_png, &rgb, scene.width, scene.height, image::ColorType::Rgb8).context("failed to write PNG")?;
     Ok(())

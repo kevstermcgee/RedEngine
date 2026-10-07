@@ -309,17 +309,25 @@ pub struct Renderer {
 impl Renderer {
     /// Builds the offline renderer (device, pipelines, meshes) for `scene`.
     pub fn new(scene: &Scene) -> Result<Self> {
+        let t = std::time::Instant::now();
         let gpu = Gpu::new()?;
+        crate::load_phase("  open the GPU", t);
+        let t = std::time::Instant::now();
         let pipelines = create_pipelines(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
+        crate::load_phase("  compile the pipelines", t);
         let shadow_sampler = make_shadow_sampler(&gpu.device);
         let targets = FrameTargets::new(&gpu.device, scene.width, scene.height);
         let post = create_post_pipeline(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
         let post_bind_group = post.bind(&gpu.device, &targets.depth_view);
         let ocean = crate::ocean_pass::OceanPass::new(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1, scene, &pipelines.layouts.global_uniform);
 
+        let t = std::time::Instant::now();
         let mut raw_meshes = Vec::new();
         collect_leaf_meshes(&scene.objects, &mut raw_meshes);
+        crate::load_phase("  build the meshes", t);
+        let t = std::time::Instant::now();
         let meshes: Vec<GpuMesh> = raw_meshes.iter().map(|m| GpuMesh::upload(&gpu.device, m)).collect();
+        crate::load_phase("  upload the meshes", t);
         let draw_count = (meshes.len() * wrap_offsets(scene).len()).max(1) as u64;
 
         let global_buf = gpu.device.create_buffer(&wgpu::BufferDescriptor {

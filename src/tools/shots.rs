@@ -69,10 +69,16 @@ pub fn prepare(world: MapWorld, opts: &FrameOpts) -> crate::schema::Scene {
 /// Renders one frame of a scene with the given options to `out`.
 #[cfg(feature = "gfx")]
 pub fn render_frame(path: &Path, out: &Path, opts: &FrameOpts) -> Result<(), String> {
+    let t0 = std::time::Instant::now();
     let world = super::world::load_or_report(path)?;
     let scene = prepare(world, opts);
+    crate::load_phase("read, validate and prepare the scene", t0);
+    let t0 = std::time::Instant::now();
     let mut renderer = Renderer::new(&scene).map_err(|e| e.to_string())?;
+    crate::load_phase("build the renderer (total)", t0);
+    let t0 = std::time::Instant::now();
     let rgb = renderer.render_frame(&scene, opts.t);
+    crate::load_phase("draw the first frame", t0);
     if let Some(parent) = out.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
