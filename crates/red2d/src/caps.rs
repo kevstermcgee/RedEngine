@@ -174,8 +174,8 @@ pub fn support(presentation: Presentation, platform: Platform) -> Support {
     match (presentation, platform) {
         (TwoD | Hybrid, Web) => Support::Supported,
         (TwoD | Hybrid, Windows | Linux) => Support::Prepared(
-            "a native window for 2D games is not built yet. `red_engine2 frame`/`sim`/`verify` already run a 2D game natively with no window, and the same game plays in a browser; \
-             a windowed player belongs to the app layer (`red_engine2::app::shell`), where a 2D game would show the CPU frame",
+            "the native 2D player `re2d` exists (`src/bin/re2d`) and was seen drawing and ticking a 2D game on a Linux virtual display; nothing here has run it on Windows or driven its input and audio, \
+             so 2D on a native platform stays PREPARED, not SUPPORTED. `red_engine2 frame`/`sim`/`verify` already run a 2D game natively with no window",
         ),
         (TwoD | Hybrid, MacOs) | (ThreeD, MacOs) => Support::NotSupported("no macOS build or test exists; supported platforms are web (2D games), windows and linux (3D games)"),
         (ThreeD, Windows | Linux) => Support::Supported,
@@ -248,7 +248,7 @@ pub fn distribution_support(presentation: Presentation, platform: Platform, how:
         (ThreeD, Windows | Linux, Online) => Support::NotSupported(
             "a 3D game cannot be published to a URL yet: the engine's renderer runs in a browser only as an experiment (`describe web3d`), with no package, verify or publish path. Ship it as an installable game (`install`), or build the game as a 2D/hybrid game for the browser",
         ),
-        (TwoD | Hybrid, Windows | Linux, Install) => Support::Prepared("a native installer for 2D games needs the native window, which is not built; the web app (`web` + `install`) installs on Windows, Linux, macOS, Android and iOS"),
+        (TwoD | Hybrid, Windows | Linux, Install) => Support::Prepared("the release workflow packages a 2D game with `re2d` as an installer (`kind: \"2d\"` in games-publish.json), but no installer built from it has been run here; the web app (`web` + `install`) installs on Windows, Linux, macOS, Android and iOS"),
         (TwoD | Hybrid, Windows | Linux, Online) => Support::NotSupported("`online` means a URL, which is the `web` platform: add \"web\" to platforms"),
         (_, MacOs, _) => Support::NotSupported("no macOS build or test exists"),
         (ThreeD, Web, _) => Support::NotSupported("3D games do not run in a browser yet"),
@@ -538,7 +538,7 @@ mod tests {
                 "2D netcode",
                 json!({"presentation": "2d", "platforms": ["windows"], "networking": "authoritative"}),
                 "2D cannot target `windows`",
-                "native window for 2D games is not built yet",
+                "native 2D player `re2d` exists",
             ),
             ("macOS", json!({"presentation": "3d", "platforms": ["macos"]}), "cannot target `macos`", "no macOS build"),
             (
@@ -602,7 +602,7 @@ mod tests {
         let t = all(json!({"presentation": "3d", "platforms": ["windows"], "networking": "offline", "distribution": ["online"]}));
         assert!(t.contains("capabilities.distribution[0]") && t.contains("needs the `web` platform"), "{t}");
         let t = all(json!({"presentation": "2d", "platforms": ["windows"], "networking": "offline", "distribution": ["install"]}));
-        assert!(t.contains("`install` is not available") && t.contains("native window"), "{t}");
+        assert!(t.contains("`install` is not available") && t.contains("re2d"), "{t}");
         let t = all(json!({"presentation": "2d", "platforms": ["web"], "distribution": []}));
         assert!(t.contains("is empty"), "{t}");
         let t = all(json!({"presentation": "2d", "platforms": ["web"], "distribution": ["onlin"]}));

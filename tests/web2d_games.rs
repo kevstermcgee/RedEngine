@@ -105,7 +105,7 @@ fn a_browser_game_cannot_ask_for_native_udp_networking() {
 fn a_native_window_for_a_2d_game_is_prepared_not_built_and_says_so() {
     refused(
         &mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!(["web", "windows"])),
-        &["capabilities.platforms[1]", "cannot target `windows`", "prepared", "not built yet"],
+        &["capabilities.platforms[1]", "cannot target `windows`", "prepared", "re2d"],
     );
 }
 
