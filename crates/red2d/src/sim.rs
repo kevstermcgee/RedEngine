@@ -753,6 +753,11 @@ impl Sim {
 
     // ---- rules ---------------------------------------------------------------------------------------------------------------------------------------
 
+    /// Rule ids with the number of times each fired this run, in file order (a failed expectation uses it to say which rules never ran).
+    pub fn rule_fires(&self) -> Vec<(String, u32)> {
+        self.def.rules.iter().zip(&self.rule_state).map(|(r, st)| (r.id.clone(), st.fired)).collect()
+    }
+
     fn fire(&mut self, def: &GameDef, ri: usize, ctx: Ctx) {
         let r = &def.rules[ri];
         if r.once && self.rule_state[ri].fired > 0 {

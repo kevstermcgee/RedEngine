@@ -814,6 +814,7 @@ pub const ROOT: &[&str] = &[
     "scene",
     "map",
     "ui",
+    "effects",
     "rules",
     "controls",
     "models",
@@ -1274,6 +1275,8 @@ pub(crate) struct Names<'a> {
     pub(crate) prefabs: &'a [String],
     pub(crate) ids: &'a [String],
     pub(crate) tags: &'a [String],
+    /// The game's `effects`: named groups of actions that `{"apply": name}` expands (see `effects.rs`).
+    pub(crate) effects: &'a crate::effects::Effects,
 }
 
 fn expr(ctx: &mut Ctx, path: &str, src: &str, names: &Names) -> Option<Expr> {
@@ -1372,7 +1375,7 @@ fn target(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Target>
 
 /// Every action a rule or button can do.
 pub const ACT_KEYS: &[&str] =
-    &["set", "add", "emit", "spawn", "destroy", "play", "music", "burst", "shake", "end", "restart", "reset_save", "velocity", "teleport"];
+    &["set", "add", "emit", "spawn", "destroy", "play", "music", "burst", "shake", "end", "restart", "reset_save", "velocity", "teleport", "apply"];
 
 fn declared(ctx: &mut Ctx, path: &str, name: &str, names: &Names) -> Option<usize> {
     match names.vars.iter().position(|v| v == name) {
@@ -1423,8 +1426,10 @@ fn parse_actions(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, in_button:
         ctx.err(path, "`do` is empty: a rule that does nothing proves nothing (actions: set, add, emit, spawn, destroy, play, music, burst, shake, end, restart, reset_save, velocity, teleport)");
     }
     let mut out = Vec::new();
-    for (i, item) in list.iter().enumerate() {
-        let p = format!("{path}[{i}]");
+    // `{"apply": effect}` items are replaced by the effect's actions first, so every one of them is checked exactly like a hand-written action.
+    let items = names.effects.flatten(path, list, &mut ctx.errs);
+    for (p, item) in &items {
+        let p = p.clone();
         let Some(o) = ctx.obj(&p, item) else { continue };
         if o.len() != 1 {
             ctx.err(&p, format!("an action is an object with exactly one key (one of {}), found {} keys", ACT_KEYS.join(", "), o.len()));
@@ -2430,8 +2435,11 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         }
     }
 
+    // effects: named groups of actions, expanded where a rule or button applies them
+    let effects = crate::effects::Effects::parse(root, &mut ctx.errs);
+
     // prefabs: pass 2
-    let pf_names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags };
+    let pf_names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags, effects: &effects };
     let mut prefabs = Vec::new();
     if let Some(o) = root.get("prefabs").and_then(Value::as_object) {
         for (name, def) in o {
@@ -2446,7 +2454,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 None => (Shape::None, [8.0, 8.0]),
             };
             if let Shape::Text { text, .. } = &shape {
-                let names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags };
+                let names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags, effects: &effects };
                 check_template(&mut ctx, &format!("{path}.shape.text"), text, &names);
             }
             let size = d.get("size").and_then(pair).unwrap_or(shape_size);
@@ -2506,7 +2514,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         }
     }
 
-    let names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags };
+    let names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags, effects: &effects };
 
     // 3D world view and viewports among the entities
     let world3d = root.get("view").and_then(|v| v.get("world3d")).and_then(|w| crate::game3d::parse_world3d(&mut ctx, w, &names));
@@ -2593,6 +2601,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             None => ctx.err("rules", format!("expected a list of rules, got {}", describe_value(rv))),
         }
     }
+    effects.check_used(&mut ctx.errs);
 
     // controls: the pad a phone shows (declared, else inferred from what the game reads)
     let controls = match root.get("controls") {

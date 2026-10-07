@@ -3,7 +3,7 @@
 
 /// The reference text.
 pub const REFERENCE: &str = r##"FILE: NAME.game2d.json (JSON; begin it with "game2d": 1). Positions are CENTRES in virtual-screen pixels; y grows downward.
-KEYS: game2d id title description capabilities view sprites sounds music vars persist prefabs scene|map ui rules controls checks   (3D parts, optional: models layers3d, see HYBRID)
+KEYS: game2d id title description capabilities view sprites sounds music vars persist prefabs scene|map ui effects rules controls checks   (3D parts, optional: models layers3d, see HYBRID)
 capabilities: {"presentation":"2d","platforms":["web"],"networking":"offline","input":["keyboard","mouse"],"persistence":["settings","progress"]}
   declare what the game uses: buttons/click/pointer need mouse; keys/press need keyboard; `persist` needs progress; a `music` action needs settings.
   `red_engine2 capabilities` prints what is built; web is 2D-only and offline-only; touch and gamepad exist but are unverified; windows/linux 2D is prepared, not built.
@@ -18,10 +18,12 @@ prefabs: {"name":{"tag":"coin"|[tags],"shape":{"sprite":n|"rect":[w,h]|"circle":
 scene: [{"prefab":"coin","at":[40,30],"id":"p","count":1}]   map: {"tile":16,"origin":[0,0],"rows":["#..#"],"legend":{"#":"wall"}} ("." is empty)
 ui: {"text":"SCORE {score:3}","at":[4,4],"color":"#fff","scale":1,"align":"left"|"center"|"right","show":"ended"}  {"bar":{"var":"lives","max":3,"at":[0,0],"size":[40,6]}}
   {"panel":{"at":[0,0],"size":[100,20],"color":"#10141fdd"}}  {"button":{"id":"go","label":"GO","at":[0,0],"size":[40,12],"key":"Enter","do":[actions]}}   {v}=value {v:3}=zero-padded {v:.1}=one decimal
+effects: {"heal":{"params":{"amount":1},"do":[{"add":["lives","$amount"]},{"play":"pick"}]}}  a named group of actions, used by any rule or button: {"apply":"heal","with":{"amount":2}}
+  params: names (all required) or name -> default; "$name" is the argument; effects may apply effects (4 deep, no loops); an effect nothing applies is an error
 rules: [{"id":"x","when":{TRIGGER},"if":"lives > 0","once":true,"cooldown":1,"do":[ACTIONS]}]
   TRIGGER (exactly one): start | every:seconds | after:seconds | touch:[tagA,tagB] (on first overlap) | touching:[a,b] (every tick) | press:action | click:tag ("*" = nothing) | event:name (built in: `loaded` fires once after saved progress is restored: rebuild the world from saved vars) | end:"win"|"lose"|"any"
   ACTIONS: set:[var,value] add:[var,value] emit:name spawn:{prefab,at,vel,count} destroy:"self"|"other"|"tag:T"|"id:I" play:sound music:"on"|"off"|"toggle" burst:{at,n,color,speed,life,size,gravity}
-    shake:px end:"win"|"lose" restart:true reset_save:true velocity:{target,v:[x,y]} teleport:{target,to}     `at`: "self"|"other"|"pointer"|[x,y]|{"x":[min,max],"y":[min,max]}
+    shake:px end:"win"|"lose" restart:true reset_save:true velocity:{target,v:[x,y]} teleport:{target,to} apply:effect     `at`: "self"|"other"|"pointer"|[x,y]|{"x":[min,max],"y":[min,max]}
   values and `if` are expressions: numbers, variables, + - * / %, == != < <= > >=, && || ! (division by zero is 0). Rules run in order, each seeing the changes before it.
 controls (phones; declare "touch" in input): a pad drawn BELOW the game on touch devices only; desktop keeps keyboard, mouse, gamepad. Pick one, or omit it and the engine infers from what the game reads:
   "dpad" cross + A/B (top-down) | "stick" round stick + A/B | "platformer" left/right + JUMP/B | "lr" left/right (+A) (catch, dodge, paddle) | "tap" no pad: tap/drag the picture (clicks, management, puzzles)

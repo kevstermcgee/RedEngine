@@ -415,3 +415,41 @@ fn describe_web3d_keeps_proven_experimental_hybrid_and_planned_apart() {
     let (_, web) = cli(&["describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
     assert!(web.contains("describe web3d"), "describe web points to the 3D page");
 }
+
+// ---- effects: one named action list, applied from many rules ---------------------------------------------------------
+
+#[test]
+fn a_mistake_in_an_effect_or_its_use_names_the_call_site_and_the_way_out() {
+    let medic = |edit: fn(&mut Value)| mutate("medic-run", edit);
+    refused(&medic(|g| g["rules"][1]["do"][0]["apply"] = json!("hael")), &["(grab medkit).do[0].apply", "no effect `hael`", "did you mean `heal`"]);
+    refused(&medic(|g| g["rules"][1]["do"][0]["with"] = json!({})), &["effect `heal` needs the parameter `amount`"]);
+    refused(&medic(|g| g["rules"][1]["do"][0]["with"] = json!({"amout": 2})), &["no parameter `amout`", "did you mean `amount`"]);
+    // an error inside the effect is reported at the use that expanded it, and at the line in the effect
+    refused(
+        &medic(|g| g["effects"]["heal"]["do"][0] = json!({"add": ["livez", "$amount"]})),
+        &["no variable `livez`", "effects.heal.do[0]", "did you mean `lives`"],
+    );
+    refused(&medic(|g| g["effects"]["heal"]["do"][1] = json!({"play": "$amount"})), &["expected a sound name", "-> effects.heal.do[1].play"]);
+    refused(
+        &medic(|g| g["effects"]["heal"]["do"][0] = json!({"add": ["lives", "$amout"]})),
+        &["`$amout` is not a parameter of effect `heal`", "did you mean `amount`"],
+    );
+    refused(&medic(|g| g["effects"]["heal"]["do"] = json!([{"apply": "heal", "with": {"amount": 1}}])), &["applies itself", "may not form a cycle"]);
+    // an effect nobody applies is a mistake, not dead weight
+    refused(
+        &medic(|g| {
+            g["rules"][1]["do"][0] = json!({"play": "heal"});
+            g["rules"][2]["do"][1] = json!({"play": "heal"});
+        }),
+        &["effects.heal", "never applied"],
+    );
+}
+
+#[test]
+fn an_effect_is_one_source_for_several_behaviours() {
+    // The same effect backs a pickup and an ability; changing it once changes both.
+    let g = example("medic-run");
+    let uses = g["rules"].as_array().unwrap().iter().filter(|r| r.to_string().contains("\"apply\":\"heal\"")).count();
+    assert!(uses >= 2, "the item and the ability must both use the one effect");
+    assert!(g["effects"]["heal"]["do"].as_array().unwrap().len() >= 3);
+}

@@ -1,0 +1,124 @@
+{
+  "game2d": 1,
+  "id": "medic-run",
+  "title": "Medic Run",
+  "description": "Grab 10 coins in 60 seconds while ghosts hunt you: heal with medkits, or pay 3 coins for a bandage (secondary button).",
+  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse", "touch"], "persistence": ["settings", "progress"] },
+  "view": { "width": 320, "height": 180, "background": "#1b2233" },
+
+  "sprites": {
+    "coin": { "fps": 8, "palette": { "y": "#ffd23f", "o": "#c98a00", "w": "#fff3b0" }, "frames": [
+      [".yyyy.", "ywyyyo", "yyyyyo", "yyyyyo", "ywyyyo", ".yooo."],
+      ["..yy..", ".ywyo.", ".yyyo.", ".yyyo.", ".ywyo.", "..oo.."],
+      ["..yo..", "..yo..", "..yo..", "..yo..", "..yo..", "..yo.."],
+      ["..yy..", ".ywyo.", ".yyyo.", ".yyyo.", ".ywyo.", "..oo.."]] },
+    "player": { "palette": { "d": "#1e5fa8", "b": "#4aa3ff", "s": "#ffd9b0", "k": "#222222" },
+      "rows": ["..dddd..", ".dddddd.", ".dskksd.", ".dssssd.", "..bbbb..", ".bbbbbb.", ".b.bb.b.", "..d..d.."] },
+    "ghost": { "fps": 3, "palette": { "r": "#ff4d6d", "w": "#ffffff", "k": "#222222" }, "frames": [
+      ["..rrrr..", ".rrrrrr.", "rrwkrwkr", "rrrrrrrr", "rrrrrrrr", "rrrrrrrr", "rr.rr.rr", "r..rr..r"],
+      ["..rrrr..", ".rrrrrr.", "rrwkrwkr", "rrrrrrrr", "rrrrrrrr", "rrrrrrrr", "r.rr.rr.", ".rr..rr."]] }
+  },
+
+  "sounds": {
+    "pick": { "seconds": 0.18, "level": 0.5, "layers": [{ "sine": 880, "decay": 18 }, { "sine": 1320, "decay": 22, "delay": 0.05, "gain": 0.8 }] },
+    "hit": { "seconds": 0.3, "level": 0.6, "layers": [{ "sine": 196, "decay": 12, "attack": 0.004 }, { "sine": 208, "decay": 12, "delay": 0.04, "attack": 0.004, "gain": 0.7 }, { "noise": "hp 0.3", "decay": 16, "gain": 0.7 }] },
+    "win": { "seconds": 0.7, "level": 0.5, "layers": [{ "sine": 523.25, "decay": 5 }, { "sine": 659.25, "decay": 5, "delay": 0.12 }, { "sine": 783.99, "decay": 4, "delay": 0.24 }, { "sine": 1046.5, "decay": 3, "delay": 0.36 }] },
+    "heal": { "seconds": 0.4, "level": 0.5, "layers": [{ "sine": 660, "decay": 9 }, { "sine": 990, "decay": 9, "delay": 0.08 }] },
+    "nope": { "seconds": 0.2, "level": 0.4, "layers": [{ "sine": 150, "decay": 20 }] },
+    "lose": { "seconds": 0.9, "level": 0.5, "layers": [{ "glide": [330, 110, 3], "decay": 4 }, { "glide": [220, 70, 3], "decay": 4, "delay": 0.25 }] }
+  },
+  "music": {
+    "theme": { "bpm": 120, "beats": 4, "bars": 8, "key": "C", "scale": "pentatonic", "seed": 4, "lufs": -24,
+      "reverb": { "decay": 1.2, "mix": 0.2 },
+      "instruments": {
+        "pluck": { "seconds": 0.7, "level": 0.5, "layers": [{ "sine": 1, "decay": 7 }, { "sine": 2, "decay": 10, "gain": 0.3 }] },
+        "bass": { "seconds": 1.0, "level": 0.6, "layers": [{ "sine": 0.5, "decay": 4, "attack": 0.01 }] } },
+      "tracks": [
+        { "inst": "bass", "play": "chords", "chords": "1 5 6 4", "every": "2 bars", "octave": 2, "gain": 0.8 },
+        { "inst": "pluck", "play": "walk", "every": "1 beats", "density": 0.5, "range": [1, 8], "octave": 4, "gain": 0.6, "vel": [0.5, 0.9] }] }
+  },
+
+  "vars": { "got": 0, "coins": 4, "lives": 2, "maxlives": 3, "timeleft": 60 },
+
+  "effects": {
+    "heal": { "about": "restore health: every source of healing goes through here, so the sound, the event and the cap stay consistent", "params": ["amount"],
+      "do": [{ "add": ["lives", "$amount"] }, { "play": "heal" }, { "emit": "healed" }] }
+  },
+
+  "prefabs": {
+    "pillar": { "tag": "wall", "shape": { "rect": [16, 16], "color": "#3a4a6b" }, "body": { "type": "static" } },
+    "player": { "tag": "player", "shape": { "sprite": "player", "flip": "auto" }, "size": [8, 8], "layer": 2, "clamp": true,
+      "body": { "type": "dynamic" }, "collide": ["wall"], "move": { "keys": { "mode": "topdown", "speed": 100 } } },
+    "coin": { "tag": "coin", "shape": { "sprite": "coin" }, "layer": 1 },
+    "medkit": { "tag": "medkit", "shape": { "rect": [8, 8], "color": "#8cff9b" }, "layer": 1 },
+    "ghost": { "tag": "ghost", "shape": { "sprite": "ghost" }, "layer": 2, "move": { "chase": { "target": "player", "speed": 22 } } }
+  },
+
+  "scene": [
+    { "prefab": "player", "at": [160, 90], "id": "p" },
+    { "prefab": "pillar", "at": [80, 50] }, { "prefab": "pillar", "at": [240, 50] },
+    { "prefab": "pillar", "at": [80, 130] }, { "prefab": "pillar", "at": [240, 130] },
+    { "prefab": "coin", "at": [40, 30] }, { "prefab": "coin", "at": [280, 30] },
+    { "prefab": "coin", "at": [40, 150] }, { "prefab": "coin", "at": [280, 150] },
+    { "prefab": "medkit", "at": [200, 90] },
+    { "prefab": "ghost", "at": [20, 20] }
+  ],
+
+  "ui": [
+    { "panel": { "at": [0, 0], "size": [320, 16], "color": "#10141fdd" } },
+    { "text": "GOT {got:2}/10", "at": [6, 4], "color": "#ffd23f" },
+    { "text": "COINS {coins:2}", "at": [86, 4], "color": "#9fb3d9" },
+    { "text": "TIME {timeleft:2}", "at": [160, 4], "color": "#ffffff" },
+    { "bar": { "var": "lives", "max": 3, "at": [250, 4], "size": [64, 8], "color": "#ff4d6d", "back": "#3a2230" } },
+    { "panel": { "at": [60, 56], "size": [200, 64], "color": "#10141fee" }, "show": "ended" },
+    { "text": "YOU WIN!", "at": [160, 66], "scale": 2, "align": "center", "color": "#8cff9b", "show": "ended == 1" },
+    { "text": "GAME OVER", "at": [160, 66], "scale": 2, "align": "center", "color": "#ff7a8c", "show": "ended == 2" },
+    { "button": { "id": "restart", "label": "PLAY AGAIN (ENTER)", "at": [100, 100], "size": [120, 14], "key": "Enter", "do": [{ "restart": true }] }, "show": "ended" },
+    { "text": "BANDAGE: 3 COINS (X / B)", "at": [6, 168], "color": "#8cff9b" }
+  ],
+
+  "controls": { "layout": "dpad", "a": false, "b": { "label": "BANDAGE", "action": "secondary" } },
+
+  "rules": [
+    { "id": "grab coin", "when": { "touch": ["player", "coin"] }, "do": [
+      { "add": ["got", 1] }, { "add": ["coins", 1] }, { "play": "pick" }, { "burst": { "at": "other", "n": 10, "color": "#ffd23f", "speed": [30, 70], "life": [0.2, 0.5] } }, { "destroy": "other" }] },
+    { "id": "grab medkit", "when": { "touch": ["player", "medkit"] }, "do": [{ "apply": "heal", "with": { "amount": 2 } }, { "destroy": "other" }] },
+    { "id": "bandage", "when": { "press": "secondary" }, "if": "coins >= 3 && lives < maxlives && !ended", "do": [
+      { "add": ["coins", -3] }, { "apply": "heal", "with": { "amount": 1 } }] },
+    { "id": "bandage refused", "when": { "press": "secondary" }, "if": "(coins < 3 || lives >= maxlives) && !ended", "do": [{ "play": "nope" }] },
+    { "id": "health cap", "when": { "event": "healed" }, "if": "lives > maxlives", "do": [{ "set": ["lives", "maxlives"] }] },
+    { "id": "ghost hit", "when": { "touch": ["player", "ghost"] }, "do": [
+      { "add": ["lives", -1] }, { "play": "hit" }, { "shake": 4 }, { "burst": { "at": "self", "n": 16, "color": "#ff4d6d", "speed": [40, 90], "life": [0.3, 0.6] } },
+      { "destroy": "other" }, { "emit": "hurt" }] },
+    { "id": "out of lives", "when": { "event": "hurt" }, "if": "lives <= 0", "do": [{ "end": "lose" }] },
+    { "id": "enough coins", "when": { "every": 0.05 }, "if": "got >= 10", "do": [{ "end": "win" }] },
+    { "id": "clock", "when": { "every": 1 }, "do": [{ "add": ["timeleft", -1] }] },
+    { "id": "time up", "when": { "every": 0.05 }, "if": "timeleft <= 0", "do": [{ "end": "lose" }] },
+    { "id": "more coins", "when": { "every": 0.9 }, "if": "count_coin < 6", "do": [{ "spawn": { "prefab": "coin", "at": { "x": [16, 304], "y": [28, 170] } } }] },
+    { "id": "more medkits", "when": { "every": 12 }, "if": "count_medkit < 1", "do": [{ "spawn": { "prefab": "medkit", "at": { "x": [16, 304], "y": [28, 170] } } }] },
+    { "id": "more ghosts", "when": { "every": 8 }, "if": "count_ghost < 2", "do": [{ "spawn": { "prefab": "ghost", "at": { "x": [8, 312], "y": [20, 24] } } }] },
+    { "id": "win jingle", "when": { "end": "win" }, "do": [{ "play": "win" }] },
+    { "id": "lose jingle", "when": { "end": "lose" }, "do": [{ "play": "lose" }] },
+    { "id": "again", "when": { "press": "action" }, "if": "ended", "do": [{ "restart": true }] }
+  ],
+
+  "checks": {
+    "scenarios": [
+      { "name": "a medkit heals, and health never passes the maximum", "seed": 1, "max_seconds": 10,
+        "script": [{ "approach": "medkit", "seconds": 3 }],
+        "expect": [{ "var": "lives", "eq": 3 }, { "sound": "heal" }, { "entity": "p", "near": [200, 90], "tol": 10 }], "smoke": true },
+      { "name": "the bandage ability costs 3 coins and heals 1", "seed": 1, "max_seconds": 5,
+        "script": [{ "press": "secondary" }, { "wait": 0.1 }],
+        "expect": [{ "var": "coins", "eq": 1 }, { "var": "lives", "eq": 3 }, { "sound": "heal" }] },
+      { "name": "the bandage is refused when it cannot help", "seed": 1, "max_seconds": 5,
+        "script": [{ "press": "secondary" }, { "wait": 0.1 }, { "press": "secondary" }, { "wait": 0.1 }],
+        "expect": [{ "var": "coins", "eq": 1 }, { "var": "lives", "eq": 3 }, { "sound": "nope" }, { "sound": "heal", "min": 1 }] },
+      { "name": "a bot collects coins and wins", "seed": 1, "max_seconds": 70,
+        "script": [{ "approach": "coin", "seconds": 55 }],
+        "expect": [{ "var": "got", "gte": 10 }, { "ended": "win" }, { "sound": "win" }] }
+    ],
+    "browser": [
+      { "name": "arrow keys move the player", "keys": ["ArrowRight"], "ms": 500, "changes": ["p_x"] }
+    ]
+  }
+}

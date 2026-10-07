@@ -286,6 +286,22 @@ impl Runner<'_> {
     }
 }
 
+/// One line for a failed scenario: which rules fired and which never did (the usual cause of a variable that did not move).
+fn rule_summary(sim: &Sim) -> String {
+    let fires = sim.rule_fires();
+    let idle: Vec<&str> = fires.iter().filter(|(_, n)| *n == 0).map(|(id, _)| id.as_str()).collect();
+    let ran: Vec<String> = fires.iter().filter(|(_, n)| *n > 0).map(|(id, n)| format!("{id} x{n}")).collect();
+    format!(
+        "rules that never fired: {}; fired: {} (a rule that never fired has a trigger that did not happen or an `if` that was false)",
+        match idle.len() {
+            0 => "none".to_string(),
+            n if n > 6 => format!("{}, … ({} more)", idle[..6].join(", "), n - 6),
+            _ => idle.join(", "),
+        },
+        if ran.is_empty() { "none".to_string() } else { ran.join(", ") }
+    )
+}
+
 /// Runs a scenario. `stop_at` ends the run early at that tick (to take a picture mid-game); expectations are only checked when the whole script ran.
 pub fn run_scenario(def: &Arc<GameDef>, sc: &Scenario, stop_at: Option<u64>) -> (ScenarioReport, Sim) {
     let mut r = Runner { sim: Sim::new(def.clone(), sc.seed), budget: (sc.max_seconds * TPS as f32).round() as u64, stop: stop_at, failures: Vec::new(), sc };
@@ -301,6 +317,9 @@ pub fn run_scenario(def: &Arc<GameDef>, sc: &Scenario, stop_at: Option<u64>) -> 
             if let Err(why) = check(&r.sim, e) {
                 failures.push(why);
             }
+        }
+        if !failures.is_empty() {
+            failures.push(rule_summary(&r.sim));
         }
     }
     let sim = r.sim;
@@ -495,6 +514,7 @@ mod tests {
         assert!(!rep.ok);
         let all = rep.failures.join("\n");
         assert!(all.contains("expected score eq 5, found 0"), "{all}");
+        assert!(all.contains("rules that never fired:") && all.contains("fired:"), "a failed scenario says which rules ran: {all}");
         assert!(all.contains("expected game ended in a win, found it had not ended"), "{all}");
         assert!(all.contains("event `nothing` emitted 1..any, found 0 time(s) (events seen: none)"), "{all}");
         assert!(all.contains("count of `coin` eq 0, found 2"), "{all}");

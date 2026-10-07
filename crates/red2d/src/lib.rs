@@ -36,6 +36,7 @@ pub mod prefabs {
 
 pub mod caps;
 pub mod controls;
+pub(crate) mod effects;
 pub mod font;
 pub mod game;
 pub mod game3d;

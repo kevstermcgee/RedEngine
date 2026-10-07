@@ -428,7 +428,7 @@
         "at": [286, 248],
         "size": [56, 16],
         "color": "#2d3f73",
-        "do": [{"set": ["paused", "1 - paused"]}, {"play": "select"}]
+        "do": [{"apply": "toggle_pause"}]
       }
     },
     {
@@ -444,6 +444,18 @@
     },
     {"text": "OFF", "at": [420, 252], "color": "#ff7a8c", "scale": 1, "align": "right", "show": "!music_on"}
   ],
+  "effects": {
+    "build": {
+      "about": "buy a module on the clicked plot: spend `cost` credits, put `prefab` there, and show it",
+      "params": ["cost", "prefab"],
+      "do": [
+        {"add": ["credits", "-$cost"]}, {"spawn": {"prefab": "$prefab", "at": "self"}}, {"play": "build"},
+        {"burst": {"at": "self", "n": 12, "color": "#9fd2ff", "speed": [20, 60], "life": [0.2, 0.5]}},
+        {"destroy": "self"}
+      ]
+    },
+    "toggle_pause": {"about": "the pause key and the PAUSE button do the same thing", "do": [{"set": ["paused", "1 - paused"]}, {"play": "select"}]}
+  },
   "rules": [
     {
       "id": "no funds",
@@ -456,61 +468,37 @@
       "id": "build solar",
       "when": {"click": "slot"},
       "if": "tool == 1 && credits >= 40 && ended == 0",
-      "do": [
-        {"add": ["credits", -40]}, {"spawn": {"prefab": "solar", "at": "self"}}, {"play": "build"},
-        {"burst": {"at": "self", "n": 12, "color": "#9fd2ff", "speed": [20, 60], "life": [0.2, 0.5]}},
-        {"destroy": "self"}
-      ]
+      "do": [{"apply": "build", "with": {"cost": 40, "prefab": "solar"}}]
     },
     {
       "id": "build oxygenator",
       "when": {"click": "slot"},
       "if": "tool == 2 && credits >= 50 && ended == 0",
-      "do": [
-        {"add": ["credits", -50]}, {"spawn": {"prefab": "oxygenator", "at": "self"}}, {"play": "build"},
-        {"burst": {"at": "self", "n": 12, "color": "#9fd2ff", "speed": [20, 60], "life": [0.2, 0.5]}},
-        {"destroy": "self"}
-      ]
+      "do": [{"apply": "build", "with": {"cost": 50, "prefab": "oxygenator"}}]
     },
     {
       "id": "build hydroponics",
       "when": {"click": "slot"},
       "if": "tool == 3 && credits >= 45 && ended == 0",
-      "do": [
-        {"add": ["credits", -45]}, {"spawn": {"prefab": "hydroponics", "at": "self"}}, {"play": "build"},
-        {"burst": {"at": "self", "n": 12, "color": "#9fd2ff", "speed": [20, 60], "life": [0.2, 0.5]}},
-        {"destroy": "self"}
-      ]
+      "do": [{"apply": "build", "with": {"cost": 45, "prefab": "hydroponics"}}]
     },
     {
       "id": "build quarters",
       "when": {"click": "slot"},
       "if": "tool == 4 && credits >= 60 && ended == 0",
-      "do": [
-        {"add": ["credits", -60]}, {"spawn": {"prefab": "quarters", "at": "self"}}, {"play": "build"},
-        {"burst": {"at": "self", "n": 12, "color": "#9fd2ff", "speed": [20, 60], "life": [0.2, 0.5]}},
-        {"destroy": "self"}
-      ]
+      "do": [{"apply": "build", "with": {"cost": 60, "prefab": "quarters"}}]
     },
     {
       "id": "build lab",
       "when": {"click": "slot"},
       "if": "tool == 5 && credits >= 70 && ended == 0",
-      "do": [
-        {"add": ["credits", -70]}, {"spawn": {"prefab": "lab", "at": "self"}}, {"play": "build"},
-        {"burst": {"at": "self", "n": 12, "color": "#9fd2ff", "speed": [20, 60], "life": [0.2, 0.5]}},
-        {"destroy": "self"}
-      ]
+      "do": [{"apply": "build", "with": {"cost": 70, "prefab": "lab"}}]
     },
     {
       "id": "build shield",
       "when": {"click": "slot"},
       "if": "tool == 6 && credits >= 90 && ended == 0",
-      "do": [
-        {"add": ["credits", -90]}, {"spawn": {"prefab": "shield", "at": "self"}}, {"play": "build"},
-        {"burst": {"at": "self", "n": 12, "color": "#9fd2ff", "speed": [20, 60], "life": [0.2, 0.5]}},
-        {"destroy": "self"}
-      ]
+      "do": [{"apply": "build", "with": {"cost": 90, "prefab": "shield"}}]
     },
     {
       "id": "economy",
@@ -606,7 +594,7 @@
       "do": [{"set": ["power", "power * 0.4"]}, {"set": ["flare", 3]}, {"play": "alarm"}, {"shake": 3}]
     },
     {"id": "flare fades", "when": {"every": 0.25}, "if": "flare > 0", "do": [{"add": ["flare", -0.25]}]},
-    {"id": "pause key", "when": {"press": "pause"}, "do": [{"set": ["paused", "1 - paused"]}, {"play": "select"}]},
+    {"id": "pause key", "when": {"press": "pause"}, "do": [{"apply": "toggle_pause"}]},
     {
       "id": "score on end",
       "when": {"end": "any"},
