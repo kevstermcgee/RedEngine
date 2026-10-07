@@ -9,6 +9,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 ## Done
 
 ## Next
+- 2026-10-07: DIRECTION CHANGE (user): no web play for any game; Windows EXE downloads only, remove web from the site. Plan: (1) re2d native 2D player DONE on branch native-2d (Xvfb-verified draw+tick; input/audio untested); (2) package2d -> EXE zip/installer + make 2d on windows SUPPORTED in caps; (3) switch publish2d/site to EXE download pages (RedEngineGames), remove web build/serve/verify/publish, wasm, CI web stage, docs; (4) replace browser checks in scenarios
 
 ## Failing / blocked
 
