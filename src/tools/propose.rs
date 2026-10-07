@@ -168,7 +168,7 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
     );
     let wants_plain_3d = has(&t, &["3d"]);
     let wants_others = has(&t, &["multiplayer", "online", "with friends", "co-op", "coop", "versus", "pvp", "play with my", "with my cousin", "with others"]);
-    let wants_web = has(&t, &["browser", "web", "url", "link", "online game", "publish"]);
+    let wants_web = has(&t, &["browser", "webgl", "wasm", "webassembly", "in the web", "web game", "web app"]);
 
     // Genre -> default input, session, mechanics weight.
     let (genre, input_default, session, weight): (&'static str, &[Input], (u32, u32), u32) =
@@ -243,13 +243,13 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
             reasons.push(format!("presentation {} was requested; it is checked below, not assumed", p.name()));
             p
         }
-        None if wants_hybrid && !wants_3d_world && !(wants_others && !wants_web) => {
+        None if wants_hybrid && !wants_3d_world && !wants_others => {
             reasons.push(
-                "the idea wants 3D parts (a model, a perspective view, a minimap) inside an otherwise 2D game: hybrid keeps one JSON file, the 2D loop and browser play, and draws only those parts in 3D".to_string(),
+                "the idea wants 3D parts (a model, a perspective view, a minimap) inside an otherwise 2D game: hybrid keeps one JSON file, the 2D loop and native play, and draws only those parts in 3D".to_string(),
             );
             Presentation::Hybrid
         }
-        None if wants_3d_world || wants_plain_3d || wants_others && !wants_web => {
+        None if wants_3d_world || wants_plain_3d || wants_others => {
             reasons.push(if wants_3d_world || wants_plain_3d {
                 "the idea needs a 3D world (first-person, driving or exploration), which 2D cannot show".to_string()
             } else {
@@ -258,7 +258,7 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
             Presentation::ThreeD
         }
         None => {
-            reasons.push("2D is the simplest presentation that can deliver this idea: one JSON file, deterministic headless tests, and it runs in a browser; choose 3D only for a 3D world".to_string());
+            reasons.push("2D is the simplest presentation that can deliver this idea: one JSON file, deterministic headless tests, and it plays in a native window; choose 3D only for a 3D world".to_string());
             Presentation::TwoD
         }
     };
@@ -270,16 +270,19 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
 
     let platforms: Vec<Platform> = if !o.platforms.is_empty() {
         o.platforms.clone()
-    } else if presentation.portable() || wants_web && networking == Networking::Offline {
-        reasons.push("web is the 2D target: a static package that plays from a URL".to_string());
-        vec![Platform::Web]
     } else {
-        reasons.push("3D games ship for windows and linux (the browser cannot run the 3D engine yet)".to_string());
+        reasons.push("every game is a native executable: windows and linux".to_string());
         vec![Platform::Windows, Platform::Linux]
     };
+    if wants_web {
+        problems.push(
+            "RedEngine has no browser target: games are native executables (`red_engine2 play2d` for 2D, the 3D client for 3D); drop the browser from the idea"
+                .to_string(),
+        );
+    }
 
     let input: Vec<Input> =
-        if o.input.is_empty() { input_default.iter().copied().filter(|i| presentation.portable() || *i != Input::Touch).collect() } else { o.input.clone() };
+        if o.input.is_empty() { input_default.iter().copied().filter(|i| !presentation.portable() || *i != Input::Gamepad).collect() } else { o.input.clone() };
     let mut persistence = Vec::new();
     if has(&t, &["score", "high score", "best", "progress", "save", "unlock", "level"]) || genre != "puzzle" && complexity != "small" {
         persistence.push(Persistence::Progress);
@@ -296,9 +299,6 @@ pub fn propose(idea: &str, o: &Overrides) -> Proposal {
     let c = Capabilities { presentation, platforms, networking, input, persistence, distribution };
     for p in caps::check(&c) {
         problems.push(p.to_string());
-    }
-    if wants_others && c.platforms.contains(&Platform::Web) {
-        problems.push("playing with others in a browser is not supported (see `capabilities 2d web authoritative`); ship a 3D game for windows/linux, or make the browser version single-player".to_string());
     }
     let warnings = caps::warnings(&c);
     Proposal { title: o.title.clone().unwrap_or_else(|| title_of(idea, genre)), genre, caps: c, session: minutes, complexity, reasons, problems, warnings }
@@ -355,7 +355,7 @@ impl Proposal {
             "files_to_write": files,
             "size": bytes,
             "files_to_read_first": if self.caps.presentation == Presentation::Hybrid { json!(["`describe 2d` (one page, ~8 KB)", "`describe hybrid` (the 3D parts, ~4 KB)"]) } else if two_d { json!(["`describe 2d` (one page, ~8 KB)"]) } else { json!(["`describe --brief`", "`describe rules`", "`recipe`/`catalog`"]) },
-            "loop_commands": if two_d { json!(["validate", "sim", "verify", "frame", "web verify", "publish"]) } else { json!(["validate", "lint", "verify", "plan/frame", "playtest"]) },
+            "loop_commands": if two_d { json!(["validate", "sim", "verify", "frame", "play2d"]) } else { json!(["validate", "lint", "verify", "plan/frame", "playtest"]) },
             "basis": "sizes of the example games and starters in this repository; no token counts are claimed",
         })
     }
@@ -369,8 +369,7 @@ impl Proposal {
                 "red_engine2 new-game DIR --kind 2d        # a verified starter, then replace its game with this plan".into(),
                 "red_engine2 describe 2d                   # the file format on one page".into(),
                 "red_engine2 verify DIR/NAME.game2d.json   # after every change".into(),
-                "red_engine2 web verify DIR/NAME.game2d.json   # then in a real browser".into(),
-                "red_engine2 publish DIR/NAME.game2d.json  # to a URL when a backend is configured".into(),
+                "red_engine2 play2d DIR/NAME.game2d.json   # then play it in a window".into(),
             ]
         } else {
             vec![
@@ -434,10 +433,10 @@ mod tests {
     }
 
     #[test]
-    fn a_small_arcade_idea_is_a_2d_browser_game_and_never_defaults_to_3d() {
+    fn a_small_arcade_idea_is_a_2d_native_game_and_never_defaults_to_3d() {
         let r = p("Create a small 2D arcade game where you collect coins and dodge ghosts");
         assert_eq!(r.caps.presentation, Presentation::TwoD);
-        assert_eq!(r.caps.platforms, vec![Platform::Web]);
+        assert_eq!(r.caps.platforms, vec![Platform::Windows, Platform::Linux]);
         assert_eq!(r.caps.networking, Networking::Offline);
         assert!(r.buildable() && r.caps.input.contains(&Input::Keyboard));
         assert!(r.reasons.iter().any(|x| x.contains("simplest presentation")));
@@ -449,7 +448,7 @@ mod tests {
     fn a_3d_part_in_a_2d_game_is_hybrid_and_a_3d_world_is_3d() {
         let r = p("a top-down arena with a 3D boss and a minimap");
         assert_eq!(r.caps.presentation, Presentation::Hybrid, "{}", r.render());
-        assert_eq!(r.caps.platforms, vec![Platform::Web], "hybrid ships to the browser like 2D");
+        assert_eq!(r.caps.platforms, vec![Platform::Windows, Platform::Linux], "hybrid ships natively like 2D");
         assert!(r.buildable() && r.reasons.iter().any(|x| x.contains("hybrid")), "{}", r.render());
         assert!(r.to_json()["cost"]["files_to_read_first"].to_string().contains("describe hybrid"));
         assert!(r.render().contains("red_engine2 describe 2d"), "hybrid is planned with the 2D loop");
@@ -478,27 +477,34 @@ mod tests {
     }
 
     #[test]
-    fn other_players_in_a_browser_is_reported_unsupported_with_the_way_out_not_shrunk() {
-        let r = p("an online co-op shooter I can play in the browser with my cousin");
+    fn a_browser_is_reported_unsupported_with_the_way_out_not_shrunk() {
+        let r = p("a small arcade game I can play in the browser");
         assert!(!r.buildable(), "{}", r.render());
         let text = r.render();
-        assert!(
-            text.contains("CANNOT BUILD AS STATED") && text.contains("Browser target cannot use the native UDP transport") && text.contains("single-player"),
-            "{text}"
-        );
-        assert_eq!(r.caps.networking, Networking::Authoritative, "the networking the user asked for is kept, not quietly dropped");
+        assert!(text.contains("CANNOT BUILD AS STATED") && text.contains("no browser target") && text.contains("native executables"), "{text}");
+    }
+
+    #[test]
+    fn other_players_make_a_3d_game_with_the_authoritative_server() {
+        let r = p("an online co-op shooter to play with my cousin");
+        assert_eq!(r.caps.presentation, Presentation::ThreeD, "{}", r.render());
+        assert_eq!(r.caps.networking, Networking::Authoritative);
+        assert!(r.buildable(), "{}", r.render());
     }
 
     #[test]
     fn overrides_are_checked_not_trusted() {
-        let r = propose("a small arcade game", &Overrides { presentation: Some(Presentation::ThreeD), platforms: vec![Platform::Web], ..Overrides::default() });
-        assert!(!r.buildable() && r.problems.iter().any(|x| x.contains("3D cannot target `web`")), "{:?}", r.problems);
+        let r =
+            propose("a small arcade game", &Overrides { presentation: Some(Presentation::ThreeD), platforms: vec![Platform::MacOs], ..Overrides::default() });
+        assert!(!r.buildable() && r.problems.iter().any(|x| x.contains("cannot target `macos`")), "{:?}", r.problems);
         let r = propose(
             "a small arcade game",
             &Overrides { title: Some("Zip".into()), session_minutes: Some(4), input: vec![Input::Gamepad], ..Overrides::default() },
         );
+        assert!(!r.buildable() && r.problems.iter().any(|x| x.contains("gamepad") && x.contains("prepared")), "{:?}", r.problems);
+        let r = propose("a small arcade game", &Overrides { title: Some("Zip".into()), session_minutes: Some(4), ..Overrides::default() });
         assert!(r.buildable() && r.title == "Zip" && r.session == (4, 4));
-        assert!(r.warnings.iter().any(|w| w.contains("gamepad") && w.contains("unverified")), "{:?}", r.warnings);
+        assert!(r.warnings.iter().any(|w| w.contains("install") && w.contains("unverified")), "{:?}", r.warnings);
     }
 
     #[test]

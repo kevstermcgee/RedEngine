@@ -234,9 +234,8 @@ pub fn touches_red2d(changed: &[String]) -> bool {
     changed.iter().any(|c| c.starts_with("crates/red2d/") || RED2D_SHARED.contains(&c.as_str()))
 }
 
-/// The steps the 2D crate adds. Cargo's package selection is by `-p`, so none of the engine-crate steps above covers it. `browser` (the full tier only) adds the
-/// WebAssembly lint and the real-browser run, which fails rather than skips when no browser is set up: a green `affected` must not mean "browser skipped".
-fn red2d_steps(changed: &[String], tests: bool, browser: bool) -> Vec<Step> {
+/// The steps the 2D crate adds. Cargo's package selection is by `-p`, so none of the engine-crate steps above covers it.
+fn red2d_steps(changed: &[String], tests: bool) -> Vec<Step> {
     if !touches_red2d(changed) {
         return Vec::new();
     }
@@ -248,57 +247,7 @@ fn red2d_steps(changed: &[String], tests: bool, browser: bool) -> Vec<Step> {
     if tests {
         v.push(Step::new("red2d", &["cargo", "test", "--locked", "-p", "red2d"], "unit tests of the 2D crate: parser, simulation, renderer, sound, host"));
     }
-    if browser {
-        v.push(Step::new(
-            "red2d-wasm",
-            &["cargo", "clippy", "--locked", "-p", "red2d", "--target", "wasm32-unknown-unknown", "--", "-D", "warnings"],
-            "the WebAssembly surface (web.rs) only compiles for wasm32",
-        ));
-        v.push(Step {
-            name: "web".into(),
-            argv: vec!["bash".into(), "scripts/web_check.sh".into()],
-            env: vec![("RED_CI_REQUIRE_BROWSER".into(), "1".into())],
-            why: "the 2D games run in a real headless browser (needs `red_engine2 web setup-browser` once); a missing browser fails this step, never skips it"
-                .into(),
-        });
-    }
     v
-}
-
-/// Whether a change reaches the browser build of the 3D player: engine code that is compiled for wasm32 (the binaries, the map-analysis toolchain and the command line are
-/// compiled out there) or the wrapper crate and the files that set its build up.
-pub fn touches_web3d(changed: &[String]) -> bool {
-    changed.iter().any(|c| {
-        let engine = c.starts_with("src/") && !["src/bin/", "src/tools/", "src/cli/"].iter().any(|p| c.starts_with(p)) && c != "src/main.rs";
-        engine || c.starts_with("crates/web3d/") || c == "Cargo.toml" || c == "Cargo.lock" || c.starts_with(".cargo/")
-    })
-}
-
-/// The step the 3D browser build adds (full tier): a wasm32 lint of the engine crate under `--features web`, because nothing else compiles those cfgs.
-fn web3d_steps(changed: &[String], browser: bool) -> Vec<Step> {
-    if !browser || !touches_web3d(changed) {
-        return Vec::new();
-    }
-    vec![Step::new(
-        "web3d-wasm",
-        &[
-            "cargo",
-            "clippy",
-            "--locked",
-            "-p",
-            "red_engine2",
-            "--lib",
-            "--target",
-            "wasm32-unknown-unknown",
-            "--no-default-features",
-            "--features",
-            "web",
-            "--",
-            "-D",
-            "warnings",
-        ],
-        "the browser build of the 3D player: the engine's renderer and simulation must still compile (and lint clean) for wasm32 with the `web` feature",
-    )]
 }
 
 /// Paths that never need verification (generated output, logs, the handoff file).
@@ -614,8 +563,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
             why: format!("real-time network suites, one test at a time: {}", list.join(", ")),
         });
     }
-    plan.steps.extend(red2d_steps(&changed, true, !opts.quick));
-    plan.steps.extend(web3d_steps(&changed, !opts.quick));
+    plan.steps.extend(red2d_steps(&changed, true));
     plan.deferred = deferred.into_iter().collect();
     plan.suggest.sort();
     plan.suggest.dedup();
@@ -715,6 +663,10 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
     let mut targets: BTreeSet<Target> = BTreeSet::new();
     let mut lib_filters: BTreeSet<String> = BTreeSet::new();
     for c in &changed {
+        // A deleted test or module has nothing left to compile or run (its owners are still found through `impact` above).
+        if !std::path::Path::new(c).exists() {
+            continue;
+        }
         if let Some(t) = target_of(c) {
             targets.insert(t);
         }
@@ -780,7 +732,7 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
             plan.steps.push(Step { name: name.into(), argv, env, why: "a changed test file runs itself".into() });
         }
     }
-    plan.steps.extend(red2d_steps(&changed, !opts.check_only, false));
+    plan.steps.extend(red2d_steps(&changed, !opts.check_only));
     if opts.check_only {
         plan.notes.push("--check-only: formatting and type-check only, no tests".into());
     }
@@ -1070,7 +1022,7 @@ pub fn record_green(root: &Path, changed: &[String], scope: Scope) {
 /// One area of verification an agent might wonder about, and whether this plan needs it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Need {
-    /// `network`, `browser`, `packaging`.
+    /// `network`, `packaging`.
     pub area: &'static str,
     /// Whether the plan includes checks for it (or its files changed).
     pub required: bool,
@@ -1078,7 +1030,7 @@ pub struct Need {
     pub why: String,
 }
 
-/// What this plan does and does not cover, said out loud: an agent that sees only a list of commands has to guess whether networking, a browser or packaging were considered.
+/// What this plan does and does not cover, said out loud: an agent that sees only a list of commands has to guess whether networking or packaging were considered.
 /// Derived from the plan's own steps and changed files, so it cannot disagree with them.
 pub fn needs(p: &Plan) -> Vec<Need> {
     let step_has = |needle: &str| p.steps.iter().any(|s| s.name == needle || s.command_line().contains(needle));
@@ -1097,15 +1049,8 @@ pub fn needs(p: &Plan) -> Vec<Need> {
             "no networking file changed and no net_* suite is in the plan",
         ),
         one(
-            "browser",
-            changed_in(&["crates/red2d/", "crates/web3d/", "src/web3d.rs", "src/tools/webpkg.rs", "src/tools/webverify.rs"])
-                || p.steps.iter().any(|s| s.name == "web" || s.command_line().contains("web_check.sh") || s.command_line().contains("--test web2d_")),
-            "the browser runtime or its package changed (a real-browser run is in the full tier)",
-            "no browser runtime or 2D/3D web file changed (`web verify` / the `web` stage are not needed yet)",
-        ),
-        one(
             "packaging",
-            changed_in(&["src/tools/package.rs", "src/tools/publish2d.rs", "src/tools/gamepublish.rs", "src/tools/webpkg.rs", "scripts/release", "deploy/"]),
+            changed_in(&["src/tools/package.rs", "src/tools/gamepublish.rs", "scripts/release", "deploy/"]),
             "packaging or publishing code changed",
             "no packaging or publishing file changed",
         ),
@@ -1267,16 +1212,14 @@ mod tests {
 
     #[test]
     fn a_change_to_the_2d_crate_or_a_file_it_includes_plans_the_crates_own_checks() {
-        for f in ["crates/red2d/src/sim.rs", "crates/red2d/web/runtime.js", "src/sim/rules_expr.rs", "src/synth.rs"] {
+        for f in ["crates/red2d/src/sim.rs", "src/sim/rules_expr.rs", "src/synth.rs"] {
             assert!(touches_red2d(&[f.to_string()]), "{f}");
         }
         assert!(!touches_red2d(&["src/tools/lint.rs".to_string(), "src/net/mod.rs".to_string()]));
         let p = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options::default());
         assert_eq!(step(&p, "red2d").argv.join(" "), "cargo test --locked -p red2d");
         assert!(step(&p, "red2d-clippy").argv.join(" ").contains("-p red2d --all-targets"));
-        let web = step(&p, "web");
-        assert_eq!(web.env, vec![("RED_CI_REQUIRE_BROWSER".to_string(), "1".to_string())], "a missing browser must fail the full tier, not skip it");
-        assert!(step(&p, "red2d-wasm").argv.join(" ").contains("--target wasm32-unknown-unknown"));
+        assert!(p.steps.iter().all(|s| s.name != "web" && s.name != "red2d-wasm"), "{:?}", names(&p));
         let quick = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options { quick: true, ..Options::default() });
         assert!(quick.steps.iter().any(|s| s.name == "red2d") && quick.steps.iter().all(|s| s.name != "web"), "{:?}", names(&quick));
         let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
@@ -1287,39 +1230,19 @@ mod tests {
     fn a_plan_says_what_it_does_not_need_and_what_to_run_before_pushing() {
         let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
         let n = needs(&none);
-        assert!(n.iter().all(|x| !x.required), "a leaf engine file needs neither network, browser nor packaging checks: {n:?}");
+        assert!(n.iter().all(|x| !x.required), "a leaf engine file needs neither network nor packaging checks: {n:?}");
         let text = render_plan(&none);
-        assert!(text.contains("not needed yet: network (") && text.contains("browser (") && text.contains("packaging ("), "{text}");
+        assert!(text.contains("not needed yet: network (") && text.contains("packaging ("), "{text}");
         assert!(text.contains("before pushing: scripts/dev affected --full"), "{text}");
         let j = plan_json(&none);
         assert_eq!(j["needs"]["network"]["required"], false);
-        assert!(j["needs"]["browser"]["why"].as_str().unwrap().contains("no browser"), "{j}");
-        // A networking file does need network checks, and the browser stays unneeded.
+        // A networking file does need network checks,
         let net = plan(&world(), &serial(), &["src/net/interp.rs".to_string()], &Options::default());
         assert!(needs(&net).iter().any(|x| x.area == "network" && x.required), "{:?}", needs(&net));
         assert!(!render_plan(&net).contains("network ("), "a required area is not listed as skipped");
         // The full tier covers everything by definition.
         let full = plan(&world(), &serial(), &["Cargo.toml".to_string()], &Options::default());
         assert!(needs(&full).iter().all(|x| x.required) && before_merge(&full).contains("already is the full"));
-    }
-
-    #[test]
-    fn a_change_to_the_engine_plans_the_3d_browser_build_in_the_full_tier_only() {
-        for f in ["src/viewer.rs", "src/web3d.rs", "crates/web3d/src/lib.rs", "Cargo.toml", ".cargo/config.toml"] {
-            assert!(touches_web3d(&[f.to_string()]), "{f}");
-        }
-        assert!(!touches_web3d(&[
-            "docs/WEB_PLATFORM.md".to_string(),
-            "crates/red2d/src/sim.rs".to_string(),
-            "src/tools/lint.rs".to_string(),
-            "src/bin/re2/main.rs".to_string(),
-            "src/cli/args.rs".to_string()
-        ]));
-        let p = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options::default());
-        assert!(step(&p, "web3d-wasm").argv.join(" ").contains("--target wasm32-unknown-unknown --no-default-features --features web"));
-        assert!(p.steps.iter().all(|s| !s.argv.join(" ").contains("scripts/ci.sh")), "one engine file does not escalate to the whole of CI");
-        let quick = plan(&world(), &serial(), &["src/viewer.rs".to_string()], &Options { quick: true, ..Options::default() });
-        assert!(quick.steps.iter().all(|s| s.name != "web3d-wasm"), "{:?}", names(&quick));
     }
 
     #[test]

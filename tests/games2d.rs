@@ -1,5 +1,5 @@
-//! The 2D path without a browser: every example game validates and verifies, the capability matrix says what it says, and the mistakes an author (or a smaller model) makes are
-//! refused early, with the path, the reason and the way out. The browser half is `web verify` (CI stage `web`) and `tests/web2d_package.rs`.
+//! The 2D path: every example game validates and verifies, the capability matrix says what it says, and the mistakes an author (or a smaller model) makes are
+//! refused early, with the path, the reason and the way out. The native window is `red_engine2 play2d` (`tests/play2d.rs`).
 //!
 //! These prove the *messages and the checks*. They do not prove any game is fun.
 
@@ -81,39 +81,34 @@ fn the_games_are_genuinely_different_kinds_of_game() {
 // ---- unsupported combinations fail early and say what to do ----------------------------------------------------------------------------------------
 
 #[test]
-fn a_3d_game_cannot_target_the_browser() {
+fn a_full_3d_game_is_not_a_game2d_file() {
     refused(
         &mutate("coin-dash", |g| g["capabilities"]["presentation"] = json!("3d")),
-        &["3D cannot target `web`", "not supported", "wgpu", "declare `presentation: \"2d\"`", "drop `web` from `platforms`"],
+        &["capabilities.presentation", "2D or hybrid game", "\"hybrid\"", "describe scene"],
     );
 }
 
 #[test]
-fn a_browser_game_cannot_ask_for_native_udp_networking() {
+fn a_2d_game_cannot_ask_for_networking() {
     refused(
         &mutate("coin-dash", |g| g["capabilities"]["networking"] = json!("authoritative")),
-        &[
-            "capabilities.networking",
-            "Browser target cannot use the native UDP transport",
-            "Supported networking for web games: offline",
-            "architecturally prepared",
-        ],
+        &["capabilities.networking", "not supported", "2D games are offline", "Declare `networking: \"offline\"`"],
     );
 }
 
 #[test]
-fn a_native_window_for_a_2d_game_is_prepared_not_built_and_says_so() {
+fn the_browser_is_not_a_platform() {
     refused(
-        &mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!(["web", "windows"])),
-        &["capabilities.platforms[1]", "cannot target `windows`", "prepared", "not built yet"],
+        &mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!(["windows", "web"])),
+        &["capabilities.platforms[1]", "`web` is not one of windows, linux, macos"],
     );
 }
 
 #[test]
 fn unknown_platforms_and_empty_declarations_are_refused_with_suggestions() {
-    refused(&mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!(["wev"])), &["wev", "did you mean `web`"]);
+    refused(&mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!(["windws"])), &["windws", "did you mean `windows`"]);
     refused(&mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!([])), &["platforms"]);
-    refused(&mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!(["macos"])), &["macos", "no macOS build"]);
+    refused(&mutate("coin-dash", |g| g["capabilities"]["platforms"] = json!(["macos"])), &["macos"]);
     refused(&mutate("coin-dash", |g| g["capabilities"]["networking"] = json!("p2p")), &["networking", "p2p", "offline"]);
 }
 
@@ -127,8 +122,8 @@ fn saved_progress_needs_the_declaration_and_the_declaration_needs_a_real_variabl
 
 #[test]
 fn input_that_is_used_must_be_declared() {
-    refused(&mutate("coin-dash", |g| g["capabilities"]["input"] = json!(["keyboard"])), &["neither `mouse` nor `touch` is declared"]);
-    refused(&mutate("coin-dash", |g| g["capabilities"]["input"] = json!(["mouse"])), &["keyboard", "not declared"]);
+    refused(&mutate("coin-dash", |g| g["capabilities"]["input"] = json!(["keyboard"])), &["`mouse` is not declared", "add it to `input`"]);
+    refused(&mutate("coin-dash", |g| g["capabilities"]["input"] = json!(["mouse"])), &["`keyboard` is not declared"]);
 }
 
 #[test]
@@ -205,27 +200,26 @@ fn a_regression_in_the_rules_fails_the_playthrough_and_says_what_was_found() {
 #[test]
 fn capabilities_answers_a_question_the_whole_matrix_and_a_games_declaration() {
     let q = |w: &[&str]| game2d::capabilities(None, &w.iter().map(|s| s.to_string()).collect::<Vec<_>>()).unwrap();
-    let r = q(&["2d", "web"]);
+    let r = q(&["2d", "windows"]);
     assert!(r.ok && r.text.contains("SUPPORTED"), "{}", r.text);
-    let r = q(&["3d", "web"]);
-    assert!(!r.ok && r.text.contains("NOT SUPPORTED") && r.text.contains("wgpu"), "{}", r.text);
-    let r = q(&["2d", "web", "authoritative"]);
-    assert!(!r.ok && r.text.contains("Browser target cannot use the native UDP transport"), "{}", r.text);
+    let r = q(&["2d", "linux", "authoritative"]);
+    assert!(!r.ok && r.text.contains("2D games are offline"), "{}", r.text);
     let r = q(&["3d", "linux", "authoritative"]);
     assert!(r.ok, "{}", r.text);
     let all = q(&[]);
-    assert!(all.ok && all.text.contains("PRESENTATION x PLATFORM"), "{}", all.text);
+    assert!(all.ok && all.text.contains("PRESENTATION x PLATFORM") && !all.text.contains("web"), "{}", all.text);
     assert!(game2d::capabilities(None, &["banana".to_string()]).is_err(), "a question with no presentation and platform is an error that lists them");
+    assert!(game2d::capabilities(None, &["2d".to_string(), "web".to_string()]).is_err(), "the browser is not a platform");
     let r = game2d::capabilities(Some(&examples()[0]), &[]).unwrap();
-    assert!(r.ok && r.text.contains("2d on web"), "{}", r.text);
+    assert!(r.ok && r.text.contains("2d on windows"), "{}", r.text);
 }
 
 #[test]
-fn frame_writes_the_picture_the_browser_would_show_at_any_window_shape() {
+fn frame_writes_the_picture_the_window_would_show_at_any_window_shape() {
     let dir = std::env::temp_dir().join(format!("re2_frames_{}", std::process::id()));
     let game = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/2d/coin-dash.game2d.json");
     let msg = game2d::frame(&game, &dir.join("a.png"), None, 0.0, None).unwrap();
-    assert!(msg.contains("320x180") && msg.contains("same CPU renderer the browser uses"), "{msg}");
+    assert!(msg.contains("320x180") && msg.contains("same CPU renderer the window uses"), "{msg}");
     let msg = game2d::frame(&game, &dir.join("b.png"), Some("a bot collects coins and wins"), 5.0, Some((1000, 400))).unwrap();
     assert!(msg.contains("1000x400") && msg.contains("tick 300"), "{msg}");
     let img = image::open(dir.join("b.png")).unwrap().to_rgba8();
@@ -246,44 +240,14 @@ fn routing_is_by_file_so_the_3d_verbs_still_mean_3d() {
 /// A fresh author's first `search` for a 2D question returned only 3D fragments; the 2D reference, docs and verified mechanics are in the corpus now.
 #[test]
 fn searching_for_a_2d_question_finds_the_2d_material() {
-    for q in ["spawn falling objects random position 2d", "how do I publish a 2d game to the browser", "sprite palette rows animation frames"] {
+    for q in ["spawn falling objects random position 2d", "how do I play a 2d game in a window", "sprite palette rows animation frames"] {
         let o = std::process::Command::new(env!("CARGO_BIN_EXE_red_engine2")).args(["search", q, "--limit", "3"]).output().unwrap();
         let text = String::from_utf8_lossy(&o.stdout);
         assert!(
-            text.contains("describe 2d") || text.contains("PUBLISHING_2D") || text.contains("WEB_PLATFORM") || text.contains("[mechanic] 2D mechanic"),
+            text.contains("describe 2d") || text.contains("PLAY_2D") || text.contains("[mechanic] 2D mechanic"),
             "`search {q}` found no 2D material in its top 3:\n{text}"
         );
     }
-}
-
-/// Every example says what a phone shows, and a phone controller that could not work is refused.
-#[test]
-fn every_example_has_a_phone_controller_and_the_mistakes_are_refused() {
-    use red2d::controls::PadLayout;
-    let layouts: Vec<(String, PadLayout, bool)> = examples()
-        .iter()
-        .map(|p| {
-            let d = red2d::game::parse(&std::fs::read_to_string(p).unwrap()).unwrap();
-            assert!(d.caps.input.contains(&red2d::caps::Input::Touch), "{} should declare touch", d.id);
-            (d.id.clone(), d.controls.layout, d.controls.visible())
-        })
-        .collect();
-    assert!(layouts.contains(&("coin-dash".into(), PadLayout::Dpad, true)), "{layouts:?}");
-    assert!(layouts.contains(&("moon-hopper".into(), PadLayout::Platformer, true)), "{layouts:?}");
-    assert!(layouts.contains(&("tiny-station".into(), PadLayout::Tap, true)), "a tap game shows only its pause button: {layouts:?}");
-    refused(&mutate("coin-dash", |g| g["controls"] = json!("platformer")), &["controls.layout", "platformer", "`platformer` mode"]);
-    refused(
-        &mutate("coin-dash", |g| g["controls"] = json!({"layout": "dpad", "b": "BOOST"})),
-        &["controls.b", "drives `secondary`", "nothing in the game reads it"],
-    );
-    refused(&mutate("coin-dash", |g| g["controls"] = json!("dpda")), &["did you mean `dpad`"]);
-    refused(
-        &mutate("coin-dash", |g| {
-            g["controls"] = json!("dpad");
-            g["capabilities"]["input"] = json!(["keyboard", "mouse"]);
-        }),
-        &["`touch` is not declared"],
-    );
 }
 
 #[test]
@@ -296,16 +260,10 @@ fn hybrid_games_use_3d_where_asked_and_everything_else_stays_2d() {
         assert!(d.uses_3d() && d.ui.iter().any(|w| matches!(w.kind, red2d::game::WidgetKind::Minimap { .. })), "{name} has a 3D element and a minimap");
     }
     let q = |w: &[&str]| game2d::capabilities(None, &w.iter().map(|s| s.to_string()).collect::<Vec<_>>()).unwrap();
-    let r = q(&["hybrid", "web"]);
-    assert!(
-        r.ok && r.text.contains("SUPPORTED") && r.text.contains("online distribution: SUPPORTED") && r.text.contains("install distribution: SUPPORTED"),
-        "{}",
-        r.text
-    );
+    let r = q(&["hybrid", "windows"]);
+    assert!(r.ok && r.text.contains("SUPPORTED") && r.text.contains("install distribution: UNVERIFIED"), "{}", r.text);
     let r = q(&["3d", "windows", "install"]);
-    assert!(r.ok && r.text.contains("install distribution: SUPPORTED") && !r.text.contains("online distribution"), "{}", r.text);
-    let r = q(&["3d", "web", "online"]);
-    assert!(!r.ok && r.text.contains("NOT SUPPORTED"), "{}", r.text);
+    assert!(r.ok && r.text.contains("install distribution: SUPPORTED"), "{}", r.text);
 }
 
 #[test]
@@ -329,91 +287,19 @@ fn cli(args: &[&str], cwd: &Path) -> (bool, String) {
 }
 
 #[test]
-fn describe_web_is_one_page_that_answers_every_question_a_fresh_model_has() {
-    let (ok, t) = cli(&["describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
+fn describe_2d_is_one_page_that_answers_every_question_a_fresh_model_has() {
+    let (ok, t) = cli(&["describe", "2d"], Path::new(env!("CARGO_MANIFEST_DIR")));
     assert!(ok, "{t}");
-    for must in [
-        "new-game DIR --kind 2d", // how to create
-        "2d ",
-        "hybrid",
-        "3d ", // when to choose which
-        "web status G",
-        "validate G -> verify G -> web verify G -> publish G", // the loop
-        "web setup-browser",
-        "publish G --backend github-pages --repo ../RedEngineGames", // how to publish
-        "ONLY this game",
-        "human_playtested", // how to read the evidence
-        "not_run and not_applicable are not passes",
-        "UPDATE an existing game",
-        "LIMITS (today)",
-        "SOFTWARE renderer",
-    ] {
-        assert!(t.contains(must), "describe web lacks `{must}`:\n{t}");
+    for must in ["new-game DIR --kind 2d", "`play2d G`", "coin-dash", "HYBRID", "docs/PLAY_2D.md"] {
+        assert!(t.contains(must), "describe 2d lacks `{must}`:\n{t}");
     }
-    for (key, _) in red_engine2::tools::evidence::KEYS {
-        assert!(t.contains(key), "describe web does not explain the evidence piece `{key}`");
+    for gone in ["web verify", "web status", "WebAssembly", "browser"] {
+        assert!(!t.contains(gone), "describe 2d still mentions `{gone}`:\n{t}");
     }
-    assert!(t.len() < 7_000, "one page, not a manual: {} bytes", t.len());
-    // The brief and the 2D page both point to it; the machine form carries the same facts.
     let (_, brief) = cli(&["describe", "--brief"], Path::new(env!("CARGO_MANIFEST_DIR")));
-    assert!(brief.contains("describe web") && brief.contains("web status"), "{brief}");
-    let (_, j) = cli(&["--json", "describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
-    let v: Value = serde_json::from_str(&j).unwrap();
-    assert!(
-        v["data"]["limits"].as_array().unwrap().len() >= 5 && v["data"]["evidence"].as_array().unwrap().len() == red_engine2::tools::evidence::KEYS.len(),
-        "{j}"
-    );
-}
-
-#[test]
-fn web_status_walks_a_new_game_from_nothing_to_the_next_command_each_time() {
-    let dir = std::env::temp_dir().join(format!("re2_web_status_cli_{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    let game = dir.join("gate-meadow.game2d.json");
-    std::fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/2d/gate-meadow.game2d.json"), &game).unwrap();
-    let (ok, j) = cli(&["--json", "web", "status", game.to_str().unwrap()], &dir);
-    assert!(ok, "{j}");
-    let v: Value = serde_json::from_str(&j).unwrap();
-    let d = &v["data"];
-    assert_eq!(d["schema"], "red2d-web-status/1");
-    assert_eq!(d["valid"], true);
-    assert_eq!(d["presentation"], "hybrid");
-    assert_eq!(d["native"]["ok"], true);
-    assert_eq!(d["package"]["built"], false);
-    assert!(d["next"][0]["command"].as_str().unwrap().starts_with("red_engine2 web verify "), "{d}");
-    assert_eq!(d["human_playtested"], false);
-    // The text form ends in the command to run.
-    let (_, t) = cli(&["web", "status", game.to_str().unwrap()], &dir);
-    assert!(t.contains("NEXT: red_engine2 web verify") && t.contains("package built      NO"), "{t}");
-    // A broken file says `validate` and shows the problems.
-    let bad = dir.join("bad.game2d.json");
-    std::fs::write(&bad, r#"{"game2d":1,"id":"bad","title":"x"}"#).unwrap();
-    let (_, t) = cli(&["web", "status", bad.to_str().unwrap()], &dir);
-    assert!(t.contains("NOT VALID") && t.contains("NEXT: red_engine2 validate"), "{t}");
-}
-
-#[test]
-fn describe_web3d_keeps_proven_experimental_hybrid_and_planned_apart() {
-    let (ok, t) = cli(&["describe", "web3d"], Path::new(env!("CARGO_MANIFEST_DIR")));
-    assert!(ok, "{t}");
-    for must in [
-        "PROVEN (the full engine)",
-        "EXPERIMENTAL",
-        "HYBRID (shipped and verified, a different thing)",
-        "PLANNED",
-        "SAME simulation checksum",
-        "SOFTWARE renderer",
-        "do not call the hybrid renderer a port of the engine",
-        "no WebGL2 fallback",
-    ] {
-        assert!(t.contains(must), "describe web3d lacks `{must}`:\n{t}");
-    }
-    // The capability matrix agrees: a 3D game still cannot declare the web, and the reason names the experiment instead of claiming nothing builds.
-    let r = game2d::capabilities(None, &["3d".to_string(), "web".to_string()]).unwrap();
-    assert!(!r.ok && r.text.contains("NOT SUPPORTED") && r.text.contains("experiment") && r.text.contains("describe web3d"), "{}", r.text);
-    let (_, web) = cli(&["describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
-    assert!(web.contains("describe web3d"), "describe web points to the 3D page");
+    assert!(brief.contains("describe 2d") && brief.contains("play2d"), "{brief}");
+    let (ok, _) = cli(&["describe", "web"], Path::new(env!("CARGO_MANIFEST_DIR")));
+    assert!(!ok, "there is no `describe web` topic any more");
 }
 
 // ---- effects: one named action list, applied from many rules ---------------------------------------------------------

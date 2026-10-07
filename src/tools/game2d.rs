@@ -50,7 +50,7 @@ pub fn validate(path: &Path) -> Report {
         Ok((d, _)) => {
             let c = &d.caps;
             let mut t = format!(
-                "OK: {} `{}` (revision {})\n  {} presentation, platforms {}, networking {}, input {}, saves {}\n  screen {}x{}, {} sprite(s), {} sound(s), {} music, {} prefab(s), {} placement(s), {} rule(s), {} HUD widget(s), {} scenario(s), {} browser check(s)\n",
+                "OK: {} `{}` (revision {})\n  {} presentation, platforms {}, networking {}, input {}, saves {}\n  screen {}x{}, {} sprite(s), {} sound(s), {} music, {} prefab(s), {} placement(s), {} rule(s), {} HUD widget(s), {} scenario(s)\n",
                 if c.presentation.portable() { "2D game" } else { "game" },
                 d.id,
                 d.rev,
@@ -68,8 +68,7 @@ pub fn validate(path: &Path) -> Report {
                 d.placements.len(),
                 d.rules.len(),
                 d.ui.len(),
-                d.scenarios.len(),
-                d.browser.len()
+                d.scenarios.len()
             );
             for w in caps::warnings(c) {
                 t.push_str(&format!("  warning: {w}\n"));
@@ -113,7 +112,7 @@ pub fn verify(path: &Path, only: Option<&str>) -> Report {
     }
     t.push_str(&format!("{} passed, {} failed in {:.1} s\n", pass, fail, started.elapsed().as_secs_f32()));
     t.push_str("PROVEN HERE: the scripted playthroughs run and end as asserted, deterministically (simulation); the first and last frames are not blank (CPU render); every sound is finite, unclipped and not silent (waveform).\n");
-    t.push_str("NOT PROVEN HERE: that it runs in a browser (`red_engine2 web verify`), that anything is audible or sounds good, that it is fun.");
+    t.push_str("NOT PROVEN HERE: that it plays well in the native window (`red_engine2 play2d`), that anything is audible or sounds good, that it is fun.");
     Report { text: t, ok: fail == 0 && pass > 0 }
 }
 
@@ -209,7 +208,7 @@ pub fn frame(path: &Path, out: &Path, scenario: Option<&str>, t: f32, size: Opti
     let img = image::RgbaImage::from_raw(shown.w, shown.h, shown.rgba).ok_or("internal: bad frame size")?;
     img.save(out).map_err(|e| format!("{}: {e}", out.display()))?;
     Ok(format!(
-        "wrote {} ({}x{}{}): {} colours, {:.1}% of the screen drawn, tick {}, hash {}\nThis is the same CPU renderer the browser uses; it shows the screen, not how it feels in motion.",
+        "wrote {} ({}x{}{}): {} colours, {:.1}% of the screen drawn, tick {}, hash {}\nThis is the same CPU renderer the window uses; it shows the screen, not how it feels in motion.",
         out.display(),
         img.width(),
         img.height(),
@@ -275,8 +274,8 @@ pub fn capabilities(path: Option<&Path>, query: &[String]) -> Result<Report, Str
     let mut t = format!("{} on {}: {}{}\n", pres.name(), plat.name(), s.label(), if s.note().is_empty() { String::new() } else { format!(" — {}", s.note()) });
     let n = caps::networking_support(pres, plat, net);
     t.push_str(&format!("{} networking: {}{}", net.name(), n.label(), if n.note().is_empty() { String::new() } else { format!(" — {}", n.note()) }));
-    // Distribution: both ways unless the question names one.
-    let ways = if asked.is_empty() { vec![caps::Distribution::Online, caps::Distribution::Install] } else { asked };
+    // Distribution: every way there is unless the question names one.
+    let ways = if asked.is_empty() { vec![caps::Distribution::Install] } else { asked };
     for how in ways {
         let d = caps::distribution_support(pres, plat, how);
         t.push_str(&format!("\n{} distribution: {}{}", how.name(), d.label(), if d.note().is_empty() { String::new() } else { format!(" — {}", d.note()) }));

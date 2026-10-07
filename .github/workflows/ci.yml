@@ -39,7 +39,7 @@ jobs:
           echo "$files"
           native=false; docker=false
           # Anything that changes a compiled binary or how it is built/tested on a second platform.
-          echo "$files" | grep -Eq '^(src/|crates/|tests/|benches/|examples/|assets/|recipes/|Cargo\.(toml|lock)$|rustfmt\.toml$|scripts/(ci|web_check)\.sh$|\.cargo/|\.github/)' && native=true
+          echo "$files" | grep -Eq '^(src/|crates/|tests/|benches/|examples/|assets/|recipes/|Cargo\.(toml|lock)$|rustfmt\.toml$|scripts/ci\.sh$|\.cargo/|\.github/)' && native=true
           # What the container image is made of.
           echo "$files" | grep -Eq '^(Dockerfile$|docker-compose\.yml$|\.dockerignore$|deploy/|src/|crates/|assets/|examples/|Cargo\.(toml|lock)$|\.github/)' && docker=true
           echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"
@@ -71,8 +71,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-          # tests/web2d_package.rs builds the WebAssembly player (crates/red2d) and checks the package made from it.
-          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -90,9 +88,6 @@ jobs:
       # (tests/alloc_budget.rs, body/entity counts) run in the tests stage.
       # The lock files first: a stale one is the commonest reason a dependency change fails CI, and it takes seconds to see.
       - run: bash scripts/ci.sh lockfiles clippy tests benches
-      # The browser build of the 3D player compiles for wasm32 (the target is installed above).
-      - run: bash scripts/ci.sh web3d
-        if: runner.os == 'Linux'
       # Hosted runners may have no GPU adapter at all: the external client's offscreen presentation check is skipped there, not faked.
       - run: bash scripts/ci.sh external-client
         env:
@@ -108,42 +103,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: bash scripts/ci.sh headless-tree headless-build headless-clippy headless-tests
-
-  # 2D games in a real browser: the WebAssembly player, built here, runs every examples/2d game in headless Chromium (`red_engine2 web verify`): the first frame is
-  # pixel-identical to the native renderer, scenarios replay hash for hash, keys and clicks change state, saves survive a reload, audio starts after a gesture.
-  # A skipped browser is a failure here (RED_CI_REQUIRE_BROWSER=1), never a pass.
-  web2d:
-    name: 2D games in a real browser
-    needs: changes
-    if: needs.changes.outputs.native == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Playwright and Chromium (what `red_engine2 web setup-browser` installs on a developer machine)
-        run: |
-          python3 -m venv "$HOME/.cache/red_engine2/browser"
-          "$HOME/.cache/red_engine2/browser/bin/python" -m pip install --quiet playwright
-          "$HOME/.cache/red_engine2/browser/bin/python" -m playwright install --with-deps chromium
-      - run: bash scripts/ci.sh web
-        env:
-          RED_CI_REQUIRE_BROWSER: "1"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: web2d-browser-reports
-          path: out/web-verify/
-          if-no-files-found: ignore
 
   # The container image people deploy: builds headless, starts, listens on UDP 27015 and exits cleanly.
   docker:

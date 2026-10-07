@@ -185,7 +185,7 @@ mod tests {
     use super::*;
 
     const GAME: &str = r##"{"game2d":1,"id":"hosted","title":"Hosted","description":"d",
-      "capabilities":{"presentation":"2d","platforms":["web"],"networking":"offline","input":["keyboard","mouse"],"persistence":["progress","settings"]},
+      "capabilities":{"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard","mouse"],"persistence":["progress","settings"]},
       "view":{"width":160,"height":90},
       "sounds":{"pick":{"seconds":0.1,"layers":[{"sine":660,"decay":20}]}},
       "vars":{"score":0,"best":0},"persist":["best"],

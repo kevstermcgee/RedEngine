@@ -1,16 +1,16 @@
-# Fresh-agent benchmark: can a model that has never seen RedEngine make, prove, publish and modify a browser game?
+# Fresh-agent benchmark: can a model that has never seen RedEngine make, prove and modify a native 2D game?
 
 The point is not whether a strong model can do it with enough reading. It is **where a weaker model needs help** (documentation, source exploration, retries, manual repair) so that the
 engine's commands, diagnostics, schemas and templates can remove that need, instead of adding more prose.
 
 * `TASK.md` is the whole prompt. It prescribes only the interface a scorer needs (scene id `p`, variable `timeleft`, file names).
-* `scripts/agent_bench.py score DIR` scores the end state, from the engine's own machine-readable answers (`web status --json`, the scenarios in the game file, the site's `game.json`).
-  `--before before.game2d.json` checks the requested change; `--no-browser` skips what needs Chromium (so it can run anywhere).
+* `scripts/agent_bench.py score DIR` scores the end state, from the engine's own machine-readable answers (`verify`, the scenarios in the game file).
+  `--before before.game2d.json` checks the requested change.
 * `RED_TRACE=trace.jsonl` makes every `red_engine2` command append one line (`src/tools/agent_trace.rs`). `scripts/agent_bench.py summary trace.jsonl` turns that into the friction report:
   which `describe` topics and `search` questions were the documentation the agent needed, how many commands failed and with what first error line, retries, repair cycles, and CLI source exploration.
   Reading the engine's files directly is invisible to the CLI: add `--transcript session.jsonl` (a Claude Code transcript) to count Read/Grep/Glob/shell reads of the engine's source and docs.
-* `scripts/agent_bench.py reference WORKDIR` is a deterministic stand-in agent that follows only what `describe web` says. It proves the benchmark is passable with zero source exploration and
-  zero retries, and it is run by `tests/fresh_agent_bench.rs` (its native half on every run, the browser half where Chromium is set up).
+* `scripts/agent_bench.py reference WORKDIR` is a deterministic stand-in agent that follows only what `describe 2d` says. It proves the benchmark is passable with zero source exploration and
+  zero retries, and it is run by `tests/fresh_agent_bench.rs`.
 
 ## Running it for real (spends model tokens: ask first)
 

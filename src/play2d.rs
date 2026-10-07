@@ -57,7 +57,21 @@ pub fn run(opts: Options) -> Result<(), String> {
     let audio = if opts.mute { None } else { Audio::open() };
     let event_loop = EventLoop::new().map_err(|e| format!("no window system: {e}"))?;
     event_loop.set_control_flow(ControlFlow::Poll);
-    let mut app = App { host, title, save_path, audio, max_ticks: opts.max_ticks, ticks: 0, window: None, surface: None, last: Instant::now(), acc: Duration::ZERO, last_save: Instant::now(), pointer: None, error: None };
+    let mut app = App {
+        host,
+        title,
+        save_path,
+        audio,
+        max_ticks: opts.max_ticks,
+        ticks: 0,
+        window: None,
+        surface: None,
+        last: Instant::now(),
+        acc: Duration::ZERO,
+        last_save: Instant::now(),
+        pointer: None,
+        error: None,
+    };
     event_loop.run_app(&mut app).map_err(|e| e.to_string())?;
     app.write_save();
     app.error.map_or(Ok(()), Err)
@@ -204,7 +218,10 @@ impl ApplicationHandler for App {
         }
         let (vw, vh) = self.host.view_size();
         let k = (960 / vw.max(1)).min(640 / vh.max(1)).max(1);
-        let attrs = Window::default_attributes().with_title(self.title.clone()).with_inner_size(LogicalSize::new(vw * k, vh * k)).with_min_inner_size(LogicalSize::new(vw.min(320), vh.min(200)));
+        let attrs = Window::default_attributes()
+            .with_title(self.title.clone())
+            .with_inner_size(LogicalSize::new(vw * k, vh * k))
+            .with_min_inner_size(LogicalSize::new(vw.min(320), vh.min(200)));
         let made = el.create_window(attrs).map_err(|e| e.to_string()).and_then(|w| {
             let w = Rc::new(w);
             let ctx = softbuffer::Context::new(w.clone()).map_err(|e| e.to_string())?;

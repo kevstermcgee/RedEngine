@@ -24,7 +24,7 @@ const MAX_RESULT_BYTES: usize = 40_000;
 /// Whether a command line is one an agent must not start through the server: it runs until stopped, needs a person at a window, or would start another server.
 /// `top` and `sub` are the command and its subcommand; `args` is the whole line (`portmap keep` takes its action as an argument).
 fn refused(top: &str, sub: &str, args: &[String]) -> bool {
-    matches!((top, sub), ("mcp", _) | ("game", "serve" | "play" | "play-local") | ("web", "serve")) || (top == "portmap" && args.iter().any(|a| a == "keep"))
+    matches!((top, sub), ("mcp", _) | ("game", "serve" | "play" | "play-local") | ("play2d", _)) || (top == "portmap" && args.iter().any(|a| a == "keep"))
 }
 
 /// What a command line did.
@@ -417,7 +417,7 @@ mod tests {
 
     #[test]
     fn refused_commands_are_refused_and_help_is_an_answer() {
-        for line in [vec!["game", "serve"], vec!["game", "play-local"], vec!["web", "serve", "out/web"], vec!["portmap", "keep"], vec!["mcp"]] {
+        for line in [vec!["game", "serve"], vec!["game", "play-local"], vec!["play2d", "game.game2d.json"], vec!["portmap", "keep"], vec!["mcp"]] {
             let o = exec(&line.iter().map(|s| s.to_string()).collect::<Vec<_>>());
             assert_eq!(o.code, 2, "{line:?}: {}", o.err);
             assert!(o.err.contains("runs until stopped"), "{line:?}: {}", o.err);

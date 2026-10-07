@@ -661,7 +661,7 @@ pub struct Scenario {
     pub script: Vec<Step>,
     /// What must hold at the end.
     pub expect: Vec<Expect>,
-    /// This is the playthrough the browser repeats: its final state hash must match.
+    /// This is the game's main playthrough (its final state hash is the one to compare).
     pub smoke: bool,
 }
 
@@ -678,23 +678,6 @@ pub struct ReachCheck {
     pub open: Vec<String>,
     /// Whether the walker must be able to get there.
     pub reachable: bool,
-}
-
-/// A browser input check: real key and pointer events, then something must have changed.
-#[derive(Debug, Clone)]
-pub struct BrowserCheck {
-    /// Its name.
-    pub name: String,
-    /// Key codes to hold (`ArrowRight`).
-    pub keys: Vec<String>,
-    /// A click in virtual coordinates.
-    pub click: Option<[f32; 2]>,
-    /// Milliseconds to hold keys.
-    pub ms: u32,
-    /// Names (variables, `<id>_x`, `count_<tag>`) of which at least one must change.
-    pub changes: Vec<String>,
-    /// Saved values (a persisted variable, or `music_on`) that must be the same after the page is reloaded.
-    pub persists: Vec<String>,
 }
 
 /// A sound.
@@ -743,8 +726,6 @@ pub struct GameDef {
     pub tags: Vec<String>,
     /// Headless scenarios.
     pub scenarios: Vec<Scenario>,
-    /// Browser input checks.
-    pub browser: Vec<BrowserCheck>,
     /// Map analysis of the starting world.
     pub reach: Vec<ReachCheck>,
     /// 3D models (a hybrid game).
@@ -753,8 +734,6 @@ pub struct GameDef {
     pub layers3d: Vec<crate::game3d::Layer3d>,
     /// The whole world seen in 3D.
     pub world3d: Option<crate::game3d::World3d>,
-    /// The touch controller a phone shows below the game (written in `controls`, else chosen from what the game reads).
-    pub controls: crate::controls::Controls,
     /// Hash of the game text: its revision.
     pub rev: String,
 }
@@ -816,7 +795,6 @@ pub const ROOT: &[&str] = &[
     "ui",
     "effects",
     "rules",
-    "controls",
     "models",
     "layers3d",
     "checks",
@@ -2168,7 +2146,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             vec![caps::Problem {
                 path: "capabilities".into(),
                 message:
-                    "needs `capabilities`, like {\"presentation\": \"2d\", \"platforms\": [\"web\"], \"networking\": \"offline\", \"input\": [\"keyboard\"]}"
+                    "needs `capabilities`, like {\"presentation\": \"2d\", \"platforms\": [\"windows\"], \"networking\": \"offline\", \"input\": [\"keyboard\"]}"
                         .into(),
             }],
         ),
@@ -2603,26 +2581,12 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
     }
     effects.check_used(&mut ctx.errs);
 
-    // controls: the pad a phone shows (declared, else inferred from what the game reads)
-    let controls = match root.get("controls") {
-        Some(cv) => {
-            let mut errs = Vec::new();
-            let c = crate::controls::parse(cv, &prefabs, &rules, &mut errs);
-            for e in errs {
-                ctx.errs.push(if e.starts_with("controls") { e } else { format!("controls: {e}") });
-            }
-            c
-        }
-        None => Some(crate::controls::infer(&prefabs, &rules)),
-    };
-
     // checks
     let mut scenarios = Vec::new();
-    let mut browser = Vec::new();
     let mut reach = Vec::new();
     if let Some(cv) = root.get("checks") {
         if let Some(o) = ctx.obj("checks", cv) {
-            check_keys(&mut ctx.errs, "checks", o, &["scenarios", "browser", "reach"]);
+            check_keys(&mut ctx.errs, "checks", o, &["scenarios", "reach"]);
             if let Some(list) = o.get("reach").and_then(Value::as_array) {
                 for (i, r) in list.iter().enumerate() {
                     let path = format!("checks.reach[{i}]");
@@ -2670,71 +2634,10 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 }
                 let smokes = scenarios.iter().filter(|s| s.smoke).count();
                 if smokes > 1 {
-                    ctx.err("checks.scenarios", "only one scenario may be `smoke: true`: it is the playthrough the browser repeats");
+                    ctx.err("checks.scenarios", "only one scenario may be `smoke: true`: it is the main playthrough");
                 }
             } else if o.contains_key("scenarios") {
                 ctx.err("checks.scenarios", "expected a list of scenarios");
-            }
-            if let Some(list) = o.get("browser").and_then(Value::as_array) {
-                for (i, b) in list.iter().enumerate() {
-                    let path = format!("checks.browser[{i}]");
-                    let Some(bo) = ctx.obj(&path, b) else { continue };
-                    check_fields(
-                        &mut ctx.errs,
-                        &path,
-                        bo,
-                        &[
-                            opt("name", Ty::Str, ""),
-                            opt("keys", Ty::Strs, "key codes to hold, like ArrowRight"),
-                            opt("click", Ty::Nums(&[2]), "[x, y] in virtual screen pixels"),
-                            opt("ms", Ty::Custom(count_ok_ms), "milliseconds to hold the keys, default 400"),
-                            req("changes", Ty::Strs, "names (variables, <id>_x, count_<tag>) of which at least one must change"),
-                            opt("persists", Ty::Strs, "saved values (a `persist`ed variable, or music_on) that must survive reloading the page"),
-                        ],
-                    );
-                    if !bo.contains_key("keys") && !bo.contains_key("click") {
-                        ctx.err(&path, "needs `keys` or `click`: the real input the browser check performs");
-                    }
-                    let changes: Vec<String> = bo
-                        .get("changes")
-                        .and_then(Value::as_array)
-                        .map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect())
-                        .unwrap_or_default();
-                    for (j, c) in changes.iter().enumerate() {
-                        if !var_names.contains(c) {
-                            ctx.err(format!("{path}.changes[{j}]"), format!("no variable `{c}`{}", Ctx::near(c, var_names.iter().cloned())));
-                        }
-                    }
-                    let persists: Vec<String> = bo
-                        .get("persists")
-                        .and_then(Value::as_array)
-                        .map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect())
-                        .unwrap_or_default();
-                    for (j, c) in persists.iter().enumerate() {
-                        let saved = c == "music_on" || declared_names.iter().position(|d| d == c).is_some_and(|ix| persist.contains(&ix));
-                        if !saved {
-                            ctx.err(
-                                format!("{path}.persists[{j}]"),
-                                format!(
-                                    "`{c}` is not saved: `persists` names a variable listed in `persist`, or `music_on`{}",
-                                    Ctx::near(c, persist.iter().map(|&i| declared_names[i].clone()).chain(["music_on".to_string()]))
-                                ),
-                            );
-                        }
-                    }
-                    browser.push(BrowserCheck {
-                        persists,
-                        name: bo.get("name").and_then(Value::as_str).map_or_else(|| format!("browser check {i}"), str::to_string),
-                        keys: bo
-                            .get("keys")
-                            .and_then(Value::as_array)
-                            .map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect())
-                            .unwrap_or_default(),
-                        click: bo.get("click").and_then(pair),
-                        ms: bo.get("ms").and_then(Value::as_u64).unwrap_or(400) as u32,
-                        changes,
-                    });
-                }
             }
         }
     }
@@ -2778,16 +2681,10 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 "the game reads keys (a `keys` mover, a `press` rule or a button `key`) but `keyboard` is not declared: add it to `input`",
             );
         }
-        if uses_pointer && !c.input.contains(&Input::Mouse) && !c.input.contains(&Input::Touch) {
+        if uses_pointer && !c.input.contains(&Input::Mouse) {
             ctx.err(
                 "capabilities.input",
-                "the game reads the pointer (a `pointer` mover, a `click` rule or a button) but neither `mouse` nor `touch` is declared: add one to `input`",
-            );
-        }
-        if root.contains_key("controls") && !c.input.contains(&Input::Touch) {
-            ctx.err(
-                "capabilities.input",
-                "`controls` describes the on-screen pad of a phone, but `touch` is not declared: add \"touch\" to `input` (or remove `controls`)",
+                "the game reads the pointer (a `pointer` mover, a `click` rule or a button) but `mouse` is not declared: add it to `input`",
             );
         }
         if !persist.is_empty() && !c.persistence.contains(&Persistence::Progress) {
@@ -2824,12 +2721,10 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         rules,
         tags,
         scenarios,
-        browser,
         reach,
         models,
         layers3d,
         world3d,
-        controls: controls.expect("controls parsed when there are no errors"),
         rev: revision(text),
     })
 }
@@ -2839,8 +2734,4 @@ fn dim_ok(v: &Value) -> Result<(), String> {
         .filter(|n| (64..=MAX_VIEW as u64).contains(n))
         .map(|_| ())
         .ok_or_else(|| format!("expected a whole number of pixels from 64 to {MAX_VIEW}, got {}", describe_value(v)))
-}
-
-fn count_ok_ms(v: &Value) -> Result<(), String> {
-    v.as_u64().filter(|n| (50..=10_000).contains(n)).map(|_| ()).ok_or_else(|| format!("expected milliseconds from 50 to 10000, got {}", describe_value(v)))
 }

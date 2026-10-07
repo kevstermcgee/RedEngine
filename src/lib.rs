@@ -54,6 +54,8 @@ pub mod ocean_pass;
 #[cfg(feature = "render")]
 pub mod overlay;
 pub mod physics;
+#[cfg(feature = "gfx")]
+pub mod play2d;
 pub mod player;
 pub mod playscript;
 pub mod prefabs;
@@ -95,15 +97,10 @@ pub mod ui_config;
 pub mod uniforms;
 #[cfg(feature = "gfx")]
 pub mod video;
-#[cfg(feature = "gfx")]
-pub mod play2d;
 #[cfg(feature = "render")]
 pub mod viewer;
 pub mod voice_spec;
 pub mod weapons;
-/// The 3D player for a browser (`--target wasm32-unknown-unknown --features web`): the engine's own renderer and simulation behind a canvas.
-#[cfg(all(feature = "web", target_arch = "wasm32"))]
-pub mod web3d;
 
 /// The maths library every public type uses (`Vec3`, `Mat4`, ...), re-exported so a game built on the engine uses the
 /// exact same version.

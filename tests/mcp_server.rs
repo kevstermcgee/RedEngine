@@ -69,7 +69,7 @@ fn a_map_is_validated_linted_edited_and_looked_at_by_path_never_by_content() {
 fn commands_that_never_return_are_refused_and_the_rest_of_the_cli_is_reachable() {
     let dir = project("run");
     let mut c = mcp::McpClient::start(BIN, &dir);
-    for args in [json!(["game", "serve"]), json!(["game", "play-local"]), json!(["web", "serve", "out/web"]), json!(["portmap", "keep"]), json!(["mcp"])] {
+    for args in [json!(["game", "serve"]), json!(["game", "play-local"]), json!(["play2d", "game.game2d.json"]), json!(["portmap", "keep"]), json!(["mcp"])] {
         let r = c.call("run", json!({"args": args}));
         assert!(r.is_error && r.text.contains("runs until stopped"), "{args}: {}", r.text);
     }

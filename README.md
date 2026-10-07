@@ -14,8 +14,8 @@ What you can build on it:
 
 - **First-person online games** (`re2`, `red_server`): authoritative multiplayer, lobby and rounds,
   prediction, bots, kart racing, a reusable firearm arsenal. Windows and Linux.
-- **2D and hybrid browser games** (`crates/red2d`): one JSON file, a deterministic simulation, a
-  CPU renderer and a WebAssembly player (`describe web`). 3D in a browser is experimental.
+- **2D and hybrid native games** (`crates/red2d`): one JSON file, a deterministic simulation, a
+  CPU renderer and a native window player (`play2d`).
 - **Other views** (top-down, strategy, spectator): keep the gameplay in scene rules and write only
   a small client on `red_engine2::app` (`describe custom-client`).
 

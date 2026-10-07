@@ -3,7 +3,7 @@
   "id": "lantern-yard",
   "title": "Lantern Yard",
   "description": "Collect ten lanterns in a hedge yard before the ghosts find you. The whole yard is drawn in 3D perspective, with a flat minimap on top.",
-  "capabilities": { "presentation": "hybrid", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": ["progress"] },
+  "capabilities": { "presentation": "hybrid", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["progress"] },
   "view": { "width": 320, "height": 180, "background": "#0d1b1e", "world": [384, 256], "camera": { "follow": "player", "lerp": 0.15 },
     "world3d": { "plane": "ground", "pitch": 55, "distance": 175, "fov": 50, "sky": "#0d1b1e",
       "ground": { "color": "#2b4a35", "alt": "#305239", "tile": 16 }, "light": { "toon": true, "dir": [-0.5, -0.9, -0.35], "ambient": 0.45 } } },
@@ -112,9 +112,6 @@
       { "name": "the player cannot walk through a hedge", "seed": 1, "max_seconds": 10,
         "script": [{ "hold": ["down"], "seconds": 1.4 }],
         "expect": [{ "entity": "p", "near": [192, 40], "tol": 200 }, { "not_ended": true }] }
-    ],
-    "browser": [
-      { "name": "arrow keys move the player", "keys": ["ArrowRight"], "ms": 500, "changes": ["p_x"] }
     ]
   }
 }

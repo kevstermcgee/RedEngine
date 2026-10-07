@@ -6,13 +6,13 @@
  "capabilities": {
   "presentation": "hybrid",
   "platforms": [
-   "web"
+   "windows",
+   "linux"
   ],
   "networking": "offline",
   "input": [
    "keyboard",
-   "mouse",
-   "touch"
+   "mouse"
   ],
   "persistence": [
    "settings",
@@ -746,11 +746,6 @@
    ]
   }
  ],
- "controls": {
-  "layout": "dpad",
-  "a": false,
-  "b": false
- },
  "checks": {
   "reach": [
    {
@@ -977,47 +972,6 @@
       "from": "p",
       "reachable": false
      }
-    ]
-   }
-  ],
-  "browser": [
-   {
-    "name": "walking to the key opens the gate and the progress is saved",
-    "keys": [
-     "ArrowRight"
-    ],
-    "ms": 1500,
-    "changes": [
-     "gate_open"
-    ],
-    "persists": [
-     "gate_open"
-    ]
-   },
-   {
-    "name": "after the reload the gate is open: the lantern can be reached",
-    "keys": [
-     "ArrowRight"
-    ],
-    "ms": 4800,
-    "changes": [
-     "wins"
-    ],
-    "persists": [
-     "wins"
-    ]
-   },
-   {
-    "name": "the music button turns music off and the choice survives a reload",
-    "click": [
-     296,
-     172
-    ],
-    "changes": [
-     "music_on"
-    ],
-    "persists": [
-     "music_on"
     ]
    }
   ]

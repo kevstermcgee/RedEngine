@@ -1,7 +1,7 @@
 {
   "game2d": 1, "id": "pattern-shared-effect", "title": "Pattern: one effect, many sources",
   "description": "A heart and a key press both heal, through one named `effects` entry, so the sound, the event and the health cap live in one place. Mechanic: `effects` with `params`, `apply` with `with`, a rule on the effect's own event.",
-  "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": []},
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
   "view": {"width": 320, "height": 180, "background": "#161b2b"},
   "vars": {"lives": 1, "maxlives": 3},
   "sounds": {"heal": {"seconds": 0.3, "level": 0.5, "layers": [{"sine": 660, "decay": 9}]}},

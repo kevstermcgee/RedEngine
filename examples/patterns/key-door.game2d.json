@@ -1,7 +1,7 @@
 {
   "game2d": 1, "id": "pattern-key-door", "title": "Pattern: key and door",
   "description": "A door that stays shut until the player touches the key, then a goal behind it. Mechanic: key + door + exit (two prefabs with a tag each and two rules).",
-  "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": []},
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
   "view": {"width": 320, "height": 180, "background": "#161b2b"},
   "prefabs": {
     "player": {"tag": "player", "shape": {"rect": [8, 8], "color": "#ffd166"}, "layer": 2, "clamp": true, "body": {"type": "dynamic"}, "collide": ["door", "wall"], "move": {"keys": {"mode": "topdown", "speed": 90}}},

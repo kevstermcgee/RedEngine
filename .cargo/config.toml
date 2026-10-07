@@ -1,4 +1,0 @@
-# The browser build (`--target wasm32-unknown-unknown --features web`): `getrandom` needs to be told to ask the browser for randomness. (`red_engine2 web build`, the 2D player,
-# sets its own RUSTFLAGS and is not affected.)
-[target.wasm32-unknown-unknown]
-rustflags = ["--cfg", "getrandom_backend=\"wasm_js\""]

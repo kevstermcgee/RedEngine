@@ -1,5 +1,5 @@
 //! The fresh-agent benchmark (bench/fresh-agent/): the front door is executable by something that knows only what the engine prints, the scorer notices what it should, and the
-//! command trace records how the engine was used. The browser half of the reference run is part of `scripts/web_check.sh` (it needs Chromium); everything here runs anywhere.
+//! command trace records how the engine was used. Everything here runs anywhere.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -25,9 +25,9 @@ fn py(args: &[&str]) -> (bool, String) {
 }
 
 #[test]
-fn the_reference_agent_passes_the_task_using_only_what_describe_web_says_with_no_friction() {
+fn the_reference_agent_passes_the_task_using_only_what_describe_2d_says_with_no_friction() {
     let work = scratch("reference");
-    let (ok, out) = py(&["reference", work.to_str().unwrap(), "--engine", engine(), "--no-browser"]);
+    let (ok, out) = py(&["reference", work.to_str().unwrap(), "--engine", engine()]);
     assert!(ok, "{out}");
     assert!(
         out.contains("\"failed\": 0")
@@ -35,10 +35,7 @@ fn the_reference_agent_passes_the_task_using_only_what_describe_web_says_with_no
             && out.contains("\"retries_of_a_failed_command_without_a_success_between\": 0"),
         "{out}"
     );
-    assert!(
-        out.contains("\"web\"") && out.contains("\"used_web_status\": true"),
-        "the agent read the one page the brief points to, and asked where it stood: {out}"
-    );
+    assert!(out.contains("\"2d\"") && out.contains("\"used_verify\": true"), "the agent read the one page the brief points to, and verified the game: {out}");
     // The scorer's own evidence: the game is in the folder, and its checkpoint is the 25 second version.
     let before: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(work.join("star-dash/before.game2d.json")).unwrap()).unwrap();
     let after: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(work.join("star-dash/star-dash.game2d.json")).unwrap()).unwrap();
@@ -48,7 +45,7 @@ fn the_reference_agent_passes_the_task_using_only_what_describe_web_says_with_no
 #[test]
 fn the_scorer_fails_what_the_task_asked_for_and_the_game_lacks() {
     let work = scratch("negative");
-    let (ok, out) = py(&["reference", work.to_str().unwrap(), "--engine", engine(), "--no-browser"]);
+    let (ok, out) = py(&["reference", work.to_str().unwrap(), "--engine", engine()]);
     assert!(ok, "{out}");
     let game = work.join("star-dash/star-dash.game2d.json");
     let mut g: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&game).unwrap()).unwrap();
@@ -57,13 +54,11 @@ fn the_scorer_fails_what_the_task_asked_for_and_the_game_lacks() {
     g["persist"] = serde_json::json!([]);
     g["vars"]["timeleft"] = serde_json::json!(25);
     std::fs::write(&game, g.to_string()).unwrap();
-    let (ok, out) = py(&["score", work.join("star-dash").to_str().unwrap(), "--engine", engine(), "--no-browser"]);
+    let (ok, out) = py(&["score", work.join("star-dash").to_str().unwrap(), "--engine", engine()]);
     assert!(!ok, "{out}");
-    for must in [
-        "FAIL    a scripted playthrough loses",
-        "FAIL    a browser check says the saved value survives a reload",
-        "FAIL    the requested change is made: the countdown starts at 15",
-    ] {
+    for must in
+        ["FAIL    a scripted playthrough loses", "FAIL    a value is saved between runs", "FAIL    the requested change is made: the countdown starts at 15"]
+    {
         assert!(out.contains(must), "the scorecard must contain `{must}`:\n{out}");
     }
 }
@@ -74,7 +69,7 @@ fn every_command_can_leave_one_line_in_a_trace_and_the_summary_reads_the_frictio
     let trace = dir.join("trace.jsonl");
     let run = |args: &[&str]| Command::new(engine()).args(args).env("RED_TRACE", &trace).current_dir(&dir).output().unwrap();
     run(&["describe", "--brief"]);
-    run(&["describe", "web"]);
+    run(&["describe", "2d"]);
     run(&["search", "how do I save progress"]);
     let broken = dir.join("broken.game2d.json");
     std::fs::write(&broken, r#"{"game2d":1,"id":"broken"}"#).unwrap();
@@ -106,7 +101,7 @@ fn every_command_can_leave_one_line_in_a_trace_and_the_summary_reads_the_frictio
     assert_eq!(v["failed"], 2);
     assert_eq!(v["retries_of_a_failed_command_without_a_success_between"], 1);
     assert_eq!(v["repair_cycles"], 1);
-    assert_eq!(v["documentation_topics_read"], serde_json::json!(["overview", "web"]));
+    assert_eq!(v["documentation_topics_read"], serde_json::json!(["overview", "2d"]));
     assert_eq!(v["searches"][0], "how do I save progress");
     assert_eq!(v["transcript"]["engine_files_read_with_tools"], 1);
     assert_eq!(v["transcript"]["engine_files_read_with_the_shell"], 1);

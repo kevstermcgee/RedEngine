@@ -646,7 +646,7 @@ mod tests {
     fn a_sprite_is_mirrored_always_or_while_it_last_moved_left() {
         let text = |flip: &str, vx: i32| {
             format!(
-                r##"{{"game2d":1,"id":"t","title":"T","description":"d","capabilities":{{"presentation":"2d","platforms":["web"],"networking":"offline","input":[],"persistence":[]}},
+                r##"{{"game2d":1,"id":"t","title":"T","description":"d","capabilities":{{"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":[],"persistence":[]}},
                 "view":{{"width":64,"height":64,"background":"#000000"}},"sprites":{{"two":{{"palette":{{"a":"#ff0000","b":"#0000ff"}},"rows":["ab"]}}}},
                 "prefabs":{{"s":{{"shape":{{"sprite":"two","scale":2{flip}}},"move":{{"drift":[{vx},0]}}}}}},"scene":[{{"prefab":"s","at":[32,32]}}],"rules":[]}}"##
             )
@@ -691,7 +691,7 @@ mod tests {
     fn hybrid(view_extra: &str, prefabs: &str, scene: &str, ui: &str) -> Sim {
         let text = format!(
             r##"{{"game2d":1,"id":"h","title":"H","description":"d",
-            "capabilities":{{"presentation":"hybrid","platforms":["web"],"networking":"offline","input":["keyboard"],"persistence":[]}},
+            "capabilities":{{"presentation":"hybrid","platforms":["windows","linux"],"networking":"offline","input":["keyboard"],"persistence":[]}},
             "view":{{"width":160,"height":90,"background":"#000000"{view_extra}}},
             "models":{{"m":{{"parts":[{{"shape":"box","size":[2,2,2],"color":"#ff0000"}}]}}}},
             "prefabs":{{{prefabs}}},"scene":[{scene}],"ui":[{ui}]}}"##

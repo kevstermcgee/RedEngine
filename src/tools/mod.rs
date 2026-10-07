@@ -38,8 +38,6 @@ pub mod edit;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod envelope;
 #[cfg(not(target_arch = "wasm32"))]
-pub mod evidence;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod features;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod flora_sheet;
@@ -85,8 +83,6 @@ pub mod procgen_map;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod propose;
 #[cfg(not(target_arch = "wasm32"))]
-pub mod publish2d;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod publish_check;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod racetest;
@@ -118,11 +114,5 @@ pub mod upgrade;
 pub mod verify;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod walk;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod webpkg;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod webstatus;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod webverify;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod world;

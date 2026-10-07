@@ -3,7 +3,7 @@
   "id": "medic-run",
   "title": "Medic Run",
   "description": "Grab 10 coins in 60 seconds while ghosts hunt you: heal with medkits, or pay 3 coins for a bandage (secondary button).",
-  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse", "touch"], "persistence": ["settings", "progress"] },
+  "capabilities": { "presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["settings", "progress"] },
   "view": { "width": 320, "height": 180, "background": "#1b2233" },
 
   "sprites": {
@@ -77,8 +77,6 @@
     { "text": "BANDAGE: 3 COINS (X / B)", "at": [6, 168], "color": "#8cff9b" }
   ],
 
-  "controls": { "layout": "dpad", "a": false, "b": { "label": "BANDAGE", "action": "secondary" } },
-
   "rules": [
     { "id": "grab coin", "when": { "touch": ["player", "coin"] }, "do": [
       { "add": ["got", 1] }, { "add": ["coins", 1] }, { "play": "pick" }, { "burst": { "at": "other", "n": 10, "color": "#ffd23f", "speed": [30, 70], "life": [0.2, 0.5] } }, { "destroy": "other" }] },
@@ -116,9 +114,6 @@
       { "name": "a bot collects coins and wins", "seed": 1, "max_seconds": 70,
         "script": [{ "approach": "coin", "seconds": 55 }],
         "expect": [{ "var": "got", "gte": 10 }, { "ended": "win" }, { "sound": "win" }] }
-    ],
-    "browser": [
-      { "name": "arrow keys move the player", "keys": ["ArrowRight"], "ms": 500, "changes": ["p_x"] }
     ]
   }
 }

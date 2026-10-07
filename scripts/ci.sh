@@ -2,7 +2,7 @@
 # The exact steps CI runs (.github/workflows/ci.yml). Run before pushing; green here = green there
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
-#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  web
+#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client
 #
 # Tests run in two groups, because only one kind needs to be slow:
 #   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers): one test at a time, as before;
@@ -97,21 +97,9 @@ stage_external_client() {
   cargo test --locked --manifest-path examples/external/topdown_switch/Cargo.toml
 }
 
-# The 2D browser games: build the WebAssembly player and run every examples/2d game in a real headless browser. Reports SKIPPED (not passed) when the wasm target or a browser
-# is missing, and fails instead when RED_CI_REQUIRE_BROWSER=1 (hosted CI). See docs/WEB_PLATFORM.md.
-stage_web() { echo "== 2D games in a real browser (WebAssembly player + headless Chromium) =="; bash scripts/web_check.sh; }
-
-# The 3D player for browsers (docs/analysis/2026-10-05-3d-in-the-browser.md): the engine's renderer and simulation must keep compiling for wasm32 under the `web` feature, and lint clean.
-# Compile-only: that it draws is `crates/web3d/verify.py`, which needs a browser.
-stage_web3d() {
-  echo "== 3D browser build (wasm32, feature web) =="
-  cargo clippy --locked -p red_engine2 --lib --target wasm32-unknown-unknown --no-default-features --features web -- -D warnings
-  cargo clippy --locked -p web3d --target wasm32-unknown-unknown -- -D warnings
-}
-
 stages=("$@")
 # Cheapest, most-likely-to-fail first: formatting, the lock files and the headless dependency tree take seconds; the long stages come after them.
-[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client web web3d)
+[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client)
 # Every stage is timed, and the table at the end says where the minutes went (the first thing to read when CI feels slow).
 timings=()
 t_all=$SECONDS

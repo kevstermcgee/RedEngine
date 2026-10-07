@@ -358,7 +358,7 @@ impl Row {
     }
 }
 
-/// Everything that can be verified about a game without a browser.
+/// Everything that can be verified about a game headless.
 pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
     let mut rows = Vec::new();
     // The first frame is a picture of something.
@@ -462,10 +462,6 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
             Err(e) => rows.push(Row::new(false, "analysis", name, e)),
         }
     }
-    // Declared browser input checks refer to things that exist (the parser checked); say they are not run here.
-    for b in &def.browser {
-        rows.push(Row::new(true, "authoring", format!("browser check `{}`", b.name), "declared; it runs only in `web verify` (a real browser), not here"));
-    }
     rows
 }
 
@@ -475,7 +471,7 @@ mod tests {
 
     fn arcade() -> Arc<GameDef> {
         let text = r##"{"game2d":1,"id":"t","title":"T","description":"d",
-          "capabilities":{"presentation":"2d","platforms":["web"],"networking":"offline","input":["keyboard"],"persistence":["progress"]},
+          "capabilities":{"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard"],"persistence":["progress"]},
           "view":{"width":160,"height":90},
           "sounds":{"pick":{"seconds":0.1,"layers":[{"sine":660,"decay":20}]}},
           "vars":{"score":0,"best":0},"persist":["best"],

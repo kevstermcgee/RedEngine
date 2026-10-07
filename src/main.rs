@@ -43,6 +43,8 @@ mod info;
 mod mcp;
 #[path = "cli/playtest.rs"]
 mod playtest;
+#[path = "cli/propose.rs"]
+mod propose;
 #[path = "cli/render_cmds.rs"]
 mod render_cmds;
 #[path = "cli/repo.rs"]
@@ -51,8 +53,6 @@ mod repo;
 mod servers;
 #[path = "cli/util.rs"]
 mod util;
-#[path = "cli/web.rs"]
-mod web;
 
 use analyze::*;
 use args::*;
@@ -105,13 +105,15 @@ fn run(command: Command) -> Result<(), String> {
             println!();
             Ok(())
         }
+        #[cfg(feature = "gfx")]
         Command::Play2d { game, seed, save, mute, max_ticks } => red_engine2::play2d::run(red_engine2::play2d::Options { game, seed, save, mute, max_ticks }),
-        Command::Web { cmd } => web::run_web(cmd),
+        #[cfg(not(feature = "gfx"))]
+        Command::Play2d { .. } => Err(
+            "this red_engine2 was built without a window (`--no-default-features`): `play2d` needs the default `gfx` build; `verify` and `sim` work headless"
+                .to_string(),
+        ),
         Command::Propose { idea, title, presentation, platforms, inputs, networking, session } => {
-            web::run_propose(&idea.join(" "), title, presentation, platforms, inputs, networking, session)
-        }
-        Command::Publish { game, package, backend, site, base_url, repo, push, pages_url, dry_run, out, wasm } => {
-            web::run_publish(game.as_deref(), package.as_deref(), &backend, site, base_url, repo, push, pages_url, dry_run, out, wasm)
+            propose::run_propose(&idea.join(" "), title, presentation, platforms, inputs, networking, session)
         }
         Command::Capabilities { file, query } => report(game2d::capabilities(file.as_deref(), &query)?),
         Command::Validate { scene } => run_validate(&scene),

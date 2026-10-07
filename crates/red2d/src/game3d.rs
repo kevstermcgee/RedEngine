@@ -543,7 +543,7 @@ mod tests {
     fn game(extra: &str, prefab_shape: &str, ui: &str, view_extra: &str) -> Result<crate::game::GameDef, Vec<String>> {
         parse(&format!(
             r##"{{"game2d":1,"id":"t","title":"T","description":"d",
-            "capabilities":{{"presentation":"hybrid","platforms":["web"],"networking":"offline","input":["keyboard"],"persistence":[]}},
+            "capabilities":{{"presentation":"hybrid","platforms":["windows","linux"],"networking":"offline","input":["keyboard"],"persistence":[]}},
             "view":{{"width":160,"height":90{view_extra}}},"sprites":{{"s":{{"rows":["aa","ab"],"palette":{{"a":"#f00","b":"#00f"}}}}}},
             "models":{{"boss":{{"parts":[{{"shape":"box","size":[2,2,2],"color":"#a33"}},{{"shape":"sphere","radius":1,"at":[0,1.5,0],"color":"#ccc"}},{{"shape":"voxels","sprite":"s","cell":0.2}}]}}}}{extra},
             "vars":{{"phase":0}},"prefabs":{{"p":{{"tag":"p","shape":{prefab_shape},"move":{{"drift":[10,0]}}}}}},"scene":[{{"prefab":"p","at":[40,40]}}],"ui":[{ui}],"rules":[]}}"##
@@ -586,7 +586,7 @@ mod tests {
     fn models_name_their_mistakes_and_have_limits() {
         let bad = |parts: &str| {
             parse(&format!(
-                r##"{{"game2d":1,"id":"t","title":"T","description":"d","capabilities":{{"presentation":"hybrid","platforms":["web"]}},"view":{{"width":160,"height":90}},
+                r##"{{"game2d":1,"id":"t","title":"T","description":"d","capabilities":{{"presentation":"hybrid","platforms":["windows","linux"]}},"view":{{"width":160,"height":90}},
                 "models":{{"m":{{"parts":{parts}}}}},"prefabs":{{"p":{{"shape":{{"model":"m"}}}}}},"scene":[{{"prefab":"p","at":[1,1]}}]}}"##
             ))
             .unwrap_err()

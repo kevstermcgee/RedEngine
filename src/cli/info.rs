@@ -285,7 +285,7 @@ pub(crate) fn run_new_game(
             "  scripts/red verify {id}.game2d.json    # (scripts\\red.ps1 on Windows) fetches + builds the engine on first use; the starter already passes"
         );
         println!("  scripts/red describe 2d               # the file format on one page");
-        println!("  scripts/red web verify {id}.game2d.json   # run it in a real headless browser (`scripts/red web setup-browser` once)");
+        println!("  scripts/red play2d {id}.game2d.json       # play it in a native window, with sound");
         return Ok(());
     }
     println!("  scripts/red check            # (scripts\\red.ps1 on Windows) fetches + builds the engine on first use, then verifies the starter map");

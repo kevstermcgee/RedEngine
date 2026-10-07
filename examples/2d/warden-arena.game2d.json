@@ -3,7 +3,7 @@
   "id": "warden-arena",
   "title": "Warden Arena",
   "description": "A top-down boss fight: break the four pylons before the 3D Warden catches you. The boss, the HUD portrait and the backdrop are 3D; everything else is pixels.",
-  "capabilities": { "presentation": "hybrid", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": ["progress"] },
+  "capabilities": { "presentation": "hybrid", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["progress"] },
   "view": { "width": 320, "height": 180, "background": "#10141f", "world": [480, 270], "camera": { "follow": "player", "lerp": 0.12 } },
 
   "sprites": {
@@ -96,9 +96,6 @@
       { "name": "standing still loses to the Warden or the clock", "seed": 2, "max_seconds": 70,
         "script": [{ "wait_until": { "ended": "lose" }, "timeout": 65 }],
         "expect": [{ "ended": "lose" }, { "count": "pylon", "eq": 4 }, { "sound": "lose" }] }
-    ],
-    "browser": [
-      { "name": "arrow keys move the player", "keys": ["ArrowRight"], "ms": 500, "changes": ["p_x"] }
     ]
   }
 }

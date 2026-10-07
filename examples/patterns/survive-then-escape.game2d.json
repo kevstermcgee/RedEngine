@@ -1,7 +1,7 @@
 {
   "game2d": 1, "id": "pattern-survive-then-escape", "title": "Pattern: collect, power up, survive, escape (composition)",
   "description": "Collect three artifacts, power the generator with them, survive 15 seconds while enemies hunt you, then the exit opens. A whole game concept from existing mechanics only: a `phase` variable (0 collect, 1 survive, 2 escape) that rules advance and other rules read, a spawner that runs only in one phase, a gate removed by a rule. No custom code.",
-  "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": []},
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
   "view": {"width": 320, "height": 180, "background": "#161b2b"},
   "vars": {"collected": 0, "needed": 3, "phase": 0, "survive_left": 15, "lives": 5},
   "prefabs": {
