@@ -10,6 +10,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 
 ## Next
 - 2026-10-07: DIRECTION CHANGE (user): no web play for any game; Windows EXE downloads only, remove web from the site. Plan: (1) re2d native 2D player DONE on branch native-2d (Xvfb-verified draw+tick; input/audio untested); (2) package2d -> EXE zip/installer + make 2d on windows SUPPORTED in caps; (3) switch publish2d/site to EXE download pages (RedEngineGames), remove web build/serve/verify/publish, wasm, CI web stage, docs; (4) replace browser checks in scenarios
+- 2026-10-07: SIMPLIFICATION PASS (baseline 6a42dd1). Stages: S1 native 2D honest boundary + publish kind 2d [done, caps text says PREPARED]; S2 mcp feature [done]; S3 video feature [done]; S4 browser removal [open, owned by the native-only direction]; S5 Great Outdoors roster -> data (kart.rs, MatchSim init, protocol ids kept); S6 Killchain -> standalone game binary consuming engine API; S7 offline orchestration via MatchSim/LocalSession (frame.rs). Smaller first; S5-S7 touch gameplay and need before/after parity runs. Nothing pushed yet: RedEngineGames branch native-2d-downloads must land before RedEngine main publishes 2d playables.
 
 ## Failing / blocked
 
