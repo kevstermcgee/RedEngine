@@ -10,10 +10,9 @@ never need to read Rust to change a map or a game: read [`SPEC.md`](SPEC.md) for
 **Then `red_engine2 describe --brief` (about 1 KB)**, then ask `search "<your question>"`; open SPEC/AGENTS only for a topic
 you cannot get from `describe <topic>`. Every command takes the global `--json` for one stable envelope (`describe diagnostics`).
 
-**Making a 2D or browser game? Do not read any of the 3D material.** `red_engine2 describe web` is the front door (one page: choose 2d / hybrid / 3d, create, check, publish, read the evidence, limits);
-`red_engine2 web status G` says where a game stands and the exact next command (`--json` for a program); `describe 2d` is the file format; `new-game DIR --kind 2d` starts from a verified game
-(`examples/2d/gate-meadow` uses every feature at once); then `validate` -> `verify` -> `web verify` -> `publish`. `red_engine2 capabilities` says what is built (2D and hybrid run in a browser and headless;
-3D runs on windows/linux, in a browser only experimentally; browser multiplayer is not supported, and it says so).
+**Making a 2D game? Do not read any of the 3D material.** `red_engine2 describe 2d` is the file format and the loop; `new-game DIR --kind 2d` starts from a verified game
+(`examples/2d/gate-meadow` uses every feature at once); then `validate` -> `verify` -> `play2d` (a native window with sound) -> `publish`. `red_engine2 capabilities` says what is built
+(2D and hybrid run natively and headless; all games ship as native executables, there is no browser target).
 
 > **The one rule:** never trust a map edit you haven't run through `lint`, and never judge a
 > layout you haven't *looked at* (`plan` / `tour`). The tools use the game's real collision code, so

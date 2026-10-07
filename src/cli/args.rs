@@ -261,62 +261,6 @@ pub(crate) enum GameUpgradeCmd {
 }
 
 #[derive(Subcommand)]
-pub(crate) enum WebCmd {
-    /// Validate a 2D game, build the WebAssembly player and write the static package (index.html, runtime.js, game.wasm, assets/game.json, thumbnail.png, manifest.json),
-    /// then check its integrity. Deterministic: the same game and engine give the same package id.
-    Build {
-        /// The `*.game2d.json`.
-        game: PathBuf,
-        /// Where to write the package (default `out/web/<game id>`).
-        #[arg(long)]
-        out: Option<PathBuf>,
-        /// Use this prebuilt `red2d.wasm` instead of building one (also `RED2D_WASM`).
-        #[arg(long)]
-        wasm: Option<PathBuf>,
-    },
-    /// Check a package directory with nothing but the directory: hashes, undeclared files, absolute paths, the module's imports and exports, the game's revision.
-    Check { dir: PathBuf },
-    /// Serve a package directory on http://127.0.0.1:PORT until Ctrl-C (correct content types, no caching).
-    Serve {
-        dir: PathBuf,
-        /// Port (0 = any free one).
-        #[arg(long, default_value_t = 8080)]
-        port: u16,
-    },
-    /// Run a built package in a real headless Chromium: the page loads, the module initialises, the first frame equals the native frame, scripted keys and clicks change the
-    /// state, saves survive a reload (and failing/foreign/corrupt storage does not break the game), audio starts after a gesture, console and network are clean.
-    /// Builds the package first if `--package` is not given. Needs `setup-browser` once.
-    Verify {
-        /// The game, or (with `--package`) nothing.
-        game: Option<PathBuf>,
-        /// Verify an already-built package directory instead of building one.
-        #[arg(long)]
-        package: Option<PathBuf>,
-        /// Where screenshots and the JSON report go (default `out/web-verify/<game id>`).
-        #[arg(long)]
-        out: Option<PathBuf>,
-        /// Verify a package served from this URL (a deployed game) instead of a local directory.
-        #[arg(long)]
-        url: Option<String>,
-        /// The engine: `chromium` (default, writes verification.json), `firefox` or `webkit` (write verification-<engine>.json; `setup-browser --engines` installs them).
-        #[arg(long, default_value = "chromium")]
-        engine: String,
-    },
-    /// Where a browser game stands and the exact next command: reads the game, its package, the browser record and the publication report, never builds or publishes.
-    /// With the global `--json`: schema red2d-web-status/1 (valid, native, package, browser.evidence, publication.levels, next[], limits[]).
-    Status {
-        /// The `*.game2d.json`.
-        game: PathBuf,
-    },
-    /// Install the headless browser used by `verify`: a Python virtual environment with Playwright and its Chromium, under `~/.cache/red_engine2/browser`.
-    SetupBrowser {
-        /// Also install these engines, comma separated: `firefox`, `webkit` (the default is Chromium alone).
-        #[arg(long, value_delimiter = ',')]
-        engines: Vec<String>,
-    },
-}
-
-#[derive(Subcommand)]
 pub(crate) enum AudioCmd {
     /// Every built-in sound with its group, kind and length.
     List,
@@ -524,7 +468,7 @@ pub(crate) enum Command {
         #[arg(long)]
         label: Option<String>,
     },
-    /// Render the full scene to an MP4.
+    /// Render the full scene to an MP4. Needs ffmpeg and a build with `--features video`.
     Render { scene: PathBuf, out: PathBuf },
     /// Contact sheet of frames across the clip.
     Storyboard {
@@ -850,12 +794,12 @@ pub(crate) enum Command {
         #[arg(long)]
         scene: Option<PathBuf>,
     },
-    /// What can be built: presentation x platform x networking x input. Ask one question (`capabilities 3d web`), check a game's declaration, or print the matrix. Anything a game declares that is not built fails early with the reason; nothing is downgraded silently.
+    /// What can be built: presentation x platform x networking x input. Ask one question (`capabilities 3d windows`), check a game's declaration, or print the matrix. Anything a game declares that is not built fails early with the reason; nothing is downgraded silently.
     Capabilities {
         /// A game file whose `capabilities` block to check.
         #[arg(long)]
         file: Option<PathBuf>,
-        /// A question like `2d web` or `3d web authoritative`; empty prints the whole matrix.
+        /// A question like `2d windows` or `3d linux authoritative`; empty prints the whole matrix.
         query: Vec<String>,
     },
     /// Plan a game from an idea: genre, 2d or 3d (never 3D by default), targets, input, cost. The plan covers title, networking, saves and session length too. Every choice can be changed with a flag and is checked against `capabilities`: what cannot be built is reported, not quietly shrunk.
@@ -868,7 +812,7 @@ pub(crate) enum Command {
         /// `2d` or `3d` (default: the simplest that delivers the idea).
         #[arg(long)]
         presentation: Option<String>,
-        /// A target: web, windows, linux (repeatable).
+        /// A target: windows, linux (repeatable).
         #[arg(long = "platform")]
         platforms: Vec<String>,
         /// An input method: keyboard, mouse, touch, gamepad (repeatable).
@@ -881,53 +825,29 @@ pub(crate) enum Command {
         #[arg(long)]
         session: Option<u32>,
     },
-    /// Publish a 2D game: test, build, browser-check, upload, check the copy. Ten named stages; each stage says whether it passed; BUILD, LOCAL BROWSER, UPLOAD and REMOTE PLAYABLE success are reported separately and a URL only if one exists.
-    Publish {
-        /// The `*.game2d.json` (or, with `--package`, nothing).
-        game: Option<PathBuf>,
-        /// Publish a package directory that `web verify` already passed (its verification record must match the package id).
+    /// Play a 2D game (`*.game2d.json`) in a native window, with sound; progress is kept between runs.
+    Play2d {
+        /// The game file.
+        game: PathBuf,
+        /// Simulation seed (default 1).
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
+        /// Keep progress in this file instead of the per-game save directory.
         #[arg(long)]
-        package: Option<PathBuf>,
-        /// `local` (a static site directory; the default) or `github-pages` (a RedEngineGames checkout).
-        #[arg(long, default_value = "local")]
-        backend: String,
-        /// Local backend: the site directory (default `out/site`).
+        save: Option<PathBuf>,
+        /// No sound.
         #[arg(long)]
-        site: Option<PathBuf>,
-        /// Local backend: the address that directory is served from, if somewhere serves it. Without it no URL is claimed.
+        mute: bool,
+        /// Quit after this many ticks (a smoke test).
         #[arg(long)]
-        base_url: Option<String>,
-        /// GitHub Pages backend: a checkout of the RedEngineGames repository.
-        #[arg(long)]
-        repo: Option<PathBuf>,
-        /// GitHub Pages backend: `git push` after committing (nothing leaves this machine without it).
-        #[arg(long)]
-        push: bool,
-        /// GitHub Pages backend: the site address (default https://kevstermcgee.github.io/RedEngineGames).
-        #[arg(long)]
-        pages_url: Option<String>,
-        /// Run every stage up to the metadata and upload nothing.
-        #[arg(long)]
-        dry_run: bool,
-        /// Where the package, screenshots and report go (default `out/publish/<game id>`).
-        #[arg(long)]
-        out: Option<PathBuf>,
-        /// Use this prebuilt `red2d.wasm` (also `RED2D_WASM`).
-        #[arg(long)]
-        wasm: Option<PathBuf>,
-    },
-    /// Browser games: status, build, check, serve, browser-verify. In detail: `build` a static WebAssembly package, `check` its integrity, `serve` it locally, `verify` it in a real headless browser,
-    /// `setup-browser` once per machine. Building and verifying need no credentials and no internet; `publish` is a separate command.
-    Web {
-        #[command(subcommand)]
-        cmd: WebCmd,
+        max_ticks: Option<u64>,
     },
     /// Scaffold a game project that USES the engine (pinned in game.json) instead of forking it: a starter blueprint and the map it builds,
     /// CLAUDE.md, STATUS.md, `scripts/red` (finds/builds the pinned engine) and a CI workflow. The result already passes `game check`.
     NewGame {
         /// Directory to create the project in.
         dir: PathBuf,
-        /// `walk` (rooms and people on foot, built from a blueprint; the default), `race` (a kart race: a generated circuit, the eight animals, bots, a lobby) or `2d` (a browser game: one JSON file).
+        /// `walk` (rooms and people on foot, built from a blueprint; the default), `race` (a kart race: a generated circuit, the eight animals, bots, a lobby) or `2d` (a native 2D game: one JSON file).
         #[arg(long, default_value = "walk")]
         kind: String,
         /// Project name (default: the directory name).

@@ -7,6 +7,10 @@
 #[cfg(not(target_arch = "wasm32"))]
 pub const NO_GFX: &str = "this build has no renderer (built with --no-default-features); rebuild with `cargo build --release` (feature `gfx`, on by default) to use frame/tour/render/storyboard, catalog --sheet and golden-view checks";
 
+/// What `render` (MP4 export) says in a build without the `video` feature.
+#[cfg(not(target_arch = "wasm32"))]
+pub const NO_VIDEO: &str = "this build cannot export MP4 (cargo feature `video`, not in the default build): rebuild with `cargo build --release --features video` and have ffmpeg on PATH. PNG output needs neither: `frame`, `tour`, `storyboard`, `ui-shot`";
+
 #[cfg(not(target_arch = "wasm32"))]
 pub mod adr;
 #[cfg(not(target_arch = "wasm32"))]
@@ -37,8 +41,6 @@ pub mod doctor;
 pub mod edit;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod envelope;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod evidence;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod features;
 #[cfg(not(target_arch = "wasm32"))]
@@ -85,8 +87,6 @@ pub mod procgen_map;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod propose;
 #[cfg(not(target_arch = "wasm32"))]
-pub mod publish2d;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod publish_check;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod racetest;
@@ -118,11 +118,5 @@ pub mod upgrade;
 pub mod verify;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod walk;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod webpkg;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod webstatus;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod webverify;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod world;

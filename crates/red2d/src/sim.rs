@@ -1382,7 +1382,7 @@ pub(crate) mod tests {
     pub(crate) fn game(extra_rules: &str, prefabs: &str, scene: &str) -> Arc<GameDef> {
         let text = format!(
             r##"{{"game2d":1,"id":"t","title":"T","description":"d",
-            "capabilities":{{"presentation":"2d","platforms":["web"],"networking":"offline","input":["keyboard","mouse"],"persistence":["progress","settings"]}},
+            "capabilities":{{"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard","mouse"],"persistence":["progress","settings"]}},
             "view":{{"width":160,"height":90}},
             "sounds":{{"beep":{{"seconds":0.1,"layers":[{{"sine":440,"decay":20}}]}}}},
             "vars":{{"score":0,"best":0}},"persist":["best"],
@@ -1562,7 +1562,7 @@ pub(crate) mod tests {
             r##""card":{"tag":"card","shape":{"rect":[20,20],"color":"#44f"},"layer":1},"back":{"tag":"card","shape":{"rect":[40,40],"color":"#222"}}"##;
         let rules = r##"{"when":{"click":"card"},"do":[{"add":["score",1]},{"destroy":"self"}]},{"when":{"click":"*"},"do":[{"add":["best",1]}]}"##;
         let text = format!(
-            r##"{{"game2d":1,"id":"t","title":"T","description":"d","capabilities":{{"presentation":"2d","platforms":["web"],"networking":"offline","input":["mouse"],"persistence":["progress"]}},
+            r##"{{"game2d":1,"id":"t","title":"T","description":"d","capabilities":{{"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["mouse"],"persistence":["progress"]}},
             "view":{{"width":160,"height":90}},"vars":{{"score":0,"best":0}},"persist":["best"],"prefabs":{{{prefabs}}},
             "scene":[{{"prefab":"back","at":[50,50]}},{{"prefab":"card","at":[50,50]}}],
             "ui":[{{"button":{{"id":"go","label":"GO","at":[120,0],"size":[40,20],"do":[{{"add":["score",100]}}]}}}}],"rules":[{rules}]}}"##
@@ -1611,7 +1611,7 @@ pub(crate) mod tests {
     #[test]
     fn loading_saved_progress_fires_the_loaded_event_once_and_an_empty_save_does_not() {
         let text = r##"{"game2d":1,"id":"t","title":"T","description":"d",
-          "capabilities":{"presentation":"2d","platforms":["web"],"networking":"offline","input":["keyboard"],"persistence":["progress"]},
+          "capabilities":{"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard"],"persistence":["progress"]},
           "view":{"width":160,"height":90},"vars":{"opened":0},"persist":["opened"],
           "prefabs":{"door":{"tag":"door","shape":{"rect":[8,8],"color":"#a60"},"body":{"type":"static"}}},
           "scene":[{"prefab":"door","at":[20,20],"id":"door"}],

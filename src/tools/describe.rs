@@ -36,8 +36,6 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("multiplayer", "hosting and playing online"),
     ("playtest", "see the game without a screen"),
     ("custom-client", "a non-first-person game: a crate on `red_engine2::app`"),
-    ("web", "browser games: choose, create, publish, evidence"),
-    ("web3d", "the 3D engine in a browser: proven, experimental, hybrid, planned"),
     ("2d", "the 2D game file format"),
     ("hybrid", "3D parts in a 2D game"),
     ("capabilities", "what is built: presentation x platform x network x input"),
@@ -455,7 +453,7 @@ fn brief_text(commands: &Value) -> String {
     out.push_str(&format!("Topics (describe <topic>): {}\n", list("topics")));
     out.push_str("Next: search \"<question>\" | catalog <word> | recipe | SPEC.md (scenes) | AGENTS.md\n");
     out.push_str("Not first-person? describe custom-client (your own crate on red_engine2::app)\n");
-    out.push_str("A browser game (2D/hybrid)? `describe web`; `web status G` says what to run next; `describe 2d` is the file format\n");
+    out.push_str("A 2D game (or 2D with 3D parts)? `describe 2d` is the file format and the loop: validate, verify, play2d\n");
     out
 }
 
@@ -673,51 +671,11 @@ fn playtest_text() -> String {
 /// `describe 2d`: the front door for "make a 2D game" (the file format is `red2d::reference`).
 fn twod_text() -> String {
     format!(
-        "2D games run in the browser (WebAssembly) and headless; the file is one JSON, `NAME.game2d.json`. You never need the 3D renderer, the scene format or any Rust.\n\
+        "2D games run natively (a window, `play2d`) and headless (`verify`); the file is one JSON, `NAME.game2d.json`. You never need the 3D renderer, the scene format or any Rust.\n\
          START: `red_engine2 new-game DIR --kind 2d` (a working, verified starter), or copy one of examples/2d/: coin-dash (top-down arcade), moon-hopper (platformer), tiny-station (mouse-driven management).\n\
+         LOOP:  `validate G` -> `verify G` (native, headless, about a second) -> `play2d G` (a window with sound; progress is kept). Details: docs/PLAY_2D.md.\n\
          PLAN:  `red_engine2 propose \"<idea>\"` suggests title, presentation, input, persistence, size and cost; the simplest presentation that fits wins (2D unless you need a 3D world).\n\n{}",
         red2d::reference::REFERENCE
-    )
-}
-
-/// `describe web`: the browser workflow on one page, for a model that has never seen the engine.
-fn web_text() -> String {
-    let mut t = String::from(
-        "BROWSER GAMES (2D or hybrid): one JSON file, one command per step, every command takes --json. You never read Rust or the 3D docs.\n\
-CHOOSE the presentation (the simplest that fits):\n\
-  2d      sprites, tiles, UI. Smallest, fastest, the most proven. The default.\n\
-  hybrid  2D rules and collision, with some 3D DRAWING (models, a perspective ground, a minimap) by a built-in SOFTWARE renderer. Choose it when depth adds something. It is not the wgpu engine.\n\
-  3d      the native engine: first person, real lighting, multiplayer, big worlds. windows/linux. In a browser it is experimental (`describe web3d`): do not choose it for a browser game.\n\
-CREATE: `red_engine2 new-game DIR --kind 2d` (a verified starter) | copy examples/2d/ (gate-meadow uses every feature together) | `propose \"<idea>\"` plans one.\n\
-WHERE AM I: `red_engine2 web status G` = what is current or stale and the exact next command (the same with --json: schema red2d-web-status/1, next[0].command).\n\
-THE LOOP: validate G -> verify G -> web verify G -> publish G\n\
-  validate    the file is well formed and every name resolves (each error says the fix)\n\
-  verify      native and headless, about a second: scripted scenarios, `checks.reach` map analysis, frames you can look at, sound waveforms. `sim G --only NAME` to debug one scenario, `frame G out.png` to look\n\
-  web verify  builds the WebAssembly package and plays it in a real headless Chromium (`web setup-browser` once): pixels equal native, scenarios replay hash for hash, keys/clicks/touch change state, saves survive a reload, audio starts, offline reload works, input while loading and failed loads are safe\n\
-  publish     the whole chain to a site (`out/site`, the local backend), then writes out/publish/<id>/publication.json\n\
-UPDATE an existing game: edit its file, run `web status G` (it names what became stale), run the loop again. The id and the stable URL stay, the build id changes, and every older build stays at games/<id>/builds/<build>/.\n\
-PUT IT ONLINE: `publish G --backend github-pages --repo ../RedEngineGames [--push]`. It commits ONLY this game, never what else is staged or edited in that checkout; if that checkout holds other content at this game's files it stops, names them and prints the fix; if the push fails it takes its commit back.\n\
-READ THE EVIDENCE (publication.json, game.json, catalog.json): five levels that never merge: built, locally_verified, uploaded, remotely_playable, human_playtested (always false here). Under them each piece below is passed, failed, not_run or not_applicable (the game never claimed it). not_run and not_applicable are not passes. A record cannot hold its own deployment result: remote_deployment is in publication.json.\n",
-    );
-    for (k, d) in super::evidence::KEYS {
-        t.push_str(&format!("  {k:<22} {d}\n"));
-    }
-    t.push_str("LIMITS (today):\n");
-    for l in super::webstatus::LIMITS {
-        t.push_str(&format!("  - {l}\n"));
-    }
-    t
-}
-
-/// `describe web3d`: four different things that are all "3D in a browser", kept apart.
-fn web3d_text() -> String {
-    String::from(
-        "3D IN A BROWSER is four different things. Do not mix them up, and do not call the hybrid renderer a port of the engine.\n\
-PROVEN (the full engine): the engine's own wgpu renderer (LiveRenderer) and simulation (LocalSession: rapier, rules, ground) compiled for wasm32 (`--features web`, `crates/web3d`) and run in Chromium on WebGPU: one player, offline, keyboard and mouse look. A scripted run in the browser ends in the SAME simulation checksum as the native engine, bit for bit, on Marcel and on recipes/gated_garden (a gate opened by a rule: collision changes in the browser exactly as natively). Measured, not a CI gate.\n\
-EXPERIMENTAL (runs, nobody ships it): `scripts/web3d_measure.sh [scene.json ...]` builds it and measures build size, startup, shaders and pipelines, frame time, memory, asset loading, input and native parity. No packaging, `web verify`, publish or install for 3D; no audio, HUD, menus, touch or gamepad; no WebGL2 fallback (it refuses to start and says why: the renderer is 4x multisampled); a 7 MB module (about 2 MB gzip). Only a software GPU has been measured: frame times describe it, not a laptop or a phone.\n\
-HYBRID (shipped and verified, a different thing): a 2D game with 3D parts drawn by a built-in SOFTWARE renderer (`describe hybrid`). Any browser, no GPU, pixel-identical natively. It is not the engine, it has no textures, one light and small worlds.\n\
-PLANNED: audio, HUD and menus, touch pads, a single-sample WebGL2 path, `web build/verify/publish` for 3D games, installability, a real-device performance floor. Browser multiplayer is a separate project.\n\
-NUMBERS and the plan: docs/analysis/2026-10-06-3d-browser-measurements.md and docs/analysis/2026-10-05-3d-in-the-browser.md. For a game people can play in a browser today: `describe web`.\n",
     )
 }
 
@@ -890,10 +848,6 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "multiplayer" => json!({"text": multiplayer_text()}),
             "playtest" => json!({"text": playtest_text()}),
             "custom-client" => json!({"text": custom_client_text()}),
-            "web" => {
-                json!({"text": web_text(), "limits": super::webstatus::LIMITS, "evidence": super::evidence::KEYS.iter().map(|(k, d)| json!({"key": k, "proves": d})).collect::<Vec<_>>()})
-            }
-            "web3d" => json!({"text": web3d_text()}),
             "2d" => json!({"text": twod_text()}),
             "hybrid" => json!({"text": red2d::reference::HYBRID}),
             "capabilities" => json!({"text": red2d::caps::matrix_text()}),
@@ -924,8 +878,6 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "multiplayer" => out.push_str(&multiplayer_text()),
         "playtest" => out.push_str(&playtest_text()),
         "custom-client" => out.push_str(&custom_client_text()),
-        "web" => out.push_str(&web_text()),
-        "web3d" => out.push_str(&web3d_text()),
         "2d" => out.push_str(&twod_text()),
         "hybrid" => out.push_str(red2d::reference::HYBRID),
         "capabilities" => out.push_str(&red2d::caps::matrix_text()),

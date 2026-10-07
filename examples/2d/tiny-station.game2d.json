@@ -5,9 +5,9 @@
   "description": "Run a small space station for ten days: keep power, air and food up, grow the crew and survive the meteors.",
   "capabilities": {
     "presentation": "2d",
-    "platforms": ["web"],
+    "platforms": ["windows", "linux"],
     "networking": "offline",
-    "input": ["keyboard", "mouse", "touch"],
+    "input": ["keyboard", "mouse"],
     "persistence": ["settings", "progress"]
   },
   "view": {"width": 480, "height": 270, "background": "#070b1a", "scale": "fit"},
@@ -676,16 +676,6 @@
           {"event": "module lost"}, {"var": "losses", "gte": 1}, {"sound": "boom"}, {"not_ended": true},
           {"count": "slot", "gte": 20}
         ]
-      }
-    ],
-    "browser": [
-      {"name": "choose a module and build it with the mouse", "click": [379, 106], "changes": ["tool"], "ms": 100},
-      {"name": "the pause key stops time", "keys": ["KeyP"], "ms": 100, "changes": ["paused"]},
-      {
-        "name": "the music button turns music off and the choice survives a reload",
-        "click": [450, 256],
-        "changes": ["music_on"],
-        "persists": ["music_on"]
       }
     ]
   }

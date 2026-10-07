@@ -1,7 +1,7 @@
 {
   "game2d": 1, "id": "pattern-timer-lose", "title": "Pattern: countdown that ends the game",
   "description": "Reach the goal before the clock runs out. Mechanic: a `timeleft` variable counted down by an `every` rule, a lose rule on `timeleft <= 0`, a win rule on touch.",
-  "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": []},
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
   "view": {"width": 320, "height": 180, "background": "#161b2b"},
   "vars": {"timeleft": 12},
   "prefabs": {

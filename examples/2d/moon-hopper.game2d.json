@@ -3,7 +3,7 @@
   "id": "moon-hopper",
   "title": "Moon Hopper",
   "description": "A small platformer: hop over the spikes, grab every gem and reach the flag in as few falls as you can.",
-  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse", "touch", "gamepad"], "persistence": ["settings", "progress"] },
+  "capabilities": { "presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["settings", "progress"] },
   "view": { "width": 320, "height": 180, "background": "#0f1530", "world": [640, 180], "camera": { "follow": "player", "lerp": 0.15 } },
 
   "sprites": {
@@ -136,11 +136,6 @@
       { "name": "falling alone does not record a best score", "max_seconds": 20, "script": [
         { "hold_until": ["right"], "until": { "var": "falls", "gte": 1 }, "timeout": 8 }
       ], "expect": [{ "var": "best_falls", "eq": 99 }] }
-    ],
-    "browser": [
-      { "name": "arrow keys run the hopper", "keys": ["ArrowRight"], "ms": 500, "changes": ["p_x"] },
-      { "name": "up arrow jumps", "keys": ["ArrowUp"], "ms": 150, "changes": ["p_y"] },
-      { "name": "the music button turns music off and the choice survives a reload", "click": [296, 172], "changes": ["music_on"], "persists": ["music_on"] }
     ]
   }
 }

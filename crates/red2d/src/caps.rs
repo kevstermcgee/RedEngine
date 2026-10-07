@@ -1,7 +1,7 @@
 //! What a game says it is, and what RedEngine can actually deliver for it.
 //!
-//! A game declares `capabilities`: how it is presented (`2d`/`3d`), where it runs (`web`, `windows`, `linux`), how it networks (`offline`/`authoritative`), how it is
-//! played (`keyboard`, `mouse`, `touch`, `gamepad`) and what it keeps (`settings`, `progress`). [`check`] holds that declaration to the support matrix in [`support`]:
+//! A game declares `capabilities`: how it is presented (`2d`/`3d`), where it runs (`windows`, `linux`), how it networks (`offline`/`authoritative`), how it is
+//! played (`keyboard`, `mouse`, `gamepad`) and what it keeps (`settings`, `progress`). [`check`] holds that declaration to the support matrix in [`support`]:
 //! every combination is `Supported` (built and verified), `Unverified` (built, but nothing here has run it), `Prepared` (the architecture is ready and the feature is
 //! not built) or `NotSupported`. Only `Supported` and `Unverified` pass; the others fail early with the reason and the way out. Nothing is ever downgraded silently: a
 //! request for a target RedEngine cannot deliver is an error that names the target, never a smaller build.
@@ -30,8 +30,6 @@ impl Presentation {
 /// Where a game runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Platform {
-    /// A browser, as a static WebAssembly package.
-    Web,
     /// Windows, as an installer.
     Windows,
     /// Linux.
@@ -56,8 +54,6 @@ pub enum Input {
     Keyboard,
     /// Pointer position and buttons.
     Mouse,
-    /// Touch screens (the browser reports touches as pointer events).
-    Touch,
     /// A game controller.
     Gamepad,
 }
@@ -74,9 +70,7 @@ pub enum Persistence {
 /// How a game reaches players.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Distribution {
-    /// A URL anyone opens: the game is a static web package.
-    Online,
-    /// Installed on the player's device: an installable offline app (a PWA from the browser) or a native installer.
+    /// Installed on the player's device: a native executable (or installer).
     Install,
 }
 
@@ -95,11 +89,11 @@ macro_rules! names {
     };
 }
 names!(Presentation { TwoD => "2d", ThreeD => "3d", Hybrid => "hybrid" });
-names!(Platform { Web => "web", Windows => "windows", Linux => "linux", MacOs => "macos" });
+names!(Platform { Windows => "windows", Linux => "linux", MacOs => "macos" });
 names!(Networking { Offline => "offline", Authoritative => "authoritative" });
-names!(Input { Keyboard => "keyboard", Mouse => "mouse", Touch => "touch", Gamepad => "gamepad" });
+names!(Input { Keyboard => "keyboard", Mouse => "mouse", Gamepad => "gamepad" });
 names!(Persistence { Settings => "settings", Progress => "progress" });
-names!(Distribution { Online => "online", Install => "install" });
+names!(Distribution { Install => "install" });
 
 /// A game's declared capabilities.
 #[derive(Debug, Clone, PartialEq)]
@@ -114,18 +108,14 @@ pub struct Capabilities {
     pub input: Vec<Input>,
     /// What it keeps.
     pub persistence: Vec<Persistence>,
-    /// How players get it (`online` = a URL, `install` = an app on the device). Omitted: both where both exist.
+    /// How players get it (`install` = a native app on the device). Omitted: `install`.
     pub distribution: Vec<Distribution>,
 }
 
 impl Capabilities {
-    /// The distribution a game gets when it does not say: online and install for a game that runs in a browser, install alone for a native one.
-    pub fn default_distribution(platforms: &[Platform]) -> Vec<Distribution> {
-        if platforms.contains(&Platform::Web) {
-            vec![Distribution::Online, Distribution::Install]
-        } else {
-            vec![Distribution::Install]
-        }
+    /// The distribution a game gets when it does not say: every game is a native app.
+    pub fn default_distribution(_platforms: &[Platform]) -> Vec<Distribution> {
+        vec![Distribution::Install]
     }
 }
 
@@ -172,35 +162,23 @@ pub fn support(presentation: Presentation, platform: Platform) -> Support {
     use Platform::*;
     use Presentation::*;
     match (presentation, platform) {
-        (TwoD | Hybrid, Web) => Support::Supported,
-        (TwoD | Hybrid, Windows | Linux) => Support::Prepared(
-            "a native window for 2D games is not built yet. `red_engine2 frame`/`sim`/`verify` already run a 2D game natively with no window, and the same game plays in a browser; \
-             a windowed player belongs to the app layer (`red_engine2::app::shell`), where a 2D game would show the CPU frame",
-        ),
-        (TwoD | Hybrid, MacOs) | (ThreeD, MacOs) => Support::NotSupported("no macOS build or test exists; supported platforms are web (2D games), windows and linux (3D games)"),
+        // The native 2D player (`re2d`, also `red_engine2 play2d`): a window, sound and saves over the same Host the headless checks drive.
+        (TwoD | Hybrid, Windows | Linux) => Support::Supported,
+        (TwoD | Hybrid, MacOs) | (ThreeD, MacOs) => Support::NotSupported("no macOS build or test exists; supported platforms are windows and linux"),
         (ThreeD, Windows | Linux) => Support::Supported,
-        (ThreeD, Web) => Support::NotSupported(
-            "the engine's wgpu renderer and simulation run in a browser only as an experiment (`describe web3d`: one scene, WebGPU, no audio, touch or menus), and there is no build, verify, \
-             publish or install path for a 3D game yet. Browser games are 2D or hybrid: declare `presentation: \"2d\"` (or `hybrid`), or drop `web` from `platforms` and ship the 3D game for windows/linux",
-        ),
     }
 }
 
 /// What RedEngine delivers for a networking mode in a presentation on a platform.
-pub fn networking_support(presentation: Presentation, platform: Platform, networking: Networking) -> Support {
+pub fn networking_support(presentation: Presentation, _platform: Platform, networking: Networking) -> Support {
     // A hybrid game is a 2D game that also draws some 3D with the portable renderer: it is supported exactly where a 2D game is.
     let presentation = if presentation == Presentation::Hybrid { Presentation::TwoD } else { presentation };
-    match (networking, presentation, platform) {
-        (Networking::Offline, _, _) => Support::Supported,
-        (Networking::Authoritative, _, Platform::Web) => Support::NotSupported(
-            "Browser target cannot use the native UDP transport (or QUIC). Supported networking for web games: offline. A browser-compatible authoritative transport \
-             (WebTransport, or a WebSocket relay in front of the existing server) is architecturally prepared, since the simulation does not depend on the transport, but it is \
-             not implemented yet",
-        ),
-        (Networking::Authoritative, Presentation::TwoD | Presentation::Hybrid, _) => Support::NotSupported(
+    match (networking, presentation) {
+        (Networking::Offline, _) => Support::Supported,
+        (Networking::Authoritative, Presentation::TwoD | Presentation::Hybrid) => Support::NotSupported(
             "2D games are offline: the authoritative server runs the 3D simulation (`MatchSim`), and there is no 2D netcode. Declare `networking: \"offline\"`, or make a 3D game",
         ),
-        (Networking::Authoritative, Presentation::ThreeD, _) => Support::Supported,
+        (Networking::Authoritative, Presentation::ThreeD) => Support::Supported,
     }
 }
 
@@ -210,14 +188,8 @@ pub fn input_support(presentation: Presentation, platform: Platform, input: Inpu
     let presentation = if presentation == Presentation::Hybrid { Presentation::TwoD } else { presentation };
     match (input, presentation, platform) {
         (Input::Keyboard | Input::Mouse, _, _) => Support::Supported,
-        // Touch: `web verify` drives a phone-sized emulated device with real touch events (a pad below the game, sliding thumbs, two thumbs at once, taps on the picture).
-        (Input::Touch, Presentation::TwoD, Platform::Web) => Support::Supported,
-        (Input::Touch, _, _) => Support::NotSupported("touch input exists only for 2D games in a browser"),
-        (Input::Gamepad, Presentation::TwoD, Platform::Web) => {
-            Support::Unverified("the browser's Gamepad API is mapped to the game's actions (move, action), but no controller was available to test it")
-        }
         (Input::Gamepad, Presentation::ThreeD, Platform::Windows | Platform::Linux) => Support::Supported,
-        (Input::Gamepad, _, _) => Support::NotSupported("gamepads work in 2D browser games and in native 3D games"),
+        (Input::Gamepad, _, _) => Support::Prepared("the native 2D player reads the keyboard and the mouse; a gamepad is not mapped to the game's actions yet"),
     }
 }
 
@@ -226,8 +198,7 @@ pub fn persistence_support(presentation: Presentation, platform: Platform, _kind
     // A hybrid game is a 2D game that also draws some 3D with the portable renderer: it is supported exactly where a 2D game is.
     let presentation = if presentation == Presentation::Hybrid { Presentation::TwoD } else { presentation };
     match (presentation, platform) {
-        (Presentation::TwoD, Platform::Web) => Support::Supported,
-        (Presentation::ThreeD, Platform::Windows | Platform::Linux) => Support::Supported,
+        (Presentation::TwoD | Presentation::ThreeD, Platform::Windows | Platform::Linux) => Support::Supported,
         _ => Support::NotSupported("this presentation/platform pair is not supported, so there is nowhere to save"),
     }
 }
@@ -240,18 +211,14 @@ pub fn distribution_support(presentation: Presentation, platform: Platform, how:
     use Platform::*;
     use Presentation::*;
     match (presentation, platform, how) {
-        (TwoD | Hybrid, Web, Online) => Support::Supported,
-        // An installable, offline-capable web app: the package carries a web app manifest, icons and a service worker; `web verify` checks installability and an offline reload.
-        (TwoD | Hybrid, Web, Install) => Support::Supported,
         (ThreeD, Windows, Install) => Support::Supported,
-        (ThreeD, Linux, Install) => Support::Unverified("the portable build packages for Linux (`package`), but the installer, the updater and the download page are Windows-only today"),
-        (ThreeD, Windows | Linux, Online) => Support::NotSupported(
-            "a 3D game cannot be published to a URL yet: the engine's renderer runs in a browser only as an experiment (`describe web3d`), with no package, verify or publish path. Ship it as an installable game (`install`), or build the game as a 2D/hybrid game for the browser",
+        (ThreeD, Linux, Install) => Support::Unverified(
+            "the portable build packages for Linux (`package`), but the installer, the updater and the download page are Windows-only today",
         ),
-        (TwoD | Hybrid, Windows | Linux, Install) => Support::Prepared("a native installer for 2D games needs the native window, which is not built; the web app (`web` + `install`) installs on Windows, Linux, macOS, Android and iOS"),
-        (TwoD | Hybrid, Windows | Linux, Online) => Support::NotSupported("`online` means a URL, which is the `web` platform: add \"web\" to platforms"),
+        (TwoD | Hybrid, Windows | Linux, Install) => {
+            Support::Unverified("`re2d` / `red_engine2 play2d` run the game from the engine; the release workflow packages a 2D game with `re2d` (`kind: \"2d\"` in games-publish.json), but no installer built that way has been run on Windows yet")
+        }
         (_, MacOs, _) => Support::NotSupported("no macOS build or test exists"),
-        (ThreeD, Web, _) => Support::NotSupported("3D games do not run in a browser yet"),
     }
 }
 
@@ -303,7 +270,7 @@ pub fn parse(v: &Value) -> (Option<Capabilities>, Vec<Problem>) {
             vec![Problem {
                 path: "capabilities".into(),
                 message: format!(
-                    "expected an object like {{\"presentation\": \"2d\", \"platforms\": [\"web\"], \"networking\": \"offline\"}}, got {}",
+                    "expected an object like {{\"presentation\": \"2d\", \"platforms\": [\"windows\"], \"networking\": \"offline\"}}, got {}",
                     describe_value(v)
                 ),
             }],
@@ -338,10 +305,10 @@ pub fn parse(v: &Value) -> (Option<Capabilities>, Vec<Problem>) {
     if !obj.contains_key("platforms") {
         problems.push(Problem {
             path: "capabilities".into(),
-            message: "needs `platforms`: say where the game must run, like [\"web\"] (the games RedEngine can build for the web are 2D games)".into(),
+            message: "needs `platforms`: say where the game must run, like [\"windows\", \"linux\"] (RedEngine games are native executables)".into(),
         });
     } else if platforms.is_empty() && problems.iter().all(|p| !p.path.starts_with("capabilities.platforms")) {
-        problems.push(Problem { path: "capabilities.platforms".into(), message: "is empty: list at least one of web, windows, linux".into() });
+        problems.push(Problem { path: "capabilities.platforms".into(), message: "is empty: list at least one of windows, linux".into() });
     }
     let input = list_of(obj, "input", Input::parse, &Input::names(), &mut problems);
     let persistence = list_of(obj, "persistence", Persistence::parse, &Persistence::names(), &mut problems);
@@ -353,7 +320,7 @@ pub fn parse(v: &Value) -> (Option<Capabilities>, Vec<Problem>) {
     if obj.get("distribution").and_then(Value::as_array).is_some_and(Vec::is_empty) {
         problems.push(Problem {
             path: "capabilities.distribution".into(),
-            message: "is empty: list online (a URL), install (an app on the device) or both; omit it for the default".into(),
+            message: "is empty: list install (a native app on the device); omit it for the default".into(),
         });
     }
     let caps = match (presentation, networking) {
@@ -406,16 +373,6 @@ pub fn check(c: &Capabilities) -> Vec<Problem> {
     for (i, &how) in c.distribution.iter().enumerate() {
         let path = format!("capabilities.distribution[{i}]");
         match how {
-            Distribution::Online => {
-                if !c.platforms.contains(&Platform::Web) {
-                    out.push(Problem { path, message: "`online` (a URL) needs the `web` platform: add \"web\" to `platforms`, or remove `online`".into() });
-                } else {
-                    let s = distribution_support(c.presentation, Platform::Web, how);
-                    if !s.allowed() {
-                        out.push(Problem { path, message: format!("`online` is {} for {}: {}", s.label().to_lowercase(), c.presentation.name(), s.note()) });
-                    }
-                }
-            }
             Distribution::Install => {
                 let ok = c.platforms.iter().any(|&p| distribution_support(c.presentation, p, how).allowed());
                 if !ok {
@@ -473,21 +430,14 @@ pub fn matrix_text() -> String {
         }
     }
     s.push_str("NETWORKING (offline works everywhere a presentation does)\n");
-    for &pres in Presentation::ALL {
-        let sup = networking_support(pres, Platform::Web, Networking::Authoritative);
-        s.push_str(&format!("  {:<3} authoritative on web    {:<13} {}\n", pres.name(), sup.label(), sup.note()));
-    }
     let sup = networking_support(Presentation::TwoD, Platform::Windows, Networking::Authoritative);
     s.push_str(&format!("  2d  authoritative on native {:<13} {}\n", sup.label(), sup.note()));
     s.push_str("  3d  authoritative on native SUPPORTED\n");
-    s.push_str("DISTRIBUTION (online = a URL, install = an app on the device)\n");
+    s.push_str("DISTRIBUTION (install = a native app on the device)\n");
     for (pres, plat, how) in [
-        (Presentation::TwoD, Platform::Web, Distribution::Online),
-        (Presentation::TwoD, Platform::Web, Distribution::Install),
         (Presentation::TwoD, Platform::Windows, Distribution::Install),
         (Presentation::ThreeD, Platform::Windows, Distribution::Install),
         (Presentation::ThreeD, Platform::Linux, Distribution::Install),
-        (Presentation::ThreeD, Platform::Windows, Distribution::Online),
     ] {
         let sup = distribution_support(pres, plat, how);
         s.push_str(&format!("  {:<3} {:<7} on {:<8} {:<13} {}\n", pres.name(), how.name(), plat.name(), sup.label(), sup.note()));
@@ -513,10 +463,10 @@ mod tests {
     }
 
     #[test]
-    fn a_2d_browser_game_is_supported_and_a_3d_native_one_too() {
+    fn a_2d_native_game_is_supported_and_a_3d_native_one_too() {
         assert_eq!(
             all(
-                json!({"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["settings", "progress"]})
+                json!({"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["settings", "progress"]})
             ),
             ""
         );
@@ -527,39 +477,34 @@ mod tests {
     #[test]
     fn unsupported_combinations_fail_early_with_the_way_out() {
         let cases = [
-            ("3D in a browser", json!({"presentation": "3d", "platforms": ["web"]}), "3D cannot target `web`", "declare `presentation: \"2d\"`"),
-            (
-                "a browser server",
-                json!({"presentation": "2d", "platforms": ["web"], "networking": "authoritative"}),
-                "Browser target cannot use the native UDP transport",
-                "Supported networking for web games: offline",
-            ),
-            (
-                "2D netcode",
-                json!({"presentation": "2d", "platforms": ["windows"], "networking": "authoritative"}),
-                "2D cannot target `windows`",
-                "native window for 2D games is not built yet",
-            ),
+            ("the browser", json!({"presentation": "2d", "platforms": ["web"]}), "capabilities.platforms[0]: `web` is not one of windows, linux, macos", ""),
+            ("2D netcode", json!({"presentation": "2d", "platforms": ["windows"], "networking": "authoritative"}), "2D games are offline", "make a 3D game"),
             ("macOS", json!({"presentation": "3d", "platforms": ["macos"]}), "cannot target `macos`", "no macOS build"),
             (
-                "touch on a native 3D game",
-                json!({"presentation": "3d", "platforms": ["windows"], "input": ["touch"]}),
-                "`touch` input on `windows` is not supported",
-                "browser",
+                "touch",
+                json!({"presentation": "2d", "platforms": ["windows"], "input": ["touch"]}),
+                "capabilities.input[0]: `touch` is not one of keyboard, mouse, gamepad",
+                "",
+            ),
+            (
+                "a gamepad in a 2D game",
+                json!({"presentation": "2d", "platforms": ["windows"], "input": ["gamepad"]}),
+                "`gamepad` input on `windows` is prepared",
+                "keyboard and the mouse",
             ),
             (
                 "a typo in a platform",
-                json!({"presentation": "2d", "platforms": ["wev"]}),
-                "capabilities.platforms[0]: `wev` is not one of",
-                "did you mean `web`",
+                json!({"presentation": "2d", "platforms": ["wndows"]}),
+                "capabilities.platforms[0]: `wndows` is not one of",
+                "did you mean `windows`",
             ),
-            ("a typo in the key", json!({"presentation": "2d", "platform": ["web"]}), "capabilities.platform: unknown field", "platforms"),
+            ("a typo in the key", json!({"presentation": "2d", "platform": ["windows"]}), "capabilities.platform: unknown field", "platforms"),
             ("no platforms", json!({"presentation": "2d"}), "needs `platforms`", "where the game must run"),
             ("empty platforms", json!({"presentation": "2d", "platforms": []}), "capabilities.platforms: is empty", "at least one"),
-            ("a string for a list", json!({"presentation": "2d", "platforms": "web"}), "capabilities.platforms: expected a list", "got string"),
+            ("a string for a list", json!({"presentation": "2d", "platforms": "windows"}), "capabilities.platforms: expected a list", "got string"),
             (
                 "a wrong presentation",
-                json!({"presentation": "isometric", "platforms": ["web"]}),
+                json!({"presentation": "isometric", "platforms": ["windows"]}),
                 "capabilities.presentation: `isometric` is not one of 2d, 3d",
                 "",
             ),
@@ -571,43 +516,37 @@ mod tests {
     }
 
     #[test]
-    fn unverified_input_is_allowed_but_warned_about() {
-        let (c, p, r) = caps(json!({"presentation": "2d", "platforms": ["web"], "input": ["gamepad"]}));
+    fn unverified_distribution_is_allowed_but_warned_about() {
+        let (c, p, r) = caps(json!({"presentation": "2d", "platforms": ["windows"]}));
         assert!(p.is_empty() && r.is_empty());
         let w = warnings(&c.unwrap());
-        assert!(w.len() == 1 && w[0].contains("gamepad") && w[0].contains("unverified"), "{w:?}");
+        assert!(w.len() == 1 && w[0].contains("install") && w[0].contains("unverified"), "{w:?}");
     }
 
     #[test]
     fn the_matrix_text_names_every_pair_and_never_calls_prepared_supported() {
         // Columns are padded for reading; compare with single spaces.
         let t = matrix_text().lines().map(|l| l.split_whitespace().collect::<Vec<_>>().join(" ")).collect::<Vec<_>>().join("\n");
-        for (pres, plat) in [("2d", "web"), ("2d", "windows"), ("3d", "web"), ("3d", "windows"), ("3d", "macos")] {
+        for (pres, plat) in [("2d", "windows"), ("2d", "linux"), ("3d", "windows"), ("3d", "macos")] {
             assert!(t.contains(&format!("{pres} on {plat}")), "{t}");
         }
-        assert!(t.lines().any(|l| l.starts_with("2d on web") && l.contains("SUPPORTED")));
-        assert!(t.lines().any(|l| l.starts_with("2d on windows") && l.contains("PREPARED")));
-        assert!(t.lines().any(|l| l.starts_with("3d on web") && l.contains("NOT SUPPORTED")));
+        assert!(t.lines().any(|l| l.starts_with("2d on windows") && l.contains("SUPPORTED")));
+        assert!(t.lines().any(|l| l.starts_with("3d on macos") && l.contains("NOT SUPPORTED")));
+        assert!(!t.contains("web"), "{t}");
         assert!(!Support::Prepared("x").allowed() && !Support::NotSupported("x").allowed() && Support::Unverified("x").allowed());
     }
 
     #[test]
-    fn distribution_defaults_to_online_and_install_for_the_web_and_is_checked() {
-        let (c, p, r) = caps(json!({"presentation": "2d", "platforms": ["web"]}));
+    fn distribution_defaults_to_install_and_is_checked() {
+        let (c, p, r) = caps(json!({"presentation": "2d", "platforms": ["windows"]}));
         assert!(p.is_empty() && r.is_empty());
-        assert_eq!(c.unwrap().distribution, vec![Distribution::Online, Distribution::Install]);
-        let (c, _, _) = caps(json!({"presentation": "3d", "platforms": ["windows", "linux"], "networking": "authoritative"}));
-        assert_eq!(c.unwrap().distribution, vec![Distribution::Install], "a native game is installed, not played from a URL");
-        // The mistakes: online without the web, online for a 3D game, install of a 2D game that only targets native, an empty list, a typo.
-        let t = all(json!({"presentation": "3d", "platforms": ["windows"], "networking": "offline", "distribution": ["online"]}));
-        assert!(t.contains("capabilities.distribution[0]") && t.contains("needs the `web` platform"), "{t}");
-        let t = all(json!({"presentation": "2d", "platforms": ["windows"], "networking": "offline", "distribution": ["install"]}));
-        assert!(t.contains("`install` is not available") && t.contains("native window"), "{t}");
-        let t = all(json!({"presentation": "2d", "platforms": ["web"], "distribution": []}));
+        assert_eq!(c.unwrap().distribution, vec![Distribution::Install]);
+        let t = all(json!({"presentation": "2d", "platforms": ["windows"], "distribution": []}));
         assert!(t.contains("is empty"), "{t}");
-        let t = all(json!({"presentation": "2d", "platforms": ["web"], "distribution": ["onlin"]}));
-        assert!(t.contains("did you mean `online`"), "{t}");
-        assert!(all(json!({"presentation": "2d", "platforms": ["web"], "distribution": ["online"]})).is_empty());
+        let t = all(json!({"presentation": "2d", "platforms": ["windows"], "distribution": ["online"]}));
+        assert!(t.contains("capabilities.distribution[0]: `online` is not one of install"), "{t}");
+        let t = all(json!({"presentation": "3d", "platforms": ["macos"], "distribution": ["install"]}));
+        assert!(t.contains("`install` is not available"), "{t}");
         assert!(matrix_text().contains("DISTRIBUTION") && matrix_text().contains("install"));
     }
 }

@@ -1,7 +1,7 @@
 {
   "game2d": 1, "id": "pattern-health-damage", "title": "Pattern: health, damage and healing",
   "description": "Spikes cost a life once a second while the player stands on them; a heart gives one back; no lives left ends the game. Mechanic: a lives variable, a `touching` rule with a cooldown, a pickup, a lose rule.",
-  "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": []},
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
   "view": {"width": 320, "height": 180, "background": "#161b2b"},
   "vars": {"lives": 3},
   "prefabs": {

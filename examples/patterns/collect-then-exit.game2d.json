@@ -1,7 +1,7 @@
 {
   "game2d": 1, "id": "pattern-collect-exit", "title": "Pattern: collect N items to open the exit",
   "description": "Three coins must be collected before the gate in front of the exit disappears. Mechanic: a counter variable, a gate removed by a rule watching the counter, an exit that wins.",
-  "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": []},
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
   "view": {"width": 320, "height": 180, "background": "#161b2b"},
   "vars": {"collected": 0, "needed": 3},
   "prefabs": {

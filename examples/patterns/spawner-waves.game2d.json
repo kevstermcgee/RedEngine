@@ -1,7 +1,7 @@
 {
   "game2d": 1, "id": "pattern-spawner", "title": "Pattern: a spawner with a cap, chasing enemies and a survive-to-win timer",
   "description": "Enemies appear at random places every 1.5 s but never more than four at once, chase the player and cost a life on contact; surviving 20 seconds wins. Mechanic: `every` + `spawn` guarded by `count_<tag>`, a `chase` mover, a `touching` rule with a cooldown, a clock.",
-  "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "touch"], "persistence": []},
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
   "view": {"width": 320, "height": 180, "background": "#161b2b"},
   "vars": {"lives": 5, "survived": 0},
   "prefabs": {

@@ -15,7 +15,7 @@ pub enum Kind {
     Walk,
     /// A kart race: `race-track` builds the circuit (the eight animals come with the engine), with a lobby-and-rounds `match` block and bots.
     Race,
-    /// A 2D game for the browser: one `NAME.game2d.json` (see `describe 2d`), already verified.
+    /// A 2D game for the native player: one `NAME.game2d.json` (see `describe 2d`), already verified.
     TwoD,
 }
 
@@ -343,13 +343,13 @@ fn write(dir: &Path, rel: &str, text: &str, out: &mut Vec<PathBuf>) -> Result<()
 }
 
 /// The 2D starter: the smallest game that has every part a real one has (a player, things to collect, a HUD, a sound, an end with a restart, a saved best, a scripted
-/// playthrough and a browser check). `{{ID}}` and `{{TITLE}}` are filled in.
+/// playthrough). `{{ID}}` and `{{TITLE}}` are filled in.
 pub const STARTER_2D: &str = r##"{
   "game2d": 1,
   "id": "{{ID}}",
   "title": "{{TITLE}}",
   "description": "Collect every gem before the clock runs out.",
-  "capabilities": { "presentation": "2d", "platforms": ["web"], "networking": "offline", "input": ["keyboard", "mouse", "touch"], "persistence": ["progress"] },
+  "capabilities": { "presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["progress"] },
   "view": { "width": 320, "height": 180, "background": "#16202e" },
 
   "sounds": { "ding": { "seconds": 0.2, "level": 0.5, "layers": [{ "sine": 880, "decay": 16 }, { "sine": 1320, "decay": 20, "delay": 0.05, "gain": 0.7 }] } },
@@ -395,10 +395,6 @@ pub const STARTER_2D: &str = r##"{
       { "name": "standing still runs out the clock", "max_seconds": 40,
         "script": [{ "wait_until": { "ended": "lose" }, "timeout": 30 }],
         "expect": [{ "ended": "lose" }, { "count": "gem", "gt": 0 }, { "var": "best", "eq": 0 }] }
-    ],
-    "browser": [
-      { "name": "taking a gem is remembered after a reload", "keys": ["ArrowUp"], "ms": 900, "changes": ["gems_total"], "persists": ["gems_total"] },
-      { "name": "the arrow keys move the player", "keys": ["ArrowRight"], "ms": 400, "changes": ["p_x"] }
     ]
   }
 }
@@ -406,25 +402,22 @@ pub const STARTER_2D: &str = r##"{
 
 const CLAUDE_MD_2D: &str = r#"# {{NAME}}
 
-A Red Engine 2 **2D browser game**: the whole game is `{{ID}}.game2d.json`. **The engine is not in this repo**: `game.json` pins it, and `scripts/red` fetches and builds that version on first use.
+A Red Engine 2 **2D game** (a native executable): the whole game is `{{ID}}.game2d.json`. **The engine is not in this repo**: `game.json` pins it, and `scripts/red` fetches and builds that version on first use.
 Never copy engine source here.
 
 ## The loop
 ```bash
-scripts/red describe web                         # the whole browser workflow on one page: 2d vs hybrid vs 3d, the loop, publishing, the evidence, the limits
-scripts/red web status {{ID}}.game2d.json        # where this game stands and the exact next command (add --json for a program)
 scripts/red describe 2d                          # the file format on one page (read it once; do not open any source)
 scripts/red recipe                               # verified mechanics to copy (a key and a door, a countdown, checkpoints, a spawner, a whole collect-survive-escape game)
 scripts/red validate {{ID}}.game2d.json          # well formed? every sprite/sound/tag/variable name resolves? (errors say the fix)
 scripts/red sim {{ID}}.game2d.json [--every 5]   # the scripted playthroughs, with the variables every 5 s when a balance is off
 scripts/red verify {{ID}}.game2d.json            # simulation + render + audio waveform; exit 1 on any failure
-scripts/red frame {{ID}}.game2d.json out/look.png --t 8 --size 1280x720   # LOOK at it (the same renderer the browser uses)
-scripts/red web verify {{ID}}.game2d.json        # build the WebAssembly package and run it in a real headless browser (`scripts/red web setup-browser` once)
-scripts/red publish {{ID}}.game2d.json           # the pipeline to a site; it says exactly which stage failed, never invents a URL, and writes out/publish/{{ID}}/publication.json (the pieces of evidence, each on its own)
+scripts/red frame {{ID}}.game2d.json out/look.png --t 8 --size 1280x720   # LOOK at it (the same renderer the player uses)
+scripts/red play2d {{ID}}.game2d.json            # play it in a native window, with sound (progress is kept between runs)
 ```
-- Updating the game later: edit the JSON, run `scripts/red web status {{ID}}.game2d.json`, run the loop again. A passing run is never a claim that a person played it.
+- Updating the game later: edit the JSON, run the loop again. A passing run is never a claim that a person played it.
 - Edit the JSON only. A scenario that asserts nothing is refused; write the playthrough and its `expect` first, then the rules.
-- `validate`/`verify` prove the rules, the picture and the sound waveform. They do not prove it is fun or that it sounds right: play it (`scripts/red web serve out/web/{{ID}}`).
+- `validate`/`verify` prove the rules, the picture and the sound waveform. They do not prove it is fun or that it sounds right: play it (`scripts/red play2d {{ID}}.game2d.json`).
 - Record progress: `scripts/red status --note "what changed" --section done|now|next`.
 "#;
 
@@ -436,8 +429,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
       - run: RED_HEADLESS=1 bash scripts/red verify {{ID}}.game2d.json
 "#;
 

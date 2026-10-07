@@ -3,16 +3,12 @@ name = "red2d"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "RedEngine 2D: declarative 2D games with a deterministic headless simulation, a CPU renderer and a WebAssembly player. No GPU, window or network dependencies."
-
-# A cdylib is the WebAssembly player (`red_engine2 web build`); the rlib is what the CLI links for headless play, verification and packaging.
-[lib]
-crate-type = ["rlib", "cdylib"]
+description = "RedEngine 2D: declarative 2D games with a deterministic headless simulation, a CPU renderer and a platform boundary (`host`) that the native player drives. No GPU, window or network dependencies."
 
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
-# Trigonometry for anything visual (particles): a pure-Rust libm gives the same bits natively and in the browser.
+# Trigonometry for anything visual (particles): a pure-Rust libm gives the same bits on every platform.
 libm = "0.2"
 
 # The same style policy as the engine crate (which this crate shares source files with): the lints those files already allow.

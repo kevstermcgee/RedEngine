@@ -21,8 +21,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Strings the headless binaries must not contain: the graphics, window and audio stacks.
-pub const FORBIDDEN_IN_HEADLESS: &[&str] = &["wgpu", "winit", "rodio", "cpal", "ffmpeg-sidecar"];
+/// Strings the headless binaries must not contain: the graphics, window, audio and MCP-adapter stacks.
+pub const FORBIDDEN_IN_HEADLESS: &[&str] = &["wgpu", "winit", "softbuffer", "rodio", "cpal", "ffmpeg-sidecar", "rmcp"];
 /// The names of the binaries that must stay headless.
 pub const HEADLESS_BINARIES: &[&str] = &["red_server", "red_bot"];
 

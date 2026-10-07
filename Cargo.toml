@@ -6,23 +6,25 @@ license = "MIT"
 repository = "https://github.com/kevstermcgee/RedEngine"
 description = "AI-first Rust game engine: JSON scenes, self-verifying maps, authoritative multiplayer, headless tooling"
 
-# The 2D game crate (`red2d`): a declarative 2D game, its headless simulation, CPU renderer and WebAssembly player. A workspace member so one lock file covers it and
-# the browser build (`red_engine2 web build`); `default-members` keeps plain `cargo build/test/clippy` covering it too.
+# The 2D game crate (`red2d`): a declarative 2D game, its headless simulation and CPU renderer. A workspace member so one lock file covers it;
+# `default-members` keeps plain `cargo build/test/clippy` covering it too.
 [workspace]
-members = ["crates/red2d", "crates/web3d"]
+members = ["crates/red2d"]
 default-members = [".", "crates/red2d"]
 
-# `gfx` (default) = everything that draws or plays sound: wgpu, winit, rodio, ffmpeg. The dedicated server, the bot and the
+# `gfx` (default) = everything that draws or plays sound: wgpu, winit, softbuffer, rodio (MP4 export is the separate `video` feature). The dedicated server, the bot and the
 # map-analysis CLI build without it (`cargo build --no-default-features --bin red_server`); CI enforces that on Linux.
 #
-# `render` = the wgpu renderer on its own (no window, no sound device, no ffmpeg); `gfx` = `render` plus the desktop around it (a window, audio, video, a pad, dialogs).
-# What a browser cannot have (the UDP/QUIC network stack, the map-analysis toolchain, process helpers) is compiled out on `wasm32` by target, not by feature, so no native
-# workflow changes. The browser build is `--target wasm32-unknown-unknown --no-default-features --features web`.
+# `render` = the wgpu renderer on its own (no window, no sound device, no ffmpeg); `gfx` = `render` plus the desktop around it (a window, audio, a pad, dialogs).
 [features]
-default = ["gfx"]
+default = ["gfx", "mcp"]
+# `mcp` = `red_engine2 mcp`, the authoring adapter (rmcp, schemars, base64). The dedicated server and the bot never need it: `--no-default-features` leaves it out.
+# `video` = MP4 export (`red_engine2 render`, `render_video`): the scene is piped to an ffmpeg process by ffmpeg-sidecar. Not in `default`: PNG frames, tours, storyboards and
+# every verification path need no ffmpeg. Build it with `cargo build --features video`.
+video = ["render", "dep:ffmpeg-sidecar"]
+mcp = ["dep:rmcp", "dep:schemars", "dep:base64"]
 render = ["dep:wgpu", "dep:pollster"]
-gfx = ["render", "dep:winit", "dep:rodio", "dep:ffmpeg-sidecar", "dep:gilrs", "dep:rfd"]
-web = ["render", "wgpu/webgpu", "wgpu/webgl", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:js-sys", "dep:console_error_panic_hook"]
+gfx = ["render", "dep:softbuffer", "dep:winit", "dep:rodio", "dep:gilrs", "dep:rfd"]
 
 [dependencies]
 red2d = { path = "crates/red2d" }
@@ -55,13 +57,9 @@ subtle = "2.6"
 getrandom = "0.3"
 bytes = "1"
 wgpu = { version = "30.0.1", optional = true }
-# The browser build's glue: only with `--features web`.
-wasm-bindgen = { version = "=0.2.128", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "HtmlCanvasElement", "Element", "Performance"] }
-js-sys = { version = "0.3", optional = true }
-console_error_panic_hook = { version = "0.1", optional = true }
 winit = { version = "0.30", optional = true }
+# The native 2D player (`re2d`, `red_engine2 play2d`) shows the CPU-rendered frame through the OS window with no GPU involved.
+softbuffer = { version = "0.4", default-features = false, features = ["x11", "x11-dlopen", "wayland", "wayland-dlopen"], optional = true }
 rfd = { version = "0.17.2", optional = true }
 
 # The network stack and the Ctrl-C hook: native only (`mio` does not exist in a browser).
@@ -72,15 +70,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "sync", "time", "macros"] }
 rcgen = { version = "0.14", default-features = false, features = ["pem", "ring", "crypto"] }
 # The MCP server (`red_engine2 mcp`, ADR 2026-10-06-a-native-mcp-server): the official Rust SDK over stdio, tool arguments as typed structs whose JSON Schemas `schemars` generates.
-rmcp = { version = "3.5", default-features = false, features = ["server", "macros", "schemars", "transport-io"] }
-schemars = "1"
-base64 = "0.23"
-
-# In a browser `getrandom` reads `crypto.getRandomValues` (it also needs the cfg in `.cargo/config.toml`).
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.3", features = ["wasm_js"] }
-# `std::time::Instant::now()` panics in a browser; this is the same type backed by `performance.now()`.
-web-time = "1"
+rmcp = { version = "3.5", default-features = false, features = ["server", "macros", "schemars", "transport-io"], optional = true }
+schemars = { version = "1", optional = true }
+base64 = { version = "0.23", optional = true }
 
 [profile.release]
 lto = true
@@ -99,16 +91,6 @@ inherits = "release"
 lto = false
 codegen-units = 4
 incremental = true
-
-# `--profile web`: the WebAssembly player (`red_engine2 web build`). Small and deterministic: no debug info, no symbols, abort on panic (a panic is a trap the page reports).
-[profile.web]
-inherits = "release"
-opt-level = "s"
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
-debug = false
 
 [profile.fast.package.red_engine2]
 codegen-units = 256
@@ -142,6 +124,11 @@ codegen-units = 16
 [[bin]]
 name = "re2"
 path = "src/bin/re2/main.rs"
+required-features = ["gfx"]
+
+[[bin]]
+name = "re2d"
+path = "src/bin/re2d/main.rs"
 required-features = ["gfx"]
 
 [[bench]]
