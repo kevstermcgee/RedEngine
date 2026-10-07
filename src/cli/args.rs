@@ -916,6 +916,23 @@ pub(crate) enum Command {
         #[arg(long)]
         wasm: Option<PathBuf>,
     },
+    /// Play a 2D game (`*.game2d.json`) in a native window, with sound; progress is kept between runs.
+    Play2d {
+        /// The game file.
+        game: PathBuf,
+        /// Simulation seed (default 1).
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
+        /// Keep progress in this file instead of the per-game save directory.
+        #[arg(long)]
+        save: Option<PathBuf>,
+        /// No sound.
+        #[arg(long)]
+        mute: bool,
+        /// Quit after this many ticks (a smoke test).
+        #[arg(long)]
+        max_ticks: Option<u64>,
+    },
     /// Browser games: status, build, check, serve, browser-verify. In detail: `build` a static WebAssembly package, `check` its integrity, `serve` it locally, `verify` it in a real headless browser,
     /// `setup-browser` once per machine. Building and verifying need no credentials and no internet; `publish` is a separate command.
     Web {

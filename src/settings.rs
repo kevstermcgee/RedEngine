@@ -100,6 +100,11 @@ fn read_state(key: &str, name: &str) -> Option<String> {
     })
 }
 
+/// The per-game file `name` (a 2D game's progress, say) under the same save directory as the settings; `None` when no directory resolves.
+pub fn game_state_path(key: &str, name: &str) -> Option<PathBuf> {
+    state_path(key, name)
+}
+
 fn settings_path(key: &str) -> Option<PathBuf> {
     state_path(key, "settings.json")
 }

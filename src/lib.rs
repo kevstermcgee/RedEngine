@@ -95,6 +95,8 @@ pub mod ui_config;
 pub mod uniforms;
 #[cfg(feature = "gfx")]
 pub mod video;
+#[cfg(feature = "gfx")]
+pub mod play2d;
 #[cfg(feature = "render")]
 pub mod viewer;
 pub mod voice_spec;

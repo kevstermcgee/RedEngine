@@ -105,6 +105,7 @@ fn run(command: Command) -> Result<(), String> {
             println!();
             Ok(())
         }
+        Command::Play2d { game, seed, save, mute, max_ticks } => red_engine2::play2d::run(red_engine2::play2d::Options { game, seed, save, mute, max_ticks }),
         Command::Web { cmd } => web::run_web(cmd),
         Command::Propose { idea, title, presentation, platforms, inputs, networking, session } => {
             web::run_propose(&idea.join(" "), title, presentation, platforms, inputs, networking, session)
