@@ -5,7 +5,7 @@ declares what it needs in its `capabilities` block and an unsupported pair fails
 
 | | web (browser) | windows / linux |
 |---|---|---|
-| **2d** | **SUPPORTED**: `*.game2d.json` -> `web build` -> static package -> `web verify` in a real headless Chromium | PREPARED: runs headless (`sim`, `verify`, `frame`) today; a native window is not built (the app layer's `shell` could show the CPU frame) |
+| **2d** | **SUPPORTED**: `*.game2d.json` -> `web build` -> static package -> `web verify` in a real headless Chromium | PREPARED: runs headless (`sim`, `verify`, `frame`) today; the native player `re2d` draws and ticks it on a Linux virtual display, not yet run on Windows |
 | **hybrid** | **SUPPORTED**: a 2D game that draws some of itself in 3D (below); exactly the 2D row | the same as 2D |
 | **3d** | NOT SUPPORTED as a game you can build, verify and publish. EXPERIMENT: the engine's own renderer and simulation run in Chromium on WebGPU for one scene at a time and match the native simulation bit for bit (`describe web3d`, `scripts/web3d_measure.sh`) | SUPPORTED: the existing engine |
 
