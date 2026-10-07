@@ -6,6 +6,7 @@ use red_engine2::sim::ai::BotsConfig;
 use red_engine2::sim::kart::Driver;
 use red_engine2::sim::match_sim::{MatchSim, MAX_PLAYERS};
 use red_engine2::sim::race::Phase;
+use red_engine2::sim::roster::great_outdoors as go;
 use red_engine2::sim::spawns::parse_spawns;
 
 /// A diamond of four gates (radius 40), a grid of eight behind the line, optionally item boxes on the gate points.
@@ -86,7 +87,7 @@ fn a_better_driver_beats_a_worse_one_in_the_same_kart() {
         let mut spec = cfg.spec(slot);
         spec.level = level;
         assert!(sim.add_bot_in_slot(slot, &spec));
-        sim.set_driver(slot, Driver::Duck);
+        sim.set_driver(slot, go::DUCK);
     }
     run(&mut sim, 60 * 200);
     let race = sim.race().unwrap();
@@ -148,7 +149,7 @@ fn balance_lap_times_per_animal() {
     // Each animal alone on the diamond at top skill, three laps: the data behind "is any driver hopeless or unbeatable?". Recorded, asserted loosely.
     let text = scene(3, false);
     let mut table = Vec::new();
-    for driver in Driver::ALL {
+    for driver in go::all() {
         let mut sim = bots(&text, 1, 1.0);
         sim.set_driver(0, driver);
         run(&mut sim, 60 * 200);
@@ -156,11 +157,11 @@ fn balance_lap_times_per_animal() {
         table.push((driver, finished));
     }
     for (driver, t) in &table {
-        println!("{:<7} 3 laps: {}", driver.name(), t.map_or("did not finish".into(), |t| format!("{:.1} s", t as f32 / 60.0)));
+        println!("{:<7} 3 laps: {}", go::name(*driver), t.map_or("did not finish".into(), |t| format!("{:.1} s", t as f32 / 60.0)));
     }
     assert!(table.iter().all(|(_, t)| t.is_some()), "every animal can finish the track: {table:?}");
     let time = |d: Driver| table.iter().find(|(x, _)| *x == d).unwrap().1.unwrap();
     let (fastest, slowest) = (table.iter().map(|(_, t)| t.unwrap()).min().unwrap(), table.iter().map(|(_, t)| t.unwrap()).max().unwrap());
-    assert!(time(Driver::Deer) < time(Driver::Beaver), "the fastest kart beats the slowest on a plain track");
+    assert!(time(go::DEER) < time(go::BEAVER), "the fastest kart beats the slowest on a plain track");
     assert!((slowest as f32) < fastest as f32 * 1.6, "no animal is more than 60% slower than the best: {fastest} vs {slowest} ticks");
 }

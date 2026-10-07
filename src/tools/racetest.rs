@@ -19,8 +19,10 @@ use std::path::Path;
 /// One bot's race.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BotResult {
-    /// The animal it drove.
+    /// The driver it drove.
     pub driver: Driver,
+    /// That driver's name in the race's roster.
+    pub name: String,
     /// The tick it finished at, or `None` if it had not when the race ended.
     pub finished_at: Option<u32>,
     /// The tick each lap was completed at.
@@ -122,7 +124,8 @@ pub fn run(path: &Path, bots: usize, level: f32, max_secs: f32, drivers: &[Drive
     let race = sim.race().ok_or("the race vanished")?;
     let mut results: Vec<BotResult> = (0..bots)
         .map(|slot| BotResult {
-            driver: sim.driver(slot).unwrap_or(Driver::Duck),
+            driver: sim.driver(slot).unwrap_or_default(),
+            name: sim.roster().name(sim.driver(slot).unwrap_or_default()).to_string(),
             finished_at: race.progress(slot).and_then(|p| p.finished_at),
             lap_ticks: lap_ticks[slot].clone(),
             place: race.place_of(slot).unwrap_or(bots),
@@ -148,7 +151,7 @@ pub fn render(r: &RaceReport) -> String {
         s.push_str(&format!(
             "  {}. {:<7} {}  laps: {}\n",
             res.place,
-            res.driver.name(),
+            res.name,
             res.finished_at.map_or(format!("DID NOT FINISH (last at x {:.0}, z {:.0})", res.at.0, res.at.1), |t| format!("{:6.1} s", seconds(t))),
             match (first, laps.is_empty()) {
                 (Some(f), true) => format!("{f:.1} s to lap 1"),
@@ -180,7 +183,7 @@ pub fn to_json(r: &RaceReport) -> Value {
         "hits": r.hits,
         "peak_hazards": r.peak_hazards,
         "bots": r.results.iter().map(|b| json!({
-            "driver": b.driver.name(),
+            "driver": b.name,
             "place": b.place,
             "finish_seconds": b.finished_at.map(seconds),
             "lap_seconds": b.lap_ticks.windows(2).map(|w| seconds(w[1] - w[0])).collect::<Vec<_>>(),
@@ -189,17 +192,25 @@ pub fn to_json(r: &RaceReport) -> Value {
     })
 }
 
-/// Parses `--drivers duck,bunny,...` into animals (any case), or says which name is wrong.
-pub fn parse_drivers(list: &str) -> Result<Vec<Driver>, String> {
+/// The roster of the race in the scene at `path` (what `--drivers` names are looked up in).
+pub fn roster_of(path: &Path) -> Result<std::sync::Arc<crate::sim::roster::Roster>, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let scene = crate::schema::parse_scene(&text).map_err(|e| e.join("; "))?;
+    Ok(scene.race.as_ref().map_or_else(crate::sim::roster::Roster::great_outdoors, |c| c.roster.clone()))
+}
+
+/// Parses `--drivers duck,bunny,...` into drivers of `roster` (names or ids, any case), or says which name is wrong and which exist.
+pub fn parse_drivers(roster: &crate::sim::roster::Roster, list: &str) -> Result<Vec<Driver>, String> {
     list.split(',')
         .filter(|s| !s.trim().is_empty())
-        .map(|name| Driver::parse(name).ok_or_else(|| format!("no driver called '{}' (Duck, Bunny, Deer, Coyote, Hawk, Bear, Wolf, Beaver)", name.trim())))
+        .map(|name| roster.parse(name).ok_or_else(|| format!("no driver called '{}' ({})", name.trim(), roster.names())))
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sim::roster::great_outdoors as go;
 
     fn write_map(name: &str, race: &str) -> std::path::PathBuf {
         let text = format!(
@@ -217,13 +228,13 @@ mod tests {
     #[test]
     fn a_raceable_track_is_finished_by_every_bot_and_reported() {
         let path = write_map("ok", r#""race":{"laps":2,"gates":["line","east","south","west"],"countdown_secs":1},"#);
-        let report = run(&path, 4, 0.8, 200.0, &[Driver::Deer, Driver::Beaver]).unwrap();
+        let report = run(&path, 4, 0.8, 200.0, &[go::DEER, go::BEAVER]).unwrap();
         let _ = std::fs::remove_file(&path);
         assert!(report.all_finished() && !report.timed_out, "{}", render(&report));
         assert_eq!(report.results.len(), 4);
         assert_eq!(report.results.iter().map(|r| r.place).collect::<Vec<_>>(), vec![1, 2, 3, 4], "best place first");
         assert!(report.results.iter().all(|r| r.lap_ticks.len() == 2), "two laps each");
-        let names: Vec<&str> = report.results.iter().map(|r| r.driver.name()).collect();
+        let names: Vec<&str> = report.results.iter().map(|r| r.name.as_str()).collect();
         assert!(names.contains(&"Deer") && names.contains(&"Beaver"), "the named animals raced: {names:?}");
         let text = render(&report);
         assert!(text.contains("every bot finished") && text.contains("Deer"), "{text}");
@@ -254,7 +265,7 @@ mod tests {
         assert!(run(&path, 13, 0.5, 10.0, &[]).unwrap_err().contains("--bots"));
         let _ = std::fs::remove_file(&path);
         assert!(run(Path::new("/nonexistent/race.json"), 2, 0.5, 10.0, &[]).is_err());
-        assert_eq!(parse_drivers("Duck, wolf,BEAVER").unwrap(), vec![Driver::Duck, Driver::Wolf, Driver::Beaver]);
-        assert!(parse_drivers("duck,moose").unwrap_err().contains("moose"));
+        assert_eq!(parse_drivers(go::shared(), "Duck, wolf,BEAVER").unwrap(), vec![go::DUCK, go::WOLF, go::BEAVER]);
+        assert!(parse_drivers(go::shared(), "duck,moose").unwrap_err().contains("moose"));
     }
 }

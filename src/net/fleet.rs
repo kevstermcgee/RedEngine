@@ -10,27 +10,19 @@ use crate::net::protocol::{HazardSnap, KartSnap, MAX_HAZARDS_PER_SNAPSHOT};
 use crate::scene_pool::{hide_object, ScenePool};
 use crate::schema::{Object, Scene};
 use crate::sim::kart::Driver;
+use crate::sim::roster::Roster;
 use crate::track::Track;
 use glam::Vec3;
 
-/// The id a game gives a driver's model object.
-pub fn model_id(driver: Driver) -> String {
-    format!("kart_{}", driver.name().to_lowercase())
+/// The id a game gives a driver's model object: `kart_` and the driver's roster id (`kart_duck` in Great Outdoors).
+pub fn model_id(roster: &Roster, driver: Driver) -> String {
+    format!("kart_{}", roster.id(driver))
 }
 
 /// The plain kart a driver wears when the map brings no art of its own: a coloured tub on four wheels with a round head.
-fn fallback_kart(driver: Driver) -> Object {
-    let (body, head) = match driver {
-        Driver::Duck => ("#ffe27a", "#fff2b8"),
-        Driver::Bunny => ("#c7f0dc", "#fdeef4"),
-        Driver::Deer => ("#c9edd0", "#e8c39e"),
-        Driver::Coyote => ("#f4c7b0", "#d9b38c"),
-        Driver::Hawk => ("#bfe3ff", "#f3e9dc"),
-        Driver::Bear => ("#ffe0b8", "#b98f6f"),
-        Driver::Wolf => ("#e3d3f0", "#b8c0d8"),
-        Driver::Beaver => ("#b8895a", "#b08560"),
-    };
-    let id = model_id(driver);
+fn fallback_kart(roster: &Roster, driver: Driver) -> Object {
+    let [body, head] = roster.colors(driver);
+    let id = model_id(roster, driver);
     let wheels: Vec<String> = [(-0.6, -0.65), (0.6, -0.65), (-0.6, 0.65), (0.6, 0.65)]
         .iter()
         .enumerate()
@@ -74,8 +66,9 @@ pub struct FleetStats {
 #[derive(Debug)]
 pub struct KartFleet {
     /// `scene.objects` index of each driver's model, by driver wire number.
-    models: [usize; 8],
-    shown: [bool; 8],
+    models: Vec<usize>,
+    shown: Vec<bool>,
+    roster: std::sync::Arc<Roster>,
     acorns: ScenePool,
     planks: ScenePool,
     /// Object id of each item box (the zone's id), in `race.item_boxes` order.
@@ -91,13 +84,14 @@ impl KartFleet {
     /// The fleet for `scene`, added to it hidden (call before the renderer is built); `None` when the scene has no race.
     pub fn build(scene: &mut Scene) -> Option<KartFleet> {
         let course = scene.race.clone()?;
-        let mut models = [0usize; 8];
-        for driver in Driver::ALL {
-            let id = model_id(driver);
+        let roster = course.roster.clone();
+        let mut models = vec![0usize; roster.len()];
+        for driver in roster.drivers() {
+            let id = model_id(&roster, driver);
             let index = match scene.objects.iter().position(|o| o.id == id) {
                 Some(i) => i,
                 None => {
-                    scene.objects.push(fallback_kart(driver));
+                    scene.objects.push(fallback_kart(&roster, driver));
                     scene.objects.len() - 1
                 }
             };
@@ -112,8 +106,9 @@ impl KartFleet {
         });
         let box_ids = course.item_boxes.iter().map(|(id, _, _)| id.clone()).collect();
         Some(KartFleet {
+            shown: vec![false; models.len()],
             models,
-            shown: [false; 8],
+            roster,
             acorns,
             planks,
             box_ids,
@@ -124,6 +119,11 @@ impl KartFleet {
         })
     }
 
+    /// The race's roster (who can drive, and what the items are called).
+    pub fn roster(&self) -> &std::sync::Arc<Roster> {
+        &self.roster
+    }
+
     /// Which item boxes the newest snapshot says are ready (bit `i` = the race's `i`th box).
     pub fn set_boxes_ready(&mut self, mask: u32) {
         self.boxes_ready = mask;
@@ -131,7 +131,7 @@ impl KartFleet {
 
     /// Starts a frame: every model and hazard is hidden until it is placed again.
     pub fn begin_frame(&mut self, scene: &mut Scene) {
-        for driver in 0..8 {
+        for driver in 0..self.models.len() {
             if self.shown[driver] {
                 hide_object(scene, self.models[driver]);
                 self.shown[driver] = false;
@@ -190,7 +190,7 @@ impl KartFleet {
     /// The ids the renderer must not draw: models nobody drives, hazards not on the track, and item boxes that have been taken.
     pub fn hidden_ids<'a>(&'a self, scene: &'a Scene) -> Vec<&'a str> {
         let mut ids: Vec<&str> = Vec::new();
-        for driver in 0..8 {
+        for driver in 0..self.models.len() {
             if !self.shown[driver] {
                 if let Some(o) = scene.objects.get(self.models[driver]) {
                     ids.push(o.id.as_str());
@@ -212,6 +212,7 @@ impl KartFleet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sim::roster::great_outdoors as go;
 
     const SCENE: &str = r#"{"camera":{"position":[0,30,60],"target":[0,0,0]},
         "zones":[{"id":"line","rect":[-6,-41,6,-39]},{"id":"east","rect":[39,-6,41,6]},{"id":"south","rect":[-6,39,6,41]},{"id":"west","rect":[-41,-6,-39,6]},
@@ -237,12 +238,12 @@ mod tests {
         let before = s.objects.len();
         let fleet = KartFleet::build(&mut s).expect("a race scene has a fleet");
         assert_eq!(s.objects.len(), before + 8 + 2 * MAX_HAZARDS_PER_SNAPSHOT, "eight fallback karts and two pools");
-        for d in Driver::ALL {
-            let o = s.objects.iter().find(|o| o.id == model_id(d)).expect("a model for every driver");
+        for d in go::all() {
+            let o = s.objects.iter().find(|o| o.id == model_id(go::shared(), d)).expect("a model for every driver");
             assert!(!o.collide);
         }
         let hidden = fleet.hidden_ids(&s);
-        assert!(Driver::ALL.iter().all(|d| hidden.contains(&model_id(*d).as_str())), "no kart is drawn until it is placed");
+        assert!(go::all().iter().all(|d| hidden.contains(&model_id(go::shared(), *d).as_str())), "no kart is drawn until it is placed");
         assert_eq!(hidden.iter().filter(|id| id.starts_with("acorn_") || id.starts_with("plank_")).count(), 2 * MAX_HAZARDS_PER_SNAPSHOT);
     }
 
@@ -254,7 +255,7 @@ mod tests {
         let mut fleet = KartFleet::build(&mut s).unwrap();
         assert_eq!(s.objects.len(), before + 7 + 2 * MAX_HAZARDS_PER_SNAPSHOT, "the Duck brought its own model, so only seven fallbacks were added");
         fleet.begin_frame(&mut s);
-        assert!(fleet.place_kart(&mut s, Driver::Duck.wire(), Vec3::new(5.0, 0.0, -3.0), 0.0, &snap(0)));
+        assert!(fleet.place_kart(&mut s, go::DUCK.wire(), Vec3::new(5.0, 0.0, -3.0), 0.0, &snap(0)));
         let duck = s.objects.iter().find(|o| o.id == "kart_duck").unwrap();
         assert_eq!(duck.position.sample(0.0), Vec3::new(5.0, 0.0, -3.0));
         assert!(matches!(duck.kind, crate::schema::ObjectKind::Prim(..)), "and it is the map's box, not a fallback group");
@@ -265,7 +266,7 @@ mod tests {
         let mut s = scene();
         let mut fleet = KartFleet::build(&mut s).unwrap();
         fleet.begin_frame(&mut s);
-        assert!(fleet.place_kart(&mut s, Driver::Wolf.wire(), Vec3::new(1.0, 0.5, 2.0), std::f32::consts::FRAC_PI_2, &snap(6)));
+        assert!(fleet.place_kart(&mut s, go::WOLF.wire(), Vec3::new(1.0, 0.5, 2.0), std::f32::consts::FRAC_PI_2, &snap(6)));
         assert!(!fleet.place_kart(&mut s, 9, Vec3::ZERO, 0.0, &snap(9)), "no such driver");
         let wolf = s.objects.iter().find(|o| o.id == "kart_wolf").unwrap();
         assert_eq!(wolf.position.sample(0.0), Vec3::new(1.0, 0.5, 2.0));

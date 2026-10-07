@@ -21,6 +21,7 @@ use crate::sim::items::{roll_item, Hazard, HazardPool, ItemBox, ItemBoxes, ACORN
 use crate::sim::kart::{kart_bump, step_kart_ex, Driver, Item, KartEvents, KartState, Surface};
 use crate::sim::player::{step_player_tuned, PlayerInput, PlayerState};
 use crate::sim::race::RaceState;
+use crate::sim::roster::Roster;
 use crate::sim::rules::Target;
 use crate::sim::rules_run::{Effect, GameEvent, RulePlayer, RulesEngine};
 use crate::sim::spawns::Spawn;
@@ -170,7 +171,10 @@ impl MatchSim {
             pickup_misses: Vec::new(),
             race: scene.race.clone().map(|course| RaceState::new(course, MAX_PLAYERS)),
             karts: vec![KartState::default(); MAX_PLAYERS],
-            drivers: (0..MAX_PLAYERS).map(|slot| Driver::ALL[slot % Driver::ALL.len()]).collect(),
+            drivers: {
+                let n = scene.race.as_ref().map_or_else(|| Roster::great_outdoors().len(), |c| c.roster.len());
+                (0..MAX_PLAYERS).map(|slot| Driver((slot % n) as u8)).collect()
+            },
             kart_bots: (0..MAX_PLAYERS).map(|_| None).collect(),
             hazards: HazardPool::default(),
             item_boxes: match &scene.race {
@@ -205,18 +209,23 @@ impl MatchSim {
         self.players.get(slot)?.as_ref().map(|_| &self.karts[slot])
     }
 
-    /// The driver a bot in `slot` should take: the slot's own default animal unless another player already has it, else the first animal nobody has
-    /// (or the default again if all eight are taken). Humans keep the same defaults, so a human joining later never lands on a bot's animal.
+    /// Who can drive in this match: the race's roster (Great Outdoors' when the map has no `race.roster`, and for matches that are not races).
+    pub fn roster(&self) -> std::sync::Arc<Roster> {
+        self.race.as_ref().map_or_else(Roster::great_outdoors, |r| r.course().roster.clone())
+    }
+
+    /// The driver a bot in `slot` should take: the slot's own default driver unless another player already has it, else the first driver nobody has
+    /// (or the default again if all are taken). Humans keep the same defaults, so a human joining later never lands on a bot's driver.
     pub fn free_driver(&self, slot: usize) -> Driver {
         let taken = |d: Driver| (0..MAX_PLAYERS).any(|s| s != slot && self.players[s].is_some() && self.drivers[s] == d);
         let own = self.drivers[slot];
         if !taken(own) {
             return own;
         }
-        Driver::ALL.into_iter().find(|d| !taken(*d)).unwrap_or(own)
+        self.roster().drivers().find(|d| !taken(*d)).unwrap_or(own)
     }
 
-    /// The driver a slot drives as (the default is one animal per slot, in order; the lobby's character choice replaces it).
+    /// The driver a slot drives as (the default is one driver per slot, in order; the lobby's character choice replaces it).
     pub fn driver(&self, slot: usize) -> Option<Driver> {
         self.drivers.get(slot).copied()
     }
@@ -464,6 +473,7 @@ impl MatchSim {
         // In a race every player is a kart driver: no weapons, no carrying, and the countdown holds the karts on the grid.
         let racing = self.race.as_ref().map(RaceState::can_drive);
         let course = self.race.as_ref().map(RaceState::course_arc);
+        let roster = self.roster();
         let mut kart_events = [KartEvents::default(); MAX_PLAYERS];
         for slot in 0..self.players.len() {
             if racing.is_none() {
@@ -480,7 +490,7 @@ impl MatchSim {
                 let Some(p) = self.players[slot].as_mut() else { break };
                 if let Some(green) = racing {
                     let input = if green { input } else { PlayerInput { seq: input.seq, ..Default::default() } };
-                    let spec = self.drivers[slot].spec();
+                    let spec = roster.spec(self.drivers[slot]);
                     // What is under the kart at the start of the tick: clients predict with the same lookup, so they agree.
                     let surface = course.as_ref().map_or(Surface::Road, |c| c.surface_at(p.state.pos));
                     let (speed, events) =
@@ -537,10 +547,12 @@ impl MatchSim {
 
     /// Karts touching each other trade momentum (a Bear spins the other out), then the race counts gates from where everyone ended up.
     fn kart_bumps_and_race(&mut self, events: &[KartEvents; MAX_PLAYERS]) {
+        let roster = self.roster();
         for a in 0..self.players.len() {
             for b in a + 1..self.players.len() {
                 let (Some(pa), Some(pb)) = (&self.players[a], &self.players[b]) else { continue };
-                let bump = kart_bump(pa.state.pos, pa.state.velocity, &self.drivers[a].spec(), pb.state.pos, pb.state.velocity, &self.drivers[b].spec());
+                let bump =
+                    kart_bump(pa.state.pos, pa.state.velocity, &roster.spec(self.drivers[a]), pb.state.pos, pb.state.velocity, &roster.spec(self.drivers[b]));
                 let Some(bump) = bump else { continue };
                 for (slot, push, dv, spin) in [(a, bump.push_a, bump.dv_a, bump.spin_a), (b, bump.push_b, bump.dv_b, bump.spin_b)] {
                     if let Some(p) = self.players[slot].as_mut() {

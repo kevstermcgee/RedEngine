@@ -8,6 +8,7 @@ use red_engine2::sim::kart::{Driver, Item};
 use red_engine2::sim::match_sim::MatchSim;
 use red_engine2::sim::player::PlayerInput;
 use red_engine2::sim::race::Phase;
+use red_engine2::sim::roster::great_outdoors as go;
 use red_engine2::sim::spawns::parse_spawns;
 
 /// A diamond of four gates around the origin (radius 40); the grid is on the line's approach, two karts side by side heading east (+x).
@@ -60,7 +61,7 @@ fn run(sim: &mut MatchSim, max_ticks: u32) -> u32 {
 
 #[test]
 fn the_countdown_holds_the_karts_on_the_grid_then_they_race_a_lap() {
-    let mut sim = sim_for(&scene(1, 1.0), [Driver::Duck, Driver::Duck]);
+    let mut sim = sim_for(&scene(1, 1.0), [go::DUCK, go::DUCK]);
     let start = sim.player(0).unwrap().state.pos;
     assert!(!sim.race().unwrap().can_drive());
     for t in 1..=59 {
@@ -82,7 +83,7 @@ fn the_countdown_holds_the_karts_on_the_grid_then_they_race_a_lap() {
 
 #[test]
 fn a_faster_driver_beats_a_slower_one_over_the_same_lap() {
-    let mut sim = sim_for(&scene(2, 0.0), [Driver::Beaver, Driver::Deer]);
+    let mut sim = sim_for(&scene(2, 0.0), [go::BEAVER, go::DEER]);
     run(&mut sim, 60 * 90);
     let race = sim.race().unwrap();
     assert_eq!(race.phase(), Phase::Finished);
@@ -108,9 +109,9 @@ fn a_race_is_deterministic_and_the_checksum_sees_it() {
         }
         sums
     };
-    let a = checksums([Driver::Wolf, Driver::Bear]);
-    assert_eq!(a, checksums([Driver::Wolf, Driver::Bear]), "the same race twice gives the same checksum every tick");
-    assert_ne!(a, checksums([Driver::Bear, Driver::Wolf]), "who drives what is part of the state");
+    let a = checksums([go::WOLF, go::BEAR]);
+    assert_eq!(a, checksums([go::WOLF, go::BEAR]), "the same race twice gives the same checksum every tick");
+    assert_ne!(a, checksums([go::BEAR, go::WOLF]), "who drives what is part of the state");
     assert!(a.windows(2).any(|w| w[0] != w[1]), "and it changes as the race goes on");
 }
 
@@ -118,7 +119,7 @@ fn a_race_is_deterministic_and_the_checksum_sees_it() {
 fn the_bear_bulldozes_and_a_scene_without_a_race_is_untouched() {
     // Two karts on a collision course: the Bear spins the Bunny out.
     let text = scene(1, 0.0);
-    let mut sim = sim_for(&text, [Driver::Bear, Driver::Bunny]);
+    let mut sim = sim_for(&text, [go::BEAR, go::BUNNY]);
     for slot in 0..2 {
         let mut state = sim.player(slot).unwrap().state;
         state.pos = Vec2::new(if slot == 0 { -10.0 } else { 10.0 }, -40.0);
@@ -126,8 +127,8 @@ fn the_bear_bulldozes_and_a_scene_without_a_race_is_untouched() {
         sim.remove_player(slot);
         assert!(sim.add_player_at(slot, state));
     }
-    sim.set_driver(0, Driver::Bear);
-    sim.set_driver(1, Driver::Bunny);
+    sim.set_driver(0, go::BEAR);
+    sim.set_driver(1, go::BUNNY);
     let mut spun = false;
     for t in 1..=240 {
         for slot in 0..2 {
@@ -171,7 +172,7 @@ fn convoy(gap: f32, behind: Driver, ahead: Driver) -> MatchSim {
 #[test]
 fn a_thrown_acorn_spins_out_the_kart_ahead_and_a_bubble_absorbs_it() {
     for shielded in [false, true] {
-        let mut sim = convoy(12.0, Driver::Duck, Driver::Duck);
+        let mut sim = convoy(12.0, go::DUCK, go::DUCK);
         sim.give_item(0, Item::Acorn);
         if shielded {
             sim.give_item(1, Item::Bubble);
@@ -200,7 +201,7 @@ fn a_thrown_acorn_spins_out_the_kart_ahead_and_a_bubble_absorbs_it() {
 
 #[test]
 fn the_beavers_plank_catches_a_kart_following_too_close() {
-    let mut sim = convoy(10.0, Driver::Duck, Driver::Beaver);
+    let mut sim = convoy(10.0, go::DUCK, go::BEAVER);
     let mut spun_at = None;
     for t in 1..=180 {
         // The Beaver (slot 1) lays a plank on the first tick and drives on; the Duck (slot 0) chases at full throttle along the same line.
@@ -224,7 +225,7 @@ fn item_boxes_hand_out_items_once_and_come_back() {
     let text = scene(3, 0.0)
         .replace(r#""race":{"#, r#""race":{"item_boxes":["crate"],"item_respawn_secs":2,"#)
         .replace(r#""zones":["#, r#""zones":[{"id":"crate","rect":[-14,-42,-10,-38]},"#);
-    let mut sim = sim_for(&text, [Driver::Duck, Driver::Duck]);
+    let mut sim = sim_for(&text, [go::DUCK, go::DUCK]);
     assert_eq!(sim.item_boxes().boxes().len(), 1);
     assert!(sim.item_boxes().is_ready(0));
     let mut got = None;
@@ -247,7 +248,7 @@ fn a_race_with_items_is_deterministic() {
         .replace(r#""race":{"#, r#""race":{"item_boxes":["crate"],"item_respawn_secs":1,"#)
         .replace(r#""zones":["#, r#""zones":[{"id":"crate","rect":[-14,-42,-10,-38]},"#);
     let run = || {
-        let mut sim = sim_for(&text, [Driver::Beaver, Driver::Wolf]);
+        let mut sim = sim_for(&text, [go::BEAVER, go::WOLF]);
         let mut sums = Vec::new();
         for t in 1..=1200 {
             for slot in 0..2 {
@@ -289,21 +290,21 @@ fn surface_run(kind: &str, drivers: [Driver; 2]) -> [f32; 2] {
 
 #[test]
 fn mud_slows_most_animals_but_not_the_beavers_wooden_kart() {
-    let [duck, beaver] = surface_run("mud", [Driver::Duck, Driver::Beaver]);
-    assert!(duck < Driver::Duck.spec().top_speed * 0.75, "the Duck wallows in mud: {duck}");
-    assert!(beaver > Driver::Beaver.spec().top_speed * 0.9, "the Beaver does not notice it: {beaver}");
+    let [duck, beaver] = surface_run("mud", [go::DUCK, go::BEAVER]);
+    assert!(duck < go::spec(go::DUCK).top_speed * 0.75, "the Duck wallows in mud: {duck}");
+    assert!(beaver > go::spec(go::BEAVER).top_speed * 0.9, "the Beaver does not notice it: {beaver}");
 }
 
 #[test]
 fn water_slows_a_bunny_but_a_duck_floats() {
-    let [duck, bunny] = surface_run("water", [Driver::Duck, Driver::Bunny]);
-    assert!(duck > Driver::Duck.spec().top_speed * 0.9, "the Duck floats over water: {duck}");
-    assert!(bunny < Driver::Bunny.spec().top_speed * 0.75, "the Bunny wades: {bunny}");
+    let [duck, bunny] = surface_run("water", [go::DUCK, go::BUNNY]);
+    assert!(duck > go::spec(go::DUCK).top_speed * 0.9, "the Duck floats over water: {duck}");
+    assert!(bunny < go::spec(go::BUNNY).top_speed * 0.75, "the Bunny wades: {bunny}");
 }
 
 #[test]
 fn dirt_costs_everyone_but_the_coyote_a_little() {
-    let [coyote, deer] = surface_run("dirt", [Driver::Coyote, Driver::Deer]);
-    assert!(coyote > Driver::Coyote.spec().top_speed * 0.95, "the Coyote is at home on dirt: {coyote}");
-    assert!(deer < Driver::Deer.spec().top_speed * 0.92, "the Deer loses speed on it: {deer}");
+    let [coyote, deer] = surface_run("dirt", [go::COYOTE, go::DEER]);
+    assert!(coyote > go::spec(go::COYOTE).top_speed * 0.95, "the Coyote is at home on dirt: {coyote}");
+    assert!(deer < go::spec(go::DEER).top_speed * 0.92, "the Deer loses speed on it: {deer}");
 }

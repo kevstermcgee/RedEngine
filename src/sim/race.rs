@@ -23,7 +23,7 @@ use serde_json::{Map, Value};
 use std::sync::Arc;
 
 /// Keys of the `race` block.
-pub const RACE_KEYS: &[&str] = &["laps", "gates", "countdown_secs", "finish_grace_secs", "line", "item_boxes", "item_respawn_secs", "surfaces"];
+pub const RACE_KEYS: &[&str] = &["laps", "gates", "countdown_secs", "finish_grace_secs", "line", "item_boxes", "item_respawn_secs", "surfaces", "roster"];
 /// Keys of one `race.surfaces` entry.
 pub const SURFACE_KEYS: &[&str] = &["zone", "kind"];
 /// Most laps a race may have.
@@ -99,6 +99,8 @@ pub struct RaceCourse {
     pub item_respawn_secs: f32,
     /// Patches of ground that are not road: `(surface, min, max)`. Later entries win where they overlap.
     pub surfaces: Vec<(Surface, Vec2, Vec2)>,
+    /// Who can drive and what the items are called (the `race.roster` block; the Great Outdoors roster when the map has none).
+    pub roster: std::sync::Arc<crate::sim::roster::Roster>,
 }
 
 /// The rectangle of the zone called `id`, resolved against a scene's `zones`. `path` names the field being read and `what` the thing a zone is being
@@ -224,7 +226,12 @@ impl RaceCourse {
                 surfaces.push((kind, min, max));
             }
         }
-        Ok(Some(RaceCourse { laps, gates, countdown_secs, finish_grace_secs, line, item_boxes, item_respawn_secs, surfaces }))
+        let roster = match obj.get("roster") {
+            None => crate::sim::roster::Roster::great_outdoors(),
+            Some(Value::String(name)) if name == "great_outdoors" => crate::sim::roster::Roster::great_outdoors(),
+            Some(v) => std::sync::Arc::new(crate::sim::roster::Roster::from_json(v, "race.roster")?),
+        };
+        Ok(Some(RaceCourse { laps, gates, countdown_secs, finish_grace_secs, line, item_boxes, item_respawn_secs, surfaces, roster }))
     }
 }
 

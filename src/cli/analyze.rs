@@ -800,7 +800,7 @@ pub(crate) fn run_race_track(out: &Path, spec: red_engine2::tools::racetrack::Tr
 pub(crate) fn run_race_test(scene: &Path, bots: usize, level: f32, secs: f32, drivers: Option<&str>) -> Result<(), String> {
     use red_engine2::tools::racetest;
     let drivers = match drivers {
-        Some(list) => racetest::parse_drivers(list)?,
+        Some(list) => racetest::parse_drivers(&*racetest::roster_of(scene)?, list)?,
         None => Vec::new(),
     };
     let report = racetest::run(scene, bots, level, secs, &drivers)?;

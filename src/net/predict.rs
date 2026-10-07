@@ -201,7 +201,8 @@ impl Predictor {
         tuning: PlayerTuning,
         jump_pads: &[JumpPad],
     ) {
-        match kart.and_then(|k| crate::sim::kart::Driver::from_wire(k.driver).map(|d| (k, d.spec()))) {
+        let roster = self.course.as_ref().map_or_else(crate::sim::roster::Roster::great_outdoors, |c| c.roster.clone());
+        match kart.and_then(|k| roster.from_wire(k.driver).map(|d| (k, roster.spec(d)))) {
             Some((k, spec)) => {
                 if self.kart_mode.as_ref().is_none_or(|m| m.spec != spec) {
                     self.enable_kart(k.to_state(), spec);
@@ -249,6 +250,7 @@ impl Predictor {
 
 #[cfg(test)]
 mod tests {
+    use crate::sim::roster::great_outdoors as go;
     #[test]
     fn arena_packet_loss_corrections_are_smoothed_within_the_movement_envelope() {
         let (colliders, ground) = world();
@@ -400,11 +402,10 @@ mod tests {
 
     #[test]
     fn a_predicted_kart_agrees_with_the_server_through_lag_drifts_hops_and_a_wall() {
-        use crate::sim::kart::Driver;
         let wall = [Collider2D { min: Vec2::new(60.0, -50.0), max: Vec2::new(62.0, 50.0), min_y: 0.0, max_y: 3.0 }];
         let ground = GroundCandidates::default();
-        for driver in Driver::ALL {
-            let spec = driver.spec();
+        for driver in go::all() {
+            let spec = go::spec(driver);
             let start = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
             let mut predictor = Predictor::new(start);
             predictor.enable_kart(KartState::default(), spec);
@@ -422,21 +423,20 @@ mod tests {
                     }
                 }
             }
-            assert_eq!(predictor.corrections, 0, "{}: the same function on the same inputs never needs correcting", driver.name());
+            assert_eq!(predictor.corrections, 0, "{}: the same function on the same inputs never needs correcting", go::name(driver));
             for input in &sent[sent.len() - lag..] {
                 server.process(input, true, &wall, &ground);
             }
-            assert_eq!(predictor.state, server.state, "{}: once the server catches up they are the same kart", driver.name());
+            assert_eq!(predictor.state, server.state, "{}: once the server catches up they are the same kart", go::name(driver));
             assert_eq!(predictor.kart(), Some(&server.kart));
-            assert!(server.state.pos.x > 20.0, "{} drove somewhere: {:?}", driver.name(), server.state.pos);
+            assert!(server.state.pos.x > 20.0, "{} drove somewhere: {:?}", go::name(driver), server.state.pos);
         }
     }
 
     #[test]
     fn the_prediction_holds_the_kart_through_the_countdown_like_the_server() {
-        use crate::sim::kart::Driver;
         let ground = GroundCandidates::default();
-        let spec = Driver::Deer.spec();
+        let spec = go::spec(go::DEER);
         let start = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
         let mut predictor = Predictor::new(start);
         predictor.enable_kart(KartState::default(), spec);
@@ -466,9 +466,8 @@ mod tests {
 
     #[test]
     fn a_hit_the_client_did_not_predict_is_taken_from_the_server_and_carried_forward() {
-        use crate::sim::kart::Driver;
         let ground = GroundCandidates::default();
-        let spec = Driver::Bunny.spec();
+        let spec = go::spec(go::BUNNY);
         let start = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
         let mut predictor = Predictor::new(start);
         predictor.enable_kart(KartState::default(), spec);
@@ -496,10 +495,10 @@ mod tests {
     #[test]
     fn a_predicted_item_takes_effect_the_moment_the_button_is_pressed_and_the_server_agrees() {
         use crate::net::protocol::KartSnap;
-        use crate::sim::kart::{Driver, Item};
+        use crate::sim::kart::Item;
         let ground = GroundCandidates::default();
-        for (item, driver) in [(Item::Mushroom, Driver::Wolf), (Item::Bubble, Driver::Bear), (Item::Acorn, Driver::Duck)] {
-            let spec = driver.spec();
+        for (item, driver) in [(Item::Mushroom, go::WOLF), (Item::Bubble, go::BEAR), (Item::Acorn, go::DUCK)] {
+            let spec = go::spec(driver);
             let start = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
             // A snapshot's kart block says the box gave this kart an item; that is how a client learns what it holds.
             let mut predictor = Predictor::new(start);
@@ -574,14 +573,13 @@ mod tests {
 
     #[test]
     fn prediction_agrees_with_the_server_across_the_edge_of_a_mud_patch() {
-        use crate::sim::kart::Driver;
         use crate::sim::race::RaceCourse;
         let text = r#"{"zones":[{"id":"a","rect":[-1,-1,1,1]},{"id":"b","rect":[9,-1,11,1]},{"id":"c","rect":[19,-1,21,1]},{"id":"pool","rect":[40,-30,70,30]},{"id":"pond","rect":[100,-30,130,30]}],
             "race":{"gates":["a","b","c"],"surfaces":[{"zone":"pool","kind":"mud"},{"zone":"pond","kind":"water"}]}}"#;
         let course = std::sync::Arc::new(RaceCourse::from_scene_text(text).unwrap().unwrap());
         let ground = GroundCandidates::default();
-        for driver in [Driver::Duck, Driver::Deer, Driver::Beaver] {
-            let spec = driver.spec();
+        for driver in [go::DUCK, go::DEER, go::BEAVER] {
+            let spec = go::spec(driver);
             let start = PlayerState::spawn(0.0, 0.0, 0.0, 90.0, Character::Human);
             let mut predictor = Predictor::new(start);
             predictor.set_course(Some(course.clone()));
@@ -608,8 +606,8 @@ mod tests {
                     }
                 }
             }
-            assert_eq!(predictor.corrections, 0, "{}: crossing mud and water never needs a correction", driver.name());
-            assert!(server.state.pos.x > 100.0, "{} drove through both patches: {:?}", driver.name(), server.state.pos);
+            assert_eq!(predictor.corrections, 0, "{}: crossing mud and water never needs a correction", go::name(driver));
+            assert!(server.state.pos.x > 100.0, "{} drove through both patches: {:?}", go::name(driver), server.state.pos);
         }
     }
 }

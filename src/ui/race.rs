@@ -35,6 +35,8 @@ pub struct RaceHud {
     pub speed: f32,
     /// The pickup held.
     pub item: Item,
+    /// What the game calls the item held (`race.roster.items`); empty = the built-in label.
+    pub item_name: String,
     /// Under a Bubble.
     pub shielded: bool,
     /// Boosting.
@@ -72,6 +74,7 @@ impl Default for RaceHud {
             racers: 0,
             speed: 0.0,
             item: Item::None,
+            item_name: String::new(),
             shielded: false,
             boosting: false,
             drift_tier: 0,
@@ -170,7 +173,8 @@ pub fn race_hud_layout(w: u32, h: u32, hud: &RaceHud) -> Layout {
 
     // Bottom centre: the held item.
     {
-        let (name, color) = item_look(hud.item);
+        let (default_name, color) = item_look(hud.item);
+        let name = if hud.item_name.is_empty() { default_name.to_string() } else { hud.item_name.to_uppercase() };
         let pw = (46 * s).min(wi - 8);
         let ph = text_height(s) * 2 + 10 * s;
         let x0 = (wi - pw) / 2;
@@ -178,7 +182,7 @@ pub fn race_hud_layout(w: u32, h: u32, hud: &RaceHud) -> Layout {
         let panel =
             l.panel("item_panel", (x0, y0, x0 + pw, y0 + ph), None, Some(PANEL), Some((if hud.item == Item::None { EDGE } else { color }, (s / 2).max(1))));
         l.label_fit("item_title", Some(panel), wi / 2, y0 + 3 * s, "ITEM", s, pw - 6 * s, DIM);
-        let text = if name.is_empty() { "-" } else { name };
+        let text = if name.is_empty() { "-" } else { name.as_str() };
         l.label_fit("item_name", Some(panel), wi / 2, y0 + 5 * s + text_height(s), text, s, pw - 6 * s, color);
     }
 

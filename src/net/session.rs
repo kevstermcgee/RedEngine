@@ -360,13 +360,14 @@ impl NetSession {
     pub fn kart_view(&self) -> Option<crate::kart_camera::KartView> {
         let p = self.predictor.as_ref()?;
         let kart = p.kart()?;
-        let driver = crate::sim::kart::Driver::from_wire(self.own.as_ref()?.kart.as_ref()?.driver)?;
+        let roster = self.fleet.as_ref().map_or_else(crate::sim::roster::Roster::great_outdoors, |f| f.roster().clone());
+        let driver = roster.from_wire(self.own.as_ref()?.kart.as_ref()?.driver)?;
         Some(crate::kart_camera::KartView {
             pos: p.visual_pos(),
             foot_y: p.state.foot_y,
             heading: p.state.yaw,
             velocity: p.state.velocity,
-            top_speed: driver.spec().top_speed,
+            top_speed: roster.spec(driver).top_speed,
             drifting: kart.drift_dir != 0,
             boosting: kart.boost_ticks > 0,
         })
@@ -377,7 +378,8 @@ impl NetSession {
         use crate::ui::race::{Finish, RaceHud};
         let (fleet, race) = (self.fleet.as_ref()?, self.race.as_ref()?);
         let snap = self.own.as_ref()?.kart.as_ref()?;
-        let driver = crate::sim::kart::Driver::from_wire(snap.driver)?;
+        let roster = fleet.roster();
+        let driver = roster.from_wire(snap.driver)?;
         let mine = self.predictor.as_ref().and_then(|p| p.kart().copied()).unwrap_or_else(|| snap.to_state());
         let tier = if mine.drift_dir == 0 {
             0
@@ -393,7 +395,7 @@ impl NetSession {
                 .standings()
                 .into_iter()
                 .filter_map(|(d, place, finished)| {
-                    let name = crate::sim::kart::Driver::from_wire(d)?.name().to_string();
+                    let name = roster.name(roster.from_wire(d)?).to_string();
                     Some((place, name, if finished { Finish::Done } else { Finish::DidNotFinish }))
                 })
                 .collect()
@@ -410,10 +412,11 @@ impl NetSession {
             racers: fleet.standings().len().max(1) as u8,
             speed: self.last_speed,
             item: mine.item,
+            item_name: if mine.item == crate::sim::kart::Item::None { String::new() } else { roster.item_name(mine.item).to_string() },
             shielded: mine.shield_ticks > 0,
             boosting: mine.boost_ticks > 0,
             drift_tier: tier,
-            ability_cooldown: (driver.spec().ability == crate::sim::kart::Ability::Build)
+            ability_cooldown: (roster.spec(driver).ability == crate::sim::kart::Ability::Build)
                 .then(|| mine.ability_cooldown as f32 / crate::sim::clock::TICK_RATE_HZ as f32),
             finished: snap.finished,
             standings,
@@ -744,6 +747,7 @@ mod tests {
     use crate::net::interp::PlayerPose;
     use crate::net::server::{Server, ServerConfig};
     use crate::sim::match_sim::MatchSim;
+    use crate::sim::roster::great_outdoors as go;
     use crate::sim::spawns::parse_spawns;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -1095,14 +1099,13 @@ mod tests {
 
     #[test]
     fn a_race_view_draws_each_player_as_a_kart_of_their_driver_and_no_people() {
-        use crate::sim::kart::Driver;
         let (mut session, mut scene) = race_session();
         assert!(session.is_race());
         assert!(session.avatar_pool_stats().is_empty(), "a race needs no character avatars");
         let players = vec![
-            (1, kart_pose(Driver::Bunny.wire(), 3.0, 0.0)),
-            (2, kart_pose(Driver::Bear.wire(), 6.0, std::f32::consts::FRAC_PI_2)),
-            (3, kart_pose(Driver::Beaver.wire(), 9.0, 0.0)),
+            (1, kart_pose(go::BUNNY.wire(), 3.0, 0.0)),
+            (2, kart_pose(go::BEAR.wire(), 6.0, std::f32::consts::FRAC_PI_2)),
+            (3, kart_pose(go::BEAVER.wire(), 9.0, 0.0)),
         ];
         session.apply_view(&View { players, props: vec![] }, 3, None, &mut scene, 0.016, 0.0);
         let s = session.stats();
@@ -1115,7 +1118,7 @@ mod tests {
         assert!(hidden.contains(&"kart_duck") && hidden.contains(&"kart_wolf"), "drivers who are not racing are not drawn");
         assert!(!hidden.contains(&"kart_bunny") && !hidden.contains(&"kart_beaver"));
         // A driver who leaves is hidden again next frame.
-        session.apply_view(&View { players: vec![(1, kart_pose(Driver::Bunny.wire(), 4.0, 0.0))], props: vec![] }, 1, None, &mut scene, 0.016, 0.0);
+        session.apply_view(&View { players: vec![(1, kart_pose(go::BUNNY.wire(), 4.0, 0.0))], props: vec![] }, 1, None, &mut scene, 0.016, 0.0);
         let hidden: Vec<&str> = session.hidden_avatar_ids(&scene).collect();
         assert!(hidden.contains(&"kart_bear") && !hidden.contains(&"kart_bunny"));
     }
@@ -1135,12 +1138,12 @@ mod tests {
     fn the_race_hud_and_the_chase_view_come_from_the_prediction_and_the_newest_snapshot() {
         use crate::net::predict::Predictor;
         use crate::net::protocol::{KartSnap, PlayerSnap, RaceSnap};
-        use crate::sim::kart::{Driver, Item};
+        use crate::sim::kart::Item;
         let (mut session, mut scene) = race_session();
         assert!(session.race_hud().is_none() && session.kart_view().is_none(), "nothing to show before the first snapshot");
         session.race = Some(RaceSnap { phase: 1, race_tick: 630, ..Default::default() });
         let snap = KartSnap {
-            driver: Driver::Beaver.wire(),
+            driver: go::BEAVER.wire(),
             lap: 1,
             place: 3,
             item: Item::Mushroom.wire(),
@@ -1161,13 +1164,13 @@ mod tests {
             ..Default::default()
         });
         let mut predictor = Predictor::new(PlayerState::spawn(1.0, 2.0, 0.0, 90.0, Character::Human));
-        predictor.enable_kart(snap.to_state(), Driver::Beaver.spec());
+        predictor.enable_kart(snap.to_state(), go::spec(go::BEAVER));
         session.predictor = Some(predictor);
         session.last_speed = 21.0;
         // One frame draws the others, which is where the standings come from.
         let rival = PlayerPose {
-            kart: Some(KartSnap { driver: Driver::Bear.wire(), place: 1, finished: true, ..Default::default() }),
-            ..kart_pose(Driver::Bear.wire(), 3.0, 0.0)
+            kart: Some(KartSnap { driver: go::BEAR.wire(), place: 1, finished: true, ..Default::default() }),
+            ..kart_pose(go::BEAR.wire(), 3.0, 0.0)
         };
         session.apply_view(&View { players: vec![(1, rival)], props: vec![] }, 1, None, &mut scene, 0.016, 0.0);
         // ... and update_scene then places the local kart, from the prediction.
@@ -1181,7 +1184,7 @@ mod tests {
         assert!(hud.standings.is_empty(), "the standings table is for the end of the race");
         let view = session.kart_view().expect("a chase view");
         assert!((view.heading - 90f32.to_radians()).abs() < 1e-5 && view.drifting && view.boosting);
-        assert_eq!(view.top_speed, Driver::Beaver.spec().top_speed);
+        assert_eq!(view.top_speed, go::spec(go::BEAVER).top_speed);
         // The race ends: the standings list everyone drawn, best place first, saying who finished.
         session.race = Some(RaceSnap { phase: 2, ..Default::default() });
         let hud = session.race_hud().unwrap();

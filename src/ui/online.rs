@@ -10,7 +10,7 @@
 use super::{ellipsize, fit_scale, text_height, text_width, Layout, Rect};
 use crate::net::protocol::{RosterEntry, ROSTER_IN_ROUND, ROSTER_READY};
 use crate::sim::flow::Phase;
-use crate::sim::kart::Driver;
+use crate::sim::roster::Roster;
 
 const TEXT: [u8; 4] = [236, 238, 245, 255];
 const DIM: [u8; 4] = [150, 156, 176, 255];
@@ -53,8 +53,10 @@ pub struct OnlineView {
     pub message: Option<String>,
     /// Our own combat state, for the shooter HUD (`None` = draw no health or weapon).
     pub combat: Option<CombatView>,
-    /// Whether the map is a race: the character byte is then the animal to drive, and the lobby lets everyone choose one.
+    /// Whether the map is a race: the character byte is then the driver to take, and the lobby lets everyone choose one.
     pub race: bool,
+    /// The race's drivers (`race.roster`; Great Outdoors' when the map has none): the choice screen, the names in the roster list.
+    pub drivers: std::sync::Arc<Roster>,
 }
 
 /// What the shooter HUD shows about us: health, the weapon in hand and where it sits on the weapon ladder, and whether we are waiting to respawn.
@@ -153,6 +155,7 @@ impl OnlineView {
             reconnecting: false,
             message: None,
             race: false,
+            drivers: Roster::great_outdoors(),
             combat: match phase {
                 Phase::Playing => Some(CombatView::demo()),
                 Phase::Countdown => Some(CombatView { notice: None, ..CombatView::demo() }),
@@ -211,9 +214,9 @@ pub fn action_at(layout: &Layout, x: f32, y: f32) -> Option<OnlineAction> {
     layout.button_at(x, y).and_then(action_for)
 }
 
-/// The wire byte of the animal `step` places (`1` next, `-1` previous) from ours, skipping animals other people have chosen; ours again if all are taken.
+/// The wire byte of the driver `step` places (`1` next, `-1` previous) from ours, skipping drivers other people have chosen; ours again if all are taken.
 pub fn step_driver(v: &OnlineView, step: i8) -> u8 {
-    let n = Driver::ALL.len() as i16;
+    let n = v.drivers.len() as i16;
     let mine = i16::from(v.my_character()).min(n - 1);
     for k in 1..=n {
         let cand = (mine + i16::from(step) * k).rem_euclid(n) as u8;
@@ -224,12 +227,12 @@ pub fn step_driver(v: &OnlineView, step: i8) -> u8 {
     mine as u8
 }
 
-/// A roster entry's character as text: a body name, or in a race the animal.
-fn what_name(race: bool, c: u8) -> &'static str {
-    if race {
-        Driver::from_wire(c).map_or("?", Driver::name)
+/// A roster entry's character as text: a body name, or in a race the driver.
+fn what_name(v: &OnlineView, c: u8) -> String {
+    if v.race {
+        v.drivers.from_wire(c).map_or("?", |d| v.drivers.name(d)).to_string()
     } else {
-        character_name(c)
+        character_name(c).to_string()
     }
 }
 
@@ -355,7 +358,7 @@ pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layo
     let cols = columns(x0 + pad, x1 - pad);
     for (id, label, (a, b), right) in [
         ("h_name", "NAME", cols.name, false),
-        ("h_what", if v.race { "ANIMAL" } else { "TYPE" }, cols.what, false),
+        ("h_what", if v.race { "DRIVER" } else { "TYPE" }, cols.what, false),
         ("h_ping", "PING", cols.ping, false),
         ("h_state", "STATE", cols.state, true),
     ] {
@@ -370,7 +373,7 @@ pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layo
         let mine = e.id == v.me;
         let col = if mine { GOLD } else { TEXT };
         l.label_left(&format!("r{i}_name"), Some(c), cols.name.0, y, &upper(&e.name), s, cols.name.1 - cols.name.0, col);
-        l.label_left(&format!("r{i}_what"), Some(c), cols.what.0, y, what_name(v.race, e.character), s, cols.what.1 - cols.what.0, col);
+        l.label_left(&format!("r{i}_what"), Some(c), cols.what.0, y, &what_name(v, e.character), s, cols.what.1 - cols.what.0, col);
         l.label_left(&format!("r{i}_ping"), Some(c), cols.ping.0, y, &format!("{} MS", e.ping_ms), s, cols.ping.1 - cols.ping.0, DIM);
         let (txt, tc) = if e.flags & ROSTER_READY != 0 { ("READY", GREEN) } else { ("NOT READY", DIM) };
         l.label_right(&format!("r{i}_state"), Some(c), cols.state.1, y, txt, s, cols.state.1 - cols.state.0, tc);
@@ -418,8 +421,8 @@ pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layo
                 TEXT,
             );
         }
-        let me_driver = Driver::from_wire(v.my_character()).unwrap_or(Driver::Duck);
-        let name = upper(me_driver.name());
+        let me_driver = v.drivers.from_wire(v.my_character()).unwrap_or_default();
+        let name = upper(v.drivers.name(me_driver));
         let scale = fit_scale(&name, bx1 - bx0 - 2 * arrow - 8 * s, s * 3 / 2);
         l.button(
             "driver",
@@ -432,12 +435,12 @@ pub fn lobby_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> Layo
             GOLD,
         );
         y += bh + 3 * s;
-        l.label_fit("perk", Some(c), cx, y, me_driver.spec().ability.blurb(), s, inner, DIM);
+        l.label_fit("perk", Some(c), cx, y, v.drivers.blurb(me_driver), s, inner, DIM);
         y += text_height(s) + 3 * s;
     }
     button(&mut l, "leave", y, "LEAVE", false);
     y += bh + 6 * s;
-    l.label_fit("hint", Some(c), cx, y, if v.race { "R READY   LEFT RIGHT ANIMAL   ESC LEAVE" } else { "R READY   ESC LEAVE" }, s, inner, DIM);
+    l.label_fit("hint", Some(c), cx, y, if v.race { "R READY   LEFT RIGHT DRIVER   ESC LEAVE" } else { "R READY   ESC LEAVE" }, s, inner, DIM);
     y += text_height(s) + 2 * s;
     if let Some(m) = &v.message {
         for (i, line) in super::wrap(&upper(m), inner, s).iter().take(3).enumerate() {
@@ -491,7 +494,7 @@ pub fn results_layout(w: u32, h: u32, v: &OnlineView, hover: Option<&str>) -> La
     for (i, e) in ranked.iter().enumerate() {
         let col = if e.id == v.me { GOLD } else { TEXT };
         l.label_left(&format!("r{i}_name"), Some(c), cols.name.0, y, &format!("{}. {}", i + 1, upper(&e.name)), s, cols.name.1 - cols.name.0, col);
-        l.label_left(&format!("r{i}_what"), Some(c), cols.what.0, y, what_name(v.race, e.character), s, cols.what.1 - cols.what.0, DIM);
+        l.label_left(&format!("r{i}_what"), Some(c), cols.what.0, y, &what_name(v, e.character), s, cols.what.1 - cols.what.0, DIM);
         l.label_right(&format!("r{i}_score"), Some(c), cols.state.1, y, &e.score.to_string(), s, cols.state.1 - cols.ping.0, col);
         y += row_h;
     }

@@ -53,6 +53,8 @@ pub const BUBBLE_TICKS: u16 = 300;
 /// The Beaver's Build cooldown, ticks (4 s).
 pub const BUILD_COOLDOWN_TICKS: u16 = 240;
 
+pub use crate::sim::roster::Driver;
+
 /// A pickup a kart can hold (one at a time). `attack` uses it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Item {
@@ -213,28 +215,16 @@ impl KartSpec {
     }
 }
 
-/// One of the eight drivers of Great Outdoors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Driver {
-    /// Balanced; floats over water.
-    Duck,
-    /// Quick off the line, hops.
-    Bunny,
-    /// Highest top speed, drifts well.
-    Deer,
-    /// Fine on dirt.
-    Coyote,
-    /// Light, glides off jumps.
-    Hawk,
-    /// Heavy; bumps others aside.
-    Bear,
-    /// Draws a boost from slipstreams.
-    Wolf,
-    /// Wooden kart; builds.
-    Beaver,
-}
-
 impl Ability {
+    /// The names a roster file uses for the abilities, in declaration order.
+    pub const NAMES: [&'static str; 8] = ["float", "hop", "drift_boost", "dirt", "glide", "bulldoze", "slipstream", "build"];
+
+    /// The ability a roster file's name stands for.
+    pub fn parse(name: &str) -> Option<Ability> {
+        use Ability::*;
+        [Float, Hop, DriftBoost, Dirt, Glide, Bulldoze, Slipstream, Build].into_iter().zip(Ability::NAMES).find(|(_, n)| *n == name).map(|(a, _)| a)
+    }
+
     /// One short line for the driver-choice screen (capital letters, at most 34 characters).
     pub fn blurb(self) -> &'static str {
         match self {
@@ -246,102 +236,6 @@ impl Ability {
             Ability::Bulldoze => "BUMPS SPIN OTHERS, YOU NEVER SPIN",
             Ability::Slipstream => "SLIPSTREAM CHARGES A BOOST",
             Ability::Build => "WOODEN KART, LAYS PLANKS BEHIND",
-        }
-    }
-}
-
-impl Driver {
-    /// All eight, in wire order.
-    pub const ALL: [Driver; 8] = [Driver::Duck, Driver::Bunny, Driver::Deer, Driver::Coyote, Driver::Hawk, Driver::Bear, Driver::Wolf, Driver::Beaver];
-
-    /// The driver's name as shown to players.
-    pub fn name(self) -> &'static str {
-        match self {
-            Driver::Duck => "Duck",
-            Driver::Bunny => "Bunny",
-            Driver::Deer => "Deer",
-            Driver::Coyote => "Coyote",
-            Driver::Hawk => "Hawk",
-            Driver::Bear => "Bear",
-            Driver::Wolf => "Wolf",
-            Driver::Beaver => "Beaver",
-        }
-    }
-
-    /// The driver's number on the wire (its index in [`Driver::ALL`]).
-    pub fn wire(self) -> u8 {
-        Driver::ALL.iter().position(|d| *d == self).unwrap_or(0) as u8
-    }
-
-    /// The driver for a wire number, if it is one.
-    pub fn from_wire(n: u8) -> Option<Driver> {
-        Driver::ALL.get(n as usize).copied()
-    }
-
-    /// The driver whose [`Driver::name`] is `name` (any case).
-    pub fn parse(name: &str) -> Option<Driver> {
-        Driver::ALL.into_iter().find(|d| d.name().eq_ignore_ascii_case(name.trim()))
-    }
-
-    /// This driver's kart numbers: the starting point in the ADR's table, tuned by playing.
-    pub fn spec(self) -> KartSpec {
-        let base = KartSpec {
-            top_speed: 24.0,
-            accel: 12.0,
-            brake: 26.0,
-            reverse_speed: 6.0,
-            steer_rate: 90.0,
-            grip: 0.8,
-            mass: 1.0,
-            dirt: 0.85,
-            mud: 0.6,
-            water: 0.55,
-            boost_mult: 1.3,
-            drift_rate: 1.0,
-            hop_speed: 4.0,
-            ability: Ability::Float,
-        };
-        match self {
-            Driver::Duck => KartSpec { water: 1.0, ability: Ability::Float, ..base },
-            Driver::Bunny => KartSpec {
-                top_speed: 22.0,
-                accel: 16.0,
-                steer_rate: 110.0,
-                grip: 0.75,
-                mass: 0.8,
-                drift_rate: 1.2,
-                hop_speed: 5.5,
-                ability: Ability::Hop,
-                ..base
-            },
-            Driver::Deer => KartSpec { top_speed: 27.0, accel: 10.0, steer_rate: 85.0, mass: 0.9, drift_rate: 1.3, ability: Ability::DriftBoost, ..base },
-            Driver::Coyote => KartSpec { top_speed: 25.0, steer_rate: 90.0, grip: 0.7, mass: 0.9, dirt: 1.0, ability: Ability::Dirt, ..base },
-            Driver::Hawk => KartSpec { top_speed: 25.0, accel: 11.0, mass: 0.7, ability: Ability::Glide, ..base },
-            Driver::Bear => KartSpec {
-                top_speed: 22.0,
-                accel: 9.0,
-                steer_rate: 70.0,
-                grip: 0.85,
-                mass: 1.6,
-                drift_rate: 0.8,
-                hop_speed: 3.0,
-                ability: Ability::Bulldoze,
-                ..base
-            },
-            Driver::Wolf => KartSpec { top_speed: 25.0, steer_rate: 92.0, grip: 0.78, ability: Ability::Slipstream, ..base },
-            Driver::Beaver => KartSpec {
-                top_speed: 21.0,
-                accel: 9.0,
-                steer_rate: 78.0,
-                grip: 0.85,
-                mass: 1.3,
-                dirt: 1.0,
-                mud: 1.0,
-                water: 1.0,
-                drift_rate: 0.9,
-                ability: Ability::Build,
-                ..base
-            },
         }
     }
 }
@@ -662,6 +556,7 @@ pub fn slipstream_gain(follower: Vec2, follower_fwd: Vec2, leader: Vec2) -> f32 
 mod tests {
     use super::*;
     use crate::player::Character;
+    use crate::sim::roster::great_outdoors as go;
 
     fn at(x: f32, z: f32, yaw_deg: f32) -> PlayerState {
         PlayerState::spawn(x, z, 0.0, yaw_deg, Character::Human)
@@ -669,7 +564,7 @@ mod tests {
 
     fn drive(driver: Driver, ticks: u32, mut input: impl FnMut(u32) -> PlayerInput) -> (PlayerState, KartState) {
         let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState::default());
-        let (spec, ground) = (driver.spec(), GroundCandidates::default());
+        let (spec, ground) = (go::spec(driver), GroundCandidates::default());
         for t in 0..ticks {
             step_kart(&mut s, &mut k, &input(t), &spec, Surface::Road, &[], &ground);
         }
@@ -682,61 +577,61 @@ mod tests {
 
     #[test]
     fn every_driver_reaches_its_top_speed_and_never_exceeds_it() {
-        for d in Driver::ALL {
+        for d in go::all() {
             let (s, _) = drive(d, 600, |_| throttle());
-            let top = d.spec().top_speed;
-            assert!((s.velocity.length() - top).abs() < 0.05, "{}: {} vs top {top}", d.name(), s.velocity.length());
-            assert!(s.pos.y < -100.0, "{} drove forward (-Z)", d.name());
+            let top = go::spec(d).top_speed;
+            assert!((s.velocity.length() - top).abs() < 0.05, "{}: {} vs top {top}", go::name(d), s.velocity.length());
+            assert!(s.pos.y < -100.0, "{} drove forward (-Z)", go::name(d));
         }
     }
 
     #[test]
     fn the_table_matches_the_adr_and_the_drivers_are_distinct() {
         let mut names = std::collections::HashSet::new();
-        for (i, d) in Driver::ALL.into_iter().enumerate() {
-            assert!(names.insert(d.name()), "unique names");
-            assert_eq!((d.wire() as usize, Driver::from_wire(d.wire())), (i, Some(d)));
-            assert_eq!(Driver::parse(&d.name().to_uppercase()), Some(d));
+        for (i, d) in go::all().into_iter().enumerate() {
+            assert!(names.insert(go::name(d)), "unique names");
+            assert_eq!((d.wire() as usize, go::shared().from_wire(d.wire())), (i, Some(d)));
+            assert_eq!(go::shared().parse(&go::name(d).to_uppercase()), Some(d));
         }
-        assert_eq!(Driver::from_wire(8), None);
-        let by = |f: fn(&KartSpec) -> f32| Driver::ALL.into_iter().max_by(|a, b| f(&a.spec()).total_cmp(&f(&b.spec()))).unwrap();
-        assert_eq!(by(|s| s.top_speed), Driver::Deer, "Deer is the fastest");
-        assert_eq!(by(|s| s.accel), Driver::Bunny, "Bunny is the quickest off the line");
-        assert_eq!(by(|s| s.mass), Driver::Bear, "Bear is the heaviest");
-        assert_eq!(by(|s| s.steer_rate), Driver::Bunny);
-        assert_eq!(by(|s| s.hop_speed), Driver::Bunny);
-        assert_eq!(Driver::Duck.spec().water, 1.0);
-        assert_eq!(Driver::Coyote.spec().dirt, 1.0);
-        let beaver = Driver::Beaver.spec();
+        assert_eq!(go::shared().from_wire(8), None);
+        let by = |f: fn(&KartSpec) -> f32| go::all().into_iter().max_by(|a, b| f(&go::spec(*a)).total_cmp(&f(&go::spec(*b)))).unwrap();
+        assert_eq!(by(|s| s.top_speed), go::DEER, "Deer is the fastest");
+        assert_eq!(by(|s| s.accel), go::BUNNY, "Bunny is the quickest off the line");
+        assert_eq!(by(|s| s.mass), go::BEAR, "Bear is the heaviest");
+        assert_eq!(by(|s| s.steer_rate), go::BUNNY);
+        assert_eq!(by(|s| s.hop_speed), go::BUNNY);
+        assert_eq!(go::spec(go::DUCK).water, 1.0);
+        assert_eq!(go::spec(go::COYOTE).dirt, 1.0);
+        let beaver = go::spec(go::BEAVER);
         assert_eq!((beaver.mud, beaver.water, beaver.dirt), (1.0, 1.0, 1.0), "the wooden kart shrugs off the wet and the dirt");
-        for d in Driver::ALL {
-            let s = d.spec();
-            assert!((18.0..=30.0).contains(&s.top_speed) && (0.5..=2.0).contains(&s.mass) && (0.5..=1.0).contains(&s.grip), "{} is in range", d.name());
+        for d in go::all() {
+            let s = go::spec(d);
+            assert!((18.0..=30.0).contains(&s.top_speed) && (0.5..=2.0).contains(&s.mass) && (0.5..=1.0).contains(&s.grip), "{} is in range", go::name(d));
         }
     }
 
     #[test]
     fn steering_needs_speed_and_turns_toward_the_stick() {
         let right = PlayerInput { forward: 1, strafe: 1, ..Default::default() };
-        let (still, _) = drive(Driver::Duck, 60, |_| PlayerInput { strafe: 1, ..Default::default() });
+        let (still, _) = drive(go::DUCK, 60, |_| PlayerInput { strafe: 1, ..Default::default() });
         assert_eq!(still.yaw, 0.0, "a stopped kart cannot steer");
-        let (moving, _) = drive(Driver::Duck, 120, |t| if t < 60 { throttle() } else { right });
+        let (moving, _) = drive(go::DUCK, 120, |t| if t < 60 { throttle() } else { right });
         assert!(moving.yaw > 0.5, "steering right turns the heading clockwise: {}", moving.yaw);
         let left = PlayerInput { forward: 1, strafe: -1, ..Default::default() };
-        let (l, _) = drive(Driver::Duck, 120, |t| if t < 60 { throttle() } else { left });
+        let (l, _) = drive(go::DUCK, 120, |t| if t < 60 { throttle() } else { left });
         assert!((l.yaw + moving.yaw).abs() < 0.02, "left mirrors right: {} vs {}", l.yaw, moving.yaw);
         let half = PlayerInput { analog: true, forward: 127, strafe: 64, ..Default::default() };
-        let (h, _) = drive(Driver::Duck, 120, |t| if t < 60 { throttle() } else { half });
+        let (h, _) = drive(go::DUCK, 120, |t| if t < 60 { throttle() } else { half });
         assert!((h.yaw / moving.yaw - 0.5).abs() < 0.1, "half stick turns about half as fast: {} vs {}", h.yaw, moving.yaw);
     }
 
     #[test]
     fn braking_stops_and_then_reverses_slowly() {
         let brake = PlayerInput { forward: -1, ..Default::default() };
-        let (s, _) = drive(Driver::Bear, 300, |t| if t < 200 { throttle() } else { brake });
+        let (s, _) = drive(go::BEAR, 300, |t| if t < 200 { throttle() } else { brake });
         assert!(s.velocity.length() > 0.5 && s.velocity.dot(Vec2::new(0.0, 1.0)) > 0.0, "reversing (+Z) after stopping: {:?}", s.velocity);
-        assert!(s.velocity.length() <= Driver::Bear.spec().reverse_speed + 0.01, "reverse is capped");
-        let (coast, _) = drive(Driver::Bear, 600, |t| if t < 200 { throttle() } else { PlayerInput::default() });
+        assert!(s.velocity.length() <= go::spec(go::BEAR).reverse_speed + 0.01, "reverse is capped");
+        let (coast, _) = drive(go::BEAR, 600, |t| if t < 200 { throttle() } else { PlayerInput::default() });
         assert!(coast.velocity.length() < 0.01, "with no throttle the kart rolls to a stop");
     }
 
@@ -744,24 +639,24 @@ mod tests {
     fn off_road_slows_by_driver() {
         let ground = GroundCandidates::default();
         let top_on = |d: Driver, surface: Surface| {
-            let (mut s, mut k, spec) = (at(0.0, 0.0, 0.0), KartState::default(), d.spec());
+            let (mut s, mut k, spec) = (at(0.0, 0.0, 0.0), KartState::default(), go::spec(d));
             for _ in 0..900 {
                 step_kart(&mut s, &mut k, &throttle(), &spec, surface, &[], &ground);
             }
             s.velocity.length()
         };
-        assert!(top_on(Driver::Deer, Surface::Dirt) < top_on(Driver::Deer, Surface::Road) - 3.0, "dirt slows the Deer");
-        assert!((top_on(Driver::Coyote, Surface::Dirt) - top_on(Driver::Coyote, Surface::Road)).abs() < 0.05, "the Coyote does not mind dirt");
-        assert!(top_on(Driver::Bunny, Surface::Water) < top_on(Driver::Duck, Surface::Water) - 5.0, "the Duck floats where the Bunny wades");
-        assert!((top_on(Driver::Duck, Surface::Water) - Driver::Duck.spec().top_speed).abs() < 0.05);
-        assert!((top_on(Driver::Beaver, Surface::Mud) - Driver::Beaver.spec().top_speed).abs() < 0.05, "the Beaver's wooden kart ignores mud");
-        assert!(top_on(Driver::Wolf, Surface::Mud) < Driver::Wolf.spec().top_speed * 0.7);
+        assert!(top_on(go::DEER, Surface::Dirt) < top_on(go::DEER, Surface::Road) - 3.0, "dirt slows the Deer");
+        assert!((top_on(go::COYOTE, Surface::Dirt) - top_on(go::COYOTE, Surface::Road)).abs() < 0.05, "the Coyote does not mind dirt");
+        assert!(top_on(go::BUNNY, Surface::Water) < top_on(go::DUCK, Surface::Water) - 5.0, "the Duck floats where the Bunny wades");
+        assert!((top_on(go::DUCK, Surface::Water) - go::spec(go::DUCK).top_speed).abs() < 0.05);
+        assert!((top_on(go::BEAVER, Surface::Mud) - go::spec(go::BEAVER).top_speed).abs() < 0.05, "the Beaver's wooden kart ignores mud");
+        assert!(top_on(go::WOLF, Surface::Mud) < go::spec(go::WOLF).top_speed * 0.7);
     }
 
     #[test]
     fn a_wall_stops_the_kart_without_tunnelling() {
         let wall = Collider2D { min: Vec2::new(-5.0, -60.0), max: Vec2::new(5.0, -58.0), min_y: 0.0, max_y: 3.0 };
-        let (mut s, mut k, spec, ground) = (at(0.0, 0.0, 0.0), KartState::default(), Driver::Deer.spec(), GroundCandidates::default());
+        let (mut s, mut k, spec, ground) = (at(0.0, 0.0, 0.0), KartState::default(), go::spec(go::DEER), GroundCandidates::default());
         let mut closest = f32::MAX;
         for _ in 0..900 {
             step_kart(&mut s, &mut k, &throttle(), &spec, Surface::Road, &[wall], &ground);
@@ -773,7 +668,7 @@ mod tests {
 
     #[test]
     fn a_hop_leaves_the_ground_once_and_lands() {
-        let (mut s, mut k, spec, ground) = (at(0.0, 0.0, 0.0), KartState::default(), Driver::Bunny.spec(), GroundCandidates::default());
+        let (mut s, mut k, spec, ground) = (at(0.0, 0.0, 0.0), KartState::default(), go::spec(go::BUNNY), GroundCandidates::default());
         let hop = PlayerInput { forward: 1, jump: true, ..Default::default() };
         step_kart(&mut s, &mut k, &hop, &spec, Surface::Road, &[], &ground);
         assert!(s.foot_y > 0.0 && s.vy > 0.0, "the press hops");
@@ -784,7 +679,7 @@ mod tests {
         }
         assert_eq!((s.foot_y, s.vy), (0.0, 0.0), "landed");
         assert!(peak > 0.2 && peak < 1.5, "a hop, not a jump: {peak}");
-        let (mut b, mut bk, bear, _) = (at(0.0, 0.0, 0.0), KartState::default(), Driver::Bear.spec(), 0);
+        let (mut b, mut bk, bear, _) = (at(0.0, 0.0, 0.0), KartState::default(), go::spec(go::BEAR), 0);
         step_kart(&mut b, &mut bk, &hop, &bear, Surface::Road, &[], &ground);
         assert!(b.vy < s.vy.max(spec.hop_speed), "the Bear hops lower than the Bunny");
     }
@@ -793,7 +688,7 @@ mod tests {
     fn a_long_drift_pays_a_boost_and_a_short_one_does_not() {
         let ground = GroundCandidates::default();
         let run = |driver: Driver, drift_ticks: u32| {
-            let (mut s, mut k, spec) = (at(0.0, 0.0, 0.0), KartState::default(), driver.spec());
+            let (mut s, mut k, spec) = (at(0.0, 0.0, 0.0), KartState::default(), go::spec(driver));
             for _ in 0..240 {
                 step_kart(&mut s, &mut k, &throttle(), &spec, Surface::Road, &[], &ground);
             }
@@ -805,13 +700,13 @@ mod tests {
             step_kart(&mut s, &mut k, &PlayerInput { forward: 1, ..Default::default() }, &spec, Surface::Road, &[], &ground);
             k
         };
-        assert_eq!(run(Driver::Duck, 20).boost_ticks, 0, "under a second: nothing banked");
+        assert_eq!(run(go::DUCK, 20).boost_ticks, 0, "under a second: nothing banked");
         // The boost is awarded on the release tick, which also spends its first tick: tier 1 is 30 ticks, tier 3 is 90.
-        assert_eq!(run(Driver::Duck, 100).boost_ticks, 29, "a long drift boosts (tier 1)");
-        assert_eq!(run(Driver::Duck, 260).boost_ticks, 89, "the longest drifts earn the top tier");
-        assert!(run(Driver::Deer, 70).boost_ticks > run(Driver::Beaver, 70).boost_ticks, "the Deer charges faster than the Beaver");
+        assert_eq!(run(go::DUCK, 100).boost_ticks, 29, "a long drift boosts (tier 1)");
+        assert_eq!(run(go::DUCK, 260).boost_ticks, 89, "the longest drifts earn the top tier");
+        assert!(run(go::DEER, 70).boost_ticks > run(go::BEAVER, 70).boost_ticks, "the Deer charges faster than the Beaver");
         // The boost really is faster than the top speed.
-        let (mut s, mut k, spec) = (at(0.0, 0.0, 0.0), KartState::default(), Driver::Duck.spec());
+        let (mut s, mut k, spec) = (at(0.0, 0.0, 0.0), KartState::default(), go::spec(go::DUCK));
         for _ in 0..240 {
             step_kart(&mut s, &mut k, &throttle(), &spec, Surface::Road, &[], &ground);
         }
@@ -825,7 +720,7 @@ mod tests {
 
     #[test]
     fn a_spin_out_takes_the_wheel_for_a_while() {
-        let (mut s, mut k, spec, ground) = (at(0.0, 0.0, 0.0), KartState::default(), Driver::Wolf.spec(), GroundCandidates::default());
+        let (mut s, mut k, spec, ground) = (at(0.0, 0.0, 0.0), KartState::default(), go::spec(go::WOLF), GroundCandidates::default());
         for _ in 0..240 {
             step_kart(&mut s, &mut k, &throttle(), &spec, Surface::Road, &[], &ground);
         }
@@ -844,7 +739,7 @@ mod tests {
     fn the_hawk_glides_and_others_fall() {
         let ground = GroundCandidates::default();
         let airtime = |driver: Driver| {
-            let (mut s, mut k, spec) = (at(0.0, 0.0, 0.0), KartState::default(), driver.spec());
+            let (mut s, mut k, spec) = (at(0.0, 0.0, 0.0), KartState::default(), go::spec(driver));
             s.foot_y = 5.0;
             let hold = PlayerInput { forward: 1, jump: true, ..Default::default() };
             let mut ticks = 0;
@@ -854,12 +749,12 @@ mod tests {
             }
             ticks
         };
-        assert!(airtime(Driver::Hawk) > airtime(Driver::Duck) * 3 / 2, "the Hawk stays up longer: {} vs {}", airtime(Driver::Hawk), airtime(Driver::Duck));
+        assert!(airtime(go::HAWK) > airtime(go::DUCK) * 3 / 2, "the Hawk stays up longer: {} vs {}", airtime(go::HAWK), airtime(go::DUCK));
     }
 
     #[test]
     fn bumps_trade_momentum_by_mass_and_the_bear_bulldozes() {
-        let (duck, bear, bunny) = (Driver::Duck.spec(), Driver::Bear.spec(), Driver::Bunny.spec());
+        let (duck, bear, bunny) = (go::spec(go::DUCK), go::spec(go::BEAR), go::spec(go::BUNNY));
         assert_eq!(kart_bump(Vec2::ZERO, Vec2::ZERO, &duck, Vec2::new(5.0, 0.0), Vec2::ZERO, &duck), None, "apart: no bump");
         let a = Vec2::ZERO;
         let b = Vec2::new(1.0, 0.0);
@@ -884,7 +779,7 @@ mod tests {
 
     #[test]
     fn a_wolf_banks_a_boost_from_a_slipstream_and_others_do_not() {
-        let (wolf, duck) = (Driver::Wolf.spec(), Driver::Duck.spec());
+        let (wolf, duck) = (go::spec(go::WOLF), go::spec(go::DUCK));
         let fwd = Vec2::new(0.0, -1.0);
         assert_eq!(slipstream_gain(Vec2::ZERO, fwd, Vec2::new(0.0, 1.0)), 0.0, "behind: nothing");
         assert_eq!(slipstream_gain(Vec2::ZERO, fwd, Vec2::new(0.0, -20.0)), 0.0, "too far");
@@ -910,10 +805,10 @@ mod tests {
     fn the_same_inputs_give_bit_identical_karts() {
         // Server, client prediction and bots must agree exactly: a scripted run with steering, drifting, hops and a wall, twice.
         let wall = Collider2D { min: Vec2::new(30.0, -400.0), max: Vec2::new(32.0, 0.0), min_y: 0.0, max_y: 3.0 };
-        for d in Driver::ALL {
+        for d in go::all() {
             let mut runs = Vec::new();
             for _ in 0..2 {
-                let (mut s, mut k, spec, ground) = (at(0.0, 0.0, 0.0), KartState::default(), d.spec(), GroundCandidates::default());
+                let (mut s, mut k, spec, ground) = (at(0.0, 0.0, 0.0), KartState::default(), go::spec(d), GroundCandidates::default());
                 for t in 0..1500u32 {
                     let input = PlayerInput {
                         seq: t,
@@ -926,13 +821,13 @@ mod tests {
                 }
                 runs.push((s, k));
             }
-            assert_eq!(runs[0], runs[1], "{} is deterministic", d.name());
+            assert_eq!(runs[0], runs[1], "{} is deterministic", go::name(d));
             assert!(runs[0].0.pos.is_finite() && runs[0].0.velocity.is_finite());
         }
     }
 
     fn tick_ex(driver: Driver, kart: &mut KartState, state: &mut PlayerState, input: PlayerInput) -> KartEvents {
-        step_kart_ex(state, kart, &input, &driver.spec(), Surface::Road, &[], &GroundCandidates::default()).1
+        step_kart_ex(state, kart, &input, &go::spec(driver), Surface::Road, &[], &GroundCandidates::default()).1
     }
 
     #[test]
@@ -941,33 +836,33 @@ mod tests {
         let release = PlayerInput { forward: 1, ..Default::default() };
         // Mushroom: boosts the kart itself, right in the step, and is gone.
         let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState { item: Item::Mushroom, ..Default::default() });
-        assert_eq!(tick_ex(Driver::Duck, &mut k, &mut s, press), KartEvents::default());
+        assert_eq!(tick_ex(go::DUCK, &mut k, &mut s, press), KartEvents::default());
         assert_eq!((k.item, k.boost_ticks), (Item::None, MUSHROOM_BOOST_TICKS - 1));
         // Holding the button does not use the next one; releasing and pressing again does.
         k.item = Item::Mushroom;
-        tick_ex(Driver::Duck, &mut k, &mut s, press);
+        tick_ex(go::DUCK, &mut k, &mut s, press);
         assert_eq!(k.item, Item::Mushroom, "still held down from the first press");
-        tick_ex(Driver::Duck, &mut k, &mut s, release);
-        tick_ex(Driver::Duck, &mut k, &mut s, press);
+        tick_ex(go::DUCK, &mut k, &mut s, release);
+        tick_ex(go::DUCK, &mut k, &mut s, press);
         assert_eq!(k.item, Item::None);
         // Bubble: a shield that lasts, and pops on the first hit.
         let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState { item: Item::Bubble, ..Default::default() });
-        tick_ex(Driver::Duck, &mut k, &mut s, press);
+        tick_ex(go::DUCK, &mut k, &mut s, press);
         assert_eq!((k.item, k.shield_ticks), (Item::None, BUBBLE_TICKS - 1));
         assert!(!k.spin_out(45), "the bubble absorbs the hit");
         assert_eq!((k.spin_ticks, k.shield_ticks), (0, 0), "and pops");
         assert!(k.spin_out(45) && k.spin_ticks == 45, "the next hit lands");
         // Acorn: the kart asks for a throw; the world does the rest.
         let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState { item: Item::Acorn, ..Default::default() });
-        assert!(tick_ex(Driver::Duck, &mut k, &mut s, press).throw_acorn);
+        assert!(tick_ex(go::DUCK, &mut k, &mut s, press).throw_acorn);
         assert_eq!(k.item, Item::None);
-        assert!(!tick_ex(Driver::Duck, &mut k, &mut s, release).throw_acorn);
+        assert!(!tick_ex(go::DUCK, &mut k, &mut s, release).throw_acorn);
         // No item: nothing happens. A shield runs out by itself.
         let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState::default());
-        assert_eq!(tick_ex(Driver::Duck, &mut k, &mut s, press), KartEvents::default());
+        assert_eq!(tick_ex(go::DUCK, &mut k, &mut s, press), KartEvents::default());
         k.shield_ticks = 2;
-        tick_ex(Driver::Duck, &mut k, &mut s, release);
-        tick_ex(Driver::Duck, &mut k, &mut s, release);
+        tick_ex(go::DUCK, &mut k, &mut s, release);
+        tick_ex(go::DUCK, &mut k, &mut s, release);
         assert_eq!(k.shield_ticks, 0);
     }
 
@@ -975,7 +870,7 @@ mod tests {
     fn nothing_is_used_while_spinning_out() {
         let press = PlayerInput { forward: 1, attack: true, ..Default::default() };
         let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState { item: Item::Mushroom, spin_ticks: 5, ..Default::default() });
-        tick_ex(Driver::Duck, &mut k, &mut s, press);
+        tick_ex(go::DUCK, &mut k, &mut s, press);
         assert_eq!((k.item, k.boost_ticks), (Item::Mushroom, 0), "the press during a spin is lost, and the item is kept");
     }
 
@@ -984,16 +879,16 @@ mod tests {
         let build = PlayerInput { forward: 1, interact: true, ..Default::default() };
         let release = PlayerInput { forward: 1, ..Default::default() };
         let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState::default());
-        assert!(!tick_ex(Driver::Bear, &mut k, &mut s, build).lay_plank, "only the Beaver builds");
+        assert!(!tick_ex(go::BEAR, &mut k, &mut s, build).lay_plank, "only the Beaver builds");
         let (mut s, mut k) = (at(0.0, 0.0, 0.0), KartState::default());
-        assert!(tick_ex(Driver::Beaver, &mut k, &mut s, build).lay_plank);
+        assert!(tick_ex(go::BEAVER, &mut k, &mut s, build).lay_plank);
         assert_eq!(k.ability_cooldown, BUILD_COOLDOWN_TICKS - 1);
-        tick_ex(Driver::Beaver, &mut k, &mut s, release);
-        assert!(!tick_ex(Driver::Beaver, &mut k, &mut s, build).lay_plank, "still cooling down");
+        tick_ex(go::BEAVER, &mut k, &mut s, release);
+        assert!(!tick_ex(go::BEAVER, &mut k, &mut s, build).lay_plank, "still cooling down");
         for _ in 0..BUILD_COOLDOWN_TICKS {
-            tick_ex(Driver::Beaver, &mut k, &mut s, release);
+            tick_ex(go::BEAVER, &mut k, &mut s, release);
         }
         assert_eq!(k.ability_cooldown, 0);
-        assert!(tick_ex(Driver::Beaver, &mut k, &mut s, build).lay_plank, "ready again");
+        assert!(tick_ex(go::BEAVER, &mut k, &mut s, build).lay_plank, "ready again");
     }
 }

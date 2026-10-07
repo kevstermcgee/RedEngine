@@ -48,6 +48,7 @@ pub mod ordnance;
 pub mod player;
 pub mod race;
 pub mod replay;
+pub mod roster;
 pub mod rules;
 pub mod rules_expr;
 pub mod rules_run;

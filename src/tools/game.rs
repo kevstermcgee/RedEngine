@@ -442,19 +442,20 @@ pub fn avatar_line(map: &str, text: &str) -> Option<Line> {
     })
 }
 
-/// A race draws karts, never bodies: every animal needs a model. The map's own `kart_<animal>` object is used when it has one; without it the client draws the
-/// built-in fallback kart, which works but looks the same for every animal, so it is reported (a note, not a failure).
+/// A race draws karts, never bodies: every driver needs a model. The map's own `kart_<id>` object is used when it has one; without it the client draws the
+/// built-in fallback kart (in the driver's roster colours), which works but looks alike for every driver, so it is reported (a note, not a failure).
 fn kart_line(map: &str, scene: &crate::schema::Scene) -> Line {
-    use crate::sim::kart::Driver;
-    let own: Vec<&str> = Driver::ALL.iter().filter(|d| scene.objects.iter().any(|o| o.id == crate::net::fleet::model_id(**d))).map(|d| d.name()).collect();
-    let plain: Vec<&str> = Driver::ALL.iter().map(|d| d.name()).filter(|n| !own.contains(n)).collect();
+    let roster = scene.race.as_ref().map_or_else(crate::sim::roster::Roster::great_outdoors, |c| c.roster.clone());
+    let has = |d: &crate::sim::kart::Driver| scene.objects.iter().any(|o| o.id == crate::net::fleet::model_id(&roster, *d));
+    let own: Vec<&str> = roster.drivers().filter(has).map(|d| roster.name(d)).collect();
+    let plain: Vec<&str> = roster.drivers().map(|d| roster.name(d)).filter(|n| !own.contains(n)).collect();
     let text = if plain.is_empty() {
         format!("map {map}: karts: all {} drivers have their own model in the map", own.len())
     } else {
         format!(
-            "map {map}: karts: {} of {} drivers have their own model; {} are drawn as the plain built-in kart (add `kart_<animal>` objects)",
+            "map {map}: karts: {} of {} drivers have their own model; {} are drawn as the plain built-in kart (add `kart_<id>` objects)",
             own.len(),
-            Driver::ALL.len(),
+            roster.len(),
             plain.join(", ")
         )
     };

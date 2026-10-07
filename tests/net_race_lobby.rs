@@ -7,6 +7,7 @@ use red_engine2::net::server::{Server, ServerConfig};
 use red_engine2::sim::flow::{MatchSettings, Phase};
 use red_engine2::sim::kart::Driver;
 use red_engine2::sim::match_sim::MatchSim;
+use red_engine2::sim::roster::great_outdoors as go;
 use red_engine2::sim::spawns::parse_spawns;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -59,20 +60,20 @@ fn the_lobby_chooses_the_animal_and_a_duplicate_gets_the_next_free_one() {
     });
 
     // Ada asks for the Bear, Bo asks for the Bear too.
-    let mut a = client(addr, hash, "Ada", Driver::Bear);
-    let mut b = client(addr, hash, "Bo", Driver::Bear);
+    let mut a = client(addr, hash, "Ada", go::BEAR);
+    let mut b = client(addr, hash, "Bo", go::BEAR);
     pump(&mut [&mut a, &mut b], "both in the lobby", |cs| {
         cs.iter().all(|c| c.state() == ConnState::Connected && c.status().is_some_and(|s| s.roster.len() == 2))
     });
     let roster = a.status().unwrap().roster.clone();
-    assert!(roster.iter().all(|e| e.character == Driver::Bear.wire()), "a race lobby carries the animal, not a body: {roster:?}");
+    assert!(roster.iter().all(|e| e.character == go::BEAR.wire()), "a race lobby carries the animal, not a body: {roster:?}");
 
     // Bo changes his mind to the Wolf; a request beyond the eight is clamped to the last (the Beaver).
-    b.set_character(Driver::Wolf.wire(), Instant::now());
+    b.set_character(go::WOLF.wire(), Instant::now());
     pump(&mut [&mut a, &mut b], "Bo's Wolf shows in the roster", |cs| {
-        cs[0].status().is_some_and(|s| s.roster.iter().any(|e| e.name == "Bo" && e.character == Driver::Wolf.wire()))
+        cs[0].status().is_some_and(|s| s.roster.iter().any(|e| e.name == "Bo" && e.character == go::WOLF.wire()))
     });
-    b.set_character(Driver::Bear.wire(), Instant::now()); // back to the Bear: a duplicate of Ada's
+    b.set_character(go::BEAR.wire(), Instant::now()); // back to the Bear: a duplicate of Ada's
 
     a.set_ready(true, Instant::now());
     b.set_ready(true, Instant::now());
@@ -81,7 +82,7 @@ fn the_lobby_chooses_the_animal_and_a_duplicate_gets_the_next_free_one() {
     stop.store(true, Ordering::Relaxed);
     let server = handle.join().unwrap();
     let (ia, ib) = (a.my_id().unwrap() as usize, b.my_id().unwrap() as usize);
-    assert_eq!(server.sim().driver(ia), Some(Driver::Bear), "the lower slot keeps the animal both asked for");
-    assert_ne!(server.sim().driver(ib), Some(Driver::Bear), "the other gets a free one");
+    assert_eq!(server.sim().driver(ia), Some(go::BEAR), "the lower slot keeps the animal both asked for");
+    assert_ne!(server.sim().driver(ib), Some(go::BEAR), "the other gets a free one");
     assert!(server.sim().driver(ib).is_some());
 }

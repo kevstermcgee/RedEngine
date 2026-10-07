@@ -70,6 +70,7 @@ impl App {
             message: None,
             combat: None,
             race: self.scene.race.is_some(),
+            drivers: self.scene.race.as_ref().map_or_else(red_engine2::sim::roster::Roster::great_outdoors, |c| c.roster.clone()),
         };
         view.combat = self.combat_view(view.me, &view.roster);
         Some(view)

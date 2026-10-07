@@ -114,7 +114,7 @@ impl KartBrain {
             self.last = p.state.pos;
         }
         let n = self.path.len();
-        let spec = driver.spec();
+        let spec = sim.roster().spec(driver);
         let (sin, cos) = p.state.yaw.sin_cos();
         let (fwd, right) = (Vec2::new(sin, -cos), Vec2::new(cos, sin));
         let pos = p.state.pos;

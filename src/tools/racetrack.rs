@@ -311,9 +311,10 @@ pub fn build(spec: &TrackSpec) -> Result<Value, String> {
         })
         .collect();
 
-    // The animals: the core `karts` pack, parked out of sight until the client places them.
-    for d in crate::sim::kart::Driver::ALL {
-        let id = crate::net::fleet::model_id(d);
+    // The drivers (Great Outdoors' roster, which a map without `race.roster` uses): the core `karts` pack, parked out of sight until the client places them.
+    let roster = crate::sim::roster::Roster::great_outdoors();
+    for d in roster.drivers() {
+        let id = crate::net::fleet::model_id(&roster, d);
         objects.push(json!({"id":id,"type":"prefab","prefab":id,"position":[0,-50,0],"collide":false,"lint_ignore":["sunk"]}));
     }
 

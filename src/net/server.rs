@@ -29,7 +29,6 @@ use crate::net::protocol::*;
 use crate::sim::clock::TICK_RATE_HZ;
 use crate::sim::flow::{EndReason, Flow, FlowEvent, FlowInput, MatchSettings, Phase};
 use crate::sim::interest::InterestMap;
-use crate::sim::kart::Driver;
 use crate::sim::match_sim::{MatchSim, MAX_PLAYERS};
 use crate::sim::trace::{Header, Trace};
 use glam::Vec3;
@@ -40,10 +39,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// The character byte a session may hold: the scene's forced character if it has one, else the request clamped to the choices. In a race the byte is
-/// the driver (`Driver::wire`, `0..=7`), not a body.
-fn apply_character_policy(policy: Option<crate::player::Character>, requested: u8, race: bool) -> u8 {
-    if race {
-        return requested.min(Driver::ALL.len() as u8 - 1);
+/// the driver (`Driver::wire`, below the roster's size, `drivers`), not a body.
+fn apply_character_policy(policy: Option<crate::player::Character>, requested: u8, drivers: Option<usize>) -> u8 {
+    if let Some(n) = drivers {
+        return requested.min(n.max(1) as u8 - 1);
     }
     policy.map(character_to_wire).unwrap_or_else(|| requested.min(5))
 }
@@ -412,8 +411,8 @@ impl Server {
                 cfg.level = level;
                 cfg.roster.iter_mut().for_each(|b| b.level = level);
             }
-            // A race has eight animals, one per slot 0..8: bots take the top of that range. Other modes fill from the top of all slots.
-            let top = if self.sim.race().is_some() { crate::sim::kart::Driver::ALL.len() } else { MAX_PLAYERS };
+            // A race has one driver per slot 0..roster size: bots take the top of that range. Other modes fill from the top of all slots.
+            let top = if self.sim.race().is_some() { self.sim.roster().len().min(MAX_PLAYERS) } else { MAX_PLAYERS };
             let free = (0..top)
                 .rev()
                 .find(|s| self.sim.player(*s).is_none() && !self.sessions.iter().any(|x| x.slot == *s) && !self.parked.iter().any(|p| p.slot == *s));
@@ -577,6 +576,7 @@ impl Server {
         let playing = self.phase() == Phase::Playing && self.flow.is_some();
         let forced_character = self.sim.forced_character();
         let race = self.sim.race().is_some();
+        let drivers = race.then(|| self.sim.roster().len());
         let team_match = self.sim.teams_enabled();
         let s = &mut self.sessions[i];
         if !s.lobby_bucket.allow(now) {
@@ -592,7 +592,7 @@ impl Server {
         s.round_ack = s.round_ack.max(l.round_ack);
         s.rtt_ms = l.rtt_ms.min(9_999);
         let ready = l.ready && !playing;
-        let character = apply_character_policy(forced_character, l.character, race);
+        let character = apply_character_policy(forced_character, l.character, drivers);
         let mut changed = ready != s.ready || character != s.character;
         s.ready = ready;
         s.character = character;
@@ -725,8 +725,8 @@ impl Server {
             self.say("the operating system's random number generator failed: join refused".to_string());
             return self.send_plain(addr, &ServerMsg::Reject(RejectReason::Full));
         };
-        let requested_character = resumed.as_ref().map_or(h.character.min(Driver::ALL.len() as u8 - 1), |p| p.character);
-        let character = apply_character_policy(self.sim.forced_character(), requested_character, self.sim.race().is_some());
+        let requested_character = resumed.as_ref().map_or(h.character.min(self.sim.roster().len() as u8 - 1), |p| p.character);
+        let character = apply_character_policy(self.sim.forced_character(), requested_character, self.sim.race().map(|_| self.sim.roster().len()));
         let name = if h.name.trim().is_empty() { resumed.as_ref().map_or_else(|| sanitize_name(""), |p| p.name.clone()) } else { sanitize_name(&h.name) };
         let key = (!self.secure).then(|| SessionKey::derive(key_bytes.as_bytes(), h.client_nonce, h.cookie));
         let mut session = Session::new(addr, slot, token, key, h.client_nonce, h.cookie, name, character, now);
@@ -943,15 +943,15 @@ impl Server {
         for i in order {
             let (slot, character, team) = (self.sessions[i].slot, self.sessions[i].character, self.sessions[i].team);
             let race = self.sim.race().is_some();
-            // In a race the character byte is the animal; a body is a plain person the kart hides. Two people who chose the same animal: the one in the
-            // lower slot has it, the other gets the first animal left.
+            // In a race the character byte is the driver; a body is a plain person the kart hides. Two people who chose the same driver: the one in the
+            // lower slot has it, the other gets the first driver left.
             let placed = if team != 0 {
                 self.sim.add_player_in_slot_team(slot, team_character(team), team)
             } else {
                 self.sim.add_player_in_slot(slot, if race { crate::player::Character::Human } else { character_from_wire(character) })
             };
             if race && placed {
-                let want = Driver::from_wire(character).unwrap_or(Driver::Duck);
+                let want = self.sim.roster().from_wire(character).unwrap_or_default();
                 self.sim.set_driver(slot, want);
                 let free = self.sim.free_driver(slot);
                 self.sim.set_driver(slot, free);
@@ -1330,11 +1330,11 @@ mod character_policy_tests {
 
     #[test]
     fn a_scene_character_overrides_join_and_lobby_requests() {
-        assert_eq!(apply_character_policy(Some(crate::player::Character::Human), 1, false), 0);
-        assert_eq!(apply_character_policy(Some(crate::player::Character::Rat), 0, false), 1);
-        assert_eq!(apply_character_policy(None, 1, false), 1);
-        assert_eq!(apply_character_policy(None, 7, true), 7);
-        assert_eq!(apply_character_policy(Some(crate::player::Character::Rat), 99, true), 7, "a race takes the driver, whatever body the scene forces");
-        assert_eq!(apply_character_policy(None, 99, false), 5);
+        assert_eq!(apply_character_policy(Some(crate::player::Character::Human), 1, None), 0);
+        assert_eq!(apply_character_policy(Some(crate::player::Character::Rat), 0, None), 1);
+        assert_eq!(apply_character_policy(None, 1, None), 1);
+        assert_eq!(apply_character_policy(None, 7, Some(8)), 7);
+        assert_eq!(apply_character_policy(Some(crate::player::Character::Rat), 99, Some(8)), 7, "a race takes the driver, whatever body the scene forces");
+        assert_eq!(apply_character_policy(None, 99, None), 5);
     }
 }

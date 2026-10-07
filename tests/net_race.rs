@@ -11,6 +11,7 @@ use red_engine2::net::testkit::RawClient;
 use red_engine2::sim::kart::Driver;
 use red_engine2::sim::match_sim::MatchSim;
 use red_engine2::sim::player::PlayerInput;
+use red_engine2::sim::roster::great_outdoors as go;
 use red_engine2::sim::spawns::parse_spawns;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -32,7 +33,7 @@ struct Rig {
 
 impl Rig {
     fn new(text: &str) -> Rig {
-        Rig::with_driver(text, Driver::Duck)
+        Rig::with_driver(text, go::DUCK)
     }
 
     /// A rig whose first slot drives as `driver` (the lobby's choice, until it exists).
@@ -97,7 +98,7 @@ fn a_race_reaches_the_client_with_its_countdown_karts_and_progress() {
         assert!(race.countdown_ticks > 0);
         assert!((s.players[0].pos[0] - start_x).abs() < 1e-4, "held on the grid");
         let kart = s.players[0].kart.expect("and every player's kart block");
-        assert_eq!((kart.driver, kart.lap, kart.next_gate, kart.finished), (Driver::Duck.wire(), 0, 1, false));
+        assert_eq!((kart.driver, kart.lap, kart.next_gate, kart.finished), (go::DUCK.wire(), 0, 1, false));
     }
     // The light goes green (1 s countdown): the kart accelerates east along its heading.
     let later = rig.drive(&mut c, &mut seq, 150, 1);
@@ -190,7 +191,7 @@ fn items_shields_cooldowns_and_hazards_reach_the_client() {
     let text = RACE_SCENE
         .replace(r#""race":{"#, r#""race":{"item_boxes":["crate"],"item_respawn_secs":2,"#)
         .replace(r#""zones":["#, r#""zones":[{"id":"crate","rect":[-12,-42,-8,-38]},"#);
-    let mut rig = Rig::with_driver(&text, Driver::Beaver);
+    let mut rig = Rig::with_driver(&text, go::BEAVER);
     let mut c = rig.join(7003);
     let mut seq = 0;
     let snaps = rig.drive_with(&mut c, &mut seq, 200, |t, input| {
@@ -201,7 +202,7 @@ fn items_shields_cooldowns_and_hazards_reach_the_client() {
     let hazards = &plank.race.as_ref().unwrap().hazards;
     assert_eq!((hazards.len(), hazards[0].kind, hazards[0].owner), (1, 1, 0), "one plank, laid by slot 0");
     let kart = plank.players[0].kart.unwrap();
-    assert_eq!(kart.driver, Driver::Beaver.wire());
+    assert_eq!(kart.driver, go::BEAVER.wire());
     assert!(kart.ability_cooldown > 0, "Build is cooling down: {}", kart.ability_cooldown);
     assert!(hazards[0].pos[0] < plank.players[0].pos[0], "and the plank is behind the kart, not ahead of it");
     let last = snaps.last().unwrap().players[0].kart.unwrap();
