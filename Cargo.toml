@@ -155,10 +155,6 @@ name = "re2d"
 path = "src/bin/re2d/main.rs"
 required-features = ["gfx"]
 
-[[test]]
-name = "mcp_server"
-required-features = ["mcp"]
-
 [[bench]]
 name = "sim"
 harness = false
