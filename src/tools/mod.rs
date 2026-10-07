@@ -7,6 +7,10 @@
 #[cfg(not(target_arch = "wasm32"))]
 pub const NO_GFX: &str = "this build has no renderer (built with --no-default-features); rebuild with `cargo build --release` (feature `gfx`, on by default) to use frame/tour/render/storyboard, catalog --sheet and golden-view checks";
 
+/// What `render` (MP4 export) says in a build without the `video` feature.
+#[cfg(not(target_arch = "wasm32"))]
+pub const NO_VIDEO: &str = "this build cannot export MP4 (cargo feature `video`, not in the default build): rebuild with `cargo build --release --features video` and have ffmpeg on PATH. PNG output needs neither: `frame`, `tour`, `storyboard`, `ui-shot`";
+
 #[cfg(not(target_arch = "wasm32"))]
 pub mod adr;
 #[cfg(not(target_arch = "wasm32"))]

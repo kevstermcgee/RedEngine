@@ -524,7 +524,7 @@ pub(crate) enum Command {
         #[arg(long)]
         label: Option<String>,
     },
-    /// Render the full scene to an MP4.
+    /// Render the full scene to an MP4. Needs ffmpeg and a build with `--features video`.
     Render { scene: PathBuf, out: PathBuf },
     /// Contact sheet of frames across the clip.
     Storyboard {
