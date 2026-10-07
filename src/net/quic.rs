@@ -270,6 +270,8 @@ pub struct QuicServer {
     endpoint: Endpoint,
     shared: Arc<ServerShared>,
     rx: mpsc::Receiver<Inbound>,
+    /// A message `wait` took off the queue to learn one had arrived; `recv` hands it out first.
+    pending: Option<Inbound>,
     fingerprint: String,
 }
 
@@ -302,7 +304,7 @@ impl QuicServer {
         });
         let (tx, rx) = mpsc::channel(INBOUND_QUEUE);
         rt.spawn(accept_loop(endpoint.clone(), shared.clone(), tx, opts.max_connections.max(1)));
-        Ok(QuicServer { rt: Some(rt), endpoint, shared, rx, fingerprint: identity.fingerprint() })
+        Ok(QuicServer { rt: Some(rt), endpoint, shared, rx, pending: None, fingerprint: identity.fingerprint() })
     }
 
     /// The identity fingerprint clients pin.
@@ -432,7 +434,11 @@ impl ServerTransport for QuicServer {
     }
     fn recv(&mut self, buf: &mut [u8]) -> Option<(SocketAddr, usize)> {
         loop {
-            match self.rx.try_recv() {
+            let next = match self.pending.take() {
+                Some(m) => Ok(m),
+                None => self.rx.try_recv(),
+            };
+            match next {
                 Ok(Inbound::Message(peer, bytes)) => {
                     if bytes.len() > buf.len() {
                         continue; // larger than the application accepts: drop
@@ -443,6 +449,14 @@ impl ServerTransport for QuicServer {
                 Err(_) => return None,
             }
         }
+    }
+    fn wait(&mut self, timeout: Duration) {
+        if self.pending.is_some() || timeout.is_zero() {
+            return;
+        }
+        let Some(rt) = self.rt.as_ref() else { return };
+        let rx = &mut self.rx;
+        self.pending = rt.block_on(async { tokio::time::timeout(timeout, rx.recv()).await.ok().flatten() });
     }
     fn send(&mut self, peer: SocketAddr, bytes: &[u8]) -> io::Result<usize> {
         let Some(conn) = lock(&self.shared.conns).get(&peer).cloned() else {

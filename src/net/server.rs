@@ -1258,9 +1258,13 @@ impl Server {
             if ran == 8 {
                 next = Instant::now() + tick;
             }
+            // Sleep until just before the next tick, waking at once for a packet (the transport blocks on its socket or queue). The margin
+            // covers oversleep: ~0.1 ms of timer slack on Linux, up to a 1 ms timer period on Windows (see `raise_timer_resolution`);
+            // only inside it do we spin. Before this the loop woke every 0.5 ms and spun the last 1.5 ms of every tick (~7% of a core idle).
+            let margin = if cfg!(windows) { Duration::from_micros(1500) } else { Duration::from_micros(150) };
             let wait = next.saturating_duration_since(Instant::now());
-            if wait > Duration::from_micros(1500) {
-                std::thread::sleep(Duration::from_micros(500));
+            if wait > margin {
+                self.transport.wait(wait - margin);
             } else {
                 std::thread::yield_now();
             }
