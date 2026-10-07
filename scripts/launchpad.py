@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The AI launchpad: one first command that picks the workflow, names the executable and gives ONE next action.
 
-    scripts/dev start "<task>" [--project DIR] [--target web|native|headless|multiplayer ...] [--workflow W] [--json] [--no-save]
+    scripts/dev start "<task>" [--project DIR] [--target native|headless|multiplayer ...] [--workflow W] [--json] [--no-save]
     scripts/dev next    [--project DIR]     the current next action again (recomputed from what is on disk)
     scripts/dev resume  [--project DIR]     what changed since you stopped, which recorded results still apply, and the next action
     (in a game project: scripts/red start|next|resume; MCP: the `start` tool)
@@ -10,7 +10,7 @@ Read-only and standard-library only: it never compiles, installs, downloads, or 
 processes it starts are `git` and, when `scripts/red_resolve.py` finds a FRESH engine executable, the read-only CLI commands `propose`, `capabilities` and
 `context` (their answers are the authority for what can be built; nothing here keeps a second capability list). `start` records a compact task file under
 `out/launchpad/` (ignored by git; `--no-save` skips it) so `resume` can say what changed. Agent-written notes (`--note`) and results observed by tools are kept
-apart, and recorded results are never trusted across an edit: the tool that wrote them (`affected`, `game check`, `web status`) stays the authority.
+apart, and recorded results are never trusted across an edit: the tool that wrote them (`affected`, `game check`, `verify`) stays the authority.
 
 Workflows: game-create, game-change, engine-change, diagnose, upgrade. A task that matches none is reported as `unrouted` (an incomplete launchpad route,
 not an unsupported engine capability) with the choices; `--workflow` forces one.
@@ -32,7 +32,7 @@ import red_resolve  # noqa: E402
 SCHEMA = "red-launchpad/1"
 TASK_SCHEMA = "red-launchpad-task/1"
 WORKFLOWS = ("game-create", "game-change", "engine-change", "diagnose", "upgrade")
-TARGETS = ("web", "native", "headless", "multiplayer")
+TARGETS = ("native", "headless", "multiplayer")
 # The only engine commands this script will ever run: they read files and print, they do not build, write, download or verify.
 READ_ONLY_CLI = ("propose", "capabilities", "context")
 STOP = set("a an the to and or of for in on with that this it is be make build create new small simple i want me my please can you your game games".split())
@@ -165,7 +165,7 @@ def infer_constraints(task, targets):
             inferred.append(f"{x}: {because}")
 
     if re.search(r"\b(browser|web|webgl|wasm|online page|itch)\b", t):
-        add("web", "the task mentions the browser")
+        add("native", "the task mentions the browser, but every game is a native executable (windows, linux): there is no browser target")
     if re.search(r"\b(multiplayer|online|co-?op|versus|vs|lan|server)\b", t):
         add("multiplayer", "the task mentions multiplayer")
     if re.search(r"\b(windows|linux|desktop|native|window)\b", t):
@@ -312,17 +312,6 @@ def recorded_results(root, project, workflow):
                 "reason": ("an input is newer than the newest record (" + os.path.relpath(newer[1], project) + ")") if newer[0] > m[0] else
                           "`scripts/red check` re-verifies only the maps whose bytes changed: run it, it is cheap",
                 "authority": ["scripts/red", "check"]})
-        pubs = []
-        for dp, _, fns in os.walk(os.path.join(project, "out")):
-            pubs += [os.path.join(dp, f) for f in fns if f == "publication.json"]
-        if pubs:
-            m = newest_mtime(pubs)
-            newer = newest_mtime([os.path.join(project, f) for f in os.listdir(project) if f.endswith(".game2d.json")])
-            out.append({
-                "claim": "browser target execution (2D publication evidence)", "record": os.path.relpath(m[1], project),
-                "recorded_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(m[0])), "state": "unverified",
-                "reason": "the game file is newer than the record" if newer[0] > m[0] else "`web status <game>` says which evidence pieces passed, failed or were not run",
-                "authority": ["scripts/red", "web", "status"]})
     return out
 
 
@@ -332,7 +321,7 @@ def dev_argv(root, *args):
 
 
 def game2d_file(project):
-    """The `<name>.game2d.json` of a 2D project, else None. A 2D project is verified with `verify`/`web verify`; `scripts/red check` is the walk-project check
+    """The `<name>.game2d.json` of a 2D project, else None. A 2D project is verified with `verify` (and `play2d` for a window); `scripts/red check` is the walk-project check
     (on a 2D starter it reports `server.map '' is not one of the project's maps`), so 2D routes must never recommend it."""
     try:
         return next((f for f in sorted(os.listdir(project)) if f.endswith(".game2d.json")), None)
@@ -356,7 +345,7 @@ def plan_game_create(ctx):
             "problems": [], "warnings": [], "limitations": []}
     pointers = [
         {"what": "the 2D game format on one page (~8 KB)" if kind == "2d" else "game rules as data", "argv": ctx["red"] + (["describe", "2d"] if kind == "2d" else ["describe", "rules"])},
-        {"what": "capability matrix: presentation x platform x networking x input", "argv": ctx["red"] + ["capabilities"], "also": "docs/WEB_PLATFORM.md"},
+        {"what": "capability matrix: presentation x platform x networking x input", "argv": ctx["red"] + ["capabilities"], "also": "docs/PLAY_2D.md"},
         {"what": "how this project works (agent entry point)", "file": "AGENTS.md", "section": "Making a game: blueprints and game projects"}]
     blockers, uncertainty, missing = [], [], []
     if exe:
@@ -364,7 +353,7 @@ def plan_game_create(ctx):
         if cons["presentation"]:
             args += ["--presentation", cons["presentation"]]
         for t in cons["targets"]:
-            if t in ("web", "windows", "linux"):
+            if t in ("windows", "linux"):
                 args += ["--platform", t]
             elif t == "native":
                 args += ["--platform", "windows", "--platform", "linux"]
@@ -421,8 +410,8 @@ def loop_commands(kind, name, project, cons):
         it = [{"when": "after every edit", "claim": "validation", "argv": ["scripts/red", "validate", g]}, {"when": "after a rule or level change", "claim": "behavior", "argv": ["scripts/red", "sim", g]}]
         final = [{"claim": "validation", "argv": ["scripts/red", "validate", g], "required": True}, {"claim": "behavior", "argv": ["scripts/red", "verify", g], "required": True},
                  {"claim": "visual/input inspection", "argv": ["scripts/red", "frame", g, "out/look.png"], "required": True, "note": "open the picture: only looking proves it looks right"},
-                 {"claim": "target execution (browser)", "argv": ["scripts/red", "web", "verify", g], "required": "web" in cons["targets"] or not cons["targets"]},
-                 {"claim": "networking", "argv": None, "required": False, "note": "2D games have no networked play: browser multiplayer is not supported"}]
+                 {"claim": "target execution (native window)", "argv": ["scripts/red", "play2d", g, "--max-ticks", "60"], "required": "native" in cons["targets"], "note": "needs a window (a display); `verify` already ran the same simulation headless"},
+                 {"claim": "networking", "argv": None, "required": False, "note": "2D games have no networked play"}]
     else:
         it = [{"when": "after every edit", "claim": "validation", "argv": ["scripts/red", "check"]}]
         final = [{"claim": "validation + behavior", "argv": ["scripts/red", "check"], "required": True},

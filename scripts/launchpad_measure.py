@@ -21,7 +21,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 HISTORY = os.path.join(REPO, "benches", "history", "launchpad.json")
-TASK = "make a small 2d coin game for the browser"
+TASK = "make a small 2d coin game for a native window"
 ENGINE_TASK = "fix a bug in src/tools/search.rs where a hit is ranked wrongly"
 
 
@@ -90,7 +90,7 @@ def main():
     exe = doc["identity"]["executable"]["path"]
 
     # 3. a small game, carried through the launchpad's own next actions.
-    proj = os.path.join(tmp, "coin-browser")
+    proj = os.path.join(tmp, "coin-native")
     steps = []
     if "game" not in a.skip and doc["next_action"]["argv"][1:2] == ["new-game"]:
         argv = [exe, "new-game", proj, *doc["next_action"]["argv"][3:]]
@@ -98,16 +98,15 @@ def main():
         t1 = time.time()
         r, p = timed(argv, REPO, env)
         steps.append({"step": "new-game (the launchpad's next action)", **{k: r[k] for k in ("seconds", "exit", "stdout_bytes")}})
-        game = "coin-browser.game2d.json"
-        for claim, cmd in (("validation", ["validate", game]), ("behavior", ["verify", game]), ("visual/input inspection", ["frame", game, "out/look.png"]),
-                           ("target execution (browser)", ["web", "verify", game])):
+        game = "coin-native.game2d.json"
+        for claim, cmd in (("validation", ["validate", game]), ("behavior", ["verify", game]), ("visual/input inspection", ["frame", game, "out/look.png"])):
             r, p = timed(["bash", os.path.join(proj, "scripts", "red"), *cmd], proj, env, timeout=900)
             steps.append({"step": " ".join(cmd), "claim": claim, **{k: r[k] for k in ("seconds", "exit", "stdout_bytes")}, "last_line": (p.stdout.strip().splitlines() or [""])[-1][:160], "stderr_tail": p.stderr.strip()[-200:] if r["exit"] else ""})
         run["scenarios"]["game_authoring"] = {"steps": steps, "build_artifacts_written": artifacts_since(a.target_dir, t1), "total_seconds": round(sum(s["seconds"] for s in steps), 1),
                                               "outcome": "all steps exit 0" if all(s["exit"] == 0 for s in steps) else "a step failed: see steps"}
         # 5. interrupted and resumed: save a task in the project, change an input, resume.
-        # `publish` (local backend: no network) leaves out/publish/<game>/publication.json, the existing record `web status` reads: a recorded result for resume to find.
-        c_, cp = timed(["bash", os.path.join(proj, "scripts", "red"), "publish", game], proj, env, timeout=900)
+        # `verify` leaves the game's own record of what it proved: a recorded result for resume to find.
+        c_, cp = timed(["bash", os.path.join(proj, "scripts", "red"), "verify", game], proj, env, timeout=900)
         s_, _ = timed(["bash", os.path.join(proj, "scripts", "red"), "start", "make the coins worth more", "--json"], proj, env)
         r_idle, p_idle = timed(["bash", os.path.join(proj, "scripts", "red"), "resume", "--json"], proj, env)
         with open(os.path.join(proj, game)) as f:

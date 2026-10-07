@@ -1,6 +1,6 @@
 {
   "name": "new_game_2d",
-  "description": "Task 5 and 6: a 2D browser game from the recommended starter to a published package: scaffold, verify, run it in a real headless browser, publish to a local site (wasm build, package, browser smoke, upload, check the copy). The shipping loop for a small game.",
+  "description": "Task 5 and 6: a 2D native game from the recommended starter to a verified one: scaffold, read the format page, verify (simulation, render, audio waveform), look at a frame. The authoring loop for a small game.",
   "steps": [
     {
       "id": "new-game",
@@ -36,29 +36,14 @@
       ]
     },
     {
-      "id": "web-verify",
-      "kind": "ship",
+      "id": "frame",
+      "kind": "verify",
       "cmd": [
         "{RED}",
-        "web",
-        "verify",
-        "{WORK}/dash/dash.game2d.json"
-      ],
-      "timeout": 900
-    },
-    {
-      "id": "publish",
-      "kind": "ship",
-      "cmd": [
-        "{RED}",
-        "publish",
+        "frame",
         "{WORK}/dash/dash.game2d.json",
-        "--site",
-        "{WORK}/site",
-        "--out",
-        "{WORK}/publish"
-      ],
-      "timeout": 1200
+        "{WORK}/look.png"
+      ]
     }
   ]
 }

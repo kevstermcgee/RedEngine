@@ -1,5 +1,7 @@
 # 3D games in the browser: what is measured, what is not, and a plan
 
+> **Superseded 2026-10-07:** the browser target was removed (ADR 2026-10-07-native-executables-only-the-browser-target-is-removed). Kept as history.
+
 > Follow-up (2026-10-06): a second scene, `recipes/gated_garden`, and a measurement and native-parity harness: `2026-10-06-3d-browser-measurements.md`.
 
 > **Status (phase 1 done on WebGPU):** the engine's own renderer and simulation compile for wasm32 (`--features web`), and **Marcel draws and walks in headless Chromium** through the engine's own pipelines (see "Phase 1 results" at the end). Not done: audio, menus, packaging/publish, the WebGL2 fallback, real-hardware performance.

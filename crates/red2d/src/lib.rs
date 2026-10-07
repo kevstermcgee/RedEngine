@@ -1,8 +1,8 @@
-//! RedEngine 2D: a declarative 2D game, simulated deterministically with no GPU, drawn by a CPU renderer, played natively (headless) or in a browser (WebAssembly).
+//! RedEngine 2D: a declarative 2D game, simulated deterministically with no GPU, drawn by a CPU renderer, played natively (a window, or headless for checks).
 //!
 //! A game is one JSON file (`*.game2d.json`): capabilities, a virtual screen, pixel-art sprites, sounds as voice descriptions, variables, prefabs, a scene or tile map,
 //! a HUD, rules and scripted checks. [`game::parse`] validates it strictly (every typo is an error with a fix); [`sim::Game`] runs it at a fixed 60 Hz; [`render`] draws
-//! a frame into RGBA pixels. The browser player (`web`, built for `wasm32`) and the CLI (`red_engine2 sim|verify|frame|web|publish`) drive the same `Game`, so a
+//! a frame into RGBA pixels. The native player (`red_engine2 play2d`, `re2d`) and the CLI (`red_engine2 sim|verify|frame`) drive the same `Game`, so a
 //! scripted playthrough gives the same state hash in both.
 //!
 //! **Ownership.** This crate owns 2D presentation and 2D simulation semantics only. It shares, by including the engine's own source files (no copies), the pieces that are

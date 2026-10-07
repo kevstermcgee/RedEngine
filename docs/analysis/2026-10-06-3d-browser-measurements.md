@@ -1,5 +1,7 @@
 # The 3D engine in a browser: one bounded step, measured
 
+> **Superseded 2026-10-07:** the browser target was removed (ADR 2026-10-07-native-executables-only-the-browser-target-is-removed). Kept as history.
+
 Follows `2026-10-05-3d-in-the-browser.md` (the plan; phase 1 is merged: Marcel draws and walks in Chromium on WebGPU). This step does **not** add a feature to the player. It adds the two things phase 1 lacked
 before anyone can say "the engine runs in a browser": a **second, authored, rule-driven scene** (`recipes/gated_garden.json`: a key, a gate a rule opens, a bench that ends the match) and a repeatable
 **measurement and parity harness** (`scripts/web3d_measure.sh`, `crates/web3d/measure.py`, `examples/web3d_parity.rs`). Two small additions to the player make it testable: `Web3d.run(ticks)` (exactly that many

@@ -1,5 +1,8 @@
 # 2026-10-05. The web platform is one host boundary and a self-checking static package
-Status: accepted
+
+> **Superseded 2026-10-07:** the browser target was removed (ADR 2026-10-07-native-executables-only-the-browser-target-is-removed). Kept as history.
+
+Status: superseded by 2026-10-07-native-executables-only-the-browser-target-is-removed
 Summary: A browser game is game.wasm (no imports) + runtime.js + the game text behind red2d::host; the package is deterministic and verified from the directory alone, and WebAssembly compilation is never called browser support.
 
 ## Context

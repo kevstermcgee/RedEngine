@@ -106,7 +106,7 @@ needs_build() { # binary name + build mode: missing, forced, mode-changed, or ol
   [ "$(cat "$stamp")" != "$mode" ] && return 0
   local f d
   for f in "$ROOT/Cargo.toml" "$ROOT/Cargo.lock" "$ROOT/build.rs"; do [ -f "$f" ] && [ "$f" -nt "$exe" ] && return 0; done
-  # crates/ (red2d, web3d) is part of the build: an edit there left this reporting "fresh" and running the old binary. Docs and helper scripts are not build inputs.
+  # crates/ (red2d) is part of the build: an edit there left this reporting "fresh" and running the old binary. Docs and helper scripts are not build inputs.
   for d in "$ROOT/src" "$ROOT/assets" "$ROOT/crates"; do [ -d "$d" ] && [ -n "$(find "$d" -type f ! -name '*.md' ! -name '*.py' ! -name '*.txt' -newer "$exe" -print -quit)" ] && return 0; done
   return 1
 }

@@ -6,7 +6,7 @@
 //! `red_engine2 recipe` lists them; `recipe <name>` explains one; `recipe <name> --new out.json`
 //! copies it as a starting point; `recipe <name> --print` dumps the JSON.
 //!
-//! The same front door also holds the **2D mechanics** (`examples/patterns/*.game2d.json`): each is a complete tiny browser game that shows ONE reusable mechanic (a key and a door,
+//! The same front door also holds the **2D mechanics** (`examples/patterns/*.game2d.json`): each is a complete tiny 2D game that shows ONE reusable mechanic (a key and a door,
 //! a countdown that ends the game, checkpoints, a capped spawner, a whole collect-power-survive-escape game) together with the scenarios that prove it works. An agent asked for
 //! "a door that opens with a key" finds it by name or by search, copies it, and changes the look: it does not re-derive the rules or invent how to test them.
 
@@ -102,9 +102,7 @@ pub fn render_list() -> String {
         out.push_str(&format!("  {:<18} {}\n", r.name, r.title()));
     }
     out.push_str("\nEvery recipe passes `lint` and its own `verify` checks (enforced by `cargo test`).\n");
-    out.push_str(
-        "\n2D mechanics (a complete tiny browser game each, with the scenarios that prove it; `recipe <name>` explains, `--new g.game2d.json` copies):\n",
-    );
+    out.push_str("\n2D mechanics (a complete tiny 2D game each, with the scenarios that prove it; `recipe <name>` explains, `--new g.game2d.json` copies):\n");
     for p in patterns() {
         out.push_str(&format!("  {:<20} {}\n", p.name, p.title()));
     }
