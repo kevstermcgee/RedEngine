@@ -193,7 +193,7 @@ fn is_graphics_gate(line: &str) -> bool {
     )
 }
 
-/// Modules and directories (relative to `src/`) that are built only with the `gfx` feature (or `render`, or the browser build): every `#[cfg(feature = "gfx")] pub mod x;` of
+/// Modules and directories (relative to `src/`) that are built only with the `gfx` feature (or `render`, or `render`): every `#[cfg(feature = "gfx")] pub mod x;` of
 /// `src/lib.rs`, and the directory or file of each `[[bin]]` that `required-features` gfx.
 pub fn gfx_only_paths(root: &Path) -> Vec<String> {
     let mut out = Vec::new();

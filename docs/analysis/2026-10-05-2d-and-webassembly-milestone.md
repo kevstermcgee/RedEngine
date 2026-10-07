@@ -1,5 +1,7 @@
 # 2D + WebAssembly milestone (2026-10-05)
 
+> **Superseded 2026-10-07:** the browser target was removed (ADR 2026-10-07-native-executables-only-the-browser-target-is-removed). Kept as history.
+
 Branch `web2d` (from `reliability`). Goal: PRESENTATION (2d, 3d) x PLATFORM (native, browser), and a supported path from "an AI makes a small game" to a tested, playable URL, without rewriting the 3D engine.
 Contract under test: **AI intent -> capabilities -> 2D game -> headless verification -> rendering -> WASM -> static package -> real browser -> publication.** Where a claim is made below, the check that backs it is named.
 

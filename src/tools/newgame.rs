@@ -268,7 +268,7 @@ function Needs-Build([string]$n) {
     $stamp = Join-Path $Target "$Profile_\.red-wrapper-$n.mode"
     if (-not (Test-Path $stamp) -or (Get-Content $stamp -Raw) -ne $mode) { return $true }
     $inputs = @((Join-Path $Engine 'Cargo.toml'), (Join-Path $Engine 'Cargo.lock'), (Join-Path $Engine 'build.rs'))
-    # crates/ (red2d, web3d) is part of the build; docs and helper scripts are not.
+    # crates/ (red2d) is part of the build; docs and helper scripts are not.
     $inputs += Get-ChildItem (Join-Path $Engine 'src'), (Join-Path $Engine 'assets'), (Join-Path $Engine 'crates') -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -notin '.md', '.py', '.txt' } | Select-Object -ExpandProperty FullName
     $built = (Get-Item $out).LastWriteTimeUtc
     return $null -ne ($inputs | Where-Object { (Test-Path $_) -and (Get-Item $_).LastWriteTimeUtc -gt $built } | Select-Object -First 1)

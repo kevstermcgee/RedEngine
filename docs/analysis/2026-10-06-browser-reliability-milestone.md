@@ -1,5 +1,7 @@
 # Browser reliability milestone: what was wrong when features were combined, what was changed, what is still not proven
 
+> **Superseded 2026-10-07:** the browser target was removed (ADR 2026-10-07-native-executables-only-the-browser-target-is-removed). Kept as history.
+
 Scope: the 2D / WebAssembly / browser workflow and its interaction with the simulation, the procedural world, verification and publishing. Start: `origin/main` at `316c8d7` (then merged `88a8165`, 3D phase 1).
 Every finding below was reproduced before it was fixed, and each fix has a test that fails without it.
 

@@ -37,10 +37,10 @@ FEATURES = {"features": {
                    "tests": ["net_flow", "lib:net::server"], "commands": ["red_engine2 net-test examples/test_lab.json"], "docs": ["docs/adr/0016.md"], "depends_on": []},
     "ui_kit": {"summary": "The headless audited 2-D UI; draws the handshake state.", "files": ["src/ui/**"], "tests": ["lib:ui"], "commands": [], "docs": [], "depends_on": ["net_server"]}}}
 
-PROPOSE_OK = {"schema": 1, "ok": True, "data": {"title": "Coin Dash", "genre": "arcade", "capabilities": {"presentation": "2d", "platforms": ["web"], "networking": "offline"},
+PROPOSE_OK = {"schema": 1, "ok": True, "data": {"title": "Coin Dash", "genre": "arcade", "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline"},
               "complexity": "small", "session_minutes": [2, 5], "reasons": ["2D is the simplest"], "problems": [], "warnings": [], "buildable": True}}
-PROPOSE_NO = {"schema": 1, "ok": True, "data": {"title": "Big Online Thing", "capabilities": {"presentation": "3d", "platforms": ["web"], "networking": "authoritative"},
-              "problems": ["3D multiplayer in a browser is not supported"], "warnings": [], "buildable": False, "reasons": []}}
+PROPOSE_NO = {"schema": 1, "ok": True, "data": {"title": "Big Online Thing", "capabilities": {"presentation": "3d", "platforms": ["windows", "linux"], "networking": "authoritative"},
+              "problems": ["3D multiplayer on a 2D-only target is not supported"], "warnings": [], "buildable": False, "reasons": []}}
 
 
 def write(path, text="x", mtime=None):
@@ -269,7 +269,7 @@ class Routing(Sandbox):
         self.assertEqual([i["argv"][1] for i in out["invoked"]], ["propose"], "only the read-only `propose` ran")
         self.assertEqual(out["next_action"]["then"]["argv"], ["scripts/red", "verify", "coin-browser.game2d.json"], "a 2D starter is verified with `verify`, never `check`")
         claims = {c["claim"] for c in out["final_requirements"]}
-        self.assertTrue({"validation", "behavior", "visual/input inspection", "target execution (browser)", "networking"} <= claims, "separate claims, never merged")
+        self.assertTrue({"validation", "behavior", "visual/input inspection", "target execution (native window)", "networking"} <= claims, "separate claims, never merged")
         self.assertTrue(all(c["state"] in ("planned", "not_applicable") for c in out["evidence"]["claims"]), "nothing starts passed")
 
     @NEEDS_SH
@@ -283,7 +283,7 @@ class Routing(Sandbox):
         self.assertIn("engine-change", b["extension"]["argv"])
         self.assertEqual(out["next_action"]["kind"], "decide")
         self.assertNotIn("new-game", out["next_action"]["argv"], "no starter is offered for something the engine cannot do")
-        self.assertIn("web", out["constraints"]["targets"])
+        self.assertIn("native", out["constraints"]["targets"])
         self.assertIn("multiplayer", out["constraints"]["targets"])
 
     def test_a_task_that_matches_nothing_is_unrouted_and_says_so(self):

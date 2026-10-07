@@ -1,9 +1,9 @@
-//! The platform boundary, in one place: everything a *platform* (the browser's JavaScript today, a native window later) needs from a 2D game, as plain method calls with no
-//! JavaScript, files, clocks or threads in them.
+//! The platform boundary, in one place: everything a *platform* (the native window, `play2d` / `re2d`) needs from a 2D game, as plain method calls with no
+//! windows, files, clocks or threads in them.
 //!
 //! The platform feeds in time (a number of ticks to run), input (keys, actions, a pointer, clicks) and saved text, and reads out a picture (RGBA bytes), sound requests, the text to save and a JSON
-//! snapshot. [`crate::web`] wraps this struct in the WebAssembly exports; the unit tests below drive it natively, so most of "the browser build works" is checked without a browser.
-//! What stays outside, in `runtime.js`: the animation-frame loop, the canvas, `localStorage`, Web Audio and the gamepad. Those are checked only by a real browser run.
+//! snapshot. The unit tests below drive it without a window, so most of "the player works" is checked headless; what stays outside (the window, the sound device, the key events) is
+//! `src/play2d.rs` and is checked by running it on a display.
 
 use crate::game::{self, GameDef};
 use crate::render::{self, Frame, Layout};
