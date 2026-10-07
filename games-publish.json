@@ -84,6 +84,54 @@
       "entry": "demos/examples/orbit_walk.json",
       "files": ["demos/examples/orbit_walk.json"],
       "arguments": ["content/demos/examples/orbit_walk.json"]
+    },
+    {
+      "slug": "coin-dash",
+      "name": "Coin Dash",
+      "kind": "2d",
+      "entry": "demos/examples/2d/coin-dash.game2d.json",
+      "files": ["demos/examples/2d/coin-dash.game2d.json"],
+      "arguments": ["content/demos/examples/2d/coin-dash.game2d.json"]
+    },
+    {
+      "slug": "lantern-yard",
+      "name": "Lantern Yard",
+      "kind": "2d",
+      "entry": "demos/examples/2d/lantern-yard.game2d.json",
+      "files": ["demos/examples/2d/lantern-yard.game2d.json"],
+      "arguments": ["content/demos/examples/2d/lantern-yard.game2d.json"]
+    },
+    {
+      "slug": "moon-hopper",
+      "name": "Moon Hopper",
+      "kind": "2d",
+      "entry": "demos/examples/2d/moon-hopper.game2d.json",
+      "files": ["demos/examples/2d/moon-hopper.game2d.json"],
+      "arguments": ["content/demos/examples/2d/moon-hopper.game2d.json"]
+    },
+    {
+      "slug": "tiny-station",
+      "name": "Tiny Station",
+      "kind": "2d",
+      "entry": "demos/examples/2d/tiny-station.game2d.json",
+      "files": ["demos/examples/2d/tiny-station.game2d.json"],
+      "arguments": ["content/demos/examples/2d/tiny-station.game2d.json"]
+    },
+    {
+      "slug": "warden-arena",
+      "name": "Warden Arena",
+      "kind": "2d",
+      "entry": "demos/examples/2d/warden-arena.game2d.json",
+      "files": ["demos/examples/2d/warden-arena.game2d.json"],
+      "arguments": ["content/demos/examples/2d/warden-arena.game2d.json"]
+    },
+    {
+      "slug": "medic-run",
+      "name": "Medic Run",
+      "kind": "2d",
+      "entry": "demos/examples/2d/medic-run.game2d.json",
+      "files": ["demos/examples/2d/medic-run.game2d.json"],
+      "arguments": ["content/demos/examples/2d/medic-run.game2d.json"]
     }
   ]
 }

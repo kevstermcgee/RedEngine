@@ -4,7 +4,9 @@
 //! game's sounds and music through the engine's mixer and keeps the game's save in the user's data folder. All rules, drawing and sound come from the same `Host` the
 //! browser, `verify` and `frame` use, so a game that passes `verify` plays the same here.
 //!
-//! usage: `re2d [GAME.game2d.json]` (with no argument: `game.game2d.json` next to the program, which is how `package2d` ships one). `F11` toggles fullscreen.
+//! usage: `re2d [GAME.game2d.json]` (with no argument: `game.game2d.json` next to the program). `F11` toggles fullscreen. The release build on Windows has no console window, so every
+//! failure is also written to `re2d.log` next to the program (and is the only place a player double-clicking it would find it).
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 use red2d::host::{Host, SAVE_CORRUPT, SAVE_INCOMPATIBLE};
 use red_engine2::audio::Audio;
@@ -21,6 +23,15 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Fullscreen, Window, WindowId};
 
 const TPS: f64 = 60.0;
+
+/// Reports a failure on stderr and in `re2d.log` next to the program (a GUI-subsystem build has no stderr a player can see), then exits with `code`.
+fn fail(msg: &str, code: i32) -> ! {
+    eprintln!("{msg}");
+    if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(PathBuf::from)) {
+        let _ = std::fs::write(dir.join("re2d.log"), format!("{msg}\n"));
+    }
+    std::process::exit(code)
+}
 
 struct Player {
     host: Host,
@@ -243,21 +254,18 @@ fn main() {
     let text = match std::fs::read_to_string(&path) {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("re2d: cannot read the game {}: {e}\nusage: re2d GAME.game2d.json", path.display());
-            std::process::exit(2);
+            fail(&format!("re2d: cannot read the game {}: {e}\nusage: re2d GAME.game2d.json", path.display()), 2);
         }
     };
     let mut player = match Player::new(&text) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("re2d: {} does not validate:\n{e}\n(run `red_engine2 validate {}` for the way out)", path.display(), path.display());
-            std::process::exit(1);
+            fail(&format!("re2d: {} does not validate:\n{e}\n(run `red_engine2 validate {}` for the way out)", path.display(), path.display()), 1);
         }
     };
-    let el = EventLoop::new().expect("an event loop");
+    let el = EventLoop::new().unwrap_or_else(|e| fail(&format!("re2d: no window system: {e}"), 1));
     el.set_control_flow(ControlFlow::Poll);
     if let Err(e) = el.run_app(&mut player) {
-        eprintln!("re2d: {e}");
-        std::process::exit(1);
+        fail(&format!("re2d: {e}"), 1);
     }
 }
