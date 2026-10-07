@@ -39,6 +39,7 @@ mod args;
 mod editing;
 #[path = "cli/info.rs"]
 mod info;
+#[cfg(feature = "mcp")]
 #[path = "cli/mcp.rs"]
 mod mcp;
 #[path = "cli/playtest.rs"]
@@ -135,7 +136,10 @@ fn run(command: Command) -> Result<(), String> {
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
         Command::Lint { scene, strict, cell, phase } => run_lint(&scene, envelope::capturing(), strict, cell, phase.as_deref()),
         Command::Reach { scene, from, to, cell, phase } => run_reach(&scene, from.as_deref(), to.as_deref(), cell, envelope::capturing(), phase.as_deref()),
+        #[cfg(feature = "mcp")]
         Command::Mcp => mcp::run_mcp(),
+        #[cfg(not(feature = "mcp"))]
+        Command::Mcp => Err("`red_engine2 mcp` is not in this build (cargo feature `mcp`, on by default): rebuild with `cargo build --bin red_engine2` (no `--no-default-features`), or run `scripts/dev red mcp`".into()),
         Command::Doctor { out_dir } => run_doctor(&out_dir),
         Command::Ray { scene, from, to, skip } => run_ray(&scene, &from, &to, &skip),
         Command::Nav { scene, route, all } => run_nav(&scene, &route, all),

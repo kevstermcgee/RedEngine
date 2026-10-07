@@ -2,7 +2,7 @@
 # The exact steps CI runs (.github/workflows/ci.yml). Run before pushing; green here = green there
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
-#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client
+#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video
 #
 # Tests run in two groups, because only one kind needs to be slow:
 #   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers): one test at a time, as before;
@@ -48,7 +48,7 @@ stage_benches() {
   if [ "${RED_CI_BUILD_BENCHES:-0}" = "1" ]; then cargo bench --locked --no-run; else cargo check --locked --benches; fi
 }
 stage_headless_tree() {
-  echo "== headless server: no graphics/audio crates in the dependency tree =="
+  echo "== headless server: no graphics, audio or MCP crates in the dependency tree =="
   # The tree is captured first, then searched: piped straight into grep, a *failing* `cargo tree` (a stale Cargo.lock under
   # --locked, a broken registry) matched nothing and the stage passed with nothing checked.
   local tree
@@ -56,10 +56,10 @@ stage_headless_tree() {
     echo "cargo tree failed: the headless dependency tree could not be checked (a stale Cargo.lock? run cargo update -p <crate> or regenerate it)"; exit 1
   fi
   if [ -z "$tree" ]; then echo "cargo tree printed nothing: the dependency check ran on an empty tree"; exit 1; fi
-  if grep -E '^(wgpu|winit|rodio|cpal|alsa|pollster|ffmpeg-sidecar|naga|ash) ' <<<"$tree"; then
-    echo "a graphics/audio crate leaked into the headless build"; exit 1
+  if grep -E '^(wgpu|winit|softbuffer|rodio|cpal|alsa|pollster|ffmpeg-sidecar|naga|ash|rmcp|schemars) ' <<<"$tree"; then
+    echo "a graphics, audio or MCP-adapter crate leaked into the headless build"; exit 1
   fi
-  echo "$(grep -c . <<<"$tree") crates checked, no graphics/audio crate among them"
+  echo "$(grep -c . <<<"$tree") crates checked, no graphics, audio or MCP crate among them"
 }
 stage_headless_build() {
   echo "== headless server builds without the gfx feature =="
@@ -97,9 +97,12 @@ stage_external_client() {
   cargo test --locked --manifest-path examples/external/topdown_switch/Cargo.toml
 }
 
+# The optional export capability stays buildable and lint clean: MP4 export (`video`, ffmpeg-sidecar) is not in the default build (ADR 2026-10-07-tooling-dependencies-are-optional-features).
+stage_video() { echo "== optional MP4 export builds (feature video) =="; cargo clippy --locked --bins --lib --features video -- -D warnings; }
+
 stages=("$@")
 # Cheapest, most-likely-to-fail first: formatting, the lock files and the headless dependency tree take seconds; the long stages come after them.
-[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client)
+[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client video)
 # Every stage is timed, and the table at the end says where the minutes went (the first thing to read when CI feels slow).
 timings=()
 t_all=$SECONDS

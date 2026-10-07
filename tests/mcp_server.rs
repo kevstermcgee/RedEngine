@@ -1,6 +1,8 @@
 //! `red_engine2 mcp` over its real stdio protocol (ADR 2026-10-06-a-native-mcp-server): the tool surface, a map proved and edited by path, images, refused commands,
 //! and the one thing a stdio server must never do, which is print anything but protocol on stdout (the client panics on any other line).
 
+#![cfg(feature = "mcp")]
+
 use serde_json::json;
 use std::path::PathBuf;
 

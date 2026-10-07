@@ -162,7 +162,7 @@ pub fn support(presentation: Presentation, platform: Platform) -> Support {
     use Platform::*;
     use Presentation::*;
     match (presentation, platform) {
-        // `red_engine2 play2d`: a window, sound and saves over the same Host the headless checks drive.
+        // The native 2D player (`re2d`, also `red_engine2 play2d`): a window, sound and saves over the same Host the headless checks drive.
         (TwoD | Hybrid, Windows | Linux) => Support::Supported,
         (TwoD | Hybrid, MacOs) | (ThreeD, MacOs) => Support::NotSupported("no macOS build or test exists; supported platforms are windows and linux"),
         (ThreeD, Windows | Linux) => Support::Supported,
@@ -216,7 +216,7 @@ pub fn distribution_support(presentation: Presentation, platform: Platform, how:
             "the portable build packages for Linux (`package`), but the installer, the updater and the download page are Windows-only today",
         ),
         (TwoD | Hybrid, Windows | Linux, Install) => {
-            Support::Unverified("`red_engine2 play2d` runs the game from the engine; packaging a 2D game as its own .exe or installer is not built yet")
+            Support::Unverified("`re2d` / `red_engine2 play2d` run the game from the engine; the release workflow packages a 2D game with `re2d` (`kind: \"2d\"` in games-publish.json), but no installer built that way has been run on Windows yet")
         }
         (_, MacOs, _) => Support::NotSupported("no macOS build or test exists"),
     }

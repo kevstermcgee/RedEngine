@@ -12,7 +12,7 @@
     },
     "games2d": {
       "summary": "2D games, native: the red2d crate (declarative game format, deterministic simulation, CPU renderer, sound), the native window player (`play2d`), and the presentation x platform capability matrix.",
-      "files": ["crates/red2d/**", "src/font_glyphs.rs", "src/play2d.rs", "src/tools/game2d.rs", "src/tools/gitscope.rs", "tests/fresh_agent_bench.rs", "scripts/agent_bench.py", "src/tools/propose.rs", "src/cli/propose.rs", "examples/2d/**", "docs/PLAY_2D.md"],
+      "files": ["crates/red2d/**", "src/font_glyphs.rs", "src/play2d.rs", "src/bin/re2d/**", "src/tools/game2d.rs", "src/tools/gitscope.rs", "tests/fresh_agent_bench.rs", "scripts/agent_bench.py", "src/tools/propose.rs", "src/cli/propose.rs", "examples/2d/**", "docs/PLAY_2D.md"],
       "tests": ["games2d", "lib:tools::game2d", "gate_meadow", "fresh_agent_bench"],
       "commands": ["red_engine2 verify examples/2d/coin-dash.game2d.json", "red_engine2 play2d examples/2d/coin-dash.game2d.json --max-ticks 60", "red_engine2 capabilities"],
       "docs": ["docs/PLAY_2D.md", "docs/adr/2026-10-05-hybrid-games-draw-3d-parts-with-a-small-portable.md"],
@@ -281,8 +281,8 @@
     },
     "build_and_ci": {
       "summary": "Cargo features (the headless build), CI script, dev scripts, the dependency boundary.",
-      "files": ["scripts/seed_target.py", "scripts/prune_target.py", "benches/flow_bench.py", "benches/discovery_bench.py", "benches/discovery_queries.json", "benches/flows/**", "Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
-      "tests": ["headless_boundary"],
+      "files": ["tests/optional_features.rs", "scripts/seed_target.py", "scripts/prune_target.py", "benches/flow_bench.py", "benches/discovery_bench.py", "benches/discovery_queries.json", "benches/flows/**", "Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
+      "tests": ["headless_boundary", "optional_features"],
       "commands": ["scripts/ci.sh"],
       "docs": ["docs/adr/0017-headless-build-gfx-feature.md"]
     },

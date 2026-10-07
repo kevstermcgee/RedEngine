@@ -47,7 +47,7 @@ pub(crate) fn run_frame(
     Ok(())
 }
 
-#[cfg(feature = "gfx")]
+#[cfg(feature = "video")]
 pub(crate) fn run_render(scene: &Path, out: &Path) -> Result<(), String> {
     let started = Instant::now();
     red_engine2::render_video(scene, out, |done, total| {
@@ -68,9 +68,9 @@ pub(crate) fn run_storyboard(scene: &Path, out: &Path, frames: u32) -> Result<()
     Ok(())
 }
 
-#[cfg(not(feature = "gfx"))]
+#[cfg(not(feature = "video"))]
 pub(crate) fn run_render(_scene: &Path, _out: &Path) -> Result<(), String> {
-    Err(red_engine2::tools::NO_GFX.to_string())
+    Err(red_engine2::tools::NO_VIDEO.to_string())
 }
 
 #[cfg(not(feature = "gfx"))]

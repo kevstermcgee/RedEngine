@@ -184,7 +184,13 @@ fn check_facts(root: &Path) -> Vec<Problem> {
 /// The `cfg` lines that keep a module out of the headless server build: `gfx` (the desktop client), `render` (the wgpu renderer alone, which `gfx` includes) and the
 /// browser player (`web` on wasm32). None of them is on by default without `gfx`, so none is in `--no-default-features`.
 fn is_graphics_gate(line: &str) -> bool {
-    matches!(line.trim(), "#[cfg(feature = \"gfx\")]" | "#[cfg(feature = \"render\")]" | "#[cfg(all(feature = \"web\", target_arch = \"wasm32\"))]")
+    matches!(
+        line.trim(),
+        "#[cfg(feature = \"gfx\")]"
+            | "#[cfg(feature = \"render\")]"
+            | "#[cfg(feature = \"video\")]"
+            | "#[cfg(all(feature = \"web\", target_arch = \"wasm32\"))]"
+    )
 }
 
 /// Modules and directories (relative to `src/`) that are built only with the `gfx` feature (or `render`, or the browser build): every `#[cfg(feature = "gfx")] pub mod x;` of
@@ -230,7 +236,7 @@ pub fn gfx_only_paths(root: &Path) -> Vec<String> {
 }
 
 /// Names of graphics/audio crates that only `gfx`-gated code may use.
-const BANNED_CRATES: &[&str] = &["wgpu::", "winit::", "rodio::", "ffmpeg_sidecar", "pollster::"];
+const BANNED_CRATES: &[&str] = &["wgpu::", "winit::", "rodio::", "ffmpeg_sidecar", "pollster::", "softbuffer::"];
 
 /// Source files that are built without the `gfx` feature but name a graphics or audio crate (`file:line: crate`): they would break the headless server build
 /// that CI does on a bare Linux box. Which files are graphics-only is read from `src/lib.rs`, every `mod.rs` under `src/` and `Cargo.toml`, never listed by hand.
