@@ -310,6 +310,17 @@ class Backlog(unittest.TestCase):
         self.assertEqual(again["no-random"]["status"], "recurring", "reported after the fix: a regression the improver must see")
         self.assertIn("reported again", idea_forge.backlog_text(list(again.values())))
 
+    def test_a_partial_fix_keeps_the_key_in_the_queue_with_what_remains(self):
+        fixes = [{"key": "cold-build", "date": "2026-10-08", "summary": "start now says a build takes minutes", "partial": True, "remaining": "preflight still rebuilds in another profile"}]
+        g = idea_forge.build_backlog(self.rows([("2026-10-08-b", "cold-build", 2, 5)]), fixes)[0]
+        self.assertEqual(g["status"], "partial")
+        text = idea_forge.backlog_text([g])
+        self.assertIn("PARTIAL fix", text)
+        self.assertIn("preflight still rebuilds", text)
+        self.assertIn("`cold-build`", idea_forge.known_issues_section([g]))
+        self.assertIn("partly fixed", idea_forge.known_issues_section([g]))
+        self.assertEqual(idea_forge.build_backlog(self.rows([("2026-10-08-b", "cold-build", 2, 5)]), [dict(fixes[0], partial=False)])[0]["status"], "addressed")
+
     def test_an_open_fix_pr_takes_a_key_out_of_the_queue(self):
         groups = idea_forge.build_backlog(self.rows([("2026-10-08-b", "no-random", 3, 1)]), [], {"no-random": {"pr": "https://x/1", "status": "open"}})
         self.assertEqual(groups[0]["status"], "in-progress")

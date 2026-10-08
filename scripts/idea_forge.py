@@ -610,7 +610,8 @@ def read_fixes(texts):
 
 def build_backlog(rows, fixes, improvements=None):
     """One group per key. status: `open`; `in-progress` (a fix PR is open); `addressed` (a fix is merged on main); `recurring` (reported again in a run dated after the fix);
-    `rejected` (its fix PR was closed unmerged). Ranked: worst severity, then how many runs hit it, then minutes lost."""
+    `partial` (a merged fix did only part of it: the record says what is `remaining`, and the key stays in the queue); `rejected` (its fix PR was closed unmerged).
+    Ranked: worst severity, then how many runs hit it, then minutes lost."""
     improvements = improvements or {}
     covered = {}
     for f in fixes:
@@ -631,7 +632,7 @@ def build_backlog(rows, fixes, improvements=None):
         imp = improvements.get(key) or next((improvements[f"{x['run']}:{x['id']}"] for x in rs if f"{x['run']}:{x['id']}" in improvements), None)
         status = "open"
         if fix:
-            status = "recurring" if any(x["date"] > fix.get("date", "0000-00-00") for x in rs) else "addressed"
+            status = "recurring" if any(x["date"] > fix.get("date", "0000-00-00") for x in rs) else ("partial" if fix.get("partial") else "addressed")
         elif imp and imp.get("status") == "open":
             status = "in-progress"
         elif imp and imp.get("status") == "closed":
@@ -644,7 +645,7 @@ def build_backlog(rows, fixes, improvements=None):
     return out
 
 
-def backlog_text(groups, statuses=("open", "recurring", "in-progress"), limit=40):
+def backlog_text(groups, statuses=("open", "recurring", "partial", "in-progress"), limit=40):
     shown = [g for g in groups if g["status"] in statuses][:limit]
     if not shown:
         return "The engine backlog is empty: nothing open.\n"
@@ -655,7 +656,12 @@ def backlog_text(groups, statuses=("open", "recurring", "in-progress"), limit=40
             out.append("Proposed engine change(s):\n" + "\n".join(f"- {x}" for x in g["proposals"][:3]) + "\n")
         out.append("Evidence:\n" + "\n".join(f"- {x}" for x in g["evidence"]) + "\n")
         if g["fix"]:
-            out.append(f"Earlier fix: {g['fix'].get('summary', '')} ({g['fix'].get('date', '')}); reported again since.\n" if g["status"] == "recurring" else f"Fix: {g['fix'].get('summary', '')}\n")
+            if g["status"] == "recurring":
+                out.append(f"Earlier fix: {g['fix'].get('summary', '')} ({g['fix'].get('date', '')}); reported again since.\n")
+            elif g["status"] == "partial":
+                out.append(f"Earlier PARTIAL fix: {g['fix'].get('summary', '')} ({g['fix'].get('date', '')}). Still to do: {g['fix'].get('remaining', '(not recorded)')}\n")
+            else:
+                out.append(f"Fix: {g['fix'].get('summary', '')}\n")
         if g["pr"]:
             out.append(f"Fix PR: {g['pr']}\n")
     return "\n".join(out)
@@ -669,10 +675,10 @@ def current_backlog():
 
 def known_issues_section(groups, limit=12):
     """What the next agent is told so it does not re-discover the same problems: it reuses the key and adds evidence instead."""
-    shown = [g for g in groups if g["status"] in ("open", "recurring")][:limit]
+    shown = [g for g in groups if g["status"] in ("open", "recurring", "partial")][:limit]
     if not shown:
         return ""
-    lines = "\n".join(f"- `{g['key']}` [{g['area']}, severity {g['severity']}, {len(g['runs'])} run(s)]{' RECURRING after a fix' if g['status'] == 'recurring' else ''}: {g['title'][:110]}" for g in shown)
+    lines = "\n".join(f"- `{g['key']}` [{g['area']}, severity {g['severity']}, {len(g['runs'])} run(s)]{' RECURRING after a fix' if g['status'] == 'recurring' else (' (partly fixed; the rest is still open)' if g['status'] == 'partial' else '')}: {g['title'][:110]}" for g in shown)
     return f"""## Known issues (already in the engine backlog)
 
 If you hit one of these, log it with the SAME key (`note ... --key KEY`) and your own evidence and minutes: that is what ranks it. Do not spend time diagnosing it again. A new problem gets a new key.
@@ -1143,8 +1149,8 @@ engine so the next agent loses less time. This is the loop that makes the engine
 4. If the change is a decision a maintainer should be able to find later, add an ADR (`scripts/dev red adr new "Title" --summary "..."`).
 5. Record the fix: append an object to the JSON list in `{FIXES_FILE}` (create the file as `[]` first if it is missing):
    `{{"key": "<the backlog key>", "covers": ["<run>:<id>", "..."], "date": "{today}", "summary": "<one sentence>"}}`. `covers` lists findings that have no key of their own. This is how the backlog knows the problem was fixed
-   and notices if it comes back.
-6. `scripts/dev preflight` and `scripts/dev affected --quick` must pass (the CLI runs both again after you finish).
+   and notices if it comes back. **If you fixed only PART of the issue, add `"partial": true` and `"remaining": "<what is still to do>"`**: otherwise the whole key is marked solved and the rest is forgotten.
+6. `scripts/dev preflight` and `scripts/dev affected --quick` must pass (the CLI re-runs both from scratch, without the result cache, after you finish).
 
 Do not change: `.github/`, `Cargo.toml`/`Cargo.lock` (no new dependencies), `scripts/idea_forge.py`, `scripts/test_idea_forge.py`, or any existing file under `{FEEDBACK_DIR}/` except `fixes.json`. Do not `git push`, open a PR, merge or publish.
 
@@ -1155,9 +1161,10 @@ Your last message: the key you fixed, what changed (three lines), the test, and 
 
 
 def run_gates(wt, tail=40):
-    """The checks the CLI runs itself on an improvement (the agent's word is not enough): preflight, then the affected quick scope. IDEA_FORGE_GATES overrides (JSON list of argv lists)."""
+    """The checks the CLI runs itself on an improvement (the agent's word is not enough): preflight, then the affected quick scope WITHOUT the result cache (a cache hit is the agent's own
+    earlier run). IDEA_FORGE_GATES overrides (JSON list of argv lists)."""
     env = os.environ.get("IDEA_FORGE_GATES")
-    cmds = json.loads(env) if env else [[os.path.join(wt, "scripts", "dev"), "preflight"], [os.path.join(wt, "scripts", "dev"), "affected", "--quick"]]
+    cmds = json.loads(env) if env else [[os.path.join(wt, "scripts", "dev"), "preflight"], [os.path.join(wt, "scripts", "dev"), "affected", "--quick", "--no-cache"]]
     log = []
     for cmd in cmds:
         p = subprocess.run(cmd, cwd=wt, capture_output=True, text=True, timeout=3600)
@@ -1186,7 +1193,7 @@ def do_improve(a):
     or `shipped`."""
     refresh_improvements()
     groups = current_backlog()
-    cands = [g for g in groups if g["status"] in ("open", "recurring")]
+    cands = [g for g in groups if g["status"] in ("open", "recurring", "partial")]
     if getattr(a, "key", None):
         cands = [g for g in groups if g["key"] == a.key]
     if not cands:
