@@ -178,11 +178,11 @@ platformer. Finished and small beats ambitious and broken. If the mechanic canno
 
 At the moment you hit friction (not afterwards) run
 
-    {cli} note "<what happened>" --area <{'|'.join(AREAS)}> --cost-min <minutes it cost> --fix "<the engine change that would have prevented it>"
+    {cli} note "<what happened>" --area <{'|'.join(AREAS)}> --cost-min <minutes it really cost> --fix "<the engine change that would have prevented it>"
 
 Log: a failed command whose message did not say the fix; a feature you needed that is missing (and your workaround); a doc that was wrong, stale or missing; a `search` that found nothing; anything that cost more than two
 minutes; every time you read engine source or docs outside `describe`/`search` (path and why; `--area docs` or `discovery`); how the idea fit the engine (`--area idea-fit`: a part of the card the engine could not express and the
-missing capability); and what worked well (`--area worked`). One line each, concrete, with the command or message.
+missing capability); and what worked well (`--area worked`). One line each, concrete, with the command or message. `--cost-min` is wall-clock minutes you actually lost, not a guess at the engine's importance (the total cannot exceed your session; the CLI compares it with the measured time and says so when it does).
 
 ## Finish
 
@@ -328,6 +328,8 @@ def check_findings(rows):
             bad.append(f"{w}: cost_min must be a number of minutes")
         if r.get("area") != "worked" and not str(r.get("proposal", "")).strip():
             bad.append(f"{w}: say what the engine should change (`proposal`)")
+        if r.get("area") != "worked" and str(r.get("workaround", "")).strip().lower() in ("", "see game data", "n/a", "-"):
+            bad.append(f"{w}: `workaround` must say what you did (or `none`), not a placeholder")
         if not str(r.get("evidence", "")).strip():
             bad.append(f"{w}: `evidence` is empty (the command, the message, the number)")
         if r.get("id") in seen:
@@ -360,7 +362,8 @@ def draft_feedback(run, notes, items, today):
     findings = []
     for i, n in enumerate(notes, 1):
         findings.append({"id": f"F{i}", "area": n["area"], "title": n["text"][:110], "severity": 2 if n.get("cost_min", 0) >= 5 else 1, "cost_min": n.get("cost_min", 0),
-                         "evidence": "TODO: the command and the message, or the number", "workaround": "", "proposal": n.get("fix") or "TODO: the engine change"})
+                         "evidence": "TODO: the command and the message, or the number",
+                         "workaround": "" if n["area"] == "worked" else "TODO: how you got past it (or `none`)", "proposal": n.get("fix") or "TODO: the engine change"})
     idea = run["idea"]
     score_lines = "\n".join(f"- {'pass' if s['ok'] else 'FAIL'}: {s['name']}" + (f" ({s['detail']})" if s["detail"] else "") for s in items)
     return f"""# Idea Forge run: {idea['title']} ({today})
@@ -440,7 +443,14 @@ def measurements(run_dir, run, root):
     if os.path.exists(session):
         out.append(session_facts(session))
     notes = read_notes(run_dir)
-    out.append(f"Notes logged during the run: {len(notes)} ({sum(n.get('cost_min', 0) for n in notes):g} minutes claimed lost).")
+    claimed = sum(n.get("cost_min", 0) for n in notes)
+    line = f"Notes logged during the run: {len(notes)} ({claimed:g} minutes claimed lost)."
+    if run.get("finished") and run.get("started"):
+        wall = (run["finished"] - run["started"]) / 60
+        line += f" Measured wall time {wall:.1f} min."
+        if claimed > wall:
+            line += " **The claimed minutes exceed the measured wall time: read `cost_min` as a relative weight, not as minutes.**"
+    out.append(line)
     text = rd(path)
     block = f"{AUTO_BEGIN}\n" + "\n\n".join(out) + f"\n{AUTO_END}"
     if AUTO_BEGIN in text:

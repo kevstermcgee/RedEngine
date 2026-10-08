@@ -105,7 +105,8 @@ class Feedback(unittest.TestCase):
         text = " | ".join(bad)
         for fragment in ("area `nonsense`", "severity must be", "say what the engine should change", "`evidence` is empty", "duplicate id"):
             self.assertIn(fragment, text)
-        self.assertEqual(idea_forge.check_findings([dict(GOOD, area="worked", proposal="")]), [], "a `worked` finding needs no proposal")
+        self.assertEqual(idea_forge.check_findings([dict(GOOD, area="worked", proposal="", workaround="")]), [], "a `worked` finding needs no proposal or workaround")
+        self.assertTrue(any("placeholder" in b for b in idea_forge.check_findings([dict(GOOD, workaround="see game data")])))
 
     def test_a_feedback_file_must_be_finished(self):
         self.assertEqual(idea_forge.check_feedback_text(good_feedback()), [])
@@ -179,7 +180,7 @@ open("examples/2d/{slug}.game2d.json", "w").write({json.dumps(game)!r})
 open(os.path.join(run, "trace.jsonl"), "w").write(json.dumps({{"argv": ["describe", "2d"], "exit": 0, "t": 1}}) + "\\n" + json.dumps({{"argv": ["verify", "g"], "exit": 0, "t": 61}}) + "\\n")
 subprocess.run(cli + ["feedback", "--init"], check=True)
 p = os.path.join("docs", "analysis", "idea-forge", "{self.today()}-{slug}.md")
-t = open(p).read().replace("TODO: the engine change", "add random(a,b)").replace("TODO: the command and the message, or the number", "rules have no random")
+t = open(p).read().replace("TODO: the engine change", "add random(a,b)").replace("TODO: the command and the message, or the number", "rules have no random").replace("TODO: how you got past it (or `none`)", "a die entity")
 for todo, text in (("TODO: the design paragraph (the mechanic in one sentence, the core loop, win and lose) and what you cut.", "A game that proves the plumbing end to end for real."),
                    ("TODO: which parts of the card the engine could express, which it could not, and the capability that was missing.", "Everything was expressible except randomness, noted above."),
                    ("TODO: what the engine did well that should be kept (commands, messages, speed).", "validate and verify were fast and precise and named every fix.")):
@@ -210,6 +211,7 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 12000
         self.assertIn("Friction report", text)
         self.assertIn("Agent session: 1 assistant turns", text)
         self.assertIn("$0.50", text)
+        self.assertIn("exceed the measured wall time", text, "12 claimed minutes in an instant run must be called out")
         runs = json.load(open(os.path.join(self.home, "state.json")))["runs"]
         self.assertEqual((runs[-1]["status"], runs[-1]["feedback_ok"], runs[-1]["notes"]), ("built", True, 1))
         self.assertIn(slug, cli("ledger").stdout)
