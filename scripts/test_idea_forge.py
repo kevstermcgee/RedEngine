@@ -399,13 +399,14 @@ class Daily(unittest.TestCase):
 class Schedule(unittest.TestCase):
     def test_cron_lines_carry_what_cron_lacks(self):
         home()
-        lines = idea_forge.cron_lines(["06:00", "17:05"], 12, "some-model", 20)
+        lines = idea_forge.cron_lines(["06:00", "17:05"], 12, "some-model", 20, "nightly", True)
         self.assertEqual(len(lines), 2)
         self.assertTrue(lines[0].startswith("0 6 * * * cd "))
         self.assertTrue(lines[1].startswith("5 17 * * * cd "))
         for l in lines:
-            for must in ("PATH=", "IDEA_FORGE_HOME=", "idea_forge.py nightly --budget 12 --improve-budget 20", "--model some-model", "nightly.log", idea_forge.CRON_MARK):
+            for must in ("PATH=", "IDEA_FORGE_HOME=", "idea_forge.py nightly --budget 12 --improve --improve-budget 20", "--model some-model", "nightly.log", idea_forge.CRON_MARK):
                 self.assertIn(must, l)
+        self.assertNotIn("--improve", idea_forge.cron_lines(["06:00"], 12)[0], "the improvement agent is opt-in")
         self.assertIn("idea_forge.py daily --next --budget 7", idea_forge.cron_lines(["06:00"], 7, None, None, "daily")[0])
         for bad in ("25:00", "9", "09:61", "noon"):
             with self.assertRaises(SystemExit):
@@ -419,15 +420,15 @@ class Schedule(unittest.TestCase):
         wr(store, "0 3 * * * backup.sh\n")
         sh(os.path.join(d, "crontab"), f"#!/bin/sh\nif [ \"$1\" = -l ]; then cat {store}; else cat > {store}; fi\n")
         env = {"PATH": d + os.pathsep + os.environ["PATH"]}
-        cli("schedule", "--install", "--times", "10:00,18:00", env=env)
-        cli("schedule", "--install", "--times", "10:00,18:00", env=env)
+        cli("schedule", "--backend", "cron", "--install", "--times", "10:00,18:00", env=env)
+        cli("schedule", "--backend", "cron", "--install", "--times", "10:00,18:00", env=env)
         lines = rd(store).splitlines()
         self.assertEqual(sum(1 for l in lines if idea_forge.CRON_MARK in l), 2, "installing twice must not duplicate")
         self.assertIn("0 3 * * * backup.sh", lines)
-        printed = cli("schedule", "--times", "11:00", env=env).stdout
+        printed = cli("schedule", "--backend", "cron", "--times", "11:00", env=env).stdout
         self.assertIn("not installed", printed)
         self.assertEqual(len(rd(store).splitlines()), 3, "printing changes nothing")
-        cli("schedule", "--uninstall", env=env)
+        cli("schedule", "--backend", "cron", "--uninstall", env=env)
         self.assertEqual(rd(store).splitlines(), ["0 3 * * * backup.sh"])
 
 
@@ -727,7 +728,7 @@ class NightlyEndToEnd(E2EBase):
             return e.code or 0
 
     def test_the_night_runs_games_then_an_improvement_one_at_a_time_and_feeds_the_backlog(self):
-        self.assertEqual(self.nightly(), 0)
+        self.assertEqual(self.nightly("--improve"), 0)
         events = [l.split() for l in rd(self.log).splitlines()]
         self.assertEqual([(e[0], e[1]) for e in events], [("start", self.day()["order"][0]), ("end", self.day()["order"][0]), ("start", self.day()["order"][1]),
                                                            ("end", self.day()["order"][1]), ("start", "fix"), ("end", "fix")], "agents strictly one after another, the fix last")
@@ -916,14 +917,14 @@ class Settle(E2EBase):
         calls = []
         with mock.patch.object(idea_forge, "settle", lambda wait=0: calls.append(wait) or []):
             try:
-                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--skip-games", "--skip-improve", "--settle-timeout-min", "7"])
+                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--skip-games", "--settle-timeout-min", "7"])
             except SystemExit:
                 pass
         self.assertEqual(calls, [0, 7], "yesterday's finished PRs first, then tonight's after waiting")
         os.environ.pop("IDEA_FORGE_AUTO_MERGE", None)
         with mock.patch.object(idea_forge, "settle", lambda wait=0: []):
             try:
-                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--skip-games", "--skip-improve", "--no-merge"])
+                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--skip-games", "--no-merge"])
             except SystemExit:
                 pass
         self.assertEqual(os.environ.get("IDEA_FORGE_AUTO_MERGE"), "0")
@@ -972,6 +973,103 @@ class Refresh(unittest.TestCase):
         git(self.dedicated, "commit", "-q", "-m", "local only")
         self.assertIn("cannot fast-forward", idea_forge.refresh_checkout(self.dedicated))
         self.assertTrue(os.path.isfile(os.path.join(self.dedicated, "g.txt")))
+
+
+@NEEDS_SH
+class Integration(E2EBase):
+    """The owner's existing nightly maintenance job reads `*feedback*.md` notes in the workspace; Idea Forge writes its backlog there, and only when it changed."""
+
+    def setUp(self):
+        super().setUp()
+        self.export = os.path.join(self.base, "idea-forge-feedback.md")
+        os.environ["IDEA_FORGE_EXPORT"] = self.export
+        self.addCleanup(os.environ.pop, "IDEA_FORGE_EXPORT", None)
+
+    def test_the_backlog_is_exported_for_the_nightly_job_and_untouched_when_nothing_changed(self):
+        self.seed_feedback([("no-random-expression", 3), ("slow-start", 1)])
+        self.assertTrue(idea_forge.export_feedback_note().startswith("updated"))
+        text = rd(self.export)
+        self.assertTrue(text.startswith("# Idea Forge feedback for the engine"))
+        self.assertIn("fixes.json", text)
+        self.assertLess(text.index("no-random-expression"), text.index("slow-start"))
+        mtime = os.stat(self.export).st_mtime_ns
+        self.assertTrue(idea_forge.export_feedback_note().startswith("unchanged"))
+        self.assertEqual(os.stat(self.export).st_mtime_ns, mtime, "an unchanged backlog must not wake the nightly job's feedback gate")
+        self.seed_feedback([("another-problem", 2)], "2026-10-09-2d-more")
+        self.assertTrue(idea_forge.export_feedback_note().startswith("updated"))
+        self.assertIn("another-problem", rd(self.export))
+
+    def test_a_fixed_issue_leaves_the_export_and_a_recurring_one_is_flagged(self):
+        self.fixes_on_main["fixes.json"] = json.dumps([{"key": "slow-start", "date": "2026-10-08", "summary": "fixed"}])
+        self.seed_feedback([("no-random-expression", 3), ("slow-start", 1)])
+        idea_forge.export_feedback_note()
+        self.assertNotIn("`slow-start`", rd(self.export))
+        self.seed_feedback([("slow-start", 1)], "2026-10-10-2d-again")
+        idea_forge.export_feedback_note()
+        self.assertIn("`slow-start` [recurring]", rd(self.export))
+
+    def test_the_night_exports_after_the_games_and_does_not_run_the_improver_by_default(self):
+        try:
+            idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--order", "2d,3d"])
+        except SystemExit:
+            pass
+        events = [l.split()[:2] for l in rd(self.log).splitlines()]
+        self.assertEqual(events, [["start", "2d"], ["end", "2d"], ["start", "3d"], ["end", "3d"]], "no engine-improvement agent unless asked")
+        self.assertEqual(self.state()["nights"]["2026-10-09"]["improve"], "off")
+        self.assertIn("no-random-expression", rd(self.export), "the games' own findings reached the file the nightly job watches")
+
+    def test_a_night_with_too_little_disk_is_skipped_and_says_so(self):
+        usage = shutil.disk_usage(self.base)
+        with mock.patch.object(shutil, "disk_usage", lambda _p: usage._replace(free=3 * 2**30)):
+            try:
+                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09"])
+            except SystemExit as e:
+                self.assertEqual(e.code, 0)
+        self.assertIn("GB free", self.state()["nights"]["2026-10-09"]["skipped"])
+        self.assertFalse(os.path.exists(self.log), "no agent was started")
+
+
+@NEEDS_SH
+class SystemdSchedule(unittest.TestCase):
+    """The owner's other jobs are systemd user timers; this one is too."""
+
+    def test_the_units_run_at_low_priority_with_the_path_baked_in(self):
+        home()
+        service, timer = idea_forge.systemd_units(["06:00", "18:30"], 15, "some-model", 25, True)
+        for must in ("Type=oneshot", "Nice=10", "IOSchedulingClass=best-effort", "TimeoutStartSec=10h", "Environment=PATH=", "Environment=IDEA_FORGE_HOME=", "idea_forge.py nightly --budget 15 --improve --improve-budget 25 --model some-model", "WorkingDirectory="):
+            self.assertIn(must, service)
+        self.assertEqual(timer.count("OnCalendar="), 2)
+        self.assertIn("OnCalendar=*-*-* 06:00:00", timer)
+        self.assertIn("OnCalendar=*-*-* 18:30:00", timer)
+        self.assertIn("Persistent=false", timer)
+        self.assertNotIn("--improve", idea_forge.systemd_units(["06:00"], 15)[0])
+        with self.assertRaises(SystemExit):
+            idea_forge.systemd_units(["25:00"], 15)
+
+    def test_install_enables_the_timer_and_uninstall_removes_only_ours(self):
+        home()
+        d = tempfile.mkdtemp()
+        calls = os.path.join(d, "systemctl.log")
+        sh(os.path.join(d, "systemctl"), f"#!/bin/sh\necho \"$@\" >> {calls}\nexit 0\n")
+        env = {"PATH": d + os.pathsep + os.environ["PATH"], "HOME": d}
+        other = os.path.join(d, ".config", "systemd", "user")
+        os.makedirs(other)
+        wr(os.path.join(other, "redengine-nightly.timer"), "theirs")
+        cli("schedule", "--backend", "systemd", "--times", "06:00", "--install", env=env)
+        self.assertTrue(os.path.isfile(os.path.join(other, "idea-forge.timer")))
+        self.assertIn("OnCalendar=*-*-* 06:00:00", rd(os.path.join(other, "idea-forge.timer")))
+        self.assertIn("ExecStart=", rd(os.path.join(other, "idea-forge.service")))
+        log = rd(calls)
+        self.assertIn("--user daemon-reload", log)
+        self.assertIn("--user enable --now idea-forge.timer", log)
+        printed = cli("schedule", "--backend", "systemd", "--times", "07:00", env=env).stdout
+        self.assertIn("not installed", printed)
+        self.assertIn("06:00", rd(os.path.join(other, "idea-forge.timer")), "printing changes nothing")
+        cli("schedule", "--backend", "systemd", "--uninstall", env=env)
+        self.assertFalse(os.path.exists(os.path.join(other, "idea-forge.timer")))
+        self.assertFalse(os.path.exists(os.path.join(other, "idea-forge.service")))
+        self.assertEqual(rd(os.path.join(other, "redengine-nightly.timer")), "theirs", "another job's units are never touched")
+        self.assertIn("--user disable --now idea-forge.timer", rd(calls))
 
 
 if __name__ == "__main__":
