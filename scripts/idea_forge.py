@@ -999,6 +999,14 @@ def pending_kinds(day):
 
 
 def pid_alive(pid):
+    """Is a process with this pid running? (`os.kill(pid, 0)` is a harmless probe on POSIX but TERMINATES the process on Windows, so Windows asks the OS instead.)"""
+    if os.name == "nt":
+        import ctypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, int(pid))   # PROCESS_QUERY_LIMITED_INFORMATION
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        return False
     try:
         os.kill(pid, 0)
         return True
