@@ -554,6 +554,7 @@ def cmd_run(a):
     jdump(run, os.path.join(run_dir, "run.json"))
     wr(os.path.join(run_dir, "brief.md"), prompt)
     st = load_state()
+    st["runs"] = [r for r in st["runs"] if not (r["code"] == code and r["slug"] == idea["slug"])]   # a re-run (or --workdir after a dry run) replaces its own row
     st["runs"].append({"code": code, "slug": idea["slug"], "title": idea["title"], "date": today, "worktree": wt, "branch": branch, "status": "running"})
     save_state(st)
     print(f"run directory {run_dir}\nbranch {branch}", file=sys.stderr)
