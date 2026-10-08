@@ -243,6 +243,8 @@ def resolve(engine_root=None, project=None, binary="red_engine2", env=None):
         reasons.append(f"the {profile} binary is stale: {primary['stale_because']}; rebuilding is the next step, a stale binary is never selected")
     else:
         reasons.append(f"no {profile} binary under {target} (nothing has been built here)")
+        reasons.append("a cold build takes 2-7 min, longer than a 120 s tool timeout: run it in the background; "
+                       "faster: `scripts/dev seed --from <a built sibling's target dir>` first, or install prebuilt binaries (scripts/bootstrap.sh)")
     if sel["exe"] is None and sel["status"] in ("missing", "stale"):
         inst = next((c for c in cands if c["source"].startswith("installed")), None)
         if inst:
