@@ -1,0 +1,25 @@
+{
+  "bpm": 48, "beats": 4, "bars": 8, "key": "D", "scale": "minor", "seed": 11, "lufs": -26,
+  "reverb": { "decay": 8, "size": 1.4, "damp": 0.5, "predelay": 0.03, "mix": 0.6 },
+  "delay": { "time": 1.5, "feedback": 0.45, "damp": 0.6, "mix": 0.3 },
+  "instruments": {
+    "pad": { "seconds": 16, "level": 0.5, "layers": [
+      { "sine": 1,     "attack": 3,   "release": 4 },
+      { "sine": 1.004, "attack": 3.5, "release": 4, "gain": 0.7 },
+      { "sine": 2,     "attack": 4,   "release": 4, "gain": 0.25 },
+      { "sine": 0.5,   "attack": 5,   "release": 4, "gain": 0.4 } ] },
+    "drone": { "seconds": 48, "level": 0.5, "layers": [
+      { "sine": 1,    "attack": 8, "release": 8 },
+      { "sine": 2.01, "attack": 8, "release": 8, "gain": 0.2 } ] },
+    "bell": { "seconds": 7, "level": 0.45, "layers": [
+      { "sine": 1,    "decay": 1.1 },
+      { "sine": 2.76, "decay": 1.8, "gain": 0.25 },
+      { "sine": 5.4,  "decay": 3,   "gain": 0.1 } ] }
+  },
+  "tracks": [
+    { "inst": "drone", "play": "chords", "chords": "1", "voicing": [1], "every": "8 bars", "octave": 2, "gain": 0.5, "send": 0.6 },
+    { "inst": "pad",   "play": "chords", "chords": "i VI III VII", "every": "2 bars", "octave": 3, "gain": 0.9 },
+    { "inst": "bell",  "play": "walk", "every": "1 beat",  "density": 0.22, "range": [3, 10], "octave": 5, "pan": "spread", "gain": 0.6, "vel": [0.5, 0.9] },
+    { "inst": "bell",  "play": "walk", "every": "2 beats", "density": 0.3,  "range": [1, 8],  "octave": 4, "pan": "spread", "gain": 0.4, "vel": [0.4, 0.8], "seed": 5 }
+  ]
+}
