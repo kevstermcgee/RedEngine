@@ -930,5 +930,49 @@ class Settle(E2EBase):
         os.environ["IDEA_FORGE_AUTO_MERGE"] = "1"
 
 
+@NEEDS_SH
+class Refresh(unittest.TestCase):
+    """The night starts from yesterday's main: a dedicated checkout fast-forwards, anything else is left alone."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="idea_forge_refresh_")
+        self.remote = os.path.join(self.base, "remote.git")
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", self.remote], check=True)
+        self.work = os.path.join(self.base, "work")
+        subprocess.run(["git", "clone", "-q", self.remote, self.work], check=True, capture_output=True)
+        git(self.work, "checkout", "-q", "-b", "main")
+        wr(os.path.join(self.work, "f.txt"), "1\n")
+        git(self.work, "add", "-A")
+        git(self.work, "commit", "-q", "-m", "one")
+        git(self.work, "push", "-q", "-u", "origin", "main")
+        self.dedicated = os.path.join(self.base, "factory")
+        subprocess.run(["git", "clone", "-q", self.remote, self.dedicated], check=True, capture_output=True)
+        wr(os.path.join(self.work, "f.txt"), "2\n")
+        git(self.work, "commit", "-qam", "two")
+        git(self.work, "push", "-q")
+
+    def test_a_clean_checkout_tracking_main_is_fast_forwarded(self):
+        self.assertEqual(idea_forge.refresh_checkout(self.dedicated), "updated to origin/main")
+        self.assertEqual(rd(os.path.join(self.dedicated, "f.txt")), "2\n")
+
+    def test_a_dirty_checkout_a_detached_head_and_a_branch_off_main_are_left_alone(self):
+        wr(os.path.join(self.dedicated, "f.txt"), "mine\n")
+        self.assertIn("uncommitted", idea_forge.refresh_checkout(self.dedicated))
+        self.assertEqual(rd(os.path.join(self.dedicated, "f.txt")), "mine\n")
+        git(self.dedicated, "checkout", "-q", "--", "f.txt")
+        git(self.dedicated, "checkout", "-q", "-b", "feature")
+        self.assertIn("does not track origin/main", idea_forge.refresh_checkout(self.dedicated))
+        git(self.dedicated, "checkout", "-q", "--detach")
+        self.assertIn("detached", idea_forge.refresh_checkout(self.dedicated))
+        self.assertEqual(rd(os.path.join(self.dedicated, "f.txt")), "1\n", "nothing was touched")
+
+    def test_a_diverged_checkout_is_not_rewritten(self):
+        wr(os.path.join(self.dedicated, "g.txt"), "local\n")
+        git(self.dedicated, "add", "-A")
+        git(self.dedicated, "commit", "-q", "-m", "local only")
+        self.assertIn("cannot fast-forward", idea_forge.refresh_checkout(self.dedicated))
+        self.assertTrue(os.path.isfile(os.path.join(self.dedicated, "g.txt")))
+
+
 if __name__ == "__main__":
     unittest.main()
