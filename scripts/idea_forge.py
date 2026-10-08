@@ -1200,7 +1200,7 @@ def do_improve(a):
         print("improve: the backlog has nothing open")
         return "nothing", "the backlog has nothing open"
     today = datetime.date.today().isoformat()
-    name = f"engine-fix-{today}-{datetime.datetime.now().strftime('%H%M%S')}"
+    name = f"engine-fix-{today}-{datetime.datetime.now().strftime('%H%M%S')}-{secrets.token_hex(2)}"   # unique even for two runs in one second
     if a.dry_run:
         print(f"improve: would work on one of: {', '.join(g['key'] for g in cands[:6])}")
         return "pending", "dry run"
