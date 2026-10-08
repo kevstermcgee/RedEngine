@@ -866,6 +866,8 @@ impl Sim {
                             self.entities[i].home = [x, y];
                         }
                     }
+                    // later actions of this list (and events drained right after it) read `<id>_x`/`<id>_y`: they must see the new place
+                    self.refresh_vars();
                 }
             }
         }
@@ -1488,6 +1490,21 @@ pub(crate) mod tests {
         let sc = s.var("score");
         s.run_ticks(120);
         assert_eq!(s.var("score"), sc);
+    }
+
+    #[test]
+    fn a_teleport_is_visible_to_the_actions_and_events_after_it() {
+        // `score` copies p_x after each teleport in one action list; the event rule reads p_y after the teleport that emitted it.
+        let rules = r##"{"when":{"press":"action"},"do":[
+            {"teleport":{"target":"id:p","to":[100,45]}},{"set":["score","p_x"]},
+            {"teleport":{"target":"id:p","to":[120,30]}},{"add":["score","p_x"]},
+            {"emit":"moved"}]},
+            {"when":{"event":"moved"},"do":[{"set":["best","p_y"]}]}"##;
+        let mut s = Sim::new(game(rules, WALLS, r#"{"prefab":"coin","at":[5,5],"id":"p"}"#), 1);
+        s.key("Space", true);
+        s.step();
+        assert_eq!(s.var("score"), Some(220.0), "100 then 120, not the old 5");
+        assert_eq!(s.var("best"), Some(30.0));
     }
 
     #[test]
