@@ -38,3 +38,5 @@ red_engine2 play2d examples/2d/idea-forge.game2d.json
 ```
 
 Development issues found while building it, and what the engine should do about them: `docs/analysis/2026-10-07-idea-forge-feedback.md`.
+
+The same vocabulary feeds the CLI that runs the whole loop (idea, an AI builds the game, engine feedback): `scripts/idea_forge.py`, docs/IDEA_FORGE.md.
