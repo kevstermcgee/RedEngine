@@ -1,4 +1,4 @@
-# Stabilization brief for the review (filed 2026-10-07, not implemented)
+# Feedback: stabilization brief for the review (filed 2026-10-07, not implemented)
 
 Filed by the user for the review later tonight. It is the review's own brief, copied unchanged below the note. **Nothing in it has been implemented**: the Killchain session that
 filed it was told not to. The baseline it names, `f58e15db0e7383519f472ef0ba5f84871e18bf77`, is the commit that session pushed (Killchain game modes, protocol v15).
