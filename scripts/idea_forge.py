@@ -36,6 +36,7 @@ FEEDBACK_DIR = "docs/analysis/idea-forge"   # always forward slashes: git report
 RUN_DIRNAME = ".idea-forge"
 KINDS = ("2d", "3d")
 MAX_ATTEMPTS = 2        # a daily slot whose agent produced nothing that builds is tried once more with a fresh idea
+IMPROVE_BUDGET_USD = 25  # the engine-improvement agent edits real code and runs the repo's gates: a larger cap than a game
 DAILY_BUDGET_USD = 15   # per game, the `claude --max-budget-usd` cap used by `daily` and `schedule` unless told otherwise
 CRON_MARK = "# idea-forge"
 
@@ -187,7 +188,7 @@ POLISH_2D = "- Sound and a saved value (`persist`) where they fit the game; poli
 POLISH_3D = "- Sound (`audio`) where it fits the game; polish after it works."
 
 
-def brief(idea, today=None, cli=None, kind="2d"):
+def brief(idea, today=None, cli=None, kind="2d", known=""):
     """`cli` is how the agent calls this script: the launching checkout's absolute path (the agent's worktree is cut from origin/main, which may not have the script yet)."""
     today = today or datetime.date.today().isoformat()
     cli = cli or "python3 scripts/idea_forge.py"
@@ -195,6 +196,7 @@ def brief(idea, today=None, cli=None, kind="2d"):
     fb = f"{FEEDBACK_DIR}/{feedback_name(today, kind, slug)}"
     story = f"- Story (optional dressing; use it, bend it or drop it): {idea['story']}\n" if idea["story"] else "- Story: none this time; the mechanic carries the game.\n"
     build_steps = (BUILD_3D if kind == "3d" else BUILD_2D).format(slug=slug)
+    known = known or ""
     polish = POLISH_3D if kind == "3d" else POLISH_2D
     return f"""# Idea Forge run: {idea['title']} ({kind.upper()}, code {code:010d}, slug `{slug}`, {today})
 
@@ -219,11 +221,11 @@ platformer. Finished and small beats ambitious and broken. If the mechanic canno
 {build_steps}{polish}
 - Time: stop after roughly 90 minutes of work. Do not spend an hour on one obstacle: log it, work around it, move on.
 
-## Keep a running issue log: this is the point of the run
+{known}## Keep a running issue log: this is the point of the run
 
 At the moment you hit friction (not afterwards) run
 
-    {cli} note "<what happened>" --area <{'|'.join(AREAS)}> --cost-min <minutes it really cost> --fix "<the engine change that would have prevented it>"
+    {cli} note "<what happened>" --area <{'|'.join(AREAS)}> --key <stable-kebab-name-of-the-problem> --cost-min <minutes it really cost> --fix "<the engine change that would have prevented it>"
 
 Log: a failed command whose message did not say the fix; a feature you needed that is missing (and your workaround); a doc that was wrong, stale or missing; a `search` that found nothing; anything that cost more than two
 minutes; every time you read engine source or docs outside `describe`/`search` (path and why; `--area docs` or `discovery`); how the idea fit the engine (`--area idea-fit`: a part of the card the engine could not express and the
@@ -267,7 +269,9 @@ def load_run(run_dir):
 
 def cmd_note(a):
     run_dir = find_run_dir(a.run)
-    row = {"t": round(time.time(), 1), "area": a.area, "text": a.text, "cost_min": a.cost_min, "fix": a.fix or ""}
+    if a.key and not KEY_RE.match(a.key):
+        sys.exit(f"--key must be kebab-case (3-60 chars of a-z 0-9 -), got `{a.key}`")
+    row = {"t": round(time.time(), 1), "area": a.area, "text": a.text, "cost_min": a.cost_min, "fix": a.fix or "", "key": a.key or ""}
     with open(os.path.join(run_dir, "issues.jsonl"), "a") as f:
         f.write(json.dumps(row) + "\n")
     n = sum(1 for _ in rd(os.path.join(run_dir, "issues.jsonl")).splitlines())
@@ -348,6 +352,14 @@ def allowed_path(path, slug, kind="2d"):
 FINDINGS_RE = re.compile(r"```json findings\n(.*?)\n```", re.S)
 AUTO_BEGIN, AUTO_END = "<!-- automatic-measurements:begin -->", "<!-- automatic-measurements:end -->"
 REQUIRED_SECTIONS = ("## Findings", "## Idea fit", "## What worked")
+KEY_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,60}$")
+FIXES_FILE = FEEDBACK_DIR + "/fixes.json"
+AUTO_BANNER = "> Auto-completed by the CLI: the agent did not finish this file. Its notes and the measurements are real; the prose it did not write is marked."
+NOT_DONE = "(not completed by the agent: the run ended before this was written)"
+
+
+def slugify(text, n=50):
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:n].strip("-") or "finding"
 
 
 def feedback_path(root, run):
@@ -372,9 +384,11 @@ def check_findings(rows):
         if not isinstance(r, dict):
             bad.append(f"{w}: not an object")
             continue
-        for k in ("id", "area", "title", "severity", "cost_min", "evidence", "proposal"):
+        for k in ("id", "area", "title", "severity", "cost_min", "evidence", "proposal", "key"):
             if k not in r:
                 bad.append(f"{w}: missing `{k}`")
+        if "key" in r and not KEY_RE.match(str(r["key"])):
+            bad.append(f"{w}: `key` must be a stable kebab-case name of the problem (3-60 chars of a-z 0-9 -), not `{r['key']}`; reuse the key of a known issue when it is the same problem")
         if r.get("area") not in AREAS:
             bad.append(f"{w}: area `{r.get('area')}` is not one of {', '.join(AREAS)}")
         if r.get("severity") not in (1, 2, 3):
@@ -416,7 +430,7 @@ def check_feedback_text(text):
 def draft_feedback(run, notes, items, today):
     findings = []
     for i, n in enumerate(notes, 1):
-        findings.append({"id": f"F{i}", "area": n["area"], "title": n["text"][:110], "severity": 2 if n.get("cost_min", 0) >= 5 else 1, "cost_min": n.get("cost_min", 0),
+        findings.append({"id": f"F{i}", "key": n.get("key") or slugify(n["text"]), "area": n["area"], "title": n["text"][:110], "severity": 2 if n.get("cost_min", 0) >= 5 else 1, "cost_min": n.get("cost_min", 0),
                          "evidence": "TODO: the command and the message, or the number",
                          "workaround": "" if n["area"] == "worked" else "TODO: how you got past it (or `none`)", "proposal": n.get("fix") or "TODO: the engine change"})
     idea = run["idea"]
@@ -534,6 +548,211 @@ def session_facts(session):
         turns, json.dumps(tools, sort_keys=True), "unknown" if cost is None else f"${cost:.2f}", "unknown" if dur is None else f"{dur / 60000:.1f} min")
 
 
+# ---- the backlog: every finding of every run, grouped by key, with what was done about it -----------------------------------------------------------------
+
+def store_dir():
+    d = os.path.join(state_dir(), "feedback")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def store_feedback(path):
+    """Keep a copy of a run's feedback on this machine the moment it exists: the backlog must not depend on a PR having been merged."""
+    if path and os.path.isfile(path):
+        shutil.copy(path, os.path.join(store_dir(), os.path.basename(path)))
+
+
+def repo_texts(ref="origin/main"):
+    """{file name: text} of the feedback files (and fixes.json) merged on `ref`; {} when this checkout has no such ref."""
+    out = {}
+    p = subprocess.run(["git", "-C", ROOT, "ls-tree", "-r", "--name-only", ref, "--", FEEDBACK_DIR + "/"], capture_output=True, text=True)
+    if p.returncode:
+        return out
+    for path in p.stdout.split():
+        if path.endswith(".md") or path.endswith("fixes.json"):
+            q = subprocess.run(["git", "-C", ROOT, "show", f"{ref}:{path}"], capture_output=True, text=True)
+            if q.returncode == 0:
+                out[os.path.basename(path)] = q.stdout
+    return out
+
+
+def all_sources(ref="origin/main"):
+    """Feedback files merged on main plus every file in the local store (the store wins: it has runs whose PR is still open or was never merged)."""
+    texts = repo_texts(ref)
+    for name in sorted(os.listdir(store_dir())):
+        if name.endswith(".md"):
+            texts[name] = rd(os.path.join(store_dir(), name))
+    return texts
+
+
+def rows_from(texts):
+    rows = []
+    for name in sorted(texts):
+        if not name.endswith(".md") or name.startswith("DIGEST"):
+            continue
+        try:
+            found = read_findings(texts[name])
+        except ValueError:
+            continue
+        for f in found:
+            if isinstance(f, dict) and f.get("title"):
+                rows.append(dict(f, run=name[:-3], date=name[:10], key=f.get("key") or f"{name[:-3]}:{f.get('id', '?')}"))
+    return rows
+
+
+def read_fixes(texts):
+    try:
+        data = json.loads(texts.get("fixes.json", "[]"))
+    except ValueError:
+        return []
+    return [f for f in data if isinstance(f, dict) and f.get("key")]
+
+
+def build_backlog(rows, fixes, improvements=None):
+    """One group per key. status: `open`; `in-progress` (a fix PR is open); `addressed` (a fix is merged on main); `recurring` (reported again in a run dated after the fix);
+    `partial` (a merged fix did only part of it: the record says what is `remaining`, and the key stays in the queue); `rejected` (its fix PR was closed unmerged).
+    Ranked: worst severity, then how many runs hit it, then minutes lost."""
+    improvements = improvements or {}
+    covered = {}
+    for f in fixes:
+        covered[f["key"]] = f
+        for ref in f.get("covers", []):
+            covered[ref] = f
+    groups = {}
+    for r in rows:
+        if r.get("area") == "worked":
+            continue
+        g = groups.setdefault(r["key"], {"key": r["key"], "rows": []})
+        g["rows"].append(r)
+    out = []
+    for key, g in groups.items():
+        rs = g["rows"]
+        worst = max(rs, key=lambda x: (x.get("severity", 0), x.get("cost_min", 0)))
+        fix = covered.get(key) or next((covered[f"{x['run']}:{x['id']}"] for x in rs if f"{x['run']}:{x['id']}" in covered), None)
+        imp = improvements.get(key) or next((improvements[f"{x['run']}:{x['id']}"] for x in rs if f"{x['run']}:{x['id']}" in improvements), None)
+        status = "open"
+        if fix:
+            status = "recurring" if any(x["date"] > fix.get("date", "0000-00-00") for x in rs) else ("partial" if fix.get("partial") else "addressed")
+        elif imp and imp.get("status") == "open":
+            status = "in-progress"
+        elif imp and imp.get("status") == "closed":
+            status = "rejected"
+        out.append({"key": key, "status": status, "area": worst.get("area"), "title": worst["title"], "severity": max(x.get("severity", 0) for x in rs),
+                    "runs": sorted({x["run"] for x in rs}), "minutes": sum(x.get("cost_min", 0) for x in rs),
+                    "proposals": sorted({str(x.get("proposal", "")).strip() for x in rs if str(x.get("proposal", "")).strip() and not str(x.get("proposal", "")).startswith("(")}),
+                    "evidence": [f"{x['run']}: {str(x.get('evidence', ''))[:200]}" for x in rs][:4], "fix": fix, "pr": (imp or {}).get("pr", "")})
+    out.sort(key=lambda g: (-g["severity"], -len(g["runs"]), -g["minutes"], g["key"]))
+    return out
+
+
+def backlog_text(groups, statuses=("open", "recurring", "partial", "in-progress"), limit=40):
+    shown = [g for g in groups if g["status"] in statuses][:limit]
+    if not shown:
+        return "The engine backlog is empty: nothing open.\n"
+    out = [f"# Engine backlog ({len(shown)} of {len(groups)} issues; ranked by severity, then runs, then minutes lost)\n"]
+    for g in shown:
+        out.append(f"## `{g['key']}` [{g['status']}] {g['area']}, severity {g['severity']}, {len(g['runs'])} run(s), {g['minutes']:g} min\n\n{g['title']}\n")
+        if g["proposals"]:
+            out.append("Proposed engine change(s):\n" + "\n".join(f"- {x}" for x in g["proposals"][:3]) + "\n")
+        out.append("Evidence:\n" + "\n".join(f"- {x}" for x in g["evidence"]) + "\n")
+        if g["fix"]:
+            if g["status"] == "recurring":
+                out.append(f"Earlier fix: {g['fix'].get('summary', '')} ({g['fix'].get('date', '')}); reported again since.\n")
+            elif g["status"] == "partial":
+                out.append(f"Earlier PARTIAL fix: {g['fix'].get('summary', '')} ({g['fix'].get('date', '')}). Still to do: {g['fix'].get('remaining', '(not recorded)')}\n")
+            else:
+                out.append(f"Fix: {g['fix'].get('summary', '')}\n")
+        if g["pr"]:
+            out.append(f"Fix PR: {g['pr']}\n")
+    return "\n".join(out)
+
+
+def current_backlog():
+    texts = all_sources()
+    st = load_state()
+    return build_backlog(rows_from(texts), read_fixes(texts), st.get("improvements", {}))
+
+
+def known_issues_section(groups, limit=12):
+    """What the next agent is told so it does not re-discover the same problems: it reuses the key and adds evidence instead."""
+    shown = [g for g in groups if g["status"] in ("open", "recurring", "partial")][:limit]
+    if not shown:
+        return ""
+    lines = "\n".join(f"- `{g['key']}` [{g['area']}, severity {g['severity']}, {len(g['runs'])} run(s)]{' RECURRING after a fix' if g['status'] == 'recurring' else (' (partly fixed; the rest is still open)' if g['status'] == 'partial' else '')}: {g['title'][:110]}" for g in shown)
+    return f"""## Known issues (already in the engine backlog)
+
+If you hit one of these, log it with the SAME key (`note ... --key KEY`) and your own evidence and minutes: that is what ranks it. Do not spend time diagnosing it again. A new problem gets a new key.
+
+{lines}
+
+"""
+
+
+def cmd_backlog(a):
+    groups = current_backlog()
+    if a.json:
+        print(json.dumps(groups, indent=1))
+    else:
+        print(backlog_text(groups, statuses=tuple(a.status.split(","))))
+
+
+def autofill_feedback(run_dir, run, root):
+    """Make this run's feedback file valid without the agent: its notes and the measurements are real, whatever prose is missing says so. Feedback must arrive
+    even when the agent timed out, ran out of budget, or never wrote it (the failed runs are the most useful ones)."""
+    path = feedback_path(root, run)
+    kind = run.get("kind", "2d")
+    if os.path.exists(path):
+        text = rd(path)
+    else:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        text = draft_feedback(run, read_notes(run_dir), run.get("score") or score(root, run["slug"], kind), run["date"])
+    try:
+        rows = read_findings(text)
+    except ValueError:
+        rows = []
+    fixed = []
+    for i, r in enumerate(rows, 1):
+        if not isinstance(r, dict):
+            continue
+        for k, v in list(r.items()):
+            if isinstance(v, str) and "TODO" in v:   # an unfilled draft field is an empty field, repaired below
+                r[k] = ""
+        r.setdefault("id", f"F{i}")
+        if r.get("area") not in AREAS:
+            r["area"] = "tooling"
+        r.setdefault("title", NOT_DONE)
+        r.setdefault("severity", 1)
+        if r.get("severity") not in (1, 2, 3):
+            r["severity"] = 1
+        if not isinstance(r.get("cost_min"), (int, float)):
+            r["cost_min"] = 0
+        if not str(r.get("evidence", "")).strip():
+            r["evidence"] = str(r["title"])
+        if r["area"] != "worked":
+            if str(r.get("workaround", "")).strip().lower() in ("", "see game data", "n/a", "-"):
+                r["workaround"] = "(none recorded)"
+            if not str(r.get("proposal", "")).strip():
+                r["proposal"] = "(none given)"
+        if not KEY_RE.match(str(r.get("key", ""))):
+            r["key"] = slugify(str(r["title"]))
+        fixed.append(r)
+    if not fixed:
+        fixed = [{"id": "F1", "key": "run-ended-without-findings", "area": "tooling", "title": "The run ended without any logged finding", "severity": 2, "cost_min": 0,
+                  "evidence": "no `note` was logged and the feedback file had no findings", "workaround": "(none recorded)", "proposal": "check the transcript: did the agent run out of budget or time before it started logging?"}]
+    block = "```json findings\n" + json.dumps(fixed, indent=1) + "\n```"
+    text = FINDINGS_RE.sub(lambda _m: block, text) if FINDINGS_RE.search(text) else text + "\n## Findings\n\n" + block + "\n"
+    text = re.sub(r'TODO[^\n"]*', NOT_DONE, text)   # what is left is prose
+    for section in ("## Idea fit", "## What worked"):
+        if section not in text:
+            text += f"\n{section}\n\n{NOT_DONE}\n"
+    if AUTO_BANNER not in text:
+        head, _, rest = text.partition("\n")
+        text = head + "\n\n" + AUTO_BANNER + "\n" + rest
+    wr(path, text)
+    measurements(run_dir, run, root)
+    return path
+
+
 # ---- run: worktree + headless agent ----------------------------------------------------------------------------------------------------------------
 
 def git(root, *args, check=True):
@@ -545,7 +764,14 @@ def git(root, *args, check=True):
 
 def make_worktree(slug, kind="2d"):
     """A second checkout on its own branch, seeded from this checkout's build (scripts/dev worktree), next to this one."""
-    name = f"idea-{kind}-{slug}"
+    return make_named_worktree(f"idea-{kind}-{slug}")
+
+
+def make_fix_worktree(name):
+    return make_named_worktree(name)
+
+
+def make_named_worktree(name):
     wt = os.path.join(os.path.dirname(ROOT), f"{os.path.basename(ROOT)}-{name}")
     if os.path.exists(wt):
         sys.exit(f"{wt} exists: another run of this idea? remove it (git worktree remove) or pick another idea")
@@ -614,7 +840,12 @@ def do_run(a, kind, code=None):
     os.makedirs(os.path.dirname(exclude), exist_ok=True)
     if RUN_DIRNAME + "/" not in (rd(exclude) if os.path.exists(exclude) else ""):
         wr(exclude, RUN_DIRNAME + "/\n", "a")
-    prompt = brief(idea, today, f"python3 {os.path.abspath(__file__)}", kind)
+    try:
+        known = known_issues_section(current_backlog())
+    except Exception as e:   # the backlog is a help, never a reason not to run
+        print(f"(no known-issues list: {e})", file=sys.stderr)
+        known = ""
+    prompt = brief(idea, today, f"python3 {os.path.abspath(__file__)}", kind, known)
     run = {"idea": idea, "slug": idea["slug"], "kind": kind, "date": today, "branch": branch, "worktree": wt, "model": a.model or "default", "started": time.time(),
            "engine_revision": git(wt, "rev-parse", "--short=12", "origin/main", check=False), "budget_usd": a.budget}
     jdump(run, os.path.join(run_dir, "run.json"))
@@ -638,6 +869,7 @@ def do_run(a, kind, code=None):
     fb = feedback_path(wt, run)
     fb_problems = check_feedback_text(rd(fb)) if os.path.exists(fb) else ["no feedback file was written"]
     status = "built" if all(s_["ok"] for s_ in run["score"][:3]) else "incomplete"
+    store_feedback(fb)
     st = load_state()
     for r in st["runs"]:
         if r["code"] == code and r["slug"] == idea["slug"] and r.get("kind", "2d") == kind:
@@ -695,8 +927,9 @@ def archive_run(row):
     save_state(st)
 
 
-def do_ship(r, no_push=False, keep=False):
-    """Commit ONLY the game and its feedback, push, open the PR; returns the PR url ('' with no_push). Raises ShipRefused with the reason when not shippable."""
+def do_ship(r, no_push=False, keep=False, feedback_only=False):
+    """Commit ONLY the game and its feedback (only the feedback when the game did not build), push, open the PR; returns the PR url ('' with no_push).
+    Raises ShipRefused with the reason when not shippable."""
     wt, slug, kind = r["worktree"], r["slug"], r.get("kind", "2d")
     stray = [p for p in changed_paths(wt) if not allowed_path(p, slug, kind) and not p.startswith(RUN_DIRNAME + "/")]
     if stray:
@@ -706,9 +939,10 @@ def do_ship(r, no_push=False, keep=False):
     bad = check_feedback_text(rd(fb)) if os.path.exists(fb) else ["no feedback file"]
     if bad:
         raise ShipRefused("the feedback is not ready:\n  " + "\n  ".join(bad))
-    paths = [os.path.relpath(fb, wt), game_file(kind, slug).rsplit("/", 1)[0] + "/" if kind == "3d" else game_file(kind, slug)]
+    store_feedback(fb)
+    paths = [os.path.relpath(fb, wt)] + ([] if feedback_only else [game_file(kind, slug).rsplit("/", 1)[0] + "/" if kind == "3d" else game_file(kind, slug)])
     git(wt, "add", "--", *paths)
-    title = f"Idea Forge {kind.upper()} run: {run['idea']['title']} (feedback and a game built around one mechanic)"
+    title = f"Idea Forge {kind.upper()} run: {run['idea']['title']} (" + ("feedback only: the game did not build" if feedback_only else "feedback and a game built around one mechanic") + ")"
     msg = f"{title}\n\nGenerated by scripts/idea_forge.py from idea code {run['idea']['code']:010d}; the feedback file is {FEEDBACK_DIR}/.\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
     p = subprocess.run(["git", "-C", wt, "commit", "-q", "-m", msg], capture_output=True, text=True)
     if p.returncode and "nothing to commit" not in (p.stdout + p.stderr):
@@ -717,8 +951,9 @@ def do_ship(r, no_push=False, keep=False):
         print(f"committed on {r['branch']} in {wt}; not pushed (--no-push)")
         return ""
     git(wt, "push", "-q", "-u", "origin", r["branch"])
-    body = (f"## What\nA {kind.upper()} game built around one mechanic, forged by `scripts/idea_forge.py` (code `{run['idea']['code']:010d}`), and the engine feedback its development produced.\n\n"
-            f"- Idea: YOU {run['idea']['you']}, BUT {run['idea']['but']}.\n- Game: `{game_file(kind, slug)}`\n- Feedback: `{os.path.relpath(fb, wt)}`\n\n"
+    body = (f"## What\n" + ("The engine feedback of a run whose game did not build" if feedback_only else f"A {kind.upper()} game built around one mechanic") +
+            f", forged by `scripts/idea_forge.py` (code `{run['idea']['code']:010d}`), and the engine feedback its development produced.\n\n"
+            f"- Idea: YOU {run['idea']['you']}, BUT {run['idea']['but']}.\n" + ("" if feedback_only else f"- Game: `{game_file(kind, slug)}`\n") + f"- Feedback: `{os.path.relpath(fb, wt)}`\n\n"
             "No engine code changed. Merge after reading the findings; the digest (`idea_forge.py digest`) ranks them with every earlier run.\n\n"
             "🤖 Generated with [Claude Code](https://claude.com/claude-code)")
     p = subprocess.run(["gh", "pr", "create", "--base", "main", "--head", r["branch"], "--title", title, "--body", body], cwd=wt, capture_output=True, text=True)
@@ -764,6 +999,14 @@ def pending_kinds(day):
 
 
 def pid_alive(pid):
+    """Is a process with this pid running? (`os.kill(pid, 0)` is a harmless probe on POSIX but TERMINATES the process on Windows, so Windows asks the OS instead.)"""
+    if os.name == "nt":
+        import ctypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, int(pid))   # PROCESS_QUERY_LIMITED_INFORMATION
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        return False
     try:
         os.kill(pid, 0)
         return True
@@ -796,22 +1039,31 @@ class Lock:
 
 
 def produce(a, kind):
-    """Make one game of `kind`: run the agent, and ship it when it built and its feedback is sound. Returns (slot status, detail)."""
+    """Make one game of `kind` and get its feedback to the engine repo in every case: the agent's own file when it is sound, otherwise the CLI completes it (the notes and the
+    measurements are real) and ships it, with the game when the game built and without it when it did not. Returns (slot status, detail)."""
     res = do_run(a, kind)
     if res["status"] == "prepared":
         return "pending", "dry run"
-    row = res["row"]
-    if res["status"] != "built":
-        return "failed", "the game does not build: " + "; ".join(f"{s_['name']}" for s_ in res["run"]["score"] if not s_["ok"])[:200]
+    row, run = res["row"], res["run"]
+    wt = row["worktree"]
+    built = res["status"] == "built"
+    run_dir = os.path.join(wt, RUN_DIRNAME)
+    completed = False
     if res["feedback_problems"]:
-        return "review", "built, but the feedback needs work (worktree kept): " + "; ".join(res["feedback_problems"])[:200]
+        autofill_feedback(run_dir, run, wt)
+        completed = True
     if a.no_ship:
-        return "done", f"built, not shipped (worktree kept): {row['worktree']}"
+        store_feedback(feedback_path(wt, run))
+        return ("done" if built else "failed"), f"{'built' if built else 'did not build'}, not shipped (worktree kept): {wt}"
     try:
-        pr = do_ship(row, keep=a.keep)
+        pr = do_ship(row, keep=a.keep, feedback_only=not built)
     except ShipRefused as e:
-        return "review", "not shipped (worktree kept): " + str(e)[:200]
-    return "done", pr or "committed (no PR url)"
+        store_feedback(feedback_path(wt, run))
+        return "review", "not shipped (worktree kept; the feedback is saved locally): " + str(e)[:200]
+    note = " (feedback auto-completed)" if completed else ""
+    if built:
+        return "done", (pr or "committed (no PR url)") + note
+    return "failed", f"the game does not build ({'; '.join(s_['name'] for s_ in run['score'] if not s_['ok'])[:120]}); feedback shipped: {pr}{note}"
 
 
 def cmd_daily(a):
@@ -833,26 +1085,246 @@ def cmd_daily(a):
     if not shutil.which(a.claude) and not os.path.isfile(a.claude):
         sys.exit(f"`{a.claude}` not found: install Claude Code, or pass --claude PATH")
     with Lock():
+        sys.exit(1 if run_daily(a, date, order) else 0)
+
+
+def run_daily(a, date, order=None):
+    """Today's pending games, ONE AT A TIME in the day's order (the next starts only when the previous is finished, shipped and cleaned up). Returns how many failed."""
+    st = load_state()
+    day = day_state(st, date, order)
+    save_state(st)
+    todo = pending_kinds(day)
+    if getattr(a, "next", False):
+        todo = todo[:1]
+    print(f"{date}: order {', '.join(day['order'])}; running {', '.join(todo) or 'nothing (the day is complete)'}")
+    failed = 0
+    for kind in todo:
+        status, detail = produce(a, kind)
         st = load_state()
-        day = day_state(st, date, order)
+        slot = day_state(st, date)["slots"][kind]
+        slot.update(status=status, detail=detail, attempts=slot["attempts"] + 1, finished=round(time.time()))
         save_state(st)
-        todo = pending_kinds(day)
-        if a.next:
-            todo = todo[:1]
-        print(f"{date}: order {', '.join(day['order'])}; running {', '.join(todo) or 'nothing (the day is complete)'}")
+        failed += status == "failed"
+        print(f"{date} {kind}: {status}: {detail}")
+    return failed
+
+
+# ---- improve: the nightly engine-improvement agent ---------------------------------------------------------------------------------------------------------
+
+FIX_FORBIDDEN = (".github/", "Cargo.lock", "scripts/idea_forge.py", "scripts/test_idea_forge.py", FEEDBACK_DIR + "/")
+
+
+def fix_path_ok(path):
+    """What an improvement run may change: the engine, its tests, scripts and docs, and the fix record; never CI, dependencies, this tool or earlier feedback."""
+    if path == FIXES_FILE:
+        return True
+    return not (any(path == f or path.startswith(f) for f in FIX_FORBIDDEN) or path == "Cargo.toml" or path.endswith("/Cargo.toml"))
+
+
+def has_regression_test(root, paths):
+    if any(p.startswith("tests/") or re.match(r"scripts/test_[^/]+\.py$", p) for p in paths):
+        return True
+    out = subprocess.run(["git", "-C", root, "diff", "origin/main"], capture_output=True, text=True).stdout
+    return any(l.startswith("+") and "#[test]" in l for l in out.splitlines())
+
+
+def refresh_improvements():
+    """Learn whether the fix PRs opened earlier were merged or closed (a merged fix is on main in fixes.json; a closed one is not retried)."""
+    st = load_state()
+    for key, imp in st.get("improvements", {}).items():
+        if imp.get("status") != "open" or not imp.get("pr"):
+            continue
+        p = subprocess.run(["gh", "pr", "view", imp["pr"], "--json", "state", "--jq", ".state"], capture_output=True, text=True)
+        state = p.stdout.strip()
+        if p.returncode == 0 and state in ("MERGED", "CLOSED"):
+            imp["status"] = "merged" if state == "MERGED" else "closed"
+    save_state(st)
+
+
+def improve_brief(groups, today, cli):
+    return f"""# Idea Forge engine-improvement run ({today})
+
+You are an AI engineer on RedEngine, a data-driven game engine. In the last days AI agents built games on it and filed feedback about what slowed them down or was missing. Your job now is to fix ONE of those problems in the
+engine so the next agent loses less time. This is the loop that makes the engine better every night: a fix that does not remove the friction is worth nothing, and a fix that is not tested will not be trusted.
+
+{backlog_text(groups[:6])}
+## Do this
+
+1. Choose ONE issue: the most valuable one you can fix completely and safely in this session. A fix can be code, a clearer error message that names the fix, a line in `describe`/the reference, a recipe, a template: whatever
+   removes the friction (prefer making the problem disappear over documenting it). If an issue needs a design decision a human should make, do not build it: choose another, or if none is safe make no change and say why.
+2. Follow this repository's own workflow (`CLAUDE.md`): `scripts/dev start "<the fix>"`, `scripts/dev red context <words>` for the files and tests involved, `scripts/dev iterate` while you edit. Keep the change small.
+3. Add a regression test that fails without your change (a Rust test, or `scripts/test_*.py`). A fix without a test is refused.
+4. If the change is a decision a maintainer should be able to find later, add an ADR (`scripts/dev red adr new "Title" --summary "..."`).
+5. Record the fix: append an object to the JSON list in `{FIXES_FILE}` (create the file as `[]` first if it is missing):
+   `{{"key": "<the backlog key>", "covers": ["<run>:<id>", "..."], "date": "{today}", "summary": "<one sentence>"}}`. `covers` lists findings that have no key of their own. This is how the backlog knows the problem was fixed
+   and notices if it comes back. **If you fixed only PART of the issue, add `"partial": true` and `"remaining": "<what is still to do>"`**: otherwise the whole key is marked solved and the rest is forgotten.
+6. `scripts/dev preflight` and `scripts/dev affected --quick` must pass (the CLI re-runs both from scratch, without the result cache, after you finish).
+
+Do not change: `.github/`, `Cargo.toml`/`Cargo.lock` (no new dependencies), `scripts/idea_forge.py`, `scripts/test_idea_forge.py`, or any existing file under `{FEEDBACK_DIR}/` except `fixes.json`. Do not `git push`, open a PR, merge or publish.
+
+Your own friction is feedback too: log it as you go with `{cli} note "<what happened>" --area <{'|'.join(AREAS)}> --key <kebab-name> --cost-min <minutes>`.
+
+Your last message: the key you fixed, what changed (three lines), the test, and what you chose not to do and why.
+"""
+
+
+def run_gates(wt, tail=40):
+    """The checks the CLI runs itself on an improvement (the agent's word is not enough): preflight, then the affected quick scope WITHOUT the result cache (a cache hit is the agent's own
+    earlier run). IDEA_FORGE_GATES overrides (JSON list of argv lists)."""
+    env = os.environ.get("IDEA_FORGE_GATES")
+    cmds = json.loads(env) if env else [[os.path.join(wt, "scripts", "dev"), "preflight"], [os.path.join(wt, "scripts", "dev"), "affected", "--quick", "--no-cache"]]
+    log = []
+    for cmd in cmds:
+        p = subprocess.run(cmd, cwd=wt, capture_output=True, text=True, timeout=3600)
+        out = (p.stdout + p.stderr).strip().splitlines()
+        log.append(f"$ {' '.join(os.path.basename(c) if i == 0 else c for i, c in enumerate(cmd))} -> {p.returncode}\n" + "\n".join(out[-tail:]))
+        if p.returncode:
+            return False, "\n\n".join(log)
+    return True, "\n\n".join(log)
+
+
+def last_result_text(session):
+    text = ""
+    if os.path.exists(session):
+        for line in rd(session).splitlines():
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if ev.get("type") == "result" and isinstance(ev.get("result"), str):
+                text = ev["result"]
+    return text
+
+
+def do_improve(a):
+    """One engine-improvement run. Returns (status, detail): `nothing` (empty backlog), `no-change`, `refused`, `no-test`, `not-recorded`, `gates-failed` (all keep the worktree),
+    or `shipped`."""
+    refresh_improvements()
+    groups = current_backlog()
+    cands = [g for g in groups if g["status"] in ("open", "recurring", "partial")]
+    if getattr(a, "key", None):
+        cands = [g for g in groups if g["key"] == a.key]
+    if not cands:
+        print("improve: the backlog has nothing open")
+        return "nothing", "the backlog has nothing open"
+    today = datetime.date.today().isoformat()
+    name = f"engine-fix-{today}-{datetime.datetime.now().strftime('%H%M%S')}-{secrets.token_hex(2)}"   # unique even for two runs in one second
+    if a.dry_run:
+        print(f"improve: would work on one of: {', '.join(g['key'] for g in cands[:6])}")
+        return "pending", "dry run"
+    wt, branch = make_fix_worktree(name)
+    run_dir = os.path.join(wt, RUN_DIRNAME)
+    os.makedirs(run_dir, exist_ok=True)
+    exclude = git(wt, "rev-parse", "--git-path", "info/exclude")
+    exclude = exclude if os.path.isabs(exclude) else os.path.join(wt, exclude)
+    os.makedirs(os.path.dirname(exclude), exist_ok=True)
+    if RUN_DIRNAME + "/" not in (rd(exclude) if os.path.exists(exclude) else ""):
+        wr(exclude, RUN_DIRNAME + "/\n", "a")
+    prompt = improve_brief(cands, today, f"python3 {os.path.abspath(__file__)}")
+    run = {"kind": "fix", "slug": name, "date": today, "branch": branch, "worktree": wt, "started": time.time(), "candidates": [g["key"] for g in cands[:6]]}
+    jdump(run, os.path.join(run_dir, "run.json"))
+    wr(os.path.join(run_dir, "brief.md"), prompt)
+    env = dict(os.environ, IDEA_FORGE_RUN=run_dir, RED_TRACE=os.path.join(run_dir, "trace.jsonl"), IDEA_FORGE_HOME=state_dir())
+    session = os.path.join(run_dir, "session.jsonl")
+    stream_agent(agent_argv(prompt, a), wt, env, session, a.timeout_min * 60, a.quiet)
+    changed = [p for p in changed_paths(wt) if not p.startswith(RUN_DIRNAME + "/")]
+
+    def keep(status, detail):
+        print(f"improve: {status}: {detail}")
+        return status, detail
+
+    if not changed:
+        archive_run({"worktree": wt, "date": today, "kind": "fix", "slug": name, "code": 0})
+        return "no-change", "the agent made no change (it found nothing it could fix safely)"
+    bad = [p for p in changed if not fix_path_ok(p)]
+    if bad:
+        return keep("refused", f"changed paths that are off limits ({wt} kept): " + ", ".join(bad))
+    if not has_regression_test(wt, changed):
+        return keep("no-test", f"no regression test in the change ({wt} kept)")
+    try:
+        fixes = json.loads(rd(os.path.join(wt, FIXES_FILE))) if os.path.exists(os.path.join(wt, FIXES_FILE)) else []
+    except ValueError:
+        fixes = []
+    known = {g["key"] for g in groups}
+    old = {f.get("key") for f in read_fixes(repo_texts())}
+    new = [f for f in fixes if isinstance(f, dict) and f.get("key") and f["key"] not in old]
+    if not new or not any(f["key"] in known or f.get("covers") for f in new):
+        return keep("not-recorded", f"{FIXES_FILE} has no new entry for a backlog key ({wt} kept)")
+    ok, log = run_gates(wt)
+    if not ok:
+        return keep("gates-failed", f"the CLI's own checks failed ({wt} kept):\n" + log[-1500:])
+    keys = [f["key"] for f in new]
+    summary = "; ".join(f.get("summary", "") for f in new)[:120] or keys[0]
+    title = f"Engine: {summary} (Idea Forge finding {', '.join(keys)})"
+    result = last_result_text(session)
+    detail = "\n\n".join(f"### `{g['key']}` [{g['status']}] {g['title']}\n" + "\n".join(f"- {e}" for e in g["evidence"]) for g in cands if g["key"] in keys or any(f"{r}:" in " ".join(f.get('covers', [])) for f in new for r in g["runs"]))
+    body = (f"## What\nAn engine fix chosen by the nightly improvement agent from the Idea Forge backlog (`scripts/idea_forge.py improve`).\n\n{detail}\n\n## The agent's summary\n{result or '(none)'}\n\n"
+            f"## Checks the CLI ran itself\n```\n{log[-3000:]}\n```\n\nMerging records the fix in `{FIXES_FILE}`; the backlog then watches for the problem coming back. Hosted CI runs on this PR.\n\n"
+            "🤖 Generated with [Claude Code](https://claude.com/claude-code)")
+    git(wt, "add", "-A", "--", ".")
+    git(wt, "reset", "-q", "--", RUN_DIRNAME)
+    msg = f"{title}\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+    p = subprocess.run(["git", "-C", wt, "commit", "-q", "-m", msg], capture_output=True, text=True)
+    if p.returncode:
+        return keep("refused", "git commit failed (is user.name / user.email set?): " + (p.stderr or p.stdout).strip()[:200])
+    if a.no_ship:
+        return keep("done", f"committed on {branch} in {wt}; not pushed (--no-ship)")
+    git(wt, "push", "-q", "-u", "origin", branch)
+    p = subprocess.run(["gh", "pr", "create", "--base", "main", "--head", branch, "--title", title, "--body", body], cwd=wt, capture_output=True, text=True)
+    pr = p.stdout.strip().splitlines()[-1] if p.returncode == 0 and p.stdout.strip() else ""
+    st = load_state()
+    for k in keys:
+        st.setdefault("improvements", {})[k] = {"pr": pr, "branch": branch, "date": today, "status": "open"}
+    save_state(st)
+    archive_run({"worktree": wt, "date": today, "kind": "fix", "slug": name, "code": 0})
+    print(f"improve: shipped {pr}")
+    return "shipped", pr
+
+
+def cmd_improve(a):
+    if not shutil.which(a.claude) and not os.path.isfile(a.claude):
+        sys.exit(f"`{a.claude}` not found: install Claude Code, or pass --claude PATH")
+    with Lock():
+        subprocess.run(["git", "-C", ROOT, "fetch", "-q", "origin", "main"], capture_output=True, text=True)
+        status, detail = do_improve(a)
+        sys.exit(0 if status in ("shipped", "nothing", "no-change", "pending", "done") else 1)
+
+
+def cmd_nightly(a):
+    """The whole night, under one lock and strictly one agent at a time: today's games (feedback always delivered), then one engine improvement from the backlog they fed."""
+    date = a.date or datetime.date.today().isoformat()
+    order = a.order.split(",") if a.order else None
+    if order and sorted(order) != sorted(KINDS):
+        sys.exit("--order must name each kind once, e.g. 3d,2d")
+    if not a.dry_run and not shutil.which(a.claude) and not os.path.isfile(a.claude):
+        sys.exit(f"`{a.claude}` not found: install Claude Code, or pass --claude PATH")
+    with Lock():
+        if not a.dry_run:
+            subprocess.run(["git", "-C", ROOT, "fetch", "-q", "origin", "main"], capture_output=True, text=True)
         failed = 0
-        for kind in todo:
-            status, detail = produce(a, kind)
-            st = load_state()
-            slot = day_state(st, date)["slots"][kind]
-            slot.update(status=status, detail=detail, attempts=slot["attempts"] + 1, finished=round(time.time()))
-            save_state(st)
-            failed += status == "failed"
-            print(f"{date} {kind}: {status}: {detail}")
-        sys.exit(1 if failed else 0)
+        if not a.skip_games:
+            ns = argparse.Namespace(**vars(a))
+            ns.next = False
+            if a.dry_run:
+                st = load_state()
+                day = day_state(st, date, order)
+                save_state(st)
+                print(f"{date}: games order {', '.join(day['order'])}; would run: {', '.join(pending_kinds(day)) or 'nothing'}")
+            else:
+                failed = run_daily(ns, date, order)
+        result = ("skipped", "")
+        if not a.skip_improve:
+            ns = argparse.Namespace(**vars(a))
+            ns.budget, ns.timeout_min, ns.key = a.improve_budget, a.improve_timeout_min, None
+            result = do_improve(ns)
+        st = load_state()
+        st.setdefault("nights", {})[date] = {"games_failed": failed, "improve": result[0], "detail": str(result[1])[:300], "at": round(time.time())}
+        save_state(st)
+        print(f"{date}: nightly done: games failed {failed}; improvement {result[0]}")
+        sys.exit(0)
 
 
-def cron_lines(times, budget, model=None):
+def cron_lines(times, budget, model=None, improve_budget=None, command="nightly"):
     """One cron line per time of day. cron has no PATH worth the name, so the current one is baked in (it must reach claude, gh, git, python3 and cargo)."""
     home = state_dir()
     path = os.environ.get("PATH", "")
@@ -860,8 +1332,9 @@ def cron_lines(times, budget, model=None):
     if os.path.isdir(cargo) and cargo not in path.split(os.pathsep):
         path = path + os.pathsep + cargo
     cmd = (f"cd {shlex.quote(ROOT)} && PATH={shlex.quote(path)} IDEA_FORGE_HOME={shlex.quote(home)} {shlex.quote(sys.executable)} "
-           f"{shlex.quote(os.path.join(HERE, 'idea_forge.py'))} daily --next --budget {budget:g}" + (f" --model {shlex.quote(model)}" if model else "")
-           + f" >> {shlex.quote(os.path.join(home, 'daily.log'))} 2>&1")
+           f"{shlex.quote(os.path.join(HERE, 'idea_forge.py'))} {command}" + (" --next" if command == "daily" else "") + f" --budget {budget:g}"
+           + (f" --improve-budget {improve_budget:g}" if command == "nightly" and improve_budget else "") + (f" --model {shlex.quote(model)}" if model else "")
+           + f" >> {shlex.quote(os.path.join(home, 'nightly.log'))} 2>&1")
     lines = []
     for t in times:
         m = re.fullmatch(r"(\d{1,2}):(\d{2})", t.strip())
@@ -888,17 +1361,18 @@ def cmd_schedule(a):
         write_crontab([l for l in read_crontab() if CRON_MARK not in l])
         print(f"removed {len(mine)} idea-forge cron line(s)")
         return
-    lines = cron_lines(a.times.split(","), a.budget, a.model)
+    lines = cron_lines(a.times.split(","), a.budget, a.model, a.improve_budget, a.command)
     if not a.install:
         print("\n".join(lines))
-        print(f"\n(not installed: add --install to put these in your crontab; they run `daily --next` twice a day, cost up to ${a.budget:g} each, and open PRs without merging; --uninstall removes them)")
+        per = f"games one at a time (up to ${a.budget:g} each) then one engine improvement (up to ${a.improve_budget:g})" if a.command == "nightly" else f"one game (up to ${a.budget:g}) per run"
+        print(f"\n(not installed: add --install to put these in your crontab. Each run: {per}; PRs only, nothing is merged; --uninstall removes them)")
         if mine:
             print(f"\ninstalled now: {len(mine)} line(s)")
         return
     if not shutil.which("crontab"):
         sys.exit("no `crontab` on this machine: use the lines above in your scheduler of choice (systemd timer, launchd, Task Scheduler)")
     write_crontab([l for l in read_crontab() if CRON_MARK not in l] + lines)
-    print(f"installed {len(lines)} cron line(s); log: {os.path.join(state_dir(), 'daily.log')}")
+    print(f"installed {len(lines)} cron line(s); log: {os.path.join(state_dir(), 'nightly.log')}")
 
 
 # ---- ledger and digest -------------------------------------------------------------------------------------------------------------------------------
@@ -998,6 +1472,7 @@ def main(argv=None):
     s.add_argument("--area", required=True, choices=AREAS)
     s.add_argument("--cost-min", type=float, default=0)
     s.add_argument("--fix")
+    s.add_argument("--key", help="a stable kebab-case name for the problem; reuse the key of a known issue (see the brief) when it is the same one")
     s.add_argument("--run")
     s.set_defaults(f=cmd_note)
 
@@ -1030,14 +1505,47 @@ def main(argv=None):
     s.add_argument("--quiet", action="store_true")
     s.set_defaults(f=cmd_daily, no_story=False, dry_run=False, workdir=None)
 
+    def agent_opts(s, budget_default):
+        s.add_argument("--budget", type=float, default=budget_default, help="USD cap per agent session")
+        s.add_argument("--model")
+        s.add_argument("--timeout-min", type=int, default=150)
+        s.add_argument("--claude", default="claude")
+        s.add_argument("--dry-run", action="store_true")
+        s.add_argument("--quiet", action="store_true")
+
+    s = sub.add_parser("improve", help="one engine fix chosen from the backlog (a PR; never merged)")
+    agent_opts(s, IMPROVE_BUDGET_USD)
+    s.add_argument("--key", help="fix this backlog key instead of the best-ranked one")
+    s.add_argument("--no-ship", action="store_true", help="commit on the branch, do not push or open a PR")
+    s.set_defaults(f=cmd_improve)
+
+    s = sub.add_parser("nightly", help="today's games one at a time, then one engine improvement: what cron runs")
+    agent_opts(s, DAILY_BUDGET_USD)
+    s.add_argument("--improve-budget", type=float, default=IMPROVE_BUDGET_USD)
+    s.add_argument("--improve-timeout-min", type=int, default=120)
+    s.add_argument("--no-ship", action="store_true")
+    s.add_argument("--keep", action="store_true")
+    s.add_argument("--date")
+    s.add_argument("--order", help="force today's game order, e.g. 3d,2d (default: shuffled once per day)")
+    s.add_argument("--skip-games", action="store_true")
+    s.add_argument("--skip-improve", action="store_true")
+    s.set_defaults(f=cmd_nightly, no_story=False, workdir=None)
+
     s = sub.add_parser("schedule")
-    s.add_argument("--times", default="09:30,17:30", help="HH:MM,HH:MM local times of day (default 09:30,17:30)")
-    s.add_argument("--budget", type=float, default=DAILY_BUDGET_USD)
+    s.add_argument("--times", default="06:00", help="HH:MM,HH:MM local times of day (default 06:00)")
+    s.add_argument("--budget", type=float, default=DAILY_BUDGET_USD, help="USD cap per game")
+    s.add_argument("--improve-budget", type=float, default=IMPROVE_BUDGET_USD, help="USD cap for the engine-improvement step")
+    s.add_argument("--command", choices=("nightly", "daily"), default="nightly", help="nightly = both games one at a time, then an engine improvement (default); daily = one game per run (--next)")
     s.add_argument("--model")
     g = s.add_mutually_exclusive_group()
     g.add_argument("--install", action="store_true")
     g.add_argument("--uninstall", action="store_true")
     s.set_defaults(f=cmd_schedule)
+
+    s = sub.add_parser("backlog")
+    s.add_argument("--json", action="store_true")
+    s.add_argument("--status", default="open,recurring,in-progress", help="comma-separated: open, recurring, in-progress, addressed, rejected")
+    s.set_defaults(f=cmd_backlog)
 
     sub.add_parser("ledger").set_defaults(f=cmd_ledger)
     s = sub.add_parser("digest")

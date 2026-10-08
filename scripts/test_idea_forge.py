@@ -7,6 +7,7 @@ without a network, a GPU, Rust or a single token.
 import json
 import os
 import random
+import shutil
 import stat
 import subprocess
 import sys
@@ -54,7 +55,7 @@ def cli(*args, cwd=None, env=None, check=True):
     return p
 
 
-GOOD = {"id": "F1", "area": "format", "title": "no random", "severity": 3, "cost_min": 20, "evidence": "rules have no random expression", "workaround": "a die entity", "proposal": "add random(a,b)"}
+GOOD = {"id": "F1", "key": "no-random-expression", "area": "format", "title": "no random", "severity": 3, "cost_min": 20, "evidence": "rules have no random expression", "workaround": "a die entity", "proposal": "add random(a,b)"}
 
 
 def good_feedback(extra=None):
@@ -105,6 +106,8 @@ class Feedback(unittest.TestCase):
         self.assertEqual(idea_forge.check_findings([GOOD]), [])
         bad = idea_forge.check_findings([dict(GOOD, area="nonsense"), dict(GOOD, id="F2", severity=9, proposal=""), dict(GOOD, id="F2", evidence=" ")])
         text = " | ".join(bad)
+        self.assertTrue(any("`key` must be" in b for b in idea_forge.check_findings([dict(GOOD, key="Not Kebab")])))
+        self.assertTrue(any("missing `key`" in b for b in idea_forge.check_findings([{k: v for k, v in GOOD.items() if k != "key"}])))
         for fragment in ("area `nonsense`", "severity must be", "say what the engine should change", "`evidence` is empty", "duplicate id"):
             self.assertIn(fragment, text)
         self.assertEqual(idea_forge.check_findings([dict(GOOD, area="worked", proposal="", workaround="")]), [], "a `worked` finding needs no proposal or workaround")
@@ -285,6 +288,71 @@ class Kinds(unittest.TestCase):
         self.assertIn("11 check(s)", items[2]["detail"])
 
 
+class Backlog(unittest.TestCase):
+    def rows(self, spec):
+        """spec: [(run, key, severity, minutes)] -> rows as rows_from would make them."""
+        return [{"run": r, "date": r[:10], "id": f"F{i}", "key": k, "area": "format", "title": f"title of {k}", "severity": sv, "cost_min": m, "evidence": "e", "proposal": f"fix {k}"}
+                for i, (r, k, sv, m) in enumerate(spec, 1)]
+
+    def test_findings_group_by_key_and_rank_by_severity_then_runs_then_minutes(self):
+        groups = idea_forge.build_backlog(self.rows([("2026-10-07-a", "slow-start", 2, 9), ("2026-10-08-b", "slow-start", 2, 5), ("2026-10-08-b", "no-random", 3, 1), ("2026-10-08-c", "tiny", 1, 30)]), [])
+        self.assertEqual([g["key"] for g in groups], ["no-random", "slow-start", "tiny"])
+        self.assertEqual((groups[1]["minutes"], len(groups[1]["runs"])), (14, 2))
+
+    def test_a_merged_fix_closes_a_key_until_it_is_reported_again(self):
+        fixes = [{"key": "no-random", "date": "2026-10-08", "summary": "added random()", "covers": ["2026-10-07-a:F2"]}]
+        rows = self.rows([("2026-10-07-a", "other", 2, 1), ("2026-10-08-b", "no-random", 3, 1)])
+        rows[0]["id"] = "F2"
+        g = {x["key"]: x for x in idea_forge.build_backlog(rows, fixes)}
+        self.assertEqual(g["no-random"]["status"], "addressed")
+        self.assertEqual(g["other"]["status"], "addressed", "a legacy finding is covered by `covers`")
+        again = {x["key"]: x for x in idea_forge.build_backlog(rows + self.rows([("2026-10-09-c", "no-random", 2, 4)]), fixes)}
+        self.assertEqual(again["no-random"]["status"], "recurring", "reported after the fix: a regression the improver must see")
+        self.assertIn("reported again", idea_forge.backlog_text(list(again.values())))
+
+    def test_a_partial_fix_keeps_the_key_in_the_queue_with_what_remains(self):
+        fixes = [{"key": "cold-build", "date": "2026-10-08", "summary": "start now says a build takes minutes", "partial": True, "remaining": "preflight still rebuilds in another profile"}]
+        g = idea_forge.build_backlog(self.rows([("2026-10-08-b", "cold-build", 2, 5)]), fixes)[0]
+        self.assertEqual(g["status"], "partial")
+        text = idea_forge.backlog_text([g])
+        self.assertIn("PARTIAL fix", text)
+        self.assertIn("preflight still rebuilds", text)
+        self.assertIn("`cold-build`", idea_forge.known_issues_section([g]))
+        self.assertIn("partly fixed", idea_forge.known_issues_section([g]))
+        self.assertEqual(idea_forge.build_backlog(self.rows([("2026-10-08-b", "cold-build", 2, 5)]), [dict(fixes[0], partial=False)])[0]["status"], "addressed")
+
+    def test_an_open_fix_pr_takes_a_key_out_of_the_queue(self):
+        groups = idea_forge.build_backlog(self.rows([("2026-10-08-b", "no-random", 3, 1)]), [], {"no-random": {"pr": "https://x/1", "status": "open"}})
+        self.assertEqual(groups[0]["status"], "in-progress")
+        self.assertEqual(idea_forge.build_backlog(self.rows([("2026-10-08-b", "no-random", 3, 1)]), [], {"no-random": {"status": "closed"}})[0]["status"], "rejected")
+        self.assertIn("nothing open", idea_forge.backlog_text(groups, statuses=("open", "recurring")))
+
+    def test_the_brief_lists_known_issues_so_agents_add_evidence_instead_of_rediscovering(self):
+        groups = idea_forge.build_backlog(self.rows([("2026-10-08-b", "no-random", 3, 1)]), [])
+        text = idea_forge.brief(idea_forge.make_idea(5), "2026-10-09", known=idea_forge.known_issues_section(groups))
+        self.assertIn("Known issues", text)
+        self.assertIn("`no-random`", text)
+        self.assertIn("--key", text)
+        self.assertNotIn("Known issues", idea_forge.brief(idea_forge.make_idea(5), "2026-10-09"))
+
+    def test_autofill_makes_any_feedback_valid_and_says_what_it_did(self):
+        root = tempfile.mkdtemp()
+        run_dir = os.path.join(root, ".idea-forge")
+        os.makedirs(run_dir)
+        run = {"idea": idea_forge.make_idea(7), "slug": "x", "kind": "2d", "date": "2026-10-08", "model": "m", "engine_revision": "abc", "score": [{"name": "validate passes", "ok": False, "detail": ""}]}
+        wr(os.path.join(run_dir, "issues.jsonl"), json.dumps({"area": "format", "text": "no random expression", "cost_min": 3, "fix": "", "key": ""}) + "\n")
+        path = idea_forge.autofill_feedback(run_dir, run, root)   # no file at all: drafted from the notes
+        text = rd(path)
+        self.assertEqual(idea_forge.check_feedback_text(text), [])
+        self.assertIn(idea_forge.AUTO_BANNER, text)
+        row = idea_forge.read_findings(text)[0]
+        self.assertEqual((row["key"], row["proposal"], row["workaround"]), ("no-random-expression", "(none given)", "(none recorded)"))
+        wr(path, rd(path).replace("(not completed by the agent: the run ended before this was written)", "TODO: later", 1))
+        idea_forge.autofill_feedback(run_dir, run, root)   # a half-written file with a TODO is repaired too, and again is a no-op for the banner
+        self.assertEqual(idea_forge.check_feedback_text(rd(path)), [])
+        self.assertEqual(rd(path).count(idea_forge.AUTO_BANNER), 1)
+
+
 class Daily(unittest.TestCase):
     def test_the_order_is_a_shuffle_and_both_orders_happen(self):
         seen = {tuple(idea_forge.pick_order(random.Random(n))) for n in range(40)}
@@ -331,13 +399,14 @@ class Daily(unittest.TestCase):
 class Schedule(unittest.TestCase):
     def test_cron_lines_carry_what_cron_lacks(self):
         home()
-        lines = idea_forge.cron_lines(["09:30", "17:05"], 12, "some-model")
+        lines = idea_forge.cron_lines(["06:00", "17:05"], 12, "some-model", 20)
         self.assertEqual(len(lines), 2)
-        self.assertTrue(lines[0].startswith("30 9 * * * cd "))
+        self.assertTrue(lines[0].startswith("0 6 * * * cd "))
         self.assertTrue(lines[1].startswith("5 17 * * * cd "))
         for l in lines:
-            for must in ("PATH=", "IDEA_FORGE_HOME=", "idea_forge.py", "daily --next --budget 12", "--model some-model", "daily.log", idea_forge.CRON_MARK):
+            for must in ("PATH=", "IDEA_FORGE_HOME=", "idea_forge.py nightly --budget 12 --improve-budget 20", "--model some-model", "nightly.log", idea_forge.CRON_MARK):
                 self.assertIn(must, l)
+        self.assertIn("idea_forge.py daily --next --budget 7", idea_forge.cron_lines(["06:00"], 7, None, None, "daily")[0])
         for bad in ("25:00", "9", "09:61", "noon"):
             with self.assertRaises(SystemExit):
                 idea_forge.cron_lines([bad], 5)
@@ -363,8 +432,8 @@ class Schedule(unittest.TestCase):
 
 
 @NEEDS_SH
-class DailyEndToEnd(unittest.TestCase):
-    """A whole day in-process: a stub agent per game, a bare remote, a stub `gh`; worktrees are plain clones the tool then removes."""
+class E2EBase(unittest.TestCase):
+    """In-process fixtures: a stub agent, a bare remote, a stub `gh`; worktrees are plain clones the tool then removes."""
 
     def setUp(self):
         self.home = home()
@@ -381,17 +450,45 @@ class DailyEndToEnd(unittest.TestCase):
         git(seed, "push", "-q", "-u", "origin", "main")
         self.removed = []
         self.engine = sh(os.path.join(self.base, "red_engine2"), "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = verify ] && echo '9 passed, 0 failed in 0.1 s'; done\nexit 0\n")
-        sh(os.path.join(self.base, "gh"), "#!/bin/sh\necho https://example.test/pull/$$\n")
+        sh(os.path.join(self.base, "gh"), "#!/bin/sh\nif [ \"$1 $2\" = \"pr view\" ]; then echo ${IDEA_FORGE_STUB_PR_STATE:-OPEN}; else echo https://example.test/pull/$$; fi\n")
         game2 = {"game2d": 1, "description": "A tiny game that proves the plumbing end to end.", "persist": ["b"], "sounds": {"a": {}}, "checks": {"scenarios": [{"smoke": True}, {}, {}]}}
         game3 = {"rules": [{"id": "r"}], "ui": {"c": 1}, "audio": {"a": 1}, "checks": {"sim": [{"name": "a"}, {"name": "b"}]}}
         stub = f"""#!{sys.executable}
 import json, os, subprocess, sys
-if os.environ.get("IDEA_FORGE_STUB_FAIL"):
+if os.environ.get("IDEA_FORGE_STUB_FAIL") and "fix" not in os.environ.get("IDEA_FORGE_STUB_FAIL"):
     sys.exit(3)
 run = os.environ["IDEA_FORGE_RUN"]
 r = json.load(open(os.path.join(run, "run.json")))
 slug, kind, date = r["slug"], r["kind"], r["date"]
 cli = [sys.executable, {SCRIPT!r}]
+import time
+log = os.environ.get("IDEA_FORGE_STUB_LOG")
+if log:
+    with open(log, "a") as f:
+        f.write("start %s %f\\n" % (kind, time.time()))
+if kind == "fix":
+    mode = os.environ.get("IDEA_FORGE_STUB_FIX", "good")
+    if mode != "nothing":
+        key = r["candidates"][0]
+        with open("src/lib.rs", "a") as f:
+            f.write("// fix for %s\\n" % key)
+        if mode != "notest":
+            os.makedirs("tests", exist_ok=True)
+            with open("tests/fix_%s.rs" % key.replace("-", "_"), "w") as f:
+                f.write("#[test] fn t() {{}}\\n")
+        if mode == "forbidden":
+            os.makedirs(".github", exist_ok=True)
+            with open(".github/x.yml", "w") as f:
+                f.write("x")
+        if mode != "nofix":
+            os.makedirs("docs/analysis/idea-forge", exist_ok=True)
+            with open("docs/analysis/idea-forge/fixes.json", "w") as f:
+                f.write(json.dumps([{{"key": key, "covers": [], "date": date, "summary": "fixed " + key}}]))
+    if log:
+        with open(log, "a") as f:
+            f.write("end fix %f\\n" % time.time())
+    print(json.dumps({{"type": "result", "result": "fixed", "total_cost_usd": 0.4, "duration_ms": 1000}}))
+    sys.exit(0)
 subprocess.run(cli + ["note", "no random expression", "--area", "format", "--cost-min", "1", "--fix", "add random(a,b)"], check=True)
 if kind == "2d":
     path = "examples/2d/%s.game2d.json" % slug
@@ -411,11 +508,17 @@ for todo, text in (("TODO: the design paragraph (the mechanic in one sentence, t
                    ("TODO: what the engine did well that should be kept (commands, messages, speed).", "validate and verify were fast and precise and named every fix.")):
     t = t.replace(todo, text)
 open(p, "w").write(t)
+if log:
+    with open(log, "a") as f:
+        f.write("end %s %f\\n" % (kind, time.time()))
 print(json.dumps({{"type": "result", "total_cost_usd": 0.25, "duration_ms": 60000}}))
 """
         self.claude = sh(os.path.join(self.base, "claude"), stub)
         env = {"RED_ENGINE_EXE": self.engine, "PATH": self.base + os.pathsep + os.environ["PATH"], "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-        self.saved = {k: os.environ.get(k) for k in list(env) + ["IDEA_FORGE_STUB_FAIL"]}
+        env["IDEA_FORGE_GATES"] = '[["true"]]'
+        self.log = os.path.join(self.base, "stub.log")
+        env["IDEA_FORGE_STUB_LOG"] = self.log
+        self.saved = {k: os.environ.get(k) for k in list(env) + ["IDEA_FORGE_STUB_FAIL", "IDEA_FORGE_STUB_FIX"]}
         os.environ.update(env)
         self.addCleanup(self.restore)
 
@@ -425,7 +528,16 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.25, "duration_ms": 6000
             git(wt, "checkout", "-q", "-b", f"idea-{kind}-{slug}")
             return wt, f"idea-{kind}-{slug}"
 
-        patches = [mock.patch.object(idea_forge, "make_worktree", fake_worktree), mock.patch.object(idea_forge, "remove_worktree", lambda wt: self.removed.append(wt))]
+        def fake_fix_worktree(name):
+            wt = os.path.join(self.base, f"wt-{name}")
+            subprocess.run(["git", "clone", "-q", self.remote, wt], check=True, capture_output=True)
+            git(wt, "checkout", "-q", "-b", name)
+            return wt, name
+
+        self.fixes_on_main = {}
+        patches = [mock.patch.object(idea_forge, "make_worktree", fake_worktree), mock.patch.object(idea_forge, "make_fix_worktree", fake_fix_worktree),
+                   mock.patch.object(idea_forge, "remove_worktree", lambda wt: self.removed.append(wt)),
+                   mock.patch.object(idea_forge, "repo_texts", lambda ref="origin/main": dict(self.fixes_on_main))]
         for p_ in patches:
             p_.start()
             self.addCleanup(p_.stop)
@@ -446,6 +558,26 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.25, "duration_ms": 6000
 
     def day(self):
         return json.loads(rd(os.path.join(self.home, "state.json")))["days"]["2026-10-09"]
+
+    def state(self):
+        return json.loads(rd(os.path.join(self.home, "state.json")))
+
+    def seed_feedback(self, rows, name="2026-10-08-2d-seed"):
+        """A run's feedback in the local store, as `ship` leaves it: findings with keys."""
+        findings = [dict({"id": f"F{i}", "area": "format", "title": f"title {k}", "severity": sv, "cost_min": 3, "evidence": "e", "workaround": "w", "proposal": f"fix {k}", "key": k}) for i, (k, sv) in enumerate(rows, 1)]
+        wr(os.path.join(idea_forge.store_dir(), name + ".md"), good_feedback().replace(json.dumps([GOOD]), json.dumps(findings)))
+
+    def improve(self, *extra):
+        try:
+            idea_forge.main(["improve", "--claude", self.claude, "--quiet", *extra])
+            return 0
+        except SystemExit as e:
+            return e.code or 0
+
+
+@NEEDS_SH
+class DailyEndToEnd(E2EBase):
+    """A whole day in-process, one game at a time."""
 
     def test_a_day_makes_one_game_of_each_kind_in_the_chosen_order_and_ships_both(self):
         self.assertEqual(self.daily("--order", "3d,2d"), 0)
@@ -473,22 +605,139 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.25, "duration_ms": 6000
         self.assertEqual(self.daily(), 0)
         self.assertEqual(len(json.loads(rd(os.path.join(self.home, "state.json")))["runs"]), before, "nothing left to do")
 
-    def test_an_agent_that_makes_nothing_is_retried_once_then_given_up_on(self):
+    def test_an_agent_that_makes_nothing_is_retried_once_and_its_feedback_still_reaches_the_repo(self):
         os.environ["IDEA_FORGE_STUB_FAIL"] = "1"
         self.assertEqual(self.daily("--order", "2d,3d", "--next"), 1)
         slot = self.day()["slots"]["2d"]
         self.assertEqual((slot["status"], slot["attempts"]), ("failed", 1))
+        self.assertIn("feedback shipped: https://example.test/pull/", slot["detail"])
+        self.assertIn("feedback auto-completed", slot["detail"])
         self.assertEqual(self.daily("--next"), 1)
         self.assertEqual(self.day()["slots"]["2d"]["attempts"], 2)
         self.assertEqual(self.daily("--next"), 1, "the next slot (3d) is tried; 2d is not retried a third time")
         self.assertEqual(self.day()["slots"]["3d"]["attempts"], 1)
         self.assertEqual(self.day()["slots"]["2d"]["attempts"], 2)
-        self.assertEqual(self.removed, [], "a failed run keeps its worktree for a human")
+        runs = json.loads(rd(os.path.join(self.home, "state.json")))["runs"]
+        self.assertEqual(len(runs), 3)
+        for r in runs:
+            wt = os.path.join(self.base, f"wt-{r['kind']}-{r['slug']}")
+            files = subprocess.run(["git", "-C", wt, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
+            self.assertEqual(files, [f"docs/analysis/idea-forge/{r['date']}-{r['kind']}-{r['slug']}.md"], "a run that built nothing ships only its feedback")
+            text = rd(os.path.join(wt, "docs", "analysis", "idea-forge", f"{r['date']}-{r['kind']}-{r['slug']}.md"))
+            self.assertEqual(idea_forge.check_feedback_text(text), [], "the completed file is valid")
+            self.assertIn(idea_forge.AUTO_BANNER, text)
+            self.assertIn("run-ended-without-findings", text)
+            self.assertTrue(os.path.isfile(os.path.join(self.home, "feedback", f"{r['date']}-{r['kind']}-{r['slug']}.md")), "kept locally for the backlog")
+        self.assertEqual(len(self.removed), 3, "shipped worktrees are removed")
 
     def test_no_ship_builds_and_keeps_the_worktree(self):
         self.assertEqual(self.daily("--order", "2d,3d", "--next", "--no-ship"), 0)
         self.assertEqual(self.removed, [])
         self.assertIn("not shipped", self.day()["slots"]["2d"]["detail"])
+
+
+@NEEDS_SH
+class ImproveEndToEnd(E2EBase):
+    """The nightly engine-improvement agent: it fixes ONE backlog key, and nothing reaches a PR unless the CLI's own checks say it is sound."""
+
+    def test_a_tested_and_recorded_fix_becomes_a_pr_and_takes_its_key_out_of_the_queue(self):
+        self.seed_feedback([("no-random-expression", 3), ("slow-start", 1)])
+        self.assertEqual(self.improve(), 0)
+        imp = self.state()["improvements"]
+        self.assertEqual(list(imp), ["no-random-expression"], "the worst-ranked key, and only that one")
+        self.assertTrue(imp["no-random-expression"]["pr"].startswith("https://example.test/pull/"))
+        wt = [d for d in os.listdir(self.base) if d.startswith("wt-engine-fix-")][0]
+        files = subprocess.run(["git", "-C", os.path.join(self.base, wt), "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
+        self.assertEqual(sorted(files), ["docs/analysis/idea-forge/fixes.json", "src/lib.rs", "tests/fix_no_random_expression.rs"], "no run directory leaks into the PR")
+        self.assertEqual(len(self.removed), 1)
+        keys = {g["key"]: g["status"] for g in idea_forge.current_backlog()}
+        self.assertEqual(keys, {"no-random-expression": "in-progress", "slow-start": "open"})
+        self.assertEqual(self.improve(), 0)
+        self.assertEqual(sorted(self.state()["improvements"]), ["no-random-expression", "slow-start"], "tomorrow takes the next key, not the one whose PR is open")
+
+    def test_a_closed_fix_pr_is_not_retried_and_a_merged_one_is_watched(self):
+        self.seed_feedback([("a-problem", 3)])
+        self.assertEqual(self.improve(), 0)
+        os.environ["IDEA_FORGE_STUB_PR_STATE"] = "CLOSED"
+        self.addCleanup(os.environ.pop, "IDEA_FORGE_STUB_PR_STATE", None)
+        idea_forge.refresh_improvements()
+        self.assertEqual(self.state()["improvements"]["a-problem"]["status"], "closed")
+        self.assertEqual([g["status"] for g in idea_forge.current_backlog()], ["rejected"])
+        self.assertEqual(self.improve(), 0, "nothing open: it does not retry a rejected fix")
+        self.assertEqual(len(self.state()["improvements"]), 1)
+
+    def test_a_key_reported_again_after_its_fix_is_a_regression_the_improver_sees(self):
+        self.fixes_on_main["fixes.json"] = json.dumps([{"key": "no-random-expression", "date": "2026-10-07", "summary": "added random()"}])
+        self.seed_feedback([("no-random-expression", 2)], "2026-10-08-2d-later")
+        g = idea_forge.current_backlog()[0]
+        self.assertEqual((g["key"], g["status"]), ("no-random-expression", "recurring"))
+        self.assertIn("added random()", idea_forge.improve_brief([g], "2026-10-09", "cli"))
+
+    def test_every_unsound_change_is_refused_before_any_pr_and_keeps_the_worktree(self):
+        self.seed_feedback([("a-problem", 3)])
+        for mode, expect in (("forbidden", "off limits"), ("notest", "no regression test"), ("nofix", "no new entry")):
+            os.environ["IDEA_FORGE_STUB_FIX"] = mode
+            self.assertEqual(self.improve(), 1, mode)
+            self.assertEqual(self.state().get("improvements", {}), {}, f"{mode}: no PR may be recorded")
+            self.assertEqual(self.removed, [], f"{mode}: the worktree is kept for a human")
+            shutil.rmtree(os.path.join(self.base, [d for d in os.listdir(self.base) if d.startswith("wt-engine-fix-")][0]))
+        os.environ["IDEA_FORGE_STUB_FIX"] = "good"
+        os.environ["IDEA_FORGE_GATES"] = '[["false"]]'
+        self.assertEqual(self.improve(), 1, "the CLI's own gates failing stops it, whatever the agent claims")
+        self.assertEqual(self.state().get("improvements", {}), {})
+
+    def test_an_agent_that_finds_nothing_safe_to_fix_changes_nothing_and_is_not_an_error(self):
+        self.seed_feedback([("a-problem", 3)])
+        os.environ["IDEA_FORGE_STUB_FIX"] = "nothing"
+        self.assertEqual(self.improve(), 0)
+        self.assertEqual(self.state().get("improvements", {}), {})
+
+    def test_an_empty_backlog_does_not_even_make_a_worktree(self):
+        self.assertEqual(self.improve(), 0)
+        self.assertEqual([d for d in os.listdir(self.base) if d.startswith("wt-")], [])
+
+    def test_no_ship_commits_on_the_branch_and_opens_nothing(self):
+        self.seed_feedback([("a-problem", 3)])
+        self.assertEqual(self.improve("--no-ship"), 0)
+        self.assertEqual(self.state().get("improvements", {}), {})
+        self.assertEqual(self.removed, [])
+
+
+@NEEDS_SH
+class NightlyEndToEnd(E2EBase):
+    """One night: both games, then one engine improvement, strictly one agent at a time."""
+
+    def nightly(self, *extra):
+        try:
+            idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", *extra])
+            return 0
+        except SystemExit as e:
+            return e.code or 0
+
+    def test_the_night_runs_games_then_an_improvement_one_at_a_time_and_feeds_the_backlog(self):
+        self.assertEqual(self.nightly(), 0)
+        events = [l.split() for l in rd(self.log).splitlines()]
+        self.assertEqual([(e[0], e[1]) for e in events], [("start", self.day()["order"][0]), ("end", self.day()["order"][0]), ("start", self.day()["order"][1]),
+                                                           ("end", self.day()["order"][1]), ("start", "fix"), ("end", "fix")], "agents strictly one after another, the fix last")
+        times = [float(e[-1]) for e in events]
+        self.assertEqual(times, sorted(times))
+        night = self.state()["nights"]["2026-10-09"]
+        self.assertEqual((night["games_failed"], night["improve"]), (0, "shipped"))
+        # the games' own findings were the backlog the improver worked from
+        self.assertEqual(list(self.state()["improvements"]), ["no-random-expression"])
+
+    def test_a_failed_game_still_feeds_the_improver_and_the_night_goes_on(self):
+        os.environ["IDEA_FORGE_STUB_FAIL"] = "games"   # games fail; the fix stub is unaffected by this value
+        self.assertEqual(self.nightly("--order", "2d,3d"), 0)
+        night = self.state()["nights"]["2026-10-09"]
+        self.assertEqual(night["games_failed"], 2)
+        self.assertEqual(night["improve"], "shipped" if self.state().get("improvements") else night["improve"])
+        self.assertIn("run-ended-without-findings", " ".join(g["key"] for g in idea_forge.current_backlog()), "the auto-completed feedback of a run that built nothing is in the backlog")
+
+    def test_the_dry_run_changes_nothing_but_fixes_the_order(self):
+        self.assertEqual(self.nightly("--dry-run"), 0)
+        self.assertFalse(os.path.exists(self.log))
+        self.assertIn("2026-10-09", self.state()["days"])
 
 
 if __name__ == "__main__":
