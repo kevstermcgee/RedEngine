@@ -36,7 +36,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 8.0,
   "evidence": "`describe rules` actions list: no scale/size action; `describe scene` player block has no scale; `search 'player scale'` and `search 'scale room objects at runtime'` returned unrelated hits",
   "workaround": "two object sets (tall hedge / low hedge) swapped with deactivate/activate by floor pads; the player does not pinch, they step on a pad",
-  "proposal": "rule action `scale` on a group of objects (or the world) about a pivot, plus a declared input action rules can read; ship a `scale_world` recipe"
+  "proposal": "rule action `scale` on a group of objects (or the world) about a pivot, plus a declared input action rules can read; ship a `scale_world` recipe",
+  "key": "no-runtime-scale-or-camera-input-for-rules"
  },
  {
   "id": "F4",
@@ -46,7 +47,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 2.0,
   "evidence": "`player.gravity` is a static scene field; rule actions cannot change movement",
   "workaround": "CUT: gravity-per-item pushback is not in the game",
-  "proposal": "a rule action to set player movement fields (gravity, jump_speed, walk_speed) or read them as vars"
+  "proposal": "a rule action to set player movement fields (gravity, jump_speed, walk_speed) or read them as vars",
+  "key": "no-rule-action-sets-player-gravity"
  },
  {
   "id": "F5",
@@ -56,7 +58,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 6.0,
   "evidence": "scenario `hold:{forward:true}` ran 9 s with the player still at (-9,0); `forward:1` moved",
   "workaround": "use numeric 1",
-  "proposal": "validate scenario hold fields against type; error 'forward expects a number'"
+  "proposal": "validate scenario hold fields against type; error 'forward expects a number'",
+  "key": "sim-hold-accepts-unknown-values-silently"
  },
  {
   "id": "F1",
@@ -66,7 +69,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 2.0,
   "evidence": "`scripts/dev red describe --brief` printed 'build red_engine2 finished in 123s'; `start` said only 'executable MISSING'",
   "workaround": "waited",
-  "proposal": "start should print `scripts/dev worktree` / prebuilt-binary route when the executable is missing"
+  "proposal": "start should print `scripts/dev worktree` / prebuilt-binary route when the executable is missing",
+  "key": "cold-worktree-build-and-preflight-rebuild"
  },
  {
   "id": "F3",
@@ -76,7 +80,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 3.0,
   "evidence": "`describe rules` engine events: pickup drop shot hit kill respawn swing prop_hit; nothing for footsteps/jumps/loudness",
   "workaround": "bat `swing` event is the noise; var countdown `noise` re-solidifies the glass",
-  "proposal": "a `noise` event carrying a level, fired by steps/jumps/landings/shots"
+  "proposal": "a `noise` event carrying a level, fired by steps/jumps/landings/shots",
+  "key": "no-loudness-input-for-rules"
  },
  {
   "id": "F6",
@@ -86,7 +91,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 4.0,
   "evidence": "negative test failed with only the final position; I had to guess the full-width shrink pad had fired (`events: shrunk@22` in a manual sim run showed it)",
   "workaround": "narrowed pads and walked at z=-3",
-  "proposal": "FAIL output lists events with times and the rules fired every time, not only in a manual run"
+  "proposal": "FAIL output lists events with times and the rules fired every time, not only in a manual run",
+  "key": "sim-cannot-say-which-rule-fired"
  },
  {
   "id": "F7",
@@ -96,7 +102,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 0.0,
   "evidence": "`verify` printed 9 PASS lines; first sim run of the win path passed first time",
   "workaround": "",
-  "proposal": "none"
+  "proposal": "none",
+  "key": "describe-rules-recipe-sim-were-enough"
  },
  {
   "id": "F9",
@@ -106,7 +113,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 3.0,
   "evidence": "`playtest` -> 'cannot find the re2 client next to this program: build both with cargo build --bins'; cargo not on PATH",
   "workaround": "ran `scripts/dev build` (9 s) and playtest then worked",
-  "proposal": "say `scripts/dev build` in the message"
+  "proposal": "say `scripts/dev build` in the message",
+  "key": "playtest-needs-re2-and-cargo-on-path"
  },
  {
   "id": "F10",
@@ -116,7 +124,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 0.0,
   "evidence": "playtest OK: 631 frames, contact sheet out/playtest/contact-sheet.png; its generated script does not walk my route",
   "workaround": "",
-  "proposal": "playtest could reuse checks.sim scripts as its default script"
+  "proposal": "playtest could reuse checks.sim scripts as its default script",
+  "key": "playtest-cannot-follow-a-custom-route"
  },
  {
   "id": "F8",
@@ -126,7 +135,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 2.0,
   "evidence": "rule `every` fires forever, `after` once",
   "workaround": "hush_tick/hush_solid rules polling each second",
-  "proposal": "restartable timer action `{timer: [name, secs]}` with `when: {timer: name}`"
+  "proposal": "restartable timer action `{timer: [name, secs]}` with `when: {timer: name}`",
+  "key": "no-per-entity-timers"
  }
 ]
 ```

@@ -33,7 +33,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 4.0,
   "evidence": "verify: 'expected count of fL eq 6, found 7' after chalking with at:other/destroy:other",
   "workaround": "used at:self and destroy:self in the click rule (found by trial against verify)",
-  "proposal": "describe 2d: state click:tag => self is the clicked entity, other undefined; make 'other' in click a validate error"
+  "proposal": "describe 2d: state click:tag => self is the clicked entity, other undefined; make 'other' in click a validate error",
+  "key": "click-rule-self-other-undocumented"
  },
  {
   "id": "F1",
@@ -43,7 +44,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 3.0,
   "evidence": "first command: scripts/dev start ran past the 120 s tool timeout (build finished in 126s)",
   "workaround": "re-ran the build in the background and polled for it",
-  "proposal": "start should print 'first build takes ~2 min, run in background' before building"
+  "proposal": "start should print 'first build takes ~2 min, run in background' before building",
+  "key": "cold-worktree-build-and-preflight-rebuild"
  },
  {
   "id": "F7",
@@ -53,7 +55,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 3.0,
   "evidence": "rules list: no trigger on ttl expiry",
   "workaround": "a global every:2 tide rule breaks every chalked crate at once instead of a per-crate timer",
-  "proposal": "rule trigger expire:<prefab> or an 'on_ttl' event, or per-entity timers"
+  "proposal": "rule trigger expire:<prefab> or an 'on_ttl' event, or per-entity timers",
+  "key": "no-per-entity-timers"
  },
  {
   "id": "F5",
@@ -63,7 +66,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 2.0,
   "evidence": "frame out/look.png showed 'SURFA' cut at the right edge",
   "workaround": "moved the button inside the view after the frame image showed it clipped",
-  "proposal": "describe 2d: say button/panel at = top-left; validate warn when widget extends past view"
+  "proposal": "describe 2d: say button/panel at = top-left; validate warn when widget extends past view",
+  "key": "button-at-is-top-left-undocumented"
  },
  {
   "id": "F8",
@@ -73,7 +77,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 2.0,
   "evidence": "no action changes sprite or tag",
   "workaround": "destroy the crate and spawn a chalked replacement prefab",
-  "proposal": "action morph:{target,prefab} or set tag"
+  "proposal": "action morph:{target,prefab} or set tag",
+  "key": "no-in-place-morph-action"
  },
  {
   "id": "F2",
@@ -83,7 +88,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 1.0,
   "evidence": "search output listed SPEC.md wall macro and ADR 0055 first",
   "workaround": "reworded the query with 2d-specific terms",
-  "proposal": "search --topic 2d filter or rank describe 2d hits first for 2D questions"
+  "proposal": "search --topic 2d filter or rank describe 2d hits first for 2D questions",
+  "key": "search-not-scoped-to-2d"
  },
  {
   "id": "F9",
@@ -93,7 +99,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 1.0,
   "evidence": "xvfb-run play2d --max-ticks 120 --mute printed nothing, exit 0",
   "workaround": "relied on the exit code and on verify for the same simulation",
-  "proposal": "print 'ran 120 ticks, no crash' summary line"
+  "proposal": "print 'ran 120 ticks, no crash' summary line",
+  "key": "play2d-smoke-prints-nothing"
  },
  {
   "id": "F4",
@@ -103,7 +110,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 0.0,
   "evidence": "validate: 'the game reads keys ... add keyboard to input'",
   "workaround": "see game data",
-  "proposal": "keep as is"
+  "proposal": "keep as is",
+  "key": "validate-names-missing-capability"
  },
  {
   "id": "F6",
@@ -113,7 +121,8 @@ Ranked: what would save the next run the most first. `severity` 1 = papercut, 2 
   "cost_min": 0.0,
   "evidence": "verify 28 passed after tuning; sim --every shows var trace",
   "workaround": "see game data",
-  "proposal": "keep as is"
+  "proposal": "keep as is",
+  "key": "rules-express-the-mechanic-and-verify-is-fast"
  }
 ]
 ```

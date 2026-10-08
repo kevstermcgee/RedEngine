@@ -18,7 +18,8 @@ The first run, done by hand before the CLI existed: the game-idea generator as a
   "cost_min": 40,
   "evidence": "`play2d` defaults to --seed 1; rules have no random; random coordinates are fractional (cur=4973254184.25) and `v == 7` never matched",
   "workaround": "a hidden die entity teleported to a random position, read as die_x one tick later, floored with x - x % 1, mixed with tick and mouse position",
-  "proposal": "random(a,b) expression or {roll} action from the seeded sim RNG; default seed per launch (print it, --seed reproduces); floor round min max abs"
+  "proposal": "random(a,b) expression or {roll} action from the seeded sim RNG; default seed per launch (print it, --seed reproduces); floor round min max abs",
+  "key": "no-random-expression"
  },
  {
   "id": "F2",
@@ -28,7 +29,8 @@ The first run, done by hand before the CLI existed: the game-idea generator as a
   "cost_min": 30,
   "evidence": "184 phrases became 231 text widgets and 72 KB; a generator script unrolls them and wraps lines by hand",
   "workaround": "build.py expands vocabulary.json into widgets with `show` expressions",
-  "proposal": "a named table of strings, {\"text\":{\"pick\":table,\"by\":var}} and wrap/width on text widgets"
+  "proposal": "a named table of strings, {\"text\":{\"pick\":table,\"by\":var}} and wrap/width on text widgets",
+  "key": "no-string-tables"
  },
  {
   "id": "F3",
@@ -38,7 +40,8 @@ The first run, done by hand before the CLI existed: the game-idea generator as a
   "cost_min": 25,
   "evidence": "`game publish` needs game.json (3D); `describe 2d` and `search` say nothing; RedEngineGames already ships three 2D installers",
   "workaround": "read RedEngineGames git history: projects/<dir>/<slug>.game2d.json plus a kind:2d entry in .release-games.json",
-  "proposal": "`game publish2d FILE ../RedEngineGames` (validate, verify, re2d smoke, copy, add the entry), a describe 2d line, fix PLAY_2D.md"
+  "proposal": "`game publish2d FILE ../RedEngineGames` (validate, verify, re2d smoke, copy, add the entry), a describe 2d line, fix PLAY_2D.md",
+  "key": "no-2d-publish-route"
  },
  {
   "id": "F4",
@@ -48,7 +51,8 @@ The first run, done by hand before the CLI existed: the game-idea generator as a
   "cost_min": 25,
   "evidence": "three 2D releases exited on start (browser-only keys); validate rejects those files but releases.yml built installers anyway; no tool injects input into the OS window",
   "workaround": "drove re2d under Xvfb with python-xlib XTEST after setting X input focus by hand",
-  "proposal": "release tool runs validate+verify on every 2D playable; `re2d --smoke`; `play2d --drive script.json` with screenshots"
+  "proposal": "release tool runs validate+verify on every 2D playable; `re2d --smoke`; `play2d --drive script.json` with screenshots",
+  "key": "releases-not-validated-against-engine"
  },
  {
   "id": "F5",
@@ -58,7 +62,8 @@ The first run, done by hand before the CLI existed: the game-idea generator as a
   "cost_min": 5,
   "evidence": "top: coin-dash, tiny-station and idea-forge all 93% (fast profile, Xvfb software display)",
   "workaround": "none",
-  "proposal": "pace the loop to the sim clock, redraw only when the frame changed, sleep to the next tick"
+  "proposal": "pace the loop to the sim clock, redraw only when the frame changed, sleep to the next tick",
+  "key": "player-idle-cpu"
  },
  {
   "id": "F6",
@@ -68,7 +73,8 @@ The first run, done by hand before the CLI existed: the game-idea generator as a
   "cost_min": 10,
   "evidence": "four queries returned a generic describe-2d chunk, an unrelated UI ADR, arcade recipes and a 3D wall_clock asset",
   "workaround": "read the engine's 2D source for the expression language",
-  "proposal": "recipes random-pick, text-table, saved-list, tool-screen; make search surface them"
+  "proposal": "recipes random-pick, text-table, saved-list, tool-screen; make search surface them",
+  "key": "search-misses-random-text-clock"
  },
  {
   "id": "F7",
@@ -78,7 +84,8 @@ The first run, done by hand before the CLI existed: the game-idea generator as a
   "cost_min": 6,
   "evidence": "`panel.show: unknown field - valid here: at, size, color`; `when: expected an object, got string \"start\"`",
   "workaround": "tried the sibling form and {\"start\": true}",
-  "proposal": "name the sibling form in the error; show the object form in the TRIGGER line; accept the bare string"
+  "proposal": "name the sibling form in the error; show the object form in the TRIGGER line; accept the bare string",
+  "key": "authoring-errors-dont-name-the-fix"
  },
  {
   "id": "F8",
@@ -88,7 +95,8 @@ The first run, done by hand before the CLI existed: the game-idea generator as a
   "cost_min": 13,
   "evidence": "cold CLI build 409 s (fast profile); preflight ('~1 s') then built the dev profile for 442 s",
   "workaround": "waited for the builds",
-  "proposal": "seed from any sibling target; preflight uses an existing CLI or says up front that it is building and for how long"
+  "proposal": "seed from any sibling target; preflight uses an existing CLI or says up front that it is building and for how long",
+  "key": "cold-worktree-build-and-preflight-rebuild"
  },
  {
   "id": "F9",
@@ -98,7 +106,8 @@ The first run, done by hand before the CLI existed: the game-idea generator as a
   "cost_min": 0,
   "evidence": "26 checks in 1.3 s; sim --every exposed two real bugs; frame exposed three layout bugs",
   "workaround": "",
-  "proposal": "keep"
+  "proposal": "keep",
+  "key": "validate-verify-fast-and-precise"
  }
 ]
 ```
