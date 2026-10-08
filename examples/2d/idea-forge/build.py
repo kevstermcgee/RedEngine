@@ -29,11 +29,20 @@ FONT = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.'-+:)(/=#%!^<>*~?[]↓,$\";&@|
 
 
 def pick_step() -> int:
-    """A step near M/phi (so successive ideas differ in every part) that is coprime to M and whose digits are all far from 0 and the radix."""
+    """A step near M/phi (so successive ideas differ in every part) that is coprime to M and whose digits are all far from 0 and the radix.
+    Skips straight past a run of values whose high digit is out of range instead of counting through them (millions of candidates)."""
     s = int(M * 0.6180339887)
     while True:
-        digits = [(s // R[i]) % N[i] for i in range(len(N))]
-        if math.gcd(s, M) == 1 and all(3 <= d <= N[i] - 3 for i, d in enumerate(digits)):
+        moved = False
+        for i in reversed(range(len(N))):
+            d = (s // R[i]) % N[i]
+            if d < 3:
+                s += (3 - d) * R[i] - s % R[i]; moved = True; break
+            if d > N[i] - 3:
+                s += R[i] - s % R[i]; moved = True; break
+        if moved:
+            continue
+        if math.gcd(s, M) == 1:
             return s
         s += 1
 
