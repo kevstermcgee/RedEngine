@@ -785,6 +785,130 @@ impl Weapon {
                 ..b
             },
             // ---- grenades ----------------------------------------------------------------------------------------------
+            Weapon::Machete => melee("machete", 52, 0.55, 2.2, 1.0),
+            Weapon::Sledge => melee("sledgehammer", 100, 1.5, 2.3, 0.88),
+            Weapon::Reaper => KitSpec {
+                class: Lmg,
+                real: "GAU-19 rotary gun, 7.62x51 mm (tuned for a person to carry)",
+                damage: 18,
+                head_x10: 35,
+                cooldown: 0.05,
+                mag: 200,
+                reserve: 200,
+                reload: 7.5,
+                spread_hip: 4.5,
+                spread_ads: 1.5,
+                spread_move: 5.0,
+                effective: 45.0,
+                range: 150.0,
+                far_mult: 0.55,
+                move_mult: 0.62,
+                zoom: 1.15,
+                kick: 0.45,
+                ..b
+            },
+            Weapon::Breaker => KitSpec {
+                class: Shotgun,
+                real: "Mossberg 500 firing foster slugs, 12 gauge",
+                damage: 80,
+                head_x10: 15,
+                cooldown: 0.85,
+                mag: 6,
+                reserve: 24,
+                reload: 0.5,
+                per_shell: true,
+                auto: false,
+                pellets: 1,
+                spread_hip: 1.4,
+                spread_ads: 0.15,
+                spread_move: 2.0,
+                effective: 45.0,
+                range: 90.0,
+                far_mult: 0.5,
+                move_mult: 0.93,
+                zoom: 1.4,
+                kick: 3.0,
+                ..b
+            },
+            Weapon::Hunter => KitSpec {
+                class: Marksman,
+                real: "recurve crossbow, 400-grain bolt",
+                damage: 85,
+                head_x10: 20,
+                cooldown: 1.0,
+                mag: 1,
+                reserve: 15,
+                reload: 2.0,
+                auto: false,
+                spread_hip: 1.2,
+                spread_ads: 0.05,
+                spread_move: 2.0,
+                effective: 80.0,
+                range: 120.0,
+                far_mult: 0.9,
+                move_mult: 0.97,
+                zoom: 2.5,
+                scoped: true,
+                kick: 1.5,
+                ..b
+            },
+            Weapon::Flare => KitSpec {
+                class: Launcher,
+                real: "Orion signal pistol, 26.5 mm flare",
+                damage: 30,
+                head_x10: 10,
+                cooldown: 0.8,
+                mag: 1,
+                reserve: 5,
+                reload: 1.8,
+                auto: false,
+                spread_hip: 0.6,
+                spread_ads: 0.2,
+                spread_move: 1.2,
+                effective: 90.0,
+                range: 100.0,
+                far_mult: 1.0,
+                move_mult: 1.0,
+                zoom: 1.15,
+                kick: 1.2,
+                payload: Payload::Fire,
+                speed: 38.0,
+                fuse: 0.0,
+                radius: 2.8,
+                blast: 24,
+                lasts: 4.5,
+                gravity: 0.15,
+                ..b
+            },
+            Weapon::Lobber => KitSpec {
+                class: Launcher,
+                real: "60 mm light mortar, hand-held",
+                damage: 60,
+                head_x10: 10,
+                cooldown: 0.9,
+                mag: 2,
+                reserve: 8,
+                reload: 3.2,
+                auto: false,
+                spread_hip: 0.8,
+                spread_ads: 0.2,
+                spread_move: 1.5,
+                effective: 150.0,
+                range: 150.0,
+                far_mult: 1.0,
+                move_mult: 0.9,
+                zoom: 1.3,
+                kick: 2.5,
+                payload: Payload::Explosive,
+                speed: 26.0,
+                fuse: 0.0,
+                radius: 5.0,
+                blast: 120,
+                lasts: 0.0,
+                gravity: 0.85,
+                ..b
+            },
+            Weapon::Impact => grenade("M25 impact grenade", Payload::Explosive, 0.0, 4.2, 80, 0.0),
             Weapon::Frag => grenade("M67 fragmentation grenade", Payload::Explosive, 1.9, 7.0, 105, 0.0),
             Weapon::Flash => grenade("M84 stun grenade", Payload::Flash, 1.5, 22.0, 0, 5.0),
             Weapon::Smoke => grenade("M18 smoke grenade", Payload::Smoke, 1.3, 4.6, 0, 18.0),
@@ -825,8 +949,10 @@ mod tests {
             assert!(k.cooldown_ticks() >= 3, "{w:?}");
             match k.class {
                 Class::Melee => assert!(k.reach >= 1.5 && k.damage > 0, "{w:?}"),
-                Class::Grenade => assert!(k.payload != Payload::None && k.fuse > 0.0 && k.radius > 0.0, "{w:?}"),
-                Class::Launcher => assert!(k.payload == Payload::Explosive && k.speed > 0.0 && k.blast > 0, "{w:?}"),
+                // A zero fuse is a contact grenade (the impact grenade): it bursts where it first lands.
+                Class::Grenade => assert!(k.payload != Payload::None && k.fuse >= 0.0 && k.radius > 0.0, "{w:?}"),
+                // A launcher's round does something where it lands: a blast, or (the flare gun) a fire.
+                Class::Launcher => assert!(matches!(k.payload, Payload::Explosive | Payload::Fire) && k.speed > 0.0 && k.blast > 0, "{w:?}"),
                 _ => {
                     assert!(k.mag > 0 && k.reserve >= k.mag / 2, "{w:?} has a magazine and ammunition to reload from");
                     assert!(k.damage > 0 && k.range >= k.effective && k.spread_ads <= k.spread_hip, "{w:?}");
@@ -841,10 +967,30 @@ mod tests {
         assert!(Weapon::ROSTER.len() >= 25, "at least 25 distinct weapons");
         let classes: std::collections::HashSet<_> = Weapon::ROSTER.iter().map(|w| w.class().name()).collect();
         assert_eq!(classes.len(), 10, "every class is represented: {classes:?}");
-        assert_eq!(Weapon::ROSTER.iter().filter(|w| w.is_melee()).count(), 3);
-        assert_eq!(Weapon::ROSTER.iter().filter(|w| w.is_grenade()).count(), 4);
+        assert_eq!(Weapon::ROSTER.iter().filter(|w| w.is_melee()).count(), 5);
+        assert_eq!(Weapon::ROSTER.iter().filter(|w| w.is_grenade()).count(), 5);
         let names: std::collections::HashSet<_> = Weapon::ROSTER.iter().map(|w| w.name()).collect();
         assert_eq!(names.len(), Weapon::ROSTER.len(), "no two weapons share a name");
+    }
+
+    #[test]
+    fn the_newest_weapons_are_distinct_and_the_old_wire_numbers_never_moved() {
+        // The first 31 keep their numbers: the new ones were appended.
+        assert_eq!(Weapon::Incendiary.wire(), 30);
+        assert_eq!(Weapon::Reaper.wire(), 31);
+        for w in [Weapon::Reaper, Weapon::Breaker, Weapon::Hunter, Weapon::Flare, Weapon::Lobber, Weapon::Impact, Weapon::Machete, Weapon::Sledge] {
+            assert_eq!(Weapon::from_wire(w.wire()), w, "{w:?} survives the wire");
+            assert_eq!(Weapon::parse(&w.name().split_whitespace().next().unwrap().to_lowercase()), Some(w), "{w:?} parses from its first word");
+        }
+        // What each is for: a slug is two shots to kill, one to the head; a sledge and a bolt are one-hit kills with a price.
+        let shots = |w: Weapon| (100.0 / w.kit().damage as f32).ceil() as u32;
+        assert_eq!(shots(Weapon::Breaker), 2);
+        assert_eq!(shots(Weapon::Sledge), 1);
+        assert!(Weapon::Hunter.kit().damage as f32 * Weapon::Hunter.kit().head_x10 as f32 / 10.0 >= 100.0, "a bolt to the head kills");
+        assert!(Weapon::Reaper.kit().mag >= 200 && Weapon::Reaper.kit().move_mult < 0.7, "the Reaper is the heavy one");
+        assert_eq!(Weapon::Impact.kit().fuse, 0.0, "the impact grenade bursts on contact");
+        assert!(Weapon::Lobber.kit().gravity > 0.5, "the Lobber lobs");
+        assert_eq!(Weapon::Flare.kit().payload, Payload::Fire);
     }
 
     #[test]

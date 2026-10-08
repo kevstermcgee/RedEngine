@@ -328,7 +328,32 @@ impl MatchSim {
     /// `"teams": true` asked for team assignment without a `shooter` block (a hide-and-seek, capture-the-flag or
     /// other asymmetric-role game that still wants `who: team1`/`who: team2` in its rules).
     pub fn teams_enabled(&self) -> bool {
-        self.is_loadout() || self.teams_requested
+        self.arena.as_ref().map_or(self.teams_requested, |a| a.cfg.mode.teams() || self.teams_requested)
+    }
+
+    /// The loadout match's mode (team deathmatch outside one).
+    pub fn mode(&self) -> super::shooter::ModeKind {
+        self.arena.as_ref().map_or_else(Default::default, |a| a.cfg.mode)
+    }
+
+    /// Most people on one team (`1` = a duel). Outside a loadout match: the whole roster.
+    pub fn team_size(&self) -> usize {
+        self.arena.as_ref().map_or(super::shooter::MAX_TEAM, |a| a.cfg.team_size)
+    }
+
+    /// The score that wins a capture-the-flag or search-and-destroy match (`None` in the kill modes, where the scene's `score_to_win` rules).
+    pub fn score_limit(&self) -> Option<u32> {
+        use super::shooter::ModeKind;
+        self.arena.as_ref().and_then(|a| match a.cfg.mode {
+            ModeKind::Ctf => Some(a.cfg.objective.capture_limit),
+            ModeKind::Snd => Some(a.cfg.objective.win_rounds),
+            _ => None,
+        })
+    }
+
+    /// Most players (people and bots) the match holds: two teams of `team_size`.
+    pub fn max_players(&self) -> usize {
+        self.arena.as_ref().map_or(super::match_sim::MAX_PLAYERS, |a| (a.cfg.team_size * 2).min(super::match_sim::MAX_PLAYERS))
     }
 
     /// Keeps the legacy view of a kit (the weapon in hand, the ammunition the HUD reads) in step with the kit.

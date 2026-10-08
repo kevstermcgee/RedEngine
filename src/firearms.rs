@@ -79,6 +79,8 @@ enum Extra {
     Double,
     /// A fat launch tube with a warhead at the muzzle.
     Launcher,
+    /// Crossbow limbs across the muzzle end.
+    Bow,
 }
 
 #[derive(Clone, Copy)]
@@ -135,7 +137,21 @@ fn shape(w: Weapon) -> Shape {
         Weapon::Hammer => sh(0.95, 0.26, 0.42, 0.14, 0.075, 0.22, true, olive),
         Weapon::Lancer => Shape { extra: Extra::Launcher, bore: 0.042, ..sh(1.05, 0.0, 0.78, 0.07, 0.05, 0.0, false, olive) },
         Weapon::Thumper => Shape { extra: Extra::Launcher, bore: 0.024, ..sh(0.76, 0.22, 0.42, 0.06, 0.042, 0.0, false, black) },
-        Weapon::Bat | Weapon::Knife | Weapon::Hatchet | Weapon::Frag | Weapon::Flash | Weapon::Smoke | Weapon::Incendiary => {
+        Weapon::Reaper => Shape { extra: Extra::Drum, ..sh(1.02, 0.26, 0.55, 0.15, 0.085, 0.0, true, slate) },
+        Weapon::Breaker => Shape { extra: Extra::Tube, ..sh(0.88, 0.25, 0.50, 0.085, 0.055, 0.0, false, tan) },
+        Weapon::Hunter => Shape { extra: Extra::Bow, scope: true, ..sh(0.80, 0.22, 0.46, 0.06, 0.05, 0.0, true, olive) },
+        Weapon::Flare => Shape { extra: Extra::Launcher, bore: 0.02, ..sh(0.30, 0.0, 0.13, 0.06, 0.045, 0.09, false, red) },
+        Weapon::Lobber => Shape { extra: Extra::Launcher, bore: 0.03, ..sh(0.92, 0.24, 0.50, 0.07, 0.05, 0.0, false, olive) },
+        Weapon::Bat
+        | Weapon::Knife
+        | Weapon::Hatchet
+        | Weapon::Machete
+        | Weapon::Sledge
+        | Weapon::Frag
+        | Weapon::Flash
+        | Weapon::Smoke
+        | Weapon::Incendiary
+        | Weapon::Impact => {
             unreachable!("melee weapons and grenades are built by their own functions, not the firearm library")
         }
     }
@@ -196,6 +212,21 @@ pub fn build_thrown_and_melee_parts(weapon: Weapon) -> Vec<HeldPart> {
             }
             (steel, black)
         }
+        Weapon::Machete => {
+            // A long, broad blade with a clipped point on a short black grip.
+            boxed(&mut body, Vec3::new(0.008, 0.055, 0.40), Vec3::new(0.0, 0.0, 0.26));
+            boxed(&mut body, Vec3::new(0.007, 0.035, 0.07), Vec3::new(0.0, -0.01, 0.50));
+            boxed(&mut detail, Vec3::new(0.03, 0.03, 0.13), Vec3::new(0.0, 0.0, -0.01));
+            boxed(&mut detail, Vec3::new(0.05, 0.03, 0.016), Vec3::new(0.0, 0.0, 0.06));
+            (steel, black)
+        }
+        Weapon::Sledge => {
+            // A long wooden handle and a heavy steel head.
+            boxed(&mut detail, Vec3::new(0.035, 0.035, 0.62), Vec3::new(0.0, 0.0, 0.18));
+            boxed(&mut body, Vec3::new(0.09, 0.09, 0.20), Vec3::new(0.0, 0.0, 0.50));
+            boxed(&mut body, Vec3::new(0.10, 0.10, 0.03), Vec3::new(0.0, 0.0, 0.40));
+            (steel, wood)
+        }
         Weapon::Hatchet => {
             boxed(&mut detail, Vec3::new(0.03, 0.03, 0.40), Vec3::new(0.0, 0.0, 0.10));
             boxed(&mut body, Vec3::new(0.018, 0.10, 0.09), Vec3::new(0.0, 0.03, 0.27));
@@ -209,6 +240,7 @@ pub fn build_thrown_and_melee_parts(weapon: Weapon) -> Vec<HeldPart> {
                 Weapon::Frag => (0.048, 0.11, Vec3::new(0.06, 0.08, 0.03), Vec3::new(0.35, 0.3, 0.05)),
                 Weapon::Flash => (0.038, 0.15, Vec3::new(0.16, 0.17, 0.18), black),
                 Weapon::Smoke => (0.04, 0.15, Vec3::new(0.25, 0.26, 0.27), Vec3::new(0.55, 0.55, 0.2)),
+                Weapon::Impact => (0.042, 0.13, Vec3::new(0.08, 0.12, 0.30), Vec3::new(0.85, 0.75, 0.1)),
                 _ => (0.04, 0.15, Vec3::new(0.30, 0.04, 0.03), Vec3::new(0.65, 0.4, 0.05)),
             };
             if weapon == Weapon::Frag {
@@ -266,6 +298,17 @@ pub fn build_firearm_parts(weapon: Weapon) -> Vec<HeldPart> {
         Extra::Tube => tube(&mut body, s.body_w * 0.22, s.length * 0.55, Vec3::new(0.0, 0.01, s.length * 0.56)),
         Extra::Double => {
             tube(&mut body, bore * 1.2, s.barrel, Vec3::new(0.0, 0.055 - bore * 2.4, s.length - s.barrel * 0.5));
+        }
+        Extra::Bow => {
+            // Two limbs swept back from the prow, and the string between their tips.
+            for sign in [-1.0f32, 1.0] {
+                append_transformed(
+                    &mut body,
+                    &Mesh::cuboid(Vec3::new(0.30, 0.018, 0.026)),
+                    Mat4::from_translation(Vec3::new(sign * 0.13, 0.055, s.length - 0.10)) * Mat4::from_rotation_y(sign * 25f32.to_radians()),
+                );
+            }
+            boxed(&mut body, Vec3::new(0.40, 0.006, 0.006), Vec3::new(0.0, 0.055, s.length - 0.2));
         }
         Extra::Launcher => {
             // A flared blast cone at the breech and the warhead's nose standing out of the muzzle.
@@ -394,6 +437,14 @@ pub fn world_model(weapon: Option<Weapon>, id: &str) -> crate::schema::Object {
             add(PrimKind::Box { size: Vec3::new(0.06, 0.14, 0.32) }, Vec3::new(-0.16, 0.12, 0.0), Vec3::ZERO, Vec3::new(0.12, 0.14, 0.06), 0.0);
         }
         Some(w) if w.is_melee() => match w {
+            Weapon::Machete => {
+                add(PrimKind::Box { size: Vec3::new(0.03, 0.03, 0.12) }, Vec3::new(0.0, 0.03, -0.20), Vec3::ZERO, black, 0.0);
+                add(PrimKind::Box { size: Vec3::new(0.01, 0.06, 0.40) }, Vec3::new(0.0, 0.03, 0.06), Vec3::ZERO, steel, 0.9);
+            }
+            Weapon::Sledge => {
+                add(PrimKind::Box { size: Vec3::new(0.04, 0.04, 0.62) }, Vec3::new(0.0, 0.03, 0.0), Vec3::ZERO, Vec3::new(0.26, 0.13, 0.05), 0.0);
+                add(PrimKind::Box { size: Vec3::new(0.10, 0.10, 0.20) }, Vec3::new(0.0, 0.05, 0.28), Vec3::ZERO, steel, 0.8);
+            }
             Weapon::Hatchet => {
                 add(PrimKind::Box { size: Vec3::new(0.04, 0.04, 0.42) }, Vec3::new(0.0, 0.03, 0.0), Vec3::ZERO, Vec3::new(0.26, 0.13, 0.05), 0.0);
                 add(PrimKind::Box { size: Vec3::new(0.03, 0.14, 0.11) }, Vec3::new(0.0, 0.08, 0.17), Vec3::ZERO, steel, 0.8);
@@ -411,6 +462,7 @@ pub fn world_model(weapon: Option<Weapon>, id: &str) -> crate::schema::Object {
                 Weapon::Frag => (Vec3::new(0.06, 0.08, 0.03), 0.05),
                 Weapon::Flash => (Vec3::new(0.16, 0.17, 0.18), 0.04),
                 Weapon::Smoke => (Vec3::new(0.25, 0.26, 0.27), 0.04),
+                Weapon::Impact => (Vec3::new(0.08, 0.12, 0.30), 0.042),
                 _ => (Vec3::new(0.30, 0.04, 0.03), 0.04),
             };
             if w == Weapon::Frag {
@@ -546,6 +598,32 @@ pub fn projectile_model(weapon: Weapon, id: &str) -> crate::schema::Object {
             ));
             kids.push(part(format!("{id}_tip"), PrimKind::Sphere { radius: 0.022 }, Vec3::new(0.0, 0.0, 0.05), Vec3::ZERO, Vec3::new(0.2, 0.2, 0.2), 0.6));
         }
+        Weapon::Lobber => {
+            kids.push(part(
+                format!("{id}_shell"),
+                PrimKind::Cylinder { radius: 0.03, height: 0.16 },
+                Vec3::ZERO,
+                Vec3::new(90.0, 0.0, 0.0),
+                Vec3::new(0.12, 0.14, 0.07),
+                0.4,
+            ));
+            kids.push(part(
+                format!("{id}_tip"),
+                PrimKind::Cone { radius: 0.03, height: 0.08 },
+                Vec3::new(0.0, 0.0, 0.11),
+                Vec3::new(90.0, 0.0, 0.0),
+                Vec3::new(0.35, 0.3, 0.1),
+                0.4,
+            ));
+        }
+        Weapon::Flare => {
+            let mut flare = part(format!("{id}_flare"), PrimKind::Sphere { radius: 0.05 }, Vec3::ZERO, Vec3::ZERO, Vec3::new(1.0, 0.25, 0.1), 0.0);
+            if let Some(m) = flare.material.as_mut() {
+                m.emissive = Vec3::new(6.0, 1.4, 0.4);
+            }
+            kids.push(flare);
+        }
+        Weapon::Impact => kids.push(part(format!("{id}_body"), PrimKind::Sphere { radius: 0.05 }, Vec3::ZERO, Vec3::ZERO, Vec3::new(0.08, 0.12, 0.30), 0.3)),
         Weapon::Frag => kids.push(part(format!("{id}_body"), PrimKind::Sphere { radius: 0.05 }, Vec3::ZERO, Vec3::ZERO, Vec3::new(0.06, 0.08, 0.03), 0.2)),
         Weapon::Flash => kids.push(part(
             format!("{id}_body"),

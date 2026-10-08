@@ -22,7 +22,7 @@ use red_engine2::ui::{Canvas, Kind, Layout};
 use red_engine2::viewer::{FpsCamera, FrameOptions, LiveRenderer};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::application::ApplicationHandler;
@@ -86,6 +86,8 @@ pub struct Kc {
     last_save: Instant,
     screen: Screen,
     setup: ui::Setup,
+    /// The maps installed beside the starting one: `(label, path)`.
+    maps: Vec<(String, PathBuf)>,
     join_form: ConnectForm,
     note: Option<String>,
     hover: Option<String>,
@@ -129,6 +131,29 @@ fn blend_over(dst: &mut Canvas, src: &Canvas) {
     }
 }
 
+/// The maps installed beside the one the game was started with: every `maps/*.json` that has a `shooter` block and a short label (`meta.x-short`),
+/// in file-name order, as `(label, path)`. A single-map install, or a map with no label, yields just what was asked for.
+fn installed_maps(start: &Path) -> Vec<(String, PathBuf)> {
+    let mut found: Vec<(String, PathBuf)> = Vec::new();
+    if let Some(dir) = start.parent() {
+        let mut files: Vec<PathBuf> =
+            std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect();
+        files.sort();
+        for p in files {
+            let Ok(text) = std::fs::read_to_string(&p) else { continue };
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { continue };
+            let label = v["meta"]["x-short"].as_str().map(str::to_string);
+            if let (Some(label), true) = (label, v.get("shooter").is_some()) {
+                found.push((label, p));
+            }
+        }
+    }
+    if found.iter().all(|m| m.1 != start) {
+        found.insert(0, ("MAP".to_string(), start.to_path_buf()));
+    }
+    found
+}
+
 impl Kc {
     fn new(opts: Options) -> Kc {
         let map_text = std::fs::read_to_string(&opts.scene).unwrap_or_default();
@@ -161,7 +186,13 @@ impl Kc {
             .or_else(|| std::env::var("USERNAME").ok().or_else(|| std::env::var("USER").ok()))
             .unwrap_or_else(|| "Player".to_string());
         stats.name = name.clone();
-        let setup = ui::Setup { name: name.clone(), ..Default::default() };
+        let maps = installed_maps(&opts.scene);
+        let setup = ui::Setup {
+            name: name.clone(),
+            maps: maps.iter().map(|m| m.0.clone()).collect(),
+            map: maps.iter().position(|m| m.1 == opts.scene).unwrap_or(0),
+            ..Default::default()
+        };
         let join_form = ConnectForm::new("", "", &name);
         Kc {
             opts,
@@ -180,6 +211,7 @@ impl Kc {
             last_save: Instant::now(),
             screen: Screen::Home,
             setup,
+            maps,
             join_form,
             note: None,
             hover: None,
@@ -276,7 +308,7 @@ impl Kc {
                         if let Some(k) = g.killcam_view() {
                             ui::killcam_layout(w, h, &k)
                         } else if self.controls.scoreboard() {
-                            let mut l = ui::hud_layout(w, h, &g.hud_view());
+                            let mut l = ui::hud_layout(w, h, &g.hud_view(w, h));
                             let board = ui::scoreboard_layout(w, h, &g.board_view(false));
                             let offset = l.widgets.len();
                             for mut widget in board.widgets {
@@ -285,7 +317,7 @@ impl Kc {
                             }
                             l
                         } else {
-                            ui::hud_layout(w, h, &g.hud_view())
+                            ui::hud_layout(w, h, &g.hud_view(w, h))
                         }
                     }
                 }
@@ -361,7 +393,7 @@ impl Kc {
         // `RE2_RELAY=HOST:PORT` (a hostname works too, e.g. a DuckDNS name): a red_relay to register with instead
         // of relying on UPnP/port forwarding (see docs/HOSTING.md) — a friend then joins with a short code,
         // which also works behind carrier-grade NAT.
-        let relay = std::env::var("RE2_RELAY").ok().filter(|v| !v.is_empty());
+        let relay = red_engine2::net::relay::relay_from_env();
         let public = hosting.then(|| PublicOptions {
             identity_dir: stats::data_dir().unwrap_or_else(|| PathBuf::from(".")).join("host"),
             port: red_engine2::net::DEFAULT_PORT,
@@ -371,6 +403,8 @@ impl Kc {
         });
         let opts = HostOptions {
             fill: Some(if self.setup.bots { 12 } else { 0 }),
+            mode: Some(red_engine2::sim::shooter::ModeKind::from_wire(self.setup.mode)),
+            team_size: Some(self.setup.size as usize),
             bot_skill: Some(skill.to_string()),
             kill_limit: Some(self.setup.kill_limit as u32),
             round_secs: Some(self.setup.minutes as f32 * 60.0),
@@ -419,8 +453,9 @@ impl Kc {
     fn try_join(&mut self) {
         let Some(gpu) = self.gpu.as_ref() else { return };
         let (addr, fingerprint, key, relay_claim) = if let Some(short) = red_engine2::net::relay::parse_code(&self.join_form.address) {
-            let Some(relay) = std::env::var("RE2_RELAY").ok().filter(|v| !v.is_empty()) else {
-                self.join_form.message = Some("No relay is set up on this PC (RE2_RELAY): ask whoever is hosting for the full join code instead.".to_string());
+            let Some(relay) = red_engine2::net::relay::relay_from_env() else {
+                self.join_form.message =
+                    Some("Relays are switched off on this PC (RE2_RELAY=off): ask whoever is hosting for the full join code instead.".to_string());
                 return;
             };
             self.join_form.message = Some("CONNECTING...".to_string());
@@ -468,7 +503,21 @@ impl Kc {
         self.setup.name = self.join_form.name.clone();
         let name = self.clean_name();
         self.join_form.message = Some("CONNECTING...".to_string());
-        match Game::start(gpu, &self.opts.scene, Connection { cfg, team: 0 }, false, &name) {
+        // The server plays one map and a joiner must hold the same file, so try the installed maps (the chosen one first) until it accepts us.
+        let wrong_map = red_engine2::net::protocol::RejectReason::WrongMap.explain();
+        let mut candidates: Vec<PathBuf> = vec![self.opts.scene.clone()];
+        candidates.extend(self.maps.iter().map(|m| m.1.clone()).filter(|p| *p != self.opts.scene));
+        let mut attempt = Err("no map to try".to_string());
+        for (n, map) in candidates.iter().enumerate() {
+            attempt = Game::start(gpu, map, Connection { cfg: cfg.clone(), team: 0 }, false, &name);
+            match &attempt {
+                Err(e) if e.contains(wrong_map) && n + 1 < candidates.len() => continue,
+                Ok(_) => self.opts.scene = map.clone(),
+                _ => {}
+            }
+            break;
+        }
+        match attempt {
             Ok(game) => {
                 self.game = Some(game);
                 self.screen = Screen::InGame;
@@ -485,7 +534,7 @@ impl Kc {
             Screen::Home => match ui::home_action(id) {
                 Some(ui::HomeAction::Solo) => {
                     self.screen = Screen::Setup { hosting: false };
-                    self.note = Some("Bots fill both teams to six a side.".to_string());
+                    self.note = Some("Pick a mode and a size. Bots are optional.".to_string());
                 }
                 Some(ui::HomeAction::Host) => {
                     self.screen = Screen::Setup { hosting: true };
@@ -501,9 +550,26 @@ impl Kc {
             },
             Screen::Setup { hosting } => match ui::setup_action(id) {
                 Some(ui::SetupAction::Bots(on)) => self.setup.bots = on,
-                Some(ui::SetupAction::Skill(s)) if self.setup.bots => self.setup.skill = s,
-                Some(ui::SetupAction::Skill(_)) => {}
+                Some(ui::SetupAction::Skill(s)) => {
+                    // Picking a skill turns the bots on at that skill.
+                    self.setup.bots = true;
+                    self.setup.skill = s;
+                }
                 Some(ui::SetupAction::Kills(k)) => self.setup.kill_limit = k,
+                Some(ui::SetupAction::Mode(m)) => {
+                    // Each mode counts something different, so the limit goes back to that mode's usual one.
+                    if m != self.setup.mode {
+                        self.setup.mode = m;
+                        self.setup.kill_limit = ui::limits_for(m).1;
+                    }
+                }
+                Some(ui::SetupAction::Size(n)) => self.setup.size = n,
+                Some(ui::SetupAction::Map(i)) => {
+                    if let Some((_, path)) = self.maps.get(i) {
+                        self.setup.map = i;
+                        self.opts.scene = path.clone();
+                    }
+                }
                 Some(ui::SetupAction::Minutes(m)) => self.setup.minutes = m,
                 Some(ui::SetupAction::Name) => self.setup.typing = true,
                 Some(ui::SetupAction::Start) => {
@@ -557,6 +623,7 @@ impl Kc {
         match game.stage() {
             Stage::Lobby | Stage::Watching => match ui::lobby_action(id) {
                 Some(ui::LobbyAction::Team(t)) => game.net.client.set_team(t, now),
+                Some(ui::LobbyAction::Look(n)) => game.net.client.set_character(n, now),
                 Some(ui::LobbyAction::Ready) => {
                     let want = !game.net.client.is_ready();
                     game.net.client.set_ready(want, now);

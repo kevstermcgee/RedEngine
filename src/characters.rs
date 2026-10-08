@@ -297,8 +297,8 @@ pub fn character_object(who: crate::player::Character, id: &str) -> Object {
             Character::Cowboy => "#995a35",
             Character::Alien => "#efad38",
             Character::Robot => "#3c9fba",
-            Character::Ridgeback => "#555e2b",
-            Character::Nightfall => "#1f2d4d",
+            c if c.soldier_team() == Some(1) => "#555e2b",
+            c if c.soldier_team() == Some(2) => "#1f2d4d",
             // Matches the skin, not a costume accent: one wrong-colored shape, not a person wearing black.
             Character::Hollow => "#0d0c10",
             // A warm, cheerful red-orange jumper: the one saturated thing in a green and gold world.
@@ -324,11 +324,7 @@ impl HumanLook {
     pub fn styled(style: crate::player::Character) -> Self {
         use crate::player::Character;
         let mut look = Self { style, ..Self::default() };
-        if let Some(u) = crate::uniforms::for_team(match style {
-            crate::player::Character::Ridgeback => 1,
-            crate::player::Character::Nightfall => 2,
-            _ => 0,
-        }) {
+        if let Some(u) = crate::uniforms::for_team(style.soldier_team().unwrap_or(0)) {
             look.skin = u.skin;
             look.hair = hex("#2a1e16");
             look.pants = u.trousers;

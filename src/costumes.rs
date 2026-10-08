@@ -17,12 +17,8 @@ pub fn decorate(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, style:
     };
     let sphere = PrimKind::Sphere { radius: 1.0 };
     let box_shape = PrimKind::Box { size: Vec3::ONE };
-    if let Some(u) = crate::uniforms::for_team(match style {
-        Character::Ridgeback => 1,
-        Character::Nightfall => 2,
-        _ => 0,
-    }) {
-        soldier_gear(out, bones, height, &u);
+    if let Some(u) = crate::uniforms::for_team(style.soldier_team().unwrap_or(0)) {
+        soldier_gear(out, bones, height, &u, style.soldier_look().unwrap_or(0));
         return;
     }
     match style {
@@ -89,10 +85,13 @@ pub fn decorate(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, style:
     }
 }
 
-/// A soldier's kit on top of the human rig: a combat helmet (with chin strap, night-vision mount and a band in the team's accent colour), a plate
-/// carrier front and back with magazine pouches, shoulder straps, a belt, a small pack, shoulder patches and knee pads. All in the team's colours
-/// (`uniforms`), so the body, the first-person sleeves and the lobby agree. Sizes are in metres (the rig is 1.8 m tall); offsets are in each bone's frame.
-fn soldier_gear(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, u: &crate::uniforms::Uniform) {
+/// A soldier's kit on top of the human rig, in one of four looks (`0` trooper, `1` scout, `2` heavy, `3` ghost): a plate carrier front and back,
+/// shoulder straps, a belt, a pack, shoulder patches and knee pads shared by all, and what makes each look its own: the trooper's combat helmet
+/// with a night-vision mount and a band in the team's accent colour; the scout's boonie hat, goggles on the brow, scarf and radio mast; the
+/// heavy's full helmet with a visor and chin guard, shoulder guards and a thicker vest; the ghost's balaclava, headset with a boom mic and
+/// night-vision tubes. All in the team's colours (`uniforms`), so the body, the first-person sleeves and the lobby agree. Sizes are in
+/// metres (the rig is 1.8 m tall); offsets are in each bone's frame.
+fn soldier_gear(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, u: &crate::uniforms::Uniform, look: u8) {
     let mut add = |bone: usize, shape: PrimKind, offset_m: Vec3, scale_m: Vec3, color: Vec3, metallic: f32, roughness: f32| {
         let anchor = &bones[bone];
         out.push(CharPart {
@@ -106,32 +105,80 @@ fn soldier_gear(out: &mut Vec<CharPart>, bones: &[BonePart], height: f32, u: &cr
     let _ = height;
     let sphere = PrimKind::Sphere { radius: 1.0 };
     let cube = PrimKind::Box { size: Vec3::ONE };
+    let disc = PrimKind::Cylinder { radius: 0.5, height: 1.0 };
     let black = Vec3::new(0.02, 0.022, 0.025);
     let dark = u.vest * 0.55;
-    // The helmet: a dome sitting high on the head (the eyes stay clear), a rim band, a front mount, chin straps.
-    add(1, sphere, Vec3::new(0.0, 0.105, -0.006), Vec3::new(0.136, 0.112, 0.142), u.helmet, 0.15, 0.6);
-    add(1, PrimKind::Cylinder { radius: 0.5, height: 1.0 }, Vec3::new(0.0, 0.012, -0.006), Vec3::new(0.272, 0.014, 0.284), u.helmet * 0.7, 0.1, 0.7);
-    add(1, cube, Vec3::new(0.0, 0.058, 0.128), Vec3::new(0.15, 0.012, 0.014), u.accent, 0.2, 0.6);
-    add(1, cube, Vec3::new(0.0, 0.165, 0.108), Vec3::new(0.05, 0.04, 0.035), black, 0.3, 0.5);
-    for side in [-1.0f32, 1.0] {
-        add(1, cube, Vec3::new(side * 0.098, -0.05, 0.03), Vec3::new(0.012, 0.11, 0.012), black, 0.0, 0.9);
-        add(1, cube, Vec3::new(side * 0.142, 0.07, 0.0), Vec3::new(0.02, 0.05, 0.12), dark, 0.2, 0.6);
+    match look {
+        // The scout: a soft boonie hat, goggles pushed up on the brow, a scarf and a radio mast on the pack.
+        1 => {
+            add(1, disc, Vec3::new(0.0, 0.088, -0.004), Vec3::new(0.34, 0.012, 0.34), u.jacket * 0.9, 0.0, 0.95);
+            add(1, disc, Vec3::new(0.0, 0.125, -0.004), Vec3::new(0.20, 0.07, 0.20), u.jacket * 0.9, 0.0, 0.95);
+            add(1, disc, Vec3::new(0.0, 0.102, -0.004), Vec3::new(0.206, 0.012, 0.206), u.accent, 0.0, 0.8);
+            add(1, cube, Vec3::new(0.0, 0.05, 0.098), Vec3::new(0.205, 0.024, 0.02), black, 0.1, 0.8);
+            for side in [-1.0f32, 1.0] {
+                add(1, cube, Vec3::new(side * 0.04, 0.052, 0.108), Vec3::new(0.05, 0.032, 0.016), Vec3::new(0.55, 0.75, 0.85), 0.6, 0.15);
+            }
+            add(0, sphere, Vec3::new(0.0, 0.205, 0.012), Vec3::new(0.105, 0.036, 0.10), u.accent, 0.0, 0.9);
+            add(0, cube, Vec3::new(0.05, 0.12, 0.10), Vec3::new(0.05, 0.14, 0.014), u.accent, 0.0, 0.9);
+            add(0, cube, Vec3::new(0.09, 0.30, -0.19), Vec3::new(0.012, 0.45, 0.012), black, 0.3, 0.6);
+        }
+        // The heavy: a big full helmet, a dark visor over the eyes, a chin guard and ear guards.
+        2 => {
+            add(1, sphere, Vec3::new(0.0, 0.10, -0.006), Vec3::new(0.152, 0.128, 0.158), u.helmet, 0.2, 0.55);
+            add(1, cube, Vec3::new(0.0, 0.045, 0.128), Vec3::new(0.17, 0.046, 0.03), Vec3::new(0.04, 0.07, 0.09), 0.7, 0.2);
+            add(1, cube, Vec3::new(0.0, -0.045, 0.105), Vec3::new(0.15, 0.05, 0.05), u.helmet * 0.8, 0.2, 0.6);
+            add(1, cube, Vec3::new(0.0, 0.058, 0.142), Vec3::new(0.17, 0.012, 0.014), u.accent, 0.2, 0.6);
+            for side in [-1.0f32, 1.0] {
+                add(1, cube, Vec3::new(side * 0.15, 0.04, 0.0), Vec3::new(0.026, 0.09, 0.13), dark, 0.2, 0.6);
+            }
+        }
+        // The ghost: a balaclava (a cap and a mask, the eyes between), a headset with a boom mic and night-vision tubes.
+        3 => {
+            add(1, sphere, Vec3::new(0.0, 0.082, -0.004), Vec3::new(0.108, 0.078, 0.112), black, 0.0, 0.95);
+            add(1, sphere, Vec3::new(0.0, -0.036, 0.0), Vec3::new(0.108, 0.066, 0.112), black, 0.0, 0.95);
+            add(1, cube, Vec3::new(0.0, 0.158, -0.008), Vec3::new(0.22, 0.012, 0.022), black, 0.2, 0.7);
+            for side in [-1.0f32, 1.0] {
+                add(1, cube, Vec3::new(side * 0.108, 0.02, 0.0), Vec3::new(0.026, 0.07, 0.07), black, 0.2, 0.6);
+                add(1, cube, Vec3::new(side * 0.036, 0.122, 0.118), Vec3::new(0.032, 0.032, 0.07), Vec3::new(0.06, 0.07, 0.07), 0.5, 0.4);
+            }
+            add(1, cube, Vec3::new(0.07, -0.02, 0.10), Vec3::new(0.016, 0.016, 0.075), black, 0.2, 0.6);
+            add(1, sphere, Vec3::new(0.07, -0.02, 0.14), Vec3::splat(0.014), black, 0.3, 0.5);
+        }
+        // The trooper: a combat helmet sitting high on the head (the eyes stay clear), a rim band, a front mount, chin straps.
+        _ => {
+            add(1, sphere, Vec3::new(0.0, 0.105, -0.006), Vec3::new(0.136, 0.112, 0.142), u.helmet, 0.15, 0.6);
+            add(1, disc, Vec3::new(0.0, 0.012, -0.006), Vec3::new(0.272, 0.014, 0.284), u.helmet * 0.7, 0.1, 0.7);
+            add(1, cube, Vec3::new(0.0, 0.058, 0.128), Vec3::new(0.15, 0.012, 0.014), u.accent, 0.2, 0.6);
+            add(1, cube, Vec3::new(0.0, 0.165, 0.108), Vec3::new(0.05, 0.04, 0.035), black, 0.3, 0.5);
+            for side in [-1.0f32, 1.0] {
+                add(1, cube, Vec3::new(side * 0.098, -0.05, 0.03), Vec3::new(0.012, 0.11, 0.012), black, 0.0, 0.9);
+                add(1, cube, Vec3::new(side * 0.142, 0.07, 0.0), Vec3::new(0.02, 0.05, 0.12), dark, 0.2, 0.6);
+            }
+        }
     }
-    // The plate carrier, front and back, and its straps over the shoulders.
-    add(0, cube, Vec3::new(0.0, 0.07, 0.112), Vec3::new(0.31, 0.27, 0.05), u.vest, 0.1, 0.85);
-    add(0, cube, Vec3::new(0.0, 0.07, -0.112), Vec3::new(0.31, 0.27, 0.05), u.vest, 0.1, 0.85);
+    // The plate carrier, front and back, and its straps over the shoulders (the heavy's is thicker).
+    let thick = if look == 2 { 1.35 } else { 1.0 };
+    add(0, cube, Vec3::new(0.0, 0.07, 0.112), Vec3::new(0.31 * thick, 0.27, 0.05 * thick), u.vest, 0.1, 0.85);
+    add(0, cube, Vec3::new(0.0, 0.07, -0.112), Vec3::new(0.31 * thick, 0.27, 0.05 * thick), u.vest, 0.1, 0.85);
     for side in [-1.0f32, 1.0] {
         add(0, cube, Vec3::new(side * 0.115, 0.255, 0.0), Vec3::new(0.065, 0.028, 0.24), u.vest, 0.1, 0.85);
     }
-    for x in [-0.09f32, 0.0, 0.09] {
-        add(0, cube, Vec3::new(x, -0.005, 0.15), Vec3::new(0.07, 0.11, 0.04), dark, 0.1, 0.9);
+    // Magazine pouches on the front: the scout travels light without them.
+    if look != 1 {
+        for x in [-0.09f32, 0.0, 0.09] {
+            add(0, cube, Vec3::new(x, -0.005, 0.15), Vec3::new(0.07, 0.11, 0.04), dark, 0.1, 0.9);
+        }
     }
     add(0, cube, Vec3::new(0.0, -0.225, 0.0), Vec3::new(0.40, 0.06, 0.26), black, 0.1, 0.85);
     add(0, cube, Vec3::new(0.0, 0.05, -0.19), Vec3::new(0.26, 0.30, 0.11), u.jacket * 0.7, 0.05, 0.9);
-    // Shoulder patches (the team's accent) and knee pads.
+    // Shoulder patches (the team's accent) and knee pads; the heavy adds a guard over each shoulder.
     for bone in [2usize, 4] {
         let side = if bone == 2 { 1.0 } else { -1.0 };
         add(bone, cube, Vec3::new(side * 0.045, 0.055, 0.0), Vec3::new(0.012, 0.07, 0.06), u.accent, 0.0, 0.8);
+        if look == 2 {
+            add(bone, sphere, Vec3::new(side * 0.03, 0.075, 0.0), Vec3::new(0.085, 0.055, 0.085), u.vest, 0.15, 0.7);
+            add(bone, cube, Vec3::new(side * 0.03, 0.045, 0.0), Vec3::new(0.09, 0.012, 0.09), u.accent, 0.0, 0.8);
+        }
     }
     for bone in [7usize, 10] {
         add(bone, cube, Vec3::new(0.0, 0.14, 0.05), Vec3::new(0.10, 0.11, 0.045), black, 0.05, 0.9);
@@ -151,6 +198,12 @@ mod tests {
             Character::Robot,
             Character::Ridgeback,
             Character::Nightfall,
+            Character::RidgebackScout,
+            Character::RidgebackHeavy,
+            Character::RidgebackGhost,
+            Character::NightfallScout,
+            Character::NightfallHeavy,
+            Character::NightfallGhost,
             Character::Hollow,
             Character::Boy,
         ] {

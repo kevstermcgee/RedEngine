@@ -24,6 +24,24 @@ use std::time::{Duration, Instant};
 
 /// Characters a code is made of: no `0`/`O`, `1`/`I`/`L` — nothing a person could misread aloud or by hand.
 const ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+/// The relay a game uses when `RE2_RELAY` says nothing: the project's own, on the always-on machine, so HOST gives a short code and JOIN takes one with no
+/// setup at all. It only ever forwards ciphertext (see the module docs), so nothing about a match's privacy depends on trusting it.
+pub const DEFAULT_RELAY: &str = "red-engine.duckdns.org:28016";
+
+/// The relay to use: `RE2_RELAY` if set (`off` or `none` turns the relay off, for a player who wants direct connections only), else [`DEFAULT_RELAY`].
+pub fn relay_from_env() -> Option<String> {
+    relay_choice(std::env::var("RE2_RELAY").ok().as_deref())
+}
+
+/// [`relay_from_env`] for a given value of `RE2_RELAY` (`None` = unset), so the rule can be tested without touching the environment.
+pub fn relay_choice(value: Option<&str>) -> Option<String> {
+    match value.map(str::trim) {
+        Some(v) if v.eq_ignore_ascii_case("off") || v.eq_ignore_ascii_case("none") => None,
+        Some(v) if !v.is_empty() => Some(v.to_string()),
+        _ => Some(DEFAULT_RELAY.to_string()),
+    }
+}
+
 /// How many characters a code has.
 pub const CODE_LEN: usize = 6;
 /// How long an un-refreshed registration lives before its code is freed for reuse.
@@ -281,6 +299,16 @@ impl RelayTable {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_project_relay_is_the_default_and_can_be_replaced_or_switched_off() {
+        assert_eq!(relay_choice(None).as_deref(), Some(DEFAULT_RELAY));
+        assert_eq!(relay_choice(Some("  ")).as_deref(), Some(DEFAULT_RELAY));
+        assert_eq!(relay_choice(Some("my.relay.example:9000")).as_deref(), Some("my.relay.example:9000"));
+        assert_eq!(relay_choice(Some("OFF")), None);
+        assert_eq!(relay_choice(Some("none")), None);
+        assert!(DEFAULT_RELAY.contains(':'), "a host and a port");
+    }
+
     use super::*;
 
     fn addr(port: u16) -> SocketAddr {

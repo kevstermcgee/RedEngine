@@ -56,6 +56,8 @@ pub struct ServerPlayer {
     /// How many ticks behind the present this player's view of the others is (their interpolation delay plus latency): their shots and
     /// swings are judged against where the others were then. `0` = the present (bots, a local player).
     pub view_lag: u8,
+    /// Whether Interact was held at the last processed input (plants, defuses).
+    pub interact_held: bool,
     newest_received_seq: u32,
     queue: VecDeque<PlayerInput>,
 }
@@ -309,6 +311,17 @@ impl MatchSim {
         self.arena.as_ref().map_or([0; 2], |a| a.team_kills)
     }
 
+    /// What each team is scoring toward (index = team - 1): kills in team deathmatch, captures in capture the flag, rounds won in search
+    /// and destroy. Zeros in free for all (where players score, not teams) and outside a loadout match.
+    pub fn team_score(&self) -> [u32; 2] {
+        use super::shooter::ModeKind;
+        self.arena.as_ref().map_or([0; 2], |a| match a.cfg.mode {
+            ModeKind::Tdm => a.team_kills,
+            ModeKind::Ctf | ModeKind::Snd => a.points,
+            ModeKind::Ffa => [0; 2],
+        })
+    }
+
     /// The loadout-match state (pickups, projectiles, smoke, fire, kills), if this is a loadout match.
     pub fn arena(&self) -> Option<&crate::sim::shooter::ArenaState> {
         self.arena.as_ref()
@@ -372,6 +385,7 @@ impl MatchSim {
                 combat
             },
             view_lag: 0,
+            interact_held: false,
             newest_received_seq: 0,
             queue: VecDeque::new(),
         });
@@ -465,6 +479,7 @@ impl MatchSim {
         let racing = self.race.as_ref().map(RaceState::can_drive);
         let course = self.race.as_ref().map(RaceState::course_arc);
         let mut kart_events = [KartEvents::default(); MAX_PLAYERS];
+        let locked = self.input_locked();
         for slot in 0..self.players.len() {
             if racing.is_none() {
                 self.combat_tick(slot);
@@ -478,6 +493,9 @@ impl MatchSim {
             }
             for input in inputs.into_iter().flatten() {
                 let Some(p) = self.players[slot].as_mut() else { break };
+                // Held in place for the freeze before a round: they can look around, not move, shoot or plant.
+                let input = if locked { PlayerInput { seq: input.seq, yaw: input.yaw, pitch: input.pitch, ..Default::default() } } else { input };
+                p.interact_held = input.interact;
                 if let Some(green) = racing {
                     let input = if green { input } else { PlayerInput { seq: input.seq, ..Default::default() } };
                     let spec = self.drivers[slot].spec();
@@ -520,6 +538,7 @@ impl MatchSim {
         if self.arena.is_some() {
             self.kit_pickups_tick();
             self.step_projectiles();
+            self.objective_tick();
         }
         self.props.step();
         let mut frame = [None; MAX_PLAYERS];

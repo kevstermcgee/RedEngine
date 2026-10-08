@@ -23,7 +23,7 @@ use glam::Vec3;
 use serde_json::{Map, Value};
 
 /// Keys of the `shooter` block.
-pub const SHOOTER_KEYS: &[&str] = &["start", "friendly_fire", "pickups"];
+pub const SHOOTER_KEYS: &[&str] = &["start", "friendly_fire", "pickups", "mode", "team_size", "flags", "sites", "objective"];
 const PICKUP_KEYS: &[&str] = &["weapon", "ammo", "at", "respawn_secs"];
 
 /// Most pickup spots a map may place.
@@ -34,6 +34,65 @@ pub const MAX_DROPPED: usize = 16;
 pub const DROP_LIFETIME_SECS: f32 = 40.0;
 /// Most people on one team.
 pub const MAX_TEAM: usize = 6;
+
+/// What a loadout match is played for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ModeKind {
+    /// Team deathmatch: two teams, a kill scores for the team. The default, and the only mode before protocol v15.
+    #[default]
+    Tdm,
+    /// Free for all: no teams, a kill scores for the player.
+    Ffa,
+    /// Capture the flag: two teams, a capture scores for the team.
+    Ctf,
+    /// Search and destroy: attackers plant a bomb, defenders stop them; one life per round.
+    Snd,
+}
+
+impl ModeKind {
+    /// Every mode, in wire order.
+    pub const ALL: [ModeKind; 4] = [ModeKind::Tdm, ModeKind::Ffa, ModeKind::Ctf, ModeKind::Snd];
+
+    /// The name used in a scene's `shooter.mode`.
+    pub fn name(self) -> &'static str {
+        match self {
+            ModeKind::Tdm => "tdm",
+            ModeKind::Ffa => "ffa",
+            ModeKind::Ctf => "ctf",
+            ModeKind::Snd => "snd",
+        }
+    }
+
+    /// The name shown to players.
+    pub fn title(self) -> &'static str {
+        match self {
+            ModeKind::Tdm => "Team Deathmatch",
+            ModeKind::Ffa => "Free For All",
+            ModeKind::Ctf => "Capture The Flag",
+            ModeKind::Snd => "Search And Destroy",
+        }
+    }
+
+    /// Parses a scene's mode name.
+    pub fn parse(name: &str) -> Option<ModeKind> {
+        ModeKind::ALL.into_iter().find(|m| m.name() == name)
+    }
+
+    /// The byte it travels as.
+    pub fn wire(self) -> u8 {
+        self as u8
+    }
+
+    /// The mode a wire byte names (unknown bytes fall back to team deathmatch).
+    pub fn from_wire(b: u8) -> ModeKind {
+        ModeKind::ALL.get(b as usize).copied().unwrap_or_default()
+    }
+
+    /// Whether players are on teams in this mode.
+    pub fn teams(self) -> bool {
+        self != ModeKind::Ffa
+    }
+}
 
 /// One place the map puts a weapon (or an ammunition crate) for the taking.
 #[derive(Debug, Clone, PartialEq)]
@@ -55,11 +114,24 @@ pub struct ShooterConfig {
     pub friendly_fire: bool,
     /// Where the map's weapons and ammunition crates lie.
     pub pickups: Vec<PickupSpawn>,
+    /// What the match is played for.
+    pub mode: ModeKind,
+    /// Most people on one team (`1` = a duel). In free for all, the most people in the match is twice this.
+    pub team_size: usize,
+    /// Flag bases, bomb sites and the objective modes' tunables.
+    pub objective: super::objective::ObjectiveConfig,
 }
 
 impl Default for ShooterConfig {
     fn default() -> Self {
-        ShooterConfig { start: vec![Weapon::Pistol, Weapon::Knife], friendly_fire: false, pickups: Vec::new() }
+        ShooterConfig {
+            start: vec![Weapon::Pistol, Weapon::Knife],
+            friendly_fire: false,
+            pickups: Vec::new(),
+            mode: ModeKind::Tdm,
+            team_size: MAX_TEAM,
+            objective: Default::default(),
+        }
     }
 }
 
@@ -107,6 +179,18 @@ pub fn parse_shooter(root: &Map<String, Value>) -> Result<Option<ShooterConfig>,
             None => errs.push("shooter.friendly_fire: must be true or false".to_string()),
         }
     }
+    if let Some(v) = o.get("mode") {
+        match v.as_str().and_then(ModeKind::parse) {
+            Some(m) => cfg.mode = m,
+            None => errs.push("shooter.mode: must be \"tdm\", \"ffa\", \"ctf\" or \"snd\"".to_string()),
+        }
+    }
+    if let Some(v) = o.get("team_size") {
+        match v.as_u64().filter(|n| (1..=MAX_TEAM as u64).contains(n)) {
+            Some(n) => cfg.team_size = n as usize,
+            None => errs.push(format!("shooter.team_size: must be 1 to {MAX_TEAM} (1 is a duel)")),
+        }
+    }
     if let Some(v) = o.get("pickups") {
         match v.as_array() {
             Some(list) if list.len() <= MAX_MAP_PICKUPS => {
@@ -147,11 +231,53 @@ pub fn parse_shooter(root: &Map<String, Value>) -> Result<Option<ShooterConfig>,
             _ => errs.push(format!("shooter.pickups: must be a list of at most {MAX_MAP_PICKUPS} pickup spots")),
         }
     }
+    cfg.objective = super::objective::parse_objective(o, &mut errs);
+    // An objective mode must say where its objective is, or it could never be played.
+    if cfg.mode == ModeKind::Ctf && cfg.objective.flags.len() != 2 {
+        errs.push("shooter.flags: capture the flag needs one flag per team: [{\"team\": 1, \"at\": [x, y, z]}, {\"team\": 2, \"at\": [x, y, z]}]".to_string());
+    }
+    if cfg.mode == ModeKind::Snd && cfg.objective.sites.is_empty() {
+        errs.push("shooter.sites: search and destroy needs at least one bomb site: [{\"name\": \"A\", \"at\": [x, y, z], \"radius\": 4}]".to_string());
+    }
     if errs.is_empty() {
         Ok(Some(cfg))
     } else {
         Err(errs)
     }
+}
+
+/// The scene text with the host's choice of mode and team size written into its `shooter` block (a map ships with defaults; whoever hosts
+/// decides what is played). Hash the original text, not this one: clients check the file they have, not the host's choice, and learn the
+/// mode from the match status. A scene without a `shooter` block is returned unchanged.
+///
+/// `limit` is what ends a capture-the-flag (captures) or search-and-destroy (rounds) match; the kill modes take theirs from the `match` block.
+pub fn with_overrides(text: &str, mode: Option<ModeKind>, team_size: Option<usize>, limit: Option<u32>) -> Result<String, String> {
+    if mode.is_none() && team_size.is_none() && limit.is_none() {
+        return Ok(text.to_string());
+    }
+    let mut v: Value = serde_json::from_str(text).map_err(|e| format!("scene is not JSON: {e}"))?;
+    let Some(block) = v.get_mut("shooter").and_then(Value::as_object_mut) else { return Ok(text.to_string()) };
+    if let Some(m) = mode {
+        block.insert("mode".to_string(), Value::String(m.name().to_string()));
+    }
+    if let Some(n) = team_size {
+        block.insert("team_size".to_string(), Value::from(n.clamp(1, MAX_TEAM)));
+    }
+    let effective = mode.or_else(|| block.get("mode").and_then(Value::as_str).and_then(ModeKind::parse)).unwrap_or_default();
+    if let (Some(n), Some(key)) = (
+        limit.filter(|n| *n > 0),
+        match effective {
+            ModeKind::Ctf => Some("capture_limit"),
+            ModeKind::Snd => Some("win_rounds"),
+            _ => None,
+        },
+    ) {
+        let obj = block.entry("objective").or_insert_with(|| Value::Object(Map::new()));
+        if let Some(o) = obj.as_object_mut() {
+            o.insert(key.to_string(), Value::from(n));
+        }
+    }
+    serde_json::to_string(&v).map_err(|e| e.to_string())
 }
 
 /// A map pickup spot and whether it is currently available.
@@ -222,6 +348,15 @@ pub struct ArenaState {
     pub kills: Vec<KillRecord>,
     /// Kills per team (index = team - 1).
     pub team_kills: [u32; 2],
+    /// Objective points per team (index = team - 1): flag captures in capture the flag, rounds won in search and destroy. Zero in the
+    /// kill modes, where [`ArenaState::team_kills`] is the score.
+    pub points: [u32; 2],
+    /// Capture the flag: the two flags.
+    pub ctf: Option<super::objective::CtfState>,
+    /// Search and destroy: the round, the bomb.
+    pub snd: Option<super::objective::SndState>,
+    /// The last objective events (flag taken, bomb planted...), oldest first.
+    pub obj_events: Vec<super::objective::ObjEvent>,
     /// Next id for a projectile, a dropped weapon or an effect.
     pub next_id: u16,
 }
@@ -243,6 +378,9 @@ impl ArenaState {
                 MapPickup { spawn: p.clone(), loaded, reserve, taken_until: None }
             })
             .collect();
+        let hz = super::clock::TICK_RATE_HZ;
+        let ctf = (cfg.mode == ModeKind::Ctf).then(|| super::objective::CtfState::new(&cfg.objective, hz)).flatten();
+        let snd = (cfg.mode == ModeKind::Snd).then(|| super::objective::SndState::new(&cfg.objective, hz)).flatten();
         ArenaState {
             cfg,
             pickups,
@@ -252,6 +390,10 @@ impl ArenaState {
             fx: Vec::new(),
             kills: Vec::new(),
             team_kills: [0; 2],
+            points: [0; 2],
+            ctf,
+            snd,
+            obj_events: Vec::new(),
             next_id: 1,
         }
     }
@@ -291,6 +433,27 @@ impl ArenaState {
             mix(z.until ^ (z.pos.x.to_bits() as u64) << 8);
         }
         mix(self.team_kills[0] as u64 | (self.team_kills[1] as u64) << 32);
+        mix(self.points[0] as u64 | (self.points[1] as u64) << 32);
+        if let Some(c) = &self.ctf {
+            for f in &c.flags {
+                mix(match f.state {
+                    super::objective::FlagState::Home => 1,
+                    super::objective::FlagState::Carried { slot, .. } => 2 | (slot as u64) << 8,
+                    super::objective::FlagState::Dropped { return_at, .. } => 3 | return_at << 8,
+                });
+            }
+        }
+        if let Some(s) = &self.snd {
+            mix(s.round as u64 | (s.attackers as u64) << 8 | (s.rounds_done as u64) << 16);
+            mix(match s.phase {
+                super::objective::RoundPhase::Freeze { until } => until << 2,
+                super::objective::RoundPhase::Live { until } => until << 2 | 1,
+                super::objective::RoundPhase::Over { until, .. } => until << 2 | 2,
+            });
+        }
+        for e in &self.obj_events {
+            mix(e.id as u64 ^ (e.kind as u64) << 16);
+        }
         h
     }
 }
@@ -321,6 +484,24 @@ mod tests {
         assert_eq!(c.pickups[0].weapon, Some(Weapon::Rifle));
         assert_eq!(c.pickups[1].weapon, None);
         assert_eq!(c.pickups[1].respawn_secs, 30.0);
+    }
+
+    #[test]
+    fn the_host_can_override_the_mode_and_team_size() {
+        let text = r#"{"shooter":{"start":["pistol","knife"]},"objects":[]}"#;
+        let patched = with_overrides(text, Some(ModeKind::Ffa), Some(1), None).unwrap();
+        let c = parse_shooter(&root(&patched)).unwrap().unwrap();
+        assert_eq!((c.mode, c.team_size), (ModeKind::Ffa, 1));
+        assert_eq!(with_overrides(text, None, None, None).unwrap(), text);
+        // A scene with no shooter block has nothing to override.
+        assert_eq!(with_overrides(r#"{"objects":[]}"#, Some(ModeKind::Ctf), None, None).unwrap(), r#"{"objects":[]}"#);
+        // The team size is kept inside what a team can hold.
+        let big = with_overrides(text, None, Some(99), None).unwrap();
+        assert_eq!(parse_shooter(&root(&big)).unwrap().unwrap().team_size, MAX_TEAM);
+        // The objective modes take their limit from the host's choice.
+        let ctf = r#"{"shooter":{"mode":"ctf","flags":[{"team":1,"at":[0,0,0]},{"team":2,"at":[9,0,0]}]},"objects":[]}"#;
+        let c = parse_shooter(&root(&with_overrides(ctf, None, None, Some(5)).unwrap())).unwrap().unwrap();
+        assert_eq!(c.objective.capture_limit, 5);
     }
 
     #[test]

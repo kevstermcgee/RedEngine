@@ -5,6 +5,7 @@
 //! are audited (`audit_all`) at every window size and can be rendered to a picture without a window. The HUD is deliberately tiny: your
 //! health, the ammunition of the weapon in hand, the score and the clock, and nothing else.
 
+use super::objective::{Marker, ObjectiveHud};
 use super::online::ConnectForm;
 use super::{ellipsize, fit_scale, text_height, text_width, Canvas, Layout};
 use crate::net::protocol::{RosterEntry, ROSTER_BOT, ROSTER_READY};
@@ -42,7 +43,28 @@ fn upper(s: &str) -> String {
 
 /// Screens the audit and the picture tool know.
 pub fn all() -> &'static [&'static str] {
-    &["home", "solo", "host", "join", "stats", "lobby", "countdown", "hud", "hud-low", "killcam", "scoreboard", "results", "results-draw", "pause"]
+    &[
+        "home",
+        "solo",
+        "host",
+        "join",
+        "stats",
+        "lobby",
+        "lobby-ffa",
+        "lobby-duel",
+        "results-ffa",
+        "countdown",
+        "hud",
+        "hud-low",
+        "hud-ffa",
+        "hud-ctf",
+        "hud-snd",
+        "killcam",
+        "scoreboard",
+        "results",
+        "results-draw",
+        "pause",
+    ]
 }
 
 /// A button with the game's look; `hot` highlights it.
@@ -143,7 +165,12 @@ pub struct Setup {
     pub bots: bool,
     /// Bot skill: 0 easy, 1 normal, 2 hard.
     pub skill: u8,
-    /// Team kills that end the match (`0` = no kill limit).
+    /// What the match is played for: a [`ModeKind`] wire byte (`0` team deathmatch, `1` free for all, `2` capture the flag, `3` search and destroy).
+    pub mode: u8,
+    /// Most people on a team, `1` for a duel (free for all: half the players in the match).
+    pub size: u8,
+    /// What ends the match: team kills (team deathmatch), player kills (free for all), captures or rounds won, depending on the mode
+    /// (`0` = no limit; see [`limits_for`]).
     pub kill_limit: u16,
     /// Minutes that end the match (`0` = no time limit).
     pub minutes: u16,
@@ -151,16 +178,54 @@ pub struct Setup {
     pub name: String,
     /// The name field has the keyboard.
     pub typing: bool,
+    /// The maps on offer, as short labels (an empty list or one map shows no choice).
+    pub maps: Vec<String>,
+    /// The chosen map (an index into `maps`).
+    pub map: usize,
 }
 
 impl Default for Setup {
     fn default() -> Self {
-        Setup { bots: false, skill: 1, kill_limit: 50, minutes: 10, name: String::new(), typing: false }
+        Setup { bots: false, skill: 1, mode: 0, size: 6, kill_limit: 50, minutes: 10, name: String::new(), typing: false, maps: Vec::new(), map: 0 }
     }
 }
 
-/// The kill limits on offer.
+/// The kill limits on offer in team deathmatch.
 pub const KILL_LIMITS: [u16; 5] = [25, 50, 75, 100, 0];
+/// The modes on offer: `(button id suffix, short label)`; the index is the [`ModeKind`](crate::sim::shooter::ModeKind) wire byte.
+/// (The font has no ampersand, so search and destroy is BOMB on the button.)
+pub const MODES: [&str; 4] = ["TDM", "FFA", "CTF", "BOMB"];
+/// The team sizes on offer (people a side).
+pub const SIZES: [u8; 4] = [1, 2, 3, 6];
+
+/// What a mode's limit counts, as the setup screen's caption.
+pub fn limit_caption(mode: u8) -> &'static str {
+    match mode {
+        1 => "KILLS TO WIN",
+        2 => "CAPTURES TO WIN",
+        3 => "ROUNDS TO WIN",
+        _ => "TEAM KILL LIMIT",
+    }
+}
+
+/// The limits on offer for a mode, and the default among them.
+pub fn limits_for(mode: u8) -> (&'static [u16], u16) {
+    match mode {
+        1 => (&[10, 20, 30, 50, 0], 20),
+        2 => (&[1, 3, 5, 10, 0], 3),
+        3 => (&[3, 4, 6, 8, 0], 4),
+        _ => (&KILL_LIMITS, 50),
+    }
+}
+
+/// A short label for a team size in a mode: `1V1`, `3V3`; in free for all the number of players.
+pub fn size_label(mode: u8, size: u8) -> String {
+    if mode == 1 {
+        (size as u16 * 2).to_string()
+    } else {
+        format!("{size}V{size}")
+    }
+}
 /// The time limits on offer, minutes.
 pub const TIME_LIMITS: [u16; 5] = [5, 10, 15, 20, 0];
 /// The bot skills on offer: `(label, bot level name)`.
@@ -175,6 +240,12 @@ pub enum SetupAction {
     Skill(u8),
     /// A kill limit (`0` = none).
     Kills(u16),
+    /// A mode (a [`ModeKind`](crate::sim::shooter::ModeKind) wire byte).
+    Mode(u8),
+    /// A map (an index into the setup's maps).
+    Map(usize),
+    /// A team size (people a side).
+    Size(u8),
     /// A time limit in minutes (`0` = none).
     Minutes(u16),
     /// Focus the name field.
@@ -192,6 +263,15 @@ pub fn setup_action(id: &str) -> Option<SetupAction> {
     }
     if let Some(v) = id.strip_prefix("skill_") {
         return v.parse().ok().map(SetupAction::Skill);
+    }
+    if let Some(v) = id.strip_prefix("map_") {
+        return v.parse().ok().map(SetupAction::Map);
+    }
+    if let Some(v) = id.strip_prefix("mode_") {
+        return v.parse().ok().filter(|m| *m < 4).map(SetupAction::Mode);
+    }
+    if let Some(v) = id.strip_prefix("size_") {
+        return v.parse().ok().filter(|n| (1..=6).contains(n)).map(SetupAction::Size);
     }
     if let Some(v) = id.strip_prefix("kills_") {
         return v.parse().ok().map(SetupAction::Kills);
@@ -213,10 +293,10 @@ pub fn setup_layout(w: u32, h: u32, title: &str, o: &Setup, note: Option<&str>, 
     let inner = x1 - x0 - 24 * s;
     let (lx, rx) = (x0 + 12 * s, x1 - 12 * s);
     let mut y = 10 * s + text_height(s * 4) + 3 * s + text_height(s) + 8 * s;
-    let chip_h = 11 * s;
+    let chip_h = 9 * s;
     let row = |l: &mut Layout, y: i32, caption: &str, chips: &[(String, String, bool)], dim: bool| {
         l.label_left(&format!("{}_caption", caption.to_lowercase().replace(' ', "_")), Some(p), lx, y, caption, s, inner, if dim { EDGE } else { DIM });
-        let y = y + text_height(s) + 2 * s;
+        let y = y + text_height(s) + s;
         let n = chips.len() as i32;
         let gap = 3 * s;
         let cw = ((rx - lx) - gap * (n - 1)) / n.max(1);
@@ -226,22 +306,40 @@ pub fn setup_layout(w: u32, h: u32, title: &str, o: &Setup, note: Option<&str>, 
         }
     };
     let chip = |id: &str, label: &str, sel: bool| (id.to_string(), label.to_string(), sel);
-    row(&mut l, y, "BOTS", &[chip("bots_off", "NONE", !o.bots), chip("bots_on", "FILL TEAMS", o.bots)], false);
-    y += text_height(s) + 2 * s + chip_h + 4 * s;
-    let skills: Vec<_> = SKILLS.iter().enumerate().map(|(i, (label, _))| chip(&format!("skill_{i}"), label, o.skill as usize == i)).collect();
-    row(&mut l, y, "BOT SKILL", &skills, !o.bots);
-    y += text_height(s) + 2 * s + chip_h + 4 * s;
-    let kills: Vec<_> =
-        KILL_LIMITS.iter().map(|&k| chip(&format!("kills_{k}"), &if k == 0 { "NONE".to_string() } else { k.to_string() }, o.kill_limit == k)).collect();
-    row(&mut l, y, "KILL LIMIT", &kills, false);
-    y += text_height(s) + 2 * s + chip_h + 4 * s;
+    if o.maps.len() > 1 {
+        let maps: Vec<_> = o.maps.iter().take(4).enumerate().map(|(i, label)| chip(&format!("map_{i}"), &upper(label), o.map == i)).collect();
+        row(&mut l, y, "MAP", &maps, false);
+        y += text_height(s) + s + chip_h + 3 * s;
+    }
+    let modes: Vec<_> = MODES.iter().enumerate().map(|(i, label)| chip(&format!("mode_{i}"), label, o.mode as usize == i)).collect();
+    row(&mut l, y, "MODE", &modes, false);
+    y += text_height(s) + s + chip_h + 3 * s;
+    let sizes: Vec<_> = SIZES.iter().map(|&n| chip(&format!("size_{n}"), &size_label(o.mode, n), o.size == n)).collect();
+    row(&mut l, y, if o.mode == 1 { "PLAYERS" } else { "TEAM SIZE" }, &sizes, false);
+    y += text_height(s) + s + chip_h + 3 * s;
+    let mut bots = vec![chip("bots_off", "NONE", !o.bots)];
+    bots.extend(
+        SKILLS
+            .iter()
+            .enumerate()
+            .map(|(i, (label, _))| chip(&format!("skill_{i}"), if *label == "NORMAL" { "NORM" } else { label }, o.bots && o.skill as usize == i)),
+    );
+    row(&mut l, y, if o.mode == 1 { "BOTS FILL THE MATCH" } else { "BOTS FILL THE TEAMS" }, &bots, false);
+    y += text_height(s) + s + chip_h + 3 * s;
+    let kills: Vec<_> = limits_for(o.mode)
+        .0
+        .iter()
+        .map(|&k| chip(&format!("kills_{k}"), &if k == 0 { "NONE".to_string() } else { k.to_string() }, o.kill_limit == k))
+        .collect();
+    row(&mut l, y, limit_caption(o.mode), &kills, false);
+    y += text_height(s) + s + chip_h + 3 * s;
     let times: Vec<_> =
         TIME_LIMITS.iter().map(|&m| chip(&format!("time_{m}"), &if m == 0 { "NONE".to_string() } else { m.to_string() }, o.minutes == m)).collect();
     row(&mut l, y, "TIME LIMIT (MINUTES)", &times, false);
-    y += text_height(s) + 2 * s + chip_h + 4 * s;
+    y += text_height(s) + s + chip_h + 3 * s;
     // The name field.
     l.label_left("name_caption", Some(p), lx, y, "YOUR NAME", s, inner, DIM);
-    y += text_height(s) + 2 * s;
+    y += text_height(s) + s;
     let shown = if o.typing {
         format!("{}_", upper(&o.name))
     } else if o.name.is_empty() {
@@ -249,17 +347,17 @@ pub fn setup_layout(w: u32, h: u32, title: &str, o: &Setup, note: Option<&str>, 
     } else {
         upper(&o.name)
     };
-    let name_rect = (lx, y, rx, y + chip_h + 2 * s);
+    let name_rect = (lx, y, rx, y + chip_h + s);
     let name_scale = fit_both("W", name_rect, s * 2);
     let shown = ellipsize(&shown, rx - lx - 8 * s, name_scale);
     l.button("name", name_rect, Some(p), &shown, name_scale, [16, 18, 20, 240], (if o.typing { ACCENT } else { EDGE }, 1), TEXT);
-    y += chip_h + 2 * s + 6 * s;
+    y += chip_h + s + 3 * s;
     let half = (rx - lx - 4 * s) / 2;
-    btn(&mut l, "start", (lx, y, lx + half, y + 15 * s), Some(p), "START", s * 2, hover == Some("start"), true);
-    btn(&mut l, "back", (rx - half, y, rx, y + 15 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
-    y += 15 * s + 5 * s;
+    btn(&mut l, "start", (lx, y, lx + half, y + 12 * s), Some(p), "START", s * 2, hover == Some("start"), true);
+    btn(&mut l, "back", (rx - half, y, rx, y + 12 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
+    y += 12 * s + 3 * s;
     if let Some(n) = note {
-        for (i, line) in super::wrap(&upper(n), inner, s).into_iter().take(3).enumerate() {
+        for (i, line) in super::wrap(&upper(n), inner, s).into_iter().take(2).enumerate() {
             l.label_left(&format!("note_{i}"), Some(p), lx, y + i as i32 * (text_height(s) + 2 * s), &line, s, inner, DIM);
         }
     }
@@ -400,11 +498,19 @@ pub struct LobbyView {
     pub hosting: bool,
     /// The map's name.
     pub map: String,
+    /// The mode (a [`ModeKind`](crate::sim::shooter::ModeKind) wire byte).
+    pub mode: u8,
+    /// Most people on a team (`0` = the full six).
+    pub team_size: u8,
+    /// The soldier look we wear (`0` trooper, `1` scout, `2` heavy, `3` ghost).
+    pub look: u8,
 }
 
 /// What a lobby button does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LobbyAction {
+    /// Wear a soldier look (`0` to `3`).
+    Look(u8),
     /// Join a team (`1` or `2`).
     Team(u8),
     /// Toggle ready.
@@ -420,12 +526,17 @@ pub fn lobby_action(id: &str) -> Option<LobbyAction> {
         "team_2" => Some(LobbyAction::Team(2)),
         "ready" => Some(LobbyAction::Ready),
         "leave" => Some(LobbyAction::Leave),
-        _ => None,
+        id => id.strip_prefix("look_").and_then(|n| n.parse::<u8>().ok()).filter(|n| *n < 4).map(LobbyAction::Look),
     }
 }
 
-fn limit_text(kill_limit: u16, secs: u16) -> String {
-    let k = if kill_limit == 0 { "NO KILL LIMIT".to_string() } else { format!("FIRST TO {kill_limit} KILLS") };
+fn limit_text(mode: u8, kill_limit: u16, secs: u16) -> String {
+    let unit = match mode {
+        2 => "CAPTURES",
+        3 => "ROUNDS",
+        _ => "KILLS",
+    };
+    let k = if kill_limit == 0 { format!("NO {} LIMIT", &unit[..unit.len() - 1]) } else { format!("FIRST TO {kill_limit} {unit}") };
     let t = if secs == 0 { "NO TIME LIMIT".to_string() } else { format!("{} MIN", secs / 60) };
     format!("{k}   {t}")
 }
@@ -444,12 +555,32 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
     let cw = (330 * s).min(wi - 8);
     let rows = 6;
     let row_h = text_height(s) + 5 * s;
-    let ch = (86 * s + rows * row_h + 22 * s).min(hi - 8);
+    let ch = (104 * s + rows * row_h + 22 * s).min(hi - 8);
     let (x0, y0) = ((wi - cw) / 2, ((hi - ch) / 2).max(4));
     let card = l.panel("card", (x0, y0, x0 + cw, y0 + ch), None, Some(PANEL), Some((EDGE, 1.max(s / 2))));
     let cx = x0 + cw / 2;
-    l.label_fit("title", Some(card), cx, y0 + 8 * s, "CHOOSE YOUR TEAM", s * 3, cw - 12 * s, TEXT);
-    l.label_fit("rules", Some(card), cx, y0 + 8 * s + text_height(s * 3) + 4 * s, &limit_text(v.kill_limit, v.time_limit_secs), s, cw - 12 * s, DIM);
+    let mode_name = crate::sim::shooter::ModeKind::from_wire(v.mode).title();
+    let team_size = if v.team_size == 0 { 6 } else { v.team_size as usize };
+    let title = if v.mode == 1 { "FREE FOR ALL".to_string() } else { format!("{} - CHOOSE YOUR TEAM", upper(mode_name)) };
+    let title_scale = fit_scale(&title, cw - 12 * s, s * 3);
+    l.label_fit("title", Some(card), cx, y0 + 8 * s, &title, title_scale, cw - 12 * s, TEXT);
+    let size_note = if team_size == 1 {
+        "   1 V 1".to_string()
+    } else if v.mode == 1 {
+        format!("   {} PLAYERS", team_size * 2)
+    } else {
+        format!("   {team_size} V {team_size}")
+    };
+    l.label_fit(
+        "rules",
+        Some(card),
+        cx,
+        y0 + 8 * s + text_height(s * 3) + 4 * s,
+        &format!("{}{size_note}", limit_text(v.mode, v.kill_limit, v.time_limit_secs)),
+        s,
+        cw - 12 * s,
+        DIM,
+    );
     let mut top = y0 + 8 * s + text_height(s * 3) + 4 * s + text_height(s) + 6 * s;
     if let Some(a) = &v.join_address {
         l.label_fit("join_address", Some(card), cx, top, &format!("FRIENDS JOIN AT  {}", upper(a)), s, cw - 12 * s, [255, 214, 140, 255]);
@@ -458,13 +589,36 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
     let gap = 6 * s;
     let colw = (cw - 20 * s - gap) / 2;
     let mut my_team = 0;
-    for team in 1..=2u8 {
+    if v.mode == 1 {
+        // Free for all has no sides: one list of everyone in two columns.
+        let label = format!("PLAYERS {}/{}", v.roster.len(), team_size * 2);
+        l.label_fit("ffa_header", Some(card), cx, top + 4 * s, &label, s * 2, cw - 12 * s, ACCENT);
+        for (k, e) in v.roster.iter().take(12).enumerate() {
+            let (col, row) = (k as i32 / 6, k as i32 % 6);
+            let bx0 = x0 + 10 * s + col * (colw + gap);
+            let y = top + 16 * s + 4 * s + row * row_h;
+            let mut name = upper(&e.name);
+            if e.id == v.me {
+                name = format!("> {name}");
+            }
+            let tag = if e.flags & ROSTER_BOT != 0 {
+                "BOT"
+            } else if e.flags & ROSTER_READY != 0 {
+                "READY"
+            } else {
+                ""
+            };
+            l.label_left(&format!("p_name_{k}"), Some(card), bx0 + 3 * s, y, &name, s, colw * 66 / 100, if e.id == v.me { [255, 226, 160, 255] } else { TEXT });
+            l.label_right(&format!("p_tag_{k}"), Some(card), bx0 + colw - 3 * s, y, tag, s, colw * 30 / 100, DIM);
+        }
+    }
+    for team in (1..=2u8).filter(|_| v.mode != 1) {
         let members: Vec<&RosterEntry> = v.roster.iter().filter(|e| e.team == team).collect();
         if members.iter().any(|e| e.id == v.me) {
             my_team = team;
         }
         let bx0 = x0 + 10 * s + (team as i32 - 1) * (colw + gap);
-        let label = format!("{} {}/6", upper(TEAM_NAMES[team as usize - 1]), members.len());
+        let label = format!("{} {}/{}", upper(TEAM_NAMES[team as usize - 1]), members.len(), team_size);
         let hot = hover == Some(if team == 1 { "team_1" } else { "team_2" });
         let selected = my_team == team;
         let id = if team == 1 { "team_1" } else { "team_2" };
@@ -504,6 +658,19 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
                 );
                 l.label_right(&format!("t{team}_tag_{k}"), Some(card), bx0 + colw - 3 * s, y, tag, s, colw * 30 / 100, DIM);
             }
+        }
+    }
+    // The look: four chips, the one worn lit.
+    {
+        let ly = y0 + ch - 24 * s - 16 * s;
+        let n = crate::player::Character::SOLDIER_LOOKS.len() as i32;
+        let lgap = 3 * s;
+        let cwid = ((cw - 20 * s) - lgap * (n - 1)) / n;
+        l.label_left("look_caption", Some(card), x0 + 10 * s, ly - text_height(s) - 2 * s, "YOUR LOOK", s, cw - 20 * s, DIM);
+        for (i, name) in crate::player::Character::SOLDIER_LOOKS.iter().enumerate() {
+            let bx = x0 + 10 * s + i as i32 * (cwid + lgap);
+            let id = format!("look_{i}");
+            btn(&mut l, &id, (bx, ly, bx + cwid, ly + 12 * s), Some(card), &upper(name), s, hover == Some(id.as_str()), v.look as usize == i);
         }
     }
     let by = y0 + ch - 24 * s;
@@ -559,6 +726,16 @@ pub struct HudView {
     pub center: Option<String>,
     /// Looking at a pickup that would be taken: its name.
     pub prompt: Option<String>,
+    /// The mode (a [`ModeKind`](crate::sim::shooter::ModeKind) wire byte: `0` team deathmatch, `1` free for all, `2` capture the flag, `3` search and destroy).
+    pub mode: u8,
+    /// Free for all: our kills and the best player's kills.
+    pub ffa: Option<(u16, u16)>,
+    /// Capture the flag and search and destroy: what is going on and what to do.
+    pub objective: Option<ObjectiveHud>,
+    /// The newest objective event as one line over the middle of the screen, and its colour.
+    pub banner: Option<(String, [u8; 4])>,
+    /// Labels over flags, the bomb and the sites, already placed on the screen.
+    pub markers: Vec<Marker>,
 }
 
 /// The HUD: health bottom left, ammunition bottom right, score and clock at the top.
@@ -601,10 +778,50 @@ pub fn hud_layout(w: u32, h: u32, v: &HudView) -> Layout {
     let clock_text = v.secs_left.map_or_else(|| "--:--".to_string(), clock);
     l.label("clock", None, mid, top, &clock_text, s * 2, TEXT);
     let gap = text_width("00:00", s * 2) / 2 + 10 * s;
-    l.label_right("score_1", None, mid - gap, top, &v.team_score[0].to_string(), s * 2, 40 * s, RIDGEBACK);
-    l.label_left("score_2", None, mid + gap, top, &v.team_score[1].to_string(), s * 2, 40 * s, NIGHTFALL);
+    match v.ffa {
+        // Free for all has no sides: you against the best of the others.
+        Some((mine, best)) => {
+            l.label_right("score_1", None, mid - gap, top, &format!("YOU {mine}"), s * 2, 60 * s, TEXT);
+            l.label_left("score_2", None, mid + gap, top, &format!("BEST {best}"), s * 2, 60 * s, ACCENT);
+        }
+        None => {
+            l.label_right("score_1", None, mid - gap, top, &v.team_score[0].to_string(), s * 2, 40 * s, RIDGEBACK);
+            l.label_left("score_2", None, mid + gap, top, &v.team_score[1].to_string(), s * 2, 40 * s, NIGHTFALL);
+        }
+    }
+    let mut below = top + text_height(s * 2) + 2 * s;
     if v.kill_limit > 0 {
-        l.label("limit", None, mid, top + text_height(s * 2) + 2 * s, &format!("FIRST TO {}", v.kill_limit), s, [110, 116, 120, 255]);
+        let unit = match v.mode {
+            2 => " CAPTURES",
+            3 => " ROUNDS",
+            _ => "",
+        };
+        l.label("limit", None, mid, below, &format!("FIRST TO {}{unit}", v.kill_limit), s, [110, 116, 120, 255]);
+        below += text_height(s) + 3 * s;
+    }
+    if let Some(o) = &v.objective {
+        l.label_fit("objective_line", None, mid, below, &o.line, s, wi - 20 * s, TEXT);
+        below += text_height(s) + 2 * s;
+        if !o.sub.is_empty() {
+            l.label_fit("objective_sub", None, mid, below, &o.sub, s, wi - 20 * s, o.sub_color);
+        }
+        if let Some((what, frac)) = &o.bar {
+            let (bw, bh) = (90 * s, 5 * s);
+            let by = hi * 3 / 5 + text_height(s * 2) + 6 * s;
+            l.label("bar_caption", None, mid, by - text_height(s) - 2 * s, what, s, TEXT);
+            l.panel("bar_frame", (mid - bw / 2, by, mid + bw / 2, by + bh), None, Some([10, 12, 14, 200]), Some(([200, 204, 208, 255], 1)));
+            let fill = ((bw - 2) as f32 * frac.clamp(0.0, 1.0)) as i32;
+            if fill > 0 {
+                l.panel("bar_fill", (mid - bw / 2 + 1, by + 1, mid - bw / 2 + 1 + fill, by + bh - 1), None, Some(ACCENT), None);
+            }
+        }
+    }
+    if let Some((text, color)) = &v.banner {
+        l.label_fit("banner", None, mid, hi / 3, text, s * 3, wi - 20 * s, *color);
+    }
+    for (i, m) in v.markers.iter().enumerate() {
+        let (x, y) = (m.x.clamp(30.0 * s as f32, wi as f32 - 30.0 * s as f32) as i32, m.y.clamp(20.0 * s as f32, hi as f32 - 20.0 * s as f32) as i32);
+        l.label_fit(&format!("marker_{i}"), None, x, y, &m.label, s, 56 * s, m.color);
     }
     if let Some(c) = &v.center {
         l.label("center", None, mid, hi / 4, c, s * 5, TEXT);
@@ -680,6 +897,10 @@ pub struct BoardView {
     pub waiting_for: usize,
     /// Whether the match is over (the results screen) or running (the Tab scoreboard).
     pub over: bool,
+    /// The mode (a [`ModeKind`](crate::sim::shooter::ModeKind) wire byte): free for all lists everyone in one table.
+    pub mode: u8,
+    /// Free for all: the winning player's id (`255` = nobody).
+    pub winner: u8,
 }
 
 fn team_table(l: &mut Layout, card: usize, team: u8, rect: (i32, i32, i32, i32), v: &BoardView, s: i32) {
@@ -703,6 +924,29 @@ fn team_table(l: &mut Layout, card: usize, team: u8, rect: (i32, i32, i32, i32),
     }
 }
 
+/// Free for all: everybody in one table of up to twelve, two columns, best first.
+fn ffa_table(l: &mut Layout, card: usize, rect: (i32, i32, i32, i32), v: &BoardView, s: i32) {
+    let (x0, y0, x1, _) = rect;
+    let mut all: Vec<&RosterEntry> = v.roster.iter().collect();
+    all.sort_by(|a, b| b.score.cmp(&a.score).then(a.id.cmp(&b.id)));
+    l.label_left("ffa_head", Some(card), x0, y0, "PLAYERS", s * 2, x1 - x0, ACCENT);
+    l.panel("ffa_rule", (x0, y0 + text_height(s * 2) + 2 * s, x1, y0 + text_height(s * 2) + 2 * s + s.max(1)), Some(card), Some(ACCENT), None);
+    let gap = 10 * s;
+    let colw = (x1 - x0 - gap) / 2;
+    let row_h = text_height(s) + 4 * s;
+    for (k, e) in all.iter().take(12).enumerate() {
+        let (col, row) = (k as i32 / 6, k as i32 % 6);
+        let cx0 = x0 + col * (colw + gap);
+        let y = y0 + text_height(s * 2) + 7 * s + row * row_h;
+        let mut name = format!("{}  {}", k + 1, upper(&e.name));
+        if e.id == v.me {
+            name = format!("> {name}");
+        }
+        l.label_left(&format!("ffa_n{k}"), Some(card), cx0, y, &name, s, colw * 72 / 100, if e.id == v.me { [255, 226, 160, 255] } else { TEXT });
+        l.label_right(&format!("ffa_s{k}"), Some(card), cx0 + colw, y, &e.score.to_string(), s, colw * 24 / 100, TEXT);
+    }
+}
+
 /// The Tab scoreboard: two tables over a dim wash.
 pub fn scoreboard_layout(w: u32, h: u32, v: &BoardView) -> Layout {
     let mut l = Layout::new(w, h);
@@ -714,6 +958,10 @@ pub fn scoreboard_layout(w: u32, h: u32, v: &BoardView) -> Layout {
     let card = l.panel("card", (x0, y0, x0 + cw, y0 + ch), None, Some([8, 10, 12, 215]), Some((EDGE, 1)));
     let gap = 12 * s;
     let colw = (cw - 20 * s - gap) / 2;
+    if v.mode == 1 {
+        ffa_table(&mut l, card, (x0 + 10 * s, y0 + 8 * s, x0 + cw - 10 * s, y0 + ch), v, s);
+        return l;
+    }
     for team in 1..=2u8 {
         let tx0 = x0 + 10 * s + (team as i32 - 1) * (colw + gap);
         team_table(&mut l, card, team, (tx0, y0 + 8 * s, tx0 + colw, y0 + ch), v, s);
@@ -750,12 +998,23 @@ pub fn results_layout(w: u32, h: u32, v: &BoardView, hover: Option<&str>) -> Lay
     let (x0, y0) = ((wi - cw) / 2, ((hi - ch) / 2).max(4));
     let card = l.panel("card", (x0, y0, x0 + cw, y0 + ch), None, Some(PANEL), Some((EDGE, 1.max(s / 2))));
     let cx = x0 + cw / 2;
-    let (banner, color) = match v.winner_team {
-        1 | 2 => (format!("{} WINS", upper(TEAM_NAMES[v.winner_team as usize - 1])), team_color(v.winner_team)),
+    let ffa_winner = (v.mode == 1).then(|| v.roster.iter().find(|e| e.id == v.winner)).flatten();
+    let (banner, color) = match (v.mode, v.winner_team) {
+        (1, _) => match ffa_winner {
+            Some(e) => (format!("{} WINS", upper(&e.name)), ACCENT),
+            None => ("DRAW".to_string(), TEXT),
+        },
+        (_, 1 | 2) => (format!("{} WINS", upper(TEAM_NAMES[v.winner_team as usize - 1])), team_color(v.winner_team)),
         _ => ("DRAW".to_string(), TEXT),
     };
     l.label_fit("banner", Some(card), cx, y0 + 8 * s, &banner, s * 4, cw - 12 * s, color);
-    let verdict = if v.winner_team == 0 {
+    let verdict = if v.mode == 1 {
+        match ffa_winner {
+            Some(e) if e.id == v.me => "VICTORY",
+            Some(_) => "DEFEAT",
+            None => "NOBODY WINS",
+        }
+    } else if v.winner_team == 0 {
         "NOBODY WINS"
     } else if v.winner_team == v.team {
         "VICTORY"
@@ -769,7 +1028,11 @@ pub fn results_layout(w: u32, h: u32, v: &BoardView, hover: Option<&str>) -> Lay
         Some(card),
         cx,
         y0 + 8 * s + text_height(s * 4) + 4 * s,
-        &format!("{} - {}   {}   {}", v.team_score[0], v.team_score[1], verdict, upper(&v.reason)),
+        &if v.mode == 1 {
+            format!("{}   {}", verdict, upper(&v.reason))
+        } else {
+            format!("{} - {}   {}   {}", v.team_score[0], v.team_score[1], verdict, upper(&v.reason))
+        },
         s * 2,
         cw - 12 * s,
         DIM,
@@ -777,7 +1040,10 @@ pub fn results_layout(w: u32, h: u32, v: &BoardView, hover: Option<&str>) -> Lay
     let gap = 12 * s;
     let colw = (cw - 20 * s - gap) / 2;
     let top = y0 + 8 * s + text_height(s * 4) + 4 * s + text_height(s * 2) + 10 * s;
-    for team in 1..=2u8 {
+    if v.mode == 1 {
+        ffa_table(&mut l, card, (x0 + 10 * s, top, x0 + cw - 10 * s, y0 + ch), v, s);
+    }
+    for team in (1..=2u8).filter(|_| v.mode != 1) {
         let tx0 = x0 + 10 * s + (team as i32 - 1) * (colw + gap);
         team_table(&mut l, card, team, (tx0, top, tx0 + colw, y0 + ch), v, s);
     }
@@ -940,6 +1206,8 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
         ready: false,
         waiting_for: 1,
         over: true,
+        mode: 0,
+        winner: 255,
     };
     let hud = HudView {
         hp: 100,
@@ -954,15 +1222,34 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
         kill_limit: 50,
         center: None,
         prompt: None,
+        ..Default::default()
     };
     Some(match name {
         "home" => home_layout(w, h, None, "v1"),
-        "solo" => setup_layout(w, h, "solo", &Setup { name: "Kev".into(), ..Default::default() }, Some("Bots fill both teams to six a side."), None),
+        "solo" => setup_layout(
+            w,
+            h,
+            "solo",
+            &Setup { name: "Kev".into(), maps: vec!["Works".into(), "Quarry".into(), "Depot".into()], ..Default::default() },
+            Some("Pick a mode and a size. Bots are optional."),
+            None,
+        ),
         "host" => setup_layout(
             w,
             h,
             "host",
-            &Setup { bots: true, skill: 2, kill_limit: 75, minutes: 15, name: "Kev".into(), typing: true },
+            &Setup {
+                bots: true,
+                skill: 2,
+                mode: 2,
+                size: 3,
+                kill_limit: 5,
+                minutes: 15,
+                name: "Kev".into(),
+                typing: true,
+                maps: vec!["Works".into(), "Quarry".into(), "Depot".into()],
+                map: 1,
+            },
             Some("Friends join at 203.0.113.9:27015 once the match starts."),
             Some("start"),
         ),
@@ -1005,11 +1292,98 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
                 message: None,
                 hosting: true,
                 map: "foundry".into(),
+                mode: 0,
+                team_size: 6,
+                look: 1,
             },
             None,
         ),
+        "lobby-ffa" => lobby_layout(
+            w,
+            h,
+            &LobbyView {
+                roster: demo_roster().into_iter().map(|e| RosterEntry { team: 0, ..e }).collect(),
+                me: 0,
+                kill_limit: 20,
+                time_limit_secs: 600,
+                hosting: true,
+                mode: 1,
+                team_size: 6,
+                ..Default::default()
+            },
+            None,
+        ),
+        "lobby-duel" => lobby_layout(
+            w,
+            h,
+            &LobbyView {
+                roster: demo_roster().into_iter().take(2).collect(),
+                me: 0,
+                kill_limit: 25,
+                time_limit_secs: 300,
+                hosting: true,
+                mode: 0,
+                team_size: 1,
+                ..Default::default()
+            },
+            None,
+        ),
+        "results-ffa" => results_layout(
+            w,
+            h,
+            &BoardView {
+                mode: 1,
+                winner: 2,
+                winner_team: 0,
+                team: 0,
+                reason: "kill limit".into(),
+                roster: demo_roster().into_iter().map(|e| RosterEntry { team: 0, ..e }).collect(),
+                ..board
+            },
+            Some("again"),
+        ),
         "countdown" => hud_layout(w, h, &HudView { center: Some("3".into()), ..hud }),
         "hud" => hud_layout(w, h, &hud),
+        "hud-ffa" => hud_layout(w, h, &HudView { mode: 1, ffa: Some((11, 14)), kill_limit: 20, ..hud }),
+        "hud-ctf" => hud_layout(
+            w,
+            h,
+            &HudView {
+                mode: 2,
+                team_score: [1, 0],
+                kill_limit: 3,
+                objective: Some(ObjectiveHud {
+                    line: "YOUR FLAG HOME   ENEMY FLAG TAKEN".into(),
+                    sub: "YOU HAVE THE FLAG - BRING IT HOME".into(),
+                    sub_color: super::objective::CALL,
+                    bar: None,
+                }),
+                banner: Some(("YOU TOOK THE FLAG".into(), super::objective::GOOD)),
+                markers: vec![
+                    Marker { x: w as f32 * 0.22, y: h as f32 * 0.46, label: "YOUR FLAG  48M".into(), color: RIDGEBACK },
+                    Marker { x: w as f32 * 0.78, y: h as f32 * 0.58, label: "ENEMY BASE  61M".into(), color: NIGHTFALL },
+                ],
+                ..hud
+            },
+        ),
+        "hud-snd" => hud_layout(
+            w,
+            h,
+            &HudView {
+                mode: 3,
+                team_score: [2, 1],
+                kill_limit: 4,
+                objective: Some(ObjectiveHud {
+                    line: "ROUND 4   ATTACKING   3 V 2".into(),
+                    sub: "BOMB PLANTED AT A   0:31   DEFEND IT".into(),
+                    sub_color: super::objective::GOOD,
+                    bar: Some(("DEFUSING".into(), 0.4)),
+                }),
+                banner: Some(("BOMB PLANTED - DEFEND IT".into(), super::objective::GOOD)),
+                markers: vec![Marker { x: w as f32 * 0.55, y: h as f32 * 0.5, label: "BOMB  0:31".into(), color: super::objective::BAD }],
+                ..hud
+            },
+        ),
         "hud-low" => hud_layout(w, h, &HudView { hp: 18, loaded: Some(0), reserve: 34, reloading: true, prompt: Some("Redline rifle".into()), ..hud }),
         "killcam" => killcam_layout(
             w,
@@ -1077,13 +1451,28 @@ mod tests {
         let o = Setup::default();
         assert!(!o.bots, "a game holds only the people who joined unless bots are asked for");
         let l = setup_layout(1280, 720, "solo", &o, None, None);
-        for id in ["bots_off", "bots_on", "skill_0", "skill_2", "kills_25", "kills_0", "time_5", "time_0", "name", "start", "back"] {
+        for id in ["bots_off", "skill_0", "skill_2", "mode_0", "mode_3", "size_1", "size_6", "kills_25", "kills_0", "time_5", "time_0", "name", "start", "back"]
+        {
             assert!(l.rect_of(id).is_some(), "{id}");
             assert!(setup_action(id).is_some(), "{id}");
         }
+        assert_eq!(setup_action("map_2"), Some(SetupAction::Map(2)));
+        // With several maps installed there is a MAP row; with one there is none.
+        let three =
+            setup_layout(1280, 720, "solo", &Setup { maps: vec!["Works".into(), "Quarry".into(), "Depot".into()], map: 1, ..Default::default() }, None, None);
+        assert!(three.rect_of("map_0").is_some() && three.rect_of("map_2").is_some());
+        assert!(setup_layout(1280, 720, "solo", &Setup { maps: vec!["Works".into()], ..Default::default() }, None, None).rect_of("map_0").is_none());
+        assert_eq!(setup_action("mode_2"), Some(SetupAction::Mode(2)));
+        assert_eq!(setup_action("mode_9"), None);
+        assert_eq!(setup_action("size_1"), Some(SetupAction::Size(1)));
+        // Each mode's own limits are on offer: captures for capture the flag, rounds for search and destroy.
+        for (mode, limit) in [(2u8, 5u16), (3, 6), (1, 30)] {
+            let l = setup_layout(1280, 720, "solo", &Setup { mode, kill_limit: limit, ..Default::default() }, None, None);
+            assert!(l.rect_of(&format!("kills_{limit}")).is_some(), "mode {mode} offers {limit}");
+        }
         assert_eq!(setup_action("kills_75"), Some(SetupAction::Kills(75)));
         assert_eq!(setup_action("time_0"), Some(SetupAction::Minutes(0)));
-        assert_eq!(setup_action("bots_on"), Some(SetupAction::Bots(true)));
+        assert_eq!(setup_action("bots_on"), Some(SetupAction::Bots(true)), "the id still parses even though the screen has no such button");
     }
 
     #[test]

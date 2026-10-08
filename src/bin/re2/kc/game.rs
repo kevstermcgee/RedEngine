@@ -155,6 +155,13 @@ pub struct Game {
     streak: u32,
     last_attack_weapon: Weapon,
     counted_round: Option<u16>,
+    // objective modes
+    /// The newest objective event already turned into a banner.
+    obj_seen: u16,
+    /// The banner on screen: its text, colour and seconds left.
+    banner: Option<(String, [u8; 4], f32)>,
+    /// Seconds until the planted bomb's next tick sound.
+    bomb_beep: f32,
     // screens
     /// The HUD / lobby overlay was painted for this content.
     pub painted: Option<u64>,
@@ -251,6 +258,9 @@ impl Game {
             streak: 0,
             last_attack_weapon: Weapon::Pistol,
             counted_round: None,
+            obj_seen: 0,
+            banner: None,
+            bomb_beep: 0.0,
             painted: None,
             hosting,
             join_codes: Vec::new(),
@@ -346,6 +356,9 @@ impl Game {
             message: self.notice.clone(),
             hosting: self.hosting,
             map: String::new(),
+            mode: st.map_or(0, |s| s.mode),
+            team_size: st.map_or(6, |s| s.team_size),
+            look: self.net.client.my_character().min(3),
         }
     }
 
@@ -371,11 +384,13 @@ impl Game {
             ready: self.net.client.is_ready(),
             waiting_for: waiting,
             over,
+            mode: st.map_or(0, |s| s.mode),
+            winner: st.map_or(255, |s| s.winner),
         }
     }
 
     /// The HUD's content.
-    pub fn hud_view(&self) -> ui::HudView {
+    pub fn hud_view(&self, w: u32, h: u32) -> ui::HudView {
         let st = self.net.client.status();
         let kit = self.own_kit();
         let mut view = ui::HudView {
@@ -411,7 +426,135 @@ impl Game {
             view.center = Some(if secs > 0 { secs.to_string() } else { "GO".to_string() });
         }
         view.prompt = self.pickup_prompt();
+        view.mode = st.map_or(0, |s| s.mode);
+        self.fill_mode_hud(&mut view, w, h);
         view
+    }
+
+    /// Players still alive on each team (index = team - 1): the interpolated view tells who has fallen; a player we cannot see counts as alive.
+    fn alive_counts(&self) -> [u8; 2] {
+        let me = self.net.client.my_id();
+        let view = self.net.client.view(Instant::now());
+        let mut alive = [0u8; 2];
+        for e in self.roster().iter().filter(|e| e.flags & ROSTER_IN_ROUND != 0 && (1..=2).contains(&e.team)) {
+            let dead = if Some(e.id) == me { self.own_dead() } else { view.players.iter().any(|(id, p)| *id == e.id && p.dead) };
+            if !dead {
+                alive[(e.team - 1) as usize] += 1;
+            }
+        }
+        alive
+    }
+
+    /// What the mode adds to the HUD: free-for-all scores, the objective lines, the event banner and the markers over flags, the bomb and the sites.
+    fn fill_mode_hud(&self, view: &mut ui::HudView, w: u32, h: u32) {
+        use red_engine2::ui::objective::{objective_hud, Marker, ObjectiveInput, BAD, CALL, GOOD};
+        let roster = self.roster();
+        let me = self.net.client.my_id().unwrap_or(255);
+        if view.mode == 1 {
+            let mine = roster.iter().find(|e| e.id == me).map_or(0, |e| e.score);
+            view.ffa = Some((mine, roster.iter().map(|e| e.score).max().unwrap_or(0)));
+            view.team_score = [0, 0];
+        }
+        if let Some((text, color, _)) = &self.banner {
+            view.banner = Some((text.clone(), *color));
+        }
+        let Some(obj) = self.arena().map(|a| &a.obj).filter(|o| o.kind != 0) else { return };
+        let sites: Vec<char> = self.scene.shooter.as_ref().map(|c| c.objective.sites.iter().map(|s| s.name).collect()).unwrap_or_default();
+        let alive = self.alive_counts();
+        view.objective = objective_hud(&ObjectiveInput { mode: view.mode, my_team: view.team, me, obj, alive, sites: &sites });
+        // Markers: only while we can act (alive, in the round).
+        if self.own_dead() || self.stage() != Stage::Playing || self.killcam.is_some() {
+            return;
+        }
+        let cam = self.camera.view();
+        let eye = self.camera.position;
+        let put = |p: Vec3, label: String, color: [u8; 4], view: &mut ui::HudView| {
+            if let Some((x, y)) = cam.world_to_screen(p, w, h) {
+                let d = (p - eye).length().round() as u32;
+                view.markers.push(Marker { x, y, label: format!("{label}  {d}M"), color });
+            }
+        };
+        if obj.kind == 1 {
+            for (i, f) in obj.flags.iter().enumerate() {
+                let team = i as u8 + 1;
+                let own = team == view.team;
+                let (label, color) = match (own, f.state) {
+                    (_, 1) => (if own { "CARRIED" } else { "CARRIER" }.to_string(), if own { BAD } else { GOOD }),
+                    (true, _) => ("YOUR FLAG".to_string(), ui::team_color(team)),
+                    (false, _) => ("ENEMY FLAG".to_string(), ui::team_color(team)),
+                };
+                put(Vec3::from(f.pos) + Vec3::Y * (red_engine2::objective_world::POLE_H + 0.8), label, color, view);
+            }
+        } else if obj.kind == 2 {
+            let s = obj.snd;
+            if s.bomb < 2 && s.phase != 2 {
+                for (i, site) in self.scene.shooter.iter().flat_map(|c| c.objective.sites.iter()).enumerate() {
+                    put(site.at + Vec3::Y * 3.0, format!("SITE {}", sites.get(i).copied().unwrap_or('A')), CALL, view);
+                }
+            }
+            match s.bomb {
+                1 => put(Vec3::from(s.pos) + Vec3::Y * 0.8, "BOMB".to_string(), CALL, view),
+                2 => {
+                    put(Vec3::from(s.pos) + Vec3::Y * 0.8, format!("BOMB {}:{:02}", s.fuse_ticks.div_ceil(60) / 60, s.fuse_ticks.div_ceil(60) % 60), BAD, view)
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Turns each new objective event into a banner (and keeps the banner's clock).
+    fn objective_events(&mut self, dt: f32, env: &mut Env) {
+        use red_engine2::ui::objective::{event_banner, BAD, GOOD};
+        if let Some((_, _, left)) = self.banner.as_mut() {
+            *left -= dt;
+        }
+        if self.banner.as_ref().is_some_and(|b| b.2 <= 0.0) {
+            self.banner = None;
+        }
+        let events: Vec<_> = self.arena().map(|a| a.obj.events.clone()).unwrap_or_default();
+        let my_team = self.roster().iter().find(|e| Some(e.id) == self.net.client.my_id()).map_or(0, |e| e.team);
+        let me = self.net.client.my_id().unwrap_or(255);
+        if events.last().is_some_and(|e| e.id < self.obj_seen) {
+            self.obj_seen = 0; // a new round's world numbers its events afresh
+        }
+        let seen = self.obj_seen;
+        for e in events.into_iter().filter(|e| e.id > seen) {
+            self.obj_seen = e.id;
+            if let Some((text, color)) = event_banner(e.kind, e.team, e.slot, my_team, me) {
+                // Good news chimes, bad news sounds the alarm, a round's end is the win or the loss jingle.
+                let cue = if e.kind == red_engine2::sim::objective::ev::ROUND_WON {
+                    Some(if e.team == my_team { Cue::Victory } else { Cue::Defeat })
+                } else if color == GOOD {
+                    Some(Cue::Go)
+                } else if color == BAD {
+                    Some(Cue::Alert)
+                } else {
+                    None
+                };
+                self.banner = Some((text, color, 3.2));
+                if let Some(cue) = cue {
+                    self.play_cue(&cue, env);
+                }
+            }
+        }
+        // A planted bomb ticks once a second, faster as the fuse runs down: the last ten seconds are a countdown.
+        let fuse = self.arena().map(|a| &a.obj).filter(|o| o.kind == 2 && o.snd.bomb == 2).map(|o| o.snd.fuse_ticks as f32 / 60.0);
+        match fuse {
+            Some(left) => {
+                self.bomb_beep -= dt;
+                if self.bomb_beep <= 0.0 {
+                    self.bomb_beep = if left > 10.0 {
+                        1.0
+                    } else if left > 5.0 {
+                        0.5
+                    } else {
+                        0.25
+                    };
+                    self.play_cue(&Cue::Beep, env);
+                }
+            }
+            None => self.bomb_beep = 0.0,
+        }
     }
 
     /// The killcam's caption (`None` when not showing one).
@@ -580,6 +723,7 @@ impl Game {
             None => Vec::new(),
         };
         self.streaks.update(&mut self.scene, dt);
+        self.objective_events(dt, env);
         self.audio_frame(dt, &fresh, env);
         self.feel.tick(dt);
         let cues = self.feel.take_cues();

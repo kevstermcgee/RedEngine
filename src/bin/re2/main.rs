@@ -993,6 +993,12 @@ fn main() {
             | Character::Robot
             | Character::Ridgeback
             | Character::Nightfall
+            | Character::RidgebackScout
+            | Character::RidgebackHeavy
+            | Character::RidgebackGhost
+            | Character::NightfallScout
+            | Character::NightfallHeavy
+            | Character::NightfallGhost
             | Character::Hollow,
         ) => {
             println!("Left-click / right trigger uses the equipped weapon.")

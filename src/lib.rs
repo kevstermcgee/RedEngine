@@ -50,6 +50,8 @@ pub mod net;
 #[cfg(feature = "render")]
 pub mod object_staging;
 #[cfg(feature = "render")]
+pub mod objective_world;
+#[cfg(feature = "render")]
 pub mod ocean_pass;
 #[cfg(feature = "render")]
 pub mod overlay;

@@ -146,6 +146,12 @@ impl Nav {
     }
 
     /// The node closest to `pos` among those within `max_dy` metres of its height (horizontal distance, a floor apart counting triple).
+    /// The node at `index`.
+    pub fn node(&self, index: usize) -> &NavNode {
+        &self.nodes[index]
+    }
+
+    /// The node closest to `pos` (within `max_dy` of its height): the way onto the graph from anywhere.
     pub fn nearest(&self, pos: Vec3, max_dy: f32) -> Option<usize> {
         self.nodes
             .iter()

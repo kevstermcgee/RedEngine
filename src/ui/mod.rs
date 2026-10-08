@@ -15,6 +15,7 @@
 
 pub mod game;
 pub mod killchain;
+pub mod objective;
 pub mod online;
 pub mod race;
 pub mod rules;
