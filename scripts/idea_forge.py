@@ -1445,6 +1445,30 @@ def cmd_improve(a):
         sys.exit(0 if status in ("shipped", "nothing", "no-change", "pending", "done") else 1)
 
 
+def refresh_checkout(root=None):
+    """Bring the checkout this tool runs from up to date with `origin/main` before the night, so the tool and the engine that run are the ones that were merged yesterday.
+    Only a dedicated checkout is touched: clean, on a branch whose upstream is origin/main, fast-forward only. Anything else is left alone and said so. Returns a one-line report."""
+    root = root or ROOT
+
+    def g(*args):
+        p = subprocess.run(["git", "-C", root] + list(args), capture_output=True, text=True)
+        return p.returncode, (p.stdout + p.stderr).strip()
+
+    if g("status", "--porcelain")[1]:
+        return "not updated: the checkout has uncommitted changes"
+    rc, branch = g("rev-parse", "--abbrev-ref", "HEAD")
+    if rc or branch == "HEAD":
+        return "not updated: detached HEAD"
+    rc, upstream = g("rev-parse", "--abbrev-ref", "@{upstream}")
+    if rc or upstream != "origin/main":
+        return f"not updated: `{branch}` does not track origin/main (a dedicated checkout should: `git branch -u origin/main`)"
+    rc, out = g("fetch", "-q", "origin", "main")
+    if rc:
+        return "not updated: fetch failed: " + out[:120]
+    rc, out = g("merge", "--ff-only", "-q", "origin/main")
+    return "updated to origin/main" if not rc else "not updated: cannot fast-forward: " + out[:120]
+
+
 def cmd_nightly(a):
     """The whole night, under one lock and strictly one agent at a time: today's games (feedback always delivered), then one engine improvement from the backlog they fed."""
     date = a.date or datetime.date.today().isoformat()
@@ -1458,7 +1482,7 @@ def cmd_nightly(a):
             if a.no_merge:
                 os.environ["IDEA_FORGE_AUTO_MERGE"] = "0"
             settle(0)   # yesterday's PRs whose checks have finished: merged before today's worktrees are cut from main
-            subprocess.run(["git", "-C", ROOT, "fetch", "-q", "origin", "main"], capture_output=True, text=True)
+            print("checkout: " + refresh_checkout())
         failed = 0
         if not a.skip_games:
             ns = argparse.Namespace(**vars(a))
