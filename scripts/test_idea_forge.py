@@ -450,7 +450,17 @@ class E2EBase(unittest.TestCase):
         git(seed, "push", "-q", "-u", "origin", "main")
         self.removed = []
         self.engine = sh(os.path.join(self.base, "red_engine2"), "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = verify ] && echo '9 passed, 0 failed in 0.1 s'; done\nexit 0\n")
-        sh(os.path.join(self.base, "gh"), "#!/bin/sh\nif [ \"$1 $2\" = \"pr view\" ]; then echo ${IDEA_FORGE_STUB_PR_STATE:-OPEN}; else echo https://example.test/pull/$$; fi\n")
+        self.gh_dir = os.path.join(self.base, "gh_state")
+        os.makedirs(self.gh_dir)
+        sh(os.path.join(self.base, "gh"), """#!/bin/sh
+if [ "$1 $2" = "pr view" ]; then
+  f="$GH_STUB_DIR/$(basename "$3").json"
+  if [ -f "$f" ]; then cat "$f"; else echo "{\\"state\\": \\"${IDEA_FORGE_STUB_PR_STATE:-OPEN}\\", \\"mergeable\\": \\"MERGEABLE\\", \\"statusCheckRollup\\": [], \\"files\\": []}"; fi
+elif [ "$1 $2" = "pr merge" ]; then
+  if [ -f "$GH_STUB_DIR/merge_fails" ]; then echo "merge refused" >&2; exit 1; fi
+  echo "$3" >> "$GH_STUB_DIR/merged.log"
+else echo https://example.test/pull/$$; fi
+""")
         game2 = {"game2d": 1, "description": "A tiny game that proves the plumbing end to end.", "persist": ["b"], "sounds": {"a": {}}, "checks": {"scenarios": [{"smoke": True}, {}, {}]}}
         game3 = {"rules": [{"id": "r"}], "ui": {"c": 1}, "audio": {"a": 1}, "checks": {"sim": [{"name": "a"}, {"name": "b"}]}}
         stub = f"""#!{sys.executable}
@@ -516,6 +526,8 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.25, "duration_ms": 6000
         self.claude = sh(os.path.join(self.base, "claude"), stub)
         env = {"RED_ENGINE_EXE": self.engine, "PATH": self.base + os.pathsep + os.environ["PATH"], "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
         env["IDEA_FORGE_GATES"] = '[["true"]]'
+        env["GH_STUB_DIR"] = self.gh_dir
+        env["IDEA_FORGE_AUTO_MERGE"] = "1"
         self.log = os.path.join(self.base, "stub.log")
         env["IDEA_FORGE_STUB_LOG"] = self.log
         self.saved = {k: os.environ.get(k) for k in list(env) + ["IDEA_FORGE_STUB_FAIL", "IDEA_FORGE_STUB_FIX"]}
@@ -560,7 +572,7 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.25, "duration_ms": 6000
         return json.loads(rd(os.path.join(self.home, "state.json")))["days"]["2026-10-09"]
 
     def state(self):
-        return json.loads(rd(os.path.join(self.home, "state.json")))
+        return idea_forge.load_state()
 
     def seed_feedback(self, rows, name="2026-10-08-2d-seed"):
         """A run's feedback in the local store, as `ship` leaves it: findings with keys."""
@@ -738,6 +750,184 @@ class NightlyEndToEnd(E2EBase):
         self.assertEqual(self.nightly("--dry-run"), 0)
         self.assertFalse(os.path.exists(self.log))
         self.assertIn("2026-10-09", self.state()["days"])
+
+
+def check(name, conclusion="SUCCESS", status="COMPLETED"):
+    return {"name": name, "status": status, "conclusion": conclusion}
+
+
+GREEN = [check("full build (ubuntu-24.04)"), check("rustfmt"), check("container image", "SKIPPED")]
+
+
+@NEEDS_SH
+class Settle(E2EBase):
+    """The merge policy: the tool merges ONLY its own PRs, ONLY after every check has passed, and re-checks what the PR changes from GitHub's own file list."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(idea_forge, "SETTLE_POLL_SEC", 0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def url(self, n):
+        return f"https://example.test/pull/{n}"
+
+    def gh_pr(self, n, state="OPEN", mergeable="MERGEABLE", checks=GREEN, files=()):
+        wr(os.path.join(self.gh_dir, f"{n}.json"), json.dumps({"state": state, "mergeable": mergeable, "statusCheckRollup": list(checks), "files": [{"path": f} for f in files]}))
+
+    def track_game(self, n, slug="x", kind="2d", feedback_only=False, **extra):
+        st = self.state()
+        st["runs"].append(dict({"code": n, "slug": slug, "kind": kind, "date": "2026-10-09", "status": "shipped", "pr": self.url(n), "feedback_only": feedback_only}, **extra))
+        wr(os.path.join(self.home, "state.json"), json.dumps(st))
+
+    def track_fix(self, n, key="a-problem"):
+        st = self.state()
+        st.setdefault("improvements", {})[key] = {"pr": self.url(n), "status": "open", "branch": "b", "date": "2026-10-09"}
+        wr(os.path.join(self.home, "state.json"), json.dumps(st))
+
+    def merged(self):
+        p = os.path.join(self.gh_dir, "merged.log")
+        return rd(p).split() if os.path.exists(p) else []
+
+    def game_files(self, slug="x", kind="2d"):
+        game = f"examples/2d/{slug}.game2d.json" if kind == "2d" else f"examples/3d/{slug}/{slug}.json"
+        return [game, f"docs/analysis/idea-forge/2026-10-09-{kind}-{slug}.md"]
+
+    def test_a_pr_whose_checks_all_passed_is_merged_and_recorded(self):
+        self.track_game(1)
+        self.gh_pr(1, files=self.game_files())
+        res = idea_forge.settle(0)
+        self.assertEqual([r[1] for r in res], ["merged"])
+        self.assertEqual(self.merged(), [self.url(1)])
+        self.assertEqual(self.state()["runs"][0]["merge"], "merged")
+        self.assertEqual(idea_forge.settle(0), [], "a merged PR is not looked at again")
+
+    def test_a_3d_game_may_change_its_whole_folder_and_a_feedback_only_pr_only_the_feedback(self):
+        self.track_game(2, "y", "3d")
+        self.gh_pr(2, files=["examples/3d/y/y.json", "examples/3d/y/audio/score.json", "docs/analysis/idea-forge/2026-10-09-3d-y.md"])
+        self.track_game(3, "z", "2d", feedback_only=True)
+        self.gh_pr(3, files=self.game_files("z"))
+        verdicts = {r[0]["url"]: r[1] for r in idea_forge.settle(0)}
+        self.assertEqual(verdicts, {self.url(2): "merged", self.url(3): "refused"}, "a feedback-only PR that carries a game is not merged")
+
+    def test_a_failed_pending_or_missing_check_is_never_merged(self):
+        for n, checks, want in ((10, GREEN + [check("full build (windows-latest)", "FAILURE")], "ci-failed"), (11, GREEN + [check("windows", None, "IN_PROGRESS")], "pending"),
+                                (12, [], "pending"), (13, [check("only skipped", "SKIPPED")], "pending"), (14, GREEN + [check("x", "CANCELLED")], "ci-failed")):
+            self.track_game(n)
+            self.gh_pr(n, checks=checks, files=self.game_files())
+            self.assertEqual(idea_forge.settle_one({"url": self.url(n), "type": "game", "slug": "x", "kind": "2d", "feedback_only": False})[0], want, n)
+        self.assertEqual(self.merged(), [])
+        recorded = {r["code"]: r.get("merge") for r in self.state()["runs"]}
+        self.assertEqual((recorded[10], recorded[14], recorded[11]), ("ci-failed", "ci-failed", None))
+
+    def test_a_status_context_is_judged_like_a_check_run(self):
+        self.assertEqual(idea_forge.checks_verdict([{"state": "SUCCESS"}]), "passed")
+        self.assertEqual(idea_forge.checks_verdict([{"state": "PENDING"}]), "pending")
+        self.assertEqual(idea_forge.checks_verdict([{"state": "FAILURE"}, {"state": "SUCCESS"}]), "failed")
+
+    def test_a_conflict_or_an_unknown_mergeability_is_not_merged(self):
+        self.track_game(20)
+        self.gh_pr(20, mergeable="CONFLICTING", files=self.game_files())
+        self.track_game(21)
+        self.gh_pr(21, mergeable="UNKNOWN", files=self.game_files())
+        verdicts = {r[0]["url"]: r[1] for r in idea_forge.settle(0)}
+        self.assertEqual(verdicts, {self.url(20): "conflict", self.url(21): "pending"})
+        self.assertEqual(self.merged(), [])
+
+    def test_a_pr_that_changes_anything_off_limits_is_refused_whatever_its_checks_say(self):
+        self.track_game(30)
+        self.gh_pr(30, files=self.game_files() + ["src/lib.rs"])
+        self.track_fix(31, "k1")
+        self.gh_pr(31, files=["src/lib.rs", "tests/t.rs", ".github/workflows/ci.yml"])
+        self.track_fix(32, "k2")
+        self.gh_pr(32, files=["Cargo.toml", "src/lib.rs"])
+        verdicts = {r[0]["url"]: r[1] for r in idea_forge.settle(0)}
+        self.assertEqual(set(verdicts.values()), {"refused"})
+        self.assertEqual(self.merged(), [])
+
+    def test_a_tested_engine_fix_pr_is_merged_and_its_key_becomes_merged(self):
+        self.track_fix(40)
+        self.gh_pr(40, files=["src/lib.rs", "tests/fix_a_problem.rs", "docs/analysis/idea-forge/fixes.json", "scripts/launchpad.py"])
+        self.assertEqual([r[1] for r in idea_forge.settle(0)], ["merged"])
+        self.assertEqual(self.state()["improvements"]["a-problem"]["status"], "merged")
+
+    def test_settle_waits_for_running_checks_then_merges(self):
+        self.track_game(50)
+        self.gh_pr(50, checks=GREEN + [check("windows", None, "IN_PROGRESS")], files=self.game_files())
+        calls = []
+
+        def finish(_secs):
+            calls.append(1)
+            self.gh_pr(50, files=self.game_files())
+
+        with mock.patch.object(idea_forge.time, "sleep", finish):
+            res = idea_forge.settle(5)
+        self.assertEqual([r[1] for r in res], ["merged"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(idea_forge.settle(0), [])
+
+    def test_settle_gives_up_waiting_at_the_deadline_and_keeps_the_pr_tracked(self):
+        self.track_game(51)
+        self.gh_pr(51, checks=[check("windows", None, "IN_PROGRESS")], files=self.game_files())
+        with mock.patch.object(idea_forge.time, "sleep", lambda _s: None):
+            res = idea_forge.settle(0)
+        self.assertEqual([r[1] for r in res], ["pending"])
+        self.assertEqual([pr["url"] for pr in idea_forge.tracked_prs()], [self.url(51)], "still tracked: the next run settles it")
+
+    def test_a_closed_or_externally_merged_pr_is_recorded_not_merged_again(self):
+        self.track_game(60)
+        self.gh_pr(60, state="MERGED", files=self.game_files())
+        self.track_fix(61)
+        self.gh_pr(61, state="CLOSED")
+        verdicts = {r[0]["url"]: r[1] for r in idea_forge.settle(0)}
+        self.assertEqual(verdicts, {self.url(60): "merged", self.url(61): "closed"})
+        self.assertEqual(self.merged(), [], "gh pr merge is not called for a PR that is not open")
+        self.assertEqual(self.state()["improvements"]["a-problem"]["status"], "closed")
+
+    def test_only_the_tools_own_prs_are_ever_touched(self):
+        self.gh_pr(70, files=self.game_files())   # an open green PR nobody tracked
+        self.assertEqual(idea_forge.settle(0), [])
+        self.assertEqual(self.merged(), [])
+
+    def test_the_off_switches_hold_every_pr(self):
+        self.track_game(80)
+        self.gh_pr(80, files=self.game_files())
+        self.assertEqual(json.loads(cli("config", "--auto-merge", "off").stdout), {"auto_merge": False})
+        self.assertEqual([r[1] for r in idea_forge.settle(0)], ["held"])
+        self.assertEqual(self.merged(), [])
+        self.assertEqual(json.loads(cli("config").stdout), {"auto_merge": False}, "persisted")
+        self.assertEqual(json.loads(cli("config", "--auto-merge", "on").stdout), {"auto_merge": True})
+        os.environ["IDEA_FORGE_AUTO_MERGE"] = "0"
+        self.assertEqual([r[1] for r in idea_forge.settle(0)], ["held"], "the environment switch wins")
+        os.environ["IDEA_FORGE_AUTO_MERGE"] = "1"
+        self.track_game(81, hold=True)
+        self.gh_pr(81, files=self.game_files())
+        self.assertEqual([r[0]["url"] for r in idea_forge.settle(0)], [self.url(80)], "a held PR is not even tracked")
+        self.assertEqual(self.merged(), [self.url(80)])
+
+    def test_a_refused_merge_is_recorded_and_not_reported_as_merged(self):
+        self.track_game(90)
+        self.gh_pr(90, files=self.game_files())
+        wr(os.path.join(self.gh_dir, "merge_fails"), "1")
+        self.assertEqual([r[1] for r in idea_forge.settle(0)], ["merge-error"])
+        self.assertEqual(self.state()["runs"][0]["merge"], "merge-error")
+
+    def test_the_night_settles_before_and_after_and_no_merge_turns_it_off_for_the_run(self):
+        calls = []
+        with mock.patch.object(idea_forge, "settle", lambda wait=0: calls.append(wait) or []):
+            try:
+                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--skip-games", "--skip-improve", "--settle-timeout-min", "7"])
+            except SystemExit:
+                pass
+        self.assertEqual(calls, [0, 7], "yesterday's finished PRs first, then tonight's after waiting")
+        os.environ.pop("IDEA_FORGE_AUTO_MERGE", None)
+        with mock.patch.object(idea_forge, "settle", lambda wait=0: []):
+            try:
+                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--skip-games", "--skip-improve", "--no-merge"])
+            except SystemExit:
+                pass
+        self.assertEqual(os.environ.get("IDEA_FORGE_AUTO_MERGE"), "0")
+        os.environ["IDEA_FORGE_AUTO_MERGE"] = "1"
 
 
 if __name__ == "__main__":

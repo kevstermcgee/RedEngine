@@ -8,12 +8,14 @@
   idea_forge.py schedule [--times 09:30,17:30] [--install]         the cron entries that run `daily --next` twice a day (printed unless --install; --uninstall removes them)
   idea_forge.py note "TEXT" --area A [--cost-min N] [--fix TEXT]   (the agent) log one snag at the moment it happens
   idea_forge.py feedback --init | --check | --finalize             (the agent, then the CLI) the feedback file: draft it from the notes, validate it, add the measurements
-  idea_forge.py ship [RUN]                                         commit ONLY the game and its feedback, push the branch, open a PR on RedEngine (never merges), then archive the run and remove its worktree
+  idea_forge.py ship [RUN] [--hold]                                commit ONLY the game and its feedback, push the branch, open a PR on RedEngine, then archive the run and remove its worktree
+  idea_forge.py settle [--wait-min N]                              merge the tool's own PRs whose CI has passed (the default; `config --auto-merge off` stops it)
   idea_forge.py ledger                                             every run so far
   idea_forge.py digest [--write]                                   the engine backlog: all feedback files, grouped and ranked
 
 Standard library only. State (the seed and the position in the walk, the ledger) is in $IDEA_FORGE_HOME, else the user's state directory, so no idea is handed out twice.
-The agent never changes engine code: a missing feature is a finding, not a patch (`ship` refuses a branch that touches anything else).
+A game agent never changes engine code: a missing feature is a finding, not a patch (`ship` refuses a branch that touches anything else). The tool merges ONLY its own PRs, and only after
+every CI check has passed (`settle`; `config --auto-merge off` or `ship --hold` stops it).
 """
 import argparse
 import datetime
@@ -927,7 +929,7 @@ def archive_run(row):
     save_state(st)
 
 
-def do_ship(r, no_push=False, keep=False, feedback_only=False):
+def do_ship(r, no_push=False, keep=False, feedback_only=False, hold=False):
     """Commit ONLY the game and its feedback (only the feedback when the game did not build), push, open the PR; returns the PR url ('' with no_push).
     Raises ShipRefused with the reason when not shippable."""
     wt, slug, kind = r["worktree"], r["slug"], r.get("kind", "2d")
@@ -954,7 +956,7 @@ def do_ship(r, no_push=False, keep=False, feedback_only=False):
     body = (f"## What\n" + ("The engine feedback of a run whose game did not build" if feedback_only else f"A {kind.upper()} game built around one mechanic") +
             f", forged by `scripts/idea_forge.py` (code `{run['idea']['code']:010d}`), and the engine feedback its development produced.\n\n"
             f"- Idea: YOU {run['idea']['you']}, BUT {run['idea']['but']}.\n" + ("" if feedback_only else f"- Game: `{game_file(kind, slug)}`\n") + f"- Feedback: `{os.path.relpath(fb, wt)}`\n\n"
-            "No engine code changed. Merge after reading the findings; the digest (`idea_forge.py digest`) ranks them with every earlier run.\n\n"
+            "No engine code changed. The nightly run merges this once CI passes (`idea_forge.py settle`; `config --auto-merge off` or `ship --hold` keeps it for a human); the backlog (`idea_forge.py backlog`) ranks its findings with every earlier run.\n\n"
             "🤖 Generated with [Claude Code](https://claude.com/claude-code)")
     p = subprocess.run(["gh", "pr", "create", "--base", "main", "--head", r["branch"], "--title", title, "--body", body], cwd=wt, capture_output=True, text=True)
     pr = p.stdout.strip().splitlines()[-1] if p.returncode == 0 and p.stdout.strip() else ""
@@ -964,6 +966,9 @@ def do_ship(r, no_push=False, keep=False, feedback_only=False):
         if x["slug"] == slug and x.get("kind", "2d") == kind:
             x["status"] = "shipped" if pr else x.get("status", "built")
             x["pr"] = pr
+            x["feedback_only"] = feedback_only
+            if hold:
+                x["hold"] = True
     save_state(st)
     if pr and r.get("owned") and not keep:
         archive_run(r)
@@ -973,7 +978,7 @@ def do_ship(r, no_push=False, keep=False, feedback_only=False):
 def cmd_ship(a):
     r = find_run(a.run)
     try:
-        do_ship(r, a.no_push, a.keep)
+        do_ship(r, a.no_push, a.keep, hold=a.hold)
     except ShipRefused as e:
         sys.exit("refusing to ship: " + str(e))
 
@@ -1128,17 +1133,167 @@ def has_regression_test(root, paths):
     return any(l.startswith("+") and "#[test]" in l for l in out.splitlines())
 
 
+SETTLE_POLL_SEC = 60   # how often `settle` asks GitHub again while checks are running (tests set it to 0)
+FAIL_CONCLUSIONS = {"FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR"}
+
+
+def auto_merge_enabled():
+    """Merging after CI is the default; `config --auto-merge off` or IDEA_FORGE_AUTO_MERGE=0 turns it off, and `ship --hold` exempts one PR."""
+    if os.environ.get("IDEA_FORGE_AUTO_MERGE", "").lower() in ("0", "off", "false", "no"):
+        return False
+    return bool(load_state().get("config", {}).get("auto_merge", True))
+
+
+def pr_status(url):
+    """GitHub's view of a PR as a dict (state, mergeable, checks, files), or None when `gh` cannot say."""
+    p = subprocess.run(["gh", "pr", "view", url, "--json", "state,mergeable,statusCheckRollup,files"], capture_output=True, text=True)
+    if p.returncode:
+        return None
+    try:
+        return json.loads(p.stdout)
+    except ValueError:
+        return None
+
+
+def checks_verdict(rollup):
+    """`passed` only when there is at least one check, every check has finished, none failed and one really passed; `failed` when any failed; otherwise `pending` (running, or no
+    check has appeared yet: no checks never means passed)."""
+    if not rollup:
+        return "pending"
+    passed = False
+    pending = False
+    for c in rollup:
+        status = (c.get("status") or "COMPLETED").upper()
+        outcome = (c.get("conclusion") or c.get("state") or "").upper()
+        if outcome in FAIL_CONCLUSIONS:
+            return "failed"
+        if status != "COMPLETED" or outcome in ("PENDING", "EXPECTED", ""):
+            pending = True
+        elif outcome == "SUCCESS":
+            passed = True
+    if pending:
+        return "pending"
+    return "passed" if passed else "pending"
+
+
+def tracked_prs():
+    """The PRs this tool opened that are not finished: only these are ever merged by `settle`, never an arbitrary PR."""
+    st = load_state()
+    seen, out = set(), []
+    for r in st["runs"]:
+        url = r.get("pr", "")
+        if url.startswith("http") and r.get("status") == "shipped" and r.get("merge") not in ("merged", "closed") and not r.get("hold") and url not in seen:
+            seen.add(url)
+            out.append({"url": url, "type": "game", "slug": r["slug"], "kind": r.get("kind", "2d"), "feedback_only": bool(r.get("feedback_only"))})
+    for key, imp in st.get("improvements", {}).items():
+        url = imp.get("pr", "")
+        if url.startswith("http") and imp.get("status") == "open" and url not in seen:
+            seen.add(url)
+            out.append({"url": url, "type": "fix"})
+    return out
+
+
+def record_pr(url, **fields):
+    st = load_state()
+    for r in st["runs"]:
+        if r.get("pr") == url:
+            r.update(fields)
+    for imp in st.get("improvements", {}).values():
+        if imp.get("pr") == url:
+            if fields.get("merge") == "merged":
+                imp["status"] = "merged"
+            elif fields.get("merge") == "closed":
+                imp["status"] = "closed"
+            imp["merge"] = fields.get("merge", imp.get("merge"))
+    save_state(st)
+
+
+def pr_paths_ok(pr, files):
+    """Re-checked from GitHub's own file list at merge time (not from what the run said it changed): a game PR touches only its game and feedback; a fix PR nothing off limits."""
+    paths = [f.get("path", "") for f in files]
+    if not paths:
+        return False
+    if pr["type"] == "fix":
+        return all(fix_path_ok(p) for p in paths)
+    return all(allowed_path(p, pr["slug"], pr["kind"]) for p in paths) and (not pr["feedback_only"] or all(p.startswith(FEEDBACK_DIR + "/") for p in paths))
+
+
+def settle_one(pr):
+    """Merge one tracked PR if, and only if, it is open, mergeable, within its path limits and every CI check has passed. Returns (verdict, detail)."""
+    url = pr["url"]
+    s_ = pr_status(url)
+    if s_ is None:
+        return "unknown", "`gh` could not read the PR"
+    state = s_.get("state", "")
+    if state == "MERGED":
+        record_pr(url, merge="merged")
+        return "merged", "already merged"
+    if state == "CLOSED":
+        record_pr(url, merge="closed")
+        return "closed", "closed without merging"
+    if not auto_merge_enabled():
+        return "held", "auto-merge is off"
+    if not pr_paths_ok(pr, s_.get("files") or []):
+        record_pr(url, merge="refused-paths")
+        return "refused", "the PR changes files outside what its kind may change: left for a human"
+    verdict = checks_verdict(s_.get("statusCheckRollup") or [])
+    if verdict == "failed":
+        record_pr(url, merge="ci-failed")
+        return "ci-failed", "a check failed: left open"
+    if verdict == "pending" or s_.get("mergeable") == "UNKNOWN":
+        return "pending", "checks are still running"
+    if s_.get("mergeable") == "CONFLICTING":
+        record_pr(url, merge="conflict")
+        return "conflict", "the PR conflicts with main: left open"
+    p = subprocess.run(["gh", "pr", "merge", url, "--merge"], capture_output=True, text=True)
+    if p.returncode:
+        record_pr(url, merge="merge-error")
+        return "merge-error", (p.stderr or p.stdout).strip()[:200]
+    record_pr(url, merge="merged")
+    return "merged", "CI passed"
+
+
+def settle(wait_min=0):
+    """Merge every tracked PR whose checks have passed; keep asking until none is pending or `wait_min` minutes have passed (0 = one look)."""
+    deadline = time.time() + wait_min * 60
+    while True:
+        results = [(pr, *settle_one(pr)) for pr in tracked_prs()]
+        for pr, verdict, detail in results:
+            if verdict != "pending":
+                print(f"settle: {verdict}: {pr['url']} ({detail})")
+        if not any(v == "pending" for _, v, _ in results) or time.time() >= deadline:
+            for pr, verdict, detail in results:
+                if verdict == "pending":
+                    print(f"settle: still pending: {pr['url']} (it stays tracked: the next run settles it)")
+            return results
+        time.sleep(SETTLE_POLL_SEC)
+
+
 def refresh_improvements():
     """Learn whether the fix PRs opened earlier were merged or closed (a merged fix is on main in fixes.json; a closed one is not retried)."""
     st = load_state()
     for key, imp in st.get("improvements", {}).items():
         if imp.get("status") != "open" or not imp.get("pr"):
             continue
-        p = subprocess.run(["gh", "pr", "view", imp["pr"], "--json", "state", "--jq", ".state"], capture_output=True, text=True)
-        state = p.stdout.strip()
-        if p.returncode == 0 and state in ("MERGED", "CLOSED"):
+        s_ = pr_status(imp["pr"])
+        state = (s_ or {}).get("state", "")
+        if state in ("MERGED", "CLOSED"):
             imp["status"] = "merged" if state == "MERGED" else "closed"
     save_state(st)
+
+
+def cmd_settle(a):
+    with Lock():
+        settle(a.wait_min)
+
+
+def cmd_config(a):
+    st = load_state()
+    if a.auto_merge:
+        st.setdefault("config", {})["auto_merge"] = a.auto_merge == "on"
+        save_state(st)
+    cfg = {"auto_merge": auto_merge_enabled()}
+    print(json.dumps(cfg))
 
 
 def improve_brief(groups, today, cli):
@@ -1259,7 +1414,7 @@ def do_improve(a):
     result = last_result_text(session)
     detail = "\n\n".join(f"### `{g['key']}` [{g['status']}] {g['title']}\n" + "\n".join(f"- {e}" for e in g["evidence"]) for g in cands if g["key"] in keys or any(f"{r}:" in " ".join(f.get('covers', [])) for f in new for r in g["runs"]))
     body = (f"## What\nAn engine fix chosen by the nightly improvement agent from the Idea Forge backlog (`scripts/idea_forge.py improve`).\n\n{detail}\n\n## The agent's summary\n{result or '(none)'}\n\n"
-            f"## Checks the CLI ran itself\n```\n{log[-3000:]}\n```\n\nMerging records the fix in `{FIXES_FILE}`; the backlog then watches for the problem coming back. Hosted CI runs on this PR.\n\n"
+            f"## Checks the CLI ran itself\n```\n{log[-3000:]}\n```\n\nHosted CI runs on this PR; the nightly run merges it once every check has passed (`idea_forge.py settle`; `config --auto-merge off` keeps it for a human). Merging records the fix in `{FIXES_FILE}`; the backlog then watches for the problem coming back.\n\n"
             "🤖 Generated with [Claude Code](https://claude.com/claude-code)")
     git(wt, "add", "-A", "--", ".")
     git(wt, "reset", "-q", "--", RUN_DIRNAME)
@@ -1300,6 +1455,9 @@ def cmd_nightly(a):
         sys.exit(f"`{a.claude}` not found: install Claude Code, or pass --claude PATH")
     with Lock():
         if not a.dry_run:
+            if a.no_merge:
+                os.environ["IDEA_FORGE_AUTO_MERGE"] = "0"
+            settle(0)   # yesterday's PRs whose checks have finished: merged before today's worktrees are cut from main
             subprocess.run(["git", "-C", ROOT, "fetch", "-q", "origin", "main"], capture_output=True, text=True)
         failed = 0
         if not a.skip_games:
@@ -1317,10 +1475,13 @@ def cmd_nightly(a):
             ns = argparse.Namespace(**vars(a))
             ns.budget, ns.timeout_min, ns.key = a.improve_budget, a.improve_timeout_min, None
             result = do_improve(ns)
+        merged = []
+        if not a.dry_run:
+            merged = [pr["url"] for pr, verdict, _ in settle(a.settle_timeout_min) if verdict == "merged"]
         st = load_state()
-        st.setdefault("nights", {})[date] = {"games_failed": failed, "improve": result[0], "detail": str(result[1])[:300], "at": round(time.time())}
+        st.setdefault("nights", {})[date] = {"games_failed": failed, "improve": result[0], "detail": str(result[1])[:300], "merged": merged, "at": round(time.time())}
         save_state(st)
-        print(f"{date}: nightly done: games failed {failed}; improvement {result[0]}")
+        print(f"{date}: nightly done: games failed {failed}; improvement {result[0]}; merged {len(merged)} PR(s)")
         sys.exit(0)
 
 
@@ -1382,7 +1543,7 @@ def cmd_ledger(a):
     if not runs:
         print("no runs yet: `idea_forge.py run`")
     for r in runs:
-        print(f"{r['date']}  {r.get('kind', '2d')}  {r['code']:010d}  {r['slug']:<28} {r.get('status', '?'):<10} {r.get('minutes', '-'):>5} min  notes {r.get('notes', '-')}  feedback {'ok' if r.get('feedback_ok') else 'no'}  {r.get('pr', '')}")
+        print(f"{r['date']}  {r.get('kind', '2d')}  {r['code']:010d}  {r['slug']:<28} {r.get('status', '?'):<10} {r.get('minutes', '-'):>5} min  notes {r.get('notes', '-')}  feedback {'ok' if r.get('feedback_ok') else 'no'}  {r.get('pr', '')} {r.get('merge', '')}")
 
 
 def collect_findings(directory):
@@ -1489,6 +1650,7 @@ def main(argv=None):
     s.add_argument("run", help="the slug, kind/slug or worktree of a run in the ledger")
     s.add_argument("--no-push", action="store_true")
     s.add_argument("--keep", action="store_true", help="keep the worktree after shipping (default: archive the run's notes and transcript, then remove it)")
+    s.add_argument("--hold", action="store_true", help="do not auto-merge this PR once CI passes: leave it for a human")
     s.set_defaults(f=cmd_ship)
 
     s = sub.add_parser("daily")
@@ -1513,7 +1675,7 @@ def main(argv=None):
         s.add_argument("--dry-run", action="store_true")
         s.add_argument("--quiet", action="store_true")
 
-    s = sub.add_parser("improve", help="one engine fix chosen from the backlog (a PR; never merged)")
+    s = sub.add_parser("improve", help="one engine fix chosen from the backlog (a PR; `settle` merges it once CI passes)")
     agent_opts(s, IMPROVE_BUDGET_USD)
     s.add_argument("--key", help="fix this backlog key instead of the best-ranked one")
     s.add_argument("--no-ship", action="store_true", help="commit on the branch, do not push or open a PR")
@@ -1529,7 +1691,17 @@ def main(argv=None):
     s.add_argument("--order", help="force today's game order, e.g. 3d,2d (default: shuffled once per day)")
     s.add_argument("--skip-games", action="store_true")
     s.add_argument("--skip-improve", action="store_true")
+    s.add_argument("--settle-timeout-min", type=int, default=120, help="how long to wait at the end for tonight's PRs' checks, then merge those that passed (the next run settles the rest)")
+    s.add_argument("--no-merge", action="store_true", help="open the PRs but do not merge any, this run")
     s.set_defaults(f=cmd_nightly, no_story=False, workdir=None)
+
+    s = sub.add_parser("settle", help="merge the tool's own PRs whose CI has passed")
+    s.add_argument("--wait-min", type=int, default=0, help="keep waiting up to this long for running checks")
+    s.set_defaults(f=cmd_settle)
+
+    s = sub.add_parser("config", help="show or change settings")
+    s.add_argument("--auto-merge", choices=("on", "off"), help="merge the tool's PRs once CI passes (default on)")
+    s.set_defaults(f=cmd_config)
 
     s = sub.add_parser("schedule")
     s.add_argument("--times", default="06:00", help="HH:MM,HH:MM local times of day (default 06:00)")
