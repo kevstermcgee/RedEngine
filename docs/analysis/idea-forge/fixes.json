@@ -1,0 +1,10 @@
+[
+ {
+  "key": "cold-worktree-build-and-preflight-rebuild",
+  "covers": [],
+  "date": "2026-10-08",
+  "summary": "start now says up front that a missing executable means a 2-7 min cold build (run it in the background) and names scripts/dev seed and the prebuilt-binary route.",
+  "partial": true,
+  "remaining": "preflight still starts a second cold build in the dev profile when only another profile is built, and `scripts/dev worktree` cannot seed from a never-built donor checkout"
+ }
+]

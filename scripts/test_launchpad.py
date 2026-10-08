@@ -135,6 +135,9 @@ class ExecutableSelection(Sandbox):
         self.assertFalse(os.path.isdir(os.path.join(self.engine, "target")), "discovery creates no build directory")
         self.assertEqual(out["capabilities"]["checked"], False)
         self.assertTrue(any("unchecked" in u for u in out["uncertainty"]))
+        detail = " ".join(p["detail"] for p in out["prerequisites"] if p["id"] == "engine-cli")
+        self.assertIn("background", detail, "a missing binary says up front that the first build is slow")
+        self.assertIn("scripts/dev seed", detail, "and names the warm-start route")
 
     def test_a_stale_binary_is_reported_and_never_selected_or_run(self):
         marker = os.path.join(self.tmp, "exe_ran")
