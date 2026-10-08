@@ -44,7 +44,7 @@ def sh(path, text):
 
 
 def cli(*args, cwd=None, env=None, check=True):
-    e = dict(os.environ)
+    e = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")   # CI runners have no git identity
     e.update(env or {})
     p = subprocess.run([sys.executable, SCRIPT, *args], capture_output=True, text=True, cwd=cwd, env=e)
     if check and p.returncode:
@@ -212,7 +212,7 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 12000
         self.assertIn("Agent session: 1 assistant turns", text)
         self.assertIn("$0.50", text)
         self.assertIn("exceed the measured wall time", text, "12 claimed minutes in an instant run must be called out")
-        runs = json.load(open(os.path.join(self.home, "state.json")))["runs"]
+        runs = json.loads(rd(os.path.join(self.home, "state.json")))["runs"]
         self.assertEqual((runs[-1]["status"], runs[-1]["feedback_ok"], runs[-1]["notes"]), ("built", True, 1))
         self.assertIn(slug, cli("ledger").stdout)
 

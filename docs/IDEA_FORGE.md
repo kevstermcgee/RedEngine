@@ -19,6 +19,8 @@ idea_forge.py ledger | brief | note | feedback    (the agent's side: see below)
 5. **Ship.** `ship SLUG` refuses unless the changed paths are exactly `examples/2d/<slug>.game2d.json` and the feedback file, and the feedback passes `--check`. It opens a PR; merging and publishing stay human.
 6. **Improve the engine.** `digest` ranks findings across runs (severity, minutes lost, how many runs hit it), so recurring friction rises and one-off noise does not.
 
+`run` and `ship` need a POSIX shell (they call `scripts/dev worktree`, `git` and `gh`); `idea`, `brief`, `note`, `feedback`, `digest` and the unit tests also run on Windows.
+
 A run spends model tokens (set `--budget`). It needs `claude` (Claude Code) on `PATH`, `git`, and `gh` for `ship`.
 
 Tests: `scripts/test_idea_forge.py` (run by `tests/idea_forge.rs`) uses a stub `claude` and a fake engine, so the whole loop is exercised without a model.
