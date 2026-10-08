@@ -1,0 +1,846 @@
+{
+ "game2d": 1,
+ "id": "electric-tide",
+ "title": "Electric Tide",
+ "description": "Chalk crates in a drowned room so they break on the next tide, but every break closes the walls and drains your air faster: surface with exactly as many left on each side.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard",
+   "mouse"
+  ],
+  "persistence": [
+   "settings",
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 320,
+  "height": 180,
+  "background": "#0c2a3d",
+  "scale": "fit"
+ },
+ "sprites": {
+  "crate": {
+   "rows": [
+    "aaaaaaaaaaaa",
+    "abbbbbbbbbba",
+    "abaaaaaaaaba",
+    "abaaaaaaaaba",
+    "abaaaaaaaaba",
+    "abaaaaaaaaba",
+    "abaaaaaaaaba",
+    "abaaaaaaaaba",
+    "abaaaaaaaaba",
+    "abaaaaaaaaba",
+    "abbbbbbbbbba",
+    "aaaaaaaaaaaa"
+   ],
+   "palette": {
+    "a": "#7a5a35",
+    "b": "#a8814a",
+    "w": "#f4f4f4"
+   }
+  },
+  "chalked": {
+   "rows": [
+    "aaaaaaaaaaaa",
+    "abbbbbbbbbba",
+    "abaaaaaaaaba",
+    "abaawwwwwaba",
+    "abaawaaawaba",
+    "abaawwwwwaba",
+    "abaawaaawaba",
+    "abaawaaawaba",
+    "abaaaaaaaaba",
+    "abaaaaaaaaba",
+    "abbbbbbbbbba",
+    "aaaaaaaaaaaa"
+   ],
+   "palette": {
+    "a": "#3a4a6a",
+    "b": "#a8814a",
+    "w": "#f4f4f4"
+   }
+  },
+  "wall": {
+   "rows": [
+    "ee",
+    "ee"
+   ],
+   "palette": {
+    "e": "#46e6ff"
+   }
+  }
+ },
+ "sounds": {
+  "chalk": {
+   "seconds": 0.1,
+   "layers": [
+    {
+     "sine": 1200,
+     "decay": 30
+    }
+   ]
+  },
+  "break": {
+   "seconds": 0.3,
+   "layers": [
+    {
+     "sine": 180,
+     "decay": 12
+    },
+    {
+     "sine": 90,
+     "decay": 9
+    }
+   ]
+  },
+  "zap": {
+   "seconds": 0.25,
+   "layers": [
+    {
+     "sine": 600,
+     "decay": 14
+    }
+   ]
+  },
+  "win": {
+   "seconds": 0.5,
+   "layers": [
+    {
+     "sine": 660,
+     "decay": 5
+    },
+    {
+     "sine": 990,
+     "decay": 6
+    }
+   ]
+  },
+  "lose": {
+   "seconds": 0.6,
+   "layers": [
+    {
+     "sine": 110,
+     "decay": 4
+    }
+   ]
+  }
+ },
+ "vars": {
+  "energy": 100,
+  "broken": 0,
+  "wl": 4,
+  "wr": 316,
+  "best": 0,
+  "msg": 0
+ },
+ "persist": [
+  "best"
+ ],
+ "prefabs": {
+  "fL": {
+   "tag": [
+    "crate",
+    "L",
+    "fL"
+   ],
+   "shape": {
+    "sprite": "crate"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "fR": {
+   "tag": [
+    "crate",
+    "R",
+    "fR"
+   ],
+   "shape": {
+    "sprite": "crate"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "cL": {
+   "tag": [
+    "crate",
+    "L",
+    "chalked"
+   ],
+   "shape": {
+    "sprite": "chalked"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "cR": {
+   "tag": [
+    "crate",
+    "R",
+    "chalked"
+   ],
+   "shape": {
+    "sprite": "chalked"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "wall": {
+   "tag": "wall",
+   "shape": {
+    "rect": [
+     8,
+     180
+    ],
+    "color": "#46e6ff"
+   },
+   "size": [
+    8,
+    180
+   ],
+   "body": {
+    "type": "static"
+   }
+  }
+ },
+ "scene": [
+  {
+   "prefab": "wall",
+   "at": [
+    4,
+    90
+   ],
+   "id": "wallL"
+  },
+  {
+   "prefab": "wall",
+   "at": [
+    316,
+    90
+   ],
+   "id": "wallR"
+  },
+  {
+   "prefab": "fL",
+   "at": [
+    40,
+    60
+   ]
+  },
+  {
+   "prefab": "fL",
+   "at": [
+    40,
+    120
+   ]
+  },
+  {
+   "prefab": "fL",
+   "at": [
+    70,
+    90
+   ]
+  },
+  {
+   "prefab": "fL",
+   "at": [
+    100,
+    60
+   ]
+  },
+  {
+   "prefab": "fL",
+   "at": [
+    100,
+    120
+   ]
+  },
+  {
+   "prefab": "fL",
+   "at": [
+    130,
+    90
+   ]
+  },
+  {
+   "prefab": "fL",
+   "at": [
+    150,
+    60
+   ]
+  },
+  {
+   "prefab": "fR",
+   "at": [
+    180,
+    60
+   ]
+  },
+  {
+   "prefab": "fR",
+   "at": [
+    210,
+    90
+   ]
+  },
+  {
+   "prefab": "fR",
+   "at": [
+    210,
+    130
+   ]
+  },
+  {
+   "prefab": "fR",
+   "at": [
+    250,
+    100
+   ]
+  }
+ ],
+ "ui": [
+  {
+   "panel": {
+    "at": [
+     0,
+     0
+    ],
+    "size": [
+     320,
+     16
+    ],
+    "color": "#05131dcc"
+   }
+  },
+  {
+   "text": "AIR {energy:.0}",
+   "at": [
+    24,
+    4
+   ],
+   "color": "#8ff"
+  },
+  {
+   "bar": {
+    "var": "energy",
+    "max": 100,
+    "at": [
+     70,
+     5
+    ],
+    "size": [
+     60,
+     6
+    ]
+   }
+  },
+  {
+   "text": "LEFT {count_fL}   RIGHT {count_fR}",
+   "at": [
+    150,
+    4
+   ],
+   "color": "#fff"
+  },
+  {
+   "button": {
+    "id": "up",
+    "label": "SURFACE",
+    "at": [
+     250,
+     162
+    ],
+    "size": [
+     60,
+     14
+    ],
+    "key": "Enter",
+    "do": [
+     {
+      "emit": "surface"
+     }
+    ]
+   }
+  },
+  {
+   "text": "BEST {best}",
+   "at": [
+    4,
+    168
+   ],
+   "color": "#ccc"
+  },
+  {
+   "text": "CHALK CRATES, SURFACE WHEN SIDES MATCH",
+   "at": [
+    40,
+    152
+   ],
+   "color": "#9cc",
+   "scale": 1
+  }
+ ],
+ "rules": [
+  {
+   "id": "chalkL",
+   "when": {
+    "click": "fL"
+   },
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL",
+      "at": "self"
+     }
+    },
+    {
+     "destroy": "self"
+    },
+    {
+     "play": "chalk"
+    }
+   ]
+  },
+  {
+   "id": "chalkR",
+   "when": {
+    "click": "fR"
+   },
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR",
+      "at": "self"
+     }
+    },
+    {
+     "destroy": "self"
+    },
+    {
+     "play": "chalk"
+    }
+   ]
+  },
+  {
+   "id": "tide",
+   "when": {
+    "every": 2
+   },
+   "if": "count_chalked > 0",
+   "do": [
+    {
+     "add": [
+      "broken",
+      "count_chalked"
+     ]
+    },
+    {
+     "destroy": "tag:chalked"
+    },
+    {
+     "play": "break"
+    },
+    {
+     "shake": 3
+    },
+    {
+     "set": [
+      "wl",
+      "4 + broken * 8"
+     ]
+    },
+    {
+     "set": [
+      "wr",
+      "316 - broken * 8"
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:wallL",
+      "to": [
+       "wl",
+       90
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:wallR",
+      "to": [
+       "wr",
+       90
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "crush",
+   "when": {
+    "touch": [
+     "wall",
+     "crate"
+    ]
+   },
+   "do": [
+    {
+     "destroy": "other"
+    },
+    {
+     "play": "zap"
+    }
+   ]
+  },
+  {
+   "id": "drain",
+   "when": {
+    "every": 0.5
+   },
+   "do": [
+    {
+     "add": [
+      "energy",
+      "-(1 + broken * 1.5) * 0.5"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dead",
+   "when": {
+    "every": 0.1
+   },
+   "if": "energy <= 0",
+   "do": [
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "surf",
+   "when": {
+    "event": "surface"
+   },
+   "if": "count_fL == count_fR && count_fL > 0",
+   "do": [
+    {
+     "set": [
+      "best",
+      "energy"
+     ]
+    },
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "surfbad",
+   "when": {
+    "event": "surface"
+   },
+   "if": "count_fL != count_fR || count_fL == 0",
+   "do": [
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "w",
+   "when": {
+    "end": "win"
+   },
+   "do": [
+    {
+     "play": "win"
+    }
+   ]
+  },
+  {
+   "id": "l",
+   "when": {
+    "end": "lose"
+   },
+   "do": [
+    {
+     "play": "lose"
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "balance-win",
+    "seed": 1,
+    "max_seconds": 20,
+    "smoke": true,
+    "script": [
+     {
+      "click": [
+       100,
+       60
+      ]
+     },
+     {
+      "click": [
+       100,
+       120
+      ]
+     },
+     {
+      "click": [
+       150,
+       60
+      ]
+     },
+     {
+      "wait": 2.5
+     },
+     {
+      "button": "up"
+     },
+     {
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "ended": "win"
+     },
+     {
+      "var": "broken",
+      "eq": 3
+     },
+     {
+      "count": "fL",
+      "eq": 4
+     },
+     {
+      "count": "fR",
+      "eq": 4
+     },
+     {
+      "var": "energy",
+      "lt": 100
+     }
+    ]
+   },
+   {
+    "name": "chalk-breaks-and-shrinks",
+    "seed": 1,
+    "max_seconds": 10,
+    "script": [
+     {
+      "click": [
+       70,
+       90
+      ]
+     },
+     {
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "count": "chalked",
+      "eq": 1
+     },
+     {
+      "var": "broken",
+      "eq": 0
+     },
+     {
+      "not_ended": true
+     }
+    ]
+   },
+   {
+    "name": "break-closes-walls",
+    "seed": 1,
+    "max_seconds": 10,
+    "script": [
+     {
+      "click": [
+       70,
+       90
+      ]
+     },
+     {
+      "wait": 2.5
+     }
+    ],
+    "expect": [
+     {
+      "var": "broken",
+      "eq": 1
+     },
+     {
+      "entity": "wallL",
+      "near": [
+       12,
+       90
+      ],
+      "tol": 2
+     },
+     {
+      "count": "fL",
+      "eq": 6
+     }
+    ]
+   },
+   {
+    "name": "drain-speeds-up",
+    "seed": 1,
+    "max_seconds": 10,
+    "script": [
+     {
+      "click": [
+       70,
+       90
+      ]
+     },
+     {
+      "click": [
+       100,
+       60
+      ]
+     },
+     {
+      "click": [
+       100,
+       120
+      ]
+     },
+     {
+      "wait": 2.5
+     },
+     {
+      "wait": 2
+     }
+    ],
+    "expect": [
+     {
+      "var": "energy",
+      "lt": 90
+     },
+     {
+      "var": "broken",
+      "eq": 3
+     }
+    ]
+   },
+   {
+    "name": "unbalanced-lose",
+    "seed": 1,
+    "max_seconds": 10,
+    "script": [
+     {
+      "button": "up"
+     },
+     {
+      "wait": 0.3
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     }
+    ]
+   },
+   {
+    "name": "suffocate-lose",
+    "seed": 1,
+    "max_seconds": 120,
+    "script": [
+     {
+      "wait_until": {
+       "ended": "lose"
+      },
+      "timeout": 110
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     },
+     {
+      "var": "energy",
+      "lte": 0
+     }
+    ]
+   },
+   {
+    "name": "walls-crush-crates",
+    "seed": 1,
+    "max_seconds": 10,
+    "script": [
+     {
+      "click": [
+       70,
+       90
+      ]
+     },
+     {
+      "click": [
+       100,
+       60
+      ]
+     },
+     {
+      "click": [
+       100,
+       120
+      ]
+     },
+     {
+      "click": [
+       130,
+       90
+      ]
+     },
+     {
+      "wait": 2.5
+     }
+    ],
+    "expect": [
+     {
+      "var": "broken",
+      "eq": 4
+     },
+     {
+      "count": "fL",
+      "eq": 1
+     },
+     {
+      "count": "fR",
+      "eq": 4
+     },
+     {
+      "sound": "zap",
+      "min": 1
+     }
+    ]
+   }
+  ]
+ }
+}
