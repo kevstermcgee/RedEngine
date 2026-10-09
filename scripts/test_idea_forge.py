@@ -867,6 +867,27 @@ class Settle(E2EBase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(idea_forge.settle(0), [])
 
+    def test_a_final_verdict_is_reported_once_even_while_another_pr_is_still_pending(self):
+        """Seen live: while one PR's checks ran, every poll re-printed another PR's `ci-failed` (14 identical lines in a night's log)."""
+        self.track_game(52)
+        self.gh_pr(52, checks=GREEN + [check("windows", "FAILURE")], files=self.game_files())
+        self.track_game(53, "y")
+        self.gh_pr(53, checks=[check("windows", None, "IN_PROGRESS")], files=self.game_files("y"))
+        polls = []
+
+        def poll(_secs):
+            polls.append(1)
+            if len(polls) == 3:
+                self.gh_pr(53, files=self.game_files("y"))
+
+        with mock.patch.object(idea_forge.time, "sleep", poll), mock.patch("builtins.print") as printed:
+            res = idea_forge.settle(5)
+        lines = [c.args[0] for c in printed.call_args_list if c.args and str(c.args[0]).startswith("settle:")]
+        self.assertEqual(sum(1 for l in lines if "ci-failed" in l), 1, lines)
+        self.assertEqual(sorted(r[1] for r in res), ["ci-failed", "merged"])
+        self.assertEqual(len(polls), 3, "it kept asking about the pending PR only until it finished")
+        self.assertEqual(self.merged(), [self.url(53)])
+
     def test_settle_gives_up_waiting_at_the_deadline_and_keeps_the_pr_tracked(self):
         self.track_game(51)
         self.gh_pr(51, checks=[check("windows", None, "IN_PROGRESS")], files=self.game_files())

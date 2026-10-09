@@ -1284,18 +1284,26 @@ def settle_one(pr):
 
 
 def settle(wait_min=0):
-    """Merge every tracked PR whose checks have passed; keep asking until none is pending or `wait_min` minutes have passed (0 = one look)."""
+    """Merge every tracked PR whose checks have passed; keep asking until none is pending or `wait_min` minutes have passed (0 = one look).
+    Each PR is reported once, when its verdict is final; only the pending ones are asked about again."""
     deadline = time.time() + wait_min * 60
+    final = {}        # url -> (pr, verdict, detail) for every PR whose verdict will not change this call
+    pending = {}
     while True:
-        results = [(pr, *settle_one(pr)) for pr in tracked_prs()]
-        for pr, verdict, detail in results:
-            if verdict != "pending":
+        pending = {}
+        for pr in tracked_prs():
+            if pr["url"] in final:
+                continue
+            verdict, detail = settle_one(pr)
+            if verdict == "pending":
+                pending[pr["url"]] = (pr, verdict, detail)
+            else:
+                final[pr["url"]] = (pr, verdict, detail)
                 print(f"settle: {verdict}: {pr['url']} ({detail})")
-        if not any(v == "pending" for _, v, _ in results) or time.time() >= deadline:
-            for pr, verdict, detail in results:
-                if verdict == "pending":
-                    print(f"settle: still pending: {pr['url']} (it stays tracked: the next run settles it)")
-            return results
+        if not pending or time.time() >= deadline:
+            for url, (pr, verdict, detail) in pending.items():
+                print(f"settle: still pending: {url} (it stays tracked: the next run settles it)")
+            return list(final.values()) + list(pending.values())
         time.sleep(SETTLE_POLL_SEC)
 
 
