@@ -138,7 +138,7 @@ pub const INLINE_CLOSE: &str = "<!--/fact-->";
 pub fn inline_fact(root: &Path, name: &str) -> Option<String> {
     match name {
         "protocol" => protocol_version(root).map(|v| v.to_string()),
-        _ => None,
+        _ => super::doc_claims::inline_fact(root, name),
     }
 }
 

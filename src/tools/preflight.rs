@@ -161,7 +161,7 @@ fn check_facts(root: &Path) -> Vec<Problem> {
             }
         }
     }
-    for doc in ["CLAUDE.md", "AGENTS.md", "README.md", "SPEC.md", "docs/AGENT_REFERENCE.md", "docs/HOSTING.md"] {
+    for doc in super::doc_claims::CLAIM_DOCS {
         for (name, have, want) in status::inline_facts(root, &read(root, doc)) {
             match want {
                 Some(w) if w != have => out.push(problem(
@@ -173,7 +173,7 @@ fn check_facts(root: &Path) -> Vec<Problem> {
                 None => out.push(problem(
                     "facts",
                     format!("{doc}: <!--fact:{name}--> is not a fact this repository can derive"),
-                    "remove the markers or use a known name (protocol)",
+                    "remove the markers or use a known name (protocol, mcp-tools, brief-kb)",
                     None,
                 )),
                 _ => {}
@@ -327,7 +327,7 @@ pub fn referenced_paths(text: &str) -> Vec<String> {
 /// `doc: path` for every path the AI-facing documents mention that does not exist.
 pub fn missing_referenced_paths(root: &Path) -> Vec<String> {
     let mut out = Vec::new();
-    for f in AI_DOCS.iter().chain(["docs/HOSTING.md"].iter()) {
+    for f in AI_DOCS.iter().chain(["docs/HOSTING.md", "README.md", "docs/ENGINE_OVERVIEW.md", "docs/VIEWER_HISTORY.md"].iter()) {
         for p in referenced_paths(&read(root, f)) {
             let exists = root.join(&p).exists() || Path::new(&p).extension().is_none() && root.join(format!("{p}.md")).exists();
             if !exists {
@@ -384,6 +384,9 @@ fn check_docs(root: &Path, commands: &[(String, String)]) -> Vec<Problem> {
     }
     for m in stale_claims(root) {
         out.push(problem("docs", m, "rewrite the sentence so it is true", None));
+    }
+    for m in super::doc_claims::all(root) {
+        out.push(problem("docs", m, "rewrite the sentence so it is true (src/tools/doc_claims.rs says what each check compares)", None));
     }
     for m in missing_referenced_paths(root) {
         out.push(problem("docs", m, "fix the path in the document, or create the file", None));

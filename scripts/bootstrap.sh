@@ -3,7 +3,12 @@
 # No Rust, no compiler, no clone.
 #
 #   curl -fsSL https://raw.githubusercontent.com/kevstermcgee/RedEngine/main/scripts/bootstrap.sh | sh
-#   sh scripts/bootstrap.sh [--tag v0.3.0] [--prefix DIR] [--headless] [--no-doctor]
+#   sh scripts/bootstrap.sh [--tag v0.3.0] [--prefix DIR] [--headless] [--no-doctor] [--latest]
+#
+# Run from inside a checkout (sh scripts/bootstrap.sh), it installs the release that was built from exactly THIS checkout's sources (scripts/prebuilt.py: a source fingerprint, a
+# verified checksum) into the checkout's target directory, where `scripts/dev` and `scripts/red` find it: no compile. If no release matches (none published, the sources differ, an
+# uncommitted edit, no network) it installs nothing, says why and exits 3: build instead (`scripts/dev red describe --brief`, about 7 minutes cold on four cores, run it in the
+# background). `--latest`, or `--tag`, keeps the old behaviour: the newest release into ~/.local, which may differ from the checkout.
 #
 # --headless installs the build without rendering or audio (lint, reach, walk, verify, sim, plan, the server: it needs nothing but libc). Without the flag you get the full set
 # (the CLI with `frame`/`tour`, the client, server and bots) when libasound is present, and the headless one, with a note, when it is not.
@@ -16,6 +21,7 @@ prefix="${RED_PREFIX:-$HOME/.local}"
 tag="${RED_VERSION:-}"
 headless=0
 doctor=1
+latest=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -23,10 +29,24 @@ while [ $# -gt 0 ]; do
     --prefix) prefix="$2"; shift 2 ;;
     --headless) headless=1; shift ;;
     --no-doctor) doctor=0; shift ;;
+    --latest) latest=1; shift ;;
     -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "bootstrap: unknown option $1 (try --help)" >&2; exit 2 ;;
   esac
 done
+
+here="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
+if [ "$latest" = 0 ] && [ -z "$tag" ] && [ -n "$here" ] && [ -f "$here/prebuilt.py" ] && [ -f "$here/../Cargo.toml" ] && command -v python3 >/dev/null 2>&1; then
+  hl=""; [ "$headless" = 1 ] && hl="--headless"
+  if exe="$(python3 "$here/prebuilt.py" ensure --refresh $hl)"; then
+    echo "bootstrap: installed for this checkout: $exe"
+    echo "bootstrap: next:  scripts/dev red describe --brief    (it uses this binary: no compile)"
+    exit 0
+  fi
+  echo "bootstrap: nothing was installed. Build instead:  scripts/dev red describe --brief   (about 7 minutes cold on four cores: run it in the background)" >&2
+  echo "           or install the newest release anyway, which may differ from this checkout:  sh scripts/bootstrap.sh --latest" >&2
+  exit 3
+fi
 
 [ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "x86_64" ] || {
   echo "bootstrap: prebuilt binaries exist for Linux x86_64 only (this is $(uname -s) $(uname -m))." >&2
