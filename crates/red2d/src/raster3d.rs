@@ -1,10 +1,10 @@
 //! A small deterministic software 3D renderer: the "3D element" of a hybrid game.
 //!
 //! It exists so a 2D game can use 3D where 3D adds something (a boss that is a rotating model, a spinning item in the HUD, a 3D world behind sprites, a whole game seen
-//! in perspective with a 2D minimap on top) and so that game still runs everywhere the 2D runtime does: natively, headless, and in a browser, with no GPU. It is not the
+//! in perspective with a 2D minimap on top) and so that game still runs everywhere the 2D runtime does: natively and headless, with no GPU. It is not the
 //! wgpu engine and does not try to be: flat or toon shading, one directional light, a depth buffer, meshes built from a few primitives, sprites as camera-facing billboards.
 //!
-//! Determinism: only `+ - * /`, `sqrt` and `libm` trigonometry (the same bits natively and in WebAssembly), no fused multiply-add, no sorting by floats with ties left to chance.
+//! Determinism: only `+ - * /`, `sqrt` and `libm` trigonometry (the same bits on every platform), no fused multiply-add, no sorting by floats with ties left to chance.
 //! Coordinates: right-handed, +Y up; a triangle is front-facing when its counter-clockwise winding seen from outside gives a normal pointing at the viewer.
 
 use crate::game::Color;

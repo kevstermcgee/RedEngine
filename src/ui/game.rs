@@ -22,8 +22,8 @@ pub fn outcome_banner_needed(online: bool, has_end_card: bool) -> bool {
 }
 
 /// The rules overlay for a scene: its `ui` block's HUD when it has one (friendly labels, counters, the objective), else the generic variables panel. An outcome without a card
-/// on screen (no end card declared, or the player is online and cards are offline-only) gets the plain banner. Does not include a card. The desktop client and the browser
-/// player both paint this, so a screenshot of either is what a player sees.
+/// on screen (no end card declared, or the player is online and cards are offline-only) gets the plain banner. Does not include a card. The desktop client paints this, so a screenshot is
+/// what a player sees.
 pub fn rules_overlay(scene: &crate::schema::Scene, w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outcome: Option<&str>, online: bool) -> Layout {
     let hud = &scene.hud;
     let Some(ui) = scene.ui.as_ref() else {

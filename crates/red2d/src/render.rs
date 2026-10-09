@@ -1,6 +1,6 @@
 //! The 2D renderer: a CPU rasteriser that draws the virtual screen into an RGBA buffer.
 //!
-//! The same code makes the pictures in native tests, in `frame` (PNG) and in the browser (the buffer goes to a canvas), so a screenshot taken headless is what the player sees, to the pixel.
+//! The same code makes the pictures in tests, in `frame` (PNG) and in the native window (the buffer goes to the window), so a screenshot taken headless is what the player sees, to the pixel.
 //! There is no GPU, no window and no floating-point image resampling: sprites are drawn at integer scales, circles by pixel-centre distance, text from a bitmap font. Scaling the virtual screen
 //! to a window of another shape is [`layout`] and [`present`] (nearest neighbour, letterboxed), and [`window_to_view`] maps a pointer back, so resolution independence has one definition.
 

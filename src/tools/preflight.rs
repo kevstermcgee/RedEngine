@@ -181,16 +181,10 @@ fn check_facts(root: &Path) -> Vec<Problem> {
     out
 }
 
-/// The `cfg` lines that keep a module out of the headless server build: `gfx` (the desktop client), `render` (the wgpu renderer alone, which `gfx` includes) and the
-/// browser player (`web` on wasm32). None of them is on by default without `gfx`, so none is in `--no-default-features`.
+/// The `cfg` lines that keep a module out of the headless server build: `gfx` (the desktop client), `render` (the wgpu renderer alone, which `gfx` includes) and `video` (MP4 export).
+/// None of them is on by default without `gfx`, so none is in `--no-default-features`.
 fn is_graphics_gate(line: &str) -> bool {
-    matches!(
-        line.trim(),
-        "#[cfg(feature = \"gfx\")]"
-            | "#[cfg(feature = \"render\")]"
-            | "#[cfg(feature = \"video\")]"
-            | "#[cfg(all(feature = \"web\", target_arch = \"wasm32\"))]"
-    )
+    matches!(line.trim(), "#[cfg(feature = \"gfx\")]" | "#[cfg(feature = \"render\")]" | "#[cfg(feature = \"video\")]")
 }
 
 /// Modules and directories (relative to `src/`) that are built only with the `gfx` feature (or `render`, or `render`): every `#[cfg(feature = "gfx")] pub mod x;` of

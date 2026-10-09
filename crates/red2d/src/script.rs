@@ -3,7 +3,7 @@
 //! A scenario is a scripted player (hold, press, click, approach a tag, wait until something is true) run against the real simulation at full speed with no window, followed by
 //! assertions. [`verify`] runs every scenario and measures every sound and the first frame, and returns rows of `PASS`/`FAIL name detail`. What a green report proves is stated in
 //! each row's *claim*: SIMULATION (the rules do what the scenario asserts), RENDER (the frame is not blank), AUDIO-WAVEFORM (the samples are finite, not clipped, not silent). It proves
-//! nothing about a browser, a human's ears or whether the game is fun.
+//! nothing about a human's ears or whether the game is fun.
 
 use crate::game::*;
 use crate::render;

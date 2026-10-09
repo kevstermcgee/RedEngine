@@ -37,7 +37,7 @@ pub struct Committed {
 pub struct Scope<'a> {
     /// The repository root (the directory holding `.git`).
     pub repo: &'a Path,
-    /// The subtree this commit may change, repository-relative (`webgames`).
+    /// The subtree this commit may change, repository-relative (`projects/coin-dash`).
     pub subtree: &'a str,
     /// The commit message.
     pub message: &'a str,
@@ -376,7 +376,7 @@ fn find_conflicts(git: &Git, repo: &Path, changes: &[Change]) -> Result<Conflict
             (None, None) => {}
         }
     }
-    // The directories those paths live in, two levels down at most (`webgames/games/coin-dash`, or the file itself at the top).
+    // The directories those paths live in, two levels down at most (`projects/coin-dash/maps`, or the file itself at the top).
     let mut dirs: Vec<String> = c
         .hard
         .iter()

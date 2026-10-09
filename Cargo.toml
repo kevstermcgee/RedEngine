@@ -62,8 +62,7 @@ winit = { version = "0.30", optional = true }
 softbuffer = { version = "0.4", default-features = false, features = ["x11", "x11-dlopen", "wayland", "wayland-dlopen"], optional = true }
 rfd = { version = "0.17.2", optional = true }
 
-# The network stack and the Ctrl-C hook: native only (`mio` does not exist in a browser).
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The network stack and the Ctrl-C hook.
 ctrlc = { version = "3", features = ["termination"] }
 quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring", "log"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging", "tls12"] }

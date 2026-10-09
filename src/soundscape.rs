@@ -1,7 +1,7 @@
 //! The soundscape as numbers: how loud every loop wants to be, and which calls to start, from the hour, the place, the player's switches and the scene's rules.
 //!
-//! Everything that decides *what is heard* and nothing that makes a sound: the desktop client ([`crate::mixer`] and its sound card) and the browser player (Web Audio) both drive
-//! one [`Soundscape`] and turn its [`Mix`] into sound their own way, so the dawn chorus, the music's crossfades and a rule layer's fade are the same wherever the game is played.
+//! Everything that decides *what is heard* and nothing that makes a sound: the desktop client ([`crate::mixer`] and its sound card) drives one [`Soundscape`] and turns its [`Mix`]
+//! into sound, so the dawn chorus, the music's crossfades and a rule layer's fade are decided in one place that can be tested without a sound card.
 //! The loops themselves are rendered by [`crate::nature::Bed::render`], [`crate::score::Score::render`] and [`call_clip`].
 
 use crate::ambience::{layer_target, Ambience, AudioSpec, Context, Frame, Heard};

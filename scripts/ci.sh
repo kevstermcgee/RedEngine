@@ -80,7 +80,7 @@ stage_headless_tests() { echo "== headless tests (incl. real-UDP server tests) =
 check_example_locks() {
   local manifest
   for manifest in examples/external/*/Cargo.toml; do
-    # Only crates that use the engine and keep a lock of their own (a standalone experiment such as wgpu-web-spike has neither to fall behind).
+    # Only crates that use the engine and keep a lock of their own (a standalone experiment that does not use the engine has neither to fall behind).
     [ -f "$manifest" ] && [ -f "$(dirname "$manifest")/Cargo.lock" ] && grep -q '^red_engine2' "$manifest" || continue
     if ! cargo metadata --locked --manifest-path "$manifest" --format-version 1 >/dev/null 2>&1; then
       echo "$(dirname "$manifest")/Cargo.lock is behind the engine's dependencies: run"

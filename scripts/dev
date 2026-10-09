@@ -27,7 +27,7 @@
 #   scripts/dev seed [--from DIR]      the same warm start for the checkout you are in (a fresh clone, or a worktree made by hand)
 #   scripts/dev prune [--apply] [--days N]   report (or delete) incremental build directories idle for N days (default 14): a busy checkout's target/ reaches tens of GB
 #   scripts/dev status [...]           `red_engine2 status` (handoff: what is done / in flight / next)
-#   scripts/dev start "<task>" [--project DIR] [--target web|native|headless|multiplayer ...] [--workflow W]   THE FIRST COMMAND: picks the workflow (new game, change a
+#   scripts/dev start "<task>" [--project DIR] [--target native|headless|multiplayer ...] [--workflow W]   THE FIRST COMMAND: picks the workflow (new game, change a
 #                                      game, change the engine, diagnose, upgrade), names the executable it will use and why, and prints ONE next action. It never builds or
 #                                      verifies; with no usable executable it looks for a prebuilt release built from exactly this checkout's sources (one API request, one checksum-verified
 #                                      download; --no-fetch or RED_NO_FETCH=1 stays offline). `next` re-prints the current next action; `resume` says what changed since you stopped.

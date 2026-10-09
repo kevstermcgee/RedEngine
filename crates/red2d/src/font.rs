@@ -1,5 +1,5 @@
 //! The 2D engine's one font: a 5x7 bitmap face (the glyph table the analysis tools use, plus `$ " ; & @ |`), uppercase only (lowercase draws as capitals), with a 1-pixel gap
-//! between letters. The glyph table itself is `src/font_glyphs.rs`, shared with the analysis tools' labels (`src/tools/font.rs` draws into an `image` buffer, which the browser build must not depend on).
+//! between letters. The glyph table itself is `src/font_glyphs.rs`, shared with the analysis tools' labels (`src/tools/font.rs` draws into an `image` buffer, which this crate does not depend on).
 
 /// Glyph width in pixels.
 pub const GLYPH_W: i32 = 5;
