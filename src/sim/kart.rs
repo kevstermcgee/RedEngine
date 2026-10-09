@@ -1184,9 +1184,8 @@ mod tests {
             "bad number"
         );
         assert!(e(&good.replace("\"grip\": 0.7,", "\"gripp\": 0.7,")).contains("unknown field `gripp`"), "a misspelt field is not ignored");
-        let fewer = good
-            .replace(",\n    {\"name\": \"Beaver\"", ",\n    {\"name\": \"Beaver\"")
-            .replace("{\"name\": \"Wolf\", \"ability\": \"slipstream\", \"spec\": {\"top_speed\": 25.0, \"steer_rate\": 92.0, \"grip\": 0.78}},\n", "");
+        let fewer =
+            good.replace("{\"name\": \"Wolf\", \"ability\": \"slipstream\", \"spec\": {\"top_speed\": 25.0, \"steer_rate\": 92.0, \"grip\": 0.78}},\n", "");
         assert!(e(&fewer).contains("drivers has 7 entries, the wire has 8 drivers"), "{}", e(&fewer));
     }
 }
