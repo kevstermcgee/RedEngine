@@ -14,7 +14,7 @@ use crate::sim::spawns::parse_spawns;
 use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 /// What to host.
@@ -102,15 +102,22 @@ pub struct LocalHost {
     upnp_note: Option<String>,
     key: Option<String>,
     keeper: Option<JoinHandle<()>>,
-    /// The short code a friend can join with instead of an address, when `PublicOptions::relay` was set and
-    /// registration succeeded.
-    relay_code: Option<String>,
-    /// What registering with the relay said, if it was asked and failed (a line for the screen, the same role
-    /// `upnp_note` plays for UPnP).
-    relay_note: Option<String>,
-    /// Kept alive for as long as the host runs; its forwarding threads hold their own handles independently, but
-    /// dropping this early would needlessly tear down a feature that looks unused.
-    _relay_bridge: Option<super::relay_server::HostBridge>,
+    /// Registration with the relay, when `PublicOptions::relay` was set. It runs on its own thread so a relay that
+    /// does not answer never freezes the screen; the state is polled through `relay_code` / `relay_note`.
+    relay: Arc<Mutex<RelayState>>,
+}
+
+/// Where registering with the relay stands.
+enum RelayState {
+    /// No relay was asked for.
+    Off,
+    /// The Register is in flight.
+    Pending,
+    /// Registered: the short code, and the bridge that must live as long as the host (its forwarding threads hold
+    /// their own handles, but dropping it early would needlessly tear down a feature that looks unused).
+    Ready { code: String, _bridge: super::relay_server::HostBridge },
+    /// The relay did not answer, with a line for the screen.
+    Failed(String),
 }
 
 impl LocalHost {
@@ -231,14 +238,22 @@ impl LocalHost {
                 join_addresses.push(format!("{lan}:{}", bound.port()));
             }
         }
-        let (mut relay_code, mut relay_note, mut relay_bridge) = (None, None, None);
-        if let Some(relay) = public.and_then(|p| p.relay.as_deref()) {
-            match super::relay_server::HostBridge::start(relay, addr, fingerprint.clone(), stop.clone()) {
-                Ok((bridge, code)) => {
-                    relay_code = Some(super::relay::code_to_string(&code));
-                    relay_bridge = Some(bridge);
-                }
-                Err(e) => relay_note = Some(format!("the relay at '{relay}' did not answer ({e}); friends can still join another way")),
+        let relay_state = Arc::new(Mutex::new(RelayState::Off));
+        if let Some(relay) = public.and_then(|p| p.relay.clone()) {
+            *relay_state.lock().unwrap() = RelayState::Pending;
+            let (state, fp, stop) = (relay_state.clone(), fingerprint.clone(), stop.clone());
+            let spawned = std::thread::Builder::new().name("red-relay-register".into()).spawn(move || {
+                let outcome = match super::relay_server::HostBridge::start(&relay, addr, fp, stop) {
+                    Ok((bridge, code)) => RelayState::Ready { code: super::relay::code_to_string(&code), _bridge: bridge },
+                    Err(e) => {
+                        eprintln!("relay: '{relay}' did not answer: {e}");
+                        RelayState::Failed("NO ONLINE CODE: THE RELAY DID NOT ANSWER. THE ADDRESS BELOW STILL WORKS ON YOUR NETWORK".to_string())
+                    }
+                };
+                *state.lock().unwrap() = outcome;
+            });
+            if spawned.is_err() {
+                *relay_state.lock().unwrap() = RelayState::Failed("NO ONLINE CODE: COULD NOT START THE RELAY LINK".to_string());
             }
         }
         raise_timer_resolution();
@@ -255,9 +270,7 @@ impl LocalHost {
             upnp_note,
             key: cfg_key,
             keeper,
-            relay_code,
-            relay_note,
-            _relay_bridge: relay_bridge,
+            relay: relay_state,
         })
     }
 
@@ -277,9 +290,12 @@ impl LocalHost {
     }
 
     /// The six-character code the relay resolves (`PublicOptions::relay`, registered and accepted). This is the public half: friends are
-    /// given [`share_codes`](Self::share_codes), which carry the admission key as well.
-    pub fn relay_code(&self) -> Option<&str> {
-        self.relay_code.as_deref()
+    /// given [`share_codes`](Self::share_codes), which carry the admission key as well. `None` while registration is still in flight or after it failed.
+    pub fn relay_code(&self) -> Option<String> {
+        match &*self.relay.lock().unwrap() {
+            RelayState::Ready { code, .. } => Some(code.clone()),
+            _ => None,
+        }
     }
 
     /// Everything to show the host to give to friends, best first: the relay code **with the admission key** (`H3PQXR-K7Q2-MZ4P-WTXA`), when
@@ -289,7 +305,7 @@ impl LocalHost {
         // A key a short code cannot carry (punctuation) would make a code nobody could type back: leave the relay form out, the direct codes still work.
         let carriable = self.key.as_deref().is_none_or(super::relay::ShortJoin::can_carry);
         let relay = self
-            .relay_code
+            .relay_code()
             .as_deref()
             .and_then(super::relay::parse_code)
             .filter(|_| carriable)
@@ -298,8 +314,16 @@ impl LocalHost {
     }
 
     /// What asking the relay said, when it was asked and did not succeed (a line for the screen).
-    pub fn relay_note(&self) -> Option<&str> {
-        self.relay_note.as_deref()
+    pub fn relay_note(&self) -> Option<String> {
+        match &*self.relay.lock().unwrap() {
+            RelayState::Failed(note) => Some(note.clone()),
+            _ => None,
+        }
+    }
+
+    /// True while the relay has been asked and has not answered yet.
+    pub fn relay_pending(&self) -> bool {
+        matches!(&*self.relay.lock().unwrap(), RelayState::Pending)
     }
 
     /// The transport settings a client on this machine joins with (pinned to this host's own identity over QUIC, or plain loopback UDP).
@@ -477,6 +501,27 @@ mod tests {
         assert_eq!((a.relay.as_deref(), b.relay.as_deref()), (Some("relay.example:28016"), None));
         assert!(a.bind.is_none() && a.upnp, "HOST listens for friends on every interface and asks the router; a test overrides both");
         assert_eq!(a.port, crate::net::DEFAULT_PORT);
+    }
+
+    #[test]
+    fn a_relay_that_never_answers_does_not_hold_up_hosting_and_ends_as_a_note() {
+        let silent = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        let dir = std::env::temp_dir().join(format!("re2_host_deadrelay_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let public = PublicOptions { identity_dir: dir.clone(), port: 0, upnp: false, key: None, relay: Some(silent.local_addr().unwrap().to_string()) };
+        let started = Instant::now();
+        let host = LocalHost::start(&lab(), &HostOptions { fill: Some(0), spawn_group: "duel".into(), public: Some(public), ..Default::default() }).unwrap();
+        assert!(started.elapsed() < Duration::from_secs(5), "start returned after {:?}: the Register must not block it", started.elapsed());
+        assert!(host.relay_pending() && host.relay_code().is_none());
+        let end = Instant::now() + Duration::from_secs(30);
+        while host.relay_pending() && Instant::now() < end {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(!host.relay_pending() && host.relay_code().is_none());
+        let note = host.relay_note().expect("a failure leaves a line for the screen");
+        assert!(note.contains("RELAY"), "{note}");
+        drop(host);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
