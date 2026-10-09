@@ -422,7 +422,7 @@ def loop_commands(kind, name, project, cons):
 
 
 def plan_engine_change(ctx):
-    """Focused engine change: owning features, the context packet, then the iterate -> affected ladder. The ladder is CLAUDE.md's; escalation is `affected`'s."""
+    """Focused engine change: owning features, the context packet, then the iterate -> affected ladder. The ladder is AGENTS.md's; escalation is `affected`'s."""
     res, exe, task = ctx["resolution"], ctx["exe"], ctx["task"]
     root = res["engine"]["root"]
     owners = feature_owners(load_features(root), task)
@@ -449,7 +449,7 @@ def plan_engine_change(ctx):
                      after={"argv": ctx["dev"] + ["context", primary or "<words>"], "cwd": root})
     return {"plan": {"owners": [o["feature"] for o in owners]}, "capabilities": {"source": "docs/features.json (feature ownership)", "checked": bool(owners), "supported": None,
             "note": "an engine change has no capability to check; whether it is possible is decided by the owning feature's tests"},
-            "context": {"packet": packet, "pointers": [{"what": "the workflow and ladder", "file": "CLAUDE.md", "section": "Cheap by default"}]},
+            "context": {"packet": packet, "pointers": [{"what": "the workflow and ladder", "file": "AGENTS.md", "section": "Spend context and time like they cost money"}]},
             "next_action": nxt, "blockers": blockers, "uncertainty": uncertainty, "missing": missing, "iteration_checks": checks, "final_requirements": final}
 
 
