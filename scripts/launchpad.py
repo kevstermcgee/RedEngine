@@ -215,12 +215,23 @@ def feature_owners(features, task):
 
 # ----------------------------------------------------------------------------------------------- identity (what a stop point was made from)
 def git_changed_files(root):
-    out = red_resolve._git(root, "status", "--porcelain")
-    files = []
-    for line in (out or "").splitlines():
-        p = line[3:].strip().split(" -> ")[-1]
-        if p:
-            files.append(p)
+    """Changed and untracked paths of a checkout, from NUL-separated status records (no column slicing, no quoting, spaces survive)."""
+    try:
+        out = subprocess.run(["git", "-C", root, "status", "--porcelain", "-z"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if out.returncode != 0:
+        return []
+    files, records = [], out.stdout.split("\0")
+    i = 0
+    while i < len(records):
+        rec = records[i]
+        i += 1
+        if len(rec) < 4:
+            continue
+        files.append(rec[3:])
+        if rec[0] in "RC":  # a rename/copy record is followed by its source path
+            i += 1
     return files
 
 

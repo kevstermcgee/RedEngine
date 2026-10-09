@@ -454,5 +454,34 @@ class DevWrapper(unittest.TestCase):
         self.assertEqual((rec["mode"], rec["profile"]), ("headless", "debug"))
 
 
+class ChangedFilesTest(unittest.TestCase):
+    """git_changed_files reads NUL-separated status records, so no path is clipped and two different dirty edits have different identities."""
+
+    def git(self, root, *args):
+        subprocess.run(["git", "-C", root, "-c", "user.name=t", "-c", "user.email=t@t", *args], check=True, capture_output=True)
+
+    def test_unstaged_staged_deleted_renamed_and_spaced_paths_are_named_whole(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, "src"))
+            for name in ("src/lib.rs", "gone.txt", "old.txt", "a b.txt"):
+                write(os.path.join(root, name), "x\n", time.time())
+            self.git(root, "init", "-q")
+            self.git(root, "add", ".")
+            self.git(root, "commit", "-qm", "base")
+            write(os.path.join(root, "src", "lib.rs"), "// one\n", time.time())  # unstaged: " M src/lib.rs"
+            os.remove(os.path.join(root, "gone.txt"))
+            self.git(root, "mv", "old.txt", "new name.txt")
+            write(os.path.join(root, "a b.txt"), "y\n", time.time())
+            write(os.path.join(root, "fresh one.txt"), "z\n", time.time())
+            files = launchpad.git_changed_files(root)
+            for want in ("src/lib.rs", "gone.txt", "new name.txt", "a b.txt", "fresh one.txt"):
+                self.assertIn(want, files)
+            self.assertNotIn("old.txt", files)
+            self.assertNotIn("rc/lib.rs", files)
+            first = launchpad.engine_inputs(root)["hash"]
+            write(os.path.join(root, "src", "lib.rs"), "// two\n", time.time())
+            self.assertNotEqual(first, launchpad.engine_inputs(root)["hash"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
