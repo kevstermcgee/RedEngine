@@ -28,7 +28,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 ## Next
 - Simplification S7 (offline `re2` orchestration through MatchSim/LocalSession): not done in the hardening pass on purpose; the offline loop (`src/bin/re2/frame.rs`) also does bat swings, carried props, the rules HUD and its own prop physics that `LocalSession` lacks, so it needs a design and a parity plan first. S5 (#80) and S6 (#79) are done with parity runs recorded in their PRs and ADRs.
 - Killchain downstream: `red_engine2 package` / `game play` know only `re2`; the Killchain project in RedEngineGames must build and run `killchain` (games/killchain) instead.
-- The rules-language gaps from the Idea Forge notes (per-entity state and timers, a fall-out height, rules that change player movement, gravity or scale): ranked and designed in `docs/analysis/2026-10-09-rules-language-gaps.md` (#83), not built.
+- The rules-language gaps from the Idea Forge notes (per-entity state and timers, a fall-out height, rules that change player movement, gravity or scale): ranked and designed in `docs/RULES_LANGUAGE_GAPS.md` (#83), not built.
 - Bounding the engine's CI time: 58% of CI job-minutes since Oct 7 went to Idea Forge (about 59 job-minutes a game, because every game PR runs the whole CI incl. Windows); a games-only path filter is proposed in `docs/analysis/2026-10-09-engine-ci-growth.md` (#82), not implemented.
 
 ## Failing / blocked
