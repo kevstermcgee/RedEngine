@@ -5,7 +5,7 @@
 server; `red_engine2` (the CLI) validates, renders, **analyzes, edits and plays scripted matches** on maps. You almost
 never need to read Rust to change a map or a game: read [`SPEC.md`](SPEC.md) for the scene language, then use the tools below.
 
-**First command: `scripts/dev start "<your task>"`** (in a game project `scripts/red start "<task>"`). It is a shell command, not an MCP tool. It picks the workflow, names the executable it will use and why, and prints ONE next action; it never builds, installs or downloads. `next` and `resume` pick up after an interruption.
+**First command: `scripts/dev start "<your task>"`** (in a game project `scripts/red start "<task>"`). It is a shell command, not an MCP tool. It picks the workflow, names the executable it will use and why, and prints ONE next action; it never builds or verifies. With no usable executable it tries to fetch the prebuilt release that was built from exactly this checkout's sources (checksum verified, no compile; `--no-fetch` or `RED_NO_FETCH=1` stays offline) and says why when there is none: then the next action is the build. `next` and `resume` pick up after an interruption.
 
 **Then `red_engine2 describe --brief` (under <!--fact:brief-kb-->2.5<!--/fact--> KB)**, then ask `search "<your question>"`; open SPEC/AGENTS only for a topic
 you cannot get from `describe <topic>`. In a checkout `red_engine2` below means `scripts/dev red` (builds the CLI on first use; `scripts/dev doctor` says what this machine has).
