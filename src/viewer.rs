@@ -26,10 +26,7 @@ use crate::weapons::Weapon;
 use glam::{Mat4, Quat, Vec3, Vec4};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
-#[cfg(target_arch = "wasm32")]
-use web_time::Instant;
 
 /// Other players' weapons drawn at once (one per possible remote player).
 pub const REMOTE_HANDS: usize = crate::sim::match_sim::MAX_PLAYERS;
@@ -579,10 +576,6 @@ impl LiveRenderer {
         let post_bind_group = post.bind(device, &targets.depth_view);
         let ocean = crate::ocean_pass::OceanPass::new(device, color_format, MSAA_SAMPLES, scene, &pipelines.layouts.global_uniform);
         let stream = scene.procgen.clone().map(|cfg| {
-            // A browser has no threads to spawn: the streamer then builds chunks a few per frame on the calling thread.
-            #[cfg(target_arch = "wasm32")]
-            let workers = 0;
-            #[cfg(not(target_arch = "wasm32"))]
             let workers = std::thread::available_parallelism().map_or(1, |n| (n.get() / 2).clamp(1, 3));
             crate::stream_gpu::StreamLayer::new(device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), workers)
         });

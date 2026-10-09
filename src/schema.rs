@@ -504,10 +504,11 @@ fn parse_material(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Materi
             check_keys(&mut ctx.errors, &mpath, m, strict::MATERIAL_KEYS);
             Material {
                 color: color_field(ctx, m, "color", &mpath, Vec3::splat(0.7)),
-                metallic: plain_f32(ctx, m, "metallic", &mpath, 0.0).clamp(0.0, 1.0),
-                roughness: plain_f32(ctx, m, "roughness", &mpath, 0.6).clamp(0.04, 1.0),
+                metallic: ranged_fix(ctx, m, "metallic", &mpath, 0.0, 0.0, 1.0, "0 is a plain surface, 1 a metal"),
+                // 0 is allowed and means as smooth as the renderer can draw: it floors at 0.04 because a perfect mirror has no highlight to shade (SPEC.md, "Materials").
+                roughness: ranged_fix(ctx, m, "roughness", &mpath, 0.6, 0.0, 1.0, "0 is glossy, 1 fully matte").max(0.04),
                 emissive: plain_hex(ctx, m, "emissive", &mpath, Vec3::ZERO),
-                opacity: plain_f32(ctx, m, "opacity", &mpath, 1.0).clamp(0.0, 1.0),
+                opacity: ranged_fix(ctx, m, "opacity", &mpath, 1.0, 0.0, 1.0, "0 is invisible, 1 solid"),
             }
         }
     }
@@ -528,7 +529,7 @@ fn parse_camera(ctx: &mut Ctx, obj: &Map<String, Value>) -> Camera {
     check_keys(&mut ctx.errors, "camera", obj, strict::CAMERA_KEYS);
     Camera {
         fov: float_field(ctx, obj, "fov", "camera", 90.0),
-        near: plain_f32(ctx, obj, "near", "camera", 0.1).max(0.001),
+        near: at_least(ctx, obj, "near", "camera", 0.1, 0.001, "the near plane is a distance in metres in front of the camera; 0.1 is the default"),
         far: plain_f32(ctx, obj, "far", "camera", 200.0),
         position: vec3_field(ctx, obj, "position", "camera", Vec3::new(0.0, 2.0, 8.0)),
         target: vec3_field(ctx, obj, "target", "camera", Vec3::new(0.0, 1.0, 0.0)),
@@ -537,12 +538,42 @@ fn parse_camera(ctx: &mut Ctx, obj: &Map<String, Value>) -> Camera {
 }
 
 fn ranged(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path: &str, default: f32, min: f32, max: f32) -> f32 {
+    ranged_fix(ctx, obj, key, path, default, min, max, "")
+}
+
+/// [`ranged`] with a sentence saying what to write instead: an out-of-range value is an error that names the number and the fix, never a silent clamp (an author who writes
+/// `"opacity": 1.5` gets 1.0 and never learns the 1.5 did nothing).
+#[allow(clippy::too_many_arguments)]
+fn ranged_fix(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path: &str, default: f32, min: f32, max: f32, fix: &str) -> f32 {
     let value = plain_f32(ctx, obj, key, path, default);
     if !(min..=max).contains(&value) {
-        ctx.err(&format!("{path}.{key}"), format!("must be between {min} and {max}"));
+        ctx.err(&format!("{path}.{key}"), format!("must be between {min} and {max} (got {value}){}{fix}", if fix.is_empty() { "" } else { "; " }));
         default
     } else {
         value
+    }
+}
+
+/// A number with only a lower bound: absent = `default`; below `min` is an error that says how to fix it, never a silent raise to the minimum.
+fn at_least(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path: &str, default: f32, min: f32, fix: &str) -> f32 {
+    let value = plain_f32(ctx, obj, key, path, default);
+    if value < min {
+        ctx.err(&format!("{path}.{key}"), format!("must be at least {min} (got {value}); {fix}"));
+        default
+    } else {
+        value
+    }
+}
+
+/// A true/false field: absent = `default`; anything else is an error, not a silent `default` (`"collide": "no"` used to leave collision on).
+fn bool_field(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path: &str, default: bool) -> bool {
+    match obj.get(key) {
+        None => default,
+        Some(Value::Bool(b)) => *b,
+        Some(v) => {
+            ctx.err(&format!("{path}.{key}"), format!("must be true or false (got {}); write {} without quotes", short_json(v), default));
+            default
+        }
     }
 }
 
@@ -643,10 +674,17 @@ fn parse_jump_pads(ctx: &mut Ctx, root: &Map<String, Value>) -> Vec<crate::playe
                 Vec3::ZERO
             }
         };
-        let size = match obj.get("size").and_then(Value::as_array).filter(|v| v.len() == 2) {
-            Some(v) => Vec3::new(as_f32(&v[0]).unwrap_or(1.0), 0.0, as_f32(&v[1]).unwrap_or(1.0)),
+        let size = match obj.get("size").and_then(Value::as_array).filter(|v| v.len() == 2).and_then(|v| Some((as_f32(&v[0])?, as_f32(&v[1])?))) {
+            Some((w, d)) if w >= 0.2 && d >= 0.2 => Vec3::new(w, 0.0, d),
+            Some((w, d)) => {
+                ctx.err(
+                    &format!("{path}.size"),
+                    format!("both sides must be at least 0.2 m (got [{w}, {d}]); a pad smaller than a footprint cannot be stepped on"),
+                );
+                Vec3::new(1.0, 0.0, 1.0)
+            }
             None => {
-                ctx.err(&format!("{path}.size"), "must be [width, depth]");
+                ctx.err(&format!("{path}.size"), "must be [width, depth], two numbers in metres, e.g. [1, 1]");
                 Vec3::new(1.0, 0.0, 1.0)
             }
         };
@@ -654,7 +692,7 @@ fn parse_jump_pads(ctx: &mut Ctx, root: &Map<String, Value>) -> Vec<crate::playe
         out.push(crate::player::JumpPad {
             id,
             center: glam::Vec2::new(position.x, position.z),
-            size: glam::Vec2::new(size.x.max(0.2), size.z.max(0.2)),
+            size: glam::Vec2::new(size.x, size.z),
             foot_y: position.y,
             launch_speed,
         });
@@ -664,7 +702,7 @@ fn parse_jump_pads(ctx: &mut Ctx, root: &Map<String, Value>) -> Vec<crate::playe
 
 fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
     let id = obj.get("id").and_then(Value::as_str).unwrap_or("light").to_string();
-    let cast_shadows = obj.get("cast_shadows").and_then(Value::as_bool).unwrap_or(false);
+    let cast_shadows = bool_field(ctx, obj, "cast_shadows", path, false);
     let shadow_radius = plain_f32(ctx, obj, "shadow_radius", path, 15.0);
     let shadow_center = match obj.get("shadow_center") {
         None => Vec3::ZERO,
@@ -684,7 +722,7 @@ fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
         Some("directional") => LightKind::Directional { direction: vec3_field(ctx, obj, "direction", path, Vec3::new(-0.4, -1.0, -0.3)) },
         Some("point") => LightKind::Point {
             position: vec3_field(ctx, obj, "position", path, Vec3::new(0.0, 3.0, 0.0)),
-            range: plain_f32(ctx, obj, "range", path, 20.0).max(0.01),
+            range: at_least(ctx, obj, "range", path, 20.0, 0.01, "`range` is how far the light reaches, in metres"),
         },
         Some(other) => {
             ctx.err(&format!("{path}.type"), format!("unknown light type '{other}' (expected 'directional' or 'point')"));
@@ -702,7 +740,7 @@ fn parse_light(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> Light {
         LightKind::Directional { .. } => 2.0,
         LightKind::Point { .. } => 12.0,
     };
-    let shadow_follow = obj.get("shadow_follow").and_then(Value::as_bool).unwrap_or(false);
+    let shadow_follow = bool_field(ctx, obj, "shadow_follow", path, false);
     Light { id, kind, color, intensity: float_field(ctx, obj, "intensity", path, intensity_default), cast_shadows, shadow_radius, shadow_center, shadow_follow }
 }
 
@@ -723,9 +761,18 @@ fn parse_prim(ctx: &mut Ctx, ty: &str, obj: &Map<String, Value>, path: &str) -> 
         "cone" => PrimKind::Cone { radius: plain_f32(ctx, obj, "radius", path, 0.5), height: plain_f32(ctx, obj, "height", path, 1.0) },
         "capsule" => PrimKind::Capsule { radius: plain_f32(ctx, obj, "radius", path, 0.3), height: plain_f32(ctx, obj, "height", path, 1.0) },
         "plane" => {
-            let (w, d) = match obj.get("size").and_then(Value::as_array) {
-                Some(a) if a.len() == 2 => (as_f32(&a[0]).unwrap_or(10.0), as_f32(&a[1]).unwrap_or(10.0)),
-                _ => (10.0, 10.0),
+            let (w, d) = match obj.get("size") {
+                None => (10.0, 10.0),
+                Some(v) => match v.as_array().filter(|a| a.len() == 2).and_then(|a| Some((as_f32(&a[0])?, as_f32(&a[1])?))) {
+                    Some((w, d)) if w > 0.0 && d > 0.0 => (w, d),
+                    _ => {
+                        ctx.err(
+                            &format!("{path}.size"),
+                            format!("must be [width, depth], two numbers above 0 in metres (got {}), e.g. [10, 10]", short_json(v)),
+                        );
+                        (10.0, 10.0)
+                    }
+                },
             };
             PrimKind::Plane { size: (w, d) }
         }
@@ -742,8 +789,8 @@ fn parse_pose_track_f32(ctx: &mut Ctx, obj: &Map<String, Value>, key: &str, path
 }
 
 fn parse_humanoid(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> HumanoidDef {
-    let height = plain_f32(ctx, obj, "height", path, 1.8).max(0.1);
-    let build = plain_f32(ctx, obj, "build", path, 1.0).max(0.05);
+    let height = at_least(ctx, obj, "height", path, 1.8, 0.1, "`height` is the figure's height in metres; 1.8 is an adult");
+    let build = at_least(ctx, obj, "build", path, 1.0, 0.05, "`build` scales the figure's width; 1 is average");
     let material = parse_material(ctx, obj, path);
     let pose_obj = obj.get("pose").and_then(Value::as_object).cloned().unwrap_or_default();
     let ppath = format!("{path}.pose");
@@ -810,10 +857,25 @@ fn parse_prop(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> PropDef {
 }
 
 fn parse_stairs(ctx: &mut Ctx, obj: &Map<String, Value>, path: &str) -> StairsDef {
-    let width = plain_f32(ctx, obj, "width", path, 1.2).max(0.1);
-    let run = plain_f32(ctx, obj, "run", path, 4.0).max(0.1);
-    let rise = plain_f32(ctx, obj, "rise", path, 3.0).max(0.05);
-    let steps = obj.get("steps").and_then(Value::as_u64).unwrap_or(16).clamp(1, 64) as u32;
+    let width = at_least(ctx, obj, "width", path, 1.2, 0.1, "a staircase is at least 0.1 m wide; use `width: 1.2` for a normal one");
+    let run = at_least(ctx, obj, "run", path, 4.0, 0.1, "`run` is the horizontal length in metres");
+    let rise = at_least(ctx, obj, "rise", path, 3.0, 0.05, "`rise` is the height climbed in metres");
+    let steps = match obj.get("steps") {
+        None => 16,
+        Some(v) => match v.as_u64().filter(|n| (1..=64).contains(n)) {
+            Some(n) => n as u32,
+            None => {
+                ctx.err(
+                    &format!("{path}.steps"),
+                    format!(
+                        "must be a whole number from 1 to 64 (got {}); more steps than 64 add nothing a ramp does not, so raise `rise` and `run` instead",
+                        short_json(v)
+                    ),
+                );
+                16
+            }
+        },
+    };
     StairsDef { width, run, rise, steps, material: parse_material(ctx, obj, path) }
 }
 
@@ -915,7 +977,7 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
         }
     };
 
-    let collide = obj.get("collide").and_then(Value::as_bool).unwrap_or(true);
+    let collide = bool_field(ctx, obj, "collide", &id, true);
     let prefab = obj
         .get("prefab_name")
         .and_then(Value::as_str)
@@ -960,17 +1022,42 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
     if let Some(m) = meta {
         check_keys(&mut ctx.errors, "meta", m, strict::META_KEYS);
     }
-    let fps = meta.and_then(|m| m.get("fps")).and_then(Value::as_u64).unwrap_or(30).max(1) as u32;
-    let duration = meta.and_then(|m| m.get("duration")).and_then(as_f32).unwrap_or(4.0);
-    if duration <= 0.0 {
-        ctx.err("meta.duration", "must be > 0");
-    }
-    let (width, height) = meta
-        .and_then(|m| m.get("resolution"))
-        .and_then(Value::as_array)
-        .filter(|a| a.len() == 2)
-        .and_then(|a| Some((a[0].as_u64()? as u32, a[1].as_u64()? as u32)))
-        .unwrap_or((1280, 720));
+    let fps = match meta.and_then(|m| m.get("fps")) {
+        None => 30,
+        Some(v) => match v.as_u64().filter(|n| *n >= 1) {
+            Some(n) => n as u32,
+            None => {
+                ctx.err("meta.fps", format!("must be a whole number of frames per second, 1 or more (got {}); 30 is the default", short_json(v)));
+                30
+            }
+        },
+    };
+    let duration = match meta.and_then(|m| m.get("duration")) {
+        None => 4.0,
+        Some(v) => match as_f32(v).filter(|d| *d > 0.0) {
+            Some(d) => d,
+            None => {
+                ctx.err("meta.duration", format!("must be a number of seconds greater than 0 (got {}); 4 is the default", short_json(v)));
+                4.0
+            }
+        },
+    };
+    let (width, height) = match meta.and_then(|m| m.get("resolution")) {
+        None => (1280, 720),
+        Some(v) => match v.as_array().filter(|a| a.len() == 2).and_then(|a| Some((a[0].as_u64()? as u32, a[1].as_u64()? as u32))) {
+            Some((w, h)) if w >= 2 && h >= 2 && w % 2 == 0 && h % 2 == 0 => (w, h),
+            _ => {
+                ctx.err(
+                    "meta.resolution",
+                    format!(
+                        "must be [width, height], two even whole numbers of at least 2 pixels (got {}); video encoders need even sizes, e.g. [1280, 720]",
+                        short_json(v)
+                    ),
+                );
+                (1280, 720)
+            }
+        },
+    };
 
     let default_sky_top = Vec3::new(0.42, 0.62, 0.88);
     let default_sky_bottom = Vec3::new(0.90, 0.94, 0.99);
@@ -1053,10 +1140,10 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
                 check_keys(&mut ctx.errors, "post", p, strict::POST_KEYS);
                 let d = PostSettings::default();
                 PostSettings {
-                    enabled: p.get("enabled").and_then(Value::as_bool).unwrap_or(d.enabled),
-                    ao: plain_f32(&mut ctx, p, "ao", "post", d.ao).clamp(0.0, 3.0),
-                    outline: plain_f32(&mut ctx, p, "outline", "post", d.outline).clamp(0.0, 1.0),
-                    ao_radius: plain_f32(&mut ctx, p, "ao_radius", "post", d.ao_radius).clamp(0.05, 3.0),
+                    enabled: bool_field(&mut ctx, p, "enabled", "post", d.enabled),
+                    ao: ranged_fix(&mut ctx, p, "ao", "post", d.ao, 0.0, 3.0, "0 turns contact shadows off, 0.9 is the usual strength"),
+                    outline: ranged_fix(&mut ctx, p, "outline", "post", d.outline, 0.0, 1.0, "0 turns outlines off, 0.65 is the usual darkness"),
+                    ao_radius: ranged_fix(&mut ctx, p, "ao_radius", "post", d.ao_radius, 0.05, 3.0, "`ao_radius` is in metres"),
                 }
             }
         },
@@ -1255,8 +1342,8 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
     Ok(Scene {
         fps,
         duration,
-        width: width.max(2) + width % 2,
-        height: height.max(2) + height % 2,
+        width,
+        height,
         background,
         ambient_color,
         ambient_intensity,
@@ -1495,5 +1582,60 @@ mod tests {
         assert_eq!(scene.objects.len(), 2);
         assert!(matches!(scene.objects[0].kind, ObjectKind::Group(_)));
         assert!(matches!(scene.objects[1].kind, ObjectKind::Humanoid(_)));
+    }
+
+    fn scene_with(objects: &str, extra: &str) -> String {
+        format!(r##"{{"camera":{{"position":[0,2,8],"target":[0,1,0]}}{extra},"objects":[{objects}]}}"##)
+    }
+
+    #[test]
+    fn a_value_outside_its_range_is_an_error_naming_the_number_and_the_fix_not_a_silent_clamp() {
+        let cases = [
+            (r##"{"id":"a","type":"box","material":{"opacity":1.5}}"##, "a.material.opacity: must be between 0 and 1 (got 1.5); 0 is invisible, 1 solid"),
+            (r##"{"id":"a","type":"box","material":{"metallic":-0.2}}"##, "a.material.metallic: must be between 0 and 1 (got -0.2)"),
+            (r##"{"id":"a","type":"box","material":{"roughness":2}}"##, "a.material.roughness: must be between 0 and 1 (got 2); 0 is glossy, 1 fully matte"),
+            (r##"{"id":"s","type":"stairs","width":0.01}"##, "s.width: must be at least 0.1 (got 0.01)"),
+            (r##"{"id":"s","type":"stairs","steps":200}"##, "s.steps: must be a whole number from 1 to 64 (got 200)"),
+            (r##"{"id":"s","type":"stairs","steps":"many"}"##, "s.steps: must be a whole number from 1 to 64 (got \"many\")"),
+            (r##"{"id":"h","type":"humanoid","height":0}"##, "h.height: must be at least 0.1 (got 0)"),
+            (r##"{"id":"p","type":"plane","size":[10]}"##, "p.size: must be [width, depth], two numbers above 0 in metres"),
+            (r##"{"id":"b","type":"box","collide":"no"}"##, "b.collide: must be true or false (got \"no\"); write true without quotes"),
+        ];
+        for (object, want) in cases {
+            let e = errors_of(&scene_with(object, "")).join(" | ");
+            assert!(e.contains(want), "{object}\n  wanted: {want}\n  got: {e}");
+        }
+        let e = errors_of(&scene_with("", r#","post":{"ao":9,"outline":2,"ao_radius":0,"enabled":"yes"}"#)).join(" | ");
+        assert!(
+            e.contains("post.ao: must be between 0 and 3 (got 9)")
+                && e.contains("post.outline: must be between 0 and 1 (got 2)")
+                && e.contains("post.ao_radius: must be between 0.05 and 3 (got 0)"),
+            "{e}"
+        );
+        assert!(e.contains("post.enabled: must be true or false"), "{e}");
+        let e = errors_of(&scene_with("", r#","camera":{"near":0}"#)).join(" | ");
+        assert!(e.contains("camera.near: must be at least 0.001 (got 0)"), "{e}");
+        let e = errors_of(&scene_with(
+            r##"{"id":"l","type":"box"}"##,
+            r#","lights":[{"id":"x","type":"point","range":0},{"id":"y","type":"directional","cast_shadows":1}]"#,
+        ))
+        .join(" | ");
+        assert!(e.contains("range: must be at least 0.01 (got 0)") && e.contains("cast_shadows: must be true or false (got 1)"), "{e}");
+        let e = errors_of(&scene_with("", r#","meta":{"fps":0,"duration":"long","resolution":[1281,720]}"#)).join(" | ");
+        assert!(e.contains("meta.fps: must be a whole number of frames per second, 1 or more (got 0)"), "{e}");
+        assert!(e.contains("meta.duration: must be a number of seconds greater than 0 (got \"long\")"), "{e}");
+        assert!(e.contains("meta.resolution: must be [width, height], two even whole numbers"), "{e}");
+    }
+
+    #[test]
+    fn values_inside_the_ranges_are_accepted_unchanged_and_a_roughness_of_zero_still_floors_at_the_renderer_minimum() {
+        let ok = scene_with(
+            r##"{"id":"a","type":"box","material":{"roughness":0,"metallic":1,"opacity":0}},{"id":"s","type":"stairs","steps":64,"width":0.1}"##,
+            r#","post":{"ao":3,"outline":1,"ao_radius":0.05},"meta":{"fps":1,"duration":0.5,"resolution":[2,2]}"#,
+        );
+        let scene = parse_scene(&ok).unwrap_or_else(|e| panic!("{e:?}"));
+        let a = scene.objects.iter().find(|o| o.id == "a").and_then(|o| o.material.as_ref()).expect("material");
+        assert_eq!((a.roughness, a.metallic, a.opacity), (0.04, 1.0, 0.0));
+        assert_eq!((scene.fps, scene.width, scene.height), (1, 2, 2));
     }
 }

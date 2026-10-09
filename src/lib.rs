@@ -64,7 +64,6 @@ pub mod prefabs;
 #[cfg(feature = "gfx")]
 pub mod probe;
 pub mod procgen;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod project_browser;
 pub mod props;
 #[cfg(feature = "render")]
@@ -84,7 +83,6 @@ pub mod soundscape;
 #[cfg(feature = "gfx")]
 pub mod split_gpu;
 pub mod splitscreen;
-pub mod stats;
 pub mod streaks;
 #[cfg(feature = "render")]
 pub mod stream_gpu;

@@ -1,5 +1,9 @@
 # 2026-10-06. Publication evidence is a set of pieces that never merge
-Status: accepted
+
+> **Superseded 2026-10-07:** the browser target was removed (ADR 2026-10-07-native-executables-only-the-browser-target-is-removed), with the browser publication pipeline, its evidence record (`red2d-evidence/1`) and `scripts/web_check.sh`. A native game ships as an executable (`docs/GAMES_PUBLISHING.md`);
+> what its record can claim is what `verify` proves (simulation, render, waveform) and nothing more. Kept as history.
+
+Status: superseded by 2026-10-07-native-executables-only-the-browser-target-is-removed
 Summary: A browser game's record holds five levels and nineteen-plus pieces of evidence, each passed, failed, not_run or not_applicable with its own sentence, because one success flag cannot say what was seen.
 
 ## Context

@@ -518,7 +518,7 @@
      {
       "player": "p1",
       "hold": {
-       "forward": true,
+       "forward": 1,
        "jump": true,
        "seconds": 0.8
       }

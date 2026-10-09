@@ -3,8 +3,10 @@
 //! [`Kc`] knows nothing about winit except in its `ApplicationHandler` impl: it is driven one frame at a time (`frame`) with its input
 //! handed in as plain calls (`on_key`, `on_click`, ...), which is how the scripted `KC_SCRIPT` runs play it without a window and take pictures.
 
-use super::game::{Connection, Env, Game, Stage};
-use super::input::Controls;
+use crate::game::{Connection, Env, Game, Stage};
+use crate::input::Controls;
+use crate::stats::{self, Stats, Store};
+use crate::ui;
 use glam::{Mat4, Vec3};
 use red_engine2::audio::Audio;
 use red_engine2::capture::Capture;
@@ -15,8 +17,6 @@ use red_engine2::net::join_code::JoinCode;
 use red_engine2::schema::Scene;
 use red_engine2::sfx::{KitSounds, SoundBank};
 use red_engine2::sim::spawns::parse_spawns;
-use red_engine2::stats::{self, Stats, Store};
-use red_engine2::ui::killchain as ui;
 use red_engine2::ui::online::{ConnectForm, Field};
 use red_engine2::ui::{Canvas, Kind, Layout};
 use red_engine2::viewer::{FpsCamera, FrameOptions, LiveRenderer};
@@ -32,7 +32,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
 /// What the command line asked of the game.
-pub(crate) struct Options {
+pub struct Options {
     /// The map.
     pub scene: PathBuf,
     /// Start in borderless fullscreen.
@@ -1289,7 +1289,7 @@ fn take_shot(kc: &mut Kc, name: &str) {
 }
 
 /// Runs the game: a window, or `KC_SCRIPT=file.json` for a scripted run with no window.
-pub(crate) fn run(opts: Options) {
+pub fn run(opts: Options) {
     let kc = Kc::new(opts);
     if let Ok(script) = std::env::var("KC_SCRIPT") {
         run_script(kc, &script);

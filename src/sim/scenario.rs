@@ -438,6 +438,81 @@ fn ticks_of(v: &Value, path: &str, errs: &mut Vec<String>) -> u32 {
     }
 }
 
+/// An expectation's `tol` (metres): absent = 0.5; a negative, zero or non-numeric one is an error (a text `"1"` or `-2` used to be 0.5, so a check passed or failed on a tolerance nobody wrote).
+fn tolerance(eo: &Map<String, Value>, ep: &str, errs: &mut Vec<String>) -> f32 {
+    match eo.get("tol") {
+        None => 0.5,
+        Some(v) => match v.as_f64().filter(|t| t.is_finite() && *t > 0.0) {
+            Some(t) => t as f32,
+            None => {
+                errs.push(format!("{ep}.tol: must be a number of metres greater than 0 (got {}); leave it out for 0.5", crate::strict::describe_value(v)));
+                0.5
+            }
+        },
+    }
+}
+
+/// A `hold` axis (`forward`, `strafe`): absent = 0; only -1, 0 and 1 are inputs. `true` or `5` used to be read as 0 and 1, so a scripted player stood still or ran with no word of it.
+fn hold_axis(h: &Map<String, Value>, key: &str, hp: &str, errs: &mut Vec<String>) -> i8 {
+    match h.get(key) {
+        None => 0,
+        Some(v) => match v.as_i64().filter(|n| (-1..=1).contains(n)) {
+            Some(n) => n as i8,
+            None => {
+                let (plus, minus) = if key == "forward" { ("forward", "back") } else { ("right", "left") };
+                errs.push(format!(
+                    "{hp}.{key}: must be the number -1, 0 or 1 (got {}); 1 is {plus}, -1 is {minus}, 0 or leave it out for neither",
+                    crate::strict::describe_value(v)
+                ));
+                0
+            }
+        },
+    }
+}
+
+/// A `hold` button (`jump`, `attack`, ...): absent = not pressed; only true and false are values (`1` or `"yes"` used to be read as not pressed).
+fn hold_flag(h: &Map<String, Value>, key: &str, hp: &str, errs: &mut Vec<String>) -> bool {
+    match h.get(key) {
+        None => false,
+        Some(Value::Bool(b)) => *b,
+        Some(v) => {
+            errs.push(format!("{hp}.{key}: must be true or false (got {}); write it without quotes", crate::strict::describe_value(v)));
+            false
+        }
+    }
+}
+
+/// A `hold` look angle in degrees: absent = 0 (and the player keeps looking where they were); anything but a number is an error.
+fn hold_degrees(h: &Map<String, Value>, key: &str, hp: &str, errs: &mut Vec<String>) -> f32 {
+    match h.get(key) {
+        None => 0.0,
+        Some(v) => match v.as_f64().filter(|d| d.is_finite()) {
+            Some(d) => d as f32,
+            None => {
+                errs.push(format!("{hp}.{key}: must be a number of degrees (got {})", crate::strict::describe_value(v)));
+                0.0
+            }
+        },
+    }
+}
+
+/// A `hold` weapon choice: absent = 0 (no change), otherwise 0 to 7 as `PlayerInput::select` defines them.
+fn hold_select(h: &Map<String, Value>, hp: &str, errs: &mut Vec<String>) -> u8 {
+    match h.get("select") {
+        None => 0,
+        Some(v) => match v.as_u64().filter(|n| *n <= 7) {
+            Some(n) => n as u8,
+            None => {
+                errs.push(format!(
+                    "{hp}.select: must be a whole number from 0 to 7 (got {}); 1 and 2 are the gun slots, 3 melee, 4 grenade",
+                    crate::strict::describe_value(v)
+                ));
+                0
+            }
+        },
+    }
+}
+
 /// Parses a scenario. `rules` is the scene's rule set (variable names in `expect` are checked against it); `object_ids`
 /// are the scene's object ids (for `hidden`/`shown`).
 pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenario, Vec<String>> {
@@ -566,11 +641,16 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                     continue;
                 };
                 check_keys(&mut errs, &hp, h, HOLD_KEYS);
-                let int = |k: &str| h.get(k).and_then(Value::as_i64).unwrap_or(0).clamp(-1, 1) as i8;
-                let flag = |k: &str| h.get(k).and_then(Value::as_bool).unwrap_or(false);
-                let yaw = h.get("yaw_deg").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                let mut int = |k: &str| hold_axis(h, k, &hp, &mut errs);
+                let (forward, strafe) = (int("forward"), int("strafe"));
+                let mut flag = |k: &str| hold_flag(h, k, &hp, &mut errs);
+                let (jump, sprint, crouch) = (flag("jump"), flag("sprint"), flag("crouch"));
+                let (interact, attack, reload, switch_weapon, aim, drop) =
+                    (flag("interact"), flag("attack"), flag("reload"), flag("switch"), flag("aim"), flag("drop"));
+                let select = hold_select(h, &hp, &mut errs);
+                let yaw = hold_degrees(h, "yaw_deg", &hp, &mut errs);
                 let ticks = h.get("seconds").map_or(1, |s| ticks_of(s, &format!("{hp}.seconds"), &mut errs));
-                let pitch = h.get("pitch_deg").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                let pitch = hold_degrees(h, "pitch_deg", &hp, &mut errs);
                 let look_at = match h.get("look_at") {
                     None => None,
                     Some(v) => {
@@ -587,20 +667,20 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                 let input = PlayerInput {
                     seq: 0,
                     analog: false,
-                    forward: int("forward"),
-                    strafe: int("strafe"),
-                    jump: flag("jump"),
-                    sprint: flag("sprint"),
-                    crouch: flag("crouch"),
+                    forward,
+                    strafe,
+                    jump,
+                    sprint,
+                    crouch,
                     yaw: yaw.to_radians(),
                     pitch: pitch.to_radians(),
-                    interact: flag("interact"),
-                    attack: flag("attack"),
-                    reload: flag("reload"),
-                    switch_weapon: flag("switch"),
-                    aim: flag("aim"),
-                    drop: flag("drop"),
-                    select: int("select").clamp(0, 7) as u8,
+                    interact,
+                    attack,
+                    reload,
+                    switch_weapon,
+                    aim,
+                    drop,
+                    select,
                 };
                 script.push((
                     pi,
@@ -817,11 +897,7 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
                         errs.push(format!("{ep}.near: must be [x, z]"));
                         return None;
                     };
-                    PropCheck::Near {
-                        at,
-                        tol: eo.get("tol").and_then(Value::as_f64).unwrap_or(0.5) as f32,
-                        y: eo.get("y").and_then(Value::as_f64).map(|y| y as f32),
-                    }
+                    PropCheck::Near { at, tol: tolerance(eo, ep, errs), y: eo.get("y").and_then(Value::as_f64).map(|y| y as f32) }
                 }
                 _ => {
                     let who = eo["held_by"].as_str().unwrap_or("").to_string();
@@ -851,12 +927,7 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
                 errs.push(format!("{ep}.near: a player check needs \"near\": [x, z]"));
                 return None;
             };
-            Some(Expect::PlayerNear {
-                player: text,
-                at,
-                tol: eo.get("tol").and_then(Value::as_f64).unwrap_or(0.5) as f32,
-                y: eo.get("y").and_then(Value::as_f64).map(|y| y as f32),
-            })
+            Some(Expect::PlayerNear { player: text, at, tol: tolerance(eo, ep, errs), y: eo.get("y").and_then(Value::as_f64).map(|y| y as f32) })
         }
     }
 }
@@ -1425,5 +1496,52 @@ mod tests {
         let who = LAPS_SCENE.replace(r#""of":"idle""#, r#""of":"nobody""#);
         let e = run_scene("who", &who).map(|r| r.render()).unwrap_or_else(|e| e);
         assert!(e.contains("names the player it reads with `of`") && e.contains("runner, idle"), "{e}");
+    }
+
+    /// The messages of a scenario whose single `hold` step is `hold`.
+    fn hold_errors(hold: Value) -> String {
+        parse(
+            &json!({"name": "h", "players": [{"id": "p"}], "script": [{"player": "p", "hold": hold}], "expect": [{"var": "flag", "eq": true}]}),
+            &rules(),
+            &[],
+        )
+        .map(|_| String::new())
+        .unwrap_or_else(|e| e.join(" | "))
+    }
+
+    #[test]
+    fn a_hold_with_a_value_that_is_not_an_input_is_an_error_not_a_player_who_stands_still() {
+        // the Idea Forge finding: `{"forward": true}` ran for nine seconds with the player not moving; only `1` worked
+        let e = hold_errors(json!({"forward": true, "seconds": 1}));
+        assert!(e.contains(".hold.forward: must be the number -1, 0 or 1 (got boolean true); 1 is forward, -1 is back"), "{e}");
+        let e = hold_errors(json!({"strafe": 5}));
+        assert!(e.contains(".hold.strafe: must be the number -1, 0 or 1 (got number 5); 1 is right, -1 is left"), "{e}");
+        let e = hold_errors(json!({"jump": 1, "sprint": "yes"}));
+        assert!(
+            e.contains(".hold.jump: must be true or false (got number 1)") && e.contains(".hold.sprint: must be true or false (got string \"yes\")"),
+            "{e}"
+        );
+        let e = hold_errors(json!({"yaw_deg": "left", "pitch_deg": null}));
+        assert!(e.contains(".hold.yaw_deg: must be a number of degrees") && e.contains(".hold.pitch_deg: must be a number of degrees"), "{e}");
+        assert_eq!(hold_errors(json!({"forward": 1, "strafe": -1, "jump": true, "yaw_deg": 90, "seconds": 2})), "", "valid inputs are untouched");
+        assert_eq!(hold_errors(json!({})), "");
+    }
+
+    #[test]
+    fn an_expectation_tolerance_must_be_a_positive_number() {
+        let bad = |tol: Value| {
+            parse(
+                &json!({"name": "t", "players": [{"id": "p"}], "script": [{"player": "p", "wait": 0}], "expect": [{"player": "p", "near": [1, 2], "tol": tol}]}),
+                &rules(),
+                &[],
+            )
+            .map(|_| String::new())
+            .unwrap_or_else(|e| e.join(" | "))
+        };
+        for tol in [json!("1"), json!(-2), json!(0)] {
+            let e = bad(tol);
+            assert!(e.contains(".tol: must be a number of metres greater than 0") && e.contains("leave it out for 0.5"), "{e}");
+        }
+        assert_eq!(bad(json!(0.8)), "");
     }
 }

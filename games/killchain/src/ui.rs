@@ -5,12 +5,12 @@
 //! are audited (`audit_all`) at every window size and can be rendered to a picture without a window. The HUD is deliberately tiny: your
 //! health, the ammunition of the weapon in hand, the score and the clock, and nothing else.
 
-use super::objective::{Marker, ObjectiveHud};
-use super::online::ConnectForm;
-use super::{ellipsize, fit_scale, text_height, text_width, Canvas, Layout};
-use crate::net::protocol::{RosterEntry, ROSTER_BOT, ROSTER_READY};
+use crate::objective_hud::{Marker, ObjectiveHud};
 use crate::stats::Stats;
-use crate::uniforms::TEAM_NAMES;
+use red_engine2::net::protocol::{RosterEntry, ROSTER_BOT, ROSTER_READY};
+use red_engine2::ui::online::ConnectForm;
+use red_engine2::ui::{ellipsize, fit_scale, text_height, text_width, Canvas, Layout};
+use red_engine2::uniforms::TEAM_NAMES;
 
 const TEXT: [u8; 4] = [236, 238, 240, 255];
 const DIM: [u8; 4] = [150, 156, 160, 255];
@@ -192,7 +192,7 @@ impl Default for Setup {
 
 /// The kill limits on offer in team deathmatch.
 pub const KILL_LIMITS: [u16; 5] = [25, 50, 75, 100, 0];
-/// The modes on offer: `(button id suffix, short label)`; the index is the [`ModeKind`](crate::sim::shooter::ModeKind) wire byte.
+/// The modes on offer: `(button id suffix, short label)`; the index is the [`ModeKind`](red_engine2::sim::shooter::ModeKind) wire byte.
 /// (The font has no ampersand, so search and destroy is BOMB on the button.)
 pub const MODES: [&str; 4] = ["TDM", "FFA", "CTF", "BOMB"];
 /// The team sizes on offer (people a side).
@@ -240,7 +240,7 @@ pub enum SetupAction {
     Skill(u8),
     /// A kill limit (`0` = none).
     Kills(u16),
-    /// A mode (a [`ModeKind`](crate::sim::shooter::ModeKind) wire byte).
+    /// A mode (a [`ModeKind`](red_engine2::sim::shooter::ModeKind) wire byte).
     Mode(u8),
     /// A map (an index into the setup's maps).
     Map(usize),
@@ -357,7 +357,7 @@ pub fn setup_layout(w: u32, h: u32, title: &str, o: &Setup, note: Option<&str>, 
     btn(&mut l, "back", (rx - half, y, rx, y + 12 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
     y += 12 * s + 3 * s;
     if let Some(n) = note {
-        for (i, line) in super::wrap(&upper(n), inner, s).into_iter().take(2).enumerate() {
+        for (i, line) in red_engine2::ui::wrap(&upper(n), inner, s).into_iter().take(2).enumerate() {
             l.label_left(&format!("note_{i}"), Some(p), lx, y + i as i32 * (text_height(s) + 2 * s), &line, s, inner, DIM);
         }
     }
@@ -404,8 +404,8 @@ pub fn join_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> Layo
     let mut y = 10 * s + text_height(s * 4) + 3 * s + text_height(s) + 10 * s;
     let field_h = 13 * s;
     for (id, caption, value, focused, max_chars) in [
-        ("field_address", "JOIN CODE  (PASTE IT)", &f.address, f.focus == super::online::Field::Address, 0usize),
-        ("field_name", "YOUR NAME", &f.name, f.focus == super::online::Field::Name, 0),
+        ("field_address", "JOIN CODE  (PASTE IT)", &f.address, f.focus == red_engine2::ui::online::Field::Address, 0usize),
+        ("field_name", "YOUR NAME", &f.name, f.focus == red_engine2::ui::online::Field::Name, 0),
     ] {
         l.label_left(&format!("{id}_caption"), Some(p), lx, y, caption, s, inner, DIM);
         y += text_height(s) + 2 * s;
@@ -431,7 +431,7 @@ pub fn join_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> Layo
     btn(&mut l, "back", (rx - third, y, rx, y + 15 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
     y += 15 * s + 6 * s;
     if let Some(m) = &f.message {
-        for (i, line) in super::wrap(&upper(m), inner, s).into_iter().take(4).enumerate() {
+        for (i, line) in red_engine2::ui::wrap(&upper(m), inner, s).into_iter().take(4).enumerate() {
             l.label_left(&format!("message_{i}"), Some(p), lx, y + i as i32 * (text_height(s) + 2 * s), &line, s, inner, [255, 170, 120, 255]);
         }
     }
@@ -498,7 +498,7 @@ pub struct LobbyView {
     pub hosting: bool,
     /// The map's name.
     pub map: String,
-    /// The mode (a [`ModeKind`](crate::sim::shooter::ModeKind) wire byte).
+    /// The mode (a [`ModeKind`](red_engine2::sim::shooter::ModeKind) wire byte).
     pub mode: u8,
     /// Most people on a team (`0` = the full six).
     pub team_size: u8,
@@ -559,7 +559,7 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
     let (x0, y0) = ((wi - cw) / 2, ((hi - ch) / 2).max(4));
     let card = l.panel("card", (x0, y0, x0 + cw, y0 + ch), None, Some(PANEL), Some((EDGE, 1.max(s / 2))));
     let cx = x0 + cw / 2;
-    let mode_name = crate::sim::shooter::ModeKind::from_wire(v.mode).title();
+    let mode_name = red_engine2::sim::shooter::ModeKind::from_wire(v.mode).title();
     let team_size = if v.team_size == 0 { 6 } else { v.team_size as usize };
     let title = if v.mode == 1 { "FREE FOR ALL".to_string() } else { format!("{} - CHOOSE YOUR TEAM", upper(mode_name)) };
     let title_scale = fit_scale(&title, cw - 12 * s, s * 3);
@@ -663,11 +663,11 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
     // The look: four chips, the one worn lit.
     {
         let ly = y0 + ch - 24 * s - 16 * s;
-        let n = crate::player::Character::SOLDIER_LOOKS.len() as i32;
+        let n = red_engine2::player::Character::SOLDIER_LOOKS.len() as i32;
         let lgap = 3 * s;
         let cwid = ((cw - 20 * s) - lgap * (n - 1)) / n;
         l.label_left("look_caption", Some(card), x0 + 10 * s, ly - text_height(s) - 2 * s, "YOUR LOOK", s, cw - 20 * s, DIM);
-        for (i, name) in crate::player::Character::SOLDIER_LOOKS.iter().enumerate() {
+        for (i, name) in red_engine2::player::Character::SOLDIER_LOOKS.iter().enumerate() {
             let bx = x0 + 10 * s + i as i32 * (cwid + lgap);
             let id = format!("look_{i}");
             btn(&mut l, &id, (bx, ly, bx + cwid, ly + 12 * s), Some(card), &upper(name), s, hover == Some(id.as_str()), v.look as usize == i);
@@ -726,7 +726,7 @@ pub struct HudView {
     pub center: Option<String>,
     /// Looking at a pickup that would be taken: its name.
     pub prompt: Option<String>,
-    /// The mode (a [`ModeKind`](crate::sim::shooter::ModeKind) wire byte: `0` team deathmatch, `1` free for all, `2` capture the flag, `3` search and destroy).
+    /// The mode (a [`ModeKind`](red_engine2::sim::shooter::ModeKind) wire byte: `0` team deathmatch, `1` free for all, `2` capture the flag, `3` search and destroy).
     pub mode: u8,
     /// Free for all: our kills and the best player's kills.
     pub ffa: Option<(u16, u16)>,
@@ -897,7 +897,7 @@ pub struct BoardView {
     pub waiting_for: usize,
     /// Whether the match is over (the results screen) or running (the Tab scoreboard).
     pub over: bool,
-    /// The mode (a [`ModeKind`](crate::sim::shooter::ModeKind) wire byte): free for all lists everyone in one table.
+    /// The mode (a [`ModeKind`](red_engine2::sim::shooter::ModeKind) wire byte): free for all lists everyone in one table.
     pub mode: u8,
     /// Free for all: the winning player's id (`255` = nobody).
     pub winner: u8,
@@ -1355,10 +1355,10 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
                 objective: Some(ObjectiveHud {
                     line: "YOUR FLAG HOME   ENEMY FLAG TAKEN".into(),
                     sub: "YOU HAVE THE FLAG - BRING IT HOME".into(),
-                    sub_color: super::objective::CALL,
+                    sub_color: crate::objective_hud::CALL,
                     bar: None,
                 }),
-                banner: Some(("YOU TOOK THE FLAG".into(), super::objective::GOOD)),
+                banner: Some(("YOU TOOK THE FLAG".into(), crate::objective_hud::GOOD)),
                 markers: vec![
                     Marker { x: w as f32 * 0.22, y: h as f32 * 0.46, label: "YOUR FLAG  48M".into(), color: RIDGEBACK },
                     Marker { x: w as f32 * 0.78, y: h as f32 * 0.58, label: "ENEMY BASE  61M".into(), color: NIGHTFALL },
@@ -1376,11 +1376,11 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
                 objective: Some(ObjectiveHud {
                     line: "ROUND 4   ATTACKING   3 V 2".into(),
                     sub: "BOMB PLANTED AT A   0:31   DEFEND IT".into(),
-                    sub_color: super::objective::GOOD,
+                    sub_color: crate::objective_hud::GOOD,
                     bar: Some(("DEFUSING".into(), 0.4)),
                 }),
-                banner: Some(("BOMB PLANTED - DEFEND IT".into(), super::objective::GOOD)),
-                markers: vec![Marker { x: w as f32 * 0.55, y: h as f32 * 0.5, label: "BOMB  0:31".into(), color: super::objective::BAD }],
+                banner: Some(("BOMB PLANTED - DEFEND IT".into(), crate::objective_hud::GOOD)),
+                markers: vec![Marker { x: w as f32 * 0.55, y: h as f32 * 0.5, label: "BOMB  0:31".into(), color: crate::objective_hud::BAD }],
                 ..hud
             },
         ),
@@ -1404,7 +1404,7 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
 pub fn audit_all() -> Vec<(String, (u32, u32), String)> {
     let mut out = Vec::new();
     for name in all() {
-        for &(w, h) in &super::screens::CHECK_SIZES {
+        for &(w, h) in &red_engine2::ui::screens::CHECK_SIZES {
             if let Some(l) = build(name, w, h) {
                 for v in l.check() {
                     out.push((name.to_string(), (w, h), format!("[{}] {}: {}", v.code, v.widget, v.message)));
@@ -1435,7 +1435,7 @@ mod tests {
     #[test]
     fn the_home_menu_is_minimal_and_its_buttons_map_to_actions() {
         let l = home_layout(1280, 720, None, "v1");
-        let buttons: Vec<&str> = l.widgets.iter().filter(|w| w.kind == super::super::Kind::Button).map(|w| w.id.as_str()).collect();
+        let buttons: Vec<&str> = l.widgets.iter().filter(|w| w.kind == red_engine2::ui::Kind::Button).map(|w| w.id.as_str()).collect();
         assert_eq!(buttons, ["solo", "host", "join", "stats", "quit"]);
         assert_eq!(home_action("stats"), Some(HomeAction::Stats));
         assert_eq!(home_action("nope"), None);
