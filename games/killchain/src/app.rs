@@ -13,7 +13,6 @@ use red_engine2::capture::Capture;
 use red_engine2::net::bot::ClientWorld;
 use red_engine2::net::client::ClientConfig;
 use red_engine2::net::host::{HostOptions, LocalHost, PublicOptions};
-use red_engine2::net::join_code::JoinCode;
 use red_engine2::schema::Scene;
 use red_engine2::sfx::{KitSounds, SoundBank};
 use red_engine2::sim::spawns::parse_spawns;
@@ -393,14 +392,19 @@ impl Kc {
         // `RE2_RELAY=HOST:PORT` (a hostname works too, e.g. a DuckDNS name): a red_relay to register with instead
         // of relying on UPnP/port forwarding (see docs/HOSTING.md) — a friend then joins with a short code,
         // which also works behind carrier-grade NAT.
-        let relay = red_engine2::net::relay::relay_from_env();
-        let public = hosting.then(|| PublicOptions {
-            identity_dir: stats::data_dir().unwrap_or_else(|| PathBuf::from(".")).join("host"),
-            port: red_engine2::net::DEFAULT_PORT,
-            upnp: true,
-            key: red_engine2::net::auth::random_key().ok().map(|k| k[..8].to_string()),
-            relay,
-        });
+        let identity_dir = stats::data_dir().unwrap_or_else(|| PathBuf::from(".")).join("host");
+        let public = if hosting {
+            // Every hosted game asks for a fresh join key; the relay code and the direct codes shown below all carry it (docs/HOSTING.md).
+            match PublicOptions::for_friends(identity_dir, red_engine2::net::relay::relay_from_env()) {
+                Ok(p) => Some(p),
+                Err(e) => {
+                    self.note = Some(e);
+                    return;
+                }
+            }
+        } else {
+            None
+        };
         let opts = HostOptions {
             fill: Some(if self.setup.bots { 12 } else { 0 }),
             mode: Some(red_engine2::sim::shooter::ModeKind::from_wire(self.setup.mode)),
@@ -431,10 +435,9 @@ impl Kc {
         let name = self.clean_name();
         match Game::start(gpu, &self.opts.scene, Connection { cfg, team: 0 }, true, &name) {
             Ok(mut game) => {
-                // The relay's short code, when there is one, is the preferred thing shown to a host: the whole
-                // point of it is to not need to read an address or a fingerprint aloud. `join_codes.first()` is
-                // what the lobby screen actually displays (`FRIENDS JOIN AT ...`), so it goes first.
-                game.join_codes = host.relay_code().map(str::to_string).into_iter().chain(host.join_codes().iter().map(JoinCode::format)).collect();
+                // `share_codes().first()` is what the lobby screen displays (`FRIENDS JOIN AT ...`): the relay's short code with the join key
+                // when there is one (nothing to read an address or a fingerprint aloud), else the direct code.
+                game.join_codes = host.share_codes();
                 game.notice = host.relay_note().map(str::to_string).or_else(|| host.upnp_note().map(str::to_string));
                 self.game = Some(game);
                 self.host = Some(host);
@@ -447,56 +450,26 @@ impl Kc {
         }
     }
 
-    /// JOIN: parses the code and connects. A short relay code (`net::relay::parse_code`) is resolved against
-    /// `RE2_RELAY` first — the fingerprint it needs still comes through end-to-end (ADR 0044), the player just
-    /// never has to see or type it. Anything else is the long-form `HOST:PORT#fingerprint#key`.
+    /// JOIN: understands the code (`net::join::JoinTarget`: a relay code with its join key, or a long direct code) and connects. The relay
+    /// resolves a short code to the host's identity, which is pinned like a pasted fingerprint (ADR 0044); the key part of the code never
+    /// goes to the relay, only into the encrypted handshake with the host.
     fn try_join(&mut self) {
         let Some(gpu) = self.gpu.as_ref() else { return };
-        let (addr, fingerprint, key, relay_claim) = if let Some(short) = red_engine2::net::relay::parse_code(&self.join_form.address) {
-            let Some(relay) = red_engine2::net::relay::relay_from_env() else {
-                self.join_form.message =
-                    Some("Relays are switched off on this PC (RE2_RELAY=off): ask whoever is hosting for the full join code instead.".to_string());
+        let target = match red_engine2::net::join::JoinTarget::parse(&self.join_form.address) {
+            Ok(t) => t,
+            Err(e) => {
+                self.join_form.message = Some(e.to_string());
                 return;
-            };
-            self.join_form.message = Some("CONNECTING...".to_string());
-            match red_engine2::net::relay_server::resolve_code(&relay, short, std::time::Duration::from_secs(5)) {
-                Ok(resolved) => {
-                    let claim = resolved.claim_bytes();
-                    (resolved.relay_addr, resolved.fingerprint, None, Some(claim))
-                }
-                Err(e) => {
-                    self.join_form.message = Some(e);
-                    return;
-                }
             }
-        } else {
-            let code = match JoinCode::parse(&self.join_form.address) {
-                Ok(c) => c,
-                Err(e) => {
-                    self.join_form.message = Some(e);
-                    return;
-                }
-            };
-            let Some(addr) = std::net::ToSocketAddrs::to_socket_addrs(&code.address).ok().and_then(|mut i| i.next()) else {
-                self.join_form.message = Some(format!("Cannot find '{}'. Check the code and your internet connection.", code.address));
-                return;
-            };
-            (addr, code.fingerprint.clone(), code.key.clone(), None)
         };
-        let mut cfg = ClientConfig::new(addr, 0, 0, 0);
-        cfg.join_key = key;
-        cfg.transport = match red_engine2::net::client::ClientTransportConfig::choose(addr, fingerprint.as_deref(), None, Some("localhost"), false) {
-            Ok(mut t) => {
-                // A relay join claims its pending resolution from the exact socket QUIC then uses for everything
-                // else (`net::relay`'s `ClaimToken`) — a public IP alone cannot tell two players apart.
-                if let (red_engine2::net::client::ClientTransportConfig::Quic { relay_claim: slot, .. }, Some(claim)) = (&mut t, relay_claim) {
-                    *slot = Some(claim);
-                }
-                t
-            }
-            Err(_) => {
-                self.join_form.message =
-                    Some("That code has no identity part: ask your friend for the whole code (they can copy it from the lobby).".to_string());
+        if matches!(target, red_engine2::net::join::JoinTarget::Relay(_)) {
+            self.join_form.message = Some("CONNECTING...".to_string());
+        }
+        let relay = red_engine2::net::relay::relay_from_env();
+        let cfg = match target.client_config(relay.as_deref(), std::time::Duration::from_secs(5)) {
+            Ok(c) => c,
+            Err(e) => {
+                self.join_form.message = Some(e.to_string());
                 return;
             }
         };

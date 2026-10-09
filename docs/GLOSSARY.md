@@ -136,6 +136,7 @@ without asking.
 
 ## Multiplayer (ADR 0016)
 - **transport** / **QUIC** / **development UDP** — how Red's datagrams travel (`net::transport`, ADR 0044): production is QUIC + TLS 1.3 (`net::quic`: encrypted, the server verified by a pinned `sha256:` **fingerprint** from `red_engine2 net-identity`); development UDP is plain authenticated UDP for loopback tools and tests, refused on a public address unless `--insecure-public-udp`. The fingerprint says which server; the join key says who may play.
+- **relay code** / **join key** — a relayed game is joined with `H3PQXR-K7Q2-MZ4P-WTXA` (`net::relay::ShortJoin`): the six-character *rendezvous code* the relay looks up (public-ish, spoken aloud) plus the host's secret *join key* (never sent anywhere; proved inside the QUIC handshake). A code alone admits nobody; `docs/HOSTING.md` "Short codes and who may join", ADR 2026-10-09.
 
 - **authoritative server** — `red_server` / `net::server`: the only place players and props are simulated online.
   Clients send *inputs* (never positions) and draw what the server says.

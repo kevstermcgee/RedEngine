@@ -1288,7 +1288,7 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
                 kill_limit: 50,
                 time_limit_secs: 600,
                 countdown: None,
-                join_address: Some("203.0.113.9:27015".into()),
+                join_address: Some("H3PQXR-K7Q2-MZ4P-WTXA".into()),
                 message: None,
                 hosting: true,
                 map: "foundry".into(),
@@ -1430,6 +1430,32 @@ mod tests {
             v.len(),
             v.iter().map(|(s, (w, h), m)| format!("  {s} {w}x{h}: {m}")).collect::<Vec<_>>().join("\n")
         );
+    }
+
+    #[test]
+    fn the_code_a_host_reads_out_is_never_cut_short_on_the_lobby_screen() {
+        // The relay code carries the join key (`H3PQXR-K7Q2-MZ4P-WTXA`): an ellipsis in it would be a code nobody can join with.
+        let code = "H3PQXR-K7Q2-MZ4P-WTXA";
+        for &(w, h) in &super::super::screens::CHECK_SIZES {
+            let view = LobbyView {
+                roster: demo_roster(),
+                me: 0,
+                ready: false,
+                kill_limit: 50,
+                time_limit_secs: 600,
+                countdown: None,
+                join_address: Some(code.into()),
+                message: None,
+                hosting: true,
+                map: "foundry".into(),
+                mode: 0,
+                team_size: 6,
+                look: 1,
+            };
+            let l = lobby_layout(w, h, &view, None);
+            let shown = l.widgets.iter().find(|x| x.id == "join_address").and_then(|x| x.text.clone()).unwrap_or_default();
+            assert_eq!(shown, format!("FRIENDS JOIN AT  {code}"), "{w}x{h}: the whole code is on screen, not an ellipsis");
+        }
     }
 
     #[test]

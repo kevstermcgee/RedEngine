@@ -21,8 +21,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// How long a paired forwarding session may go without a reply from the host before it is torn down.
-pub const DEFAULT_PAIR_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+/// How long a paired forwarding session may go without any traffic before it is torn down (counted from the last datagram either way).
+/// This is a friend's window to come back after their network drops: the claim that locked the pairing is single-use, so once the relay
+/// forgets it a reconnecting client's packets are strays and it can only JOIN again. The host gives up on a silent player after seconds
+/// and parks their place, so the relay's patience is what decides whether an automatic reconnect (a laptop that slept, a Wi-Fi hand-over)
+/// still works: ten minutes covers those, and a pairing is a few dozen bytes.
+pub const DEFAULT_PAIR_IDLE_TIMEOUT: Duration = Duration::from_secs(600);
 /// How long a resolved code's claim token stays live, waiting for the matching `Claim` to lock the pairing.
 pub const DEFAULT_PENDING_TIMEOUT: Duration = Duration::from_secs(15);
 /// How often [`RelayServer::run`] checks for stale registrations/pending resolutions and its stop flag.
@@ -50,6 +54,8 @@ pub struct RelayServerOptions {
     pub pair_idle_timeout: Duration,
     pub pending_timeout: Duration,
     pub housekeeping_tick: Duration,
+    /// How long a host's code stays live without a keepalive (`net::relay::REGISTRATION_TIMEOUT` by default).
+    pub registration_lease: Duration,
     pub max_registrations: usize,
     pub max_pending: usize,
     pub max_pairings: usize,
@@ -63,6 +69,7 @@ impl Default for RelayServerOptions {
             pair_idle_timeout: DEFAULT_PAIR_IDLE_TIMEOUT,
             pending_timeout: DEFAULT_PENDING_TIMEOUT,
             housekeeping_tick: DEFAULT_HOUSEKEEPING_TICK,
+            registration_lease: super::relay::REGISTRATION_TIMEOUT,
             max_registrations: DEFAULT_MAX_REGISTRATIONS,
             max_pending: DEFAULT_MAX_PENDING,
             max_pairings: DEFAULT_MAX_PAIRINGS,
@@ -176,7 +183,10 @@ impl RelayServer {
             let now = Instant::now();
             // Registrations expire independently of any paired forwarding session: a host that stops sending its
             // keepalive loses its code, but a session already in progress keeps running until its own idle timeout.
-            self.table.lock().unwrap_or_else(|p| p.into_inner()).expire(now);
+            let expired = self.table.lock().unwrap_or_else(|p| p.into_inner()).expire_after(now, self.options.registration_lease);
+            for host in expired {
+                self.drop_pairings_of(host);
+            }
             self.pending.lock().unwrap_or_else(|p| p.into_inner()).retain(|_, p| p.deadline > now);
             // Idle pairings: no socket/thread of their own any more to notice their own silence (B2), so the
             // housekeeping tick is what reclaims one — both sides of it, `pairs` and its `by_id` reverse index.
@@ -205,7 +215,7 @@ impl RelayServer {
         // is never confused with a client's control messages or forwarded traffic (B4: validate accepted origins
         // before opening or using a host-side bridge).
         if self.table.lock().unwrap_or_else(|p| p.into_inner()).is_registered_host(from) {
-            self.forward_from_host(from, data);
+            self.handle_from_host(from, data);
             return;
         }
         let existing = self.pairs.lock().unwrap_or_else(|p| p.into_inner()).get(&from).copied();
@@ -278,8 +288,44 @@ impl RelayServer {
             // sensible to answer; claiming is the only door in.
             None => {}
             // A reply-shaped message from an address that never registered or resolved anything: not ours to answer.
-            Some(RelayMessage::Registered { .. } | RelayMessage::Resolved { .. } | RelayMessage::CodeNotFound) => {}
+            // A goodbye from an address that never registered (or whose lease already ran out): nothing to drop.
+            Some(RelayMessage::Registered { .. } | RelayMessage::Resolved { .. } | RelayMessage::CodeNotFound | RelayMessage::Unregister) => {}
         }
+    }
+
+    /// A datagram from a registered host's own address: its keepalive (`Register` again), its goodbye (`Unregister`), or the
+    /// id-framed envelope around one joiner's bytes. The first two are told apart from the third by shape alone, which is safe
+    /// because an envelope starts with a four-byte pairing id: `Unregister` is one byte, a `Register` without a fingerprint two,
+    /// and one with a fingerprint has `sha256:` at offset 2, where an envelope has the top half of an id that would have to be
+    /// above a billion. Without this a host's keepalive was swallowed as framing and its code expired five minutes in, however
+    /// busy the match was.
+    fn handle_from_host(&self, host: SocketAddr, data: &[u8]) {
+        match RelayMessage::decode(data) {
+            Some(RelayMessage::Unregister) => {
+                self.table.lock().unwrap_or_else(|p| p.into_inner()).unregister(host);
+                self.drop_pairings_of(host);
+            }
+            Some(RelayMessage::Register { fingerprint }) if data.len() < 4 || fingerprint.as_deref().is_some_and(|f| f.starts_with("sha256:")) => {
+                let renewed = self.table.lock().unwrap_or_else(|p| p.into_inner()).register(host, fingerprint, Instant::now(), self.options.max_registrations);
+                if let Ok(code) = renewed {
+                    let _ = self.socket.send_to(&RelayMessage::Registered { code }.encode(), host);
+                }
+            }
+            _ => self.forward_from_host(host, data),
+        }
+    }
+
+    /// Forgets every pairing that leads to `host` (it left or its lease ran out), so its joiners stop being forwarded to nobody.
+    fn drop_pairings_of(&self, host: SocketAddr) {
+        let mut pairs = self.pairs.lock().unwrap_or_else(|p| p.into_inner());
+        let mut by_id = self.by_id.lock().unwrap_or_else(|p| p.into_inner());
+        pairs.retain(|_, p| {
+            let keep = p.host != host;
+            if !keep {
+                by_id.remove(&p.id);
+            }
+            keep
+        });
     }
 
     /// Opens this pairing's own small socket to `host`, remembers it under `client`'s exact address, and starts
@@ -362,24 +408,41 @@ impl HostBridge {
         fingerprint: Option<String>,
         stop: Arc<AtomicBool>,
     ) -> io::Result<(HostBridge, [u8; super::relay::CODE_LEN])> {
+        Self::start_with_keepalive(relay, local_game_addr, fingerprint, stop, DEFAULT_HOST_KEEPALIVE)
+    }
+
+    /// [`start`](Self::start) with a keepalive interval other than [`DEFAULT_HOST_KEEPALIVE`] (a relay run with a short lease, in tests).
+    pub fn start_with_keepalive(
+        relay: &str,
+        local_game_addr: SocketAddr,
+        fingerprint: Option<String>,
+        stop: Arc<AtomicBool>,
+        keepalive: Duration,
+    ) -> io::Result<(HostBridge, [u8; super::relay::CODE_LEN])> {
         let relay_addr = resolve_relay(relay)?;
         let control = Arc::new(UdpSocket::bind(unspecified_matching(relay_addr))?);
         control.set_read_timeout(Some(Duration::from_secs(10)))?;
         let code = register_with_retry(&control, relay, fingerprint.clone())?;
         let bridge =
             HostBridge { control: control.clone(), relay: relay.to_string(), local_game_addr, fingerprint, bridges: Arc::new(Mutex::new(HashMap::new())) };
-        bridge.spawn_keepalive(stop.clone());
+        bridge.spawn_keepalive(stop.clone(), keepalive);
         bridge.spawn_forwarding(stop);
         Ok((bridge, code))
     }
 
-    fn spawn_keepalive(&self, stop: Arc<AtomicBool>) {
+    fn spawn_keepalive(&self, stop: Arc<AtomicBool>, interval: Duration) {
         let control = self.control.clone();
         let relay = self.relay.clone();
         let fingerprint = self.fingerprint.clone();
         std::thread::spawn(move || {
+            let mut last = Instant::now();
+            // Wakes often to look at `stop`: a host that has been told to stop must not send one more `Register` after its goodbye.
             while !stop.load(Ordering::Relaxed) {
-                std::thread::sleep(DEFAULT_HOST_KEEPALIVE);
+                std::thread::sleep(Duration::from_millis(50).min(interval));
+                if last.elapsed() < interval || stop.load(Ordering::Relaxed) {
+                    continue;
+                }
+                last = Instant::now();
                 if let Ok(relay_addr) = resolve_relay(&relay) {
                     let _ = control.send_to(&RelayMessage::Register { fingerprint: fingerprint.clone() }.encode(), relay_addr);
                 }
@@ -407,6 +470,17 @@ impl HostBridge {
     /// Players currently bridged through this host.
     pub fn bridged_count(&self) -> usize {
         self.bridges.lock().unwrap_or_else(|p| p.into_inner()).len()
+    }
+}
+
+impl Drop for HostBridge {
+    /// Tells the relay this host is gone, so its code stops resolving now instead of lingering for the rest of its lease (a friend
+    /// handed that code would otherwise wait out a connection to nobody). Best effort: a relay that cannot be reached, or one that
+    /// predates `Unregister`, still forgets the code when the lease runs out.
+    fn drop(&mut self) {
+        if let Ok(relay_addr) = resolve_relay(&self.relay) {
+            let _ = self.control.send_to(&RelayMessage::Unregister.encode(), relay_addr);
+        }
     }
 }
 
@@ -451,22 +525,50 @@ impl ResolvedHost {
 /// What a joining client does before ever touching `net::quic`: resolve a short code against a relay, then treat
 /// the relay's own resolved address exactly like a normal server address for everything after this (the relay is
 /// transparent to the QUIC handshake that follows).
-pub fn resolve_code(relay: &str, code: super::relay::RelayCode, timeout: Duration) -> Result<ResolvedHost, String> {
-    let relay_addr = resolve_relay(relay).map_err(|e| format!("could not find the relay '{relay}': {e}"))?;
-    let socket = UdpSocket::bind(unspecified_matching(relay_addr)).map_err(|e| format!("could not reach the relay: {e}"))?;
-    socket.set_read_timeout(Some(timeout)).map_err(|e| e.to_string())?;
-    socket.send_to(&RelayMessage::Resolve { code }.encode(), relay_addr).map_err(|e| format!("could not reach the relay: {e}"))?;
+pub fn resolve_code(relay: &str, code: super::relay::RelayCode, timeout: Duration) -> Result<ResolvedHost, ResolveError> {
+    let relay_addr = resolve_relay(relay).map_err(|e| ResolveError::RelayNotFound(format!("could not find the relay '{relay}': {e}")))?;
+    let socket = UdpSocket::bind(unspecified_matching(relay_addr)).map_err(|e| ResolveError::Unreachable(format!("could not reach the relay: {e}")))?;
+    socket.set_read_timeout(Some(timeout)).map_err(|e| ResolveError::Unreachable(e.to_string()))?;
+    socket.send_to(&RelayMessage::Resolve { code }.encode(), relay_addr).map_err(|e| ResolveError::Unreachable(format!("could not reach the relay: {e}")))?;
     let mut buf = [0u8; 256];
-    let (n, from) = socket.recv_from(&mut buf).map_err(|_| format!("the relay at {relay} did not answer: check the address and your internet connection"))?;
+    let (n, from) = socket.recv_from(&mut buf).map_err(|_| ResolveError::NoAnswer(relay.to_string()))?;
     if from != relay_addr {
-        return Err("got a reply from somewhere other than the relay: try again".to_string());
+        return Err(ResolveError::Unexpected("got a reply from somewhere other than the relay: try again".to_string()));
     }
     match RelayMessage::decode(&buf[..n]) {
         Some(RelayMessage::Resolved { fingerprint, token }) => Ok(ResolvedHost { relay_addr, fingerprint, token }),
-        Some(RelayMessage::CodeNotFound) => Err("that code is not live: ask your friend for a fresh one".to_string()),
-        _ => Err("the relay sent something unexpected: try again".to_string()),
+        Some(RelayMessage::CodeNotFound) => Err(ResolveError::CodeNotLive),
+        _ => Err(ResolveError::Unexpected("the relay sent something unexpected: try again".to_string())),
     }
 }
+
+/// Why a code did not resolve. Kept apart so a screen can say the useful thing: a code nobody hosts any more (ask for a new one) is not
+/// a relay that is down (try again, or check the connection).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolveError {
+    /// The relay's name did not resolve to an address.
+    RelayNotFound(String),
+    /// This machine could not send to the relay.
+    Unreachable(String),
+    /// The relay did not answer in time (carries its `HOST:PORT`).
+    NoAnswer(String),
+    /// The relay answered that no host holds this code: mistyped, never registered, or expired / left.
+    CodeNotLive,
+    /// The relay (or something pretending to be it) answered with something that is not a resolution.
+    Unexpected(String),
+}
+
+impl std::fmt::Display for ResolveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResolveError::RelayNotFound(m) | ResolveError::Unreachable(m) | ResolveError::Unexpected(m) => f.write_str(m),
+            ResolveError::NoAnswer(relay) => write!(f, "the relay at {relay} did not answer: check the address and your internet connection"),
+            ResolveError::CodeNotLive => f.write_str("that code is not live: check it, or ask your friend for a fresh one"),
+        }
+    }
+}
+
+impl std::error::Error for ResolveError {}
 
 fn register_with_retry(control: &UdpSocket, relay: &str, fingerprint: Option<String>) -> io::Result<[u8; super::relay::CODE_LEN]> {
     let mut buf = [0u8; 128];
@@ -524,7 +626,8 @@ fn forward_from_relay(
             return;
         }
     };
-    if local.set_read_timeout(Some(DEFAULT_PAIR_IDLE_TIMEOUT)).is_err() {
+    // Woken twice a second to look at `stop`, and gives up on a joiner the game server has not answered for the relay's own patience.
+    if local.set_read_timeout(Some(Duration::from_millis(500))).is_err() {
         return;
     }
     let _ = local.send_to(payload, local_game_addr);
@@ -534,14 +637,20 @@ fn forward_from_relay(
     let stop = stop.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 1500];
+        let mut last_reply = Instant::now();
         while !stop.load(Ordering::Relaxed) {
             match local.recv_from(&mut buf) {
                 Ok((n, src)) if src == local_game_addr => {
+                    last_reply = Instant::now();
                     let framed = [&id.to_le_bytes()[..], &buf[..n]].concat();
                     let _ = control.send_to(&framed, relay_addr);
                 }
                 Ok(_) => {}
-                Err(e) if matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) => break,
+                Err(e) if matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) => {
+                    if last_reply.elapsed() > DEFAULT_PAIR_IDLE_TIMEOUT {
+                        break;
+                    }
+                }
                 Err(_) => break,
             }
         }
@@ -779,7 +888,8 @@ mod tests {
             assert_eq!(resolved.fingerprint.as_deref(), Some("sha256:aa"));
 
             let err = super::resolve_code(&relay_addr.to_string(), generate_code().unwrap(), Duration::from_secs(10)).unwrap_err();
-            assert!(err.contains("not live"), "{err}");
+            assert_eq!(err, ResolveError::CodeNotLive);
+            assert!(err.to_string().contains("not live"), "{err}");
         });
     }
 
@@ -1100,6 +1210,74 @@ mod tests {
             assert!(start.elapsed() < Duration::from_secs(5), "timed out waiting for {what}");
             std::thread::sleep(Duration::from_millis(2));
         }
+    }
+
+    #[test]
+    fn a_hosts_keepalive_keeps_its_code_live_past_the_lease_and_silence_does_not() {
+        // The keepalive `Register` comes from the registered host's own address, which the relay used to read as framed joiner traffic and
+        // drop: every code died at the lease however long the host stayed up. A short lease makes that visible in a fraction of a second.
+        let relay = RelayServer::bind(RelayServerOptions { registration_lease: Duration::from_millis(400), ..fast_options() }).unwrap();
+        let relay_addr = relay.local_addr().to_string();
+        with_relay_running(&relay, || {
+            let game = loopback_game();
+            let stop = Arc::new(AtomicBool::new(false));
+            let _stop_guard = StopOnDrop(&stop);
+            let (_alive, kept) = HostBridge::start_with_keepalive(&relay_addr, game, None, stop.clone(), Duration::from_millis(100)).unwrap();
+            let (_silent, forgotten) = HostBridge::start_with_keepalive(&relay_addr, game, None, stop.clone(), Duration::from_secs(3600)).unwrap();
+            std::thread::sleep(Duration::from_millis(1200)); // three leases
+            assert!(super::resolve_code(&relay_addr, kept, Duration::from_secs(5)).is_ok(), "a host that keeps asking keeps its code");
+            assert_eq!(
+                super::resolve_code(&relay_addr, forgotten, Duration::from_secs(5)).unwrap_err(),
+                ResolveError::CodeNotLive,
+                "a host that went quiet loses it when the lease runs out"
+            );
+        });
+    }
+
+    #[test]
+    fn a_host_that_leaves_frees_its_code_and_its_pairings_at_once() {
+        let relay = RelayServer::bind(fast_options()).unwrap();
+        let relay_addr = relay.local_addr();
+        with_relay_running(&relay, || {
+            let host = UdpSocket::bind(loopback()).unwrap();
+            host.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let stop = Arc::new(AtomicBool::new(false));
+            let _stop_guard = StopOnDrop(&stop);
+            let (bridge, code) = HostBridge::start(&relay_addr.to_string(), host.local_addr().unwrap(), None, stop.clone()).unwrap();
+            let resolved = super::resolve_code(&relay_addr.to_string(), code, Duration::from_secs(5)).unwrap();
+            let joiner = UdpSocket::bind(loopback()).unwrap();
+            joiner.send_to(&resolved.claim_bytes(), relay_addr).unwrap();
+            joiner.send_to(b"hello", relay_addr).unwrap();
+            let mut buf = [0u8; 64];
+            host.recv_from(&mut buf).unwrap();
+            assert_eq!((relay.registered_count(), relay.paired_count()), (1, 1));
+
+            drop(bridge); // the host leaves: its goodbye reaches the relay
+            wait("the code to stop resolving", || {
+                matches!(super::resolve_code(&relay_addr.to_string(), code, Duration::from_secs(5)), Err(ResolveError::CodeNotLive)).then_some(())
+            });
+            wait("the pairing to be torn down", || (relay.registered_count() == 0 && relay.paired_count() == 0).then_some(()));
+        });
+    }
+
+    #[test]
+    fn only_the_registered_address_can_unregister_a_host() {
+        let relay = RelayServer::bind(fast_options()).unwrap();
+        let relay_addr = relay.local_addr();
+        with_relay_running(&relay, || {
+            let stop = Arc::new(AtomicBool::new(false));
+            let _stop_guard = StopOnDrop(&stop);
+            let (_bridge, code) = HostBridge::start(&relay_addr.to_string(), loopback_game(), None, stop.clone()).unwrap();
+            let stranger = UdpSocket::bind(loopback()).unwrap();
+            stranger.send_to(&RelayMessage::Unregister.encode(), relay_addr).unwrap();
+            std::thread::sleep(Duration::from_millis(150));
+            assert!(super::resolve_code(&relay_addr.to_string(), code, Duration::from_secs(5)).is_ok(), "someone else's goodbye changes nothing");
+        });
+    }
+
+    fn loopback_game() -> SocketAddr {
+        // Where a game server would be; the tests above only need an address to bridge to.
+        SocketAddr::from(([127, 0, 0, 1], 9))
     }
 
     #[test]
