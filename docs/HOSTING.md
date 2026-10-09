@@ -75,7 +75,7 @@ was hosted this way and a QUIC client with the pinned fingerprint and key raced 
 * **Encrypted and authenticated on QUIC.** Traffic is confidential, the server is verified by its fingerprint, and with a `--key` strangers
   cannot join (the proof is bound to the TLS connection). Connection limits, a bounded inbound queue, rate limits, size limits and
   hostile-packet tests (`tests/net_quic.rs`, `tests/net_abuse.rs`, `tests/net_auth.rs`) protect the server. On *development UDP* the traffic is
-  readable and an open server authenticates only against blind attackers. Tested, not independently audited. No lag compensation for hitscan yet.
+  readable and an open server authenticates only against blind attackers. Tested, not independently audited. Hitscan is lag-compensated by the server (ADR 0053).
 * Test reachability from *outside* your network (a phone hotspot is enough): a connection from the server machine to its own public
   address proves nothing about the router. `red_bot --server HOST:PORT --behavior forward:0 --duration 3` is a fine probe.
 

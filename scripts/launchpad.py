@@ -4,11 +4,13 @@
     scripts/dev start "<task>" [--project DIR] [--target native|headless|multiplayer ...] [--workflow W] [--json] [--no-save]
     scripts/dev next    [--project DIR]     the current next action again (recomputed from what is on disk)
     scripts/dev resume  [--project DIR]     what changed since you stopped, which recorded results still apply, and the next action
-    (in a game project: scripts/red start|next|resume; MCP: the `start` tool)
+    (in a game project: scripts/red start|next|resume; there is no MCP `start` tool: run it from the shell)
 
-Read-only and standard-library only: it never compiles, installs, downloads, or runs verification, so it works on a fresh checkout with no binary. The only
-processes it starts are `git` and, when `scripts/red_resolve.py` finds a FRESH engine executable, the read-only CLI commands `propose`, `capabilities` and
-`context` (their answers are the authority for what can be built; nothing here keeps a second capability list). `start` records a compact task file under
+Standard-library only, and it never compiles or runs verification, so it works on a fresh checkout with no binary. When there is no usable engine executable, `start` (and
+only `start`) asks `scripts/prebuilt.py` for a release built from exactly this checkout's sources: one request to the releases API and, on a match, one checksum-verified download
+into the target directory (`--no-fetch` or RED_NO_FETCH=1 keeps it off the network). Nothing matches: it says why and the next action is the build. The only other processes it
+starts are `git` and, when `scripts/red_resolve.py` finds a FRESH engine executable, the read-only CLI commands `propose`, `capabilities` and `context` (their answers are the
+authority for what can be built; nothing here keeps a second capability list). `start` records a compact task file under
 `out/launchpad/` (ignored by git; `--no-save` skips it) so `resume` can say what changed. Agent-written notes (`--note`) and results observed by tools are kept
 apart, and recorded results are never trusted across an edit: the tool that wrote them (`affected`, `game check`, `verify`) stays the authority.
 
@@ -27,6 +29,10 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import prebuilt  # noqa: E402
+except ImportError:   # scripts/ without prebuilt.py: start simply does not look for a release
+    prebuilt = None
 import red_resolve  # noqa: E402
 
 SCHEMA = "red-launchpad/1"
@@ -422,7 +428,7 @@ def loop_commands(kind, name, project, cons):
 
 
 def plan_engine_change(ctx):
-    """Focused engine change: owning features, the context packet, then the iterate -> affected ladder. The ladder is CLAUDE.md's; escalation is `affected`'s."""
+    """Focused engine change: owning features, the context packet, then the iterate -> affected ladder. The ladder is AGENTS.md's; escalation is `affected`'s."""
     res, exe, task = ctx["resolution"], ctx["exe"], ctx["task"]
     root = res["engine"]["root"]
     owners = feature_owners(load_features(root), task)
@@ -449,7 +455,7 @@ def plan_engine_change(ctx):
                      after={"argv": ctx["dev"] + ["context", primary or "<words>"], "cwd": root})
     return {"plan": {"owners": [o["feature"] for o in owners]}, "capabilities": {"source": "docs/features.json (feature ownership)", "checked": bool(owners), "supported": None,
             "note": "an engine change has no capability to check; whether it is possible is decided by the owning feature's tests"},
-            "context": {"packet": packet, "pointers": [{"what": "the workflow and ladder", "file": "CLAUDE.md", "section": "Cheap by default"}]},
+            "context": {"packet": packet, "pointers": [{"what": "the workflow and ladder", "file": "AGENTS.md", "section": "Spend context and time like they cost money"}]},
             "next_action": nxt, "blockers": blockers, "uncertainty": uncertainty, "missing": missing, "iteration_checks": checks, "final_requirements": final}
 
 
@@ -544,21 +550,26 @@ def diff_identity(then, now):
 
 
 # ----------------------------------------------------------------------------------------------- assembling the response
-def build_context(args, task):
+def build_context(args, task, fetch=False):
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     project_arg = os.path.abspath(args.project) if args.project else None
     is_game = bool(project_arg and os.path.isfile(os.path.join(project_arg, "game.json")))
     resolution = red_resolve.resolve(here, project_arg if is_game else None)
+    fetched = None
+    if prebuilt and fetch and resolution["selected"]["status"] != "ready" and resolution["engine"]["root"]:
+        fetched = prebuilt.ensure(resolution["engine"]["root"], fetch=not getattr(args, "no_fetch", False))
+        if fetched["exe"]:
+            resolution = red_resolve.resolve(here, project_arg if is_game else None)
     root = resolution["engine"]["root"] or here
     exe = resolution["selected"]["exe"] if resolution["selected"]["status"] in ("ready",) else None
     prefix = ["scripts/red"] if is_game else dev_argv(root, "red")
-    return {"here": here, "root": root, "resolution": resolution, "exe": exe, "task": task, "project_arg": project_arg, "project": project_arg if is_game else None,
+    return {"here": here, "root": root, "resolution": resolution, "exe": exe, "task": task, "project_arg": project_arg, "project": project_arg if is_game else None, "prebuilt": fetched,
             "is_game": is_game, "cwd": project_arg if is_game else root, "dev": dev_argv(root), "red": prefix,
             "self": (["scripts/red"] if is_game else dev_argv(root))}
 
 
-def respond(args, command, task, state=None):
-    ctx = build_context(args, task)
+def respond(args, command, task, state=None, fetch=False):
+    ctx = build_context(args, task, fetch)
     ctx["constraints"] = infer_constraints(task, args.target or [])
     features = load_features(ctx["root"])
     feat_hits = [o["feature"] for o in feature_owners(features, task) if o["score"] >= 6]
@@ -592,6 +603,8 @@ def respond(args, command, task, state=None):
         "evidence": {"observed": recorded_results(ctx["root"], ctx["project"], wf), "claims": claim_table(body["final_requirements"]), "agent_notes": []},
         "blockers": body["blockers"], "plan": body["plan"],
     }
+    if ctx["prebuilt"]:
+        out["prebuilt"] = ctx["prebuilt"]
     return out, ctx, ident
 
 
@@ -609,7 +622,7 @@ def cmd_start(args):
     if not task:
         print("start needs a task: scripts/dev start \"make a small 2d coin game\"", file=sys.stderr)
         return 2
-    out, ctx, ident = respond(args, "start", task)
+    out, ctx, ident = respond(args, "start", task, fetch=True)
     base = ctx["project"] or ctx["root"]
     out["invoked"] = list(INVOKED)
     if not args.no_save and os.path.isdir(base):
@@ -686,6 +699,8 @@ def render(o):
         L.append("targets    " + ", ".join(o["constraints"]["targets"]) + (f"  (inferred: {'; '.join(o['constraints']['inferred'])})" if o["constraints"]["inferred"] else ""))
     L.append(f"engine     {(i.get('engine_head') or 'not a git checkout')[:10]} on {i.get('engine_branch')}, {i.get('engine_dirty_files')} uncommitted" + (f"   project {i['project']}" if i.get("project") else ""))
     L.append(f"executable {sel['status'].upper()}: {sel.get('path') or 'none'}" + (f" ({sel['features']} build)" if sel.get("features") not in (None, "unknown") else ""))
+    if o.get("prebuilt"):
+        L.append("prebuilt   " + prebuilt.describe_result(o["prebuilt"]).split("prebuilt: ", 1)[1])
     for p in o["prerequisites"]:
         if p["state"] != "ok":
             L.append(f"  - {p['id']} {p['state']}: {p['detail']}")
@@ -723,7 +738,7 @@ def render(o):
         L.append(f"recorded   {ob['claim']}: {ob['state'].upper()} ({ob['record']}, {ob['recorded_utc']}) {ob['reason']}")
     for n in o["evidence"]["agent_notes"]:
         L.append(f"agent note {n['utc']}: {n['text']}")
-    L.append(f"(read-only; builds triggered: 0; engine commands run: {len(o.get('invoked', []))})")
+    L.append(f"(builds triggered: 0; downloads: {1 if (o.get('prebuilt') or {}).get('status') == 'fetched' else 0}; engine commands run: {len(o.get('invoked', []))})")
     return "\n".join(L)
 
 
@@ -738,6 +753,7 @@ def main(argv=None):
     s = sub.add_parser("start", parents=[common], help="pick the workflow and give one next action")
     s.add_argument("task", nargs="*")
     s.add_argument("--no-save", action="store_true", help="do not write out/launchpad/<task>.json")
+    s.add_argument("--no-fetch", action="store_true", help="never use the network: do not look for a prebuilt release that matches the checkout")
     for name in ("next", "resume"):
         r = sub.add_parser(name, parents=[common])
         r.add_argument("--task-id")

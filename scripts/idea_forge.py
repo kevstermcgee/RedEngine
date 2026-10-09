@@ -1345,7 +1345,7 @@ engine so the next agent loses less time. This is the loop that makes the engine
 
 1. Choose ONE issue: the most valuable one you can fix completely and safely in this session. A fix can be code, a clearer error message that names the fix, a line in `describe`/the reference, a recipe, a template: whatever
    removes the friction (prefer making the problem disappear over documenting it). If an issue needs a design decision a human should make, do not build it: choose another, or if none is safe make no change and say why.
-2. Follow this repository's own workflow (`CLAUDE.md`): `scripts/dev start "<the fix>"`, `scripts/dev red context <words>` for the files and tests involved, `scripts/dev iterate` while you edit. Keep the change small.
+2. Follow this repository's own workflow (`AGENTS.md`): `scripts/dev start "<the fix>"`, `scripts/dev red context <words>` for the files and tests involved, `scripts/dev iterate` while you edit. Keep the change small.
 3. Add a regression test that fails without your change (a Rust test, or `scripts/test_*.py`). A fix without a test is refused.
 4. If the change is a decision a maintainer should be able to find later, add an ADR (`scripts/dev red adr new "Title" --summary "..."`).
 5. Record the fix: append an object to the JSON list in `{FIXES_FILE}` (create the file as `[]` first if it is missing):
@@ -1507,6 +1507,11 @@ def refresh_checkout(root=None):
     return "updated to origin/main" if not rc else "not updated: cannot fast-forward: " + out[:120]
 
 
+def free_gb():
+    """GiB free where the night's builds go (the home directory's disk). The one place the tool reads the machine's free space: tests replace this function, so a result never depends on the disk of the machine that runs them."""
+    return shutil.disk_usage(os.path.expanduser("~")).free / 2**30
+
+
 def cmd_nightly(a):
     """The whole night, under one lock and strictly one agent at a time: today's games (feedback always delivered), then one engine improvement from the backlog they fed."""
     date = a.date or datetime.date.today().isoformat()
@@ -1515,11 +1520,11 @@ def cmd_nightly(a):
         sys.exit("--order must name each kind once, e.g. 3d,2d")
     if not a.dry_run and not shutil.which(a.claude) and not os.path.isfile(a.claude):
         sys.exit(f"`{a.claude}` not found: install Claude Code, or pass --claude PATH")
-    free_gb = shutil.disk_usage(os.path.expanduser("~")).free / 2**30
-    if not a.dry_run and free_gb < a.min_free_gb:
-        print(f"{date}: skipped: only {free_gb:.0f} GB free (< {a.min_free_gb} GB): each run needs a seeded build and its own build output")
+    free = free_gb()
+    if not a.dry_run and free < a.min_free_gb:
+        print(f"{date}: skipped: only {free:.0f} GB free (< {a.min_free_gb} GB): each run needs a seeded build and its own build output")
         st = load_state()
-        st.setdefault("nights", {})[date] = {"skipped": f"{free_gb:.0f} GB free", "at": round(time.time())}
+        st.setdefault("nights", {})[date] = {"skipped": f"{free:.0f} GB free", "at": round(time.time())}
         save_state(st)
         sys.exit(0)
     with Lock():
