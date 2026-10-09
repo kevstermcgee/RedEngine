@@ -11,7 +11,7 @@ scripts/dev start "<what you want to do>"   # picks the workflow and the executa
 scripts/dev red describe --brief            # the manual, under <!--fact:brief-kb-->2.5<!--/fact--> KB; then: scripts/dev red search "<question>"
 ```
 
-No Rust on this Linux machine? `curl -fsSL https://raw.githubusercontent.com/kevstermcgee/RedEngine/main/scripts/bootstrap.sh | sh` installs the prebuilt binaries.
+No Rust on this Linux machine? `curl -fsSL https://raw.githubusercontent.com/kevstermcgee/RedEngine/main/scripts/bootstrap.sh | sh` installs the prebuilt binaries (run inside a checkout, it installs the release built from exactly that checkout's sources, or says why there is none).
 
 **AI agents: [`AGENTS.md`](AGENTS.md) is the single entry point.** Ask the engine instead of reading it: `search` returns the few fragments that answer a question; `SPEC.md` (the scene-language reference)
 and the long references are for lookup, never for reading whole.

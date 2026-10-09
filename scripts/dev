@@ -17,7 +17,7 @@
 #   scripts/dev fast                   unit tests only (seconds): `cargo test --lib`
 #   scripts/dev test [filter]          the whole suite (or tests whose name matches filter); prints a summary, full log in out/logs/
 #   scripts/dev build [--headless]     debug build of the CLI, server, bot (and the game unless --headless)
-#   scripts/dev red <args...>          run the red_engine2 CLI (builds it first): `scripts/dev red lint maps/x.json`
+#   scripts/dev red <args...>          run the red_engine2 CLI (a prebuilt release built from exactly this checkout's sources if there is one, else it builds first): `scripts/dev red lint maps/x.json`
 #   scripts/dev verify <scene> [...]   `red_engine2 verify` (extra args pass through: --only walk[1], --no-views)
 #   scripts/dev walk <scene> [...]     `red_engine2 walk` (--auto --from X,Z --to X,Z, --explain out.png)
 #   scripts/dev server <scene> [...]   the headless authoritative server (UDP 27015)
@@ -28,8 +28,9 @@
 #   scripts/dev prune [--apply] [--days N]   report (or delete) incremental build directories idle for N days (default 14): a busy checkout's target/ reaches tens of GB
 #   scripts/dev status [...]           `red_engine2 status` (handoff: what is done / in flight / next)
 #   scripts/dev start "<task>" [--project DIR] [--target web|native|headless|multiplayer ...] [--workflow W]   THE FIRST COMMAND: picks the workflow (new game, change a
-#                                      game, change the engine, diagnose, upgrade), names the executable it will use and why, and prints ONE next action. Read-only: it
-#                                      never builds, installs, downloads or verifies. `next` re-prints the current next action; `resume` says what changed since you stopped.
+#                                      game, change the engine, diagnose, upgrade), names the executable it will use and why, and prints ONE next action. It never builds or
+#                                      verifies; with no usable executable it looks for a prebuilt release built from exactly this checkout's sources (one API request, one checksum-verified
+#                                      download; --no-fetch or RED_NO_FETCH=1 stays offline). `next` re-prints the current next action; `resume` says what changed since you stopped.
 #
 # Env: RED_TIMEOUT=seconds per command (default 900), RED_PROFILE=debug|release|fast (default debug; the dev profile is
 # already opt-level 1 so it is fast enough for maps and tests: measured 2026-10-06 on the 4-core N97, `iterate` after a one-function edit costs about 17 CPU-seconds warm
@@ -146,9 +147,14 @@ heavy_lock() { # one heavy job at a time: two builds/test runs on a 4-core box m
   fi
 }
 
-cli() { # path of the CLI binary, building it if needed
-  need_cargo
+cli() { # path of the CLI binary: built here, else a prebuilt release built from exactly these sources (scripts/prebuilt.py), else built now
   if needs_build red_engine2 default; then
+    # A release whose sources are this checkout's sources (a fingerprint, a verified checksum) saves a 7-minute compile; when there is none it says why on stderr and we build.
+    if [ "${RED_REBUILD:-0}" != "1" ] && command -v python3 >/dev/null 2>&1; then
+      local pre
+      if pre="$(python3 "$HERE/prebuilt.py" ensure --quiet)"; then echo "$pre"; return 0; fi
+    fi
+    need_cargo
     run "build red_engine2" cargo build $PFLAG --bin red_engine2 --quiet || exit $?
     write_build_record red_engine2 default
   fi
