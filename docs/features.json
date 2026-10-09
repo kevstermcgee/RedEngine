@@ -283,7 +283,7 @@
     },
     "docs_and_adrs": {
       "summary": "The docs an outsider or an agent reads first, kept true by tests, and the bookkeeping that keeps them so: README, SPEC, AGENTS, CLAUDE, LICENSE, glossary, decisions (generated index, dated ids), analysis notes, `preflight`.",
-      "files": ["README.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "docs/GLOSSARY.md", "docs/adr/", "docs/analysis/", "docs/AGENT_REFERENCE.md", "docs/features.json", "rustfmt.toml", "build.rs", ".gitattributes", "src/tools/adr.rs", "src/tools/analysis.rs", "src/tools/preflight.rs", "src/cli/repo.rs"],
+      "files": ["README.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "docs/GLOSSARY.md", "docs/RULES_LANGUAGE_GAPS.md", "docs/adr/", "docs/analysis/", "docs/AGENT_REFERENCE.md", "docs/features.json", "rustfmt.toml", "build.rs", ".gitattributes", "src/tools/adr.rs", "src/tools/analysis.rs", "src/tools/preflight.rs", "src/cli/repo.rs"],
       "tests": ["docs_fresh", "repo_hygiene", "lib:tools::adr", "lib:tools::analysis", "lib:tools::preflight"],
       "docs": ["docs/adr/0007-docs-cannot-drift.md"]
     },

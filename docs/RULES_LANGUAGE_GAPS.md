@@ -1,5 +1,7 @@
 # Rules-language gaps from the Idea Forge notes: ranked, with a design for each (2026-10-09)
 
+> A proposal, not documentation of what exists: it lives in `docs/`, not in `docs/analysis/`, on purpose. Analysis notes are embedded in `search`, and a design for rules that do not exist yet ranked above the real reference for a question about movement rules (it broke the `ai_tasks` context budget). For what the rules language does today use `describe rules`.
+
 Written down, **not built** (the hardening pass said so: "not this pass"). The evidence is the Idea Forge backlog (37 issues from seven runs, `docs/analysis/idea-forge/`); the designs are mine and
 are proposals to be argued with. Three gaps recur in games the agents could not express and worked around with generated code: per-entity state and timers, rules that change how the player
 moves, and a fall-out height. Everything below is about the **3D scene rules** (`src/sim/rules*.rs`, `describe rules`) unless it says 2D (`crates/red2d`, `describe 2d`).
