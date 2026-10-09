@@ -232,7 +232,7 @@ Every object shares these base fields:
 ```
 
 `scale` may be a single number (uniform) or `[x,y,z]`. `material.metallic`/`roughness` are
-0–1 (unset defaults: `metallic=0`, `roughness=0.6`). `emissive` is a hex color added on top,
+0–1 (unset defaults: `metallic=0`, `roughness=0.6`; a value outside the range is a validation error, and a `roughness` below 0.04 draws as 0.04, the smoothest the shading can show). `emissive` is a hex color added on top,
 unaffected by lighting (glow); default `#000000` (none). `opacity` (0–1, default 1) makes a surface see-through: glass, water, a
 flame's glow. Blended objects are drawn after all solid ones, far to near, cast no shadow and do not write depth (so they are
 not outlined by the clarity pass); a `plane` with `opacity` is a water sheet, a thin `box` a pane. Sorting is per object: two
@@ -352,6 +352,7 @@ are the first copy's. A group template's children (which need ids) are renamed p
   "material": { "color": "#8a5a34" } }
 ```
 
+`width` and `run` are at least 0.1 m, `rise` at least 0.05 m and `steps` a whole number from 1 to 64; anything else is a validation error that says so (a staircase is never silently adjusted).
 `position` is the **center of the footprint at the height of the bottom step**; local `+Z` is the
 run axis (rotate about Y to point it elsewhere): the bottom is at local `-run/2`, the top (height
 `rise`) at `+run/2`. It is a solid block of steps you climb from the *bottom end only*: the engine

@@ -542,7 +542,7 @@ fn rules_text() -> String {
         out.push_str(&format!("      {name:<9} {help}\n"));
     }
     out.push_str(
-        "VOLUME = {zone: id [, height]} | {object: top-level id [, pad]} | {box: [x0,y0,z0,x1,y1,z1]}   (pad grows it, metres)\n\
+        "VOLUME = {zone: id [, height]} | {object: top-level id [, pad]} | {box: [x0,y0,z0,x1,y1,z1]}   (pad grows it, metres, 0 or more; height in metres above 0; a bad number is an error with the fix, never a silent 0)\n\
          Expressions: numbers, true/false, variables, + - * / %, < <= > >= == !=, && || !, parentheses. x/0 = 0 (never NaN).\n\
          Per-player variables: declare `\"player_vars\": {\"laps\": 0}`; every player has their own copy, reset when they join. `me.laps` reads the\n\
          copy of the player that triggered the rule (enter/exit, or an event a player caused: kill, pickup, or an `emit` from such a rule),\n\
