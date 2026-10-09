@@ -20,6 +20,11 @@ sys.path.insert(0, HERE)
 import idea_forge  # noqa: E402
 
 SCRIPT = os.path.join(HERE, "idea_forge.py")
+# `nightly` exports the backlog to a note in the real workspace that the owner's maintenance job reads. A test must NEVER write there (an early version did, and replaced a real
+# 28-issue note with an empty test backlog): every test in this module exports to a scratch file instead.
+SCRATCH_EXPORT = os.path.join(tempfile.mkdtemp(prefix="idea_forge_export_"), "idea-forge-feedback.md")
+os.environ["IDEA_FORGE_EXPORT"] = SCRATCH_EXPORT
+REAL_NOTE = os.path.join(os.path.dirname(os.path.dirname(HERE)), "idea-forge-feedback.md")
 WINDOWS = os.name == "nt"
 NEEDS_SH = unittest.skipIf(WINDOWS, "a fake executable here is a shell script")
 
@@ -62,6 +67,14 @@ def good_feedback(extra=None):
     rows = [GOOD] + (extra or [])
     return ("# run\n\n## The game\n\nA game.\n\n## Findings\n\n```json findings\n" + json.dumps(rows) + "\n```\n\n"
             "## Idea fit\n\nThe mechanic was expressible apart from the random part, which needed a workaround noted above.\n\n## What worked\n\nvalidate and verify were fast and precise.\n")
+
+
+class Isolation(unittest.TestCase):
+    def test_the_tests_never_write_the_real_feedback_note(self):
+        self.assertEqual(os.environ["IDEA_FORGE_EXPORT"], SCRATCH_EXPORT)
+        self.assertEqual(idea_forge.export_path(), SCRATCH_EXPORT)
+        self.assertNotEqual(os.path.abspath(idea_forge.export_path()), os.path.abspath(REAL_NOTE))
+        self.assertTrue(os.path.abspath(SCRATCH_EXPORT).startswith(os.path.abspath(tempfile.gettempdir())))
 
 
 class Ideas(unittest.TestCase):
@@ -548,7 +561,7 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.25, "duration_ms": 6000
             return wt, name
 
         self.fixes_on_main = {}
-        patches = [mock.patch.object(idea_forge, "make_worktree", fake_worktree), mock.patch.object(idea_forge, "make_fix_worktree", fake_fix_worktree),
+        patches = [mock.patch.object(idea_forge, "refresh_checkout", lambda root=None: "not updated: test"),mock.patch.object(idea_forge, "make_worktree", fake_worktree), mock.patch.object(idea_forge, "make_fix_worktree", fake_fix_worktree),
                    mock.patch.object(idea_forge, "remove_worktree", lambda wt: self.removed.append(wt)),
                    mock.patch.object(idea_forge, "repo_texts", lambda ref="origin/main": dict(self.fixes_on_main))]
         for p_ in patches:
@@ -1004,7 +1017,7 @@ class Integration(E2EBase):
         super().setUp()
         self.export = os.path.join(self.base, "idea-forge-feedback.md")
         os.environ["IDEA_FORGE_EXPORT"] = self.export
-        self.addCleanup(os.environ.pop, "IDEA_FORGE_EXPORT", None)
+        self.addCleanup(os.environ.__setitem__, "IDEA_FORGE_EXPORT", SCRATCH_EXPORT)   # back to the module's scratch path, never unset (unset = the real note)
 
     def test_the_backlog_is_exported_for_the_nightly_job_and_untouched_when_nothing_changed(self):
         self.seed_feedback([("no-random-expression", 3), ("slow-start", 1)])
