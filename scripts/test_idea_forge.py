@@ -404,10 +404,10 @@ class Schedule(unittest.TestCase):
         self.assertTrue(lines[0].startswith("0 6 * * * cd "))
         self.assertTrue(lines[1].startswith("5 17 * * * cd "))
         for l in lines:
-            for must in ("PATH=", "IDEA_FORGE_HOME=", "idea_forge.py nightly --budget 12 --improve --improve-budget 20", "--model some-model", "nightly.log", idea_forge.CRON_MARK):
+            for must in ("PATH=", "IDEA_FORGE_HOME=", "PYTHONUNBUFFERED=1", "idea_forge.py", "nightly --budget 12 --improve --improve-budget 20", "--model some-model", "nightly.log", idea_forge.CRON_MARK):
                 self.assertIn(must, l)
         self.assertNotIn("--improve", idea_forge.cron_lines(["06:00"], 12)[0], "the improvement agent is opt-in")
-        self.assertIn("idea_forge.py daily --next --budget 7", idea_forge.cron_lines(["06:00"], 7, None, None, "daily")[0])
+        self.assertIn("daily --next --budget 7", idea_forge.cron_lines(["06:00"], 7, None, None, "daily")[0])   # paths are quoted on Windows, so match the arguments, not "idea_forge.py daily"
         for bad in ("25:00", "9", "09:61", "noon"):
             with self.assertRaises(SystemExit):
                 idea_forge.cron_lines([bad], 5)
@@ -1036,7 +1036,7 @@ class SystemdSchedule(unittest.TestCase):
     def test_the_units_run_at_low_priority_with_the_path_baked_in(self):
         home()
         service, timer = idea_forge.systemd_units(["06:00", "18:30"], 15, "some-model", 25, True)
-        for must in ("Type=oneshot", "Nice=10", "IOSchedulingClass=best-effort", "TimeoutStartSec=10h", "Environment=PATH=", "Environment=IDEA_FORGE_HOME=", "idea_forge.py nightly --budget 15 --improve --improve-budget 25 --model some-model", "WorkingDirectory="):
+        for must in ("Type=oneshot", "Nice=10", "IOSchedulingClass=best-effort", "TimeoutStartSec=10h", "Environment=PATH=", "Environment=IDEA_FORGE_HOME=", "Environment=PYTHONUNBUFFERED=1", "nightly --budget 15 --improve --improve-budget 25 --model some-model", "WorkingDirectory="):
             self.assertIn(must, service)
         self.assertEqual(timer.count("OnCalendar="), 2)
         self.assertIn("OnCalendar=*-*-* 06:00:00", timer)
