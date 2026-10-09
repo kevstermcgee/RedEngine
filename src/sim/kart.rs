@@ -254,18 +254,9 @@ impl Driver {
     /// All eight, in wire order.
     pub const ALL: [Driver; 8] = [Driver::Duck, Driver::Bunny, Driver::Deer, Driver::Coyote, Driver::Hawk, Driver::Bear, Driver::Wolf, Driver::Beaver];
 
-    /// The driver's name as shown to players.
+    /// The driver's name as shown to players (from the roster data, `assets/data/drivers.json`).
     pub fn name(self) -> &'static str {
-        match self {
-            Driver::Duck => "Duck",
-            Driver::Bunny => "Bunny",
-            Driver::Deer => "Deer",
-            Driver::Coyote => "Coyote",
-            Driver::Hawk => "Hawk",
-            Driver::Bear => "Bear",
-            Driver::Wolf => "Wolf",
-            Driver::Beaver => "Beaver",
-        }
+        roster().names.get(self.wire() as usize).map_or("?", String::as_str)
     }
 
     /// The driver's number on the wire (its index in [`Driver::ALL`]).
@@ -283,67 +274,160 @@ impl Driver {
         Driver::ALL.into_iter().find(|d| d.name().eq_ignore_ascii_case(name.trim()))
     }
 
-    /// This driver's kart numbers: the starting point in the ADR's table, tuned by playing.
+    /// This driver's kart numbers: the starting point in the ADR's table, tuned by playing (from the roster data, `assets/data/drivers.json`).
     pub fn spec(self) -> KartSpec {
-        let base = KartSpec {
-            top_speed: 24.0,
-            accel: 12.0,
-            brake: 26.0,
-            reverse_speed: 6.0,
-            steer_rate: 90.0,
-            grip: 0.8,
-            mass: 1.0,
-            dirt: 0.85,
-            mud: 0.6,
-            water: 0.55,
-            boost_mult: 1.3,
-            drift_rate: 1.0,
-            hop_speed: 4.0,
-            ability: Ability::Float,
-        };
-        match self {
-            Driver::Duck => KartSpec { water: 1.0, ability: Ability::Float, ..base },
-            Driver::Bunny => KartSpec {
-                top_speed: 22.0,
-                accel: 16.0,
-                steer_rate: 110.0,
-                grip: 0.75,
-                mass: 0.8,
-                drift_rate: 1.2,
-                hop_speed: 5.5,
-                ability: Ability::Hop,
-                ..base
-            },
-            Driver::Deer => KartSpec { top_speed: 27.0, accel: 10.0, steer_rate: 85.0, mass: 0.9, drift_rate: 1.3, ability: Ability::DriftBoost, ..base },
-            Driver::Coyote => KartSpec { top_speed: 25.0, steer_rate: 90.0, grip: 0.7, mass: 0.9, dirt: 1.0, ability: Ability::Dirt, ..base },
-            Driver::Hawk => KartSpec { top_speed: 25.0, accel: 11.0, mass: 0.7, ability: Ability::Glide, ..base },
-            Driver::Bear => KartSpec {
-                top_speed: 22.0,
-                accel: 9.0,
-                steer_rate: 70.0,
-                grip: 0.85,
-                mass: 1.6,
-                drift_rate: 0.8,
-                hop_speed: 3.0,
-                ability: Ability::Bulldoze,
-                ..base
-            },
-            Driver::Wolf => KartSpec { top_speed: 25.0, steer_rate: 92.0, grip: 0.78, ability: Ability::Slipstream, ..base },
-            Driver::Beaver => KartSpec {
-                top_speed: 21.0,
-                accel: 9.0,
-                steer_rate: 78.0,
-                grip: 0.85,
-                mass: 1.3,
-                dirt: 1.0,
-                mud: 1.0,
-                water: 1.0,
-                drift_rate: 0.9,
-                ability: Ability::Build,
-                ..base
-            },
+        roster().specs.get(self.wire() as usize).copied().unwrap_or(BASE_KART)
+    }
+}
+
+/// The kart every driver starts from when the roster data cannot be read (it never happens with the embedded file: a test parses it).
+const BASE_KART: KartSpec = KartSpec {
+    top_speed: 24.0,
+    accel: 12.0,
+    brake: 26.0,
+    reverse_speed: 6.0,
+    steer_rate: 90.0,
+    grip: 0.8,
+    mass: 1.0,
+    dirt: 0.85,
+    mud: 0.6,
+    water: 0.55,
+    boost_mult: 1.3,
+    drift_rate: 1.0,
+    hop_speed: 4.0,
+    ability: Ability::Float,
+};
+
+impl Ability {
+    /// The word the roster data uses for it (`float`, `hop`, `drift_boost`, `dirt`, `glide`, `bulldoze`, `slipstream`, `build`).
+    pub fn parse(word: &str) -> Option<Ability> {
+        Some(match word {
+            "float" => Ability::Float,
+            "hop" => Ability::Hop,
+            "drift_boost" => Ability::DriftBoost,
+            "dirt" => Ability::Dirt,
+            "glide" => Ability::Glide,
+            "bulldoze" => Ability::Bulldoze,
+            "slipstream" => Ability::Slipstream,
+            "build" => Ability::Build,
+            _ => return None,
+        })
+    }
+}
+
+/// The numbers a driver changes from the base kart, as the roster data writes them: every field optional, none unknown.
+#[derive(serde::Deserialize, Default, Clone, Copy)]
+#[serde(deny_unknown_fields)]
+struct SpecPatch {
+    top_speed: Option<f32>,
+    accel: Option<f32>,
+    brake: Option<f32>,
+    reverse_speed: Option<f32>,
+    steer_rate: Option<f32>,
+    grip: Option<f32>,
+    mass: Option<f32>,
+    dirt: Option<f32>,
+    mud: Option<f32>,
+    water: Option<f32>,
+    boost_mult: Option<f32>,
+    drift_rate: Option<f32>,
+    hop_speed: Option<f32>,
+}
+
+impl SpecPatch {
+    /// `base` with this patch laid over it.
+    fn over(self, base: KartSpec, ability: Ability) -> KartSpec {
+        KartSpec {
+            top_speed: self.top_speed.unwrap_or(base.top_speed),
+            accel: self.accel.unwrap_or(base.accel),
+            brake: self.brake.unwrap_or(base.brake),
+            reverse_speed: self.reverse_speed.unwrap_or(base.reverse_speed),
+            steer_rate: self.steer_rate.unwrap_or(base.steer_rate),
+            grip: self.grip.unwrap_or(base.grip),
+            mass: self.mass.unwrap_or(base.mass),
+            dirt: self.dirt.unwrap_or(base.dirt),
+            mud: self.mud.unwrap_or(base.mud),
+            water: self.water.unwrap_or(base.water),
+            boost_mult: self.boost_mult.unwrap_or(base.boost_mult),
+            drift_rate: self.drift_rate.unwrap_or(base.drift_rate),
+            hop_speed: self.hop_speed.unwrap_or(base.hop_speed),
+            ability,
         }
     }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DriverEntry {
+    name: String,
+    ability: String,
+    #[serde(default)]
+    spec: SpecPatch,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RosterFile {
+    #[allow(dead_code)]
+    roster: u32,
+    #[serde(default)]
+    #[allow(dead_code)]
+    about: String,
+    base: SpecPatch,
+    drivers: Vec<DriverEntry>,
+}
+
+/// The drivers' names and kart numbers, in wire order.
+pub struct Roster {
+    names: Vec<String>,
+    specs: Vec<KartSpec>,
+}
+
+impl Roster {
+    /// Reads a roster file (`assets/data/drivers.json`): exactly one entry per [`Driver`] in [`Driver::ALL`] order with a name, a known `ability` and numbers laid over `base`.
+    /// An error says which entry and field is wrong.
+    pub fn parse(text: &str) -> Result<Roster, String> {
+        let file: RosterFile = serde_json::from_str(text).map_err(|e| format!("drivers.json: {e}"))?;
+        if file.drivers.len() != Driver::ALL.len() {
+            return Err(format!(
+                "drivers.json: drivers has {} entries, the wire has {} drivers (the order is the wire order; add a `Driver` variant first)",
+                file.drivers.len(),
+                Driver::ALL.len()
+            ));
+        }
+        let base = file.base.over(BASE_KART, Ability::Float);
+        let mut names: Vec<String> = Vec::new();
+        let mut specs = Vec::new();
+        for (i, d) in file.drivers.into_iter().enumerate() {
+            let Some(ability) = Ability::parse(&d.ability) else {
+                return Err(format!(
+                    "drivers.json: drivers[{i}].ability: `{}` is not one of float, hop, drift_boost, dirt, glide, bulldoze, slipstream, build",
+                    d.ability
+                ));
+            };
+            if d.name.trim().is_empty() || names.iter().any(|n| n.eq_ignore_ascii_case(&d.name)) {
+                return Err(format!("drivers.json: drivers[{i}].name: `{}` must be a name no other driver has", d.name));
+            }
+            let spec = d.spec.over(base, ability);
+            for (field, v) in
+                [("top_speed", spec.top_speed), ("accel", spec.accel), ("brake", spec.brake), ("mass", spec.mass), ("steer_rate", spec.steer_rate)]
+            {
+                if !(v.is_finite() && v > 0.0) {
+                    return Err(format!("drivers.json: drivers[{i}] ({}).{field}: must be a number greater than 0 (got {v})", d.name));
+                }
+            }
+            names.push(d.name);
+            specs.push(spec);
+        }
+        Ok(Roster { names, specs })
+    }
+}
+
+static ROSTER: std::sync::OnceLock<Roster> = std::sync::OnceLock::new();
+
+/// The embedded roster, parsed once. A file that fails to parse (a test fails first) yields the base kart under the name `?`, never a panic in the simulation.
+fn roster() -> &'static Roster {
+    ROSTER.get_or_init(|| Roster::parse(include_str!("../../assets/data/drivers.json")).unwrap_or_else(|_| Roster { names: Vec::new(), specs: Vec::new() }))
 }
 
 /// What a kart remembers from tick to tick beyond its [`PlayerState`]. Everything here is replicated and predicted.
@@ -995,5 +1079,114 @@ mod tests {
         }
         assert_eq!(k.ability_cooldown, 0);
         assert!(tick_ex(Driver::Beaver, &mut k, &mut s, build).lay_plank, "ready again");
+    }
+
+    /// The table the roster data replaced, kept here as the expected values: the move to data changed no number, in any bit.
+    fn the_table_before_the_roster_was_data(d: Driver) -> KartSpec {
+        let base = KartSpec {
+            top_speed: 24.0,
+            accel: 12.0,
+            brake: 26.0,
+            reverse_speed: 6.0,
+            steer_rate: 90.0,
+            grip: 0.8,
+            mass: 1.0,
+            dirt: 0.85,
+            mud: 0.6,
+            water: 0.55,
+            boost_mult: 1.3,
+            drift_rate: 1.0,
+            hop_speed: 4.0,
+            ability: Ability::Float,
+        };
+        match d {
+            Driver::Duck => KartSpec { water: 1.0, ability: Ability::Float, ..base },
+            Driver::Bunny => KartSpec {
+                top_speed: 22.0,
+                accel: 16.0,
+                steer_rate: 110.0,
+                grip: 0.75,
+                mass: 0.8,
+                drift_rate: 1.2,
+                hop_speed: 5.5,
+                ability: Ability::Hop,
+                ..base
+            },
+            Driver::Deer => KartSpec { top_speed: 27.0, accel: 10.0, steer_rate: 85.0, mass: 0.9, drift_rate: 1.3, ability: Ability::DriftBoost, ..base },
+            Driver::Coyote => KartSpec { top_speed: 25.0, steer_rate: 90.0, grip: 0.7, mass: 0.9, dirt: 1.0, ability: Ability::Dirt, ..base },
+            Driver::Hawk => KartSpec { top_speed: 25.0, accel: 11.0, mass: 0.7, ability: Ability::Glide, ..base },
+            Driver::Bear => KartSpec {
+                top_speed: 22.0,
+                accel: 9.0,
+                steer_rate: 70.0,
+                grip: 0.85,
+                mass: 1.6,
+                drift_rate: 0.8,
+                hop_speed: 3.0,
+                ability: Ability::Bulldoze,
+                ..base
+            },
+            Driver::Wolf => KartSpec { top_speed: 25.0, steer_rate: 92.0, grip: 0.78, ability: Ability::Slipstream, ..base },
+            Driver::Beaver => KartSpec {
+                top_speed: 21.0,
+                accel: 9.0,
+                steer_rate: 78.0,
+                grip: 0.85,
+                mass: 1.3,
+                dirt: 1.0,
+                mud: 1.0,
+                water: 1.0,
+                drift_rate: 0.9,
+                ability: Ability::Build,
+                ..base
+            },
+        }
+    }
+
+    #[test]
+    fn the_roster_data_is_the_table_it_replaced_bit_for_bit_with_the_same_names_and_wire_order() {
+        let names = ["Duck", "Bunny", "Deer", "Coyote", "Hawk", "Bear", "Wolf", "Beaver"];
+        for (i, d) in Driver::ALL.into_iter().enumerate() {
+            assert_eq!(d.name(), names[i], "wire order {i}");
+            assert_eq!(d.wire() as usize, i);
+            let (now, then) = (d.spec(), the_table_before_the_roster_was_data(d));
+            assert_eq!(now.ability, then.ability, "{}", d.name());
+            for (field, a, b) in [
+                ("top_speed", now.top_speed, then.top_speed),
+                ("accel", now.accel, then.accel),
+                ("brake", now.brake, then.brake),
+                ("reverse_speed", now.reverse_speed, then.reverse_speed),
+                ("steer_rate", now.steer_rate, then.steer_rate),
+                ("grip", now.grip, then.grip),
+                ("mass", now.mass, then.mass),
+                ("dirt", now.dirt, then.dirt),
+                ("mud", now.mud, then.mud),
+                ("water", now.water, then.water),
+                ("boost_mult", now.boost_mult, then.boost_mult),
+                ("drift_rate", now.drift_rate, then.drift_rate),
+                ("hop_speed", now.hop_speed, then.hop_speed),
+            ] {
+                assert_eq!(a.to_bits(), b.to_bits(), "{}.{field}: {a} vs {b}", d.name());
+            }
+        }
+        assert_eq!(Driver::parse(" bear ").map(Driver::wire), Some(5));
+        assert!(Roster::parse(include_str!("../../assets/data/drivers.json")).is_ok());
+    }
+
+    #[test]
+    fn a_roster_file_that_is_wrong_says_which_entry_and_field() {
+        let good = include_str!("../../assets/data/drivers.json");
+        let e = |text: &str| Roster::parse(text).err().unwrap_or_default();
+        assert!(e(&good.replace("\"ability\": \"hop\"", "\"ability\": \"fly\"")).contains("drivers[1].ability: `fly` is not one of"), "unknown ability");
+        assert!(e(&good.replace("\"Bunny\"", "\"duck\"")).contains("drivers[1].name: `duck` must be a name no other driver has"), "duplicate name");
+        assert!(
+            e(&good.replace("\"top_speed\": 27.0", "\"top_speed\": -1.0")).contains("drivers[2] (Deer).top_speed: must be a number greater than 0 (got -1)"),
+            "bad number"
+        );
+        assert!(e(&good.replace("\"grip\": 0.7,", "\"gripp\": 0.7,")).contains("unknown field `gripp`"), "a misspelt field is not ignored");
+        let fewer = good
+            .replace(",\n    {\"name\": \"Beaver\"", ",\n    {\"name\": \"Beaver\"")
+            .replace("{\"name\": \"Wolf\", \"ability\": \"slipstream\", \"spec\": {\"top_speed\": 25.0, \"steer_rate\": 92.0, \"grip\": 0.78}},\n", "");
+        assert!(e(&fewer).contains("drivers has 7 entries, the wire has 8 drivers"), "{}", e(&fewer));
     }
 }
