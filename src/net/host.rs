@@ -468,6 +468,20 @@ mod tests {
     }
 
     #[test]
+    fn the_host_button_always_asks_for_a_fresh_typable_key_and_serves_the_relay() {
+        let dir = std::path::PathBuf::from("identity");
+        let a = PublicOptions::for_friends(dir.clone(), Some("relay.example:28016".into())).unwrap();
+        let b = PublicOptions::for_friends(dir.clone(), None).unwrap();
+        let key = a.key.as_deref().expect("a hosted game is never open to whoever holds its code");
+        assert_eq!(key.len(), crate::net::relay::JOIN_KEY_LEN);
+        assert!(crate::net::relay::ShortJoin::can_carry(key), "a key that fits in the code a friend types");
+        assert_ne!(a.key, b.key, "a different key for every hosted game");
+        assert_eq!((a.relay.as_deref(), b.relay.as_deref()), (Some("relay.example:28016"), None));
+        assert!(a.bind.is_none() && a.upnp, "HOST listens for friends on every interface and asks the router; a test overrides both");
+        assert_eq!(a.port, crate::net::DEFAULT_PORT);
+    }
+
+    #[test]
     fn a_bad_map_or_option_is_an_error_that_says_what_is_wrong() {
         let missing = LocalHost::start(Path::new("no/such/map.json"), &HostOptions::default()).err().unwrap();
         assert!(missing.contains("no/such/map.json"), "{missing}");

@@ -64,7 +64,8 @@ def read_pid(path, seconds=5.0):
     end = time.monotonic() + seconds
     while time.monotonic() < end:
         try:
-            text = open(path).read().strip()
+            with open(path) as f:
+                text = f.read().strip()
             if text:
                 return int(text)
         except (OSError, ValueError):
@@ -375,8 +376,10 @@ class AgentRuns(Sandbox):
     def test_the_end_record_and_the_partial_transcript_are_kept(self):
         code = "import json, time\nprint(json.dumps({'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'name': 'Bash', 'input': {'command': 'cargo test'}}]}}), flush=True)\ntime.sleep(60)"
         out, session, _ = self.agent(code, timeout=1.0, quiet=False)
-        self.assertIn("tool_use", open(session).read(), "the transcript up to the stop is on disk")
-        record = json.load(open(os.path.join(os.path.dirname(session), "agent_end.json")))
+        with open(session) as f:
+            self.assertIn("tool_use", f.read(), "the transcript up to the stop is on disk")
+        with open(os.path.join(os.path.dirname(session), "agent_end.json")) as f:
+            record = json.load(f)
         self.assertEqual((record["status"], record["timeout_s"]), ("timeout", 1.0))
         self.assertIn("tool_use", record["tail"])
         self.assertEqual(record["pid"], out["pid"])

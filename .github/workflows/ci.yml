@@ -24,6 +24,7 @@ jobs:
     outputs:
       native: ${{ steps.f.outputs.native }}
       docker: ${{ steps.f.outputs.docker }}
+      pytools: ${{ steps.f.outputs.pytools }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -33,16 +34,23 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then base="${{ github.event.pull_request.base.sha }}"; else base="${{ github.event.before }}"; fi
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             echo "no usable base commit: running everything"
-            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; exit 0
+            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; echo "pytools=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          files="$(git diff --name-only "$base" HEAD)"
+          # NUL-separated, because the default output quotes a name with a non-ASCII or special character ("scripts/\303\274.py") and the anchored patterns below would never match the
+          # opening quote; a line per file is rebuilt from it. `has` reads the list from a here-string, not a pipe: under `pipefail`, `echo | grep -q` fails when grep exits before echo is done.
+          files="$(git diff --name-only -z "$base" HEAD | tr '\0' '\n')"
           echo "$files"
-          native=false; docker=false
+          has() { grep -Eq "$1" <<<"$files"; }
+          native=false; docker=false; pytools=false
           # Anything that changes a compiled binary or how it is built/tested on a second platform.
-          echo "$files" | grep -Eq '^(src/|crates/|tests/|benches/|examples/|assets/|recipes/|Cargo\.(toml|lock)$|rustfmt\.toml$|scripts/ci\.sh$|\.cargo/|\.github/)' && native=true
+          has '^(src/|crates/|tests/|benches/|examples/|assets/|recipes/|Cargo\.(toml|lock)$|rustfmt\.toml$|scripts/ci\.sh$|\.cargo/|\.github/)' && native=true
           # What the container image is made of.
-          echo "$files" | grep -Eq '^(Dockerfile$|docker-compose\.yml$|\.dockerignore$|deploy/|src/|crates/|assets/|examples/|Cargo\.(toml|lock)$|\.github/)' && docker=true
-          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"
+          has '^(Dockerfile$|docker-compose\.yml$|\.dockerignore$|deploy/|src/|crates/|assets/|examples/|Cargo\.(toml|lock)$|\.github/)' && docker=true
+          # The Python tools run on Windows machines too (the launchpad, Idea Forge, the process supervisor, the publisher, the MCP adapter, the bench scripts): paths, quoting, subprocesses and git
+          # behave differently there, and a change that is only Python does not touch what `native` looks at. Any Python or PowerShell file, anything under scripts/ (including `dev`, `ci.sh`
+          # and the shell helpers the tools call), the publish manifest, tools/ and bench/, and CI itself. Documentation and Rust-only changes do not start it.
+          has '^(scripts/|tools/|bench/|benches/.*\.(py|json)$|games-publish\.json$|mcp_server\.py$|\.github/)|\.(py|ps1)$' && pytools=true
+          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"; echo "pytools=$pytools" >> "$GITHUB_OUTPUT"
 
   fmt:
     name: rustfmt
@@ -92,6 +100,26 @@ jobs:
       - run: bash scripts/ci.sh external-client
         env:
           RED_OFFSCREEN_OPTIONAL: "1"
+
+  # The Python tools, on both platforms, without building any Rust: `scripts/ci.sh pytools` runs every scripts/test_*.py and the publish check on this runner's interpreter.
+  # The `test` job's Windows leg compiles and runs the engine and only starts for Rust-side changes; a change to launchpad.py, idea_forge.py, proc_supervisor.py or a PowerShell script
+  # (path separators, quoting, subprocess and process-tree behaviour, git output) used to reach Windows never, or only by riding on an unrelated Rust change. Minutes, not a build.
+  python-tools:
+    name: python tools (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.pytools == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash scripts/ci.sh pytools
 
   # The dedicated server on a bare Linux box: no window, GPU, audio or ffmpeg libraries installed, and none may
   # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS.
