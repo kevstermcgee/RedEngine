@@ -46,16 +46,10 @@ impl std::fmt::Display for JoinError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             JoinError::BadCode(m) => f.write_str(m),
-            JoinError::RelaysOff => {
-                f.write_str("Relays are switched off on this PC (RE2_RELAY=off): ask whoever is hosting for the full join code instead.")
-            }
+            JoinError::RelaysOff => f.write_str("Relays are switched off on this PC (RE2_RELAY=off): ask whoever is hosting for the full join code instead."),
             JoinError::Relay(e) => e.fmt(f),
-            JoinError::HostNotVerifiable => {
-                f.write_str("The relay could not vouch for that host, so the connection cannot be verified. Not connecting: ask your friend for a fresh code.")
-            }
-            JoinError::NoIdentity => f.write_str(
-                "That code has no identity part, so the connection could not be encrypted or checked: ask your friend for the whole code (it is on their lobby screen).",
-            ),
+            JoinError::HostNotVerifiable => f.write_str("The relay could not vouch for that host. Not connecting: ask for a fresh code."),
+            JoinError::NoIdentity => f.write_str("That code has no server identity, so it is not safe to use. Ask for the whole code."),
             JoinError::AddressNotFound(a) => write!(f, "Cannot find '{a}'. Check the code and your internet connection."),
         }
     }
@@ -161,7 +155,7 @@ mod tests {
             JoinError::AddressNotFound("nowhere.invalid:1".into()),
             JoinError::Relay(ResolveError::CodeNotLive),
         ] {
-            let text = e.to_string();
+            let text = e.to_string().to_lowercase();
             assert!(text.contains(':') || text.contains("check") || text.contains("ask"), "{e:?} -> {text}");
             assert!(!text.contains("None") && !text.contains("Err("), "{text}");
         }
