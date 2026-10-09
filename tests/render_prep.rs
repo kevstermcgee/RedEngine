@@ -307,14 +307,18 @@ fn blended_leaves_are_listed_far_to_near_and_skipped_by_the_solid_draws() {
 }
 
 #[test]
-fn opacity_is_clamped_defaults_to_solid_and_reaches_the_uniform() {
+fn opacity_defaults_to_solid_reaches_the_uniform_and_an_out_of_range_value_is_an_error_not_a_clamp() {
     let json = r##"{"camera":{"position":[0,2,8],"target":[0,1,0]},"objects":[
         {"id":"a","type":"box","material":{"color":"#ffffff"}},
-        {"id":"b","type":"box","material":{"color":"#ffffff","opacity":7}},
+        {"id":"b","type":"box","material":{"color":"#ffffff","opacity":1}},
         {"id":"c","type":"box","material":{"color":"#ffffff","opacity":0.25}}]}"##;
     let scene = red_engine2::schema::parse_scene(json).expect("scene");
     let (mut st, bounds, offsets) = make(&scene);
     st.update_scene(&scene, 0.0, &offsets, &bounds);
     let alpha = |slot: usize| f32::from_le_bytes(st.bytes()[slot * STRIDE as usize + 128 + 12..slot * STRIDE as usize + 128 + 16].try_into().unwrap());
     assert_eq!((alpha(0), alpha(1), alpha(2)), (1.0, 1.0, 0.25));
+    // 7 used to be clamped to 1 without a word; now the author is told (ADR 2026-10-09-reject-bad-input)
+    let bad = json.replace("\"opacity\":1}", "\"opacity\":7}");
+    let Err(errors) = red_engine2::schema::parse_scene(&bad) else { panic!("an opacity of 7 is rejected") };
+    assert!(errors.iter().any(|e| e.starts_with("b.material.opacity: must be between 0 and 1 (got 7)")), "{errors:?}");
 }

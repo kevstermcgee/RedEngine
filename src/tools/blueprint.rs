@@ -112,6 +112,46 @@ fn pt(p: Vec2) -> Value {
     json!([r3(p.x), r3(p.y)])
 }
 
+/// A number field: absent = `default`; present but not a number is an error naming the field, never the default quietly (`"height": "3"` used to mean 2.8).
+fn number(o: &Map<String, Value>, key: &str, path: &str, default: f64, errs: &mut Vec<String>) -> f64 {
+    match o.get(key) {
+        None => default,
+        Some(v) => v.as_f64().filter(|n| n.is_finite()).unwrap_or_else(|| {
+            errs.push(format!("{path}.{key}: must be a number (got {}); leave it out for {default}", crate::strict::describe_value(v)));
+            default
+        }),
+    }
+}
+
+/// A true/false field: absent = `default`; anything else is an error.
+fn flag(o: &Map<String, Value>, key: &str, path: &str, default: bool, errs: &mut Vec<String>) -> bool {
+    match o.get(key) {
+        None => default,
+        Some(Value::Bool(b)) => *b,
+        Some(v) => {
+            errs.push(format!("{path}.{key}: must be true or false (got {}); write it without quotes", crate::strict::describe_value(v)));
+            default
+        }
+    }
+}
+
+/// A count from `1` to `max`: absent = `default`; `0`, more than `max`, a fraction or text is an error (a count over the limit used to be cut to it without a word).
+fn count_of(o: &Map<String, Value>, key: &str, path: &str, default: u64, max: u64, errs: &mut Vec<String>) -> usize {
+    match o.get(key) {
+        None => default as usize,
+        Some(v) => match v.as_u64().filter(|n| (1..=max).contains(n)) {
+            Some(n) => n as usize,
+            None => {
+                errs.push(format!(
+                    "{path}.{key}: must be a whole number from 1 to {max} (got {}); for more, add another entry",
+                    crate::strict::describe_value(v)
+                ));
+                default as usize
+            }
+        },
+    }
+}
+
 fn obj<'a>(v: &'a Value, path: &str, allowed: &[&str], errs: &mut Vec<String>) -> Option<&'a Map<String, Value>> {
     match v.as_object() {
         Some(o) => {
@@ -258,11 +298,11 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
         None => errs.push(format!("blueprint: missing \"blueprint\": {BLUEPRINT_VERSION} (the format version)")),
     }
     let name = root.get("name").and_then(Value::as_str).unwrap_or("map").to_string();
-    let height = root.get("height").and_then(Value::as_f64).unwrap_or(2.8) as f32;
+    let height = number(root, "height", "blueprint", 2.8, &mut errs) as f32;
     if !(2.3..=8.0).contains(&height) {
         errs.push(format!("height: {height} m is outside 2.3..8 (doors are 2.2 m tall and the player needs headroom)"));
     }
-    let ceiling = root.get("ceiling").and_then(Value::as_bool).unwrap_or(false);
+    let ceiling = flag(root, "ceiling", "blueprint", false, &mut errs);
 
     // ---- rooms
     let mut rooms: Vec<Room> = Vec::new();
@@ -288,7 +328,7 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
             continue;
         }
         let floor = o.get("floor").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| FLOOR_COLORS[rooms.len() % FLOOR_COLORS.len()].to_string());
-        rooms.push(Room { id, min, max, floor, lamp: o.get("lamp").and_then(Value::as_bool).unwrap_or(true) });
+        rooms.push(Room { id, min, max, floor, lamp: flag(o, "lamp", &path, true, &mut errs) });
     }
     if rooms.is_empty() && errs.is_empty() {
         errs.push("rooms: needs at least one room, e.g. {\"id\": \"hall\", \"rect\": [-8, -6, 8, 6]}".into());
@@ -321,12 +361,12 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
             errs.push(format!("{path}.between: '{}' and '{}' do not share a wall (rooms must touch along an edge; move a rect so they do)", pair[0], pair[1]));
             continue;
         };
-        let width = o.get("width").and_then(Value::as_f64).unwrap_or(1.4) as f32;
+        let width = number(o, "width", &path, 1.4, &mut errs) as f32;
         if width < MIN_DOOR {
             errs.push(format!("{path}.width: {width} m is narrower than {MIN_DOOR} m (the 0.7 m player body needs slack; `lint` flags these as `door`)"));
             continue;
         }
-        let offset = o.get("at").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+        let offset = number(o, "at", &path, 0.0, &mut errs) as f32;
         let c = (lo + hi) * 0.5 + offset;
         if c - width * 0.5 < lo + 0.1 || c + width * 0.5 > hi - 0.1 {
             errs.push(format!("{path}: a {width} m door at offset {offset} does not fit on the {:.1} m of wall the two rooms share", hi - lo));
@@ -357,7 +397,7 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
             errs.push(format!("{path}.room: unknown room '{room}' (rooms: {})", room_names()));
             continue;
         };
-        let count = o.get("count").and_then(Value::as_u64).unwrap_or(1).clamp(1, 16) as usize;
+        let count = count_of(o, "count", &path, 1, 16, &mut errs);
         let group = o.get("group").and_then(Value::as_str).unwrap_or("default").to_string();
         let prefix = o.get("id").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| format!("spawn_{room}"));
         let r = &rooms[ri];
@@ -415,12 +455,12 @@ pub fn compile_in(bp: &Value, base: Option<&Path>) -> Result<Built, Vec<String>>
         fills.push(Fill {
             room: ri,
             kinds,
-            count: o.get("count").and_then(Value::as_u64).unwrap_or(6).min(400) as usize,
+            count: count_of(o, "count", &path, 6, 400, &mut errs),
             seed: o.get("seed").and_then(Value::as_u64).unwrap_or(i as u64 + 1),
             scale,
             colors: o.get("colors").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default(),
-            min_gap: o.get("min_gap").and_then(Value::as_f64).unwrap_or(0.9) as f32,
-            clearance: o.get("clearance").and_then(Value::as_f64).unwrap_or(0.7) as f32,
+            min_gap: number(o, "min_gap", &path, 0.9, &mut errs) as f32,
+            clearance: number(o, "clearance", &path, 0.7, &mut errs) as f32,
             id: o
                 .get("id")
                 .and_then(Value::as_str)
@@ -950,5 +990,23 @@ mod tests {
         let ids: Vec<&str> = b.scene["zones"].as_array().unwrap().iter().map(|z| z["id"].as_str().unwrap()).collect();
         assert_eq!(ids, ["a", "b", "altar"], "generated zones stay (`a` replaced by id), the new one is appended");
         assert_eq!(b.scene["zones"][0]["rect"][0], -7.5, "the scene's `a` replaced the generated one");
+    }
+
+    #[test]
+    fn counts_numbers_and_flags_that_are_out_of_range_or_the_wrong_type_are_errors_not_silent_defaults() {
+        let bp = |root_extra: Value, spawn_count: Value, fill_count: Value| {
+            let mut v = json!({"blueprint": 1, "rooms": [{"id": "a", "rect": [0, 0, 8, 6]}], "spawns": [{"room": "a", "count": spawn_count}], "fill": [{"room": "a", "kind": "crate", "count": fill_count}]});
+            for (k, x) in root_extra.as_object().unwrap() {
+                v[k] = x.clone();
+            }
+            compile(&v).err().map(|e| e.join(" | ")).unwrap_or_default()
+        };
+        let e = bp(json!({}), json!(40), json!(500));
+        assert!(e.contains("spawns[0].count: must be a whole number from 1 to 16 (got number 40); for more, add another entry"), "{e}");
+        assert!(e.contains("fill[0].count: must be a whole number from 1 to 400 (got number 500)"), "{e}");
+        let e = bp(json!({"height": "3", "ceiling": "yes"}), json!(2), json!(6));
+        assert!(e.contains("blueprint.height: must be a number (got string \"3\"); leave it out for 2.8"), "{e}");
+        assert!(e.contains("blueprint.ceiling: must be true or false (got string \"yes\")"), "{e}");
+        assert_eq!(bp(json!({"height": 3.0}), json!(16), json!(400)), "");
     }
 }

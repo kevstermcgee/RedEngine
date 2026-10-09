@@ -682,8 +682,49 @@ fn round_f64(x: f64) -> f64 {
 
 /// Expands a macro object (`"wall"`, `"fence"`, `"text"` or `"array"`) into a `group` JSON object with the macro's
 /// own `id`. Returns the expanded group, or every validation error found (`path: message`).
+/// A numeric option of a macro, checked before it expands: absent is fine (the default applies); present, it must be a number above `min` (or at least `min` when `inclusive`).
+/// Anything else is an error that names the field, the number and the fix, where `num` used to fall back to the default and `.max(0.5)` to a minimum without a word.
+fn check_num(obj: &Map<String, Value>, key: &str, path: &str, min: f64, inclusive: bool, fix: &str, errs: &mut Vec<String>) {
+    let Some(v) = obj.get(key) else { return };
+    match v.as_f64().filter(|n| n.is_finite() && if inclusive { *n >= min } else { *n > min }) {
+        Some(_) => {}
+        None => errs.push(format!(
+            "{path}.{key}: must be a number {} {min} (got {}); {fix}",
+            if inclusive { "of at least" } else { "greater than" },
+            crate::strict::describe_value(v)
+        )),
+    }
+}
+
+/// The numeric options of `wall` and `fence` that `num` reads, checked before expansion (`text` checks its own).
+fn check_macro(ty: &str, obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) {
+    match ty {
+        "wall" => {
+            check_num(obj, "y", id, f64::NEG_INFINITY, true, "`y` is the height of the wall's base in metres", errs);
+            check_num(obj, "height", id, 0.0, false, "`height` is the wall's height in metres; 2.7 is the default", errs);
+            check_num(obj, "thickness", id, 0.0, false, "`thickness` is in metres; 0.2 is the default", errs);
+            for (i, o) in obj.get("openings").and_then(Value::as_array).into_iter().flatten().filter_map(|v| v.as_object()).enumerate() {
+                let path = format!("{id}.openings[{i}]");
+                check_num(o, "width", &path, 0.0, false, "`width` is in metres", errs);
+                check_num(o, "height", &path, 0.0, false, "`height` is in metres", errs);
+                check_num(o, "sill", &path, 0.0, true, "`sill` is the height of the opening's bottom edge above the base, in metres", errs);
+            }
+        }
+        "fence" => {
+            check_num(obj, "y", id, f64::NEG_INFINITY, true, "`y` is the height of the fence's base in metres", errs);
+            check_num(obj, "height", id, 0.0, false, "`height` is the fence's height in metres; 1.8 is the default", errs);
+            check_num(obj, "post_spacing", id, 0.5, true, "posts closer than 0.5 m are one solid wall: use a `wall` for that", errs);
+        }
+        _ => {}
+    }
+}
+
 pub fn expand(ty: &str, obj: &Map<String, Value>, id: &str) -> Result<Value, Vec<String>> {
     let mut errs = Vec::new();
+    check_macro(ty, obj, id, &mut errs);
+    if !errs.is_empty() {
+        return Err(errs);
+    }
     let kids = match ty {
         "wall" => expand_wall(obj, id, &mut errs),
         "fence" => expand_fence(obj, id, &mut errs),
@@ -1041,5 +1082,28 @@ mod tests {
             let (lo, hi) = (c - w / 2.0, c + w / 2.0);
             assert!(hi <= 3.85 || lo >= 6.15, "panel {lo}..{hi} intrudes into the 3.8..6.2 gate gap");
         }
+    }
+
+    #[test]
+    fn a_macro_option_that_is_not_a_usable_number_is_an_error_with_the_fix_not_the_default_or_a_minimum() {
+        let wall = |extra: Value| {
+            let mut o = json!({"type": "wall", "from": [0, 0], "to": [4, 0]});
+            for (k, v) in extra.as_object().unwrap() {
+                o[k] = v.clone();
+            }
+            expand("wall", o.as_object().unwrap(), "w").err().map(|e| e.join(" | ")).unwrap_or_default()
+        };
+        assert!(wall(json!({"height": "tall"})).contains("w.height: must be a number greater than 0 (got string \"tall\")"));
+        assert!(wall(json!({"thickness": -0.2})).contains("w.thickness: must be a number greater than 0 (got number -0.2)"));
+        assert!(wall(json!({"openings": [{"at": 1, "width": -1}]})).contains("w.openings[0].width: must be a number greater than 0"));
+        assert_eq!(wall(json!({"height": 3.0, "thickness": 0.3})), "");
+        let fence = expand("fence", json!({"points": [[0, 0], [4, 0]], "post_spacing": 0.1}).as_object().unwrap(), "f")
+            .err()
+            .map(|e| e.join(" | "))
+            .unwrap_or_default();
+        assert!(
+            fence.contains("f.post_spacing: must be a number of at least 0.5 (got number 0.1); posts closer than 0.5 m are one solid wall: use a `wall`"),
+            "{fence}"
+        );
     }
 }
