@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Packages the Linux binaries of an already-built tree into dist/: the full set and the headless CLI, each with a checksum.
+# Packages the Linux binaries of an already-built tree into dist/: the full set and the headless CLI, each with a checksum, and the manifest that says which sources they were built from.
 #   scripts/package_release.sh <version> <out-dir> [target-dir]        (target-dir defaults to ./target; the headless CLI is expected in <target-dir>/headless)
 set -euo pipefail
 version="${1:?version}"; out="${2:?output directory}"; target="${3:-target}"
@@ -26,4 +26,6 @@ cp "$target/headless/release/red_engine2" "$stage/$head/"
 readme "$stage/$head" "  (headless build: lint, reach, walk, verify --no-views, sim, plan, patch ... no rendering or audio; needs only libc)"
 tar -C "$stage" -czf "$out/$head.tar.gz" "$head"
 (cd "$out" && sha256sum ./*.tar.gz | sed 's# \./# #' > SHA256SUMS)
+# MANIFEST-<fingerprint>.json: which sources these archives were built from, so a checkout with exactly those sources can fetch them instead of compiling (scripts/prebuilt.py).
+python3 "$(dirname "$0")/prebuilt.py" manifest "$version" "$out"
 ls -l "$out"

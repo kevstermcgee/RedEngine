@@ -1,6 +1,6 @@
 //! The Idea Forge pipeline (`scripts/idea_forge.py`, docs/IDEA_FORGE.md): forge an idea, run an agent on it, score the game, file the feedback, ship only the game and its feedback.
 //! The checks are Python unit tests (`scripts/test_idea_forge.py`) with a stub `claude` and a fake engine, so the loop is observed without a model, a network or a GPU.
-//! They need only `python3` and `git`; skipped where `python3` is not installed. They run on Windows too (the shell-script stubs are skipped there), so a path-quoting
+//! They need only `python3` and `git`, and run as if the machine had 5 GB of disk free (`IDEA_FORGE_TEST_MACHINE_FREE_GB`): they must not depend on the disk; skipped where `python3` is not installed. They run on Windows too (the shell-script stubs are skipped there), so a path-quoting
 //! assumption in a test shows up in the Windows job.
 
 use std::path::Path;
@@ -14,7 +14,8 @@ fn python() -> Option<&'static str> {
 fn the_idea_forge_pipeline_passes_its_checks() {
     let Some(py) = python() else { return };
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/test_idea_forge.py");
-    let o = Command::new(py).arg(&script).output().expect("run the idea forge tests");
+    // On a machine that is nearly full: the checks must not depend on the free space of the machine that runs them (the night skips itself below 20 GB; four tests used to fail there).
+    let o = Command::new(py).arg(&script).env("IDEA_FORGE_TEST_MACHINE_FREE_GB", "5").output().expect("run the idea forge tests");
     let text = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
     assert!(o.status.success(), "scripts/test_idea_forge.py failed:\n{text}");
     assert!(text.contains("OK"), "{text}");

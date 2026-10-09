@@ -35,6 +35,7 @@ pub mod context;
 pub mod describe;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod diff;
+pub mod doc_claims;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod doctor;
 #[cfg(not(target_arch = "wasm32"))]

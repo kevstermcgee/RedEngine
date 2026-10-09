@@ -6,7 +6,7 @@
 //! The checks themselves are `red_engine2::tools::preflight` functions (one implementation): `red_engine2 preflight` runs them in a second and prints the
 //! exact edit for each problem, so a bounce here is found before a full test cycle.
 
-use red_engine2::tools::{blueprint, preflight, status};
+use red_engine2::tools::{blueprint, doc_claims, preflight, status};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -29,7 +29,7 @@ fn claude_md_facts_block_matches_the_repo() {
 #[test]
 fn inline_facts_in_the_docs_are_current() {
     let mut stale = Vec::new();
-    for doc in ["CLAUDE.md", "AGENTS.md", "README.md", "SPEC.md", "docs/AGENT_REFERENCE.md", "docs/HOSTING.md"] {
+    for doc in doc_claims::CLAIM_DOCS {
         for (name, have, want) in status::inline_facts(&root(), &read(doc)) {
             if want.as_deref() != Some(have.as_str()) {
                 stale.push(format!("{doc}: <!--fact:{name}--> says {have}, the code says {want:?}"));
@@ -48,6 +48,14 @@ fn prose_states_no_test_counts_and_no_stale_claims() {
     let mut bad = preflight::test_count_claims(&root());
     bad.extend(preflight::stale_claims(&root()));
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// The claims a reader acts on, checked against the repository (src/tools/doc_claims.rs): a protocol version written as a number, a feature described as
+/// missing after it was built, a document's size, an MCP tool that does not exist, a `render` command shown without the cargo feature it needs.
+#[test]
+fn the_front_door_documents_make_no_claim_the_repository_disproves() {
+    let bad = doc_claims::all(&root());
+    assert!(bad.is_empty(), "a document says something the repository disproves (`red_engine2 preflight` prints the same list):\n  {}", bad.join("\n  "));
 }
 
 #[test]
