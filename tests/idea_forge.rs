@@ -1,6 +1,7 @@
 //! The Idea Forge pipeline (`scripts/idea_forge.py`, docs/IDEA_FORGE.md): forge an idea, run an agent on it, score the game, file the feedback, ship only the game and its feedback.
 //! The checks are Python unit tests (`scripts/test_idea_forge.py`) with a stub `claude` and a fake engine, so the loop is observed without a model, a network or a GPU.
-//! They need only `python3` and `git`; skipped where `python3` is not installed.
+//! They need only `python3` and `git`; skipped where `python3` is not installed. They run on Windows too (the shell-script stubs are skipped there), so a path-quoting
+//! assumption in a test shows up in the Windows job.
 
 use std::path::Path;
 use std::process::Command;
