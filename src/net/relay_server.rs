@@ -562,7 +562,7 @@ impl std::fmt::Display for ResolveError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ResolveError::RelayNotFound(m) | ResolveError::Unreachable(m) | ResolveError::Unexpected(m) => f.write_str(m),
-            ResolveError::NoAnswer(relay) => write!(f, "the relay at {relay} did not answer: check the address and your internet connection"),
+            ResolveError::NoAnswer(relay) => write!(f, "The relay at {relay} did not answer: check your internet connection."),
             ResolveError::CodeNotLive => f.write_str("that code is not live: check it, or ask your friend for a fresh one"),
         }
     }

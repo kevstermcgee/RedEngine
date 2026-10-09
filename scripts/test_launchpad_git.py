@@ -27,6 +27,7 @@ WINDOWS = os.name == "nt"
 HAVE_GIT = shutil.which("git") is not None
 NO_GIT = unittest.skipUnless(HAVE_GIT, "git is not installed")
 POSIX_ONLY = unittest.skipIf(WINDOWS, "this file name cannot exist on Windows")
+ARROW = " - " if WINDOWS else " -> "   # `>` cannot be in a Windows file name; elsewhere it is exactly what the old text parser split on
 
 
 def git(root, *args, check=True):
@@ -213,7 +214,7 @@ class EveryKindOfChange(GitCase):
 
 
 class UnusualNames(GitCase):
-    NAMES = ["with space.rs", "tab\there.rs" if not WINDOWS else "tab_here.rs", "quote'single.rs", "unicode-ünï-文件.rs", "-leading-dash.rs", "a -> b.rs", "semi;colon&amp.rs", "dir with space/inner file.rs", "[brackets] {braces}.rs", "100%.rs"]
+    NAMES = ["with space.rs", "tab\there.rs" if not WINDOWS else "tab_here.rs", "quote'single.rs", "unicode-ünï-文件.rs", "-leading-dash.rs", f"a{ARROW}b.rs", "semi;colon&amp.rs", "dir with space/inner file.rs", "[brackets] {braces}.rs", "100%.rs"]
 
     def test_names_come_back_exactly_and_their_content_is_found(self):
         for n in self.NAMES:
@@ -242,10 +243,10 @@ class UnusualNames(GitCase):
         self.assertEqual(json.loads(json.dumps(files)), files, "and it survives being written to the task file and read back")
 
     def test_a_renamed_file_with_odd_names_on_both_sides(self):
-        self.edit("old name -> x.rs", "// a\n")
+        self.edit(f"old name{ARROW}x.rs", "// a\n")
         commit_all(self.root)
-        git(self.root, "mv", "old name -> x.rs", "new name -> y.rs")
-        self.assertEqual(self.changed(), ["new name -> y.rs", "old name -> x.rs"])
+        git(self.root, "mv", f"old name{ARROW}x.rs", f"new name{ARROW}y.rs")
+        self.assertEqual(self.changed(), [f"new name{ARROW}y.rs", f"old name{ARROW}x.rs"])
 
     def test_the_pure_parser_reads_every_shape_of_porcelain_z(self):
         raw = b" M src/lib.rs\0M  staged.rs\0MM both.rs\0?? new file.rs\0 D gone.rs\0R  new -> name.rs\0old name.rs\0C  copy.rs\0orig.rs\0UU conflict.rs\0A  added.rs\0"
