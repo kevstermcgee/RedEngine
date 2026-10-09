@@ -33,6 +33,8 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+import proc_supervisor  # noqa: E402  (every child process here runs under a deadline it cannot miss; see that module)
 FORGE_DIR = os.path.join(ROOT, "examples", "2d", "idea-forge")
 FEEDBACK_DIR = "docs/analysis/idea-forge"   # always forward slashes: git reports paths that way on every OS, and Windows accepts them
 RUN_DIRNAME = ".idea-forge"
@@ -295,7 +297,7 @@ def engine_cmd(root):
 
 
 def run_engine(root, args, timeout=900):
-    p = subprocess.run(engine_cmd(root) + args, cwd=root, capture_output=True, text=True, timeout=timeout)
+    p = proc_supervisor.run_capture(engine_cmd(root) + args, cwd=root, timeout=timeout)   # a timeout stops the whole tree and raises TimeoutExpired
     return p.returncode, p.stdout + p.stderr
 
 
@@ -824,33 +826,39 @@ def agent_argv(prompt, a):
     return argv
 
 
-def stream_agent(argv, cwd, env, session_path, timeout, quiet):
-    """Run the agent, keep its whole transcript, and print one line per tool call so a human can watch."""
-    start = time.time()
-    with open(session_path, "w") as out:
-        p = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        try:
-            for line in p.stdout:
-                out.write(line)
-                out.flush()
-                if quiet:
-                    continue
-                try:
-                    ev = json.loads(line)
-                except ValueError:
-                    continue
-                for blk in ev.get("message", {}).get("content", []) if ev.get("type") == "assistant" and isinstance(ev.get("message"), dict) else []:
-                    if isinstance(blk, dict) and blk.get("type") == "tool_use":
-                        inp = blk.get("input", {})
-                        what = inp.get("command") or inp.get("file_path") or inp.get("pattern") or ""
-                        print(f"[{(time.time() - start) / 60:5.1f}m] {blk.get('name')}: {str(what).splitlines()[0][:110] if what else ''}", file=sys.stderr)
-                if time.time() - start > timeout:
-                    p.kill()
-                    print("timeout: the agent was stopped", file=sys.stderr)
-                    break
-        finally:
-            p.wait()
-    return p.returncode
+def print_tool_call(line, start):
+    """One line on stderr for a tool call in an agent's stream-json output, so a human can watch (anything else in the stream is ignored)."""
+    try:
+        ev = json.loads(line)
+    except ValueError:
+        return
+    for blk in ev.get("message", {}).get("content", []) if ev.get("type") == "assistant" and isinstance(ev.get("message"), dict) else []:
+        if isinstance(blk, dict) and blk.get("type") == "tool_use":
+            inp = blk.get("input", {})
+            what = inp.get("command") or inp.get("file_path") or inp.get("pattern") or ""
+            print(f"[{(time.monotonic() - start) / 60:5.1f}m] {blk.get('name')}: {str(what).splitlines()[0][:110] if what else ''}", file=sys.stderr)
+
+
+def stream_agent(argv, cwd, env, session_path, timeout, quiet, cancel=None):
+    """Run the agent under a deadline, keep its whole transcript, and print one line per tool call so a human can watch (`quiet`: no lines; the deadline holds either way).
+
+    The deadline is monotonic and does not depend on the agent printing anything (`proc_supervisor`): at `timeout` seconds the agent's whole process tree is stopped, SIGTERM then SIGKILL
+    (Windows: `taskkill /T /F`), within `proc_supervisor.overrun_bound()` seconds. What it printed up to then stays in `session_path`. `cancel` (a `threading.Event`) stops it the same way. Ctrl-C and
+    SIGTERM stop the tree too, then end the program as usual.
+
+    Returns the outcome dict: `status` is one of completed, failed (non-zero exit), timeout, cancelled, spawn_error, with `returncode`, `elapsed_s`, `reason`, `tail` and more (the same dict is written
+    next to the transcript as `agent_end.json`)."""
+    start = time.monotonic()
+    end_record = os.path.join(os.path.dirname(os.path.abspath(session_path)), "agent_end.json")
+
+    def record(outcome):
+        jdump(dict(outcome), end_record)
+        if outcome["status"] != "completed":
+            print(f"agent {outcome['status']}: {outcome['reason']} ({outcome['output_bytes']} bytes of transcript kept in {session_path})", file=sys.stderr)
+
+    with open(session_path, "wb") as out, proc_supervisor.exit_on_sigterm():
+        return proc_supervisor.supervise(argv, cwd=cwd, env=env, timeout=timeout, log=out, cancel=cancel, report=record,
+                                         on_line=None if quiet else (lambda line: print_tool_call(line, start)))
 
 
 def do_run(a, kind, code=None):
@@ -892,9 +900,10 @@ def do_run(a, kind, code=None):
         print(f"dry run: would run {' '.join(agent_argv('<brief.md>', a))} in {wt}", file=sys.stderr)
         return {"run": run, "row": row, "status": "prepared", "feedback_problems": []}
     env = dict(os.environ, IDEA_FORGE_RUN=run_dir, RED_TRACE=os.path.join(run_dir, "trace.jsonl"), IDEA_FORGE_HOME=state_dir())
-    rc = stream_agent(agent_argv(prompt, a), wt, env, os.path.join(run_dir, "session.jsonl"), a.timeout_min * 60, a.quiet)
+    ended = stream_agent(agent_argv(prompt, a), wt, env, os.path.join(run_dir, "session.jsonl"), a.timeout_min * 60, a.quiet)
     run["finished"] = time.time()
-    run["agent_exit"] = rc
+    run["agent_exit"] = ended["returncode"]
+    run["agent_status"] = ended["status"]   # completed | failed | timeout | cancelled | spawn_error: a timeout is not a failure, and neither is the same as the agent finishing
     run["score"] = score(wt, idea["slug"], kind)
     jdump(run, os.path.join(run_dir, "run.json"))
     measurements(run_dir, run, wt)
@@ -905,7 +914,7 @@ def do_run(a, kind, code=None):
     st = load_state()
     for r in st["runs"]:
         if r["code"] == code and r["slug"] == idea["slug"] and r.get("kind", "2d") == kind:
-            r.update(status=status, minutes=round((run["finished"] - run["started"]) / 60, 1), feedback_ok=not fb_problems, notes=len(read_notes(run_dir)))
+            r.update(status=status, minutes=round((run["finished"] - run["started"]) / 60, 1), feedback_ok=not fb_problems, notes=len(read_notes(run_dir)), agent=ended["status"])
             row = r
     save_state(st)
     print(f"\n{'pass' if not fb_problems else 'FAIL'}: feedback file" + ("" if not fb_problems else "\n  " + "\n  ".join(fb_problems)))
@@ -1368,7 +1377,7 @@ def run_gates(wt, tail=40):
     cmds = json.loads(env) if env else [[os.path.join(wt, "scripts", "dev"), "preflight"], [os.path.join(wt, "scripts", "dev"), "affected", "--quick", "--no-cache"]]
     log = []
     for cmd in cmds:
-        p = subprocess.run(cmd, cwd=wt, capture_output=True, text=True, timeout=3600)
+        p = proc_supervisor.run_capture(cmd, cwd=wt, timeout=3600)   # a gate that hangs is stopped with everything it started, and raises TimeoutExpired
         out = (p.stdout + p.stderr).strip().splitlines()
         log.append(f"$ {' '.join(os.path.basename(c) if i == 0 else c for i, c in enumerate(cmd))} -> {p.returncode}\n" + "\n".join(out[-tail:]))
         if p.returncode:
@@ -1419,7 +1428,9 @@ def do_improve(a):
     wr(os.path.join(run_dir, "brief.md"), prompt)
     env = dict(os.environ, IDEA_FORGE_RUN=run_dir, RED_TRACE=os.path.join(run_dir, "trace.jsonl"), IDEA_FORGE_HOME=state_dir())
     session = os.path.join(run_dir, "session.jsonl")
-    stream_agent(agent_argv(prompt, a), wt, env, session, a.timeout_min * 60, a.quiet)
+    ended = stream_agent(agent_argv(prompt, a), wt, env, session, a.timeout_min * 60, a.quiet)
+    run["agent_status"], run["agent_exit"] = ended["status"], ended["returncode"]
+    jdump(run, os.path.join(run_dir, "run.json"))
     changed = [p for p in changed_paths(wt) if not p.startswith(RUN_DIRNAME + "/")]
 
     def keep(status, detail):
@@ -1774,7 +1785,7 @@ def main(argv=None):
     s.add_argument("--no-story", action="store_true")
     s.add_argument("--model")
     s.add_argument("--budget", type=float, help="USD cap for the agent session (claude --max-budget-usd)")
-    s.add_argument("--timeout-min", type=int, default=150)
+    s.add_argument("--timeout-min", type=float, default=150)
     s.add_argument("--claude", default="claude")
     s.add_argument("--workdir", help="use this existing checkout instead of making a worktree")
     s.add_argument("--dry-run", action="store_true", help="make the worktree and the brief, do not start the agent")
@@ -1812,7 +1823,7 @@ def main(argv=None):
     s.add_argument("--keep", action="store_true")
     s.add_argument("--budget", type=float, default=DAILY_BUDGET_USD, help="USD cap per game")
     s.add_argument("--model")
-    s.add_argument("--timeout-min", type=int, default=150)
+    s.add_argument("--timeout-min", type=float, default=150)
     s.add_argument("--claude", default="claude")
     s.add_argument("--date", help="YYYY-MM-DD (default today)")
     s.add_argument("--order", help="force today's order, e.g. 3d,2d (default: shuffled once per day)")
@@ -1823,7 +1834,7 @@ def main(argv=None):
     def agent_opts(s, budget_default):
         s.add_argument("--budget", type=float, default=budget_default, help="USD cap per agent session")
         s.add_argument("--model")
-        s.add_argument("--timeout-min", type=int, default=150)
+        s.add_argument("--timeout-min", type=float, default=150)
         s.add_argument("--claude", default="claude")
         s.add_argument("--dry-run", action="store_true")
         s.add_argument("--quiet", action="store_true")
@@ -1837,7 +1848,7 @@ def main(argv=None):
     s = sub.add_parser("nightly", help="today's games one at a time, then one engine improvement: what cron runs")
     agent_opts(s, DAILY_BUDGET_USD)
     s.add_argument("--improve-budget", type=float, default=IMPROVE_BUDGET_USD)
-    s.add_argument("--improve-timeout-min", type=int, default=120)
+    s.add_argument("--improve-timeout-min", type=float, default=120)
     s.add_argument("--no-ship", action="store_true")
     s.add_argument("--keep", action="store_true")
     s.add_argument("--date")
