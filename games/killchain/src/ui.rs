@@ -50,6 +50,7 @@ pub fn all() -> &'static [&'static str] {
         "join",
         "stats",
         "lobby",
+        "lobby-notice",
         "lobby-ffa",
         "lobby-duel",
         "results-ffa",
@@ -558,7 +559,11 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
     let cw = (330 * s).min(wi - 8);
     let rows = 6;
     let row_h = text_height(s) + 5 * s;
-    let ch = (104 * s + rows * row_h + 22 * s).min(hi - 8);
+    // A notice (the relay did not answer, the router did not open the port) gets its own wrapped lines under the
+    // join address, so it never lands on the look chips or the buttons.
+    let note_lines: Vec<String> = v.message.as_deref().map(|m| super::wrap(&upper(m), cw - 12 * s, s).into_iter().take(2).collect()).unwrap_or_default();
+    let note_h = if note_lines.is_empty() { 0 } else { note_lines.len() as i32 * (text_height(s) + 2 * s) + 3 * s };
+    let ch = (104 * s + rows * row_h + 22 * s + note_h).min(hi - 8);
     let (x0, y0) = ((wi - cw) / 2, ((hi - ch) / 2).max(4));
     let card = l.panel("card", (x0, y0, x0 + cw, y0 + ch), None, Some(PANEL), Some((EDGE, 1.max(s / 2))));
     let cx = x0 + cw / 2;
@@ -589,6 +594,10 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
         l.label_fit("join_address", Some(card), cx, top, &format!("FRIENDS JOIN AT  {}", upper(a)), s, cw - 12 * s, [255, 214, 140, 255]);
         top += text_height(s) + 5 * s;
     }
+    for (i, line) in note_lines.iter().enumerate() {
+        l.label_fit(&format!("message_{i}"), Some(card), cx, top + i as i32 * (text_height(s) + 2 * s), line, s, cw - 12 * s, [255, 170, 120, 255]);
+    }
+    top += note_h;
     let gap = 6 * s;
     let colw = (cw - 20 * s - gap) / 2;
     let mut my_team = 0;
@@ -692,9 +701,6 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
     };
     btn(&mut l, "ready", (cx - 80 * s, by, cx + 14 * s, by + 16 * s), Some(card), &main, s * 2, hover == Some("ready"), v.ready);
     btn(&mut l, "leave", (cx + 20 * s, by, cx + 80 * s, by + 16 * s), Some(card), "LEAVE", s * 2, hover == Some("leave"), false);
-    if let Some(m) = &v.message {
-        l.label_fit("message", Some(card), cx, by - text_height(s) - 4 * s, &upper(m), s, cw - 12 * s, [255, 170, 120, 255]);
-    }
     l
 }
 
@@ -1293,6 +1299,26 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
                 countdown: None,
                 join_address: Some("H3PQXR-K7Q2-MZ4P-WTXA".into()),
                 message: None,
+                hosting: true,
+                map: "foundry".into(),
+                mode: 0,
+                team_size: 6,
+                look: 1,
+            },
+            None,
+        ),
+        "lobby-notice" => lobby_layout(
+            w,
+            h,
+            &LobbyView {
+                roster: demo_roster(),
+                me: 0,
+                ready: false,
+                kill_limit: 50,
+                time_limit_secs: 600,
+                countdown: None,
+                join_address: Some("203.0.113.9:27015".into()),
+                message: Some("no online code: the relay did not answer. the address below still works on your network".into()),
                 hosting: true,
                 map: "foundry".into(),
                 mode: 0,

@@ -94,6 +94,8 @@ pub struct Kc {
     painted: Option<u64>,
     game: Option<Game>,
     host: Option<LocalHost>,
+    /// True once the relay's answer (code or failure) has been copied onto the lobby screen.
+    relay_shown: bool,
     controls: Controls,
     started: Instant,
     last_frame: Instant,
@@ -218,6 +220,7 @@ impl Kc {
             painted: None,
             game: None,
             host: None,
+            relay_shown: true,
             controls: Controls::default(),
             started: Instant::now(),
             last_frame: Instant::now(),
@@ -438,7 +441,12 @@ impl Kc {
                 // `share_codes().first()` is what the lobby screen displays (`FRIENDS JOIN AT ...`): the relay's short code with the join key
                 // when there is one (nothing to read an address or a fingerprint aloud), else the direct code.
                 game.join_codes = host.share_codes();
-                game.notice = host.relay_note().map(str::to_string).or_else(|| host.upnp_note().map(str::to_string));
+                game.notice = host.upnp_note().map(str::to_string);
+                // The relay answers on its own thread (a dead relay must not freeze the screen): `frame` swaps in its code.
+                self.relay_shown = !host.relay_pending();
+                if !self.relay_shown {
+                    game.notice = Some("CONNECTING TO THE RELAY...".to_string());
+                }
                 self.game = Some(game);
                 self.host = Some(host);
                 self.screen = Screen::InGame;
@@ -809,9 +817,25 @@ impl Kc {
     }
 
     /// Advances everything by `dt` and draws into `target` (a swapchain frame or the capture target).
+    /// Copies the relay's answer onto the lobby once it arrives: its short code goes first (it is what friends
+    /// are meant to type), a failure becomes the notice.
+    fn show_relay_result(&mut self) {
+        if self.relay_shown {
+            return;
+        }
+        let (Some(host), Some(game)) = (self.host.as_ref(), self.game.as_mut()) else { return };
+        if host.relay_pending() {
+            return;
+        }
+        self.relay_shown = true;
+        game.join_codes = host.share_codes();
+        game.notice = host.relay_note().or_else(|| host.upnp_note().map(str::to_string));
+    }
+
     fn frame(&mut self, dt: f32, target: Option<&wgpu::TextureView>) {
         self.stats.time_in_game_secs += dt as f64;
         self.sim_secs += dt;
+        self.show_relay_result();
         self.start_ambience();
         if self.last_save.elapsed().as_secs() > 30 {
             self.save_stats();

@@ -421,7 +421,7 @@ impl HostBridge {
     ) -> io::Result<(HostBridge, [u8; super::relay::CODE_LEN])> {
         let relay_addr = resolve_relay(relay)?;
         let control = Arc::new(UdpSocket::bind(unspecified_matching(relay_addr))?);
-        control.set_read_timeout(Some(Duration::from_secs(10)))?;
+        control.set_read_timeout(Some(Duration::from_secs(3)))?;
         let code = register_with_retry(&control, relay, fingerprint.clone())?;
         let bridge =
             HostBridge { control: control.clone(), relay: relay.to_string(), local_game_addr, fingerprint, bridges: Arc::new(Mutex::new(HashMap::new())) };
@@ -572,7 +572,7 @@ impl std::error::Error for ResolveError {}
 
 fn register_with_retry(control: &UdpSocket, relay: &str, fingerprint: Option<String>) -> io::Result<[u8; super::relay::CODE_LEN]> {
     let mut buf = [0u8; 128];
-    for _ in 0..5 {
+    for _ in 0..3 {
         let relay_addr = resolve_relay(relay)?;
         control.send_to(&RelayMessage::Register { fingerprint: fingerprint.clone() }.encode(), relay_addr)?;
         match control.recv_from(&mut buf) {
