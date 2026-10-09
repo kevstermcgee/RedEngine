@@ -1555,7 +1555,7 @@ def cron_lines(times, budget, model=None, improve_budget=None, command="nightly"
     if os.path.isdir(cargo) and cargo not in path.split(os.pathsep):
         path = path + os.pathsep + cargo
     tail = nightly_args(budget, model, improve_budget, improve) if command == "nightly" else f"daily --next --budget {budget:g}" + (f" --model {shlex.quote(model)}" if model else "")
-    cmd = (f"cd {shlex.quote(ROOT)} && PATH={shlex.quote(path)} IDEA_FORGE_HOME={shlex.quote(home)} {shlex.quote(sys.executable)} "
+    cmd = (f"cd {shlex.quote(ROOT)} && PATH={shlex.quote(path)} IDEA_FORGE_HOME={shlex.quote(home)} PYTHONUNBUFFERED=1 {shlex.quote(sys.executable)} "
            f"{shlex.quote(os.path.join(HERE, 'idea_forge.py'))} {tail} >> {shlex.quote(os.path.join(home, 'nightly.log'))} 2>&1")
     lines = []
     for t in times:
@@ -1611,6 +1611,7 @@ TimeoutStartSec=10h
 WorkingDirectory={ROOT}
 Environment=PATH={path}
 Environment=IDEA_FORGE_HOME={state_dir()}
+Environment=PYTHONUNBUFFERED=1
 ExecStart={sys.executable} {os.path.join(HERE, 'idea_forge.py')} {nightly_args(budget, model, improve_budget, improve)}
 """
     timer = "[Unit]\nDescription=Run Idea Forge at " + ", ".join(times) + "\n\n[Timer]\n" + "".join(f"OnCalendar=*-*-* {int(t.split(':')[0]):02d}:{t.split(':')[1]}:00\n" for t in times) + "Persistent=false\n\n[Install]\nWantedBy=timers.target\n"
