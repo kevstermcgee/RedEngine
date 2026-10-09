@@ -20,7 +20,7 @@
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
-      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs", "src/arsenal.rs", "src/stats.rs", "src/killcam.rs", "src/uniforms.rs", "src/shooter_world.rs", "src/clipboard.rs", "src/daycycle.rs", "src/shadow.rs", "examples/day_cycle.json", "src/objective_world.rs"],
+      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs", "src/arsenal.rs", "src/killcam.rs", "src/uniforms.rs", "src/shooter_world.rs", "src/clipboard.rs", "src/daycycle.rs", "src/shadow.rs", "examples/day_cycle.json", "src/objective_world.rs"],
       "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms", "lib:daycycle", "lib:shadow", "day_cycle", "shadow_render", "shader_validation", "lib:gpu", "lib:fx", "lib:ocean_pass"],
       "commands": ["red_engine2 frame examples/test_lab.json out/frame.png", "red_engine2 tour examples/test_lab.json out/tour.png"],
       "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md", "docs/adr/2026-10-04-a-day-and-night-cycle-the-clock-block-and-a-living-sky.md", "docs/adr/2026-10-04-cascaded-sun-shadows-and-a-picture-book-boy.md"],
@@ -315,8 +315,9 @@
   "content": {
     "killchain_client": {
       "tier": "game",
-      "summary": "Killchain, one shipped loadout team-deathmatch game: its windowed client and 2-D screens. The reusable shooter engine (arsenal, ordnance, killcam, sim::shooter) is NOT here; it is engine.",
-      "files": ["src/bin/re2/kc/**", "src/ui/killchain.rs", "examples/killchain_screens.rs", "docs/adr/2026-09-30-killchain-loadout-shooter.md", "docs/adr/2026-10-01-killchain-player-feedback.md"]
+      "summary": "Killchain, one shipped loadout team-deathmatch game, a separate crate (games/killchain, a workspace member that is not a default member) written on the engine's public API only: its windowed client, 2-D screens, objective HUD text and lifetime statistics. The reusable shooter engine (arsenal, ordnance, killcam, sim::shooter, sim::objective, the protocol that carries them) is NOT here; it is engine. `cargo build -p killchain`; `scripts/ci.sh killchain`.",
+      "files": ["games/killchain/**", "docs/adr/2026-09-30-killchain-loadout-shooter.md", "docs/adr/2026-10-01-killchain-player-feedback.md", "docs/adr/2026-10-09-killchain-is-a-game-crate-on-the-public-engine-api.md"],
+      "commands": ["cargo build -p killchain", "cargo test -p killchain", "cargo run -p killchain -- maps/main.json"]
     },
     "marcel_world": {
       "tier": "game",

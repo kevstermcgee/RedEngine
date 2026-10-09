@@ -285,7 +285,7 @@ fn walk(root: &Path, dir: &str, ext: &str, out: &mut Vec<String>) {
 /// Every file the index is about: the directories it covers and the top-level project files, as paths relative to `root` using `/`.
 pub fn repo_files(root: &Path) -> Vec<String> {
     let mut all_files = Vec::new();
-    for dir in ["src", "crates", "tests", "benches", "docs", "assets", "recipes", "examples", "scripts", "deploy", ".github"] {
+    for dir in ["src", "crates", "games", "tests", "benches", "docs", "assets", "recipes", "examples", "scripts", "deploy", ".github"] {
         walk(root, dir, "", &mut all_files);
     }
     for top in [
@@ -597,14 +597,14 @@ mod tests {
 
     #[test]
     fn content_packs_tag_files_by_tier_and_leave_engine_files_alone() {
-        let text = r#"{"features":{},"content":{"g":{"tier":"game","summary":"s","files":["src/bin/re2/kc/**"]},"h":{"tier":"history","summary":"s","files":["docs/analysis/*feedback*.md"]}}}"#;
+        let text = r#"{"features":{},"content":{"g":{"tier":"game","summary":"s","files":["games/killchain/**"]},"h":{"tier":"history","summary":"s","files":["docs/analysis/*feedback*.md"]}}}"#;
         let packs = content_packs_of(text);
         assert_eq!(packs.len(), 2);
-        assert!(packs[0].files.iter().any(|g| glob_match(g, "src/bin/re2/kc/app.rs")));
+        assert!(packs[0].files.iter().any(|g| glob_match(g, "games/killchain/src/app.rs")));
         assert!(packs[1].files.iter().any(|g| glob_match(g, "docs/analysis/2026-09-30-ten-minigames-feedback.md")));
         assert!(!packs[1].files.iter().any(|g| glob_match(g, "docs/analysis/external-architecture-study.md")));
         assert_eq!(content_tier("src/sim/flow.rs"), None);
-        assert_eq!(content_tier("src/bin/re2/kc/app.rs"), Some("game"));
+        assert_eq!(content_tier("games/killchain/src/app.rs"), Some("game"));
         assert_eq!(content_tier("examples/house.json"), Some("legacy"));
     }
 

@@ -1,6 +1,6 @@
 //! Draw every Killchain screen to a PNG over a sample backdrop (no window, no GPU).
 //! Run: cargo run --example killchain_screens -- <output-directory> [WIDTHxHEIGHT]
-use red_engine2::ui::killchain;
+use killchain::ui as killchain;
 
 fn main() -> anyhow::Result<()> {
     let out = std::path::PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "out/screens".into()));

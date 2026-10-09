@@ -63,7 +63,6 @@ mod feedback;
 mod frame;
 mod headless;
 mod help;
-mod kc;
 mod online;
 mod project_browser;
 mod shots;
@@ -925,15 +924,15 @@ fn main() {
         print!("{}", help::text());
         return;
     }
-    // A map with a `shooter` block is Killchain-style (loadouts, teams, killcam): it has its own client with its own front end.
+    // A map with a `shooter` block is a loadout shooter. The engine ships its simulation (`sim::kit`, `sim::objective`, the servers), not a front end: a game on it has its own
+    // client (Killchain's is `killchain MAP`, built from games/killchain). This client still plays the map as an ordinary first-person scene.
     if !headless_options.enabled && connect.is_none() && !host {
         let is_loadout = std::fs::read_to_string(&scene_path)
             .ok()
             .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
             .is_some_and(|v| v.get("shooter").is_some());
         if is_loadout {
-            kc::run(kc::Options { scene: scene_path, fullscreen, name });
-            return;
+            eprintln!("re2: this map has a `shooter` block (a loadout shooter). The engine provides its simulation and servers; the game's own client has the loadout screens, killcam and scoreboard (Killchain: `killchain {}`). Continuing as an ordinary first-person scene.", scene_path.display());
         }
     }
     // `--host`: serve the map from a thread of this process and join it; the server stops when the game closes (it drops after `app`).

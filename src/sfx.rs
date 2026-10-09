@@ -445,7 +445,7 @@ pub struct SoundBank {
 }
 
 impl SoundBank {
-    /// Killchain's restrained feedback: dry impacts and low mechanical pulses in place of melodic rewards.
+    /// A restrained, tactical feedback style for loadout shooters: dry impacts and low mechanical pulses in place of melodic rewards.
     pub fn new_tactical() -> SoundBank {
         let mut bank = Self::new();
         bank.hit_tick = tactical_signal(0.07, 760.0, 0x417, 0.26);
