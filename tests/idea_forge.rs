@@ -10,13 +10,26 @@ fn python() -> Option<&'static str> {
     ["python3", "python"].into_iter().find(|p| Command::new(p).arg("--version").output().is_ok_and(|o| o.status.success()))
 }
 
+/// Runs one Python test file and returns its combined output; `None` where Python is not installed.
+fn run_python_tests(script: &str, env: &[(&str, &str)]) -> Option<String> {
+    let py = python()?;
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(script);
+    let o = Command::new(py).arg(&path).envs(env.iter().copied()).output().expect("run the python tests");
+    let text = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
+    assert!(o.status.success(), "{script} failed:\n{text}");
+    assert!(text.contains("OK"), "{text}");
+    Some(text)
+}
+
 #[test]
 fn the_idea_forge_pipeline_passes_its_checks() {
-    let Some(py) = python() else { return };
-    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/test_idea_forge.py");
     // On a machine that is nearly full: the checks must not depend on the free space of the machine that runs them (the night skips itself below 20 GB; four tests used to fail there).
-    let o = Command::new(py).arg(&script).env("IDEA_FORGE_TEST_MACHINE_FREE_GB", "5").output().expect("run the idea forge tests");
-    let text = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
-    assert!(o.status.success(), "scripts/test_idea_forge.py failed:\n{text}");
-    assert!(text.contains("OK"), "{text}");
+    run_python_tests("scripts/test_idea_forge.py", &[("IDEA_FORGE_TEST_MACHINE_FREE_GB", "5")]);
+}
+
+/// A supervised child (the agent, a gate) stops at its deadline whether or not it prints, in quiet mode too, with its whole process tree, and keeps its partial output
+/// (`scripts/proc_supervisor.py`, ADR 2026-10-09-a-child-process-runs-under-a-deadline-it-cannot-miss). Every child is `python -c`, so this runs the same on Linux and Windows.
+#[test]
+fn a_supervised_process_respects_its_deadline_whatever_it_prints_and_leaves_nothing_running() {
+    run_python_tests("scripts/test_proc_supervisor.py", &[]);
 }

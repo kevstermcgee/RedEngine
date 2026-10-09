@@ -261,10 +261,10 @@
     },
     "idea_forge": {
       "summary": "Idea Forge: `scripts/idea_forge.py` forges a game idea (one unusual mechanic, 8e9 combinations, never repeated), runs a headless agent in a fresh worktree to build it on the engine, scores the game with `validate`/`verify`, files the agent's engine feedback (a ranked, machine-readable findings block) and ships only the game and that file as a PR; `daily` makes one 2D and one 3D game a day in a random order (cron via `schedule`), archiving each run and removing its worktree; `digest` ranks every run's findings into the engine backlog. The vocabulary and walk are the 2D game's own (`examples/2d/idea-forge`).",
-      "files": ["scripts/idea_forge.py", "scripts/test_idea_forge.py", "tests/idea_forge.rs", "tests/games3d.rs", "examples/3d/**", "docs/IDEA_FORGE.md"],
+      "files": ["scripts/idea_forge.py", "scripts/test_idea_forge.py", "scripts/proc_supervisor.py", "scripts/test_proc_supervisor.py", "tests/idea_forge.rs", "tests/games3d.rs", "examples/3d/**", "docs/IDEA_FORGE.md"],
       "tests": ["idea_forge", "games2d", "games3d"],
       "commands": ["python3 scripts/idea_forge.py idea", "python3 scripts/idea_forge.py digest"],
-      "docs": ["docs/IDEA_FORGE.md"],
+      "docs": ["docs/IDEA_FORGE.md", "docs/adr/2026-10-09-a-child-process-runs-under-a-deadline-it-cannot-miss.md"],
       "depends_on": ["launchpad", "games2d"]
     },
     "mcp_server": {
