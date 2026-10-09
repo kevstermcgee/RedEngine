@@ -214,8 +214,10 @@ impl RejectReason {
             RejectReason::Version => "The server runs a different version of the game. Update the client or the server.",
             RejectReason::WrongMap => "The server has a different copy of the map. Get the same map file the server loads.",
             RejectReason::Full => "The match is full.",
-            RejectReason::BadKey => "The join key is wrong.",
-            RejectReason::NeedsKey => "This server needs a join key. Ask its host for it.",
+            RejectReason::BadKey => "The join key is wrong. Check the code you were given: the join key is the part after the first dash, or after the last #.",
+            RejectReason::NeedsKey => {
+                "This game needs a join key and your code has none. Ask its host for the whole code, including the part after the first dash."
+            }
             RejectReason::ServerIsOpen => "You entered a join key but this server does not ask for one, so it may not be the server you meant.",
             RejectReason::ServerIdentity => {
                 "The server's identity does not match the fingerprint or certificate authority you were given. Not connecting: ask its host."

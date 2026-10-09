@@ -378,7 +378,18 @@ fn main() {
     let _relay_bridge =
         relay.as_deref().map(|relay| match red_engine2::net::relay_server::HostBridge::start(relay, local, server_fingerprint.clone(), stop.clone()) {
             Ok((bridge, code)) => {
-                println!("relay {relay}: join with the code {}", red_engine2::net::relay::code_to_string(&code));
+                // The code is only the rendezvous: a server that asks for a key is joined with the key as well, so print them as one
+                // (docs/HOSTING.md, "Short codes and who may join"). A key a short code cannot carry is said plainly, not left out.
+                let join_key = key.as_deref().filter(|k| !k.is_empty());
+                match join_key {
+                    Some(k) if !red_engine2::net::relay::ShortJoin::can_carry(k) => {
+                        println!("relay {relay}: the code is {} but the join key has punctuation or is too short for a short code: use --key auto for a key a code can carry", red_engine2::net::relay::code_to_string(&code));
+                    }
+                    _ => println!(
+                        "relay {relay}: join with the code {}",
+                        red_engine2::net::relay::ShortJoin { code, key: join_key.map(str::to_string) }.format()
+                    ),
+                }
                 Some(bridge)
             }
             Err(e) => {
