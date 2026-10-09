@@ -1507,6 +1507,11 @@ def refresh_checkout(root=None):
     return "updated to origin/main" if not rc else "not updated: cannot fast-forward: " + out[:120]
 
 
+def free_gb():
+    """GiB free where the night's builds go (the home directory's disk). The one place the tool reads the machine's free space: tests replace this function, so a result never depends on the disk of the machine that runs them."""
+    return shutil.disk_usage(os.path.expanduser("~")).free / 2**30
+
+
 def cmd_nightly(a):
     """The whole night, under one lock and strictly one agent at a time: today's games (feedback always delivered), then one engine improvement from the backlog they fed."""
     date = a.date or datetime.date.today().isoformat()
@@ -1515,11 +1520,11 @@ def cmd_nightly(a):
         sys.exit("--order must name each kind once, e.g. 3d,2d")
     if not a.dry_run and not shutil.which(a.claude) and not os.path.isfile(a.claude):
         sys.exit(f"`{a.claude}` not found: install Claude Code, or pass --claude PATH")
-    free_gb = shutil.disk_usage(os.path.expanduser("~")).free / 2**30
-    if not a.dry_run and free_gb < a.min_free_gb:
-        print(f"{date}: skipped: only {free_gb:.0f} GB free (< {a.min_free_gb} GB): each run needs a seeded build and its own build output")
+    free = free_gb()
+    if not a.dry_run and free < a.min_free_gb:
+        print(f"{date}: skipped: only {free:.0f} GB free (< {a.min_free_gb} GB): each run needs a seeded build and its own build output")
         st = load_state()
-        st.setdefault("nights", {})[date] = {"skipped": f"{free_gb:.0f} GB free", "at": round(time.time())}
+        st.setdefault("nights", {})[date] = {"skipped": f"{free:.0f} GB free", "at": round(time.time())}
         save_state(st)
         sys.exit(0)
     with Lock():
