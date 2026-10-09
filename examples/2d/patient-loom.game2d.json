@@ -1,0 +1,2806 @@
+{
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard"
+  ],
+  "persistence": [
+   "settings",
+   "progress"
+  ]
+ },
+ "game2d": 1,
+ "id": "patient-loom",
+ "title": "Patient Loom",
+ "description": "Juggle three timers (glide, gate, lull) to throw five machine parts over a wall in the right order, recalling any throw back to where it started, while each success wakes a bigger warden.",
+ "view": {
+  "width": 320,
+  "height": 180,
+  "background": "#1b2233"
+ },
+ "sounds": {
+  "throw": {
+   "seconds": 0.15,
+   "layers": [
+    {
+     "sine": 660,
+     "decay": 14
+    }
+   ]
+  },
+  "weak": {
+   "seconds": 0.2,
+   "layers": [
+    {
+     "sine": 220,
+     "decay": 10
+    }
+   ]
+  },
+  "recall": {
+   "seconds": 0.2,
+   "layers": [
+    {
+     "sine": 440,
+     "decay": 12
+    }
+   ]
+  },
+  "ok": {
+   "seconds": 0.4,
+   "layers": [
+    {
+     "sine": 523,
+     "decay": 8
+    },
+    {
+     "sine": 784,
+     "decay": 10
+    }
+   ]
+  },
+  "bad": {
+   "seconds": 0.4,
+   "layers": [
+    {
+     "sine": 110,
+     "decay": 6
+    }
+   ]
+  },
+  "thud": {
+   "seconds": 0.15,
+   "layers": [
+    {
+     "sine": 150,
+     "decay": 20
+    }
+   ]
+  },
+  "wake": {
+   "seconds": 0.6,
+   "layers": [
+    {
+     "sine": 80,
+     "decay": 3
+    }
+   ]
+  },
+  "win": {
+   "seconds": 0.8,
+   "layers": [
+    {
+     "sine": 523,
+     "decay": 4
+    },
+    {
+     "sine": 659,
+     "decay": 4
+    },
+    {
+     "sine": 784,
+     "decay": 4
+    }
+   ]
+  },
+  "lose": {
+   "seconds": 0.8,
+   "layers": [
+    {
+     "sine": 98,
+     "decay": 3
+    }
+   ]
+  }
+ },
+ "vars": {
+  "t1": 8,
+  "t2": 8,
+  "t3": 10,
+  "idx": 0,
+  "last": 0,
+  "best": 0,
+  "secs": 0,
+  "s0": 0,
+  "near0": -9,
+  "s1": 0,
+  "near1": -9,
+  "s2": 0,
+  "near2": -9,
+  "s3": 0,
+  "near3": -9,
+  "s4": 0,
+  "near4": -9
+ },
+ "persist": [
+  "best"
+ ],
+ "prefabs": {
+  "player": {
+   "tag": "player",
+   "shape": {
+    "rect": [
+     8,
+     8
+    ],
+    "color": "#ffffff"
+   },
+   "size": [
+    8,
+    8
+   ],
+   "layer": 3,
+   "clamp": true,
+   "body": {
+    "type": "dynamic"
+   },
+   "collide": [
+    "wall"
+   ],
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 90
+    }
+   }
+  },
+  "wall": {
+   "tag": "wall",
+   "shape": {
+    "rect": [
+     8,
+     180
+    ],
+    "color": "#3a4a6b"
+   },
+   "body": {
+    "type": "static"
+   }
+  },
+  "machine": {
+   "tag": "machine",
+   "shape": {
+    "rect": [
+     34,
+     170
+    ],
+    "color": "#2b3550"
+   },
+   "layer": 0
+  },
+  "slot": {
+   "tag": "slot",
+   "shape": {
+    "rect": [
+     14,
+     14
+    ],
+    "color": "#3a4566"
+   },
+   "layer": 1
+  },
+  "pad1": {
+   "tag": "pad1",
+   "shape": {
+    "rect": [
+     26,
+     26
+    ],
+    "color": "#47d1ff66"
+   },
+   "layer": 0
+  },
+  "lab1": {
+   "tag": "lab",
+   "shape": {
+    "text": "GLIDE",
+    "color": "#47d1ff",
+    "scale": 1
+   },
+   "layer": 1
+  },
+  "pad2": {
+   "tag": "pad2",
+   "shape": {
+    "rect": [
+     26,
+     26
+    ],
+    "color": "#ffd23f66"
+   },
+   "layer": 0
+  },
+  "lab2": {
+   "tag": "lab",
+   "shape": {
+    "text": "GATE",
+    "color": "#ffd23f",
+    "scale": 1
+   },
+   "layer": 1
+  },
+  "pad3": {
+   "tag": "pad3",
+   "shape": {
+    "rect": [
+     26,
+     26
+    ],
+    "color": "#b48cff66"
+   },
+   "layer": 0
+  },
+  "lab3": {
+   "tag": "lab",
+   "shape": {
+    "text": "LULL",
+    "color": "#b48cff",
+    "scale": 1
+   },
+   "layer": 1
+  },
+  "part0": {
+   "tag": [
+    "part",
+    "a0"
+   ],
+   "shape": {
+    "rect": [
+     10,
+     10
+    ],
+    "color": "#ff5c5c"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 2
+  },
+  "part1": {
+   "tag": [
+    "part",
+    "a1"
+   ],
+   "shape": {
+    "rect": [
+     10,
+     10
+    ],
+    "color": "#ffd23f"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 2
+  },
+  "part2": {
+   "tag": [
+    "part",
+    "a2"
+   ],
+   "shape": {
+    "rect": [
+     10,
+     10
+    ],
+    "color": "#5cd65c"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 2
+  },
+  "part3": {
+   "tag": [
+    "part",
+    "a3"
+   ],
+   "shape": {
+    "rect": [
+     10,
+     10
+    ],
+    "color": "#5cb3ff"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 2
+  },
+  "part4": {
+   "tag": [
+    "part",
+    "a4"
+   ],
+   "shape": {
+    "rect": [
+     10,
+     10
+    ],
+    "color": "#c07cff"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 2
+  },
+  "warden1": {
+   "tag": "warden",
+   "shape": {
+    "rect": [
+     8,
+     8
+    ],
+    "color": "#ff4d6d"
+   },
+   "size": [
+    8,
+    8
+   ],
+   "layer": 2,
+   "body": {
+    "type": "dynamic"
+   },
+   "move": {
+    "chase": {
+     "target": "player",
+     "speed": 22
+    }
+   },
+   "collide": [
+    "wall"
+   ]
+  },
+  "warden2": {
+   "tag": "warden",
+   "shape": {
+    "rect": [
+     12,
+     12
+    ],
+    "color": "#ff2d55"
+   },
+   "size": [
+    12,
+    12
+   ],
+   "layer": 2,
+   "body": {
+    "type": "dynamic"
+   },
+   "move": {
+    "chase": {
+     "target": "player",
+     "speed": 34
+    }
+   },
+   "collide": [
+    "wall"
+   ]
+  },
+  "warden3": {
+   "tag": "warden",
+   "shape": {
+    "rect": [
+     18,
+     18
+    ],
+    "color": "#ff0033"
+   },
+   "size": [
+    18,
+    18
+   ],
+   "layer": 2,
+   "body": {
+    "type": "dynamic"
+   },
+   "move": {
+    "chase": {
+     "target": "player",
+     "speed": 48
+    }
+   },
+   "collide": [
+    "wall"
+   ]
+  }
+ },
+ "scene": [
+  {
+   "prefab": "player",
+   "at": [
+    60,
+    90
+   ],
+   "id": "p"
+  },
+  {
+   "prefab": "wall",
+   "at": [
+    154,
+    90
+   ]
+  },
+  {
+   "prefab": "machine",
+   "at": [
+    282,
+    90
+   ],
+   "id": "machine"
+  },
+  {
+   "prefab": "slot",
+   "at": [
+    250,
+    26
+   ]
+  },
+  {
+   "prefab": "slot",
+   "at": [
+    250,
+    58
+   ]
+  },
+  {
+   "prefab": "slot",
+   "at": [
+    250,
+    90
+   ]
+  },
+  {
+   "prefab": "slot",
+   "at": [
+    250,
+    122
+   ]
+  },
+  {
+   "prefab": "slot",
+   "at": [
+    250,
+    154
+   ]
+  },
+  {
+   "prefab": "pad1",
+   "at": [
+    18,
+    44
+   ],
+   "id": "pad1"
+  },
+  {
+   "prefab": "lab1",
+   "at": [
+    18,
+    23
+   ]
+  },
+  {
+   "prefab": "pad2",
+   "at": [
+    18,
+    100
+   ],
+   "id": "pad2"
+  },
+  {
+   "prefab": "lab2",
+   "at": [
+    18,
+    79
+   ]
+  },
+  {
+   "prefab": "pad3",
+   "at": [
+    18,
+    152
+   ],
+   "id": "pad3"
+  },
+  {
+   "prefab": "lab3",
+   "at": [
+    18,
+    131
+   ]
+  },
+  {
+   "prefab": "part0",
+   "at": [
+    96,
+    22
+   ],
+   "id": "a0"
+  },
+  {
+   "prefab": "part1",
+   "at": [
+    96,
+    56
+   ],
+   "id": "a1"
+  },
+  {
+   "prefab": "part2",
+   "at": [
+    96,
+    90
+   ],
+   "id": "a2"
+  },
+  {
+   "prefab": "part3",
+   "at": [
+    96,
+    124
+   ],
+   "id": "a3"
+  },
+  {
+   "prefab": "part4",
+   "at": [
+    96,
+    158
+   ],
+   "id": "a4"
+  }
+ ],
+ "ui": [
+  {
+   "panel": {
+    "at": [
+     0,
+     0
+    ],
+    "size": [
+     320,
+     10
+    ],
+    "color": "#10141fcc"
+   }
+  },
+  {
+   "text": "GLIDE",
+   "at": [
+    4,
+    2
+   ],
+   "color": "#47d1ff"
+  },
+  {
+   "bar": {
+    "var": "t1",
+    "max": 12,
+    "at": [
+     34,
+     2
+    ],
+    "size": [
+     40,
+     6
+    ]
+   }
+  },
+  {
+   "text": "GATE",
+   "at": [
+    84,
+    2
+   ],
+   "color": "#ffd23f"
+  },
+  {
+   "bar": {
+    "var": "t2",
+    "max": 12,
+    "at": [
+     112,
+     2
+    ],
+    "size": [
+     40,
+     6
+    ]
+   }
+  },
+  {
+   "text": "LULL",
+   "at": [
+    162,
+    2
+   ],
+   "color": "#b48cff"
+  },
+  {
+   "bar": {
+    "var": "t3",
+    "max": 12,
+    "at": [
+     190,
+     2
+    ],
+    "size": [
+     40,
+     6
+    ]
+   }
+  },
+  {
+   "text": "BUILT {idx}/5",
+   "at": [
+    240,
+    2
+   ],
+   "color": "#ffffff"
+  },
+  {
+   "text": "GREEN>RED>VIOLET>GOLD>BLUE",
+   "at": [
+    4,
+    170
+   ],
+   "color": "#cfd8ff"
+  },
+  {
+   "text": "BEST {best:.1}",
+   "at": [
+    256,
+    170
+   ],
+   "color": "#8fa0c8"
+  },
+  {
+   "text": "THE MACHINE IS BUILT",
+   "at": [
+    160,
+    80
+   ],
+   "color": "#9dff9d",
+   "align": "center",
+   "scale": 2,
+   "show": "ended"
+  },
+  {
+   "text": "Z: THROW / RECALL",
+   "at": [
+    162,
+    140
+   ],
+   "color": "#6f7fa8"
+  }
+ ],
+ "rules": [
+  {
+   "id": "near 0",
+   "when": {
+    "touching": [
+     "player",
+     "a0"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "near0",
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "near 1",
+   "when": {
+    "touching": [
+     "player",
+     "a1"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "near1",
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "near 2",
+   "when": {
+    "touching": [
+     "player",
+     "a2"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "near2",
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "near 3",
+   "when": {
+    "touching": [
+     "player",
+     "a3"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "near3",
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "near 4",
+   "when": {
+    "touching": [
+     "player",
+     "a4"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "near4",
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "throw RED fast",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near0 < 0.06 && s0 == 0 && t1 > 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a0",
+      "v": [
+       220,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s0",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      1
+     ]
+    },
+    {
+     "play": "throw"
+    }
+   ]
+  },
+  {
+   "id": "throw RED weak",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near0 < 0.06 && s0 == 0 && t1 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a0",
+      "v": [
+       40,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s0",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      1
+     ]
+    },
+    {
+     "play": "weak"
+    }
+   ]
+  },
+  {
+   "id": "throw GOLD fast",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near1 < 0.06 && s1 == 0 && t1 > 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a1",
+      "v": [
+       220,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s1",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      2
+     ]
+    },
+    {
+     "play": "throw"
+    }
+   ]
+  },
+  {
+   "id": "throw GOLD weak",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near1 < 0.06 && s1 == 0 && t1 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a1",
+      "v": [
+       40,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s1",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      2
+     ]
+    },
+    {
+     "play": "weak"
+    }
+   ]
+  },
+  {
+   "id": "throw GREEN fast",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near2 < 0.06 && s2 == 0 && t1 > 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a2",
+      "v": [
+       220,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s2",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      3
+     ]
+    },
+    {
+     "play": "throw"
+    }
+   ]
+  },
+  {
+   "id": "throw GREEN weak",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near2 < 0.06 && s2 == 0 && t1 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a2",
+      "v": [
+       40,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s2",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      3
+     ]
+    },
+    {
+     "play": "weak"
+    }
+   ]
+  },
+  {
+   "id": "throw BLUE fast",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near3 < 0.06 && s3 == 0 && t1 > 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a3",
+      "v": [
+       220,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s3",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      4
+     ]
+    },
+    {
+     "play": "throw"
+    }
+   ]
+  },
+  {
+   "id": "throw BLUE weak",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near3 < 0.06 && s3 == 0 && t1 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a3",
+      "v": [
+       40,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s3",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      4
+     ]
+    },
+    {
+     "play": "weak"
+    }
+   ]
+  },
+  {
+   "id": "throw VIOLET fast",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near4 < 0.06 && s4 == 0 && t1 > 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a4",
+      "v": [
+       220,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s4",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      5
+     ]
+    },
+    {
+     "play": "throw"
+    }
+   ]
+  },
+  {
+   "id": "throw VIOLET weak",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near4 < 0.06 && s4 == 0 && t1 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a4",
+      "v": [
+       40,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "s4",
+      1
+     ]
+    },
+    {
+     "set": [
+      "last",
+      5
+     ]
+    },
+    {
+     "play": "weak"
+    }
+   ]
+  },
+  {
+   "id": "recall RED",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near0 >= 0.06 && time - near1 >= 0.06 && time - near2 >= 0.06 && time - near3 >= 0.06 && time - near4 >= 0.06 && last == 1 && s0 == 1",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a0",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a0",
+      "to": [
+       96,
+       22
+      ]
+     }
+    },
+    {
+     "set": [
+      "s0",
+      0
+     ]
+    },
+    {
+     "play": "recall"
+    }
+   ]
+  },
+  {
+   "id": "recall GOLD",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near0 >= 0.06 && time - near1 >= 0.06 && time - near2 >= 0.06 && time - near3 >= 0.06 && time - near4 >= 0.06 && last == 2 && s1 == 1",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a1",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a1",
+      "to": [
+       96,
+       56
+      ]
+     }
+    },
+    {
+     "set": [
+      "s1",
+      0
+     ]
+    },
+    {
+     "play": "recall"
+    }
+   ]
+  },
+  {
+   "id": "recall GREEN",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near0 >= 0.06 && time - near1 >= 0.06 && time - near2 >= 0.06 && time - near3 >= 0.06 && time - near4 >= 0.06 && last == 3 && s2 == 1",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a2",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a2",
+      "to": [
+       96,
+       90
+      ]
+     }
+    },
+    {
+     "set": [
+      "s2",
+      0
+     ]
+    },
+    {
+     "play": "recall"
+    }
+   ]
+  },
+  {
+   "id": "recall BLUE",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near0 >= 0.06 && time - near1 >= 0.06 && time - near2 >= 0.06 && time - near3 >= 0.06 && time - near4 >= 0.06 && last == 4 && s3 == 1",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a3",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a3",
+      "to": [
+       96,
+       124
+      ]
+     }
+    },
+    {
+     "set": [
+      "s3",
+      0
+     ]
+    },
+    {
+     "play": "recall"
+    }
+   ]
+  },
+  {
+   "id": "recall VIOLET",
+   "when": {
+    "press": "action"
+   },
+   "if": "!ended && time - near0 >= 0.06 && time - near1 >= 0.06 && time - near2 >= 0.06 && time - near3 >= 0.06 && time - near4 >= 0.06 && last == 5 && s4 == 1",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a4",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a4",
+      "to": [
+       96,
+       158
+      ]
+     }
+    },
+    {
+     "set": [
+      "s4",
+      0
+     ]
+    },
+    {
+     "play": "recall"
+    }
+   ]
+  },
+  {
+   "id": "accept RED",
+   "when": {
+    "touch": [
+     "a0",
+     "machine"
+    ]
+   },
+   "if": "s0 == 1 && t2 > 0 && idx == 1",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a0",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a0",
+      "to": [
+       250,
+       58
+      ]
+     }
+    },
+    {
+     "set": [
+      "s0",
+      2
+     ]
+    },
+    {
+     "add": [
+      "idx",
+      1
+     ]
+    },
+    {
+     "play": "ok"
+    },
+    {
+     "shake": 2
+    },
+    {
+     "burst": {
+      "at": [
+       250,
+       58
+      ],
+      "n": 14,
+      "color": "#ff5c5c",
+      "speed": [
+       30,
+       80
+      ],
+      "life": [
+       0.3,
+       0.6
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "jam RED",
+   "when": {
+    "touch": [
+     "a0",
+     "machine"
+    ]
+   },
+   "if": "s0 == 1 && t2 > 0 && idx != 1",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a0",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a0",
+      "to": [
+       96,
+       22
+      ]
+     }
+    },
+    {
+     "set": [
+      "s0",
+      0
+     ]
+    },
+    {
+     "add": [
+      "t3",
+      -4
+     ]
+    },
+    {
+     "play": "bad"
+    },
+    {
+     "shake": 4
+    }
+   ]
+  },
+  {
+   "id": "shut RED",
+   "when": {
+    "touch": [
+     "a0",
+     "machine"
+    ]
+   },
+   "if": "s0 == 1 && t2 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a0",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "accept GOLD",
+   "when": {
+    "touch": [
+     "a1",
+     "machine"
+    ]
+   },
+   "if": "s1 == 1 && t2 > 0 && idx == 3",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a1",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a1",
+      "to": [
+       250,
+       122
+      ]
+     }
+    },
+    {
+     "set": [
+      "s1",
+      2
+     ]
+    },
+    {
+     "add": [
+      "idx",
+      1
+     ]
+    },
+    {
+     "play": "ok"
+    },
+    {
+     "shake": 2
+    },
+    {
+     "burst": {
+      "at": [
+       250,
+       122
+      ],
+      "n": 14,
+      "color": "#ffd23f",
+      "speed": [
+       30,
+       80
+      ],
+      "life": [
+       0.3,
+       0.6
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "jam GOLD",
+   "when": {
+    "touch": [
+     "a1",
+     "machine"
+    ]
+   },
+   "if": "s1 == 1 && t2 > 0 && idx != 3",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a1",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a1",
+      "to": [
+       96,
+       56
+      ]
+     }
+    },
+    {
+     "set": [
+      "s1",
+      0
+     ]
+    },
+    {
+     "add": [
+      "t3",
+      -4
+     ]
+    },
+    {
+     "play": "bad"
+    },
+    {
+     "shake": 4
+    }
+   ]
+  },
+  {
+   "id": "shut GOLD",
+   "when": {
+    "touch": [
+     "a1",
+     "machine"
+    ]
+   },
+   "if": "s1 == 1 && t2 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a1",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "accept GREEN",
+   "when": {
+    "touch": [
+     "a2",
+     "machine"
+    ]
+   },
+   "if": "s2 == 1 && t2 > 0 && idx == 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a2",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a2",
+      "to": [
+       250,
+       26
+      ]
+     }
+    },
+    {
+     "set": [
+      "s2",
+      2
+     ]
+    },
+    {
+     "add": [
+      "idx",
+      1
+     ]
+    },
+    {
+     "play": "ok"
+    },
+    {
+     "shake": 2
+    },
+    {
+     "burst": {
+      "at": [
+       250,
+       26
+      ],
+      "n": 14,
+      "color": "#5cd65c",
+      "speed": [
+       30,
+       80
+      ],
+      "life": [
+       0.3,
+       0.6
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "jam GREEN",
+   "when": {
+    "touch": [
+     "a2",
+     "machine"
+    ]
+   },
+   "if": "s2 == 1 && t2 > 0 && idx != 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a2",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a2",
+      "to": [
+       96,
+       90
+      ]
+     }
+    },
+    {
+     "set": [
+      "s2",
+      0
+     ]
+    },
+    {
+     "add": [
+      "t3",
+      -4
+     ]
+    },
+    {
+     "play": "bad"
+    },
+    {
+     "shake": 4
+    }
+   ]
+  },
+  {
+   "id": "shut GREEN",
+   "when": {
+    "touch": [
+     "a2",
+     "machine"
+    ]
+   },
+   "if": "s2 == 1 && t2 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a2",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "accept BLUE",
+   "when": {
+    "touch": [
+     "a3",
+     "machine"
+    ]
+   },
+   "if": "s3 == 1 && t2 > 0 && idx == 4",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a3",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a3",
+      "to": [
+       250,
+       154
+      ]
+     }
+    },
+    {
+     "set": [
+      "s3",
+      2
+     ]
+    },
+    {
+     "add": [
+      "idx",
+      1
+     ]
+    },
+    {
+     "play": "ok"
+    },
+    {
+     "shake": 2
+    },
+    {
+     "burst": {
+      "at": [
+       250,
+       154
+      ],
+      "n": 14,
+      "color": "#5cb3ff",
+      "speed": [
+       30,
+       80
+      ],
+      "life": [
+       0.3,
+       0.6
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "jam BLUE",
+   "when": {
+    "touch": [
+     "a3",
+     "machine"
+    ]
+   },
+   "if": "s3 == 1 && t2 > 0 && idx != 4",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a3",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a3",
+      "to": [
+       96,
+       124
+      ]
+     }
+    },
+    {
+     "set": [
+      "s3",
+      0
+     ]
+    },
+    {
+     "add": [
+      "t3",
+      -4
+     ]
+    },
+    {
+     "play": "bad"
+    },
+    {
+     "shake": 4
+    }
+   ]
+  },
+  {
+   "id": "shut BLUE",
+   "when": {
+    "touch": [
+     "a3",
+     "machine"
+    ]
+   },
+   "if": "s3 == 1 && t2 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a3",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "accept VIOLET",
+   "when": {
+    "touch": [
+     "a4",
+     "machine"
+    ]
+   },
+   "if": "s4 == 1 && t2 > 0 && idx == 2",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a4",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a4",
+      "to": [
+       250,
+       90
+      ]
+     }
+    },
+    {
+     "set": [
+      "s4",
+      2
+     ]
+    },
+    {
+     "add": [
+      "idx",
+      1
+     ]
+    },
+    {
+     "play": "ok"
+    },
+    {
+     "shake": 2
+    },
+    {
+     "burst": {
+      "at": [
+       250,
+       90
+      ],
+      "n": 14,
+      "color": "#c07cff",
+      "speed": [
+       30,
+       80
+      ],
+      "life": [
+       0.3,
+       0.6
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "jam VIOLET",
+   "when": {
+    "touch": [
+     "a4",
+     "machine"
+    ]
+   },
+   "if": "s4 == 1 && t2 > 0 && idx != 2",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a4",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:a4",
+      "to": [
+       96,
+       158
+      ]
+     }
+    },
+    {
+     "set": [
+      "s4",
+      0
+     ]
+    },
+    {
+     "add": [
+      "t3",
+      -4
+     ]
+    },
+    {
+     "play": "bad"
+    },
+    {
+     "shake": 4
+    }
+   ]
+  },
+  {
+   "id": "shut VIOLET",
+   "when": {
+    "touch": [
+     "a4",
+     "machine"
+    ]
+   },
+   "if": "s4 == 1 && t2 <= 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:a4",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "dial 1",
+   "when": {
+    "touching": [
+     "player",
+     "pad1"
+    ]
+   },
+   "do": [
+    {
+     "add": [
+      "t1",
+      0.08
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dial 2",
+   "when": {
+    "touching": [
+     "player",
+     "pad2"
+    ]
+   },
+   "do": [
+    {
+     "add": [
+      "t2",
+      0.08
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dial 3",
+   "when": {
+    "touching": [
+     "player",
+     "pad3"
+    ]
+   },
+   "do": [
+    {
+     "add": [
+      "t3",
+      0.08
+     ]
+    }
+   ]
+  },
+  {
+   "id": "clock",
+   "when": {
+    "every": 0.1
+   },
+   "if": "!ended",
+   "do": [
+    {
+     "add": [
+      "secs",
+      0.1
+     ]
+    },
+    {
+     "add": [
+      "t1",
+      -0.1
+     ]
+    },
+    {
+     "add": [
+      "t2",
+      -0.1
+     ]
+    },
+    {
+     "add": [
+      "t3",
+      -0.04
+     ]
+    },
+    {
+     "add": [
+      "t3",
+      "-0.02 * idx"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cap 1",
+   "when": {
+    "every": 0.05
+   },
+   "if": "t1 > 12",
+   "do": [
+    {
+     "set": [
+      "t1",
+      12
+     ]
+    }
+   ]
+  },
+  {
+   "id": "floor 1",
+   "when": {
+    "every": 0.05
+   },
+   "if": "t1 < 0",
+   "do": [
+    {
+     "set": [
+      "t1",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cap 2",
+   "when": {
+    "every": 0.05
+   },
+   "if": "t2 > 12",
+   "do": [
+    {
+     "set": [
+      "t2",
+      12
+     ]
+    }
+   ]
+  },
+  {
+   "id": "floor 2",
+   "when": {
+    "every": 0.05
+   },
+   "if": "t2 < 0",
+   "do": [
+    {
+     "set": [
+      "t2",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cap 3",
+   "when": {
+    "every": 0.05
+   },
+   "if": "t3 > 12",
+   "do": [
+    {
+     "set": [
+      "t3",
+      12
+     ]
+    }
+   ]
+  },
+  {
+   "id": "floor 3",
+   "when": {
+    "every": 0.05
+   },
+   "if": "t3 < 0",
+   "do": [
+    {
+     "set": [
+      "t3",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "wake small",
+   "when": {
+    "every": 0.5
+   },
+   "if": "!ended && t3 <= 0 && count_warden < 1 && idx < 2",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "warden1",
+      "at": [
+       130,
+       170
+      ]
+     }
+    },
+    {
+     "play": "wake"
+    }
+   ]
+  },
+  {
+   "id": "wake mid",
+   "when": {
+    "every": 0.5
+   },
+   "if": "!ended && t3 <= 0 && count_warden < 1 && idx >= 2 && idx < 4",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "warden2",
+      "at": [
+       130,
+       170
+      ]
+     }
+    },
+    {
+     "play": "wake"
+    }
+   ]
+  },
+  {
+   "id": "wake big",
+   "when": {
+    "every": 0.5
+   },
+   "if": "!ended && t3 <= 0 && count_warden < 1 && idx >= 4",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "warden3",
+      "at": [
+       130,
+       170
+      ]
+     }
+    },
+    {
+     "play": "wake"
+    }
+   ]
+  },
+  {
+   "id": "lull",
+   "when": {
+    "every": 0.1
+   },
+   "if": "t3 > 3",
+   "do": [
+    {
+     "destroy": "tag:warden"
+    }
+   ]
+  },
+  {
+   "id": "caught",
+   "when": {
+    "touch": [
+     "player",
+     "warden"
+    ]
+   },
+   "do": [
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "built",
+   "when": {
+    "every": 0.05
+   },
+   "if": "idx >= 5",
+   "do": [
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "record",
+   "when": {
+    "end": "win"
+   },
+   "if": "best == 0 || secs < best",
+   "do": [
+    {
+     "set": [
+      "best",
+      "secs"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "win jingle",
+   "when": {
+    "end": "win"
+   },
+   "do": [
+    {
+     "play": "win"
+    }
+   ]
+  },
+  {
+   "id": "lose jingle",
+   "when": {
+    "end": "lose"
+   },
+   "do": [
+    {
+     "play": "lose"
+    }
+   ]
+  },
+  {
+   "id": "again",
+   "when": {
+    "press": "secondary"
+   },
+   "if": "ended",
+   "do": [
+    {
+     "restart": true
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "a bot juggles the timers and builds the machine in order",
+    "seed": 1,
+    "max_seconds": 150,
+    "smoke": true,
+    "script": [
+     {
+      "approach": "pad3",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t3",
+       "gte": 11
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad1",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t1",
+       "gte": 4
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad2",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t2",
+       "gte": 3
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "a2",
+      "seconds": 2
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "approach": "pad3",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t3",
+       "gte": 11
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad1",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t1",
+       "gte": 4
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad2",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t2",
+       "gte": 3
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "a0",
+      "seconds": 2
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "approach": "pad3",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t3",
+       "gte": 11
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad1",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t1",
+       "gte": 4
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad2",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t2",
+       "gte": 3
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "a4",
+      "seconds": 2
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "approach": "pad3",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t3",
+       "gte": 11
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad1",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t1",
+       "gte": 4
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad2",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t2",
+       "gte": 3
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "a1",
+      "seconds": 2
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "approach": "pad3",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t3",
+       "gte": 11
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad1",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t1",
+       "gte": 4
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad2",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t2",
+       "gte": 3
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "a3",
+      "seconds": 2
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     }
+    ],
+    "expect": [
+     {
+      "var": "idx",
+      "eq": 5
+     },
+     {
+      "ended": "win"
+     },
+     {
+      "sound": "ok",
+      "min": 5
+     },
+     {
+      "sound": "win"
+     },
+     {
+      "var": "best",
+      "gt": 0
+     }
+    ]
+   },
+   {
+    "name": "throwing again sends the part back where it came from",
+    "seed": 1,
+    "max_seconds": 10,
+    "script": [
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.45
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.1
+     }
+    ],
+    "expect": [
+     {
+      "var": "s2",
+      "eq": 0
+     },
+     {
+      "entity": "a2",
+      "near": [
+       96,
+       90
+      ],
+      "tol": 2
+     },
+     {
+      "sound": "recall",
+      "min": 1
+     }
+    ]
+   },
+   {
+    "name": "with the glide law lapsed the throw is weak",
+    "seed": 1,
+    "max_seconds": 20,
+    "script": [
+     {
+      "wait_until": {
+       "var": "t1",
+       "lte": 0
+      },
+      "timeout": 12
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.45
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1
+     }
+    ],
+    "expect": [
+     {
+      "var": "s2",
+      "eq": 1
+     },
+     {
+      "sound": "weak",
+      "min": 1
+     },
+     {
+      "entity": "a2",
+      "near": [
+       130,
+       90
+      ],
+      "tol": 15
+     }
+    ]
+   },
+   {
+    "name": "gate shut: the part arrives but is not accepted",
+    "seed": 1,
+    "max_seconds": 30,
+    "script": [
+     {
+      "wait_until": {
+       "var": "t2",
+       "lte": 0
+      },
+      "timeout": 12
+     },
+     {
+      "approach": "pad3",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t3",
+       "gte": 6
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "pad1",
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "t1",
+       "gte": 4
+      },
+      "timeout": 6
+     },
+     {
+      "approach": "a2",
+      "seconds": 3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 2.5
+     }
+    ],
+    "expect": [
+     {
+      "var": "idx",
+      "eq": 0
+     },
+     {
+      "var": "s2",
+      "eq": 1
+     },
+     {
+      "sound": "thud",
+      "min": 1
+     }
+    ]
+   },
+   {
+    "name": "wrong order jams the machine and returns the part",
+    "seed": 1,
+    "max_seconds": 30,
+    "script": [
+     {
+      "approach": "a0",
+      "seconds": 3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 2
+     }
+    ],
+    "expect": [
+     {
+      "var": "idx",
+      "eq": 0
+     },
+     {
+      "var": "s0",
+      "eq": 0
+     },
+     {
+      "sound": "bad",
+      "min": 1
+     },
+     {
+      "entity": "a0",
+      "near": [
+       96,
+       22
+      ],
+      "tol": 2
+     }
+    ]
+   },
+   {
+    "name": "letting the lull lapse wakes a warden that catches you",
+    "seed": 1,
+    "max_seconds": 60,
+    "script": [
+     {
+      "wait_until": {
+       "ended": "lose"
+      },
+      "timeout": 50
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     },
+     {
+      "sound": "wake",
+      "min": 1
+     },
+     {
+      "sound": "lose"
+     }
+    ]
+   },
+   {
+    "name": "the wall stops the player",
+    "seed": 1,
+    "max_seconds": 10,
+    "script": [
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 3
+     }
+    ],
+    "expect": [
+     {
+      "entity": "p",
+      "near": [
+       145,
+       90
+      ],
+      "tol": 4
+     }
+    ]
+   }
+  ]
+ }
+}
