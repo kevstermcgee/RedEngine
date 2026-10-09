@@ -2,7 +2,7 @@
 # The exact steps CI runs (.github/workflows/ci.yml). Run before pushing; green here = green there
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
-#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video
+#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools
 #
 # Tests run in two groups, because only one kind needs to be slow:
 #   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers): one test at a time, as before;
@@ -108,9 +108,29 @@ stage_killchain() {
 # The optional export capability stays buildable and lint clean: MP4 export (`video`, ffmpeg-sidecar) is not in the default build (ADR 2026-10-07-tooling-dependencies-are-optional-features).
 stage_video() { echo "== optional MP4 export builds (feature video) =="; cargo clippy --locked --bins --lib --features video -- -D warnings; }
 
+# The Python tools (launchpad, Idea Forge, the process supervisor, the publisher) on this platform's interpreter, with no Rust build: path handling, quoting, subprocess and git behaviour
+# differ between Linux and Windows, and the hosted `python-tools` job runs this stage on both whenever one of them changes (ADR 2026-10-09-ci-runs-the-python-tools-on-windows-when-they-change).
+# `tests` runs the same files through their `tests/*.rs` wrappers; this is the cheap way to run just them.
+stage_pytools() {
+  echo "== python tools (this platform's interpreter, no Rust build) =="
+  local py="" p t
+  for p in python3 python; do
+    if command -v "$p" >/dev/null 2>&1 && "$p" --version >/dev/null 2>&1; then py="$p"; break; fi
+  done
+  if [ -z "$py" ]; then echo "python is not installed: the tool tests cannot run"; exit 1; fi
+  "$py" --version
+  "$py" -m compileall -q scripts mcp_server.py
+  for t in scripts/test_*.py; do
+    echo "-- $t"
+    "$py" "$t"
+  done
+  echo "-- scripts/publish_games.py check"
+  "$py" scripts/publish_games.py check
+}
+
 stages=("$@")
 # Cheapest, most-likely-to-fail first: formatting, the lock files and the headless dependency tree take seconds; the long stages come after them.
-[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client killchain video)
+[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client killchain video pytools)
 # Every stage is timed, and the table at the end says where the minutes went (the first thing to read when CI feels slow).
 timings=()
 t_all=$SECONDS

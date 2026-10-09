@@ -290,10 +290,10 @@
     },
     "build_and_ci": {
       "summary": "Cargo features (the headless build), CI script, dev scripts, the dependency boundary.",
-      "files": ["tests/optional_features.rs", "scripts/seed_target.py", "scripts/prune_target.py", "benches/flow_bench.py", "benches/discovery_bench.py", "benches/discovery_queries.json", "benches/flows/**", "Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
-      "tests": ["headless_boundary", "optional_features"],
-      "commands": ["scripts/ci.sh"],
-      "docs": ["docs/adr/0017-headless-build-gfx-feature.md"]
+      "files": ["tests/optional_features.rs", "tests/ci_selection.rs", "scripts/test_ci_selection.py", "scripts/seed_target.py", "scripts/prune_target.py", "benches/flow_bench.py", "benches/discovery_bench.py", "benches/discovery_queries.json", "benches/flows/**", "Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
+      "tests": ["headless_boundary", "optional_features", "ci_selection"],
+      "commands": ["scripts/ci.sh", "scripts/ci.sh pytools"],
+      "docs": ["docs/adr/0017-headless-build-gfx-feature.md", "docs/adr/2026-10-09-ci-runs-the-python-tools-on-windows-when-they-change.md"]
     },
     "test_support": {
       "summary": "Shared test code and fixtures.",

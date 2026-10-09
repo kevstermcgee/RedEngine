@@ -37,6 +37,21 @@ def git(root, *args, check=True):
     return p.stdout
 
 
+def load_json(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+
+def base_read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 def commit_all(root, message="change"):
     git(root, "add", "-A")
     git(root, "commit", "-q", "-m", message)
@@ -359,7 +374,7 @@ class Recovery(base.Sandbox):
         self.assertNotEqual(a["identity"]["inputs_hash"], b["identity"]["inputs_hash"], "different content, different identity (it used to be the same)")
 
     def test_an_edit_that_was_made_and_then_undone_is_not_a_change(self):
-        original = open(os.path.join(self.engine, "src", "net", "server.rs")).read()
+        original = base_read(os.path.join(self.engine, "src", "net", "server.rs"))
         self.edit("src/net/server.rs", "fn serve() { /* temp */ }\n")
         self.assertEqual(self.resume()["since_start"]["changes"][0]["files"], ["src/net/server.rs"])
         self.edit("src/net/server.rs", original)
@@ -402,9 +417,9 @@ class Recovery(base.Sandbox):
         self.assertEqual(self.resume()["since_start"]["revision"]["relation"], "diverged")
         out, _ = self.lp("start", "again", "--workflow", "engine-change")
         t = os.path.join(self.engine, "out", "launchpad", out["task"]["id"] + ".json")
-        rec = json.load(open(t))
+        rec = load_json(t)
         rec["identity"]["engine_head"] = "0" * 40
-        json.dump(rec, open(t, "w"))
+        save_json(t, rec)
         s = self.resume("--task-id", out["task"]["id"])["since_start"]
         self.assertEqual(s["revision"]["relation"], "unknown")
         self.assertIn("not in this repository", s["revision"]["why"])
@@ -424,10 +439,10 @@ class Recovery(base.Sandbox):
 
     def test_a_task_recorded_by_the_old_launchpad_is_not_trusted_and_says_why(self):
         t = os.path.join(self.engine, "out", "launchpad", self.task + ".json")
-        rec = json.load(open(t))
+        rec = load_json(t)
         rec["identity"].pop("identity_version")
         rec["identity"]["inputs"]["files"] = {"rc/lib.rs": None}
-        json.dump(rec, open(t, "w"))
+        save_json(t, rec)
         out = self.resume()
         names = [c["what"] for c in out["since_start"]["changes"]]
         self.assertIn("recorded identity predates the git parsing fix", names)
