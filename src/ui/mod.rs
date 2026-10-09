@@ -14,8 +14,6 @@
 //! * `red_engine2 ui-check` audits every screen at many window sizes (also a test, `ui::screens::tests`).
 
 pub mod game;
-pub mod killchain;
-pub mod objective;
 pub mod online;
 pub mod race;
 pub mod rules;

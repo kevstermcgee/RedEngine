@@ -250,6 +250,64 @@ fn red2d_steps(changed: &[String], tests: bool) -> Vec<Step> {
     v
 }
 
+/// Engine code the Killchain game (`games/killchain`, a separate crate on the public API) is written against: the protocol and sessions it speaks, the shooter simulation it
+/// renders, the 2-D UI kit and the renderer. A change here can break the game without touching a file of it, so the game's lints and tests run too.
+const KILLCHAIN_ENGINE_DIRS: &[&str] = &["src/net/", "src/sim/", "src/ui/"];
+const KILLCHAIN_ENGINE_FILES: &[&str] = &[
+    "src/viewer.rs",
+    "src/player.rs",
+    "src/schema.rs",
+    "src/sfx.rs",
+    "src/audio.rs",
+    "src/arsenal.rs",
+    "src/firearms.rs",
+    "src/weapons.rs",
+    "src/killcam.rs",
+    "src/uniforms.rs",
+    "src/streaks.rs",
+    "src/shooter_world.rs",
+    "src/objective_world.rs",
+    "src/scene_pool.rs",
+    "src/controller.rs",
+    "src/clipboard.rs",
+    "src/capture.rs",
+    "src/gpu.rs",
+    "src/feel.rs",
+    "src/hit.rs",
+    "src/avatar.rs",
+    "Cargo.toml",
+    "Cargo.lock",
+];
+
+/// Whether a change reaches the Killchain game: a file in it, or engine code it is built on.
+pub fn touches_killchain(changed: &[String]) -> bool {
+    changed
+        .iter()
+        .any(|c| c.starts_with("games/killchain/") || KILLCHAIN_ENGINE_DIRS.iter().any(|d| c.starts_with(d)) || KILLCHAIN_ENGINE_FILES.contains(&c.as_str()))
+}
+
+/// The steps the game adds (`-p killchain`: the engine-crate steps do not cover another package).
+///
+/// `engine_api` is false in a partial (`iterate`) plan: the edit loop stays focused on the files you changed, so an engine edit does not also lint the game (`affected` does, before "done").
+fn killchain_steps(changed: &[String], tests: bool, engine_api: bool) -> Vec<Step> {
+    if !(touches_killchain(changed) && (engine_api || changed.iter().any(|c| c.starts_with("games/killchain/")))) {
+        return Vec::new();
+    }
+    let mut v = vec![Step::new(
+        "killchain-clippy",
+        &["cargo", "clippy", "--locked", "-p", "killchain", "--all-targets", "--", "-D", "warnings"],
+        "the Killchain game (games/killchain) or the engine API it is built on changed",
+    )];
+    if tests {
+        v.push(Step::new(
+            "killchain",
+            &["cargo", "test", "--locked", "-p", "killchain"],
+            "unit tests of the Killchain game: screens, objective HUD text, statistics",
+        ));
+    }
+    v
+}
+
 /// Paths that never need verification (generated output, logs, the handoff file).
 fn ignorable(path: &str) -> bool {
     path.starts_with("out/")
@@ -564,6 +622,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
         });
     }
     plan.steps.extend(red2d_steps(&changed, true));
+    plan.steps.extend(killchain_steps(&changed, !opts.check_only, true));
     plan.deferred = deferred.into_iter().collect();
     plan.suggest.sort();
     plan.suggest.dedup();
@@ -733,6 +792,7 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
         }
     }
     plan.steps.extend(red2d_steps(&changed, !opts.check_only));
+    plan.steps.extend(killchain_steps(&changed, !opts.check_only, false));
     if opts.check_only {
         plan.notes.push("--check-only: formatting and type-check only, no tests".into());
     }
@@ -1224,6 +1284,25 @@ mod tests {
         assert!(quick.steps.iter().any(|s| s.name == "red2d") && quick.steps.iter().all(|s| s.name != "web"), "{:?}", names(&quick));
         let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
         assert!(none.steps.iter().all(|s| !s.name.starts_with("red2d") && s.name != "web"), "{:?}", names(&none));
+    }
+
+    #[test]
+    fn a_change_to_the_killchain_game_or_the_engine_api_it_uses_plans_the_games_own_checks() {
+        for f in ["games/killchain/src/ui.rs", "src/net/protocol.rs", "src/sim/kit.rs", "src/viewer.rs", "src/ui/online.rs"] {
+            assert!(touches_killchain(&[f.to_string()]), "{f}");
+        }
+        assert!(!touches_killchain(&["src/tools/lint.rs".to_string(), "crates/red2d/src/sim.rs".to_string(), "README.md".to_string()]));
+        let p = plan(&world(), &serial(), &["games/killchain/src/ui.rs".to_string()], &Options::default());
+        assert_eq!(step(&p, "killchain").argv.join(" "), "cargo test --locked -p killchain");
+        assert!(step(&p, "killchain-clippy").argv.join(" ").contains("-p killchain --all-targets"));
+        let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
+        assert!(none.steps.iter().all(|s| !s.name.starts_with("killchain")), "{:?}", names(&none));
+        let check_only = plan(&world(), &serial(), &["games/killchain/src/ui.rs".to_string()], &Options { check_only: true, ..Options::default() });
+        assert!(
+            check_only.steps.iter().any(|s| s.name == "killchain-clippy") && check_only.steps.iter().all(|s| s.name != "killchain"),
+            "{:?}",
+            names(&check_only)
+        );
     }
 
     #[test]

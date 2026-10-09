@@ -1,6 +1,5 @@
 //! Render every weapon of the loadout arsenal, in hand, for both teams, into two contact sheets (no window).
 //! Run: cargo run --example arsenal_poses -- <output-directory> [aim|hip] [knife-seconds]
-#[cfg(feature = "gfx")]
 fn main() -> anyhow::Result<()> {
     use glam::{Mat4, Vec3};
     use red_engine2::{
@@ -38,9 +37,9 @@ fn main() -> anyhow::Result<()> {
             let scoped = ads > 0.0 && weapon.kit().scoped;
             let mut overlay = red_engine2::ui::Canvas::new(targets.width, targets.height);
             if scoped {
-                red_engine2::ui::killchain::paint_scope(&mut overlay);
+                killchain::ui::paint_scope(&mut overlay);
             } else if ads > 0.0 && firearms::has_open_optic(weapon) {
-                red_engine2::ui::killchain::paint_optic_reticle(&mut overlay);
+                killchain::ui::paint_optic_reticle(&mut overlay);
             }
             renderer.overlay.set(&gpu.device, &gpu.queue, targets.width, targets.height, &overlay.px);
             let (offset, rotation) = if weapon == Weapon::Knife {
@@ -92,9 +91,4 @@ fn main() -> anyhow::Result<()> {
         contact_sheet(&tiles, 4, 360).save(out.join(format!("team{skin}{}.png", if aimed { "-aim" } else { "" })))?;
     }
     Ok(())
-}
-
-#[cfg(not(feature = "gfx"))]
-fn main() {
-    eprintln!("arsenal_poses needs the gfx feature");
 }

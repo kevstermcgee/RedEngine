@@ -84,7 +84,6 @@ pub mod soundscape;
 #[cfg(feature = "gfx")]
 pub mod split_gpu;
 pub mod splitscreen;
-pub mod stats;
 pub mod streaks;
 #[cfg(feature = "render")]
 pub mod stream_gpu;

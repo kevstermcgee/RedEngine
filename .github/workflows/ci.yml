@@ -92,6 +92,8 @@ jobs:
       - run: bash scripts/ci.sh external-client
         env:
           RED_OFFSCREEN_OPTIONAL: "1"
+      # The game on the public API (games/killchain): same target directory and cache as the engine, so only the game's own crate is compiled here.
+      - run: bash scripts/ci.sh killchain
 
   # The dedicated server on a bare Linux box: no window, GPU, audio or ffmpeg libraries installed, and none may
   # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS.
