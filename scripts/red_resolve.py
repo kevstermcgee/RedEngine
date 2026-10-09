@@ -2,7 +2,8 @@
 """Which `red_engine2` would run, and can it be trusted? One resolver for every entry point.
 
 Read-only and standard-library only: it never builds, installs, downloads or runs the engine, so it works on a fresh checkout with no compiled
-binary. `scripts/dev`, the generated `scripts/red`, the MCP adapter (`mcp_server.py`) and `scripts/launchpad.py` use these rules, so they cannot disagree.
+binary. (Getting a prebuilt that matches the checkout is `scripts/prebuilt.py`'s job, done by `scripts/dev start`/`scripts/dev red`; this resolver only recognises an installed
+one, whose record must carry the checkout's current source fingerprint.) `scripts/dev`, the generated `scripts/red`, the MCP adapter (`mcp_server.py`) and `scripts/launchpad.py` use these rules, so they cannot disagree.
 
     python3 scripts/red_resolve.py [--engine DIR] [--project DIR] [--bin red_engine2] [--json]
 
@@ -11,6 +12,8 @@ Rules (the same ones `scripts/dev` and `scripts/red` already follow):
   target directory  CARGO_TARGET_DIR, else <engine>/target
   profile           RED_PROFILE, else `debug` (the profile the dev workflow builds); other profiles are listed, never preferred
   explicit exe      RED_ENGINE_EXE (used as given; its freshness is still reported)
+A prebuilt binary installed by `scripts/prebuilt.py` under <target>/prebuilt/<fingerprint>/ is `ready` while the checkout still has exactly the sources it was built from (no
+mtime test: the fingerprint is the proof), and is used when there is no fresh binary built here.
 A candidate is `stale` when a build input (Cargo.toml, Cargo.lock, build.rs, src/, assets/, crates/) is newer than the file: a stale binary is reported,
 never selected. A prebuilt install (RED_PREFIX/bin, default ~/.local/bin) records no revision, so it is `uncertain`: used only when the project
 pins nothing, and always reported as such. Exit code: 0 ready or uncertain, 1 nothing usable (JSON on stdout either way with --json).
@@ -22,6 +25,12 @@ import shutil
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import prebuilt  # noqa: E402
+except ImportError:   # an older scripts/ directory without it: nothing to recognise, everything else works
+    prebuilt = None
 
 SCHEMA = "red-engine-exe/1"
 PROFILES = ("debug", "release", "fast")
@@ -211,6 +220,16 @@ def resolve(engine_root=None, project=None, binary="red_engine2", env=None):
         cands.append(_candidate("RED_ENGINE_EXE", os.path.abspath(explicit), None, newest, binary))
     primary = _candidate("target-dir", os.path.join(target, profile, exe), profile, newest, binary)
     cands.append(primary)
+    pre = None
+    if prebuilt and not explicit and not (primary["exists"] and primary.get("fresh") is not False):
+        fp = prebuilt.fingerprint(root)
+        pre = prebuilt.installed(root, fp["fingerprint"], binary, {**env, "CARGO_TARGET_DIR": target}) if fp["ok"] else None
+        if pre:
+            st = os.stat(pre["exe"])
+            cands.append({"source": "prebuilt (built from exactly this checkout's sources)", "path": pre["exe"], "profile": None, "exists": True,
+                          "modified_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(st.st_mtime)), "size_bytes": st.st_size, "fresh": True,
+                          "features": "headless" if pre["kind"] == "headless" else "default", "features_evidence": "release " + str(pre["version"]),
+                          "built_revision": None, "built_dirty_files": None, "stale_because": None})
     for p in PROFILES:
         if p != profile and os.path.isfile(os.path.join(target, p, exe)):
             cands.append(_candidate("target-dir (other profile, not selected)", os.path.join(target, p, exe), p, newest, binary))
@@ -238,13 +257,20 @@ def resolve(engine_root=None, project=None, binary="red_engine2", env=None):
         if out["engine"].get("matches_pin") is False:
             sel["status"] = "uncertain"
             reasons.append("the checkout is not at the pinned revision")
+    elif pre:
+        sel.update(status="ready", exe=pre["exe"])
+        reasons.append(f"prebuilt release {pre['version']} ({pre['kind']}) was built from exactly this checkout's sources (fingerprint {pre['fingerprint'][:12]}, checksum verified at install)")
+        if out["engine"].get("matches_pin") is False:
+            sel["status"] = "uncertain"
+            reasons.append("the checkout is not at the pinned revision")
     elif primary["exists"]:
         sel.update(status="stale", exe=None, stale_exe=primary["path"])
         reasons.append(f"the {profile} binary is stale: {primary['stale_because']}; rebuilding is the next step, a stale binary is never selected")
     else:
         reasons.append(f"no {profile} binary under {target} (nothing has been built here)")
         reasons.append("a cold build takes 2-7 min, longer than a 120 s tool timeout: run it in the background; "
-                       "faster: `scripts/dev seed --from <a built sibling's target dir>` first, or install prebuilt binaries (scripts/bootstrap.sh)")
+                       "faster: `scripts/bootstrap.sh` fetches a prebuilt that was built from exactly this checkout's sources when a release has one (`scripts/dev start` tries it too), "
+                       "or `scripts/dev seed --from <a built sibling's target dir>` first")
     if sel["exe"] is None and sel["status"] in ("missing", "stale"):
         inst = next((c for c in cands if c["source"].startswith("installed")), None)
         if inst:

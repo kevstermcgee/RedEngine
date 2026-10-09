@@ -4,6 +4,8 @@
 The model is replaced by a stub `claude` and the engine by a fake `red_engine2`, so the whole loop (idea -> worktree-like checkout -> agent -> notes -> score -> feedback -> ship guard) is observed
 without a network, a GPU, Rust or a single token.
 """
+import contextlib
+import io
 import json
 import os
 import random
@@ -27,6 +29,33 @@ os.environ["IDEA_FORGE_EXPORT"] = SCRATCH_EXPORT
 REAL_NOTE = os.path.join(os.path.dirname(os.path.dirname(HERE)), "idea-forge-feedback.md")
 WINDOWS = os.name == "nt"
 NEEDS_SH = unittest.skipIf(WINDOWS, "a fake executable here is a shell script")
+
+
+# The night skips itself below `--min-free-gb` of free disk, so every test of `nightly` would otherwise depend on the disk of the machine that runs it (it failed on any machine with
+# under 20 GB free: the night logged "skipped", and the tests then looked for an agent log that was never written). The disk is read in ONE place, `idea_forge.free_gb`, and no test
+# sees the real one: `setUpModule` replaces it with plenty, and the one test of the low-disk skip replaces it with little.
+PLENTY_GB = 100.0
+# To prove the suite is hermetic, run it on a machine that is nearly full (`IDEA_FORGE_TEST_MACHINE_FREE_GB=5 python3 scripts/test_idea_forge.py`; tests/idea_forge.rs does): every
+# way of asking Python for the free space then answers with that, and the suite must still pass.
+_MACHINE_GB = os.environ.get("IDEA_FORGE_TEST_MACHINE_FREE_GB")
+if _MACHINE_GB:
+    _real_usage = shutil.disk_usage
+
+    def _full_disk(path):
+        u = _real_usage(path)
+        free = int(float(_MACHINE_GB) * 2**30)
+        return shutil._ntuple_diskusage(max(u.total, 2 * free), max(u.total, 2 * free) - free, free)
+
+    shutil.disk_usage = _full_disk
+_disk = mock.patch.object(idea_forge, "free_gb", lambda: PLENTY_GB)
+
+
+def setUpModule():
+    _disk.start()
+
+
+def tearDownModule():
+    _disk.stop()
 
 
 def home():
@@ -1053,14 +1082,35 @@ class Integration(E2EBase):
         self.assertIn("no-random-expression", rd(self.export), "the games' own findings reached the file the nightly job watches")
 
     def test_a_night_with_too_little_disk_is_skipped_and_says_so(self):
-        usage = shutil.disk_usage(self.base)
-        with mock.patch.object(shutil, "disk_usage", lambda _p: usage._replace(free=3 * 2**30)):
-            try:
-                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09"])
-            except SystemExit as e:
-                self.assertEqual(e.code, 0)
-        self.assertIn("GB free", self.state()["nights"]["2026-10-09"]["skipped"])
+        def night(free, *extra):
+            """One night on a machine with `free` GB free; returns (exit code, what it printed)."""
+            for path in (self.log, os.path.join(self.home, "state.json")):
+                if os.path.exists(path):
+                    os.remove(path)
+            out = io.StringIO()
+            code = None
+            with mock.patch.object(idea_forge, "free_gb", lambda: free), contextlib.redirect_stdout(out):
+                try:
+                    idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--order", "2d,3d", *extra])
+                except SystemExit as e:
+                    code = e.code
+            return code, out.getvalue()
+
+        code, said = night(3.0)
+        self.assertEqual(code, 0, "a skipped night is not a failure")
+        self.assertIn("only 3 GB free (< 20 GB)", said)
+        self.assertEqual(self.state()["nights"]["2026-10-09"]["skipped"], "3 GB free")
         self.assertFalse(os.path.exists(self.log), "no agent was started")
+        night(20.0)   # exactly the threshold is enough
+        self.assertNotIn("skipped", self.state()["nights"]["2026-10-09"])
+        self.assertTrue(os.path.exists(self.log), "the night ran its agents")
+        night(19.9)
+        self.assertEqual(self.state()["nights"]["2026-10-09"]["skipped"], "20 GB free", "the message rounds, the comparison does not")
+        self.assertFalse(os.path.exists(self.log))
+        night(3.0, "--min-free-gb", "2")   # the threshold is the caller's
+        self.assertNotIn("skipped", self.state()["nights"]["2026-10-09"])
+        code, said = night(3.0, "--dry-run")
+        self.assertNotIn("skipped", said, "a dry run only prints the plan, whatever the disk")
 
 
 @NEEDS_SH

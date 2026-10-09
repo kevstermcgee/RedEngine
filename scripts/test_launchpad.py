@@ -13,6 +13,8 @@ import tempfile
 import time
 import unittest
 
+# `start` looks for a prebuilt release when there is no executable (scripts/prebuilt.py); these tests must never reach the network, whatever git state a throwaway checkout is in.
+os.environ["RED_NO_FETCH"] = "1"
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 LAUNCHPAD = os.path.join(HERE, "launchpad.py")
@@ -99,7 +101,7 @@ class Sandbox(unittest.TestCase):
         script = os.path.join(engine or self.engine, "scripts", "launchpad.py")
         if not os.path.exists(script):
             os.makedirs(os.path.dirname(script), exist_ok=True)
-            for f in ("launchpad.py", "red_resolve.py"):
+            for f in ("launchpad.py", "red_resolve.py", "prebuilt.py"):
                 with open(os.path.join(HERE, f), encoding="utf-8") as src, open(os.path.join(engine or self.engine, "scripts", f), "w", encoding="utf-8") as dst:
                     dst.write(src.read())
         p = subprocess.run([sys.executable, script, *args, "--json"] if "--json" not in args else [sys.executable, script, *args], capture_output=True, text=True, env=e, cwd=cwd or self.tmp)
@@ -406,7 +408,7 @@ class DevWrapper(unittest.TestCase):
             self.skipTest("bash only")
         self.tmp = tempfile.mkdtemp(prefix="re2_devwrap_")
         self.root = make_engine(os.path.join(self.tmp, "engine"))
-        for f in ("dev", "launchpad.py", "red_resolve.py"):
+        for f in ("dev", "launchpad.py", "red_resolve.py", "prebuilt.py"):
             with open(os.path.join(HERE, f), encoding="utf-8") as s, open(os.path.join(self.root, "scripts", f) if os.path.isdir(os.path.join(self.root, "scripts")) else write(os.path.join(self.root, "scripts", f), ""), "w", encoding="utf-8") as d:
                 d.write(s.read())
         os.chmod(os.path.join(self.root, "scripts", "dev"), 0o755)

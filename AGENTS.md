@@ -1,14 +1,15 @@
 # Working on Red Engine 2 (for AI agents)
 
-Red Engine 2 is a Rust + wgpu engine whose maps are **JSON scene files** — and whose **game rules are data too**.
+**This file is the single entry point.** (The README is a pointer page; `CLAUDE.md` adds only the facts derived from the code.) Red Engine 2 is a Rust + wgpu engine whose maps are **JSON scene files** — and whose **game rules are data too**.
 `re2` walks you around one in first person; `red_server` runs the same simulation headless as an authoritative UDP
 server; `red_engine2` (the CLI) validates, renders, **analyzes, edits and plays scripted matches** on maps. You almost
 never need to read Rust to change a map or a game: read [`SPEC.md`](SPEC.md) for the scene language, then use the tools below.
 
-**First command: `scripts/dev start "<your task>"`** (in a game project `scripts/red start "<task>"`; MCP: the `start` tool). It picks the workflow, names the executable it will use and why, and prints ONE next action; it never builds, installs or downloads. `next` and `resume` pick up after an interruption.
+**First command: `scripts/dev start "<your task>"`** (in a game project `scripts/red start "<task>"`). It is a shell command, not an MCP tool. It picks the workflow, names the executable it will use and why, and prints ONE next action; it never builds or verifies. With no usable executable it tries to fetch the prebuilt release that was built from exactly this checkout's sources (checksum verified, no compile; `--no-fetch` or `RED_NO_FETCH=1` stays offline) and says why when there is none: then the next action is the build. `next` and `resume` pick up after an interruption.
 
-**Then `red_engine2 describe --brief` (about 1 KB)**, then ask `search "<your question>"`; open SPEC/AGENTS only for a topic
-you cannot get from `describe <topic>`. Every command takes the global `--json` for one stable envelope (`describe diagnostics`).
+**Then `red_engine2 describe --brief` (under <!--fact:brief-kb-->2.5<!--/fact--> KB)**, then ask `search "<your question>"`; open SPEC/AGENTS only for a topic
+you cannot get from `describe <topic>`. In a checkout `red_engine2` below means `scripts/dev red` (builds the CLI on first use; `scripts/dev doctor` says what this machine has).
+Every command takes the global `--json` for one stable envelope (`describe diagnostics`).
 
 **Making a 2D game? Do not read any of the 3D material.** `red_engine2 describe 2d` is the file format and the loop; `new-game DIR --kind 2d` starts from a verified game
 (`examples/2d/gate-meadow` uses every feature at once); then `validate` -> `verify` -> `play2d` (a native window with sound) -> `publish`. `red_engine2 capabilities` says what is built
@@ -42,6 +43,10 @@ Most of the cost of working on this engine is reading things and running things 
   escalate to the full run on their own. A green run is remembered by the *content* of the changed files: asking again with nothing edited is free; any edit re-runs.
   The green stamp also keys on the base commit, the cargo feature set, the toolchain and result-affecting environment, so a result is never reused across them, and an `iterate` (partial) pass is never accepted as any other tier.
   Output is a few lines per step; full logs are in `out/logs/`. `--dry-run` prints the plan and its configuration. The feature index is read from the checkout at run time: editing `docs/features.json` needs no rebuild.
+- **Records and worktrees.** `red_engine2 preflight [--fix]` before each commit (about a second, compiles nothing); `red_engine2 adr new "Title" --summary "one sentence"` for a decision; `red_engine2 status --note "..." --section done|now|next` at every checkpoint;
+  `scripts/dev worktree NAME` for a second checkout (a branch, another agent) with its dependencies already compiled. Only one heavy job (build, test, affected, iterate, ci) runs per target directory; `RED_WAIT=1` queues.
+- **Profiles and target directories.** `dev` (the default; tests), `fast` (`RED_PROFILE=fast scripts/dev build`: optimized without LTO, for iterating on a game) and `release` (LTO, minutes: ship with it); never iterate with `--release`.
+  `CARGO_TARGET_DIR` (honoured by every script) puts build output on another drive, but then the binaries are `$CARGO_TARGET_DIR/<profile>/red_engine2`, not `target/<profile>/`: an old copy left in `target/` keeps running with no error and hides your change (a `describe` that lacks the new thing is the tell).
 - **Shader edits** (`src/shaders/**`) run `shader_validation` and the `gpu`/`fx`/`ocean_pass` layout tests: naga parses, validates and writes HLSL for every module the engine builds, and no derivative lookup may sit in a loop. That is *not* Microsoft's compiler: **Windows hosted CI stays authoritative for Direct3D**, so a green local run says "free of the known failure class", never "compiles on Windows".
 - **Do not run the whole suite as a habit** (`scripts/dev test`, bare `cargo test`): that is what `--full` and CI are for. Game projects: `scripts/red check` re-verifies only maps
   whose bytes (or the project's other JSON, or the engine binary) changed.
@@ -70,7 +75,7 @@ ordinary tests (`tests/alloc_budget.rs`, `tests/net_budget.rs`), and `tests/ai_t
 The engine describes itself. In this order, cheapest first:
 
 ```bash
-red_engine2 describe --brief            # ~1 KB: binaries, workflow, commands, topics (read this first)
+red_engine2 describe --brief            # under <!--fact:brief-kb-->2.5<!--/fact--> KB: binaries, workflow, commands, topics (read this first)
 red_engine2 describe                    # overview: what exists, every command, topics (~50 lines)
 red_engine2 search "<question>"         # best fragments across docs, assets, lint codes, recipes, Rust symbols
 red_engine2 catalog [words|name]        # 39 props + ~155 JSON prefabs (incl. wall art, sculptures, unlit lamps); `catalog apple_red` = params + paste-ready snippet
@@ -136,7 +141,8 @@ Every task should be doable from `describe`/`search`/`src show`, not by reading 
 
 ## Where the rest is
 
-`docs/AGENT_REFERENCE.md` holds the long-form reference that used to live here: multiplayer, game rules and replay, walk failures, setup, the **tool reference table**
+`docs/ENGINE_OVERVIEW.md` is the design, the map tools by example, the source layout, the tests and the known limits (what the README used to carry; `docs/VIEWER_HISTORY.md` is the prop hunt era).
+`red_engine2 mcp` serves the same commands to MCP clients (<!--fact:mcp-tools-->11<!--/fact--> tools, `tools/list` kept under a byte budget; `mcp_server.py` launches it). `docs/AGENT_REFERENCE.md` holds the long-form reference that used to live here: multiplayer, game rules and replay, walk failures, setup, the **tool reference table**
 and lint codes, the map-building checklist, prefabs and recipes, lessons learned, the reference maps, **engine internals**, characters, weapons, loose props and viewer
 debugging. It is indexed by `search` (each heading is a fragment); read a section only when `search` points at it.
 Two end-to-end walks answer "why does this fight look wrong": `docs/LIFE_OF_A_SHOT.md` (one trigger pull, click to hit marker) and `docs/LIFE_OF_A_REMOTE_PLAYER.md` (another player on your
