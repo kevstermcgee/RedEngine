@@ -1,8 +1,8 @@
 //! The 2D simulation: a fixed 60 Hz step over a [`GameDef`], with no rendering, no clock, no files and no platform.
 //!
-//! The same code runs natively (headless playthroughs, `verify`, the native frame renderer) and inside the browser's WebAssembly module, so what a scripted playthrough proves is
-//! what the browser plays. Everything that could differ between machines is kept out: time is a tick count, the random numbers are a seeded generator, angles use `libm`, and
-//! the only float operations are the exactly-rounded ones (`+ - * /` and square root). [`Sim::state_hash`] summarises the whole state so two runs (native and browser) can be compared.
+//! The same code runs headless (playthroughs, `verify`, the frame renderer) and in the native window (`play2d`, `re2d`), so what a scripted playthrough proves is
+//! what the player plays. Everything that could differ between machines is kept out: time is a tick count, the random numbers are a seeded generator, angles use `libm`, and
+//! the only float operations are the exactly-rounded ones (`+ - * /` and square root). [`Sim::state_hash`] summarises the whole state so two runs (on two machines) can be compared.
 //!
 //! A tick, in order: refresh the built-in variables; clicks and button keys; `press` rules; (unless the game has ended) movement and physics, particles, `touch` rules, timers; events
 //! queued by rules (up to 16 rounds); removal of the destroyed; the camera; `end` rules; a requested restart. After the game ends only buttons, `press`, `click` and `event` rules
@@ -439,7 +439,7 @@ impl Sim {
         format!("{:016x}", self.state_hash())
     }
 
-    /// A readable snapshot for tools and the browser: tick, outcome, variables, the scene ids' positions and tag counts.
+    /// A readable snapshot for tools: tick, outcome, variables, the scene ids' positions and tag counts.
     pub fn snapshot(&self) -> serde_json::Value {
         let mut vars = serde_json::Map::new();
         for (n, v) in self.def.var_names.iter().zip(&self.vars) {

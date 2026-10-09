@@ -7,9 +7,10 @@ repository = "https://github.com/kevstermcgee/RedEngine"
 description = "AI-first Rust game engine: JSON scenes, self-verifying maps, authoritative multiplayer, headless tooling"
 
 # The 2D game crate (`red2d`): a declarative 2D game, its headless simulation and CPU renderer. A workspace member so one lock file covers it;
-# `default-members` keeps plain `cargo build/test/clippy` covering it too.
+# `default-members` keeps plain `cargo build/test/clippy` covering it too. `games/killchain` is a member too (one lock, one target directory) but NOT a default member: it is a game on the
+# engine's public API with graphics dependencies of its own, so the engine's plain builds and the headless server build never compile it (`scripts/ci.sh killchain` does).
 [workspace]
-members = ["crates/red2d"]
+members = ["crates/red2d", "games/killchain"]
 default-members = [".", "crates/red2d"]
 
 # `gfx` (default) = everything that draws or plays sound: wgpu, winit, softbuffer, rodio (MP4 export is the separate `video` feature). The dedicated server, the bot and the
@@ -62,8 +63,7 @@ winit = { version = "0.30", optional = true }
 softbuffer = { version = "0.4", default-features = false, features = ["x11", "x11-dlopen", "wayland", "wayland-dlopen"], optional = true }
 rfd = { version = "0.17.2", optional = true }
 
-# The network stack and the Ctrl-C hook: native only (`mio` does not exist in a browser).
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The network stack and the Ctrl-C hook.
 ctrlc = { version = "3", features = ["termination"] }
 quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring", "log"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging", "tls12"] }

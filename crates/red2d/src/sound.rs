@@ -1,7 +1,7 @@
 //! A 2D game's sounds and music: rendered to samples from their descriptions (the same voice and score JSON the 3D engine uses) and measured by the shared audio analysis.
 //!
-//! Rendering happens where the game runs (native tests, and inside the WebAssembly module), so a browser plays exactly the samples the analysis measured. What this module can
-//! prove is the *waveform*: finite, not clipped, not silent, ends that do not click. It cannot prove the browser's audio context started or that anything sounds good.
+//! Rendering happens where the game runs (tests, `verify`, the native window), so the player hears exactly the samples the analysis measured. What this module can
+//! prove is the *waveform*: finite, not clipped, not silent, ends that do not click. It cannot prove the sound device started or that anything sounds good.
 
 use crate::audio_analysis::{self, Clip, Kind, Report};
 use crate::game::GameDef;

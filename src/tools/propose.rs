@@ -1,8 +1,8 @@
-//! `red_engine2 propose "<idea>"`: a plan for a game before any file is written, so the choices that decide cost (3D or 2D, browser or native, alone or with others) are made
+//! `red_engine2 propose "<idea>"`: a plan for a game before any file is written, so the choices that decide cost (3D or 2D, alone or with others) are made
 //! on purpose and can be changed.
 //!
 //! It never defaults to 3D. It recommends the simplest presentation that can deliver the idea, says why, and checks the proposal against the capability matrix (`capabilities`):
-//! a request the engine cannot deliver (for example browser play with others) is reported as unsupported with what to do instead, never quietly shrunk. The cost lines are
+//! a request the engine cannot deliver (for example a browser game) is reported as unsupported with what to do instead, never quietly shrunk. The cost lines are
 //! **sizes taken from the example games and the loop's command list**, not token counts: tokens are not measured here and are not invented.
 
 use red2d::caps::{self, Capabilities, Input, Networking, Persistence, Platform, Presentation};

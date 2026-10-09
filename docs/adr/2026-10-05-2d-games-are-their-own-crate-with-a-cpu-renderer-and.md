@@ -1,5 +1,9 @@
 # 2026-10-05. 2D games are their own crate with a CPU renderer and shared semantics
-Status: accepted
+
+> **Superseded 2026-10-07:** the browser target was removed (ADR 2026-10-07-native-executables-only-the-browser-target-is-removed), so the `cdylib` WebAssembly player and "one definition runs in the browser" are gone. What still stands, and is how `crates/red2d` works today:
+> the crate boundary, the declarative JSON, the deterministic simulation, the CPU rasteriser and the shared sound/validation files; `red2d` is an `rlib` that the CLI and the native player (`play2d`, `re2d`) link. Kept as history.
+
+Status: superseded by 2026-10-07-native-executables-only-the-browser-target-is-removed
 Summary: 2D games live in the red2d crate (declarative JSON, deterministic simulation, CPU rasteriser, shared sound/validation files), so one definition runs natively and in WebAssembly without a rewrite of the 3D engine.
 
 ## Context

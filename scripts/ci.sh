@@ -80,7 +80,7 @@ stage_headless_tests() { echo "== headless tests (incl. real-UDP server tests) =
 check_example_locks() {
   local manifest
   for manifest in examples/external/*/Cargo.toml; do
-    # Only crates that use the engine and keep a lock of their own (a standalone experiment such as wgpu-web-spike has neither to fall behind).
+    # Only crates that use the engine and keep a lock of their own (a standalone experiment that does not use the engine has neither to fall behind).
     [ -f "$manifest" ] && [ -f "$(dirname "$manifest")/Cargo.lock" ] && grep -q '^red_engine2' "$manifest" || continue
     if ! cargo metadata --locked --manifest-path "$manifest" --format-version 1 >/dev/null 2>&1; then
       echo "$(dirname "$manifest")/Cargo.lock is behind the engine's dependencies: run"
@@ -97,12 +97,20 @@ stage_external_client() {
   cargo test --locked --manifest-path examples/external/topdown_switch/Cargo.toml
 }
 
+# Killchain is a game on the engine's public API (games/killchain, ADR 2026-10-09-killchain-is-a-game-crate-on-the-public-engine-api): a workspace member that is not a default member, so
+# the engine's own stages never compile it and the headless build never sees its graphics crates. If an engine API change breaks the game, this stage says so.
+stage_killchain() {
+  echo "== Killchain (games/killchain) builds, lints and tests against the engine's public API =="
+  cargo clippy --locked -p killchain --all-targets -- -D warnings
+  cargo test --locked -p killchain
+}
+
 # The optional export capability stays buildable and lint clean: MP4 export (`video`, ffmpeg-sidecar) is not in the default build (ADR 2026-10-07-tooling-dependencies-are-optional-features).
 stage_video() { echo "== optional MP4 export builds (feature video) =="; cargo clippy --locked --bins --lib --features video -- -D warnings; }
 
 stages=("$@")
 # Cheapest, most-likely-to-fail first: formatting, the lock files and the headless dependency tree take seconds; the long stages come after them.
-[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client video)
+[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client killchain video)
 # Every stage is timed, and the table at the end says where the minutes went (the first thing to read when CI feels slow).
 timings=()
 t_all=$SECONDS

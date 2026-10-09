@@ -4,8 +4,10 @@
 //! the weapon in hand and its animation, plays sounds for what the server reports, draws the world, and runs the killcam. Nothing here decides
 //! who is hurt.
 
-use super::app::GpuCtx;
-use super::input::Controls;
+use crate::app::GpuCtx;
+use crate::input::Controls;
+use crate::stats::Stats;
+use crate::ui;
 use glam::{Mat4, Vec2, Vec3};
 use red_engine2::arsenal::Class;
 use red_engine2::audio::Audio;
@@ -27,9 +29,7 @@ use red_engine2::sim::clock::TickClock;
 use red_engine2::sim::flow::Phase;
 use red_engine2::sim::ordnance::FxKind;
 use red_engine2::sim::player::{PlayerInput, PlayerState};
-use red_engine2::stats::Stats;
 use red_engine2::streaks::Streaks;
-use red_engine2::ui::killchain as ui;
 use red_engine2::viewer::{viewmodel_transform, FpsCamera, FrameOptions, LiveRenderer};
 use red_engine2::weapons::{Weapon, MUZZLE_FLASH_TIME};
 use std::collections::HashSet;
@@ -447,7 +447,7 @@ impl Game {
 
     /// What the mode adds to the HUD: free-for-all scores, the objective lines, the event banner and the markers over flags, the bomb and the sites.
     fn fill_mode_hud(&self, view: &mut ui::HudView, w: u32, h: u32) {
-        use red_engine2::ui::objective::{objective_hud, Marker, ObjectiveInput, BAD, CALL, GOOD};
+        use crate::objective_hud::{objective_hud, Marker, ObjectiveInput, BAD, CALL, GOOD};
         let roster = self.roster();
         let me = self.net.client.my_id().unwrap_or(255);
         if view.mode == 1 {
@@ -504,7 +504,7 @@ impl Game {
 
     /// Turns each new objective event into a banner (and keeps the banner's clock).
     fn objective_events(&mut self, dt: f32, env: &mut Env) {
-        use red_engine2::ui::objective::{event_banner, BAD, GOOD};
+        use crate::objective_hud::{event_banner, BAD, GOOD};
         if let Some((_, _, left)) = self.banner.as_mut() {
             *left -= dt;
         }

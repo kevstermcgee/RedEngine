@@ -1,0 +1,28 @@
+# Killchain: a first-person loadout team-deathmatch game, written on Red Engine 2's public API only (`red_engine2::...`); it used to live inside the engine crate.
+# A workspace member so one lock file and one target directory serve the engine and the game; it is not a default member, so plain `cargo build/test` in the engine does not
+# compile it (the headless server build must not pull graphics crates in through feature unification). `cargo build -p killchain`, `scripts/ci.sh killchain`.
+[package]
+name = "killchain"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "Killchain: a loadout team-deathmatch game on Red Engine 2"
+
+[[bin]]
+name = "killchain"
+path = "src/main.rs"
+
+[dependencies]
+red_engine2 = { path = "../.." }
+anyhow = "1.0.104"
+env_logger = "0.11.11"
+glam = { version = "0.33.8", features = ["serde", "libm"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
+pollster = "1.0.1"
+wgpu = "30.0.1"
+winit = "0.30"
+
+[dev-dependencies]
+image = { version = "0.25.9", default-features = false, features = ["png"] }

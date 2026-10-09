@@ -255,7 +255,7 @@ fn push(args: &mut Vec<String>, items: &[&str]) {
 #[tool_router]
 impl RedMcp {
     /// The engine's own manual. Start here: with no topic it is ~1 KB (binaries, workflow, commands, topics).
-    #[tool(description = "The engine's manual. No topic: ~1 KB. Topics: rules, objects, scene, lint, physics, web, 2d, decisions, overview.")]
+    #[tool(description = "The engine's manual. No topic: ~1 KB. Topics: rules, objects, scene, lint, physics, 2d, decisions, overview.")]
     async fn describe(&self, Parameters(a): Parameters<DescribeArgs>) -> CallToolResult {
         run_blocking(match a.topic.as_deref() {
             None | Some("") | Some("brief") => vec!["describe".into(), "--brief".into()],
