@@ -253,10 +253,10 @@
     },
     "launchpad": {
       "summary": "The AI launchpad (`scripts/dev start|next|resume`, `scripts/red start`) and the one executable resolver every entry point shares: workflow routing, executable selection and freshness (a prebuilt release built from exactly the checkout's sources counts, `scripts/prebuilt.py`), one next action, resume after changes.",
-      "files": ["scripts/launchpad.py", "scripts/red_resolve.py", "scripts/test_launchpad.py", "scripts/prebuilt.py", "scripts/test_prebuilt.py", "scripts/dev", "scripts/dev.ps1", "mcp_server.py", "src/tools/newgame.rs"],
+      "files": ["scripts/launchpad.py", "scripts/red_resolve.py", "scripts/test_launchpad.py", "scripts/test_launchpad_git.py", "scripts/prebuilt.py", "scripts/test_prebuilt.py", "scripts/dev", "scripts/dev.ps1", "mcp_server.py", "src/tools/newgame.rs"],
       "tests": ["launchpad", "prebuilt", "lib:tools::newgame"],
       "commands": ["scripts/dev start \"make a small 2d coin game\" --no-save", "python3 scripts/red_resolve.py"],
-      "docs": ["docs/adr/2026-10-06-an-ai-launchpad-and-one-executable-resolver.md"],
+      "docs": ["docs/adr/2026-10-06-an-ai-launchpad-and-one-executable-resolver.md", "docs/adr/2026-10-09-the-launchpad-reads-git-as-data-and-compares-content.md"],
       "depends_on": ["self_description", "blueprints_and_games"]
     },
     "idea_forge": {

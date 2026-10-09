@@ -44,6 +44,8 @@ def exe_name(binary="red_engine2"):
 
 
 def _git(root, *args):
+    """One git answer as stripped text, or None. For single values (`rev-parse`) only: stripping eats the leading space of the first line of a
+    multi-line answer, which is exactly what corrupted `status --porcelain` paths. Lists of paths go through `git_status`."""
     try:
         out = subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
@@ -51,16 +53,56 @@ def _git(root, *args):
     return out.stdout.strip() if out.returncode == 0 else None
 
 
+def git_bytes(root, *args, timeout=30):
+    """One git answer as raw bytes, untouched (no stripping, no decoding), or None when git failed or is missing."""
+    try:
+        out = subprocess.run(["git", "-C", root, *args], capture_output=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
+def parse_status_z(raw):
+    """Entries of `git status --porcelain=v1 -z` output: [{"path", "index", "worktree", "orig"}]. Pure (no git, no file system) so it can be tested on its own.
+
+    The format is `XY<space>PATH<NUL>`, and for a rename or copy `XY<space>NEW<NUL>OLD<NUL>`. Nothing is quoted or escaped, so a path with spaces, quotes,
+    a newline, ` -> ` or non-UTF-8 bytes arrives as it is; a path is decoded the way the file system names are (`os.fsdecode`)."""
+    entries = []
+    fields = raw.split(b"\0")
+    i = 0
+    while i < len(fields):
+        field = fields[i]
+        i += 1
+        if len(field) < 4 or field[2:3] != b" ":
+            continue  # the empty tail after the last NUL
+        index, worktree = chr(field[0]), chr(field[1])
+        entry = {"path": os.fsdecode(field[3:]), "index": index, "worktree": worktree, "orig": None}
+        if (index in "RC" or worktree in "RC") and i < len(fields):
+            entry["orig"] = os.fsdecode(fields[i])
+            i += 1
+        entries.append(entry)
+    return entries
+
+
+def git_status(root, untracked="all"):
+    """Every changed path of a checkout, exactly (staged, unstaged, untracked, renamed, deleted, conflicted), or None where git cannot say.
+
+    `untracked="all"` lists untracked *files* (the default `normal` collapses a new directory into one `dir/` entry, hiding what is in it); `"normal"` is the
+    count `scripts/dev` records at build time. Ignored files are never listed."""
+    raw = git_bytes(root, "-c", "core.quotepath=off", "status", "--porcelain=v1", "-z", f"--untracked-files={untracked}")
+    return None if raw is None else parse_status_z(raw)
+
+
 def git_state(root):
     """HEAD, branch and the number of uncommitted files of a checkout (None where git cannot say)."""
     head = _git(root, "rev-parse", "HEAD")
     if head is None:
         return {"head": None, "branch": None, "dirty_files": None}
-    porcelain = _git(root, "status", "--porcelain")
+    status = git_status(root, untracked="normal")
     return {
         "head": head,
         "branch": _git(root, "rev-parse", "--abbrev-ref", "HEAD"),
-        "dirty_files": None if porcelain is None else len([line for line in porcelain.splitlines() if line.strip()]),
+        "dirty_files": None if status is None else len(status),
     }
 
 
