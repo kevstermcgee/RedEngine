@@ -64,7 +64,6 @@ pub mod prefabs;
 #[cfg(feature = "gfx")]
 pub mod probe;
 pub mod procgen;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod project_browser;
 pub mod props;
 #[cfg(feature = "render")]

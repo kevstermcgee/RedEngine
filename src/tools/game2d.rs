@@ -1,8 +1,8 @@
 //! The command-line side of 2D games: `validate`, `verify`, `sim`, `frame` and `capabilities` for a `*.game2d.json`.
 //!
 //! These are the same verbs as for 3D scenes (an AI learns one set), routed here by the file: a name ending `.game2d.json`, or a file whose first bytes name `"game2d"`. The game
-//! itself (parser, simulation, renderer, sound) lives in the `red2d` crate, which the browser build also uses; this file only loads, runs and prints. Every report says what it proves
-//! and what it does not: a green `verify` is a simulation, render and waveform claim, never a browser or a listening claim.
+//! itself (parser, simulation, renderer, sound) lives in the `red2d` crate; this file only loads, runs and prints. Every report says what it proves
+//! and what it does not: a green `verify` is a simulation, render and waveform claim, never a listening claim.
 
 use red2d::caps;
 use red2d::game::{self, GameDef};
@@ -98,7 +98,7 @@ fn render_rows(rows: &[Row], only: Option<&str>) -> (String, usize, usize) {
     (t, pass, fail)
 }
 
-/// `verify`: every check the game can pass without a browser.
+/// `verify`: every check the game can pass without a window or a listener.
 pub fn verify(path: &Path, only: Option<&str>) -> Report {
     let (d, _) = match load(path) {
         Ok(x) => x,
@@ -180,7 +180,7 @@ pub fn sim(path: &Path, only: Option<&str>, every: Option<f32>) -> Report {
 }
 
 /// `frame`: a PNG of the game. With `scenario` (default: the first, if any) it plays that scenario for `t` seconds first; without any it draws the opening scene.
-/// `size` presents the picture in a window of that shape (letterboxed, as the browser shows it).
+/// `size` presents the picture in a window of that shape (letterboxed, as the native window shows it).
 pub fn frame(path: &Path, out: &Path, scenario: Option<&str>, t: f32, size: Option<(u32, u32)>) -> Result<String, String> {
     let (d, _) = load(path)?;
     let sc = match scenario {

@@ -1219,11 +1219,10 @@ mod tests {
         let p = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options::default());
         assert_eq!(step(&p, "red2d").argv.join(" "), "cargo test --locked -p red2d");
         assert!(step(&p, "red2d-clippy").argv.join(" ").contains("-p red2d --all-targets"));
-        assert!(p.steps.iter().all(|s| s.name != "web" && s.name != "red2d-wasm"), "{:?}", names(&p));
         let quick = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options { quick: true, ..Options::default() });
-        assert!(quick.steps.iter().any(|s| s.name == "red2d") && quick.steps.iter().all(|s| s.name != "web"), "{:?}", names(&quick));
+        assert!(quick.steps.iter().any(|s| s.name == "red2d"), "{:?}", names(&quick));
         let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
-        assert!(none.steps.iter().all(|s| !s.name.starts_with("red2d") && s.name != "web"), "{:?}", names(&none));
+        assert!(none.steps.iter().all(|s| !s.name.starts_with("red2d")), "{:?}", names(&none));
     }
 
     #[test]
