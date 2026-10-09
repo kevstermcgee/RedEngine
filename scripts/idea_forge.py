@@ -1345,7 +1345,7 @@ engine so the next agent loses less time. This is the loop that makes the engine
 
 1. Choose ONE issue: the most valuable one you can fix completely and safely in this session. A fix can be code, a clearer error message that names the fix, a line in `describe`/the reference, a recipe, a template: whatever
    removes the friction (prefer making the problem disappear over documenting it). If an issue needs a design decision a human should make, do not build it: choose another, or if none is safe make no change and say why.
-2. Follow this repository's own workflow (`CLAUDE.md`): `scripts/dev start "<the fix>"`, `scripts/dev red context <words>` for the files and tests involved, `scripts/dev iterate` while you edit. Keep the change small.
+2. Follow this repository's own workflow (`AGENTS.md`): `scripts/dev start "<the fix>"`, `scripts/dev red context <words>` for the files and tests involved, `scripts/dev iterate` while you edit. Keep the change small.
 3. Add a regression test that fails without your change (a Rust test, or `scripts/test_*.py`). A fix without a test is refused.
 4. If the change is a decision a maintainer should be able to find later, add an ADR (`scripts/dev red adr new "Title" --summary "..."`).
 5. Record the fix: append an object to the JSON list in `{FIXES_FILE}` (create the file as `[]` first if it is missing):
