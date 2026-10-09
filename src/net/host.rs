@@ -240,7 +240,7 @@ impl LocalHost {
         }
         let relay_state = Arc::new(Mutex::new(RelayState::Off));
         if let Some(relay) = public.and_then(|p| p.relay.clone()) {
-            *relay_state.lock().unwrap() = RelayState::Pending;
+            *relay_state.lock().unwrap_or_else(|p| p.into_inner()) = RelayState::Pending;
             let (state, fp, stop) = (relay_state.clone(), fingerprint.clone(), stop.clone());
             let spawned = std::thread::Builder::new().name("red-relay-register".into()).spawn(move || {
                 let outcome = match super::relay_server::HostBridge::start(&relay, addr, fp, stop) {
@@ -250,10 +250,10 @@ impl LocalHost {
                         RelayState::Failed("NO ONLINE CODE: THE RELAY DID NOT ANSWER. THE ADDRESS BELOW STILL WORKS ON YOUR NETWORK".to_string())
                     }
                 };
-                *state.lock().unwrap() = outcome;
+                *state.lock().unwrap_or_else(|p| p.into_inner()) = outcome;
             });
             if spawned.is_err() {
-                *relay_state.lock().unwrap() = RelayState::Failed("NO ONLINE CODE: COULD NOT START THE RELAY LINK".to_string());
+                *relay_state.lock().unwrap_or_else(|p| p.into_inner()) = RelayState::Failed("NO ONLINE CODE: COULD NOT START THE RELAY LINK".to_string());
             }
         }
         raise_timer_resolution();
@@ -292,7 +292,7 @@ impl LocalHost {
     /// The six-character code the relay resolves (`PublicOptions::relay`, registered and accepted). This is the public half: friends are
     /// given [`share_codes`](Self::share_codes), which carry the admission key as well. `None` while registration is still in flight or after it failed.
     pub fn relay_code(&self) -> Option<String> {
-        match &*self.relay.lock().unwrap() {
+        match &*self.relay.lock().unwrap_or_else(|p| p.into_inner()) {
             RelayState::Ready { code, .. } => Some(code.clone()),
             _ => None,
         }
@@ -315,7 +315,7 @@ impl LocalHost {
 
     /// What asking the relay said, when it was asked and did not succeed (a line for the screen).
     pub fn relay_note(&self) -> Option<String> {
-        match &*self.relay.lock().unwrap() {
+        match &*self.relay.lock().unwrap_or_else(|p| p.into_inner()) {
             RelayState::Failed(note) => Some(note.clone()),
             _ => None,
         }
@@ -323,7 +323,7 @@ impl LocalHost {
 
     /// True while the relay has been asked and has not answered yet.
     pub fn relay_pending(&self) -> bool {
-        matches!(&*self.relay.lock().unwrap(), RelayState::Pending)
+        matches!(&*self.relay.lock().unwrap_or_else(|p| p.into_inner()), RelayState::Pending)
     }
 
     /// The transport settings a client on this machine joins with (pinned to this host's own identity over QUIC, or plain loopback UDP).
