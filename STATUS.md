@@ -8,9 +8,9 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
   (1) entry docs true and consistent, (2) prebuilt binaries instead of a cold compile, (3) hermetic Idea Forge tests, (4) this file, (5) Killchain out of the engine crate, (6) browser leftovers, (7) bad input is an error, (8) CI growth and the rules-language gaps written down.
   All ten pull requests are merged (#74-#83); main was green on hosted CI after the last one. What each changed is in its PR and ADR.
 - 2026-10-09 cleanup pass: #90 reverted #89 (a CI-measurement probe base, author `probe@example.invalid`, merged into main by mistake; main's tree returned to 11f1bcb); #85 and #88 merged after hosted CI, on the owner's yes.
-- Reviewed, not merged (review comments on the PRs): #37 `savedata` (worth merging after three textual conflicts; the id `new-game` derives from the name can collide), #53 `hot-reload` (the browser half has no target since #55; the native `re2` half still builds and its tests pass on main: re-cut it as a smaller PR or close).
+- 2026-10-10: #37 merged (a game's settings and progress are filed under the `id` in its `game.json`; `new-game` writes one derived from the name, so two unrelated games with the same name share saves: worth a random suffix). #53 closed (its browser half had no target after #55; branch `hot-reload` kept, its native `re2` half builds and passes its tests on main if it is ever re-cut).
 - Merged #85: joining by the relay's six-character code carries the host's admission key (ADR 2026-10-09) and the relay's keepalive, goodbye and lease are fixed; the launchpad reads git as NUL-delimited data;
-  Idea Forge agents run under a deadline; a `python-tools` CI job runs the Python tools on Linux and Windows. **The deployed `red_relay` is still the old build** until it is redeployed (the live unit is the user service `red-relay`, binary `~/.local/share/red-relay/bin/red_relay`; `deploy/red-relay.service` is the system-wide template).
+  Idea Forge agents run under a deadline; a `python-tools` CI job runs the Python tools on Linux and Windows. The live relay (user service `red-relay`, port 28016) runs #85's code since 2026-10-10 (built from 62acb5d; the old binary is `red_relay.prev-20261010` beside it).
 - Multiplayer stabilization brief (`docs/feedback-2026-10-07-stabilization-brief.md`, filed against f58e15d): not implemented as a whole. Item 1 (short-code join with a key, relay lease) and the source-fingerprint half of item 2 are merged (#85);
   git shows no commits for the rest of item 1 (map retry through the relay, search-and-destroy reconnect, duel capacity after replacement), item 2's executable-selection and discovery parts, item 3 (replay coverage of the objective modes) or item 5.
   Item 4 (native 2D delivery) is partly there (`re2d` and the native publish route, #55); the packaged-executable walk-through it asks for has not been done.
@@ -33,7 +33,8 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 
 ## Failing / blocked
 - Main was green at 30bb4e5 (CI run of 2026-10-09 13:41). Not failing on main, but `scripts/test_idea_forge.py` failed on any machine with under 20 GB free (fixed in hardening item 3).
-- Waiting on the owner: whether `release.yml` should publish a prebuilt on every `main` commit that changes a build input (`start`/`scripts/dev red` fetch a release only when its sources equal the checkout's, which for tag-cut releases is rare: there are no releases yet).
+- Prebuilt for every `main` commit that changes a build input: the owner chose this (option A, 2026-10-10); not implemented yet (the agent's edit to `release.yml`, which would publish and prune pre-releases automatically, was blocked by its permission settings). Plan: a `decide` job skips a push whose fingerprint already has a `prebuilt-<12 hex>` pre-release, keep the newest 10.
+- `red_server --key auto` prints a 32-hex key (`net::auth::random_key`), not the 12-character readable key `docs/HOSTING.md` promises (`net::relay::generate_join_key`), so its relay code is long; not fixed.
 
 ## Decisions & gotchas
 - The front door: README is a pointer, `AGENTS.md` is the single entry point (ADR 2026-10-09-the-front-door-documents-are-a-pointer-one-entry-point, hardening item 1); the claims in the docs are checked by `red_engine2 preflight`.
