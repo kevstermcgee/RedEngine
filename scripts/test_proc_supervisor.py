@@ -60,7 +60,7 @@ def wait_dead(pid, seconds=5.0):
     return not alive(pid)
 
 
-def read_pid(path, seconds=5.0):
+def read_pid(path, seconds=5.0, context=""):
     end = time.monotonic() + seconds
     while time.monotonic() < end:
         try:
@@ -71,7 +71,7 @@ def read_pid(path, seconds=5.0):
         except (OSError, ValueError):
             pass
         time.sleep(0.02)
-    raise AssertionError(f"no pid appeared in {path}")
+    raise AssertionError(f"no pid appeared in {path}; the tree printed: {context!r}")
 
 
 # Time to give a tree of two fresh interpreters to start before a deadline or a cancel may fire: the first Windows run needed more than a second (the grandchild had not written its
@@ -211,7 +211,7 @@ class Descendants(Sandbox):
     def test_a_timeout_takes_the_whole_tree_not_just_the_child(self):
         pidfile = self.path("grandchild.pid")
         out, log, took = self.run_it(with_descendant(pidfile, "time.sleep(60)"), timeout=START)
-        gpid = read_pid(pidfile)
+        gpid = read_pid(pidfile, context=(out, log))
         self.assertEqual(out["status"], "timeout")
         self.assertTrue(wait_dead(gpid), f"the grandchild ({gpid}) was left running: the old kill() only reached the direct child")
         self.assertLess(took, START + BOUND)
@@ -231,7 +231,7 @@ class Descendants(Sandbox):
         cancel = threading.Event()
         threading.Timer(START, cancel.set).start()
         out, log, took = self.run_it(with_descendant(pidfile, "time.sleep(60)"), timeout=30, cancel=cancel)
-        gpid = read_pid(pidfile)
+        gpid = read_pid(pidfile, context=(out, log))
         self.assertEqual(out["status"], "cancelled")
         self.assertTrue(wait_dead(gpid))
         self.assertLess(took, START + BOUND)
