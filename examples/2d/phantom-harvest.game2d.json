@@ -1,0 +1,2005 @@
+{
+ "game2d": 1,
+ "id": "phantom-harvest",
+ "title": "Phantom Harvest",
+ "description": "Slingshot yourself off a rope between two drifting anchors, where up is whichever wall you last fell to, and carry the tour's tools home before the storm front scatters them.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard"
+  ],
+  "persistence": [
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 320,
+  "height": 180,
+  "background": "#161c2e",
+  "scale": "fit"
+ },
+ "sprites": {
+  "guide": {
+   "rows": [
+    "..yyyy..",
+    ".yyyyyy.",
+    "..kkkk..",
+    "..kwwk..",
+    "rrrrrrrr",
+    ".rrrrrr.",
+    ".rr..rr.",
+    "rr....rr"
+   ],
+   "palette": {
+    "y": "#f2c14e",
+    "k": "#3a2a1a",
+    "w": "#f4efe0",
+    "r": "#d94f4f"
+   }
+  },
+  "anchor": {
+   "rows": [
+    "..cccc..",
+    ".cddddc.",
+    "cddeeddc",
+    "cdeeeedc",
+    "cdeeeedc",
+    "cddeeddc",
+    ".cddddc.",
+    "..cccc.."
+   ],
+   "palette": {
+    "c": "#8fa6d9",
+    "d": "#4d5f95",
+    "e": "#c8d6ff"
+   }
+  },
+  "tool": {
+   "rows": [
+    "..gggg..",
+    ".gggggg.",
+    "..gggg..",
+    "...hh...",
+    "...hh...",
+    "...hh...",
+    "..hhhh..",
+    "..hhhh.."
+   ],
+   "palette": {
+    "g": "#d9d9e8",
+    "h": "#b0793b"
+   }
+  },
+  "slot": {
+   "rows": [
+    "w.w..w.w",
+    "........",
+    "w......w",
+    "........",
+    "........",
+    "w......w",
+    "........",
+    "w.w..w.w"
+   ],
+   "palette": {
+    "w": "#7be0a8"
+   }
+  }
+ },
+ "sounds": {
+  "twang": {
+   "seconds": 0.25,
+   "layers": [
+    {
+     "sine": 300,
+     "decay": 10
+    },
+    {
+     "sine": 600,
+     "decay": 16
+    }
+   ]
+  },
+  "thud": {
+   "seconds": 0.12,
+   "layers": [
+    {
+     "sine": 90,
+     "decay": 30
+    }
+   ]
+  },
+  "tick": {
+   "seconds": 0.05,
+   "layers": [
+    {
+     "sine": 900,
+     "decay": 60
+    }
+   ]
+  },
+  "pick": {
+   "seconds": 0.12,
+   "layers": [
+    {
+     "sine": 700,
+     "decay": 25
+    },
+    {
+     "sine": 1050,
+     "decay": 25
+    }
+   ]
+  },
+  "chime": {
+   "seconds": 0.4,
+   "layers": [
+    {
+     "sine": 660,
+     "decay": 8
+    },
+    {
+     "sine": 990,
+     "decay": 9
+    }
+   ]
+  },
+  "gust": {
+   "seconds": 0.3,
+   "layers": [
+    {
+     "sine": 120,
+     "decay": 8
+    },
+    {
+     "sine": 170,
+     "decay": 9
+    }
+   ]
+  },
+  "fanfare": {
+   "seconds": 0.6,
+   "layers": [
+    {
+     "sine": 523,
+     "decay": 5
+    },
+    {
+     "sine": 784,
+     "decay": 5
+    }
+   ]
+  },
+  "fade": {
+   "seconds": 0.6,
+   "layers": [
+    {
+     "sine": 200,
+     "decay": 4
+    }
+   ]
+  }
+ },
+ "vars": {
+  "gx": 0,
+  "gy": 1,
+  "vx": 0,
+  "vy": 0,
+  "state": 0,
+  "charge": 0,
+  "did": 0,
+  "carry": 0,
+  "placed_n": 0,
+  "scatter": 0,
+  "shots": 0,
+  "lands": 0,
+  "nx": 0,
+  "ny": 0,
+  "sgn": 1,
+  "qx": 160,
+  "qy": 90,
+  "lvx": 0,
+  "lvy": 0,
+  "best": 0
+ },
+ "persist": [
+  "best"
+ ],
+ "prefabs": {
+  "pl": {
+   "tag": "pl",
+   "shape": {
+    "sprite": "guide"
+   },
+   "size": [
+    8,
+    8
+   ],
+   "layer": 5,
+   "body": {
+    "type": "dynamic",
+    "gravity": 0
+   }
+  },
+  "anchor": {
+   "tag": "anchor",
+   "shape": {
+    "sprite": "anchor"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 3
+  },
+  "anchor_a": {
+   "tag": "anchor",
+   "shape": {
+    "sprite": "anchor"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 3,
+   "move": {
+    "patrol": {
+     "axis": "y",
+     "range": 55,
+     "speed": 26
+    }
+   }
+  },
+  "anchor_b": {
+   "tag": "anchor",
+   "shape": {
+    "sprite": "anchor"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 3,
+   "move": {
+    "patrol": {
+     "axis": "y",
+     "range": 55,
+     "speed": 8
+    }
+   }
+  },
+  "dot": {
+   "shape": {
+    "rect": [
+     3,
+     3
+    ],
+    "color": "#e8d8a0"
+   },
+   "size": [
+    3,
+    3
+   ],
+   "layer": 2,
+   "tag": "dot"
+  },
+  "aimdot": {
+   "shape": {
+    "rect": [
+     2,
+     2
+    ],
+    "color": "#ffffff88"
+   },
+   "size": [
+    2,
+    2
+   ],
+   "layer": 2,
+   "tag": "aim"
+  },
+  "tool": {
+   "tag": "tool",
+   "shape": {
+    "sprite": "tool"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 2
+  },
+  "slot": {
+   "tag": "slot",
+   "shape": {
+    "sprite": "slot"
+   },
+   "size": [
+    14,
+    14
+   ],
+   "layer": 1
+  },
+  "placed": {
+   "tag": "placed",
+   "shape": {
+    "sprite": "tool"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 2
+  },
+  "marker": {
+   "tag": "marker",
+   "shape": {
+    "sprite": "tool"
+   },
+   "size": [
+    6,
+    6
+   ],
+   "layer": 6
+  },
+  "storm": {
+   "tag": [
+    "storm"
+   ],
+   "shape": {
+    "rect": [
+     26,
+     180
+    ],
+    "color": "#7f8fb855"
+   },
+   "size": [
+    26,
+    180
+   ],
+   "layer": 7,
+   "move": {
+    "drift": [
+     20,
+     0
+    ]
+   }
+  },
+  "edge_h": {
+   "shape": {
+    "rect": [
+     320,
+     3
+    ],
+    "color": "#39456b"
+   },
+   "size": [
+    320,
+    3
+   ],
+   "layer": 0,
+   "tag": "edge"
+  },
+  "edge_v": {
+   "shape": {
+    "rect": [
+     3,
+     180
+    ],
+    "color": "#39456b"
+   },
+   "size": [
+    3,
+    180
+   ],
+   "layer": 0,
+   "tag": "edge"
+  }
+ },
+ "scene": [
+  {
+   "prefab": "edge_h",
+   "at": [
+    160,
+    1
+   ]
+  },
+  {
+   "prefab": "edge_h",
+   "at": [
+    160,
+    178
+   ]
+  },
+  {
+   "prefab": "edge_v",
+   "at": [
+    1,
+    90
+   ]
+  },
+  {
+   "prefab": "edge_v",
+   "at": [
+    318,
+    90
+   ]
+  },
+  {
+   "prefab": "anchor_a",
+   "at": [
+    105,
+    95
+   ],
+   "id": "a"
+  },
+  {
+   "prefab": "anchor_b",
+   "at": [
+    215,
+    95
+   ],
+   "id": "b"
+  },
+  {
+   "prefab": "pl",
+   "at": [
+    160,
+    170
+   ],
+   "id": "p"
+  },
+  {
+   "prefab": "marker",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "m"
+  },
+  {
+   "prefab": "storm",
+   "at": [
+    -520,
+    90
+   ],
+   "id": "st"
+  },
+  {
+   "prefab": "dot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "r1"
+  },
+  {
+   "prefab": "dot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "r2"
+  },
+  {
+   "prefab": "dot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "r3"
+  },
+  {
+   "prefab": "dot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "r4"
+  },
+  {
+   "prefab": "dot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "r5"
+  },
+  {
+   "prefab": "dot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "r6"
+  },
+  {
+   "prefab": "dot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "r7"
+  },
+  {
+   "prefab": "dot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "r8"
+  },
+  {
+   "prefab": "aimdot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "k1"
+  },
+  {
+   "prefab": "aimdot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "k2"
+  },
+  {
+   "prefab": "aimdot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "k3"
+  },
+  {
+   "prefab": "aimdot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "k4"
+  },
+  {
+   "prefab": "aimdot",
+   "at": [
+    -40,
+    -40
+   ],
+   "id": "k5"
+  },
+  {
+   "prefab": "tool",
+   "at": [
+    125,
+    60
+   ]
+  },
+  {
+   "prefab": "tool",
+   "at": [
+    215,
+    65
+   ]
+  },
+  {
+   "prefab": "slot",
+   "at": [
+    85,
+    110
+   ]
+  },
+  {
+   "prefab": "slot",
+   "at": [
+    235,
+    105
+   ]
+  }
+ ],
+ "ui": [
+  {
+   "text": "TOOLS {placed_n}/2",
+   "at": [
+    6,
+    5
+   ],
+   "color": "#7be0a8"
+  },
+  {
+   "text": "FADE {scatter}/5",
+   "at": [
+    6,
+    14
+   ],
+   "color": "#b8c4e8"
+  },
+  {
+   "text": "BEST {best:.1}s",
+   "at": [
+    314,
+    5
+   ],
+   "color": "#f2c14e",
+   "align": "right"
+  },
+  {
+   "bar": {
+    "var": "charge",
+    "max": 1,
+    "at": [
+     130,
+     172
+    ],
+    "size": [
+     60,
+     3
+    ]
+   }
+  },
+  {
+   "text": "SPACE grabs the rope, SPACE lets go",
+   "at": [
+    160,
+    163
+   ],
+   "color": "#8791b8",
+   "align": "center",
+   "show": "time < 8"
+  },
+  {
+   "text": "YOU WON IN {time:.1}s",
+   "at": [
+    160,
+    80
+   ],
+   "color": "#7be0a8",
+   "align": "center",
+   "scale": 2,
+   "show": "ended"
+  }
+ ],
+ "rules": [
+  {
+   "id": "calc",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "set": [
+      "nx",
+      "0-(b_y-a_y)"
+     ]
+    },
+    {
+     "set": [
+      "ny",
+      "b_x-a_x"
+     ]
+    },
+    {
+     "set": [
+      "sgn",
+      "((nx*(0-gx)+ny*(0-gy))>0)*2-1"
+     ]
+    },
+    {
+     "set": [
+      "qx",
+      "(a_x+b_x)/2-sgn*nx*charge*0.3"
+     ]
+    },
+    {
+     "set": [
+      "qy",
+      "(a_y+b_y)/2-sgn*ny*charge*0.3"
+     ]
+    },
+    {
+     "set": [
+      "lvx",
+      "sgn*nx*(1.2+charge*1.8)"
+     ]
+    },
+    {
+     "set": [
+      "lvy",
+      "sgn*ny*(1.2+charge*1.8)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "charge",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "add": [
+      "charge",
+      0.0133
+     ]
+    },
+    {
+     "set": [
+      "charge",
+      "charge*(charge<1)+(charge>=1)"
+     ]
+    }
+   ],
+   "if": "state == 1"
+  },
+  {
+   "id": "fly",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "add": [
+      "vx",
+      "gx*500*(1/60)"
+     ]
+    },
+    {
+     "add": [
+      "vy",
+      "gy*500*(1/60)"
+     ]
+    },
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       "vx",
+       "vy"
+      ]
+     }
+    }
+   ],
+   "if": "state == 2"
+  },
+  {
+   "id": "held",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       "qx",
+       "qy"
+      ]
+     }
+    },
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       0
+      ]
+     }
+    }
+   ],
+   "if": "state == 1"
+  },
+  {
+   "id": "land_bot",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "set": [
+      "state",
+      0
+     ]
+    },
+    {
+     "set": [
+      "gx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "gy",
+      1
+     ]
+    },
+    {
+     "set": [
+      "vx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "vy",
+      0
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       "p_x",
+       170
+      ]
+     }
+    },
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "play": "thud"
+    },
+    {
+     "add": [
+      "lands",
+      1
+     ]
+    }
+   ],
+   "if": "state == 2 && p_y >= 170"
+  },
+  {
+   "id": "land_top",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "set": [
+      "state",
+      0
+     ]
+    },
+    {
+     "set": [
+      "gx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "gy",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "vx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "vy",
+      0
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       "p_x",
+       10
+      ]
+     }
+    },
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "play": "thud"
+    },
+    {
+     "add": [
+      "lands",
+      1
+     ]
+    }
+   ],
+   "if": "state == 2 && p_y <= 10"
+  },
+  {
+   "id": "land_left",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "set": [
+      "state",
+      0
+     ]
+    },
+    {
+     "set": [
+      "gx",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "gy",
+      0
+     ]
+    },
+    {
+     "set": [
+      "vx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "vy",
+      0
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       10,
+       "p_y"
+      ]
+     }
+    },
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "play": "thud"
+    },
+    {
+     "add": [
+      "lands",
+      1
+     ]
+    }
+   ],
+   "if": "state == 2 && p_x <= 10"
+  },
+  {
+   "id": "land_right",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "set": [
+      "state",
+      0
+     ]
+    },
+    {
+     "set": [
+      "gx",
+      1
+     ]
+    },
+    {
+     "set": [
+      "gy",
+      0
+     ]
+    },
+    {
+     "set": [
+      "vx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "vy",
+      0
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       310,
+       "p_y"
+      ]
+     }
+    },
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "play": "thud"
+    },
+    {
+     "add": [
+      "lands",
+      1
+     ]
+    }
+   ],
+   "if": "state == 2 && p_x >= 310"
+  },
+  {
+   "id": "pr0",
+   "when": {
+    "press": "action"
+   },
+   "do": [
+    {
+     "set": [
+      "did",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fire",
+   "when": {
+    "press": "action"
+   },
+   "do": [
+    {
+     "set": [
+      "vx",
+      "lvx"
+     ]
+    },
+    {
+     "set": [
+      "vy",
+      "lvy"
+     ]
+    },
+    {
+     "set": [
+      "state",
+      2
+     ]
+    },
+    {
+     "set": [
+      "charge",
+      0
+     ]
+    },
+    {
+     "set": [
+      "did",
+      1
+     ]
+    },
+    {
+     "add": [
+      "shots",
+      1
+     ]
+    },
+    {
+     "play": "twang"
+    },
+    {
+     "shake": 2
+    }
+   ],
+   "if": "state == 1"
+  },
+  {
+   "id": "grab",
+   "when": {
+    "press": "action"
+   },
+   "do": [
+    {
+     "set": [
+      "state",
+      1
+     ]
+    },
+    {
+     "set": [
+      "charge",
+      0
+     ]
+    },
+    {
+     "set": [
+      "vx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "vy",
+      0
+     ]
+    },
+    {
+     "play": "tick"
+    }
+   ],
+   "if": "did == 0 && state != 1"
+  },
+  {
+   "id": "rope1",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:r1",
+      "to": [
+       "a_x+(qx-a_x)*0.2",
+       "a_y+(qy-a_y)*0.2"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rope5",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:r5",
+      "to": [
+       "qx+(b_x-qx)*0.2",
+       "qy+(b_y-qy)*0.2"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rope2",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:r2",
+      "to": [
+       "a_x+(qx-a_x)*0.4",
+       "a_y+(qy-a_y)*0.4"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rope6",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:r6",
+      "to": [
+       "qx+(b_x-qx)*0.4",
+       "qy+(b_y-qy)*0.4"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rope3",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:r3",
+      "to": [
+       "a_x+(qx-a_x)*0.6",
+       "a_y+(qy-a_y)*0.6"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rope7",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:r7",
+      "to": [
+       "qx+(b_x-qx)*0.6",
+       "qy+(b_y-qy)*0.6"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rope4",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:r4",
+      "to": [
+       "a_x+(qx-a_x)*0.8",
+       "a_y+(qy-a_y)*0.8"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rope8",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:r8",
+      "to": [
+       "qx+(b_x-qx)*0.8",
+       "qy+(b_y-qy)*0.8"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "aim1",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k1",
+      "to": [
+       "qx+lvx*0.17+7.2250000000000005*gx",
+       "qy+lvy*0.17+7.2250000000000005*gy"
+      ]
+     }
+    }
+   ],
+   "if": "state == 1"
+  },
+  {
+   "id": "unaim1",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k1",
+      "to": [
+       -40,
+       -40
+      ]
+     }
+    }
+   ],
+   "if": "state != 1"
+  },
+  {
+   "id": "aim2",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k2",
+      "to": [
+       "qx+lvx*0.34+28.900000000000002*gx",
+       "qy+lvy*0.34+28.900000000000002*gy"
+      ]
+     }
+    }
+   ],
+   "if": "state == 1"
+  },
+  {
+   "id": "unaim2",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k2",
+      "to": [
+       -40,
+       -40
+      ]
+     }
+    }
+   ],
+   "if": "state != 1"
+  },
+  {
+   "id": "aim3",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k3",
+      "to": [
+       "qx+lvx*0.51+65.025*gx",
+       "qy+lvy*0.51+65.025*gy"
+      ]
+     }
+    }
+   ],
+   "if": "state == 1"
+  },
+  {
+   "id": "unaim3",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k3",
+      "to": [
+       -40,
+       -40
+      ]
+     }
+    }
+   ],
+   "if": "state != 1"
+  },
+  {
+   "id": "aim4",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k4",
+      "to": [
+       "qx+lvx*0.68+115.60000000000001*gx",
+       "qy+lvy*0.68+115.60000000000001*gy"
+      ]
+     }
+    }
+   ],
+   "if": "state == 1"
+  },
+  {
+   "id": "unaim4",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k4",
+      "to": [
+       -40,
+       -40
+      ]
+     }
+    }
+   ],
+   "if": "state != 1"
+  },
+  {
+   "id": "aim5",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k5",
+      "to": [
+       "qx+lvx*0.8500000000000001+180.62500000000006*gx",
+       "qy+lvy*0.8500000000000001+180.62500000000006*gy"
+      ]
+     }
+    }
+   ],
+   "if": "state == 1"
+  },
+  {
+   "id": "unaim5",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:k5",
+      "to": [
+       -40,
+       -40
+      ]
+     }
+    }
+   ],
+   "if": "state != 1"
+  },
+  {
+   "id": "mark_on",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:m",
+      "to": [
+       "p_x",
+       "p_y-9"
+      ]
+     }
+    }
+   ],
+   "if": "carry == 1"
+  },
+  {
+   "id": "mark_off",
+   "when": {
+    "every": 0.016
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:m",
+      "to": [
+       -40,
+       -40
+      ]
+     }
+    }
+   ],
+   "if": "carry == 0"
+  },
+  {
+   "id": "pick",
+   "when": {
+    "touch": [
+     "pl",
+     "tool"
+    ]
+   },
+   "do": [
+    {
+     "destroy": "other"
+    },
+    {
+     "set": [
+      "carry",
+      1
+     ]
+    },
+    {
+     "play": "pick"
+    }
+   ],
+   "if": "carry == 0"
+  },
+  {
+   "id": "place",
+   "when": {
+    "touch": [
+     "pl",
+     "slot"
+    ]
+   },
+   "do": [
+    {
+     "spawn": {
+      "prefab": "placed",
+      "at": "other"
+     }
+    },
+    {
+     "destroy": "other"
+    },
+    {
+     "set": [
+      "carry",
+      0
+     ]
+    },
+    {
+     "add": [
+      "placed_n",
+      1
+     ]
+    },
+    {
+     "play": "chime"
+    }
+   ],
+   "if": "carry == 1"
+  },
+  {
+   "id": "st_loop",
+   "when": {
+    "every": 0.2
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:st",
+      "to": [
+       -300,
+       90
+      ]
+     }
+    }
+   ],
+   "if": "st_x > 360"
+  },
+  {
+   "id": "st_tool",
+   "when": {
+    "touch": [
+     "storm",
+     "tool"
+    ]
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "other",
+      "to": {
+       "x": [
+        20,
+        300
+       ],
+       "y": [
+        20,
+        160
+       ]
+      }
+     }
+    },
+    {
+     "play": "gust"
+    }
+   ]
+  },
+  {
+   "id": "st_placed",
+   "when": {
+    "touch": [
+     "storm",
+     "placed"
+    ]
+   },
+   "do": [
+    {
+     "spawn": {
+      "prefab": "slot",
+      "at": "other"
+     }
+    },
+    {
+     "destroy": "other"
+    },
+    {
+     "add": [
+      "placed_n",
+      -1
+     ]
+    },
+    {
+     "add": [
+      "scatter",
+      1
+     ]
+    },
+    {
+     "spawn": {
+      "prefab": "tool",
+      "at": {
+       "x": [
+        20,
+        300
+       ],
+       "y": [
+        20,
+        160
+       ]
+      }
+     }
+    },
+    {
+     "play": "gust"
+    },
+    {
+     "shake": 3
+    }
+   ]
+  },
+  {
+   "id": "st_carry",
+   "when": {
+    "touch": [
+     "storm",
+     "pl"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "carry",
+      0
+     ]
+    },
+    {
+     "add": [
+      "scatter",
+      1
+     ]
+    },
+    {
+     "spawn": {
+      "prefab": "tool",
+      "at": {
+       "x": [
+        20,
+        300
+       ],
+       "y": [
+        20,
+        160
+       ]
+      }
+     }
+    },
+    {
+     "play": "gust"
+    },
+    {
+     "shake": 3
+    }
+   ],
+   "if": "carry == 1"
+  },
+  {
+   "id": "win",
+   "when": {
+    "every": 0.1
+   },
+   "do": [
+    {
+     "end": "win"
+    }
+   ],
+   "if": "placed_n >= 2"
+  },
+  {
+   "id": "lose_fade",
+   "when": {
+    "every": 0.1
+   },
+   "do": [
+    {
+     "end": "lose"
+    }
+   ],
+   "if": "scatter >= 5"
+  },
+  {
+   "id": "lose_time",
+   "when": {
+    "every": 0.5
+   },
+   "do": [
+    {
+     "end": "lose"
+    }
+   ],
+   "if": "time > 150"
+  },
+  {
+   "id": "won",
+   "when": {
+    "end": "win"
+   },
+   "do": [
+    {
+     "set": [
+      "best",
+      "best*(best>0 && best<time)+time*(best==0 || best>=time)"
+     ]
+    },
+    {
+     "play": "fanfare"
+    }
+   ]
+  },
+  {
+   "id": "lost",
+   "when": {
+    "end": "lose"
+   },
+   "do": [
+    {
+     "play": "fade"
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "slingshot-flips-up-to-the-wall-you-fell-to",
+    "seed": 1,
+    "max_seconds": 12,
+    "script": [
+     {
+      "wait": 3.75
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.0
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait_until": {
+       "var": "state",
+       "eq": 0
+      },
+      "timeout": 6
+     }
+    ],
+    "expect": [
+     {
+      "var": "shots",
+      "eq": 1
+     },
+     {
+      "var": "lands",
+      "eq": 1
+     },
+     {
+      "var": "state",
+      "eq": 0
+     },
+     {
+      "var": "gy",
+      "eq": 0
+     },
+     {
+      "var": "gx",
+      "ne": 0
+     }
+    ]
+   },
+   {
+    "name": "tour-win",
+    "seed": 1,
+    "smoke": true,
+    "max_seconds": 40,
+    "script": [
+     {
+      "wait": 0.25
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.9
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait_until": {
+       "var": "state",
+       "eq": 0
+      },
+      "timeout": 6
+     },
+     {
+      "wait": 0.75
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.9
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait_until": {
+       "var": "state",
+       "eq": 0
+      },
+      "timeout": 6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.4
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait_until": {
+       "var": "state",
+       "eq": 0
+      },
+      "timeout": 6
+     },
+     {
+      "wait": 2.75
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.0
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait_until": {
+       "ended": "win"
+      },
+      "timeout": 6
+     }
+    ],
+    "expect": [
+     {
+      "ended": "win"
+     },
+     {
+      "var": "placed_n",
+      "gte": 2
+     },
+     {
+      "var": "scatter",
+      "eq": 0
+     }
+    ]
+   },
+   {
+    "name": "storm-scatters-placed-tool",
+    "seed": 1,
+    "max_seconds": 60,
+    "script": [
+     {
+      "wait": 0.25
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.9
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait_until": {
+       "var": "state",
+       "eq": 0
+      },
+      "timeout": 6
+     },
+     {
+      "wait": 0.75
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.9
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait_until": {
+       "var": "state",
+       "eq": 0
+      },
+      "timeout": 6
+     },
+     {
+      "wait": 40
+     }
+    ],
+    "expect": [
+     {
+      "var": "scatter",
+      "gte": 1
+     },
+     {
+      "not_ended": true
+     },
+     {
+      "count": "tool",
+      "gte": 1
+     }
+    ]
+   },
+   {
+    "name": "idle-city-fades",
+    "seed": 1,
+    "max_seconds": 170,
+    "script": [
+     {
+      "wait": 160
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     }
+    ]
+   }
+  ]
+ }
+}
