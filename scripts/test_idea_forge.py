@@ -27,6 +27,8 @@ SCRIPT = os.path.join(HERE, "idea_forge.py")
 # 28-issue note with an empty test backlog): every test in this module exports to a scratch file instead.
 SCRATCH_EXPORT = os.path.join(tempfile.mkdtemp(prefix="idea_forge_export_"), "idea-forge-feedback.md")
 os.environ["IDEA_FORGE_EXPORT"] = SCRATCH_EXPORT
+# `nightly` publishes merged games to the real RedEngineGames on GitHub. A test must NEVER do that: publishing is off for the whole module, and the tests of it turn it on against a local bare repo.
+os.environ["IDEA_FORGE_PUBLISH"] = "0"
 REAL_NOTE = os.path.join(os.path.dirname(os.path.dirname(HERE)), "idea-forge-feedback.md")
 WINDOWS = os.name == "nt"
 NEEDS_SH = unittest.skipIf(WINDOWS, "a fake executable here is a shell script")
@@ -343,6 +345,31 @@ class Kinds(unittest.TestCase):
         self.assertEqual([i["ok"] for i in items], [True] * 7, items)
         self.assertEqual(items[1]["name"], "lint passes")
         self.assertIn("11 check(s)", items[2]["detail"])
+
+    @NEEDS_SH
+    def test_a_3d_scene_that_declares_checks_lint_is_judged_by_verify_which_honors_its_ignore_list(self):
+        """Bare `lint` exits 1 on a deliberate pit that `checks.lint.ignore` lists; only `verify` honors the list. That failed every such 3D game on 2026-10-09 and 10-10."""
+        root = tempfile.mkdtemp()
+        os.makedirs(os.path.join(root, "examples", "3d", "x"))
+        engine = sh(os.path.join(root, "red_engine2"), """#!/bin/sh
+case "$1" in
+  lint) echo 'x.json: 40 objects'; exit 1;;
+  verify) case "$*" in *"--only lint"*) echo 'PASS lint  0 error(s) (max 0), 0 warning(s), 3 ignored (drop)'; exit 0;; *) echo 'x.json: 6 check(s), 0 failed, 0.3s'; exit 0;; esac;;
+esac
+""")
+        os.environ["RED_ENGINE_EXE"] = engine
+        self.addCleanup(os.environ.pop, "RED_ENGINE_EXE", None)
+        game = {"rules": [{"id": "r"}], "ui": {"cards": 1}, "audio": {"a": 1}, "checks": {"sim": [{"name": "a"}, {"name": "b"}], "lint": {"ignore": ["drop"]}}}
+        wr(os.path.join(root, "examples", "3d", "x", "x.json"), json.dumps(game))
+        lint = idea_forge.score(root, "x", "3d")[1]
+        self.assertEqual((lint["name"], lint["ok"]), ("lint passes", True), lint)
+        self.assertIn("3 ignored", lint["detail"])
+        del game["checks"]["lint"]   # without a declaration the bare command is the judge, as before
+        wr(os.path.join(root, "examples", "3d", "x", "x.json"), json.dumps(game))
+        self.assertFalse(idea_forge.score(root, "x", "3d")[1]["ok"])
+
+    def test_the_3d_brief_tells_the_agent_to_declare_checks_lint(self):
+        self.assertIn("Declare `checks.lint`", idea_forge.brief(idea_forge.make_idea(123456789), "2026-10-09", kind="3d"))
 
 
 class Backlog(unittest.TestCase):
@@ -971,11 +998,11 @@ class Settle(E2EBase):
     def test_the_off_switches_hold_every_pr(self):
         self.track_game(80)
         self.gh_pr(80, files=self.game_files())
-        self.assertEqual(json.loads(cli("config", "--auto-merge", "off").stdout), {"auto_merge": False})
+        self.assertEqual(json.loads(cli("config", "--auto-merge", "off").stdout), {"auto_merge": False, "publish": False})
         self.assertEqual([r[1] for r in idea_forge.settle(0)], ["held"])
         self.assertEqual(self.merged(), [])
-        self.assertEqual(json.loads(cli("config").stdout), {"auto_merge": False}, "persisted")
-        self.assertEqual(json.loads(cli("config", "--auto-merge", "on").stdout), {"auto_merge": True})
+        self.assertEqual(json.loads(cli("config").stdout), {"auto_merge": False, "publish": False}, "persisted")
+        self.assertEqual(json.loads(cli("config", "--auto-merge", "on").stdout), {"auto_merge": True, "publish": False})
         os.environ["IDEA_FORGE_AUTO_MERGE"] = "0"
         self.assertEqual([r[1] for r in idea_forge.settle(0)], ["held"], "the environment switch wins")
         os.environ["IDEA_FORGE_AUTO_MERGE"] = "1"
@@ -1010,6 +1037,204 @@ class Settle(E2EBase):
 
 
 @NEEDS_SH
+@NEEDS_SH
+class Publish(E2EBase):
+    """Merged games reach RedEngineGames: files under projects/<slug>/ and a manifest entry, in one commit to its main, against a local bare repo (never GitHub)."""
+
+    MANIFEST = ('{\n  "version": 1,\n  "game_roots": ["games", "projects"],\n  "data_playables": [\n    {\n      "slug": "old-game",\n      "name": "Old Game",\n      "files": ["projects/old-game"],\n'
+                '      "arguments": ["content/projects/old-game/main.json"]\n    }\n  ],\n  "native_playables": []\n}\n')
+    LOADER = ('import json, re\nfrom pathlib import Path\nREPO = Path(__file__).resolve().parent.parent\n'
+              'def load_playables(repo=REPO):\n    ps = json.loads((repo / ".games-catalog.json").read_text())["playables"] + json.loads((repo / ".release-games.json").read_text())["data_playables"]\n'
+              '    seen = set()\n    for p in ps:\n        if not re.match(r"^[a-z0-9]+(?:-[a-z0-9]+)*$", p["slug"]) or p["slug"] in seen:\n            raise SystemExit("bad slug " + p["slug"])\n'
+              '        seen.add(p["slug"])\n        for f in p["files"]:\n            if not (repo / f).exists():\n                raise SystemExit(p["slug"] + ": missing " + f)\n    return ps\n')
+
+    def setUp(self):
+        super().setUp()
+        self.games = os.path.join(self.base, "games.git")
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", self.games], check=True)
+        self.games_seed = self.clone(self.games, "games_seed")
+        for rel, text in ((".release-games.json", self.MANIFEST), (".games-catalog.json", '{"playables": []}'), ("distribution/release_tool.py", self.LOADER), ("projects/old-game/main.json", "{}")):
+            os.makedirs(os.path.dirname(os.path.join(self.games_seed, rel)) or self.games_seed, exist_ok=True)
+            wr(os.path.join(self.games_seed, rel), text)
+        git(self.games_seed, "checkout", "-q", "-b", "main")
+        git(self.games_seed, "add", "-A")
+        git(self.games_seed, "commit", "-q", "-m", "seed")
+        git(self.games_seed, "push", "-q", "-u", "origin", "main")
+        self.frames = os.path.join(self.base, "frames.log")
+        self.engine = sh(os.path.join(self.base, "red_engine2_frame"), f"""#!/bin/sh
+if [ "$1" = frame ]; then
+  echo "$*" >> {self.frames}
+  case "$2" in *blank*) : > "$3"; exit 0;; *nopng*) echo not-a-png > "$3"; exit 0;; esac
+  printf '\\211PNG\\r\\n\\032\\n' > "$3"; head -c 3000 /dev/zero >> "$3"; echo "wrote $3"; exit 0
+fi
+exit 0
+""")
+        os.environ.update(IDEA_FORGE_PUBLISH="1", IDEA_FORGE_GAMES_REMOTE=self.games, RED_ENGINE_EXE=self.engine)
+        self.saved["IDEA_FORGE_PUBLISH"], self.saved["IDEA_FORGE_GAMES_REMOTE"] = "0", None
+        self.root = self.clone(self.remote, "engine_root")   # the checkout the tool runs from; its origin/main is where merged games are
+        self.engine_push = self.clone(self.remote, "engine_push")
+
+    def clone(self, remote, name):
+        d = os.path.join(self.base, name)
+        subprocess.run(["git", "clone", "-q", remote, d], check=True, capture_output=True)
+        return d
+
+    def land(self, rel, text):
+        """A file merged into RedEngine main."""
+        os.makedirs(os.path.dirname(os.path.join(self.engine_push, rel)), exist_ok=True)
+        wr(os.path.join(self.engine_push, rel), text)
+        git(self.engine_push, "add", "-A")
+        git(self.engine_push, "commit", "-q", "-m", "merge " + rel)
+        git(self.engine_push, "push", "-q", "origin", "main")
+
+    def row(self, code, slug, kind, **extra):
+        st = idea_forge.load_state()
+        st["runs"].append(dict({"code": code, "slug": slug, "kind": kind, "title": slug.replace("-", " ").title(), "date": "2026-10-09", "status": "shipped", "pr": f"https://example.test/pull/{code}", "merge": "merged"}, **extra))
+        idea_forge.save_state(st)
+
+    def published_tree(self):
+        d = self.clone(self.games, "games_check_%d" % len(os.listdir(self.base)))
+        return d, json.loads(rd(os.path.join(d, ".release-games.json")))
+
+    def test_merged_games_are_published_with_their_files_and_manifest_entries_and_nothing_else(self):
+        self.land("examples/2d/alpha-game.game2d.json", '{"game2d": 1}')
+        self.land("examples/3d/beta-game/beta-game.json", '{"rules": []}')
+        self.land("examples/3d/beta-game/audio/dusk.json", '{"score": 1}')
+        self.row(1, "alpha-game", "2d")
+        self.row(2, "beta-game", "3d")
+        self.row(3, "gamma-game", "3d", feedback_only=True)   # the game did not build: only its feedback was merged
+        self.row(4, "delta-game", "2d", merge="")             # shipped, but its file is not on main (not merged yet)
+        before = rd(os.path.join(self.games_seed, ".release-games.json"))
+        self.assertEqual(idea_forge.publish_games(self.root), ["alpha-game", "beta-game"])
+        d, manifest = self.published_tree()
+        self.assertEqual(rd(os.path.join(d, "projects", "alpha-game", "alpha-game.game2d.json")), '{"game2d": 1}')
+        self.assertEqual(rd(os.path.join(d, "projects", "beta-game", "audio", "dusk.json")), '{"score": 1}')
+        self.assertFalse(os.path.exists(os.path.join(d, "projects", "gamma-game")) or os.path.exists(os.path.join(d, "projects", "delta-game")))
+        by = {p["slug"]: p for p in manifest["data_playables"]}
+        self.assertEqual(by["alpha-game"], {"slug": "alpha-game", "name": "Alpha Game", "kind": "2d", "files": ["projects/alpha-game"], "arguments": ["content/projects/alpha-game/alpha-game.game2d.json"]})
+        self.assertEqual(by["beta-game"], {"slug": "beta-game", "name": "Beta Game", "files": ["projects/beta-game"], "arguments": ["content/projects/beta-game/beta-game.json"]})
+        after = rd(os.path.join(d, ".release-games.json"))
+        self.assertTrue(after.startswith(before.split('\n  ],\n  "native_playables"')[0] + ",\n"), "the hand-formatted manifest is only added to, never rewritten")
+        changed = subprocess.run(["git", "-C", d, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
+        self.assertTrue(changed and all(c == ".release-games.json" or c.startswith(("projects/", "site/thumbs/")) for c in changed), changed)
+        self.assertIn("site/thumbs/alpha-game.png", changed)
+        self.assertIn("site/thumbs/beta-game.png", changed)
+        self.assertIn("site/thumbs/old-game.png", changed, "a game that was listed without a screenshot gets one in the same commit")
+        frames = rd(self.frames)
+        self.assertIn("--size 640x360", frames)
+        self.assertEqual([l for l in frames.splitlines() if "alpha-game" in l and "--t 1" in l] != [], True, "a 2D game is drawn a second in")
+        self.assertFalse([l for l in frames.splitlines() if "beta-game" in l and "--t" in l], "a 3D scene is drawn from its own camera")
+        self.assertEqual(len(subprocess.run(["git", "-C", d, "log", "--format=%s"], capture_output=True, text=True).stdout.splitlines()), 2, "one commit for both games")
+        rows = {r["slug"]: r for r in idea_forge.load_state()["runs"]}
+        self.assertTrue(rows["alpha-game"]["published"]["commit"] and rows["beta-game"]["published"])
+        self.assertNotIn("published", rows["gamma-game"])
+        self.assertNotIn("published", rows["delta-game"])
+        self.assertEqual(idea_forge.publish_games(self.root), [], "a game is published once")
+        self.land("examples/2d/delta-game.game2d.json", "{}")   # delta merges later: the next run publishes it
+        self.assertEqual(idea_forge.publish_games(self.root), ["delta-game"])
+
+    def test_a_game_whose_screenshot_cannot_be_drawn_is_not_published_and_is_tried_again(self):
+        self.land("examples/2d/blank-game.game2d.json", "{}")
+        self.land("examples/2d/nopng-game.game2d.json", "{}")
+        self.land("examples/2d/fine-game.game2d.json", "{}")
+        for i, slug in enumerate(("blank-game", "nopng-game", "fine-game"), 1):
+            self.row(i, slug, "2d")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(idea_forge.publish_games(self.root), ["fine-game"])
+        self.assertIn("blank-game: not published", out.getvalue())
+        d, manifest = self.published_tree()
+        self.assertEqual({p["slug"] for p in manifest["data_playables"]}, {"old-game", "fine-game"})
+        self.assertFalse(os.path.exists(os.path.join(d, "projects", "blank-game")) or os.path.exists(os.path.join(d, "site", "thumbs", "blank-game.png")))
+        rows = {r["slug"]: r for r in idea_forge.load_state()["runs"]}
+        self.assertNotIn("published", rows["blank-game"])
+        self.assertTrue(rows["fine-game"]["published"])
+
+    def test_listed_games_without_a_screenshot_get_one_even_when_no_game_is_new(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(idea_forge.publish_games(self.root), [])
+        self.assertIn("screenshots for old-game", out.getvalue())
+        d, _ = self.published_tree()
+        self.assertTrue(os.path.getsize(os.path.join(d, "site", "thumbs", "old-game.png")) > 2000)
+        with contextlib.redirect_stdout(io.StringIO()) as again:
+            idea_forge.publish_games(self.root)
+        self.assertIn("nothing to publish", again.getvalue(), "once it has one, nothing more is done")
+
+    def test_a_push_rejected_because_the_publish_workflow_committed_meanwhile_is_rebased_and_retried(self):
+        self.land("examples/2d/alpha-game.game2d.json", "{}")
+        self.row(1, "alpha-game", "2d")
+        real = idea_forge.check_release_manifest
+
+        def concurrent_commit(clone):
+            real(clone)
+            wr(os.path.join(self.games_seed, "SYNC"), "x")
+            git(self.games_seed, "add", "-A")
+            git(self.games_seed, "commit", "-q", "-m", "Sync RedEngine content")
+            git(self.games_seed, "push", "-q", "origin", "main")
+
+        with mock.patch.object(idea_forge, "check_release_manifest", concurrent_commit):
+            self.assertEqual(idea_forge.publish_games(self.root), ["alpha-game"])
+        d, manifest = self.published_tree()
+        self.assertTrue(os.path.exists(os.path.join(d, "SYNC")) and "alpha-game" in {p["slug"] for p in manifest["data_playables"]}, "both commits are on main")
+
+    def test_a_game_that_is_already_there_is_never_overwritten(self):
+        self.land("examples/2d/old-game.game2d.json", '{"mine": 1}')
+        self.row(1, "old-game", "2d")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(idea_forge.publish_games(self.root), [])
+        self.assertIn("already exists", out.getvalue())
+        d, _ = self.published_tree()
+        self.assertEqual(rd(os.path.join(d, "projects", "old-game", "main.json")), "{}")
+        self.assertTrue(idea_forge.load_state()["runs"][0]["published"], "recorded, so it is not asked about every night")
+
+    def test_a_failure_is_reported_and_retried_never_raised_and_a_bad_manifest_is_never_pushed(self):
+        self.land("examples/2d/Bad_Slug.game2d.json", "{}")
+        self.row(1, "Bad_Slug", "2d")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(idea_forge.publish_games(self.root), [])
+        self.assertIn("FAILED", out.getvalue())
+        d, manifest = self.published_tree()
+        self.assertEqual([p["slug"] for p in manifest["data_playables"]], ["old-game"], "RedEngineGames' own loader rejected it before any push")
+        self.assertNotIn("published", idea_forge.load_state()["runs"][0])
+
+    def test_dry_run_and_the_off_switches_change_nothing(self):
+        self.land("examples/2d/alpha-game.game2d.json", "{}")
+        self.row(1, "alpha-game", "2d")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(idea_forge.publish_games(self.root, dry_run=True), [])
+        self.assertEqual(out.getvalue().count("would publish 2d alpha-game"), 1)
+        d, manifest = self.published_tree()
+        self.assertEqual(len(manifest["data_playables"]), 1)
+        os.environ["IDEA_FORGE_PUBLISH"] = "0"
+        self.assertFalse(idea_forge.publish_enabled())
+        self.assertNotEqual(cli("publish", env={"IDEA_FORGE_HOME": self.home}, check=False).returncode, 0, "publish refuses while it is off")
+        os.environ["IDEA_FORGE_PUBLISH"] = "1"
+        self.assertTrue(idea_forge.publish_enabled())
+        self.assertEqual(json.loads(cli("config", "--publish", "off").stdout)["publish"], False)
+        self.assertFalse(idea_forge.publish_enabled(), "off in the settings")
+        self.assertNotEqual(cli("publish", check=False).returncode, 0)
+
+    def test_the_night_publishes_what_it_merged_and_no_publish_skips_it(self):
+        self.land("examples/2d/alpha-game.game2d.json", "{}")
+        self.row(1, "alpha-game", "2d")
+        with mock.patch.object(idea_forge, "ROOT", self.root):
+            try:
+                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--skip-games", "--no-publish"])
+            except SystemExit:
+                pass
+            self.assertNotIn("published", idea_forge.load_state()["runs"][0])
+            try:
+                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--skip-games"])
+            except SystemExit:
+                pass
+        self.assertTrue(idea_forge.load_state()["runs"][0]["published"]["commit"])
+        self.assertEqual(idea_forge.load_state()["nights"]["2026-10-09"]["published"], [])   # published at the start of the night, so nothing was left for the end
+
+
 class Refresh(unittest.TestCase):
     """The night starts from yesterday's main: a dedicated checkout fast-forwards, anything else is left alone."""
 
