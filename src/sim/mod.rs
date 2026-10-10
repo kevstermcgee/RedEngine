@@ -44,6 +44,8 @@ pub mod items;
 pub mod kart;
 pub mod kit;
 pub mod match_sim;
+pub mod objective;
+pub mod objective_run;
 pub mod ordnance;
 pub mod player;
 pub mod race;

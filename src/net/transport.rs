@@ -17,6 +17,7 @@
 
 use std::io::{self, ErrorKind};
 use std::net::{SocketAddr, UdpSocket};
+use std::time::Duration;
 
 /// What protects the datagrams.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +68,12 @@ pub trait ServerTransport: Send {
     fn local_addr(&self) -> io::Result<SocketAddr>;
     /// The next waiting datagram, copied into `buf`: `(peer, length)`. `None` when nothing is waiting.
     fn recv(&mut self, buf: &mut [u8]) -> Option<(SocketAddr, usize)>;
+    /// Waits up to `timeout` for a datagram to arrive, then returns without consuming it (the next [`Self::recv`] gets it). Lets the server
+    /// loop sleep until its next tick and still react at once to a packet, instead of waking every 0.5 ms to look. The default is a
+    /// short sleep, for backends with nothing to block on.
+    fn wait(&mut self, timeout: Duration) {
+        std::thread::sleep(timeout.min(Duration::from_micros(500)));
+    }
     /// Sends one message to `peer`. A message larger than [`Self::max_datagram`] is either carried reliably (QUIC) or refused.
     fn send(&mut self, peer: SocketAddr, bytes: &[u8]) -> io::Result<usize>;
     /// The largest message `peer` can be sent in one datagram right now.
@@ -151,6 +158,17 @@ impl ServerTransport for UdpServer {
                 Err(_) => return None,
             }
         }
+    }
+    fn wait(&mut self, timeout: Duration) {
+        // Block (with a deadline) until a datagram is queued, peeking so it stays queued; then back to non-blocking for `recv`.
+        // A zero read timeout is an error on every platform, so a zero wait is simply no wait.
+        if timeout.is_zero() || self.socket.set_nonblocking(false).is_err() {
+            return;
+        }
+        let _ = self.socket.set_read_timeout(Some(timeout));
+        let mut byte = [0u8; 1];
+        let _ = self.socket.peek_from(&mut byte);
+        let _ = self.socket.set_nonblocking(true);
     }
     fn send(&mut self, peer: SocketAddr, bytes: &[u8]) -> io::Result<usize> {
         if bytes.len() > UDP_MAX_DATAGRAM {

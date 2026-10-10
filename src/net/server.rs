@@ -48,13 +48,15 @@ fn apply_character_policy(policy: Option<crate::player::Character>, requested: u
     policy.map(character_to_wire).unwrap_or_else(|| requested.min(5))
 }
 
-/// The soldier a team wears.
-fn team_character(team: u8) -> crate::player::Character {
-    if team == 2 {
-        crate::player::Character::Nightfall
-    } else {
-        crate::player::Character::Ridgeback
-    }
+/// The soldier a team wears, in the look (`0` trooper, `1` scout, `2` heavy, `3` ghost) the player picked.
+fn team_character(team: u8, look: u8) -> crate::player::Character {
+    crate::player::Character::soldier(team, look)
+}
+
+/// The soldier a player wears in free for all, where there are no teams: the two uniforms alternate by slot (so neighbours differ at a glance) and the
+/// look is the one the player picked.
+fn ffa_character(slot: usize, look: u8) -> crate::player::Character {
+    crate::player::Character::soldier(1 + (slot % 2) as u8, look)
 }
 
 /// A `Status` goes to every client this often (5 Hz), and at once when something changes.
@@ -215,6 +217,8 @@ pub struct Server {
     round_hook: Option<Box<dyn FnMut(RoundRecord) + Send>>,
     last_result: Option<LastResult>,
     status_dirty: bool,
+    /// The newest objective event id already written to the log.
+    obj_logged: u16,
     /// Bots added this round so far (indexes the roster, so every round starts with the same fighters).
     bots_spawned: u32,
     /// Set from another thread to freeze the world (see [`Server::set_pause_flag`]).
@@ -261,6 +265,7 @@ impl Server {
             round_hook: None,
             last_result: None,
             status_dirty: false,
+            obj_logged: 0,
             bots_spawned: 0,
             pause: None,
         };
@@ -372,7 +377,7 @@ impl Server {
 
     /// The number of players (humans included) the match aims for: the config override, else the scene's `bots.fill`.
     fn bot_fill(&self) -> usize {
-        self.cfg.bot_fill.unwrap_or(self.sim.bots_config().fill).min(MAX_PLAYERS)
+        self.cfg.bot_fill.unwrap_or(self.sim.bots_config().fill).min(self.sim.max_players())
     }
 
     /// Whether the world has bodies in it right now: always in open play, and from the countdown until the lobby returns in a match flow.
@@ -427,7 +432,7 @@ impl Server {
                 t
             } else {
                 let (a, b) = (self.sim.team_count(1), self.sim.team_count(2));
-                match (a <= b, a.min(b) < crate::sim::shooter::MAX_TEAM) {
+                match (a <= b, a.min(b) < self.sim.team_size()) {
                     (_, false) => break,
                     (true, _) => 1,
                     (false, _) => 2,
@@ -609,7 +614,7 @@ impl Server {
 
     /// Whether `team` has room for one more person besides session `except`. Bots never count: they make way for people.
     fn team_has_room(&self, team: u8, except: usize) -> bool {
-        self.sessions.iter().enumerate().filter(|(j, s)| *j != except && s.team == team).count() < crate::sim::shooter::MAX_TEAM
+        self.sessions.iter().enumerate().filter(|(j, s)| *j != except && s.team == team).count() < self.sim.team_size()
     }
 
     /// The team a newcomer gets: the one they asked for if it has room, else the smaller one (`0` in a match without teams).
@@ -618,7 +623,7 @@ impl Server {
             return 0;
         }
         let humans = |t: u8| self.sessions.iter().enumerate().filter(|(j, s)| Some(*j) != except && s.team == t).count();
-        if (1..=2).contains(&asked) && humans(asked) < crate::sim::shooter::MAX_TEAM {
+        if (1..=2).contains(&asked) && humans(asked) < self.sim.team_size() {
             return asked;
         }
         if humans(1) <= humans(2) {
@@ -658,6 +663,10 @@ impl Server {
     /// newcomers out of the match.
     fn free_slot(&mut self) -> Option<usize> {
         let connected = |sessions: &[Session], slot: usize| sessions.iter().any(|s| s.slot == slot);
+        // A duel holds two people, whatever the roster could take.
+        if self.sessions.len() >= self.sim.max_players() {
+            return None;
+        }
         if let Some(slot) = (0..MAX_PLAYERS).find(|slot| !connected(&self.sessions, *slot) && !self.parked.iter().any(|p| p.slot == *slot)) {
             return Some(slot);
         }
@@ -755,7 +764,8 @@ impl Server {
                     }
                     ok
                 }
-                None if session.team != 0 => self.sim.add_player_in_slot_team(slot, team_character(session.team), session.team),
+                None if session.team != 0 => self.sim.add_player_in_slot_team(slot, team_character(session.team, session.character), session.team),
+                None if self.sim.is_loadout() => self.sim.add_player_in_slot(slot, ffa_character(slot, character)),
                 None => self.sim.add_player_in_slot(slot, character_from_wire(character)),
             };
             if !placed {
@@ -809,6 +819,19 @@ impl Server {
         self.say(format!("{} {} (player {}); {} connected", if timed_out { "timeout" } else { "leave" }, s.addr, s.slot, self.sessions.len()));
     }
 
+    /// Writes new capture-the-flag and search-and-destroy events to the log, so an operator (or a headless test) can see a match unfold.
+    fn log_objective_events(&mut self) {
+        let events = self.sim.arena().map(|a| a.obj_events.clone()).unwrap_or_default();
+        if events.last().is_some_and(|e| e.id < self.obj_logged) {
+            self.obj_logged = 0; // a new world numbers its events afresh
+        }
+        let seen = self.obj_logged;
+        for e in events.into_iter().filter(|e| e.id > seen) {
+            self.obj_logged = e.id;
+            self.say(format!("objective: {}", crate::sim::objective::describe(e.kind, e.team, e.slot)));
+        }
+    }
+
     /// Runs one simulation tick and does everything due after it: timeouts, the match flow, the demo kick, snapshots, status.
     pub fn tick(&mut self, now: Instant) {
         let t0 = Instant::now();
@@ -816,6 +839,7 @@ impl Server {
         let running = self.accepts_input() && !paused;
         if running {
             self.sim.tick_once();
+            self.log_objective_events();
             for e in self.sim.take_events() {
                 let who = e.slot.map(|s| format!(" (player {s})")).unwrap_or_default();
                 self.say(format!("event {} by rule {}{who} at tick {}", e.name, e.rule, e.tick));
@@ -891,9 +915,9 @@ impl Server {
         let connected = self.sessions.len();
         let ready = self.sessions.iter().filter(|s| s.ready).count();
         let in_round = self.sessions.iter().filter(|s| s.in_round).count();
-        let best_score = if self.sim.is_loadout() {
+        let best_score = if self.sim.is_loadout() && self.sim.teams_enabled() {
             // In a team match the score that counts is the team's.
-            self.sim.team_kills().into_iter().max().unwrap_or(0)
+            self.sim.team_score().into_iter().max().unwrap_or(0)
         } else {
             self.sim
                 .players()
@@ -905,7 +929,7 @@ impl Server {
         // A race ends the round when it is over (everyone finished, or the grace ran out) as a rule would.
         let race_over = self.sim.race().is_some_and(|r| r.phase() == crate::sim::race::Phase::Finished).then(|| "race complete".to_string());
         let rules_outcome = (flow.phase() == Phase::Playing).then(|| self.sim.rules().ended().map(str::to_string).or(race_over)).flatten();
-        let input = FlowInput { connected, ready, in_round, rules_outcome, best_score };
+        let input = FlowInput { connected, ready, in_round, rules_outcome, best_score, score_limit: self.sim.score_limit().unwrap_or(0) };
         let Some(event) = self.flow.as_mut().and_then(|f| f.step(&input)) else { return };
         self.status_dirty = true;
         match event {
@@ -946,9 +970,16 @@ impl Server {
             // In a race the character byte is the animal; a body is a plain person the kart hides. Two people who chose the same animal: the one in the
             // lower slot has it, the other gets the first animal left.
             let placed = if team != 0 {
-                self.sim.add_player_in_slot_team(slot, team_character(team), team)
+                self.sim.add_player_in_slot_team(slot, team_character(team, self.sessions.iter().find(|s| s.slot == slot).map_or(0, |s| s.character)), team)
             } else {
-                self.sim.add_player_in_slot(slot, if race { crate::player::Character::Human } else { character_from_wire(character) })
+                let body = if race {
+                    crate::player::Character::Human
+                } else if self.sim.is_loadout() {
+                    ffa_character(slot, character)
+                } else {
+                    character_from_wire(character)
+                };
+                self.sim.add_player_in_slot(slot, body)
             };
             if race && placed {
                 let want = Driver::from_wire(character).unwrap_or(Driver::Duck);
@@ -1001,8 +1032,8 @@ impl Server {
         if let Some(race) = self.sim.race() {
             winner = race.standings().first().map(|row| row.player as u8);
         }
-        let team_kills = self.sim.team_kills();
-        let winner_team = if !self.sim.is_loadout() {
+        let team_kills = self.sim.team_score();
+        let winner_team = if !self.sim.is_loadout() || !self.sim.teams_enabled() {
             0
         } else if team_kills[0] > team_kills[1] {
             1
@@ -1011,7 +1042,8 @@ impl Server {
         } else {
             0
         };
-        if self.sim.is_loadout() {
+        // Free for all keeps the plain "most kills wins" winner computed above; a team match names its winning team's best player.
+        if self.sim.is_loadout() && self.sim.teams_enabled() {
             // The best player of the winning team is named as the winner (the match MVP); a drawn match has none.
             winner = scores.iter().filter(|(slot, _)| self.sim.team_of(*slot as usize) == winner_team && winner_team != 0).max_by_key(|s| s.1).map(|s| s.0);
         }
@@ -1120,10 +1152,13 @@ impl Server {
             None => (NO_WINNER, NO_END, String::new()),
         };
         let winner_team = self.last_result.as_ref().map_or(0, |r| r.winner_team);
-        let team_kills = self.sim.team_kills();
+        let team_kills = self.sim.team_score();
         let team_score = [team_kills[0].min(u16::MAX as u32) as u16, team_kills[1].min(u16::MAX as u32) as u16];
-        let (kill_limit, time_limit_secs) =
-            self.flow.as_ref().map_or((0, 0), |f| (f.settings().score_to_win.min(u16::MAX as u32) as u16, f.settings().round_secs.clamp(0.0, 65_535.0) as u16));
+        let (kill_limit, time_limit_secs) = self.flow.as_ref().map_or((0, 0), |f| {
+            // The scene's kill limit, or the mode's own (captures, rounds).
+            let limit = self.sim.score_limit().unwrap_or(f.settings().score_to_win);
+            (limit.min(u16::MAX as u32) as u16, f.settings().round_secs.clamp(0.0, 65_535.0) as u16)
+        });
         let rules = self.sim.rules();
         let vars: Vec<RuleVar> = rules.vars().into_iter().take(MAX_RULE_VARS).map(|(name, value)| RuleVar { name: name.to_string(), value }).collect();
         let hidden: Vec<u16> = rules.hidden().filter_map(|id| self.sim.rule_object_index(id)).take(MAX_RULE_HIDDEN).collect();
@@ -1154,6 +1189,8 @@ impl Server {
                 kill_limit,
                 time_limit_secs,
                 winner_team,
+                mode: self.sim.mode().wire(),
+                team_size: self.sim.team_size().clamp(1, 6) as u8,
             };
             self.stats.statuses_sent += 1;
             self.send_signed(i, &ServerMsg::Status(status));
@@ -1258,9 +1295,13 @@ impl Server {
             if ran == 8 {
                 next = Instant::now() + tick;
             }
+            // Sleep until just before the next tick, waking at once for a packet (the transport blocks on its socket or queue). The margin
+            // covers oversleep: ~0.1 ms of timer slack on Linux, up to a 1 ms timer period on Windows (see `raise_timer_resolution`);
+            // only inside it do we spin. Before this the loop woke every 0.5 ms and spun the last 1.5 ms of every tick (~7% of a core idle).
+            let margin = if cfg!(windows) { Duration::from_micros(1500) } else { Duration::from_micros(150) };
             let wait = next.saturating_duration_since(Instant::now());
-            if wait > Duration::from_micros(1500) {
-                std::thread::sleep(Duration::from_micros(500));
+            if wait > margin {
+                self.transport.wait(wait - margin);
             } else {
                 std::thread::yield_now();
             }

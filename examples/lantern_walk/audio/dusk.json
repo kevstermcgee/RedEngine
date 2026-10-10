@@ -1,0 +1,17 @@
+{
+  "bpm": 54, "beats": 4, "bars": 8, "key": "G", "scale": "pentatonic", "seed": 21, "lufs": -29,
+  "reverb": { "decay": 6, "mix": 0.55 },
+  "instruments": {
+    "pad": { "seconds": 14, "level": 0.5, "layers": [
+      { "sine": 1,     "attack": 3, "release": 4 },
+      { "sine": 2,     "attack": 4, "release": 4, "gain": 0.25 },
+      { "sine": 0.5,   "attack": 5, "release": 4, "gain": 0.4 } ] },
+    "bell": { "seconds": 6, "level": 0.45, "layers": [
+      { "sine": 1,    "decay": 1.2 },
+      { "sine": 2.76, "decay": 1.8, "gain": 0.2 } ] }
+  },
+  "tracks": [
+    { "inst": "pad",  "play": "chords", "chords": "1 4 5 1", "every": "2 bars", "octave": 3, "gain": 0.9 },
+    { "inst": "bell", "play": "walk", "every": "2 beats", "density": 0.25, "range": [1, 8], "octave": 5, "pan": "spread", "gain": 0.5, "vel": [0.5, 0.9] }
+  ]
+}

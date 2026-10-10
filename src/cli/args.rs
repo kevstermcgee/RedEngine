@@ -320,6 +320,9 @@ pub(crate) enum Command {
         out: PathBuf,
         #[arg(long, default_value_t = 0.0)]
         t: f32,
+        /// A 2D game only: play this scenario (default: the first) for `--t` seconds before drawing.
+        #[arg(long)]
+        scenario: Option<String>,
         /// For a scene with a `clock`: draw it at this clock hour (0 to 24, e.g. 18.5 for half past six in the evening) instead of at `--t`.
         #[arg(long)]
         hour: Option<f32>,
@@ -405,7 +408,7 @@ pub(crate) enum Command {
         #[arg(long)]
         grass: Option<f32>,
     },
-    /// Plant models, as a sheet: `flora sheet.png`
+    /// Plant models, as a sheet
     Flora {
         out: PathBuf,
         /// Species keys (comma separated); one species with --variants shows its variation. Default: all.
@@ -443,8 +446,29 @@ pub(crate) enum Command {
         /// Pixels between the views.
         #[arg(long, default_value_t = 6)]
         gutter: u32,
+        /// Render this many more times after the picture and time each (the first render also builds pipelines and uploads, so it is not counted).
+        #[arg(long, default_value_t = 0)]
+        repeat: u32,
+        /// Write what was drawn and how long it took (adapter, triangles, draws, best and median milliseconds) to this JSON file; needs `--repeat`.
+        #[arg(long)]
+        stats: Option<PathBuf>,
     },
-    /// Render the full scene to an MP4.
+    /// Time fixed render scenes (run on a real GPU)
+    RenderTrend {
+        /// The scene list (default `benches/render_scenes.json` in the engine checkout).
+        #[arg(long)]
+        scenes: Option<PathBuf>,
+        /// Timed renders per scene after one untimed warm-up render.
+        #[arg(long, default_value_t = 5)]
+        repeat: u32,
+        /// Write the record here (JSON); `python3 benches/render_trend.py add FILE` files it in `benches/history/render.json`.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// A note stored in the record, like "RTX 3060, driver 560".
+        #[arg(long)]
+        label: Option<String>,
+    },
+    /// Render the full scene to an MP4. Needs ffmpeg and a build with `--features video`.
     Render { scene: PathBuf, out: PathBuf },
     /// Contact sheet of frames across the clip.
     Storyboard {
@@ -620,7 +644,7 @@ pub(crate) enum Command {
     /// fragments with where to read more, e.g. `search <a question in plain words>`.
     Search {
         query: Vec<String>,
-        /// doc | asset | lint | rule | type | recipe | command | src
+        /// doc | asset | lint | rule | type | recipe | mechanic | command | src
         #[arg(long)]
         kind: Option<String>,
         #[arg(long, default_value_t = 8)]
@@ -675,6 +699,8 @@ pub(crate) enum Command {
         #[arg(long)]
         example: bool,
     },
+    /// An MCP server on stdio: eleven tools that run in this process.
+    Mcp,
     /// What can this machine do? Probes for real: GPU adapter (hardware or software), audio, ffmpeg, UDP loopback and the default server
     /// port, a writable output dir, git. Ends with a plain "what works here" list. Exit 1 only if UDP or the output dir is broken.
     Doctor {
@@ -768,12 +794,60 @@ pub(crate) enum Command {
         #[arg(long)]
         scene: Option<PathBuf>,
     },
+    /// What can be built: presentation x platform x networking x input. Ask one question (`capabilities 3d windows`), check a game's declaration, or print the matrix. Anything a game declares that is not built fails early with the reason; nothing is downgraded silently.
+    Capabilities {
+        /// A game file whose `capabilities` block to check.
+        #[arg(long)]
+        file: Option<PathBuf>,
+        /// A question like `2d windows` or `3d linux authoritative`; empty prints the whole matrix.
+        query: Vec<String>,
+    },
+    /// Plan a game from an idea: genre, 2d or 3d (never 3D by default), targets, input, cost. The plan covers title, networking, saves and session length too. Every choice can be changed with a flag and is checked against `capabilities`: what cannot be built is reported, not quietly shrunk.
+    Propose {
+        /// The idea in plain words.
+        idea: Vec<String>,
+        /// Use this title.
+        #[arg(long)]
+        title: Option<String>,
+        /// `2d` or `3d` (default: the simplest that delivers the idea).
+        #[arg(long)]
+        presentation: Option<String>,
+        /// A target: windows, linux (repeatable).
+        #[arg(long = "platform")]
+        platforms: Vec<String>,
+        /// An input method: keyboard, mouse, touch, gamepad (repeatable).
+        #[arg(long = "input")]
+        inputs: Vec<String>,
+        /// `offline` or `authoritative`.
+        #[arg(long)]
+        networking: Option<String>,
+        /// Minutes per session.
+        #[arg(long)]
+        session: Option<u32>,
+    },
+    /// Play a 2D game (`*.game2d.json`) in a native window, with sound; progress is kept between runs.
+    Play2d {
+        /// The game file.
+        game: PathBuf,
+        /// Simulation seed (default 1).
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
+        /// Keep progress in this file instead of the per-game save directory.
+        #[arg(long)]
+        save: Option<PathBuf>,
+        /// No sound.
+        #[arg(long)]
+        mute: bool,
+        /// Quit after this many ticks (a smoke test).
+        #[arg(long)]
+        max_ticks: Option<u64>,
+    },
     /// Scaffold a game project that USES the engine (pinned in game.json) instead of forking it: a starter blueprint and the map it builds,
     /// CLAUDE.md, STATUS.md, `scripts/red` (finds/builds the pinned engine) and a CI workflow. The result already passes `game check`.
     NewGame {
         /// Directory to create the project in.
         dir: PathBuf,
-        /// `walk` (rooms and people on foot, built from a blueprint; the default) or `race` (a kart race: a generated circuit, the eight animals, bots, a lobby).
+        /// `walk` (rooms and people on foot, built from a blueprint; the default), `race` (a kart race: a generated circuit, the eight animals, bots, a lobby) or `2d` (a native 2D game: one JSON file).
         #[arg(long, default_value = "walk")]
         kind: String,
         /// Project name (default: the directory name).
@@ -830,6 +904,9 @@ pub(crate) enum Command {
         /// Only scenarios whose name contains this.
         #[arg(long)]
         only: Option<String>,
+        /// A 2D game only: print every variable every this many seconds of the playthrough (find out when a balance goes wrong).
+        #[arg(long)]
+        every: Option<f32>,
         /// Record the first scenario's run (inputs, events, checksums) to this trace file.
         #[arg(long)]
         trace: Option<PathBuf>,

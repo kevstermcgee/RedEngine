@@ -63,6 +63,22 @@ fn a_script_plays_the_solo_game_and_the_dump_says_what_the_player_would_see() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Marcel is all world and no objects, so the single-player client's ground used to be a flat floor at y = 0 (and its trees did not block): the boy walked through the hills.
+/// His spawn is at y = 0 and the hill there is at about -0.74, so his feet must settle below zero.
+#[test]
+fn in_a_generated_world_the_boys_feet_follow_the_hills_in_the_real_client() {
+    let dir = scratch("marcel");
+    let script = dir.join("play.json");
+    let dump = dir.join("state.json");
+    std::fs::write(&script, json!({"steps": [{"press": "start"}, {"wait": 1.5}, {"expect": {"at": "/player/pos/1", "max": -0.5, "msg": "the feet are on the hill, not on a flat floor"}}]}).to_string()).unwrap();
+    let marcel = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/marcel/marcel.json");
+    let o = re2(&[marcel.to_str().unwrap(), "--headless", "--script", script.to_str().unwrap(), "--dump", dump.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", text(&o));
+    let d: Value = serde_json::from_str(&std::fs::read_to_string(&dump).unwrap()).unwrap();
+    assert!(d["failures"].as_array().unwrap().is_empty(), "{d}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn split_screen_co_op_gives_each_player_their_own_body_and_the_script_plays_them_in_turn() {
     let dir = scratch("coop");
@@ -287,12 +303,92 @@ fn the_start_card_holds_the_game_until_pressed_and_the_end_card_restarts_it() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// What an online player reads when the game ends. End cards (like start cards) are an offline presentation: the card replaces the plain outcome banner only where a card
+/// is actually shown. A hosted/online client shows no card, so a scene that declares an end card must still show its players the outcome as the plain banner: an online
+/// player never loses the result because the scene was written for the card.
+#[test]
+fn an_online_player_still_reads_the_outcome_when_the_scene_declares_an_end_card() {
+    let dir = scratch("online_outcome");
+    let scene = dir.join("tiny.json");
+    std::fs::write(&scene, tiny_game().to_string()).unwrap(); // a `ui` block with a start card and a "victory" end card; the rule ends the game 0.4 s in
+    let script = dir.join("play.json");
+    let dump = dir.join("state.json");
+    std::fs::write(
+        &script,
+        json!({"steps": [
+            {"wait_for": {"at": "/online/connected", "eq": true, "within": 20, "msg": "never joined the hosted match"}},
+            {"wait": 3.0},
+            {"snapshot": "end"}]})
+        .to_string(),
+    )
+    .unwrap();
+    let o = re2(&[
+        scene.to_str().unwrap(),
+        "--host",
+        "--as",
+        "human",
+        "--name",
+        "Tester",
+        "--headless",
+        "--script",
+        script.to_str().unwrap(),
+        "--dump",
+        dump.to_str().unwrap(),
+    ]);
+    assert!(o.status.success(), "{}", text(&o));
+    let d: Value = serde_json::from_str(&std::fs::read_to_string(&dump).unwrap()).unwrap();
+    let lines: Vec<String> = d["hud"]["lines"].as_array().unwrap().iter().filter_map(|l| l["text"].as_str().map(str::to_string)).collect();
+    assert!(d["card"].is_null(), "an online client shows no card: {}", d["card"]);
+    assert!(
+        lines.iter().any(|l| l.to_lowercase().contains("victory")),
+        "the outcome must be on screen online, whatever the scene declares for a card: {lines:?}"
+    );
+    // The declared HUD is still the one shown beside it (friendly label and counter, the objective), not the generic variable list.
+    assert!(lines.iter().any(|l| l == "WINS: 1 / 1"), "{lines:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Split-screen guests do not carry props, and the engine says so instead of letting a game find out: the client names the limit when it starts with `--players`, and a
+/// script that makes a guest `interact` with a crate fails at once with the reason and the way out. Player 1, in the same scene, can. If guests are ever given props,
+/// this test fails and `splitscreen::GUEST_LIMITS` (and with it `describe multiplayer`) must change with them.
+#[test]
+fn split_screen_guests_cannot_carry_props_and_the_engine_says_so() {
+    let dir = scratch("guest_props");
+    let scene = dir.join("parcel.json");
+    std::fs::write(&scene, parcel_scene().to_string()).unwrap();
+    let run = |steps: Value| {
+        let script = dir.join("play.json");
+        std::fs::write(&script, json!({"steps": steps}).to_string()).unwrap();
+        re2(&[scene.to_str().unwrap(), "--as", "human", "--players", "2", "--headless", "--script", script.to_str().unwrap()])
+    };
+    // Player 1 picks the crate up (the scene's far crate).
+    let first = run(json!([{"interact": "far_crate"}, {"expect": {"at": "/player/carrying", "eq": true, "msg": "player 1 carries it"}}]));
+    assert!(first.status.success(), "{}", text(&first));
+    assert!(
+        text(&first).contains("note: split-screen: this scene has") && text(&first).contains("loose prop"),
+        "the client names the limit at start-up: {}",
+        text(&first)
+    );
+    // A guest cannot: the script fails immediately and says why.
+    let guest = run(json!([{"player": 2}, {"interact": "far_crate"}]));
+    assert_eq!(guest.status.code(), Some(1), "{}", text(&guest));
+    let t = text(&guest);
+    assert!(t.contains("split-screen guest") && t.contains("only player 1 can pick up") && t.contains("{\"player\": 1}"), "{t}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn the_soundscape_follows_the_hour_a_rule_variable_fades_a_layer_in_and_an_event_ducks_the_music() {
     let dir = scratch("soundscape");
     // A flat scene: a clock starting just after sunrise, the nature ambience, one score layer driven by `tension`, and the music ducking when `boom` is raised.
     let scene = dir.join("s.json");
-    std::fs::write(dir.join("chase.json"), r#"{"bpm": 100, "bars": 2, "tracks": []}"#).unwrap();
+    std::fs::write(
+        dir.join("chase.json"),
+        r#"{"bpm": 100, "beats": 4, "bars": 2, "key": "D", "scale": "major", "seed": 3, "lufs": -27,
+            "instruments": {"pad": {"seconds": 4, "level": 0.5, "layers": [{"sine": 1, "attack": 0.5, "release": 1}]}},
+            "tracks": [{"inst": "pad", "play": "chords", "chords": "I V", "every": "1 bar", "octave": 3}]}"#,
+    )
+    .unwrap();
     std::fs::write(
         &scene,
         json!({

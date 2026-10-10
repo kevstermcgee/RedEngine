@@ -72,7 +72,12 @@ pub struct Report {
     pub tail_ms: f32,
     /// Largest magnitude in the last 8 samples, dBFS: near -100 when the clip fades to zero, high when it is cut off (a click).
     pub end_dbfs: f32,
-    /// Loop seam: the jump from the last frame to the first, as a multiple of the clip's typical frame-to-frame step (about 1 is seamless).
+    /// **One-shot ending.** How big the final frame is, as a multiple of the clip's typical frame-to-frame step: the jump the speaker makes when the clip stops and the
+    /// output returns to zero. Near 0 when the sound fades out (or stops on a zero crossing); large when it is cut off while sounding, whatever it started with. It does
+    /// not look at the start at all: a one-shot is never joined to its own beginning. Meaningless for a loop (see `seam`).
+    pub end_step: f32,
+    /// **Loop seam.** The jump from the last frame back to the first, as a multiple of the clip's typical frame-to-frame step (about 1 is seamless): what a loop plays
+    /// every cycle. Meaningless for a one-shot, which never plays that join (see `end_step`).
     pub seam: f32,
     /// Left/right correlation, -1..1 (stereo only; 1 is mono-compatible, negative cancels in mono).
     pub correlation: Option<f32>,
@@ -282,15 +287,16 @@ pub fn analyze(clip: Clip) -> Report {
         _ => (mono.len() as f32 / rate * 1000.0, mono.len() as f32 / rate * 1000.0),
     };
     let end_peak = mono[mono.len().saturating_sub(8)..].iter().fold(0.0f32, |m, v| m.max(v.abs()));
-    // Seam: how big is the step from the last frame back to the first, against the typical step inside the clip?
-    let seam = if frames >= 3 {
-        let step = |a: usize, b: usize| (a..a + clip.channels).zip(b..b + clip.channels).map(|(i, j)| (clean[i] - clean[j]).abs()).fold(0.0f32, f32::max);
-        let ch = clip.channels;
-        let typical = (1..frames).map(|f| step((f - 1) * ch, f * ch)).sum::<f32>() / (frames - 1) as f32;
-        step((frames - 1) * ch, 0) / typical.max(1e-6)
-    } else {
-        0.0
-    };
+    // Two different questions share one yardstick, the typical step between neighbouring frames inside the clip (the largest channel difference, averaged):
+    //  * seam (loops): how big is the step from the last frame back to the FIRST, against that yardstick?
+    //  * end_step (one-shots): how big is the LAST frame itself, i.e. the step down to the silence that follows, against that yardstick?
+    // A cosine of whole cycles starts and ends on its peak: as a loop it is perfect (seam 0), as a one-shot it stops dead at full level (end_step large).
+    let ch = clip.channels.max(1);
+    let step = |a: usize, b: usize| (a..a + ch).zip(b..b + ch).map(|(i, j)| (clean[i] - clean[j]).abs()).fold(0.0f32, f32::max);
+    let typical = if frames >= 2 { (1..frames).map(|f| step((f - 1) * ch, f * ch)).sum::<f32>() / (frames - 1) as f32 } else { 0.0 };
+    let seam = if frames >= 3 { step((frames - 1) * ch, 0) / typical.max(1e-6) } else { 0.0 };
+    let last_frame = if frames >= 1 { clean[(frames - 1) * ch..frames * ch].iter().fold(0.0f32, |m, v| m.max(v.abs())) } else { 0.0 };
+    let end_step = last_frame / typical.max(1e-6);
     let correlation = (clip.channels == 2).then(|| {
         let (l, r) = (clip.channel(0), clip.channel(1));
         let (mut ll, mut rr, mut lr) = (0.0f64, 0.0f64, 0.0f64);
@@ -350,6 +356,7 @@ pub fn analyze(clip: Clip) -> Report {
         lead_ms: lead,
         tail_ms: tail,
         end_dbfs: db(end_peak),
+        end_step,
         seam,
         correlation,
         centroid_hz: centroid,
@@ -375,7 +382,7 @@ impl Report {
     /// One compact line: what an author reads to judge a sound.
     pub fn line(&self) -> String {
         format!(
-            "{:.2}s {} peak {:.1} rms {:.1} lufs {:.1} crest {:.1} | clip {} dc {:.3} lead {:.0}ms tail {:.0}ms end {:.0}dB seam {:.1}{} | bright {:.0}Hz {} flat {:.2} | {}",
+            "{:.2}s {} peak {:.1} rms {:.1} lufs {:.1} crest {:.1} | clip {} dc {:.3} lead {:.0}ms tail {:.0}ms end {:.0}dB endjump {:.1} seam {:.1}{} | bright {:.0}Hz {} flat {:.2} | {}",
             self.secs,
             if self.channels == 2 { "st" } else { "mono" },
             self.peak_dbfs,
@@ -387,6 +394,7 @@ impl Report {
             self.lead_ms,
             self.tail_ms,
             self.end_dbfs,
+            self.end_step,
             self.seam,
             self.correlation.map(|c| format!(" corr {c:.2}")).unwrap_or_default(),
             self.centroid_hz,
@@ -402,7 +410,7 @@ impl Report {
             "secs": r2(self.secs), "channels": self.channels, "non_finite": self.non_finite,
             "peak_dbfs": r2(self.peak_dbfs), "rms_dbfs": r2(self.rms_dbfs), "crest_db": r2(self.crest_db), "lufs": r2(self.lufs),
             "clipped": self.clipped, "dc": r2(self.dc * 1000.0) / 1000.0, "lead_ms": r2(self.lead_ms), "tail_ms": r2(self.tail_ms),
-            "end_dbfs": r2(self.end_dbfs), "seam": r2(self.seam), "correlation": self.correlation.map(r2),
+            "end_dbfs": r2(self.end_dbfs), "end_step": r2(self.end_step), "seam": r2(self.seam), "correlation": self.correlation.map(r2),
             "centroid_hz": r2(self.centroid_hz), "dominant_hz": r2(self.dominant_hz), "note": note_name(self.dominant_hz), "flatness": r2(self.flatness),
             "bands_pct": BAND_NAMES.iter().zip(self.bands).map(|(n, b)| (n.to_string(), json!(r2(b)))).collect::<serde_json::Map<_, _>>(),
         })
@@ -412,6 +420,10 @@ impl Report {
 fn r2(x: f32) -> f32 {
     (x * 100.0).round() / 100.0
 }
+
+/// How many typical steps a jump may be before it is an outlier a listener hears as a tick: what the signal itself does between neighbouring frames stays within a few
+/// of them, so 6 is clearly beyond it. Used for the loop seam and for a one-shot's ending alike (each against its own measurement: `Report::seam`, `Report::end_step`).
+pub const JUMP_LIMIT: f32 = 6.0;
 
 /// What kind of clip a standard applies to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -441,12 +453,13 @@ pub fn problems(r: &Report, kind: Kind) -> Vec<String> {
     }
     match kind {
         Kind::OneShot => {
-            // Cut off = the clip stops while still sounding (its last samples are audible) AND jumps to silence (the end-to-start step dwarfs the usual
-            // step). A loud tone the engine fades over its last 2 ms ends audible but does not jump; a faint tail that stops inaudibly is not a click.
-            if r.end_dbfs > -50.0 && r.seam > 6.0 {
+            // Cut off = the clip stops while still sounding (its last samples are audible) AND the step down to the silence after it dwarfs the usual step
+            // (`end_step`: the final frame against the clip's own movement; the start of the clip plays no part). A loud tone the engine fades over its last 2 ms
+            // ends audible but does not jump; a faint tail that stops inaudibly is not a click.
+            if r.end_dbfs > -50.0 && r.end_step > JUMP_LIMIT {
                 out.push(format!(
                     "it is cut off instead of fading to zero: its last samples are at {:.0} dBFS and the jump to silence is {:.0}x the usual step (a click)",
-                    r.end_dbfs, r.seam
+                    r.end_dbfs, r.end_step
                 ));
             }
             if r.secs > 6.0 {
@@ -454,7 +467,7 @@ pub fn problems(r: &Report, kind: Kind) -> Vec<String> {
             }
         }
         Kind::Loop => {
-            if r.seam > 6.0 {
+            if r.seam > JUMP_LIMIT {
                 out.push(format!("loop seam {:.1}x the usual step: the end does not meet the start (a click every cycle)", r.seam));
             }
             if r.lufs < -40.0 {
@@ -600,6 +613,143 @@ mod tests {
         assert!(rep(&clean, 1).seam < 2.0, "{}", rep(&clean, 1).seam);
         let cut: Vec<f32> = sine(441.0, 1.0, 0.5, 44100, 1).into_iter().take(44100 - 25).collect();
         assert!(rep(&cut, 1).seam > 6.0, "{}", rep(&cut, 1).seam);
+    }
+
+    // ---- the two boundaries, measured separately -------------------------------------------------------------------------------------------------------------
+    //
+    // `seam` answers "what does a LOOP play when it wraps?" (last frame -> first frame). `end_step` answers "what does a ONE-SHOT do when it stops?" (last frame -> the
+    // silence after it). Each fixture below is one way a single shared measurement would have been fooled.
+
+    /// A cosine (it starts on its peak, where a sine starts at zero).
+    fn cosine(hz: f32, secs: f32, amp: f32) -> Vec<f32> {
+        (0..(secs * 44100.0) as usize).map(|i| amp * (2.0 * PI * hz * i as f32 / 44100.0).cos()).collect()
+    }
+
+    fn fading(mut v: Vec<f32>) -> Vec<f32> {
+        let n = v.len() as f32;
+        v.iter_mut().enumerate().for_each(|(i, x)| *x *= (1.0 - i as f32 / n).powi(3));
+        v
+    }
+
+    fn one_shot_problems(v: &[f32]) -> Vec<String> {
+        problems(&rep(v, 1), Kind::OneShot)
+    }
+
+    fn loop_problems(v: &[f32]) -> Vec<String> {
+        problems(&rep(v, 1), Kind::Loop)
+    }
+
+    #[test]
+    fn a_one_shot_that_fades_out_ends_cleanly_and_one_that_is_cut_off_does_not() {
+        let good = fading(sine(500.0, 0.4, 0.5, 44100, 1));
+        assert!(rep(&good, 1).end_step < 1.0, "a fade ends near zero: {}", rep(&good, 1).end_step);
+        assert!(one_shot_problems(&good).is_empty(), "{:?}", one_shot_problems(&good));
+        // Stopped a quarter cycle early: the wave is at its peak when the clip ends.
+        let cut: Vec<f32> = sine(500.0, 0.4, 0.5, 44100, 1).into_iter().take(44100 * 4 / 10 - 22).collect();
+        assert!(rep(&cut, 1).end_step > JUMP_LIMIT, "{}", rep(&cut, 1).end_step);
+        assert!(one_shot_problems(&cut).iter().any(|p| p.contains("cut off")), "{:?}", rep(&cut, 1));
+        // Stopped exactly on a zero crossing: the speaker does not jump, so it is not a click, however abruptly the sound "ends".
+        let on_zero: Vec<f32> = sine(500.0, 0.4, 0.5, 44100, 1);
+        assert!(rep(&on_zero, 1).end_step < JUMP_LIMIT, "{}", rep(&on_zero, 1).end_step);
+    }
+
+    #[test]
+    fn a_loop_is_judged_by_its_seam_and_a_one_shot_by_its_ending_never_the_other_way() {
+        let clean_loop = sine(441.0, 1.0, 0.5, 44100, 1);
+        assert!(rep(&clean_loop, 1).seam < 2.0 && loop_problems(&clean_loop).is_empty());
+        let bad_loop: Vec<f32> = sine(441.0, 1.0, 0.5, 44100, 1).into_iter().take(44100 - 25).collect();
+        assert!(rep(&bad_loop, 1).seam > JUMP_LIMIT && loop_problems(&bad_loop).iter().any(|p| p.contains("loop seam")));
+        // The same bad clip played ONCE ends at a non-zero sample too, so it is also a one-shot defect: both are real, and each names its own measurement.
+        assert!(one_shot_problems(&bad_loop).iter().any(|p| p.contains("cut off")));
+    }
+
+    /// Similar start and end amplitudes fool any measure that joins the two: a cosine of whole cycles starts and ends on its peak, so as a loop it is flawless
+    /// (the end meets the start exactly) while as a one-shot it stops dead at full level.
+    #[test]
+    fn similar_start_and_end_amplitudes_do_not_hide_a_truncated_one_shot() {
+        let peak_to_peak = cosine(441.0, 1.0, 0.5);
+        let r = rep(&peak_to_peak, 1);
+        assert!(r.seam < 1.0, "as a loop it is seamless: {}", r.seam);
+        assert!(loop_problems(&peak_to_peak).is_empty(), "{:?}", loop_problems(&peak_to_peak));
+        assert!(r.end_step > JUMP_LIMIT, "as a one-shot it stops at full level: {}", r.end_step);
+        assert!(one_shot_problems(&peak_to_peak).iter().any(|p| p.contains("cut off")), "{:?}", one_shot_problems(&peak_to_peak));
+    }
+
+    /// The other way round: a sound that starts hard (so its end-to-start step is huge) and fades cleanly is a good one-shot. And one that decays to just above the
+    /// audibility gate (-45 dBFS) is judged by how big its last step is against its own movement, not by how far it is from where it began.
+    #[test]
+    fn a_hard_attack_that_decays_cleanly_is_not_cut_off() {
+        let attack = fading(cosine(441.0, 0.5, 0.5));
+        let r = rep(&attack, 1);
+        assert!(r.seam > JUMP_LIMIT, "its end-to-start jump is large (irrelevant to a one-shot): {}", r.seam);
+        assert!(r.end_step < 1.0, "{}", r.end_step);
+        assert!(one_shot_problems(&attack).is_empty(), "{:?}", one_shot_problems(&attack));
+        // Decays smoothly to amplitude 0.0056 (-45 dBFS): audible enough to pass the level gate, but it is a quiet end of a smooth decay.
+        let n = (0.6 * 44100.0) as usize;
+        let tail: Vec<f32> =
+            (0..n).map(|i| 0.5 * (-(i as f32) / n as f32 * (0.5f32 / 0.0056).ln()).exp() * (2.0 * PI * 441.0 * i as f32 / 44100.0).cos()).collect();
+        let r = rep(&tail, 1);
+        assert!(r.end_dbfs > -50.0 && r.seam > JUMP_LIMIT, "the old end-to-start measure would call this a cut-off: end {} seam {}", r.end_dbfs, r.seam);
+        assert!(r.end_step < JUMP_LIMIT && one_shot_problems(&tail).is_empty(), "{:?} end_step {}", one_shot_problems(&tail), r.end_step);
+    }
+
+    #[test]
+    fn a_constant_level_that_stops_is_a_click_and_stereo_takes_the_worst_channel() {
+        let flat = vec![0.5f32; 4410];
+        assert!(rep(&flat, 1).end_step > JUMP_LIMIT, "a held level that stops jumps to silence");
+        let left = fading(sine(500.0, 0.2, 0.5, 44100, 1));
+        let right: Vec<f32> = cosine(500.0, 0.2, 0.5).into_iter().take(left.len() - 3).collect();
+        let stereo: Vec<f32> = left.iter().zip(&right).flat_map(|(l, r)| [*l, *r]).collect();
+        let r = analyze(Clip { samples: &stereo, channels: 2, rate: 44100 });
+        assert!(r.end_step > JUMP_LIMIT, "the right channel is cut off: {}", r.end_step);
+    }
+
+    #[test]
+    fn silence_has_no_boundary_to_judge_and_is_reported_as_silence() {
+        let silence = vec![0.0f32; 4410];
+        let r = rep(&silence, 1);
+        assert_eq!((r.end_step, r.seam, r.non_finite), (0.0, 0.0, 0));
+        let p = one_shot_problems(&silence);
+        assert!(p.iter().any(|m| m.contains("effectively silent")) && !p.iter().any(|m| m.contains("cut off")), "{p:?}");
+        assert!(loop_problems(&silence).iter().all(|m| !m.contains("seam")));
+    }
+
+    /// Non-finite samples are counted, then treated as 0 for every other measurement: nothing the report holds may itself be NaN or infinite, or a later comparison
+    /// (`x > limit`) would be false for the wrong reason.
+    #[test]
+    fn non_finite_samples_are_counted_and_never_poison_the_other_numbers() {
+        let mut v = fading(sine(500.0, 0.2, 0.5, 44100, 1));
+        let n = v.len();
+        v[100] = f32::NAN;
+        v[200] = f32::INFINITY;
+        v[n - 1] = f32::NEG_INFINITY;
+        let r = rep(&v, 1);
+        assert_eq!(r.non_finite, 3);
+        for (name, x) in [
+            ("secs", r.secs),
+            ("peak", r.peak_dbfs),
+            ("rms", r.rms_dbfs),
+            ("lufs", r.lufs),
+            ("dc", r.dc),
+            ("end_dbfs", r.end_dbfs),
+            ("end_step", r.end_step),
+            ("seam", r.seam),
+            ("centroid", r.centroid_hz),
+            ("flatness", r.flatness),
+        ] {
+            assert!(x.is_finite(), "{name} is {x}");
+        }
+        assert!(one_shot_problems(&v).iter().any(|p| p.contains("NaN or infinite")));
+    }
+
+    #[test]
+    fn clips_too_short_to_have_a_boundary_do_not_panic_or_produce_nonsense() {
+        for frames in 0..4usize {
+            let v = vec![0.25f32; frames];
+            let r = rep(&v, 1);
+            assert!(r.end_step.is_finite() && r.seam.is_finite(), "{frames} frame(s): {r:?}");
+            let _ = (one_shot_problems(&v), loop_problems(&v));
+        }
     }
 
     #[test]

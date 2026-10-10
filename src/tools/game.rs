@@ -67,9 +67,11 @@ pub struct GameConfig {
     pub maps: Vec<String>,
     /// Dedicated-server settings.
     pub server: ServerCfg,
+    /// What the game declares it is and where it runs (`red_engine2 capabilities`), if it says: checked against the support matrix by `game check`.
+    pub capabilities: Option<red2d::caps::Capabilities>,
 }
 
-const TOP: &[&str] = &["game", "id", "name", "engine", "blueprints", "maps", "server"];
+const TOP: &[&str] = &["game", "id", "name", "engine", "blueprints", "maps", "server", "capabilities"];
 
 /// Whether `id` is a valid game id: 1 to 40 lowercase letters and digits, in groups separated by single hyphens.
 pub fn valid_id(id: &str) -> bool {
@@ -131,10 +133,20 @@ pub fn parse(dir: &Path, text: &str) -> Result<GameConfig, Vec<String>> {
         server.spawn_group = s.get("spawn_group").and_then(Value::as_str).unwrap_or("").to_string();
         server.args = strs(s.get("args"));
     }
+    let mut capabilities = None;
+    if let Some(c) = root.get("capabilities") {
+        let (parsed, problems) = red2d::caps::parse(c);
+        errs.extend(problems.iter().map(|p| p.to_string()));
+        if let Some(parsed) = parsed {
+            errs.extend(red2d::caps::check(&parsed).iter().map(|p| p.to_string()));
+            capabilities = Some(parsed);
+        }
+    }
     if !errs.is_empty() {
         return Err(errs);
     }
     Ok(GameConfig {
+        capabilities,
         dir: dir.to_path_buf(),
         name: root.get("name").and_then(Value::as_str).unwrap_or("game").to_string(),
         id,
@@ -357,6 +369,18 @@ pub fn blueprint_drift(cfg: &GameConfig) -> Vec<Line> {
 /// The project health check: blueprints build and equal their maps, maps pass their own `checks`, handoff exists.
 pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
     let mut lines = blueprint_drift(cfg);
+    lines.push(match &cfg.capabilities {
+        Some(c) => Line {
+            failed: false,
+            text: format!(
+                "capabilities: {} on {}, {} networking (checked against the support matrix: `capabilities`)",
+                c.presentation.name(),
+                c.platforms.iter().map(|p| p.name()).collect::<Vec<_>>().join("+"),
+                c.networking.name()
+            ),
+        },
+        None => Line { failed: false, text: "capabilities: not declared (assumed 3d on windows+linux, authoritative): add a `capabilities` block to game.json so a target the engine cannot deliver fails here".into() },
+    });
     let cache = (!views && std::env::var_os("RED_NO_CACHE").is_none()).then(|| CheckCache::new(cfg));
     for m in &cfg.maps {
         let path = cfg.dir.join(m);

@@ -14,15 +14,15 @@ use serde_json::{json, Value};
 /// The most bytes `describe --brief` may take: it is the first thing every session reads (`tests/ai_tasks.rs` and `preflight` enforce it).
 pub const BRIEF_BUDGET: usize = 2_500;
 /// The most bytes the `describe` overview may take. A new command adds a line: keep its `about` short and put the detail in `docs/AGENT_REFERENCE.md`.
-pub const OVERVIEW_BUDGET: usize = 7_300;
+pub const OVERVIEW_BUDGET: usize = 7_800;
 
 /// Topic names and one-line descriptions for `describe`; a test renders every one.
 pub const TOPICS: &[(&str, &str)] = &[
-    ("brief", "a ~1 KB summary: binaries, workflow, commands, where to look next"),
-    ("overview", "what the engine is + the topics below"),
+    ("brief", "a ~1 KB summary: binaries, workflow, commands"),
+    ("overview", "the engine + these topics"),
     ("commands", "every CLI command and flag (11 KB; one: `search <name>`)"),
     ("objects", "every object `type` with its fields and a working example"),
-    ("scene", "top-level scene keys: meta, camera, lights, zones, prefabs, checks, ..."),
+    ("scene", "top-level scene keys: meta, camera, lights, zones, prefabs, checks"),
     ("lint", "every lint code: what it means and how to fix it"),
     ("physics", "player size/speed/step rules that decide what is walkable (live constants)"),
     ("conventions", "coordinates, origins, facing, naming: what causes silent mistakes"),
@@ -33,9 +33,12 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("ui", "game HUD, objective, start/end cards"),
     ("audio", "measure sound: LUFS, peaks, seam, pitch, spectrogram"),
     ("sim", "scripted headless play-throughs (`sim`) and match traces (`replay`)"),
-    ("multiplayer", "hosting and playing online: keys, lobby, rounds, UPnP, net-test, package"),
-    ("playtest", "see the game without a screen: `playtest`, headless scripts, state dump"),
-    ("custom-client", "a non-first-person game: your own crate on `red_engine2::app`"),
+    ("multiplayer", "hosting and playing online"),
+    ("playtest", "see the game without a screen"),
+    ("custom-client", "a non-first-person game: a crate on `red_engine2::app`"),
+    ("2d", "the 2D game file format"),
+    ("hybrid", "3D parts in a 2D game"),
+    ("capabilities", "what is built: presentation x platform x network x input"),
     ("all", "everything above as one JSON document (--json; 80 KB)"),
 ];
 
@@ -249,11 +252,12 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("portals", "[{id, between:[zoneA,zoneB], center:[x,z], width, height, open}] doorway connectivity between zones (network interest, roadmap)"),
     ("interest", "{cell_size, note} network-interest settings (roadmap; rooms are the cells)"),
     ("vars", "{name: number|bool} game variables rules read and write (`describe rules`); built-ins: time, tick, players"),
+    ("player_vars", "{name: number|bool} per-player variables: every player has their own copy (laps, lives, a personal score); rules read and write them as `me.name` for the player that triggered the rule (`describe rules`)"),
     ("rules", "[{id, when, who, if, once, cooldown, do}] game logic as data: triggers, conditions, actions (`describe rules`)"),
     ("phases", "{name: [rule ids]} named level states for lint/reach/walk/verify: the rules assumed to have fired, so a gate they open is open (`describe rules`)"),
     ("fields", "[{id, zone|object|box, velocity:[x,z], lift, rate}] force volumes on loose props: a river current, a conveyor, a wind tunnel; pulls props inside toward a target speed (SPEC \"Force fields\")"),
     ("weapons", "{starting, ladder: [weapon, ...], bat: {damage}, ammo: \"infinite\" | {loaded, capacity, reserve}}; starting accepts bat or any built-in firearm (pistol machine-pistol smg carbine rifle bullpup marksman shotgun lmg scout); ammo is one supply for every firearm; ladder = Gun Game: you carry ladder[kills] and cannot switch by hand"),
-    ("shooter", "{start: [weapon, ...], friendly_fire, pickups: [{weapon|ammo:true, at:[x,y,z], respawn_secs}]} a loadout shooter (ADR 2026-09-30-killchain-loadout-shooter): every player carries up to 2 guns (own magazine and reserve each), 1 melee weapon and 2 grenades; weapons lie on the map and drop from the dead; 31 weapons in `arsenal`; two teams (spawn groups team1/team2), headshots, rockets, grenades, smoke, fire; absent = the classic single-weapon arena"),
+    ("shooter", "{start: [weapon, ...], friendly_fire, pickups: [{weapon|ammo:true, at:[x,y,z], respawn_secs}], mode: tdm|ffa|ctf|snd, team_size: 1..6, flags: [{team, at}], sites: [{name, at, radius}], objective: {capture_limit, return_secs, win_rounds, swap_after, round_secs, freeze_secs, plant_secs, defuse_secs, fuse_secs}} a loadout shooter (ADR 2026-09-30-killchain-loadout-shooter, modes: ADR 2026-10-07-killchain-game-modes-free-for-all-capture-the-flag): every player carries up to 2 guns (own magazine and reserve each), 1 melee weapon and 2 grenades; weapons lie on the map and drop from the dead; 39 weapons in `arsenal`; teams (spawn groups team1/team2; ffa uses all spawns, group ffa too), headshots, rockets, grenades, smoke, fire; mode = team deathmatch (default), free for all, capture the flag (needs two flags) or search and destroy (needs a site; attackers spawn at team1); team_size 1 is a duel; the host may override mode and team_size; absent = the classic single-weapon arena"),
     ("combat", "{respawn_secs, spawn: round_robin|farthest, spawn_protect_secs, regen_delay_secs, regen_per_sec} how fights are paced: respawn delay, where the dead return, spawn protection, health regeneration"),
     ("bots", "{fill, skill, roster: [{name, character, skill, style}]} AI players: the server fills empty slots up to `fill` players (humans included); skill = rookie|easy|normal|hard|nightmare or 0..1; style = balanced|rusher|sniper|acrobat (`describe bots`)"),
     ("nav", "{nodes: [{id, pos:[x,y,z]}], edges: [[from, to, kind?]]} the waypoint graph bots use to route known-good ways (stairs, jumps, drops); kind = walk (default, both ways) | jump | pad | drop; `red_engine2 nav check` replays every edge with the real movement. It is an aid, not a fence: a bot not on the graph still steers itself around walls and ledges with the real movement code, so it can and will reach areas the graph does not cover. To keep a bot out of a region, block it with level geometry (a locked door, a gap it cannot cross), not by leaving that region off the graph."),
@@ -273,7 +277,7 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("world", "{wrap: {axis: x|z, min, max}, bounds: {x: [lo, hi], z: [lo, hi]}} an endless world: the axis loops every max-min metres (author one period; the seam is invisible), bounds are the invisible edge of the other axes"),
     ("sky", "{sun: {direction:[x,y,z] toward the sun, size_deg, color, glow}, haze, zenith, gradient_power} a sky dome shaded by view direction with a sun at infinity that sets behind the horizon instead of dipping under the ground; without it `background` is a screen-space gradient"),
     ("ocean", "{y, color_deep, color_shallow, foam_color, wave_amplitude, wave_frequency, wave_speed, roughness} an endless animated water plane to the horizon, translucent over a shore (reads the scene's first terrain), fading into the sky haze"),
-    ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views, sim, perf} — see SPEC; `perf` = budgets for tick time, bandwidth, promoted props (`red_engine2 perf`)"),
+    ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views, sim, perf, nav, audio} — see SPEC; every field is typed (a string is never a number) and a group or item that asserts nothing is an error; `perf` = budgets for tick time, bandwidth, promoted props (`red_engine2 perf`)"),
     ("objects", "the scene graph: array of objects (see `describe objects`)"),
     ("x-*, _*, notes, $comment", "the extension namespace: always allowed, never interpreted — put notes and tool data here. ANY OTHER unknown key is an error with a did-you-mean"),
 ];
@@ -421,6 +425,7 @@ pub fn brief_json(commands: &Value) -> Value {
     json!({
         "engine": "Red Engine 2: maps are JSON scenes; you never need to read Rust",
         "binaries": BINARIES.iter().map(|(n, d)| json!({"name": n, "about": d})).collect::<Vec<_>>(),
+        "start": "scripts/dev start \"<task>\": the workflow and ONE next action (builds nothing)",
         "workflow": "recipe/catalog -> add/set/move (validated) -> lint -> plan/tour (look) -> verify",
         "engine_changes": "context <feature|file|words> (5-15 KB work packet) -> edit -> affected --quick (owners, seconds) -> affected (+dependents) -> affected --full (= CI) before pushing",
         "commands": names,
@@ -439,14 +444,16 @@ fn brief_text(commands: &Value) -> String {
     for (n, d) in BINARIES {
         out.push_str(&format!("  {n:<12} {d}\n"));
     }
+    out.push_str(&format!("Start: {}\n", b["start"].as_str().unwrap_or("")));
     out.push_str(&format!("Workflow: {}\n", b["workflow"].as_str().unwrap_or("")));
     out.push_str(&format!("Changing the engine (Rust): {}\n", b["engine_changes"].as_str().unwrap_or("")));
     out.push_str(&format!("Commands: {}\n", list("commands")));
-    out.push_str("Every command takes --json: one stable envelope {schema, command, ok, exit, data, diagnostics, stderr}.\n");
-    out.push_str("Errors are `path: message` with a stable code and a did-you-mean fix (`describe diagnostics`).\n");
+    out.push_str("Every command takes --json: the envelope {schema, command, ok, exit, data, diagnostics, stderr}.\n");
+    out.push_str("Errors: `path: message`, a stable code, a did-you-mean fix (`describe diagnostics`).\n");
     out.push_str(&format!("Topics (describe <topic>): {}\n", list("topics")));
-    out.push_str("Next: search \"<question>\" | catalog <word> | recipe | SPEC.md (scene language) | AGENTS.md (workflow)\n");
-    out.push_str("Not first-person? describe custom-client: your own crate on red_engine2::app; gameplay stays in scene rules\n");
+    out.push_str("Next: search \"<question>\" | catalog <word> | recipe | SPEC.md (scenes) | AGENTS.md\n");
+    out.push_str("Not first-person? describe custom-client (your own crate on red_engine2::app)\n");
+    out.push_str("A 2D game (or 2D with 3D parts)? `describe 2d` is the file format and the loop: validate, verify, play2d\n");
     out
 }
 
@@ -469,7 +476,7 @@ fn audio_text() -> String {
     "All sound is synthesized in code (nothing imported) and builds headless, so it can be measured without a sound card or ears.\n\n\
      red_engine2 audio list                       every built-in sound: name, group, one-shot or loop, length\n\
      red_engine2 audio report [NAME|file.wav ...] one line each (no names = all): length, peak, RMS, LUFS (ITU BS.1770, gated), crest, clipped samples, DC,\n\
-     \x20                                            silence before/after, `end` (last samples, dBFS), loop `seam` (1 = clean), brightness (centroid Hz), strongest\n\
+     \x20                                            silence before/after, `end` (last samples, dBFS), `endjump` (a ONE-SHOT's last frame vs its usual step: ~0 = fades out, 7+ = cut off, a click), loop `seam` (a LOOP's end-to-start jump, 1 = clean; ignore it on one-shots), brightness (centroid Hz), strongest\n\
      \x20                                            pitch (note), flatness (0 tone .. 1 noise), % energy in sub/bass/lowmid/highmid/air, stereo correlation; --json\n\
      red_engine2 audio render NAME out.wav        write the 16-bit WAV (to listen to, or to send someone)\n\
      red_engine2 audio picture NAME|f.wav out.png waveform over a spectrogram (log frequency up, time right): LOOK at it\n\
@@ -535,8 +542,12 @@ fn rules_text() -> String {
         out.push_str(&format!("      {name:<9} {help}\n"));
     }
     out.push_str(
-        "VOLUME = {zone: id [, height]} | {object: top-level id [, pad]} | {box: [x0,y0,z0,x1,y1,z1]}   (pad grows it, metres)\n\
+        "VOLUME = {zone: id [, height]} | {object: top-level id [, pad]} | {box: [x0,y0,z0,x1,y1,z1]}   (pad grows it, metres, 0 or more; height in metres above 0; a bad number is an error with the fix, never a silent 0)\n\
          Expressions: numbers, true/false, variables, + - * / %, < <= > >= == !=, && || !, parentheses. x/0 = 0 (never NaN).\n\
+         Per-player variables: declare `\"player_vars\": {\"laps\": 0}`; every player has their own copy, reset when they join. `me.laps` reads the\n\
+         copy of the player that triggered the rule (enter/exit, or an event a player caused: kill, pickup, or an `emit` from such a rule),\n\
+         and `{\"add\": [\"me.laps\", 1]}` / `set` write it; `me.` in a start/every/after rule is a validate error. Prove it in `sim` with\n\
+         `{\"player_var\": \"laps\", \"of\": \"p1\", \"gte\": 3}`.\n\
          Built-in functions read the loose props (a prop's id, or a zone's, as the argument; a prop that is not loose is a validate error):\n",
     );
     for (_, _, help) in crate::sim::rules_expr::Func::ALL {
@@ -567,7 +578,7 @@ fn rules_text() -> String {
 }
 
 fn multiplayer_text() -> String {
-    String::from(
+    let mut s = String::from(
         "HOST     red_server --map maps/main.json [--port 27015] [--key SECRET|auto] [--lobby] [--upnp] [--record trace.json]\n\
          \x20         [--tls-cert DIR/cert.pem --tls-key DIR/key.pem] [--max-connections 16]      (identity: red_engine2 net-identity --out DIR)\n\
          \x20 TRANSPORT with --tls-cert/--tls-key: QUIC + TLS 1.3, encrypted, the server verified by its printed fingerprint (ADR 0044). Without:\n\
@@ -597,7 +608,14 @@ fn multiplayer_text() -> String {
          SHIP     red_engine2 package out.zip / package --verify out.zip   reproducible zip + SHA-256 manifest; headless binaries proven graphics-free\n\
          LAG      the server rewinds the players a hitscan shot can hit by the shooter's view lag (ADR 0053); `--lag-comp-ms` caps it.\n\
          NOT DONE client certificates, server key rotation, a spectator seat (the playtest's camera is client-side), teams, kick/ban.\n",
-    )
+    );
+    // Local split-screen (`re2 --players N`, 2 to 4 people on one screen, offline only): what a guest cannot do, from the one list the client and the scripts also use.
+    s.push_str("\nSPLIT-SCREEN  re2 MAP --players N (2-4 local players; player 1 keyboard+mouse, the others gamepads; `splitshot` draws it; script step {\"player\": N} plays each). What a guest cannot do:\n");
+    for (topic, what) in crate::splitscreen::GUEST_LIMITS {
+        s.push_str(&format!("  - {topic}: {what}\n"));
+    }
+    s.push_str("  `re2` prints the ones a scene runs into when it starts with --players; a scripted `interact` as a guest fails with this explanation.\n");
+    s
 }
 
 fn playtest_text() -> String {
@@ -648,6 +666,17 @@ fn playtest_text() -> String {
          \x20        body a map's bots wear has an avatar; `lint` reports zones without portals (`interest`) and slabs a jump shoves you under (`jump-clearance`).\n",
     );
     s
+}
+
+/// `describe 2d`: the front door for "make a 2D game" (the file format is `red2d::reference`).
+fn twod_text() -> String {
+    format!(
+        "2D games run natively (a window, `play2d`) and headless (`verify`); the file is one JSON, `NAME.game2d.json`. You never need the 3D renderer, the scene format or any Rust.\n\
+         START: `red_engine2 new-game DIR --kind 2d` (a working, verified starter), or copy one of examples/2d/: coin-dash (top-down arcade), moon-hopper (platformer), tiny-station (mouse-driven management).\n\
+         LOOP:  `validate G` -> `verify G` (native, headless, about a second) -> `play2d G` (a window with sound; progress is kept). Details: docs/PLAY_2D.md.\n\
+         PLAN:  `red_engine2 propose \"<idea>\"` suggests title, presentation, input, persistence, size and cost; the simplest presentation that fits wins (2D unless you need a 3D world).\n\n{}",
+        red2d::reference::REFERENCE
+    )
 }
 
 /// `describe custom-client`: the route for a game that is not the built-in first-person client (ADR 0043).
@@ -819,6 +848,9 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "multiplayer" => json!({"text": multiplayer_text()}),
             "playtest" => json!({"text": playtest_text()}),
             "custom-client" => json!({"text": custom_client_text()}),
+            "2d" => json!({"text": twod_text()}),
+            "hybrid" => json!({"text": red2d::reference::HYBRID}),
+            "capabilities" => json!({"text": red2d::caps::matrix_text()}),
             "diagnostics" => {
                 json!({"envelope_schema": crate::tools::envelope::ENVELOPE_SCHEMA, "codes": crate::tools::envelope::CODES.iter().map(|(c, d, f)| json!({"code": c, "about": d, "fix": f})).collect::<Vec<_>>()})
             }
@@ -846,12 +878,15 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "multiplayer" => out.push_str(&multiplayer_text()),
         "playtest" => out.push_str(&playtest_text()),
         "custom-client" => out.push_str(&custom_client_text()),
+        "2d" => out.push_str(&twod_text()),
+        "hybrid" => out.push_str(red2d::reference::HYBRID),
+        "capabilities" => out.push_str(&red2d::caps::matrix_text()),
         "overview" => {
             let (props, prefabs) = (crate::props::PropKind::ALL.len(), crate::prefabs::builtin().0.defs.len());
-            out.push_str("Red Engine 2: maps are JSON scenes. `re2 <map>` plays one; `red_engine2` validates, analyzes, edits and renders them.\n");
+            out.push_str("Red Engine 2: maps are JSON scenes. `re2 <map>` plays one; `red_engine2` checks, edits and renders them.\n");
             out.push_str("You should never need to read Rust: everything is reachable through these commands.\n\n");
             out.push_str(&format!(
-                "Building blocks: {props} props (Rust-made, real collision) + {prefabs} prefabs (JSON, parametric) + primitives + wall/fence/stairs macros.\n"
+                "Building blocks: {props} props (Rust, real collision) + {prefabs} prefabs (JSON) + primitives + wall/fence/stairs macros.\n"
             ));
             out.push_str(&format!("Known-good starting points: {} recipes (`red_engine2 recipe`).\n\n", crate::tools::recipes::all().len()));
             out.push_str("Workflow:  recipe/catalog -> add/set/move (auto-validated) -> lint -> plan/tour/frame (LOOK) -> verify\n\n");
@@ -861,9 +896,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             for (n, d) in TOPICS {
                 out.push_str(&format!("  {n:<12} {d}\n"));
             }
-            out.push_str(
-                "\nAlso: `red_engine2 search <words>` finds docs/assets/symbols; `red_engine2 src find|show|refs` explores the Rust without reading it.\n",
-            );
+            out.push_str("\nAlso: `search <words>` finds docs/assets/symbols; `src find|show|refs` explores the Rust.\n");
         }
         "commands" => out.push_str(&commands_text(commands, false)),
         "objects" => {
@@ -1030,5 +1063,15 @@ mod tests {
         let cut = first_sentence(long, 60);
         assert!(cut.ends_with("...") && cut.len() <= 63 && long.starts_with(cut.trim_end_matches("...")), "{cut}");
         assert!(!cut.trim_end_matches("...").ends_with(' ') && !cut.contains("unpro"), "cut between words: {cut}");
+    }
+
+    /// The split-screen limits an AI is told are the ones the client and the scripts enforce: `describe multiplayer` prints the shared list, so it cannot drift.
+    #[test]
+    fn describe_multiplayer_states_every_split_screen_limit() {
+        let text = multiplayer_text();
+        for (topic, sentence) in crate::splitscreen::GUEST_LIMITS {
+            assert!(text.contains(&format!("- {topic}: {sentence}")), "describe multiplayer is missing the `{topic}` limit");
+        }
+        assert!(text.contains("SPLIT-SCREEN") && text.contains("--players N"));
     }
 }

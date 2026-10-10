@@ -24,6 +24,24 @@ use std::time::{Duration, Instant};
 
 /// Characters a code is made of: no `0`/`O`, `1`/`I`/`L` — nothing a person could misread aloud or by hand.
 const ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+/// The relay a game uses when `RE2_RELAY` says nothing: the project's own, on the always-on machine, so HOST gives a short code and JOIN takes one with no
+/// setup at all. It only ever forwards ciphertext (see the module docs), so nothing about a match's privacy depends on trusting it.
+pub const DEFAULT_RELAY: &str = "red-engine.duckdns.org:28016";
+
+/// The relay to use: `RE2_RELAY` if set (`off` or `none` turns the relay off, for a player who wants direct connections only), else [`DEFAULT_RELAY`].
+pub fn relay_from_env() -> Option<String> {
+    relay_choice(std::env::var("RE2_RELAY").ok().as_deref())
+}
+
+/// [`relay_from_env`] for a given value of `RE2_RELAY` (`None` = unset), so the rule can be tested without touching the environment.
+pub fn relay_choice(value: Option<&str>) -> Option<String> {
+    match value.map(str::trim) {
+        Some(v) if v.eq_ignore_ascii_case("off") || v.eq_ignore_ascii_case("none") => None,
+        Some(v) if !v.is_empty() => Some(v.to_string()),
+        _ => Some(DEFAULT_RELAY.to_string()),
+    }
+}
+
 /// How many characters a code has.
 pub const CODE_LEN: usize = 6;
 /// How long an un-refreshed registration lives before its code is freed for reuse.
@@ -78,6 +96,118 @@ pub fn parse_code(text: &str) -> Option<RelayCode> {
     Some(code)
 }
 
+/// How many characters an admission key has when this engine makes one (see [`generate_join_key`]).
+pub const JOIN_KEY_LEN: usize = 12;
+
+/// A fresh admission key for a hosted game: [`JOIN_KEY_LEN`] characters from the same unambiguous alphabet as a code, about 59 random
+/// bits. It is what the game server's join key is (`ServerConfig::join_key`), so it is *never* sent anywhere: a client proves it knows
+/// it inside the encrypted QUIC handshake (`net::auth`). Typable on purpose: the lobby draws codes in capitals, a person reads it
+/// aloud, and a key that only existed in lower-case hex would not survive that. Rejection sampling keeps every character equally likely.
+/// `Err` only if the OS CSPRNG fails.
+pub fn generate_join_key() -> Result<String, String> {
+    let mut key = String::with_capacity(JOIN_KEY_LEN);
+    let limit = 256 - 256 % ALPHABET.len();
+    while key.len() < JOIN_KEY_LEN {
+        let mut raw = [0u8; 32];
+        fill_random(&mut raw)?;
+        for b in raw {
+            if (b as usize) < limit && key.len() < JOIN_KEY_LEN {
+                key.push(ALPHABET[b as usize % ALPHABET.len()] as char);
+            }
+        }
+    }
+    Ok(key)
+}
+
+/// A join key as a short code can carry it: letters and digits only, long enough to be a key and not a word.
+fn is_carriable_key(key: &str) -> bool {
+    (8..=64).contains(&key.len()) && key.bytes().all(|b| b.is_ascii_alphanumeric())
+}
+
+/// Whether `key` has the shape [`generate_join_key`] makes (so a person's capitalisation and grouping dashes do not matter).
+fn is_generated_key_shape(compact: &str) -> bool {
+    compact.len() == JOIN_KEY_LEN && compact.bytes().all(|b| ALPHABET.contains(&b.to_ascii_uppercase()))
+}
+
+/// Everything a friend needs to join a relayed game, as one string a person can read aloud: the six-character rendezvous code **and** the
+/// host's admission key, `H3PQXR-K7Q2-MZ4P-WTXA`. The two halves do different jobs. The code is public-ish: it is what the relay looks up,
+/// so the relay (and anyone who guesses six characters) learns it. The key is secret: it is never sent to the relay, only used inside
+/// the end-to-end handshake with the game server, so a guessed or leaked code alone does not get anyone into the match
+/// (`docs/HOSTING.md`, "Short codes and who may join"). A host that has no join key shares the bare six characters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShortJoin {
+    /// What the relay resolves.
+    pub code: RelayCode,
+    /// The host's admission key, when the host asks for one.
+    pub key: Option<String>,
+}
+
+impl ShortJoin {
+    /// Parses what a person typed or pasted, `None` when it is not shaped like a relay code at all (the caller then tries a long
+    /// `HOST:PORT#...` code). The code is case-insensitive and may have one dash in the middle (`H3P-QXR`); the key follows after a dash or
+    /// a space. A key of the shape this engine makes is case-insensitive and may be grouped with dashes; any other key (a hex key from
+    /// `red_server --key auto`) is taken exactly as written, but must be plain letters and digits.
+    pub fn parse(text: &str) -> Option<ShortJoin> {
+        let (head, rest) = split_code_head(text.trim())?;
+        let code = parse_code(&head)?;
+        let is_separator = |c: char| c == '-' || c.is_whitespace();
+        let tail = rest.trim_start_matches(is_separator);
+        if tail.is_empty() {
+            return Some(ShortJoin { code, key: None });
+        }
+        // `ABCDEF.example.com`, `ABCDEF:27015`: a host name, not a code. Only a key of the exact shape this engine makes may follow the six
+        // characters with nothing between (a code read out and typed without its dashes).
+        if tail.len() == rest.len() && !is_generated_key_shape(tail) {
+            return None;
+        }
+        let compact: String = tail.chars().filter(|c| !is_separator(*c)).collect();
+        let key = if is_generated_key_shape(&compact) { compact.to_ascii_uppercase() } else { tail.trim_end().to_string() };
+        is_carriable_key(&key).then_some(ShortJoin { code, key: Some(key) })
+    }
+
+    /// The code as it is shown to a friend: `H3PQXR`, or `H3PQXR-K7Q2-MZ4P-WTXA` with a key of the generated shape (grouped in fours so it can
+    /// be read out), or `H3PQXR-<key>` for any other key.
+    pub fn format(&self) -> String {
+        let mut s = code_to_string(&self.code);
+        if let Some(k) = &self.key {
+            s.push('-');
+            if is_generated_key_shape(k) && k.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit()) {
+                let groups: Vec<&str> = (0..k.len()).step_by(4).map(|i| &k[i..(i + 4).min(k.len())]).collect();
+                s.push_str(&groups.join("-"));
+            } else {
+                s.push_str(k);
+            }
+        }
+        s
+    }
+
+    /// Whether `key` can travel in a short code at all (a key with punctuation cannot; the host then has to tell friends the key another way).
+    pub fn can_carry(key: &str) -> bool {
+        is_carriable_key(key)
+    }
+}
+
+/// The first six code characters of `t` (one dash allowed after the third) and the rest of the text.
+fn split_code_head(t: &str) -> Option<(String, &str)> {
+    let mut head = String::new();
+    let mut end = 0;
+    for (i, c) in t.char_indices() {
+        if head.len() == CODE_LEN {
+            break;
+        }
+        if c == '-' && head.len() == 3 {
+            end = i + 1;
+            continue;
+        }
+        if !c.is_ascii_alphanumeric() {
+            return None;
+        }
+        head.push(c);
+        end = i + c.len_utf8();
+    }
+    (head.len() == CODE_LEN).then(|| (head, &t[end..]))
+}
+
 /// One control-protocol message. Only ever sent by an address not already part of a paired forwarding session
 /// (`red_relay`'s main loop never re-parses a paired address's traffic as control messages, so there is no
 /// ambiguity with the QUIC bytes a paired session actually forwards).
@@ -104,6 +234,10 @@ pub enum RelayMessage {
     /// socket about to carry real traffic, before any of it. Replaces address-based guessing entirely — see
     /// [`ClaimToken`].
     Claim { token: ClaimToken },
+    /// "I am leaving": sent by a host that is shutting down, from the address it registered with, so its code stops resolving at
+    /// once instead of lingering until the lease runs out (a friend would otherwise be handed a code that leads to nobody). Only the
+    /// registered address can drop its own registration. A relay that predates this message ignores it, and the lease still applies.
+    Unregister,
 }
 
 const TAG_REGISTER: u8 = 1;
@@ -112,6 +246,7 @@ const TAG_RESOLVE: u8 = 3;
 const TAG_RESOLVED: u8 = 4;
 const TAG_CODE_NOT_FOUND: u8 = 5;
 const TAG_CLAIM: u8 = 6;
+const TAG_UNREGISTER: u8 = 7;
 
 /// A fingerprint string is short (`sha256:` + 64 hex = 71 bytes) but this is still a generous ceiling, not the
 /// exact length, so a future identity format does not need a wire change.
@@ -160,6 +295,7 @@ impl RelayMessage {
             }
             RelayMessage::CodeNotFound => vec![TAG_CODE_NOT_FOUND],
             RelayMessage::Claim { token } => [&[TAG_CLAIM][..], token].concat(),
+            RelayMessage::Unregister => vec![TAG_UNREGISTER],
         }
     }
 
@@ -181,6 +317,7 @@ impl RelayMessage {
             }
             TAG_CODE_NOT_FOUND if rest.is_empty() => Some(RelayMessage::CodeNotFound),
             TAG_CLAIM if rest.len() == 8 => Some(RelayMessage::Claim { token: rest.try_into().ok()? }),
+            TAG_UNREGISTER if rest.is_empty() => Some(RelayMessage::Unregister),
             _ => None,
         }
     }
@@ -247,17 +384,22 @@ impl RelayTable {
     }
 
     /// Drops `host`'s registration outright (it told us it is leaving, or its forwarding socket died).
-    pub fn unregister(&mut self, host: SocketAddr) {
-        if let Some(code) = self.by_host.remove(&host) {
-            self.by_code.remove(&code);
+    pub fn unregister(&mut self, host: SocketAddr) -> bool {
+        match self.by_host.remove(&host) {
+            Some(code) => self.by_code.remove(&code).is_some(),
+            None => false,
         }
     }
 
     /// Forgets every registration whose lease has not been refreshed within [`REGISTRATION_TIMEOUT`], returning
     /// the hosts dropped so `red_relay` can also tear down any live per-client forwarding sockets for them.
     pub fn expire(&mut self, now: Instant) -> Vec<SocketAddr> {
-        let stale: Vec<RelayCode> =
-            self.by_code.iter().filter(|(_, r)| now.saturating_duration_since(r.created) > REGISTRATION_TIMEOUT).map(|(c, _)| *c).collect();
+        self.expire_after(now, REGISTRATION_TIMEOUT)
+    }
+
+    /// [`expire`](Self::expire) with a lease other than the default (a relay's own setting; tests that must not wait five minutes).
+    pub fn expire_after(&mut self, now: Instant, lease: Duration) -> Vec<SocketAddr> {
+        let stale: Vec<RelayCode> = self.by_code.iter().filter(|(_, r)| now.saturating_duration_since(r.created) > lease).map(|(c, _)| *c).collect();
         stale
             .into_iter()
             .filter_map(|code| {
@@ -281,6 +423,16 @@ impl RelayTable {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_project_relay_is_the_default_and_can_be_replaced_or_switched_off() {
+        assert_eq!(relay_choice(None).as_deref(), Some(DEFAULT_RELAY));
+        assert_eq!(relay_choice(Some("  ")).as_deref(), Some(DEFAULT_RELAY));
+        assert_eq!(relay_choice(Some("my.relay.example:9000")).as_deref(), Some("my.relay.example:9000"));
+        assert_eq!(relay_choice(Some("OFF")), None);
+        assert_eq!(relay_choice(Some("none")), None);
+        assert!(DEFAULT_RELAY.contains(':'), "a host and a port");
+    }
+
     use super::*;
 
     fn addr(port: u16) -> SocketAddr {
@@ -321,6 +473,7 @@ mod tests {
             RelayMessage::Resolved { fingerprint: fp, token },
             RelayMessage::CodeNotFound,
             RelayMessage::Claim { token },
+            RelayMessage::Unregister,
         ] {
             assert_eq!(RelayMessage::decode(&m.encode()), Some(m));
         }
@@ -328,7 +481,65 @@ mod tests {
         assert_eq!(RelayMessage::decode(&[TAG_REGISTER, 9]), None, "a fingerprint length byte of 9 with no bytes following");
         assert_eq!(RelayMessage::decode(&[TAG_RESOLVE, 1, 2, 3]), None, "Resolve's code is the wrong length");
         assert_eq!(RelayMessage::decode(&[TAG_CLAIM, 1, 2, 3]), None, "Claim's token is the wrong length");
+        assert_eq!(RelayMessage::decode(&[TAG_UNREGISTER, 1]), None, "Unregister carries nothing");
         assert_eq!(RelayMessage::decode(&[200]), None, "not a known tag");
+    }
+
+    #[test]
+    fn join_keys_are_typable_random_and_the_right_length() {
+        let (a, b) = (generate_join_key().unwrap(), generate_join_key().unwrap());
+        assert_eq!(a.len(), JOIN_KEY_LEN);
+        assert!(a.bytes().all(|c| ALPHABET.contains(&c)), "{a}: only letters a person cannot misread");
+        assert_ne!(a, b);
+        // Every character of the alphabet shows up in a big sample (no character is unreachable).
+        let seen: std::collections::HashSet<u8> = (0..200).flat_map(|_| generate_join_key().unwrap().into_bytes()).collect();
+        assert_eq!(seen.len(), ALPHABET.len());
+    }
+
+    #[test]
+    fn a_short_join_code_carries_the_key_and_survives_how_people_type_it() {
+        let code = generate_code().unwrap();
+        let key = generate_join_key().unwrap();
+        let sj = ShortJoin { code, key: Some(key.clone()) };
+        let shown = sj.format();
+        assert_eq!(shown.len(), CODE_LEN + 1 + JOIN_KEY_LEN + 2, "CODE-XXXX-XXXX-XXXX: {shown}");
+        assert_eq!(ShortJoin::parse(&shown), Some(sj.clone()));
+        // Lower case, spaces for dashes, no grouping at all, surrounding whitespace, a dash in the middle of the code.
+        assert_eq!(ShortJoin::parse(&shown.to_ascii_lowercase()), Some(sj.clone()));
+        assert_eq!(ShortJoin::parse(&shown.replace('-', " ")), Some(sj.clone()));
+        assert_eq!(ShortJoin::parse(&format!("  {}-{}  ", code_to_string(&code), key)), Some(sj.clone()));
+        let text = code_to_string(&code);
+        assert_eq!(ShortJoin::parse(&format!("{}-{}-{}", &text[..3], &text[3..], key)), Some(sj.clone()));
+        assert_eq!(ShortJoin::parse(&format!("{text}{key}")), Some(sj), "typed with no dashes at all");
+        // The bare code is a code with no key.
+        assert_eq!(ShortJoin::parse(&text), Some(ShortJoin { code, key: None }));
+        assert_eq!(ShortJoin { code, key: None }.format(), text);
+    }
+
+    #[test]
+    fn a_key_that_is_not_ours_travels_exactly_as_written_or_not_at_all() {
+        let code = generate_code().unwrap();
+        let text = code_to_string(&code);
+        // `red_server --key auto` makes 32 lower-case hex digits: kept literally, case and all.
+        let hex = "9f86d081884c7d659a2feaa0c55ad015";
+        let sj = ShortJoin { code, key: Some(hex.to_string()) };
+        assert_eq!(sj.format(), format!("{text}-{hex}"));
+        assert_eq!(ShortJoin::parse(&sj.format()), Some(sj));
+        // Punctuation cannot be carried, and neither can a key too short to be one.
+        assert!(!ShortJoin::can_carry("hunter-2!"));
+        assert!(!ShortJoin::can_carry("short"));
+        assert!(ShortJoin::can_carry(hex));
+        assert_eq!(ShortJoin::parse(&format!("{text}-pass phrase with spaces")), None);
+        assert_eq!(ShortJoin::parse(&format!("{text}-short")), None);
+    }
+
+    #[test]
+    fn host_names_and_long_codes_are_not_short_codes() {
+        for not_a_code in ["ABCDEF.example.com", "ABCDEF:27015", "203.0.113.9:27015", "example.com", "ABCDEFG", "ABC", "ABCDEO", "", "  "] {
+            assert_eq!(ShortJoin::parse(not_a_code), None, "{not_a_code:?}");
+        }
+        let long = format!("203.0.113.9:27015#sha256:{}#KEY", "ab".repeat(32));
+        assert_eq!(ShortJoin::parse(&long), None);
     }
 
     #[test]
@@ -377,11 +588,22 @@ mod tests {
     }
 
     #[test]
+    fn a_shorter_lease_expires_sooner_and_unregister_reports_whether_it_dropped_anything() {
+        let mut t = RelayTable::new();
+        let now = Instant::now();
+        let code = t.register(addr(1), None, now, usize::MAX).unwrap();
+        assert!(t.expire_after(now + Duration::from_secs(1), Duration::from_secs(2)).is_empty(), "inside the lease");
+        assert_eq!(t.expire_after(now + Duration::from_secs(3), Duration::from_secs(2)), vec![addr(1)]);
+        assert_eq!(t.resolve(&code), None);
+        assert!(!t.unregister(addr(1)), "nothing left to drop");
+    }
+
+    #[test]
     fn unregister_removes_a_host_on_request() {
         let mut t = RelayTable::new();
         let now = Instant::now();
         let code = t.register(addr(1), None, now, usize::MAX).unwrap();
-        t.unregister(addr(1));
+        assert!(t.unregister(addr(1)));
         assert_eq!(t.resolve(&code), None);
         assert!(t.is_empty());
     }

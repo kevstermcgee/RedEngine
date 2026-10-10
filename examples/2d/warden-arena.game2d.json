@@ -1,0 +1,101 @@
+{
+  "game2d": 1,
+  "id": "warden-arena",
+  "title": "Warden Arena",
+  "description": "A top-down boss fight: break the four pylons before the 3D Warden catches you. The boss, the HUD portrait and the backdrop are 3D; everything else is pixels.",
+  "capabilities": { "presentation": "hybrid", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["progress"] },
+  "view": { "width": 320, "height": 180, "background": "#10141f", "world": [480, 270], "camera": { "follow": "player", "lerp": 0.12 } },
+
+  "sprites": {
+    "player": { "palette": { "d": "#1e5fa8", "b": "#4aa3ff", "s": "#ffd9b0", "k": "#222222" },
+      "rows": ["..dddd..", ".dddddd.", ".dskksd.", ".dssssd.", "..bbbb..", ".bbbbbb.", ".b.bb.b.", "..d..d.."] }
+  },
+
+  "models": {
+    "warden": { "parts": [
+      { "shape": "box", "size": [2.4, 2.8, 2.4], "color": "#7a2f3a" },
+      { "shape": "sphere", "radius": 0.9, "at": [0, 2.0, 0], "color": "#d9c7a0", "segments": 14 },
+      { "shape": "cone", "radius": 0.3, "height": 1.3, "at": [-0.7, 2.9, 0], "color": "#ffd23f" },
+      { "shape": "cone", "radius": 0.3, "height": 1.3, "at": [0.7, 2.9, 0], "color": "#ffd23f" },
+      { "shape": "box", "size": [0.3, 0.2, 0.2], "at": [-0.35, 2.1, 0.85], "color": "#ff2d2d" },
+      { "shape": "box", "size": [0.3, 0.2, 0.2], "at": [0.35, 2.1, 0.85], "color": "#ff2d2d" },
+      { "shape": "torus", "major": 2.1, "minor": 0.18, "at": [0, 0.2, 0], "rot": [0, 90, 0], "color": "#c9a227" }] },
+    "pylon": { "parts": [
+      { "shape": "cylinder", "radius": 0.6, "height": 1.6, "color": "#2f9ac8" },
+      { "shape": "cone", "radius": 0.5, "height": 0.9, "at": [0, 1.25, 0], "color": "#9fe8ff" }] },
+    "ring": { "parts": [{ "shape": "torus", "major": 3.4, "minor": 0.3, "color": "#1c2744" }] }
+  },
+  "layers3d": [
+    { "layer": -5, "view3d": { "camera": { "eye": [0, 0, 9], "target": [0, 0, 0], "fov": 50 },
+      "items": [{ "model": "ring", "yaw": "time * 12", "pitch": 62 }, { "model": "ring", "at": [0, 0, -2], "scale": 1.6, "yaw": "time * -8", "pitch": 70 }] } }
+  ],
+
+  "sounds": {
+    "break": { "seconds": 0.35, "level": 0.55, "layers": [{ "sine": 660, "decay": 14 }, { "sine": 990, "decay": 16, "delay": 0.05, "gain": 0.7 }, { "noise": "hp 0.3", "decay": 24, "gain": 0.4 }] },
+    "hit": { "seconds": 0.3, "level": 0.6, "layers": [{ "sine": 196, "decay": 12, "attack": 0.004 }, { "sine": 208, "decay": 12, "delay": 0.04, "attack": 0.004, "gain": 0.7 }, { "noise": "hp 0.3", "decay": 16, "gain": 0.7 }] },
+    "win": { "seconds": 0.7, "level": 0.5, "layers": [{ "sine": 523.25, "decay": 5 }, { "sine": 659.25, "decay": 5, "delay": 0.12 }, { "sine": 783.99, "decay": 4, "delay": 0.24 }, { "sine": 1046.5, "decay": 3, "delay": 0.36 }] },
+    "lose": { "seconds": 0.9, "level": 0.5, "layers": [{ "glide": [330, 110, 3], "decay": 4 }, { "glide": [220, 70, 3], "decay": 4, "delay": 0.25 }] }
+  },
+
+  "vars": { "lives": 5, "timeleft": 60, "wins": 0 },
+  "persist": ["wins"],
+
+  "prefabs": {
+    "player": { "tag": "player", "shape": { "sprite": "player", "flip": "auto" }, "size": [8, 8], "layer": 2, "clamp": true, "move": { "keys": { "mode": "topdown", "speed": 90 } } },
+    "warden": { "tag": "boss", "shape": { "model": "warden", "yaw": "time * 40", "elevation": 32, "fit": [52, 52] }, "layer": 3, "clamp": true, "move": { "chase": { "target": "player", "speed": 24 } } },
+    "pylon": { "tag": "pylon", "shape": { "model": "pylon", "yaw": "time * 90", "elevation": 30, "fit": [22, 26] }, "layer": 1 },
+    "orb": { "tag": "orb", "shape": { "circle": 6, "color": "#ff7a3d" }, "layer": 2, "ttl": 3.5 }
+  },
+
+  "scene": [
+    { "prefab": "player", "at": [240, 200], "id": "p" },
+    { "prefab": "warden", "at": [240, 70], "id": "boss" },
+    { "prefab": "pylon", "at": [70, 60] }, { "prefab": "pylon", "at": [410, 60] },
+    { "prefab": "pylon", "at": [70, 215] }, { "prefab": "pylon", "at": [410, 215] }
+  ],
+
+  "ui": [
+    { "panel": { "at": [0, 0], "size": [320, 16], "color": "#10141fdd" } },
+    { "text": "PYLONS {count_pylon}/4", "at": [6, 4], "color": "#9fe8ff" },
+    { "text": "TIME {timeleft:2}", "at": [100, 4], "color": "#ffffff" },
+    { "text": "WINS {wins}", "at": [160, 4], "color": "#9fb3d9" },
+    { "bar": { "var": "lives", "max": 5, "at": [214, 4], "size": [64, 8], "color": "#ff4d6d", "back": "#3a2230" } },
+    { "view3d": { "at": [286, 17], "size": [32, 32], "background": "#10141fcc", "camera": { "eye": [0, 2, 8], "target": [0, 1.5, 0], "fov": 40 },
+      "items": [{ "model": "warden", "yaw": "time * 40", "pitch": 15 }] } },
+    { "minimap": { "at": [4, 140], "size": [72, 40], "colors": { "player": "#ffffff", "boss": "#ff4d6d", "pylon": "#6fe3ff" }, "dot": 3, "viewport": true } },
+    { "panel": { "at": [60, 56], "size": [200, 64], "color": "#10141fee" }, "show": "ended" },
+    { "text": "WARDEN DOWN!", "at": [160, 66], "scale": 2, "align": "center", "color": "#8cff9b", "show": "ended == 1" },
+    { "text": "OVERRUN", "at": [160, 66], "scale": 2, "align": "center", "color": "#ff7a8c", "show": "ended == 2" },
+    { "button": { "id": "restart", "label": "AGAIN (ENTER)", "at": [100, 96], "size": [120, 14], "key": "Enter", "do": [{ "restart": true }] }, "show": "ended" }
+  ],
+
+  "rules": [
+    { "id": "break pylon", "when": { "touch": ["player", "pylon"] }, "do": [
+      { "play": "break" }, { "shake": 3 }, { "burst": { "at": "other", "n": 18, "color": "#9fe8ff", "speed": [30, 80], "life": [0.2, 0.5] } }, { "destroy": "other" }] },
+    { "id": "warden catches you", "when": { "touch": ["player", "boss"] }, "do": [
+      { "add": ["lives", -1] }, { "play": "hit" }, { "shake": 5 }, { "teleport": { "target": "other", "to": [240, 40] } }, { "emit": "hurt" }] },
+    { "id": "orb hits you", "when": { "touch": ["player", "orb"] }, "do": [
+      { "add": ["lives", -1] }, { "play": "hit" }, { "shake": 3 }, { "destroy": "other" }, { "emit": "hurt" }] },
+    { "id": "volley", "when": { "every": 2.4 }, "do": [
+      { "spawn": { "prefab": "orb", "at": ["boss_x", "boss_y"], "vel": [55, 0] } }, { "spawn": { "prefab": "orb", "at": ["boss_x", "boss_y"], "vel": [-55, 0] } },
+      { "spawn": { "prefab": "orb", "at": ["boss_x", "boss_y"], "vel": [0, 55] } }, { "spawn": { "prefab": "orb", "at": ["boss_x", "boss_y"], "vel": [0, -55] } }] },
+    { "id": "out of lives", "when": { "event": "hurt" }, "if": "lives <= 0", "do": [{ "end": "lose" }] },
+    { "id": "all pylons broken", "when": { "every": 0.05 }, "if": "count_pylon <= 0", "do": [{ "end": "win" }] },
+    { "id": "clock", "when": { "every": 1 }, "do": [{ "add": ["timeleft", -1] }] },
+    { "id": "time up", "when": { "every": 0.05 }, "if": "timeleft <= 0", "do": [{ "end": "lose" }] },
+    { "id": "count the win", "when": { "end": "win" }, "do": [{ "add": ["wins", 1] }, { "play": "win" }] },
+    { "id": "lose jingle", "when": { "end": "lose" }, "do": [{ "play": "lose" }] },
+    { "id": "again", "when": { "press": "action" }, "if": "ended", "do": [{ "restart": true }] }
+  ],
+
+  "checks": {
+    "scenarios": [
+      { "name": "a bot breaks the four pylons and topples the Warden", "seed": 1, "max_seconds": 60,
+        "script": [{ "approach": "pylon", "seconds": 45 }],
+        "expect": [{ "ended": "win" }, { "count": "pylon", "eq": 0 }, { "sound": "break", "min": 4 }, { "var": "wins", "gte": 1 }], "smoke": true },
+      { "name": "standing still loses to the Warden or the clock", "seed": 2, "max_seconds": 70,
+        "script": [{ "wait_until": { "ended": "lose" }, "timeout": 65 }],
+        "expect": [{ "ended": "lose" }, { "count": "pylon", "eq": 4 }, { "sound": "lose" }] }
+    ]
+  }
+}

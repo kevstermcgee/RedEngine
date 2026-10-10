@@ -248,7 +248,7 @@ impl MatchSim {
         p.combat.cooldown.tick();
         p.combat.switch.tick();
         if let Some(t) = p.combat.dead_until {
-            if now >= t {
+            if now >= t && !self.respawn_blocked() {
                 self.respawn(slot);
             }
             return;
@@ -283,7 +283,14 @@ impl MatchSim {
     /// (`group` "team1" / "team2"), when the map has any.
     pub(super) fn pick_spawn_team(&mut self, slot: usize, team: u8) -> Spawn {
         if team != 0 {
-            let group = format!("team{team}");
+            // Search and destroy: the attackers always start on the "team1" side and the defenders on "team2", so swapping sides
+            // swaps who starts near the sites.
+            let side = match self.arena.as_ref().and_then(|a| a.snd.as_ref()) {
+                Some(s) if s.attackers == team => 1,
+                Some(_) => 2,
+                None => team,
+            };
+            let group = format!("team{side}");
             let mine: Vec<usize> = (0..self.spawns.len()).filter(|i| self.spawns[*i].group == group).collect();
             if !mine.is_empty() {
                 let start = self.next_spawn % mine.len();
@@ -353,7 +360,7 @@ impl MatchSim {
         self.spawns[best.1].clone()
     }
 
-    fn respawn(&mut self, slot: usize) {
+    pub(super) fn respawn(&mut self, slot: usize) {
         let s = self.pick_spawn(slot);
         let (cfg, protect, now) = (self.weapons, self.combat_cfg.protect_ticks, self.tick);
         let Some(p) = self.players[slot].as_mut() else { return };

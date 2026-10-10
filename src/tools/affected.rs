@@ -167,7 +167,7 @@ pub struct StampKey {
 }
 
 /// Bump when the planner's steps change in a way that an old green result should not vouch for.
-const PLANNER_REV: &str = "3";
+const PLANNER_REV: &str = "4";
 
 /// One command of a plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -214,6 +214,98 @@ pub struct Plan {
     pub features: Features,
     /// Why full verification is still required after this plan (a partial plan only; empty for every other scope): never empty for `Scope::Partial`.
     pub full_required: Vec<String>,
+}
+
+/// Engine files the 2D crate (`crates/red2d`) includes by path: changing one changes that crate too, so its tests and lints run.
+const RED2D_SHARED: &[&str] = &[
+    "src/fields.rs",
+    "src/suggest.rs",
+    "src/sim/rules_expr.rs",
+    "src/synth.rs",
+    "src/dsp.rs",
+    "src/audio_analysis.rs",
+    "src/voice_spec.rs",
+    "src/audio_fx.rs",
+    "src/score.rs",
+];
+
+/// Whether a change reaches the 2D crate: a file in it, or an engine file it includes.
+pub fn touches_red2d(changed: &[String]) -> bool {
+    changed.iter().any(|c| c.starts_with("crates/red2d/") || RED2D_SHARED.contains(&c.as_str()))
+}
+
+/// The steps the 2D crate adds. Cargo's package selection is by `-p`, so none of the engine-crate steps above covers it.
+fn red2d_steps(changed: &[String], tests: bool) -> Vec<Step> {
+    if !touches_red2d(changed) {
+        return Vec::new();
+    }
+    let mut v = vec![Step::new(
+        "red2d-clippy",
+        &["cargo", "clippy", "--locked", "-p", "red2d", "--all-targets", "--", "-D", "warnings"],
+        "the 2D crate (crates/red2d) or a file it includes changed",
+    )];
+    if tests {
+        v.push(Step::new("red2d", &["cargo", "test", "--locked", "-p", "red2d"], "unit tests of the 2D crate: parser, simulation, renderer, sound, host"));
+    }
+    v
+}
+
+/// Engine code the Killchain game (`games/killchain`, a separate crate on the public API) is written against: the protocol and sessions it speaks, the shooter simulation it
+/// renders, the 2-D UI kit and the renderer. A change here can break the game without touching a file of it, so the game's lints and tests run too.
+const KILLCHAIN_ENGINE_DIRS: &[&str] = &["src/net/", "src/sim/", "src/ui/"];
+const KILLCHAIN_ENGINE_FILES: &[&str] = &[
+    "src/viewer.rs",
+    "src/player.rs",
+    "src/schema.rs",
+    "src/sfx.rs",
+    "src/audio.rs",
+    "src/arsenal.rs",
+    "src/firearms.rs",
+    "src/weapons.rs",
+    "src/killcam.rs",
+    "src/uniforms.rs",
+    "src/streaks.rs",
+    "src/shooter_world.rs",
+    "src/objective_world.rs",
+    "src/scene_pool.rs",
+    "src/controller.rs",
+    "src/clipboard.rs",
+    "src/capture.rs",
+    "src/gpu.rs",
+    "src/feel.rs",
+    "src/hit.rs",
+    "src/avatar.rs",
+    "Cargo.toml",
+    "Cargo.lock",
+];
+
+/// Whether a change reaches the Killchain game: a file in it, or engine code it is built on.
+pub fn touches_killchain(changed: &[String]) -> bool {
+    changed
+        .iter()
+        .any(|c| c.starts_with("games/killchain/") || KILLCHAIN_ENGINE_DIRS.iter().any(|d| c.starts_with(d)) || KILLCHAIN_ENGINE_FILES.contains(&c.as_str()))
+}
+
+/// The steps the game adds (`-p killchain`: the engine-crate steps do not cover another package).
+///
+/// `engine_api` is false in a partial (`iterate`) plan: the edit loop stays focused on the files you changed, so an engine edit does not also lint the game (`affected` does, before "done").
+fn killchain_steps(changed: &[String], tests: bool, engine_api: bool) -> Vec<Step> {
+    if !(touches_killchain(changed) && (engine_api || changed.iter().any(|c| c.starts_with("games/killchain/")))) {
+        return Vec::new();
+    }
+    let mut v = vec![Step::new(
+        "killchain-clippy",
+        &["cargo", "clippy", "--locked", "-p", "killchain", "--all-targets", "--", "-D", "warnings"],
+        "the Killchain game (games/killchain) or the engine API it is built on changed",
+    )];
+    if tests {
+        v.push(Step::new(
+            "killchain",
+            &["cargo", "test", "--locked", "-p", "killchain"],
+            "unit tests of the Killchain game: screens, objective HUD text, statistics",
+        ));
+    }
+    v
 }
 
 /// Paths that never need verification (generated output, logs, the handoff file).
@@ -529,6 +621,8 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
             why: format!("real-time network suites, one test at a time: {}", list.join(", ")),
         });
     }
+    plan.steps.extend(red2d_steps(&changed, true));
+    plan.steps.extend(killchain_steps(&changed, !opts.check_only, true));
     plan.deferred = deferred.into_iter().collect();
     plan.suggest.sort();
     plan.suggest.dedup();
@@ -628,6 +722,10 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
     let mut targets: BTreeSet<Target> = BTreeSet::new();
     let mut lib_filters: BTreeSet<String> = BTreeSet::new();
     for c in &changed {
+        // A deleted test or module has nothing left to compile or run (its owners are still found through `impact` above).
+        if !std::path::Path::new(c).exists() {
+            continue;
+        }
         if let Some(t) = target_of(c) {
             targets.insert(t);
         }
@@ -693,6 +791,8 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
             plan.steps.push(Step { name: name.into(), argv, env, why: "a changed test file runs itself".into() });
         }
     }
+    plan.steps.extend(red2d_steps(&changed, !opts.check_only));
+    plan.steps.extend(killchain_steps(&changed, !opts.check_only, false));
     if opts.check_only {
         plan.notes.push("--check-only: formatting and type-check only, no tests".into());
     }
@@ -979,6 +1079,53 @@ pub fn record_green(root: &Path, changed: &[String], scope: Scope) {
     record_green_in(root, changed, scope, &StampKey::default());
 }
 
+/// One area of verification an agent might wonder about, and whether this plan needs it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Need {
+    /// `network`, `packaging`.
+    pub area: &'static str,
+    /// Whether the plan includes checks for it (or its files changed).
+    pub required: bool,
+    /// Why it is, or is not, needed.
+    pub why: String,
+}
+
+/// What this plan does and does not cover, said out loud: an agent that sees only a list of commands has to guess whether networking or packaging were considered.
+/// Derived from the plan's own steps and changed files, so it cannot disagree with them.
+pub fn needs(p: &Plan) -> Vec<Need> {
+    let step_has = |needle: &str| p.steps.iter().any(|s| s.name == needle || s.command_line().contains(needle));
+    let changed_in = |prefixes: &[&str]| p.changed.iter().any(|c| prefixes.iter().any(|x| c.starts_with(x)));
+    let full = p.scope == Scope::Full;
+    let one = |area: &'static str, required: bool, yes: &str, no: &str| Need {
+        area,
+        required: required || full,
+        why: if required || full { yes.to_string() } else { no.to_string() },
+    };
+    vec![
+        one(
+            "network",
+            changed_in(&["src/net/", "src/sim/match_sim.rs"]) || step_has("--test net_"),
+            "a networking file changed or a net_* suite is in the plan",
+            "no networking file changed and no net_* suite is in the plan",
+        ),
+        one(
+            "packaging",
+            changed_in(&["src/tools/package.rs", "src/tools/gamepublish.rs", "scripts/release", "deploy/"]),
+            "packaging or publishing code changed",
+            "no packaging or publishing file changed",
+        ),
+    ]
+}
+
+/// The one command to run before pushing, by scope: a partial or closure plan is not the shipping loop.
+pub fn before_merge(p: &Plan) -> &'static str {
+    if p.scope == Scope::Full {
+        "this plan already is the full CI run"
+    } else {
+        "scripts/dev affected --full (= scripts/ci.sh), or hosted CI: a focused plan is for iterating, not for shipping"
+    }
+}
+
 /// The plan as text: what changed, the scope, each step with its reason, what was deferred.
 pub fn render_plan(p: &Plan) -> String {
     let mut s = format!("{} changed file(s), scope {}", p.changed.len(), p.scope.name());
@@ -1005,6 +1152,11 @@ pub fn render_plan(p: &Plan) -> String {
     for r in &p.full_required {
         s.push_str(&format!("full verification still required: {r}\n"));
     }
+    let skipped: Vec<String> = needs(p).into_iter().filter(|n| !n.required).map(|n| format!("{} ({})", n.area, n.why)).collect();
+    if !skipped.is_empty() {
+        s.push_str(&format!("not needed yet: {}\n", skipped.join("; ")));
+    }
+    s.push_str(&format!("before pushing: {}\n", before_merge(p)));
     if !p.suggest.is_empty() {
         s.push_str("worth a look (not run):\n");
         for c in &p.suggest {
@@ -1027,6 +1179,8 @@ pub fn plan_json(p: &Plan) -> serde_json::Value {
         "partial": p.scope == Scope::Partial,
         "features": p.features.name(),
         "full_verification_required": p.full_required,
+        "needs": needs(p).iter().map(|n| (n.area.to_string(), serde_json::json!({"required": n.required, "why": n.why}))).collect::<serde_json::Map<_, _>>(),
+        "before_merge": before_merge(p),
     })
 }
 
@@ -1114,6 +1268,59 @@ mod tests {
         assert_eq!(names(&p), ["fmt", "clippy", "bin", "suites"]);
         assert_eq!(step(&p, "clippy").argv.join(" "), "cargo clippy --locked --bin red_engine2 -- -D warnings");
         assert_eq!(step(&p, "bin").argv.join(" "), "cargo test --locked --bin red_engine2");
+    }
+
+    #[test]
+    fn a_change_to_the_2d_crate_or_a_file_it_includes_plans_the_crates_own_checks() {
+        for f in ["crates/red2d/src/sim.rs", "src/sim/rules_expr.rs", "src/synth.rs"] {
+            assert!(touches_red2d(&[f.to_string()]), "{f}");
+        }
+        assert!(!touches_red2d(&["src/tools/lint.rs".to_string(), "src/net/mod.rs".to_string()]));
+        let p = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options::default());
+        assert_eq!(step(&p, "red2d").argv.join(" "), "cargo test --locked -p red2d");
+        assert!(step(&p, "red2d-clippy").argv.join(" ").contains("-p red2d --all-targets"));
+        let quick = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options { quick: true, ..Options::default() });
+        assert!(quick.steps.iter().any(|s| s.name == "red2d"), "{:?}", names(&quick));
+        let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
+        assert!(none.steps.iter().all(|s| !s.name.starts_with("red2d")), "{:?}", names(&none));
+    }
+
+    #[test]
+    fn a_change_to_the_killchain_game_or_the_engine_api_it_uses_plans_the_games_own_checks() {
+        for f in ["games/killchain/src/ui.rs", "src/net/protocol.rs", "src/sim/kit.rs", "src/viewer.rs", "src/ui/online.rs"] {
+            assert!(touches_killchain(&[f.to_string()]), "{f}");
+        }
+        assert!(!touches_killchain(&["src/tools/lint.rs".to_string(), "crates/red2d/src/sim.rs".to_string(), "README.md".to_string()]));
+        let p = plan(&world(), &serial(), &["games/killchain/src/ui.rs".to_string()], &Options::default());
+        assert_eq!(step(&p, "killchain").argv.join(" "), "cargo test --locked -p killchain");
+        assert!(step(&p, "killchain-clippy").argv.join(" ").contains("-p killchain --all-targets"));
+        let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
+        assert!(none.steps.iter().all(|s| !s.name.starts_with("killchain")), "{:?}", names(&none));
+        let check_only = plan(&world(), &serial(), &["games/killchain/src/ui.rs".to_string()], &Options { check_only: true, ..Options::default() });
+        assert!(
+            check_only.steps.iter().any(|s| s.name == "killchain-clippy") && check_only.steps.iter().all(|s| s.name != "killchain"),
+            "{:?}",
+            names(&check_only)
+        );
+    }
+
+    #[test]
+    fn a_plan_says_what_it_does_not_need_and_what_to_run_before_pushing() {
+        let none = plan(&world(), &serial(), &["src/b.rs".to_string()], &Options::default());
+        let n = needs(&none);
+        assert!(n.iter().all(|x| !x.required), "a leaf engine file needs neither network nor packaging checks: {n:?}");
+        let text = render_plan(&none);
+        assert!(text.contains("not needed yet: network (") && text.contains("packaging ("), "{text}");
+        assert!(text.contains("before pushing: scripts/dev affected --full"), "{text}");
+        let j = plan_json(&none);
+        assert_eq!(j["needs"]["network"]["required"], false);
+        // A networking file does need network checks,
+        let net = plan(&world(), &serial(), &["src/net/interp.rs".to_string()], &Options::default());
+        assert!(needs(&net).iter().any(|x| x.area == "network" && x.required), "{:?}", needs(&net));
+        assert!(!render_plan(&net).contains("network ("), "a required area is not listed as skipped");
+        // The full tier covers everything by definition.
+        let full = plan(&world(), &serial(), &["Cargo.toml".to_string()], &Options::default());
+        assert!(needs(&full).iter().all(|x| x.required) && before_merge(&full).contains("already is the full"));
     }
 
     #[test]

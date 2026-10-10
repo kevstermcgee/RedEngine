@@ -1,0 +1,682 @@
+{
+  "game2d": 1,
+  "id": "tiny-station",
+  "title": "Tiny Station",
+  "description": "Run a small space station for ten days: keep power, air and food up, grow the crew and survive the meteors.",
+  "capabilities": {
+    "presentation": "2d",
+    "platforms": ["windows", "linux"],
+    "networking": "offline",
+    "input": ["keyboard", "mouse"],
+    "persistence": ["settings", "progress"]
+  },
+  "view": {"width": 480, "height": 270, "background": "#070b1a", "scale": "fit"},
+  "sprites": {
+    "solar": {
+      "palette": {"g": "#8a97b5", "b": "#1f4fa8", "l": "#7fb2ff", "y": "#ffd166"},
+      "rows": [
+        "................", "................", "................", ".gggggggggggggg.", ".glbblbblbblbbg.",
+        ".glbblbblbblybg.", ".gllllllllllllg.", ".glbblbblbblbbg.", ".glbblbblbblbbg.", ".gllllllllllllg.",
+        ".glyblbblbblbbg.", ".glbblbblbblbbg.", ".gggggggggggggg.", ".......gg.......", "....gggggggg....",
+        "....gggggggg...."
+      ]
+    },
+    "oxygenator": {
+      "palette": {"g": "#8a97b5", "c": "#5cf2ff", "d": "#2a8fb0", "w": "#ffffff"},
+      "rows": [
+        "......gggg......", "......gggg......", "....gggggggg....", "....gwwccddg....", "....gwwccddg....",
+        "....gwwccddg....", "....gddddddg....", "....gwwccddg....", "....gwwccddg....", "....gddddddg....",
+        "....gwwccddg....", "....gwwccddg....", "....gwwccddg....", "....gwwccddg....", "...gggggggggg...",
+        "...gggggggggg..."
+      ]
+    },
+    "hydroponics": {
+      "palette": {"b": "#8a97b5", "s": "#6b4a3a", "g": "#4cc38a", "d": "#2b7a56", "y": "#ffd166"},
+      "rows": [
+        "................", "................", "................", "................", "...y...y...y....",
+        "..ggg.ggg.ggg...", "..ggg.ggg.ggg...", "..ggg.ggg.ggg...", ".g.d.g.d.g.d.g..", "...d...d...d....",
+        "...d...d...d....", ".bbdbbbdbbbdbbb.", ".bssssssssssssb.", ".bssssssssssssb.", ".bbbbbbbbbbbbbb.",
+        "................"
+      ]
+    },
+    "quarters": {
+      "palette": {"d": "#9a8a66", "t": "#d9c9a3", "w": "#ffe9a3", "k": "#3b3326"},
+      "rows": [
+        "................", "................", "................", "kkkkkkkkkkkkkkkk", ".dddddddddddddd.",
+        ".dttttttttttttd.", ".dtwwwttwwwtttd.", ".dtwwwttwwwtttd.", ".dtwwwttwwwtttd.", ".dttttttttttkkd.",
+        ".dtwwwttwwwtkkd.", ".dtwwwttwwwtkkd.", ".dtwwwttwwwtkkd.", ".dttttttttttkkd.", ".dddddddddddddd.",
+        "................"
+      ]
+    },
+    "lab": {
+      "palette": {"g": "#8a97b5", "p": "#b58cff", "d": "#6a4fb3", "w": "#ffffff"},
+      "rows": [
+        "................", "......gggg......", "......gggg......", "......wwww......", "......wwww......",
+        "......gggg......", ".....pppppp.....", ".....pppppp.....", "...pppppppppp...", "...pwwppppppp...",
+        "..ppwwpppppppp..", "..ppwwpppppppp..", "..pddddddddddp..", "..pddddddddddp..", "..gggggggggggg..",
+        "..gggggggggggg.."
+      ]
+    },
+    "shield": {
+      "palette": {"s": "#7fd1ff", "d": "#3a7fb3", "w": "#e6f7ff"},
+      "rows": [
+        "................", "................", "...dddddddddd...", ".dddddddddddddd.", "ddddssssssssdddd",
+        "ddssssssssssssdd", "dsswwwsssssssssd", "ssswwwssssssssss", "ssssssssssssssss", "ssssssssssssssss",
+        "ssssssssssssssss", "ssssssssssssssss", "ssssssssssssssss", "ssssssssssssssss", "....dddddddd....",
+        "....dddddddd...."
+      ]
+    },
+    "slot": {
+      "palette": {"s": "#1d2a4d", "l": "#3b4f85"},
+      "rows": [
+        "llssllssllssllsl", "l..............l", "s..............s", "s..............s", "l..............l",
+        "l......ll......l", "s......ll......s", "s....llllll....s", "l....llllll....l", "l......ll......l",
+        "s......ll......s", "s..............s", "l..............l", "l..............l", "s..............s",
+        "llssllssllssllss"
+      ]
+    },
+    "meteor": {
+      "fps": 8,
+      "palette": {"r": "#a0826d", "d": "#6b5543", "o": "#ff9a3d", "y": "#ffe08a"},
+      "rows": [
+        "....oy....", "...ooo....", "..rooorrr.", ".rrdddrrrr", ".rrdddrrrr", ".rrdddrrrr", ".rrrrrrrrr", ".rrrrrrdrr",
+        "..rrrrrrr.", ".........."
+      ]
+    },
+    "star": {"fps": 1, "palette": {"w": "#cfe3ff", "d": "#46567d"}, "frames": [["w"], ["d"]]}
+  },
+  "sounds": {
+    "build": {
+      "seconds": 0.3,
+      "level": 0.5,
+      "layers": [
+        {"sine": 330, "decay": 12, "attack": 0.004},
+        {"sine": 495, "decay": 12, "delay": 0.07, "attack": 0.004, "gain": 0.8},
+        {"sine": 660, "decay": 14, "delay": 0.14, "attack": 0.004, "gain": 0.6}
+      ]
+    },
+    "nofunds": {
+      "seconds": 0.25,
+      "level": 0.45,
+      "layers": [{"sine": 196, "decay": 14, "attack": 0.004}, {"sine": 185, "decay": 14, "delay": 0.08, "attack": 0.004}]
+    },
+    "select": {"seconds": 0.08, "level": 0.4, "layers": [{"sine": 880, "decay": 40, "attack": 0.002}]},
+    "boom": {
+      "seconds": 0.6,
+      "level": 0.6,
+      "layers": [
+        {"noise": "hp 0.15", "decay": 7, "gain": 0.8}, {"sine": 110, "decay": 8, "attack": 0.004},
+        {"sine": 73, "decay": 8, "delay": 0.03, "attack": 0.004, "gain": 0.7}
+      ]
+    },
+    "shield": {
+      "seconds": 0.35,
+      "level": 0.5,
+      "layers": [
+        {"sine": 1200, "decay": 14, "attack": 0.004},
+        {"sine": 1800, "decay": 18, "delay": 0.03, "attack": 0.004, "gain": 0.5},
+        {"noise": "hp 0.5", "decay": 22, "gain": 0.3}
+      ]
+    },
+    "alarm": {
+      "seconds": 0.5,
+      "level": 0.45,
+      "layers": [{"sine": 660, "decay": 6, "attack": 0.004}, {"sine": 520, "decay": 6, "delay": 0.22, "attack": 0.004}]
+    },
+    "day": {
+      "seconds": 0.6,
+      "level": 0.45,
+      "layers": [{"sine": 523.25, "decay": 6}, {"sine": 784, "decay": 6, "delay": 0.18}]
+    },
+    "win": {
+      "seconds": 1.1,
+      "level": 0.5,
+      "layers": [
+        {"sine": 523.25, "decay": 4}, {"sine": 659.25, "decay": 4, "delay": 0.15},
+        {"sine": 783.99, "decay": 4, "delay": 0.3}, {"sine": 1046.5, "decay": 3, "delay": 0.45},
+        {"sine": 1318.5, "decay": 3, "delay": 0.6, "gain": 0.7}
+      ]
+    },
+    "lose": {
+      "seconds": 1.0,
+      "level": 0.5,
+      "layers": [
+        {"sine": 330, "decay": 4, "attack": 0.004}, {"sine": 277, "decay": 4, "delay": 0.25, "attack": 0.004},
+        {"sine": 220, "decay": 3, "delay": 0.5, "attack": 0.004}
+      ]
+    },
+    "crew": {
+      "seconds": 0.25,
+      "level": 0.4,
+      "layers": [{"sine": 740, "decay": 16, "attack": 0.004}, {"sine": 988, "decay": 18, "delay": 0.08, "attack": 0.004}]
+    }
+  },
+  "music": {
+    "theme": {
+      "bpm": 72,
+      "beats": 4,
+      "bars": 8,
+      "key": "D",
+      "scale": "dorian",
+      "seed": 31,
+      "lufs": -27,
+      "reverb": {"decay": 3.5, "mix": 0.45},
+      "instruments": {
+        "pad": {
+          "seconds": 6,
+          "level": 0.5,
+          "layers": [
+            {"sine": 1, "attack": 1.5, "release": 2.5}, {"sine": 2, "attack": 2, "release": 2.5, "gain": 0.25},
+            {"sine": 0.5, "attack": 2, "release": 2.5, "gain": 0.4}
+          ]
+        },
+        "bell": {"seconds": 3, "level": 0.45, "layers": [{"sine": 1, "decay": 2}, {"sine": 2.76, "decay": 3.5, "gain": 0.2}]}
+      },
+      "tracks": [
+        {"inst": "pad", "play": "chords", "chords": "1 6 4 5", "every": "2 bars", "octave": 3, "gain": 0.9},
+        {
+          "inst": "bell",
+          "play": "walk",
+          "every": "2 beats",
+          "density": 0.3,
+          "range": [1, 8],
+          "octave": 5,
+          "pan": "spread",
+          "gain": 0.5,
+          "vel": [0.4, 0.8]
+        }
+      ]
+    }
+  },
+  "vars": {
+    "day": 1,
+    "credits": 80,
+    "crew": 2,
+    "power": 60,
+    "air": 80,
+    "food": 80,
+    "tool": 0,
+    "paused": 0,
+    "warn": 0,
+    "hint": 0,
+    "flare": 0,
+    "score": 0,
+    "best": 0,
+    "losses": 0
+  },
+  "persist": ["best"],
+  "prefabs": {
+    "solar": {"tag": ["module", "solar"], "shape": {"sprite": "solar", "scale": 2}, "size": [32, 32], "layer": 1},
+    "oxygenator": {"tag": ["module", "oxygenator"], "shape": {"sprite": "oxygenator", "scale": 2}, "size": [32, 32], "layer": 1},
+    "hydroponics": {"tag": ["module", "hydroponics"], "shape": {"sprite": "hydroponics", "scale": 2}, "size": [32, 32], "layer": 1},
+    "quarters": {"tag": ["module", "quarters"], "shape": {"sprite": "quarters", "scale": 2}, "size": [32, 32], "layer": 1},
+    "lab": {"tag": ["module", "lab"], "shape": {"sprite": "lab", "scale": 2}, "size": [32, 32], "layer": 1},
+    "shield": {"tag": ["module", "shield"], "shape": {"sprite": "shield", "scale": 2}, "size": [32, 32], "layer": 1},
+    "slot": {"tag": "slot", "shape": {"sprite": "slot", "scale": 2}, "size": [32, 32], "layer": 0},
+    "meteor": {
+      "tag": "meteor",
+      "shape": {"sprite": "meteor", "scale": 2},
+      "size": [18, 18],
+      "layer": 3,
+      "ttl": 9,
+      "emit": {"rate": 40, "life": [0.2, 0.5], "speed": [6, 22], "angle": [250, 290], "color": "#ff9a3d", "size": 2}
+    },
+    "star": {"tag": "star", "shape": {"sprite": "star"}, "layer": -2},
+    "spark": {"tag": "spark", "shape": {"rect": [1, 1], "color": "#ffffff"}, "hidden": true}
+  },
+  "scene": [
+    {"prefab": "star", "at": [320, 132]}, {"prefab": "star", "at": [381, 185]}, {"prefab": "star", "at": [409, 16]},
+    {"prefab": "star", "at": [432, 240]}, {"prefab": "star", "at": [399, 129]}, {"prefab": "star", "at": [334, 28]},
+    {"prefab": "star", "at": [463, 82]}, {"prefab": "star", "at": [59, 192]}, {"prefab": "star", "at": [242, 128]},
+    {"prefab": "star", "at": [196, 54]}, {"prefab": "star", "at": [295, 129]}, {"prefab": "star", "at": [8, 112]},
+    {"prefab": "star", "at": [210, 145]}, {"prefab": "star", "at": [95, 201]}, {"prefab": "star", "at": [83, 38]},
+    {"prefab": "star", "at": [73, 229]}, {"prefab": "star", "at": [66, 69]}, {"prefab": "star", "at": [2, 4]},
+    {"prefab": "star", "at": [109, 112]}, {"prefab": "star", "at": [86, 87]}, {"prefab": "star", "at": [150, 162]},
+    {"prefab": "star", "at": [103, 106]}, {"prefab": "star", "at": [95, 102]}, {"prefab": "star", "at": [459, 198]},
+    {"prefab": "star", "at": [154, 13]}, {"prefab": "star", "at": [186, 214]}, {"prefab": "star", "at": [86, 76]},
+    {"prefab": "star", "at": [137, 35]}, {"prefab": "star", "at": [171, 156]}, {"prefab": "star", "at": [420, 3]},
+    {"prefab": "star", "at": [307, 175]}, {"prefab": "star", "at": [35, 160]}, {"prefab": "star", "at": [183, 158]},
+    {"prefab": "star", "at": [248, 163]}, {"prefab": "star", "at": [96, 248]}, {"prefab": "star", "at": [243, 92]},
+    {"prefab": "star", "at": [31, 133]}, {"prefab": "star", "at": [13, 185]}, {"prefab": "star", "at": [434, 208]},
+    {"prefab": "star", "at": [11, 216]}, {"prefab": "star", "at": [189, 194]}, {"prefab": "star", "at": [298, 6]},
+    {"prefab": "star", "at": [233, 25]}, {"prefab": "star", "at": [364, 94]}, {"prefab": "star", "at": [321, 102]},
+    {"prefab": "star", "at": [62, 127]}, {"prefab": "star", "at": [477, 238]}, {"prefab": "star", "at": [178, 264]},
+    {"prefab": "star", "at": [183, 130]}, {"prefab": "star", "at": [399, 238]}, {"prefab": "star", "at": [57, 190]},
+    {"prefab": "star", "at": [442, 153]}, {"prefab": "star", "at": [20, 223]}, {"prefab": "star", "at": [48, 108]},
+    {"prefab": "star", "at": [176, 264]}, {"prefab": "star", "at": [314, 187]}, {"prefab": "star", "at": [472, 77]},
+    {"prefab": "star", "at": [176, 143]}, {"prefab": "star", "at": [475, 49]}, {"prefab": "star", "at": [161, 164]},
+    {"prefab": "star", "at": [158, 92]}, {"prefab": "star", "at": [410, 42]}, {"prefab": "star", "at": [322, 78]},
+    {"prefab": "star", "at": [371, 160]}, {"prefab": "star", "at": [249, 84]}, {"prefab": "star", "at": [370, 26]},
+    {"prefab": "star", "at": [43, 209]}, {"prefab": "star", "at": [18, 123]}, {"prefab": "star", "at": [381, 178]},
+    {"prefab": "star", "at": [425, 130]}, {"prefab": "solar", "at": [56, 92]},
+    {"prefab": "oxygenator", "at": [92, 92]}, {"prefab": "slot", "at": [128, 92]}, {"prefab": "slot", "at": [164, 92]},
+    {"prefab": "slot", "at": [200, 92]}, {"prefab": "slot", "at": [236, 92]}, {"prefab": "quarters", "at": [56, 128]},
+    {"prefab": "slot", "at": [92, 128]}, {"prefab": "slot", "at": [128, 128]}, {"prefab": "slot", "at": [164, 128]},
+    {"prefab": "slot", "at": [200, 128]}, {"prefab": "slot", "at": [236, 128]}, {"prefab": "slot", "at": [56, 164]},
+    {"prefab": "slot", "at": [92, 164]}, {"prefab": "slot", "at": [128, 164]}, {"prefab": "slot", "at": [164, 164]},
+    {"prefab": "slot", "at": [200, 164]}, {"prefab": "slot", "at": [236, 164]}, {"prefab": "slot", "at": [56, 200]},
+    {"prefab": "slot", "at": [92, 200]}, {"prefab": "slot", "at": [128, 200]}, {"prefab": "slot", "at": [164, 200]},
+    {"prefab": "slot", "at": [200, 200]}, {"prefab": "slot", "at": [236, 200]}
+  ],
+  "ui": [
+    {"panel": {"at": [0, 0], "size": [480, 22], "color": "#0a1022ee"}},
+    {"text": "DAY {day}/10", "at": [8, 7], "color": "#ffd166", "scale": 1, "align": "left"},
+    {"text": "CREDITS {credits:.0}", "at": [90, 7], "color": "#9fffb0", "scale": 1, "align": "left"},
+    {"text": "CREW {crew}", "at": [205, 7], "color": "#ffe9a3", "scale": 1, "align": "left"},
+    {"text": "BEST {best}", "at": [290, 7], "color": "#9fb3d9", "scale": 1, "align": "left", "show": "best > 0"},
+    {"text": "PAUSED", "at": [472, 7], "color": "#ff9aa8", "scale": 1, "align": "right", "show": "paused"},
+    {"text": "POWER", "at": [24, 28], "color": "#9fb3d9", "scale": 1, "align": "left"},
+    {"bar": {"var": "power", "max": 100, "at": [24, 38], "size": [76, 7], "color": "#ffd166", "back": "#1b2442"}},
+    {"text": "AIR", "at": [110, 28], "color": "#9fb3d9", "scale": 1, "align": "left"},
+    {"bar": {"var": "air", "max": 100, "at": [110, 38], "size": [76, 7], "color": "#5cf2ff", "back": "#1b2442"}},
+    {"text": "FOOD", "at": [196, 28], "color": "#9fb3d9", "scale": 1, "align": "left"},
+    {"bar": {"var": "food", "max": 100, "at": [196, 38], "size": [76, 7], "color": "#6be28f", "back": "#1b2442"}},
+    {"text": "LOW POWER", "at": [24, 50], "color": "#ff7a8c", "scale": 1, "align": "left", "show": "power < 15"},
+    {"text": "LOW AIR", "at": [110, 50], "color": "#ff7a8c", "scale": 1, "align": "left", "show": "air < 20"},
+    {"text": "LOW FOOD", "at": [196, 50], "color": "#ff7a8c", "scale": 1, "align": "left", "show": "food < 20"},
+    {"panel": {"at": [34, 70], "size": [224, 152], "color": "#0a102233"}},
+    {
+      "text": "PICK A MODULE, THEN CLICK AN EMPTY PLOT",
+      "at": [146, 230],
+      "color": "#9fb3d9",
+      "scale": 1,
+      "align": "center",
+      "show": "tool == 0"
+    },
+    {
+      "text": "SOLAR FLARE! POWER DRAINED",
+      "at": [146, 60],
+      "color": "#ff7a8c",
+      "scale": 1,
+      "align": "center",
+      "show": "flare > 0"
+    },
+    {
+      "text": "METEOR INCOMING",
+      "at": [146, 214],
+      "color": "#ff9a3d",
+      "scale": 1,
+      "align": "center",
+      "show": "count_meteor > 0"
+    },
+    {
+      "text": "NOT ENOUGH CREDITS",
+      "at": [146, 230],
+      "color": "#ff7a8c",
+      "scale": 1,
+      "align": "center",
+      "show": "warn > 0"
+    },
+    {
+      "text": "SELECT A MODULE FIRST",
+      "at": [146, 242],
+      "color": "#ffd166",
+      "scale": 1,
+      "align": "center",
+      "show": "hint > 0"
+    },
+    {"panel": {"at": [286, 28], "size": [186, 214], "color": "#0a1022dd"}},
+    {"text": "BUILD", "at": [379, 34], "color": "#ffd166", "scale": 1, "align": "center"},
+    {
+      "button": {
+        "id": "tool solar",
+        "label": "SOLAR ARRAY  40",
+        "at": [296, 46],
+        "size": [166, 24],
+        "color": "#2d3f73",
+        "key": "Digit1",
+        "do": [{"set": ["tool", 1]}, {"play": "select"}]
+      }
+    },
+    {"text": "<", "at": [448, 54], "color": "#ffd166", "scale": 1, "align": "left", "show": "tool == 1"},
+    {
+      "button": {
+        "id": "tool oxygenator",
+        "label": "OXYGENATOR  50",
+        "at": [296, 76],
+        "size": [166, 24],
+        "color": "#2d3f73",
+        "key": "Digit2",
+        "do": [{"set": ["tool", 2]}, {"play": "select"}]
+      }
+    },
+    {"text": "<", "at": [448, 84], "color": "#ffd166", "scale": 1, "align": "left", "show": "tool == 2"},
+    {
+      "button": {
+        "id": "tool hydroponics",
+        "label": "HYDROPONICS  45",
+        "at": [296, 106],
+        "size": [166, 24],
+        "color": "#2d3f73",
+        "key": "Digit3",
+        "do": [{"set": ["tool", 3]}, {"play": "select"}]
+      }
+    },
+    {"text": "<", "at": [448, 114], "color": "#ffd166", "scale": 1, "align": "left", "show": "tool == 3"},
+    {
+      "button": {
+        "id": "tool quarters",
+        "label": "QUARTERS  60",
+        "at": [296, 136],
+        "size": [166, 24],
+        "color": "#2d3f73",
+        "key": "Digit4",
+        "do": [{"set": ["tool", 4]}, {"play": "select"}]
+      }
+    },
+    {"text": "<", "at": [448, 144], "color": "#ffd166", "scale": 1, "align": "left", "show": "tool == 4"},
+    {
+      "button": {
+        "id": "tool lab",
+        "label": "RESEARCH LAB  70",
+        "at": [296, 166],
+        "size": [166, 24],
+        "color": "#2d3f73",
+        "key": "Digit5",
+        "do": [{"set": ["tool", 5]}, {"play": "select"}]
+      }
+    },
+    {"text": "<", "at": [448, 174], "color": "#ffd166", "scale": 1, "align": "left", "show": "tool == 5"},
+    {
+      "button": {
+        "id": "tool shield",
+        "label": "METEOR SHIELD  90",
+        "at": [296, 196],
+        "size": [166, 24],
+        "color": "#2d3f73",
+        "key": "Digit6",
+        "do": [{"set": ["tool", 6]}, {"play": "select"}]
+      }
+    },
+    {"text": "<", "at": [448, 204], "color": "#ffd166", "scale": 1, "align": "left", "show": "tool == 6"},
+    {"text": "KEYS 1-6 PICK, P PAUSES", "at": [379, 232], "color": "#6f80ad", "scale": 1, "align": "center"},
+    {"panel": {"at": [110, 70], "size": [260, 120], "color": "#0a1022f2"}, "show": "ended"},
+    {
+      "text": "STATION SAVED!",
+      "at": [240, 82],
+      "color": "#8cff9b",
+      "scale": 2,
+      "align": "center",
+      "show": "ended == 1"
+    },
+    {"text": "STATION LOST", "at": [240, 82], "color": "#ff7a8c", "scale": 2, "align": "center", "show": "ended == 2"},
+    {
+      "text": "DAYS {day}  CREW {crew}  SCORE {score}",
+      "at": [240, 108],
+      "color": "#ffffff",
+      "scale": 1,
+      "align": "center",
+      "show": "ended"
+    },
+    {"text": "BEST {best}", "at": [240, 122], "color": "#9fb3d9", "scale": 1, "align": "center", "show": "ended"},
+    {
+      "button": {
+        "id": "restart",
+        "label": "PLAY AGAIN (ENTER)",
+        "at": [170, 146],
+        "size": [140, 20],
+        "key": "Enter",
+        "color": "#2d3f73",
+        "do": [{"restart": true}]
+      },
+      "show": "ended"
+    },
+    {
+      "button": {
+        "id": "pause",
+        "label": "PAUSE",
+        "at": [286, 248],
+        "size": [56, 16],
+        "color": "#2d3f73",
+        "do": [{"apply": "toggle_pause"}]
+      }
+    },
+    {
+      "button": {
+        "id": "music",
+        "label": "MUSIC",
+        "at": [428, 248],
+        "size": [44, 16],
+        "key": "KeyM",
+        "color": "#2d3f73",
+        "do": [{"music": "toggle"}]
+      }
+    },
+    {"text": "OFF", "at": [420, 252], "color": "#ff7a8c", "scale": 1, "align": "right", "show": "!music_on"}
+  ],
+  "effects": {
+    "build": {
+      "about": "buy a module on the clicked plot: spend `cost` credits, put `prefab` there, and show it",
+      "params": ["cost", "prefab"],
+      "do": [
+        {"add": ["credits", "-$cost"]}, {"spawn": {"prefab": "$prefab", "at": "self"}}, {"play": "build"},
+        {"burst": {"at": "self", "n": 12, "color": "#9fd2ff", "speed": [20, 60], "life": [0.2, 0.5]}},
+        {"destroy": "self"}
+      ]
+    },
+    "toggle_pause": {"about": "the pause key and the PAUSE button do the same thing", "do": [{"set": ["paused", "1 - paused"]}, {"play": "select"}]}
+  },
+  "rules": [
+    {
+      "id": "no funds",
+      "when": {"click": "slot"},
+      "if": "(tool == 1 && credits < 40) || (tool == 2 && credits < 50) || (tool == 3 && credits < 45) || (tool == 4 && credits < 60) || (tool == 5 && credits < 70) || (tool == 6 && credits < 90) ",
+      "do": [{"play": "nofunds"}, {"set": ["warn", 2]}]
+    },
+    {"id": "no tool", "when": {"click": "slot"}, "if": "tool == 0", "do": [{"set": ["hint", 2.5]}]},
+    {
+      "id": "build solar",
+      "when": {"click": "slot"},
+      "if": "tool == 1 && credits >= 40 && ended == 0",
+      "do": [{"apply": "build", "with": {"cost": 40, "prefab": "solar"}}]
+    },
+    {
+      "id": "build oxygenator",
+      "when": {"click": "slot"},
+      "if": "tool == 2 && credits >= 50 && ended == 0",
+      "do": [{"apply": "build", "with": {"cost": 50, "prefab": "oxygenator"}}]
+    },
+    {
+      "id": "build hydroponics",
+      "when": {"click": "slot"},
+      "if": "tool == 3 && credits >= 45 && ended == 0",
+      "do": [{"apply": "build", "with": {"cost": 45, "prefab": "hydroponics"}}]
+    },
+    {
+      "id": "build quarters",
+      "when": {"click": "slot"},
+      "if": "tool == 4 && credits >= 60 && ended == 0",
+      "do": [{"apply": "build", "with": {"cost": 60, "prefab": "quarters"}}]
+    },
+    {
+      "id": "build lab",
+      "when": {"click": "slot"},
+      "if": "tool == 5 && credits >= 70 && ended == 0",
+      "do": [{"apply": "build", "with": {"cost": 70, "prefab": "lab"}}]
+    },
+    {
+      "id": "build shield",
+      "when": {"click": "slot"},
+      "if": "tool == 6 && credits >= 90 && ended == 0",
+      "do": [{"apply": "build", "with": {"cost": 90, "prefab": "shield"}}]
+    },
+    {
+      "id": "economy",
+      "when": {"every": 1},
+      "if": "paused == 0 && ended == 0",
+      "do": [
+        {
+          "add": [
+            "power",
+            "3 * count_solar - 2 * count_oxygenator - 2 * count_hydroponics - 3 * count_lab - 1 * count_quarters - 2 * count_shield"
+          ]
+        },
+        {"add": ["air", "(power > 0) * 2.6 * count_oxygenator - 0.5 * crew"]},
+        {"add": ["food", "(power > 0) * 1.7 * count_hydroponics - 0.4 * crew"]},
+        {"add": ["credits", "(power > 0) * 2.2 * count_lab + 0.3 * crew"]}
+      ]
+    },
+    {"id": "power floor", "when": {"every": 0.25}, "if": "power < 0", "do": [{"set": ["power", 0]}]},
+    {"id": "power ceiling", "when": {"every": 0.25}, "if": "power > 100", "do": [{"set": ["power", 100]}]},
+    {"id": "air floor", "when": {"every": 0.25}, "if": "air < 0", "do": [{"set": ["air", 0]}]},
+    {"id": "air ceiling", "when": {"every": 0.25}, "if": "air > 100", "do": [{"set": ["air", 100]}]},
+    {"id": "food floor", "when": {"every": 0.25}, "if": "food < 0", "do": [{"set": ["food", 0]}]},
+    {"id": "food ceiling", "when": {"every": 0.25}, "if": "food > 100", "do": [{"set": ["food", 100]}]},
+    {
+      "id": "low alarm",
+      "when": {"every": 6},
+      "if": "(power < 15 || air < 20 || food < 20) && paused == 0 && ended == 0",
+      "do": [{"play": "alarm"}]
+    },
+    {
+      "id": "crew arrives",
+      "when": {"every": 12},
+      "if": "crew < 2 + 2 * count_quarters && food > 25 && air > 25 && power > 0 && paused == 0 && ended == 0",
+      "do": [{"add": ["crew", 1]}, {"play": "crew"}]
+    },
+    {
+      "id": "crew suffers",
+      "when": {"every": 5},
+      "if": "(air < 3 || food < 3) && crew > 0 && paused == 0 && ended == 0",
+      "do": [{"add": ["crew", -1]}, {"play": "alarm"}, {"shake": 3}]
+    },
+    {"id": "station lost", "when": {"every": 0.25}, "if": "crew <= 0 && ended == 0", "do": [{"end": "lose"}]},
+    {
+      "id": "a day passes",
+      "when": {"every": 45},
+      "if": "paused == 0 && ended == 0",
+      "do": [{"add": ["day", 1]}, {"play": "day"}]
+    },
+    {"id": "survived", "when": {"every": 0.25}, "if": "day > 10 && ended == 0", "do": [{"end": "win"}]},
+    {
+      "id": "supply drop",
+      "when": {"every": 38},
+      "if": "paused == 0 && ended == 0",
+      "do": [{"add": ["credits", 25]}, {"play": "select"}]
+    },
+    {
+      "id": "meteor late",
+      "when": {"every": 17},
+      "if": "paused == 0 && ended == 0 && day >= 8",
+      "do": [{"spawn": {"prefab": "meteor", "at": {"x": [44, 250], "y": [-10, -8]}, "vel": [0, 80]}}]
+    },
+    {
+      "id": "meteor",
+      "when": {"every": 26},
+      "if": "paused == 0 && ended == 0 && day >= 4",
+      "do": [{"spawn": {"prefab": "meteor", "at": {"x": [44, 250], "y": [-10, -8]}, "vel": [0, 70]}}]
+    },
+    {
+      "id": "meteor hits module",
+      "when": {"touch": ["meteor", "module"]},
+      "if": "count_shield == 0",
+      "do": [
+        {"spawn": {"prefab": "slot", "at": "other"}}, {"destroy": "other"}, {"destroy": "self"}, {"play": "boom"},
+        {"shake": 6}, {"burst": {"at": "self", "n": 26, "color": "#ff9a3d", "speed": [30, 110], "life": [0.3, 0.8]}},
+        {"add": ["losses", 1]}, {"emit": "module lost"}
+      ]
+    },
+    {
+      "id": "shield stops meteor",
+      "when": {"touch": ["meteor", "module"]},
+      "if": "count_shield > 0",
+      "do": [
+        {"destroy": "self"}, {"play": "shield"},
+        {"burst": {"at": "self", "n": 18, "color": "#7fd1ff", "speed": [30, 90], "life": [0.2, 0.6]}}
+      ]
+    },
+    {"id": "warn fades", "when": {"every": 0.25}, "if": "warn > 0", "do": [{"add": ["warn", -0.25]}]},
+    {"id": "hint fades", "when": {"every": 0.25}, "if": "hint > 0", "do": [{"add": ["hint", -0.25]}]},
+    {
+      "id": "solar flare",
+      "when": {"every": 100},
+      "if": "paused == 0 && ended == 0",
+      "do": [{"set": ["power", "power * 0.4"]}, {"set": ["flare", 3]}, {"play": "alarm"}, {"shake": 3}]
+    },
+    {"id": "flare fades", "when": {"every": 0.25}, "if": "flare > 0", "do": [{"add": ["flare", -0.25]}]},
+    {"id": "pause key", "when": {"press": "pause"}, "do": [{"apply": "toggle_pause"}]},
+    {
+      "id": "score on end",
+      "when": {"end": "any"},
+      "do": [{"set": ["score", "crew * 25 + credits / 4 + (day - 1) * 10"]}]
+    },
+    {"id": "record", "when": {"end": "any"}, "if": "score > best", "do": [{"set": ["best", "score"]}]},
+    {"id": "win jingle", "when": {"end": "win"}, "do": [{"play": "win"}]},
+    {"id": "lose jingle", "when": {"end": "lose"}, "do": [{"play": "lose"}]}
+  ],
+  "checks": {
+    "scenarios": [
+      {
+        "name": "a balanced station survives all ten days",
+        "seed": 3,
+        "max_seconds": 600,
+        "smoke": true,
+        "script": [
+          {"wait_until": {"var": "credits", "gte": 45}, "timeout": 240}, {"button": "tool hydroponics"},
+          {"click": [128, 92]}, {"wait_until": {"var": "credits", "gte": 40}, "timeout": 240},
+          {"button": "tool solar"}, {"click": [164, 92]},
+          {"wait_until": {"var": "credits", "gte": 40}, "timeout": 240}, {"button": "tool solar"},
+          {"click": [200, 92]}, {"wait_until": {"var": "credits", "gte": 90}, "timeout": 240},
+          {"button": "tool shield"}, {"click": [236, 92]},
+          {"wait_until": {"var": "credits", "gte": 70}, "timeout": 240}, {"button": "tool lab"}, {"click": [92, 128]},
+          {"wait_until": {"var": "credits", "gte": 40}, "timeout": 240}, {"button": "tool solar"},
+          {"click": [128, 128]}, {"wait_until": {"ended": "win"}, "timeout": 500}
+        ],
+        "expect": [
+          {"ended": "win"}, {"var": "day", "gte": 11}, {"var": "crew", "gte": 2}, {"var": "score", "gt": 0},
+          {"var": "best", "gt": 0}, {"sound": "build", "min": 5}, {"sound": "win"}, {"sound": "shield", "min": 1},
+          {"var": "losses", "eq": 0}
+        ]
+      },
+      {
+        "name": "doing nothing starves the crew and the station is lost",
+        "seed": 3,
+        "max_seconds": 400,
+        "script": [{"wait_until": {"ended": "lose"}, "timeout": 390}],
+        "expect": [{"ended": "lose"}, {"var": "crew", "eq": 0}, {"sound": "lose"}, {"sound": "alarm", "min": 1}]
+      },
+      {
+        "name": "building needs credits: a purchase is refused when broke",
+        "seed": 3,
+        "max_seconds": 30,
+        "script": [{"button": "tool shield"}, {"click": [164, 128]}, {"click": [200, 128]}],
+        "expect": [{"count": "shield", "eq": 0}, {"var": "credits", "eq": 80}, {"sound": "nofunds", "min": 2}]
+      },
+      {
+        "name": "clicking a plot with no module chosen explains itself",
+        "seed": 3,
+        "max_seconds": 10,
+        "script": [{"click": [56, 164]}, {"wait": 0.1}],
+        "expect": [{"var": "hint", "gt": 0}, {"count": "module", "eq": 3}]
+      },
+      {
+        "name": "a purchase turns a plot into the module and spends the credits",
+        "seed": 3,
+        "max_seconds": 20,
+        "script": [{"button": "tool solar"}, {"click": [128, 92]}],
+        "expect": [{"count": "solar", "eq": 2}, {"var": "credits", "eq": 40}, {"count": "slot", "eq": 20}, {"sound": "build"}]
+      },
+      {
+        "name": "pausing freezes the clock and the economy",
+        "seed": 3,
+        "max_seconds": 80,
+        "script": [{"press": "pause"}, {"wait": 60}],
+        "expect": [{"var": "day", "eq": 1}, {"var": "paused", "eq": 1}, {"var": "air", "eq": 80}]
+      },
+      {
+        "name": "a meteor destroys an unshielded module and leaves a free plot",
+        "seed": 3,
+        "max_seconds": 300,
+        "script": [
+          {"wait_until": {"var": "credits", "gte": 45}, "timeout": 240}, {"button": "tool hydroponics"},
+          {"click": [128, 92]}, {"wait_until": {"var": "credits", "gte": 40}, "timeout": 240},
+          {"button": "tool solar"}, {"click": [164, 92]}, {"wait_until": {"event": "module lost"}, "timeout": 250}
+        ],
+        "expect": [
+          {"event": "module lost"}, {"var": "losses", "gte": 1}, {"sound": "boom"}, {"not_ended": true},
+          {"count": "slot", "gte": 20}
+        ]
+      }
+    ]
+  }
+}

@@ -2,7 +2,7 @@
 # The exact steps CI runs (.github/workflows/ci.yml). Run before pushing; green here = green there
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
-#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client
+#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools  games (games is not in the default list: `tests` covers it)
 #
 # Tests run in two groups, because only one kind needs to be slow:
 #   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers): one test at a time, as before;
@@ -48,7 +48,7 @@ stage_benches() {
   if [ "${RED_CI_BUILD_BENCHES:-0}" = "1" ]; then cargo bench --locked --no-run; else cargo check --locked --benches; fi
 }
 stage_headless_tree() {
-  echo "== headless server: no graphics/audio crates in the dependency tree =="
+  echo "== headless server: no graphics, audio or MCP crates in the dependency tree =="
   # The tree is captured first, then searched: piped straight into grep, a *failing* `cargo tree` (a stale Cargo.lock under
   # --locked, a broken registry) matched nothing and the stage passed with nothing checked.
   local tree
@@ -56,10 +56,10 @@ stage_headless_tree() {
     echo "cargo tree failed: the headless dependency tree could not be checked (a stale Cargo.lock? run cargo update -p <crate> or regenerate it)"; exit 1
   fi
   if [ -z "$tree" ]; then echo "cargo tree printed nothing: the dependency check ran on an empty tree"; exit 1; fi
-  if grep -E '^(wgpu|winit|rodio|cpal|alsa|pollster|ffmpeg-sidecar|naga|ash) ' <<<"$tree"; then
-    echo "a graphics/audio crate leaked into the headless build"; exit 1
+  if grep -E '^(wgpu|winit|softbuffer|rodio|cpal|alsa|pollster|ffmpeg-sidecar|naga|ash|rmcp|schemars) ' <<<"$tree"; then
+    echo "a graphics, audio or MCP-adapter crate leaked into the headless build"; exit 1
   fi
-  echo "$(grep -c . <<<"$tree") crates checked, no graphics/audio crate among them"
+  echo "$(grep -c . <<<"$tree") crates checked, no graphics, audio or MCP crate among them"
 }
 stage_headless_build() {
   echo "== headless server builds without the gfx feature =="
@@ -75,21 +75,69 @@ stage_headless_clippy() { echo "== headless clippy =="; cargo clippy --locked --
 stage_headless_tests() { echo "== headless tests (incl. real-UDP server tests) =="; run_tests --no-default-features; }
 # A game outside the engine crate that uses only the public client layer (`red_engine2::app`, ADR 0043): if the API breaks it, CI says so.
 # Its presentation test renders offscreen; a runner with no GPU adapter at all sets RED_OFFSCREEN_OPTIONAL=1 to skip just that check.
+# Every example crate that is its own workspace has its own Cargo.lock; it must follow the engine's dependencies or `--locked` refuses it with a message that does not say so.
+# Seconds, and the commonest reason a dependency change fails CI: so it is its own stage and runs FIRST (measured on PR #44: found by the last stage of a 14-minute job).
+check_example_locks() {
+  local manifest
+  for manifest in examples/external/*/Cargo.toml; do
+    # Only crates that use the engine and keep a lock of their own (a standalone experiment that does not use the engine has neither to fall behind).
+    [ -f "$manifest" ] && [ -f "$(dirname "$manifest")/Cargo.lock" ] && grep -q '^red_engine2' "$manifest" || continue
+    if ! cargo metadata --locked --manifest-path "$manifest" --format-version 1 >/dev/null 2>&1; then
+      echo "$(dirname "$manifest")/Cargo.lock is behind the engine's dependencies: run"
+      echo "  cargo metadata --manifest-path $manifest --format-version 1 >/dev/null"
+      echo "and commit the updated lock."; exit 1
+    fi
+  done
+}
+stage_lockfiles() { echo "== example crates' lock files follow the engine's dependencies =="; check_example_locks; echo "ok"; }
 stage_external_client() {
   echo "== external custom client (examples/external/topdown_switch) =="
-  # The example has its own Cargo.lock (it is a separate crate that uses the engine by path): whenever the engine's dependencies
-  # change it must be refreshed and committed, or --locked refuses it below with a message that does not say so.
-  if ! cargo metadata --locked --manifest-path examples/external/topdown_switch/Cargo.toml --format-version 1 >/dev/null 2>&1; then
-    echo "examples/external/topdown_switch/Cargo.lock is behind the engine's dependencies: run"
-    echo "  cargo metadata --manifest-path examples/external/topdown_switch/Cargo.toml --format-version 1 >/dev/null"
-    echo "and commit the updated lock."; exit 1
-  fi
+  check_example_locks
   cargo clippy --locked --manifest-path examples/external/topdown_switch/Cargo.toml --all-targets -- -D warnings
   cargo test --locked --manifest-path examples/external/topdown_switch/Cargo.toml
 }
 
+# Killchain is a game on the engine's public API (games/killchain, ADR 2026-10-09-killchain-is-a-game-crate-on-the-public-engine-api): a workspace member that is not a default member, so
+# the engine's own stages never compile it and the headless build never sees its graphics crates. If an engine API change breaks the game, this stage says so.
+stage_killchain() {
+  echo "== Killchain (games/killchain) builds, lints and tests against the engine's public API =="
+  cargo clippy --locked -p killchain --all-targets -- -D warnings
+  cargo test --locked -p killchain
+}
+
+# The optional export capability stays buildable and lint clean: MP4 export (`video`, ffmpeg-sidecar) is not in the default build (ADR 2026-10-07-tooling-dependencies-are-optional-features).
+stage_video() { echo "== optional MP4 export builds (feature video) =="; cargo clippy --locked --bins --lib --features video -- -D warnings; }
+
+# The Python tools (launchpad, Idea Forge, the process supervisor, the publisher) on this platform's interpreter, with no Rust build: path handling, quoting, subprocess and git behaviour
+# differ between Linux and Windows, and the hosted `python-tools` job runs this stage on both whenever one of them changes (ADR 2026-10-09-ci-runs-the-python-tools-on-windows-when-they-change).
+# `tests` runs the same files through their `tests/*.rs` wrappers; this is the cheap way to run just them.
+stage_pytools() {
+  echo "== python tools (this platform's interpreter, no Rust build) =="
+  local py="" p t
+  for p in python3 python; do
+    if command -v "$p" >/dev/null 2>&1 && "$p" --version >/dev/null 2>&1; then py="$p"; break; fi
+  done
+  if [ -z "$py" ]; then echo "python is not installed: the tool tests cannot run"; exit 1; fi
+  "$py" --version
+  "$py" -m compileall -q scripts mcp_server.py
+  for t in scripts/test_*.py; do
+    echo "-- $t"
+    "$py" "$t"
+  done
+  echo "-- scripts/publish_games.py check"
+  "$py" scripts/publish_games.py check
+}
+
+# A pull request that only adds or edits generated games (examples/2d, examples/3d, docs/analysis/idea-forge: the `games_only` output of the workflow's `changes` job) runs the tests that read
+# that data and nothing else: every game must verify (games2d, games3d), keep well-formed checks, and the documents must stay fresh and linked. Not a replacement for `tests`.
+stage_games() {
+  echo "== generated games: the suites that read examples/2d, examples/3d and the notes =="
+  cargo test --locked --no-fail-fast --test games2d --test games3d --test checks_wellformed --test examples_validate --test docs_fresh --test repo_hygiene
+}
+
 stages=("$@")
-[ ${#stages[@]} -gt 0 ] || stages=(fmt clippy tests benches headless-tree headless-build headless-clippy headless-tests external-client)
+# Cheapest, most-likely-to-fail first: formatting, the lock files and the headless dependency tree take seconds; the long stages come after them.
+[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client killchain video pytools)
 # Every stage is timed, and the table at the end says where the minutes went (the first thing to read when CI feels slow).
 timings=()
 t_all=$SECONDS

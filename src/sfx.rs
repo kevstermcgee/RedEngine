@@ -106,8 +106,22 @@ fn voice(weapon: Weapon) -> Option<GunVoice> {
         Weapon::Hammer => v(0.95, 320.0, 95.0, 55.0, 16.0, 0.85, 0.6, 0.17, 27.0, 0.30, 8.0, 0.42, 0.50),
         Weapon::Lancer => v(0.4, 120.0, 70.0, 32.0, 6.0, 1.2, 1.0, 0.10, 10.0, 0.90, 2.5, 1.50, 0.74),
         Weapon::Thumper => v(0.5, 160.0, 90.0, 50.0, 10.0, 1.0, 0.8, 0.13, 18.0, 0.60, 4.0, 0.60, 0.60),
+        Weapon::Reaper => v(1.0, 340.0, 100.0, 60.0, 18.0, 0.8, 0.55, 0.16, 28.0, 0.25, 8.0, 0.35, 0.50),
+        Weapon::Breaker => v(0.9, 190.0, 90.0, 40.0, 9.0, 1.2, 0.9, 0.12, 15.0, 0.65, 3.8, 0.95, 0.76),
+        Weapon::Hunter => v(0.3, 700.0, 280.0, 150.0, 40.0, 0.3, 0.5, 0.3, 60.0, 0.10, 14.0, 0.20, 0.30),
+        Weapon::Flare => v(0.45, 300.0, 140.0, 70.0, 14.0, 0.8, 0.7, 0.14, 24.0, 0.40, 5.0, 0.50, 0.55),
+        Weapon::Lobber => v(0.55, 140.0, 80.0, 45.0, 8.0, 1.1, 0.85, 0.12, 14.0, 0.70, 3.5, 0.70, 0.62),
         // The melee weapons swing and the grenades are thrown; neither is built from a gun voice.
-        Weapon::Bat | Weapon::Knife | Weapon::Hatchet | Weapon::Frag | Weapon::Flash | Weapon::Smoke | Weapon::Incendiary => return None,
+        Weapon::Bat
+        | Weapon::Knife
+        | Weapon::Hatchet
+        | Weapon::Machete
+        | Weapon::Sledge
+        | Weapon::Frag
+        | Weapon::Flash
+        | Weapon::Smoke
+        | Weapon::Incendiary
+        | Weapon::Impact => return None,
     })
 }
 
@@ -431,7 +445,7 @@ pub struct SoundBank {
 }
 
 impl SoundBank {
-    /// Killchain's restrained feedback: dry impacts and low mechanical pulses in place of melodic rewards.
+    /// A restrained, tactical feedback style for loadout shooters: dry impacts and low mechanical pulses in place of melodic rewards.
     pub fn new_tactical() -> SoundBank {
         let mut bank = Self::new();
         bank.hit_tick = tactical_signal(0.07, 760.0, 0x417, 0.26);

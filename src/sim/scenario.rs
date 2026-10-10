@@ -38,6 +38,8 @@ const EXPECT_KEYS: &[&str] = &[
     "event",
     "no_event",
     "var",
+    "player_var",
+    "of",
     "ended",
     "not_ended",
     "hidden",
@@ -189,6 +191,17 @@ pub enum Expect {
     /// A variable compares as given.
     Var {
         /// Variable name.
+        name: String,
+        /// Comparison.
+        cmp: Cmp,
+        /// Value.
+        value: f64,
+    },
+    /// One player's per-player variable compares as given.
+    PlayerVar {
+        /// Scenario player id.
+        player: String,
+        /// Per-player variable name.
         name: String,
         /// Comparison.
         cmp: Cmp,
@@ -425,6 +438,81 @@ fn ticks_of(v: &Value, path: &str, errs: &mut Vec<String>) -> u32 {
     }
 }
 
+/// An expectation's `tol` (metres): absent = 0.5; a negative, zero or non-numeric one is an error (a text `"1"` or `-2` used to be 0.5, so a check passed or failed on a tolerance nobody wrote).
+fn tolerance(eo: &Map<String, Value>, ep: &str, errs: &mut Vec<String>) -> f32 {
+    match eo.get("tol") {
+        None => 0.5,
+        Some(v) => match v.as_f64().filter(|t| t.is_finite() && *t > 0.0) {
+            Some(t) => t as f32,
+            None => {
+                errs.push(format!("{ep}.tol: must be a number of metres greater than 0 (got {}); leave it out for 0.5", crate::strict::describe_value(v)));
+                0.5
+            }
+        },
+    }
+}
+
+/// A `hold` axis (`forward`, `strafe`): absent = 0; only -1, 0 and 1 are inputs. `true` or `5` used to be read as 0 and 1, so a scripted player stood still or ran with no word of it.
+fn hold_axis(h: &Map<String, Value>, key: &str, hp: &str, errs: &mut Vec<String>) -> i8 {
+    match h.get(key) {
+        None => 0,
+        Some(v) => match v.as_i64().filter(|n| (-1..=1).contains(n)) {
+            Some(n) => n as i8,
+            None => {
+                let (plus, minus) = if key == "forward" { ("forward", "back") } else { ("right", "left") };
+                errs.push(format!(
+                    "{hp}.{key}: must be the number -1, 0 or 1 (got {}); 1 is {plus}, -1 is {minus}, 0 or leave it out for neither",
+                    crate::strict::describe_value(v)
+                ));
+                0
+            }
+        },
+    }
+}
+
+/// A `hold` button (`jump`, `attack`, ...): absent = not pressed; only true and false are values (`1` or `"yes"` used to be read as not pressed).
+fn hold_flag(h: &Map<String, Value>, key: &str, hp: &str, errs: &mut Vec<String>) -> bool {
+    match h.get(key) {
+        None => false,
+        Some(Value::Bool(b)) => *b,
+        Some(v) => {
+            errs.push(format!("{hp}.{key}: must be true or false (got {}); write it without quotes", crate::strict::describe_value(v)));
+            false
+        }
+    }
+}
+
+/// A `hold` look angle in degrees: absent = 0 (and the player keeps looking where they were); anything but a number is an error.
+fn hold_degrees(h: &Map<String, Value>, key: &str, hp: &str, errs: &mut Vec<String>) -> f32 {
+    match h.get(key) {
+        None => 0.0,
+        Some(v) => match v.as_f64().filter(|d| d.is_finite()) {
+            Some(d) => d as f32,
+            None => {
+                errs.push(format!("{hp}.{key}: must be a number of degrees (got {})", crate::strict::describe_value(v)));
+                0.0
+            }
+        },
+    }
+}
+
+/// A `hold` weapon choice: absent = 0 (no change), otherwise 0 to 7 as `PlayerInput::select` defines them.
+fn hold_select(h: &Map<String, Value>, hp: &str, errs: &mut Vec<String>) -> u8 {
+    match h.get("select") {
+        None => 0,
+        Some(v) => match v.as_u64().filter(|n| *n <= 7) {
+            Some(n) => n as u8,
+            None => {
+                errs.push(format!(
+                    "{hp}.select: must be a whole number from 0 to 7 (got {}); 1 and 2 are the gun slots, 3 melee, 4 grenade",
+                    crate::strict::describe_value(v)
+                ));
+                0
+            }
+        },
+    }
+}
+
 /// Parses a scenario. `rules` is the scene's rule set (variable names in `expect` are checked against it); `object_ids`
 /// are the scene's object ids (for `hidden`/`shown`).
 pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenario, Vec<String>> {
@@ -553,11 +641,16 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                     continue;
                 };
                 check_keys(&mut errs, &hp, h, HOLD_KEYS);
-                let int = |k: &str| h.get(k).and_then(Value::as_i64).unwrap_or(0).clamp(-1, 1) as i8;
-                let flag = |k: &str| h.get(k).and_then(Value::as_bool).unwrap_or(false);
-                let yaw = h.get("yaw_deg").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                let mut int = |k: &str| hold_axis(h, k, &hp, &mut errs);
+                let (forward, strafe) = (int("forward"), int("strafe"));
+                let mut flag = |k: &str| hold_flag(h, k, &hp, &mut errs);
+                let (jump, sprint, crouch) = (flag("jump"), flag("sprint"), flag("crouch"));
+                let (interact, attack, reload, switch_weapon, aim, drop) =
+                    (flag("interact"), flag("attack"), flag("reload"), flag("switch"), flag("aim"), flag("drop"));
+                let select = hold_select(h, &hp, &mut errs);
+                let yaw = hold_degrees(h, "yaw_deg", &hp, &mut errs);
                 let ticks = h.get("seconds").map_or(1, |s| ticks_of(s, &format!("{hp}.seconds"), &mut errs));
-                let pitch = h.get("pitch_deg").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                let pitch = hold_degrees(h, "pitch_deg", &hp, &mut errs);
                 let look_at = match h.get("look_at") {
                     None => None,
                     Some(v) => {
@@ -574,20 +667,20 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                 let input = PlayerInput {
                     seq: 0,
                     analog: false,
-                    forward: int("forward"),
-                    strafe: int("strafe"),
-                    jump: flag("jump"),
-                    sprint: flag("sprint"),
-                    crouch: flag("crouch"),
+                    forward,
+                    strafe,
+                    jump,
+                    sprint,
+                    crouch,
                     yaw: yaw.to_radians(),
                     pitch: pitch.to_radians(),
-                    interact: flag("interact"),
-                    attack: flag("attack"),
-                    reload: flag("reload"),
-                    switch_weapon: flag("switch"),
-                    aim: flag("aim"),
-                    drop: flag("drop"),
-                    select: int("select").clamp(0, 7) as u8,
+                    interact,
+                    attack,
+                    reload,
+                    switch_weapon,
+                    aim,
+                    drop,
+                    select,
                 };
                 script.push((
                     pi,
@@ -597,12 +690,31 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
             }
         }
     }
-    let max_secs = o.get("max_seconds").and_then(Value::as_f64).unwrap_or(30.0);
-    if !(max_secs > 0.0 && max_secs.is_finite()) {
-        errs.push(format!("{p}.max_seconds: must be a number of seconds greater than 0"));
-    }
-    let settle = o.get("settle_seconds").and_then(Value::as_f64).unwrap_or(0.5).max(0.0);
+    // A limit written as text (`"60"`) is an error, never the default: a scenario that silently ran for 30 s proves less than its author meant.
+    let seconds = |key: &str, default: f64, floor_zero: bool, errs: &mut Vec<String>| -> f64 {
+        let Some(v) = o.get(key) else { return default };
+        match v.as_f64().filter(|n| n.is_finite() && if floor_zero { *n >= 0.0 } else { *n > 0.0 }) {
+            Some(n) => n,
+            None => {
+                let rule = if floor_zero { "0 or more" } else { "greater than 0" };
+                errs.push(format!("{p}.{key}: expected a number of seconds {rule}, got {}", crate::strict::describe_value(v)));
+                default
+            }
+        }
+    };
+    let max_secs = seconds("max_seconds", 30.0, false, &mut errs);
+    let settle = seconds("settle_seconds", 0.5, true, &mut errs);
     let mut expect = Vec::new();
+    match o.get("expect") {
+        None => errs.push(format!(
+            "{p}.expect: needs at least one expectation: a scenario with none proves only that nobody got stuck (like {{\"event\": \"coin\", \"count\": 1}}, {{\"var\": \"score\", \"gte\": 1}}, {{\"ended\": \"victory\"}})"
+        )),
+        Some(Value::Array(list)) if list.is_empty() => {
+            errs.push(format!("{p}.expect: is empty, so the scenario proves only that nobody got stuck; add an expectation like {{\"ended\": \"victory\"}}"))
+        }
+        Some(Value::Array(_)) => {}
+        Some(other) => errs.push(format!("{p}.expect: expected a list of expectations, got {}", crate::strict::describe_value(other))),
+    }
     for (i, ev) in o.get("expect").and_then(Value::as_array).into_iter().flatten().enumerate() {
         let ep = format!("{p}.expect[{i}]");
         let Some(eo) = ev.as_object() else {
@@ -629,14 +741,43 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
     }
 }
 
+/// The one comparison (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`) of a `var` or `player_var` check.
+fn parse_cmp(eo: &Map<String, Value>, ep: &str, what: &str, errs: &mut Vec<String>) -> Option<(Cmp, f64)> {
+    let cmps = [("eq", Cmp::Eq), ("ne", Cmp::Ne), ("gt", Cmp::Gt), ("gte", Cmp::Ge), ("lt", Cmp::Lt), ("lte", Cmp::Le)];
+    let mut given = Vec::new();
+    for (key, cmp) in cmps {
+        let Some(value) = eo.get(key) else { continue };
+        match value {
+            Value::Number(n) => {
+                if let Some(value) = n.as_f64() {
+                    given.push((cmp, value));
+                }
+            }
+            Value::Bool(value) if matches!(cmp, Cmp::Eq | Cmp::Ne) => given.push((cmp, if *value { 1.0 } else { 0.0 })),
+            Value::Bool(_) => errs.push(format!("{ep}.{key}: boolean values are only valid with eq or ne")),
+            _ => errs.push(format!("{ep}.{key}: expected a number, or true/false with eq or ne")),
+        }
+    }
+    match given.as_slice() {
+        [(cmp, value)] => Some((*cmp, *value)),
+        _ => {
+            if given.len() != 1 && !errs.iter().any(|e| e.starts_with(ep)) {
+                errs.push(format!("{ep}: a `{what}` check needs exactly one of eq, ne, gt, gte, lt, lte; eq/ne also accept true/false"));
+            }
+            None
+        }
+    }
+}
+
 fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: &[String], players: &[PlayerSpec], errs: &mut Vec<String>) -> Option<Expect> {
-    let main: Vec<&str> = ["event", "no_event", "var", "ended", "not_ended", "hidden", "shown", "collision_disabled", "collision_enabled", "player", "prop"]
-        .into_iter()
-        .filter(|k| eo.contains_key(*k))
-        .collect();
+    let main: Vec<&str> =
+        ["event", "no_event", "var", "player_var", "ended", "not_ended", "hidden", "shown", "collision_disabled", "collision_enabled", "player", "prop"]
+            .into_iter()
+            .filter(|k| eo.contains_key(*k))
+            .collect();
     if main.len() != 1 {
         errs.push(format!(
-            "{ep}: give exactly one of event, no_event, var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop (got {})",
+            "{ep}: give exactly one of event, no_event, var, player_var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop (got {})",
             if main.is_empty() { "none".to_string() } else { main.join(" + ") }
         ));
         return None;
@@ -662,30 +803,26 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
                 ));
                 return None;
             }
-            let cmps = [("eq", Cmp::Eq), ("ne", Cmp::Ne), ("gt", Cmp::Gt), ("gte", Cmp::Ge), ("lt", Cmp::Lt), ("lte", Cmp::Le)];
-            let mut given = Vec::new();
-            for (key, cmp) in cmps {
-                let Some(value) = eo.get(key) else { continue };
-                match value {
-                    Value::Number(n) => {
-                        if let Some(value) = n.as_f64() {
-                            given.push((cmp, value));
-                        }
-                    }
-                    Value::Bool(value) if matches!(cmp, Cmp::Eq | Cmp::Ne) => given.push((cmp, if *value { 1.0 } else { 0.0 })),
-                    Value::Bool(_) => errs.push(format!("{ep}.{key}: boolean values are only valid with eq or ne")),
-                    _ => errs.push(format!("{ep}.{key}: expected a number, or true/false with eq or ne")),
-                }
+            let (cmp, value) = parse_cmp(eo, ep, "var", errs)?;
+            Some(Expect::Var { name: text, cmp, value })
+        }
+        "player_var" => {
+            if !rules.player_var_names.contains(&text) {
+                let known = if rules.player_var_names.is_empty() { "none declared".to_string() } else { rules.player_var_names.join(", ") };
+                errs.push(format!(
+                    "{ep}.player_var: no per-player variable `{text}`{} (declare it in the scene's `player_vars`; known: {known})",
+                    near_names(&text, rules.player_var_names.iter().cloned())
+                ));
+                return None;
             }
-            match given.as_slice() {
-                [(cmp, value)] => Some(Expect::Var { name: text, cmp: *cmp, value: *value }),
-                _ => {
-                    if given.len() != 1 && !errs.iter().any(|e| e.starts_with(ep)) {
-                        errs.push(format!("{ep}: a `var` check needs exactly one of eq, ne, gt, gte, lt, lte; eq/ne also accept true/false"));
-                    }
-                    None
-                }
+            let who = eo.get("of").and_then(Value::as_str).unwrap_or("");
+            if !players.iter().any(|p| p.id == who) {
+                let ids: Vec<&str> = players.iter().map(|p| p.id.as_str()).collect();
+                errs.push(format!("{ep}.of: a `player_var` check names the player it reads with `of`: one of {}", ids.join(", ")));
+                return None;
             }
+            let (cmp, value) = parse_cmp(eo, ep, "player_var", errs)?;
+            Some(Expect::PlayerVar { player: who.to_string(), name: text, cmp, value })
         }
         "ended" => Some(Expect::Ended(Some(text))),
         "not_ended" => Some(Expect::Ended(None)),
@@ -760,11 +897,7 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
                         errs.push(format!("{ep}.near: must be [x, z]"));
                         return None;
                     };
-                    PropCheck::Near {
-                        at,
-                        tol: eo.get("tol").and_then(Value::as_f64).unwrap_or(0.5) as f32,
-                        y: eo.get("y").and_then(Value::as_f64).map(|y| y as f32),
-                    }
+                    PropCheck::Near { at, tol: tolerance(eo, ep, errs), y: eo.get("y").and_then(Value::as_f64).map(|y| y as f32) }
                 }
                 _ => {
                     let who = eo["held_by"].as_str().unwrap_or("").to_string();
@@ -794,12 +927,7 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
                 errs.push(format!("{ep}.near: a player check needs \"near\": [x, z]"));
                 return None;
             };
-            Some(Expect::PlayerNear {
-                player: text,
-                at,
-                tol: eo.get("tol").and_then(Value::as_f64).unwrap_or(0.5) as f32,
-                y: eo.get("y").and_then(Value::as_f64).map(|y| y as f32),
-            })
+            Some(Expect::PlayerNear { player: text, at, tol: tolerance(eo, ep, errs), y: eo.get("y").and_then(Value::as_f64).map(|y| y as f32) })
         }
     }
 }
@@ -993,7 +1121,7 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                                 break;
                             }
                             if cur.phase == 0 {
-                                let goal = within.unwrap_or_else(|| default_within(state.character.body().pickup_reach));
+                                let goal = within.unwrap_or_else(|| approach::pickup_within(state.character.body().pickup_reach, eye, &target));
                                 let gap = target.gap(state.pos);
                                 match cur.approach.get_or_insert_with(|| Approach::new(goal, *timeout)).step(tick_secs, gap) {
                                     Progress::Arrived => (cur.phase, cur.ticks_in_step) = (1, 0),
@@ -1172,6 +1300,10 @@ fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], histo
             let got = sim.rules().var(name).unwrap_or(f64::NAN);
             done(format!("var {name} {} {value}", cmp.word()), cmp.holds(got, *value), format!("{name} = {got}"))
         }
+        Expect::PlayerVar { player, name, cmp, value } => {
+            let got = scenario.players.iter().position(|p| &p.id == player).and_then(|pi| sim.rules().player_var(slots[pi], name)).unwrap_or(f64::NAN);
+            done(format!("{player} {name} {} {value}", cmp.word()), cmp.holds(got, *value), format!("{player}.{name} = {got}"))
+        }
         Expect::Ended(want) => {
             let got = sim.rules().ended();
             let ok = got == want.as_deref();
@@ -1268,6 +1400,37 @@ mod tests {
         rules
     }
 
+    /// A scenario that cannot fail for the reason its author meant is an error: no expectations, a limit written as text, or an `expect` that is not a list.
+    #[test]
+    fn a_scenario_that_asserts_nothing_or_reads_a_limit_as_text_is_refused() {
+        let base = |extra: Value| {
+            let mut s = json!({"name": "s", "players": [{"id": "p"}], "script": [{"player": "p", "wait": 0}]});
+            s.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            s
+        };
+        let cases = [
+            ("no expect", base(json!({})), "expect: needs at least one expectation"),
+            ("an empty expect", base(json!({"expect": []})), "expect: is empty"),
+            ("an expect that is one object", base(json!({"expect": {"ended": "victory"}})), "expect: expected a list of expectations, got an object"),
+            ("a misspelled expect", base(json!({"expects": [{"ended": "victory"}]})), "expects: unknown field"),
+            (
+                "a duration as text",
+                base(json!({"expect": [{"ended": "victory"}], "max_seconds": "60"})),
+                "max_seconds: expected a number of seconds greater than 0, got string \"60\"",
+            ),
+            ("a zero duration", base(json!({"expect": [{"ended": "victory"}], "max_seconds": 0})), "max_seconds: expected a number of seconds greater than 0"),
+            (
+                "a settle time as text",
+                base(json!({"expect": [{"ended": "victory"}], "settle_seconds": "1"})),
+                "settle_seconds: expected a number of seconds 0 or more, got string \"1\"",
+            ),
+        ];
+        for (what, scenario, want) in cases {
+            let err = parse(&scenario, &rules(), &[]).err().unwrap_or_else(|| panic!("{what}: parsed")).join(" | ");
+            assert!(err.contains(want), "{what}: wanted `{want}` in `{err}`");
+        }
+    }
+
     #[test]
     fn boolean_variable_expectations_normalize_for_equality() {
         let scenario = parse(
@@ -1299,5 +1462,86 @@ mod tests {
         )
         .unwrap_err();
         assert!(errors.iter().any(|e| e.contains("only valid with eq or ne")), "{errors:?}");
+    }
+
+    const LAPS_SCENE: &str = r##"{"camera":{"position":[0,1.7,-6],"target":[0,1,0]},
+     "zones":[{"id":"gate","rect":[4,-2,6,2],"y":0}],
+     "spawns":[{"id":"a","position":[-6,0,0],"yaw_deg":90},{"id":"b","position":[-6,0,4],"yaw_deg":90}],
+     "player_vars":{"laps":0},
+     "rules":[{"id":"lap","when":{"enter":{"zone":"gate"}},"do":[{"add":["me.laps",1]}]}],
+     "checks":{"sim":[{"name":"only the runner laps","players":[{"id":"runner","spawn":"a"},{"id":"idle","spawn":"b"}],
+       "script":[{"player":"runner","walk":"5,0; 0,0; 5,0"}],
+       "expect":[{"player_var":"laps","of":"runner","gte":2},{"player_var":"laps","of":"idle","eq":0}]}]},
+     "objects":[{"id":"floor","type":"plane","size":[20,10],"position":[0,0.01,0]}]}"##;
+
+    fn run_scene(name: &str, text: &str) -> Result<crate::tools::simrun::SimReport, String> {
+        let dir = std::env::temp_dir().join(format!("re2_scenario_{name}"));
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = dir.join("scene.json");
+        std::fs::write(&path, text).map_err(|e| e.to_string())?;
+        crate::tools::simrun::run(&path, None, None, None).map(|(report, _)| report)
+    }
+
+    #[test]
+    fn a_scenario_proves_per_player_variables_for_each_player_separately() {
+        let report = run_scene("laps", LAPS_SCENE).unwrap();
+        assert!(report.all_passed(), "{}", report.render());
+    }
+
+    #[test]
+    fn a_player_var_check_names_the_fix_for_a_wrong_variable_or_player() {
+        let typo = LAPS_SCENE.replace(r#""player_var":"laps","of":"idle""#, r#""player_var":"lapz","of":"idle""#);
+        let e = run_scene("typo", &typo).map(|r| r.render()).unwrap_or_else(|e| e);
+        assert!(e.contains("no per-player variable `lapz`") && e.contains("did you mean"), "{e}");
+        let who = LAPS_SCENE.replace(r#""of":"idle""#, r#""of":"nobody""#);
+        let e = run_scene("who", &who).map(|r| r.render()).unwrap_or_else(|e| e);
+        assert!(e.contains("names the player it reads with `of`") && e.contains("runner, idle"), "{e}");
+    }
+
+    /// The messages of a scenario whose single `hold` step is `hold`.
+    fn hold_errors(hold: Value) -> String {
+        parse(
+            &json!({"name": "h", "players": [{"id": "p"}], "script": [{"player": "p", "hold": hold}], "expect": [{"var": "flag", "eq": true}]}),
+            &rules(),
+            &[],
+        )
+        .map(|_| String::new())
+        .unwrap_or_else(|e| e.join(" | "))
+    }
+
+    #[test]
+    fn a_hold_with_a_value_that_is_not_an_input_is_an_error_not_a_player_who_stands_still() {
+        // the Idea Forge finding: `{"forward": true}` ran for nine seconds with the player not moving; only `1` worked
+        let e = hold_errors(json!({"forward": true, "seconds": 1}));
+        assert!(e.contains(".hold.forward: must be the number -1, 0 or 1 (got boolean true); 1 is forward, -1 is back"), "{e}");
+        let e = hold_errors(json!({"strafe": 5}));
+        assert!(e.contains(".hold.strafe: must be the number -1, 0 or 1 (got number 5); 1 is right, -1 is left"), "{e}");
+        let e = hold_errors(json!({"jump": 1, "sprint": "yes"}));
+        assert!(
+            e.contains(".hold.jump: must be true or false (got number 1)") && e.contains(".hold.sprint: must be true or false (got string \"yes\")"),
+            "{e}"
+        );
+        let e = hold_errors(json!({"yaw_deg": "left", "pitch_deg": null}));
+        assert!(e.contains(".hold.yaw_deg: must be a number of degrees") && e.contains(".hold.pitch_deg: must be a number of degrees"), "{e}");
+        assert_eq!(hold_errors(json!({"forward": 1, "strafe": -1, "jump": true, "yaw_deg": 90, "seconds": 2})), "", "valid inputs are untouched");
+        assert_eq!(hold_errors(json!({})), "");
+    }
+
+    #[test]
+    fn an_expectation_tolerance_must_be_a_positive_number() {
+        let bad = |tol: Value| {
+            parse(
+                &json!({"name": "t", "players": [{"id": "p"}], "script": [{"player": "p", "wait": 0}], "expect": [{"player": "p", "near": [1, 2], "tol": tol}]}),
+                &rules(),
+                &[],
+            )
+            .map(|_| String::new())
+            .unwrap_or_else(|e| e.join(" | "))
+        };
+        for tol in [json!("1"), json!(-2), json!(0)] {
+            let e = bad(tol);
+            assert!(e.contains(".tol: must be a number of metres greater than 0") && e.contains("leave it out for 0.5"), "{e}");
+        }
+        assert_eq!(bad(json!(0.8)), "");
     }
 }

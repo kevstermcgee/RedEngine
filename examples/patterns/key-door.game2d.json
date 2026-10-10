@@ -1,0 +1,34 @@
+{
+  "game2d": 1, "id": "pattern-key-door", "title": "Pattern: key and door",
+  "description": "A door that stays shut until the player touches the key, then a goal behind it. Mechanic: key + door + exit (two prefabs with a tag each and two rules).",
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#161b2b"},
+  "prefabs": {
+    "player": {"tag": "player", "shape": {"rect": [8, 8], "color": "#ffd166"}, "layer": 2, "clamp": true, "body": {"type": "dynamic"}, "collide": ["door", "wall"], "move": {"keys": {"mode": "topdown", "speed": 90}}},
+    "wall": {"tag": "wall", "shape": {"rect": [8, 66], "color": "#3a4a6b"}, "body": {"type": "static"}},
+    "door": {"tag": "door", "shape": {"rect": [8, 48], "color": "#b5651d"}, "body": {"type": "static"}},
+    "key": {"tag": "key", "shape": {"circle": 6, "color": "#ffe14d"}},
+    "exit": {"tag": "exit", "shape": {"rect": [14, 14], "color": "#5cf2ff"}}
+  },
+  "scene": [
+    {"prefab": "player", "at": [30, 90], "id": "p"},
+    {"prefab": "key", "at": [80, 40]},
+    {"prefab": "wall", "at": [160, 33]},
+    {"prefab": "door", "at": [160, 90]},
+    {"prefab": "wall", "at": [160, 147]},
+    {"prefab": "exit", "at": [280, 90]}
+  ],
+  "ui": [
+    {"text": "FIND THE KEY", "at": [6, 4], "color": "#ffffff", "show": "count_key > 0"},
+    {"text": "THE DOOR IS OPEN", "at": [6, 4], "color": "#8cff9b", "show": "count_key == 0 && ended == 0"},
+    {"text": "YOU WIN", "at": [160, 80], "color": "#8cff9b", "show": "ended == 1", "scale": 2, "align": "center"}
+  ],
+  "rules": [
+    {"id": "take the key", "when": {"touch": ["player", "key"]}, "do": [{"destroy": "other"}, {"destroy": "tag:door"}, {"emit": "unlocked"}]},
+    {"id": "escape", "when": {"touch": ["player", "exit"]}, "do": [{"end": "win"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "the door blocks the way until the key is taken", "seed": 1, "max_seconds": 10, "script": [{"hold": ["right"], "seconds": 3}], "expect": [{"not_ended": true}, {"count": "door", "eq": 1}, {"entity": "p", "near": [148, 90], "tol": 10}]},
+    {"name": "taking the key opens the door and the exit wins", "seed": 1, "max_seconds": 40, "script": [{"approach": "key", "seconds": 8}, {"approach": "exit", "seconds": 14}], "expect": [{"ended": "win"}, {"count": "door", "eq": 0}, {"event": "unlocked", "min": 1}]}
+  ]}
+}

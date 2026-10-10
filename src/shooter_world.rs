@@ -18,7 +18,8 @@ use std::collections::{HashMap, VecDeque};
 /// Copies of each kind of dropped weapon that can lie on the floor at once.
 pub const DROPPED_PER_KIND: usize = 2;
 /// The weapons that fly.
-pub const FLYERS: [Weapon; 6] = [Weapon::Lancer, Weapon::Thumper, Weapon::Frag, Weapon::Flash, Weapon::Smoke, Weapon::Incendiary];
+pub const FLYERS: [Weapon; 9] =
+    [Weapon::Lancer, Weapon::Thumper, Weapon::Frag, Weapon::Flash, Weapon::Smoke, Weapon::Incendiary, Weapon::Lobber, Weapon::Flare, Weapon::Impact];
 /// Copies of each flying weapon alive at once.
 pub const FLYERS_PER_KIND: usize = 4;
 /// Explosions animating at once.
@@ -113,6 +114,8 @@ pub struct ShooterWorld {
     fire_live: HashMap<u16, Vec<usize>>,
     seen_fx: VecDeque<u16>,
     time: f32,
+    /// Flags, the bomb and the bomb sites (maps that have them).
+    objective: Option<crate::objective_world::ObjectiveWorld>,
 }
 
 impl ShooterWorld {
@@ -141,6 +144,7 @@ impl ShooterWorld {
         let fire = ScenePool::add(scene, MAX_ZONE_SNAP * FLAMES_PER_FIRE, |k| {
             solid(format!("fx_flame_{k}"), PrimKind::Cone { radius: 0.5, height: 1.0 }, Vec3::new(1.0, 0.4, 0.05), Vec3::new(3.0, 1.2, 0.2), 0.85)
         });
+        let objective = crate::objective_world::ObjectiveWorld::add_to_scene(scene);
         Some(ShooterWorld {
             pickup_first,
             pickup_weapons: cfg.pickups.iter().map(|p| p.weapon).collect(),
@@ -160,6 +164,7 @@ impl ShooterWorld {
             fire_live: HashMap::new(),
             seen_fx: VecDeque::new(),
             time: 0.0,
+            objective,
         })
     }
 
@@ -178,6 +183,9 @@ impl ShooterWorld {
         }
         for pool in [&self.fireballs, &self.dust, &self.flash_pool, &self.smoke, &self.fire] {
             out.extend(pool.hidden_ids(scene));
+        }
+        if let Some(o) = &self.objective {
+            out.extend(o.hidden_ids(scene));
         }
         out
     }
@@ -219,6 +227,9 @@ impl ShooterWorld {
                     o.scale = Track::constant(Vec3::splat(HIDDEN_SCALE));
                 }
             }
+        }
+        if let Some(o) = self.objective.as_mut() {
+            o.update(scene, arena.map(|a| &a.obj), dt);
         }
         let Some(arena) = arena else {
             self.clear(scene);

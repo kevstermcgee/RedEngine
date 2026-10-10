@@ -62,8 +62,12 @@ fn probe_audio() -> Check {
 
 fn probe_ffmpeg() -> Check {
     match Command::new("ffmpeg").arg("-version").stdout(Stdio::null()).stderr(Stdio::null()).status() {
-        Ok(s) if s.success() => check("ffmpeg", Status::Ok, "found (only `render`/MP4 output needs it)"),
-        _ => check("ffmpeg", Status::Warn, "not on PATH: only `render` (MP4 video) needs it; PNG frames, tours and everything else do not"),
+        Ok(s) if s.success() => check("ffmpeg", Status::Ok, "found (only MP4 export, feature `video`, needs it)"),
+        _ => check(
+            "ffmpeg",
+            Status::Warn,
+            "not on PATH: only MP4 export (`render`, built with `--features video`) needs it; PNG frames, tours and everything else do not",
+        ),
     }
 }
 

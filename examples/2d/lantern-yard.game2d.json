@@ -1,0 +1,117 @@
+{
+  "game2d": 1,
+  "id": "lantern-yard",
+  "title": "Lantern Yard",
+  "description": "Collect ten lanterns in a hedge yard before the ghosts find you. The whole yard is drawn in 3D perspective, with a flat minimap on top.",
+  "capabilities": { "presentation": "hybrid", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["progress"] },
+  "view": { "width": 320, "height": 180, "background": "#0d1b1e", "world": [384, 256], "camera": { "follow": "player", "lerp": 0.15 },
+    "world3d": { "plane": "ground", "pitch": 55, "distance": 175, "fov": 50, "sky": "#0d1b1e",
+      "ground": { "color": "#2b4a35", "alt": "#305239", "tile": 16 }, "light": { "toon": true, "dir": [-0.5, -0.9, -0.35], "ambient": 0.45 } } },
+
+  "sprites": {
+    "player": { "palette": { "d": "#1e5fa8", "b": "#4aa3ff", "s": "#ffd9b0", "k": "#222222" },
+      "rows": ["..dddd..", ".dddddd.", ".dskksd.", ".dssssd.", "..bbbb..", ".bbbbbb.", ".b.bb.b.", "..d..d.."] },
+    "ghost": { "fps": 3, "palette": { "r": "#c9d6ff", "k": "#222222" }, "frames": [
+      ["..rrrr..", ".rrrrrr.", "rrkkrkkr", "rrrrrrrr", "rrrrrrrr", "rrrrrrrr", "rr.rr.rr", "r..rr..r"],
+      ["..rrrr..", ".rrrrrr.", "rrkkrkkr", "rrrrrrrr", "rrrrrrrr", "rrrrrrrr", "r.rr.rr.", ".rr..rr."]] }
+  },
+
+  "models": {
+    "lantern": { "parts": [
+      { "shape": "cylinder", "radius": 0.5, "height": 0.2, "at": [0, -0.7, 0], "color": "#3b2f2f" },
+      { "shape": "box", "size": [0.8, 1.1, 0.8], "color": "#ffd23f" },
+      { "shape": "pyramid", "base": 1.1, "height": 0.6, "at": [0, 0.9, 0], "color": "#7a2f3a" }] }
+  },
+
+  "sounds": {
+    "pick": { "seconds": 0.18, "level": 0.5, "layers": [{ "sine": 880, "decay": 18 }, { "sine": 1320, "decay": 22, "delay": 0.05, "gain": 0.8 }] },
+    "hit": { "seconds": 0.3, "level": 0.6, "layers": [{ "sine": 196, "decay": 12, "attack": 0.004 }, { "noise": "hp 0.3", "decay": 16, "gain": 0.7 }] },
+    "win": { "seconds": 0.7, "level": 0.5, "layers": [{ "sine": 523.25, "decay": 5 }, { "sine": 659.25, "decay": 5, "delay": 0.12 }, { "sine": 783.99, "decay": 4, "delay": 0.24 }, { "sine": 1046.5, "decay": 3, "delay": 0.36 }] },
+    "lose": { "seconds": 0.9, "level": 0.5, "layers": [{ "glide": [330, 110, 3], "decay": 4 }, { "glide": [220, 70, 3], "decay": 4, "delay": 0.25 }] }
+  },
+
+  "vars": { "score": 0, "best": 0, "lives": 3, "timeleft": 60 },
+  "persist": ["best"],
+
+  "prefabs": {
+    "hedge": { "tag": "wall", "shape": { "rect": [16, 16], "color": "#2f6b3a" }, "height3d": 14, "body": { "type": "static" } },
+    "player": { "tag": "player", "shape": { "sprite": "player", "flip": "auto" }, "size": [8, 8], "layer": 2, "clamp": true,
+      "body": { "type": "dynamic" }, "collide": ["wall"], "move": { "keys": { "mode": "topdown", "speed": 90 } } },
+    "lantern": { "tag": "lantern", "shape": { "model": "lantern", "yaw": "time * 120", "elevation": 25, "fit": [18, 18] }, "layer": 1 },
+    "ghost": { "tag": "ghost", "shape": { "sprite": "ghost" }, "layer": 2, "move": { "chase": { "target": "player", "speed": 24 } } }
+  },
+
+  "map": {
+    "tile": 16, "origin": [0, 0],
+    "rows": [
+      "########################",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#.........##..##.......#",
+      "#.........##..##.......#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "########################"],
+    "legend": { "#": "hedge" }
+  },
+
+  "scene": [
+    { "prefab": "player", "at": [192, 40], "id": "p" },
+    { "prefab": "lantern", "at": [48, 48] }, { "prefab": "lantern", "at": [336, 48] },
+    { "prefab": "lantern", "at": [48, 208] }, { "prefab": "lantern", "at": [336, 208] },
+    { "prefab": "ghost", "at": [192, 216] }
+  ],
+
+  "ui": [
+    { "panel": { "at": [0, 0], "size": [320, 16], "color": "#0d1b1edd" } },
+    { "text": "LANTERNS {score:2}/10", "at": [6, 4], "color": "#ffd23f" },
+    { "text": "BEST {best:2}", "at": [120, 4], "color": "#9fb3d9" },
+    { "text": "TIME {timeleft:2}", "at": [170, 4], "color": "#ffffff" },
+    { "bar": { "var": "lives", "max": 3, "at": [250, 4], "size": [64, 8], "color": "#ff4d6d", "back": "#3a2230" } },
+    { "minimap": { "at": [250, 130], "size": [66, 44], "colors": { "wall": "#4d8a58", "lantern": "#ffd23f", "ghost": "#ff4d6d", "player": "#ffffff" }, "dot": 2, "viewport": true, "background": "#0d1b1ecc" } },
+    { "panel": { "at": [60, 56], "size": [200, 64], "color": "#0d1b1eee" }, "show": "ended" },
+    { "text": "YARD CLEARED!", "at": [160, 66], "scale": 2, "align": "center", "color": "#8cff9b", "show": "ended == 1" },
+    { "text": "THE GHOSTS WIN", "at": [160, 66], "scale": 2, "align": "center", "color": "#ff7a8c", "show": "ended == 2" },
+    { "button": { "id": "restart", "label": "PLAY AGAIN (ENTER)", "at": [100, 96], "size": [120, 14], "key": "Enter", "do": [{ "restart": true }] }, "show": "ended" }
+  ],
+
+  "rules": [
+    { "id": "grab lantern", "when": { "touch": ["player", "lantern"] }, "do": [
+      { "add": ["score", 1] }, { "play": "pick" }, { "burst": { "at": "other", "n": 10, "color": "#ffd23f", "speed": [30, 70], "life": [0.2, 0.5] } }, { "destroy": "other" }] },
+    { "id": "ghost hit", "when": { "touch": ["player", "ghost"] }, "do": [
+      { "add": ["lives", -1] }, { "play": "hit" }, { "shake": 3 }, { "destroy": "other" }, { "emit": "hurt" }] },
+    { "id": "out of lives", "when": { "event": "hurt" }, "if": "lives <= 0", "do": [{ "end": "lose" }] },
+    { "id": "enough lanterns", "when": { "every": 0.05 }, "if": "score >= 10", "do": [{ "end": "win" }] },
+    { "id": "clock", "when": { "every": 1 }, "do": [{ "add": ["timeleft", -1] }] },
+    { "id": "time up", "when": { "every": 0.05 }, "if": "timeleft <= 0", "do": [{ "end": "lose" }] },
+    { "id": "more lanterns north", "when": { "every": 1.4 }, "if": "count_lantern < 4", "do": [{ "spawn": { "prefab": "lantern", "at": { "x": [32, 352], "y": [32, 90] } } }] },
+    { "id": "more lanterns south", "when": { "every": 1.9 }, "if": "count_lantern < 4", "do": [{ "spawn": { "prefab": "lantern", "at": { "x": [32, 352], "y": [166, 224] } } }] },
+    { "id": "more ghosts", "when": { "every": 9 }, "if": "count_ghost < 2", "do": [{ "spawn": { "prefab": "ghost", "at": { "x": [32, 352], "y": [210, 224] } } }] },
+    { "id": "record", "when": { "end": "any" }, "if": "score > best", "do": [{ "set": ["best", "score"] }] },
+    { "id": "win jingle", "when": { "end": "win" }, "do": [{ "play": "win" }] },
+    { "id": "lose jingle", "when": { "end": "lose" }, "do": [{ "play": "lose" }] },
+    { "id": "again", "when": { "press": "action" }, "if": "ended", "do": [{ "restart": true }] }
+  ],
+
+  "checks": {
+    "scenarios": [
+      { "name": "a bot gathers ten lanterns and clears the yard", "seed": 1, "max_seconds": 60,
+        "script": [{ "approach": "lantern", "seconds": 45 }],
+        "expect": [{ "var": "score", "gte": 10 }, { "ended": "win" }, { "sound": "pick", "min": 10 }, { "var": "best", "gte": 10 }], "smoke": true },
+      { "name": "standing still loses to the ghosts or the clock", "seed": 2, "max_seconds": 70,
+        "script": [{ "wait_until": { "ended": "lose" }, "timeout": 65 }],
+        "expect": [{ "ended": "lose" }, { "var": "score", "eq": 0 }, { "sound": "lose" }] },
+      { "name": "the player cannot walk through a hedge", "seed": 1, "max_seconds": 10,
+        "script": [{ "hold": ["down"], "seconds": 1.4 }],
+        "expect": [{ "entity": "p", "near": [192, 40], "tol": 200 }, { "not_ended": true }] }
+    ]
+  }
+}

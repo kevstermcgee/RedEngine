@@ -11,7 +11,7 @@
 //! [`PropWorld`]), and the props are simulated here, so a prop moved by one player is seen moved by
 //! every other.
 
-use crate::collide::{collect_box_colliders_grouped_except, collect_ground_candidates_grouped_except, Collider2D, GroundCandidates};
+use crate::collide::{Collider2D, GroundCandidates, PhysicalWorld};
 use crate::hit::{collect_hit_shapes_where, HitShape};
 use crate::physics::PropWorld;
 use crate::player::Character;
@@ -56,6 +56,8 @@ pub struct ServerPlayer {
     /// How many ticks behind the present this player's view of the others is (their interpolation delay plus latency): their shots and
     /// swings are judged against where the others were then. `0` = the present (bots, a local player).
     pub view_lag: u8,
+    /// Whether Interact was held at the last processed input (plants, defuses).
+    pub interact_held: bool,
     newest_received_seq: u32,
     queue: VecDeque<PlayerInput>,
 }
@@ -63,11 +65,8 @@ pub struct ServerPlayer {
 /// The authoritative world. See the module docs.
 pub struct MatchSim {
     pub(super) props: PropWorld,
-    colliders: Vec<Collider2D>,
-    ground: GroundCandidates,
-    collider_groups: Vec<Vec<Collider2D>>,
-    ground_groups: Vec<GroundCandidates>,
-    collision_object_ids: Vec<String>,
+    /// What physically exists, given the scene and which objects' collision the rules have switched off ([`PhysicalWorld`]: the one definition every tool shares).
+    world: PhysicalWorld,
     /// Exact shapes of the fixed world, for bat swings and bullets.
     pub(super) hit_shapes: Vec<HitShape>,
     /// The scene's weapon numbers.
@@ -90,6 +89,8 @@ pub struct MatchSim {
     pub(super) tick: u64,
     /// The scene's game rules, running (see `sim::rules`).
     pub(super) rules: RulesEngine,
+    /// The scene's sky clock, when it has one, and the watcher that turns the sun crossing the horizon into `sunrise` / `sunset` events for the rules.
+    sky: Option<(crate::daycycle::Clock, crate::daycycle::SunWatch)>,
     /// Every loose prop as the rules see it this tick, rebuilt in place (only when a rule looks at props).
     prop_views: Vec<crate::sim::rules_run::RuleProp>,
     /// Top-level object id to index, to find the prop an `impulse` rule names.
@@ -136,22 +137,12 @@ impl MatchSim {
         }
         let props = PropWorld::new(scene, None);
         let loose = props.movable_indices();
-        let collider_groups = collect_box_colliders_grouped_except(scene, &loose);
-        let ground_groups = collect_ground_candidates_grouped_except(scene, &loose);
-        let colliders = collider_groups.iter().flatten().copied().collect();
-        let mut ground = GroundCandidates::default();
-        for group in &ground_groups {
-            ground.append(group);
-        }
+        let world = PhysicalWorld::new(scene, &loose);
         let object_index: HashMap<String, usize> = scene.objects.iter().enumerate().map(|(i, o)| (o.id.clone(), i)).collect();
         let mut rules = RulesEngine::new(scene.rules.clone()).with_wrap(scene.player.expanse.wrap);
         rules.bind_props(|id| object_index.get(id).and_then(|i| props.prop_of_object(*i)));
         Ok(MatchSim {
-            colliders,
-            ground,
-            collider_groups,
-            ground_groups,
-            collision_object_ids: scene.objects.iter().map(|object| object.id.clone()).collect(),
+            world,
             hit_shapes: collect_hit_shapes_where(scene, |i| !loose.contains(&i)),
             weapons: scene.weapons,
             combat_cfg: scene.combat,
@@ -167,6 +158,7 @@ impl MatchSim {
             history: VecDeque::with_capacity(HISTORY_TICKS + 1),
             tick: 0,
             rules,
+            sky: scene.clock.clone().map(|c| (c, Default::default())),
             prop_views: Vec::new(),
             object_index,
             rule_object_index: crate::schema::object_ids(&scene.objects)
@@ -269,7 +261,7 @@ impl MatchSim {
 
     /// The static collision world players walk through (a client predicts against the same data).
     pub fn static_world(&self) -> (&[Collider2D], &GroundCandidates) {
-        (&self.colliders, &self.ground)
+        (self.world.colliders(), self.world.ground())
     }
 
     /// A map-authored single-character policy, enforced by the authoritative server.
@@ -317,6 +309,17 @@ impl MatchSim {
     /// Kills scored by each team so far (index = team - 1); zeros outside a loadout match.
     pub fn team_kills(&self) -> [u32; 2] {
         self.arena.as_ref().map_or([0; 2], |a| a.team_kills)
+    }
+
+    /// What each team is scoring toward (index = team - 1): kills in team deathmatch, captures in capture the flag, rounds won in search
+    /// and destroy. Zeros in free for all (where players score, not teams) and outside a loadout match.
+    pub fn team_score(&self) -> [u32; 2] {
+        use super::shooter::ModeKind;
+        self.arena.as_ref().map_or([0; 2], |a| match a.cfg.mode {
+            ModeKind::Tdm => a.team_kills,
+            ModeKind::Ctf | ModeKind::Snd => a.points,
+            ModeKind::Ffa => [0; 2],
+        })
     }
 
     /// The loadout-match state (pickups, projectiles, smoke, fire, kills), if this is a loadout match.
@@ -382,10 +385,12 @@ impl MatchSim {
                 combat
             },
             view_lag: 0,
+            interact_held: false,
             newest_received_seq: 0,
             queue: VecDeque::new(),
         });
         self.karts[slot] = KartState::default();
+        self.rules.reset_player(slot);
         self.sync_kit(slot);
         let body = state.character.body();
         self.props.set_player_slot(slot, glam::Vec3::new(state.pos.x, state.foot_y, state.pos.y), body.radius, body.body_height);
@@ -474,6 +479,7 @@ impl MatchSim {
         let racing = self.race.as_ref().map(RaceState::can_drive);
         let course = self.race.as_ref().map(RaceState::course_arc);
         let mut kart_events = [KartEvents::default(); MAX_PLAYERS];
+        let locked = self.input_locked();
         for slot in 0..self.players.len() {
             if racing.is_none() {
                 self.combat_tick(slot);
@@ -487,12 +493,16 @@ impl MatchSim {
             }
             for input in inputs.into_iter().flatten() {
                 let Some(p) = self.players[slot].as_mut() else { break };
+                // Held in place for the freeze before a round: they can look around, not move, shoot or plant.
+                let input = if locked { PlayerInput { seq: input.seq, yaw: input.yaw, pitch: input.pitch, ..Default::default() } } else { input };
+                p.interact_held = input.interact;
                 if let Some(green) = racing {
                     let input = if green { input } else { PlayerInput { seq: input.seq, ..Default::default() } };
                     let spec = self.drivers[slot].spec();
                     // What is under the kart at the start of the tick: clients predict with the same lookup, so they agree.
                     let surface = course.as_ref().map_or(Surface::Road, |c| c.surface_at(p.state.pos));
-                    let (speed, events) = step_kart_ex(&mut p.state, &mut self.karts[slot], &input, &spec, surface, &self.colliders, &self.ground);
+                    let (speed, events) =
+                        step_kart_ex(&mut p.state, &mut self.karts[slot], &input, &spec, surface, self.world.colliders(), self.world.ground());
                     p.speed = speed;
                     kart_events[slot].throw_acorn |= events.throw_acorn;
                     kart_events[slot].lay_plank |= events.lay_plank;
@@ -509,7 +519,7 @@ impl MatchSim {
                         tuning.sprint_speed *= m;
                         tuning.max_speed *= m;
                     }
-                    p.speed = step_player_tuned(&mut p.state, &input, &self.colliders, &self.ground, tuning, &self.jump_pads);
+                    p.speed = step_player_tuned(&mut p.state, &input, self.world.colliders(), self.world.ground(), tuning, &self.jump_pads);
                     p.crouching = input.crouch;
                 }
                 p.last_processed_seq = input.seq;
@@ -528,6 +538,7 @@ impl MatchSim {
         if self.arena.is_some() {
             self.kit_pickups_tick();
             self.step_projectiles();
+            self.objective_tick();
         }
         self.props.step();
         let mut frame = [None; MAX_PLAYERS];
@@ -583,7 +594,7 @@ impl MatchSim {
             }
         }
         let karts = &mut self.karts;
-        self.hazards.step(positions, &self.colliders, |slot, spin| {
+        self.hazards.step(positions, self.world.colliders(), |slot, spin| {
             karts[slot].spin_out(spin);
         });
         // Boxes: only a kart with a free hand can take one; the roll knows the taker's place.
@@ -633,6 +644,11 @@ impl MatchSim {
             }
         }
         self.apply_fields();
+        if let Some((clock, watch)) = self.sky.as_mut() {
+            if let Some(event) = watch.at(clock, self.tick as f32 * crate::sim::clock::TICK_DT) {
+                self.rules.inject(self.tick, event, None);
+            }
+        }
         let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
         let effects = self.rules.step_props(self.tick, &views, &self.prop_views);
         for effect in effects {
@@ -684,19 +700,7 @@ impl MatchSim {
     }
 
     fn rebuild_static_world(&mut self) {
-        self.colliders.clear();
-        self.ground = GroundCandidates::default();
-        for (i, id) in self.collision_object_ids.iter().enumerate() {
-            if self.rules.collision_disabled().any(|disabled| disabled == id) {
-                continue;
-            }
-            if let Some(group) = self.collider_groups.get(i) {
-                self.colliders.extend_from_slice(group);
-            }
-            if let Some(group) = self.ground_groups.get(i) {
-                self.ground.append(group);
-            }
-        }
+        self.world.set_collision_disabled(self.rules.collision_disabled());
     }
 
     fn teleport(&mut self, slot: usize, target: &Target) {
@@ -742,6 +746,13 @@ impl MatchSim {
     }
 
     /// The scene's rules state (variables, hidden objects, outcome, event history).
+    /// Sets scene variables from saved values (the game's `persist` variables coming back at the start of a session); names the scene does not have are ignored.
+    pub fn restore_vars(&mut self, saved: &std::collections::BTreeMap<String, f64>) {
+        for (name, value) in saved {
+            self.rules.set_var(name, *value);
+        }
+    }
+
     pub fn rules(&self) -> &RulesEngine {
         &self.rules
     }

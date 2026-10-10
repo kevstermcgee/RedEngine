@@ -323,6 +323,8 @@ pub struct Brain {
     strafe: f32,
     strafe_until: u64,
     hunt_goal: Option<Vec3>,
+    /// Holding Interact this tick (planting or defusing).
+    hold_interact: bool,
     hunt_until: u64,
     heading: Vec2,
     heading_until: u64,
@@ -368,6 +370,7 @@ impl Brain {
             strafe: 1.0,
             strafe_until: 0,
             hunt_goal: None,
+            hold_interact: false,
             hunt_until: 0,
             heading: Vec2::ZERO,
             heading_until: 0,
@@ -462,6 +465,13 @@ impl Brain {
         input.pitch = (self.aim_pitch + self.bias.y).clamp(-1.5, 1.5);
         self.movement(sim, slot, me, now, &profile, &mut input);
         self.kit_management(sim, me, now, &mut input);
+        input.interact = self.hold_interact;
+        if self.hold_interact {
+            // Planting or defusing: stand still, and do not shoot a wall.
+            input.forward = 0;
+            input.strafe = 0;
+            input.sprint = false;
+        }
         input
     }
 
@@ -758,6 +768,30 @@ impl Brain {
         }
     }
 
+    /// Walks toward an objective goal (flag, bomb, site), or stands still holding Interact when asked to plant or defuse.
+    #[allow(clippy::too_many_arguments)]
+    fn objective_move(
+        &mut self,
+        sim: &MatchSim,
+        me: &ServerPlayer,
+        grounded: bool,
+        og: crate::sim::objective_run::ObjGoal,
+        now: u64,
+        want: &mut Vec2,
+        steer: &mut Option<Steer>,
+    ) {
+        let (pos, goal) = (me.state.pos, og.at);
+        let to = Vec2::new(goal.x - pos.x, goal.z - pos.y);
+        if og.hold {
+            self.hold_interact = true;
+        } else if to.length() > 1.2 || (goal.y - me.state.foot_y).abs() > 1.5 {
+            if let Some(nav) = sim.nav() {
+                *steer = self.route.steer(nav, &me.state, grounded, goal, now);
+            }
+            *want = steer.map_or_else(|| to.normalize_or_zero(), |s| s.dir);
+        }
+    }
+
     // ---- movement ---------------------------------------------------------------------------------------------------------------
 
     fn movement(&mut self, sim: &MatchSim, slot: usize, me: &ServerPlayer, now: u64, profile: &WeaponProfile, input: &mut PlayerInput) {
@@ -782,8 +816,16 @@ impl Brain {
         let mut want = Vec2::ZERO;
         let mut in_fight = false;
         let mut steer: Option<Steer> = None;
+        self.hold_interact = false;
+        // Capture the flag / search and destroy: carrying, planting and defusing are worth running past a fight; a far-off enemy never
+        // pins the whole team down (aiming and shooting go on while moving).
+        let objective = sim.bot_objective_goal(slot);
+        let enemy_close = target.is_some_and(|(_, p)| (p.state.pos - pos).length() < 12.0);
+        let objective_first = objective.is_some_and(|g| g.urgent || !enemy_close);
         if now < self.stuck_until {
             want = self.escape;
+        } else if let (true, Some(og)) = (objective_first, objective) {
+            self.objective_move(sim, me, grounded, og, now, &mut want, &mut steer);
         } else if let Some((_, p)) = target {
             in_fight = true;
             let to = p.state.pos - pos;
@@ -828,6 +870,9 @@ impl Brain {
                     }
                 }
             }
+        } else if let Some(og) = objective {
+            // No enemy in the way: the objective comes before weapons on the floor and before roaming.
+            self.objective_move(sim, me, grounded, og, now, &mut want, &mut steer);
         } else if let Some(goal) = self.pickup_goal(sim, slot, me, now).filter(|_| me.combat.kit.is_some()) {
             let to = Vec2::new(goal.x - pos.x, goal.z - pos.y);
             if let Some(nav) = sim.nav() {
@@ -1021,7 +1066,8 @@ impl MatchSim {
             // The team uniform only replaces a bot's requested look in a real loadout match; a non-shooter teamed
             // scene (hide-and-seek roles, etc.) keeps whatever character the roster asked for.
             if self.is_loadout() {
-                spec.character = if team == 1 { Character::Ridgeback } else { Character::Nightfall };
+                // A mix of looks, so a team of bots is not six identical soldiers.
+                spec.character = Character::soldier(team, (slot / 2 % 4) as u8);
             } else if spec.character == Character::Rat {
                 // A fighter cannot be the rat (it cannot attack), the same rule the no-team path below applies.
                 return false;
@@ -1042,10 +1088,15 @@ impl MatchSim {
             self.kart_bots[slot] = Some(Box::new(kart::KartBrain::new(spec.name.clone(), spec.level, seed)));
             return true;
         }
+        let mut spec = spec.clone();
+        if self.is_loadout() {
+            // Free for all: soldiers in alternating uniforms and a mix of looks, as the human players wear.
+            spec.character = Character::soldier(1 + (slot % 2) as u8, (slot / 2 % 4) as u8);
+        }
         if spec.character == Character::Rat || !self.add_player_in_slot(slot, spec.character) {
             return false;
         }
-        self.bots[slot] = Some(Box::new(Brain::new(spec.clone(), 0xB07 ^ ((slot as u64 + 1) << 8) ^ (self.tick << 16))));
+        self.bots[slot] = Some(Box::new(Brain::new(spec, 0xB07 ^ ((slot as u64 + 1) << 8) ^ (self.tick << 16))));
         true
     }
 

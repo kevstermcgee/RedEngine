@@ -1,0 +1,49 @@
+{
+  "name": "new_game_2d",
+  "description": "Task 5 and 6: a 2D native game from the recommended starter to a verified one: scaffold, read the format page, verify (simulation, render, audio waveform), look at a frame. The authoring loop for a small game.",
+  "steps": [
+    {
+      "id": "new-game",
+      "kind": "build",
+      "cmd": [
+        "{RED}",
+        "new-game",
+        "{WORK}/dash",
+        "--kind",
+        "2d",
+        "--name",
+        "dash",
+        "--engine-path",
+        "{ENGINE}"
+      ]
+    },
+    {
+      "id": "describe",
+      "kind": "discovery",
+      "cmd": [
+        "{RED}",
+        "describe",
+        "2d"
+      ]
+    },
+    {
+      "id": "verify",
+      "kind": "verify",
+      "cmd": [
+        "{RED}",
+        "verify",
+        "{WORK}/dash/dash.game2d.json"
+      ]
+    },
+    {
+      "id": "frame",
+      "kind": "verify",
+      "cmd": [
+        "{RED}",
+        "frame",
+        "{WORK}/dash/dash.game2d.json",
+        "{WORK}/look.png"
+      ]
+    }
+  ]
+}

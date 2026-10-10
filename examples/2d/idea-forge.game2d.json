@@ -1,0 +1,4772 @@
+{
+ "game2d": 1,
+ "id": "idea-forge",
+ "title": "Idea Forge",
+ "description": "Strike the anvil to forge a video game idea built around one strange, never repeated gameplay mechanic, with an optional story; lock the parts you like and re-forge the rest.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard",
+   "mouse"
+  ],
+  "persistence": [
+   "settings",
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 480,
+  "height": 270,
+  "background": "#0b1020",
+  "scale": "fit"
+ },
+ "sprites": {
+  "anvil": {
+   "palette": {
+    "a": "#8a97b5",
+    "d": "#4a5570",
+    "h": "#c9d4ee"
+   },
+   "rows": [
+    "..hhhhhhhhhhhh..",
+    "hhhhaaaaaaaaaaaa",
+    ".hhhaaaaaaaaaaa.",
+    "..aaaaaaaaaaaa..",
+    ".....aaaaaa.....",
+    ".....aaaaaa.....",
+    "....dddddddd....",
+    "...dddddddddd..."
+   ]
+  }
+ },
+ "sounds": {
+  "strike": {
+   "seconds": 0.5,
+   "level": 0.6,
+   "layers": [
+    {
+     "sine": 196,
+     "decay": 9,
+     "attack": 0.002
+    },
+    {
+     "sine": 523,
+     "decay": 7,
+     "attack": 0.002,
+     "gain": 0.5
+    },
+    {
+     "sine": 1318,
+     "decay": 14,
+     "attack": 0.002,
+     "gain": 0.3
+    }
+   ]
+  },
+  "tick": {
+   "seconds": 0.06,
+   "level": 0.35,
+   "layers": [
+    {
+     "sine": 1500,
+     "decay": 60,
+     "attack": 0.001
+    }
+   ]
+  },
+  "ding": {
+   "seconds": 0.6,
+   "level": 0.45,
+   "layers": [
+    {
+     "sine": 880,
+     "decay": 7,
+     "attack": 0.003
+    },
+    {
+     "sine": 1320,
+     "decay": 8,
+     "delay": 0.09,
+     "attack": 0.003,
+     "gain": 0.7
+    }
+   ]
+  },
+  "click": {
+   "seconds": 0.05,
+   "level": 0.3,
+   "layers": [
+    {
+     "sine": 640,
+     "decay": 70,
+     "attack": 0.001
+    }
+   ]
+  },
+  "chime": {
+   "seconds": 0.5,
+   "level": 0.4,
+   "layers": [
+    {
+     "sine": 660,
+     "decay": 8,
+     "attack": 0.003
+    },
+    {
+     "sine": 990,
+     "decay": 9,
+     "delay": 0.07,
+     "attack": 0.003
+    },
+    {
+     "sine": 1320,
+     "decay": 10,
+     "delay": 0.14,
+     "attack": 0.003
+    }
+   ]
+  }
+ },
+ "music": {
+  "ember": {
+   "bpm": 66,
+   "beats": 4,
+   "bars": 8,
+   "key": "A",
+   "scale": "minor_pentatonic",
+   "seed": 7,
+   "lufs": -29,
+   "reverb": {
+    "decay": 3.0,
+    "mix": 0.4
+   },
+   "instruments": {
+    "pad": {
+     "seconds": 6,
+     "level": 0.5,
+     "layers": [
+      {
+       "sine": 1,
+       "attack": 1.5,
+       "release": 2.5
+      },
+      {
+       "sine": 2,
+       "attack": 2,
+       "release": 2.5,
+       "gain": 0.25
+      },
+      {
+       "sine": 0.5,
+       "attack": 2,
+       "release": 2.5,
+       "gain": 0.4
+      }
+     ]
+    },
+    "spark": {
+     "seconds": 2,
+     "level": 0.4,
+     "layers": [
+      {
+       "sine": 1,
+       "decay": 3
+      },
+      {
+       "sine": 3.01,
+       "decay": 6,
+       "gain": 0.2
+      }
+     ]
+    }
+   },
+   "tracks": [
+    {
+     "inst": "pad",
+     "play": "chords",
+     "chords": "1 6 4 5",
+     "every": "2 bars",
+     "octave": 3,
+     "gain": 0.9
+    },
+    {
+     "inst": "spark",
+     "play": "walk",
+     "every": "1 beats",
+     "density": 0.25,
+     "range": [
+      1,
+      8
+     ],
+     "octave": 5,
+     "pan": "spread",
+     "gain": 0.5,
+     "vel": [
+      0.4,
+      0.8
+     ]
+    }
+   ]
+  }
+ },
+ "vars": {
+  "n": 0,
+  "seed": 0,
+  "cur": 0,
+  "w": 0,
+  "story": 1,
+  "fi": 0,
+  "nf": 0,
+  "fn": 0,
+  "hn": 0,
+  "spin": 0,
+  "spin_t": 0,
+  "dups": 0,
+  "la": 0,
+  "lb": 0,
+  "lc": 0,
+  "ld": 0,
+  "le": 0,
+  "f1": 0,
+  "f2": 0,
+  "f3": 0,
+  "f4": 0,
+  "f5": 0,
+  "f6": 0,
+  "f7": 0,
+  "f8": 0,
+  "h1": 0,
+  "h2": 0,
+  "h3": 0,
+  "h4": 0,
+  "h5": 0,
+  "h6": 0,
+  "h7": 0,
+  "h8": 0,
+  "v_adj": 0,
+  "v_noun": 0,
+  "v_you": 0,
+  "v_but": 0,
+  "v_push": 0,
+  "v_goal": 0,
+  "v_story": 0
+ },
+ "persist": [
+  "n",
+  "seed",
+  "cur",
+  "story",
+  "nf",
+  "fn",
+  "fi",
+  "hn",
+  "la",
+  "lb",
+  "lc",
+  "ld",
+  "le",
+  "f1",
+  "f2",
+  "f3",
+  "f4",
+  "f5",
+  "f6",
+  "f7",
+  "f8",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "h7",
+  "h8"
+ ],
+ "prefabs": {
+  "die": {
+   "tag": "die",
+   "shape": {
+    "rect": [
+     1,
+     1
+    ]
+   },
+   "size": [
+    1,
+    1
+   ],
+   "hidden": true
+  },
+  "anvil": {
+   "tag": "splash",
+   "shape": {
+    "sprite": "anvil",
+    "scale": 5
+   },
+   "size": [
+    80,
+    40
+   ],
+   "layer": 1
+  },
+  "ember": {
+   "tag": "deco",
+   "shape": {
+    "rect": [
+     1,
+     1
+    ]
+   },
+   "size": [
+    1,
+    1
+   ],
+   "hidden": true,
+   "emit": {
+    "rate": 5,
+    "life": [
+     1.5,
+     3.0
+    ],
+    "speed": [
+     10,
+     26
+    ],
+    "angle": [
+     255,
+     285
+    ],
+    "color": "#ff8a2a",
+    "size": 1.5,
+    "gravity": -4
+   }
+  }
+ },
+ "scene": [
+  {
+   "prefab": "die",
+   "at": [
+    0,
+    0
+   ],
+   "id": "die"
+  },
+  {
+   "prefab": "anvil",
+   "at": [
+    240,
+    98
+   ]
+  },
+  {
+   "prefab": "ember",
+   "at": [
+    60,
+    270
+   ]
+  },
+  {
+   "prefab": "ember",
+   "at": [
+    180,
+    270
+   ]
+  },
+  {
+   "prefab": "ember",
+   "at": [
+    300,
+    270
+   ]
+  },
+  {
+   "prefab": "ember",
+   "at": [
+    420,
+    270
+   ]
+  }
+ ],
+ "ui": [
+  {
+   "panel": {
+    "at": [
+     0,
+     0
+    ],
+    "size": [
+     480,
+     14
+    ],
+    "color": "#1a2140"
+   }
+  },
+  {
+   "text": "IDEA FORGE",
+   "at": [
+    6,
+    4
+   ],
+   "color": "#ffb347",
+   "scale": 1
+  },
+  {
+   "text": "FORGED {n}",
+   "at": [
+    150,
+    4
+   ],
+   "color": "#7f8bb0",
+   "scale": 1,
+   "show": "n > 0"
+  },
+  {
+   "text": "SAVED {fn}",
+   "at": [
+    226,
+    4
+   ],
+   "color": "#7f8bb0",
+   "scale": 1,
+   "show": "n > 0 && fi == 0"
+  },
+  {
+   "text": "SAVED",
+   "at": [
+    474,
+    4
+   ],
+   "color": "#8ff0a4",
+   "scale": 1,
+   "align": "right",
+   "show": "n > 0 && (cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8)"
+  },
+  {
+   "text": "CODE {cur:10}",
+   "at": [
+    474,
+    4
+   ],
+   "color": "#7f8bb0",
+   "scale": 1,
+   "align": "right",
+   "show": "n > 0 && !(cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8)"
+  },
+  {
+   "text": "IDEA FORGE",
+   "at": [
+    240,
+    24
+   ],
+   "color": "#ffb347",
+   "scale": 4,
+   "align": "center",
+   "show": "n == 0"
+  },
+  {
+   "text": "EACH STRIKE HAMMERS OUT ONE GAME IDEA BUILT AROUND A SINGLE STRANGE MECHANIC.",
+   "at": [
+    240,
+    140
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "align": "center",
+   "show": "n == 0"
+  },
+  {
+   "text": "A STORY COMES WITH IT UNLESS YOU SWITCH IT OFF.",
+   "at": [
+    240,
+    152
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "align": "center",
+   "show": "n == 0"
+  },
+  {
+   "text": "NO IDEA REPEATS: THE FORGE WALKS EVERY COMBINATION EXACTLY ONCE.",
+   "at": [
+    240,
+    164
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "align": "center",
+   "show": "n == 0"
+  },
+  {
+   "text": "PRESS SPACE TO STRIKE",
+   "at": [
+    240,
+    190
+   ],
+   "color": "#ffcf6a",
+   "scale": 2,
+   "align": "center",
+   "show": "n == 0"
+  },
+  {
+   "text": "Borrowed",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 0"
+  },
+  {
+   "text": "Hollow",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 1"
+  },
+  {
+   "text": "Restless",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 2"
+  },
+  {
+   "text": "Paper",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 3"
+  },
+  {
+   "text": "Midnight",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 4"
+  },
+  {
+   "text": "Tangled",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 5"
+  },
+  {
+   "text": "Quiet",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 6"
+  },
+  {
+   "text": "Wandering",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 7"
+  },
+  {
+   "text": "Glass",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 8"
+  },
+  {
+   "text": "Salted",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 9"
+  },
+  {
+   "text": "Velvet",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 10"
+  },
+  {
+   "text": "Final",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 11"
+  },
+  {
+   "text": "Copper",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 12"
+  },
+  {
+   "text": "Drowsy",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 13"
+  },
+  {
+   "text": "Feral",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 14"
+  },
+  {
+   "text": "Brittle",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 15"
+  },
+  {
+   "text": "Sunken",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 16"
+  },
+  {
+   "text": "Crooked",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 17"
+  },
+  {
+   "text": "Gentle",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 18"
+  },
+  {
+   "text": "Phantom",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 19"
+  },
+  {
+   "text": "Rusted",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 20"
+  },
+  {
+   "text": "Electric",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 21"
+  },
+  {
+   "text": "Moth",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 22"
+  },
+  {
+   "text": "Patient",
+   "at": [
+    231,
+    22
+   ],
+   "color": "#ffcf6a",
+   "scale": 3,
+   "align": "right",
+   "show": "n > 0 && v_adj == 23"
+  },
+  {
+   "text": "Tide",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 0"
+  },
+  {
+   "text": "Lantern",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 1"
+  },
+  {
+   "text": "Orchard",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 2"
+  },
+  {
+   "text": "Engine",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 3"
+  },
+  {
+   "text": "Parade",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 4"
+  },
+  {
+   "text": "Cartographer",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 5"
+  },
+  {
+   "text": "Choir",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 6"
+  },
+  {
+   "text": "Gardener",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 7"
+  },
+  {
+   "text": "Weather",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 8"
+  },
+  {
+   "text": "Ferry",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 9"
+  },
+  {
+   "text": "Archive",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 10"
+  },
+  {
+   "text": "Compass",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 11"
+  },
+  {
+   "text": "Harvest",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 12"
+  },
+  {
+   "text": "Signal",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 13"
+  },
+  {
+   "text": "Staircase",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 14"
+  },
+  {
+   "text": "Kite",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 15"
+  },
+  {
+   "text": "Foundry",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 16"
+  },
+  {
+   "text": "Marathon",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 17"
+  },
+  {
+   "text": "Telescope",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 18"
+  },
+  {
+   "text": "Bridge",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 19"
+  },
+  {
+   "text": "Carousel",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 20"
+  },
+  {
+   "text": "Lighthouse",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 21"
+  },
+  {
+   "text": "Orchestra",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 22"
+  },
+  {
+   "text": "Loom",
+   "at": [
+    249,
+    22
+   ],
+   "color": "#ffffff",
+   "scale": 3,
+   "align": "left",
+   "show": "n > 0 && v_noun == 23"
+  },
+  {
+   "panel": {
+    "at": [
+     2,
+     55
+    ],
+    "size": [
+     476,
+     33
+    ],
+    "color": "#141b33"
+   },
+   "show": "n > 0"
+  },
+  {
+   "text": "YOU",
+   "at": [
+    6,
+    58
+   ],
+   "color": "#7fe3ff",
+   "scale": 1,
+   "show": "n > 0"
+  },
+  {
+   "text": "you stretch a rope between two drifting anchors and play it like a",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 0"
+  },
+  {
+   "text": "slingshot,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 0"
+  },
+  {
+   "text": "you sing notes whose loudness physically shoves everything nearby,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 1"
+  },
+  {
+   "text": "you fold the level like paper along lines you draw with your",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 2"
+  },
+  {
+   "text": "finger,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 2"
+  },
+  {
+   "text": "you swap bodies with whatever you point at for as long as you hold",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 3"
+  },
+  {
+   "text": "your breath,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 3"
+  },
+  {
+   "text": "you freeze one object in time at a time; freezing a second thaws",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 4"
+  },
+  {
+   "text": "the first,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 4"
+  },
+  {
+   "text": "you dig tunnels that only your followers can see or use,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 5"
+  },
+  {
+   "text": "you pour paint; each color changes the physics of whatever it",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 6"
+  },
+  {
+   "text": "soaks,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 6"
+  },
+  {
+   "text": "you throw your shadow ahead of you and then become it,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 7"
+  },
+  {
+   "text": "you stack tiny planets and let their combined gravity do the rest,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 8"
+  },
+  {
+   "text": "you tune a radio dial where every frequency rewrites one rule of",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 9"
+  },
+  {
+   "text": "the room,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 9"
+  },
+  {
+   "text": "you draw a loop on the ground; everything inside replays its last",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 10"
+  },
+  {
+   "text": "five seconds,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 10"
+  },
+  {
+   "text": "you grow vines from your fingertips toward whichever light you",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 11"
+  },
+  {
+   "text": "carry,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 11"
+  },
+  {
+   "text": "you whistle to call echoes that copy your last move a beat later,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 12"
+  },
+  {
+   "text": "you pinch the camera to shrink or enlarge the room while you stay",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 13"
+  },
+  {
+   "text": "the same size,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 13"
+  },
+  {
+   "text": "you hand every creature a single instruction card that it obeys far",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 14"
+  },
+  {
+   "text": "too literally,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 14"
+  },
+  {
+   "text": "you lend your weight to a scale that balances two separate worlds,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 15"
+  },
+  {
+   "text": "you mark things with chalk; whatever is chalked breaks next,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 16"
+  },
+  {
+   "text": "you rotate the entire level a quarter turn while gravity stays",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 17"
+  },
+  {
+   "text": "exactly where it is,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 17"
+  },
+  {
+   "text": "you carry the only lantern; nothing exists outside its glow,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 18"
+  },
+  {
+   "text": "you juggle three timers; each one runs a different law of the room,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 19"
+  },
+  {
+   "text": "you tie knots in the path behind you so pursuers tangle in them,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 20"
+  },
+  {
+   "text": "you pluck strings between walls to launch yourself like an arrow,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 21"
+  },
+  {
+   "text": "you spend memories to buy skills; you can hold only three at once,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 22"
+  },
+  {
+   "text": "you conduct a crowd of tiny followers with the tempo of a baton,",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 23"
+  },
+  {
+   "text": "you write one word on a wall and the wall starts behaving like that",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 24"
+  },
+  {
+   "text": "word,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 24"
+  },
+  {
+   "text": "you pour yourself into containers and flow through the level as",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 25"
+  },
+  {
+   "text": "liquid, gas or ice,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 25"
+  },
+  {
+   "text": "you trade places with your own reflection in any mirror, window or",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 26"
+  },
+  {
+   "text": "puddle,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 26"
+  },
+  {
+   "text": "you wear a single magnet and flip its polarity to push or pull the",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 27"
+  },
+  {
+   "text": "world,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 27"
+  },
+  {
+   "text": "you lay down track one piece at a time while a runaway cart gains",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 28"
+  },
+  {
+   "text": "on you,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 28"
+  },
+  {
+   "text": "you cut the level along any straight line and slide the two halves",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 29"
+  },
+  {
+   "text": "apart,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 29"
+  },
+  {
+   "text": "you plant seeds that grow into whatever object you were holding",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 30"
+  },
+  {
+   "text": "when you planted them,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 30"
+  },
+  {
+   "text": "you keep a pet storm on a leash and aim its lightning with your",
+   "at": [
+    70,
+    58
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 31"
+  },
+  {
+   "text": "footsteps,",
+   "at": [
+    70,
+    67
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_you == 31"
+  },
+  {
+   "panel": {
+    "at": [
+     2,
+     89
+    ],
+    "size": [
+     476,
+     33
+    ],
+    "color": "#10162a"
+   },
+   "show": "n > 0"
+  },
+  {
+   "text": "BUT",
+   "at": [
+    6,
+    92
+   ],
+   "color": "#ffb347",
+   "scale": 1,
+   "show": "n > 0"
+  },
+  {
+   "text": "but every object you touch gets a little heavier for the rest of",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 0"
+  },
+  {
+   "text": "the level.",
+   "at": [
+    70,
+    101
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 0"
+  },
+  {
+   "text": "but the left half of the world runs at half speed.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 1"
+  },
+  {
+   "text": "but a ghost repeats everything you do exactly one beat late.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 2"
+  },
+  {
+   "text": "but walls are solid only while you are looking at them.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 3"
+  },
+  {
+   "text": "but you can never touch the same surface twice in a row.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 4"
+  },
+  {
+   "text": "but gravity points toward the last thing you touched.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 5"
+  },
+  {
+   "text": "but the level shrinks every time you succeed.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 6"
+  },
+  {
+   "text": "but tools never break; they wear down into different tools.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 7"
+  },
+  {
+   "text": "but everything mirrors itself the moment you stand still.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 8"
+  },
+  {
+   "text": "but silence is solid and noise is a doorway.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 9"
+  },
+  {
+   "text": "but numbers painted on things are real; a 7 weighs seven times a 1.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 10"
+  },
+  {
+   "text": "but the floor gives way on your third visit to any tile.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 11"
+  },
+  {
+   "text": "but you can only move while a partner you do not control moves.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 12"
+  },
+  {
+   "text": "but your color is a rule; only matching things help or hurt you; it",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 13"
+  },
+  {
+   "text": "changes with each item you carry.",
+   "at": [
+    70,
+    101
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 13"
+  },
+  {
+   "text": "but time passes only when you change direction.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 14"
+  },
+  {
+   "text": "but thrown objects remember where they came from and return when",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 15"
+  },
+  {
+   "text": "thrown again.",
+   "at": [
+    70,
+    101
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 15"
+  },
+  {
+   "text": "but light bends around the biggest thing on screen.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 16"
+  },
+  {
+   "text": "but the exit drifts toward whatever you ignore the longest.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 17"
+  },
+  {
+   "text": "but every move costs a coin and you earn coins only by standing",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 18"
+  },
+  {
+   "text": "still.",
+   "at": [
+    70,
+    101
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 18"
+  },
+  {
+   "text": "but a bell rings every ten seconds and you must pick one of three",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 19"
+  },
+  {
+   "text": "new laws.",
+   "at": [
+    70,
+    101
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 19"
+  },
+  {
+   "text": "but friend and foe swap sides whenever you cross the midline.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 20"
+  },
+  {
+   "text": "but the more you carry the smaller you become.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 21"
+  },
+  {
+   "text": "but shadows are separate objects that can be picked up.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 22"
+  },
+  {
+   "text": "but speed is shared; whatever you speed up slows something else",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 23"
+  },
+  {
+   "text": "down.",
+   "at": [
+    70,
+    101
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 23"
+  },
+  {
+   "text": "but you may only ever turn left.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 24"
+  },
+  {
+   "text": "but anything you stop looking at falls asleep and stays that way.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 25"
+  },
+  {
+   "text": "but each new room is built from your last three mistakes.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 26"
+  },
+  {
+   "text": "but your inventory is physical and trails behind you like a tail.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 27"
+  },
+  {
+   "text": "but up is whichever way you last fell.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 28"
+  },
+  {
+   "text": "but everything you create vanishes the moment you create something",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 29"
+  },
+  {
+   "text": "new.",
+   "at": [
+    70,
+    101
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 29"
+  },
+  {
+   "text": "but enemies learn your habits and politely imitate them.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 30"
+  },
+  {
+   "text": "but the world is drawn only by the sounds you make.",
+   "at": [
+    70,
+    92
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_but == 31"
+  },
+  {
+   "panel": {
+    "at": [
+     2,
+     123
+    ],
+    "size": [
+     476,
+     33
+    ],
+    "color": "#141b33"
+   },
+   "show": "n > 0"
+  },
+  {
+   "text": "PUSHBACK",
+   "at": [
+    6,
+    126
+   ],
+   "color": "#ff7a8c",
+   "scale": 1,
+   "show": "n > 0"
+  },
+  {
+   "text": "A slow tide of ink rises from below and erases whatever it touches.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 0"
+  },
+  {
+   "text": "A rival copy of you plays the same level one step ahead and spoils",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 1"
+  },
+  {
+   "text": "your route.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 1"
+  },
+  {
+   "text": "The level crumbles from the edges toward the center on a visible",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 2"
+  },
+  {
+   "text": "countdown.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 2"
+  },
+  {
+   "text": "A hungry crowd follows you and eats anything you leave unattended.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 3"
+  },
+  {
+   "text": "A storm front sweeps across the map and scatters your tools if it",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 4"
+  },
+  {
+   "text": "catches them.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 4"
+  },
+  {
+   "text": "Every ten seconds the room swaps its rules with the room next door.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 5"
+  },
+  {
+   "text": "A quiet creature mirrors your mistakes back at you with interest.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 6"
+  },
+  {
+   "text": "Your energy drains faster the more you succeed.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 7"
+  },
+  {
+   "text": "A wall closes in from one side; each push back costs something you",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 8"
+  },
+  {
+   "text": "cannot get again.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 8"
+  },
+  {
+   "text": "Echoes of your earlier attempts haunt the level and block your old",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 9"
+  },
+  {
+   "text": "routes.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 9"
+  },
+  {
+   "text": "Gravity grows stronger with every item you collect.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 10"
+  },
+  {
+   "text": "A flock of thieves steals whatever you set down.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 11"
+  },
+  {
+   "text": "A clock-faced beast eats a minute of your day each time it catches",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 12"
+  },
+  {
+   "text": "you.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 12"
+  },
+  {
+   "text": "The map builds itself one screen ahead of you while one screen",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 13"
+  },
+  {
+   "text": "behind decays.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 13"
+  },
+  {
+   "text": "Noise draws a patient listener that always arrives from a new",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 14"
+  },
+  {
+   "text": "direction.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 14"
+  },
+  {
+   "text": "An unseen second player is solving the same puzzle and moves things",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 15"
+  },
+  {
+   "text": "behind your back.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 15"
+  },
+  {
+   "text": "Every success wakes something bigger.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 16"
+  },
+  {
+   "text": "Fog rolls in and everything you have not touched recently is",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 17"
+  },
+  {
+   "text": "forgotten.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 17"
+  },
+  {
+   "text": "A pendulum of light sweeps the level and scorches anything standing",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 18"
+  },
+  {
+   "text": "still.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 18"
+  },
+  {
+   "text": "Your tools multiply when unused and swarm you if you hoard them.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 19"
+  },
+  {
+   "text": "The ground is a slow conveyor and the whole level drifts to the",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 20"
+  },
+  {
+   "text": "left.",
+   "at": [
+    70,
+    135
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 20"
+  },
+  {
+   "text": "You carry a fragile guest who panics at sudden moves.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 21"
+  },
+  {
+   "text": "A debt grows every second; only risky moves pay it down.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 22"
+  },
+  {
+   "text": "A tide of rival ghosts races you to claim the same objects.",
+   "at": [
+    70,
+    126
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_push == 23"
+  },
+  {
+   "panel": {
+    "at": [
+     2,
+     157
+    ],
+    "size": [
+     476,
+     33
+    ],
+    "color": "#10162a"
+   },
+   "show": "n > 0"
+  },
+  {
+   "text": "GOAL",
+   "at": [
+    6,
+    160
+   ],
+   "color": "#8ff0a4",
+   "scale": 1,
+   "show": "n > 0"
+  },
+  {
+   "text": "Reach the exit still holding something you started with.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 0"
+  },
+  {
+   "text": "Light every lamp without ever lighting two in neighboring rooms.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 1"
+  },
+  {
+   "text": "Return a lost creature to the place where it first appeared.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 2"
+  },
+  {
+   "text": "Build one unbroken chain from one end of the world to the other.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 3"
+  },
+  {
+   "text": "Empty the level until nothing is left but you.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 4"
+  },
+  {
+   "text": "Balance everything: finish with exactly the same amount on both",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 5"
+  },
+  {
+   "text": "sides.",
+   "at": [
+    70,
+    169
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 5"
+  },
+  {
+   "text": "Survive until the final bell while doing as little as possible.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 6"
+  },
+  {
+   "text": "Gather five parts of a machine and assemble them in the right",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 7"
+  },
+  {
+   "text": "order.",
+   "at": [
+    70,
+    169
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 7"
+  },
+  {
+   "text": "Teach a stubborn crowd one dance step.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 8"
+  },
+  {
+   "text": "Escape through a door that exists only once you stop searching for",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 9"
+  },
+  {
+   "text": "it.",
+   "at": [
+    70,
+    169
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 9"
+  },
+  {
+   "text": "Reach the highest point without ever going down.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 10"
+  },
+  {
+   "text": "Draw a picture with your path that a stranger would recognize.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 11"
+  },
+  {
+   "text": "Put every enemy to sleep at the same moment.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 12"
+  },
+  {
+   "text": "Carry a sleeping friend through ten rooms without waking them.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 13"
+  },
+  {
+   "text": "Give each of your tools to the right person before the level ends.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 14"
+  },
+  {
+   "text": "Grow one thing to full size before anything else around it can.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 15"
+  },
+  {
+   "text": "Leave the level exactly as you found it.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 16"
+  },
+  {
+   "text": "Reach a stranger on the far side who has the very same problem.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 17"
+  },
+  {
+   "text": "Finish with the fewest actions; the quietest run scores highest.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 18"
+  },
+  {
+   "text": "Win a round by deliberately losing the round before it.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 19"
+  },
+  {
+   "text": "Fill the whole map with color.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 20"
+  },
+  {
+   "text": "Teach your pursuer to stop chasing.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 21"
+  },
+  {
+   "text": "Make the loudest sound the level is able to make.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 22"
+  },
+  {
+   "text": "Be the last thing standing in a world that shrinks to a point.",
+   "at": [
+    70,
+    160
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && v_goal == 23"
+  },
+  {
+   "panel": {
+    "at": [
+     2,
+     191
+    ],
+    "size": [
+     476,
+     33
+    ],
+    "color": "#141b33"
+   },
+   "show": "n > 0 && story == 1"
+  },
+  {
+   "text": "STORY",
+   "at": [
+    6,
+    194
+   ],
+   "color": "#c3a6ff",
+   "scale": 1,
+   "show": "n > 0 && story == 1"
+  },
+  {
+   "text": "A retired lighthouse keeper in a harbor town that is slowly",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 0"
+  },
+  {
+   "text": "floating away.",
+   "at": [
+    70,
+    203
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 0"
+  },
+  {
+   "text": "A courier in a city whose streets rearrange themselves every night.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 1"
+  },
+  {
+   "text": "The last apprentice of a clockmaker who stopped time and then",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 2"
+  },
+  {
+   "text": "vanished.",
+   "at": [
+    70,
+    203
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 2"
+  },
+  {
+   "text": "A stray cat that the whole neighborhood believes is a small god.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 3"
+  },
+  {
+   "text": "A cartographer mapping a country that dislikes being mapped.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 4"
+  },
+  {
+   "text": "A night nurse at a hospital that treats broken machines.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 5"
+  },
+  {
+   "text": "A kite maker whose kites carry messages between rival mountains.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 6"
+  },
+  {
+   "text": "A ghost who must finish one chore before the house can be sold.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 7"
+  },
+  {
+   "text": "A deep sea diver who keeps finding rooms that were built for her.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 8"
+  },
+  {
+   "text": "A baker whose bread remembers whoever eats it.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 9"
+  },
+  {
+   "text": "A traveling choir with one voice missing and a long road ahead.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 10"
+  },
+  {
+   "text": "A robot gardener tending a park for people who have all left.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 11"
+  },
+  {
+   "text": "A student whose homework turns into the place they must walk",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 12"
+  },
+  {
+   "text": "through.",
+   "at": [
+    70,
+    203
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 12"
+  },
+  {
+   "text": "A pair of twins who share one pair of hands.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 13"
+  },
+  {
+   "text": "A beekeeper on a space station with no flowers.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 14"
+  },
+  {
+   "text": "A forgotten statue that gets exactly one night each year to move.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 15"
+  },
+  {
+   "text": "A sailor on a ship that sails across the sky at low tide.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 16"
+  },
+  {
+   "text": "A mail carrier delivering letters addressed to people who do not",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 17"
+  },
+  {
+   "text": "exist yet.",
+   "at": [
+    70,
+    203
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 17"
+  },
+  {
+   "text": "A tiny dragon applying for a very ordinary job.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 18"
+  },
+  {
+   "text": "A librarian guarding a book that rewrites whoever reads it.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 19"
+  },
+  {
+   "text": "A thief who must return everything they ever stole, one night at a",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 20"
+  },
+  {
+   "text": "time.",
+   "at": [
+    70,
+    203
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 20"
+  },
+  {
+   "text": "A lamplighter in a town where the dark is alive and rather shy.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 21"
+  },
+  {
+   "text": "A grandmother driving a very slow, very important truck.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 22"
+  },
+  {
+   "text": "A tour guide leading visitors through a city that exists only while",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 23"
+  },
+  {
+   "text": "it is being described.",
+   "at": [
+    70,
+    203
+   ],
+   "color": "#d7def0",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && v_story == 23"
+  },
+  {
+   "text": "STORY OFF. JUST THE MECHANIC.",
+   "at": [
+    70,
+    194
+   ],
+   "color": "#7f8bb0",
+   "scale": 1,
+   "show": "n > 0 && story == 0"
+  },
+  {
+   "button": {
+    "id": "lock_la",
+    "label": "LOCK 1",
+    "at": [
+     6,
+     68
+    ],
+    "size": [
+     46,
+     11
+    ],
+    "key": "Digit1",
+    "color": "#26305a",
+    "do": [
+     {
+      "emit": "lock_la"
+     }
+    ]
+   },
+   "show": "n > 0"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    6,
+    81
+   ],
+   "color": "#ff7a8c",
+   "scale": 1,
+   "show": "n > 0 && la == 1"
+  },
+  {
+   "button": {
+    "id": "lock_lb",
+    "label": "LOCK 2",
+    "at": [
+     6,
+     102
+    ],
+    "size": [
+     46,
+     11
+    ],
+    "key": "Digit2",
+    "color": "#26305a",
+    "do": [
+     {
+      "emit": "lock_lb"
+     }
+    ]
+   },
+   "show": "n > 0"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    6,
+    115
+   ],
+   "color": "#ff7a8c",
+   "scale": 1,
+   "show": "n > 0 && lb == 1"
+  },
+  {
+   "button": {
+    "id": "lock_lc",
+    "label": "LOCK 3",
+    "at": [
+     6,
+     136
+    ],
+    "size": [
+     46,
+     11
+    ],
+    "key": "Digit3",
+    "color": "#26305a",
+    "do": [
+     {
+      "emit": "lock_lc"
+     }
+    ]
+   },
+   "show": "n > 0"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    6,
+    149
+   ],
+   "color": "#ff7a8c",
+   "scale": 1,
+   "show": "n > 0 && lc == 1"
+  },
+  {
+   "button": {
+    "id": "lock_ld",
+    "label": "LOCK 4",
+    "at": [
+     6,
+     170
+    ],
+    "size": [
+     46,
+     11
+    ],
+    "key": "Digit4",
+    "color": "#26305a",
+    "do": [
+     {
+      "emit": "lock_ld"
+     }
+    ]
+   },
+   "show": "n > 0"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    6,
+    183
+   ],
+   "color": "#ff7a8c",
+   "scale": 1,
+   "show": "n > 0 && ld == 1"
+  },
+  {
+   "button": {
+    "id": "lock_le",
+    "label": "LOCK 5",
+    "at": [
+     6,
+     204
+    ],
+    "size": [
+     46,
+     11
+    ],
+    "key": "Digit5",
+    "color": "#26305a",
+    "do": [
+     {
+      "emit": "lock_le"
+     }
+    ]
+   },
+   "show": "n > 0 && story == 1"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    6,
+    217
+   ],
+   "color": "#ff7a8c",
+   "scale": 1,
+   "show": "n > 0 && story == 1 && le == 1"
+  },
+  {
+   "button": {
+    "id": "forge",
+    "label": "FORGE",
+    "at": [
+     6,
+     244
+    ],
+    "size": [
+     56,
+     18
+    ],
+    "key": "Enter",
+    "color": "#7a3b12",
+    "do": [
+     {
+      "emit": "forge"
+     }
+    ]
+   }
+  },
+  {
+   "button": {
+    "id": "story",
+    "label": "STORY",
+    "at": [
+     68,
+     244
+    ],
+    "size": [
+     44,
+     18
+    ],
+    "key": "KeyS",
+    "color": "#26305a",
+    "do": [
+     {
+      "emit": "story"
+     }
+    ]
+   }
+  },
+  {
+   "button": {
+    "id": "fav",
+    "label": "SAVE",
+    "at": [
+     118,
+     244
+    ],
+    "size": [
+     38,
+     18
+    ],
+    "key": "KeyF",
+    "color": "#26305a",
+    "do": [
+     {
+      "emit": "fav"
+     }
+    ]
+   }
+  },
+  {
+   "button": {
+    "id": "nextfav",
+    "label": "SAVED",
+    "at": [
+     162,
+     244
+    ],
+    "size": [
+     44,
+     18
+    ],
+    "key": "KeyV",
+    "color": "#26305a",
+    "do": [
+     {
+      "emit": "nextfav"
+     }
+    ]
+   }
+  },
+  {
+   "button": {
+    "id": "back",
+    "label": "BACK",
+    "at": [
+     212,
+     244
+    ],
+    "size": [
+     38,
+     18
+    ],
+    "key": "KeyB",
+    "color": "#26305a",
+    "do": [
+     {
+      "emit": "back"
+     }
+    ]
+   }
+  },
+  {
+   "button": {
+    "id": "music",
+    "label": "MUSIC",
+    "at": [
+     256,
+     244
+    ],
+    "size": [
+     44,
+     18
+    ],
+    "key": "KeyM",
+    "color": "#26305a",
+    "do": [
+     {
+      "music": "toggle"
+     }
+    ]
+   }
+  },
+  {
+   "text": "OFF",
+   "at": [
+    296,
+    250
+   ],
+   "color": "#ff7a8c",
+   "scale": 1,
+   "align": "right",
+   "show": "!music_on"
+  },
+  {
+   "text": "SPACE FORGE   1-5 LOCK   S STORY   F SAVE   V SAVED   B BACK   M MUSIC",
+   "at": [
+    240,
+    231
+   ],
+   "color": "#7f8bb0",
+   "scale": 1,
+   "align": "center"
+  },
+  {
+   "text": "SAVED IDEA {fi}/{fn}",
+   "at": [
+    226,
+    4
+   ],
+   "color": "#8ff0a4",
+   "scale": 1,
+   "show": "fi > 0"
+  }
+ ],
+ "effects": {
+  "unpack": {
+   "about": "show the idea in `cur` (all seven parts at once, no spin)",
+   "do": [
+    {
+     "set": [
+      "v_adj",
+      "cur % 24"
+     ]
+    },
+    {
+     "set": [
+      "v_noun",
+      "((cur - cur % 24) / 24) % 24"
+     ]
+    },
+    {
+     "set": [
+      "v_you",
+      "((cur - cur % 576) / 576) % 32"
+     ]
+    },
+    {
+     "set": [
+      "v_but",
+      "((cur - cur % 18432) / 18432) % 32"
+     ]
+    },
+    {
+     "set": [
+      "v_push",
+      "((cur - cur % 589824) / 589824) % 24"
+     ]
+    },
+    {
+     "set": [
+      "v_goal",
+      "((cur - cur % 14155776) / 14155776) % 24"
+     ]
+    },
+    {
+     "set": [
+      "v_story",
+      "((cur - cur % 339738624) / 339738624) % 24"
+     ]
+    }
+   ]
+  },
+  "forge": {
+   "about": "walk to the next idea (parts the player locked stay), remember the old one, and start the reels spinning",
+   "do": [
+    {
+     "set": [
+      "w",
+      "die_x * 7919 + die_y + tick * 1000003 + mouse_x * 8191 + mouse_y * 131071"
+     ]
+    },
+    {
+     "set": [
+      "seed",
+      "(seed != 0) * seed + (seed == 0) * (((w - w % 1)) % 8153726976)"
+     ]
+    },
+    {
+     "set": [
+      "w",
+      "(seed + (n % 1000000) * 5041282829) % 8153726976"
+     ]
+    },
+    {
+     "set": [
+      "h8",
+      "h7"
+     ]
+    },
+    {
+     "set": [
+      "h7",
+      "h6"
+     ]
+    },
+    {
+     "set": [
+      "h6",
+      "h5"
+     ]
+    },
+    {
+     "set": [
+      "h5",
+      "h4"
+     ]
+    },
+    {
+     "set": [
+      "h4",
+      "h3"
+     ]
+    },
+    {
+     "set": [
+      "h3",
+      "h2"
+     ]
+    },
+    {
+     "set": [
+      "h2",
+      "h1"
+     ]
+    },
+    {
+     "set": [
+      "h1",
+      "cur"
+     ]
+    },
+    {
+     "set": [
+      "hn",
+      "hn + (n > 0) * (hn < 8)"
+     ]
+    },
+    {
+     "set": [
+      "cur",
+      "1 * (w % 24) + 24 * (((w - w % 24) / 24) % 24) + 576 * (la * (((cur - cur % 576) / 576) % 32) + (1 - la) * (((w - w % 576) / 576) % 32)) + 18432 * (lb * (((cur - cur % 18432) / 18432) % 32) + (1 - lb) * (((w - w % 18432) / 18432) % 32)) + 589824 * (lc * (((cur - cur % 589824) / 589824) % 24) + (1 - lc) * (((w - w % 589824) / 589824) % 24)) + 14155776 * (ld * (((cur - cur % 14155776) / 14155776) % 24) + (1 - ld) * (((w - w % 14155776) / 14155776) % 24)) + 339738624 * (le * (((cur - cur % 339738624) / 339738624) % 24) + (1 - le) * (((w - w % 339738624) / 339738624) % 24))"
+     ]
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "set": [
+      "fi",
+      0
+     ]
+    },
+    {
+     "set": [
+      "spin",
+      1
+     ]
+    },
+    {
+     "set": [
+      "spin_t",
+      "time"
+     ]
+    },
+    {
+     "set": [
+      "dups",
+      "dups + (n > 1) * (cur == h1 || cur == h2 || cur == h3 || cur == h4 || cur == h5 || cur == h6 || cur == h7 || cur == h8)"
+     ]
+    },
+    {
+     "play": "strike"
+    },
+    {
+     "shake": 2
+    },
+    {
+     "destroy": "tag:splash"
+    },
+    {
+     "teleport": {
+      "target": "id:die",
+      "to": {
+       "x": [
+        1,
+        4000000
+       ],
+       "y": [
+        1,
+        4000000
+       ]
+      }
+     }
+    },
+    {
+     "burst": {
+      "at": [
+       240,
+       44
+      ],
+      "n": 36,
+      "color": "#ffcf6a",
+      "speed": 90,
+      "life": 0.7,
+      "size": 1.5,
+      "gravity": 120
+     }
+    }
+   ]
+  }
+ },
+ "rules": [
+  {
+   "id": "forge-key",
+   "when": {
+    "press": "action"
+   },
+   "do": [
+    {
+     "apply": "forge"
+    }
+   ]
+  },
+  {
+   "id": "forge-event",
+   "when": {
+    "event": "forge"
+   },
+   "do": [
+    {
+     "apply": "forge"
+    }
+   ]
+  },
+  {
+   "id": "roll-at-start",
+   "when": {
+    "start": true
+   },
+   "do": [
+    {
+     "teleport": {
+      "target": "id:die",
+      "to": {
+       "x": [
+        1,
+        4000000
+       ],
+       "y": [
+        1,
+        4000000
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "loaded",
+   "when": {
+    "event": "loaded"
+   },
+   "do": [
+    {
+     "apply": "unpack"
+    },
+    {
+     "destroy": "tag:splash"
+    }
+   ]
+  },
+  {
+   "id": "reel-adj-spin",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t < 0.3",
+   "do": [
+    {
+     "set": [
+      "v_adj",
+      "(v_adj + 7) % 24"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "reel-adj-settle",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t >= 0.3 && v_adj != cur % 24",
+   "do": [
+    {
+     "set": [
+      "v_adj",
+      "cur % 24"
+     ]
+    },
+    {
+     "play": "tick"
+    }
+   ]
+  },
+  {
+   "id": "reel-noun-spin",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t < 0.38",
+   "do": [
+    {
+     "set": [
+      "v_noun",
+      "(v_noun + 5) % 24"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "reel-noun-settle",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t >= 0.38 && v_noun != ((cur - cur % 24) / 24) % 24",
+   "do": [
+    {
+     "set": [
+      "v_noun",
+      "((cur - cur % 24) / 24) % 24"
+     ]
+    },
+    {
+     "play": "tick"
+    }
+   ]
+  },
+  {
+   "id": "reel-you-spin",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t < 0.5 && la == 0",
+   "do": [
+    {
+     "set": [
+      "v_you",
+      "(v_you + 11) % 32"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "reel-you-settle",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t >= 0.5 && v_you != ((cur - cur % 576) / 576) % 32",
+   "do": [
+    {
+     "set": [
+      "v_you",
+      "((cur - cur % 576) / 576) % 32"
+     ]
+    },
+    {
+     "play": "tick"
+    }
+   ]
+  },
+  {
+   "id": "reel-but-spin",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t < 0.66 && lb == 0",
+   "do": [
+    {
+     "set": [
+      "v_but",
+      "(v_but + 13) % 32"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "reel-but-settle",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t >= 0.66 && v_but != ((cur - cur % 18432) / 18432) % 32",
+   "do": [
+    {
+     "set": [
+      "v_but",
+      "((cur - cur % 18432) / 18432) % 32"
+     ]
+    },
+    {
+     "play": "tick"
+    }
+   ]
+  },
+  {
+   "id": "reel-push-spin",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t < 0.82 && lc == 0",
+   "do": [
+    {
+     "set": [
+      "v_push",
+      "(v_push + 7) % 24"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "reel-push-settle",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t >= 0.82 && v_push != ((cur - cur % 589824) / 589824) % 24",
+   "do": [
+    {
+     "set": [
+      "v_push",
+      "((cur - cur % 589824) / 589824) % 24"
+     ]
+    },
+    {
+     "play": "tick"
+    }
+   ]
+  },
+  {
+   "id": "reel-goal-spin",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t < 0.98 && ld == 0",
+   "do": [
+    {
+     "set": [
+      "v_goal",
+      "(v_goal + 11) % 24"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "reel-goal-settle",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t >= 0.98 && v_goal != ((cur - cur % 14155776) / 14155776) % 24",
+   "do": [
+    {
+     "set": [
+      "v_goal",
+      "((cur - cur % 14155776) / 14155776) % 24"
+     ]
+    },
+    {
+     "play": "tick"
+    }
+   ]
+  },
+  {
+   "id": "reel-story-spin",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t < 1.14 && le == 0",
+   "do": [
+    {
+     "set": [
+      "v_story",
+      "(v_story + 5) % 24"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "reel-story-settle",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t >= 1.14 && v_story != ((cur - cur % 339738624) / 339738624) % 24",
+   "do": [
+    {
+     "set": [
+      "v_story",
+      "((cur - cur % 339738624) / 339738624) % 24"
+     ]
+    },
+    {
+     "play": "tick"
+    }
+   ]
+  },
+  {
+   "id": "reels-done",
+   "when": {
+    "every": 0.04
+   },
+   "if": "spin == 1 && time - spin_t >= 1.24",
+   "do": [
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    },
+    {
+     "play": "ding"
+    },
+    {
+     "burst": {
+      "at": [
+       240,
+       44
+      ],
+      "n": 14,
+      "color": "#ffffff",
+      "speed": 40,
+      "life": 0.5,
+      "size": 1,
+      "gravity": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "lock-la",
+   "when": {
+    "event": "lock_la"
+   },
+   "do": [
+    {
+     "set": [
+      "la",
+      "1 - la"
+     ]
+    },
+    {
+     "play": "click"
+    }
+   ]
+  },
+  {
+   "id": "lock-lb",
+   "when": {
+    "event": "lock_lb"
+   },
+   "do": [
+    {
+     "set": [
+      "lb",
+      "1 - lb"
+     ]
+    },
+    {
+     "play": "click"
+    }
+   ]
+  },
+  {
+   "id": "lock-lc",
+   "when": {
+    "event": "lock_lc"
+   },
+   "do": [
+    {
+     "set": [
+      "lc",
+      "1 - lc"
+     ]
+    },
+    {
+     "play": "click"
+    }
+   ]
+  },
+  {
+   "id": "lock-ld",
+   "when": {
+    "event": "lock_ld"
+   },
+   "do": [
+    {
+     "set": [
+      "ld",
+      "1 - ld"
+     ]
+    },
+    {
+     "play": "click"
+    }
+   ]
+  },
+  {
+   "id": "lock-le",
+   "when": {
+    "event": "lock_le"
+   },
+   "do": [
+    {
+     "set": [
+      "le",
+      "1 - le"
+     ]
+    },
+    {
+     "play": "click"
+    }
+   ]
+  },
+  {
+   "id": "story-toggle",
+   "when": {
+    "event": "story"
+   },
+   "do": [
+    {
+     "set": [
+      "story",
+      "1 - story"
+     ]
+    },
+    {
+     "play": "click"
+    }
+   ]
+  },
+  {
+   "id": "fav-save-1",
+   "when": {
+    "event": "fav"
+   },
+   "if": "n > 0 && !(cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8) && nf % 8 == 0",
+   "do": [
+    {
+     "set": [
+      "f1",
+      "cur"
+     ]
+    },
+    {
+     "add": [
+      "nf",
+      1
+     ]
+    },
+    {
+     "set": [
+      "fn",
+      "nf - (nf > 8) * (nf - 8)"
+     ]
+    },
+    {
+     "play": "chime"
+    }
+   ]
+  },
+  {
+   "id": "fav-save-2",
+   "when": {
+    "event": "fav"
+   },
+   "if": "n > 0 && !(cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8) && nf % 8 == 1",
+   "do": [
+    {
+     "set": [
+      "f2",
+      "cur"
+     ]
+    },
+    {
+     "add": [
+      "nf",
+      1
+     ]
+    },
+    {
+     "set": [
+      "fn",
+      "nf - (nf > 8) * (nf - 8)"
+     ]
+    },
+    {
+     "play": "chime"
+    }
+   ]
+  },
+  {
+   "id": "fav-save-3",
+   "when": {
+    "event": "fav"
+   },
+   "if": "n > 0 && !(cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8) && nf % 8 == 2",
+   "do": [
+    {
+     "set": [
+      "f3",
+      "cur"
+     ]
+    },
+    {
+     "add": [
+      "nf",
+      1
+     ]
+    },
+    {
+     "set": [
+      "fn",
+      "nf - (nf > 8) * (nf - 8)"
+     ]
+    },
+    {
+     "play": "chime"
+    }
+   ]
+  },
+  {
+   "id": "fav-save-4",
+   "when": {
+    "event": "fav"
+   },
+   "if": "n > 0 && !(cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8) && nf % 8 == 3",
+   "do": [
+    {
+     "set": [
+      "f4",
+      "cur"
+     ]
+    },
+    {
+     "add": [
+      "nf",
+      1
+     ]
+    },
+    {
+     "set": [
+      "fn",
+      "nf - (nf > 8) * (nf - 8)"
+     ]
+    },
+    {
+     "play": "chime"
+    }
+   ]
+  },
+  {
+   "id": "fav-save-5",
+   "when": {
+    "event": "fav"
+   },
+   "if": "n > 0 && !(cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8) && nf % 8 == 4",
+   "do": [
+    {
+     "set": [
+      "f5",
+      "cur"
+     ]
+    },
+    {
+     "add": [
+      "nf",
+      1
+     ]
+    },
+    {
+     "set": [
+      "fn",
+      "nf - (nf > 8) * (nf - 8)"
+     ]
+    },
+    {
+     "play": "chime"
+    }
+   ]
+  },
+  {
+   "id": "fav-save-6",
+   "when": {
+    "event": "fav"
+   },
+   "if": "n > 0 && !(cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8) && nf % 8 == 5",
+   "do": [
+    {
+     "set": [
+      "f6",
+      "cur"
+     ]
+    },
+    {
+     "add": [
+      "nf",
+      1
+     ]
+    },
+    {
+     "set": [
+      "fn",
+      "nf - (nf > 8) * (nf - 8)"
+     ]
+    },
+    {
+     "play": "chime"
+    }
+   ]
+  },
+  {
+   "id": "fav-save-7",
+   "when": {
+    "event": "fav"
+   },
+   "if": "n > 0 && !(cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8) && nf % 8 == 6",
+   "do": [
+    {
+     "set": [
+      "f7",
+      "cur"
+     ]
+    },
+    {
+     "add": [
+      "nf",
+      1
+     ]
+    },
+    {
+     "set": [
+      "fn",
+      "nf - (nf > 8) * (nf - 8)"
+     ]
+    },
+    {
+     "play": "chime"
+    }
+   ]
+  },
+  {
+   "id": "fav-save-8",
+   "when": {
+    "event": "fav"
+   },
+   "if": "n > 0 && !(cur == f1 || cur == f2 || cur == f3 || cur == f4 || cur == f5 || cur == f6 || cur == f7 || cur == f8) && nf % 8 == 7",
+   "do": [
+    {
+     "set": [
+      "f8",
+      "cur"
+     ]
+    },
+    {
+     "add": [
+      "nf",
+      1
+     ]
+    },
+    {
+     "set": [
+      "fn",
+      "nf - (nf > 8) * (nf - 8)"
+     ]
+    },
+    {
+     "play": "chime"
+    }
+   ]
+  },
+  {
+   "id": "fav-next",
+   "when": {
+    "event": "nextfav"
+   },
+   "if": "fn > 0",
+   "do": [
+    {
+     "set": [
+      "fi",
+      "fi % fn + 1"
+     ]
+    },
+    {
+     "play": "click"
+    }
+   ]
+  },
+  {
+   "id": "fav-show-1",
+   "when": {
+    "event": "nextfav"
+   },
+   "if": "fn > 0 && fi == 1",
+   "do": [
+    {
+     "set": [
+      "cur",
+      "f1"
+     ]
+    },
+    {
+     "apply": "unpack"
+    },
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fav-show-2",
+   "when": {
+    "event": "nextfav"
+   },
+   "if": "fn > 0 && fi == 2",
+   "do": [
+    {
+     "set": [
+      "cur",
+      "f2"
+     ]
+    },
+    {
+     "apply": "unpack"
+    },
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fav-show-3",
+   "when": {
+    "event": "nextfav"
+   },
+   "if": "fn > 0 && fi == 3",
+   "do": [
+    {
+     "set": [
+      "cur",
+      "f3"
+     ]
+    },
+    {
+     "apply": "unpack"
+    },
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fav-show-4",
+   "when": {
+    "event": "nextfav"
+   },
+   "if": "fn > 0 && fi == 4",
+   "do": [
+    {
+     "set": [
+      "cur",
+      "f4"
+     ]
+    },
+    {
+     "apply": "unpack"
+    },
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fav-show-5",
+   "when": {
+    "event": "nextfav"
+   },
+   "if": "fn > 0 && fi == 5",
+   "do": [
+    {
+     "set": [
+      "cur",
+      "f5"
+     ]
+    },
+    {
+     "apply": "unpack"
+    },
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fav-show-6",
+   "when": {
+    "event": "nextfav"
+   },
+   "if": "fn > 0 && fi == 6",
+   "do": [
+    {
+     "set": [
+      "cur",
+      "f6"
+     ]
+    },
+    {
+     "apply": "unpack"
+    },
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fav-show-7",
+   "when": {
+    "event": "nextfav"
+   },
+   "if": "fn > 0 && fi == 7",
+   "do": [
+    {
+     "set": [
+      "cur",
+      "f7"
+     ]
+    },
+    {
+     "apply": "unpack"
+    },
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fav-show-8",
+   "when": {
+    "event": "nextfav"
+   },
+   "if": "fn > 0 && fi == 8",
+   "do": [
+    {
+     "set": [
+      "cur",
+      "f8"
+     ]
+    },
+    {
+     "apply": "unpack"
+    },
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "back",
+   "when": {
+    "event": "back"
+   },
+   "if": "hn > 0",
+   "do": [
+    {
+     "set": [
+      "cur",
+      "h1"
+     ]
+    },
+    {
+     "set": [
+      "h1",
+      "h2"
+     ]
+    },
+    {
+     "set": [
+      "h2",
+      "h3"
+     ]
+    },
+    {
+     "set": [
+      "h3",
+      "h4"
+     ]
+    },
+    {
+     "set": [
+      "h4",
+      "h5"
+     ]
+    },
+    {
+     "set": [
+      "h5",
+      "h6"
+     ]
+    },
+    {
+     "set": [
+      "h6",
+      "h7"
+     ]
+    },
+    {
+     "set": [
+      "h7",
+      "h8"
+     ]
+    },
+    {
+     "add": [
+      "hn",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "fi",
+      0
+     ]
+    },
+    {
+     "apply": "unpack"
+    },
+    {
+     "set": [
+      "spin",
+      0
+     ]
+    },
+    {
+     "play": "click"
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "the first strike forges an idea",
+    "seed": 1,
+    "max_seconds": 6,
+    "smoke": true,
+    "script": [
+     {
+      "wait": 0.1
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.5
+     }
+    ],
+    "expect": [
+     {
+      "var": "n",
+      "eq": 1
+     },
+     {
+      "var": "spin",
+      "eq": 0
+     },
+     {
+      "var": "seed",
+      "gt": 0
+     },
+     {
+      "var": "cur",
+      "gt": 0
+     },
+     {
+      "sound": "strike",
+      "min": 1
+     },
+     {
+      "sound": "ding",
+      "min": 1
+     }
+    ]
+   },
+   {
+    "name": "twelve strikes never repeat an idea",
+    "seed": 7,
+    "max_seconds": 30,
+    "script": [
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     }
+    ],
+    "expect": [
+     {
+      "var": "n",
+      "eq": 12
+     },
+     {
+      "var": "dups",
+      "eq": 0
+     },
+     {
+      "var": "hn",
+      "eq": 8
+     }
+    ]
+   },
+   {
+    "name": "a locked part holds while the rest changes",
+    "seed": 3,
+    "max_seconds": 12,
+    "script": [
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "button": "lock_la"
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     }
+    ],
+    "expect": [
+     {
+      "var": "la",
+      "eq": 1
+     },
+     {
+      "var": "n",
+      "eq": 3
+     },
+     {
+      "var": "dups",
+      "eq": 0
+     }
+    ]
+   },
+   {
+    "name": "story can be switched off and back",
+    "seed": 2,
+    "max_seconds": 6,
+    "script": [
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "button": "story"
+     },
+     {
+      "wait": 0.2
+     }
+    ],
+    "expect": [
+     {
+      "var": "story",
+      "eq": 0
+     }
+    ]
+   },
+   {
+    "name": "an idea can be saved once and browsed",
+    "seed": 5,
+    "max_seconds": 12,
+    "script": [
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "button": "fav"
+     },
+     {
+      "button": "fav"
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "button": "fav"
+     },
+     {
+      "button": "nextfav"
+     },
+     {
+      "wait": 0.2
+     }
+    ],
+    "expect": [
+     {
+      "var": "fn",
+      "eq": 2
+     },
+     {
+      "var": "fi",
+      "eq": 1
+     },
+     {
+      "sound": "chime",
+      "min": 2
+     }
+    ]
+   },
+   {
+    "name": "back returns to the previous idea",
+    "seed": 9,
+    "max_seconds": 12,
+    "script": [
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.3
+     },
+     {
+      "button": "back"
+     },
+     {
+      "wait": 0.2
+     }
+    ],
+    "expect": [
+     {
+      "var": "hn",
+      "eq": 0
+     },
+     {
+      "var": "n",
+      "eq": 2
+     },
+     {
+      "var": "cur",
+      "eq": 4973254184
+     }
+    ]
+   }
+  ]
+ }
+}

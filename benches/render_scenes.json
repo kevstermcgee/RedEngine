@@ -1,0 +1,10 @@
+{
+  "_comment": "The fixed scenes `render_trend.py` draws, through the live client's renderer (`red_engine2 splitshot`). Change this list only on purpose: a trend is only a trend over the same scenes.",
+  "scenes": [
+    {"id": "marcel-morning", "scene": "examples/endless_meadow.json", "players": 1, "size": "960x540", "hour": 9},
+    {"id": "marcel-dusk", "scene": "examples/endless_meadow.json", "players": 1, "size": "960x540", "hour": 18.5},
+    {"id": "marcel-night", "scene": "examples/endless_meadow.json", "players": 1, "size": "960x540", "hour": 0},
+    {"id": "marcel-4-players", "scene": "examples/endless_meadow.json", "players": 4, "size": "960x540", "hour": 9},
+    {"id": "house", "scene": "examples/house.json", "players": 1, "size": "960x540"}
+  ]
+}

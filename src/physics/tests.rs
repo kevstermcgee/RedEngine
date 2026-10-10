@@ -528,3 +528,105 @@ fn the_shrinker_reduces_a_seventy_operation_failure_to_connect_pick_up_disconnec
     assert_eq!(small.len(), 4, "seed {seed} shrank to {small:?}");
     assert!(matches!(small[..], [Op::Join(a), Op::Pick(b, _), Op::Leave(c), Op::Join(d)] if a == b && b == c && c == d), "{small:?}");
 }
+
+// ---- loose props on ground that is not flat ---------------------------------------------------------------------------------------------------------------
+//
+// The prop world's floor used to be a flat slab at y = 0 whatever the ground was: in a generated world a crate in a hollow lay *under* it (the pick-up ray was "blocked by
+// something solid") and a crate dropped on a hill sank into the slope. The floor now follows the same ground the player stands on.
+
+/// A generated-world scene with one crate at `(x, z)` on the ground (origin at its base), and the ground height there.
+fn generated_scene(x: f32, z: f32) -> (Scene, f32) {
+    let ground = crate::procgen::ProcgenGround::new(crate::procgen::Config { seed: 7, ..Default::default() });
+    let h = ground.height(glam::Vec2::new(x, z));
+    let text = format!(
+        r##"{{"camera":{{"position":[0,1.7,5],"target":[0,1,0]}},"procgen":{{"seed":7}},"objects":[
+            {{"id":"crate","type":"prop","prop":"crate","position":[{x},{h},{z}],"material":{{"color":"#a07040"}}}}]}}"##
+    );
+    (crate::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}")), h)
+}
+
+/// A gently sloping spot of the seed-7 world at least half a metre below (a hollow) or above (a hill) y = 0.
+fn spot(hollow: bool) -> (f32, f32) {
+    let ground = crate::procgen::ProcgenGround::new(crate::procgen::Config { seed: 7, ..Default::default() });
+    for step in 0..400 {
+        let (x, z) = (3.0 + step as f32 * 0.9, -4.0 - step as f32 * 0.6);
+        let h = ground.height(glam::Vec2::new(x, z));
+        // Gentle ground only: a crate rests a little above the height at its centre on a slope, which is the crate's geometry, not the floor's.
+        let level = [(0.5, 0.0), (-0.5, 0.0), (0.0, 0.5), (0.0, -0.5)].iter().all(|(dx, dz)| (ground.height(glam::Vec2::new(x + dx, z + dz)) - h).abs() < 0.05);
+        if level && ((hollow && h < -0.5) || (!hollow && h > 0.5)) {
+            return (x, z);
+        }
+    }
+    panic!("seed 7 has no {} within 400 steps", if hollow { "hollow" } else { "hill" });
+}
+
+#[test]
+fn a_crate_dropped_in_a_hollow_or_on_a_hill_rests_on_the_generated_ground() {
+    for hollow in [true, false] {
+        let (x, z) = spot(hollow);
+        let (mut s, h) = generated_scene(x, z);
+        let mut w = PropWorld::new(&s, None);
+        // A ray straight down through the prop's own x and z (what `look_at` and a bat swing along an axis produce) finds the ground under it: the floor's grid must not have
+        // a line exactly there (parry's heightfield ray cast misses a ray running exactly along a grid line).
+        let ground_only = |_: ColliderHandle, c: &rapier3d::prelude::Collider| prop_of(c.user_data).is_none();
+        for (dx, dz) in [(0.0f32, 0.0f32), (2.0, 0.0), (0.0, 2.0), (-1.5, 0.0), (0.0, -1.5), (3.0, 3.0)] {
+            let ray = Ray::new(Vec3::new(x + dx, h + 6.0, z + dz), -Vec3::Y);
+            let hit = w.world.cast_ray(&ray, 30.0, true, QueryFilter::default().predicate(&ground_only));
+            let want = crate::procgen::ProcgenGround::new(crate::procgen::Config { seed: 7, ..Default::default() }).height(glam::Vec2::new(x + dx, z + dz));
+            let got = hit.map(|(_, t)| h + 6.0 - t);
+            assert!(
+                got.is_some_and(|g| (g - want).abs() < 0.03),
+                "a ray down through ({:.2}, {:.2}) should find the ground at {want:.3}: {got:?}",
+                x + dx,
+                z + dz
+            );
+        }
+        w.set_player(Vec3::new(x + 3.0, h, z), 0.35, 1.75);
+        w.pick_up(0);
+        w.set_held_pose(Mat4::from_translation(Vec3::new(x, h + 1.5, z)));
+        w.sync_scene(&mut s);
+        w.drop_held(Vec3::ZERO);
+        settle(&mut w, &mut s, 300);
+        // The crate may land tilted (a drop from 1.5 m onto a slope can tumble it), so judge where its LOWEST point is, against the ground under it: resting on the
+        // generated ground, neither floating above it (as on a floor above a hollow) nor sunk into it (as on a floor below a hill).
+        let parts: Vec<_> = w.world.colliders.iter().filter(|(_, c)| c.user_data == 1).map(|(_, c)| c.compute_aabb()).collect();
+        let bottom = parts.iter().map(|a| a.mins.y).fold(f32::INFINITY, f32::min);
+        let centre = parts.iter().map(|a| glam::Vec2::new((a.mins.x + a.maxs.x) * 0.5, (a.mins.z + a.maxs.z) * 0.5)).sum::<glam::Vec2>() / parts.len() as f32;
+        let ground_there = crate::procgen::ProcgenGround::new(crate::procgen::Config { seed: 7, ..Default::default() }).height(centre);
+        assert!(
+            (bottom - ground_there).abs() < 0.1,
+            "{}: the crate's lowest point ({bottom:.2}) rests on the ground ({ground_there:.2}) under it, not on a flat floor at y = 0",
+            if hollow { "hollow" } else { "hill" }
+        );
+        assert!(w.is_asleep(0), "and goes to sleep there");
+    }
+}
+
+#[test]
+fn a_prop_lying_in_a_hollow_is_found_by_a_pick_up_ray() {
+    let (x, z) = spot(true);
+    let (s, h) = generated_scene(x, z);
+    assert!(h < -0.5);
+    let w = PropWorld::new(&s, None);
+    let eye = Vec3::new(x + 0.9, h + 1.6, z);
+    let aim = Vec3::new(x, h + 0.2, z);
+    let limits = HUMAN_CARRY;
+    assert_eq!(
+        w.pick_target(eye, aim - eye, 2.3, &limits),
+        Some(0),
+        "a prop lying below y = 0 in a generated world is pickable: {}",
+        w.why_no_pickup(eye, aim - eye, 2.3, &limits)
+    );
+}
+
+/// Flat scenes are exactly as before: the same floor, the same behaviour (the existing tests above all run on one).
+#[test]
+fn a_flat_scene_keeps_its_flat_floor_and_a_prop_free_generated_scene_builds_no_heightfield() {
+    let flat = scene(r##"{"id":"crate","type":"prop","prop":"crate","position":[0,0,0]}"##);
+    assert!(natural_ground_floor(&flat, &loose_props(&flat, None)).is_none());
+    let text = r##"{"camera":{"position":[0,1.7,5],"target":[0,1,0]},"procgen":{"seed":7},"objects":[]}"##;
+    let empty = crate::schema::parse_scene(text).unwrap();
+    assert!(natural_ground_floor(&empty, &loose_props(&empty, None)).is_none(), "nothing loose, nothing to hold");
+    let (s, _) = generated_scene(spot(true).0, spot(true).1);
+    assert!(natural_ground_floor(&s, &loose_props(&s, None)).is_some());
+}

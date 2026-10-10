@@ -22,32 +22,10 @@ pub(crate) struct CardState {
     pub hover: bool,
 }
 
-/// Adds `other`'s widgets after `layout`'s, re-pointing their containers.
-fn append(layout: &mut red_engine2::ui::Layout, other: red_engine2::ui::Layout) {
-    let offset = layout.widgets.len();
-    for mut widget in other.widgets {
-        widget.container = widget.container.map(|i| i + offset);
-        layout.widgets.push(widget);
-    }
-}
-
 impl App {
-    /// The rules overlay for a scene: its `ui` block's HUD when it has one (friendly labels, counters, the objective), else the generic variables
-    /// panel. An outcome without a card of its own still gets the plain banner. Does not include a card.
+    /// The rules overlay for a scene (see [`red_engine2::ui::game::rules_overlay`]); online, outcomes get the plain banner because cards are offline-only.
     pub(crate) fn rules_overlay(&self, w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outcome: Option<&str>) -> red_engine2::ui::Layout {
-        let hud = &self.scene.hud;
-        let Some(ui) = self.scene.ui.as_ref() else {
-            return red_engine2::ui::rules::hud_layout_for(w, h, vars, event, outcome, hud);
-        };
-        let mut layout = if hud.enabled {
-            game::hud_layout(w, h, ui, vars, &hud.visible_vars(vars), event.filter(|_| hud.shows_events()))
-        } else {
-            red_engine2::ui::Layout::new(w, h)
-        };
-        if let Some(o) = outcome.filter(|o| ui.end_card(o).is_none()) {
-            append(&mut layout, red_engine2::ui::rules::hud_layout_for(w, h, &[], None, Some(o), hud));
-        }
-        layout
+        game::rules_overlay(&self.scene, w, h, vars, event, outcome, self.net.is_some())
     }
 
     /// The card's text and the id of its button, as it reads now.

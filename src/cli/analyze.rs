@@ -76,6 +76,12 @@ pub(crate) fn run_reach(scene: &Path, from: Option<&str>, to: Option<&str>, cell
                 format!("  (standing heights there: {})", heights.iter().map(|h| format!("{h:.2}")).collect::<Vec<_>>().join(", "))
             }
         );
+        if !ok {
+            let why = red_engine2::tools::pathing::unreachable_why(&world, &r, p);
+            if !why.is_empty() {
+                println!("  why: {why}");
+            }
+        }
         return if ok { Ok(()) } else { Err(String::new()) };
     }
     let floors = r.floors();
@@ -400,6 +406,10 @@ pub(crate) fn run_features(query: &[String], check: bool) -> Result<(), String> 
         return if problems.is_empty() { Ok(()) } else { Err(String::new()) };
     }
     let text = query.join(" ");
+    if text == "content" {
+        print!("{}", features::render_content(&features::content_packs_of(&features::index_text_at(&root))));
+        return Ok(());
+    }
     if text.is_empty() {
         if envelope::capturing() {
             println!("{}", serde_json::json!(all.iter().map(|f| serde_json::json!({"name": f.name, "summary": f.summary, "files": f.files, "tests": f.tests, "commands": f.commands, "docs": f.docs, "depends_on": f.depends_on})).collect::<Vec<_>>()));

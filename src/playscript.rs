@@ -608,6 +608,10 @@ pub trait Driver {
     fn scroll(&mut self, lines: f32);
     /// Taps E.
     fn interact(&mut self);
+    /// Whether the player the script is playing is a split-screen guest, who cannot pick up props (`splitscreen::GUEST_LIMITS`). A driver with one player is never one.
+    fn guest_cannot_carry(&self) -> bool {
+        false
+    }
     /// Turns to the nearest visible remote player; whether there was one.
     fn aim_at_nearest(&mut self) -> bool;
     /// First or third person.
@@ -773,7 +777,14 @@ impl Runner {
                 }
             ));
         };
-        let goal = within.unwrap_or_else(|| approach::default_within(pose.pickup_reach));
+        // `interact` presses E from the eye, so its stopping distance accounts for how far below the eye the prop is (a slope, a low prop); a plain `approach` does not.
+        let goal = within.unwrap_or_else(|| {
+            if what == "interact" {
+                approach::pickup_within(pose.pickup_reach, pose.eye, &target)
+            } else {
+                approach::default_within(pose.pickup_reach)
+            }
+        });
         let gap = target.gap(pose.pos);
         match self.approach.get_or_insert_with(|| Approach::new(goal, timeout)).step(dt, gap) {
             Progress::Arrived => {
@@ -859,6 +870,15 @@ impl Runner {
                     }
                 }
                 Step::InteractWith { object, within, timeout } => {
+                    // Split-screen guests cannot carry props: say so at once, not after walking over and "pressing" for nothing.
+                    if self.phase == 0 && d.guest_cannot_carry() {
+                        let limit = crate::splitscreen::GUEST_LIMITS.iter().find(|(t, _)| *t == "props").map_or("", |(_, s)| *s);
+                        self.failures.push(format!(
+                            "interact `{object}`: the script is playing a split-screen guest, and {limit}; play this step as player 1 (`{{\"player\": 1}}`)"
+                        ));
+                        self.next();
+                        continue;
+                    }
                     // 0: walk up to it. 1: face it for a moment, then press. 2: give the pick-up a moment to show, then check.
                     if self.phase == 0 {
                         if d.carrying(&object) == Some(true) {

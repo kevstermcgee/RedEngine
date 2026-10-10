@@ -456,6 +456,11 @@ impl NetClient {
         }
     }
 
+    /// The character byte this client asks for (in a loadout match: the soldier look).
+    pub fn my_character(&self) -> u8 {
+        self.character
+    }
+
     /// Seconds since this client was created (the client's own clock for interpolation).
     pub fn local_secs(&self, now: Instant) -> f64 {
         now.duration_since(self.started).as_secs_f64()

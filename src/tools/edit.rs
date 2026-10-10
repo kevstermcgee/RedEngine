@@ -44,7 +44,7 @@ impl SceneFile {
             eprintln!("{msg}\n(writing anyway because of --force)");
         }
         if dry_run {
-            println!("(dry run: {} not modified)", path.display());
+            super::envelope::write_out(format_args!("(dry run: {} not modified)\n", path.display()));
             return Ok(());
         }
         let tmp = path.with_extension("json.tmp");

@@ -72,13 +72,16 @@ pub fn avatar_plan(scene: &Scene) -> AvatarPlan {
     let team_match = scene.shooter.is_some();
     for (i, who) in Character::ALL.iter().enumerate() {
         // A team match shows soldiers only (one uniform per team); every other match never draws one.
-        let soldier = matches!(who, Character::Ridgeback | Character::Nightfall);
+        let soldier = who.soldier_team().is_some();
         if soldier != team_match {
             continue;
         }
         if soldier {
-            pool[i] = crate::sim::shooter::MAX_TEAM + 1;
-            needed[i] = crate::sim::shooter::MAX_TEAM;
+            // The trooper is the default look (a whole team may wear it); the other looks are prepared for four at a time, and a fifth gets a
+            // stand-in costume rather than a longer start-up.
+            let all = who.soldier_look() == Some(0);
+            pool[i] = if all { crate::sim::shooter::MAX_TEAM + 1 } else { 4 };
+            needed[i] = if all { crate::sim::shooter::MAX_TEAM } else { 4 };
             continue;
         }
         let human = forced.is_none_or(|f| f == *who);
@@ -979,16 +982,20 @@ mod tests {
         };
         let n = MAX_PLAYERS_PER_SNAPSHOT;
         // [Human, Rat, Wizard, Cowboy, Alien, Robot, Ridgeback, Nightfall, Hollow, Boy]
-        assert_eq!(pool(None, false), [n, n, n, n, n, n, 0, 0, n, n], "nobody is forced: any body can turn up");
-        assert_eq!(pool(Some("human"), false), [n, 0, 0, 0, 0, 0, 0, 0, 0, 0], "everybody is a Human and there are no bots: one body is enough");
+        assert_eq!(pool(None, false), [n, n, n, n, n, n, 0, 0, n, n, 0, 0, 0, 0, 0, 0], "nobody is forced: any body can turn up");
+        assert_eq!(
+            pool(Some("human"), false),
+            [n, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            "everybody is a Human and there are no bots: one body is enough"
+        );
         assert_eq!(
             pool(Some("human"), true),
-            [n, 0, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL, 0],
+            [n, 0, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL, 0, 0, 0, 0, 0, 0, 0],
             "bots wear the fighting bodies, never the rat"
         );
         assert_eq!(
             pool(Some("rat"), true),
-            [BOT_BODY_POOL, n, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL, 0],
+            [BOT_BODY_POOL, n, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, BOT_BODY_POOL, 0, 0, BOT_BODY_POOL, 0, 0, 0, 0, 0, 0, 0],
             "a rat game's bots still fight as people"
         );
     }
@@ -1023,7 +1030,13 @@ mod tests {
                 0,
                 0,
                 MAX_PLAYERS_PER_SNAPSHOT,
-                MAX_PLAYERS_PER_SNAPSHOT
+                MAX_PLAYERS_PER_SNAPSHOT,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
             ]
         );
         assert_eq!(
@@ -1038,7 +1051,13 @@ mod tests {
                 0,
                 0,
                 MAX_PLAYERS_PER_SNAPSHOT - 1,
-                MAX_PLAYERS_PER_SNAPSHOT - 1
+                MAX_PLAYERS_PER_SNAPSHOT - 1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
             ]
         );
     }

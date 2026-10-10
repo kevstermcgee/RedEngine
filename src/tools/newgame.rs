@@ -15,6 +15,8 @@ pub enum Kind {
     Walk,
     /// A kart race: `race-track` builds the circuit (the eight animals come with the engine), with a lobby-and-rounds `match` block and bots.
     Race,
+    /// A 2D game for the native player: one `NAME.game2d.json` (see `describe 2d`), already verified.
+    TwoD,
 }
 
 /// The hosting script every project gets as `deploy/install.sh` (a per-user systemd service; `deploy/install.sh --info` says how friends connect).
@@ -27,6 +29,7 @@ Never copy engine source here; if the engine needs a change, make it in the engi
 
 ## First 60 seconds
 ```bash
+scripts/red start "<task>"        # the first command: workflow, executable and ONE next action (read-only; `next` / `resume` after an interruption)
 scripts/red doctor               # which engine, is it built, is the toolchain there? (scripts\red.ps1 on Windows)
 scripts/red status               # resume: facts + git + STATUS.md (what is done / in flight / next)
 scripts/red describe --brief     # the engine's own ~1 KB manual; then `scripts/red search "<question>"`
@@ -66,6 +69,7 @@ builds that version on first use. Never copy engine source here; if the engine n
 
 ## First 60 seconds
 ```bash
+scripts/red start "<task>"        # the first command: workflow, executable and ONE next action (read-only; `next` / `resume` after an interruption)
 scripts/red doctor               # which engine, is it built, is the toolchain there? (scripts\red.ps1 on Windows)
 scripts/red status               # resume: facts + git + STATUS.md (what is done / in flight / next)
 scripts/red describe --brief     # the engine's own ~1 KB manual; then `scripts/red search "<question>"`
@@ -107,6 +111,7 @@ scripts/red play 127.0.0.1:27015   # the graphical client (run two)
 const RED_SH: &str = r##"#!/usr/bin/env bash
 # scripts/red: run the Red Engine version this project pins (game.json "engine"), building it on first use.
 #   scripts/red doctor | check | build-all | info | play-local | serve | play [HOST:PORT] | status ... | <any red_engine2 command>
+#   scripts/red start "<task>" | next | resume    the AI launchpad: which workflow, which executable and why, ONE next action (read-only: never builds or downloads)
 # Env: RED_ENGINE=/path/to/checkout (override), RED_UPDATE=1 (git fetch the pinned ref), RED_REBUILD=1 (force a build),
 # RED_HEADLESS=1 (no graphics crates: CLI + server only, ideal for CI and containers), RED_PROFILE=debug|release (default debug).
 set -eu
@@ -116,6 +121,19 @@ for f in "$HOME/.local/toolchain/env.sh" "$HOME/.cargo/env"; do [ -f "$f" ] && .
 export CARGO_TERM_COLOR=never
 
 json_get() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" game.json | head -1; }
+
+# The launchpad is read-only: it must not clone, build or download, so it runs BEFORE the engine is resolved below (which clones a missing pinned engine).
+case "${1:-}" in start|next|resume)
+  E="${RED_ENGINE:-}"
+  if [ -z "$E" ]; then
+    P="$(json_get path)"
+    case "$P" in "") ;; /*|[A-Za-z]:*) E="$P" ;; *) E="$ROOT/$P" ;; esac
+  fi
+  [ -z "$E" ] && E="$ROOT/.red/engine"
+  if [ -f "$E/scripts/launchpad.py" ] && command -v python3 >/dev/null 2>&1; then exec python3 "$E/scripts/launchpad.py" "$@" --project "$ROOT"; fi
+  echo "red: no engine checkout to read yet at '$E' (game.json pins it). Run \`scripts/red describe --brief\` once: it clones the pinned engine (needs the network) and builds the CLI; then \`scripts/red $1\` works." >&2
+  exit 2 ;;
+esac
 
 ENGINE="${RED_ENGINE:-}"
 if [ -z "$ENGINE" ]; then
@@ -153,6 +171,8 @@ if [ "$cmd" = "doctor" ]; then
   echo "project  $ROOT"; echo "engine   $ENGINE ($(git -C "$ENGINE" rev-parse --short HEAD 2>/dev/null || echo 'not a git checkout'))"
   command -v cargo >/dev/null 2>&1 && echo "cargo    $(cargo --version)" || echo "cargo    NOT FOUND (install Rust: https://rustup.rs)"
   for b in red_engine2 red_server re2; do [ -f "$(exe $b)" ] && echo "built    $b" || echo "missing  $b (built on first use)"; done
+  # Which executable would run, and is it fresh? (the same rules scripts/dev and the MCP adapter use)
+  [ -f "$ENGINE/scripts/red_resolve.py" ] && command -v python3 >/dev/null 2>&1 && python3 "$ENGINE/scripts/red_resolve.py" --project "$ROOT" 2>/dev/null | sed -n 's/^selected /exe      selected /p;s/^  - /         /p'
   exit 0
 fi
 command -v cargo >/dev/null 2>&1 || { echo "red: cargo not found (install Rust: https://rustup.rs)" >&2; exit 127; }
@@ -167,8 +187,8 @@ needs_build() {
   [ -f "$STAMP" ] || return 0
   [ "$(cat "$STAMP")" != "$MODE" ] && return 0
   for f in "$ENGINE/Cargo.toml" "$ENGINE/Cargo.lock" "$ENGINE/build.rs"; do [ -f "$f" ] && [ "$f" -nt "$OUT" ] && return 0; done
-  for d in "$ENGINE/src" "$ENGINE/assets"; do
-    [ -d "$d" ] && [ -n "$(find "$d" -type f -newer "$OUT" -print -quit)" ] && return 0
+  for d in "$ENGINE/src" "$ENGINE/assets" "$ENGINE/crates"; do
+    [ -d "$d" ] && [ -n "$(find "$d" -type f ! -name '*.md' ! -name '*.py' ! -name '*.txt' -newer "$OUT" -print -quit)" ] && return 0
   done
   return 1
 }
@@ -189,6 +209,7 @@ esac
 
 const RED_PS1: &str = r##"# scripts/red.ps1: the Windows-native twin of scripts/red (same commands and env vars).
 #   powershell -File scripts\red.ps1 doctor | check | build-all | info | play-local | serve | play [HOST:PORT] | status ... | <any red_engine2 command>
+#   powershell -File scripts\red.ps1 start "<task>" | next | resume    the AI launchpad (read-only: never builds or downloads)
 param([Parameter(Position = 0)][string]$Cmd = 'help', [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -197,6 +218,16 @@ $env:CARGO_TERM_COLOR = 'never'
 $cargoBin = Join-Path $HOME '.cargo\bin'
 if ((Test-Path $cargoBin) -and (($env:PATH -split ';') -notcontains $cargoBin)) { $env:PATH = "$cargoBin;$env:PATH" }
 $game = Get-Content game.json -Raw | ConvertFrom-Json
+
+# The launchpad is read-only: it must not clone, build or download, so it runs BEFORE the engine is resolved below (which clones a missing pinned engine).
+if ($Cmd -in 'start', 'next', 'resume') {
+    $e = $env:RED_ENGINE
+    if (-not $e -and $game.engine.path) { $e = if ([IO.Path]::IsPathRooted($game.engine.path)) { $game.engine.path } else { Join-Path $Root $game.engine.path } }
+    if (-not $e) { $e = Join-Path $Root '.red\engine' }
+    $lp = Join-Path $e 'scripts\launchpad.py'
+    if ((Test-Path $lp) -and (Get-Command python -ErrorAction SilentlyContinue)) { & python $lp $Cmd @Rest --project $Root; exit $LASTEXITCODE }
+    Write-Error "red: no engine checkout to read yet at '$e' (game.json pins it). Run scripts\red.ps1 describe --brief once: it clones the pinned engine (needs the network) and builds the CLI; then $Cmd works."; exit 2
+}
 
 $Engine = $env:RED_ENGINE
 if (-not $Engine -and $game.engine.path) { $p = if ([IO.Path]::IsPathRooted($game.engine.path)) { $game.engine.path } else { Join-Path $Root $game.engine.path }; if (Test-Path $p) { $Engine = (Resolve-Path $p).Path } }
@@ -237,7 +268,8 @@ function Needs-Build([string]$n) {
     $stamp = Join-Path $Target "$Profile_\.red-wrapper-$n.mode"
     if (-not (Test-Path $stamp) -or (Get-Content $stamp -Raw) -ne $mode) { return $true }
     $inputs = @((Join-Path $Engine 'Cargo.toml'), (Join-Path $Engine 'Cargo.lock'), (Join-Path $Engine 'build.rs'))
-    $inputs += Get-ChildItem (Join-Path $Engine 'src'), (Join-Path $Engine 'assets') -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+    # crates/ (red2d) is part of the build; docs and helper scripts are not.
+    $inputs += Get-ChildItem (Join-Path $Engine 'src'), (Join-Path $Engine 'assets'), (Join-Path $Engine 'crates') -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -notin '.md', '.py', '.txt' } | Select-Object -ExpandProperty FullName
     $built = (Get-Item $out).LastWriteTimeUtc
     return $null -ne ($inputs | Where-Object { (Test-Path $_) -and (Get-Item $_).LastWriteTimeUtc -gt $built } | Select-Object -First 1)
 }
@@ -262,9 +294,9 @@ const CI_YML: &str = r#"name: check
 on: [push, pull_request]
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       # Headless engine build: CLI + server only, no GPU or windowing libraries needed.
       - run: RED_HEADLESS=1 bash scripts/red check
@@ -286,6 +318,17 @@ Use the structured `meta` fields shown by `scripts/red catalog --manifest`. If a
 across games, propose it for the narrowest engine pack; do not copy the whole local library into core.
 "#;
 
+/// `chmod +x` (a scaffolded `scripts/red` that is not executable fails with "Permission denied" on the very command the `next:` hint tells you to run).
+fn make_executable(p: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o755)).map_err(|e| format!("{}: {e}", p.display()))?;
+    }
+    let _ = p;
+    Ok(())
+}
+
 fn write(dir: &Path, rel: &str, text: &str, out: &mut Vec<PathBuf>) -> Result<(), String> {
     let p = dir.join(rel);
     if let Some(parent) = p.parent() {
@@ -299,6 +342,139 @@ fn write(dir: &Path, rel: &str, text: &str, out: &mut Vec<PathBuf>) -> Result<()
     Ok(())
 }
 
+/// The 2D starter: the smallest game that has every part a real one has (a player, things to collect, a HUD, a sound, an end with a restart, a saved best, a scripted
+/// playthrough). `{{ID}}` and `{{TITLE}}` are filled in.
+pub const STARTER_2D: &str = r##"{
+  "game2d": 1,
+  "id": "{{ID}}",
+  "title": "{{TITLE}}",
+  "description": "Collect every gem before the clock runs out.",
+  "capabilities": { "presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": ["progress"] },
+  "view": { "width": 320, "height": 180, "background": "#16202e" },
+
+  "sounds": { "ding": { "seconds": 0.2, "level": 0.5, "layers": [{ "sine": 880, "decay": 16 }, { "sine": 1320, "decay": 20, "delay": 0.05, "gain": 0.7 }] } },
+
+  "vars": { "gems_left": 5, "timeleft": 20, "best": 0, "gems_total": 0 },
+  "persist": ["best", "gems_total"],
+
+  "prefabs": {
+    "player": { "tag": "player", "shape": { "rect": [10, 10], "color": "#ffd166" }, "layer": 2, "clamp": true, "move": { "keys": { "mode": "topdown", "speed": 90 } } },
+    "gem": { "tag": "gem", "shape": { "circle": 5, "color": "#5cf2ff" }, "emit": { "rate": 4, "life": [0.3, 0.6], "speed": [5, 12], "angle": [240, 300], "color": "#bff8ff" } }
+  },
+
+  "scene": [
+    { "prefab": "player", "at": [160, 90], "id": "p" },
+    { "prefab": "gem", "at": [40, 40] }, { "prefab": "gem", "at": [280, 40] }, { "prefab": "gem", "at": [40, 150] },
+    { "prefab": "gem", "at": [280, 150] }, { "prefab": "gem", "at": [160, 30] }
+  ],
+
+  "ui": [
+    { "text": "GEMS LEFT {count_gem}", "at": [6, 6], "color": "#5cf2ff" },
+    { "text": "TIME {timeleft:2}", "at": [314, 6], "align": "right" },
+    { "text": "BEST {best}", "at": [160, 6], "align": "center", "color": "#9fb3d9", "show": "best > 0" },
+    { "text": "ALL TIME {gems_total}", "at": [314, 172], "align": "right", "color": "#9fb3d9" },
+    { "text": "YOU WIN!", "at": [160, 70], "scale": 2, "align": "center", "color": "#8cff9b", "show": "ended == 1" },
+    { "text": "TIME UP", "at": [160, 70], "scale": 2, "align": "center", "color": "#ff7a8c", "show": "ended == 2" },
+    { "button": { "id": "again", "label": "PLAY AGAIN (ENTER)", "at": [100, 100], "size": [120, 14], "key": "Enter", "do": [{ "restart": true }] }, "show": "ended" }
+  ],
+
+  "rules": [
+    { "id": "collect", "when": { "touch": ["player", "gem"] }, "do": [
+      { "add": ["gems_left", -1] }, { "add": ["gems_total", 1] }, { "play": "ding" }, { "burst": { "at": "other", "n": 10, "color": "#5cf2ff", "speed": [20, 60], "life": [0.2, 0.5] } }, { "destroy": "other" }] },
+    { "id": "clock", "when": { "every": 1 }, "do": [{ "add": ["timeleft", -1] }] },
+    { "id": "win", "when": { "every": 0.05 }, "if": "count_gem == 0", "do": [{ "end": "win" }] },
+    { "id": "lose", "when": { "every": 0.05 }, "if": "timeleft <= 0 && count_gem > 0", "do": [{ "end": "lose" }] },
+    { "id": "best", "when": { "end": "win" }, "if": "timeleft > best", "do": [{ "set": ["best", "timeleft"] }] }
+  ],
+
+  "checks": {
+    "scenarios": [
+      { "name": "walking over every gem wins", "max_seconds": 30, "smoke": true,
+        "script": [{ "approach": "gem", "seconds": 15 }],
+        "expect": [{ "ended": "win" }, { "count": "gem", "eq": 0 }, { "sound": "ding", "min": 5 }, { "var": "best", "gt": 0 }, { "var": "gems_total", "gte": 5 }] },
+      { "name": "standing still runs out the clock", "max_seconds": 40,
+        "script": [{ "wait_until": { "ended": "lose" }, "timeout": 30 }],
+        "expect": [{ "ended": "lose" }, { "count": "gem", "gt": 0 }, { "var": "best", "eq": 0 }] }
+    ]
+  }
+}
+"##;
+
+const CLAUDE_MD_2D: &str = r#"# {{NAME}}
+
+A Red Engine 2 **2D game** (a native executable): the whole game is `{{ID}}.game2d.json`. **The engine is not in this repo**: `game.json` pins it, and `scripts/red` fetches and builds that version on first use.
+Never copy engine source here.
+
+## The loop
+```bash
+scripts/red describe 2d                          # the file format on one page (read it once; do not open any source)
+scripts/red recipe                               # verified mechanics to copy (a key and a door, a countdown, checkpoints, a spawner, a whole collect-survive-escape game)
+scripts/red validate {{ID}}.game2d.json          # well formed? every sprite/sound/tag/variable name resolves? (errors say the fix)
+scripts/red sim {{ID}}.game2d.json [--every 5]   # the scripted playthroughs, with the variables every 5 s when a balance is off
+scripts/red verify {{ID}}.game2d.json            # simulation + render + audio waveform; exit 1 on any failure
+scripts/red frame {{ID}}.game2d.json out/look.png --t 8 --size 1280x720   # LOOK at it (the same renderer the player uses)
+scripts/red play2d {{ID}}.game2d.json            # play it in a native window, with sound (progress is kept between runs)
+```
+- Updating the game later: edit the JSON, run the loop again. A passing run is never a claim that a person played it.
+- Edit the JSON only. A scenario that asserts nothing is refused; write the playthrough and its `expect` first, then the rules.
+- `validate`/`verify` prove the rules, the picture and the sound waveform. They do not prove it is fun or that it sounds right: play it (`scripts/red play2d {{ID}}.game2d.json`).
+- Record progress: `scripts/red status --note "what changed" --section done|now|next`.
+"#;
+
+const CI_YML_2D: &str = r#"name: check
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: RED_HEADLESS=1 bash scripts/red verify {{ID}}.game2d.json
+"#;
+
+fn title_case(name: &str) -> String {
+    name.split(['-', '_'])
+        .filter(|w| !w.is_empty())
+        .map(|w| w.chars().next().map(|c| c.to_uppercase().collect::<String>() + &w[1..]).unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The id a game gets from a project name: lowercase, hyphens.
+pub fn game_id(name: &str) -> String {
+    name.to_lowercase().replace('_', "-")
+}
+
+fn scaffold_2d(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBuf>, String> {
+    let id = game_id(name);
+    let mut out = Vec::new();
+    let engine_json = match (&engine.path, &engine.git) {
+        (Some(p), _) => format!("{{ \"path\": \"{}\" }}", p.replace('\\', "/")),
+        (None, g) => format!(
+            "{{ \"git\": \"{}\", \"ref\": \"{}\" }}",
+            g.clone().unwrap_or_else(|| "https://github.com/kevstermcgee/RedEngine.git".into()),
+            engine.git_ref.clone().unwrap_or_else(|| "master".into())
+        ),
+    };
+    write(
+        dir,
+        "game.json",
+        &format!("{{\n  \"game\": 1,\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"blueprints\": [],\n  \"maps\": []\n}}\n"),
+        &mut out,
+    )?;
+    let game = STARTER_2D.replace("{{ID}}", &id).replace("{{TITLE}}", &title_case(name));
+    write(dir, &format!("{id}.game2d.json"), &game, &mut out)?;
+    write(dir, "CLAUDE.md", &CLAUDE_MD_2D.replace("{{NAME}}", name).replace("{{ID}}", &id), &mut out)?;
+    write(dir, "scripts/red", RED_SH, &mut out)?;
+    make_executable(&dir.join("scripts/red"))?;
+    write(dir, "scripts/red.ps1", RED_PS1, &mut out)?;
+    write(dir, ".github/workflows/check.yml", &CI_YML_2D.replace("{{ID}}", &id), &mut out)?;
+    write(dir, ".gitignore", ".red/\nout/\ntarget/\n", &mut out)?;
+    write(dir, ".gitattributes", "* text=auto eol=lf\n*.png binary\n", &mut out)?;
+    out.push(super::status::init(dir)?);
+    Ok(out)
+}
+
 /// Creates a game project in `dir` (which may exist but must not contain any of the files). Returns the files written.
 pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBuf>, String> {
     scaffold_kind(dir, name, engine, Kind::Walk)
@@ -308,6 +484,9 @@ pub fn scaffold(dir: &Path, name: &str, engine: &EngineRef) -> Result<Vec<PathBu
 pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> Result<Vec<PathBuf>, String> {
     if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
         return Err(format!("--name '{name}' must be letters, digits, _ or - (it becomes the blueprint and map name)"));
+    }
+    if kind == Kind::TwoD {
+        return scaffold_2d(dir, name, engine);
     }
     let mut out = Vec::new();
     let engine_json = match (&engine.path, &engine.git) {
@@ -327,7 +506,7 @@ pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> 
         dir,
         "game.json",
         &format!(
-            "{{\n  \"game\": 1,\n  \"id\": \"{id}\",\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"blueprints\": {blueprints},\n  \"maps\": [\"maps/main.json\"],\n  \"server\": {{ \"map\": \"maps/main.json\", \"port\": 27015, \"spawn_group\": \"{group}\" }}\n}}\n"
+            "{{\n  \"game\": 1,\n  \"id\": \"{id}\",\n  \"name\": \"{name}\",\n  \"engine\": {engine_json},\n  \"capabilities\": {{ \"presentation\": \"3d\", \"platforms\": [\"windows\", \"linux\"], \"networking\": \"authoritative\", \"input\": [\"keyboard\", \"mouse\", \"gamepad\"] }},\n  \"blueprints\": {blueprints},\n  \"maps\": [\"maps/main.json\"],\n  \"server\": {{ \"map\": \"maps/main.json\", \"port\": 27015, \"spawn_group\": \"{group}\" }}\n}}\n"
         ),
         &mut out,
     )?;
@@ -355,6 +534,7 @@ pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> 
         std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).map_err(|e| format!("{}: {e}", p.display()))?;
     }
     write(dir, "scripts/red", RED_SH, &mut out)?;
+    make_executable(&dir.join("scripts/red"))?;
     write(dir, "scripts/red.ps1", RED_PS1, &mut out)?;
     write(dir, ".github/workflows/check.yml", CI_YML, &mut out)?;
     write(dir, ".gitignore", ".red/\nout/\ntarget/\n", &mut out)?;
@@ -375,6 +555,34 @@ pub fn scaffold_kind(dir: &Path, name: &str, engine: &EngineRef, kind: Kind) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The starter a fresh author gets is itself a verified game (so it can never ship broken), and a project made from it validates, verifies, and names its own game.
+    #[test]
+    fn the_2d_starter_is_a_green_project() {
+        let dir = std::env::temp_dir().join(format!("re2_newgame2d_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let files = scaffold_kind(&dir, "gem-grab", &EngineRef { path: Some("../engine".into()), ..Default::default() }, Kind::TwoD).unwrap();
+        assert!(files.iter().any(|f| f.ends_with("gem-grab.game2d.json")), "{files:?}");
+        let game = dir.join("gem-grab.game2d.json");
+        let r = super::super::game2d::validate(&game);
+        assert!(r.ok, "{}", r.text);
+        let v = super::super::game2d::verify(&game, None);
+        assert!(v.ok, "{}", v.text);
+        assert!(v.text.contains("scenario `walking over every gem wins`") && v.text.contains("save round trip"), "{}", v.text);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert!(
+                std::fs::metadata(dir.join("scripts/red")).unwrap().permissions().mode() & 0o111 != 0,
+                "scripts/red must be executable: the next: hint runs it directly"
+            );
+        }
+        let guide = std::fs::read_to_string(dir.join("CLAUDE.md")).unwrap();
+        assert!(guide.contains("scripts/red verify gem-grab.game2d.json") && guide.contains("describe 2d"), "{guide}");
+        assert!(super::super::game::load(&dir).is_ok(), "the project has a loadable game.json (scripts/red reads the engine pin from it)");
+        assert!(scaffold_kind(&dir, "gem-grab", &EngineRef::default(), Kind::TwoD).is_err(), "never overwrites");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn scaffold_writes_a_green_project_and_refuses_to_overwrite() {

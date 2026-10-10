@@ -1,0 +1,45 @@
+{
+  "game2d": 1, "id": "pattern-survive-then-escape", "title": "Pattern: collect, power up, survive, escape (composition)",
+  "description": "Collect three artifacts, power the generator with them, survive 15 seconds while enemies hunt you, then the exit opens. A whole game concept from existing mechanics only: a `phase` variable (0 collect, 1 survive, 2 escape) that rules advance and other rules read, a spawner that runs only in one phase, a gate removed by a rule. No custom code.",
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#161b2b"},
+  "vars": {"collected": 0, "needed": 3, "phase": 0, "survive_left": 15, "lives": 5},
+  "prefabs": {
+    "player": {"tag": "player", "shape": {"rect": [8, 8], "color": "#ffd166"}, "layer": 2, "clamp": true, "body": {"type": "dynamic"}, "collide": ["gate"], "move": {"keys": {"mode": "topdown", "speed": 90}}},
+    "artifact": {"tag": "artifact", "shape": {"circle": 5, "color": "#b48cff"}},
+    "generator": {"tag": "generator", "shape": {"rect": [18, 18], "color": "#4aa3ff"}},
+    "gate": {"tag": "gate", "shape": {"rect": [8, 60], "color": "#8a8fa8"}, "body": {"type": "static"}},
+    "exit": {"tag": "exit", "shape": {"rect": [14, 14], "color": "#5cf2ff"}},
+    "enemy": {"tag": "enemy", "shape": {"circle": 6, "color": "#ff4d6d"}, "layer": 1, "move": {"chase": {"target": "player", "speed": 12}}}
+  },
+  "scene": [
+    {"prefab": "player", "at": [30, 90], "id": "p"},
+    {"prefab": "artifact", "at": [60, 40]},
+    {"prefab": "artifact", "at": [90, 150]},
+    {"prefab": "artifact", "at": [130, 60]},
+    {"prefab": "generator", "at": [160, 90]},
+    {"prefab": "gate", "at": [250, 90]},
+    {"prefab": "exit", "at": [295, 90]}
+  ],
+  "ui": [
+    {"text": "COLLECT ARTIFACTS {collected}/{needed}", "at": [6, 4], "color": "#fff", "show": "phase == 0"},
+    {"text": "SURVIVE {survive_left:2}", "at": [6, 4], "color": "#ffd166", "show": "phase == 1"},
+    {"text": "ESCAPE!", "at": [6, 4], "color": "#8cff9b", "show": "phase == 2 && ended == 0"},
+    {"text": "YOU ESCAPED", "at": [160, 80], "color": "#8cff9b", "show": "ended == 1", "scale": 2, "align": "center"},
+    {"text": "GAME OVER", "at": [160, 80], "color": "#ff7a8c", "show": "ended == 2", "scale": 2, "align": "center"}
+  ],
+  "rules": [
+    {"id": "pick up", "when": {"touch": ["player", "artifact"]}, "do": [{"add": ["collected", 1]}, {"destroy": "other"}]},
+    {"id": "power the generator", "when": {"touching": ["player", "generator"]}, "if": "phase == 0 && collected >= needed", "do": [{"set": ["phase", 1]}, {"emit": "powered"}]},
+    {"id": "hunters", "when": {"every": 1.5}, "if": "phase == 1 && count_enemy < 3", "do": [{"spawn": {"prefab": "enemy", "at": {"x": [10, 310], "y": [10, 40]}}}]},
+    {"id": "survival clock", "when": {"every": 1}, "if": "phase == 1", "do": [{"add": ["survive_left", -1]}]},
+    {"id": "the way out opens", "when": {"every": 0.05}, "if": "phase == 1 && survive_left <= 0", "do": [{"set": ["phase", 2]}, {"destroy": "tag:enemy"}, {"destroy": "tag:gate"}, {"emit": "escape_open"}]},
+    {"id": "bite", "when": {"touching": ["player", "enemy"]}, "cooldown": 1, "do": [{"add": ["lives", -1]}, {"destroy": "other"}, {"shake": 3}]},
+    {"id": "escape", "when": {"touch": ["player", "exit"]}, "if": "phase == 2", "do": [{"end": "win"}]},
+    {"id": "dead", "when": {"every": 0.05}, "if": "lives <= 0 && ended == 0", "do": [{"end": "lose"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "the generator does nothing before all artifacts are collected", "seed": 1, "max_seconds": 10, "script": [{"approach": "generator", "seconds": 6}], "expect": [{"var": "phase", "eq": 0}, {"var": "collected", "eq": 0}, {"not_ended": true}]},
+    {"name": "collect, power up, survive and escape", "seed": 1, "max_seconds": 90, "script": [{"approach": "artifact", "seconds": 14}, {"approach": "generator", "seconds": 8}, {"wait_until": {"var": "phase", "eq": 2}, "timeout": 25}, {"approach": "exit", "seconds": 14}], "expect": [{"var": "collected", "eq": 3}, {"event": "powered", "min": 1}, {"event": "escape_open", "min": 1}, {"count": "gate", "eq": 0}, {"ended": "win"}]}
+  ]}
+}

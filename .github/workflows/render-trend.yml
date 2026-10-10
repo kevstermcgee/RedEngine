@@ -1,0 +1,50 @@
+name: Render trend
+# What the live renderer draws, for the fixed scenes in benches/render_scenes.json: triangles, shadow triangles, draw calls and (on this runner's software
+# Vulkan driver, so only comparable with other runs of this workflow) milliseconds. Nothing gates on it and it runs for a pull request only when that changes the trend tooling itself: it keeps the
+# result of each push to main as a downloadable artifact and a table in the run summary, so a trend can be read off the runs. See benches/README.md.
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "assets/**", "examples/endless_meadow.json", "examples/house.json", "benches/render_*", "Cargo.toml", "Cargo.lock", ".github/workflows/render-trend.yml"]
+  pull_request:
+    paths: [".github/workflows/render-trend.yml", "benches/render_*"]
+  workflow_dispatch:
+
+concurrency:
+  group: render-trend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  render-trend:
+    name: render trend (ubuntu, software Vulkan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: System libraries (audio backend) and a software GPU (Mesa lavapipe; the runner has no graphics adapter)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config mesa-vulkan-drivers
+      - run: cargo build --locked --bin red_engine2
+      - name: Draw the scenes
+        run: python3 benches/render_trend.py run --label "ci ${GITHUB_SHA::7}" --no-record --json-out render-trend.json
+      - name: Table for the run summary
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          r = json.load(open("render-trend.json"))
+          print(f"**{r['engine_commit']}** on `{r['adapter']}`\n")
+          print("| scene | tris | shadow tris | draws | ms (median) |\n|---|---:|---:|---:|---:|")
+          for s in r["scenes"]:
+              n = lambda v: "-" if v is None else f"{v:,}"
+              print(f"| {s['id']} | {n(s['tris'])} | {n(s['shadow_tris'])} | {n(s['draws'])} | {s['ms_median']:.0f} |")
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: render-trend-${{ github.sha }}
+          path: render-trend.json
+          retention-days: 90

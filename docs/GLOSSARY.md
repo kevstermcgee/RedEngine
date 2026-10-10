@@ -13,7 +13,7 @@ glossary` prints the lot). Terms are grouped; each line says what it *is* and wh
   searches maps; no window. Also the engine's self-description (`describe`, `search`, `src`).
 - **the tools** — everything under `src/tools/`. They call the *same* collision/physics functions as
   `re2` (see ADR 0003), so "the tools say it's walkable" means it is.
-- **MCP server** — `mcp_server.py`, a thin wrapper exposing the CLI commands as MCP tools.
+- **MCP server** — `red_engine2 mcp`: a native stdio server (eleven tools) that runs the CLI commands in its own process; `mcp_server.py` is only a launcher for it.
 - **custom client** — a game's own program built on the client layer `red_engine2::app` (`LocalSession`, `ViewCamera`,
   `InputState`, `LiveRenderer::render_view`, `HudState`) instead of `re2`; gameplay stays in scene rules (ADR 0043,
   `describe custom-client`, `examples/external/topdown_switch`).
@@ -136,6 +136,7 @@ without asking.
 
 ## Multiplayer (ADR 0016)
 - **transport** / **QUIC** / **development UDP** — how Red's datagrams travel (`net::transport`, ADR 0044): production is QUIC + TLS 1.3 (`net::quic`: encrypted, the server verified by a pinned `sha256:` **fingerprint** from `red_engine2 net-identity`); development UDP is plain authenticated UDP for loopback tools and tests, refused on a public address unless `--insecure-public-udp`. The fingerprint says which server; the join key says who may play.
+- **relay code** / **join key** — a relayed game is joined with `H3PQXR-K7Q2-MZ4P-WTXA` (`net::relay::ShortJoin`): the six-character *rendezvous code* the relay looks up (public-ish, spoken aloud) plus the host's secret *join key* (never sent anywhere; proved inside the QUIC handshake). A code alone admits nobody; `docs/HOSTING.md` "Short codes and who may join", ADR 2026-10-09.
 
 - **authoritative server** — `red_server` / `net::server`: the only place players and props are simulated online.
   Clients send *inputs* (never positions) and draw what the server says.
@@ -179,11 +180,9 @@ without asking.
 
 ## Prop-hunt game terms (the game itself is not built; the engine parts it needs are)
 
-- **hider / prop** — a player disguised as a map prop. **seeker** — the player who finds and strikes
-  them. (Game-mode logic — rounds, disguises, scoring — does not exist yet.) Design intent: the
-  seeker's primary action on objects is **hitting them with the bat** (built); the hider will use
-  right-click to pick an object, then **R** to replicate it (not built). (**E** now picks up and
-  drops loose props — see "Loose props" below.)
+- **hider / prop** — the original prop-hunt idea: a player disguised as a map prop, found and struck by a
+  **seeker**. Not built as a game mode (no disguises); only the bat hit on objects exists. Rounds and scoring are
+  generic (`match`, `rules`). (**E** picks up and drops loose props — see "Loose props" below.)
 - **match server** — built: `red_server` (ADR 0016). ADR 0010 is the historical proposal it replaced.
 
 - **sight anchor** — a model-space point on the aiming axis, aligned with the camera ray in ADS.

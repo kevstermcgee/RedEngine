@@ -3,6 +3,7 @@
 #                                    walk <scene> [...] | server <scene> [...] | ci | status [...]
 #                                    affected|check [--quick|--full] | iterate [--check-only] [--headless] | context <feature|file|words>   (verify only what a
 #                                    change can affect; `iterate` = only what changed since HEAD, type-check + focused unit tests, never counts as verification)
+#                                    start "<task>" | next | resume   (the AI launchpad: workflow, executable and ONE next action; read-only, never builds)
 #                                    preflight [--fix]   (bookkeeping; always builds a current binary here, the bash twin can skip the two checks that need one)
 # Env: RED_PROFILE = debug | release | fast (default debug). (The bash twin also takes RED_TIMEOUT; PowerShell relies on the tool's own timeout.)
 param([Parameter(Position = 0)][string]$Cmd = 'help', [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
@@ -27,7 +28,8 @@ function Needs-Build([string]$Name, [string]$Mode = 'default') {
     $stamp = Join-Path $TargetDir "$Profile_\.red-dev-$Name.mode"
     if (-not (Test-Path $stamp) -or (Get-Content $stamp -Raw) -ne $Mode) { return $true }
     $inputs = @((Join-Path $Root 'Cargo.toml'), (Join-Path $Root 'Cargo.lock'), (Join-Path $Root 'build.rs'))
-    $inputs += Get-ChildItem (Join-Path $Root 'src'), (Join-Path $Root 'assets') -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+    # crates/ (red2d) is part of the build; docs and helper scripts are not.
+    $inputs += Get-ChildItem (Join-Path $Root 'src'), (Join-Path $Root 'assets'), (Join-Path $Root 'crates') -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -notin '.md', '.py', '.txt' } | Select-Object -ExpandProperty FullName
     $built = (Get-Item $out).LastWriteTimeUtc
     return $null -ne ($inputs | Where-Object { (Test-Path $_) -and (Get-Item $_).LastWriteTimeUtc -gt $built } | Select-Object -First 1)
 }
@@ -71,6 +73,10 @@ switch ($Cmd) {
     'red' { $e = Cli; & $e @Rest; exit $LASTEXITCODE }
     'verify' { $e = Cli; & $e verify @Rest; exit $LASTEXITCODE }
     'walk' { $e = Cli; & $e walk @Rest; exit $LASTEXITCODE }
+    { $_ -in 'start', 'next', 'resume' } {
+        if (-not (Get-Command python -ErrorAction SilentlyContinue)) { Write-Error "dev: $Cmd needs python (read AGENTS.md and run doctor instead)"; exit 127 }
+        & python (Join-Path $PSScriptRoot 'launchpad.py') $Cmd @Rest; exit $LASTEXITCODE
+    }
     'status' { $e = Cli; & $e status @Rest; exit $LASTEXITCODE }
     { $_ -in 'affected', 'check' } { Need-Cargo; $e = Planner; & $e affected @Rest; exit $LASTEXITCODE }
     'iterate' { Need-Cargo; $e = Planner; & $e affected --partial @Rest; exit $LASTEXITCODE }

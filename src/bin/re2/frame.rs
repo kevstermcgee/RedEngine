@@ -252,13 +252,9 @@ impl App {
         self.persist_vars();
         // A scene with a clock tells its rules when the sun comes up and goes down (`when: {event: "sunrise"}`).
         if let Some(clock) = &self.scene.clock {
-            let elev = clock.state(tick as f32 * FIXED_DT, 0).sun_elev_deg;
-            match self.last_sun_elev {
-                Some(before) if before < 0.0 && elev >= 0.0 => self.rules.inject(tick, "sunrise", None),
-                Some(before) if before >= 0.0 && elev < 0.0 => self.rules.inject(tick, "sunset", None),
-                _ => {}
+            if let Some(event) = self.sun_watch.at(clock, tick as f32 * FIXED_DT) {
+                self.rules.inject(tick, event, None);
             }
-            self.last_sun_elev = Some(elev);
         }
         if self.rules.ended().is_some() {
             return;
@@ -719,9 +715,7 @@ impl App {
             // The rules name props by object id; bind them to this world's prop numbers once, as `MatchSim` does.
             self.rules.bind_props(|id| self.scene.objects.iter().position(|o| o.id == id).and_then(|i| props.prop_of_object(i)));
             println!("{} loose props (pick up with E).", loose.len());
-            self.collider_groups = collect_box_colliders_grouped_except(&self.scene, &loose);
-            self.ground_groups = collect_ground_candidates_grouped_except(&self.scene, &loose);
-            self.collision_object_ids = self.scene.objects.iter().map(|object| object.id.clone()).collect();
+            self.physical = Some(PhysicalWorld::new(&self.scene, &loose));
             self.rebuild_collision_world();
             (Some(props), loose)
         };
@@ -782,16 +776,12 @@ impl App {
         self.open_start_card();
     }
 
+    /// Brings `colliders` and `ground` to what [`PhysicalWorld`] says exists now: the scene's generated world, and every object whose collision the rules have not switched off.
     fn rebuild_collision_world(&mut self) {
-        self.colliders.clear();
-        self.ground = GroundCandidates::default();
-        for (i, id) in self.collision_object_ids.iter().enumerate() {
-            if self.rules.collision_disabled().any(|disabled| disabled == id) {
-                continue;
-            }
-            self.colliders.extend_from_slice(&self.collider_groups[i]);
-            self.ground.append(&self.ground_groups[i]);
-        }
+        let Some(world) = self.physical.as_mut() else { return };
+        world.set_collision_disabled(self.rules.collision_disabled());
+        self.colliders = world.colliders().to_vec();
+        self.ground = world.ground().clone();
     }
 }
 

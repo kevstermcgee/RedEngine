@@ -6,16 +6,22 @@
 /// The message every render-dependent command returns in a build without the `gfx` feature.
 pub const NO_GFX: &str = "this build has no renderer (built with --no-default-features); rebuild with `cargo build --release` (feature `gfx`, on by default) to use frame/tour/render/storyboard, catalog --sheet and golden-view checks";
 
+/// What `render` (MP4 export) says in a build without the `video` feature.
+pub const NO_VIDEO: &str = "this build cannot export MP4 (cargo feature `video`, not in the default build): rebuild with `cargo build --release --features video` and have ffmpeg on PATH. PNG output needs neither: `frame`, `tour`, `storyboard`, `ui-shot`";
+
 pub mod adr;
 pub mod affected;
+pub mod agent_trace;
 pub mod analysis;
 pub mod audio;
 pub mod audio_checks;
 pub mod blueprint;
 pub mod catalog;
+pub mod check_schema;
 pub mod context;
 pub mod describe;
 pub mod diff;
+pub mod doc_claims;
 pub mod doctor;
 pub mod edit;
 pub mod envelope;
@@ -23,8 +29,10 @@ pub mod features;
 pub mod flora_sheet;
 pub mod font;
 pub mod game;
+pub mod game2d;
 pub mod gamepublish;
 pub mod gen;
+pub mod gitscope;
 pub mod inspect;
 pub mod lint;
 pub mod nav;
@@ -39,6 +47,8 @@ pub mod plan;
 pub mod portmap;
 pub mod preflight;
 pub mod procgen_map;
+pub mod propose;
+pub mod publish_check;
 pub mod racetest;
 pub mod racetrack;
 pub mod reach;

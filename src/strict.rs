@@ -29,6 +29,7 @@ pub const ROOT_KEYS: &[&str] = &[
     "checks",
     "prefabs",
     "vars",
+    "player_vars",
     "persist",
     "rules",
     "phases",
@@ -146,55 +147,7 @@ pub const PORTAL_KEYS: &[&str] = &["id", "between", "center", "width", "height",
 /// The `interest` block.
 pub const INTEREST_KEYS: &[&str] = &["cell_size", "note", "hops"];
 
-/// Keys that are always allowed: the extension namespace.
-pub fn is_extension_key(k: &str) -> bool {
-    k.starts_with('_') || k.starts_with("x-") || k.starts_with("x_") || k == "$comment" || k == "notes"
-}
-
-/// Common wrong spellings and the right place for the value (checked before edit distance).
-fn alias(key: &str, allowed: &[&str]) -> Option<String> {
-    let direct = match key {
-        "pos" | "loc" | "location" | "translation" => Some("position"),
-        "rot" | "euler" | "angle" | "angles" => Some("rotation"),
-        "scl" => Some("scale"),
-        "kids" | "child" | "items" => Some("children"),
-        "w" | "d" | "l" => Some("size"),
-        "r" => Some("radius"),
-        "h" => Some("height"),
-        "field_of_view" | "fov_deg" => Some("fov"),
-        _ => None,
-    };
-    if let Some(d) = direct.filter(|d| allowed.contains(d)) {
-        return Some(format!("did you mean `{d}`?"));
-    }
-    if ["color", "colour", "roughness", "metallic", "emissive"].contains(&key) && allowed.contains(&"material") {
-        let name = if key == "colour" { "color" } else { key };
-        return Some(format!("material properties go inside `material`: \"material\": {{ \"{name}\": ... }}"));
-    }
-    None
-}
-
-/// Pushes `path.key: unknown field ...` for every key of `obj` that is neither in `allowed` nor an extension key.
-pub fn check_keys(errs: &mut Vec<String>, path: &str, obj: &Map<String, Value>, allowed: &[&str]) {
-    for key in obj.keys() {
-        if allowed.contains(&key.as_str()) || is_extension_key(key) {
-            continue;
-        }
-        let fix = alias(key, allowed).or_else(|| {
-            let near = crate::prefabs::suggest(key, allowed.iter().copied());
-            (!near.is_empty()).then(|| format!("did you mean {}?", near.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(" or ")))
-        });
-        let tail = match fix {
-            Some(f) => f,
-            None => {
-                let shown: Vec<&str> = allowed.iter().copied().filter(|k| !["id", "type"].contains(k)).take(14).collect();
-                format!("valid here: {}; prefix a note with `x-` to keep it", shown.join(", "))
-            }
-        };
-        let at = if path.is_empty() { key.clone() } else { format!("{path}.{key}") };
-        errs.push(format!("{at}: unknown field — {tail}"));
-    }
-}
+pub use crate::fields::{check_fields, check_keys, describe_value, is_extension_key, opt, req, Field, Ty};
 
 /// Checks the data sections that other modules read from the raw JSON (`recipe`, `zones`, `spawns`, `portals`,
 /// `interest`): a typo there would otherwise mean "no zone", "default spawn" or "no portal" with no complaint.

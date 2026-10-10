@@ -42,6 +42,10 @@ tagged `<slug>-v<N>`. An installed game updates itself in place, and the downloa
 manually playable with the listed arguments. How it works, forcing a re-release after an engine change, and code signing: `docs/DISTRIBUTION.md` in RedEngineGames;
 the decision: ADR "Games ship as versioned installers that update in place". The engine reads `RE2_SAVE_DIR` (a folder for a game's settings and saved variables).
 
+A playable's `files` must hold everything its scene names: the score files of its `audio` block, for one. A manifest that leaves one out would ship a game that silently plays no
+music, so `cargo test` fails (`tools::publish_check`, test `every_published_playable_ships_everything_its_scene_needs`) and names the playable, the file and the fix. A scene that
+names a score that does not exist, or a file that is not a score, does not load at all.
+
 ## Saved progress
 
 A project's settings and saved variables are filed under the `id` in its `game.json` (`new-game` writes one), so they follow the game when it is unpacked into another folder or updated. A project without an `id` is filed under its name and folder, as before; when you add one, the engine copies what the old place held to the new one once. Installed games also set `RE2_SAVE_DIR` (`Saved Games\<game>`), which names the folder outright.

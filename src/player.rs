@@ -204,6 +204,18 @@ pub enum Character {
     Hollow,
     /// A boy of about nine in a red-orange jumper and a yellow scarf, smiling: a picture-book child (big round head, sturdy limbs) on the human rig, and slower, smaller, with no bat.
     Boy,
+    /// A Ridgeback scout: boonie hat, goggles, scarf (a look of team 1 on the same body as the trooper).
+    RidgebackScout,
+    /// A Ridgeback heavy: full helmet with a visor, shoulder guards, a thicker vest.
+    RidgebackHeavy,
+    /// A Ridgeback ghost: balaclava, headset and night-vision tubes.
+    RidgebackGhost,
+    /// A Nightfall scout.
+    NightfallScout,
+    /// A Nightfall heavy.
+    NightfallHeavy,
+    /// A Nightfall ghost.
+    NightfallGhost,
 }
 
 /// Everything about a body that differs between characters. Gravity and the ground/step rules are
@@ -243,7 +255,7 @@ pub struct BodySpec {
 
 impl Character {
     /// Every character, in wire-code order.
-    pub const ALL: [Character; 10] = [
+    pub const ALL: [Character; 16] = [
         Character::Human,
         Character::Rat,
         Character::Wizard,
@@ -254,7 +266,50 @@ impl Character {
         Character::Nightfall,
         Character::Hollow,
         Character::Boy,
+        Character::RidgebackScout,
+        Character::RidgebackHeavy,
+        Character::RidgebackGhost,
+        Character::NightfallScout,
+        Character::NightfallHeavy,
+        Character::NightfallGhost,
     ];
+
+    /// The looks a soldier can have, in order: look `0` is the trooper (the original soldier), then the others. Appearance only.
+    pub const SOLDIER_LOOKS: [&'static str; 4] = ["Trooper", "Scout", "Heavy", "Ghost"];
+
+    /// The team (`1` or `2`) of a soldier look, `None` for everyone else.
+    pub fn soldier_team(self) -> Option<u8> {
+        match self {
+            Character::Ridgeback | Character::RidgebackScout | Character::RidgebackHeavy | Character::RidgebackGhost => Some(1),
+            Character::Nightfall | Character::NightfallScout | Character::NightfallHeavy | Character::NightfallGhost => Some(2),
+            _ => None,
+        }
+    }
+
+    /// Which look (`0` trooper, `1` scout, `2` heavy, `3` ghost) of a soldier, `None` for everyone else.
+    pub fn soldier_look(self) -> Option<u8> {
+        match self {
+            Character::Ridgeback | Character::Nightfall => Some(0),
+            Character::RidgebackScout | Character::NightfallScout => Some(1),
+            Character::RidgebackHeavy | Character::NightfallHeavy => Some(2),
+            Character::RidgebackGhost | Character::NightfallGhost => Some(3),
+            _ => None,
+        }
+    }
+
+    /// The soldier of `team` (`1` Ridgeback, anything else Nightfall) with `look` (clamped to the four).
+    pub fn soldier(team: u8, look: u8) -> Character {
+        match (team == 1, look.min(3)) {
+            (true, 0) => Character::Ridgeback,
+            (true, 1) => Character::RidgebackScout,
+            (true, 2) => Character::RidgebackHeavy,
+            (true, _) => Character::RidgebackGhost,
+            (false, 0) => Character::Nightfall,
+            (false, 1) => Character::NightfallScout,
+            (false, 2) => Character::NightfallHeavy,
+            (false, _) => Character::NightfallGhost,
+        }
+    }
 
     /// The body numbers for this character.
     pub fn body(self) -> BodySpec {
@@ -266,6 +321,12 @@ impl Character {
             | Character::Robot
             | Character::Ridgeback
             | Character::Nightfall
+            | Character::RidgebackScout
+            | Character::RidgebackHeavy
+            | Character::RidgebackGhost
+            | Character::NightfallScout
+            | Character::NightfallHeavy
+            | Character::NightfallGhost
             | Character::Hollow => BodySpec {
                 radius: PLAYER_RADIUS,
                 stand_eye: STAND_EYE_HEIGHT,
@@ -330,6 +391,12 @@ impl Character {
             Character::Robot => "Robot",
             Character::Ridgeback => "Ridgeback soldier",
             Character::Nightfall => "Nightfall soldier",
+            Character::RidgebackScout => "Ridgeback scout",
+            Character::RidgebackHeavy => "Ridgeback heavy",
+            Character::RidgebackGhost => "Ridgeback ghost",
+            Character::NightfallScout => "Nightfall scout",
+            Character::NightfallHeavy => "Nightfall heavy",
+            Character::NightfallGhost => "Nightfall ghost",
             Character::Hollow => "The Hollow",
             Character::Boy => "The boy",
         }
@@ -346,6 +413,12 @@ impl Character {
             "robot" => Some(Character::Robot),
             "ridgeback" => Some(Character::Ridgeback),
             "nightfall" => Some(Character::Nightfall),
+            "ridgeback-scout" => Some(Character::RidgebackScout),
+            "ridgeback-heavy" => Some(Character::RidgebackHeavy),
+            "ridgeback-ghost" => Some(Character::RidgebackGhost),
+            "nightfall-scout" => Some(Character::NightfallScout),
+            "nightfall-heavy" => Some(Character::NightfallHeavy),
+            "nightfall-ghost" => Some(Character::NightfallGhost),
             "hollow" => Some(Character::Hollow),
             "boy" | "child" | "kid" => Some(Character::Boy),
             _ => None,
@@ -401,4 +474,27 @@ pub fn vertical_step_on_tuned(
         vy = 0.0;
     }
     (y, vy)
+}
+
+#[cfg(test)]
+mod soldier_look_tests {
+    use super::*;
+
+    #[test]
+    fn every_soldier_look_maps_to_a_team_and_back_and_survives_the_wire() {
+        for team in [1u8, 2] {
+            for look in 0u8..4 {
+                let c = Character::soldier(team, look);
+                assert_eq!((c.soldier_team(), c.soldier_look()), (Some(team), Some(look)), "{c:?}");
+                assert_eq!(crate::net::protocol::character_from_wire(crate::net::protocol::character_to_wire(c)), c);
+            }
+        }
+        // A look past the four is the last look; the original soldiers keep their old wire numbers.
+        assert_eq!(Character::soldier(1, 9), Character::RidgebackGhost);
+        assert_eq!(crate::net::protocol::character_to_wire(Character::Ridgeback), 6);
+        assert_eq!(crate::net::protocol::character_to_wire(Character::Nightfall), 7);
+        assert!(Character::Human.soldier_team().is_none());
+        assert_eq!(Character::SOLDIER_LOOKS.len(), 4);
+        assert_eq!(Character::ALL.len(), 16);
+    }
 }

@@ -11,6 +11,10 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[cfg(feature = "mcp")]
+#[path = "support/mcp.rs"]
+mod mcp;
+
 const CLI: &str = env!("CARGO_BIN_EXE_red_engine2");
 
 fn root() -> PathBuf {
@@ -98,7 +102,9 @@ fn the_first_read_is_a_small_fraction_of_the_docs() {
         overview.len().saturating_sub(budget)
     );
     assert!(a.context * 8 < docs_bytes(), "orientation costs {} bytes vs {} bytes of AGENTS.md + SPEC.md", a.context, docs_bytes());
-    a.within(9_500);
+    // 9.5 KB before the 2D/browser path added `capabilities`, `propose`, `publish` and `web` (four command lines) and the `2d` and `capabilities` topics (about 300 bytes); the
+    // 2D front door itself is `describe 2d` (5.6 KB), read only by someone making a 2D game.
+    a.within(9_800);
 }
 
 #[test]
@@ -373,4 +379,35 @@ fn task_change_the_engine_from_a_small_work_packet_and_verify_only_what_it_affec
     let boundary = a.json(&["affected", "--dry-run", "Cargo.toml", "src/sim/flow.rs"]);
     assert_eq!(boundary["data"]["scope"], "full", "{boundary}");
     a.within(30_000);
+}
+
+/// The same task an agent does through the MCP server (`red_engine2 mcp`): orient, find a recipe, validate, lint, edit, validate, lint, verify, look at a plan, run the sim,
+/// nine calls on a scene that lives in a file. What it pays is everything it loads (`tools/list`), sends (paths and edits, never the scene) and reads (text; the one image
+/// is priced by pixels, not counted here). `scripts/mcp_bench.py --task old` measures the Python adapter on this very task: 21,618 B of `tools/list`, 73,431 B sent
+/// (the 10 KB scene resent with every call) and 9,454 B of text read, 104,503 B in all; the native server measured 4,927 + 225 + 4,857 = 10,009 B.
+#[cfg(feature = "mcp")]
+#[test]
+fn task_prove_and_edit_a_map_through_the_mcp_server() {
+    let dir = std::env::temp_dir().join("re2_ai_tasks").join("mcp_flow");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::copy(root().join("recipes/rooms_and_door.json"), dir.join("map.json")).unwrap();
+    let mut c = mcp::McpClient::start(CLI, &dir);
+    c.list();
+    c.call("describe", json!({"topic": "brief"}));
+    let hits = c.call("search", json!({"query": "two rooms joined by a door", "limit": 3}));
+    assert!(hits.text.contains("recipe") || hits.text.contains("door"), "search points at material for two rooms and a door:\n{}", hits.text);
+    assert!(!c.call("validate", json!({"file": "map.json"})).is_error);
+    assert!(!c.call("lint", json!({"file": "map.json"})).is_error, "the recipe lints clean");
+    // The agent's one edit, as a patch (a file edit of its own would cost the same: nothing, over MCP).
+    assert!(!c.call("patch", json!({"file": "map.json", "ops": [{"op": "move", "id": "lamp_1", "by": [0.2, 0.0, 0.0]}]})).is_error);
+    assert!(!c.call("validate", json!({"file": "map.json"})).is_error);
+    c.call("lint", json!({"file": "map.json"}));
+    c.call("verify", json!({"file": "map.json"}));
+    let plan = c.call("view", json!({"file": "map.json", "kind": "plan"}));
+    assert_eq!(plan.images.len(), 1, "the plan arrives as an image");
+    c.call("sim", json!({"file": "map.json"}));
+    let total = c.tools_list_bytes + c.sent_bytes + c.text_bytes;
+    println!("  used {total} of 11500 bytes (tools/list {} + sent {} + read {})", c.tools_list_bytes, c.sent_bytes, c.text_bytes);
+    assert!(total <= 11_500, "the MCP task cost {total} bytes (tools/list {}, sent {}, read {}); budget 11500", c.tools_list_bytes, c.sent_bytes, c.text_bytes);
 }

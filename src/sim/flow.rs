@@ -199,6 +199,8 @@ pub struct FlowInput {
     pub rules_outcome: Option<String>,
     /// The highest score in the round.
     pub best_score: u32,
+    /// A limit that replaces the scene's `score_to_win` (`0` = use the scene's): captures or rounds in an objective mode.
+    pub score_limit: u32,
 }
 
 /// Something the server must act on.
@@ -296,9 +298,11 @@ impl Flow {
                 None
             }
             Phase::Playing => {
+                // A mode's own limit (captures, rounds) replaces the scene's kill limit.
+                let score_limit = if i.score_limit > 0 { i.score_limit } else { self.settings.score_to_win };
                 let reason = if let Some(o) = &i.rules_outcome {
                     Some(EndReason::Rules(o.clone()))
-                } else if self.settings.score_to_win > 0 && i.best_score >= self.settings.score_to_win {
+                } else if score_limit > 0 && i.best_score >= score_limit {
                     Some(EndReason::ScoreReached)
                 } else if i.in_round == 0 {
                     Some(EndReason::Abandoned)

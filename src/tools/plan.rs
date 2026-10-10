@@ -171,6 +171,11 @@ fn frame_bounds(world: &MapWorld, opts: &PlanOptions) -> (Vec2, Vec2) {
         return b;
     }
     let (min, max) = world.solid_bounds();
+    if world.is_endless() {
+        // An endless world has no bounds: show a window of it round the spawn (and whatever was built there).
+        let (lo, hi) = world.analysis_box(&[world.spawn], 4.0, 24.0);
+        return (lo.min(min - Vec2::splat(1.5)), hi.max(max + Vec2::splat(1.5)));
+    }
     (min - Vec2::splat(1.5), max + Vec2::splat(1.5))
 }
 
@@ -183,6 +188,7 @@ pub fn render_png(world: &MapWorld, reach: Option<&Reach>, findings: &[Finding],
     let w = (extent.x * scale) as i32 + MARGIN * 2;
     let h = (extent.y * scale) as i32 + MARGIN * 2;
     let ground_floor = opts.y < 0.2;
+    let endless = world.is_endless();
 
     let void_c = Rgb([26, 30, 40]);
     let mut img = RgbImage::from_pixel(w as u32, h as u32, void_c);
@@ -225,8 +231,8 @@ pub fn render_png(world: &MapWorld, reach: Option<&Reach>, findings: &[Finding],
 
     // Zones.
     for z in &world.zones {
-        if (z.y - opts.y).abs() > 0.6 {
-            continue;
+        if !endless && (z.y - opts.y).abs() > 0.6 {
+            continue; // another floor's zone (an endless world has one surface of every height: all its zones are drawn)
         }
         let (a, b) = (view.px(z.min), view.px(z.max));
         fill_rect(&mut img, a.0, a.1, b.0, b.1, Rgb([90, 140, 220]), 0.10);
@@ -237,14 +243,22 @@ pub fn render_png(world: &MapWorld, reach: Option<&Reach>, findings: &[Finding],
         draw_text(&mut img, a.0 as i32 + 3, a.1 as i32 + 3, &z.id, 2, Rgb([170, 205, 255]), Some(Rgb([20, 30, 50])));
     }
 
-    // Reachable area.
+    // Reachable area. On rolling or generated ground the player stands at every height, not at one floor's: draw every standable cell.
     if let (true, Some(r)) = (opts.show_reach, reach) {
         let half = r.cell * 0.5 * scale;
         for (i, lv) in r.levels.iter().enumerate() {
-            if lv.iter().any(|l| (l - opts.y).abs() <= 0.35) {
+            if endless && !lv.is_empty() || lv.iter().any(|l| (l - opts.y).abs() <= 0.35) {
                 let p = view.px(r.cell_center(i));
                 fill_rect(&mut img, p.0 - half, p.1 - half, p.0 + half, p.1 + half, Rgb([40, 215, 235]), 0.28);
             }
+        }
+    }
+    // The generated trees and shrubs that stop the player (they are in no object list): where the cells are not cyan, this is usually why.
+    if endless {
+        let all = world.blockers_in(bmin, bmax);
+        for c in all.iter().skip(world.colliders.len()) {
+            let (a, b) = (view.px(c.min), view.px(c.max));
+            fill_rect(&mut img, a.0, a.1, b.0, b.1, Rgb([46, 96, 58]), 0.9);
         }
     }
 
@@ -407,7 +421,11 @@ pub fn render_png(world: &MapWorld, reach: Option<&Reach>, findings: &[Finding],
     }
 
     // Title.
-    let title = format!("PLAN y={:.1}   {:.0}px/m   +X right  +Z down   cyan=walkable", opts.y, scale);
+    let title = if endless {
+        format!("PLAN endless world, every standing height   {:.0}px/m   +X right  +Z down   cyan=walkable  green=generated tree/shrub", scale)
+    } else {
+        format!("PLAN y={:.1}   {:.0}px/m   +X right  +Z down   cyan=walkable", opts.y, scale)
+    };
     draw_text(&mut img, MARGIN, 4, &title, 1, Rgb([235, 240, 250]), None);
     img
 }

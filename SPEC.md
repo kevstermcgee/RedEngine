@@ -232,7 +232,7 @@ Every object shares these base fields:
 ```
 
 `scale` may be a single number (uniform) or `[x,y,z]`. `material.metallic`/`roughness` are
-0–1 (unset defaults: `metallic=0`, `roughness=0.6`). `emissive` is a hex color added on top,
+0–1 (unset defaults: `metallic=0`, `roughness=0.6`; a value outside the range is a validation error, and a `roughness` below 0.04 draws as 0.04, the smoothest the shading can show). `emissive` is a hex color added on top,
 unaffected by lighting (glow); default `#000000` (none). `opacity` (0–1, default 1) makes a surface see-through: glass, water, a
 flame's glow. Blended objects are drawn after all solid ones, far to near, cast no shadow and do not write depth (so they are
 not outlined by the clarity pass); a `plane` with `opacity` is a water sheet, a thin `box` a pane. Sorting is per object: two
@@ -352,6 +352,7 @@ are the first copy's. A group template's children (which need ids) are renamed p
   "material": { "color": "#8a5a34" } }
 ```
 
+`width` and `run` are at least 0.1 m, `rise` at least 0.05 m and `steps` a whole number from 1 to 64; anything else is a validation error that says so (a staircase is never silently adjusted).
 `position` is the **center of the footprint at the height of the bottom step**; local `+Z` is the
 run axis (rotate about Y to point it elsewhere): the bottom is at local `-run/2`, the top (height
 `rise`) at `+run/2`. It is a solid block of steps you climb from the *bottom end only*: the engine
@@ -577,6 +578,13 @@ condition holds, and then **does** its actions:
   `{box: [x0,y0,z0,x1,y1,z1]}`. A player is *inside* when its body circle overlaps the volume in x/z and its body height overlaps in y.
 - **`who`**: `any` (default), `human`, `rat`, `team1`, `team2` (the last two need the scene's own `"teams": true`,
   or a `shooter` block, to put anyone on a team at all). **`once`**: at most once per match. **`cooldown`**: seconds between firings.
+- **`player_vars`** (`"player_vars": {"laps": 0, "lives": 3}`, at most 8): variables every player has their own copy of, reset to the declared
+  value when a player joins a slot. A rule reads and writes the copy of the player that triggered it as `me.name`: `"if": "me.laps >= 3"`,
+  `{"add": ["me.laps", 1]}`, `{"set": ["me.lives", "me.lives - 1"]}`. The triggering player is the one who entered or left a volume, or
+  who caused the event (`kill`, `pickup`, ...; an `emit` passes it on to the rules that react). `me.` in a `start`, `every`, `after` or prop
+  trigger is a `validate` error (nobody triggered it). A scenario checks one player's copy with
+  `{"player_var": "laps", "of": "runner", "gte": 2}`. Per-player variables are part of the match checksum and of replay; they are not
+  yet sent to clients or saved (`persist`), and a native race still keeps its own laps (`race`).
 - **`if`**: an expression over the `vars` and the built-ins `time` (s), `tick`, `players`: numbers, `true`/`false`,
   `+ - * / %`, `< <= > >= == !=`, `&& || !`, parentheses. `x / 0` is `0`. Built-in functions read the loose props:
   `prop_y(id)` (origin height, m), `tilt(id)` (degrees from how the map placed it: 0 upright, ~90 on its side), `held(id)`
@@ -799,7 +807,7 @@ problems (stairs that lead nowhere, unreachable rooms, overlaps, ...).
 
 The graphics client polls native gamepads through gilrs. Left-stick movement retains analog
 strength; right-stick look is time-based and FOV-compensated. Input flag bit 7 selects signed
--127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v<!--fact:protocol-->14<!--/fact-->.
+-127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v<!--fact:protocol-->15<!--/fact-->.
 Headless builds do not pull in gilrs. Focus loss, disconnect and menu transitions require
 neutral controls before gameplay resumes. See docs/CONTROLLERS_AND_SANDBOX.md for bindings.
 

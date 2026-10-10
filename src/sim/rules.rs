@@ -28,13 +28,16 @@
 
 use super::clock::secs_to_ticks;
 use super::rules_expr::{self, Expr, Op, Scope};
-use crate::strict::check_keys;
+use crate::strict::{check_keys, describe_value};
 use glam::Vec3;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 
 /// Variables every rule can read but not set: seconds elapsed, ticks elapsed, connected players.
 pub const BUILTIN_VARS: &[&str] = &["time", "tick", "players"];
+
+/// The most per-player variables a scene may declare (each player has a copy; the count is bounded so a snapshot of them stays small).
+pub const MAX_PLAYER_VARS: usize = 8;
 
 /// Events the engine itself raises (a rule can react with `when: {event: name}` without any rule emitting them):
 /// `pickup` / `drop` (a player took / released a prop), `shot` (a firearm was fired), `hit` (a player was damaged),
@@ -183,6 +186,13 @@ pub enum Action {
         /// The new value.
         value: Expr,
     },
+    /// `me.name = value` for the player that triggered the rule (an `add` is compiled to a `SetMe` of `me.name + n`). Does nothing when no player did.
+    SetMe {
+        /// Index in [`RuleSet::player_var_names`].
+        var: usize,
+        /// The new value.
+        value: Expr,
+    },
     /// Record an event.
     Emit(String),
     /// Mark an object hidden.
@@ -250,6 +260,10 @@ pub struct RuleSet {
     pub var_names: Vec<String>,
     /// Initial value of every variable (built-ins start at 0).
     pub var_init: Vec<f64>,
+    /// Per-player variable names (`player_vars`), in declaration order: every player has their own copy, read and written in rules as `me.name`.
+    pub player_var_names: Vec<String>,
+    /// Initial value of every per-player variable (a player's copy starts here when they join).
+    pub player_var_init: Vec<f64>,
     /// The rules, in evaluation order.
     pub rules: Vec<Rule>,
     /// Every loose prop of the scene, by object id, sorted: prop triggers, `reset`/`place` and the expression
@@ -285,6 +299,8 @@ impl Default for RuleSet {
         RuleSet {
             var_names: BUILTIN_VARS.iter().map(|s| s.to_string()).collect(),
             var_init: vec![0.0; BUILTIN_VARS.len()],
+            player_var_names: Vec::new(),
+            player_var_init: Vec::new(),
             rules: Vec::new(),
             prop_ids: Vec::new(),
             zone_ids: Vec::new(),
@@ -337,7 +353,7 @@ impl RuleSet {
 
     /// The expression scope: the loose props and zones a built-in function may name.
     pub fn scope(&self) -> Scope<'_> {
-        Scope { props: &self.prop_ids, zones: &self.zone_ids }
+        Scope { props: &self.prop_ids, zones: &self.zone_ids, player_vars: &self.player_var_names }
     }
 }
 
@@ -400,6 +416,27 @@ fn secs(v: &Value, path: &str, errs: &mut Vec<String>) -> u64 {
     }
 }
 
+/// A name or id the rule must give as a string. Anything else is an error that says so, not an empty name that later reports "no object ``".
+fn name_of<'a>(v: &'a Value, path: &str, what: &str, errs: &mut Vec<String>) -> Option<&'a str> {
+    let s = v.as_str();
+    if s.is_none() {
+        errs.push(format!("{path}: must be {what} (a string), got {}", describe_value(v)));
+    }
+    s
+}
+
+/// An optional `id` of a rule or a field: `Ok("")` when absent (the caller says it is missing); a non-string is its own error.
+fn id_of<'a>(v: &'a Value, path: &str, what: &str, errs: &mut Vec<String>) -> &'a str {
+    match v.get("id") {
+        None => "",
+        Some(Value::String(s)) => s,
+        Some(other) => {
+            errs.push(format!("{path}.id: must be a string, a unique id for the {what} (got {})", describe_value(other)));
+            ""
+        }
+    }
+}
+
 fn parse_volume(v: &Value, refs: &Refs, path: &str, errs: &mut Vec<String>) -> Option<Volume> {
     let Some(o) = v.as_object() else {
         errs.push(format!(
@@ -408,7 +445,20 @@ fn parse_volume(v: &Value, refs: &Refs, path: &str, errs: &mut Vec<String>) -> O
         return None;
     };
     check_keys(errs, path, o, VOLUME_KEYS);
-    let pad = o.get("pad").and_then(Value::as_f64).unwrap_or(0.0).max(0.0) as f32;
+    // `pad` only grows a volume. A negative one used to be treated as 0, so changing -0.55 to -0.8 changed nothing and nothing said why.
+    let pad = match o.get("pad") {
+        None => 0.0,
+        Some(v) => match v.as_f64().filter(|p| p.is_finite() && *p >= 0.0) {
+            Some(p) => p as f32,
+            None => {
+                errs.push(format!(
+                    "{path}.pad: must be a number of metres, 0 or more (got {}); `pad` only grows a volume: for a smaller one use a smaller `box`, or a zone of the size you want",
+                    describe_value(v)
+                ));
+                0.0
+            }
+        },
+    };
     let kinds: Vec<&str> = ["zone", "object", "box"].into_iter().filter(|k| o.contains_key(*k)).collect();
     if kinds.len() != 1 {
         errs.push(format!(
@@ -419,16 +469,28 @@ fn parse_volume(v: &Value, refs: &Refs, path: &str, errs: &mut Vec<String>) -> O
     }
     match kinds[0] {
         "zone" => {
-            let id = o["zone"].as_str().unwrap_or("");
+            let id = name_of(&o["zone"], &format!("{path}.zone"), "a zone id", errs)?;
             let Some((lo, hi)) = refs.zones.get(id) else {
                 errs.push(format!("{path}.zone: no zone `{id}`{} (zones: {})", near(id, refs.zones.keys().cloned()), sorted(refs.zones.keys())));
                 return None;
             };
-            let h = o.get("height").and_then(Value::as_f64).map_or(ZONE_HEIGHT, |h| h as f32);
+            let h = match o.get("height") {
+                None => ZONE_HEIGHT,
+                Some(v) => match v.as_f64().filter(|h| h.is_finite() && *h > 0.0) {
+                    Some(h) => h as f32,
+                    None => {
+                        errs.push(format!(
+                            "{path}.height: must be a number of metres greater than 0 (got {}); leave it out for the default {ZONE_HEIGHT}",
+                            describe_value(v)
+                        ));
+                        ZONE_HEIGHT
+                    }
+                },
+            };
             Some(Volume { min: *lo - Vec3::splat(pad), max: Vec3::new(hi.x, lo.y + h, hi.z) + Vec3::splat(pad) })
         }
         "object" => {
-            let id = o["object"].as_str().unwrap_or("");
+            let id = name_of(&o["object"], &format!("{path}.object"), "a top-level object id", errs)?;
             let Some((lo, hi)) = refs.bounds.get(id) else {
                 errs.push(format!("{path}.object: no top-level object `{id}`{} (a volume needs a top-level object id)", near(id, refs.bounds.keys().cloned())));
                 return None;
@@ -456,15 +518,17 @@ fn parse_fields(root: &Map<String, Value>, refs: &Refs, set: &mut RuleSet, errs:
     };
     let mut seen = HashSet::new();
     for (i, fv) in list.iter().enumerate() {
-        let id = fv.get("id").and_then(Value::as_str).unwrap_or("");
-        let path = format!("fields[{i}]{}", if id.is_empty() { String::new() } else { format!(" ({id})") });
         let Some(fo) = fv.as_object() else {
-            errs.push(format!("{path}: must be an object"));
+            errs.push(format!("fields[{i}]: must be an object"));
             continue;
         };
+        let id = id_of(fv, &format!("fields[{i}]"), "field", errs);
+        let path = format!("fields[{i}]{}", if id.is_empty() { String::new() } else { format!(" ({id})") });
         check_keys(errs, &path, fo, FIELD_KEYS);
         if id.is_empty() {
-            errs.push(format!("{path}.id: missing (every field needs a unique id string)"));
+            if fv.get("id").is_none() {
+                errs.push(format!("{path}.id: missing (every field needs a unique id string)"));
+            }
         } else if !seen.insert(id.to_string()) {
             errs.push(format!("{path}.id: duplicate field id `{id}`"));
         }
@@ -494,10 +558,19 @@ fn parse_fields(root: &Map<String, Value>, refs: &Refs, set: &mut RuleSet, errs:
         if velocity.is_none() && lift.is_none() && fo.get("velocity").is_none() && fo.get("lift").is_none() {
             errs.push(format!("{path}: give `velocity` [x, z] and/or `lift` (what the field pushes toward)"));
         }
-        let rate = fo.get("rate").and_then(Value::as_f64).map_or(10.0, |r| r as f32);
-        if !(rate > 0.0 && rate <= 60.0) {
-            errs.push(format!("{path}.rate: must be greater than 0 and at most 60 (per second)"));
-        }
+        let rate = match fo.get("rate") {
+            None => 10.0,
+            Some(v) => match v.as_f64().filter(|r| *r > 0.0 && *r <= 60.0) {
+                Some(r) => r as f32,
+                None => {
+                    errs.push(format!(
+                        "{path}.rate: must be a number greater than 0 and at most 60 per second (got {}); leave it out for the default 10",
+                        describe_value(v)
+                    ));
+                    10.0
+                }
+            },
+        };
         if let Some(volume) = volume {
             set.fields.push(Field { id: id.to_string(), volume, velocity, lift, rate });
         }
@@ -636,6 +709,15 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                 errs.push(format!("{sub}: must be [variable, value]"));
                 return None;
             };
+            if let Some(me) = p[0].as_str().and_then(|n| n.strip_prefix("me.")) {
+                let Some(var) = set.player_var_names.iter().position(|n| n == me) else {
+                    errs.push(format!("{sub}[0]: {}", rules_expr::unknown_player_var(me, &set.player_var_names)));
+                    return None;
+                };
+                let value = parse_value(&p[1], set, &format!("{sub}[1]"), errs)?;
+                let value = if key.as_str() == "add" { Expr::Bin(Op::Add, Box::new(Expr::Me(var)), Box::new(value)) } else { value };
+                return Some(Action::SetMe { var, value });
+            }
             let var = var_index(p[0].as_str(), names, &format!("{sub}[0]"), errs)?;
             let value = parse_value(&p[1], set, &format!("{sub}[1]"), errs)?;
             let value = if key.as_str() == "add" { Expr::Bin(Op::Add, Box::new(Expr::Var(var)), Box::new(value)) } else { value };
@@ -650,7 +732,7 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
             }
         },
         "hide" | "show" => {
-            let id = val.as_str().unwrap_or("");
+            let id = name_of(val, &sub, "an object id", errs)?;
             if !refs.object_ids.contains(id) {
                 errs.push(format!("{sub}: no object `{id}`{}", near(id, refs.object_ids.iter().cloned())));
                 return None;
@@ -658,7 +740,7 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
             Some(if key.as_str() == "hide" { Action::Hide(id.to_string()) } else { Action::Show(id.to_string()) })
         }
         "deactivate" | "activate" => {
-            let id = val.as_str().unwrap_or("");
+            let id = name_of(val, &sub, "a top-level object id", errs)?;
             if !refs.top_level_ids.contains(id) {
                 errs.push(format!("{sub}: no top-level object `{id}`{}", near(id, refs.top_level_ids.iter().cloned())));
                 return None;
@@ -670,7 +752,7 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                 errs.push(format!("{sub}: must be [object_id, true|false]"));
                 return None;
             };
-            let id = pair[0].as_str().unwrap_or("");
+            let id = name_of(&pair[0], &format!("{sub}[0]"), "a top-level object id", errs)?;
             if !refs.top_level_ids.contains(id) {
                 errs.push(format!("{sub}[0]: no top-level object `{id}`{}", near(id, refs.top_level_ids.iter().cloned())));
                 return None;
@@ -699,7 +781,10 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                 return None;
             };
             check_keys(errs, &sub, io, &["object", "dir", "speed"]);
-            let object = io.get("object").and_then(Value::as_str).unwrap_or("");
+            let object = io.get("object").map(|o| name_of(o, &format!("{sub}.object"), "a top-level object id", errs)).unwrap_or_else(|| {
+                errs.push(format!("{sub}.object: missing (the loose prop to shove)"));
+                None
+            })?;
             if !refs.bounds.contains_key(object) {
                 errs.push(format!("{sub}.object: no top-level object `{object}`{}", near(object, refs.bounds.keys().cloned())));
                 return None;
@@ -708,7 +793,19 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                 errs.push(format!("{sub}.dir: must be [x, y, z]"));
                 return None;
             };
-            let speed = io.get("speed").and_then(Value::as_f64).unwrap_or(4.0) as f32;
+            let speed = match io.get("speed") {
+                None => 4.0,
+                Some(v) => match v.as_f64().filter(|s| s.is_finite() && *s > 0.0) {
+                    Some(s) => s as f32,
+                    None => {
+                        errs.push(format!(
+                            "{sub}.speed: must be a number of m/s greater than 0 (got {}); leave it out for 4, and props never exceed 14",
+                            describe_value(v)
+                        ));
+                        return None;
+                    }
+                },
+            };
             Some(Action::Impulse { object: object.to_string(), dir, speed })
         }
         "reset" => match val {
@@ -719,7 +816,10 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
             }
             Value::Object(m) => {
                 check_keys(errs, &sub, m, &["zone"]);
-                let id = m.get("zone").and_then(Value::as_str).unwrap_or("");
+                let id = m.get("zone").map(|z| name_of(z, &format!("{sub}.zone"), "a zone id", errs)).unwrap_or_else(|| {
+                    errs.push(format!("{sub}.zone: missing (the zone whose loose props are put back)"));
+                    None
+                })?;
                 match set.zone_ids.iter().position(|z| z == id) {
                     Some(z) => Some(Action::Reset(ResetTarget::Zone(z))),
                     None => {
@@ -801,6 +901,35 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             }
         }
     }
+    if let Some(pv) = root.get("player_vars") {
+        match pv.as_object() {
+            None => errs.push("player_vars: must be an object like {\"laps\": 0, \"lives\": 3}".to_string()),
+            Some(o) => {
+                for (name, v) in o.iter().filter(|(k, _)| !(k.starts_with("x-") || *k == "$comment" || *k == "notes")) {
+                    let ok_name = !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') && !name.starts_with(|c: char| c.is_ascii_digit());
+                    if !ok_name {
+                        errs.push(format!("player_vars.{name}: a variable name is letters, digits and `_`, not starting with a digit"));
+                        continue;
+                    }
+                    let init = match v {
+                        Value::Number(n) => n.as_f64(),
+                        Value::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+                        _ => None,
+                    };
+                    match init {
+                        Some(_) if set.player_var_names.len() >= MAX_PLAYER_VARS => {
+                            errs.push(format!("player_vars.{name}: at most {MAX_PLAYER_VARS} per-player variables (each player has a copy)"))
+                        }
+                        Some(x) => {
+                            set.player_var_names.push(name.clone());
+                            set.player_var_init.push(x);
+                        }
+                        None => errs.push(format!("player_vars.{name}: must be a number or true/false")),
+                    }
+                }
+            }
+        }
+    }
     if let Some(p) = root.get("persist") {
         match p.as_array() {
             None => errs.push("persist: must be a list of variable names like [\"days_lived\"]".to_string()),
@@ -826,15 +955,17 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
     };
     let mut seen = HashSet::new();
     for (i, rv) in list.iter().enumerate() {
-        let id = rv.get("id").and_then(Value::as_str).unwrap_or("");
-        let p = at(i, id);
         let Some(ro) = rv.as_object() else {
-            errs.push(format!("{p}: must be an object"));
+            errs.push(format!("{}: must be an object", at(i, "")));
             continue;
         };
+        let id = id_of(rv, &at(i, ""), "rule", &mut errs);
+        let p = at(i, id);
         check_keys(&mut errs, &p, ro, RULE_KEYS);
         if id.is_empty() {
-            errs.push(format!("{p}.id: missing (every rule needs a unique id string)"));
+            if rv.get("id").is_none() {
+                errs.push(format!("{p}.id: missing (every rule needs a unique id string)"));
+            }
         } else if !seen.insert(id.to_string()) {
             errs.push(format!("{p}.id: duplicate rule id `{id}`"));
         }
@@ -845,20 +976,34 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
                 None
             }
         };
-        let who = match ro.get("who").map(|w| w.as_str().unwrap_or("")) {
-            None | Some("any") => Who::Any,
-            Some("human") => Who::Human,
-            Some("rat") => Who::Rat,
-            Some("team1") => Who::Team1,
-            Some("team2") => Who::Team2,
-            Some(other) => {
-                errs.push(format!("{p}.who: `{other}` is not one of any, human, rat, team1, team2"));
-                Who::Any
-            }
+        let who = match ro.get("who") {
+            None => Who::Any,
+            Some(w) => match w.as_str() {
+                Some("any") => Who::Any,
+                Some("human") => Who::Human,
+                Some("rat") => Who::Rat,
+                Some("team1") => Who::Team1,
+                Some("team2") => Who::Team2,
+                Some(other) => {
+                    errs.push(format!("{p}.who: `{other}` is not one of any, human, rat, team1, team2"));
+                    Who::Any
+                }
+                None => {
+                    errs.push(format!("{p}.who: must be a string, one of any, human, rat, team1, team2 (got {})", describe_value(w)));
+                    Who::Any
+                }
+            },
         };
         let cond = ro.get("if").and_then(|c| parse_value(c, &set, &format!("{p}.if"), &mut errs));
         let cooldown_ticks = ro.get("cooldown").map_or(0, |c| secs(c, &format!("{p}.cooldown"), &mut errs));
-        let once = ro.get("once").and_then(Value::as_bool).unwrap_or(false);
+        let once = match ro.get("once") {
+            None => false,
+            Some(Value::Bool(b)) => *b,
+            Some(other) => {
+                errs.push(format!("{p}.once: must be true or false (got {}); write it without quotes", describe_value(other)));
+                false
+            }
+        };
         let mut actions = Vec::new();
         match ro.get("do").and_then(Value::as_array) {
             Some(arr) if !arr.is_empty() => {
@@ -870,6 +1015,29 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             }
             _ => errs
                 .push(format!("{p}.do: missing or empty (a rule needs at least one action: {})", ACTIONS.iter().map(|a| a.0).collect::<Vec<_>>().join(", "))),
+        }
+        if let Some(when) = &when {
+            // A timer or the match start has no player: `me.*` there would read 0 and write nothing, which is never what the author meant.
+            let slotless = match when {
+                When::Start => Some("start"),
+                When::Every(_) => Some("every"),
+                When::After(_) => Some("after"),
+                When::PropEnter { .. } => Some("prop_enter"),
+                When::PropExit { .. } => Some("prop_exit"),
+                When::PropBelow { .. } => Some("prop_below"),
+                _ => None,
+            };
+            let uses_me = cond.as_ref().is_some_and(Expr::uses_me)
+                || actions.iter().any(|a| match a {
+                    Action::SetMe { .. } => true,
+                    Action::Set { value, .. } => value.uses_me(),
+                    _ => false,
+                });
+            if let (Some(kind), true) = (slotless, uses_me) {
+                errs.push(format!(
+                    "{p}: uses `me.` but a `{kind}` trigger has no player (use enter, exit, or an event a player causes, such as `kill` or an `emit` from such a rule)"
+                ));
+            }
         }
         if let Some(when) = when {
             set.rules.push(Rule { id: id.to_string(), when, who, cond, once, cooldown_ticks, actions });
@@ -1136,5 +1304,124 @@ mod tests {
         assert_eq!((&set.var_names, &set.var_init, &set.rules, set.needs_props), (&default.var_names, &default.var_init, &default.rules, false));
         assert_eq!(set.prop_ids, ["bell", "crate"], "the scene's loose props and zones are always in scope");
         assert!(parse_rules(json!({}).as_object().unwrap(), &Refs::default()).unwrap() == default, "no scene, no tables");
+    }
+
+    #[test]
+    fn player_vars_parse_and_me_resolves_in_conditions_and_actions() {
+        let set = parse(json!({
+            "vars": {"total": 0},
+            "player_vars": {"laps": 0, "lives": 3, "alive": true},
+            "rules": [{"id": "lap", "when": {"enter": {"zone": "exit"}}, "if": "me.laps < 3 && me.alive", "do": [{"add": ["me.laps", 1]}, {"set": ["total", "me.laps * 10"]}]}]
+        }))
+        .unwrap();
+        assert_eq!(
+            (set.player_var_names.as_slice(), set.player_var_init.as_slice()),
+            (&["laps".to_string(), "lives".to_string(), "alive".to_string()][..], &[0.0, 3.0, 1.0][..])
+        );
+        assert!(matches!(set.rules[0].actions[0], Action::SetMe { var: 0, .. }));
+        assert!(set.rules[0].cond.as_ref().is_some_and(Expr::uses_me));
+        assert!(!set.needs_props, "me.* does not need the props described to the rules");
+    }
+
+    #[test]
+    fn player_var_mistakes_name_the_fix() {
+        let e = parse(json!({
+            "player_vars": {"laps": 0, "bad name": 1, "x": "s"},
+            "rules": [
+                {"id": "a", "when": {"enter": {"zone": "exit"}}, "if": "me.lapz > 1", "do": [{"add": ["me.lap", 1]}]},
+                {"id": "b", "when": {"every": 1.0}, "do": [{"add": ["me.laps", 1]}]},
+                {"id": "c", "when": {"start": true}, "if": "me.laps == 0", "do": [{"emit": "x"}]},
+                {"id": "d", "when": {"prop_below": ["bell", 0.5]}, "do": [{"add": ["me.laps", 1]}]}
+            ]
+        }))
+        .unwrap_err()
+        .join("\n");
+        for want in [
+            "player_vars.bad name: a variable name is letters",
+            "player_vars.x: must be a number or true/false",
+            "unknown per-player variable `me.lapz` — did you mean `me.laps`?",
+            "unknown per-player variable `me.lap` — did you mean `me.laps`?",
+            "rules[1] (b): uses `me.` but a `every` trigger has no player",
+            "rules[2] (c): uses `me.` but a `start` trigger has no player",
+            "rules[3] (d): uses `me.` but a `prop_below` trigger has no player",
+        ] {
+            assert!(e.contains(want), "missing `{want}` in:\n{e}");
+        }
+        let many: serde_json::Map<String, Value> = (0..=MAX_PLAYER_VARS).map(|i| (format!("v{i}"), json!(0))).collect();
+        let e = parse(json!({"player_vars": many})).unwrap_err().join("\n");
+        assert!(e.contains(&format!("at most {MAX_PLAYER_VARS} per-player variables")), "{e}");
+        assert!(parse(json!({"vars": {"laps": 0}, "player_vars": {"laps": 0}})).is_ok(), "a per-player name may match a global one: `me.` tells them apart");
+    }
+
+    /// One rule with the given `when` and `do`, parsed against the test scene; `Err` is the list of messages.
+    fn one(extra: Value, when: Value, actions: Value) -> Result<RuleSet, Vec<String>> {
+        let mut rule = json!({"id": "r", "when": when, "do": actions});
+        for (k, v) in extra.as_object().unwrap() {
+            rule[k] = v.clone();
+        }
+        parse(json!({"vars": {"n": 0}, "rules": [rule]}))
+    }
+
+    fn messages(r: Result<RuleSet, Vec<String>>) -> String {
+        match r {
+            Err(e) => e.join(" | "),
+            Ok(_) => panic!("must be rejected"),
+        }
+    }
+
+    #[test]
+    fn a_negative_or_non_numeric_pad_is_an_error_with_the_fix_not_a_silent_zero() {
+        for (pad, got) in [(json!(-0.55), "-0.55"), (json!("big"), "string \"big\"")] {
+            let e = messages(one(json!({}), json!({"enter": {"object": "coin_1", "pad": pad}}), json!([{"emit": "x"}])));
+            assert!(e.contains("rules[0] (r).when.enter.pad: must be a number of metres, 0 or more"), "{e}");
+            assert!(e.contains(got) && e.contains("only grows a volume") && e.contains("smaller `box`"), "{e}");
+        }
+        assert!(one(json!({}), json!({"enter": {"object": "coin_1", "pad": 0.4}}), json!([{"emit": "x"}])).is_ok());
+        assert!(one(json!({}), json!({"enter": {"object": "coin_1", "pad": 0}}), json!([{"emit": "x"}])).is_ok());
+    }
+
+    #[test]
+    fn a_zone_height_that_is_not_a_positive_number_is_an_error_with_the_default_named() {
+        for height in [json!(-1), json!(0), json!("tall")] {
+            let e = messages(one(json!({}), json!({"enter": {"zone": "exit", "height": height}}), json!([{"emit": "x"}])));
+            assert!(e.contains(".height: must be a number of metres greater than 0") && e.contains("default 3"), "{e}");
+        }
+        assert!(one(json!({}), json!({"enter": {"zone": "exit", "height": 2.5}}), json!([{"emit": "x"}])).is_ok());
+    }
+
+    #[test]
+    fn once_who_and_the_impulse_speed_must_be_what_they_say() {
+        let e = messages(one(json!({"once": "yes"}), json!({"start": true}), json!([{"emit": "x"}])));
+        assert!(e.contains("rules[0] (r).once: must be true or false (got string \"yes\")"), "{e}");
+        let e = messages(one(json!({"who": 3}), json!({"start": true}), json!([{"emit": "x"}])));
+        assert!(e.contains(".who: must be a string, one of any, human, rat, team1, team2 (got number 3)"), "{e}");
+        for speed in [json!("fast"), json!(-2), json!(0)] {
+            let e = messages(one(json!({}), json!({"start": true}), json!([{"impulse": {"object": "crate", "dir": [0, 1, 0], "speed": speed}}])));
+            assert!(e.contains(".impulse.speed: must be a number of m/s greater than 0") && e.contains("leave it out for 4"), "{e}");
+        }
+        assert!(one(json!({"once": true, "who": "human"}), json!({"start": true}), json!([{"impulse": {"object": "crate", "dir": [0, 1, 0]}}])).is_ok());
+    }
+
+    #[test]
+    fn an_id_that_is_not_a_string_is_said_so_instead_of_reporting_no_object_with_an_empty_name() {
+        for action in [json!({"hide": 5}), json!({"deactivate": ["door"]}), json!({"collision": [7, true]})] {
+            let e = messages(one(json!({}), json!({"start": true}), json!([action])));
+            assert!(e.contains("must be a") && e.contains("(a string), got"), "{e}");
+            assert!(!e.contains("``"), "{e}");
+        }
+        let e = messages(one(json!({}), json!({"start": true}), json!([{"impulse": {"dir": [0, 1, 0]}}])));
+        assert!(e.contains(".impulse.object: missing"), "{e}");
+        let e = messages(parse(json!({"rules": [{"id": 12, "when": {"start": true}, "do": [{"emit": "x"}]}]})));
+        assert!(e.contains("rules[0].id: must be a string, a unique id for the rule (got number 12)"), "{e}");
+    }
+
+    #[test]
+    fn a_field_rate_that_is_not_a_number_in_range_is_an_error() {
+        let field = |rate: Value| parse(json!({"fields": [{"id": "river", "zone": "exit", "velocity": [0, 1], "rate": rate}]}));
+        for rate in [json!("fast"), json!(0), json!(61)] {
+            let e = messages(field(rate));
+            assert!(e.contains("fields[0] (river).rate: must be a number greater than 0 and at most 60 per second") && e.contains("default 10"), "{e}");
+        }
+        assert!(field(json!(12)).is_ok());
     }
 }

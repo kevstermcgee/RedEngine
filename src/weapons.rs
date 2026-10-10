@@ -79,6 +79,23 @@ pub enum Weapon {
     Smoke,
     /// Incendiary grenade.
     Incendiary,
+    // ---- added with the game modes (protocol v15): they follow the first 31 so no earlier weapon's wire number changed ----
+    /// Rotary machine gun: huge magazine, huge noise, walks slowly.
+    Reaper,
+    /// Single-slug pump shotgun: two shots to kill, one to the head.
+    Breaker,
+    /// Silent crossbow: one bolt, a high price for a miss.
+    Hunter,
+    /// Flare gun: a small fire where it lands, to flush people out.
+    Flare,
+    /// Mortar-style launcher: a high arc and a big blast on contact.
+    Lobber,
+    /// Contact grenade: bursts where it first lands.
+    Impact,
+    /// Machete: a fast, long blade.
+    Machete,
+    /// Sledgehammer: slow, and one hit is enough.
+    Sledge,
 }
 
 impl Weapon {
@@ -98,7 +115,7 @@ impl Weapon {
     ];
 
     /// Every weapon of the loadout arsenal, in wire order (the first eleven are [`Weapon::ALL`], so legacy numbers never changed).
-    pub const ROSTER: [Weapon; 31] = [
+    pub const ROSTER: [Weapon; 39] = [
         Weapon::Bat,
         Weapon::Pistol,
         Weapon::MachinePistol,
@@ -130,6 +147,14 @@ impl Weapon {
         Weapon::Flash,
         Weapon::Smoke,
         Weapon::Incendiary,
+        Weapon::Reaper,
+        Weapon::Breaker,
+        Weapon::Hunter,
+        Weapon::Flare,
+        Weapon::Lobber,
+        Weapon::Impact,
+        Weapon::Machete,
+        Weapon::Sledge,
     ];
 
     /// The ten firearms shipped with the reusable shooter prototype.
@@ -196,6 +221,14 @@ impl Weapon {
             Weapon::Flash => "flashbang",
             Weapon::Smoke => "smoke grenade",
             Weapon::Incendiary => "incendiary grenade",
+            Weapon::Reaper => "Reaper minigun",
+            Weapon::Breaker => "Breaker slug gun",
+            Weapon::Hunter => "Hunter crossbow",
+            Weapon::Flare => "Flare gun",
+            Weapon::Lobber => "Lobber mortar",
+            Weapon::Impact => "impact grenade",
+            Weapon::Machete => "machete",
+            Weapon::Sledge => "sledgehammer",
         }
     }
 
@@ -234,6 +267,14 @@ impl Weapon {
             "flash" | "flashbang" => Some(Weapon::Flash),
             "smoke" | "smoke-grenade" => Some(Weapon::Smoke),
             "incendiary" => Some(Weapon::Incendiary),
+            "reaper" | "minigun" => Some(Weapon::Reaper),
+            "breaker" | "slug-gun" => Some(Weapon::Breaker),
+            "hunter" | "crossbow" => Some(Weapon::Hunter),
+            "flare" | "flare-gun" => Some(Weapon::Flare),
+            "lobber" | "mortar" => Some(Weapon::Lobber),
+            "impact" | "impact-grenade" => Some(Weapon::Impact),
+            "machete" => Some(Weapon::Machete),
+            "sledge" | "sledgehammer" => Some(Weapon::Sledge),
             _ => None,
         }
     }

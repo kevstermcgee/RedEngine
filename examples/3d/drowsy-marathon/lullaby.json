@@ -1,0 +1,4 @@
+{"bpm":48,"bars":8,"key":"D","scale":"minor_pentatonic","seed":5,"lufs":-26,"reverb":{"decay":6,"mix":0.5},
+ "instruments":{"pad":{"seconds":4,"layers":[{"sine":1,"harmonics":[[2,0.3]],"attack":0.8,"release":1.5}]}},
+ "tracks":[{"inst":"pad","play":"chords","chords":"i VI III VII","every":"2 bars","octave":3},
+           {"inst":"pad","play":"walk","every":"1 beat","density":0.2,"range":[3,8],"octave":4}]}

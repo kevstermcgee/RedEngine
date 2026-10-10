@@ -9,7 +9,7 @@ pub mod audio;
 pub mod audio_analysis;
 pub mod audio_fx;
 pub mod avatar;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod capture;
 pub mod characters;
 pub mod clipboard;
@@ -23,35 +23,41 @@ pub mod dsp;
 pub mod easing;
 pub mod expanse;
 pub mod feel;
-#[cfg(feature = "gfx")]
+pub mod fields;
+#[cfg(feature = "render")]
 pub mod firearms;
-#[cfg(feature = "gfx")]
+pub mod font_glyphs;
+#[cfg(feature = "render")]
 pub mod fx;
 pub mod geometry;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod gpu;
 pub mod hit;
 pub mod hud_config;
 pub mod kart_camera;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod kart_sound;
 pub mod killcam;
 pub mod macros;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod menu;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod mesh;
 pub mod mixer;
 pub mod music;
 pub mod nature;
 pub mod net;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod object_staging;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
+pub mod objective_world;
+#[cfg(feature = "render")]
 pub mod ocean_pass;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod overlay;
 pub mod physics;
+#[cfg(feature = "gfx")]
+pub mod play2d;
 pub mod player;
 pub mod playscript;
 pub mod prefabs;
@@ -60,7 +66,7 @@ pub mod probe;
 pub mod procgen;
 pub mod project_browser;
 pub mod props;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod render;
 pub mod scene_pool;
 pub mod schema;
@@ -69,18 +75,19 @@ pub mod score;
 pub mod settings;
 pub mod sfx;
 pub mod shadow;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod shooter_world;
 pub mod sim;
 pub mod skeleton;
+pub mod soundscape;
 #[cfg(feature = "gfx")]
 pub mod split_gpu;
 pub mod splitscreen;
-pub mod stats;
 pub mod streaks;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod stream_gpu;
 pub mod strict;
+pub mod suggest;
 pub mod synth;
 pub mod terrain;
 pub mod tools;
@@ -88,9 +95,9 @@ pub mod track;
 pub mod ui;
 pub mod ui_config;
 pub mod uniforms;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "video")]
 pub mod video;
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub mod viewer;
 pub mod voice_spec;
 pub mod weapons;
@@ -99,7 +106,7 @@ pub mod weapons;
 /// exact same version.
 pub use glam;
 
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -115,7 +122,7 @@ pub fn validate_scene_file(path: &Path) -> Result<(), Vec<String>> {
     load_scene(path).map(|_| ())
 }
 
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 fn ensure_parent_dir(path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
@@ -125,13 +132,13 @@ fn ensure_parent_dir(path: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 fn load_scene_or_bail(scene_path: &Path) -> Result<schema::Scene> {
     load_scene(scene_path).map_err(|errs| anyhow::anyhow!(errs.join("\n")))
 }
 
 /// Renders one frame of a scene at time `t` seconds to a PNG.
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub fn render_frame_png(scene_path: &Path, out_png: &Path, t: f32) -> Result<()> {
     let scene = load_scene_or_bail(scene_path)?;
     let mut renderer = render::Renderer::new(&scene)?;
@@ -141,8 +148,8 @@ pub fn render_frame_png(scene_path: &Path, out_png: &Path, t: f32) -> Result<()>
     Ok(())
 }
 
-/// Renders the whole scene to an MP4 via ffmpeg, reporting `(frame, total)` progress.
-#[cfg(feature = "gfx")]
+/// Renders the whole scene to an MP4 via ffmpeg, reporting `(frame, total)` progress. Needs the `video` feature.
+#[cfg(feature = "video")]
 pub fn render_video(scene_path: &Path, out_path: &Path, mut on_progress: impl FnMut(u32, u32)) -> Result<()> {
     let scene = load_scene_or_bail(scene_path)?;
     let mut renderer = render::Renderer::new(&scene)?;
@@ -159,7 +166,7 @@ pub fn render_video(scene_path: &Path, out_path: &Path, mut on_progress: impl Fn
 }
 
 /// Renders `num_frames` evenly spaced frames into one contact-sheet PNG.
-#[cfg(feature = "gfx")]
+#[cfg(feature = "render")]
 pub fn render_storyboard_png(scene_path: &Path, out_png: &Path, num_frames: u32) -> Result<()> {
     let scene = load_scene_or_bail(scene_path)?;
     let mut renderer = render::Renderer::new(&scene)?;

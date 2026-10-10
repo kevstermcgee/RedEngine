@@ -75,6 +75,8 @@ def load_manifest(root: Path) -> dict:
             raise PublishError(f"playables[{index}].files must be a non-empty array")
         for file_index, value in enumerate(files):
             safe_relative(value, f"playables[{index}].files[{file_index}]")
+        if playable.get("kind", "3d") not in ("3d", "2d"):
+            raise PublishError(f"playables[{index}].kind must be \"3d\" (the default, played by RedEngine.exe) or \"2d\" (a *.game2d.json played by re2d.exe)")
         arguments = playable.get("arguments")
         if not isinstance(arguments, list) or any(
             not isinstance(value, str) or "\n" in value or "\r" in value for value in arguments

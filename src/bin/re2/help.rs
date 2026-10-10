@@ -21,7 +21,7 @@ pub(crate) const SWITCHES: &[(&str, &str)] = &[
         "RE2_SAVE_DIR",
         "folder: keep this game's settings and saved variables there, whatever folder the game runs from (an installed game sets it to `Saved Games\\<game>`)",
     ),
-    ("RE2_RELAY", "HOST:PORT (a hostname works): a red_relay to register with when hosting, so a friend joins with a short code instead of port forwarding"),
+    ("RE2_RELAY", "HOST:PORT (a hostname works): the red_relay to register with when hosting, so a friend joins with a short code instead of port forwarding; the project relay is used when this is unset, `off` disables relays"),
     ("RE2_AMBIENCE", "0: start without the scene's ambience and mood music (an `audio` block); RE2_MUSIC=0 is the music toggle for the built-in loop"),
     ("RE2_LOG_CUES", "1: print every sound cue as it plays (check the feedback without listening)"),
     ("RE2_CONSOLE", "1: (Windows) the shipped, console-less copy of the game shows its output in the terminal that started it instead of re2.log"),

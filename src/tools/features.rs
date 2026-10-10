@@ -49,6 +49,52 @@ pub fn load_at(root: &Path) -> Result<Vec<Feature>, String> {
     parse(&index_text_at(root))
 }
 
+/// Files that are a game, a legacy fixture or a historical report rather than engine: they stay in the repository and keep their tests, but `search` ranks them
+/// below the engine so an agent asking "how do I do X" is not answered with one game's code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentPack {
+    /// Its short name (`killchain_client`).
+    pub name: String,
+    /// `game` (one shipped game's own code or content), `legacy` (regression fixtures kept working when cheap) or `history` (reports about past work).
+    pub tier: String,
+    /// One sentence.
+    pub summary: String,
+    /// File patterns, as in a feature's `files`.
+    pub files: Vec<String>,
+}
+
+/// The tiers a content pack may have.
+pub const CONTENT_TIERS: [&str; 3] = ["game", "legacy", "history"];
+
+/// Parses the `content` section of an index document (absent = no packs).
+pub fn content_packs_of(text: &str) -> Vec<ContentPack> {
+    let Some(map) = serde_json::from_str::<Value>(text).ok().and_then(|v| v.get("content").and_then(Value::as_object).cloned()) else {
+        return Vec::new();
+    };
+    let str_of = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    map.iter()
+        .map(|(name, v)| ContentPack {
+            name: name.clone(),
+            tier: str_of(v, "tier"),
+            summary: str_of(v, "summary"),
+            files: v.get("files").and_then(Value::as_array).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default(),
+        })
+        .collect()
+}
+
+/// The compiled-in content packs.
+pub fn content_packs() -> &'static [ContentPack] {
+    static PACKS: std::sync::OnceLock<Vec<ContentPack>> = std::sync::OnceLock::new();
+    PACKS.get_or_init(|| content_packs_of(INDEX))
+}
+
+/// The tier (`game`, `legacy`, `history`) of the content pack that lists `path`; `None` for engine files.
+pub fn content_tier(path: &str) -> Option<&'static str> {
+    let path = path.replace('\\', "/");
+    let pack = content_packs().iter().find(|p| p.files.iter().any(|g| glob_match(g, &path)))?;
+    CONTENT_TIERS.iter().find(|t| **t == pack.tier).copied()
+}
+
 /// The suites that must run one test at a time, from the checkout's index on disk.
 pub fn serial_suites_at(root: &Path) -> Vec<String> {
     serial_suites_of(&index_text_at(root))
@@ -239,7 +285,7 @@ fn walk(root: &Path, dir: &str, ext: &str, out: &mut Vec<String>) {
 /// Every file the index is about: the directories it covers and the top-level project files, as paths relative to `root` using `/`.
 pub fn repo_files(root: &Path) -> Vec<String> {
     let mut all_files = Vec::new();
-    for dir in ["src", "tests", "benches", "docs", "assets", "recipes", "examples", "scripts", "deploy", ".github"] {
+    for dir in ["src", "crates", "games", "tests", "benches", "docs", "assets", "recipes", "examples", "scripts", "deploy", ".github"] {
         walk(root, dir, "", &mut all_files);
     }
     for top in [
@@ -270,6 +316,7 @@ pub fn unowned(features: &[Feature], files: &[String]) -> Vec<String> {
         .iter()
         .filter(|f| {
             (f.starts_with("src/") && f.ends_with(".rs"))
+                || (f.starts_with("crates/") && f.ends_with(".rs"))
                 || (f.starts_with("tests/") && f.ends_with(".rs"))
                 || (f.starts_with("benches/") && f.ends_with(".rs"))
         })
@@ -427,6 +474,19 @@ pub fn check_with(features: &[Feature], serial: &[String], root: &Path) -> Vec<S
             problems.push(format!("serial_suites: '{t}' has no tests/{t}.rs"));
         }
     }
+    for pack in content_packs_of(&index_text_at(root)) {
+        if !CONTENT_TIERS.contains(&pack.tier.as_str()) {
+            problems.push(format!("content '{}': tier '{}' must be one of {}", pack.name, pack.tier, CONTENT_TIERS.join(", ")));
+        }
+        if pack.summary.is_empty() {
+            problems.push(format!("content '{}' needs a summary", pack.name));
+        }
+        for p in &pack.files {
+            if !all_files.iter().any(|a| glob_match(p, a)) {
+                problems.push(format!("content '{}': file pattern '{p}' matches nothing", pack.name));
+            }
+        }
+    }
     // Every source file, test suite and bench belongs to a feature (otherwise `impact` cannot say what a change there affects).
     for file in unowned(features, &all_files) {
         problems.push(format!("{file} belongs to no feature: add it to docs/features.json (`red_engine2 preflight --fix` guesses the feature and does it)"));
@@ -438,6 +498,12 @@ pub fn check_with(features: &[Feature], serial: &[String], root: &Path) -> Vec<S
 pub fn render_list(features: &[Feature]) -> String {
     let w = features.iter().map(|f| f.name.len()).max().unwrap_or(0);
     features.iter().map(|f| format!("{:<w$}  {}\n", f.name, f.summary)).collect()
+}
+
+/// The content packs as text (`features content`): what is a game, a legacy fixture or a past report, not engine.
+pub fn render_content(packs: &[ContentPack]) -> String {
+    let w = packs.iter().map(|p| p.name.len()).max().unwrap_or(0);
+    packs.iter().map(|p| format!("{:<w$}  [{}] {}\n", p.name, p.tier, p.summary)).collect()
 }
 
 /// One feature in full.
@@ -528,6 +594,24 @@ pub fn impact_json(i: &Impact, changed: &[String]) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn content_packs_tag_files_by_tier_and_leave_engine_files_alone() {
+        let text = r#"{"features":{},"content":{"g":{"tier":"game","summary":"s","files":["games/killchain/**"]},"h":{"tier":"history","summary":"s","files":["docs/analysis/*feedback*.md"]}}}"#;
+        let packs = content_packs_of(text);
+        assert_eq!(packs.len(), 2);
+        assert!(packs[0].files.iter().any(|g| glob_match(g, "games/killchain/src/app.rs")));
+        assert!(packs[1].files.iter().any(|g| glob_match(g, "docs/analysis/2026-09-30-ten-minigames-feedback.md")));
+        assert!(!packs[1].files.iter().any(|g| glob_match(g, "docs/analysis/external-architecture-study.md")));
+        assert_eq!(content_tier("src/sim/flow.rs"), None);
+        assert_eq!(content_tier("games/killchain/src/app.rs"), Some("game"));
+        assert_eq!(content_tier("examples/house.json"), Some("legacy"));
+    }
+
+    #[test]
+    fn a_missing_content_section_means_no_packs() {
+        assert!(content_packs_of(r#"{"features":{}}"#).is_empty());
+    }
 
     fn f(name: &str, files: &[&str], tests: &[&str], deps: &[&str]) -> Feature {
         Feature {

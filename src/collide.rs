@@ -412,6 +412,12 @@ impl GroundCandidates {
         self.procgen.as_deref()
     }
 
+    /// Whether the ground is anything but the flat `y = 0` floor: a heightfield `terrain` or a generated `procgen` world. Loose props must rest on *that* surface, not on
+    /// a flat floor the player never stands on (see `physics::PropWorld`).
+    pub fn has_natural_ground(&self) -> bool {
+        !self.terrains.is_empty() || self.procgen.is_some()
+    }
+
     /// The indices (into `box_tops`) of every box top whose footprint may contain `xz`: a superset of the tops that do, never missing one.
     fn box_candidates(&self, xz: glam::Vec2) -> &[u32] {
         let index = self.box_index.get_or_init(|| BoxIndex::build(&self.box_tops));
@@ -486,12 +492,107 @@ pub fn collect_ground_candidates_grouped_except(scene: &Scene, skip: &std::colle
 
 /// [`collect_ground_candidates`] leaving out the top-level objects in `skip` (loose physics props).
 pub fn collect_ground_candidates_except(scene: &Scene, skip: &std::collections::HashSet<usize>) -> GroundCandidates {
-    let mut out = GroundCandidates::default();
-    for group in collect_ground_candidates_grouped_except(scene, skip) {
-        out.append(&group);
+    ground_from_groups(scene, &collect_ground_candidates_grouped_except(scene, skip))
+}
+
+/// The part of a scene's ground that belongs to the *scene* and to no object: its looping axis and its generated world (`procgen`). A scene with no objects at all (an endless
+/// meadow) is all of this, so a ground built from per-object groups alone is a flat floor at `y = 0` under hills and trees that do not block. Everything that assembles a ground from
+/// groups (the single-player client, the match behind a server or a `LocalSession`) starts from this, and keeps it to start from again when it rebuilds.
+pub fn scene_ground(scene: &Scene) -> GroundCandidates {
+    GroundCandidates {
+        wrap: scene.player.expanse.wrap,
+        procgen: scene.procgen.clone().map(|cfg| std::sync::Arc::new(crate::procgen::ProcgenGround::new(cfg))),
+        ..Default::default()
     }
-    out.procgen = scene.procgen.clone().map(|cfg| std::sync::Arc::new(crate::procgen::ProcgenGround::new(cfg)));
+}
+
+/// The ground under a scene made of per-object `groups` (the ones whose object is switched on) on top of [`scene_ground`].
+pub fn ground_from_groups<'a>(scene: &Scene, groups: impl IntoIterator<Item = &'a GroundCandidates>) -> GroundCandidates {
+    let mut out = scene_ground(scene);
+    for group in groups {
+        out.append(group);
+    }
     out
+}
+
+/// **The one answer to "given this scene and this collision state, what physical world exists?"** Every consumer of the static world asks this type, so none of them can drift:
+/// the single-player client, the server and any `LocalSession` (`MatchSim`), the online client's prediction and the bots (`ClientWorld`), and every analysis tool (`MapWorld`:
+/// `lint`, `reach`, `walk`, `plan`, `verify`, scripted checks, phase analysis).
+///
+/// It is the scene's own ground ([`scene_ground`]: the generated `procgen` world and the loop) plus, for every top-level object whose collision is **on**, that object's
+/// colliders and standable surfaces. Switching an object's collision off (a rule's `collision_off`, a phase that opens a gate) removes exactly that object's part and nothing
+/// else: hills, trees and every other object stay. Objects in `loose` are physics props, simulated elsewhere, and are never part of the static world.
+#[derive(Clone)]
+pub struct PhysicalWorld {
+    scene_ground: GroundCandidates,
+    ids: Vec<String>,
+    collider_groups: Vec<Vec<Collider2D>>,
+    ground_groups: Vec<GroundCandidates>,
+    off: Vec<bool>,
+    colliders: Vec<Collider2D>,
+    ground: GroundCandidates,
+}
+
+impl PhysicalWorld {
+    /// The world with every object's collision on (`loose` objects left out).
+    pub fn new(scene: &Scene, loose: &std::collections::HashSet<usize>) -> PhysicalWorld {
+        let collider_groups = collect_box_colliders_grouped_except(scene, loose);
+        let ground_groups = collect_ground_candidates_grouped_except(scene, loose);
+        let mut w = PhysicalWorld {
+            scene_ground: scene_ground(scene),
+            ids: scene.objects.iter().map(|o| o.id.clone()).collect(),
+            off: vec![false; collider_groups.len()],
+            collider_groups,
+            ground_groups,
+            colliders: Vec::new(),
+            ground: GroundCandidates::default(),
+        };
+        w.assemble();
+        w
+    }
+
+    /// The world with the objects named in `disabled` (their collision off); names that match no top-level object are ignored.
+    pub fn of<S: AsRef<str>>(scene: &Scene, loose: &std::collections::HashSet<usize>, disabled: impl IntoIterator<Item = S>) -> PhysicalWorld {
+        let mut w = PhysicalWorld::new(scene, loose);
+        w.set_collision_disabled(disabled);
+        w
+    }
+
+    /// Makes `disabled` (object ids) the set whose collision is off. Returns whether the world changed (it is rebuilt only then).
+    pub fn set_collision_disabled<S: AsRef<str>>(&mut self, disabled: impl IntoIterator<Item = S>) -> bool {
+        let names: std::collections::HashSet<String> = disabled.into_iter().map(|s| s.as_ref().to_string()).collect();
+        let off: Vec<bool> = self.ids.iter().map(|id| names.contains(id)).collect();
+        if off == self.off {
+            return false;
+        }
+        self.off = off;
+        self.assemble();
+        true
+    }
+
+    /// Every blocking footprint of the objects whose collision is on. The generated world's trees are not here: they come from [`GroundCandidates::procgen`] by position.
+    pub fn colliders(&self) -> &[Collider2D] {
+        &self.colliders
+    }
+
+    /// The ground: the scene's generated world and loop, and the standable surfaces of the objects whose collision is on.
+    pub fn ground(&self) -> &GroundCandidates {
+        &self.ground
+    }
+
+    /// The top-level object ids whose collision is currently off.
+    pub fn disabled(&self) -> Vec<&str> {
+        self.ids.iter().zip(&self.off).filter(|(_, off)| **off).map(|(id, _)| id.as_str()).collect()
+    }
+
+    fn assemble(&mut self) {
+        self.colliders = self.collider_groups.iter().zip(&self.off).filter(|(_, off)| !**off).flat_map(|(g, _)| g.iter().copied()).collect();
+        let mut ground = self.scene_ground.clone();
+        for (g, _) in self.ground_groups.iter().zip(&self.off).filter(|(_, off)| !**off) {
+            ground.append(g);
+        }
+        self.ground = ground;
+    }
 }
 
 /// A small tolerance, in world units, for how far above the player's *current* foot height a

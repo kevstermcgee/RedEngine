@@ -12,7 +12,7 @@ use red_engine2::tools::plan::{self, Labels, PlanOptions};
 use red_engine2::tools::reach::{self, ReachParams};
 use red_engine2::tools::shots::{self, FrameOpts, View};
 use red_engine2::tools::world::{load_or_report, load_or_report_phase, MapWorld};
-use red_engine2::tools::{catalog, describe, recipes, search, simrun, symbols, verify};
+use red_engine2::tools::{catalog, describe, game2d, recipes, search, simrun, symbols, verify};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -39,8 +39,13 @@ mod args;
 mod editing;
 #[path = "cli/info.rs"]
 mod info;
+#[cfg(feature = "mcp")]
+#[path = "cli/mcp.rs"]
+mod mcp;
 #[path = "cli/playtest.rs"]
 mod playtest;
+#[path = "cli/propose.rs"]
+mod propose;
 #[path = "cli/render_cmds.rs"]
 mod render_cmds;
 #[path = "cli/repo.rs"]
@@ -70,6 +75,7 @@ fn main() {
     if cli.json_output {
         envelope::begin_capture();
     }
+    let started = std::time::Instant::now();
     let result = run(cli.command);
     let code = match &result {
         Ok(()) => 0,
@@ -80,6 +86,7 @@ fn main() {
             1
         }
     };
+    red_engine2::tools::agent_trace::record(&command_name, code, started.elapsed().as_millis(), result.as_ref().err().map_or("", String::as_str));
     if cli.json_output {
         let (out, err) = envelope::end_capture();
         let doc = serde_json::to_string_pretty(&envelope::envelope(&command_name, code, &out, &err)).unwrap_or_default();
@@ -90,8 +97,28 @@ fn main() {
 
 fn run(command: Command) -> Result<(), String> {
     match command {
+        Command::Validate { scene } if game2d::is_game(&scene) => report(game2d::validate(&scene)),
+        Command::Verify { scene, only, .. } if game2d::is_game(&scene) => report(game2d::verify(&scene, only.as_deref())),
+        Command::Sim { scene, only, every, .. } if game2d::is_game(&scene) => report(game2d::sim(&scene, only.as_deref(), every)),
+        Command::Frame { scene, out, t, scenario, size, .. } if game2d::is_game(&scene) => {
+            let size = size.as_deref().map(parse_size).transpose()?;
+            print!("{}", game2d::frame(&scene, &out, scenario.as_deref(), t, size)?);
+            println!();
+            Ok(())
+        }
+        #[cfg(feature = "gfx")]
+        Command::Play2d { game, seed, save, mute, max_ticks } => red_engine2::play2d::run(red_engine2::play2d::Options { game, seed, save, mute, max_ticks }),
+        #[cfg(not(feature = "gfx"))]
+        Command::Play2d { .. } => Err(
+            "this red_engine2 was built without a window (`--no-default-features`): `play2d` needs the default `gfx` build; `verify` and `sim` work headless"
+                .to_string(),
+        ),
+        Command::Propose { idea, title, presentation, platforms, inputs, networking, session } => {
+            propose::run_propose(&idea.join(" "), title, presentation, platforms, inputs, networking, session)
+        }
+        Command::Capabilities { file, query } => report(game2d::capabilities(file.as_deref(), &query)?),
         Command::Validate { scene } => run_validate(&scene),
-        Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size } => {
+        Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size, .. } => {
             run_frame(&scene, &out, t, hour, eye.as_deref(), at.as_deref(), fov, hide, cut_above, size.as_deref())
         }
         Command::Sky { scene, out, hours, cols, tile, eye, at, fov, size, look } => {
@@ -101,11 +128,18 @@ fn run(command: Command) -> Result<(), String> {
             run_procgen(&out, seed, &centre, size, scale, grid, biomes, [relief, trees, flowers, grass])
         }
         Command::Flora { out, species, variants, cols, tile, seed } => run_flora(&out, species.as_deref(), variants, cols, tile, seed),
-        Command::Splitshot { scene, out, players, size, hour, spread, gutter } => run_splitshot(&scene, &out, players, &size, hour, spread, gutter),
+        Command::Splitshot { scene, out, players, size, hour, spread, gutter, repeat, stats } => {
+            run_splitshot(&scene, &out, players, &size, hour, spread, gutter, repeat, stats.as_deref())
+        }
+        Command::RenderTrend { scenes, repeat, out, label } => run_render_trend(scenes.as_deref(), repeat, out.as_deref(), label.as_deref()),
         Command::Render { scene, out } => run_render(&scene, &out),
         Command::Storyboard { scene, out, frames } => run_storyboard(&scene, &out, frames),
         Command::Lint { scene, strict, cell, phase } => run_lint(&scene, envelope::capturing(), strict, cell, phase.as_deref()),
         Command::Reach { scene, from, to, cell, phase } => run_reach(&scene, from.as_deref(), to.as_deref(), cell, envelope::capturing(), phase.as_deref()),
+        #[cfg(feature = "mcp")]
+        Command::Mcp => mcp::run_mcp(),
+        #[cfg(not(feature = "mcp"))]
+        Command::Mcp => Err("`red_engine2 mcp` is not in this build (cargo feature `mcp`, on by default): rebuild with `cargo build --bin red_engine2` (no `--no-default-features`), or run `scripts/dev red mcp`".into()),
         Command::Doctor { out_dir } => run_doctor(&out_dir),
         Command::Ray { scene, from, to, skip } => run_ray(&scene, &from, &to, &skip),
         Command::Nav { scene, route, all } => run_nav(&scene, &route, all),
@@ -147,7 +181,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Recipe { name, new, print } => run_recipe(name.as_deref(), new.as_deref(), print),
         Command::Verify { scene, bless, no_views, only, out_dir } => run_verify(&scene, bless, no_views, only, out_dir, envelope::capturing()),
         Command::Diff { a, b, git } => run_diff(&a, b.as_deref(), git),
-        Command::Sim { scene, scenario, only, trace, checkpoint_every, dump_every } => {
+        Command::Sim { scene, scenario, only, trace, checkpoint_every, dump_every, .. } => {
             run_sim(&scene, scenario.as_deref(), only.as_deref(), trace.as_deref(), checkpoint_every, dump_every)
         }
         Command::Replay { trace, scene, against } => run_replay(&trace, scene.as_deref(), against.as_deref()),
@@ -280,5 +314,25 @@ fn run(command: Command) -> Result<(), String> {
 }
 
 // ---- parsing helpers ------------------------------------------------------------------------
+
+/// Prints a 2D report and turns its verdict into the exit status.
+fn report(r: game2d::Report) -> Result<(), String> {
+    println!("{}", r.text);
+    if r.ok {
+        Ok(())
+    } else {
+        red_engine2::tools::agent_trace::failure_detail(&r.text);
+        Err(String::new())
+    }
+}
+
+/// `WIDTHxHEIGHT`.
+fn parse_size(s: &str) -> Result<(u32, u32), String> {
+    let (w, h) = s.split_once(['x', 'X']).ok_or_else(|| format!("size `{s}` is not WIDTHxHEIGHT, like 1280x720"))?;
+    match (w.trim().parse::<u32>(), h.trim().parse::<u32>()) {
+        (Ok(w), Ok(h)) if (16..=8192).contains(&w) && (16..=8192).contains(&h) => Ok((w, h)),
+        _ => Err(format!("size `{s}` is not WIDTHxHEIGHT with each side from 16 to 8192, like 1280x720")),
+    }
+}
 
 // ---- commands ---------------------------------------------------------------------------------

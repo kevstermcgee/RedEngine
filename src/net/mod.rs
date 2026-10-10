@@ -8,6 +8,7 @@
 //! - [`client`]: `NetClient` = handshake, redundant input sending, snapshot receiving, reconnect.
 //! - [`interp`]: smooth rendering of remote players and props from snapshots.
 //! - [`host`]: a server on a thread of the current process (`re2 --host`: play against a map's bots with nothing else to start).
+//! - [`join`]: JOIN as a library: what a typed relay or direct code becomes (address, pinned identity, join key, relay claim).
 //! - [`bot`]: a headless scripted client (how multiplayer is proved without a window).
 //! - [`session`]: the graphical client's glue (prediction + scene updates), window-free and tested.
 //! - [`predict`]: client-side prediction and reconciliation of the local player.
@@ -25,6 +26,8 @@ pub mod fleet;
 pub mod happenings;
 pub mod host;
 pub mod interp;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod join;
 pub mod join_code;
 pub mod limits;
 pub mod memnet;

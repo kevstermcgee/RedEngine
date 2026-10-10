@@ -47,7 +47,7 @@ pub(crate) fn run_frame(
     Ok(())
 }
 
-#[cfg(feature = "gfx")]
+#[cfg(feature = "video")]
 pub(crate) fn run_render(scene: &Path, out: &Path) -> Result<(), String> {
     let started = Instant::now();
     red_engine2::render_video(scene, out, |done, total| {
@@ -68,9 +68,9 @@ pub(crate) fn run_storyboard(scene: &Path, out: &Path, frames: u32) -> Result<()
     Ok(())
 }
 
-#[cfg(not(feature = "gfx"))]
+#[cfg(not(feature = "video"))]
 pub(crate) fn run_render(_scene: &Path, _out: &Path) -> Result<(), String> {
-    Err(red_engine2::tools::NO_GFX.to_string())
+    Err(red_engine2::tools::NO_VIDEO.to_string())
 }
 
 #[cfg(not(feature = "gfx"))]
@@ -142,23 +142,41 @@ pub(crate) fn run_sky(
     Ok(())
 }
 
-/// `splitshot`: the split screen a scene would show with `players` local players.
+/// One scene set up for split-screen drawing: the renderer, the camera of each player's view and the moment drawn. Shared by `splitshot` (a picture, optionally timed)
+/// and `render-trend` (timed, for the fixed scenes), so what is measured is what `splitshot` shows.
 #[cfg(feature = "gfx")]
-pub(crate) fn run_splitshot(scene_path: &Path, out: &Path, players: usize, size: &str, hour: Option<f32>, spread: f32, gutter: u32) -> Result<(), String> {
+struct SplitRun {
+    split: red_engine2::app::OffscreenSplit,
+    scene: red_engine2::schema::Scene,
+    views: Vec<red_engine2::split_gpu::PlayerView<'static>>,
+    t: f32,
+    players: usize,
+    window: (u32, u32),
+}
+
+#[cfg(feature = "gfx")]
+fn parse_size(size: &str) -> Result<(u32, u32), String> {
+    let (w, h) = size.split_once('x').and_then(|(w, h)| Some((w.parse::<u32>().ok()?, h.parse::<u32>().ok()?))).ok_or("--size must look like 1280x720")?;
+    if !(64..=7680).contains(&w) || !(64..=4320).contains(&h) {
+        return Err("--size is from 64x64 to 7680x4320".into());
+    }
+    Ok((w, h))
+}
+
+#[cfg(feature = "gfx")]
+fn prepare_split(scene_path: &Path, players: usize, (w, h): (u32, u32), hour: Option<f32>, spread: f32, gutter: u32) -> Result<SplitRun, String> {
     use red_engine2::app::{OffscreenSplit, ViewCamera};
     use red_engine2::split_gpu::PlayerView;
-    let (w, h) = size.split_once('x').and_then(|(w, h)| Some((w.parse::<u32>().ok()?, h.parse::<u32>().ok()?))).ok_or("--size must look like 1280x720")?;
-    if !(1..=4).contains(&players) || !(64..=7680).contains(&w) || !(64..=4320).contains(&h) {
-        return Err("--players is 1 to 4 and --size from 64x64 to 7680x4320".into());
+    if !(1..=4).contains(&players) {
+        return Err("--players is 1 to 4".into());
     }
-    let started = Instant::now();
     let scene = red_engine2::load_scene(scene_path).map_err(|e| e.join("\n"))?;
     let t = match (hour, scene.clock.as_ref()) {
         (Some(hr), Some(c)) => c.t_for_hour(hr),
         (Some(_), None) => return Err("--hour needs a scene with a `clock`".into()),
         _ => 0.0,
     };
-    let mut split = OffscreenSplit::new(&scene, w, h, players, gutter).map_err(|e| e.to_string())?;
+    let split = OffscreenSplit::new(&scene, w, h, players, gutter).map_err(|e| e.to_string())?;
     let layout = split.layout().clone();
     let centre = scene.camera.position.sample(t);
     let looking = (scene.camera.target.sample(t) - centre).normalize_or(glam::Vec3::NEG_Z);
@@ -175,27 +193,180 @@ pub(crate) fn run_splitshot(scene_path: &Path, out: &Path, players: usize, size:
             PlayerView { camera: cam, layers: None, hidden: &[] }
         })
         .collect();
-    split.set_view_distance(red_engine2::splitscreen::view_distance(players));
-    let px = split.render(&scene, t, &views, &[]).map_err(|e| e.to_string())?;
+    let mut run = SplitRun { split, scene, views, t, players, window: (w, h) };
+    run.split.set_view_distance(red_engine2::splitscreen::view_distance(players));
+    Ok(run)
+}
+
+#[cfg(feature = "gfx")]
+impl SplitRun {
+    /// Draws once and returns the RGBA picture.
+    fn render(&mut self) -> Result<Vec<u8>, String> {
+        self.split.render(&self.scene, self.t, &self.views, &[]).map_err(|e| e.to_string())
+    }
+
+    /// `n` more renders, each timed in milliseconds, sorted (the first render also builds pipelines and uploads, so callers take it as the picture and time these).
+    fn time(&mut self, n: u32) -> Result<Vec<f64>, String> {
+        let mut millis = Vec::new();
+        for _ in 0..n {
+            let t0 = Instant::now();
+            self.render()?;
+            millis.push(t0.elapsed().as_secs_f64() * 1000.0);
+        }
+        millis.sort_by(|a, b| a.total_cmp(b));
+        Ok(millis)
+    }
+
+    /// What the last render drew and how long `millis` (sorted, non-empty) say it takes. `adapter` and `adapter_kind` say what drew it: triangle and draw-call counts
+    /// are exact and the same on every machine; milliseconds belong to this adapter alone (a software rasteriser says little about a real GPU).
+    fn stats(&self, id: &str, hour: Option<f32>, millis: &[f64]) -> serde_json::Value {
+        let draw = self.split.last_draw_stats();
+        serde_json::json!({
+            "id": id,
+            "players": self.players,
+            "window": [self.window.0, self.window.1],
+            "view": [self.split.layout().size.0, self.split.layout().size.1],
+            "hour": hour,
+            "adapter": self.split.adapter(),
+            "adapter_kind": if self.split.is_software() { "software" } else { "gpu" },
+            "repeat": millis.len(),
+            "ms_best": millis[0],
+            "ms_median": millis[millis.len() / 2],
+            "streamed": draw.is_some(),
+            "resident": draw.map(|d| d.resident),
+            "draws": draw.map(|d| d.draws),
+            "tris": draw.map(|d| d.tris),
+            "shadow_tris": draw.map(|d| d.shadow_tris),
+        })
+    }
+}
+
+#[cfg(feature = "gfx")]
+fn write_json(path: &Path, value: &serde_json::Value) -> Result<(), String> {
+    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    std::fs::write(path, serde_json::to_string_pretty(value).map_err(|e| e.to_string())? + "\n").map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// `splitshot`: the split screen a scene would show with `players` local players.
+#[cfg(feature = "gfx")]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_splitshot(
+    scene_path: &Path,
+    out: &Path,
+    players: usize,
+    size: &str,
+    hour: Option<f32>,
+    spread: f32,
+    gutter: u32,
+    repeat: u32,
+    stats: Option<&Path>,
+) -> Result<(), String> {
+    let window = parse_size(size)?;
+    if stats.is_some() && repeat == 0 {
+        return Err("--stats needs --repeat N (how many timed renders to take after the picture)".into());
+    }
+    let started = Instant::now();
+    let mut run = prepare_split(scene_path, players, window, hour, spread, gutter)?;
+    let px = run.render()?;
     let rendered = started.elapsed().as_secs_f32();
+    let millis = run.time(repeat)?;
+    if let Some(path) = stats {
+        let id = scene_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        write_json(path, &run.stats(&id, hour, &millis))?;
+    }
     if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
-    image::save_buffer(out, &px, w, h, image::ColorType::Rgba8).map_err(|e| format!("{}: {e}", out.display()))?;
+    image::save_buffer(out, &px, window.0, window.1, image::ColorType::Rgba8).map_err(|e| format!("{}: {e}", out.display()))?;
+    let layout = run.split.layout();
     println!(
         "wrote {} ({players} views of {}x{}, {}) ({rendered:.2}s)",
         out.display(),
         layout.size.0,
         layout.size.1,
-        split.last_draw_stats().map_or("no streamed world".to_string(), |d| format!("last view drew {} triangles in {} draws", d.tris, d.draws))
+        run.split.last_draw_stats().map_or("no streamed world".to_string(), |d| format!("last view drew {} triangles in {} draws", d.tris, d.draws))
     );
     Ok(())
 }
 
+/// `render-trend`: draw the fixed scenes of `benches/render_scenes.json` through the live client's renderer, on THIS machine's adapter, and write one record: for a real GPU
+/// run it on the player's machine and bring the file back (`benches/render_trend.py add FILE`). Triangle and draw counts are exact and machine-independent; milliseconds are
+/// this adapter's alone (the record says which, and whether it is a software rasteriser).
+#[cfg(feature = "gfx")]
+pub(crate) fn run_render_trend(scenes: Option<&Path>, repeat: u32, out: Option<&Path>, label: Option<&str>) -> Result<(), String> {
+    use serde_json::Value;
+    let list = match scenes {
+        Some(p) => p.to_path_buf(),
+        None => red_engine2::tools::symbols::find_root()
+            .ok_or("`render-trend` needs the engine checkout's benches/render_scenes.json: run it inside the checkout or pass --scenes FILE")?
+            .join("benches/render_scenes.json"),
+    };
+    if repeat == 0 {
+        return Err("--repeat must be at least 1".into());
+    }
+    let base = list.parent().and_then(Path::parent).map(Path::to_path_buf).unwrap_or_default();
+    let spec: Value = serde_json::from_str(&std::fs::read_to_string(&list).map_err(|e| format!("{}: {e}", list.display()))?)
+        .map_err(|e| format!("{}: {e}", list.display()))?;
+    let entries = spec["scenes"].as_array().filter(|a| !a.is_empty()).ok_or_else(|| format!("{}: needs a non-empty `scenes` list", list.display()))?;
+    let (mut results, mut adapter, mut kind) = (Vec::new(), String::new(), String::new());
+    println!("render trend: {} scene(s) from {}, {repeat} timed render(s) each", entries.len(), list.display());
+    for e in entries {
+        let id = e["id"].as_str().ok_or("every scene needs an `id`")?;
+        let scene = base.join(e["scene"].as_str().ok_or_else(|| format!("{id}: needs a `scene` path"))?);
+        let players = e["players"].as_u64().unwrap_or(1) as usize;
+        let window = parse_size(e["size"].as_str().unwrap_or("960x540"))?;
+        let hour = e["hour"].as_f64().map(|h| h as f32);
+        let mut run = prepare_split(&scene, players, window, hour, 0.0, 6).map_err(|m| format!("{id}: {m}"))?;
+        run.render().map_err(|m| format!("{id}: {m}"))?; // builds pipelines and uploads: not timed
+        let millis = run.time(repeat).map_err(|m| format!("{id}: {m}"))?;
+        let stats = run.stats(id, hour, &millis);
+        println!(
+            "  {id:<18} {:>8.0} ms   {}",
+            millis[millis.len() / 2],
+            if stats["streamed"] == true {
+                format!("{:>9} tris  {:>9} shadow  {:>4} draws", stats["tris"], stats["shadow_tris"], stats["draws"])
+            } else {
+                "(no streamed world: no counts)".to_string()
+            }
+        );
+        adapter = stats["adapter"].as_str().unwrap_or_default().to_string();
+        kind = stats["adapter_kind"].as_str().unwrap_or_default().to_string();
+        results.push(stats);
+    }
+    println!(
+        "adapter: {adapter} [{kind}]{}",
+        if kind == "software" { " (a software rasteriser: its milliseconds say little about a player's GPU)" } else { "" }
+    );
+    let record = serde_json::json!({
+        "schema": "red-render/1",
+        "label": label.unwrap_or(""),
+        "unix_time": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()),
+        "engine_version": env!("CARGO_PKG_VERSION"),
+        "adapter": adapter,
+        "adapter_kind": kind,
+        "repeat": repeat,
+        "machine": {"os": std::env::consts::OS, "arch": std::env::consts::ARCH, "cores": std::thread::available_parallelism().map_or(0, |n| n.get())},
+        "scenes": results,
+    });
+    if let Some(path) = out {
+        write_json(path, &record)?;
+        println!("wrote {}", path.display());
+    }
+    Ok(())
+}
+
 #[cfg(not(feature = "gfx"))]
-pub(crate) fn run_splitshot(_: &Path, _: &Path, _: usize, _: &str, _: Option<f32>, _: f32, _: u32) -> Result<(), String> {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_splitshot(_: &Path, _: &Path, _: usize, _: &str, _: Option<f32>, _: f32, _: u32, _: u32, _: Option<&Path>) -> Result<(), String> {
     Err("this build has no renderer (built with --no-default-features); rebuild with `cargo build --release` (feature `gfx`, on by default) to use splitshot"
         .into())
+}
+
+#[cfg(not(feature = "gfx"))]
+pub(crate) fn run_render_trend(_: Option<&Path>, _: u32, _: Option<&Path>, _: Option<&str>) -> Result<(), String> {
+    Err("this build has no renderer (built with --no-default-features); rebuild with `cargo build --release` (feature `gfx`, on by default) to use render-trend".into())
 }
 
 /// `procgen`: a top-down map of a generated world and a count of what grows on it.

@@ -1,0 +1,37 @@
+{
+  "game2d": 1, "id": "pattern-collect-exit", "title": "Pattern: collect N items to open the exit",
+  "description": "Three coins must be collected before the gate in front of the exit disappears. Mechanic: a counter variable, a gate removed by a rule watching the counter, an exit that wins.",
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#161b2b"},
+  "vars": {"collected": 0, "needed": 3},
+  "prefabs": {
+    "player": {"tag": "player", "shape": {"rect": [8, 8], "color": "#ffd166"}, "layer": 2, "clamp": true, "body": {"type": "dynamic"}, "collide": ["gate", "wall"], "move": {"keys": {"mode": "topdown", "speed": 90}}},
+    "wall": {"tag": "wall", "shape": {"rect": [8, 66], "color": "#3a4a6b"}, "body": {"type": "static"}},
+    "gate": {"tag": "gate", "shape": {"rect": [8, 48], "color": "#8a8fa8"}, "body": {"type": "static"}},
+    "coin": {"tag": "coin", "shape": {"circle": 5, "color": "#ffd23f"}},
+    "exit": {"tag": "exit", "shape": {"rect": [14, 14], "color": "#5cf2ff"}}
+  },
+  "scene": [
+    {"prefab": "player", "at": [30, 90], "id": "p"},
+    {"prefab": "coin", "at": [60, 40]},
+    {"prefab": "coin", "at": [100, 150]},
+    {"prefab": "coin", "at": [130, 60]},
+    {"prefab": "wall", "at": [200, 33]},
+    {"prefab": "gate", "at": [200, 90]},
+    {"prefab": "wall", "at": [200, 147]},
+    {"prefab": "exit", "at": [285, 90]}
+  ],
+  "ui": [
+    {"text": "COINS {collected}/{needed}", "at": [6, 4], "color": "#ffffff", "show": "ended == 0"},
+    {"text": "YOU WIN", "at": [160, 80], "color": "#8cff9b", "show": "ended == 1", "scale": 2, "align": "center"}
+  ],
+  "rules": [
+    {"id": "pick up a coin", "when": {"touch": ["player", "coin"]}, "do": [{"add": ["collected", 1]}, {"destroy": "other"}]},
+    {"id": "open the gate", "when": {"every": 0.05}, "if": "collected >= needed && count_gate > 0", "do": [{"destroy": "tag:gate"}, {"emit": "gate_open"}]},
+    {"id": "leave", "when": {"touch": ["player", "exit"]}, "do": [{"end": "win"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "the gate stays shut with too few coins", "seed": 1, "max_seconds": 10, "script": [{"hold": ["right"], "seconds": 5}], "expect": [{"count": "gate", "eq": 1}, {"var": "collected", "eq": 0}, {"not_ended": true}, {"entity": "p", "near": [188, 90], "tol": 10}]},
+    {"name": "all three coins open the gate and the exit wins", "seed": 1, "max_seconds": 60, "script": [{"approach": "coin", "seconds": 8}, {"approach": "coin", "seconds": 8}, {"approach": "coin", "seconds": 8}, {"approach": "exit", "seconds": 14}], "expect": [{"var": "collected", "eq": 3}, {"count": "gate", "eq": 0}, {"ended": "win"}]}
+  ]}
+}

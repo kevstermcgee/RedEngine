@@ -30,7 +30,7 @@ Debug env for `re2`: `RE2_WINDOW=x,y,w,h`, `RE2_AUTOWALK=forward|circle[:deg/s]`
 weapon logic (the online path uses the server's). Offline and online both use the shared generic presentation for rule variables,
 recent events, hidden objects and outcome; online receives repeated complete rule-state snapshots (ADR 0036).
 
-**Transport and joining (protocol v<!--fact:protocol-->14<!--/fact-->, ADR 0044).** Production traffic is QUIC + TLS 1.3 (`net::quic` behind `net::transport`): the server has a
+**Transport and joining (protocol v<!--fact:protocol-->15<!--/fact-->, ADR 0044).** Production traffic is QUIC + TLS 1.3 (`net::quic` behind `net::transport`): the server has a
 deployment identity (`red_engine2 net-identity`, `red_server --tls-cert/--tls-key`) that clients pin (`--server-fingerprint`) and never downgrade
 from; loopback tools and tests use development UDP (`Server::bind`, `NetClient::connect`), which a public bind refuses without
 `--insecure-public-udp`. `red_server --key SECRET|auto` makes joining need a key: the client proves it (HMAC, bound to the TLS exporter on QUIC;
@@ -70,6 +70,7 @@ prints waypoints and a paste-ready `checks.walk` entry (or put `{"from": [..], "
 cargo build --release          # once; then use target/release/red_engine2(.exe) and re2(.exe)   (or just `scripts/dev red <command>`, any OS, any directory)
 alias re='./target/release/red_engine2'      # the examples below write it as `red_engine2`
 scripts/dev iterate            # the edit loop: what changed since HEAD, fmt + type-check + clippy + touched unit tests; never verification (then `affected`, then `affected --full`)
+scripts/dev worktree NAME      # a second checkout (another agent, a branch) with its dependencies pre-built: first build minutes -> a fraction; `scripts/dev seed` does it for a fresh clone; `scripts/dev prune` reports build leftovers
 scripts/dev test               # the whole suite (catalogue, recipes, verify, search, docs-vs-code checks, netcode, sim replay...): a summary, full log in out/logs/
 ```
 
@@ -91,6 +92,7 @@ Play a map: `cargo run --release --bin re2 -- examples/house.json` (`RE2_STATS=1
 | `new-game <dir>` / `game check\|build-all\|info\|play-local\|serve\|play\|pin\|unpin` | Scaffold and run a game project that pins the engine; every project has direct local single-player even when it also supports online play. `game pin` fixes `game.json` to the engine commit a release was built from, `game unpin <path>` returns to a local checkout (ADR 2026-09-29-develop-on-a-path-ship-on-a-pin) | `scripts/red` wraps these |
 | `status` | Resume in one screen: derived facts, git, STATUS.md | `--init`, `--note "..." --section next`, `--sync-docs CLAUDE.md` |
 | `doctor` | What this machine can do (GPU/software rendering, audio, ffmpeg, UDP, output dir, git) | exit 1 only if UDP or the output dir is broken |
+| `mcp` | The engine as an MCP server on stdio: eleven typed tools (describe, search, context, validate, lint, analyze, patch, verify, sim, view, run) run in process; files by path, `view` returns an image; servers and interactive play are refused (ADR 2026-10-06-a-native-mcp-server) | runs until the client closes stdin |
 | `ui-shot <screen> out.png` / `ui-check` | Render and audit the 2-D screens (`menu`, `pause`, `connect`, `lobby`, `countdown`, `hud`, `rules`, `results`) with no window | `--size WxH --hover resume\|ready\|leave\|connect --message "..."`; `ui-check` audits 9 sizes |
 | `plan <scene> [out.png]` | Labelled top-down plan: walls, props (ids), stairs (arrow + height), walkable area (cyan), lights, spawn, findings | `--y 3.0` picks a floor, `--all-floors`, `--ascii` (text, cheap), `--bounds=x0,z0,x1,z1` to zoom, `--scale`, `--labels all` |
 | `render <scene> out.mp4` / `storyboard <scene> out.png` | Full MP4 of an animated scene (needs ffmpeg) / a multi-frame contact sheet | offline renderer; `--frames N` for the sheet |
@@ -101,7 +103,7 @@ Play a map: `cargo run --release --bin re2 -- examples/house.json` (`RE2_STATS=1
 | `describe [topic]` | The engine describing itself (commands come from the real CLI definition) | `--brief`; topics: brief overview commands objects scene lint physics conventions glossary decisions diagnostics rules sim multiplayer all |
 | `search <words>` | Best fragments across docs/assets/lint/recipes/commands/Rust symbols | `--kind doc\|adr\|glossary\|asset\|lint\|rule\|type\|recipe\|command\|src`, `--limit` |
 | `catalog [words\|name]` | Asset catalogue (props + prefabs) with tags, real sizes, params, snippets | `--tag`, `--category`, `--kind`, `--long`, `--sheet out.png --cols 5` |
-| `recipe [name]` | Known-good example maps; `--new out.json` copies one, `--print` dumps it | each is lint-clean and passes its own `verify` (test-enforced) |
+| `recipe [name]` | Known-good example maps **and 2D mechanics** (key-door, timer-lose, collect-then-exit, health-damage, checkpoint-respawn, spawner-waves, survive-then-escape: a tiny complete game each, with the scenarios that prove it); `--new out.json` copies one, `--print` dumps it | each is lint-clean / passes its own `verify` (test-enforced); a mechanic is found by `search "door that opens with a key"` too |
 | `verify <scene>` | Run the scene's `checks` block (lint, reach, walk incl. auto routes, objects, views, **sim**, **perf**); PASS/FAIL with evidence and timings; exit 1 on failure | `--bless` (record golden views), `--no-views`, `--only walk[1]` / `--only "name text"` |
 | `sim <scene>` | Play scripted players through the real simulation, headless: the scene's `checks.sim` or `--scenario file.json` | `--only name`, `--trace out.json` (record), `--dump-every 1` |
 | `perf <scene>` | Real players walk the scene in an in-process server: tick p50/p95/p99/worst, bytes per client, largest datagram, promoted props, judged against `checks.perf` (or `--budget file`) | `--players N --secs S --windows N`; best-of windows because noise only adds time; failing output gives advice |
@@ -353,7 +355,11 @@ gameplay in the scene's rules. `describe custom-client` is the one-screen API; t
 | `audio` | Sound without ears: list, report (LUFS, peaks, seam, pitch), render, picture, check | |
 | `procgen` | A generated world, mapped: `procgen map.png --seed 7` | |
 | `flora` | Plant models, as a sheet: `flora sheet.png` | |
-| `splitshot` | A split screen, drawn: `splitshot scene.json out.png --players 4 [--hour 7 --spread 12]` shows the views one to four players would have (their cameras on a ring round the scene's camera), plus how many triangles each draws | |
+| `splitshot` | A split screen, drawn: `splitshot scene.json out.png --players 4 [--hour 7 --spread 12]` shows the views one to four players would have (their cameras on a ring round the scene's camera), plus how many triangles each draws; `--repeat N --stats out.json` also times N more renders and writes the adapter, triangles, draws and best/median ms (`benches/render_trend.py` keeps these as a trend) | |
+| `render-trend` | Draw the fixed scenes of `benches/render_scenes.json` through the live renderer on THIS machine's adapter and write a record: triangle and draw counts (exact, identical on every machine) and milliseconds (this adapter's alone; the record says `software` or `gpu`). Run it on a real GPU (`--label "RTX 3060" --out gpu.json`), then `python3 benches/render_trend.py add gpu.json`; `compare` only sets milliseconds against the same adapter | `--scenes --repeat --out --label` |
+| `capabilities` | What RedEngine can deliver: the presentation (2d/3d) x platform (windows/linux) x networking x input matrix, a game's `capabilities` held to it, or one question (`capabilities 3d windows`). Anything a game declares that is not built fails early with the reason; nothing is downgraded silently | `capabilities 2d web`, `capabilities --file game.game2d.json` |
+| `play2d` | Play a 2D game (`NAME.game2d.json`) in a native window with sound; progress is kept between runs (`--mute`, `--save FILE`, `--max-ticks N` for a smoke test). The shipped `re2d` is the same player. docs/PLAY_2D.md | 
+| `propose` | Plan a game before writing it: from an idea, a title, genre, presentation (the simplest that fits: never 3D by default), targets, input, networking, saves, session length and the cost to expect. Every choice can be changed with a flag and is checked against `capabilities`: what cannot be built is reported, not quietly shrunk | |
 
 `examples/external/topdown_switch` (own `Cargo.toml` and `[workspace]`, engine by path): top-down camera that turns (Q/E) and zooms
 (wheel), WASD relative to the view, click-to-move through `pick_ground` + `input_toward`, two switch plates and a gate that the rules

@@ -74,6 +74,516 @@
           "first_line": "PASS link 'lan': 0% loss in bursts of 1.0, 0 ms +- 0 ms each way"
         }
       ]
+    },
+    {
+      "schema": "red-flows/1",
+      "flow": "gameplay_rule_2d",
+      "label": "BASELINE before the efficiency pass: CLI of main+browser start card, machine shared with another agent and a full check",
+      "date": "2026-10-06T04:45:20-07:00",
+      "engine_commit": "88a8165+dirty",
+      "profile": "debug",
+      "machine": {
+        "cpu": "Intel(R) N97",
+        "cores": 4,
+        "os": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39"
+      },
+      "load_avg_1m_at_start": 7.72,
+      "ok": true,
+      "total_seconds": 0.13,
+      "total_cpu_seconds": 0.02,
+      "total_output_bytes": 10101,
+      "total_approx_tokens": 2525,
+      "commands": 5,
+      "by_kind": {
+        "build": {
+          "steps": 1,
+          "seconds": 0.02,
+          "cpu_seconds": 0.0,
+          "output_bytes": 442
+        },
+        "discovery": {
+          "steps": 1,
+          "seconds": 0.02,
+          "cpu_seconds": 0.0,
+          "output_bytes": 6693
+        },
+        "edit": {
+          "steps": 2,
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "output_bytes": 0
+        },
+        "verify": {
+          "steps": 3,
+          "seconds": 0.09,
+          "cpu_seconds": 0.02,
+          "output_bytes": 2966
+        }
+      },
+      "steps": [
+        {
+          "id": "new-game",
+          "kind": "build",
+          "seconds": 0.02,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 10,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 442,
+          "approx_tokens": 110,
+          "first_line": "created game project 'dash' in /tmp/flow_bench_0qfpurgr/dash (9 files)"
+        },
+        {
+          "id": "read-format",
+          "kind": "discovery",
+          "seconds": 0.02,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 9,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 6693,
+          "approx_tokens": 1673,
+          "first_line": "2D games run in the browser (WebAssembly) and headless; the file is one JSON, `NAME.game2d.json`. You never need the 3D renderer, the scene format or any Rust."
+        },
+        {
+          "id": "edit-rule",
+          "kind": "edit",
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 0,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 0,
+          "approx_tokens": 0,
+          "first_line": "edited dash.game2d.json"
+        },
+        {
+          "id": "validate",
+          "kind": "verify",
+          "seconds": 0.02,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 9,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 372,
+          "approx_tokens": 93,
+          "first_line": "OK: 2D game `dash` (revision b692b9b47234f898)"
+        },
+        {
+          "id": "verify",
+          "kind": "verify",
+          "seconds": 0.03,
+          "cpu_seconds": 0.01,
+          "max_rss_mb": 10,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1297,
+          "approx_tokens": 324,
+          "first_line": "PASS  [render] first frame: 320x180, 4 colours, 1.3% of pixels differ from the background"
+        },
+        {
+          "id": "edit-asset",
+          "kind": "edit",
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 0,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 0,
+          "approx_tokens": 0,
+          "first_line": "edited dash.game2d.json"
+        },
+        {
+          "id": "verify-asset",
+          "kind": "verify",
+          "seconds": 0.04,
+          "cpu_seconds": 0.01,
+          "max_rss_mb": 10,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1297,
+          "approx_tokens": 324,
+          "first_line": "PASS  [render] first frame: 320x180, 4 colours, 1.3% of pixels differ from the background"
+        }
+      ]
+    },
+    {
+      "schema": "red-flows/1",
+      "flow": "new_game_2d",
+      "label": "BASELINE before the efficiency pass (shared, busy machine)",
+      "date": "2026-10-06T04:46:20-07:00",
+      "engine_commit": "88a8165+dirty",
+      "profile": "debug",
+      "machine": {
+        "cpu": "Intel(R) N97",
+        "cores": 4,
+        "os": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39"
+      },
+      "load_avg_1m_at_start": 7.77,
+      "ok": true,
+      "total_seconds": 52.15,
+      "total_cpu_seconds": 15.29,
+      "total_output_bytes": 16103,
+      "total_approx_tokens": 4025,
+      "commands": 5,
+      "by_kind": {
+        "build": {
+          "steps": 1,
+          "seconds": 0.02,
+          "cpu_seconds": 0.0,
+          "output_bytes": 442
+        },
+        "discovery": {
+          "steps": 1,
+          "seconds": 0.02,
+          "cpu_seconds": 0.0,
+          "output_bytes": 6693
+        },
+        "verify": {
+          "steps": 1,
+          "seconds": 0.04,
+          "cpu_seconds": 0.01,
+          "output_bytes": 1298
+        },
+        "ship": {
+          "steps": 2,
+          "seconds": 52.07,
+          "cpu_seconds": 15.28,
+          "output_bytes": 7670
+        }
+      },
+      "steps": [
+        {
+          "id": "new-game",
+          "kind": "build",
+          "seconds": 0.02,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 10,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 442,
+          "approx_tokens": 110,
+          "first_line": "created game project 'dash' in /tmp/flow_bench_4uft84xi/dash (9 files)"
+        },
+        {
+          "id": "describe",
+          "kind": "discovery",
+          "seconds": 0.02,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 10,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 6693,
+          "approx_tokens": 1673,
+          "first_line": "2D games run in the browser (WebAssembly) and headless; the file is one JSON, `NAME.game2d.json`. You never need the 3D renderer, the scene format or any Rust."
+        },
+        {
+          "id": "verify",
+          "kind": "verify",
+          "seconds": 0.04,
+          "cpu_seconds": 0.01,
+          "max_rss_mb": 10,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1298,
+          "approx_tokens": 324,
+          "first_line": "PASS  [render] first frame: 320x180, 4 colours, 1.3% of pixels differ from the background"
+        },
+        {
+          "id": "web-verify",
+          "kind": "ship",
+          "seconds": 16.48,
+          "cpu_seconds": 5.17,
+          "max_rss_mb": 136,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 5409,
+          "approx_tokens": 1352,
+          "first_line": "PASS  [package] manifest schema: \"red2d-web-package/1\""
+        },
+        {
+          "id": "publish",
+          "kind": "ship",
+          "seconds": 35.59,
+          "cpu_seconds": 10.11,
+          "max_rss_mb": 135,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 2261,
+          "approx_tokens": 565,
+          "first_line": " 1. ok   validate             OK: 2D game `dash` (revision b41435a4245b5118)"
+        }
+      ]
+    },
+    {
+      "schema": "red-flows/1",
+      "flow": "engine_edit_loop",
+      "label": "BASELINE inner loop: one real edit in the UI kit, then scripts/dev iterate (warm tree, shared busy machine)",
+      "date": "2026-10-06T06:30:13-07:00",
+      "engine_commit": "5890945",
+      "profile": "debug",
+      "machine": {
+        "cpu": "Intel(R) N97",
+        "cores": 4,
+        "os": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39"
+      },
+      "load_avg_1m_at_start": 4.05,
+      "ok": true,
+      "total_seconds": 170.85,
+      "total_cpu_seconds": 295.31,
+      "total_output_bytes": 14606,
+      "total_approx_tokens": 3651,
+      "commands": 3,
+      "by_kind": {
+        "discovery": {
+          "steps": 2,
+          "seconds": 0.16,
+          "cpu_seconds": 0.14,
+          "output_bytes": 13079
+        },
+        "edit": {
+          "steps": 1,
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "output_bytes": 0
+        },
+        "verify": {
+          "steps": 1,
+          "seconds": 170.69,
+          "cpu_seconds": 295.17,
+          "output_bytes": 1527
+        }
+      },
+      "steps": [
+        {
+          "id": "context",
+          "kind": "discovery",
+          "seconds": 0.15,
+          "cpu_seconds": 0.14,
+          "max_rss_mb": 25,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 11877,
+          "approx_tokens": 2969,
+          "first_line": "== ui_kit: The headless, audited 2-D UI: layouts, menus, connect form, lobby, HUD, results; `ui-shot` and `ui-check`."
+        },
+        {
+          "id": "plan",
+          "kind": "discovery",
+          "seconds": 0.01,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 11,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1202,
+          "approx_tokens": 300,
+          "first_line": "config: features=default profile=dev/test toolchain=unknown jobs=auto target-dir=target"
+        },
+        {
+          "id": "edit",
+          "kind": "edit",
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 0,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 0,
+          "approx_tokens": 0,
+          "first_line": "edited game.rs"
+        },
+        {
+          "id": "iterate",
+          "kind": "verify",
+          "seconds": 170.69,
+          "cpu_seconds": 295.17,
+          "max_rss_mb": 1426,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1527,
+          "approx_tokens": 381,
+          "first_line": "config: features=default profile=dev/test toolchain=1.98.1 (48a229cea) jobs=auto target-dir=target"
+        }
+      ]
+    },
+    {
+      "schema": "red-flows/1",
+      "flow": "engine_edit_loop",
+      "label": "STEADY STATE inner loop (second run: test binaries already built), UI-kit edit",
+      "date": "2026-10-06T06:32:51-07:00",
+      "engine_commit": "5890945+dirty",
+      "profile": "debug",
+      "machine": {
+        "cpu": "Intel(R) N97",
+        "cores": 4,
+        "os": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39"
+      },
+      "load_avg_1m_at_start": 8.07,
+      "ok": true,
+      "total_seconds": 34.26,
+      "total_cpu_seconds": 17.31,
+      "total_output_bytes": 14742,
+      "total_approx_tokens": 3685,
+      "commands": 3,
+      "by_kind": {
+        "discovery": {
+          "steps": 2,
+          "seconds": 0.17,
+          "cpu_seconds": 0.14,
+          "output_bytes": 13079
+        },
+        "edit": {
+          "steps": 1,
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "output_bytes": 0
+        },
+        "verify": {
+          "steps": 1,
+          "seconds": 34.09,
+          "cpu_seconds": 17.17,
+          "output_bytes": 1663
+        }
+      },
+      "steps": [
+        {
+          "id": "context",
+          "kind": "discovery",
+          "seconds": 0.16,
+          "cpu_seconds": 0.14,
+          "max_rss_mb": 25,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 11877,
+          "approx_tokens": 2969,
+          "first_line": "== ui_kit: The headless, audited 2-D UI: layouts, menus, connect form, lobby, HUD, results; `ui-shot` and `ui-check`."
+        },
+        {
+          "id": "plan",
+          "kind": "discovery",
+          "seconds": 0.01,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 11,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1202,
+          "approx_tokens": 300,
+          "first_line": "config: features=default profile=dev/test toolchain=unknown jobs=auto target-dir=target"
+        },
+        {
+          "id": "edit",
+          "kind": "edit",
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 0,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 0,
+          "approx_tokens": 0,
+          "first_line": "edited game.rs"
+        },
+        {
+          "id": "iterate",
+          "kind": "verify",
+          "seconds": 34.09,
+          "cpu_seconds": 17.17,
+          "max_rss_mb": 1268,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1663,
+          "approx_tokens": 415,
+          "first_line": "config: features=default profile=dev/test toolchain=1.98.1 (48a229cea) jobs=auto target-dir=target"
+        }
+      ]
+    },
+    {
+      "schema": "red-flows/1",
+      "flow": "net_edit_loop",
+      "label": "inner loop for a networking edit (net/interp.rs); first run after the UI-kit one",
+      "date": "2026-10-06T06:33:09-07:00",
+      "engine_commit": "5890945+dirty",
+      "profile": "debug",
+      "machine": {
+        "cpu": "Intel(R) N97",
+        "cores": 4,
+        "os": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39"
+      },
+      "load_avg_1m_at_start": 6.5,
+      "ok": true,
+      "total_seconds": 18.31,
+      "total_cpu_seconds": 17.53,
+      "total_output_bytes": 14902,
+      "total_approx_tokens": 3725,
+      "commands": 3,
+      "by_kind": {
+        "discovery": {
+          "steps": 2,
+          "seconds": 0.18,
+          "cpu_seconds": 0.15,
+          "output_bytes": 13268
+        },
+        "edit": {
+          "steps": 1,
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "output_bytes": 0
+        },
+        "verify": {
+          "steps": 1,
+          "seconds": 18.13,
+          "cpu_seconds": 17.38,
+          "output_bytes": 1634
+        }
+      },
+      "steps": [
+        {
+          "id": "context",
+          "kind": "discovery",
+          "seconds": 0.17,
+          "cpu_seconds": 0.15,
+          "max_rss_mb": 24,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 11999,
+          "approx_tokens": 2999,
+          "first_line": "== net_client: Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue;"
+        },
+        {
+          "id": "plan",
+          "kind": "discovery",
+          "seconds": 0.01,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 10,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1269,
+          "approx_tokens": 317,
+          "first_line": "config: features=default profile=dev/test toolchain=unknown jobs=auto target-dir=target"
+        },
+        {
+          "id": "edit",
+          "kind": "edit",
+          "seconds": 0.0,
+          "cpu_seconds": 0.0,
+          "max_rss_mb": 0,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 0,
+          "approx_tokens": 0,
+          "first_line": "edited interp.rs"
+        },
+        {
+          "id": "iterate",
+          "kind": "verify",
+          "seconds": 18.13,
+          "cpu_seconds": 17.38,
+          "max_rss_mb": 1340,
+          "exit": 0,
+          "ok": true,
+          "output_bytes": 1634,
+          "approx_tokens": 408,
+          "first_line": "config: features=default profile=dev/test toolchain=1.98.1 (48a229cea) jobs=auto target-dir=target"
+        }
+      ]
     }
   ]
 }

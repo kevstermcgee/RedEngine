@@ -167,6 +167,56 @@ fn not_a_player(_: ColliderHandle, c: &rapier3d::prelude::Collider) -> bool {
 /// The scene's loose props in the order [`PropWorld`] numbers them: `(object index, shape)`. A
 /// networked client uses this to map the prop ids in a snapshot to its own scene objects without
 /// building a physics world.
+/// Half-size (metres) of ground a heightfield floor covers beyond the loose props it serves: props are pushed, thrown and dropped, and fall to the catch-floor beyond it.
+const PROP_GROUND_MARGIN: f32 = 40.0;
+/// Spacing of the heightfield's samples (metres), widened so a scene whose props are far apart never needs more than [`PROP_GROUND_MAX`] samples a side.
+const PROP_GROUND_CELL: f32 = 0.5;
+/// The most samples along either side of the heightfield floor.
+const PROP_GROUND_MAX: usize = 400;
+
+/// The floor loose props rest on when the scene's ground is not the flat `y = 0` plane: a heightfield collider sampled from the SAME ground function the player stands on
+/// (`GroundCandidates::terrain_height_at`: a `terrain` object or the `procgen` world), covering every loose prop plus [`PROP_GROUND_MARGIN`], and the height of the catch-floor
+/// to put far below it. `None` for flat ground, or when there is no loose prop to hold (nothing then rests on it, and a flat scene's floor is left exactly as it was).
+fn natural_ground_floor(scene: &Scene, loose: &[(usize, PropShape)]) -> Option<(ColliderBuilder, f32)> {
+    use rapier3d::parry::utils::Array2;
+    if loose.is_empty() {
+        return None;
+    }
+    let ground = crate::collide::collect_ground_candidates(scene);
+    if !ground.has_natural_ground() {
+        return None;
+    }
+    let (mut lo, mut hi) = (glam::Vec2::splat(f32::INFINITY), glam::Vec2::splat(f32::NEG_INFINITY));
+    for (i, _) in loose {
+        let at = object_body_mat(&scene.objects[*i]).w_axis;
+        lo = lo.min(glam::Vec2::new(at.x, at.z));
+        hi = hi.max(glam::Vec2::new(at.x, at.z));
+    }
+    // The margins differ by irregular fractions of a cell on purpose: parry's heightfield ray cast misses a ray that runs exactly along a grid line, and a grid whose lines
+    // fall exactly on the props' own coordinates would lose every ray aimed through a prop (`look_at` produces them). Off-grid, no prop is on a line.
+    let (lo, hi) = (
+        lo - glam::Vec2::new(PROP_GROUND_MARGIN + 0.1234, PROP_GROUND_MARGIN + 0.0917),
+        hi + glam::Vec2::new(PROP_GROUND_MARGIN + 0.0517, PROP_GROUND_MARGIN + 0.0763),
+    );
+    let samples = |extent: f32| ((extent / PROP_GROUND_CELL).ceil() as usize + 1).clamp(2, PROP_GROUND_MAX);
+    let (nx, nz) = (samples(hi.x - lo.x), samples(hi.y - lo.y));
+    let mut heights = Array2::zeros(nz, nx);
+    let mut min_h = f32::INFINITY;
+    for row in 0..nz {
+        for col in 0..nx {
+            let p = glam::Vec2::new(lo.x + (hi.x - lo.x) * col as f32 / (nx - 1) as f32, lo.y + (hi.y - lo.y) * row as f32 / (nz - 1) as f32);
+            let h = ground.terrain_height_at(p).unwrap_or(0.0);
+            min_h = min_h.min(h);
+            heights[(row, col)] = h;
+        }
+    }
+    let centre = (lo + hi) * 0.5;
+    let floor = ColliderBuilder::heightfield(heights, Vec3::new(hi.x - lo.x, 1.0, hi.y - lo.y))
+        .position(Pose::from_translation(Vec3::new(centre.x, 0.0, centre.y)))
+        .friction(0.8);
+    Some((floor, min_h - 60.0))
+}
+
 pub fn loose_props(scene: &Scene, skip: Option<usize>) -> Vec<(usize, PropShape)> {
     scene.objects.iter().enumerate().filter(|(i, _)| Some(*i) != skip).filter_map(|(i, o)| classify(o).map(|s| (i, s))).collect()
 }
@@ -245,10 +295,25 @@ impl PropWorld {
         // separate gently instead of being fired apart.
         world.integration_parameters.normalized_max_corrective_velocity = 1.5;
 
-        // A floor under everything, so nothing can ever fall out of the map.
-        world.insert_collider(ColliderBuilder::cuboid(500.0, 0.5, 500.0).position(Pose::from_translation(Vec3::new(0.0, -0.5, 0.0))).friction(0.8), None);
-
         let loose = loose_props(scene, skip);
+        // A floor under everything, so nothing can ever fall out of the map: flat at y = 0 where the ground is flat, and where the ground is a terrain or a generated world,
+        // a heightfield of that very ground under the loose props (the surface the player stands on), with a deep catch-floor below for anything that leaves it.
+        match natural_ground_floor(scene, &loose) {
+            Some((heightfield, catch_y)) => {
+                world.insert_collider(heightfield, None);
+                world.insert_collider(
+                    ColliderBuilder::cuboid(500.0, 0.5, 500.0).position(Pose::from_translation(Vec3::new(0.0, catch_y - 0.5, 0.0))).friction(0.8),
+                    None,
+                );
+            }
+            None => {
+                world.insert_collider(
+                    ColliderBuilder::cuboid(500.0, 0.5, 500.0).position(Pose::from_translation(Vec3::new(0.0, -0.5, 0.0))).friction(0.8),
+                    None,
+                );
+            }
+        }
+
         let loose_set: HashSet<usize> = loose.iter().map(|(i, _)| *i).collect();
 
         for (i, o) in scene.objects.iter().enumerate() {

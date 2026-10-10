@@ -1,0 +1,30 @@
+{
+  "game2d": 1, "id": "pattern-spawner", "title": "Pattern: a spawner with a cap, chasing enemies and a survive-to-win timer",
+  "description": "Enemies appear at random places every 1.5 s but never more than four at once, chase the player and cost a life on contact; surviving 20 seconds wins. Mechanic: `every` + `spawn` guarded by `count_<tag>`, a `chase` mover, a `touching` rule with a cooldown, a clock.",
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#161b2b"},
+  "vars": {"lives": 5, "survived": 0},
+  "prefabs": {
+    "player": {"tag": "player", "shape": {"rect": [8, 8], "color": "#ffd166"}, "layer": 2, "clamp": true, "body": {"type": "dynamic"}, "collide": [], "move": {"keys": {"mode": "topdown", "speed": 90}}},
+    "enemy": {"tag": "enemy", "shape": {"circle": 6, "color": "#ff4d6d"}, "layer": 1, "move": {"chase": {"target": "player", "speed": 18}}}
+  },
+  "scene": [
+    {"prefab": "player", "at": [160, 90], "id": "p"}
+  ],
+  "ui": [
+    {"text": "SURVIVE {survived}/20   LIVES {lives}", "at": [6, 4], "color": "#ffffff", "show": "ended == 0"},
+    {"text": "YOU WIN", "at": [160, 80], "color": "#8cff9b", "show": "ended == 1", "scale": 2, "align": "center"},
+    {"text": "GAME OVER", "at": [160, 80], "color": "#ff7a8c", "show": "ended == 2", "scale": 2, "align": "center"}
+  ],
+  "rules": [
+    {"id": "spawn", "when": {"every": 1.5}, "if": "count_enemy < 4", "do": [{"spawn": {"prefab": "enemy", "at": {"x": [10, 310], "y": [10, 60]}}}]},
+    {"id": "bite", "when": {"touching": ["player", "enemy"]}, "cooldown": 1, "do": [{"add": ["lives", -1]}, {"destroy": "other"}, {"shake": 3}]},
+    {"id": "clock", "when": {"every": 1}, "do": [{"add": ["survived", 1]}]},
+    {"id": "survive", "when": {"every": 0.05}, "if": "survived >= 20 && ended == 0", "do": [{"end": "win"}]},
+    {"id": "dead", "when": {"every": 0.05}, "if": "lives <= 0 && ended == 0", "do": [{"end": "lose"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "enemies keep coming but never more than four at once", "seed": 1, "max_seconds": 12, "script": [{"wait": 6}], "expect": [{"count": "enemy", "gte": 1}, {"count": "enemy", "lte": 4}]},
+    {"name": "standing still against the swarm loses", "seed": 2, "max_seconds": 60, "script": [{"wait_until": {"ended": "lose"}, "timeout": 50}], "expect": [{"ended": "lose"}, {"var": "lives", "lte": 0}]}
+  ]}
+}

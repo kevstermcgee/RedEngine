@@ -37,7 +37,7 @@
 //!
 //! Every setting can also come from the environment (a flag wins over a variable), which is what containers and
 //! process managers want: `RED_MAP`, `RED_PORT`, `RED_BIND`, `RED_SPAWN_GROUP`, `RED_SNAPSHOT_EVERY`, `RED_TIMEOUT_MS`,
-//! `RED_STATS_SECS`, `RED_RUN_FOR`, `RED_KEY`, `RED_LOBBY` (1 = on), `RED_MIN_PLAYERS`, `RED_COUNTDOWN_SECS`, `RED_ROUND_SECS`, `RED_RESULTS_SECS`, `RED_SCORE_TO_WIN`, `RED_FILL`, `RED_BOT_SKILL`. SIGTERM (`docker stop`, systemd) and Ctrl-C both stop it cleanly.
+//! `RED_STATS_SECS`, `RED_RUN_FOR`, `RED_KEY`, `RED_LOBBY` (1 = on), `RED_MIN_PLAYERS`, `RED_COUNTDOWN_SECS`, `RED_ROUND_SECS`, `RED_RESULTS_SECS`, `RED_SCORE_TO_WIN`, `RED_FILL`, `RED_BOT_SKILL`, `RED_MODE` (tdm, ffa, ctf, snd), `RED_TEAM_SIZE` (1 = a duel). SIGTERM (`docker stop`, systemd) and Ctrl-C both stop it cleanly.
 
 use red_engine2::net::server::{raise_timer_resolution, Server, ServerConfig};
 use red_engine2::net::{map_hash, DEFAULT_PORT};
@@ -54,7 +54,7 @@ fn usage() -> ! {
         "usage: red_server [--map FILE] [--port N] [--bind IP | --public] [--spawn-group NAME] [--demo-kick OBJECT_ID]\n                  [--snapshot-every N] [--timeout-ms N] [--stats-secs N] [--run-for SECS]
                   [--record TRACE.json] [--record-every N] [--no-interest] [--key K|auto] [--lobby] [--upnp] [--relay HOST:PORT]
                   [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]
-                  [--fill N] [--bot-skill LEVEL]
+                  [--fill N] [--bot-skill LEVEL] [--mode tdm|ffa|ctf|snd] [--team-size 1..6]
                   [--tls-cert CERT.pem --tls-key KEY.pem] [--max-connections N] [--dev-udp] [--insecure-public-udp]"
     );
     std::process::exit(2);
@@ -98,6 +98,8 @@ fn main() {
     let (mut fill, mut bot_skill) = (env::<usize>("RED_FILL"), env::<String>("RED_BOT_SKILL"));
     let (mut tls_cert, mut tls_key) = (env::<PathBuf>("RED_TLS_CERT"), env::<PathBuf>("RED_TLS_KEY"));
     let mut dev_udp = env::<u8>("RED_DEV_UDP").unwrap_or(0) != 0;
+    let mut mode = env::<String>("RED_MODE").map(|m| red_engine2::sim::shooter::ModeKind::parse(&m).unwrap_or_else(|| usage()));
+    let mut team_size = env::<usize>("RED_TEAM_SIZE");
     let mut insecure_public = env::<u8>("RED_INSECURE_PUBLIC_UDP").unwrap_or(0) != 0;
     let mut max_connections: usize = env("RED_MAX_CONNECTIONS").unwrap_or(red_engine2::net::quic::QuicServerOptions::default().max_connections);
     let (mut ov_min, mut ov_count, mut ov_round, mut ov_results, mut ov_score) = (
@@ -138,6 +140,8 @@ fn main() {
             "--tls-cert" => tls_cert = Some(PathBuf::from(val())),
             "--tls-key" => tls_key = Some(PathBuf::from(val())),
             "--dev-udp" => dev_udp = true,
+            "--mode" => mode = Some(red_engine2::sim::shooter::ModeKind::parse(&val()).unwrap_or_else(|| usage())),
+            "--team-size" => team_size = Some(val().parse().unwrap_or_else(|_| usage())),
             "--insecure-public-udp" => insecure_public = true,
             "--max-connections" => max_connections = val().parse().unwrap_or_else(|_| usage()),
             _ => usage(),
@@ -151,7 +155,12 @@ fn main() {
         eprintln!("cannot read {}: {e}", map.display());
         std::process::exit(1);
     });
-    let scene = red_engine2::schema::parse_scene(&text).unwrap_or_else(|errs| {
+    // The operator's mode and team size go into the scene; the hash below still comes from the file clients have.
+    let scene_text = red_engine2::sim::shooter::with_overrides(&text, mode, team_size, None).unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(1);
+    });
+    let scene = red_engine2::schema::parse_scene(&scene_text).unwrap_or_else(|errs| {
         eprintln!("{} is not a valid scene:\n  {}", map.display(), errs.join("\n  "));
         std::process::exit(1);
     });
@@ -272,7 +281,7 @@ fn main() {
     }
     if let Some(settings) = flow_settings {
         // The scene is parsed afresh for every round: a rematch starts from the authored map (Scene is not Clone, and parsing is milliseconds).
-        let (text2, spawns2) = (text.clone(), spawns.clone());
+        let (text2, spawns2) = (scene_text.clone(), spawns.clone());
         let rebuild = move || {
             let scene = red_engine2::schema::parse_scene(&text2).map_err(|e| e.join("; "))?;
             MatchSim::try_new(&scene, spawns2.clone())
@@ -369,7 +378,18 @@ fn main() {
     let _relay_bridge =
         relay.as_deref().map(|relay| match red_engine2::net::relay_server::HostBridge::start(relay, local, server_fingerprint.clone(), stop.clone()) {
             Ok((bridge, code)) => {
-                println!("relay {relay}: join with the code {}", red_engine2::net::relay::code_to_string(&code));
+                // The code is only the rendezvous: a server that asks for a key is joined with the key as well, so print them as one
+                // (docs/HOSTING.md, "Short codes and who may join"). A key a short code cannot carry is said plainly, not left out.
+                let join_key = key.as_deref().filter(|k| !k.is_empty());
+                match join_key {
+                    Some(k) if !red_engine2::net::relay::ShortJoin::can_carry(k) => {
+                        println!("relay {relay}: the code is {} but the join key has punctuation or is too short for a short code: use --key auto for a key a code can carry", red_engine2::net::relay::code_to_string(&code));
+                    }
+                    _ => println!(
+                        "relay {relay}: join with the code {}",
+                        red_engine2::net::relay::ShortJoin { code, key: join_key.map(str::to_string) }.format()
+                    ),
+                }
                 Some(bridge)
             }
             Err(e) => {

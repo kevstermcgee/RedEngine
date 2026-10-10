@@ -74,6 +74,8 @@ pub struct Problem {
 pub struct Report {
     /// Everything wrong.
     pub problems: Vec<Problem>,
+    /// Things worth a look that do not fail the run (a handoff file that has fallen far behind).
+    pub warnings: Vec<String>,
     /// The checks that ran.
     pub ran: Vec<&'static str>,
     /// Checks a tree-only run left out because they need a current build (empty for a full run).
@@ -159,7 +161,7 @@ fn check_facts(root: &Path) -> Vec<Problem> {
             }
         }
     }
-    for doc in ["CLAUDE.md", "AGENTS.md", "README.md", "SPEC.md", "docs/AGENT_REFERENCE.md", "docs/HOSTING.md"] {
+    for doc in super::doc_claims::CLAIM_DOCS {
         for (name, have, want) in status::inline_facts(root, &read(root, doc)) {
             match want {
                 Some(w) if w != have => out.push(problem(
@@ -171,7 +173,7 @@ fn check_facts(root: &Path) -> Vec<Problem> {
                 None => out.push(problem(
                     "facts",
                     format!("{doc}: <!--fact:{name}--> is not a fact this repository can derive"),
-                    "remove the markers or use a known name (protocol)",
+                    "remove the markers or use a known name (protocol, mcp-tools, brief-kb)",
                     None,
                 )),
                 _ => {}
@@ -181,8 +183,14 @@ fn check_facts(root: &Path) -> Vec<Problem> {
     out
 }
 
-/// Modules and directories (relative to `src/`) that are built only with the `gfx` feature: every `#[cfg(feature = "gfx")] pub mod x;` of `src/lib.rs`, and
-/// the directory or file of each `[[bin]]` that `required-features` gfx.
+/// The `cfg` lines that keep a module out of the headless server build: `gfx` (the desktop client), `render` (the wgpu renderer alone, which `gfx` includes) and `video` (MP4 export).
+/// None of them is on by default without `gfx`, so none is in `--no-default-features`.
+fn is_graphics_gate(line: &str) -> bool {
+    matches!(line.trim(), "#[cfg(feature = \"gfx\")]" | "#[cfg(feature = \"render\")]" | "#[cfg(feature = \"video\")]")
+}
+
+/// Modules and directories (relative to `src/`) that are built only with the `gfx` feature (or `render`, or `render`): every `#[cfg(feature = "gfx")] pub mod x;` of
+/// `src/lib.rs`, and the directory or file of each `[[bin]]` that `required-features` gfx.
 pub fn gfx_only_paths(root: &Path) -> Vec<String> {
     let mut out = Vec::new();
     // `src/lib.rs` gates top-level modules; a module directory's `mod.rs` gates its own parts the same way (`src/app/mod.rs`
@@ -197,7 +205,7 @@ pub fn gfx_only_paths(root: &Path) -> Vec<String> {
         let text = read(root, &file);
         let mut lines = text.lines();
         while let Some(l) = lines.next() {
-            if l.trim() == "#[cfg(feature = \"gfx\")]" {
+            if is_graphics_gate(l) {
                 if let Some(next) = lines.next() {
                     if let Some(name) = next.trim().strip_prefix("pub mod ").or_else(|| next.trim().strip_prefix("mod ")).and_then(|n| n.strip_suffix(';')) {
                         out.push(format!("{prefix}{name}.rs"));
@@ -224,7 +232,7 @@ pub fn gfx_only_paths(root: &Path) -> Vec<String> {
 }
 
 /// Names of graphics/audio crates that only `gfx`-gated code may use.
-const BANNED_CRATES: &[&str] = &["wgpu::", "winit::", "rodio::", "ffmpeg_sidecar", "pollster::"];
+const BANNED_CRATES: &[&str] = &["wgpu::", "winit::", "rodio::", "ffmpeg_sidecar", "pollster::", "softbuffer::"];
 
 /// Source files that are built without the `gfx` feature but name a graphics or audio crate (`file:line: crate`): they would break the headless server build
 /// that CI does on a bare Linux box. Which files are graphics-only is read from `src/lib.rs`, every `mod.rs` under `src/` and `Cargo.toml`, never listed by hand.
@@ -313,7 +321,7 @@ pub fn referenced_paths(text: &str) -> Vec<String> {
 /// `doc: path` for every path the AI-facing documents mention that does not exist.
 pub fn missing_referenced_paths(root: &Path) -> Vec<String> {
     let mut out = Vec::new();
-    for f in AI_DOCS.iter().chain(["docs/HOSTING.md"].iter()) {
+    for f in AI_DOCS.iter().chain(["docs/HOSTING.md", "README.md", "docs/ENGINE_OVERVIEW.md", "docs/VIEWER_HISTORY.md"].iter()) {
         for p in referenced_paths(&read(root, f)) {
             let exists = root.join(&p).exists() || Path::new(&p).extension().is_none() && root.join(format!("{p}.md")).exists();
             if !exists {
@@ -370,6 +378,9 @@ fn check_docs(root: &Path, commands: &[(String, String)]) -> Vec<Problem> {
     }
     for m in stale_claims(root) {
         out.push(problem("docs", m, "rewrite the sentence so it is true", None));
+    }
+    for m in super::doc_claims::all(root) {
+        out.push(problem("docs", m, "rewrite the sentence so it is true (src/tools/doc_claims.rs says what each check compares)", None));
     }
     for m in missing_referenced_paths(root) {
         out.push(problem("docs", m, "fix the path in the document, or create the file", None));
@@ -450,6 +461,17 @@ fn check_fmt(root: &Path) -> Option<Vec<Problem>> {
     Some(vec![problem("fmt", format!("rustfmt would change {diffs} place(s)"), "cargo fmt", Some(Fix::CargoFmt))])
 }
 
+/// A warning when `STATUS.md` is more than [`status::STATUS_STALE_COMMITS`] commits behind the main line: the handoff file is what the next person believes.
+fn status_warning(root: &Path) -> Option<String> {
+    let (behind, last) = status::status_age(root)?;
+    (behind > status::STATUS_STALE_COMMITS).then(|| {
+        format!(
+            "STATUS.md is {behind} commits behind main (last changed in {last}; the limit is {}): it is the handoff file, so bring it up to date: `red_engine2 status --note \"...\" --section done|now|next|blocked`, or edit it",
+            status::STATUS_STALE_COMMITS
+        )
+    })
+}
+
 /// Runs the checks. Nothing is compiled; on this repository it takes a fraction of a second (a second or two with `fmt`).
 pub fn run(root: &Path, opts: &Options) -> Report {
     let started = Instant::now();
@@ -474,6 +496,7 @@ pub fn run(root: &Path, opts: &Options) -> Report {
             add("fmt", found);
         }
     }
+    r.warnings.extend(status_warning(root));
     r.millis = started.elapsed().as_millis();
     r
 }
@@ -571,8 +594,9 @@ pub fn render(r: &Report) -> String {
     if !r.skipped.is_empty() {
         checked.push_str(&format!("; NOT checked, they need a current build: {} (run `scripts/dev preflight --full`)", r.skipped.join(", ")));
     }
+    let warnings: String = r.warnings.iter().map(|w| format!("warning: {w}\n")).collect();
     if r.problems.is_empty() {
-        return format!("preflight: OK in {} ms (checked {checked})\n", r.millis);
+        return format!("preflight: OK in {} ms (checked {checked})\n{warnings}", r.millis);
     }
     let fixable = r.problems.iter().filter(|p| p.fix.is_some()).count();
     let mut s = format!("preflight: {} problem(s) in {} ms (checked {checked})\n", r.problems.len(), r.millis);
@@ -582,6 +606,7 @@ pub fn render(r: &Report) -> String {
     if fixable > 0 {
         s.push_str(&format!("`red_engine2 preflight --fix` makes the {fixable} mechanical edit(s); the rest need a person.\n"));
     }
+    s.push_str(&warnings);
     s
 }
 
@@ -592,6 +617,7 @@ pub fn to_json(r: &Report) -> Value {
         "millis": r.millis,
         "checked": r.ran,
         "skipped": r.skipped,
+        "warnings": r.warnings,
         "problems": r.problems.iter().map(|p| json!({"check": p.check, "message": p.message, "edit": p.edit, "fixable": p.fix.is_some()})).collect::<Vec<_>>(),
     })
 }
@@ -610,7 +636,7 @@ mod tests {
         let w = |p: &str, t: &str| std::fs::write(d.join(p), t).unwrap();
         w("scripts/dev", "#!/bin/sh\n"); // the facts block points at it
         w("Cargo.toml", "[package]\nname = \"demo\"\n\n[features]\ndefault = [\"gfx\"]\ngfx = []\n\n[[bin]]\nname = \"win\"\npath = \"src/bin/win/main.rs\"\nrequired-features = [\"gfx\"]\n");
-        w("src/lib.rs", "#[cfg(feature = \"gfx\")]\npub mod render;\npub mod net;\n");
+        w("src/lib.rs", "#[cfg(feature = \"gfx\")]\npub mod render;\n#[cfg(feature = \"render\")]\npub mod mesh;\npub mod net;\n");
         w("src/render.rs", "use wgpu::Device;\n");
         w("src/bin/win/main.rs", "use winit::window::Window;\n");
         w("src/net/protocol.rs", "pub const PROTOCOL_VERSION: u16 = 5;\n");
@@ -656,6 +682,7 @@ mod tests {
         let d = repo("gfx");
         let g = gfx_only_paths(&d);
         assert!(g.contains(&"render.rs".to_string()) && g.contains(&"bin/win/".to_string()), "{g:?}");
+        assert!(g.contains(&"mesh.rs".to_string()), "a module behind `render` is not in the headless build either: {g:?}");
         assert!(headless_violations(&d).is_empty(), "{:?}", headless_violations(&d));
         std::fs::write(
             d.join("src/net/leak.rs"),
@@ -742,6 +769,20 @@ mod tests {
         let v = to_json(&r);
         assert_eq!(v["ok"], r.problems.is_empty());
         assert!(v["checked"].as_array().unwrap().len() >= 5);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_warning_is_printed_and_reported_but_does_not_fail_the_run() {
+        let r = Report { warnings: vec!["STATUS.md is 59 commits behind main".to_string()], ran: vec!["adr"], ..Report::default() };
+        let text = render(&r);
+        assert!(text.starts_with("preflight: OK") && text.contains("warning: STATUS.md is 59 commits behind main"), "{text}");
+        let v = to_json(&r);
+        assert_eq!(v["ok"], true);
+        assert_eq!(v["warnings"][0], "STATUS.md is 59 commits behind main");
+        // outside a git repository there is nothing to compare, so no warning
+        let d = repo("no_git_warning");
+        assert!(status_warning(&d).is_none());
         let _ = std::fs::remove_dir_all(&d);
     }
 }

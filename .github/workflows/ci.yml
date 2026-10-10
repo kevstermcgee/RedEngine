@@ -20,12 +20,14 @@ jobs:
   # What changed decides what has to run. Anything unclear (no base commit, a new branch) runs everything.
   changes:
     name: what changed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       native: ${{ steps.f.outputs.native }}
       docker: ${{ steps.f.outputs.docker }}
+      pytools: ${{ steps.f.outputs.pytools }}
+      games_only: ${{ steps.f.outputs.games_only }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: f
@@ -33,22 +35,34 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then base="${{ github.event.pull_request.base.sha }}"; else base="${{ github.event.before }}"; fi
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             echo "no usable base commit: running everything"
-            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; exit 0
+            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; echo "pytools=true" >> "$GITHUB_OUTPUT"; echo "games_only=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          files="$(git diff --name-only "$base" HEAD)"
+          # NUL-separated, because the default output quotes a name with a non-ASCII or special character ("scripts/\303\274.py") and the anchored patterns below would never match the
+          # opening quote; a line per file is rebuilt from it. `has` reads the list from a here-string, not a pipe: under `pipefail`, `echo | grep -q` fails when grep exits before echo is done.
+          files="$(git diff --name-only -z "$base" HEAD | tr '\0' '\n')"
           echo "$files"
-          native=false; docker=false
+          has() { grep -Eq "$1" <<<"$files"; }
+          native=false; docker=false; pytools=false
           # Anything that changes a compiled binary or how it is built/tested on a second platform.
-          echo "$files" | grep -Eq '^(src/|tests/|benches/|examples/|assets/|recipes/|Cargo\.(toml|lock)$|rustfmt\.toml$|scripts/ci\.sh$|\.cargo/|\.github/)' && native=true
+          has '^(src/|crates/|tests/|benches/|examples/|assets/|recipes/|Cargo\.(toml|lock)$|rustfmt\.toml$|scripts/ci\.sh$|\.cargo/|\.github/)' && native=true
           # What the container image is made of.
-          echo "$files" | grep -Eq '^(Dockerfile$|docker-compose\.yml$|\.dockerignore$|deploy/|src/|assets/|examples/|Cargo\.(toml|lock)$|\.github/)' && docker=true
-          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"
+          has '^(Dockerfile$|docker-compose\.yml$|\.dockerignore$|deploy/|src/|crates/|assets/|examples/|Cargo\.(toml|lock)$|\.github/)' && docker=true
+          # The Python tools run on Windows machines too (the launchpad, Idea Forge, the process supervisor, the publisher, the MCP adapter, the bench scripts): paths, quoting, subprocesses and git
+          # behave differently there, and a change that is only Python does not touch what `native` looks at. Any Python or PowerShell file, anything under scripts/ (including `dev`, `ci.sh`
+          # and the shell helpers the tools call), the publish manifest, tools/ and bench/, and CI itself. Documentation and Rust-only changes do not start it.
+          has '^(scripts/|tools/|bench/|benches/.*\.(py|json)$|games-publish\.json$|mcp_server\.py$|\.github/)|\.(py|ps1)$' && pytools=true
+          # A pull request that only adds or edits generated games (Idea Forge: examples/2d, examples/3d, its feedback note) cannot change a compiled binary, the container image or a tool: every
+          # changed file is game data, and the engine's own tests that read that data are `scripts/ci.sh games`. Linux only, no Windows leg, no headless server build, no image. One file anywhere
+          # else (an engine change the game depends on, a fixture, a script) and this is false and the full suite runs. (docs/analysis/2026-10-09-engine-ci-growth.md, proposal 1.)
+          games_only=false
+          if [ -n "$files" ] && ! grep -Evq '^(examples/2d/|examples/3d/|docs/analysis/idea-forge/)' <<<"$files"; then games_only=true; native=false; docker=false; fi
+          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"; echo "pytools=$pytools" >> "$GITHUB_OUTPUT"; echo "games_only=$games_only" >> "$GITHUB_OUTPUT"
 
   fmt:
     name: rustfmt
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -62,18 +76,23 @@ jobs:
       fail-fast: false
       matrix:
         # Linux always; the Windows leg only when something it compiles or runs changed.
-        os: ${{ fromJSON(needs.changes.outputs.native == 'true' && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(needs.changes.outputs.native == 'true' && '["ubuntu-24.04","windows-latest"]' || '["ubuntu-24.04"]') }}
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+          # The external example crate is its own workspace with its own target/: without listing it here its ~420 dependencies were compiled from scratch on every run
+          # (measured on hosted CI: 339 s of an 856 s Linux job, 583 s on Windows). A cache miss costs exactly what it costs today.
+          workspaces: |
+            . -> target
+            examples/external/topdown_switch -> target
       - name: Linux system libraries (audio backend for rodio)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
@@ -81,19 +100,50 @@ jobs:
       # benches compile. Wall-clock bench regressions are NOT gated here: shared runners are too noisy. Run
       # `cargo bench --bench sim && python benches/check.py` locally (benches/README.md). The deterministic performance guards
       # (tests/alloc_budget.rs, body/entity counts) run in the tests stage.
-      - run: bash scripts/ci.sh clippy tests benches
+      # The lock files first: a stale one is the commonest reason a dependency change fails CI, and it takes seconds to see.
+      - run: bash scripts/ci.sh lockfiles clippy tests benches
+        if: needs.changes.outputs.games_only != 'true'
       # Hosted runners may have no GPU adapter at all: the external client's offscreen presentation check is skipped there, not faked.
       - run: bash scripts/ci.sh external-client
+        if: needs.changes.outputs.games_only != 'true'
         env:
           RED_OFFSCREEN_OPTIONAL: "1"
+      # The game on the public API (games/killchain): same target directory and cache as the engine, so only the game's own crate is compiled here.
+      - run: bash scripts/ci.sh killchain
+        if: needs.changes.outputs.games_only != 'true'
+      # Only generated games changed (see `changes`): the tests that read them, not the whole suite.
+      - run: bash scripts/ci.sh games
+        if: needs.changes.outputs.games_only == 'true'
+
+  # The Python tools, on both platforms, without building any Rust: `scripts/ci.sh pytools` runs every scripts/test_*.py and the publish check on this runner's interpreter.
+  # The `test` job's Windows leg compiles and runs the engine and only starts for Rust-side changes; a change to launchpad.py, idea_forge.py, proc_supervisor.py or a PowerShell script
+  # (path separators, quoting, subprocess and process-tree behaviour, git output) used to reach Windows never, or only by riding on an unrelated Rust change. Minutes, not a build.
+  python-tools:
+    name: python tools (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.pytools == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash scripts/ci.sh pytools
 
   # The dedicated server on a bare Linux box: no window, GPU, audio or ffmpeg libraries installed, and none may
   # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS.
   headless-linux:
     name: headless server (linux, no gfx)
-    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.games_only != 'true'
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -107,9 +157,9 @@ jobs:
     name: container image
     needs: changes
     if: needs.changes.outputs.docker == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build -t red-server .
       - name: refuses to start without an identity (fail closed)
         run: |

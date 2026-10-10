@@ -1,19 +1,27 @@
 {
   "format": 1,
   "notes": "Which parts of the engine exist, who owns which file, and what must pass when a file changes. `red_engine2 features` lists it, `red_engine2 impact --git` turns a working tree into the exact commands to run, `red_engine2 features --check` (and tests/features_index.rs) keep it true: every listed file/suite/doc must exist and every source file must belong to a feature. tests: `lib:<module::path>` = library unit tests under that module, anything else = tests/<name>.rs. depends_on = features whose change can break this one. serial_suites = suites that use real-time UDP or spawn servers: `affected` and CI run them one test at a time; every other suite runs on parallel threads.",
-  "serial_suites": ["net_race", "net_race_lobby", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_sim", "sim_replay", "server_env", "ai_tasks", "net_bots", "net_quic"],
+  "serial_suites": ["net_race", "net_race_lobby", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_sim", "sim_replay", "server_env", "ai_tasks", "net_bots", "net_quic", "net_modes"],
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, authored player tuning and jump pads, wall/fence sugar, prefabs, tracks and easing, colours.",
-      "files": ["src/schema.rs", "src/strict.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/**", "SPEC.md"],
+      "files": ["src/schema.rs", "src/strict.rs", "src/fields.rs", "src/suggest.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/*.json", "examples/*.rs", "examples/external/**", "examples/golden/**", "examples/lantern_walk/**", "examples/marcel/**", "SPEC.md"],
       "tests": ["lib:schema", "lib:strict", "lib:prefabs", "lib:macros", "lib:track", "examples_validate", "render_prep", "fields"],
       "commands": ["red_engine2 validate examples/test_lab.json"],
       "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-03-lettering-and-arrays-as-macros.md"]
     },
+    "games2d": {
+      "summary": "2D games, native: the red2d crate (declarative game format, deterministic simulation, CPU renderer, sound), the native window player (`play2d`), and the presentation x platform capability matrix.",
+      "files": ["crates/red2d/**", "src/font_glyphs.rs", "src/play2d.rs", "src/bin/re2d/**", "src/tools/game2d.rs", "src/tools/gitscope.rs", "tests/fresh_agent_bench.rs", "scripts/agent_bench.py", "src/tools/propose.rs", "src/cli/propose.rs", "examples/2d/**", "docs/PLAY_2D.md"],
+      "tests": ["games2d", "lib:tools::game2d", "gate_meadow", "fresh_agent_bench"],
+      "commands": ["red_engine2 verify examples/2d/coin-dash.game2d.json", "red_engine2 play2d examples/2d/coin-dash.game2d.json --max-ticks 60", "red_engine2 capabilities"],
+      "docs": ["docs/PLAY_2D.md", "docs/adr/2026-10-05-hybrid-games-draw-3d-parts-with-a-small-portable.md"],
+      "depends_on": ["scene_format", "audio", "game_rules"]
+    },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
-      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs", "src/arsenal.rs", "src/stats.rs", "src/killcam.rs", "src/uniforms.rs", "src/shooter_world.rs", "src/clipboard.rs", "src/daycycle.rs", "src/shadow.rs", "examples/day_cycle.json"],
-      "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms", "lib:daycycle", "lib:shadow", "day_cycle", "shadow_render", "shader_validation"],
+      "files": ["src/render.rs", "src/mesh.rs", "src/gpu.rs", "src/video.rs", "src/geometry.rs", "src/skeleton.rs", "src/characters.rs", "src/costumes.rs", "src/props.rs", "src/firearms.rs", "src/shaders/**", "src/atmosphere.rs", "src/expanse.rs", "src/hud_config.rs", "src/ocean_pass.rs", "src/terrain.rs", "src/object_staging.rs", "src/arsenal.rs", "src/killcam.rs", "src/uniforms.rs", "src/shooter_world.rs", "src/clipboard.rs", "src/daycycle.rs", "src/shadow.rs", "examples/day_cycle.json", "src/objective_world.rs"],
+      "tests": ["lib:mesh", "lib:props", "lib:characters", "lib:costumes", "lib:skeleton", "lib:firearms", "lib:daycycle", "lib:shadow", "day_cycle", "shadow_render", "shader_validation", "lib:gpu", "lib:fx", "lib:ocean_pass"],
       "commands": ["red_engine2 frame examples/test_lab.json out/frame.png", "red_engine2 tour examples/test_lab.json out/tour.png"],
       "docs": ["docs/adr/0002-props-in-rust-prefabs-in-json.md", "docs/adr/0008-procedural-assets-only.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md", "docs/adr/2026-10-04-a-day-and-night-cycle-the-clock-block-and-a-living-sky.md", "docs/adr/2026-10-04-cascaded-sun-shadows-and-a-picture-book-boy.md"],
       "depends_on": ["scene_format"]
@@ -21,7 +29,7 @@
     "player_physics": {
       "summary": "One shared, scene-tunable player movement and jump-pad simulation used by the game, server, client prediction and map tools.",
       "files": ["src/player.rs", "src/controller.rs", "src/collide.rs", "src/sim/player.rs"],
-      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env", "loadout"],
+      "tests": ["lib:controller", "lib:collide", "lib:player", "lib:sim::player", "house_walk", "test_lab", "agent_env", "loadout", "marcel_walk", "ground_consistency"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["docs/adr/0003-one-physics-shared-by-game-and-tools.md", "docs/adr/0004-reachable-ground-height-for-floors.md", "docs/adr/0005-fixed-step-physics-with-camera-interpolation.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/0040-shooter-presentation-and-momentum.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"],
       "depends_on": ["scene_format"]
@@ -42,8 +50,8 @@
     },
     "sim_core": {
       "summary": "The headless, renderer-free simulation: fixed tick clock, scratch buffers, change tracking, entities, static props, the authoritative MatchSim, spawns, interest management.",
-      "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs", "src/sim/ordnance.rs", "src/sim/shooter.rs", "src/sim/kit.rs"],
-      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots", "teams"],
+      "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs", "src/sim/ordnance.rs", "src/sim/shooter.rs", "src/sim/kit.rs", "src/sim/objective.rs", "src/sim/objective_run.rs"],
+      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots", "teams", "objective_modes", "net_modes"],
       "commands": ["cargo bench --bench sim", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0010-headless-match-server.md", "docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", "docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md"],
       "depends_on": ["player_physics", "prop_physics"]
@@ -58,7 +66,7 @@
     },
     "karts": {
       "summary": "Kart driving and racing for Great Outdoors: the scene's `race` block and per-player race progress (ordered gates, laps, standings, countdown), one pure kart step (steering, throttle, drift and hop, boost, spin-out, walls), the eight-driver spec table, kart-to-kart bumps and slipstream. A movement mode of the player, shared by server, prediction and bots.",
-      "files": ["src/sim/kart.rs", "src/sim/race.rs", "src/sim/items.rs", "src/sim/ai/kart.rs", "src/kart_camera.rs", "src/kart_sound.rs", "src/net/fleet.rs", "src/tools/racetest.rs", "src/tools/racetrack.rs", "assets/karts.json"],
+      "files": ["src/sim/kart.rs", "src/sim/race.rs", "src/sim/items.rs", "src/sim/ai/kart.rs", "src/kart_camera.rs", "src/kart_sound.rs", "src/net/fleet.rs", "src/tools/racetest.rs", "src/tools/racetrack.rs", "assets/karts.json", "assets/data/drivers.json"],
       "tests": ["lib:sim::kart", "lib:sim::race", "lib:sim::items", "lib:sim::ai::kart", "lib:kart_camera", "lib:kart_sound", "lib:net::fleet", "lib:tools::racetest", "lib:tools::racetrack", "lib:ui::race", "kart_race", "kart_bots", "net_race", "net_race_lobby"],
       "docs": ["docs/adr/2026-09-29-great-outdoors-karts-as-a-first-class-engine-feature.md"],
       "depends_on": ["player_physics"]
@@ -111,17 +119,18 @@
     "net_server": {
       "summary": "The authoritative UDP server: sessions, handshake, snapshots with per-client acks, status, rounds, rate limits; `red_server`.",
       "files": ["src/net/server.rs", "src/net/host.rs", "src/net/sessions.rs", "src/net/snapshots.rs", "src/bin/red_server.rs"],
-      "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_bots", "server_env"],
+      "tests": ["lib:net::sessions", "net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_bots", "server_env", "net_join_flow"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
-      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md"],
+      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md"],
       "depends_on": ["net_protocol", "net_auth", "net_transport", "sim_core", "match_flow"]
     },
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
-      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs", "src/net/join_code.rs", "src/bin/red_relay.rs", "src/net/relay.rs", "src/net/relay_server.rs"],
-      "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim"],
+      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs", "src/net/join_code.rs",
+      "src/net/join.rs", "src/bin/red_relay.rs", "src/net/relay.rs", "src/net/relay_server.rs"],
+      "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim", "net_join_flow"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
-      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md"],
+      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md"],
       "depends_on": ["net_protocol", "net_auth", "net_transport"]
     },
     "net_test": {
@@ -150,14 +159,14 @@
     },
     "release_packaging": {
       "summary": "`package`: a reproducible zip with a SHA-256 manifest, provenance, feature-isolated binaries and `--verify`; prebuilt Linux binaries on a tag and `scripts/bootstrap.sh` to install them.",
-      "files": ["src/tools/package.rs", "src/tools/pe.rs", "tests/bootstrap_script.rs"],
+      "files": ["scripts/bootstrap.sh", "scripts/package_release.sh", "scripts/publish_games.py", "scripts/smoke_release.sh", "src/tools/package.rs", "src/tools/pe.rs", "tests/bootstrap_script.rs"],
       "tests": ["lib:tools::package", "lib:tools::pe", "bootstrap_script"],
       "commands": ["red_engine2 package out/release.zip", "red_engine2 package --verify out/release.zip", "sh scripts/bootstrap.sh --help"],
       "docs": ["docs/adr/0032-provable-releases.md", "docs/adr/2026-10-04-prebuilt-linux-binaries-and-a-bootstrap-script-for-a.md"]
     },
     "ui_kit": {
       "summary": "The headless, audited 2-D UI: layouts, menus, connect form, lobby, HUD, results; `ui-shot` and `ui-check`.",
-      "files": ["src/ui/**", "src/ui_config.rs", "src/menu.rs", "src/tools/font.rs"],
+      "files": ["src/ui/**", "src/ui_config.rs", "src/menu.rs", "src/tools/font.rs", "src/font_glyphs.rs"],
       "tests": ["lib:ui", "lib:ui_config", "lib:menu"],
       "commands": ["red_engine2 ui-check", "red_engine2 ui-shot lobby out/lobby.png"],
       "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-03-a-scene-declared-game-ui.md"],
@@ -173,7 +182,7 @@
     },
     "audio": {
       "summary": "Sound you can measure: the procedural synthesis (guns, effects, music, ambience) and WAV encoder build headless; `audio list|report|render|picture|check` give loudness (BS.1770 LUFS), peaks, clipping, silence, loop seam, spectrum and pitch as numbers or one picture, and hold every built-in sound to a standard.",
-      "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/audio_fx.rs", "src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json", "src/nature.rs", "src/ambience.rs", "src/mixer.rs", "src/tools/audio_checks.rs", "examples/marcel/audio/*.json"],
+      "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/audio_fx.rs", "src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json", "src/nature.rs", "src/ambience.rs", "src/mixer.rs", "src/tools/audio_checks.rs", "examples/marcel/audio/*.json", "src/soundscape.rs"],
       "tests": ["lib:synth", "lib:dsp", "lib:voice_spec", "lib:audio_fx", "lib:score", "lib:sfx", "lib:music", "lib:audio_analysis", "lib:tools::audio", "lib:nature", "lib:ambience", "lib:mixer", "lib:tools::audio_checks"],
       "commands": ["red_engine2 audio check", "red_engine2 audio golden", "red_engine2 audio report fx.explosion", "red_engine2 audio picture music.loop out/music.png"],
       "docs": ["docs/adr/0008-procedural-assets-only.md", "docs/adr/0056-music-in-code.md", "docs/adr/2026-10-04-audio-you-can-measure-headless-synthesis-and-the-audio.md", "docs/adr/2026-10-04-a-sound-kit-voices-made-of-layers.md", "docs/adr/2026-10-04-sounds-as-data-the-json-voice-and-audio-export.md", "docs/adr/2026-10-04-music-as-data-scores-pitched-instruments-and-loop-safe.md", "docs/adr/2026-10-04-a-living-soundscape-nature-sounds-birdsong-by-the-hour.md", "docs/adr/2026-10-04-a-mixing-desk-buses-voice-limits-ducking-rule-driven.md"],
@@ -181,8 +190,8 @@
     },
     "split_screen": {
       "summary": "Native split-screen co-op (up to four local players): viewport layouts, field of view for narrow views and device assignment as tested arithmetic, and the compositor that draws each player's view and HUD into its rectangle (`splitshot` shows it); `re2 --players N` plays it (a swapped-in context per player, a gamepad each, scripted with `{\"player\": N}` and the `split` camera).",
-      "files": ["src/splitscreen.rs", "src/split_gpu.rs", "src/bin/re2/coop.rs"],
-      "tests": ["lib:splitscreen", "split_render", "client_headless"],
+      "files": ["src/splitscreen.rs", "src/split_gpu.rs", "src/bin/re2/coop.rs", "benches/render_trend.py", "benches/render_scenes.json"],
+      "tests": ["lib:splitscreen", "split_render", "client_headless", "render_trend"],
       "commands": ["red_engine2 splitshot examples/marcel/marcel.json out/split.png --players 4", "re2 examples/marcel/marcel.json --players 2"],
       "docs": ["docs/analysis/2026-10-04-split-screen-survey-and-plan.md", "docs/adr/2026-10-04-split-screen-co-op-one-app-a-swapped-in-context-per.md"],
       "depends_on": ["graphical_client"]
@@ -214,7 +223,7 @@
     "map_analysis": {
       "summary": "lint, reach, walk (incl. auto-planned routes), plan, tour, ray, ls/info, diff: what the map will do, answered with the game's own physics.",
       "files": ["src/tools/lint.rs", "src/tools/reach.rs", "src/tools/walk.rs", "src/tools/pathing.rs", "src/tools/plan.rs", "src/tools/sight.rs", "src/tools/world.rs", "src/tools/shots.rs", "src/tools/inspect.rs", "src/tools/diff.rs", "src/cli/analyze.rs", "src/cli/render_cmds.rs"],
-      "tests": ["lib:tools::lint", "lib:tools::reach", "lib:tools::walk", "lib:tools::plan", "house_walk", "maps_verify", "test_lab"],
+      "tests": ["lib:tools::lint", "lib:tools::reach", "lib:tools::walk", "lib:tools::plan", "house_walk", "maps_verify", "test_lab", "procgen_analysis"],
       "commands": ["red_engine2 lint examples/test_lab.json", "red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["AGENTS.md", "docs/adr/0023-walk-failures-name-their-blocker-routes-are-planned.md", "docs/adr/2026-10-03-level-states-phases-for-lint-reach-and-walk.md"],
       "depends_on": ["player_physics", "scene_format"]
@@ -228,39 +237,63 @@
     },
     "verification": {
       "summary": "`verify`: a scene's own checks (lint budget, reach, walks, objects, golden views, sim scenarios, perf) in one command.",
-      "files": ["src/tools/verify.rs", "src/tools/simrun.rs"],
-      "tests": ["lib:tools::verify", "maps_verify", "verify_map", "pickup_misses"],
+      "files": ["src/tools/verify.rs", "src/tools/simrun.rs", "src/tools/check_schema.rs", "examples/lantern_walk/**"],
+      "tests": ["lib:tools::verify", "maps_verify", "verify_map", "pickup_misses", "lib:tools::check_schema", "checks_wellformed", "lantern_walk"],
       "commands": ["red_engine2 verify examples/test_lab.json --no-views"],
       "docs": ["docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/2026-09-29-verification-honours-the-map.md"],
       "depends_on": ["map_analysis", "game_rules", "performance_contract"]
     },
     "blueprints_and_games": {
       "summary": "Blueprints compile rooms/doors/spawns into complete self-checking maps; `new-game` scaffolds a game project that pins the engine; recipes.",
-      "files": ["src/tools/blueprint.rs", "src/tools/newgame.rs", "src/tools/game.rs", "src/project_browser.rs", "src/tools/recipes.rs", "recipes/**"],
+      "files": ["examples/patterns/**", "src/tools/blueprint.rs", "src/tools/newgame.rs", "src/tools/game.rs", "src/project_browser.rs", "src/tools/recipes.rs", "recipes/**"],
       "tests": ["lib:tools::blueprint", "lib:tools::newgame", "lib:tools::game", "lib:tools::gamepublish", "lib:project_browser", "lib:tools::recipes", "ai_tasks", "docs_fresh"],
       "commands": ["red_engine2 build --example"],
       "docs": ["docs/adr/0024-the-framework-layer-blueprints-and-game-projects.md", "docs/adr/0041-native-input-and-sandbox-workflow.md", "SPEC.md"],
       "depends_on": ["verification", "match_flow"]
     },
+    "launchpad": {
+      "summary": "The AI launchpad (`scripts/dev start|next|resume`, `scripts/red start`) and the one executable resolver every entry point shares: workflow routing, executable selection and freshness (a prebuilt release built from exactly the checkout's sources counts, `scripts/prebuilt.py`), one next action, resume after changes.",
+      "files": ["scripts/launchpad.py", "scripts/red_resolve.py", "scripts/test_launchpad.py", "scripts/test_launchpad_git.py", "scripts/prebuilt.py", "scripts/test_prebuilt.py", "scripts/dev", "scripts/dev.ps1", "mcp_server.py", "src/tools/newgame.rs"],
+      "tests": ["launchpad", "prebuilt", "lib:tools::newgame"],
+      "commands": ["scripts/dev start \"make a small 2d coin game\" --no-save", "python3 scripts/red_resolve.py"],
+      "docs": ["docs/adr/2026-10-06-an-ai-launchpad-and-one-executable-resolver.md", "docs/adr/2026-10-09-the-launchpad-reads-git-as-data-and-compares-content.md"],
+      "depends_on": ["self_description", "blueprints_and_games"]
+    },
+    "idea_forge": {
+      "summary": "Idea Forge: `scripts/idea_forge.py` forges a game idea (one unusual mechanic, 8e9 combinations, never repeated), runs a headless agent in a fresh worktree to build it on the engine, scores the game with `validate`/`verify`, files the agent's engine feedback (a ranked, machine-readable findings block) and ships only the game and that file as a PR; `daily` makes one 2D and one 3D game a day in a random order (cron via `schedule`), archiving each run and removing its worktree; `digest` ranks every run's findings into the engine backlog. The vocabulary and walk are the 2D game's own (`examples/2d/idea-forge`).",
+      "files": ["scripts/idea_forge.py", "scripts/test_idea_forge.py", "scripts/proc_supervisor.py", "scripts/test_proc_supervisor.py", "tests/idea_forge.rs", "tests/games3d.rs", "examples/3d/**", "docs/IDEA_FORGE.md"],
+      "tests": ["idea_forge", "games2d", "games3d"],
+      "commands": ["python3 scripts/idea_forge.py idea", "python3 scripts/idea_forge.py digest"],
+      "docs": ["docs/IDEA_FORGE.md", "docs/adr/2026-10-09-a-child-process-runs-under-a-deadline-it-cannot-miss.md"],
+      "depends_on": ["launchpad", "games2d"]
+    },
+    "mcp_server": {
+      "summary": "`red_engine2 mcp`: the engine as a native MCP server on stdio (eleven typed tools that run the CLI's commands in process), its launcher `mcp_server.py`, and the benchmark that prices a tool surface.",
+      "files": ["src/cli/mcp.rs", "mcp_server.py", "scripts/mcp_bench.py", "tests/support/mcp.rs"],
+      "tests": ["mcp_server", "ai_tasks"],
+      "commands": ["red_engine2 mcp", "python3 scripts/mcp_bench.py --server \"red_engine2 mcp\" --task new"],
+      "docs": ["docs/adr/2026-10-06-a-native-mcp-server.md"],
+      "depends_on": ["self_description", "map_analysis", "map_editing", "verification"]
+    },
     "self_description": {
       "summary": "The engine describing itself and choosing its own verification: describe, search, src navigation, context work packets, impact/affected (minimal verification), catalog, doctor, status, the JSON envelope and the MCP wrapper.",
-      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "mcp_server.py", "src/tools/racetrack.rs", "src/tools/gamepublish.rs", "src/cli/servers.rs", "src/tools/servers.rs"],
-      "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context", "cli_envelope", "docs_fresh", "features_index"],
+      "files": ["src/tools/describe.rs", "src/tools/search.rs", "src/tools/symbols.rs", "src/tools/catalog.rs", "src/tools/doctor.rs", "src/tools/status.rs", "src/tools/envelope.rs", "src/tools/features.rs", "src/tools/affected.rs", "src/tools/context.rs", "src/tools/mod.rs", "src/cli/args.rs", "src/cli/info.rs", "src/cli/util.rs", "src/main.rs", "src/lib.rs", "src/tools/racetrack.rs", "src/tools/gamepublish.rs", "src/cli/servers.rs", "src/tools/servers.rs", "src/tools/publish_check.rs", "src/tools/agent_trace.rs"],
+      "tests": ["lib:tools::describe", "lib:tools::search", "lib:tools::symbols", "lib:tools::features", "lib:tools::affected", "lib:tools::context", "cli_envelope", "docs_fresh", "features_index", "lib:tools::publish_check", "ai_tasks"],
       "commands": ["red_engine2 describe --brief", "red_engine2 features --check", "red_engine2 affected --dry-run"],
       "docs": ["docs/adr/0018-self-describing-engine-pattern.md", "docs/adr/0025-handoff-status-and-derived-doc-facts.md", "docs/adr/0033-feature-index-and-impact.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0042-proportional-verification-and-unattended-runs.md"]
     },
     "docs_and_adrs": {
       "summary": "The docs an outsider or an agent reads first, kept true by tests, and the bookkeeping that keeps them so: README, SPEC, AGENTS, CLAUDE, LICENSE, glossary, decisions (generated index, dated ids), analysis notes, `preflight`.",
-      "files": ["README.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "docs/GLOSSARY.md", "docs/adr/", "docs/analysis/", "docs/AGENT_REFERENCE.md", "docs/features.json", "rustfmt.toml", "build.rs", ".gitattributes", "src/tools/adr.rs", "src/tools/analysis.rs", "src/tools/preflight.rs", "src/cli/repo.rs"],
-      "tests": ["docs_fresh", "repo_hygiene", "lib:tools::adr", "lib:tools::analysis", "lib:tools::preflight"],
+      "files": ["README.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "docs/ENGINE_OVERVIEW.md", "docs/VIEWER_HISTORY.md", "docs/RULES_LANGUAGE_GAPS.md", "docs/GLOSSARY.md", "docs/adr/", "docs/analysis/", "docs/AGENT_REFERENCE.md", "docs/features.json", "rustfmt.toml", "build.rs", ".gitattributes", "src/tools/adr.rs", "src/tools/analysis.rs", "src/tools/preflight.rs", "src/tools/doc_claims.rs", "src/cli/repo.rs"],
+      "tests": ["docs_fresh", "repo_hygiene", "lib:tools::adr", "lib:tools::analysis", "lib:tools::preflight", "lib:tools::doc_claims"],
       "docs": ["docs/adr/0007-docs-cannot-drift.md"]
     },
     "build_and_ci": {
       "summary": "Cargo features (the headless build), CI script, dev scripts, the dependency boundary.",
-      "files": ["Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
-      "tests": ["headless_boundary"],
-      "commands": ["scripts/ci.sh"],
-      "docs": ["docs/adr/0017-headless-build-gfx-feature.md"]
+      "files": ["tests/optional_features.rs", "tests/ci_selection.rs", "scripts/test_ci_selection.py", "scripts/seed_target.py", "scripts/prune_target.py", "benches/flow_bench.py", "benches/discovery_bench.py", "benches/discovery_queries.json", "benches/flows/**", "Cargo.toml", "Cargo.lock", "scripts/ci.sh", "scripts/dev", "scripts/dev.ps1", ".github/**"],
+      "tests": ["headless_boundary", "optional_features", "ci_selection"],
+      "commands": ["scripts/ci.sh", "scripts/ci.sh pytools"],
+      "docs": ["docs/adr/0017-headless-build-gfx-feature.md", "docs/adr/2026-10-09-ci-runs-the-python-tools-on-windows-when-they-change.md"]
     },
     "test_support": {
       "summary": "Shared test code and fixtures.",
@@ -278,6 +311,34 @@
         "docs/adr/2026-09-29-develop-on-a-path-ship-on-a-pin.md"
       ],
       "depends_on": ["blueprints_and_games", "verification", "map_analysis", "self_description"]
+    }
+  },
+  "content": {
+    "killchain_client": {
+      "tier": "game",
+      "summary": "Killchain, one shipped loadout team-deathmatch game, a separate crate (games/killchain, a workspace member that is not a default member) written on the engine's public API only: its windowed client, 2-D screens, objective HUD text and lifetime statistics. The reusable shooter engine (arsenal, ordnance, killcam, sim::shooter, sim::objective, the protocol that carries them) is NOT here; it is engine. `cargo build -p killchain`; `scripts/ci.sh killchain`.",
+      "files": ["games/killchain/**", "docs/adr/2026-09-30-killchain-loadout-shooter.md", "docs/adr/2026-10-01-killchain-player-feedback.md", "docs/adr/2026-10-09-killchain-is-a-game-crate-on-the-public-engine-api.md"],
+      "commands": ["cargo build -p killchain", "cargo test -p killchain", "cargo run -p killchain -- maps/main.json"]
+    },
+    "marcel_world": {
+      "tier": "game",
+      "summary": "Marcel, the endless-meadow game: its world, the boy character and their ADRs. Procgen, the day cycle and the soundscape they use are engine.",
+      "files": ["examples/marcel/**", "examples/endless_meadow.json", "examples/endless_shore.json", "tests/marcel_walk.rs", "docs/adr/2026-10-04-marcel-opens-in-first-person-from-black-and-the-boy-stands-on-the-ground.md", "docs/adr/2026-10-04-the-boy-the-third-person-start-and-a-clock-that-runs-in.md", "docs/adr/2026-10-04-cascaded-sun-shadows-and-a-picture-book-boy.md", "docs/adr/2026-10-01-a-new-monster-character-hollow-and-the-avatar-pool.md"]
+    },
+    "lantern_walk": {
+      "tier": "game",
+      "summary": "Lantern Walk, a small example game with its own audio and walk test.",
+      "files": ["examples/lantern_walk/**", "tests/lantern_walk.rs"]
+    },
+    "legacy_maps": {
+      "tier": "legacy",
+      "summary": "The original prop-hunt era maps (house, school, office, store, prop_hunt_yard), kept as regression fixtures for lint, reach and walk (ADR 0015); not examples to copy.",
+      "files": ["examples/house.json", "examples/school.json", "examples/office.json", "examples/store.json", "examples/prop_hunt_yard.json", "tests/house_walk.rs", "docs/adr/0009-four-maps-one-asset-library.md"]
+    },
+    "past_reports": {
+      "tier": "history",
+      "summary": "What earlier builders reported and what was done about it: per-game feedback, milestone and survey notes. Evidence, not instructions; the decisions that came out of them are ADRs.",
+      "files": ["docs/analysis/*feedback*.md", "docs/analysis/*milestone*.md", "docs/analysis/*plan.md", "docs/analysis/*-findings.md", "docs/analysis/minigames/**", "docs/analysis/2026-09-24-blue-comparison.md", "docs/analysis/2026-09-29-what-building-three-physics-games-taught-us-about-red.md", "docs/analysis/2026-10-06-3d-browser-measurements.md"]
     }
   }
 }

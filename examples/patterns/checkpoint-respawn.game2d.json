@@ -1,0 +1,37 @@
+{
+  "game2d": 1, "id": "pattern-checkpoint", "title": "Pattern: checkpoints and respawn",
+  "description": "Touching a flag remembers where it is; touching a hazard puts the player back at the last flag (or the start). Mechanic: two variables for the respawn point, one rule per flag that sets them, one rule that teleports the player.",
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#161b2b"},
+  "vars": {"cpx": 30, "cpy": 90},
+  "prefabs": {
+    "player": {"tag": "player", "shape": {"rect": [8, 8], "color": "#ffd166"}, "layer": 2, "clamp": true, "body": {"type": "dynamic"}, "collide": [], "move": {"keys": {"mode": "topdown", "speed": 90}}},
+    "flag1": {"tag": "flag1", "shape": {"rect": [6, 16], "color": "#8cff9b"}},
+    "flag2": {"tag": "flag2", "shape": {"rect": [6, 16], "color": "#8cff9b"}},
+    "pit": {"tag": "hazard", "shape": {"rect": [14, 60], "color": "#d94f4f"}},
+    "goal": {"tag": "goal", "shape": {"rect": [14, 14], "color": "#5cf2ff"}}
+  },
+  "scene": [
+    {"prefab": "player", "at": [30, 90], "id": "p"},
+    {"prefab": "flag1", "at": [100, 90], "id": "f1"},
+    {"prefab": "pit", "at": [140, 90]},
+    {"prefab": "flag2", "at": [190, 90], "id": "f2"},
+    {"prefab": "pit", "at": [230, 90]},
+    {"prefab": "pit", "at": [30, 30]}, {"prefab": "goal", "at": [290, 90]}
+  ],
+  "ui": [
+    {"text": "RESPAWN AT {cpx:3},{cpy:3}", "at": [6, 4], "color": "#ffffff", "show": "ended == 0"},
+    {"text": "YOU WIN", "at": [160, 80], "color": "#8cff9b", "show": "ended == 1", "scale": 2, "align": "center"}
+  ],
+  "rules": [
+    {"id": "flag 1", "when": {"touch": ["player", "flag1"]}, "do": [{"set": ["cpx", "f1_x"]}, {"set": ["cpy", "f1_y"]}]},
+    {"id": "flag 2", "when": {"touch": ["player", "flag2"]}, "do": [{"set": ["cpx", "f2_x"]}, {"set": ["cpy", "f2_y"]}]},
+    {"id": "fall", "when": {"touch": ["player", "hazard"]}, "do": [{"teleport": {"target": "self", "to": ["cpx", "cpy"]}}, {"emit": "respawned"}, {"shake": 3}]},
+    {"id": "goal", "when": {"touch": ["player", "goal"]}, "do": [{"end": "win"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "a hazard hit before any flag sends the player back to the start", "seed": 1, "max_seconds": 10, "script": [{"hold": ["up"], "seconds": 0.8}], "expect": [{"event": "respawned", "min": 1}, {"var": "cpx", "eq": 30}, {"entity": "p", "near": [30, 80], "tol": 20}, {"not_ended": true}]},
+    {"name": "touching a flag remembers it", "seed": 1, "max_seconds": 10, "script": [{"hold": ["right"], "seconds": 1.0}], "expect": [{"var": "cpx", "eq": 100}, {"var": "cpy", "eq": 90}, {"not_ended": true}]},
+    {"name": "a hazard after the flag sends the player back to it", "seed": 1, "max_seconds": 10, "script": [{"hold": ["right"], "seconds": 2.0}], "expect": [{"event": "respawned", "min": 1}, {"var": "cpx", "eq": 100}, {"entity": "p", "near": [117, 90], "tol": 22}, {"not_ended": true}]}
+  ]}
+}

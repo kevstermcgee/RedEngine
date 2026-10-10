@@ -84,7 +84,7 @@ pub(crate) fn summarize(report: &Value) -> String {
 /// `playtest`: runs the client, prints its output, then the verdict.
 pub(crate) fn run_playtest(a: &PlaytestArgs) -> Result<(), String> {
     let exe = sibling_exe("re2")
-        .ok_or("cannot find the `re2` client next to this program: build both with `cargo build --bins` (the client needs the default `gfx` feature)")?;
+        .ok_or("cannot find the `re2` client next to this program: build both with `scripts/dev build` (or `cargo build --bins`; the client needs the default `gfx` feature)")?;
     std::fs::create_dir_all(a.out).map_err(|e| format!("{}: {e}", a.out.display()))?;
     let report_path = a.out.join("playtest.json");
     let _ = std::fs::remove_file(&report_path); // a stale report of an earlier run must not be read as this one's

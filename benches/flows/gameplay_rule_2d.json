@@ -1,0 +1,79 @@
+{
+  "name": "gameplay_rule_2d",
+  "description": "Task 1 and 2 of the development-efficiency benchmark: change a small gameplay rule (the player's speed) and an asset (a colour) in a scaffolded 2D game, and prove both with the engine's own checks. What an agent does for a typical one-line gameplay change; the discovery step is what it must read first.",
+  "steps": [
+    {
+      "id": "new-game",
+      "kind": "build",
+      "cmd": [
+        "{RED}",
+        "new-game",
+        "{WORK}/dash",
+        "--kind",
+        "2d",
+        "--name",
+        "dash",
+        "--engine-path",
+        "{ENGINE}"
+      ]
+    },
+    {
+      "id": "read-format",
+      "kind": "discovery",
+      "cmd": [
+        "{RED}",
+        "describe",
+        "2d"
+      ]
+    },
+    {
+      "id": "edit-rule",
+      "kind": "edit",
+      "edit": {
+        "file": "{WORK}/dash/dash.game2d.json",
+        "replace": [
+          "\"speed\": 90",
+          "\"speed\": 120"
+        ]
+      }
+    },
+    {
+      "id": "validate",
+      "kind": "verify",
+      "cmd": [
+        "{RED}",
+        "validate",
+        "{WORK}/dash/dash.game2d.json"
+      ]
+    },
+    {
+      "id": "verify",
+      "kind": "verify",
+      "cmd": [
+        "{RED}",
+        "verify",
+        "{WORK}/dash/dash.game2d.json"
+      ]
+    },
+    {
+      "id": "edit-asset",
+      "kind": "edit",
+      "edit": {
+        "file": "{WORK}/dash/dash.game2d.json",
+        "replace": [
+          "#ffd166",
+          "#ff8fa3"
+        ]
+      }
+    },
+    {
+      "id": "verify-asset",
+      "kind": "verify",
+      "cmd": [
+        "{RED}",
+        "verify",
+        "{WORK}/dash/dash.game2d.json"
+      ]
+    }
+  ]
+}

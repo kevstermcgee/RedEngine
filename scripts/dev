@@ -17,16 +17,24 @@
 #   scripts/dev fast                   unit tests only (seconds): `cargo test --lib`
 #   scripts/dev test [filter]          the whole suite (or tests whose name matches filter); prints a summary, full log in out/logs/
 #   scripts/dev build [--headless]     debug build of the CLI, server, bot (and the game unless --headless)
-#   scripts/dev red <args...>          run the red_engine2 CLI (builds it first): `scripts/dev red lint maps/x.json`
+#   scripts/dev red <args...>          run the red_engine2 CLI (a prebuilt release built from exactly this checkout's sources if there is one, else it builds first): `scripts/dev red lint maps/x.json`
 #   scripts/dev verify <scene> [...]   `red_engine2 verify` (extra args pass through: --only walk[1], --no-views)
 #   scripts/dev walk <scene> [...]     `red_engine2 walk` (--auto --from X,Z --to X,Z, --explain out.png)
 #   scripts/dev server <scene> [...]   the headless authoritative server (UDP 27015)
 #   scripts/dev ci                     what CI runs (fmt, clippy -D warnings, tests, headless build)
+#   scripts/dev worktree NAME [BASE]   a new git worktree next to this checkout (branch NAME from BASE, default origin/main) with its target/ already seeded from this one's
+#                                      compiled dependencies: its first build compiles only the workspace crates (measured 378 CPU-s against a cold ~1700 for the CLI), not ~420 crates
+#   scripts/dev seed [--from DIR]      the same warm start for the checkout you are in (a fresh clone, or a worktree made by hand)
+#   scripts/dev prune [--apply] [--days N]   report (or delete) incremental build directories idle for N days (default 14): a busy checkout's target/ reaches tens of GB
 #   scripts/dev status [...]           `red_engine2 status` (handoff: what is done / in flight / next)
+#   scripts/dev start "<task>" [--project DIR] [--target native|headless|multiplayer ...] [--workflow W]   THE FIRST COMMAND: picks the workflow (new game, change a
+#                                      game, change the engine, diagnose, upgrade), names the executable it will use and why, and prints ONE next action. It never builds or
+#                                      verifies; with no usable executable it looks for a prebuilt release built from exactly this checkout's sources (one API request, one checksum-verified
+#                                      download; --no-fetch or RED_NO_FETCH=1 stays offline). `next` re-prints the current next action; `resume` says what changed since you stopped.
 #
 # Env: RED_TIMEOUT=seconds per command (default 900), RED_PROFILE=debug|release|fast (default debug; the dev profile is
-# already opt-level 1 so it is fast enough for maps and tests: measured, a one-line edit is 2-4 s to type-check, 4 s to rebuild the lib tests, against
-# 3+ minutes for a release build; never use --release to iterate). CARGO_TARGET_DIR is honoured (put build output on another drive).
+# already opt-level 1 so it is fast enough for maps and tests: measured 2026-10-06 on the 4-core N97, `iterate` after a one-function edit costs about 17 CPU-seconds warm
+# (18-35 s wall) and about 300 CPU-seconds the first time in a tree, against 3+ minutes for a release build; never use --release to iterate). CARGO_TARGET_DIR is honoured (put build output on another drive).
 # RED_WAIT=1 queues behind another heavy job (build/test/affected/ci) instead of refusing: two at once on a 4-core box slow both.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -80,6 +88,16 @@ need_cargo() {
   }
 }
 
+# What a build was made from, next to the binary: scripts/red_resolve.py (also used by the MCP adapter and `start`) reads it. A binary built by plain `cargo build` has none.
+write_build_record() { # write_build_record <bin> <mode>
+  local dir="$TARGET_DIR/$PROFILE" rev dirty
+  [ -d "$dir" ] || return 0
+  rev="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
+  dirty="$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+  printf '%s' "$2" > "$dir/.red-dev-$1.mode"
+  printf '{"rev":"%s","dirty_files":%s,"mode":"%s","profile":"%s","built_utc":"%s"}\n' "$rev" "${dirty:-0}" "$2" "$PROFILE" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$dir/.red-build-$1.json"
+}
+
 needs_build() { # binary name + build mode: missing, forced, mode-changed, or older than an input
   local exe="$TARGET_DIR/$PROFILE/$1"
   local mode="${2:-default}" stamp="$TARGET_DIR/$PROFILE/.red-dev-$1.mode"
@@ -89,7 +107,8 @@ needs_build() { # binary name + build mode: missing, forced, mode-changed, or ol
   [ "$(cat "$stamp")" != "$mode" ] && return 0
   local f d
   for f in "$ROOT/Cargo.toml" "$ROOT/Cargo.lock" "$ROOT/build.rs"; do [ -f "$f" ] && [ "$f" -nt "$exe" ] && return 0; done
-  for d in "$ROOT/src" "$ROOT/assets"; do [ -d "$d" ] && [ -n "$(find "$d" -type f -newer "$exe" -print -quit)" ] && return 0; done
+  # crates/ (red2d) is part of the build: an edit there left this reporting "fresh" and running the old binary. Docs and helper scripts are not build inputs.
+  for d in "$ROOT/src" "$ROOT/assets" "$ROOT/crates"; do [ -d "$d" ] && [ -n "$(find "$d" -type f ! -name '*.md' ! -name '*.py' ! -name '*.txt' -newer "$exe" -print -quit)" ] && return 0; done
   return 1
 }
 
@@ -128,11 +147,16 @@ heavy_lock() { # one heavy job at a time: two builds/test runs on a 4-core box m
   fi
 }
 
-cli() { # path of the CLI binary, building it if needed
-  need_cargo
+cli() { # path of the CLI binary: built here, else a prebuilt release built from exactly these sources (scripts/prebuilt.py), else built now
   if needs_build red_engine2 default; then
+    # A release whose sources are this checkout's sources (a fingerprint, a verified checksum) saves a 7-minute compile; when there is none it says why on stderr and we build.
+    if [ "${RED_REBUILD:-0}" != "1" ] && command -v python3 >/dev/null 2>&1; then
+      local pre
+      if pre="$(python3 "$HERE/prebuilt.py" ensure --quiet)"; then echo "$pre"; return 0; fi
+    fi
+    need_cargo
     run "build red_engine2" cargo build $PFLAG --bin red_engine2 --quiet || exit $?
-    printf '%s' default > "$TARGET_DIR/$PROFILE/.red-dev-red_engine2.mode"
+    write_build_record red_engine2 default
   fi
   local exe="$TARGET_DIR/$PROFILE/red_engine2"
   [ -x "$exe" ] || exe="$exe.exe"
@@ -148,6 +172,7 @@ case "$cmd" in
     for b in red_engine2 red_server red_bot re2; do
       p="$TARGET_DIR/$PROFILE/$b"; { [ -f "$p" ] || [ -f "$p.exe" ]; } && echo "built     $b ($PROFILE)" || echo "not built $b"
     done
+    command -v python3 >/dev/null 2>&1 && python3 "$HERE/red_resolve.py" 2>/dev/null | sed -n 's/^selected /exe       selected /p;s/^  - /          /p'
     command -v git >/dev/null 2>&1 && echo "git       $(git rev-parse --abbrev-ref HEAD 2>/dev/null) @ $(git rev-parse --short HEAD 2>/dev/null), $(git status --short 2>/dev/null | wc -l | tr -d ' ') changed file(s)"
     command -v python3 >/dev/null 2>&1 && echo "python3   $(python3 --version 2>&1)" || echo "python3   not found (only needed for benches/check.py and mcp_server.py)"
     [ -f STATUS.md ] && echo "status    STATUS.md exists: run 'scripts/dev status'" || echo "status    no STATUS.md yet: 'scripts/dev status --init'"
@@ -157,9 +182,12 @@ case "$cmd" in
   build)
     need_cargo; heavy_lock
     if [ "${1:-}" = "--headless" ]; then
-      run "headless build" cargo build $PFLAG --no-default-features --bin red_engine2 --bin red_server --bin red_bot
+      run "headless build" cargo build $PFLAG --no-default-features --bin red_engine2 --bin red_server --bin red_bot || exit $?
+      # The mode stamp must say what is now on disk: it used to keep saying "default" after this, so `scripts/dev red` ran a headless CLI believing it was the full one.
+      write_build_record red_engine2 headless; write_build_record red_server headless
     else
-      run "build" cargo build $PFLAG --bin red_engine2 --bin red_server --bin red_bot --bin re2
+      run "build" cargo build $PFLAG --bin red_engine2 --bin red_server --bin red_bot --bin re2 || exit $?
+      write_build_record red_engine2 default; write_build_record red_server default
     fi ;;
   red)    exe="$(cli)" || exit $?; exec "$exe" "$@" ;;
   verify) exe="$(cli)" || exit $?; run "verify" "$exe" verify "$@" ;;
@@ -169,7 +197,7 @@ case "$cmd" in
     need_cargo
     if needs_build red_server headless; then
       run "build red_server" cargo build $PFLAG --no-default-features --bin red_server --quiet || exit $?
-      printf '%s' headless > "$TARGET_DIR/$PROFILE/.red-dev-red_server.mode"
+      write_build_record red_server headless
     fi
     exe="$TARGET_DIR/$PROFILE/red_server"; [ -x "$exe" ] || exe="$exe.exe"
     exec "$exe" --map "$@" ;;
@@ -190,7 +218,22 @@ case "$cmd" in
     exec "$exe" preflight ${args[@]+"${args[@]}"} ;;
   context) need_cargo; exe="$(planner)" || exit $?; exec "$exe" context "$@" ;;
   ci)     need_cargo; heavy_lock; logged ci bash scripts/ci.sh ;;
+  seed)   need_cargo; exec python3 "$ROOT/scripts/seed_target.py" "$@" ;;
+  prune)  exec python3 "$ROOT/scripts/prune_target.py" --target "$TARGET_DIR" "$@" ;;
+  worktree)
+    need_cargo
+    name="${1:?usage: scripts/dev worktree NAME [BASE]}"; base="${2:-origin/main}"
+    dir="$(dirname "$ROOT")/$(basename "$ROOT")-$name"
+    [ -e "$dir" ] && { echo "dev: $dir already exists" >&2; exit 1; }
+    git -C "$ROOT" fetch -q origin 2>/dev/null || true
+    git -C "$ROOT" worktree add -q -b "$name" "$dir" "$base" || exit $?
+    echo "dev: worktree $dir on branch $name (from $base); seeding its target/ from $TARGET_DIR"
+    (cd "$dir" && python3 scripts/seed_target.py --from "$TARGET_DIR") || echo "dev: seeding failed; the first build there will compile everything (scripts/dev seed retries)" >&2
+    echo "dev: next: cd $dir && scripts/dev iterate" ;;
   doctor-full) exe="$(cli)" || exit $?; "$exe" doctor ;;
-  help|-h|--help) sed -n '2,25p' "$0" ;;
+  start|next|resume)
+    command -v python3 >/dev/null 2>&1 || { echo "dev: $cmd needs python3 (read AGENTS.md and run \`scripts/dev doctor\` instead)" >&2; exit 127; }
+    exec python3 "$HERE/launchpad.py" "$cmd" "$@" ;;
+  help|-h|--help) awk 'NR>1 && /^#/ {print; next} NR>1 {exit}' "$0" ;;
   *) echo "dev: unknown command '$cmd' (try: scripts/dev help)" >&2; exit 2 ;;
 esac

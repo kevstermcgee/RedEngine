@@ -208,6 +208,16 @@ impl OffscreenSplit {
         (self.width, self.height)
     }
 
+    /// The GPU adapter doing the drawing (a software one on a machine with no GPU: timings from it say little about a real one).
+    pub fn adapter(&self) -> &str {
+        &self.gpu.adapter
+    }
+
+    /// Whether that adapter is a software rasteriser rather than a GPU.
+    pub fn is_software(&self) -> bool {
+        self.gpu.software
+    }
+
     /// What the streamed world drew for the last view rendered.
     pub fn last_draw_stats(&self) -> Option<crate::stream_gpu::DrawStats> {
         self.renderer.stream_draw_stats()

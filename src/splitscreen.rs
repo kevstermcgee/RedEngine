@@ -8,6 +8,33 @@
 /// The most local players on one screen.
 pub const MAX_LOCAL_PLAYERS: usize = 4;
 
+/// What a guest (every local player after the first) cannot do, as `(topic, sentence)`. **One definition**: `describe multiplayer`, the notes `re2 --players N` prints, the
+/// scripted `interact` diagnostic and the test that pins them all read this list, so the limits cannot be stated in one place and forgotten in another. A game that needs
+/// one of these needs a different design (or one process per person, which is online play).
+pub const GUEST_LIMITS: &[(&str, &str)] = &[
+    (
+        "props",
+        "only player 1 can pick up, carry, throw or drop loose props (objects that are `movable`); guests walk, jump, swing and shoot, and rules see every player's body",
+    ),
+    ("flashlight", "the carried flashlight (`flashlight: true`) is player 1's"),
+    ("online", "`--players N` is offline only: online play and the kart racer run one player per process (one process per person, hosted and joined as usual)"),
+];
+
+/// The limits in [`GUEST_LIMITS`] that this scene actually runs into, as sentences for someone about to play it with `--players` 2 to 4 (empty when it runs into none):
+/// a game built around carrying a crate gets told before its second player finds out.
+pub fn guest_limits_for(scene: &crate::schema::Scene) -> Vec<String> {
+    let said = |topic: &str| GUEST_LIMITS.iter().find(|(t, _)| *t == topic).map_or("", |(_, s)| *s);
+    let mut out = Vec::new();
+    let props = crate::physics::loose_props(scene, None).len();
+    if props > 0 {
+        out.push(format!("this scene has {props} loose prop(s), and {}", said("props")));
+    }
+    if scene.flashlight {
+        out.push(format!("this scene gives the player a flashlight, and {}", said("flashlight")));
+    }
+    out
+}
+
 /// A rectangle of the window, in pixels (origin top left).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rect {
@@ -268,5 +295,31 @@ mod tests {
         let devices = assign(3, 2, false).unwrap();
         assert_eq!(owners_of(&devices, 1), vec![2]);
         assert!(owners_of(&devices, 7).is_empty());
+    }
+
+    fn scene(extra: &str) -> crate::schema::Scene {
+        let text = format!(
+            r#"{{"camera": {{"position": [0, 2, 5], "target": [0, 1, 0]}}, "objects": [{{"id": "floor", "type": "plane", "size": [20, 20]}}{extra}]}}"#
+        );
+        crate::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"))
+    }
+
+    #[test]
+    fn a_scene_is_told_which_guest_limits_it_runs_into() {
+        assert!(guest_limits_for(&scene("")).is_empty(), "nothing to carry, nothing to warn about");
+        let crate_scene = scene(r#", {"id": "box1", "type": "prop", "prop": "crate", "position": [0, 0, 0]}"#);
+        let notes = guest_limits_for(&crate_scene);
+        assert!(notes.len() == 1 && notes[0].contains("loose prop") && notes[0].contains("only player 1"), "{notes:?}");
+        let mut lit = scene("");
+        lit.flashlight = true;
+        assert!(guest_limits_for(&lit).iter().any(|n| n.contains("flashlight") && n.contains("player 1")));
+    }
+
+    #[test]
+    fn every_limit_names_who_can_and_what() {
+        for (topic, sentence) in GUEST_LIMITS {
+            assert!(!topic.is_empty() && sentence.len() > 30, "{topic}: {sentence}");
+        }
+        assert!(GUEST_LIMITS.iter().any(|(t, s)| *t == "props" && s.contains("only player 1")), "the prop limit says player 1 only");
     }
 }
