@@ -24,6 +24,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-06: the AI launchpad `scripts/dev start|next|resume` (#51), a native MCP server (#52), core-first orientation (#49), per-player rule variables (#50), the development efficiency pass (#46), browser reliability (#47; the browser itself was removed on 10-07).
 - 2026-10-06: simplification stages S1 (native 2D honest boundary, publish kind 2d), S2 (`mcp` feature), S3 (`video` feature).
 - 2026-10-07: the RedEngineGames branch `native-2d-downloads` has landed there; RedEngineGames syncs from RedEngine main at every push.
+- 2026-10-10: 2026-10-10: Redline, a first-person momentum roguelite, built on 9c62ea7 with no engine changes and published in RedEngineGames (projects/redline); what it taught (a rule cue action, two physics/scenario bugs with repros, shot timing, lint on spread-out maps) is docs/analysis/2026-10-10-what-building-redline-taught-us-about-red.md
 
 ## Next
 - Simplification S7 (offline `re2` orchestration through MatchSim/LocalSession): not done in the hardening pass on purpose; the offline loop (`src/bin/re2/frame.rs`) also does bat swings, carried props, the rules HUD and its own prop physics that `LocalSession` lacks, so it needs a design and a parity plan first. S5 (#80) and S6 (#79) are done with parity runs recorded in their PRs and ADRs.
