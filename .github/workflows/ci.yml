@@ -69,14 +69,9 @@ jobs:
       - run: bash scripts/ci.sh fmt
 
   test:
-    name: full build (${{ matrix.os }})
+    name: full build (ubuntu-24.04)
     needs: changes
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # Linux always; the Windows leg only when something it compiles or runs changed.
-        os: ${{ fromJSON(needs.changes.outputs.native == 'true' && '["ubuntu-24.04","windows-latest"]' || '["ubuntu-24.04"]') }}
+    runs-on: ubuntu-24.04
     defaults:
       run:
         shell: bash
@@ -94,7 +89,6 @@ jobs:
             . -> target
             examples/external/topdown_switch -> target
       - name: Linux system libraries (audio backend for rodio)
-        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
       # clippy: warnings are errors. tests: real-time UDP suites one test at a time (serial_suites in docs/features.json), everything else on all cores.
       # benches compile. Wall-clock bench regressions are NOT gated here: shared runners are too noisy. Run
@@ -114,6 +108,41 @@ jobs:
       # Only generated games changed (see `changes`): the tests that read them, not the whole suite.
       - run: bash scripts/ci.sh games
         if: needs.changes.outputs.games_only == 'true'
+
+  # Windows is authoritative for two things Linux cannot answer: Microsoft's shader compiler (Direct3D) and the Python tools' path/quoting/process behaviour (the
+  # `python-tools` job). On a pull request this job builds and links every binary and compiles the renderer's pipelines through Direct3D (`scripts/ci.sh direct3d`,
+  # a few minutes); the whole suite on Windows, the same stages as Linux, runs on every push to main (ADR 2026-10-10-windows-ci-on-pull-requests-is-build-and-direct3d).
+  windows:
+    name: windows (${{ github.event_name == 'pull_request' && 'build + Direct3D' || 'full suite' }})
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: |
+            . -> target
+            examples/external/topdown_switch -> target
+      - run: bash scripts/ci.sh direct3d
+        if: github.event_name == 'pull_request'
+        env:
+          RED_DIRECT3D_REQUIRED: "1"
+      - run: bash scripts/ci.sh lockfiles clippy tests benches
+        if: github.event_name != 'pull_request'
+      - run: bash scripts/ci.sh external-client
+        if: github.event_name != 'pull_request'
+        env:
+          RED_OFFSCREEN_OPTIONAL: "1"
+      - run: bash scripts/ci.sh killchain
+        if: github.event_name != 'pull_request'
 
   # The Python tools, on both platforms, without building any Rust: `scripts/ci.sh pytools` runs every scripts/test_*.py and the publish check on this runner's interpreter.
   # The `test` job's Windows leg compiles and runs the engine and only starts for Rust-side changes; a change to launchpad.py, idea_forge.py, proc_supervisor.py or a PowerShell script

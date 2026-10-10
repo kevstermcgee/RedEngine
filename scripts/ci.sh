@@ -2,7 +2,8 @@
 # The exact steps CI runs (.github/workflows/ci.yml). Run before pushing; green here = green there
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
-#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools  games (games is not in the default list: `tests` covers it)
+#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools
+#   games  direct3d  (not in the default list: `tests` covers them; they are what the hosted workflow runs instead of `tests` in two cases, see each one)
 #
 # Tests run in two groups, because only one kind needs to be slow:
 #   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers): one test at a time, as before;
@@ -127,6 +128,21 @@ stage_pytools() {
   done
   echo "-- scripts/publish_games.py check"
   "$py" scripts/publish_games.py check
+}
+
+# The Windows leg of a pull request (ADR 2026-10-10-windows-ci-on-pull-requests-is-build-and-direct3d): every binary builds and links on Windows (cargo builds all of them to give the
+# integration tests their CARGO_BIN_EXE_* paths, so this compiles the engine once, not twice), naga's HLSL checks run, and `shadow_render` creates a real Direct3D device on the
+# hosted runner's adapter (WARP) and builds the renderer's world, post and ocean pipelines through Microsoft's shader compiler: the one thing only Windows can say. The full
+# suite on Windows runs on pushes to main. `shadow_render` skips itself on a machine with no adapter, so on Windows this stage refuses to count a skip as a pass.
+stage_direct3d() {
+  echo "== Windows: every binary builds and links; shaders compile through Direct3D =="
+  cargo test --locked --no-fail-fast --test shader_validation
+  local out
+  out="$(cargo test --locked --test shadow_render -- --nocapture 2>&1)" || { echo "$out"; exit 1; }
+  grep -E '^(test |test result)' <<<"$out" || true
+  if [ "${RED_DIRECT3D_REQUIRED:-0}" = "1" ] && grep -q "no GPU adapter on this machine" <<<"$out"; then
+    echo "shadow_render found no GPU adapter: Direct3D was not exercised, so this run proves nothing about it"; exit 1
+  fi
 }
 
 # A pull request that only adds or edits generated games (examples/2d, examples/3d, docs/analysis/idea-forge: the `games_only` output of the workflow's `changes` job) runs the tests that read
