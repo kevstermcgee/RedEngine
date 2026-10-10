@@ -107,7 +107,11 @@ fn run(command: Command) -> Result<(), String> {
             Ok(())
         }
         #[cfg(feature = "gfx")]
-        Command::Play2d { game, seed, save, mute, max_ticks } => red_engine2::play2d::run(red_engine2::play2d::Options { game, seed, save, mute, max_ticks }),
+        Command::Play2d { game, seed, save, mute, max_ticks } => {
+            let seed = red_engine2::play2d::launch_seed(seed);
+            eprintln!("seed {seed} (replay this run's random draws with --seed {seed})");
+            red_engine2::play2d::run(red_engine2::play2d::Options { game, seed, save, mute, max_ticks })
+        }
         #[cfg(not(feature = "gfx"))]
         Command::Play2d { .. } => Err(
             "this red_engine2 was built without a window (`--no-default-features`): `play2d` needs the default `gfx` build; `verify` and `sim` work headless"

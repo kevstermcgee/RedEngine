@@ -89,6 +89,8 @@ struct Ctx<'a> {
     props: &'a [RuleProp],
     slot: &'a [Option<usize>],
     zones: &'a [Volume],
+    /// The engine's generator for `random(a, b)`, lent for the tick (see [`RulesEngine::rng`]).
+    rng: &'a std::cell::Cell<u64>,
 }
 
 impl Ctx<'_> {
@@ -123,6 +125,13 @@ impl World for Ctx<'_> {
             _ => 0.0,
         }
     }
+
+    fn random(&self, lo: f64, hi: f64) -> f64 {
+        let mut s = self.rng.get();
+        let v = crate::sim::rules_expr::draw_int(&mut s, lo, hi);
+        self.rng.set(s);
+        v
+    }
 }
 
 /// A [`Ctx`] plus the per-player variables of the player a rule is running for: answers `me.name` from that row.
@@ -140,6 +149,9 @@ impl World for MeView<'_> {
     }
     fn me(&self, index: usize) -> f64 {
         self.row.get(index).copied().unwrap_or(0.0)
+    }
+    fn random(&self, lo: f64, hi: f64) -> f64 {
+        self.base.random(lo, hi)
     }
 }
 
@@ -218,9 +230,17 @@ pub struct RulesEngine {
     injected: Vec<(String, Option<usize>)>,
     /// The scene's looping axis: a player near the seam is inside a volume just past the other edge (see `expanse`).
     wrap: Option<crate::expanse::Wrap>,
+    /// The generator `random(a, b)` draws from: seeded the same for every match of the scene (so the server, a replay and a scenario agree);
+    /// [`reseed`](Self::reseed) gives a match its own draws.
+    rng: u64,
 }
 
 impl RulesEngine {
+    /// Gives this match its own `random(a, b)` draws (the default seed is the same for every match). Whoever reseeds must record the seed to replay it.
+    pub fn reseed(&mut self, seed: u64) {
+        self.rng = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+    }
+
     /// Starts a match with `set`.
     pub fn new(set: RuleSet) -> Self {
         RulesEngine {
@@ -243,6 +263,7 @@ impl RulesEngine {
             pending: Vec::new(),
             injected: Vec::new(),
             wrap: None,
+            rng: 0x005E_ED0F_5A5E,
         }
     }
 
@@ -518,7 +539,8 @@ impl RulesEngine {
         // The set and the binding are read-only while the rules run; lending them out lets `fire` borrow `self` mutably.
         let set = std::mem::take(&mut self.set);
         let slots = std::mem::take(&mut self.prop_slot);
-        let ctx = Ctx { props, slot: &slots, zones: &set.zone_volumes };
+        let rng = std::cell::Cell::new(self.rng);
+        let ctx = Ctx { props, slot: &slots, zones: &set.zone_volumes, rng: &rng };
         let mut queue: Vec<(String, Option<usize>)> = std::mem::take(&mut self.injected);
         for ri in 0..set.rules.len() {
             let rule = &set.rules[ri];
@@ -596,6 +618,7 @@ impl RulesEngine {
         }
         self.set = set;
         self.prop_slot = slots;
+        self.rng = rng.get();
         effects
     }
 

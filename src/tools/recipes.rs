@@ -32,6 +32,10 @@ pub const PATTERNS: &[(&str, &str)] = &[
     ("spawner-waves", include_str!("../../examples/patterns/spawner-waves.game2d.json")),
     ("survive-then-escape", include_str!("../../examples/patterns/survive-then-escape.game2d.json")),
     ("shared-effect", include_str!("../../examples/patterns/shared-effect.game2d.json")),
+    ("random-pick", include_str!("../../examples/patterns/random-pick.game2d.json")),
+    ("text-table", include_str!("../../examples/patterns/text-table.game2d.json")),
+    ("story-beat", include_str!("../../examples/patterns/story-beat.game2d.json")),
+    ("branching-dialogue", include_str!("../../examples/patterns/branching-dialogue.game2d.json")),
 ];
 
 /// One 2D mechanic pattern, read from its own game file (the game's `title`, `description`, rule ids and scenario names are the documentation: nothing to keep in step).

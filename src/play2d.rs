@@ -38,6 +38,16 @@ pub struct Options {
     pub max_ticks: Option<u64>,
 }
 
+/// The seed of one launch: `given` when the player asked for one (`--seed N`, to replay a run), otherwise a new one from the clock, so a shipped game does
+/// not play the same `random(a, b)` draws every time it starts. The caller prints it (`seed N`), which is how a run is reported and reproduced.
+pub fn launch_seed(given: Option<u64>) -> u64 {
+    given.unwrap_or_else(|| {
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u64);
+        // A seed a person can retype: the low 9 decimal digits, never 0.
+        (nanos % 1_000_000_000).max(1)
+    })
+}
+
 /// Opens the window and runs until it is closed. Returns an error before the window opens if the game does not load.
 pub fn run(opts: Options) -> Result<(), String> {
     let text = std::fs::read_to_string(&opts.game).map_err(|e| format!("{}: {e}", opts.game.display()))?;

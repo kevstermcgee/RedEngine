@@ -182,6 +182,21 @@ pub struct Sim {
     save_dirty: bool,
 }
 
+/// Answers `random(a, b)` in a rule from the sim's own generator (the 2D game has no prop functions), so a draw is part of the seeded, replayable run.
+struct Draws<'a>(&'a std::cell::Cell<u64>);
+
+impl crate::rules_expr::World for Draws<'_> {
+    fn call(&self, _: crate::rules_expr::Func, _: usize) -> f64 {
+        0.0
+    }
+    fn random(&self, lo: f64, hi: f64) -> f64 {
+        let mut s = self.0.get();
+        let v = crate::rules_expr::draw_int(&mut s, lo, hi);
+        self.0.set(s);
+        v
+    }
+}
+
 fn rand_next(state: &mut u64) -> u64 {
     // xorshift64*
     let mut x = *state;
@@ -399,7 +414,94 @@ impl Sim {
 
     /// Whether a HUD widget is visible now.
     pub fn widget_shown(&self, w: &Widget) -> bool {
-        w.show.as_ref().is_none_or(|e| e.truthy(&self.vars))
+        let shown = w.show.as_ref().is_none_or(|e| e.truthy(&self.vars));
+        match &w.kind {
+            WidgetKind::Dialogue(d) => shown && self.dialogue_line(d).is_some(),
+            _ => shown,
+        }
+    }
+
+    /// The line a dialogue shows (its `<id>_line`), or None when it is closed (past the last line, or negative).
+    pub fn dialogue_line(&self, d: &crate::game::Dialogue) -> Option<usize> {
+        let v = self.vars.get(d.line_var).copied().unwrap_or(0.0);
+        let i = v.floor();
+        (i >= 0.0 && (i as usize) < d.lines.len()).then_some(i as usize)
+    }
+
+    fn emit_event(&mut self, name: &str) {
+        *self.event_counts.entry(name.to_string()).or_insert(0) += 1;
+        self.events.push(name.to_string());
+    }
+
+    /// The open dialogue takes its keys: up/down (or 1-9, or a click on a row) choose, the advance action confirms or moves on, a click in a box with no
+    /// choices moves on. Returns true when it used the click. A choice's `emit` fires on top of its line's; closing emits `done`.
+    fn dialogue_input(&mut self, d: &crate::game::Dialogue, pressed: &mut [bool; 7], codes: &[String], click: Option<[f32; 2]>) -> bool {
+        use crate::game::Goto;
+        let Some(li) = self.dialogue_line(d) else { return false };
+        let line = &d.lines[li];
+        let n = line.choices.len();
+        let (up, down) = (action_index("up").unwrap_or(2), action_index("down").unwrap_or(3));
+        let in_box = |p: [f32; 2], r: [f32; 4]| p[0] >= r[0] && p[0] < r[0] + r[2] && p[1] >= r[1] && p[1] < r[1] + r[3];
+        let took_click = click.is_some_and(|p| in_box(p, [d.at[0], d.at[1], d.size[0], d.size[1]]));
+        // None: nothing chosen; Some(None): move on past a line without choices; Some(Some(i)): choice i.
+        let mut confirm: Option<Option<usize>> = None;
+        if n > 0 {
+            let mut c = (self.vars[d.choice_var].max(0.0) as usize).min(n - 1);
+            if pressed[up] {
+                c = (c + n - 1) % n;
+            }
+            if pressed[down] {
+                c = (c + 1) % n;
+            }
+            for code in codes {
+                if let Some(k) = code.strip_prefix("Digit").and_then(|s| s.parse::<usize>().ok()).filter(|k| (1..=n).contains(k)) {
+                    c = k - 1;
+                    confirm = Some(Some(c));
+                }
+            }
+            if let Some(p) = click {
+                if let Some(i) = (0..n).find(|i| in_box(p, d.choice_rect(*i, n))) {
+                    c = i;
+                    confirm = Some(Some(i));
+                }
+            }
+            if pressed[d.advance] {
+                confirm = Some(Some(c));
+            }
+            self.vars[d.choice_var] = c as f64;
+            pressed[up] = false;
+            pressed[down] = false;
+        } else if pressed[d.advance] || took_click {
+            confirm = Some(None);
+        }
+        pressed[d.advance] = false;
+        if let Some(choice) = confirm {
+            if let Some(e) = &line.emit {
+                self.emit_event(e);
+            }
+            let goto = match choice {
+                Some(i) => {
+                    if let Some(e) = &line.choices[i].emit {
+                        self.emit_event(e);
+                    }
+                    line.choices[i].goto.or(line.goto)
+                }
+                None => line.goto,
+            };
+            let next = match goto {
+                Some(Goto::Line(i)) => i,
+                Some(Goto::End) => d.lines.len(),
+                None => li + 1,
+            };
+            self.vars[d.line_var] = next as f64;
+            self.vars[d.choice_var] = 0.0;
+            if next >= d.lines.len() {
+                if let Some(e) = &d.done {
+                    self.emit_event(e);
+                }
+            }
+        }
+        took_click
     }
 
     /// A hash of the whole state: two runs that agree on it agree on everything the player can see.
@@ -548,8 +650,24 @@ impl Sim {
         }
         self.prev = self.held;
         let codes = std::mem::take(&mut self.codes);
-        let click = self.click.take();
+        let mut click = self.click.take();
         let buttons = std::mem::take(&mut self.buttons);
+
+        // An open dialogue owns its keys (the first open one in `ui`); with `pause` the world stands still and no press rule fires until it closes.
+        let mut paused = false;
+        if self.ended.is_none() {
+            if let Some(w) = def.ui.iter().find(|w| matches!(w.kind, WidgetKind::Dialogue(_)) && self.widget_shown(w)) {
+                if let WidgetKind::Dialogue(d) = &w.kind {
+                    if self.dialogue_input(d, &mut pressed, &codes, click) {
+                        click = None;
+                    }
+                    if d.pause {
+                        paused = true;
+                        pressed = [false; 7];
+                    }
+                }
+            }
+        }
 
         // HUD buttons and clicks (these work after the end too)
         for id in &buttons {
@@ -574,7 +692,7 @@ impl Sim {
         }
         self.drain_events(&def);
 
-        if self.ended.is_none() {
+        if self.ended.is_none() && !paused {
             self.move_all(&def, &pressed);
             self.update_particles_and_emitters(&def);
             self.refresh_vars();
@@ -723,9 +841,25 @@ impl Sim {
         Some(id)
     }
 
+    /// An expression's value in a rule or action: `random(a, b)` draws from this sim's generator (a widget's `show` reads without drawing).
+    fn value(&mut self, v: &Val) -> f64 {
+        let state = std::cell::Cell::new(self.rng);
+        let x = v.eval_in(&self.vars, &Draws(&state));
+        self.rng = state.get();
+        x
+    }
+
+    /// [`value`](Self::value) for a rule's condition (a bare expression).
+    fn expr_value(&mut self, e: &crate::rules_expr::Expr) -> f64 {
+        let state = std::cell::Cell::new(self.rng);
+        let x = e.eval_in(&self.vars, &Draws(&state));
+        self.rng = state.get();
+        x
+    }
+
     fn eval_coord(&mut self, c: &Coord) -> f32 {
         match c {
-            Coord::At(v) => v.eval(&self.vars) as f32,
+            Coord::At(v) => self.value(v) as f32,
             Coord::Range(a, b) => self.rand_range(*a, *b),
         }
     }
@@ -771,7 +905,7 @@ impl Sim {
             self.refresh_vars();
         }
         if let Some(c) = &r.cond {
-            if !c.truthy(&self.vars) {
+            if self.expr_value(c) == 0.0 {
                 return;
             }
         }
@@ -784,19 +918,16 @@ impl Sim {
         for a in acts {
             match a {
                 Act::Set(i, v) => {
-                    let x = v.eval(&self.vars);
+                    let x = self.value(v);
                     self.vars[*i] = if x.is_finite() { x } else { 0.0 };
                 }
                 Act::Add(i, v) => {
-                    let x = v.eval(&self.vars);
+                    let x = self.value(v);
                     if x.is_finite() {
                         self.vars[*i] += x;
                     }
                 }
-                Act::Emit(name) => {
-                    *self.event_counts.entry(name.clone()).or_insert(0) += 1;
-                    self.events.push(name.clone());
-                }
+                Act::Emit(name) => self.emit_event(name),
                 Act::Spawn { prefab, at, vel, count } => {
                     for _ in 0..*count {
                         let (x, y) = self.place(at, ctx);
@@ -849,7 +980,7 @@ impl Sim {
                     self.music_on = true;
                 }
                 Act::Velocity(t, v) => {
-                    let (vx, vy) = (v[0].eval(&self.vars) as f32, v[1].eval(&self.vars) as f32);
+                    let (vx, vy) = (self.value(&v[0]) as f32, self.value(&v[1]) as f32);
                     for id in self.targets(t, ctx) {
                         if let Some(i) = self.ent(id) {
                             self.entities[i].vx = vx;

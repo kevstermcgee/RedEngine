@@ -1,0 +1,37 @@
+{
+  "game2d": 1, "id": "pattern-story-beat", "title": "Pattern: a story told in beats",
+  "description": "Light the three lanterns and the story moves on with each one. Mechanic: a `beat` variable a rule advances when something happens, and one text widget that picks the line for the current beat from a table: story as data, no story system.",
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#10141f"},
+  "tables": {"beats": [
+    "THE VILLAGE SLEEPS IN THE DARK. LIGHT THE LANTERNS.",
+    "ONE LIGHT. A DOG BARKS SOMEWHERE NEAR THE MILL.",
+    "TWO LIGHTS. A WINDOW OPENS; SOMEONE IS WATCHING.",
+    "THREE LIGHTS. THE BELL RINGS. THE VILLAGE WAKES."]},
+  "vars": {"beat": 0},
+  "prefabs": {
+    "player": {"tag": "player", "shape": {"rect": [8, 8], "color": "#ffd166"}, "layer": 2, "clamp": true, "body": {"type": "dynamic"}, "collide": [], "move": {"keys": {"mode": "topdown", "speed": 110}}},
+    "lantern": {"tag": "lantern", "shape": {"rect": [8, 12], "color": "#5a6070"}}
+  },
+  "scene": [
+    {"prefab": "player", "at": [40, 120], "id": "p"},
+    {"prefab": "lantern", "at": [110, 120]},
+    {"prefab": "lantern", "at": [180, 120]},
+    {"prefab": "lantern", "at": [250, 120]}
+  ],
+  "ui": [
+    {"text": {"pick": "beats", "by": "beat"}, "at": [10, 12], "width": 300, "color": "#f0e6c8"},
+    {"text": "THE END", "at": [160, 80], "align": "center", "scale": 2, "color": "#ffd166", "show": "ended == 1"}
+  ],
+  "rules": [
+    {"id": "light a lantern", "when": {"touch": ["player", "lantern"]}, "do": [{"destroy": "other"}, {"add": ["beat", 1]}, {"burst": {"at": "other", "n": 16, "color": "#ffd166"}}]},
+    {"id": "the last beat ends the story", "when": {"every": 0.1}, "if": "beat >= 3 && ended == 0", "do": [{"end": "win"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "each lantern moves the story on and the third ends it", "seed": 1, "max_seconds": 30, "smoke": true,
+     "script": [{"approach": "lantern", "seconds": 6}, {"approach": "lantern", "seconds": 6}, {"approach": "lantern", "seconds": 6}, {"wait": 0.3}],
+     "expect": [{"var": "beat", "eq": 3}, {"ended": "win"}]},
+    {"name": "one lantern is one beat", "seed": 1, "max_seconds": 10,
+     "script": [{"hold_until": ["right"], "until": {"var": "beat", "eq": 1}, "timeout": 5}, {"wait": 0.1}], "expect": [{"var": "beat", "eq": 1}, {"not_ended": true}]}
+  ]}
+}

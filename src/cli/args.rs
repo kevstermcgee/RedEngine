@@ -846,9 +846,9 @@ pub(crate) enum Command {
     Play2d {
         /// The game file.
         game: PathBuf,
-        /// Simulation seed (default 1).
-        #[arg(long, default_value_t = 1)]
-        seed: u64,
+        /// Simulation seed: replays a run's `random(a, b)` draws. Default: a new seed each launch, printed as `seed N`.
+        #[arg(long)]
+        seed: Option<u64>,
         /// Keep progress in this file instead of the per-game save directory.
         #[arg(long)]
         save: Option<PathBuf>,

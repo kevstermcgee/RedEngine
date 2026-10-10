@@ -3,20 +3,21 @@
 
 /// The reference text.
 pub const REFERENCE: &str = r##"FILE: NAME.game2d.json (JSON; begin it with "game2d": 1). Positions are CENTRES in virtual-screen pixels; y grows downward.
-KEYS: game2d id title description capabilities view sprites sounds music vars persist prefabs scene|map ui effects rules checks   (3D parts, optional: models layers3d, see HYBRID)
+KEYS: game2d id title description capabilities view sprites sounds music vars tables persist prefabs scene|map ui effects rules checks   (3D parts, optional: models layers3d, see HYBRID)
 capabilities: {"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard","mouse"],"persistence":["settings","progress"]}
   declare what the game uses: buttons/click/pointer need mouse; keys/press need keyboard; `persist` needs progress; a `music` action needs settings.
   `red_engine2 capabilities` prints what is built; 2D games are offline, native (windows/linux) and read keyboard and mouse; a gamepad is prepared, not built.
 view: {"width":320,"height":180,"background":"#1b2233","scale":"fit"|"integer","world":[640,180],"camera":{"follow":"player","lerp":0.15}}  (64..1280 px a side)
 sprites: {"name":{"rows":["..aa..","aaaa"],"palette":{"a":"#ff0000"},"fps":8}} or "frames":[rows,...] for animation; "." is transparent; at most 64 px a side
 sounds: {"name":{"seconds":0.2,"layers":[{"sine":880,"decay":18}]}} (a voice: `describe audio`, `audio list`)   music: {"name":{score}} (`describe audio`)
+tables: {"rumour":["THE LIGHT WENT OUT AT NINE","THE KEEPER NEVER LEFT"]}  named lists of text; a text shows one with {"pick":"rumour","by":"r"} (0-based; past the end shows nothing)
 vars: {"score":0}   builtins: time tick ended(0, 1 win, 2 lose) mouse_x mouse_y music_on   plus count_<tag> and <sceneid>_x, <sceneid>_y   persist: ["best"] (saved between sessions)
 prefabs: {"name":{"tag":"coin"|[tags],"shape":{"sprite":n|"rect":[w,h]|"circle":r|"text":"SCORE {score}","color":"#fc0","scale":1,"flip":"x"|"auto"},"size":[w,h],"layer":0,
   "body":{"type":"dynamic"|"static","gravity":600,"bounce":0.5,"friction":0.1,"drag":0,"max_fall":600},"collide":[tags it is stopped by],
   "move":{"keys":{"mode":"topdown"|"platformer","speed":90,"jump":250}} | {"pointer":"x"|"y"|"xy"} | {"chase":{"target":tag,"speed":30}} | {"drift":[vx,vy]} | {"wander":{"speed":20,"turn":1}} | {"patrol":{"axis":"x","range":20,"speed":40}},
   "ttl":seconds,"emit":{"rate":3,"life":[.3,.6],"speed":[4,10],"angle":[250,290],"color":"#fff"},"clamp":true,"hidden":true}}
 scene: [{"prefab":"coin","at":[40,30],"id":"p","count":1}]   map: {"tile":16,"origin":[0,0],"rows":["#..#"],"legend":{"#":"wall"}} ("." is empty)
-ui: {"text":"SCORE {score:3}","at":[4,4],"color":"#fff","scale":1,"align":"left"|"center"|"right","show":"ended"}  {"bar":{"var":"lives","max":3,"at":[0,0],"size":[40,6]}}
+ui: {"text":"SCORE {score:3}","at":[4,4],"color":"#fff","scale":1,"align":"left"|"center"|"right","show":"ended","width":120 (wrap at words)}  "text" may be {"pick":table,"by":expr}  {"bar":{"var":"lives","max":3,"at":[0,0],"size":[40,6]}}
   {"panel":{"at":[0,0],"size":[100,20],"color":"#10141fdd"}}  {"button":{"id":"go","label":"GO","at":[0,0],"size":[40,12],"key":"Enter","do":[actions]}}   {v}=value {v:3}=zero-padded {v:.1}=one decimal
 effects: {"heal":{"params":{"amount":1},"do":[{"add":["lives","$amount"]},{"play":"pick"}]}}  a named group of actions, used by any rule or button: {"apply":"heal","with":{"amount":2}}
   params: names (all required) or name -> default; "$name" is the argument; effects may apply effects (4 deep, no loops); an effect nothing applies is an error
@@ -24,7 +25,12 @@ rules: [{"id":"x","when":{TRIGGER},"if":"lives > 0","once":true,"cooldown":1,"do
   TRIGGER (exactly one): start | every:seconds | after:seconds | touch:[tagA,tagB] (on first overlap) | touching:[a,b] (every tick) | press:action | click:tag ("*" = nothing) | event:name (built in: `loaded` fires once after saved progress is restored: rebuild the world from saved vars) | end:"win"|"lose"|"any"
   ACTIONS: set:[var,value] add:[var,value] emit:name spawn:{prefab,at,vel,count} destroy:"self"|"other"|"tag:T"|"id:I" play:sound music:"on"|"off"|"toggle" burst:{at,n,color,speed,life,size,gravity}
     shake:px end:"win"|"lose" restart:true reset_save:true velocity:{target,v:[x,y]} teleport:{target,to} apply:effect     `at`: "self"|"other"|"pointer"|[x,y]|{"x":[min,max],"y":[min,max]}
-  values and `if` are expressions: numbers, variables, + - * / %, == != < <= > >=, && || ! (division by zero is 0). Rules run in order, each seeing the changes before it.
+  values and `if` are expressions: numbers, variables, + - * / %, == != < <= > >=, && || ! (division by zero is 0), floor round abs sqrt min max, random(a,b) (a whole number a..b
+  from the game's seeded generator: `verify` repeats it, play2d/re2d pick a new seed each launch and print it, --seed N replays). Rules run in order, each seeing the changes before it.
+  {"dialogue":{"id":"talk","at":[8,110],"size":[304,62],"pause":true,"done":"talk_done","lines":[{"who":"KEEPER","text":"..."},{"text":{"pick":"rumour","by":"r"}},
+   {"id":"ask","text":"CLIMB?","choices":[{"label":"YES","emit":"climb","goto":"yes"},{"label":"NO","goto":"end"}]},{"id":"yes","text":"...","emit":"got_lamp"}]}}
+   a conversation: the advance action (default action) moves on, up/down or 1-9 or a click picks; state = vars talk_line (set it to replay) and talk_choice;
+   pause (default) stops the world while it is open. Story = tables + rules + dialogue, data like the rest (recipes random-pick text-table story-beat branching-dialogue).
 HYBRID (3D where it helps, same file, same sim, still runs natively and headless): "presentation":"hybrid", then any of `models` (named 3D objects), a prefab shape {"model":name}, a ui/layers3d
   {"view3d":{..}}, view.world3d (the whole world in perspective), {"minimap":{..}}. Choose 2D unless a 3D part adds something. `red_engine2 describe hybrid` has the format.
 input actions: left right up down action secondary pause. Keys: arrows/WASD, Space/Z/J, Shift/X/K, Esc/P. Mouse: `click` and buttons (a button `key` is any KeyboardEvent.code: Enter, KeyM, Digit1).

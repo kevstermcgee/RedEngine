@@ -1,0 +1,39 @@
+{
+  "game2d": 1, "id": "pattern-branching-dialogue", "title": "Pattern: a conversation with a choice that matters",
+  "description": "Talk to the ferryman; what you answer decides how it ends. Mechanic: a `dialogue` widget (lines, a speaker, choices that emit events and jump), events that rules turn into consequences, and `talk_line` to read or replay the conversation.",
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard", "mouse"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#0f1a24"},
+  "vars": {"coins": 1, "trust": 0},
+  "prefabs": {"boat": {"tag": "boat", "shape": {"rect": [60, 10], "color": "#6b4a2b"}}},
+  "scene": [{"prefab": "boat", "at": [160, 80]}],
+  "ui": [
+    {"dialogue": {"id": "talk", "at": [8, 108], "size": [304, 66], "done": "talk_done", "lines": [
+      {"who": "FERRYMAN", "text": "THE RIVER IS HIGH TONIGHT."},
+      {"who": "FERRYMAN", "text": "ONE COIN TO CROSS. YOU HAVE {coins}."},
+      {"id": "ask", "who": "FERRYMAN", "text": "WILL YOU PAY?", "choices": [
+        {"label": "PAY THE COIN", "emit": "paid", "goto": "thanks"},
+        {"label": "SWIM INSTEAD", "emit": "refused", "goto": "warn"}]},
+      {"id": "thanks", "who": "FERRYMAN", "text": "THEN SIT, AND KEEP YOUR HANDS INSIDE.", "goto": "end"},
+      {"id": "warn", "who": "FERRYMAN", "text": "THE RIVER KEEPS WHAT IT IS GIVEN."}]}},
+    {"text": "YOU CROSSED", "at": [160, 50], "align": "center", "scale": 2, "color": "#8cff9b", "show": "ended == 1"},
+    {"text": "THE RIVER KEPT YOU", "at": [160, 50], "align": "center", "scale": 2, "color": "#ff7a8c", "show": "ended == 2"}
+  ],
+  "rules": [
+    {"id": "paying spends the coin", "when": {"event": "paid"}, "do": [{"add": ["coins", -1]}, {"add": ["trust", 1]}]},
+    {"id": "a paid fare crosses", "when": {"event": "talk_done"}, "if": "trust >= 1", "do": [{"end": "win"}]},
+    {"id": "a swimmer is kept", "when": {"event": "talk_done"}, "if": "trust == 0", "do": [{"end": "lose"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "paying the coin crosses the river", "seed": 1, "max_seconds": 10, "smoke": true,
+     "script": [{"press": "action"}, {"wait": 0.1}, {"press": "action"}, {"wait": 0.1}, {"press": "action"}, {"wait": 0.1}, {"press": "action"}, {"wait": 0.2}],
+     "expect": [{"event": "paid", "min": 1}, {"var": "coins", "eq": 0}, {"var": "trust", "eq": 1}, {"event": "talk_done", "min": 1}, {"ended": "win"}]},
+    {"name": "choosing to swim takes the other branch", "seed": 1, "max_seconds": 10,
+     "script": [{"press": "action"}, {"wait": 0.1}, {"press": "action"}, {"wait": 0.1}, {"press": "down"}, {"wait": 0.1}, {"press": "action"}, {"wait": 0.1}],
+     "expect": [{"event": "refused", "min": 1}, {"event": "paid", "min": 0, "max": 0}, {"var": "talk_line", "eq": 4}, {"var": "coins", "eq": 1}, {"not_ended": true}]},
+    {"name": "swimming ends the story the other way", "seed": 1, "max_seconds": 10,
+     "script": [{"press": "action"}, {"wait": 0.1}, {"press": "action"}, {"wait": 0.1}, {"press": "down"}, {"wait": 0.1}, {"press": "action"}, {"wait": 0.1}, {"press": "action"}, {"wait": 0.2}],
+     "expect": [{"event": "talk_done", "min": 1}, {"ended": "lose"}]},
+    {"name": "the world waits while the ferryman talks", "seed": 1, "max_seconds": 10,
+     "script": [{"wait": 1.0}], "expect": [{"var": "talk_line", "eq": 0}, {"not_ended": true}]}
+  ]}
+}

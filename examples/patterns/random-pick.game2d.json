@@ -1,0 +1,26 @@
+{
+  "game2d": 1, "id": "pattern-random-pick", "title": "Pattern: draw a random number and show one of N things",
+  "description": "Press Space to draw an omen. Mechanic: `random(0, 5)` in a `set` action draws a whole number from the game's seeded generator, and a text widget shows that entry of a string table with `pick`.",
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": []},
+  "view": {"width": 320, "height": 180, "background": "#1b1630"},
+  "tables": {"omen": ["A CROW AT THE WINDOW", "A KEY UNDER THE MAT", "A SHIP WITHOUT SAILS", "THE CLOCK RUNS BACKWARDS", "SALT ON THE DOORSTEP", "A LETTER FROM YOURSELF"]},
+  "vars": {"roll": -1, "draws": 0},
+  "prefabs": {"ball": {"tag": "ball", "shape": {"circle": 10, "color": "#6b5bd6"}}},
+  "scene": [{"prefab": "ball", "at": [160, 130]}],
+  "ui": [
+    {"text": "PRESS SPACE TO DRAW AN OMEN", "at": [160, 30], "align": "center", "color": "#c9b8ff", "show": "draws == 0"},
+    {"text": {"pick": "omen", "by": "roll"}, "at": [160, 80], "align": "center", "color": "#ffe08a", "scale": 1},
+    {"text": "DRAWS {draws}", "at": [6, 168], "color": "#8a80b0"}
+  ],
+  "rules": [
+    {"id": "draw", "when": {"press": "action"}, "do": [{"set": ["roll", "random(0, 5)"]}, {"add": ["draws", 1]}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "each press draws a whole number from 0 to 5", "seed": 1, "max_seconds": 10, "smoke": true,
+     "script": [{"press": "action"}, {"wait": 0.2}, {"press": "action"}, {"wait": 0.2}, {"press": "action"}, {"wait": 0.2}],
+     "expect": [{"var": "draws", "eq": 3}, {"var": "roll", "gte": 0}, {"var": "roll", "lte": 5}]},
+    {"name": "the same seed draws the same omen", "seed": 7, "max_seconds": 10,
+     "script": [{"press": "action"}, {"wait": 0.2}],
+     "expect": [{"var": "roll", "eq": 3}]}
+  ]}
+}

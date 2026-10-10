@@ -339,3 +339,57 @@ fn an_effect_is_one_source_for_several_behaviours() {
     assert!(uses >= 2, "the item and the ability must both use the one effect");
     assert!(g["effects"]["heal"]["do"].as_array().unwrap().len() >= 3);
 }
+
+#[test]
+fn story_text_and_dialogue_mistakes_are_refused_with_the_fix() {
+    // `example` reads examples/2d: put a table, a pick and a dialogue on a real game, then break each one.
+    let base = |g: &mut Value| {
+        g["tables"] = json!({"rumour": ["A", "B", "C"]});
+        g["vars"]["r"] = json!(0);
+        g["ui"].as_array_mut().unwrap().push(json!({"text": {"pick": "rumour", "by": "r"}, "at": [4, 40], "width": 100}));
+        g["ui"].as_array_mut().unwrap().push(json!({"dialogue": {"id": "talk", "at": [0, 100], "size": [200, 60], "lines": [
+            {"id": "ask", "text": "GO?", "choices": [{"label": "YES", "emit": "go", "goto": "bye"}, {"label": "NO", "goto": "end"}]},
+            {"id": "bye", "who": "KEEPER", "text": "{r}"}]}}));
+    };
+    let ok = mutate("coin-dash", base);
+    assert!(ok.ok, "a table, a pick and a dialogue validate:\n{}", ok.text);
+    refused(
+        &mutate("coin-dash", |g| {
+            base(g);
+            g["ui"].as_array_mut().unwrap().last_mut().unwrap()["dialogue"]["lines"][0]["choices"][0]["goto"] = json!("by");
+        }),
+        &["no line with id `by`", "did you mean"],
+    );
+    refused(
+        &mutate("coin-dash", |g| {
+            base(g);
+            let ui = g["ui"].as_array_mut().unwrap();
+            let n = ui.len();
+            ui[n - 2]["text"]["pick"] = json!("rumor");
+        }),
+        &["no table `rumor`", "rumour"],
+    );
+    refused(
+        &mutate("coin-dash", |g| {
+            base(g);
+            let ui = g["ui"].as_array_mut().unwrap();
+            let n = ui.len();
+            ui[n - 2]["text"]["by"] = json!(3);
+        }),
+        &["index 3 is outside table `rumour` (3 entries: 0..2)"],
+    );
+    refused(
+        &mutate("coin-dash", |g| {
+            base(g);
+            g["vars"]["talk_line"] = json!(0);
+        }),
+        &["`talk_line` is a dialogue's state variable"],
+    );
+    refused(
+        &mutate("coin-dash", |g| {
+            base(g);
+            g["rules"].as_array_mut().unwrap().push(json!({"id": "x", "when": {"start": true}, "do": [{"set": ["r", "random(1)"]}]}));
+        }),
+        &["`random(a, b)` takes 2 argument(s), got 1"],
+    );
+}

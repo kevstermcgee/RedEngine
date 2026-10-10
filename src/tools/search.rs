@@ -521,6 +521,10 @@ mod tests {
             ("respawn at a checkpoint after dying", "checkpoint-respawn"),
             ("spawn enemies over time but not too many", "spawner-waves"),
             ("collect artifacts, activate a generator, survive, then escape", "survive-then-escape"),
+            ("draw a random number and show one of several things", "random-pick"),
+            ("a table of text chosen by a variable", "text-table"),
+            ("tell a story in beats that move on as the player plays", "story-beat"),
+            ("a conversation with a choice that branches", "branching-dialogue"),
         ] {
             let (kind, title) = first(q).unwrap();
             assert!(kind == "mechanic" && title.contains(name), "`{q}` should open with `{name}`, got {kind}: {title}");
