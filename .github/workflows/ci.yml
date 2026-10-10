@@ -131,7 +131,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: true   # MEASUREMENT ONLY (PR #97): warm-cache timing of the PR Windows job; reverted before merge
           workspaces: |
             . -> target
             examples/external/topdown_switch -> target
