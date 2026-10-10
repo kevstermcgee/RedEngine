@@ -88,7 +88,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: linux-tests
-          save-if: ${{ github.ref == 'refs/heads/main' && matrix.shard == 1 }}
+          save-if: ${{ matrix.shard == 1 }}   # MEASUREMENT ONLY (PR #97): reverted before merge
       # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
       - uses: taiki-e/install-action@v2
         with:
@@ -117,7 +117,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: true   # MEASUREMENT ONLY (PR #97): reverted before merge
       - name: Linux system libraries (audio backend for rodio)
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
       - run: bash scripts/ci.sh lockfiles clippy benches
@@ -138,7 +138,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: true   # MEASUREMENT ONLY (PR #97): reverted before merge
           # The external example crate is its own workspace with its own target/: without listing it here its ~420 dependencies were compiled from scratch on every run
           # (measured on hosted CI: 339 s of an 856 s Linux job, 583 s on Windows). A cache miss costs exactly what it costs today.
           workspaces: |
@@ -251,7 +251,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: headless
-          save-if: ${{ github.ref == 'refs/heads/main' && matrix.shard == 1 }}
+          save-if: ${{ matrix.shard == 1 }}   # MEASUREMENT ONLY (PR #97): reverted before merge
       # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
       - uses: taiki-e/install-action@v2
         with:
