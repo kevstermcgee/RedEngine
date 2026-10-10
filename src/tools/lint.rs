@@ -24,7 +24,7 @@
 //! | `door-blocked` | a door/arch opening you can't actually walk through (furniture in front of it)|
 //! | `interest`     | a multiplayer map (it has `spawns`) whose zones are not linked by `portals`: players vanish |
 //! | `jump-clearance` | an overhead slab out of reach standing but within a jump: it shoves a jumper sideways  |
-//! | `style-palette` | a game (rules or ui) with no `style.palette`, or one that is all default colours                     |
+//! | `style-palette` | a game (it has a `ui`) with no `style.palette`, or one that is all default colours                     |
 //! | `style-lamp`   | a game whose point lights are all the default lamp colour                    |
 //! | `style-sky`    | a game with a default sky gradient and no `sky`/`clock`                       |
 

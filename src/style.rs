@@ -68,9 +68,10 @@ pub fn describe_text() -> String {
     s
 }
 
-/// The style lint applies to games (a scene with `rules` or `ui`), not to reference maps and test content.
+/// The style lint applies to games: a scene with a `ui` (the HUD, objective and cards a player reads). Rules alone are level logic (a gate a start rule
+/// opens), and reference maps and test content are not asked to have a look of their own.
 pub fn is_game(raw: &Value) -> bool {
-    raw.get("rules").is_some() || raw.get("ui").is_some()
+    raw.get("ui").is_some()
 }
 
 /// How close (redmean distance, 0..765) a colour must be to a default to count as "the default": below this two colours read as the same.

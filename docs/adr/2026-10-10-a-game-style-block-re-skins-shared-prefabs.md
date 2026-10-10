@@ -23,7 +23,7 @@ its own sprites; in 3D the cheapest path is to make the shared assets take the g
 - Blueprints: with `scene.style`, rooms use `@wall`, `@floor`, `@trim` for the roles the palette names, and the style's light rig and sky replace the
   blueprint's own (its sun keeps its shadow settings and takes the rig's colour).
 - `fog` is a new scene field (the shader already fades toward `globals.fog`; only the day/night clock could set it before).
-- Lint (games only: a scene with `rules` or `ui`): `style-palette` when there is no palette and at least half of the surfaces are default colours (a game
+- Lint (games only: a scene with a `ui`; rules alone are level logic, such as a gate a start rule opens): `style-palette` when there is no palette and at least half of the surfaces are default colours (a game
   that chose its own hex by hand, like Marcel, is not asked for a palette), or when every palette role is a default colour; `style-lamp` when every point
   light is the default lamp colour; `style-sky` when the sky is one of the default gradients and there is no `sky`/`clock`/`procgen`. Warnings, so a
   scene's `checks.lint.max_warnings` decides whether they fail `verify`.

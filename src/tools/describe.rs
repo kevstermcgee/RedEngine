@@ -336,7 +336,7 @@ pub const LINT_CODES: &[(&str, &str, &str)] = &[
     (
         "style-palette",
         "warn",
-        "a game (it has `rules` or `ui`) with no `style.palette`, or one whose roles are all the default colours: it looks like every other game -> add style.palette with 6-8 roles of your own (`describe style`)",
+        "a game (it has a `ui`) with no `style.palette`, or one whose roles are all the default colours: it looks like every other game -> add style.palette with 6-8 roles of your own (`describe style`)",
     ),
     (
         "style-lamp",

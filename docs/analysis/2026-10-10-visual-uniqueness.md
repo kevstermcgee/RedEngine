@@ -33,9 +33,9 @@ change the mood; the remaining 24% are the hard-coded hex inside prefabs (drawer
 - **Palette roles** (12 standard roles, `describe style`): 86 catalogue params now bind to a role (wood 15, primary 19, stone 16, trim 11, fabric 9,
   accent 9, foliage 4, metal 3), chosen by name and description; a test keeps every binding on a standard role with a hex default. Food, toys and the
   contents of paintings stay unbound on purpose: an apple is red in every game.
-- **Lint**: games only (a scene with `rules` or `ui`). `style-palette` without a palette fires only when at least half of the surfaces are default
+- **Lint**: games only (a scene with a `ui`: rules alone are level logic, and a lint test of a gate opened by a rule is not a game). `style-palette` without a palette fires only when at least half of the surfaces are default
   colours, so a game that picked its own hex by hand (Marcel) is not asked for a palette; `lantern_walk` (12 of 13 default) is. The two recipes and Drowsy
-  Marathon, whose checks allow no warnings, got a sky of their own.
+  Marathon, whose checks allow no warnings, got a sky of their own (Gated Garden has no `ui`, so it is not checked; its new sky is harmless).
 - **`style-report`**: shared vs own vs hand-built, re-skinned count, palette distance, default-coloured surfaces, voxel models, sound files, the
   defaults lint says were kept; `--sheet` (and `catalog --scene GAME --local --sheet`) draws the game's own prefabs in its own palette and presets.
 - **Idea Forge**: the 3D brief's "before inventing anything" is replaced by a floor: a palette of 6-8 roles of the game's own colours with light and
@@ -62,6 +62,6 @@ floor but stay flat boxes, build `array_path` and the four patterns (B6's order)
 
 ## Method
 
-`red_engine2 style-report <game>` and `lint` on each scene; the showcase room is two generated scenes (default and styled) with `"rules": []` added so the
+`red_engine2 style-report <game>` and `lint` on each scene; the showcase room is two generated scenes (default and styled) with `"ui": {}` added so the
 game-only checks apply; `frame` renders of both, inspected. Catalogue counts: a script over `assets/*.json`. The binding pass is reproducible from the
 rules in this note (param name and description keywords; frames by prefab).
