@@ -10,6 +10,13 @@ API identifiers and follow this order before adding anything:
 4. **Import** — bring in a compatible JSON prefab from another project/pack only after checking its
    source and license. Binary model/texture import is not currently part of the engine (ADR 0008).
 
+That order is for *adding to the library*. A *game* still needs a look of its own, or every game made from
+the same shared assets looks the same: give it a `style` (a palette of its own roles; shared params bound
+with `"palette": "<role>"` take its colours), a few prefabs of its own, and look at them with
+`red_engine2 catalog --scene GAME --local --sheet out/own.png` and `red_engine2 style-report GAME`
+(`describe style`; ADR 2026-10-10-a-game-style-block-re-skins-shared-prefabs). A new colour param on a shared
+prefab should bind to the standard role it paints (`style::DEFAULT_PALETTE`).
+
 Game-local libraries are ordinary JSON files and are discoverable before promotion:
 
 ```text

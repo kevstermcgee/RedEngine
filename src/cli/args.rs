@@ -345,6 +345,17 @@ pub(crate) enum Command {
         #[arg(long)]
         size: Option<String>,
     },
+    /// How much of a game's look is its own: shared catalogue vs its own prefabs, palette distance from the defaults, default-coloured surfaces, voxel
+    /// models, sound files, the defaults lint says it kept. `--sheet out.png` draws its own prefabs in its style. Works on a 3D scene or a .game2d.json.
+    StyleReport {
+        game: PathBuf,
+        /// Draw the game's own prefabs (in its style) as a labelled contact sheet.
+        #[arg(long)]
+        sheet: Option<PathBuf>,
+        /// Columns in the sheet.
+        #[arg(long, default_value_t = 4)]
+        cols: u32,
+    },
     /// A clock scene across the day, as a sheet. `sky scene.json out.png --hours 5,6,12,18`.
     Sky {
         scene: PathBuf,
@@ -617,6 +628,12 @@ pub(crate) enum Command {
         /// Include a game/project prefab JSON file in discovery (repeatable). Definitions use the same format as assets/*.json.
         #[arg(long = "library")]
         libraries: Vec<PathBuf>,
+        /// Include a game's own prefabs (its scene's `prefabs` block) and draw sheets in its `style` (palette-bound params take its colours).
+        #[arg(long)]
+        scene: Option<PathBuf>,
+        /// Only the game's own assets (from --scene and --library), not the engine's catalogue: `catalog --scene GAME --local --sheet out.png` shows what the game made.
+        #[arg(long)]
+        local: bool,
         /// Print the versioned asset API, pack registry, and growth policy instead of asset rows.
         #[arg(long)]
         manifest: bool,

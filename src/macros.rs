@@ -11,6 +11,7 @@
 //! the macro object itself becomes the `group`, so tools report/edit at the macro's own id.
 
 use serde_json::{json, Map, Value};
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Coplanar faces of two different boxes z-fight (flicker between their colours), and the
 /// pieces of a trimmed opening naturally want to share planes: the trim's inner face with the
@@ -697,6 +698,87 @@ fn check_num(obj: &Map<String, Value>, key: &str, path: &str, min: f64, inclusiv
 }
 
 /// The numeric options of `wall` and `fence` that `num` reads, checked before expansion (`text` checks its own).
+/// The largest voxel sprite, a side (the same cap as a 2D sprite).
+pub const MAX_VOXEL_SIDE: usize = 64;
+
+/// `voxels`: pixel art pressed into 3D (what `shape: "voxels"` is in a 2D game's hybrid models). `rows` top row first, one character per cell, `.` or space
+/// empty; `palette` maps each character to a colour (`#rrggbb` or `@role`); `cell` is a cube's side in metres (0.1), `depth` how many cells thick (1). The
+/// origin is the middle of the bottom edge (like a prop), the front faces +Z. Each colour's cells merge into as few boxes as rectangles allow.
+fn expand_voxels(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> Vec<Value> {
+    let rows: Vec<&str> = match obj.get("rows").and_then(Value::as_array) {
+        Some(a) if !a.is_empty() && a.iter().all(Value::is_string) => a.iter().filter_map(Value::as_str).collect(),
+        _ => {
+            errs.push(format!("{id}.rows: a voxels object needs \"rows\": [\"..aa..\", \".aaaa.\"] (top row first; '.' is empty)"));
+            return vec![];
+        }
+    };
+    let width = rows.iter().map(|r| r.chars().count()).max().unwrap_or(0);
+    if rows.len() > MAX_VOXEL_SIDE || width > MAX_VOXEL_SIDE {
+        errs.push(format!(
+            "{id}.rows: {width} x {} cells; at most {MAX_VOXEL_SIDE} a side (a prop, not a level: use boxes or terrain for big things)",
+            rows.len()
+        ));
+        return vec![];
+    }
+    let palette: BTreeMap<char, String> = match obj.get("palette").and_then(Value::as_object) {
+        Some(p) => {
+            let mut out = BTreeMap::new();
+            for (k, v) in p {
+                let mut cs = k.chars();
+                match (cs.next(), cs.next(), v.as_str()) {
+                    (Some(c), None, Some(color)) if c != '.' && c != ' ' => {
+                        out.insert(c, color.to_string());
+                    }
+                    _ => errs.push(format!("{id}.palette.{k}: each key is one character (not '.' or space) and each value a colour \"#rrggbb\" or \"@role\"")),
+                }
+            }
+            out
+        }
+        None => {
+            errs.push(format!("{id}.palette: a voxels object needs \"palette\": {{\"a\": \"#c0392b\"}} (one colour per character used in rows)"));
+            return vec![];
+        }
+    };
+    let missing: BTreeSet<char> = rows.iter().flat_map(|r| r.chars()).filter(|c| *c != '.' && *c != ' ' && !palette.contains_key(c)).collect();
+    if !missing.is_empty() {
+        errs.push(format!("{id}.rows: no palette colour for {}", missing.iter().map(|c| format!("'{c}'")).collect::<Vec<_>>().join(", ")));
+    }
+    let cell = obj.get("cell").and_then(Value::as_f64).unwrap_or(0.1);
+    let depth = obj.get("depth").and_then(Value::as_u64).unwrap_or(1);
+    if !(cell > 0.0 && cell <= 2.0) {
+        errs.push(format!("{id}.cell: {cell} m; a cube's side is 0 < cell <= 2 (0.1 is the default)"));
+    }
+    if obj.get("depth").is_some_and(|d| d.as_u64().is_none_or(|d| !(1..=MAX_VOXEL_SIDE as u64).contains(&d))) {
+        errs.push(format!("{id}.depth: a whole number of cells, 1..{MAX_VOXEL_SIDE} (1 is the default: a flat cut-out)"));
+    }
+    if !errs.is_empty() {
+        return vec![];
+    }
+    let extra: Map<String, Value> = obj.get("material").and_then(Value::as_object).cloned().unwrap_or_default();
+    let (w, h) = (width as f64, rows.len() as f64);
+    let mut kids = Vec::new();
+    for (ch, color) in &palette {
+        let grid: Vec<Vec<bool>> = rows.iter().map(|r| (0..width).map(|i| r.chars().nth(i) == Some(*ch)).collect()).collect();
+        for (n, (c, r, rw, rh)) in merge_pixels(&grid).into_iter().enumerate() {
+            let mut material = extra.clone();
+            material.insert("color".into(), json!(color));
+            material.entry("roughness").or_insert(json!(0.8));
+            kids.push(json!({
+                "id": format!("v{}_{n}", *ch as u32),
+                "type": "box",
+                "size": [r4(rw as f64 * cell), r4(rh as f64 * cell), r4(depth as f64 * cell)],
+                "position": [r4((c as f64 + rw as f64 / 2.0 - w / 2.0) * cell), r4((h - r as f64 - rh as f64 / 2.0) * cell), 0.0],
+                "material": material,
+            }));
+        }
+    }
+    kids
+}
+
+fn r4(x: f64) -> f64 {
+    (x * 10000.0).round() / 10000.0
+}
+
 fn check_macro(ty: &str, obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) {
     match ty {
         "wall" => {
@@ -730,14 +812,15 @@ pub fn expand(ty: &str, obj: &Map<String, Value>, id: &str) -> Result<Value, Vec
         "fence" => expand_fence(obj, id, &mut errs),
         "text" => expand_text(obj, id, &mut errs),
         "array" => expand_array(obj, id, &mut errs),
+        "voxels" => expand_voxels(obj, id, &mut errs),
         _ => unreachable!("caller checked the macro type"),
     };
     if !errs.is_empty() {
         return Err(errs);
     }
     let mut group = json!({ "id": id, "type": "group", "children": kids });
-    if ty == "text" || ty == "array" {
-        // Lettering and arrays are placed like any object (a wall's pieces carry absolute coordinates instead).
+    if ty == "text" || ty == "array" || ty == "voxels" {
+        // Lettering, arrays and voxel models are placed like any object (a wall's pieces carry absolute coordinates instead).
         for key in ["position", "rotation", "scale", "lint_ignore"] {
             if let Some(v) = obj.get(key) {
                 group[key] = v.clone();
@@ -753,7 +836,7 @@ pub fn expand(ty: &str, obj: &Map<String, Value>, id: &str) -> Result<Value, Vec
     Ok(group)
 }
 
-pub const MACRO_TYPES: &[&str] = &["wall", "fence", "text", "array"];
+pub const MACRO_TYPES: &[&str] = &["wall", "fence", "text", "array", "voxels"];
 
 #[cfg(test)]
 mod tests {
@@ -773,6 +856,38 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn voxels(json: Value) -> Result<Value, Vec<String>> {
+        expand("voxels", json.as_object().unwrap(), json["id"].as_str().unwrap())
+    }
+
+    #[test]
+    fn voxels_cover_every_painted_cell_once_with_merged_boxes_standing_on_the_origin() {
+        let g = voxels(json!({"id": "m", "type": "voxels", "cell": 0.1, "depth": 3, "position": [1, 0, 2],
+            "rows": [".rr.", "rwwr", "rrrr", ".ss."], "palette": {"r": "#c0392b", "w": "#ffffff", "s": "#e8dcc0"}}))
+        .unwrap();
+        assert_eq!(g["type"], "group");
+        assert_eq!(g["position"], json!([1, 0, 2]));
+        let boxes = kids(&g);
+        let area: f64 = boxes.iter().map(|b| b["size"][0].as_f64().unwrap() * b["size"][1].as_f64().unwrap()).sum();
+        assert!((area - 12.0 * 0.01).abs() < 1e-9, "12 painted cells of 0.1 m: {area}");
+        assert!(boxes.len() < 12, "cells of one colour merge: {} boxes", boxes.len());
+        let bottom = boxes.iter().map(|b| b["position"][1].as_f64().unwrap() - b["size"][1].as_f64().unwrap() / 2.0).fold(f64::MAX, f64::min);
+        let top = boxes.iter().map(|b| b["position"][1].as_f64().unwrap() + b["size"][1].as_f64().unwrap() / 2.0).fold(f64::MIN, f64::max);
+        assert!(bottom.abs() < 1e-9 && (top - 0.4).abs() < 1e-9, "the bottom row stands on y = 0: {bottom}..{top}");
+        assert!(boxes.iter().all(|b| (b["size"][2].as_f64().unwrap() - 0.3).abs() < 1e-9), "three cells deep");
+        assert!(boxes.iter().any(|b| b["material"]["color"] == "#ffffff"));
+    }
+
+    #[test]
+    fn voxels_say_what_is_missing() {
+        let e = voxels(json!({"id": "m", "type": "voxels", "rows": ["ab"], "palette": {"a": "#ff0000"}})).unwrap_err();
+        assert!(e[0].contains("no palette colour for 'b'"), "{e:?}");
+        let e = voxels(json!({"id": "m", "type": "voxels", "palette": {"a": "#ff0000"}})).unwrap_err();
+        assert!(e[0].contains("needs \"rows\""), "{e:?}");
+        let big: Vec<String> = (0..65).map(|_| "a".repeat(10)).collect();
+        assert!(voxels(json!({"id": "m", "type": "voxels", "rows": big, "palette": {"a": "#ff0000"}})).unwrap_err()[0].contains("at most 64"));
     }
 
     fn text(json: Value) -> Result<Value, Vec<String>> {

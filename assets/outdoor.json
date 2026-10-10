@@ -36,7 +36,7 @@
     "tags": ["outdoor", "garden", "metal", "small"],
     "desc": "A watering can, spout toward +Z.",
     "collide": false,
-    "params": {"color": {"default": "#3a8a5a", "desc": "paint color"}},
+    "params": {"color": {"palette": "primary", "default": "#3a8a5a", "desc": "paint color"}},
     "objects": [
       {"id": "body", "type": "cylinder", "radius": 0.1, "height": 0.22, "position": [0, 0.11, 0], "material": {"color": "$color", "roughness": 0.4, "metallic": 0.6}},
       {"id": "spout", "type": "cylinder", "radius": 0.018, "height": 0.3, "position": [0, 0.21, 0.2], "rotation": [55, 0, 0], "material": {"color": "$color", "roughness": 0.4, "metallic": 0.6}},
@@ -48,7 +48,7 @@
     "name": "wheelbarrow",
     "tags": ["outdoor", "garden", "tool"],
     "desc": "A wheelbarrow, wheel toward +Z.",
-    "params": {"color": {"default": "#3a6ea5", "desc": "tub color"}},
+    "params": {"color": {"palette": "primary", "default": "#3a6ea5", "desc": "tub color"}},
     "objects": [
       {"id": "tub", "type": "box", "size": [0.6, 0.28, 0.7], "position": [0, 0.42, -0.05], "rotation": [0, 0, 0], "material": {"color": "$color", "roughness": 0.5, "metallic": 0.4}},
       {"id": "wheel", "type": "cylinder", "radius": 0.18, "height": 0.06, "position": [0, 0.18, 0.5], "rotation": [0, 0, 90], "material": {"color": "#2a2c31", "roughness": 0.6}},
@@ -62,7 +62,7 @@
     "name": "birdhouse",
     "tags": ["outdoor", "decor", "garden"],
     "desc": "A birdhouse on a post; entrance faces +Z.",
-    "params": {"color": {"default": "#c98a4a", "desc": "house color"}},
+    "params": {"color": {"palette": "primary", "default": "#c98a4a", "desc": "house color"}},
     "objects": [
       {"id": "post", "type": "cylinder", "radius": 0.03, "height": 1.4, "position": [0, 0.7, 0], "material": {"color": "#6a4526", "roughness": 0.9}},
       {"id": "house", "type": "box", "size": [0.28, 0.24, 0.26], "position": [0, 1.52, 0], "material": {"color": "$color", "roughness": 0.8}},
@@ -108,7 +108,7 @@
     "name": "lawn_chair",
     "tags": ["outdoor", "chair", "seating"],
     "desc": "A reclined lawn chair; faces +Z.",
-    "params": {"color": {"default": "#3a8a5a", "desc": "fabric color"}},
+    "params": {"color": {"palette": "fabric", "default": "#3a8a5a", "desc": "fabric color"}},
     "objects": [
       {"id": "leg_fl", "type": "box", "size": [0.03, 0.3, 0.03], "position": [-0.25, 0.15, 0.3], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}},
       {"id": "leg_fr", "type": "box", "size": [0.03, 0.3, 0.03], "position": [0.25, 0.15, 0.3], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}},
@@ -124,7 +124,7 @@
     "name": "sun_umbrella",
     "tags": ["outdoor", "furniture", "garden"],
     "desc": "A patio umbrella on a pole and base.",
-    "params": {"color": {"default": "#d9532a", "desc": "canopy color"}},
+    "params": {"color": {"palette": "primary", "default": "#d9532a", "desc": "canopy color"}},
     "objects": [
       {"id": "base", "type": "cylinder", "radius": 0.25, "height": 0.06, "position": [0, 0.03, 0], "material": {"color": "#8a8f98", "roughness": 0.8}},
       {"id": "pole", "type": "cylinder", "radius": 0.025, "height": 2.2, "position": [0, 1.13, 0], "material": {"color": "#c9ced6", "roughness": 0.6, "metallic": 0.8}},
@@ -136,7 +136,7 @@
     "name": "doghouse",
     "tags": ["outdoor", "pet", "wood"],
     "desc": "A doghouse; entrance faces +Z.",
-    "params": {"color": {"default": "#b9783a", "desc": "wall color"}},
+    "params": {"color": {"palette": "primary", "default": "#b9783a", "desc": "wall color"}},
     "objects": [
       {"id": "back", "type": "box", "size": [0.8, 0.6, 0.03], "position": [0, 0.35, -0.45], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "side_l", "type": "box", "size": [0.03, 0.6, 0.9], "position": [-0.385, 0.35, 0], "material": {"color": "$color", "roughness": 0.6}},

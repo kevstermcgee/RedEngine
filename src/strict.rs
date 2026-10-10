@@ -55,6 +55,8 @@ pub const ROOT_KEYS: &[&str] = &[
     "procgen",
     "audio",
     "ocean",
+    "style",
+    "fog",
     "objects",
 ];
 /// `meta` keys.
@@ -130,6 +132,7 @@ pub fn object_keys(ty: &str) -> Option<Vec<&'static str>> {
         "fence" => &["points", "closed", "y", "height", "post_spacing", "style", "material", "post_color", "gaps"],
         "array" => &["template", "count", "step", "positions", "rotation_step"],
         "text" => &["text", "height", "depth", "align", "spacing", "line_gap", "backing", "material"],
+        "voxels" => &["rows", "palette", "cell", "depth", "material"],
         "prefab" => return Some(PREFAB_INSTANCE_KEYS.to_vec()),
         _ => return None,
     };

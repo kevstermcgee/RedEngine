@@ -18,10 +18,7 @@
    720
   ]
  },
- "background": {
-  "sky_top": "#8fc7ff",
-  "sky_bottom": "#eef6ff"
- },
+ "style": {"sky": {"top": "#3b2d6b", "bottom": "#e8b4c8"}},
  "ambient": {
   "color": "#ffffff",
   "intensity": 0.45

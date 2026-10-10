@@ -53,6 +53,8 @@ pub struct ParamDef {
     pub name: String,
     pub default: Value,
     pub desc: String,
+    /// The palette role this param takes its default from when the scene has a `style.palette` naming it (`"palette": "wood"` in the param spec; `style`).
+    pub palette: Option<String>,
 }
 
 /// A prefab template: name, category, tags, description, params and the object JSON it expands to.
@@ -92,6 +94,8 @@ pub struct PrefabDef {
 #[derive(Debug, Clone, Default)]
 pub struct Library {
     pub defs: Vec<PrefabDef>,
+    /// The scene's palette (`style.palette`, role -> `#rrggbb`): a param bound to a role it names defaults to that colour.
+    pub palette: BTreeMap<String, String>,
 }
 
 impl Library {
@@ -160,8 +164,13 @@ impl Library {
 fn param_spec(name: &str, v: &Value) -> ParamDef {
     // `{"default": .., "desc": ..}` is a spec; anything else is just the default value.
     match v.as_object().filter(|o| o.contains_key("default")) {
-        Some(o) => ParamDef { name: name.to_string(), default: o["default"].clone(), desc: o.get("desc").and_then(Value::as_str).unwrap_or("").to_string() },
-        None => ParamDef { name: name.to_string(), default: v.clone(), desc: String::new() },
+        Some(o) => ParamDef {
+            name: name.to_string(),
+            default: o["default"].clone(),
+            desc: o.get("desc").and_then(Value::as_str).unwrap_or("").to_string(),
+            palette: o.get("palette").and_then(Value::as_str).map(str::to_string),
+        },
+        None => ParamDef { name: name.to_string(), default: v.clone(), desc: String::new(), palette: None },
     }
 }
 
@@ -216,6 +225,9 @@ fn build_def(name: &str, o: &Map<String, Value>, category: &str, lib: &Library) 
                     e.default = spec.default;
                     if !spec.desc.is_empty() {
                         e.desc = spec.desc;
+                    }
+                    if spec.palette.is_some() {
+                        e.palette = spec.palette;
                     }
                 }
                 None => params.push(spec),
@@ -516,7 +528,15 @@ pub fn expand_instance(lib: &Library, inst: &Map<String, Value>, id: &str, depth
     if depth > MAX_DEPTH {
         return Err(vec![format!("{id}: prefabs nest more than {MAX_DEPTH} deep (does '{name}' contain itself?)")]);
     }
-    let mut params: BTreeMap<String, Value> = def.params.iter().map(|p| (p.name.clone(), p.default.clone())).collect();
+    // A param bound to a palette role defaults to the scene's colour for that role (`style.palette`), so a shared prefab re-skins per game.
+    let mut params: BTreeMap<String, Value> = def
+        .params
+        .iter()
+        .map(|p| {
+            let themed = p.palette.as_ref().and_then(|role| lib.palette.get(role)).map(|c| Value::String(c.clone()));
+            (p.name.clone(), themed.unwrap_or_else(|| p.default.clone()))
+        })
+        .collect();
     let mut errs = Vec::new();
     crate::strict::check_keys(&mut errs, id, inst, crate::strict::PREFAB_INSTANCE_KEYS);
     if let Some(given) = inst.get("params") {
@@ -631,6 +651,7 @@ pub fn expand_scene(root: &mut Value) -> Result<(), Vec<String>> {
     let (built, load_errs) = builtin();
     let mut errs: Vec<String> = load_errs.clone();
     let mut lib = built.clone();
+    lib.palette = crate::style::palette_of(root);
     if let Some(local) = root.get("prefabs") {
         errs.extend(lib.add_json(local, "scene").into_iter().map(|e| format!("prefabs: {e}")));
     }
@@ -705,6 +726,48 @@ mod tests {
         assert_eq!(c["size"], json!([0.1, 3, 0.1]));
         assert_eq!(c["position"], json!([0, 1.5, 0]));
         assert_eq!(c["material"]["color"], "#ff0000");
+    }
+
+    #[test]
+    fn a_param_bound_to_a_palette_role_takes_the_scene_colour_unless_given() {
+        let mut lib = Library::default();
+        let errs = lib.add_json(
+            &json!([{ "name": "chair", "tags": ["seat"], "params": { "color": { "default": "#8b5a2b", "palette": "wood" }, "pad": "#ff0000" },
+                      "objects": [{ "id": "s", "type": "box", "size": [0.4, 0.04, 0.4], "material": { "color": "$color" } },
+                                  { "id": "p", "type": "box", "size": [0.3, 0.02, 0.3], "material": { "color": "$pad" } }] }]),
+            "t",
+        );
+        assert!(errs.is_empty(), "{errs:?}");
+        assert_eq!(lib.find("chair").unwrap().params.iter().find(|p| p.name == "color").unwrap().palette.as_deref(), Some("wood"));
+        let inst = json!({ "id": "a", "type": "prefab", "prefab": "chair" });
+        let plain = expand_instance(&lib, inst.as_object().unwrap(), "a", 0).unwrap();
+        assert_eq!(plain["children"][0]["material"]["color"], "#8b5a2b", "no palette: the prefab's own default");
+        lib.palette.insert("wood".into(), "#3b2418".into());
+        let themed = expand_instance(&lib, inst.as_object().unwrap(), "a", 0).unwrap();
+        assert_eq!(themed["children"][0]["material"]["color"], "#3b2418", "the palette's wood");
+        assert_eq!(themed["children"][1]["material"]["color"], "#ff0000", "an unbound param is untouched");
+        let given = json!({ "id": "a", "type": "prefab", "prefab": "chair", "params": { "color": "#00ff00" } });
+        assert_eq!(
+            expand_instance(&lib, given.as_object().unwrap(), "a", 0).unwrap()["children"][0]["material"]["color"],
+            "#00ff00",
+            "an instance's own value wins"
+        );
+    }
+
+    #[test]
+    fn every_catalogue_palette_binding_names_a_standard_role() {
+        for d in &builtin().0.defs {
+            for p in d.params.iter().filter(|p| p.palette.is_some()) {
+                let role = p.palette.as_deref().unwrap();
+                assert!(
+                    crate::style::default_role(role).is_some(),
+                    "{}.params.{}: palette '{role}' is not a standard role (style::DEFAULT_PALETTE)",
+                    d.name,
+                    p.name
+                );
+                assert!(p.default.as_str().is_some_and(|c| c.starts_with('#')), "{}.params.{}: a palette-bound param needs a #hex default", d.name, p.name);
+            }
+        }
     }
 
     #[test]

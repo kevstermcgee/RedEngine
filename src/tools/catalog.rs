@@ -151,7 +151,18 @@ fn measure(def: &prefabs::PrefabDef, lib: &prefabs::Library, source: &str) -> En
         min: Vec3::ZERO,
         max: Vec3::ZERO,
         solid_parts: 0,
-        params: def.params.iter().map(|p| (p.name.clone(), p.default.clone(), p.desc.clone())).collect(),
+        params: def
+            .params
+            .iter()
+            .map(|p| {
+                let desc = match &p.palette {
+                    Some(role) if p.desc.is_empty() => format!("palette: {role}"),
+                    Some(role) => format!("{} [palette: {role}]", p.desc),
+                    None => p.desc.clone(),
+                };
+                (p.name.clone(), p.default.clone(), desc)
+            })
+            .collect(),
         variant_of: def.extends.clone(),
         status: def.status.clone(),
         revision: def.revision,
@@ -233,6 +244,28 @@ pub fn entries_with_libraries(paths: &[PathBuf]) -> Result<Vec<Entry>, String> {
             .map(|(_, (d, source))| measure(d, &lib, &source)),
     );
     Ok(out)
+}
+
+/// A game's own prefabs (its scene's `prefabs` block) as catalogue entries, measured in the game's palette, plus the overlay a contact sheet needs to draw
+/// them in the game's look (`{"prefabs": .., "style": ..}`). `style-report` and `catalog --scene` use it.
+pub fn scene_entries(path: &Path) -> Result<(Vec<Entry>, Value), String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut raw: Value = serde_json::from_str(&text).map_err(|e| format!("{}: invalid JSON: {e}", path.display()))?;
+    crate::style::resolve(&mut raw).map_err(|e| format!("{}: {}", path.display(), e.join("; ")))?;
+    let (builtins, _) = prefabs::builtin();
+    let mut lib = builtins.clone();
+    lib.palette = crate::style::palette_of(&raw);
+    let builtin_len = lib.defs.len();
+    if let Some(local) = raw.get("prefabs") {
+        let errors = lib.add_json(local, "game");
+        if !errors.is_empty() {
+            return Err(format!("{}: prefabs: {}", path.display(), errors.join("; ")));
+        }
+    }
+    let source = path.to_string_lossy().replace('\\', "/");
+    let entries = lib.defs[builtin_len..].iter().map(|d| measure(d, &lib, &source)).collect();
+    let overlay = json!({"prefabs": raw.get("prefabs").cloned().unwrap_or(json!([])), "style": raw.get("style").cloned().unwrap_or(Value::Null)});
+    Ok((entries, overlay))
 }
 
 /// Looks an entry up by exact name.
@@ -416,10 +449,22 @@ pub fn sheet(_rows: &[&Entry], _out: &Path, _cols: u32, _tile: (u32, u32)) -> Re
     Err(super::NO_GFX.to_string())
 }
 
+/// Unavailable without the `gfx` feature (no renderer in this build).
+#[cfg(not(feature = "gfx"))]
+pub fn sheet_in(_rows: &[&Entry], _out: &Path, _cols: u32, _tile: (u32, u32), _overlay: Option<&Value>) -> Result<(), String> {
+    Err(super::NO_GFX.to_string())
+}
+
 /// Renders `rows` as a labelled contact sheet: one 3/4-view tile per asset, name on top, real
 /// size at the bottom. Tiny assets are scaled up for framing only (the label shows true size).
 #[cfg(feature = "gfx")]
 pub fn sheet(rows: &[&Entry], out: &Path, cols: u32, tile: (u32, u32)) -> Result<(), String> {
+    sheet_in(rows, out, cols, tile, None)
+}
+
+/// [`sheet`] with a game's `{"prefabs", "style"}` overlay (`scene_entries`): its own prefabs can be drawn, and every palette-bound param takes its colours.
+#[cfg(feature = "gfx")]
+pub fn sheet_in(rows: &[&Entry], out: &Path, cols: u32, tile: (u32, u32), overlay: Option<&Value>) -> Result<(), String> {
     if rows.is_empty() {
         return Err("nothing to render (the filter matched no assets)".to_string());
     }
@@ -468,6 +513,14 @@ pub fn sheet(rows: &[&Entry], out: &Path, cols: u32, tile: (u32, u32)) -> Result
         ],
         "objects": objects,
     });
+    let mut scene_json = scene_json;
+    if let Some(o) = overlay {
+        for k in ["prefabs", "style"] {
+            if let Some(v) = o.get(k).filter(|v| !v.is_null()) {
+                scene_json[k] = v.clone();
+            }
+        }
+    }
     let mut scene = crate::schema::parse_scene(&scene_json.to_string()).map_err(|e| e.join("\n"))?;
     let mut renderer = crate::render::Renderer::new(&scene).map_err(|e| e.to_string())?;
     let (tw, th) = (scene.width, scene.height);

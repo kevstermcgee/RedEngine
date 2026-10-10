@@ -89,7 +89,7 @@
     "tags": ["food", "packaged", "small"],
     "desc": "A cereal box; recolor for a different brand.",
     "collide": false,
-    "params": {"color": {"default": "#e0632a", "desc": "box color"}, "accent": {"default": "#f5d24a", "desc": "front label color"}},
+    "params": {"color": {"default": "#e0632a", "desc": "box color"}, "accent": {"palette": "accent", "default": "#f5d24a", "desc": "front label color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [0.2, 0.3, 0.07], "position": [0, 0.15, 0], "material": {"color": "$color", "roughness": 0.5}},
       {"id": "window", "type": "box", "size": [0.14, 0.12, 0.004], "position": [0, 0.17, 0.036], "material": {"color": "$accent", "roughness": 0.4}},
@@ -166,7 +166,7 @@
     "name": "fruit_bowl",
     "tags": ["food", "fruit", "kitchen"],
     "desc": "A bowl of apples; recolor the fruit.",
-    "params": {"bowl": {"default": "#d8cfc0", "desc": "bowl color"}, "fruit": {"default": "#c42b1f", "desc": "fruit color"}},
+    "params": {"bowl": {"palette": "stone", "default": "#d8cfc0", "desc": "bowl color"}, "fruit": {"default": "#c42b1f", "desc": "fruit color"}},
     "objects": [
       {"id": "foot", "type": "cylinder", "radius": 0.06, "height": 0.02, "position": [0, 0.01, 0], "material": {"color": "$bowl", "roughness": 0.4}},
       {"id": "bowl_lower", "type": "cylinder", "radius": 0.1, "height": 0.05, "position": [0, 0.045, 0], "material": {"color": "$bowl", "roughness": 0.4}},

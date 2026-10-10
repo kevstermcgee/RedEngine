@@ -31,6 +31,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("diagnostics", "the `--json` envelope and every diagnostic code with its fix"),
     ("rules", "game logic as data: `vars` + `rules` (when/who/if/once/do), volumes, actions, expressions"),
     ("ui", "game HUD, objective, start/end cards"),
+    ("style", "a game's own look: palette roles, material presets, light rig, sky, fog"),
     ("audio", "measure sound: LUFS, peaks, seam, pitch, spectrogram"),
     ("sim", "scripted headless play-throughs (`sim`) and match traces (`replay`)"),
     ("multiplayer", "hosting and playing online"),
@@ -200,6 +201,19 @@ pub const TYPES: &[TypeInfo] = &[
         example: r##"{"id":"sign_depot","type":"text","text":"DEPOT\nOPEN 24H","position":[0,2.2,-3.9],"height":0.25,"backing":"#23303f","material":{"color":"#ffcc66","emissive":"#553300"}}"##,
     },
     TypeInfo {
+        name: "voxels",
+        summary: "macro: pixel art pressed into 3D (a 2D game's `shape: \"voxels\"`, in a 3D scene or prefab): a 3D prop drawn as rows of characters, each colour merged into the fewest boxes. Origin = middle of the bottom edge, front = +Z.",
+        fields: &[
+            ("rows", "[string], required", "top row first, one character per cell; '.' or space is empty; at most 64 x 64"),
+            ("palette", "{char: #hex | @role}, required", "the colour of each character (`@role` takes the game's style palette)"),
+            ("cell", "number = 0.1", "a cube's side in metres"),
+            ("depth", "whole cells = 1", "how many cells thick (1 = a flat cut-out)"),
+            ("material", "{roughness, metallic, emissive, ...}", "applied to every cube (the colour comes from the palette); roughness defaults to 0.8"),
+            ("collide", "bool = true", "the cubes are boxes: they collide unless this is false"),
+        ],
+        example: r##"{"id":"mushroom","type":"voxels","position":[0,0,-2],"cell":0.1,"depth":4,"rows":[".rrrr.","rrwrrr","rrrrwr","..ss..","..ss.."],"palette":{"r":"#c0392b","w":"#f4f1e8","s":"#e8dcc0"}}"##,
+    },
+    TypeInfo {
         name: "array",
         summary: "macro: copies of one template along a step (or at listed positions), named <id>.0, <id>.1, ... so repeated geometry never needs hand-written ids. A group template's children are renamed per copy.",
         fields: &[
@@ -277,6 +291,8 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("world", "{wrap: {axis: x|z, min, max}, bounds: {x: [lo, hi], z: [lo, hi]}} an endless world: the axis loops every max-min metres (author one period; the seam is invisible), bounds are the invisible edge of the other axes"),
     ("sky", "{sun: {direction:[x,y,z] toward the sun, size_deg, color, glow}, haze, zenith, gradient_power} a sky dome shaded by view direction with a sun at infinity that sets behind the horizon instead of dipping under the ground; without it `background` is a screen-space gradient"),
     ("ocean", "{y, color_deep, color_shallow, foam_color, wave_amplitude, wave_frequency, wave_speed, roughness} an endless animated water plane to the horizon, translucent over a shore (reads the scene's first terrain), fading into the sky haze"),
+    ("style", "{palette: {role: #hex}, materials: {preset: {color, roughness, metallic, emissive, opacity}}, light: {sun, ambient, lamp}, sky: {top, bottom}|{color}, fog: {color, density}, post} the game's own look: \"@wood\" anywhere a colour goes is the palette's wood; shared prefabs whose params bind to a role (\"palette\": \"wood\") re-skin with it; `material: {preset}` uses a preset; light/sky/fog/post fill the scene's blocks only where it has none. Standard roles: primary secondary accent wood metal fabric floor wall trim foliage stone lamp (`describe style`)"),
+    ("fog", "{color, density} distance fog (density 0.01 haze ... 0.1 thick); usually written as style.fog; a `clock` brings its own"),
     ("checks", "expectations `verify` runs: {lint, reach, walk, objects, views, sim, perf, nav, audio} — see SPEC; every field is typed (a string is never a number) and a group or item that asserts nothing is an error; `perf` = budgets for tick time, bandwidth, promoted props (`red_engine2 perf`)"),
     ("objects", "the scene graph: array of objects (see `describe objects`)"),
     ("x-*, _*, notes, $comment", "the extension namespace: always allowed, never interpreted — put notes and tool data here. ANY OTHER unknown key is an error with a did-you-mean"),
@@ -316,6 +332,21 @@ pub const LINT_CODES: &[(&str, &str, &str)] = &[
         "jump-clearance",
         "warn",
         "an overhead slab out of reach standing but within this map's jump shoves a jumper sideways -> raise its underside to 2.0 m + jump apex (jump_speed^2 / 2 gravity from `player`), or lower it under 2.05 m",
+    ),
+    (
+        "style-palette",
+        "warn",
+        "a game (it has a `ui`) with no `style.palette`, or one whose roles are all the default colours: it looks like every other game -> add style.palette with 6-8 roles of your own (`describe style`)",
+    ),
+    (
+        "style-lamp",
+        "warn",
+        "a game whose point lights all keep the default lamp colour (#fff4e0 / white) -> a palette `lamp` role or style.light.lamp",
+    ),
+    (
+        "style-sky",
+        "warn",
+        "a game with a default sky gradient (the engine's, a recipe's, the blueprint's) and no `sky`/`clock` -> style.sky {top, bottom}",
     ),
 ];
 
@@ -843,6 +874,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
                 "example": serde_json::from_str::<Value>(RULES_EXAMPLE).unwrap_or(Value::Null),
             }),
             "ui" => json!({"text": ui_text()}),
+            "style" => json!({"text": crate::style::describe_text()}),
             "audio" => json!({"text": audio_text()}),
             "sim" => json!({"text": sim_text()}),
             "multiplayer" => json!({"text": multiplayer_text()}),
@@ -873,6 +905,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "diagnostics" => out.push_str(&diagnostics_text()),
         "rules" => out.push_str(&rules_text()),
         "ui" => out.push_str(&ui_text()),
+        "style" => out.push_str(&crate::style::describe_text()),
         "audio" => out.push_str(&audio_text()),
         "sim" => out.push_str(&sim_text()),
         "multiplayer" => out.push_str(&multiplayer_text()),

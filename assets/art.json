@@ -11,7 +11,7 @@
   "mount": "wall",
   "collide": false,
   "params": {
-   "frame": {
+   "frame": {"palette": "wood", 
     "default": "#5a3a1e",
     "desc": "frame color"
    },
@@ -261,7 +261,7 @@
   "mount": "wall",
   "collide": false,
   "params": {
-   "frame": {
+   "frame": {"palette": "wood", 
     "default": "#3d4a52",
     "desc": "frame color"
    },
@@ -539,7 +539,7 @@
   "mount": "wall",
   "collide": false,
   "params": {
-   "frame": {
+   "frame": {"palette": "wood", 
     "default": "#1f1f1f",
     "desc": "frame color"
    },
@@ -1283,7 +1283,7 @@
     "default": "#1f2a52",
     "desc": "poster background"
    },
-   "accent": {
+   "accent": {"palette": "accent", 
     "default": "#f0c24a",
     "desc": "moon / accent"
    }
@@ -2319,7 +2319,7 @@
   "mount": "wall",
   "collide": false,
   "params": {
-   "accent": {
+   "accent": {"palette": "accent", 
     "default": "#2f6fb0",
     "desc": "header color"
    }
@@ -3467,11 +3467,11 @@
   "mount": "wall",
   "collide": false,
   "params": {
-   "color": {
+   "color": {"palette": "fabric", 
     "default": "#2f4f9a",
     "desc": "cloth color"
    },
-   "stripe": {
+   "stripe": {"palette": "accent", 
     "default": "#f0c24a",
     "desc": "stripe / emblem color"
    }
@@ -4155,7 +4155,7 @@
   ],
   "desc": "A museum display plinth (1 m by default); stand a small sculpture on it at y = height.",
   "params": {
-   "plinth": {
+   "plinth": {"palette": "stone", 
     "default": "#ece8df",
     "desc": "plinth color"
    }
@@ -4227,7 +4227,7 @@
   ],
   "desc": "A short (0.6 m) display plinth.",
   "params": {
-   "plinth": {
+   "plinth": {"palette": "stone", 
     "default": "#e2ddd2",
     "desc": "plinth color"
    }
@@ -4684,7 +4684,7 @@
   ],
   "desc": "A marble bust on a plinth (1.5 m tall in total).",
   "params": {
-   "stone": {
+   "stone": {"palette": "stone", 
     "default": "#e6e2d8",
     "desc": "marble color"
    }
@@ -4866,7 +4866,7 @@
   ],
   "desc": "A bronze-style figure with raised arms on a low plinth (1.5 m tall).",
   "params": {
-   "metal": {
+   "metal": {"palette": "metal", 
     "default": "#8c6a3a",
     "desc": "bronze color"
    }
@@ -5053,11 +5053,11 @@
   ],
   "desc": "A glazed ceramic cat sitting upright (0.4 m).",
   "params": {
-   "color": {
+   "color": {"palette": "stone", 
     "default": "#e8e4dc",
     "desc": "glaze"
    },
-   "accent": {
+   "accent": {"palette": "accent", 
     "default": "#3a4a6a",
     "desc": "stripe color"
    }
@@ -6738,7 +6738,7 @@
   ],
   "desc": "A tall dark monolith with a brass band (1.7 m).",
   "params": {
-   "color": {
+   "color": {"palette": "stone", 
     "default": "#1c1f26",
     "desc": "stone color"
    }
@@ -6970,7 +6970,7 @@
   ],
   "desc": "A bonsai tree in a blue pot (0.34 m).",
   "params": {
-   "leaf": {
+   "leaf": {"palette": "foliage", 
     "default": "#3f7a3a",
     "desc": "foliage"
    }
@@ -7139,15 +7139,15 @@
   ],
   "desc": "A snake plant (tall, upright blade leaves) in a round pot (1.3 m).",
   "params": {
-   "pot": {
+   "pot": {"palette": "stone", 
     "default": "#b6b0a4",
     "desc": "pot color"
    },
-   "leaf": {
+   "leaf": {"palette": "foliage", 
     "default": "#2f6a3a",
     "desc": "leaf"
    },
-   "leaf2": {
+   "leaf2": {"palette": "foliage", 
     "default": "#4a8a4a",
     "desc": "leaf variation"
    }
@@ -7433,11 +7433,11 @@
   ],
   "desc": "A monstera with big flat leaves in a pot (1.1 m).",
   "params": {
-   "pot": {
+   "pot": {"palette": "stone", 
     "default": "#c98a5a",
     "desc": "pot color"
    },
-   "leaf": {
+   "leaf": {"palette": "foliage", 
     "default": "#3a8a48",
     "desc": "leaf"
    }
@@ -7898,7 +7898,7 @@
   ],
   "desc": "A small cactus with two arms and a pink flower in a pot (0.5 m).",
   "params": {
-   "pot": {
+   "pot": {"palette": "stone", 
     "default": "#c98a5a",
     "desc": "pot color"
    }
@@ -8263,7 +8263,7 @@
   ],
   "desc": "A small standing photo frame for desks and shelves (0.28 m).",
   "params": {
-   "frame": {
+   "frame": {"palette": "wood", 
     "default": "#4a3320",
     "desc": "frame"
    },
@@ -8547,7 +8547,7 @@
   ],
   "desc": "A retro tabletop radio (0.36 m).",
   "params": {
-   "color": {
+   "color": {"palette": "primary", 
     "default": "#3f6a8a",
     "desc": "case color"
    }
@@ -10371,7 +10371,7 @@
   ],
   "desc": "A tall wooden grandfather clock with a pendulum (1.9 m).",
   "params": {
-   "wood": {
+   "wood": {"palette": "wood", 
     "default": "#5a3a26",
     "desc": "wood color"
    }
@@ -10866,7 +10866,7 @@
   ],
   "desc": "A tall floor vase with blossom branches (1.8 m).",
   "params": {
-   "vase": {
+   "vase": {"palette": "stone", 
     "default": "#2f5f7a",
     "desc": "vase glaze"
    },

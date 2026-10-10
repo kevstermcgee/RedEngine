@@ -3,7 +3,7 @@
     "name": "school_desk",
     "tags": ["school", "desk", "furniture"],
     "desc": "A student desk with a book shelf underneath; front toward +Z.",
-    "params": {"color": {"default": "#c9a575", "desc": "desktop color"}},
+    "params": {"color": {"palette": "primary", "default": "#c9a575", "desc": "desktop color"}},
     "objects": [
       {"id": "top", "type": "box", "size": [0.6, 0.03, 0.45], "position": [0, 0.72, 0], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "shelf", "type": "box", "size": [0.5, 0.02, 0.36], "position": [0, 0.4, 0], "material": {"color": "#9aa0a8", "roughness": 0.6, "metallic": 0.5}},
@@ -17,7 +17,7 @@
     "name": "student_chair",
     "tags": ["school", "chair", "seating"],
     "desc": "A molded plastic student chair; faces +Z.",
-    "params": {"color": {"default": "#e0873a", "desc": "plastic color"}},
+    "params": {"color": {"palette": "primary", "default": "#e0873a", "desc": "plastic color"}},
     "objects": [
       {"id": "leg1", "type": "box", "size": [0.025, 0.44, 0.025], "position": [-0.17, 0.22, -0.16], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
       {"id": "leg2", "type": "box", "size": [0.025, 0.44, 0.025], "position": [0.17, 0.22, -0.16], "material": {"color": "#5a5f68", "roughness": 0.4, "metallic": 0.7}},
@@ -62,7 +62,7 @@
     "tags": ["school", "bag", "small"],
     "desc": "A student backpack standing on the floor; straps toward -Z.",
     "collide": false,
-    "params": {"color": {"default": "#2b4f8a", "desc": "main color"}, "accent": {"default": "#c62828", "desc": "trim color"}},
+    "params": {"color": {"default": "#2b4f8a", "desc": "main color"}, "accent": {"palette": "accent", "default": "#c62828", "desc": "trim color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [0.3, 0.42, 0.16], "position": [0, 0.21, 0], "material": {"color": "$color", "roughness": 0.9}},
       {"id": "pocket", "type": "box", "size": [0.24, 0.2, 0.05], "position": [0, 0.14, 0.1], "material": {"color": "$accent", "roughness": 0.9}},
@@ -76,7 +76,7 @@
     "name": "locker",
     "tags": ["school", "storage", "metal"],
     "desc": "A tall metal locker; door faces +Z.",
-    "params": {"color": {"default": "#3a6ea5", "desc": "paint color"}},
+    "params": {"color": {"palette": "primary", "default": "#3a6ea5", "desc": "paint color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [0.32, 1.8, 0.36], "position": [0, 0.9, 0], "material": {"color": "$color", "roughness": 0.5, "metallic": 0.4}},
       {"id": "door", "type": "box", "size": [0.3, 1.74, 0.01], "position": [0, 0.9, 0.184], "material": {"color": "$color", "roughness": 0.45, "metallic": 0.4}},
@@ -108,7 +108,7 @@
     "name": "flag_pole",
     "tags": ["school", "outdoor", "decor"],
     "desc": "A floor-standing flag on a pole.",
-    "params": {"color": {"default": "#b3202a", "desc": "flag color"}},
+    "params": {"color": {"palette": "accent", "default": "#b3202a", "desc": "flag color"}},
     "objects": [
       {"id": "base", "type": "cylinder", "radius": 0.14, "height": 0.04, "position": [0, 0.02, 0], "material": {"color": "#2a2c31", "roughness": 0.6, "metallic": 0.5}},
       {"id": "pole", "type": "cylinder", "radius": 0.018, "height": 2.4, "position": [0, 1.24, 0], "material": {"color": "#c9ced6", "roughness": 0.3, "metallic": 0.8}},

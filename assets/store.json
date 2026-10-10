@@ -3,7 +3,7 @@
     "name": "shelf_gondola",
     "tags": ["store", "shelf", "storage"],
     "desc": "A double-sided store shelf unit with product blocks; 1.2 m wide, 0.6 deep.",
-    "params": {"color": {"default": "#c9ced6", "desc": "shelf color"}, "a": {"default": "#d9532a", "desc": "product color A"}, "b": {"default": "#2a8ad9", "desc": "product color B"}, "c": {"default": "#e0c22a", "desc": "product color C"}},
+    "params": {"color": {"palette": "primary", "default": "#c9ced6", "desc": "shelf color"}, "a": {"default": "#d9532a", "desc": "product color A"}, "b": {"default": "#2a8ad9", "desc": "product color B"}, "c": {"default": "#e0c22a", "desc": "product color C"}},
     "objects": [
       {"id": "post_a", "type": "box", "size": [0.04, 1.5, 0.6], "position": [-0.58, 0.75, 0], "material": {"color": "#5a5f68", "roughness": 0.6, "metallic": 0.4}},
       {"id": "post_b", "type": "box", "size": [0.04, 1.5, 0.6], "position": [0.58, 0.75, 0], "material": {"color": "#5a5f68", "roughness": 0.6, "metallic": 0.4}},
@@ -32,7 +32,7 @@
     "tags": ["store", "electronics", "small"],
     "desc": "A cash register; screen and keys face +Z.",
     "collide": false,
-    "params": {"color": {"default": "#d8d8dc", "desc": "body color"}},
+    "params": {"color": {"palette": "primary", "default": "#d8d8dc", "desc": "body color"}},
     "objects": [
       {"id": "base", "type": "box", "size": [0.4, 0.14, 0.4], "position": [0, 0.07, 0], "material": {"color": "$color", "roughness": 0.5}},
       {"id": "drawer", "type": "box", "size": [0.36, 0.04, 0.02], "position": [0, 0.06, 0.205], "material": {"color": "#9aa0a8", "roughness": 0.6, "metallic": 0.5}},
@@ -46,7 +46,7 @@
     "name": "checkout_counter",
     "tags": ["store", "counter", "furniture"],
     "desc": "A checkout counter with a conveyor belt; cashier side toward +Z.",
-    "params": {"color": {"default": "#3a6ea5", "desc": "front panel color"}},
+    "params": {"color": {"palette": "primary", "default": "#3a6ea5", "desc": "front panel color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [1.6, 0.95, 0.6], "position": [0, 0.475, 0], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "top", "type": "box", "size": [1.66, 0.04, 0.66], "position": [0, 0.97, 0], "material": {"color": "#e6e8ec", "roughness": 0.4}},
@@ -60,7 +60,7 @@
     "tags": ["store", "small"],
     "desc": "A hand shopping basket.",
     "collide": false,
-    "params": {"color": {"default": "#d9432a", "desc": "plastic color"}},
+    "params": {"color": {"palette": "primary", "default": "#d9432a", "desc": "plastic color"}},
     "objects": [
       {"id": "floor", "type": "box", "size": [0.4, 0.015, 0.28], "position": [0, 0.03, 0], "material": {"color": "$color", "roughness": 0.5}},
       {"id": "front", "type": "box", "size": [0.4, 0.2, 0.015], "position": [0, 0.13, 0.135], "material": {"color": "$color", "roughness": 0.5}},
@@ -122,7 +122,7 @@
     "name": "drink_cooler",
     "tags": ["store", "appliance", "refrigerator"],
     "desc": "A glass-door drink cooler stocked with bottles; door faces +Z.",
-    "params": {"color": {"default": "#d9532a", "desc": "header sign color"}},
+    "params": {"color": {"palette": "accent", "default": "#d9532a", "desc": "header sign color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [0.8, 1.9, 0.7], "position": [0, 0.95, 0], "material": {"color": "#2a2c31", "roughness": 0.5}},
       {"id": "glass", "type": "box", "size": [0.7, 1.7, 0.01], "position": [0, 0.98, 0.355], "material": {"color": "#bfe0f2", "roughness": 0.1, "emissive": "#1a2a34"}},
@@ -163,7 +163,7 @@
     "name": "chest_freezer",
     "tags": ["store", "appliance", "refrigerator"],
     "desc": "A low chest freezer with sliding glass lids.",
-    "params": {"color": {"default": "#2a8ad9", "desc": "stripe color"}},
+    "params": {"color": {"palette": "accent", "default": "#2a8ad9", "desc": "stripe color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [1.4, 0.8, 0.7], "position": [0, 0.4, 0], "material": {"color": "#e6e8ec", "roughness": 0.4}},
       {"id": "glass", "type": "box", "size": [1.32, 0.02, 0.62], "position": [0, 0.81, 0], "material": {"color": "#bfe0f2", "roughness": 0.1, "emissive": "#152a34"}},
