@@ -63,9 +63,10 @@ stage_headless_tree() {
 }
 stage_headless_build() {
   echo "== headless server builds without the gfx feature =="
-  # The shipped build is the LTO release one, and the hosted job (CI=true) builds exactly that. A local run only needs to know the binaries build and
-  # link without gfx, which the dev profile answers from the artifacts `headless-tests` builds anyway; RED_CI_RELEASE=1 asks for the release build.
-  if [ "${CI:-}" = "true" ] || [ "${RED_CI_RELEASE:-0}" = "1" ]; then
+  # The question here is "do the binaries build and link without gfx", which the dev profile answers from the artifacts `headless-tests` builds anyway, in CI too
+  # (ADR 2026-10-10-ci-builds-the-headless-server-in-the-dev-profile): the LTO release build of these binaries is release.yml's (built and smoke-tested) and the
+  # container image's (the `docker` job builds it on every change to what the image is made of). RED_CI_RELEASE=1 asks for the release build here.
+  if [ "${RED_CI_RELEASE:-0}" = "1" ]; then
     cargo build --locked --release --no-default-features --bin red_server --bin red_bot
   else
     cargo build --locked --no-default-features --bin red_server --bin red_bot
