@@ -108,6 +108,11 @@ stage_killchain() {
 # The optional export capability stays buildable and lint clean: MP4 export (`video`, ffmpeg-sidecar) is not in the default build (ADR 2026-10-07-tooling-dependencies-are-optional-features).
 stage_video() { echo "== optional MP4 export builds (feature video) =="; cargo clippy --locked --bins --lib --features video -- -D warnings; }
 
+stage_games() {
+  echo "== generated games: the suites that read examples/2d, examples/3d and the notes =="
+  cargo test --locked --no-fail-fast --test games2d --test games3d --test checks_wellformed --test examples_validate --test docs_fresh --test repo_hygiene
+}
+
 stages=("$@")
 # Cheapest, most-likely-to-fail first: formatting, the lock files and the headless dependency tree take seconds; the long stages come after them.
 [ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client killchain video)
