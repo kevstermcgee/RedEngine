@@ -74,6 +74,9 @@ pub fn run(opts: Options) -> Result<(), String> {
     };
     event_loop.run_app(&mut app).map_err(|e| e.to_string())?;
     app.write_save();
+    if let (Some(m), None) = (app.max_ticks, &app.error) {
+        println!("play2d: ran {} ticks (limit {m}), no crash", app.ticks);
+    }
     app.error.map_or(Ok(()), Err)
 }
 
