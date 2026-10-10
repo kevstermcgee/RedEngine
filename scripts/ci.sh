@@ -2,7 +2,7 @@
 # The exact steps CI runs (.github/workflows/ci.yml). Run before pushing; green here = green there
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
-#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools
+#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools  games (games is not in the default list: `tests` covers it)
 #
 # Tests run in two groups, because only one kind needs to be slow:
 #   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers): one test at a time, as before;
@@ -126,6 +126,13 @@ stage_pytools() {
   done
   echo "-- scripts/publish_games.py check"
   "$py" scripts/publish_games.py check
+}
+
+# A pull request that only adds or edits generated games (examples/2d, examples/3d, docs/analysis/idea-forge: the `games_only` output of the workflow's `changes` job) runs the tests that read
+# that data and nothing else: every game must verify (games2d, games3d), keep well-formed checks, and the documents must stay fresh and linked. Not a replacement for `tests`.
+stage_games() {
+  echo "== generated games: the suites that read examples/2d, examples/3d and the notes =="
+  cargo test --locked --no-fail-fast --test games2d --test games3d --test checks_wellformed --test examples_validate --test docs_fresh --test repo_hygiene
 }
 
 stages=("$@")
