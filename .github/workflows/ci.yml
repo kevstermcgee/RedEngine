@@ -78,7 +78,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5]
     defaults:
       run:
         shell: bash
@@ -242,7 +242,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -284,16 +284,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      # BuildKit with the GitHub Actions cache: the cargo-chef dependency layer (Dockerfile) is reused until Cargo.toml/Cargo.lock change
-      # (ADR 2026-10-10-the-container-image-caches-its-dependency-layer). `mode=max` keeps the intermediate build stages, which is where that layer lives.
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          load: true
-          tags: red-server
-          cache-from: type=gha,scope=red-server
-          cache-to: type=gha,mode=max,scope=red-server
+      - run: docker build -t red-server .
       - name: refuses to start without an identity (fail closed)
         run: |
           if docker run --rm red-server --run-for 3 --stats-secs 0; then echo "started without a server identity"; exit 1; fi

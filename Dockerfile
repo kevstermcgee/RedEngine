@@ -9,19 +9,8 @@
 # Configuration is by environment (RED_MAP, RED_PORT, RED_BIND, RED_SPAWN_GROUP, ...; see src/bin/red_server.rs) or flags
 # appended to `docker run`. `docker stop` sends SIGTERM, which the server handles (clients are told, a --record trace is saved).
 
-# Three build stages so the dependencies are their own layer (cargo-chef; ADR 2026-10-10-the-container-image-caches-its-dependency-layer): `recipe.json` changes only when a
-# Cargo.toml or Cargo.lock does, so a source-only change reuses the compiled dependencies from the layer cache and compiles just the workspace crates.
-FROM rust:1-slim-bookworm AS chef
-RUN cargo install cargo-chef --locked --version 0.1.78
+FROM rust:1-slim-bookworm AS build
 WORKDIR /src
-
-FROM chef AS planner
-COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
-
-FROM chef AS build
-COPY --from=planner /src/recipe.json recipe.json
-RUN cargo chef cook --locked --release --no-default-features --recipe-path recipe.json --bin red_server --bin red_bot --bin red_engine2
 COPY . .
 RUN cargo build --locked --release --no-default-features --bin red_server --bin red_bot --bin red_engine2
 
