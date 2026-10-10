@@ -1060,7 +1060,16 @@ class Publish(E2EBase):
         git(self.games_seed, "add", "-A")
         git(self.games_seed, "commit", "-q", "-m", "seed")
         git(self.games_seed, "push", "-q", "-u", "origin", "main")
-        os.environ.update(IDEA_FORGE_PUBLISH="1", IDEA_FORGE_GAMES_REMOTE=self.games)
+        self.frames = os.path.join(self.base, "frames.log")
+        self.engine = sh(os.path.join(self.base, "red_engine2_frame"), f"""#!/bin/sh
+if [ "$1" = frame ]; then
+  echo "$*" >> {self.frames}
+  case "$2" in *blank*) : > "$3"; exit 0;; *nopng*) echo not-a-png > "$3"; exit 0;; esac
+  printf '\\211PNG\\r\\n\\032\\n' > "$3"; head -c 3000 /dev/zero >> "$3"; echo "wrote $3"; exit 0
+fi
+exit 0
+""")
+        os.environ.update(IDEA_FORGE_PUBLISH="1", IDEA_FORGE_GAMES_REMOTE=self.games, RED_ENGINE_EXE=self.engine)
         self.saved["IDEA_FORGE_PUBLISH"], self.saved["IDEA_FORGE_GAMES_REMOTE"] = "0", None
         self.root = self.clone(self.remote, "engine_root")   # the checkout the tool runs from; its origin/main is where merged games are
         self.engine_push = self.clone(self.remote, "engine_push")
@@ -1107,7 +1116,14 @@ class Publish(E2EBase):
         after = rd(os.path.join(d, ".release-games.json"))
         self.assertTrue(after.startswith(before.split('\n  ],\n  "native_playables"')[0] + ",\n"), "the hand-formatted manifest is only added to, never rewritten")
         changed = subprocess.run(["git", "-C", d, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
-        self.assertTrue(changed and all(c == ".release-games.json" or c.startswith("projects/") for c in changed), changed)
+        self.assertTrue(changed and all(c == ".release-games.json" or c.startswith(("projects/", "site/thumbs/")) for c in changed), changed)
+        self.assertIn("site/thumbs/alpha-game.png", changed)
+        self.assertIn("site/thumbs/beta-game.png", changed)
+        self.assertIn("site/thumbs/old-game.png", changed, "a game that was listed without a screenshot gets one in the same commit")
+        frames = rd(self.frames)
+        self.assertIn("--size 640x360", frames)
+        self.assertEqual([l for l in frames.splitlines() if "alpha-game" in l and "--t 1" in l] != [], True, "a 2D game is drawn a second in")
+        self.assertFalse([l for l in frames.splitlines() if "beta-game" in l and "--t" in l], "a 3D scene is drawn from its own camera")
         self.assertEqual(len(subprocess.run(["git", "-C", d, "log", "--format=%s"], capture_output=True, text=True).stdout.splitlines()), 2, "one commit for both games")
         rows = {r["slug"]: r for r in idea_forge.load_state()["runs"]}
         self.assertTrue(rows["alpha-game"]["published"]["commit"] and rows["beta-game"]["published"])
@@ -1116,6 +1132,34 @@ class Publish(E2EBase):
         self.assertEqual(idea_forge.publish_games(self.root), [], "a game is published once")
         self.land("examples/2d/delta-game.game2d.json", "{}")   # delta merges later: the next run publishes it
         self.assertEqual(idea_forge.publish_games(self.root), ["delta-game"])
+
+    def test_a_game_whose_screenshot_cannot_be_drawn_is_not_published_and_is_tried_again(self):
+        self.land("examples/2d/blank-game.game2d.json", "{}")
+        self.land("examples/2d/nopng-game.game2d.json", "{}")
+        self.land("examples/2d/fine-game.game2d.json", "{}")
+        for i, slug in enumerate(("blank-game", "nopng-game", "fine-game"), 1):
+            self.row(i, slug, "2d")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(idea_forge.publish_games(self.root), ["fine-game"])
+        self.assertIn("blank-game: not published", out.getvalue())
+        d, manifest = self.published_tree()
+        self.assertEqual({p["slug"] for p in manifest["data_playables"]}, {"old-game", "fine-game"})
+        self.assertFalse(os.path.exists(os.path.join(d, "projects", "blank-game")) or os.path.exists(os.path.join(d, "site", "thumbs", "blank-game.png")))
+        rows = {r["slug"]: r for r in idea_forge.load_state()["runs"]}
+        self.assertNotIn("published", rows["blank-game"])
+        self.assertTrue(rows["fine-game"]["published"])
+
+    def test_listed_games_without_a_screenshot_get_one_even_when_no_game_is_new(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(idea_forge.publish_games(self.root), [])
+        self.assertIn("screenshots for old-game", out.getvalue())
+        d, _ = self.published_tree()
+        self.assertTrue(os.path.getsize(os.path.join(d, "site", "thumbs", "old-game.png")) > 2000)
+        with contextlib.redirect_stdout(io.StringIO()) as again:
+            idea_forge.publish_games(self.root)
+        self.assertIn("nothing to publish", again.getvalue(), "once it has one, nothing more is done")
 
     def test_a_push_rejected_because_the_publish_workflow_committed_meanwhile_is_rebased_and_retried(self):
         self.land("examples/2d/alpha-game.game2d.json", "{}")

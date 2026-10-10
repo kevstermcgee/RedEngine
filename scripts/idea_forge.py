@@ -1422,12 +1422,65 @@ def games_checkout():
     return d
 
 
+THUMB_SIZE = "640x360"   # what site/gen_thumbs.py makes and the site's cards and the installer icon expect
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def thumb_path(clone, slug):
+    return os.path.join(clone, "site", "thumbs", f"{slug}.png")
+
+
+def render_thumbnail(root, scene, out, kind="3d"):
+    """A screenshot of the game as the engine draws it (`frame`: the scene's own camera, a 2D game a second into its first scenario). True only when a real PNG with something in it
+    was written: a missing or blank picture is a failure, because every game on the site has to have one."""
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if os.path.exists(out):
+        os.remove(out)
+    args = ["frame", scene, out, "--size", THUMB_SIZE] + (["--t", "1"] if kind == "2d" else [])
+    try:
+        run_engine(root, args, timeout=300)
+    except subprocess.TimeoutExpired:
+        pass
+    if os.path.isfile(out):
+        with open(out, "rb") as f:
+            head = f.read(8)
+        if head == PNG_MAGIC and os.path.getsize(out) > 2000:   # a flat single-colour 640x360 PNG compresses to well under 2 KB
+            return True
+        os.remove(out)   # whatever a failed draw left must never be committed as the game's picture
+    return False
+
+
+def playable_scene(clone, playable):
+    """The file `frame` draws for a playable: its first `.json` argument (`content/<path>` is `<path>` in the repository), or None."""
+    for arg in playable.get("arguments", []):
+        if arg.endswith(".json"):
+            path = os.path.join(clone, *arg.removeprefix("content/").split("/"))
+            return path if os.path.isfile(path) else None
+    return None
+
+
+def fill_thumbnails(root, clone):
+    """A screenshot for every listed game that has none (the catalog's own games and anything an earlier run could not draw). Returns (made slugs, failed slugs)."""
+    plays = json.loads(rd(os.path.join(clone, ".games-catalog.json"))).get("playables", []) + json.loads(rd(os.path.join(clone, GAMES_MANIFEST))).get("data_playables", [])
+    made, failed = [], []
+    for p in plays:
+        if os.path.exists(thumb_path(clone, p["slug"])):
+            continue
+        scene = playable_scene(clone, p)
+        if scene and render_thumbnail(root, scene, thumb_path(clone, p["slug"]), p.get("kind", "3d")):
+            made.append(p["slug"])
+        else:
+            failed.append(p["slug"])
+    return made, failed
+
+
 def stage_games(root, clone, items, ref="origin/main"):
-    """Copy each game into projects/<slug>/ and list it in the manifest. Returns (staged rows, skipped: [(row, why)]). A slug already published by hand is never overwritten."""
+    """Copy each game into projects/<slug>/, draw its screenshot and list it in the manifest. Returns (staged rows, skipped: [(row, why)], failed: [(row, why)]). A slug already published
+    by hand is never overwritten (skipped: recorded, not asked about again); a game whose screenshot cannot be drawn is not published (failed: tried again next run)."""
     manifest_path = os.path.join(clone, GAMES_MANIFEST)
     text = rd(manifest_path)
     have = {p["slug"] for p in json.loads(text).get("data_playables", [])}
-    staged, skipped = [], []
+    staged, skipped, failed = [], [], []
     for r, files in items:
         slug = r["slug"]
         if slug in have or os.path.exists(os.path.join(clone, "projects", slug)):
@@ -1441,10 +1494,15 @@ def stage_games(root, clone, items, ref="origin/main"):
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             with open(dest, "wb") as f:
                 f.write(blob.stdout)
+        entry = playable_entry(r)
+        if not render_thumbnail(root, playable_scene(clone, entry), thumb_path(clone, slug), r.get("kind", "2d")):
+            shutil.rmtree(os.path.join(clone, "projects", slug), ignore_errors=True)
+            failed.append((r, "the engine could not draw a screenshot of it"))
+            continue
         staged.append(r)
     if staged:
         wr(manifest_path, add_playables(text, [playable_entry(r) for r in staged]))
-    return staged, skipped
+    return staged, skipped, failed
 
 
 def check_release_manifest(clone):
@@ -1457,7 +1515,7 @@ def check_release_manifest(clone):
 
 def push_games(clone, message):
     """Commit and push to RedEngineGames main; returns the commit id. A rejected push (the publish workflow committed meanwhile) is rebased and retried."""
-    git(clone, "add", "--", "projects", GAMES_MANIFEST)   # only what was staged: RedEngineGames tracks files (a .pyc) that running its own tools rewrites
+    git(clone, "add", "--", "projects", "site/thumbs", GAMES_MANIFEST)   # only what was staged: RedEngineGames tracks files (a .pyc) that running its own tools rewrites
     p = subprocess.run(["git", "-C", clone, "commit", "-q", "-m", message], capture_output=True, text=True)
     if p.returncode:
         raise RuntimeError("git commit failed (is user.name / user.email set?): " + (p.stderr or p.stdout).strip())
@@ -1481,15 +1539,15 @@ def publish_games(root=None, dry_run=False):
     try:
         subprocess.run(["git", "-C", root, "fetch", "-q", "origin", "main"], capture_output=True)
         items = publishable(root)
-        if not items:
-            print("publish: nothing to publish")
-            return []
         if dry_run:
             for r, files in items:
-                print(f"publish: would publish {r.get('kind', '2d')} {r['slug']} ({len(files)} file(s))")
+                print(f"publish: would publish {r.get('kind', '2d')} {r['slug']} ({len(files)} file(s)) and draw its screenshot")
+            print("publish: (a real run also draws the screenshot of any listed game that has none)" if items else "publish: no new game (a real run still draws any missing screenshot)")
             return []
         clone = games_checkout()
-        staged, skipped = stage_games(root, clone, items)
+        staged, skipped, failed = stage_games(root, clone, items)
+        for r, why in failed:
+            print(f"publish: {r['slug']}: not published, {why}")
         st = load_state()
         for r, why in skipped:   # published by hand already: record it so it is not asked about again
             for x in st["runs"]:
@@ -1497,19 +1555,24 @@ def publish_games(root=None, dry_run=False):
                     x["published"] = {"note": why}
             print(f"publish: {r['slug']}: {why}")
         save_state(st)
-        if not staged:
+        made, missing = fill_thumbnails(root, clone)   # every listed game has a screenshot: the older ones that lack one get theirs in the same commit
+        if missing:
+            print(f"publish: no screenshot could be drawn for: {', '.join(missing)}")
+        if not staged and not made:
+            print("publish: nothing to publish")
             return []
         check_release_manifest(clone)
         names = ", ".join(r.get("title") or r["slug"] for r in staged)
-        sha = push_games(clone, f"Publish {len(staged)} Idea Forge game{'s' if len(staged) != 1 else ''}: {names}\n\nForged, built and merged into RedEngine by scripts/idea_forge.py; RedEngineGames builds each "
-                                f"one's installer and lists it once its release is made.\n\nCo-Authored-By: Claude <noreply@anthropic.com>")
+        sha = push_games(clone, (f"Publish {len(staged)} Idea Forge game{'s' if len(staged) != 1 else ''}: {names}" if staged else f"Add screenshots for {len(made)} game{'s' if len(made) != 1 else ''}") +
+                                "\n\nForged, built and merged into RedEngine by scripts/idea_forge.py; RedEngineGames builds each one's installer and lists it once its release is made." +
+                                (f"\n\nScreenshots drawn by the engine for: {', '.join(made)}." if made else "") + "\n\nCo-Authored-By: Claude <noreply@anthropic.com>")
         st = load_state()
         for r in staged:
             for x in st["runs"]:
                 if x["code"] == r["code"] and x["slug"] == r["slug"] and x.get("kind", "2d") == r.get("kind", "2d"):
                     x["published"] = {"commit": sha, "date": datetime.date.today().isoformat()}
         save_state(st)
-        print(f"publish: published {', '.join(r['slug'] for r in staged)} to {GAMES_REPO} ({sha})")
+        print(f"publish: published {', '.join(r['slug'] for r in staged) or 'nothing new'}" + (f", screenshots for {', '.join(made)}" if made else "") + f" to {GAMES_REPO} ({sha})")
         return [r["slug"] for r in staged]
     except (Exception, SystemExit) as e:   # a failed publish (`git()` exits on failure) is retried by the next run; it must not fail the night or lose the feedback
         print(f"publish: FAILED, will retry next run: {e}")
