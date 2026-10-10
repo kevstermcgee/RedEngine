@@ -82,10 +82,10 @@ class WhichJobs(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         with open(os.path.join(self.repo, "out.txt"), encoding="utf-8") as f:
             got = dict(l.strip().split("=", 1) for l in f if "=" in l)
-        return {k: got[k] == "true" for k in ("native", "docker", "pytools")}
+        return {k: got[k] == "true" for k in ("native", "docker", "pytools", "games_only")}
 
-    def assertJobs(self, changed, native, docker, pytools, **kw):
-        self.assertEqual(self.jobs(*changed, **kw), {"native": native, "docker": docker, "pytools": pytools}, f"for {changed}")
+    def assertJobs(self, changed, native, docker, pytools, games_only=False, **kw):
+        self.assertEqual(self.jobs(*changed, **kw), {"native": native, "docker": docker, "pytools": pytools, "games_only": games_only}, f"for {changed}")
 
     def test_documentation_alone_starts_nothing(self):
         self.assertJobs(["docs/HOSTING.md", "README.md", "docs/adr/2026-10-09-x.md", "STATUS.md"], False, False, False)
@@ -123,6 +123,29 @@ class WhichJobs(unittest.TestCase):
         for bad in ("", "0000000000000000000000000000000000000000", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"):
             self.fresh()
             self.assertJobs(["docs/HOSTING.md"], True, True, True, base=bad)
+
+    def test_a_pull_request_that_only_adds_generated_games_runs_neither_the_windows_leg_nor_the_image(self):
+        self.assertJobs(["examples/2d/new-game.game2d.json", "docs/analysis/idea-forge/2026-10-10-2d-new-game.md"], False, False, False, games_only=True)
+        self.fresh()
+        self.assertJobs(["examples/3d/new-game/new-game.json", "examples/3d/new-game/notes.md", "docs/analysis/idea-forge/fixes.json"], False, False, False, games_only=True)
+
+    def test_one_file_outside_the_games_makes_it_a_full_run(self):
+        for other in ("src/lib.rs", "tests/games2d.rs", "examples/house.json", "examples/marcel/marcel.json", "recipes/x.json", "Cargo.lock", "docs/HOSTING.md", "assets/a.png", "examples/2dx/y.json"):
+            with self.subTest(other):
+                self.fresh()
+                got = self.jobs("examples/2d/new-game.game2d.json", other)
+                self.assertFalse(got["games_only"], f"games_only with {other}")
+        self.fresh()
+        self.assertJobs(["examples/2d/new-game.game2d.json", "src/net/relay.rs"], True, True, False)
+
+    def test_a_change_that_touches_nothing_is_not_a_games_only_change(self):
+        self.assertEqual(self.jobs()["games_only"], False)
+
+    def test_a_games_change_with_an_unusable_base_runs_everything(self):
+        self.assertJobs(["examples/2d/new-game.game2d.json"], True, True, True, base="")
+
+    def test_a_game_with_a_python_helper_still_gets_the_python_job(self):
+        self.assertEqual(self.jobs("examples/3d/x/make.py"), {"native": False, "docker": False, "pytools": True, "games_only": True})
 
     def test_a_large_change_list_is_still_read_whole(self):
         # Under pipefail `echo | grep -q` can fail when grep exits early; the helper reads a here-string. A few thousand files, the match last.
