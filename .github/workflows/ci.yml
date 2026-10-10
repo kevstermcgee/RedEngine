@@ -88,6 +88,10 @@ jobs:
           workspaces: |
             . -> target
             examples/external/topdown_switch -> target
+      # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - name: Linux system libraries (audio backend for rodio)
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
       # clippy: warnings are errors. tests: real-time UDP suites one test at a time (serial_suites in docs/features.json), everything else on all cores.
@@ -131,6 +135,10 @@ jobs:
           workspaces: |
             . -> target
             examples/external/topdown_switch -> target
+      # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - run: bash scripts/ci.sh direct3d
         if: github.event_name == 'pull_request'
         env:
@@ -179,6 +187,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
       - run: bash scripts/ci.sh headless-tree headless-build headless-clippy headless-tests
 
   # The container image people deploy: builds headless, starts, listens on UDP 27015 and exits cleanly.
