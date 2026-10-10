@@ -1,0 +1,809 @@
+{
+ "game2d": 1,
+ "id": "ci-probe-game",
+ "title": "CI Probe Game",
+ "description": "A stray cat conducts a worshipping crowd into one unbroken chain across the alley: every beat of the baton costs a coin, coins come only from standing still, and hoarded coins multiply until the swarm comes.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard"
+  ],
+  "persistence": [
+   "settings",
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 320,
+  "height": 180,
+  "background": "#10122a",
+  "scale": "fit"
+ },
+ "sprites": {
+  "cat": {
+   "rows": [
+    "a......a",
+    "aa....aa",
+    "aaaaaaaa",
+    "aeaaaaea",
+    "aaaammaa",
+    "aaaaaaaa"
+   ],
+   "palette": {
+    "a": "#f0a030",
+    "e": "#101010",
+    "m": "#ff7088"
+   }
+  },
+  "link": {
+   "rows": [
+    "..bbbb..",
+    ".bbbbbb.",
+    "bbebbebb",
+    "bbbbbbbb",
+    ".b.bb.b."
+   ],
+   "palette": {
+    "b": "#9fd0ff",
+    "e": "#102040"
+   }
+  },
+  "pest": {
+   "rows": [
+    "r.rr.r",
+    "rrrrrr",
+    "rwrrwr",
+    "rrrrrr"
+   ],
+   "palette": {
+    "r": "#c04050",
+    "w": "#ffffff"
+   }
+  },
+  "flag": {
+   "rows": [
+    "yyyy..",
+    "yyyyyy",
+    "yyyy..",
+    "y.....",
+    "y.....",
+    "y.....",
+    "y.....",
+    "y....."
+   ],
+   "palette": {
+    "y": "#ffe060"
+   }
+  }
+ },
+ "sounds": {
+  "beat": {
+   "seconds": 0.12,
+   "layers": [
+    {
+     "sine": 440,
+     "decay": 20
+    }
+   ]
+  },
+  "coin": {
+   "seconds": 0.1,
+   "layers": [
+    {
+     "sine": 1200,
+     "decay": 30
+    }
+   ]
+  },
+  "ouch": {
+   "seconds": 0.25,
+   "layers": [
+    {
+     "sine": 120,
+     "decay": 10
+    }
+   ]
+  },
+  "denied": {
+   "seconds": 0.1,
+   "layers": [
+    {
+     "sine": 200,
+     "decay": 25
+    }
+   ]
+  },
+  "fanfare": {
+   "seconds": 0.5,
+   "layers": [
+    {
+     "sine": 660,
+     "decay": 5
+    }
+   ]
+  }
+ },
+ "vars": {
+  "coins": 2,
+  "idle": 0,
+  "chain_x": 20,
+  "lives": 3,
+  "links": 0,
+  "best": 0
+ },
+ "persist": [
+  "best"
+ ],
+ "prefabs": {
+  "cat": {
+   "tag": "cat",
+   "shape": {
+    "sprite": "cat"
+   },
+   "size": [
+    8,
+    6
+   ],
+   "layer": 2
+  },
+  "link": {
+   "tag": "link",
+   "shape": {
+    "sprite": "link"
+   },
+   "size": [
+    8,
+    5
+   ],
+   "layer": 1
+  },
+  "pest": {
+   "tag": "pest",
+   "shape": {
+    "sprite": "pest"
+   },
+   "size": [
+    6,
+    4
+   ],
+   "layer": 2,
+   "move": {
+    "chase": {
+     "target": "cat",
+     "speed": 22
+    }
+   },
+   "ttl": 6
+  },
+  "flag": {
+   "tag": "flag",
+   "shape": {
+    "sprite": "flag"
+   },
+   "size": [
+    6,
+    8
+   ],
+   "layer": 1
+  },
+  "ground": {
+   "tag": "ground",
+   "shape": {
+    "rect": [
+     320,
+     2
+    ],
+    "color": "#2a2f5a"
+   },
+   "size": [
+    320,
+    2
+   ],
+   "layer": 0
+  }
+ },
+ "scene": [
+  {
+   "prefab": "ground",
+   "at": [
+    160,
+    110
+   ]
+  },
+  {
+   "prefab": "cat",
+   "at": [
+    10,
+    105
+   ],
+   "id": "cat"
+  },
+  {
+   "prefab": "flag",
+   "at": [
+    308,
+    105
+   ]
+  }
+ ],
+ "ui": [
+  {
+   "text": "COINS {coins:.1}",
+   "at": [
+    6,
+    6
+   ],
+   "color": "#ffe060"
+  },
+  {
+   "text": "LIVES {lives}",
+   "at": [
+    6,
+    16
+   ],
+   "color": "#ff7088"
+  },
+  {
+   "text": "CHAIN {links}/29",
+   "at": [
+    6,
+    26
+   ],
+   "color": "#9fd0ff"
+  },
+  {
+   "text": "BEST {best}",
+   "at": [
+    6,
+    36
+   ],
+   "color": "#aaaaaa"
+  },
+  {
+   "bar": {
+    "var": "idle",
+    "max": 1,
+    "at": [
+     110,
+     6
+    ],
+    "size": [
+     100,
+     6
+    ]
+   }
+  },
+  {
+   "text": "WAIT = COINS   SPACE = BEAT (1 COIN, 2 IF RUSHED)",
+   "at": [
+    160,
+    160
+   ],
+   "color": "#8890c0",
+   "align": "center"
+  },
+  {
+   "text": "HOARD 6+ COINS AND THE SWARM COMES",
+   "at": [
+    160,
+    170
+   ],
+   "color": "#c04050",
+   "align": "center"
+  },
+  {
+   "text": "THE END",
+   "at": [
+    160,
+    80
+   ],
+   "color": "#ffe060",
+   "align": "center",
+   "show": "ended"
+  }
+ ],
+ "rules": [
+  {
+   "id": "tick_idle",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "add": [
+      "idle",
+      0.25
+     ]
+    }
+   ]
+  },
+  {
+   "id": "earn",
+   "when": {
+    "every": 1
+   },
+   "if": "idle >= 1",
+   "do": [
+    {
+     "add": [
+      "coins",
+      1
+     ]
+    },
+    {
+     "play": "coin"
+    }
+   ]
+  },
+  {
+   "id": "multiply",
+   "when": {
+    "every": 2
+   },
+   "if": "idle >= 2 && coins >= 2",
+   "do": [
+    {
+     "add": [
+      "coins",
+      "coins * 0.5"
+     ]
+    },
+    {
+     "play": "coin"
+    }
+   ]
+  },
+  {
+   "id": "beat_rushed",
+   "when": {
+    "press": "action"
+   },
+   "if": "coins >= 2 && idle < 0.5",
+   "do": [
+    {
+     "add": [
+      "coins",
+      -2
+     ]
+    },
+    {
+     "spawn": {
+      "prefab": "link",
+      "at": [
+       "chain_x",
+       105
+      ]
+     }
+    },
+    {
+     "add": [
+      "chain_x",
+      9
+     ]
+    },
+    {
+     "add": [
+      "links",
+      1
+     ]
+    },
+    {
+     "set": [
+      "idle",
+      0
+     ]
+    },
+    {
+     "play": "beat"
+    }
+   ]
+  },
+  {
+   "id": "beat_calm",
+   "when": {
+    "press": "action"
+   },
+   "if": "coins >= 1 && idle >= 0.5",
+   "do": [
+    {
+     "add": [
+      "coins",
+      -1
+     ]
+    },
+    {
+     "spawn": {
+      "prefab": "link",
+      "at": [
+       "chain_x",
+       105
+      ]
+     }
+    },
+    {
+     "add": [
+      "chain_x",
+      9
+     ]
+    },
+    {
+     "add": [
+      "links",
+      1
+     ]
+    },
+    {
+     "set": [
+      "idle",
+      0
+     ]
+    },
+    {
+     "play": "beat"
+    }
+   ]
+  },
+  {
+   "id": "swarm",
+   "when": {
+    "every": 1
+   },
+   "if": "coins >= 6",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pest",
+      "at": {
+       "x": [
+        70,
+        140
+       ],
+       "y": [
+        85,
+        100
+       ]
+      }
+     }
+    },
+    {
+     "play": "denied"
+    }
+   ]
+  },
+  {
+   "id": "bitten",
+   "when": {
+    "touch": [
+     "cat",
+     "pest"
+    ]
+   },
+   "do": [
+    {
+     "add": [
+      "lives",
+      -1
+     ]
+    },
+    {
+     "destroy": "other"
+    },
+    {
+     "shake": 2
+    },
+    {
+     "play": "ouch"
+    }
+   ]
+  },
+  {
+   "id": "dead",
+   "when": {
+    "every": 0.1
+   },
+   "if": "lives <= 0",
+   "do": [
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "won",
+   "when": {
+    "every": 0.1
+   },
+   "if": "chain_x >= 280",
+   "do": [
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "record",
+   "when": {
+    "end": "win"
+   },
+   "if": "best == 0 || time < best",
+   "do": [
+    {
+     "set": [
+      "best",
+      "time"
+     ]
+    },
+    {
+     "play": "fanfare"
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "waiting_pays_moving_costs",
+    "seed": 1,
+    "max_seconds": 12,
+    "script": [
+     {
+      "wait": 3.2
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.1
+     }
+    ],
+    "expect": [
+     {
+      "var": "links",
+      "eq": 1
+     },
+     {
+      "var": "coins",
+      "gte": 3
+     }
+    ]
+   },
+   {
+    "name": "rushing_costs_double",
+    "seed": 1,
+    "max_seconds": 6,
+    "script": [
+     {
+      "wait": 2.1
+     },
+     {
+      "press": "action"
+     },
+     {
+      "press": "action"
+     }
+    ],
+    "expect": [
+     {
+      "var": "links",
+      "eq": 2
+     },
+     {
+      "var": "coins",
+      "lte": 3
+     }
+    ]
+   },
+   {
+    "name": "hoarding_summons_swarm",
+    "seed": 1,
+    "max_seconds": 30,
+    "script": [
+     {
+      "wait": 20
+     }
+    ],
+    "expect": [
+     {
+      "var": "lives",
+      "lt": 3
+     }
+    ]
+   },
+   {
+    "name": "win_by_patient_conducting",
+    "seed": 1,
+    "smoke": true,
+    "max_seconds": 110,
+    "script": [
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 1.6
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.3
+     }
+    ],
+    "expect": [
+     {
+      "ended": "win"
+     }
+    ]
+   }
+  ]
+ }
+}
