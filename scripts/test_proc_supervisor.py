@@ -74,11 +74,17 @@ def read_pid(path, seconds=5.0):
     raise AssertionError(f"no pid appeared in {path}")
 
 
-# A parent that starts a grandchild (which writes its own pid to a file and sleeps), then does `then`.
+# Time to give a tree of two fresh interpreters to start before a deadline or a cancel may fire: the first Windows run needed more than a second (the grandchild had not written its
+# pid yet when it was killed), so the tests that need the grandchild alive wait for its pid file and start their clock from a longer allowance there.
+START = 6.0 if WINDOWS else 1.0
+
+
+# A parent that starts a grandchild (which writes its own pid to a file and sleeps), waits until that pid file exists, then does `then`.
 def with_descendant(pidfile, then):
     return (
-        "import subprocess, sys, time\n"
+        "import os, subprocess, sys, time\n"
         f"g = subprocess.Popen([sys.executable, '-c', \"import os, time; open({pidfile!r}, 'w').write(str(os.getpid())); time.sleep(120)\"])\n"
+        f"while not (os.path.exists({pidfile!r}) and os.path.getsize({pidfile!r})):\n    time.sleep(0.02)\n"
         "print('parent started', g.pid, flush=True)\n" + then
     )
 
@@ -204,11 +210,11 @@ class ExitRaces(Sandbox):
 class Descendants(Sandbox):
     def test_a_timeout_takes_the_whole_tree_not_just_the_child(self):
         pidfile = self.path("grandchild.pid")
-        out, log, took = self.run_it(with_descendant(pidfile, "time.sleep(60)"), timeout=1.0)
+        out, log, took = self.run_it(with_descendant(pidfile, "time.sleep(60)"), timeout=START)
         gpid = read_pid(pidfile)
         self.assertEqual(out["status"], "timeout")
         self.assertTrue(wait_dead(gpid), f"the grandchild ({gpid}) was left running: the old kill() only reached the direct child")
-        self.assertLess(took, 1.0 + BOUND)
+        self.assertLess(took, START + BOUND)
 
     @unittest.skipIf(WINDOWS, "a Windows descendant is only reachable while its parent is alive (taskkill /T); the sweep after a normal exit is POSIX process-group behaviour")
     def test_a_child_that_exits_normally_but_leaves_a_background_process_does_not_leave_it_running(self):
@@ -223,12 +229,12 @@ class Descendants(Sandbox):
     def test_cancelling_takes_the_whole_tree_too(self):
         pidfile = self.path("cancel.pid")
         cancel = threading.Event()
-        threading.Timer(1.0, cancel.set).start()
+        threading.Timer(START, cancel.set).start()
         out, log, took = self.run_it(with_descendant(pidfile, "time.sleep(60)"), timeout=30, cancel=cancel)
         gpid = read_pid(pidfile)
         self.assertEqual(out["status"], "cancelled")
         self.assertTrue(wait_dead(gpid))
-        self.assertLess(took, 1.0 + BOUND)
+        self.assertLess(took, START + BOUND)
         self.assertIn("parent started", log, "what it printed before the cancel is kept")
 
 
@@ -251,7 +257,7 @@ class Cancellation(Sandbox):
         import _thread
         pidfile = self.path("sigint.pid")
         reports = []
-        threading.Timer(1.0, _thread.interrupt_main).start()
+        threading.Timer(START, _thread.interrupt_main).start()
         with self.assertRaises(KeyboardInterrupt):
             ps.supervise(child(with_descendant(pidfile, "time.sleep(60)")), timeout=30, report=reports.append, **FAST)
         self.assertEqual([r["status"] for r in reports], ["cancelled"], "reported exactly once, on the way out")
@@ -320,7 +326,7 @@ class NoLeaks(Sandbox):
         for i in range(8):
             pidfile = self.path(f"leak{i}.pid")
             code = with_descendant(pidfile, "time.sleep(60)") if i % 2 == 0 else "import sys; print('x'); sys.exit(1)"
-            out, _, _ = self.run_it(code, timeout=0.6)
+            out, _, _ = self.run_it(code, timeout=START if i % 2 == 0 else 0.6)
             self.assertIn(out["status"], ("timeout", "failed"))
             pids.append((out["pid"], pidfile if i % 2 == 0 else None))
         for pid, pidfile in pids:
@@ -346,8 +352,8 @@ class RunCapture(Sandbox):
         pidfile = self.path("capture.pid")
         t0 = time.monotonic()
         with self.assertRaises(subprocess.TimeoutExpired) as caught:
-            ps.run_capture(child(with_descendant(pidfile, "time.sleep(60)")), timeout=1.0, **FAST)
-        self.assertLess(time.monotonic() - t0, 1.0 + BOUND, "subprocess.run would have waited on the pipe the grandchild still holds")
+            ps.run_capture(child(with_descendant(pidfile, "time.sleep(60)")), timeout=START, **FAST)
+        self.assertLess(time.monotonic() - t0, START + BOUND, "subprocess.run would have waited on the pipe the grandchild still holds")
         self.assertIn("parent started", caught.exception.output)
         self.assertTrue(wait_dead(read_pid(pidfile)))
 
