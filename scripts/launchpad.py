@@ -244,7 +244,7 @@ def git_changed_files(root):
 
 def path_fingerprint(root, rel):
     """What a path holds right now, in a form that is equal exactly when the content is: a content hash, or one of `deleted`, `dir`, `symlink:<hash>`, `stat:<size>:<mtime_ns>` (a very
-    large file), `unstable` (kept changing while read) and `unreadable`. A file that is being rewritten is hashed again until two reads agree."""
+    large file), `unstable` (kept changing while read) and `unreadable`. A file that is being rewritten is hashed again until two consecutive reads agree."""
     p = os.path.join(root, *rel.split("/"))
     try:
         st = os.lstat(p)
@@ -263,7 +263,10 @@ def path_fingerprint(root, rel):
         return "special"
     if st.st_size > BIG_FILE:
         return f"stat:{st.st_size}:{st.st_mtime_ns}"
-    for _ in range(3):
+    # Stable = two consecutive reads of the same bytes with the same size and mtime. The size and mtime alone are not proof: a filesystem with a coarse clock (NTFS, FAT) keeps the
+    # same mtime for two same-length rewrites in one tick, which let a torn read pass as settled (found by the first Windows run of this test).
+    previous = None
+    for _ in range(4):
         before = os.stat(p)
         digest = file_sha(p)
         try:
@@ -272,8 +275,9 @@ def path_fingerprint(root, rel):
             return "deleted"
         if digest is None:
             return "unreadable"
-        if (before.st_size, before.st_mtime_ns) == (after.st_size, after.st_mtime_ns):
+        if digest == previous and (before.st_size, before.st_mtime_ns) == (after.st_size, after.st_mtime_ns):
             return digest
+        previous = digest
     return UNSTABLE
 
 
