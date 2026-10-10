@@ -83,7 +83,8 @@ START = 6.0 if WINDOWS else 1.0
 def with_descendant(pidfile, then):
     return (
         "import os, subprocess, sys, time\n"
-        f"g = subprocess.Popen([sys.executable, '-c', \"import os, time; open({pidfile!r}, 'w').write(str(os.getpid())); time.sleep(120)\"])\n"
+        # the path travels as an argument, not inside the grandchild's source: a Windows path pasted into a string literal is `\\U...`, a syntax error (the first Windows run's failure)
+        f"g = subprocess.Popen([sys.executable, '-c', 'import os, sys, time; open(sys.argv[1], \"w\").write(str(os.getpid())); time.sleep(120)', {pidfile!r}])\n"
         f"while not (os.path.exists({pidfile!r}) and os.path.getsize({pidfile!r})):\n    time.sleep(0.02)\n"
         "print('parent started', g.pid, flush=True)\n" + then
     )
