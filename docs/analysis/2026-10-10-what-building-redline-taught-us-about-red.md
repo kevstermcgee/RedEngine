@@ -147,6 +147,10 @@ roguelite meta-progression in pure data, which is the strongest thing in this re
 - **Offline play starts at the first spawn in the list**; worth one line in `describe scene` next to `spawns` (it decides which room a
   teleport-based game opens in).
 - **Trace and sim JSON disagree on event shape** (`[tick, rule, name, player]` in a trace, objects in `sim --json`).
+- **The `--dump` audio report describes countryside that is not playing.** Redline has no `audio.ambience`, so no bed is loaded and no
+  call is played, but `re2 --headless --script --dump` reports `wind 0.42`, `bees 0.40` and a blackbird and a cuckoo in `recent`. In
+  `src/bin/re2/ambient.rs` the bed levels and `recent` are recorded before the `spec.nature` gate. An AI reading the dump concludes its
+  lava reactor has birdsong. Report zero (or omit `beds`/`calls`) when `nature` is off.
 
 ## What worked well (keep it)
 
