@@ -68,15 +68,66 @@ jobs:
           components: rustfmt
       - run: bash scripts/ci.sh fmt
 
+  # The suite on Linux, split across runners by cargo-nextest (`RED_CI_PARTITION`, ADR 2026-10-10-ci-shards-the-linux-tests): each shard compiles the tests (the
+  # dependencies come from the shared cache) and runs its share; the serial suites are spread over the shards too, one at a time within each.
   test:
-    name: full build (${{ matrix.os }})
+    name: tests (linux, shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
-    runs-on: ${{ matrix.os }}
+    if: needs.changes.outputs.games_only != 'true'
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        # Linux always; the Windows leg only when something it compiles or runs changed.
-        os: ${{ fromJSON(needs.changes.outputs.native == 'true' && '["ubuntu-24.04","windows-latest"]' || '["ubuntu-24.04"]') }}
+        shard: [1, 2, 3, 4, 5]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux-tests
+          save-if: ${{ github.ref == 'refs/heads/main' && matrix.shard == 1 }}
+      # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+      - name: Linux system libraries (audio backend for rodio)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
+      # Real-time UDP suites one test at a time (serial_suites in docs/features.json), everything else on all cores. The deterministic performance guards
+      # (tests/alloc_budget.rs, body/entity counts) run here; wall-clock bench regressions are NOT gated (shared runners are too noisy: benches/README.md).
+      - run: bash scripts/ci.sh tests
+        env:
+          RED_CI_PARTITION: hash:${{ matrix.shard }}/${{ strategy.job-total }}
+
+  # Lints and compile-only checks: nothing here waits for the tests. The lock files first: a stale one is the commonest reason a dependency change fails CI.
+  lint:
+    name: clippy + benches compile
+    needs: changes
+    if: needs.changes.outputs.games_only != 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Linux system libraries (audio backend for rodio)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
+      - run: bash scripts/ci.sh lockfiles clippy benches
+
+  # Games on the engine's public API, in their own job: the external custom client and Killchain.
+  api:
+    name: games on the public API
+    needs: changes
+    if: needs.changes.outputs.games_only != 'true'
+    runs-on: ubuntu-24.04
     defaults:
       run:
         shell: bash
@@ -94,26 +145,72 @@ jobs:
             . -> target
             examples/external/topdown_switch -> target
       - name: Linux system libraries (audio backend for rodio)
-        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
-      # clippy: warnings are errors. tests: real-time UDP suites one test at a time (serial_suites in docs/features.json), everything else on all cores.
-      # benches compile. Wall-clock bench regressions are NOT gated here: shared runners are too noisy. Run
-      # `cargo bench --bench sim && python benches/check.py` locally (benches/README.md). The deterministic performance guards
-      # (tests/alloc_budget.rs, body/entity counts) run in the tests stage.
-      # The lock files first: a stale one is the commonest reason a dependency change fails CI, and it takes seconds to see.
-      - run: bash scripts/ci.sh lockfiles clippy tests benches
-        if: needs.changes.outputs.games_only != 'true'
       # Hosted runners may have no GPU adapter at all: the external client's offscreen presentation check is skipped there, not faked.
       - run: bash scripts/ci.sh external-client
-        if: needs.changes.outputs.games_only != 'true'
         env:
           RED_OFFSCREEN_OPTIONAL: "1"
       # The game on the public API (games/killchain): same target directory and cache as the engine, so only the game's own crate is compiled here.
       - run: bash scripts/ci.sh killchain
-        if: needs.changes.outputs.games_only != 'true'
-      # Only generated games changed (see `changes`): the tests that read them, not the whole suite.
+
+  # Only generated games changed (see `changes`): the tests that read them, not the whole suite.
+  games:
+    name: generated games
+    needs: changes
+    if: needs.changes.outputs.games_only == 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux-tests
+          save-if: false
+      - name: Linux system libraries (audio backend for rodio)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
       - run: bash scripts/ci.sh games
-        if: needs.changes.outputs.games_only == 'true'
+
+  # Windows is authoritative for two things Linux cannot answer: Microsoft's shader compiler (Direct3D) and the Python tools' path/quoting/process behaviour (the
+  # `python-tools` job). On a pull request this job builds and links every binary and compiles the renderer's pipelines through Direct3D (`scripts/ci.sh direct3d`,
+  # a few minutes); the whole suite on Windows, the same stages as Linux, runs on every push to main (ADR 2026-10-10-windows-ci-on-pull-requests-is-build-and-direct3d).
+  windows:
+    name: windows (${{ github.event_name == 'pull_request' && 'build + Direct3D' || 'full suite' }})
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: |
+            . -> target
+            examples/external/topdown_switch -> target
+      # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+      - run: bash scripts/ci.sh direct3d
+        if: github.event_name == 'pull_request'
+        env:
+          RED_DIRECT3D_REQUIRED: "1"
+      - run: bash scripts/ci.sh lockfiles clippy tests benches
+        if: github.event_name != 'pull_request'
+      - run: bash scripts/ci.sh external-client
+        if: github.event_name != 'pull_request'
+        env:
+          RED_OFFSCREEN_OPTIONAL: "1"
+      - run: bash scripts/ci.sh killchain
+        if: github.event_name != 'pull_request'
 
   # The Python tools, on both platforms, without building any Rust: `scripts/ci.sh pytools` runs every scripts/test_*.py and the publish check on this runner's interpreter.
   # The `test` job's Windows leg compiles and runs the engine and only starts for Rust-side changes; a change to launchpad.py, idea_forge.py, proc_supervisor.py or a PowerShell script
@@ -138,7 +235,34 @@ jobs:
   # The dedicated server on a bare Linux box: no window, GPU, audio or ffmpeg libraries installed, and none may
   # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS.
   headless-linux:
-    name: headless server (linux, no gfx)
+    name: headless server (linux, no gfx, shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: changes
+    if: needs.changes.outputs.games_only != 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: headless
+          save-if: ${{ github.ref == 'refs/heads/main' && matrix.shard == 1 }}
+      # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+      - run: bash scripts/ci.sh headless-tests
+        env:
+          RED_CI_PARTITION: hash:${{ matrix.shard }}/${{ strategy.job-total }}
+
+  # The headless dependency tree, build and clippy (no graphics crates may be compiled or linked): their own job, so neither test shard waits for them.
+  headless-build:
+    name: headless server (linux, no gfx, build + clippy)
     needs: changes
     if: needs.changes.outputs.games_only != 'true'
     runs-on: ubuntu-24.04
@@ -150,7 +274,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: bash scripts/ci.sh headless-tree headless-build headless-clippy headless-tests
+      - run: bash scripts/ci.sh headless-tree headless-build headless-clippy
 
   # The container image people deploy: builds headless, starts, listens on UDP 27015 and exits cleanly.
   docker:

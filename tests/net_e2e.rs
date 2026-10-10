@@ -397,16 +397,25 @@ fn it_still_works_through_15_percent_loss_and_40_ms_latency_with_jitter() {
         let h2 = s.spawn(|| run_bot(&mut watcher, 6.5));
         (h1.join().unwrap(), h2.join().unwrap())
     });
-    // Let both clients keep listening for a moment before judging: on a loaded machine the barrel can still be rolling when the run ends,
-    // and a comparison against a moving target is a flake, not a finding.
+    // Let both clients keep listening until the barrel has stopped before judging: on a loaded machine (the suite shares it with other tests) it can still
+    // be rolling when the run ends, and a comparison against a moving target is a flake, not a finding. Stopped = neither client saw it move more than 5 mm
+    // in a second of listening; at most 6 s more.
     let (mut fp, mut fw) = (fp, fw);
-    let (mut more_p, mut more_w) = std::thread::scope(|s| {
-        let h1 = s.spawn(|| run_bot(&mut pusher, 2.0));
-        let h2 = s.spawn(|| run_bot(&mut watcher, 2.0));
-        (h1.join().unwrap(), h2.join().unwrap())
-    });
-    fp.append(&mut more_p);
-    fw.append(&mut more_w);
+    let seen = |frames: &[BotFrame]| frames.iter().rev().find_map(|f| f.props.iter().find(|(i, _)| *i == domino0).map(|(_, p)| p.pos));
+    for round in 0..6 {
+        let before = (seen(&fp), seen(&fw));
+        let (mut more_p, mut more_w) = std::thread::scope(|s| {
+            let h1 = s.spawn(|| run_bot(&mut pusher, if round == 0 { 2.0 } else { 1.0 }));
+            let h2 = s.spawn(|| run_bot(&mut watcher, if round == 0 { 2.0 } else { 1.0 }));
+            (h1.join().unwrap(), h2.join().unwrap())
+        });
+        fp.append(&mut more_p);
+        fw.append(&mut more_w);
+        let moved = |a: Option<glam::Vec3>, b: Option<glam::Vec3>| a.zip(b).is_none_or(|(a, b)| a.distance(b) > 0.005);
+        if !moved(before.0, seen(&fp)) && !moved(before.1, seen(&fw)) {
+            break;
+        }
+    }
     stop.store(true, Ordering::Relaxed);
     ha.join().unwrap();
     hb.join().unwrap();
