@@ -78,7 +78,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     defaults:
       run:
         shell: bash
@@ -256,12 +256,25 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest
-      # The tree, build and clippy checks are seconds and run on shard 1 only; the tests are split across the shards.
-      - run: bash scripts/ci.sh headless-tree headless-build headless-clippy
-        if: matrix.shard == 1
       - run: bash scripts/ci.sh headless-tests
         env:
           RED_CI_PARTITION: hash:${{ matrix.shard }}/${{ strategy.job-total }}
+
+  # The headless dependency tree, build and clippy (no graphics crates may be compiled or linked): their own job, so neither test shard waits for them.
+  headless-build:
+    name: headless server (linux, no gfx, build + clippy)
+    needs: changes
+    if: needs.changes.outputs.games_only != 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: true   # MEASUREMENT ONLY (PR #97): reverted before merge
+      - run: bash scripts/ci.sh headless-tree headless-build headless-clippy
 
   # The container image people deploy: builds headless, starts, listens on UDP 27015 and exits cleanly.
   docker:
@@ -271,7 +284,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - run: docker build -t red-server .
+      # BuildKit with the GitHub Actions cache: the cargo-chef dependency layer (Dockerfile) is reused until Cargo.toml/Cargo.lock change
+      # (ADR 2026-10-10-the-container-image-caches-its-dependency-layer). `mode=max` keeps the intermediate build stages, which is where that layer lives.
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: red-server
+          cache-from: type=gha,scope=red-server
+          cache-to: type=gha,mode=max,scope=red-server
       - name: refuses to start without an identity (fail closed)
         run: |
           if docker run --rm red-server --run-for 3 --stats-secs 0; then echo "started without a server identity"; exit 1; fi
