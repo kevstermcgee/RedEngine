@@ -1439,7 +1439,7 @@ mod tests {
     fn the_code_a_host_reads_out_is_never_cut_short_on_the_lobby_screen() {
         // The relay code carries the join key (`H3PQXR-K7Q2-MZ4P-WTXA`): an ellipsis in it would be a code nobody can join with.
         let code = "H3PQXR-K7Q2-MZ4P-WTXA";
-        for &(w, h) in &super::super::screens::CHECK_SIZES {
+        for &(w, h) in &red_engine2::ui::screens::CHECK_SIZES {
             let view = LobbyView {
                 roster: demo_roster(),
                 me: 0,
@@ -1464,9 +1464,9 @@ mod tests {
     #[test]
     fn every_way_a_join_can_fail_is_readable_in_full_on_the_join_screen() {
         // The join screen wraps a message into four lines and drops the rest: an error that says what to do must not lose its second half. The sentences come from the code that raises them.
-        use crate::net::join::JoinError;
-        use crate::net::protocol::RejectReason;
-        use crate::net::relay_server::ResolveError;
+        use red_engine2::net::join::JoinError;
+        use red_engine2::net::protocol::RejectReason;
+        use red_engine2::net::relay_server::ResolveError;
         let mut messages: Vec<String> = [
             JoinError::RelaysOff,
             JoinError::HostNotVerifiable,
@@ -1483,7 +1483,7 @@ mod tests {
                 .map(|r| r.explain().to_string()),
         );
         let mut cut = Vec::new();
-        for &(w, h) in super::super::screens::CHECK_SIZES.iter().filter(|(w, _)| *w >= 640) {
+        for &(w, h) in red_engine2::ui::screens::CHECK_SIZES.iter().filter(|(w, _)| *w >= 640) {
             for m in &messages {
                 let mut form = ConnectForm::new("H3PQXR-K7Q2-MZ4P-WTXA", "", "Kev");
                 form.message = Some(m.clone());
