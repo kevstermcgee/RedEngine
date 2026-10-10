@@ -201,6 +201,19 @@ pub const TYPES: &[TypeInfo] = &[
         example: r##"{"id":"sign_depot","type":"text","text":"DEPOT\nOPEN 24H","position":[0,2.2,-3.9],"height":0.25,"backing":"#23303f","material":{"color":"#ffcc66","emissive":"#553300"}}"##,
     },
     TypeInfo {
+        name: "voxels",
+        summary: "macro: pixel art pressed into 3D (a 2D game's `shape: \"voxels\"`, in a 3D scene or prefab): a 3D prop drawn as rows of characters, each colour merged into the fewest boxes. Origin = middle of the bottom edge, front = +Z.",
+        fields: &[
+            ("rows", "[string], required", "top row first, one character per cell; '.' or space is empty; at most 64 x 64"),
+            ("palette", "{char: #hex | @role}, required", "the colour of each character (`@role` takes the game's style palette)"),
+            ("cell", "number = 0.1", "a cube's side in metres"),
+            ("depth", "whole cells = 1", "how many cells thick (1 = a flat cut-out)"),
+            ("material", "{roughness, metallic, emissive, ...}", "applied to every cube (the colour comes from the palette); roughness defaults to 0.8"),
+            ("collide", "bool = true", "the cubes are boxes: they collide unless this is false"),
+        ],
+        example: r##"{"id":"mushroom","type":"voxels","position":[0,0,-2],"cell":0.1,"depth":4,"rows":[".rrrr.","rrwrrr","rrrrwr","..ss..","..ss.."],"palette":{"r":"#c0392b","w":"#f4f1e8","s":"#e8dcc0"}}"##,
+    },
+    TypeInfo {
         name: "array",
         summary: "macro: copies of one template along a step (or at listed positions), named <id>.0, <id>.1, ... so repeated geometry never needs hand-written ids. A group template's children are renamed per copy.",
         fields: &[
