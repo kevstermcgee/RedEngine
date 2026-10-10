@@ -532,6 +532,7 @@ impl App {
         let starting_weapon = scene.weapons.starting_weapon;
         let mut rules = RulesEngine::new(scene.rules.clone()).with_wrap(scene.player.expanse.wrap);
         let settings_key = red_engine2::settings::key_for(&scene_path);
+        red_engine2::settings::adopt_legacy(&scene_path);
         // What the game keeps between sessions (`persist`) comes back before the first tick.
         let saved_vars: std::collections::BTreeMap<String, f64> =
             if scene.rules.persist.is_empty() { Default::default() } else { red_engine2::settings::load_vars(&settings_key) };

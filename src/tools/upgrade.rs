@@ -1259,6 +1259,7 @@ mod tests {
         let cfg = GameConfig {
             dir: dir.clone(),
             name: "t".into(),
+            id: None,
             engine: game::EngineRef { path: Some("../engine".into()), ..Default::default() },
             blueprints: vec!["blueprints/main.blueprint.json".into()],
             maps: vec!["maps/main.json".into()],
@@ -1288,6 +1289,7 @@ mod tests {
                     game: GameConfig {
                         dir: root.to_path_buf(),
                         name: "t".into(),
+                        id: None,
                         engine: game::EngineRef::default(),
                         blueprints: vec![],
                         maps: vec!["maps/main.json".into()],
@@ -1322,6 +1324,7 @@ mod tests {
             game: GameConfig {
                 dir: PathBuf::from("."),
                 name: "t".into(),
+                id: None,
                 engine: game::EngineRef::default(),
                 blueprints: vec![],
                 maps: vec![],
@@ -1408,6 +1411,7 @@ mod tests {
             game: GameConfig {
                 dir: PathBuf::from("."),
                 name: "t".into(),
+                id: None,
                 engine: game::EngineRef { path: Some("../engine".into()), ..Default::default() },
                 blueprints: vec!["blueprints/main.blueprint.json".into()],
                 maps: vec!["maps/main.json".into()],

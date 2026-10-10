@@ -56,6 +56,9 @@ pub struct GameConfig {
     pub dir: PathBuf,
     /// Project name.
     pub name: String,
+    /// The game's stable identity (`"id"`): what its saved settings and progress are filed under, whatever folder the game is unpacked into. `None` for a project
+    /// that has not chosen one: it is then identified by its name and the folder it lives in (see `settings::key_for`).
+    pub id: Option<String>,
     /// Pinned engine.
     pub engine: EngineRef,
     /// Blueprint files, relative to `dir`.
@@ -68,7 +71,17 @@ pub struct GameConfig {
     pub capabilities: Option<red2d::caps::Capabilities>,
 }
 
-const TOP: &[&str] = &["game", "name", "engine", "blueprints", "maps", "server", "capabilities"];
+const TOP: &[&str] = &["game", "id", "name", "engine", "blueprints", "maps", "server", "capabilities"];
+
+/// Whether `id` is a valid game id: 1 to 40 lowercase letters and digits, in groups separated by single hyphens.
+pub fn valid_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 40
+        && !id.starts_with('-')
+        && !id.ends_with('-')
+        && !id.contains("--")
+        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
 
 fn strs(v: Option<&Value>) -> Vec<String> {
     v.and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default()
@@ -95,6 +108,18 @@ pub fn parse(dir: &Path, text: &str) -> Result<GameConfig, Vec<String>> {
     if engine.git.is_none() && engine.path.is_none() {
         errs.push("engine: give {\"git\": URL, \"ref\": \"master\"} or {\"path\": \"../red-engine-2\"} so the project knows which engine to use".into());
     }
+    let id = match root.get("id") {
+        None => None,
+        Some(v) => match v.as_str().filter(|s| valid_id(s)) {
+            Some(s) => Some(s.to_string()),
+            None => {
+                errs.push(
+                    "id: 1 to 40 lowercase letters and digits, in groups separated by single hyphens (it names this game's saved settings and progress)".into(),
+                );
+                None
+            }
+        },
+    };
     let maps = strs(root.get("maps"));
     let mut server = ServerCfg { map: maps.first().cloned().unwrap_or_default(), port: crate::net::DEFAULT_PORT, spawn_group: String::new(), args: Vec::new() };
     if let Some(s) = root.get("server").and_then(Value::as_object) {
@@ -124,6 +149,7 @@ pub fn parse(dir: &Path, text: &str) -> Result<GameConfig, Vec<String>> {
         capabilities,
         dir: dir.to_path_buf(),
         name: root.get("name").and_then(Value::as_str).unwrap_or("game").to_string(),
+        id,
         engine,
         blueprints: strs(root.get("blueprints")),
         maps,
@@ -605,6 +631,17 @@ mod tests {
     use super::*;
 
     const GOOD: &str = r#"{"game":1,"name":"t","engine":{"path":"../engine"},"blueprints":["blueprints/main.blueprint.json"],"maps":["maps/main.json"],"server":{"port":28000,"spawn_group":"duel"}}"#;
+
+    #[test]
+    fn a_game_id_is_optional_and_must_be_a_plain_slug() {
+        assert_eq!(parse(Path::new("."), GOOD).unwrap().id, None, "no id: the project is identified by name and folder, as before");
+        let with = |id: &str| GOOD.replace("\"name\":\"t\"", &format!("\"name\":\"t\",\"id\":{id}"));
+        assert_eq!(parse(Path::new("."), &with("\"moon-delivery-2\"")).unwrap().id.as_deref(), Some("moon-delivery-2"));
+        for bad in ["\"\"", "\"Marcel\"", "\"two  words\"", "\"a--b\"", "\"-a\"", "\"a-\"", "\"snake_case\"", "7", &format!("\"{}\"", "x".repeat(41))] {
+            let errs = parse(Path::new("."), &with(bad)).expect_err(bad);
+            assert!(errs.iter().any(|e| e.starts_with("id:")), "{bad}: {errs:?}");
+        }
+    }
 
     #[test]
     fn config_parses_with_defaults_and_rejects_typos() {

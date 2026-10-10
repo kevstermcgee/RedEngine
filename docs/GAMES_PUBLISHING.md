@@ -46,6 +46,10 @@ A playable's `files` must hold everything its scene names: the score files of it
 music, so `cargo test` fails (`tools::publish_check`, test `every_published_playable_ships_everything_its_scene_needs`) and names the playable, the file and the fix. A scene that
 names a score that does not exist, or a file that is not a score, does not load at all.
 
+## Saved progress
+
+A project's settings and saved variables are filed under the `id` in its `game.json` (`new-game` writes one), so they follow the game when it is unpacked into another folder or updated. A project without an `id` is filed under its name and folder, as before; when you add one, the engine copies what the old place held to the new one once. Installed games also set `RE2_SAVE_DIR` (`Saved Games\<game>`), which names the folder outright.
+
 ## Publishing a game project
 
 A standalone game (made with `new-game`) is published with one command from its directory: `red_engine2 game publish ../RedEngineGames` (or `scripts/red game publish

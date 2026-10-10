@@ -1,8 +1,9 @@
 //! Per-game player settings (music/sound on or off) that survive a relaunch, and where they live on disk.
 //!
-//! A setting is identified by [`key_for`]: the game project's name (from `game.json`, ADR 0024) plus a short
-//! hash of its canonical directory, so two different games (even same-named ones in different folders) never
-//! share settings, and a map played with no enclosing project (dev/testing) still gets a stable key of its own.
+//! A setting is identified by [`key_for`]. A game project that gives its `game.json` an `id` is filed under that id, wherever it is unpacked or moved to: its
+//! progress belongs to the game. A project without one is identified by its name plus a short hash of its canonical directory (so two different games, even
+//! same-named ones in different folders, never share settings, but a copy in a new folder starts fresh), and a map played with no enclosing project
+//! (dev/testing) still gets a stable key of its own. [`adopt_legacy`] carries the old directory-keyed files over when a project first gains an id.
 //! Settings "stay with the game", not with the machine as a whole: turning music off in one game never
 //! silences another.
 //!
@@ -35,20 +36,49 @@ fn find_game_dir(map: &Path) -> Option<PathBuf> {
     parent.ancestors().find(|dir| dir.join("game.json").is_file()).map(Path::to_path_buf)
 }
 
-/// The stable settings key for the game that owns `map`: `<slugified-name>-<hash12>` when an enclosing
-/// `game.json` is found (the hash is of its canonical directory, so a rename of the project keeps its
-/// settings but a copy to a new location starts fresh, matching how `game::engine_pin` already treats a path
-/// as evidence of *a* location, not an identity); otherwise `map-<hash12>` of the map's own canonical path.
+/// The stable settings key for the game that owns `map`: the `id` of its enclosing `game.json` when it has one; else `<slugified-name>-<hash12>` (the hash is of
+/// its canonical directory, so a rename of the project keeps its settings but a copy to a new location starts fresh, matching how `game::engine_pin` already
+/// treats a path as evidence of *a* location, not an identity); and `map-<hash12>` of the map's own canonical path when there is no `game.json`.
 pub fn key_for(map: &Path) -> String {
-    if let Some(dir) = find_game_dir(map) {
-        let name = crate::tools::game::load(&dir).map(|c| c.name).unwrap_or_else(|_| "game".to_string());
-        let slug = crate::tools::adr::slugify(&name, 40);
-        let slug = if slug.is_empty() { "game".to_string() } else { slug };
-        format!("{slug}-{}", short_hash(&dir))
-    } else {
-        let canon = std::fs::canonicalize(map).unwrap_or_else(|_| map.to_path_buf());
-        format!("map-{}", short_hash(&canon))
+    match find_game_dir(map) {
+        Some(dir) => crate::tools::game::load(&dir).ok().and_then(|c| c.id).unwrap_or_else(|| directory_key(&dir)),
+        None => {
+            let canon = std::fs::canonicalize(map).unwrap_or_else(|_| map.to_path_buf());
+            format!("map-{}", short_hash(&canon))
+        }
     }
+}
+
+/// The directory-keyed form of a project's key (`<slugified-name>-<hash12>`): what [`key_for`] returned before `game.json` could carry an `id`, and still does without one.
+fn directory_key(dir: &Path) -> String {
+    let name = crate::tools::game::load(dir).map(|c| c.name).unwrap_or_else(|_| "game".to_string());
+    let slug = crate::tools::adr::slugify(&name, 40);
+    let slug = if slug.is_empty() { "game".to_string() } else { slug };
+    format!("{slug}-{}", short_hash(dir))
+}
+
+/// For a project whose `game.json` has an `id`: the key it was filed under before it had one. `None` when there is no `id` (nothing changed) or no project.
+fn legacy_key_for(map: &Path) -> Option<String> {
+    let dir = find_game_dir(map)?;
+    crate::tools::game::load(&dir).ok()?.id?;
+    Some(directory_key(&dir))
+}
+
+/// A project that has just been given an `id` keeps what it saved under its old directory key: the settings and variables files are copied to the new place once, when
+/// the new place has none (never over a file that is there). Returns how many files were copied; any failure just means nothing is copied, as with every other save problem.
+pub fn adopt_legacy(map: &Path) -> usize {
+    let Some(old) = legacy_key_for(map) else { return 0 };
+    let new = key_for(map);
+    ["settings.json", "vars.json"]
+        .iter()
+        .filter(|name| {
+            let (Some(to), Some(from)) = (state_path(&new, name), legacy_path(&old, name)) else { return false };
+            if to.exists() || !from.is_file() || to == from {
+                return false;
+            }
+            to.parent().is_some_and(|p| std::fs::create_dir_all(p).is_ok()) && std::fs::copy(&from, &to).is_ok()
+        })
+        .count()
 }
 
 fn short_hash(path: &Path) -> String {
@@ -174,6 +204,7 @@ mod tests {
         let b = scratch("project_b");
         for dir in [&a, &b] {
             crate::tools::newgame::scaffold(dir, "demo", &crate::tools::game::EngineRef { path: Some("../engine".into()), ..Default::default() }).unwrap();
+            set_id(dir, None); // a project without an id: identified by name and folder
         }
         let (ka1, ka2, kb) = (key_for(&a.join("maps/main.json")), key_for(&a.join("maps/main.json")), key_for(&b.join("maps/main.json")));
         assert_eq!(ka1, ka2, "the same game must get the same key every time");
@@ -181,6 +212,36 @@ mod tests {
         assert!(ka1.starts_with("demo-"), "{ka1}");
         let _ = std::fs::remove_dir_all(&a);
         let _ = std::fs::remove_dir_all(&b);
+    }
+
+    /// Rewrites a scaffolded project's `game.json` to carry (or drop) an `id`.
+    fn set_id(dir: &Path, id: Option<&str>) {
+        let text = std::fs::read_to_string(dir.join("game.json")).unwrap();
+        let without: String = text.lines().filter(|l| !l.trim_start().starts_with("\"id\"")).collect::<Vec<_>>().join("\n") + "\n";
+        let text = match id {
+            Some(id) => without.replacen("\"name\"", &format!("\"id\": \"{id}\",\n  \"name\""), 1),
+            None => without,
+        };
+        std::fs::write(dir.join("game.json"), text).unwrap();
+    }
+
+    #[test]
+    fn a_game_id_names_the_game_not_the_folder() {
+        let (a, b) = (scratch("id_a"), scratch("id_b"));
+        for dir in [&a, &b] {
+            crate::tools::newgame::scaffold(dir, "Demo_Game", &crate::tools::game::EngineRef { path: Some("../engine".into()), ..Default::default() }).unwrap();
+        }
+        let (ka, kb) = (key_for(&a.join("maps/main.json")), key_for(&b.join("maps/main.json")));
+        assert_eq!(ka, "demo-game", "a scaffolded project is born with an id made from its name");
+        assert_eq!(ka, kb, "the same game unpacked into two folders is one game: its progress follows it");
+        set_id(&a, Some("other-game"));
+        assert_eq!(key_for(&a.join("maps/main.json")), "other-game", "a chosen id wins over the name");
+        set_id(&a, None);
+        set_id(&b, None);
+        let (old_a, old_b) = (key_for(&a.join("maps/main.json")), key_for(&b.join("maps/main.json")));
+        assert!(old_a.starts_with("demo-game-"), "without an id the old name-and-folder key is unchanged: {old_a}");
+        assert_ne!(old_a, old_b, "and it still tells folders apart");
+        let _ = (std::fs::remove_dir_all(&a), std::fs::remove_dir_all(&b));
     }
 
     #[test]
@@ -232,6 +293,29 @@ mod tests {
         assert_eq!(load("legacy-key"), legacy, "progress made before the save folder existed is not lost");
         unsafe { std::env::remove_var(SAVE_DIR_ENV) };
         let _ = (std::fs::remove_dir_all(&saves), std::fs::remove_dir_all(&fresh));
+
+        // A project that was saving under its folder key and then gains an `id` keeps what it saved: the files are copied to the new key once, never over newer ones.
+        let project = scratch("adopt");
+        crate::tools::newgame::scaffold(&project, "adopter", &crate::tools::game::EngineRef { path: Some("../engine".into()), ..Default::default() }).unwrap();
+        let map = project.join("maps/main.json");
+        set_id(&project, None);
+        let folder_key = key_for(&map);
+        assert!(folder_key.starts_with("adopter-"), "{folder_key}");
+        let before = Settings { music: false, sfx: false };
+        save(&folder_key, &before).unwrap();
+        let mut progress = std::collections::BTreeMap::new();
+        progress.insert("days".to_string(), 41.0);
+        save_vars(&folder_key, &progress).unwrap();
+        assert_eq!(adopt_legacy(&map), 0, "no id yet: nothing to adopt");
+        set_id(&project, Some("adopter"));
+        assert_eq!(key_for(&map), "adopter");
+        assert_eq!(load("adopter"), Settings::default(), "the new key starts empty");
+        assert_eq!(adopt_legacy(&map), 2, "settings and variables are carried over");
+        assert_eq!((load("adopter"), load_vars("adopter")), (before, progress), "nothing was lost by adding an id");
+        save("adopter", &Settings { music: true, sfx: true }).unwrap();
+        assert_eq!(adopt_legacy(&map), 0, "a second run copies nothing");
+        assert_eq!(load("adopter"), Settings { music: true, sfx: true }, "and never overwrites what was saved since");
+        let _ = std::fs::remove_dir_all(&project);
 
         match old {
             Some(v) => unsafe { std::env::set_var("XDG_CONFIG_HOME", v) },
