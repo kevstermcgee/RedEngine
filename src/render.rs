@@ -730,8 +730,9 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
             [d.glow.x, d.glow.y, d.glow.z, d.glow_strength],
             [d.horizon.x, d.horizon.y, d.horizon.z, c.fog],
         ),
-        // No clock: no stars, moon or glow, but the scene time still reaches the shaders (the wind blows in any scene with plants).
-        _ => ([0.0, 1.0, 0.0, 0.0], [0.0, t, 0.0, 0.0], [[0.0; 4]; 3], [0.0; 4], [0.0; 4]),
+        // No clock: no stars, moon or glow, but the scene time still reaches the shaders (the wind blows in any scene with plants), and the scene's own fog
+        // (`fog`, usually from `style.fog`) is the haze.
+        _ => ([0.0, 1.0, 0.0, 0.0], [0.0, t, 0.0, 0.0], [[0.0; 4]; 3], [0.0; 4], scene.fog.map_or([0.0; 4], |f| [f.color.x, f.color.y, f.color.z, f.density])),
     };
 
     let mut cascade_vp = [Mat4::IDENTITY.to_cols_array_2d(); 3];

@@ -24,6 +24,9 @@
 //! | `door-blocked` | a door/arch opening you can't actually walk through (furniture in front of it)|
 //! | `interest`     | a multiplayer map (it has `spawns`) whose zones are not linked by `portals`: players vanish |
 //! | `jump-clearance` | an overhead slab out of reach standing but within a jump: it shoves a jumper sideways  |
+//! | `style-palette` | a game (rules or ui) with no `style.palette`, or one that is all default colours                     |
+//! | `style-lamp`   | a game whose point lights are all the default lamp colour                    |
+//! | `style-sky`    | a game with a default sky gradient and no `sky`/`clock`                       |
 
 use super::reach::{Reach, DROP_THRESHOLD};
 use super::world::{Item, ItemKind, MapWorld};
@@ -148,6 +151,7 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
     check_terrain(world, &mut out);
     check_carry(world, &mut out);
     check_speed_cap(world, &mut out);
+    check_style(world, &mut out);
     // A total order: findings of one severity and code used to keep the order the checks happened to produce them in, which follows hash-map iteration and
     // differed from run to run (two `headroom` errors swapped places between runs of the same binary). The message names the object, so it breaks the tie.
     out.sort_by(|a, b| b.sev.cmp(&a.sev).then(a.code.cmp(b.code)).then_with(|| a.message.cmp(&b.message)));
@@ -155,6 +159,14 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
 }
 
 // ---------------------------------------------------------------------------------------------
+
+/// A game that ships the default palette, lamp or sky looks like every other game made with the engine (`style::defaults_kept`, ADR
+/// 2026-10-10-a-game-style-block-re-skins-shared-prefabs). Games only: reference maps and test content are not asked to have a look of their own.
+fn check_style(world: &MapWorld, out: &mut Vec<Finding>) {
+    for (code, message) in crate::style::defaults_kept(&world.raw, &world.scene) {
+        out.push(finding(Severity::Warn, code, message, None, &[]));
+    }
+}
 
 /// `player.throw_speed` and rule `impulse` speeds above the physics cap are accepted but saturate (20 and 30 behave like 14).
 fn check_speed_cap(world: &MapWorld, out: &mut Vec<Finding>) {

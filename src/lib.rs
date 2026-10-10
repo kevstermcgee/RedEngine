@@ -87,6 +87,7 @@ pub mod streaks;
 #[cfg(feature = "render")]
 pub mod stream_gpu;
 pub mod strict;
+pub mod style;
 pub mod suggest;
 pub mod synth;
 pub mod terrain;

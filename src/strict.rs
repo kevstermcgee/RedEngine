@@ -55,6 +55,8 @@ pub const ROOT_KEYS: &[&str] = &[
     "procgen",
     "audio",
     "ocean",
+    "style",
+    "fog",
     "objects",
 ];
 /// `meta` keys.

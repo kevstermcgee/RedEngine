@@ -80,6 +80,7 @@ pub fn backdrop_scene() -> Scene {
         teams: false,
         sky: None,
         ocean: None,
+        fog: None,
         shooter: None,
         race: None,
         lights: vec![

@@ -98,10 +98,20 @@ pub struct Scene {
     pub audio: Option<crate::ambience::AudioSpec>,
     /// The endless water plane (`ocean` block), if the scene has one.
     pub ocean: Option<crate::atmosphere::Ocean>,
+    /// Distance fog (`fog` block, usually filled in by `style.fog`), when the scene has one and no `clock` (a clock brings its own haze).
+    pub fog: Option<Fog>,
     /// The kart race (`race` block), if the scene has one: its presence turns every player into a kart driver (`sim::kart`, `sim::race`).
     pub race: Option<std::sync::Arc<crate::sim::race::RaceCourse>>,
     /// The loadout shooter (`shooter` block), if the scene has one: a kit of weapons per player, pickups on the map, two teams.
     pub shooter: Option<crate::sim::shooter::ShooterConfig>,
+}
+
+/// Distance fog: everything fades toward `color` as `1 - exp(-distance * density)`.
+#[derive(Debug, Clone, Copy)]
+pub struct Fog {
+    pub color: Vec3,
+    /// Per metre: 0.01 is a light haze over a large map, 0.05 a misty room, 0.1 thick fog.
+    pub density: f32,
 }
 
 /// Sky: a flat color or a vertical gradient.
@@ -1001,6 +1011,8 @@ pub fn parse_scene_in(text: &str, base_dir: Option<&std::path::Path>) -> Result<
 
 fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
     let mut value: Value = serde_json::from_str(text).map_err(|e| vec![format!("json: {e}")])?;
+    // The game's `style` (palette roles, material presets, light rig, sky, fog, post) resolves into ordinary fields first, so prefab params can bind to the palette.
+    crate::style::resolve(&mut value)?;
     // Prefab instances (`"type": "prefab"`) expand into plain groups before anything else sees them.
     crate::prefabs::expand_scene(&mut value)?;
     let mut ctx = Ctx::default();
@@ -1114,6 +1126,24 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             ctx.errors.extend(errs);
             None
         }
+    };
+    let fog = match root.get("fog") {
+        None => None,
+        Some(f) => match f.as_object() {
+            None => {
+                ctx.err("fog", "must be an object {color, density} (usually written as style.fog)".to_string());
+                None
+            }
+            Some(o) => {
+                check_keys(&mut ctx.errors, "fog", o, crate::style::FOG_KEYS);
+                let color = plain_hex(&mut ctx, o, "color", "fog", Vec3::new(0.75, 0.78, 0.82));
+                let density = plain_f32(&mut ctx, o, "density", "fog", 0.02);
+                if !(0.0..=1.0).contains(&density) {
+                    ctx.err("fog.density", format!("{density} is out of range: 0 (none) ... 0.1 (thick fog); 1 hides everything past a metre"));
+                }
+                (density > 0.0).then_some(Fog { color, density })
+            }
+        },
     };
 
     let ambient = root.get("ambient").and_then(Value::as_object);
@@ -1369,6 +1399,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         procgen,
         audio,
         ocean,
+        fog,
         race,
         shooter,
     })

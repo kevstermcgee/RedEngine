@@ -4,7 +4,7 @@
     "tags": ["kitchen", "drink", "small"],
     "desc": "A ceramic mug with a handle on +X.",
     "collide": false,
-    "params": {"color": {"default": "#e8e4da", "desc": "mug color"}},
+    "params": {"color": {"palette": "stone", "default": "#e8e4da", "desc": "mug color"}},
     "objects": [
       {"id": "body", "type": "cylinder", "radius": 0.04, "height": 0.09, "position": [0, 0.045, 0], "material": {"color": "$color", "roughness": 0.3}},
       {"id": "coffee", "type": "cylinder", "radius": 0.035, "height": 0.004, "position": [0, 0.086, 0], "material": {"color": "#3a2416", "roughness": 0.2}},
@@ -18,7 +18,7 @@
     "tags": ["kitchen", "tableware", "small"],
     "desc": "A dinner plate.",
     "collide": false,
-    "params": {"color": {"default": "#f4f2ee", "desc": "plate color"}},
+    "params": {"color": {"palette": "stone", "default": "#f4f2ee", "desc": "plate color"}},
     "objects": [
       {"id": "dish", "type": "cylinder", "radius": 0.13, "height": 0.014, "position": [0, 0.007, 0], "material": {"color": "$color", "roughness": 0.25}},
       {"id": "well", "type": "cylinder", "radius": 0.09, "height": 0.004, "position": [0, 0.016, 0], "material": {"color": "$color", "roughness": 0.25}}
@@ -29,7 +29,7 @@
     "tags": ["kitchen", "tableware", "small"],
     "desc": "A deep bowl.",
     "collide": false,
-    "params": {"color": {"default": "#dfe6ea", "desc": "bowl color"}},
+    "params": {"color": {"palette": "stone", "default": "#dfe6ea", "desc": "bowl color"}},
     "objects": [
       {"id": "foot", "type": "cylinder", "radius": 0.04, "height": 0.015, "position": [0, 0.0075, 0], "material": {"color": "$color", "roughness": 0.3}},
       {"id": "lower", "type": "cylinder", "radius": 0.07, "height": 0.04, "position": [0, 0.035, 0], "material": {"color": "$color", "roughness": 0.3}},
@@ -78,7 +78,7 @@
     "tags": ["kitchen", "appliance", "small"],
     "desc": "A two-slot toaster.",
     "collide": false,
-    "params": {"color": {"default": "#c4c8cf", "desc": "body color"}},
+    "params": {"color": {"palette": "primary", "default": "#c4c8cf", "desc": "body color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [0.3, 0.18, 0.16], "position": [0, 0.09, 0], "material": {"color": "$color", "roughness": 0.3, "metallic": 0.6}},
       {"id": "slot1", "type": "box", "size": [0.11, 0.004, 0.02], "position": [-0.06, 0.181, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
@@ -90,7 +90,7 @@
     "name": "microwave",
     "tags": ["kitchen", "appliance"],
     "desc": "A countertop microwave; door faces +Z.",
-    "params": {"color": {"default": "#d8d8dc", "desc": "body color"}},
+    "params": {"color": {"palette": "primary", "default": "#d8d8dc", "desc": "body color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [0.5, 0.3, 0.38], "position": [0, 0.15, 0], "material": {"color": "$color", "roughness": 0.4, "metallic": 0.3}},
       {"id": "window", "type": "box", "size": [0.3, 0.2, 0.004], "position": [-0.06, 0.15, 0.191], "material": {"color": "#14181d", "roughness": 0.1}},
@@ -117,7 +117,7 @@
     "tags": ["kitchen", "small"],
     "desc": "A wooden cutting board.",
     "collide": false,
-    "params": {"color": {"default": "#b98955", "desc": "wood tone"}},
+    "params": {"color": {"palette": "wood", "default": "#b98955", "desc": "wood tone"}},
     "objects": [
       {"id": "board", "type": "box", "size": [0.4, 0.02, 0.28], "position": [0, 0.01, 0], "material": {"color": "$color", "roughness": 0.8}},
       {"id": "hole", "type": "box", "size": [0.05, 0.022, 0.012], "position": [0.16, 0.01, 0], "material": {"color": "#3b2a1e", "roughness": 0.6}}

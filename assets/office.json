@@ -116,7 +116,7 @@
     "name": "printer",
     "tags": ["office", "electronics", "appliance"],
     "desc": "An office printer with a paper tray; faces +Z.",
-    "params": {"color": {"default": "#d8d8dc", "desc": "body color"}},
+    "params": {"color": {"palette": "primary", "default": "#d8d8dc", "desc": "body color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [0.48, 0.24, 0.4], "position": [0, 0.12, 0], "material": {"color": "$color", "roughness": 0.5}},
       {"id": "top", "type": "box", "size": [0.44, 0.02, 0.36], "position": [0, 0.25, 0], "material": {"color": "#c9ced6", "roughness": 0.4}},
@@ -129,7 +129,7 @@
     "name": "water_cooler",
     "tags": ["office", "appliance", "drink"],
     "desc": "A water cooler with a jug on top; faces +Z.",
-    "params": {"color": {"default": "#e6e8ec", "desc": "body color"}},
+    "params": {"color": {"palette": "primary", "default": "#e6e8ec", "desc": "body color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [0.34, 0.95, 0.34], "position": [0, 0.475, 0], "material": {"color": "$color", "roughness": 0.5}},
       {"id": "jug", "type": "cylinder", "radius": 0.14, "height": 0.4, "position": [0, 1.17, 0], "material": {"color": "#7fb6e0", "roughness": 0.1, "metallic": 0.05}},
@@ -155,7 +155,7 @@
     "name": "cubicle_panel",
     "tags": ["office", "partition"],
     "desc": "A 1.4 m tall fabric cubicle panel, 1.6 m wide.",
-    "params": {"width": {"default": 1.6, "desc": "panel width (m)"}, "color": {"default": "#6f7d8c", "desc": "fabric color"}},
+    "params": {"width": {"default": 1.6, "desc": "panel width (m)"}, "color": {"palette": "fabric", "default": "#6f7d8c", "desc": "fabric color"}},
     "objects": [
       {"id": "panel", "type": "box", "size": ["$width", 1.4, 0.06], "position": [0, 0.72, 0], "material": {"color": "$color", "roughness": 0.98}},
       {"id": "trim", "type": "box", "size": ["$width", 0.03, 0.07], "position": [0, 1.415, 0], "material": {"color": "#5a5f68", "roughness": 0.6}},

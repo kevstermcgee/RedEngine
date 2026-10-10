@@ -3,7 +3,7 @@
     "name": "chair_wooden_1",
     "tags": ["furniture", "chair", "wood", "seating"],
     "desc": "Dining chair with a solid back panel; faces +Z.",
-    "params": {"color": {"default": "#8b5a2b", "desc": "wood color"}},
+    "params": {"color": {"palette": "wood", "default": "#8b5a2b", "desc": "wood color"}},
     "objects": [
       {"id": "leg0", "type": "box", "size": [0.04, 0.42, 0.04], "position": [-0.19, 0.21, -0.19], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "leg1", "type": "box", "size": [0.04, 0.42, 0.04], "position": [0.19, 0.21, -0.19], "material": {"color": "$color", "roughness": 0.6}},
@@ -19,7 +19,7 @@
     "name": "chair_wooden_2",
     "tags": ["furniture", "chair", "wood", "seating"],
     "desc": "Slat-back dining chair with a cushion; faces +Z.",
-    "params": {"color": {"default": "#5a3a20", "desc": "wood color"}, "cushion": {"default": "#8a2f34", "desc": "cushion color"}},
+    "params": {"color": {"palette": "wood", "default": "#5a3a20", "desc": "wood color"}, "cushion": {"palette": "fabric", "default": "#8a2f34", "desc": "cushion color"}},
     "objects": [
       {"id": "leg0", "type": "box", "size": [0.04, 0.42, 0.04], "position": [-0.19, 0.21, -0.19], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "leg1", "type": "box", "size": [0.04, 0.42, 0.04], "position": [0.19, 0.21, -0.19], "material": {"color": "$color", "roughness": 0.6}},
@@ -38,7 +38,7 @@
     "name": "chair_folding",
     "tags": ["furniture", "chair", "metal", "seating"],
     "desc": "Folding chair with a fabric seat; faces +Z.",
-    "params": {"color": {"default": "#3f5f8a", "desc": "seat/back color"}},
+    "params": {"color": {"palette": "primary", "default": "#3f5f8a", "desc": "seat/back color"}},
     "objects": [
       {"id": "leg_fl", "type": "box", "size": [0.025, 0.44, 0.025], "position": [-0.19, 0.22, 0.17], "rotation": [0, 0, -4], "material": {"color": "#9aa0a8", "roughness": 0.4, "metallic": 0.8}},
       {"id": "leg_fr", "type": "box", "size": [0.025, 0.44, 0.025], "position": [0.19, 0.22, 0.17], "rotation": [0, 0, 4], "material": {"color": "#9aa0a8", "roughness": 0.4, "metallic": 0.8}},
@@ -53,7 +53,7 @@
     "name": "chair_office",
     "tags": ["furniture", "chair", "office", "seating"],
     "desc": "Swivel office chair; faces +Z.",
-    "params": {"color": {"default": "#2c3038", "desc": "upholstery color"}},
+    "params": {"color": {"palette": "fabric", "default": "#2c3038", "desc": "upholstery color"}},
     "objects": [
       {"id": "spoke0", "type": "box", "size": [0.3, 0.03, 0.05], "position": [0.0, 0.06, 0.15], "rotation": [0, -90, 0], "material": {"color": "#2a2c31", "roughness": 0.4, "metallic": 0.6}},
       {"id": "wheel0", "type": "sphere", "radius": 0.03, "position": [0.0, 0.03, 0.2775], "material": {"color": "#1d1f23", "roughness": 0.6}},
@@ -76,7 +76,7 @@
     "name": "stool_bar",
     "tags": ["furniture", "stool", "seating", "bar"],
     "desc": "Bar stool with a footrest.",
-    "params": {"color": {"default": "#7a2a2a", "desc": "seat color"}, "frame": {"default": "#2a2c31", "desc": "frame color"}},
+    "params": {"color": {"palette": "primary", "default": "#7a2a2a", "desc": "seat color"}, "frame": {"palette": "metal", "default": "#2a2c31", "desc": "frame color"}},
     "objects": [
       {"id": "leg1", "type": "box", "size": [0.03, 0.7, 0.03], "position": [-0.13, 0.35, -0.13], "material": {"color": "$frame", "roughness": 0.4, "metallic": 0.7}},
       {"id": "leg2", "type": "box", "size": [0.03, 0.7, 0.03], "position": [0.13, 0.35, -0.13], "material": {"color": "$frame", "roughness": 0.4, "metallic": 0.7}},
@@ -92,7 +92,7 @@
     "tags": ["furniture", "table", "small"],
     "desc": "A small round side table.",
     "collide": false,
-    "params": {"color": {"default": "#6b4a2b", "desc": "wood color"}},
+    "params": {"color": {"palette": "wood", "default": "#6b4a2b", "desc": "wood color"}},
     "objects": [
       {"id": "top", "type": "cylinder", "radius": 0.26, "height": 0.03, "position": [0, 0.535, 0], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "stem", "type": "cylinder", "radius": 0.03, "height": 0.5, "position": [0, 0.26, 0], "material": {"color": "$color", "roughness": 0.6}},
@@ -103,7 +103,7 @@
     "name": "lamp_floor",
     "tags": ["furniture", "lamp", "light"],
     "desc": "A floor lamp with a glowing shade.",
-    "params": {"color": {"default": "#efe2bd", "desc": "shade color"}},
+    "params": {"color": {"palette": "trim", "default": "#efe2bd", "desc": "shade color"}},
     "objects": [
       {"id": "base", "type": "cylinder", "radius": 0.13, "height": 0.03, "position": [0, 0.015, 0], "material": {"color": "#2a2c31", "roughness": 0.4, "metallic": 0.6}},
       {"id": "pole", "type": "cylinder", "radius": 0.012, "height": 1.4, "position": [0, 0.73, 0], "material": {"color": "#2a2c31", "roughness": 0.4, "metallic": 0.6}},
@@ -115,7 +115,7 @@
     "tags": ["furniture", "lamp", "light", "small"],
     "desc": "A table lamp with a glowing shade.",
     "collide": false,
-    "params": {"color": {"default": "#f0e3c0", "desc": "shade color"}},
+    "params": {"color": {"palette": "trim", "default": "#f0e3c0", "desc": "shade color"}},
     "objects": [
       {"id": "base", "type": "cylinder", "radius": 0.07, "height": 0.02, "position": [0, 0.01, 0], "material": {"color": "#2a2c31", "roughness": 0.6, "metallic": 0.5}},
       {"id": "stem", "type": "cylinder", "radius": 0.015, "height": 0.22, "position": [0, 0.13, 0], "material": {"color": "#c9a45a", "roughness": 0.4, "metallic": 0.6}},
@@ -126,7 +126,7 @@
     "name": "tv_stand",
     "tags": ["furniture", "storage", "living"],
     "desc": "Low TV console with two cupboards; faces +Z.",
-    "params": {"color": {"default": "#7a5230", "desc": "wood color"}},
+    "params": {"color": {"palette": "wood", "default": "#7a5230", "desc": "wood color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [1.4, 0.5, 0.42], "position": [0, 0.29, 0], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "plinth", "type": "box", "size": [1.3, 0.04, 0.36], "position": [0, 0.02, 0], "material": {"color": "#1d1f23", "roughness": 0.6}},
@@ -140,7 +140,7 @@
     "name": "dresser",
     "tags": ["furniture", "storage", "bedroom"],
     "desc": "A three-drawer dresser; faces +Z.",
-    "params": {"color": {"default": "#8b5a2b", "desc": "wood color"}},
+    "params": {"color": {"palette": "wood", "default": "#8b5a2b", "desc": "wood color"}},
     "objects": [
       {"id": "body", "type": "box", "size": [0.9, 0.85, 0.48], "position": [0, 0.425, 0], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "drawer1", "type": "box", "size": [0.82, 0.22, 0.012], "position": [0, 0.2, 0.246], "material": {"color": "#a5744a", "roughness": 0.6}},
@@ -155,7 +155,7 @@
     "name": "ottoman",
     "tags": ["furniture", "seating", "living"],
     "desc": "A round upholstered footstool.",
-    "params": {"color": {"default": "#4a6a8a", "desc": "fabric color"}},
+    "params": {"color": {"palette": "fabric", "default": "#4a6a8a", "desc": "fabric color"}},
     "objects": [
       {"id": "cushion", "type": "cylinder", "radius": 0.26, "height": 0.3, "position": [0, 0.17, 0], "material": {"color": "$color", "roughness": 0.95}},
       {"id": "legs", "type": "cylinder", "radius": 0.22, "height": 0.02, "position": [0, 0.01, 0], "material": {"color": "#3b2a1e", "roughness": 0.6}}
@@ -165,7 +165,7 @@
     "name": "bookcase_small",
     "tags": ["furniture", "storage", "books"],
     "desc": "A short bookcase with books already on it; faces +Z.",
-    "params": {"color": {"default": "#7a5230", "desc": "wood color"}},
+    "params": {"color": {"palette": "wood", "default": "#7a5230", "desc": "wood color"}},
     "objects": [
       {"id": "side_l", "type": "box", "size": [0.03, 0.9, 0.28], "position": [-0.35, 0.45, 0], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "side_r", "type": "box", "size": [0.03, 0.9, 0.28], "position": [0.35, 0.45, 0], "material": {"color": "$color", "roughness": 0.6}},
@@ -210,7 +210,7 @@
     "name": "beanbag",
     "tags": ["furniture", "seating", "living"],
     "desc": "A slouchy bean bag chair.",
-    "params": {"color": {"default": "#c2533a", "desc": "fabric color"}},
+    "params": {"color": {"palette": "fabric", "default": "#c2533a", "desc": "fabric color"}},
     "objects": [
       {"id": "body", "type": "sphere", "radius": 0.42, "position": [0, 0.27, 0], "scale": [1, 0.62, 1], "material": {"color": "$color", "roughness": 0.95}},
       {"id": "back", "type": "sphere", "radius": 0.3, "position": [0, 0.42, -0.24], "scale": [1.1, 1, 0.8], "material": {"color": "$color", "roughness": 0.95}},
@@ -222,7 +222,7 @@
     "tags": ["furniture", "storage", "wall"],
     "desc": "A wall shelf on brackets; origin at the wall face.",
     "mount": "wall",
-    "params": {"color": {"default": "#7a5230", "desc": "wood color"}},
+    "params": {"color": {"palette": "wood", "default": "#7a5230", "desc": "wood color"}},
     "objects": [
       {"id": "board", "type": "box", "size": [0.8, 0.03, 0.22], "position": [0, 0, 0.11], "material": {"color": "$color", "roughness": 0.6}},
       {"id": "br_l", "type": "box", "size": [0.03, 0.14, 0.03], "position": [-0.3, -0.085, 0.02], "material": {"color": "#2a2c31", "roughness": 0.6, "metallic": 0.6}},
