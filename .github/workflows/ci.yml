@@ -24,7 +24,6 @@ jobs:
     outputs:
       native: ${{ steps.f.outputs.native }}
       docker: ${{ steps.f.outputs.docker }}
-      games_only: ${{ steps.f.outputs.games_only }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -34,7 +33,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then base="${{ github.event.pull_request.base.sha }}"; else base="${{ github.event.before }}"; fi
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             echo "no usable base commit: running everything"
-            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; echo "games_only=false" >> "$GITHUB_OUTPUT"; exit 0
+            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           files="$(git diff --name-only "$base" HEAD)"
           echo "$files"
@@ -43,9 +42,7 @@ jobs:
           echo "$files" | grep -Eq '^(src/|crates/|tests/|benches/|examples/|assets/|recipes/|Cargo\.(toml|lock)$|rustfmt\.toml$|scripts/ci\.sh$|\.cargo/|\.github/)' && native=true
           # What the container image is made of.
           echo "$files" | grep -Eq '^(Dockerfile$|docker-compose\.yml$|\.dockerignore$|deploy/|src/|crates/|assets/|examples/|Cargo\.(toml|lock)$|\.github/)' && docker=true
-          games_only=false
-          if [ -n "$files" ] && ! grep -Evq '^(examples/2d/|examples/3d/|docs/analysis/idea-forge/)' <<<"$files"; then games_only=true; native=false; docker=false; fi
-          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"; echo "games_only=$games_only" >> "$GITHUB_OUTPUT"
+          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"
 
   fmt:
     name: rustfmt
@@ -91,24 +88,17 @@ jobs:
       # (tests/alloc_budget.rs, body/entity counts) run in the tests stage.
       # The lock files first: a stale one is the commonest reason a dependency change fails CI, and it takes seconds to see.
       - run: bash scripts/ci.sh lockfiles clippy tests benches
-        if: needs.changes.outputs.games_only != 'true'
       # Hosted runners may have no GPU adapter at all: the external client's offscreen presentation check is skipped there, not faked.
       - run: bash scripts/ci.sh external-client
-        if: needs.changes.outputs.games_only != 'true'
         env:
           RED_OFFSCREEN_OPTIONAL: "1"
       # The game on the public API (games/killchain): same target directory and cache as the engine, so only the game's own crate is compiled here.
       - run: bash scripts/ci.sh killchain
-        if: needs.changes.outputs.games_only != 'true'
-      - run: bash scripts/ci.sh games
-        if: needs.changes.outputs.games_only == 'true'
 
   # The dedicated server on a bare Linux box: no window, GPU, audio or ffmpeg libraries installed, and none may
   # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS.
   headless-linux:
     name: headless server (linux, no gfx)
-    needs: changes
-    if: needs.changes.outputs.games_only != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
