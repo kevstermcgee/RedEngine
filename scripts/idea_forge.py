@@ -182,12 +182,19 @@ BUILD_3D = """- Work only in this worktree. The game is a first-person 3D RedEng
   `examples/3d/{slug}/` (for example `audio/*.json` scores). Declare `checks.lint` in the scene (`ignore` lists the lint codes a deliberate pit or prop trips): the run is judged by `verify`, which honors it. Game logic is data (`rules`), never Rust. Do not change engine code (`src/`, `crates/`, `tests/`, `scripts/`) or any other doc: a missing feature is a finding,
   not a patch. Work around it in game data and record the workaround.
 - Start with `scripts/dev start "<one line>"`, then `scripts/dev red describe --brief`, `describe rules` and `describe scene`; use `search "<question>"`, `recipe` (`recipe coin_run --new examples/3d/{slug}/{slug}.json` is a complete
-  small game to start from), `catalog <word>` for assets and `build --example` for room layouts before inventing anything. (`scripts/dev red` is the engine CLI.)
+  small game to start from) and `build --example` for room layouts. (`scripts/dev red` is the engine CLI.)
+- Make it look like its own game, not like every other game on this engine (`describe style`). The floor: a `style` block with a palette of 6-8 roles of YOUR colours (not the
+  defaults it lists), and its light and sky; at least {own_prefabs} prefabs of your own in the scene's `prefabs` (the things that carry the idea; `@role` colours, `material.preset`); its own
+  sounds (a score under `examples/3d/{slug}/audio/`). Use `catalog <word>` for everything else: shared prefabs take your palette's colours. LOOK at what you made:
+  `scripts/dev red catalog --scene examples/3d/{slug}/{slug}.json --local --sheet out/own.png` (your own prefabs, in your style) and `scripts/dev red style-report examples/3d/{slug}/{slug}.json`.
 - Prove it with the engine, not by reading your own file: `lint`, `plan` / `tour` pictures (LOOK at the PNGs), `reach` checks for places the player must get to, `sim` with `checks.sim` scripted playthroughs, and `verify`.
   Scenarios must include one that exercises the mechanic and asserts its effect (not just that the game starts), and a win and a lose path unless the design has neither. If `playtest` (pictures from the player's eyes,
   no window) works on this machine use it; if it does not, log why.
 - Keep the world small: one or two rooms or a small outdoor area is plenty. The mechanic must be something a first-person player does with their hands, in the world.
 """
+
+STYLE_MIN_ROLES = 6        # the 3D floor: palette roles that are not the default colour
+STYLE_MIN_OWN_PREFABS = 3  # the 3D floor: prefabs the game defines itself
 
 POLISH_2D = "- Sound and a saved value (`persist`) where they fit the game; polish after it works."
 POLISH_3D = "- Sound (`audio`) where it fits the game; polish after it works."
@@ -200,7 +207,7 @@ def brief(idea, today=None, cli=None, kind="2d", known=""):
     slug, code = idea["slug"], idea["code"]
     fb = f"{FEEDBACK_DIR}/{feedback_name(today, kind, slug)}"
     story = f"- Story (optional dressing; use it, bend it or drop it): {idea['story']}\n" if idea["story"] else "- Story: none this time; the mechanic carries the game.\n"
-    build_steps = (BUILD_3D if kind == "3d" else BUILD_2D).format(slug=slug)
+    build_steps = (BUILD_3D if kind == "3d" else BUILD_2D).format(slug=slug, own_prefabs=STYLE_MIN_OWN_PREFABS)
     known = known or ""
     polish = POLISH_3D if kind == "3d" else POLISH_2D
     return f"""# Idea Forge run: {idea['title']} ({kind.upper()}, code {code:010d}, slug `{slug}`, {today})
@@ -340,6 +347,23 @@ def score(root, slug, kind="2d"):
         item("the game logic is data (rules)", bool(g.get("rules")), f"{len(g.get('rules') or [])} rule(s)")
         item("a declared ui (cards, objective)", bool(g.get("ui")))
         item("a sound or music (audio)", bool(g.get("audio")))
+        # The look (style-report): quality facts, not the build gate. The thresholds are the brief's floor.
+        code, out = run_engine(root, ["--json", "style-report", game])
+        rep = {}
+        try:
+            env = json.loads(out[out.index("{"):]) if "{" in out else {}
+            rep = env.get("data") if isinstance(env.get("data"), dict) else env
+        except ValueError:
+            pass
+        if code != 0 or not rep:
+            item("style-report ran", False, (out.strip().splitlines() or [""])[-1][:120])
+        else:
+            item(f"a palette of its own (>= {STYLE_MIN_ROLES} roles not the default)", rep.get("palette_custom_roles", 0) >= STYLE_MIN_ROLES,
+                 f"{rep.get('palette_custom_roles', 0)} of {rep.get('palette_roles', 0)} role(s); mean distance from the defaults {rep.get('palette_distance', 0):.0f}")
+            item(f"prefabs of its own (>= {STYLE_MIN_OWN_PREFABS})", len(rep.get("own_prefabs") or []) >= STYLE_MIN_OWN_PREFABS,
+                 f"{len(rep.get('own_prefabs') or [])}: {', '.join(rep.get('own_prefabs') or [])[:80]}; shared catalogue {100 * rep.get('shared_share', 0):.0f}% of {rep.get('placed', 0)} placed")
+            item("its own sound files", rep.get("sounds", 0) >= 1, f"{rep.get('sounds', 0)} file(s)")
+            item("no default look kept (lint style-*)", not rep.get("defaults_kept"), ", ".join(rep.get("defaults_kept") or []) or "none")
     return items
 
 

@@ -121,6 +121,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size, .. } => {
             run_frame(&scene, &out, t, hour, eye.as_deref(), at.as_deref(), fov, hide, cut_above, size.as_deref())
         }
+        Command::StyleReport { game, sheet, cols } => run_style_report(&game, sheet.as_deref(), cols, envelope::capturing()),
         Command::Sky { scene, out, hours, cols, tile, eye, at, fov, size, look } => {
             run_sky(&scene, &out, &hours, cols, tile, eye.as_deref(), at.as_deref(), fov, size.as_deref(), look.as_deref())
         }
@@ -215,9 +216,10 @@ fn run(command: Command) -> Result<(), String> {
             run_race_track(&out, red_engine2::tools::racetrack::TrackSpec { half_width, half_height, radius, road, laps, terrain: !no_terrain, trees })
         }
         Command::RaceTest { scene, bots, level, secs, drivers } => run_race_test(&scene, bots, level, secs, drivers.as_deref()),
-        Command::Catalog { query, tag, category, kind, libraries, manifest, long, sheet, cols } => {
+        Command::Catalog { query, tag, category, kind, libraries, scene, local, manifest, long, sheet, cols } => {
             let json = envelope::capturing();
-            run_catalog(&query, tag.as_deref(), category.as_deref(), kind.as_deref(), &libraries, manifest, long, json, sheet.as_deref(), cols)
+            let scope = info::CatalogScope { libraries: &libraries, scene: scene.as_deref(), local };
+            run_catalog(&query, tag.as_deref(), category.as_deref(), kind.as_deref(), &scope, manifest, long, json, sheet.as_deref(), cols)
         }
         Command::Props {} => {
             print!("{}", inspect::list_props(envelope::capturing()));

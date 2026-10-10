@@ -60,6 +60,7 @@ pub mod shots;
 pub mod sight;
 pub mod simrun;
 pub mod status;
+pub mod style_report;
 pub mod symbols;
 pub mod upgrade;
 pub mod verify;

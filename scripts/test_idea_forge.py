@@ -325,7 +325,8 @@ class Kinds(unittest.TestCase):
     def test_the_3d_brief_asks_for_a_first_person_scene_and_the_2d_brief_for_a_game_file(self):
         i = idea_forge.make_idea(123456789)
         b3, b2 = idea_forge.brief(i, "2026-10-09", kind="3d"), idea_forge.brief(i, "2026-10-09", kind="2d")
-        for must in ("examples/3d/electric-foundry/electric-foundry.json", "first-person", "checks.sim", "`lint`", "2026-10-09-3d-electric-foundry.md", "Do not change engine code", "native 3D game"):
+        for must in ("examples/3d/electric-foundry/electric-foundry.json", "first-person", "checks.sim", "`lint`", "2026-10-09-3d-electric-foundry.md", "Do not change engine code", "native 3D game",
+                     "describe style", "--local --sheet", "at least 3 prefabs of your own", "style-report"):
             self.assertIn(must, b3)
         self.assertNotIn("game2d", b3)
         for must in ("examples/2d/electric-foundry.game2d.json", "2026-10-09-2d-electric-foundry.md", "native 2D game"):
@@ -336,13 +337,16 @@ class Kinds(unittest.TestCase):
     def test_a_3d_game_is_scored_with_lint_and_its_playthroughs(self):
         root = tempfile.mkdtemp()
         os.makedirs(os.path.join(root, "examples", "3d", "x"))
-        engine = sh(os.path.join(root, "red_engine2"), "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = verify ] && echo 'm.json: 11 check(s), 0 failed, 2.9s'; done\nexit 0\n")
+        report = {"palette_roles": 7, "palette_custom_roles": 6, "palette_distance": 140.0, "own_prefabs": ["a", "b", "c"], "shared_share": 0.4, "placed": 20, "sounds": 1, "defaults_kept": []}
+        engine = sh(os.path.join(root, "red_engine2"), "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = verify ] && echo 'm.json: 11 check(s), 0 failed, 2.9s'; "
+                    "[ \"$a\" = style-report ] && echo '" + json.dumps({"schema": 1, "ok": True, "data": report}) + "'; done\nexit 0\n")
         os.environ["RED_ENGINE_EXE"] = engine
         self.addCleanup(os.environ.pop, "RED_ENGINE_EXE", None)
         self.assertFalse(idea_forge.score(root, "x", "3d")[0]["ok"], "no game file yet")
         wr(os.path.join(root, "examples", "3d", "x", "x.json"), json.dumps({"rules": [{"id": "r"}], "ui": {"cards": 1}, "audio": {"a": 1}, "checks": {"sim": [{"name": "a"}, {"name": "b"}]}}))
         items = idea_forge.score(root, "x", "3d")
-        self.assertEqual([i["ok"] for i in items], [True] * 7, items)
+        self.assertEqual([i["ok"] for i in items], [True] * 11, items)
+        self.assertIn("mean distance from the defaults 140", items[7]["detail"])
         self.assertEqual(items[1]["name"], "lint passes")
         self.assertIn("11 check(s)", items[2]["detail"])
 

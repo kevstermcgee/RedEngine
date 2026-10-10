@@ -129,19 +129,67 @@ pub(crate) fn run_recipe(name: Option<&str>, new: Option<&Path>, print: bool) ->
 }
 
 #[allow(clippy::too_many_arguments)]
+/// `style-report GAME [--sheet out.png]`: the measured look (text, or the report object under `--json`), and the game's own prefabs drawn in its style.
+pub(crate) fn run_style_report(game: &Path, sheet: Option<&Path>, cols: u32, json: bool) -> Result<(), String> {
+    use red_engine2::tools::style_report;
+    let r = style_report::report(game)?;
+    if let Some(out) = sheet {
+        let (own, overlay) = catalog::scene_entries(game)?;
+        if own.is_empty() {
+            return Err(format!("{}: the game has no prefabs of its own to draw (it places only shared catalogue assets)", game.display()));
+        }
+        let rows: Vec<&catalog::Entry> = own.iter().collect();
+        catalog::sheet_in(&rows, out, cols, (480, 360), Some(&overlay))?;
+        if !json {
+            println!("wrote {} ({} own prefab(s))", out.display(), rows.len());
+        }
+    }
+    if json {
+        println!("{}", serde_json::to_string_pretty(&r).map_err(|e| e.to_string())?);
+    } else {
+        print!("{}", style_report::text(game, &r));
+    }
+    Ok(())
+}
+
+/// Which assets `catalog` sees: the engine's, plus project libraries and a game's own prefabs; `local` keeps only the latter.
+pub(crate) struct CatalogScope<'a> {
+    pub libraries: &'a [PathBuf],
+    pub scene: Option<&'a Path>,
+    pub local: bool,
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_catalog(
     query: &[String],
     tag: Option<&str>,
     category: Option<&str>,
     kind: Option<&str>,
-    libraries: &[PathBuf],
+    scope: &CatalogScope,
     manifest: bool,
     long: bool,
     json: bool,
     sheet: Option<&Path>,
     cols: u32,
 ) -> Result<(), String> {
-    let all = catalog::entries_with_libraries(libraries)?;
+    let mut all = catalog::entries_with_libraries(scope.libraries)?;
+    let mut overlay = None;
+    if let Some(scene) = scope.scene {
+        let (own, o) = catalog::scene_entries(scene)?;
+        let names: std::collections::HashSet<String> = own.iter().map(|e| e.name.clone()).collect();
+        all.retain(|e| !names.contains(&e.name));
+        all.extend(own);
+        overlay = Some(o);
+    }
+    if scope.local {
+        all.retain(|e| e.kind == "prefab" && !e.source.starts_with("engine:"));
+        if all.is_empty() {
+            return Err(
+                "--local: the game has no assets of its own (no `prefabs` in --scene, no --library): everything it places comes from the shared catalogue"
+                    .into(),
+            );
+        }
+    }
     if manifest {
         print!("{}", catalog::render_manifest(all.len(), json)?);
         return Ok(());
@@ -156,7 +204,7 @@ pub(crate) fn run_catalog(
     let rows = catalog::filter(&all, if q.is_empty() { None } else { Some(&q) }, tag, category, kind);
     if let Some(out) = sheet {
         let started = Instant::now();
-        catalog::sheet(&rows, out, cols, (480, 360))?;
+        catalog::sheet_in(&rows, out, cols, (480, 360), overlay.as_ref())?;
         println!("wrote {} ({} assets, {:.1}s)", out.display(), rows.len(), started.elapsed().as_secs_f32());
         return Ok(());
     }
