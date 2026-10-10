@@ -12,7 +12,8 @@ into the target directory (`--no-fetch` or RED_NO_FETCH=1 keeps it off the netwo
 starts are `git` and, when `scripts/red_resolve.py` finds a FRESH engine executable, the read-only CLI commands `propose`, `capabilities` and `context` (their answers are the
 authority for what can be built; nothing here keeps a second capability list). `start` records a compact task file under
 `out/launchpad/` (ignored by git; `--no-save` skips it) so `resume` can say what changed. Agent-written notes (`--note`) and results observed by tools are kept
-apart, and recorded results are never trusted across an edit: the tool that wrote them (`affected`, `game check`, `verify`) stays the authority.
+apart, and recorded results are never trusted across an edit: the tool that wrote them (`affected`, `game check`, `verify`) stays the authority. A task's identity is the content of every
+changed file (git read as NUL-delimited data, no cap), `resume` compares content and says how the branch moved (ADR 2026-10-09-the-launchpad-reads-git-as-data-and-compares-content).
 
 Workflows: game-create, game-change, engine-change, diagnose, upgrade. A task that matches none is reported as `unrouted` (an incomplete launchpad route,
 not an unsupported engine capability) with the choices; `--workflow` forces one.
@@ -24,6 +25,7 @@ import json
 import os
 import re
 import shlex
+import stat
 import subprocess
 import sys
 import time
@@ -64,9 +66,13 @@ def sha(data):
 
 
 def file_sha(path):
+    """SHA-256 of a file's bytes, read in chunks (a big file costs time, not memory), or None where it cannot be read."""
     try:
+        h = hashlib.sha256()
         with open(path, "rb") as f:
-            return sha(f.read())
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
     except OSError:
         return None
 
@@ -220,28 +226,97 @@ def feature_owners(features, task):
 
 
 # ----------------------------------------------------------------------------------------------- identity (what a stop point was made from)
+IDENTITY_VERSION = 2  # 1: paths from `git status --porcelain` text (a stripped leading space cut the first path), capped at 400 files and 4 MB each
+BIG_FILE = 256 * 1024 * 1024  # above this a file is fingerprinted by size and mtime instead of content (still part of the identity, never skipped)
+UNSTABLE = "unstable"  # the file kept changing while it was read: never equal to anything, so it always counts as a change
+CLEAN = "clean"  # not changed relative to the checkout's HEAD
+
+
 def git_changed_files(root):
-    out = red_resolve._git(root, "status", "--porcelain")
-    files = []
-    for line in (out or "").splitlines():
-        p = line[3:].strip().split(" -> ")[-1]
-        if p:
-            files.append(p)
-    return files
+    """Every path `git status` reports as changed, new names and (for a rename) the old name too, as git writes them ('/' everywhere)."""
+    paths = []
+    for e in red_resolve.git_status(root) or []:
+        paths.append(e["path"])
+        if e["orig"]:
+            paths.append(e["orig"])
+    return paths
 
 
-def engine_inputs(root):
-    """Identity of an engine checkout's working tree: HEAD plus a content hash of every changed or untracked file (bounded)."""
-    head = red_resolve._git(root, "rev-parse", "HEAD")
-    changed = git_changed_files(root)[:400]
-    per = {}
-    for rel in changed:
-        p = os.path.join(root, rel)
-        if os.path.isfile(p) and os.path.getsize(p) < 4_000_000:
-            per[rel] = file_sha(p)
-        else:
-            per[rel] = None
-    return {"head": head, "files": per, "hash": sha(json.dumps([head, sorted(per.items())], sort_keys=True).encode())}
+def path_fingerprint(root, rel):
+    """What a path holds right now, in a form that is equal exactly when the content is: a content hash, or one of `deleted`, `dir`, `symlink:<hash>`, `stat:<size>:<mtime_ns>` (a very
+    large file), `unstable` (kept changing while read) and `unreadable`. A file that is being rewritten is hashed again until two consecutive reads agree."""
+    p = os.path.join(root, *rel.split("/"))
+    try:
+        st = os.lstat(p)
+    except FileNotFoundError:
+        return "deleted"
+    except OSError:
+        return "unreadable"
+    if stat.S_ISLNK(st.st_mode):
+        try:
+            return "symlink:" + sha(os.fsencode(os.readlink(p)))
+        except OSError:
+            return "unreadable"
+    if stat.S_ISDIR(st.st_mode):  # a submodule or a nested checkout: its own HEAD says which revision it is at
+        return "dir:" + (red_resolve._git(p, "rev-parse", "HEAD") or "")
+    if not stat.S_ISREG(st.st_mode):
+        return "special"
+    if st.st_size > BIG_FILE:
+        return f"stat:{st.st_size}:{st.st_mtime_ns}"
+    # Stable = two consecutive reads of the same bytes with the same size and mtime. The size and mtime alone are not proof: a filesystem with a coarse clock (NTFS, FAT) keeps the
+    # same mtime for two same-length rewrites in one tick, which let a torn read pass as settled (found by the first Windows run of this test).
+    previous = None
+    for _ in range(4):
+        before = os.stat(p)
+        digest = file_sha(p)
+        try:
+            after = os.stat(p)
+        except OSError:
+            return "deleted"
+        if digest is None:
+            return "unreadable"
+        if digest == previous and (before.st_size, before.st_mtime_ns) == (after.st_size, after.st_mtime_ns):
+            return digest
+        previous = digest
+    return UNSTABLE
+
+
+def same_content(a, b):
+    """Whether two fingerprints name the same content (an `unstable` one never does)."""
+    return a == b and a != UNSTABLE
+
+
+def _signature(root, rel):
+    """(size, mtime_ns) of a path, or None: cheap to take again to see whether a file moved under a scan."""
+    try:
+        st = os.lstat(os.path.join(root, *rel.split("/")))
+    except OSError:
+        return None
+    return (st.st_size, st.st_mtime_ns)
+
+
+def engine_inputs(root, track=()):
+    """Identity of an engine checkout's working tree: HEAD plus the fingerprint of every changed or untracked path, with no cap and no skipped kind of file.
+
+    `files` maps each changed path (staged, unstaged, untracked, deleted; a rename gives both names) to what it holds. `tracked` fingerprints the paths in `track` that are *not* changed
+    now: a recorded edit that has since been committed is the same content (not a change), and only looking at the file says so. Another agent may be editing while this reads, so the scan is
+    repeated (at most three times) until HEAD, git's list and every file's size and mtime are the same after the read as before it; `settled` says whether they were."""
+    track = sorted(set(track))
+    settled = False
+    for _ in range(3):
+        head = red_resolve._git(root, "rev-parse", "HEAD")
+        status = red_resolve.git_status(root)
+        names = sorted({rel for e in status or [] for rel in (e["path"], e["orig"]) if rel})
+        sigs = {rel: _signature(root, rel) for rel in names + track}
+        per = {rel: path_fingerprint(root, rel) for rel in names}
+        tracked = {rel: path_fingerprint(root, rel) for rel in track if rel not in per}
+        again = red_resolve.git_status(root)
+        after = sorted({rel for e in again or [] for rel in (e["path"], e["orig"]) if rel})
+        if red_resolve._git(root, "rev-parse", "HEAD") == head and after == names and all(_signature(root, rel) == sig for rel, sig in sigs.items()):
+            settled = True
+            break
+    settled = settled and UNSTABLE not in per.values() and UNSTABLE not in tracked.values()
+    return {"head": head, "files": per, "tracked": tracked, "settled": settled, "hash": sha(json.dumps([head, sorted(per.items())], sort_keys=True).encode())}
 
 
 def project_inputs(project):
@@ -530,15 +605,67 @@ def save_task(base, t):
     return path
 
 
-def diff_identity(then, now):
+def source_edits(then_inputs, now_inputs):
+    """Paths whose content differs between two `inputs` identities. For a git checkout (`tracked` present) a path missing from `files` is *clean*, so a recorded edit that has since been committed
+    with the same content is not an edit, a path edited now that was clean then is, and a path that cannot be told apart (`unstable`) is always one. For a game project every listed file counts."""
+    a, b = then_inputs.get("files", {}), now_inputs.get("files", {})
+    if "tracked" not in now_inputs:
+        return sorted(k for k in set(a) | set(b) if not same_content(a.get(k), b.get(k)))
+    tracked = now_inputs.get("tracked", {})
+    edited = []
+    for path in sorted(set(a) | set(b)):
+        then = a.get(path, CLEAN)
+        now = b[path] if path in b else (tracked.get(path, CLEAN) if path in a else CLEAN)
+        if not same_content(then, now):
+            edited.append(path)
+    return edited
+
+
+def head_relation(root, then, now):
+    """How a checkout moved between two revisions: same, advanced (the new one contains the old one: someone committed), rewound, diverged (history was rewritten) or unknown, with the
+    number of commits and the files that differ between the two trees. Read-only git."""
+    if not then or not now:
+        return {"relation": "unknown", "why": "not a git checkout, or no revision was recorded", "commits": None, "files": [], "file_count": 0}
+    if then == now:
+        return {"relation": "same", "commits": 0, "files": [], "file_count": 0}
+    if red_resolve.git_bytes(root, "cat-file", "-e", then + "^{commit}") is None:
+        return {"relation": "unknown", "why": "the recorded revision is not in this repository (history rewritten or pruned)", "commits": None, "files": [], "file_count": 0}
+
+    def ancestor(a, b):
+        try:
+            return subprocess.run(["git", "-C", root, "merge-base", "--is-ancestor", a, b], capture_output=True, timeout=30).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    relation = "advanced" if ancestor(then, now) else "rewound" if ancestor(now, then) else "diverged"
+    span = f"{now}..{then}" if relation == "rewound" else f"{then}..{now}"
+    count = red_resolve._git(root, "rev-list", "--count", span)
+    raw = red_resolve.git_bytes(root, "-c", "core.quotepath=off", "diff", "--name-only", "-z", then, now) or b""
+    files = [os.fsdecode(f) for f in raw.split(b"\0") if f]
+    return {"relation": relation, "commits": int(count) if count and count.isdigit() else None, "files": files[:30], "file_count": len(files)}
+
+
+def diff_identity(then, now, root=None):
     """What changed between two identities, by name. Anything listed invalidates the results recorded under the old one."""
     changes = []
     if then.get("engine_head") != now.get("engine_head"):
-        changes.append({"what": "engine revision", "then": (then.get("engine_head") or "")[:10], "now": (now.get("engine_head") or "")[:10]})
-    a, b = then.get("inputs", {}).get("files", {}), now.get("inputs", {}).get("files", {})
-    edited = sorted(k for k in set(a) | set(b) if a.get(k) != b.get(k))
-    if edited:
-        changes.append({"what": "source or game inputs", "files": edited[:20], "count": len(edited)})
+        change = {"what": "engine revision", "then": (then.get("engine_head") or "")[:10], "now": (now.get("engine_head") or "")[:10]}
+        if root:
+            change["moved"] = head_relation(root, then.get("engine_head"), now.get("engine_head"))
+        changes.append(change)
+    if then.get("identity_version") != IDENTITY_VERSION and not then.get("project"):
+        changes.append({"what": "recorded identity predates the git parsing fix", "files": [],
+                        "note": "this task was recorded by a launchpad that mis-read changed paths (a leading space cut the first one) and capped what it hashed: its file list cannot be compared, so everything is treated as changed"})
+    else:
+        edited = source_edits(then.get("inputs", {}), now.get("inputs", {}))
+        if edited:
+            changes.append({"what": "source or game inputs", "files": edited[:20], "count": len(edited)})
+    if then.get("project") and then.get("engine_inputs") and now.get("engine_inputs"):
+        edited = source_edits(then["engine_inputs"], now["engine_inputs"])
+        if edited:
+            changes.append({"what": "engine source", "files": edited[:20], "count": len(edited)})
+    if not now.get("inputs", {}).get("settled", True):
+        changes.append({"what": "source still changing", "files": [], "note": "files kept changing while they were read (another editor or agent is working in this checkout): nothing recorded can be trusted yet"})
     ea, eb = then.get("executable", {}), now.get("executable", {})
     if any(ea.get(k) != eb.get(k) for k in ("path", "modified_utc", "size_bytes", "features", "status")):
         changes.append({"what": "executable identity", "then": {k: ea.get(k) for k in ("status", "modified_utc", "features")}, "now": {k: eb.get(k) for k in ("status", "modified_utc", "features")}})
@@ -568,7 +695,7 @@ def build_context(args, task, fetch=False):
             "self": (["scripts/red"] if is_game else dev_argv(root))}
 
 
-def respond(args, command, task, state=None, fetch=False):
+def respond(args, command, task, then=None, fetch=False):
     ctx = build_context(args, task, fetch)
     ctx["constraints"] = infer_constraints(task, args.target or [])
     features = load_features(ctx["root"])
@@ -584,10 +711,14 @@ def respond(args, command, task, state=None, fetch=False):
         body = plan_unrouted(ctx)
     res = ctx["resolution"]
     sel = res["selected"]
-    inputs = project_inputs(ctx["project"]) if ctx["project"] else engine_inputs(ctx["root"])
-    ident = {"engine_head": res["engine"].get("head"), "engine_branch": res["engine"].get("branch"), "engine_dirty_files": res["engine"].get("dirty_files"),
-             "project": ctx["project"], "inputs": {"hash": inputs["hash"], "files": inputs["files"]}, "verification_config": verification_config(ctx["root"]),
-             "executable": exe_identity(res)}
+    # What a task is made from: the engine checkout's changed files (always: a game project's pinned engine counts too) and, for a game project, the project's own inputs. A resumed task also
+    # fingerprints the paths it recorded as edited even when they are clean now, so an edit that was committed meanwhile is told apart from one that was changed.
+    then_engine = ((then or {}).get("engine_inputs") or ((then or {}).get("inputs") if not (then or {}).get("project") else None) or {}).get("files", {})
+    engine_ident = engine_inputs(ctx["root"], track=then_engine)
+    inputs = project_inputs(ctx["project"]) if ctx["project"] else engine_ident
+    ident = {"identity_version": IDENTITY_VERSION, "engine_head": res["engine"].get("head"), "engine_branch": res["engine"].get("branch"), "engine_dirty_files": res["engine"].get("dirty_files"),
+             "project": ctx["project"], "inputs": {k: inputs[k] for k in ("hash", "files", "tracked", "settled") if k in inputs}, "engine_inputs": engine_ident if ctx["project"] else None,
+             "verification_config": verification_config(ctx["root"]), "executable": exe_identity(res)}
     prereq = [{"id": "engine-cli", "state": {"ready": "ok", "uncertain": "uncertain", "stale": "stale", "missing": "missing"}[sel["status"]], "detail": "; ".join(sel["reasons"] + res["notes"]),
                "fix": res.get("next_build")}]
     if not red_resolve._git(ctx["root"], "rev-parse", "HEAD"):
@@ -638,6 +769,30 @@ def cmd_start(args):
     return 0
 
 
+def resume_action(ctx, t, changes, moved):
+    """The one thing to do first after an interruption, when something changed. Nothing changed: the plan's own next action stands (the caller does not call this)."""
+    names = {c["what"] for c in changes}
+    root = ctx["root"]
+    if "source still changing" in names:
+        return action("Files in this checkout are still changing while they are read (another editor or agent): wait until they stop, then resume again", ctx["cwd"],
+                      ["git", "-C", root, "status", "--short"], "the same list twice in a row", kind="wait")
+    if moved and moved.get("relation") in ("advanced", "diverged", "rewound", "unknown"):
+        start, now = (t["identity"].get("engine_head") or ""), (ctx["resolution"]["engine"].get("head") or "")
+        n = moved.get("commits")
+        what = {"advanced": f"{n if n is not None else 'new'} commit(s) were added to this branch while you were away",
+                "diverged": "this branch's history was rewritten while you were away", "rewound": "this branch was moved back to an older revision",
+                "unknown": "the revision this task started from cannot be compared with the current one"}[moved["relation"]]
+        argv = ["git", "-C", root, "log", "--oneline", "--stat", f"{start}..{now}"] if moved["relation"] == "advanced" else ["git", "-C", root, "log", "--oneline", "-n", "15"]
+        return action(f"Read what changed first: {what} ({moved.get('file_count', 0)} file(s) differ). Then re-check your own change", ctx["cwd"], argv,
+                      "you know whether the other commits touch the files you edit", kind="read")
+    if ctx["project"]:
+        g2 = game2d_file(ctx["project"])
+        return action("Inputs changed since this task started: re-check the project (cheap: only what changed is re-verified)", ctx["project"], ["scripts/red"] + (["verify", g2] if g2 else ["check"]),
+                      "exit 0", kind="run")
+    return action("Source changed since this task started: re-run the edit-loop check (seconds; it names what it skipped)", ctx["root"], ctx["dev"] + ["iterate"],
+                  "every line `ok`; then `scripts/dev affected` before you say done", kind="run")
+
+
 def cmd_resume_or_next(args, command):
     base = os.path.abspath(args.project) if args.project else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     t = load_task(base, args.task_id)
@@ -647,26 +802,43 @@ def cmd_resume_or_next(args, command):
     args.workflow = t.get("workflow_forced")
     args.target = t.get("targets") or []
     args.project = t.get("project_arg") or args.project
-    out, ctx, ident = respond(args, command, t["objective"])
-    changes = diff_identity(t["identity"], ident)
+    out, ctx, ident = respond(args, command, t["objective"], then=t["identity"])
+    changes = diff_identity(t["identity"], ident, root=ctx["root"])
     for note in args.note or []:
         t.setdefault("agent_notes", []).append({"utc": now_utc(), "text": note})
     t["agent_notes"] = t.get("agent_notes", [])
     t.setdefault("observed_log", []).append({"utc": now_utc(), "at": command, "executable": ident["executable"]["status"], "changed": [c["what"] for c in changes]})
     t["observed_log"] = t["observed_log"][-20:]
+    moved = next((c.get("moved") for c in changes if c["what"] == "engine revision"), None)
+    planned = out["next_action"]
+    if changes:
+        out["next_action"] = resume_action(ctx, t, changes, moved)
+        out["planned_next_action"] = planned
     t["next_action"] = out["next_action"]
     try:
         save_task(base, t)
     except OSError:
         pass
     out["task"] = {"id": t["id"], "started_utc": t["created_utc"], "file": os.path.relpath(t["_file"], base)}
-    out["since_start"] = {"changes": changes, "recorded_results_trusted": not changes,
+    names = {c["what"] for c in changes}
+    stale_why = "inputs or executable changed since the task started: " + ", ".join(c["what"] for c in changes)
+    reuse = [{"what": "workflow and objective", "detail": f"{t.get('workflow')}: recorded at start, not re-derived"}]
+    if t.get("agent_notes"):
+        reuse.append({"what": "agent notes", "detail": f"{len(t['agent_notes'])} kept as written (they are claims by an agent, not results)"})
+    reuse.append({"what": "feature owners and context pointers", "detail": "docs/features.json is unchanged" if "verification configuration" not in names else
+                  "refreshed: docs/features.json or the verification configuration changed"})
+    reuse.append({"what": "engine CLI", "detail": "still fresh: nothing is rebuilt to resume" if ident["executable"]["status"] == "ready" and "executable identity" not in names else
+                  f"{ident['executable']['status']}: see `executable` above (resuming never builds it)"})
+    out["since_start"] = {"start_revision": (t["identity"].get("engine_head") or "")[:10], "current_revision": (ident.get("engine_head") or "")[:10],
+                          "revision": moved or {"relation": "same" if t["identity"].get("engine_head") == ident.get("engine_head") else "unknown"},
+                          "changes": changes, "recorded_results_trusted": not changes, "reuse": reuse,
+                          "invalidated": [{"what": o["claim"], "why": stale_why} for o in out["evidence"]["observed"]] if changes else [],
                           "note": "anything listed in changes invalidates results recorded before it; re-run the check named in `evidence.observed[].authority`" if changes else
                                   "inputs, executable and verification configuration are as at start; recorded results still need their own tool to say they apply"}
     if changes:
         for o in out["evidence"]["observed"]:
             o["state"] = "stale"
-            o["reason"] = "inputs or executable changed since the task started: " + ", ".join(c["what"] for c in changes)
+            o["reason"] = stale_why
         for c in out["evidence"]["claims"]:
             if c["state"] == "planned":
                 c["state"] = "unverified"
@@ -733,7 +905,19 @@ def render(o):
             L.append(f"  {'REQUIRED' if f.get('required') else 'optional':<8} {f['claim']}: {shlex.join(f['argv']) if f.get('argv') else f.get('note', '')}" + (f"   [{f['note']}]" if f.get('argv') and f.get('note') else ""))
     if o.get("since_start"):
         s = o["since_start"]
+        rev = s.get("revision") or {}
+        L.append(f"revision   started at {s.get('start_revision') or 'unknown'}, now {s.get('current_revision') or 'unknown'}: {rev.get('relation', 'unknown')}"
+                 + (f" ({rev['commits']} commit(s), {rev['file_count']} file(s) differ)" if rev.get("commits") else "") + (f" - {rev['why']}" if rev.get("why") else ""))
         L.append("since start: " + ("; ".join(c["what"] for c in s["changes"]) if s["changes"] else "nothing changed (inputs, executable, verification config)"))
+        for c in s["changes"]:
+            if c.get("files"):
+                L.append(f"  - {c['what']}: " + ", ".join(c["files"][:6]) + (f" (+{c['count'] - 6} more)" if c.get("count", 0) > 6 else ""))
+            elif c.get("note"):
+                L.append(f"  - {c['what']}: {c['note']}")
+        for r in s.get("reuse", []):
+            L.append(f"reuse      {r['what']}: {r['detail']}")
+        for r in s.get("invalidated", []):
+            L.append(f"invalid    {r['what']}: {r['why']}")
     for ob in o["evidence"]["observed"]:
         L.append(f"recorded   {ob['claim']}: {ob['state'].upper()} ({ob['record']}, {ob['recorded_utc']}) {ob['reason']}")
     for n in o["evidence"]["agent_notes"]:

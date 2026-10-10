@@ -431,8 +431,11 @@ pub fn join_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> Layo
     btn(&mut l, "back", (rx - third, y, rx, y + 15 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
     y += 15 * s + 6 * s;
     if let Some(m) = &f.message {
-        for (i, line) in red_engine2::ui::wrap(&upper(m), inner, s).into_iter().take(4).enumerate() {
-            l.label_left(&format!("message_{i}"), Some(p), lx, y + i as i32 * (text_height(s) + 2 * s), &line, s, inner, [255, 170, 120, 255]);
+        // Four lines at most: a longer message is set smaller (never cut), so an error that says what to do keeps its second half on a 4:3 window too.
+        let text = upper(m);
+        let ms = (1..=s).rev().find(|sc| red_engine2::ui::wrap(&text, inner, *sc).len() <= 4).unwrap_or(1);
+        for (i, line) in red_engine2::ui::wrap(&text, inner, ms).into_iter().take(4).enumerate() {
+            l.label_left(&format!("message_{i}"), Some(p), lx, y + i as i32 * (text_height(ms) + 2 * ms), &line, ms, inner, [255, 170, 120, 255]);
         }
     }
     l
@@ -1288,7 +1291,7 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
                 kill_limit: 50,
                 time_limit_secs: 600,
                 countdown: None,
-                join_address: Some("203.0.113.9:27015".into()),
+                join_address: Some("H3PQXR-K7Q2-MZ4P-WTXA".into()),
                 message: None,
                 hosting: true,
                 map: "foundry".into(),
@@ -1430,6 +1433,70 @@ mod tests {
             v.len(),
             v.iter().map(|(s, (w, h), m)| format!("  {s} {w}x{h}: {m}")).collect::<Vec<_>>().join("\n")
         );
+    }
+
+    #[test]
+    fn the_code_a_host_reads_out_is_never_cut_short_on_the_lobby_screen() {
+        // The relay code carries the join key (`H3PQXR-K7Q2-MZ4P-WTXA`): an ellipsis in it would be a code nobody can join with.
+        let code = "H3PQXR-K7Q2-MZ4P-WTXA";
+        for &(w, h) in &red_engine2::ui::screens::CHECK_SIZES {
+            let view = LobbyView {
+                roster: demo_roster(),
+                me: 0,
+                ready: false,
+                kill_limit: 50,
+                time_limit_secs: 600,
+                countdown: None,
+                join_address: Some(code.into()),
+                message: None,
+                hosting: true,
+                map: "foundry".into(),
+                mode: 0,
+                team_size: 6,
+                look: 1,
+            };
+            let l = lobby_layout(w, h, &view, None);
+            let shown = l.widgets.iter().find(|x| x.id == "join_address").and_then(|x| x.text.clone()).unwrap_or_default();
+            assert_eq!(shown, format!("FRIENDS JOIN AT  {code}"), "{w}x{h}: the whole code is on screen, not an ellipsis");
+        }
+    }
+
+    #[test]
+    fn every_way_a_join_can_fail_is_readable_in_full_on_the_join_screen() {
+        // The join screen wraps a message into four lines and drops the rest: an error that says what to do must not lose its second half. The sentences come from the code that raises them.
+        use red_engine2::net::join::JoinError;
+        use red_engine2::net::protocol::RejectReason;
+        use red_engine2::net::relay_server::ResolveError;
+        let mut messages: Vec<String> = [
+            JoinError::RelaysOff,
+            JoinError::HostNotVerifiable,
+            JoinError::NoIdentity,
+            JoinError::AddressNotFound("host.example.com:27015".into()),
+            JoinError::Relay(ResolveError::CodeNotLive),
+            JoinError::Relay(ResolveError::NoAnswer("red-engine.duckdns.org:28016".into())),
+        ]
+        .iter()
+        .map(|e| e.to_string())
+        .collect();
+        messages.extend(
+            [RejectReason::BadKey, RejectReason::NeedsKey, RejectReason::ServerIdentity, RejectReason::WrongMap, RejectReason::Full]
+                .map(|r| r.explain().to_string()),
+        );
+        let mut cut = Vec::new();
+        for &(w, h) in red_engine2::ui::screens::CHECK_SIZES.iter().filter(|(w, _)| *w >= 640) {
+            for m in &messages {
+                let mut form = ConnectForm::new("H3PQXR-K7Q2-MZ4P-WTXA", "", "Kev");
+                form.message = Some(m.clone());
+                let l = join_layout(w, h, &form, None);
+                let shown =
+                    (0..4).filter_map(|i| l.widgets.iter().find(|x| x.id == format!("message_{i}")).and_then(|x| x.text.clone())).collect::<Vec<_>>().join(" ");
+                // Letters, not words: a long address may be broken across two lines, and that loses nothing.
+                if shown.split_whitespace().collect::<String>() != upper(m).split_whitespace().collect::<String>() {
+                    cut.push(format!("{w}x{h}: {m}"));
+                }
+            }
+        }
+        assert!(cut.is_empty(), "{} message(s) lose words to the four-line limit:\n{}", cut.len(), cut.join("\n"));
     }
 
     #[test]

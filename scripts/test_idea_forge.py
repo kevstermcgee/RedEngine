@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -262,6 +263,20 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 12000
         runs = json.loads(rd(os.path.join(self.home, "state.json")))["runs"]
         self.assertEqual((runs[-1]["status"], runs[-1]["feedback_ok"], runs[-1]["notes"]), ("built", True, 1))
         self.assertIn(slug, cli("ledger").stdout)
+
+    @NEEDS_SH
+    def test_an_agent_that_goes_silent_is_stopped_at_its_timeout_and_the_run_is_still_scored_and_recorded(self):
+        hang = sh(os.path.join(os.path.dirname(self.claude), "claude-hang"), f"#!{sys.executable}\nimport time\ntime.sleep(600)\n")
+        t0 = time.monotonic()
+        p = cli("run", "--code", "123456789", "--workdir", self.wt, "--claude", hang, "--quiet", "--timeout-min", "0.03", env=self.env, check=False)
+        self.assertLess(time.monotonic() - t0, 90, "a silent agent in quiet mode used to run for its whole 600 s")
+        self.assertIn("agent timeout", p.stderr)
+        run = json.loads(rd(os.path.join(self.wt, ".idea-forge", "run.json")))
+        self.assertEqual(run["agent_status"], "timeout")
+        end = json.loads(rd(os.path.join(self.wt, ".idea-forge", "agent_end.json")))
+        self.assertEqual(end["status"], "timeout")
+        self.assertAlmostEqual(end["timeout_s"], 1.8)
+        self.assertEqual(json.loads(rd(os.path.join(self.home, "state.json")))["runs"][-1]["agent"], "timeout", "the ledger says why the run is incomplete")
 
     def test_ship_commits_only_the_game_and_the_feedback_and_refuses_engine_edits(self):
         self.run_it()

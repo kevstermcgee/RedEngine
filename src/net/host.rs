@@ -45,19 +45,32 @@ pub struct HostOptions {
 /// How a hosted game reaches other people.
 #[derive(Debug, Clone)]
 pub struct PublicOptions {
+    /// The interface to listen on: `None` = every interface (friends on the same network and a router's forwarded port reach it), `Some(ip)` =
+    /// only that one. A host reached only through a relay can use the loopback and open nothing to the network at all (and so does a test).
+    pub bind: Option<IpAddr>,
     /// Where the host's identity (`cert.pem`, `key.pem`) is kept; made on first use so the fingerprint friends pin stays the same.
     pub identity_dir: PathBuf,
     /// The UDP port to try first (the next few are tried if it is busy).
     pub port: u16,
     /// Ask the home router to open the port (UPnP).
     pub upnp: bool,
-    /// A join key friends must also know (`None` = none).
+    /// A join key friends must also know (`None` = none). Never sent over the network: clients prove they know it inside the handshake.
     pub key: Option<String>,
     /// Register with a `red_relay` (docs/HOSTING.md) at this `HOST:PORT` instead of relying on UPnP/port
     /// forwarding: a friend then joins with a short code rather than an address at all, and this works even
     /// behind carrier-grade NAT (ADR 0031: nothing UPnP does can fix that; a relay sidesteps it instead of trying
     /// to). A hostname (a DuckDNS name, say) works here, re-resolved on every use — not just a literal address.
     pub relay: Option<String>,
+}
+
+impl PublicOptions {
+    /// The settings the HOST button uses: listen for friends, ask the router to open the port, require a fresh random join key (so a guessed or
+    /// leaked relay code alone is never enough to get in), and register with `relay` when there is one. `identity_dir` keeps the host's
+    /// identity between runs so the fingerprint friends pin stays the same. `Err` only if the OS random number generator fails: a host
+    /// without a key would be open to anyone holding its code, so it does not start instead.
+    pub fn for_friends(identity_dir: PathBuf, relay: Option<String>) -> Result<PublicOptions, String> {
+        Ok(PublicOptions { bind: None, identity_dir, port: super::DEFAULT_PORT, upnp: true, key: Some(super::relay::generate_join_key()?), relay })
+    }
 }
 
 impl Default for HostOptions {
@@ -119,11 +132,12 @@ impl LocalHost {
         let sim = MatchSim::try_new(&scene, spawns.clone())?;
         let public = opts.public.as_ref();
         let (bind, port) = match public {
-            Some(p) => (IpAddr::from([0, 0, 0, 0]), p.port),
+            Some(p) => (p.bind.unwrap_or(IpAddr::from([0, 0, 0, 0])), p.port),
             None => (opts.bind, opts.port),
         };
         let mut cfg = ServerConfig::new(SocketAddr::new(bind, port), map_hash(&text));
-        cfg.join_key = public.and_then(|p| p.key.clone()).filter(|k| !k.is_empty());
+        let cfg_key = public.and_then(|p| p.key.clone()).filter(|k| !k.is_empty());
+        cfg.join_key = cfg_key.clone();
         cfg.bot_fill = opts.fill;
         cfg.bot_level = opts
             .bot_skill
@@ -241,7 +255,7 @@ impl LocalHost {
             fingerprint,
             join_addresses,
             upnp_note,
-            key: public.and_then(|p| p.key.clone()),
+            key: cfg_key,
             keeper,
             relay_code,
             relay_note,
@@ -264,10 +278,25 @@ impl LocalHost {
         self.upnp_note.as_deref()
     }
 
-    /// The short code a friend can join with instead of an address (`PublicOptions::relay`, registered and
-    /// accepted).
+    /// The six-character code the relay resolves (`PublicOptions::relay`, registered and accepted). This is the public half: friends are
+    /// given [`share_codes`](Self::share_codes), which carry the admission key as well.
     pub fn relay_code(&self) -> Option<&str> {
         self.relay_code.as_deref()
+    }
+
+    /// Everything to show the host to give to friends, best first: the relay code **with the admission key** (`H3PQXR-K7Q2-MZ4P-WTXA`), when
+    /// registering with a relay worked, then the direct codes (`HOST:PORT#sha256:...#key`) for friends on the same network or behind a
+    /// forwarded port. Each one on its own is enough to join; none is joinable without the key this host requires.
+    pub fn share_codes(&self) -> Vec<String> {
+        // A key a short code cannot carry (punctuation) would make a code nobody could type back: leave the relay form out, the direct codes still work.
+        let carriable = self.key.as_deref().is_none_or(super::relay::ShortJoin::can_carry);
+        let relay = self
+            .relay_code
+            .as_deref()
+            .and_then(super::relay::parse_code)
+            .filter(|_| carriable)
+            .map(|code| super::relay::ShortJoin { code, key: self.key.clone() }.format());
+        relay.into_iter().chain(self.join_codes().iter().map(JoinCode::format)).collect()
     }
 
     /// What asking the relay said, when it was asked and did not succeed (a line for the screen).
@@ -398,7 +427,14 @@ mod tests {
     fn a_public_host_speaks_quic_with_a_saved_identity_that_a_client_pins() {
         let dir = std::env::temp_dir().join(format!("re2_host_identity_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        let public = PublicOptions { identity_dir: dir.clone(), port: 0, upnp: false, key: Some("sesame".into()), relay: None };
+        let public = PublicOptions {
+            bind: Some(IpAddr::from([127, 0, 0, 1])),
+            identity_dir: dir.clone(),
+            port: 0,
+            upnp: false,
+            key: Some("sesame".into()),
+            relay: None,
+        };
         let opts = HostOptions {
             fill: Some(0),
             spawn_group: "duel".into(),
@@ -429,6 +465,20 @@ mod tests {
         assert_eq!(again.fingerprint(), Some(fingerprint.as_str()));
         drop(again);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_host_button_always_asks_for_a_fresh_typable_key_and_serves_the_relay() {
+        let dir = std::path::PathBuf::from("identity");
+        let a = PublicOptions::for_friends(dir.clone(), Some("relay.example:28016".into())).unwrap();
+        let b = PublicOptions::for_friends(dir.clone(), None).unwrap();
+        let key = a.key.as_deref().expect("a hosted game is never open to whoever holds its code");
+        assert_eq!(key.len(), crate::net::relay::JOIN_KEY_LEN);
+        assert!(crate::net::relay::ShortJoin::can_carry(key), "a key that fits in the code a friend types");
+        assert_ne!(a.key, b.key, "a different key for every hosted game");
+        assert_eq!((a.relay.as_deref(), b.relay.as_deref()), (Some("relay.example:28016"), None));
+        assert!(a.bind.is_none() && a.upnp, "HOST listens for friends on every interface and asks the router; a test overrides both");
+        assert_eq!(a.port, crate::net::DEFAULT_PORT);
     }
 
     #[test]

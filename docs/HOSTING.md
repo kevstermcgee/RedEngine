@@ -58,6 +58,25 @@ was hosted this way and a QUIC client with the pinned fingerprint and key raced 
   results show, and pressing Ready again is a rematch (ADR 0029). Without it the server is in open play: join = play.
 * Try it: `powershell -File scripts/lobby_demo.ps1` (Windows) starts a keyed lobby server, a bot and a real graphical client and screenshots each stage.
 
+## Short codes and who may join
+
+A relayed game is joined with one code that has two parts: `H3PQXR` is the **rendezvous code** (what the relay looks up) and `K7Q2-MZ4P-WTXA` is the host's
+**join key**. The Killchain HOST button shows both, joined by dashes, and `red_server --relay` prints them the same way (`--key auto` for a key a code can carry; a
+key with punctuation cannot go in a short code, so friends use the direct code). Typing is forgiving: capitals or not, spaces or dashes or nothing between the groups.
+
+* The six characters are **not a secret**: they are spoken aloud and the relay sees every one it resolves. Alone they admit nobody (`NeedsKey`).
+* The key is **never sent**, not to the relay and not to the host: the client proves it knows it inside the encrypted QUIC handshake, bound to that
+  connection (ADR 0028, 0044). A wrong one is refused (`BadKey`) and counted; guessing is limited by the server's join rate (60 a second) against about 2^59 keys.
+* The relay tells the joiner which server identity to pin and the client refuses to connect without one (there is no plaintext path through a relay, even for a relay
+  on the loopback). A relay you do not trust could substitute its own identity: for that case use the direct code (`HOST:PORT#sha256:...#key`), whose fingerprint
+  comes from the host.
+* A code **expires**: when its host quits (the host tells the relay), or five minutes after the relay last heard from it (a running host renews every minute).
+  A friend who types a dead code is told it is not live, before any connection is attempted.
+* A friend whose connection drops reconnects by themselves as long as the relay still holds their pairing (ten minutes of silence) and the host has parked their place;
+  after that they see "trying to reconnect" and join again with the same code.
+* Design and the options not taken: `docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md`. Proof: `tests/net_join_flow.rs` (host, short-code join, several
+  joiners, wrong / missing / expired codes, direct join, reconnect, host leaving, transport failures).
+
 ## Networking
 
 * Allow **UDP** 27015 in the machine's firewall (`ufw allow 27015/udp`) and, in the cloud, the provider's security group.
@@ -67,8 +86,8 @@ was hosted this way and a QUIC client with the pinned fingerprint and key raced 
   friend (ADR 0031: it refuses to touch a mapping that is not its own and warns when your ISP gives you a carrier-grade NAT address, which
   no mapping can fix; tested against a fake router, not a real one); forwarding UDP 27015 by hand; or, when none of those can reach you at
   all (carrier-grade NAT, a router with UPnP off and no access to change that) — **a relay** (`red_relay`, ADR 2026-10-02): `red_server --relay
-  HOST:PORT` (or Killchain's own HOST button with `RE2_RELAY=HOST:PORT` set) registers with it and a friend joins with a short 6-character
-  code instead of an address at all — no port forwarding or public bind needed on the host's own network, since both sides only ever make
+  HOST:PORT` (or Killchain's own HOST button with `RE2_RELAY=HOST:PORT` set) registers with it and a friend joins with a short code
+  (`H3PQXR-K7Q2-MZ4P-WTXA`: six characters the relay looks up, then the host's join key) instead of an address at all — no port forwarding or public bind needed on the host's own network, since both sides only ever make
   *outbound* connections to the relay. It is a blind forwarder (never touches QUIC/TLS content, see the ADR) so hosting still needs a
   `--tls-cert`/`--tls-key` identity the same as any other public game, and the relay itself needs to run somewhere reachable 24/7 — one
   more thing to operate (`deploy/red-relay.service`), not a free lunch, but the one option on this list that works even behind CGNAT.
