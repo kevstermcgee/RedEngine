@@ -6,8 +6,8 @@
 #   games  direct3d  (not in the default list: `tests` covers them; they are what the hosted workflow runs instead of `tests` in two cases, see each one)
 #
 # Tests run under cargo-nextest when it is installed (ADR 2026-10-10-ci-runs-the-tests-under-nextest), in ONE run on all cores, each test in its own process:
-#   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers) form a nextest test group with max-threads = 1: one of them at a time,
-#     while the rest of the suite keeps the other cores busy (the config is generated from the index at run time, so the list cannot drift);
+#   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers) form a nextest test group with max-threads = 1 whose tests take
+#     every slot: one at a time with nothing else running, as before (the config is generated from the index at run time, so the list cannot drift);
 #   * doctests, which nextest cannot run, in `cargo test --doc`.
 # Without nextest (or with RED_CI_NO_NEXTEST=1) the old three cargo-test runs are used: parallel group, doctests, serial group one test at a time.
 # RED_CI_SERIAL_ALL=1 runs everything one test at a time. RED_CI_PARTITION=hash:K/N runs the K-th of N shards (doctests on shard 1 only).
@@ -42,6 +42,9 @@ nextest_config() {
       echo "[[profile.default.overrides]]"
       echo "filter = '$filter'"
       echo "test-group = 'serial-suites'"
+      # A real-time suite takes every slot: nothing else runs while it does. They time packets and physics in real time, and sharing the machine failed them
+      # (net_e2e loss/latency on hosted CI, net_e2e reconnect locally, with two slots reserved; docs/analysis/2026-10-10-ci-wall-clock.md).
+      echo "threads-required = 'num-test-threads'"
     fi
   } > "$f"
   echo "$f"
