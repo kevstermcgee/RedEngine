@@ -10,6 +10,7 @@
   idea_forge.py feedback --init | --check | --finalize             (the agent, then the CLI) the feedback file: draft it from the notes, validate it, add the measurements
   idea_forge.py ship [RUN] [--hold]                                commit ONLY the game and its feedback, push the branch, open a PR on RedEngine, then archive the run and remove its worktree
   idea_forge.py settle [--wait-min N]                              merge the tool's own PRs whose CI has passed (the default; `config --auto-merge off` stops it)
+  idea_forge.py publish [--dry-run]                                put the merged games that RedEngineGames does not have yet there (nightly does this; `config --publish off` stops it)
   idea_forge.py ledger                                             every run so far
   idea_forge.py digest [--write]                                   the engine backlog: all feedback files, grouped and ranked
 
@@ -178,7 +179,7 @@ BUILD_2D = """- Work only in this worktree. The game is ONE file: `examples/2d/{
 """
 
 BUILD_3D = """- Work only in this worktree. The game is a first-person 3D RedEngine scene: `examples/3d/{slug}/{slug}.json` (a map with `player`, `spawns`, `objects`, `zones`, `vars`, `rules`, `ui`, `checks`), plus anything it needs beside it under
-  `examples/3d/{slug}/` (for example `audio/*.json` scores). Game logic is data (`rules`), never Rust. Do not change engine code (`src/`, `crates/`, `tests/`, `scripts/`) or any other doc: a missing feature is a finding,
+  `examples/3d/{slug}/` (for example `audio/*.json` scores). Declare `checks.lint` in the scene (`ignore` lists the lint codes a deliberate pit or prop trips): the run is judged by `verify`, which honors it. Game logic is data (`rules`), never Rust. Do not change engine code (`src/`, `crates/`, `tests/`, `scripts/`) or any other doc: a missing feature is a finding,
   not a patch. Work around it in game data and record the workaround.
 - Start with `scripts/dev start "<one line>"`, then `scripts/dev red describe --brief`, `describe rules` and `describe scene`; use `search "<question>"`, `recipe` (`recipe coin_run --new examples/3d/{slug}/{slug}.json` is a complete
   small game to start from), `catalog <word>` for assets and `build --example` for room layouts before inventing anything. (`scripts/dev red` is the engine CLI.)
@@ -314,8 +315,15 @@ def score(root, slug, kind="2d"):
         return items
     item("the game file exists", True, game)
     g = jload(os.path.join(root, game))
-    code, out = run_engine(root, ["validate" if kind == "2d" else "lint", game])
-    item("validate passes" if kind == "2d" else "lint passes", code == 0, (out.strip().splitlines() or [""])[0])
+    if kind == "3d" and g.get("checks", {}).get("lint") is not None:
+        # a scene that declares `checks.lint` (with `ignore` for deliberate pits) is judged by `verify`, the only command that honors it: bare `lint` exits 1 on those pits
+        # and failed every 3D game that had one (2026-10-09 and 10-10), so the game was never shipped
+        code, out = run_engine(root, ["verify", game, "--only", "lint", "--no-views"])
+        found = next((l for l in out.splitlines() if re.match(r"\s*(PASS|FAIL) +lint\b", l)), "")
+        item("lint passes", code == 0 and found.strip().startswith("PASS"), found.strip() or (out.strip().splitlines() or [""])[0])
+    else:
+        code, out = run_engine(root, ["validate" if kind == "2d" else "lint", game])
+        item("validate passes" if kind == "2d" else "lint passes", code == 0, (out.strip().splitlines() or [""])[0])
     code, out = run_engine(root, ["verify", game])
     last = next((l for l in reversed(out.strip().splitlines()) if re.search(r"\d+ passed|\d+ check\(s\)", l)), "")
     item("verify passes", code == 0, last)
@@ -1334,12 +1342,259 @@ def cmd_settle(a):
         settle(a.wait_min)
 
 
+# ---- publish: merged games to RedEngineGames --------------------------------------------------------------------------------------------------------
+
+GAMES_REPO = "kevstermcgee/RedEngineGames"
+GAMES_MANIFEST = ".release-games.json"
+PUBLISH_PUSH_TRIES = 3   # RedEngine's own publish workflow commits to RedEngineGames main all day: a rejected push is fetched, rebased and retried
+
+
+def publish_enabled():
+    """Publishing merged games to RedEngineGames is the default (that is where a player finds them); `config --publish off` or IDEA_FORGE_PUBLISH=0 turns it off."""
+    if os.environ.get("IDEA_FORGE_PUBLISH", "").lower() in ("0", "off", "false", "no"):
+        return False
+    return bool(load_state().get("config", {}).get("publish", True))
+
+
+def games_remote():
+    return os.environ.get("IDEA_FORGE_GAMES_REMOTE") or f"https://github.com/{GAMES_REPO}.git"
+
+
+def merged_game_files(root, kind, slug, ref="origin/main"):
+    """(path on `ref`, path inside projects/<slug>/) for every file of a game that is on `ref`; empty when the game is not there (not merged yet, or its run failed)."""
+    game = game_file(kind, slug)
+    prefix = game_prefix(kind, slug)
+    p = subprocess.run(["git", "-C", root, "ls-tree", "-r", "--name-only", ref, "--", prefix.rstrip("/")], capture_output=True, text=True)
+    paths = [l for l in p.stdout.splitlines() if l] if p.returncode == 0 else []
+    if game not in paths:
+        return []
+    base = os.path.dirname(game)
+    return [(x, x[len(base) + 1:]) for x in paths]
+
+
+def publishable(root, ref="origin/main"):
+    """The ledger rows whose game is on main and not yet in RedEngineGames, oldest first, each with its files. A game whose run did not build (feedback only) never is."""
+    out = []
+    for r in load_state()["runs"]:
+        if r.get("status") != "shipped" or r.get("feedback_only") or r.get("published"):
+            continue
+        files = merged_game_files(root, r.get("kind", "2d"), r["slug"], ref)
+        if files:
+            out.append((r, files))
+    return out
+
+
+def playable_entry(r):
+    """The `.release-games.json` entry that makes RedEngineGames build, release and list the game (a 2D game is played by `re2d`: `kind: "2d"`)."""
+    slug, kind = r["slug"], r.get("kind", "2d")
+    entry = {"slug": slug, "name": r.get("title") or slug.replace("-", " ").title()}
+    if kind == "2d":
+        entry["kind"] = "2d"
+    entry["files"] = [f"projects/{slug}"]
+    entry["arguments"] = [f"content/projects/{slug}/{os.path.basename(game_file(kind, slug))}"]
+    return entry
+
+
+def add_playables(manifest_text, entries):
+    """The manifest with `entries` appended to `data_playables`, edited as text so the diff is only the new entries (the file is hand-formatted)."""
+    tail = '\n  ],\n  "native_playables"'
+    if tail not in manifest_text:
+        raise ValueError(f"{GAMES_MANIFEST} has an unexpected shape: no `data_playables` list followed by `native_playables`")
+    blocks = []
+    for e in entries:
+        lines = [f'      "{k}": {json.dumps(v)}' for k, v in e.items()]
+        blocks.append("    {\n" + ",\n".join(lines) + "\n    }")
+    return manifest_text.replace(tail, ",\n" + ",\n".join(blocks) + tail, 1)
+
+
+def games_checkout():
+    """A scratch clone of RedEngineGames at its main, reset every time (this tool's own copy; the owner's clone is never touched)."""
+    d = os.path.join(state_dir(), "games-repo")
+    remote = games_remote()
+    if not os.path.isdir(os.path.join(d, ".git")):
+        shutil.rmtree(d, ignore_errors=True)
+        git(os.path.dirname(d), "clone", "-q", remote, d)
+    else:
+        git(d, "remote", "set-url", "origin", remote)
+        git(d, "fetch", "-q", "origin", "main")
+        git(d, "checkout", "-q", "-B", "main", "origin/main")
+        git(d, "clean", "-fdq")
+    return d
+
+
+THUMB_SIZE = "640x360"   # what site/gen_thumbs.py makes and the site's cards and the installer icon expect
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def thumb_path(clone, slug):
+    return os.path.join(clone, "site", "thumbs", f"{slug}.png")
+
+
+def render_thumbnail(root, scene, out, kind="3d"):
+    """A screenshot of the game as the engine draws it (`frame`: the scene's own camera, a 2D game a second into its first scenario). True only when a real PNG with something in it
+    was written: a missing or blank picture is a failure, because every game on the site has to have one."""
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if os.path.exists(out):
+        os.remove(out)
+    args = ["frame", scene, out, "--size", THUMB_SIZE] + (["--t", "1"] if kind == "2d" else [])
+    try:
+        run_engine(root, args, timeout=300)
+    except subprocess.TimeoutExpired:
+        pass
+    if os.path.isfile(out):
+        with open(out, "rb") as f:
+            head = f.read(8)
+        if head == PNG_MAGIC and os.path.getsize(out) > 2000:   # a flat single-colour 640x360 PNG compresses to well under 2 KB
+            return True
+        os.remove(out)   # whatever a failed draw left must never be committed as the game's picture
+    return False
+
+
+def playable_scene(clone, playable):
+    """The file `frame` draws for a playable: its first `.json` argument (`content/<path>` is `<path>` in the repository), or None."""
+    for arg in playable.get("arguments", []):
+        if arg.endswith(".json"):
+            path = os.path.join(clone, *arg.removeprefix("content/").split("/"))
+            return path if os.path.isfile(path) else None
+    return None
+
+
+def fill_thumbnails(root, clone):
+    """A screenshot for every listed game that has none (the catalog's own games and anything an earlier run could not draw). Returns (made slugs, failed slugs)."""
+    plays = json.loads(rd(os.path.join(clone, ".games-catalog.json"))).get("playables", []) + json.loads(rd(os.path.join(clone, GAMES_MANIFEST))).get("data_playables", [])
+    made, failed = [], []
+    for p in plays:
+        if os.path.exists(thumb_path(clone, p["slug"])):
+            continue
+        scene = playable_scene(clone, p)
+        if scene and render_thumbnail(root, scene, thumb_path(clone, p["slug"]), p.get("kind", "3d")):
+            made.append(p["slug"])
+        else:
+            failed.append(p["slug"])
+    return made, failed
+
+
+def stage_games(root, clone, items, ref="origin/main"):
+    """Copy each game into projects/<slug>/, draw its screenshot and list it in the manifest. Returns (staged rows, skipped: [(row, why)], failed: [(row, why)]). A slug already published
+    by hand is never overwritten (skipped: recorded, not asked about again); a game whose screenshot cannot be drawn is not published (failed: tried again next run)."""
+    manifest_path = os.path.join(clone, GAMES_MANIFEST)
+    text = rd(manifest_path)
+    have = {p["slug"] for p in json.loads(text).get("data_playables", [])}
+    staged, skipped, failed = [], [], []
+    for r, files in items:
+        slug = r["slug"]
+        if slug in have or os.path.exists(os.path.join(clone, "projects", slug)):
+            skipped.append((r, f"projects/{slug} already exists in RedEngineGames"))
+            continue
+        for src, rel in files:
+            blob = subprocess.run(["git", "-C", root, "show", f"{ref}:{src}"], capture_output=True)
+            if blob.returncode:
+                raise RuntimeError(f"git show {ref}:{src} failed: {blob.stderr.decode(errors='replace').strip()}")
+            dest = os.path.join(clone, "projects", slug, *rel.split("/"))
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with open(dest, "wb") as f:
+                f.write(blob.stdout)
+        entry = playable_entry(r)
+        if not render_thumbnail(root, playable_scene(clone, entry), thumb_path(clone, slug), r.get("kind", "2d")):
+            shutil.rmtree(os.path.join(clone, "projects", slug), ignore_errors=True)
+            failed.append((r, "the engine could not draw a screenshot of it"))
+            continue
+        staged.append(r)
+    if staged:
+        wr(manifest_path, add_playables(text, [playable_entry(r) for r in staged]))
+    return staged, skipped, failed
+
+
+def check_release_manifest(clone):
+    """RedEngineGames' own loader must accept the result (safe slugs, no duplicates, every published path present): what its release workflow runs first."""
+    code = "import sys; sys.path.insert(0, 'distribution'); import release_tool as rt; print(len(rt.load_playables()))"
+    p = subprocess.run([sys.executable, "-I", "-B", "-c", code], cwd=clone, capture_output=True, text=True, env=dict(os.environ, PYTHONPATH=""))
+    if p.returncode:
+        raise RuntimeError("RedEngineGames would reject the manifest: " + (p.stderr or p.stdout).strip()[-300:])
+
+
+def push_games(clone, message):
+    """Commit and push to RedEngineGames main; returns the commit id. A rejected push (the publish workflow committed meanwhile) is rebased and retried."""
+    git(clone, "add", "--", "projects", "site/thumbs", GAMES_MANIFEST)   # only what was staged: RedEngineGames tracks files (a .pyc) that running its own tools rewrites
+    p = subprocess.run(["git", "-C", clone, "commit", "-q", "-m", message], capture_output=True, text=True)
+    if p.returncode:
+        raise RuntimeError("git commit failed (is user.name / user.email set?): " + (p.stderr or p.stdout).strip())
+    last = ""
+    for _ in range(PUBLISH_PUSH_TRIES):
+        p = subprocess.run(["git", "-C", clone, "push", "-q", "origin", "HEAD:main"], capture_output=True, text=True)
+        if p.returncode == 0:
+            return git(clone, "rev-parse", "--short=12", "HEAD")
+        last = (p.stderr or p.stdout).strip()
+        git(clone, "fetch", "-q", "origin", "main")
+        if subprocess.run(["git", "-C", clone, "rebase", "-q", "origin/main"], capture_output=True, text=True).returncode:
+            subprocess.run(["git", "-C", clone, "rebase", "--abort"], capture_output=True)
+            raise RuntimeError("the push was rejected and the rebase conflicted: " + last[-200:])
+    raise RuntimeError(f"the push was rejected {PUBLISH_PUSH_TRIES} times: " + last[-200:])
+
+
+def publish_games(root=None, dry_run=False):
+    """Put every merged, unpublished game into RedEngineGames: its files under projects/<slug>/ and an entry in `.release-games.json`, which is all RedEngineGames needs to build a
+    Windows installer, cut a release and list the game on its site. One commit to main for all of them. Returns the published slugs. Never raises: the night goes on."""
+    root = root or ROOT
+    try:
+        subprocess.run(["git", "-C", root, "fetch", "-q", "origin", "main"], capture_output=True)
+        items = publishable(root)
+        if dry_run:
+            for r, files in items:
+                print(f"publish: would publish {r.get('kind', '2d')} {r['slug']} ({len(files)} file(s)) and draw its screenshot")
+            print("publish: (a real run also draws the screenshot of any listed game that has none)" if items else "publish: no new game (a real run still draws any missing screenshot)")
+            return []
+        clone = games_checkout()
+        staged, skipped, failed = stage_games(root, clone, items)
+        for r, why in failed:
+            print(f"publish: {r['slug']}: not published, {why}")
+        st = load_state()
+        for r, why in skipped:   # published by hand already: record it so it is not asked about again
+            for x in st["runs"]:
+                if x["code"] == r["code"] and x["slug"] == r["slug"] and x.get("kind", "2d") == r.get("kind", "2d"):
+                    x["published"] = {"note": why}
+            print(f"publish: {r['slug']}: {why}")
+        save_state(st)
+        made, missing = fill_thumbnails(root, clone)   # every listed game has a screenshot: the older ones that lack one get theirs in the same commit
+        if missing:
+            print(f"publish: no screenshot could be drawn for: {', '.join(missing)}")
+        if not staged and not made:
+            print("publish: nothing to publish")
+            return []
+        check_release_manifest(clone)
+        names = ", ".join(r.get("title") or r["slug"] for r in staged)
+        sha = push_games(clone, (f"Publish {len(staged)} Idea Forge game{'s' if len(staged) != 1 else ''}: {names}" if staged else f"Add screenshots for {len(made)} game{'s' if len(made) != 1 else ''}") +
+                                "\n\nForged, built and merged into RedEngine by scripts/idea_forge.py; RedEngineGames builds each one's installer and lists it once its release is made." +
+                                (f"\n\nScreenshots drawn by the engine for: {', '.join(made)}." if made else "") + "\n\nCo-Authored-By: Claude <noreply@anthropic.com>")
+        st = load_state()
+        for r in staged:
+            for x in st["runs"]:
+                if x["code"] == r["code"] and x["slug"] == r["slug"] and x.get("kind", "2d") == r.get("kind", "2d"):
+                    x["published"] = {"commit": sha, "date": datetime.date.today().isoformat()}
+        save_state(st)
+        print(f"publish: published {', '.join(r['slug'] for r in staged) or 'nothing new'}" + (f", screenshots for {', '.join(made)}" if made else "") + f" to {GAMES_REPO} ({sha})")
+        return [r["slug"] for r in staged]
+    except (Exception, SystemExit) as e:   # a failed publish (`git()` exits on failure) is retried by the next run; it must not fail the night or lose the feedback
+        print(f"publish: FAILED, will retry next run: {e}")
+        return []
+
+
+def cmd_publish(a):
+    with Lock():
+        if not a.dry_run and not publish_enabled():
+            sys.exit("publishing is off (`config --publish on` or unset IDEA_FORGE_PUBLISH)")
+        publish_games(dry_run=a.dry_run)
+
+
 def cmd_config(a):
     st = load_state()
     if a.auto_merge:
         st.setdefault("config", {})["auto_merge"] = a.auto_merge == "on"
         save_state(st)
-    cfg = {"auto_merge": auto_merge_enabled()}
+    if a.publish:
+        st.setdefault("config", {})["publish"] = a.publish == "on"
+        save_state(st)
+    cfg = {"auto_merge": auto_merge_enabled(), "publish": publish_enabled()}
     print(json.dumps(cfg))
 
 
@@ -1538,12 +1793,15 @@ def cmd_nightly(a):
         st.setdefault("nights", {})[date] = {"skipped": f"{free:.0f} GB free", "at": round(time.time())}
         save_state(st)
         sys.exit(0)
+    publish_ok = not a.no_publish and publish_enabled()
     with Lock():
         if not a.dry_run:
             if a.no_merge:
                 os.environ["IDEA_FORGE_AUTO_MERGE"] = "0"
             settle(0)   # yesterday's PRs whose checks have finished: merged before today's worktrees are cut from main
             print("checkout: " + refresh_checkout())
+            if publish_ok:
+                publish_games()   # what merged since the last run, and anything an earlier publish could not push
         failed = 0
         if not a.skip_games:
             ns = argparse.Namespace(**vars(a))
@@ -1560,14 +1818,15 @@ def cmd_nightly(a):
             ns = argparse.Namespace(**vars(a))
             ns.budget, ns.timeout_min, ns.key = a.improve_budget, a.improve_timeout_min, None
             result = do_improve(ns)
-        merged = []
+        merged, published = [], []
         if not a.dry_run:
             merged = [pr["url"] for pr, verdict, _ in settle(a.settle_timeout_min) if verdict == "merged"]
+            published = publish_games() if publish_ok else []   # tonight's games, merged just now
             print("feedback note for the nightly maintenance job: " + export_feedback_note())
         st = load_state()
-        st.setdefault("nights", {})[date] = {"games_failed": failed, "improve": result[0], "detail": str(result[1])[:300], "merged": merged, "at": round(time.time())}
+        st.setdefault("nights", {})[date] = {"games_failed": failed, "improve": result[0], "detail": str(result[1])[:300], "merged": merged, "published": published, "at": round(time.time())}
         save_state(st)
-        print(f"{date}: nightly done: games failed {failed}; improvement {result[0]}; merged {len(merged)} PR(s)")
+        print(f"{date}: nightly done: games failed {failed}; improvement {result[0]}; merged {len(merged)} PR(s)" + (f"; published {len(published)} game(s)" if not a.dry_run else ""))
         sys.exit(0)
 
 
@@ -1712,7 +1971,7 @@ def cmd_ledger(a):
     if not runs:
         print("no runs yet: `idea_forge.py run`")
     for r in runs:
-        print(f"{r['date']}  {r.get('kind', '2d')}  {r['code']:010d}  {r['slug']:<28} {r.get('status', '?'):<10} {r.get('minutes', '-'):>5} min  notes {r.get('notes', '-')}  feedback {'ok' if r.get('feedback_ok') else 'no'}  {r.get('pr', '')} {r.get('merge', '')}")
+        print(f"{r['date']}  {r.get('kind', '2d')}  {r['code']:010d}  {r['slug']:<28} {r.get('status', '?'):<10} {r.get('minutes', '-'):>5} min  notes {r.get('notes', '-')}  feedback {'ok' if r.get('feedback_ok') else 'no'}  {r.get('pr', '')} {r.get('merge', '')}{' published' if r.get('published') else ''}")
 
 
 def collect_findings(directory):
@@ -1863,14 +2122,20 @@ def main(argv=None):
     s.add_argument("--min-free-gb", type=int, default=20, help="skip the night below this much free disk")
     s.add_argument("--settle-timeout-min", type=int, default=120, help="how long to wait at the end for tonight's PRs' checks, then merge those that passed (the next run settles the rest)")
     s.add_argument("--no-merge", action="store_true", help="open the PRs but do not merge any, this run")
+    s.add_argument("--no-publish", action="store_true", help="do not put merged games into RedEngineGames, this run")
     s.set_defaults(f=cmd_nightly, no_story=False, workdir=None)
 
     s = sub.add_parser("settle", help="merge the tool's own PRs whose CI has passed")
     s.add_argument("--wait-min", type=int, default=0, help="keep waiting up to this long for running checks")
     s.set_defaults(f=cmd_settle)
 
+    s = sub.add_parser("publish", help="put the merged games that are not in RedEngineGames yet there (a commit to its main; its workflow then builds and lists them)")
+    s.add_argument("--dry-run", action="store_true", help="say what would be published, change nothing")
+    s.set_defaults(f=cmd_publish)
+
     s = sub.add_parser("config", help="show or change settings")
     s.add_argument("--auto-merge", choices=("on", "off"), help="merge the tool's PRs once CI passes (default on)")
+    s.add_argument("--publish", choices=("on", "off"), help="put merged games into RedEngineGames (default on)")
     s.set_defaults(f=cmd_config)
 
     s = sub.add_parser("schedule")
