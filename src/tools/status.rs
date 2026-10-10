@@ -218,6 +218,21 @@ pub fn today() -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
+/// A `STATUS.md` this many commits behind the main line earns a warning in `preflight` (a handoff nobody updated is worse than none: it is believed).
+pub const STATUS_STALE_COMMITS: usize = 20;
+
+/// How far `STATUS.md` has fallen behind: `(commits on the main line that it has not seen, the short id of the commit that last changed it)`. The main line is `origin/main`,
+/// else `main`, else `HEAD`. `None` where it cannot be said: no git, no committed `STATUS.md`, or a `STATUS.md` with uncommitted edits (someone is updating it now).
+pub fn status_age(root: &Path) -> Option<(usize, String)> {
+    if !git(root, &["status", "--porcelain", "--", "STATUS.md"])?.is_empty() {
+        return None;
+    }
+    let last = git(root, &["log", "-1", "--format=%H", "--", "STATUS.md"]).filter(|h| !h.is_empty())?;
+    let tip = ["origin/main", "main", "HEAD"].into_iter().find(|r| git(root, &["rev-parse", "--verify", "--quiet", &format!("{r}^{{commit}}")]).is_some())?;
+    let behind = git(root, &["rev-list", "--count", &format!("{last}..{tip}")])?.parse().ok()?;
+    Some((behind, last.chars().take(10).collect()))
+}
+
 /// The path of a project's handoff file.
 pub fn status_path(root: &Path) -> PathBuf {
     root.join("STATUS.md")
@@ -388,6 +403,44 @@ mod tests {
         assert!(t.find("ship it").unwrap() > next, "{t}");
         assert!(add_note(&d, "bogus", "x").is_err());
         assert!(render(&d).contains("== STATUS.md ==") && render(&d).contains("ship it"));
+    }
+
+    /// A git repository in `name` with `n` empty commits after the one that adds `STATUS.md`.
+    fn repo_with_status(name: &str, n: usize) -> PathBuf {
+        let d = tmp(name);
+        let g = |args: &[&str]| {
+            let ok = Command::new("git")
+                .arg("-C")
+                .arg(&d)
+                .args(["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"])
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success();
+            assert!(ok, "git {args:?}");
+        };
+        g(&["init", "-q", "-b", "main"]);
+        std::fs::write(d.join("STATUS.md"), "# STATUS\n").unwrap();
+        g(&["add", "STATUS.md"]);
+        g(&["commit", "-q", "-m", "status"]);
+        for i in 0..n {
+            g(&["commit", "-q", "--allow-empty", "-m", &format!("work {i}")]);
+        }
+        d
+    }
+
+    #[test]
+    fn a_status_file_is_stale_by_the_commits_it_has_not_seen() {
+        let d = repo_with_status("status_age", 3);
+        assert_eq!(status_age(&d).map(|(n, _)| n), Some(3));
+        let long = repo_with_status("status_age_long", STATUS_STALE_COMMITS + 1);
+        let (n, id) = status_age(&long).unwrap();
+        assert!(n > STATUS_STALE_COMMITS && id.len() == 10, "{n} {id}");
+        // an edit in progress is not stale, and a project with no git or no STATUS.md has no age
+        std::fs::write(long.join("STATUS.md"), "# STATUS\n\n- 2026-10-09: now\n").unwrap();
+        assert_eq!(status_age(&long), None);
+        assert_eq!(status_age(&tmp("status_age_no_git")), None);
     }
 
     #[test]

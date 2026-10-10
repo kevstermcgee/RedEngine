@@ -74,6 +74,8 @@ pub struct Problem {
 pub struct Report {
     /// Everything wrong.
     pub problems: Vec<Problem>,
+    /// Things worth a look that do not fail the run (a handoff file that has fallen far behind).
+    pub warnings: Vec<String>,
     /// The checks that ran.
     pub ran: Vec<&'static str>,
     /// Checks a tree-only run left out because they need a current build (empty for a full run).
@@ -459,6 +461,17 @@ fn check_fmt(root: &Path) -> Option<Vec<Problem>> {
     Some(vec![problem("fmt", format!("rustfmt would change {diffs} place(s)"), "cargo fmt", Some(Fix::CargoFmt))])
 }
 
+/// A warning when `STATUS.md` is more than [`status::STATUS_STALE_COMMITS`] commits behind the main line: the handoff file is what the next person believes.
+fn status_warning(root: &Path) -> Option<String> {
+    let (behind, last) = status::status_age(root)?;
+    (behind > status::STATUS_STALE_COMMITS).then(|| {
+        format!(
+            "STATUS.md is {behind} commits behind main (last changed in {last}; the limit is {}): it is the handoff file, so bring it up to date: `red_engine2 status --note \"...\" --section done|now|next|blocked`, or edit it",
+            status::STATUS_STALE_COMMITS
+        )
+    })
+}
+
 /// Runs the checks. Nothing is compiled; on this repository it takes a fraction of a second (a second or two with `fmt`).
 pub fn run(root: &Path, opts: &Options) -> Report {
     let started = Instant::now();
@@ -483,6 +496,7 @@ pub fn run(root: &Path, opts: &Options) -> Report {
             add("fmt", found);
         }
     }
+    r.warnings.extend(status_warning(root));
     r.millis = started.elapsed().as_millis();
     r
 }
@@ -580,8 +594,9 @@ pub fn render(r: &Report) -> String {
     if !r.skipped.is_empty() {
         checked.push_str(&format!("; NOT checked, they need a current build: {} (run `scripts/dev preflight --full`)", r.skipped.join(", ")));
     }
+    let warnings: String = r.warnings.iter().map(|w| format!("warning: {w}\n")).collect();
     if r.problems.is_empty() {
-        return format!("preflight: OK in {} ms (checked {checked})\n", r.millis);
+        return format!("preflight: OK in {} ms (checked {checked})\n{warnings}", r.millis);
     }
     let fixable = r.problems.iter().filter(|p| p.fix.is_some()).count();
     let mut s = format!("preflight: {} problem(s) in {} ms (checked {checked})\n", r.problems.len(), r.millis);
@@ -591,6 +606,7 @@ pub fn render(r: &Report) -> String {
     if fixable > 0 {
         s.push_str(&format!("`red_engine2 preflight --fix` makes the {fixable} mechanical edit(s); the rest need a person.\n"));
     }
+    s.push_str(&warnings);
     s
 }
 
@@ -601,6 +617,7 @@ pub fn to_json(r: &Report) -> Value {
         "millis": r.millis,
         "checked": r.ran,
         "skipped": r.skipped,
+        "warnings": r.warnings,
         "problems": r.problems.iter().map(|p| json!({"check": p.check, "message": p.message, "edit": p.edit, "fixable": p.fix.is_some()})).collect::<Vec<_>>(),
     })
 }
@@ -752,6 +769,20 @@ mod tests {
         let v = to_json(&r);
         assert_eq!(v["ok"], r.problems.is_empty());
         assert!(v["checked"].as_array().unwrap().len() >= 5);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_warning_is_printed_and_reported_but_does_not_fail_the_run() {
+        let r = Report { warnings: vec!["STATUS.md is 59 commits behind main".to_string()], ran: vec!["adr"], ..Report::default() };
+        let text = render(&r);
+        assert!(text.starts_with("preflight: OK") && text.contains("warning: STATUS.md is 59 commits behind main"), "{text}");
+        let v = to_json(&r);
+        assert_eq!(v["ok"], true);
+        assert_eq!(v["warnings"][0], "STATUS.md is 59 commits behind main");
+        // outside a git repository there is nothing to compare, so no warning
+        let d = repo("no_git_warning");
+        assert!(status_warning(&d).is_none());
         let _ = std::fs::remove_dir_all(&d);
     }
 }
