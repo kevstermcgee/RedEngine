@@ -57,7 +57,8 @@ def words(text):
 
 
 def slug(text, fallback="mygame"):
-    ws = words(text)[:3]
+    # "a 90-second collect-and-dodge" -> collect-dodge-...: a token with a digit ("90-second", "2d") says how, not what, so it never names the directory
+    ws = [w for tok in re.findall(r"[a-z0-9_]+(?:-[a-z0-9_]+)*", text.lower()) if not re.search(r"\d", tok) for w in words(tok)][:3]
     return "-".join(ws) if ws else fallback
 
 
@@ -129,9 +130,9 @@ CUES = {
     "engine-change": [(r"\bthe engine\b", 2), (r"\bengine (feature|code|bug|change)\b", 4), (r"\bsrc/", 4), (r"\.rs\b", 4), (r"\brust\b", 3), (r"\brefactor\w*", 3),
                       (r"\bcrate\b", 2), (r"\bcli command\b", 3), (r"\bprotocol\b", 2), (r"\bshaders?\b", 3), (r"\badr\b", 2), (r"\bsimulation\b", 2),
                       (r"\bimplement\b.*\b(in|for) the engine\b", 3), (r"\bnew (cli )?command\b", 3), (r"\bpublic api\b", 3)],
-    "game-create": [(r"\b(make|create|build|write|prototype|start)\b.*\bgame\b", 4), (r"\bnew game\b", 4), (r"\ba game (where|about|that|with|in which)\b", 3),
+    "game-create": [(r"\b(make|create|build|write|prototype|start)\b.*\bgame\b", 4), (r"\bnew game\b", 4), (r"\bnew\b(?:\s+[\w-]+){1,3}\s+game\b", 4), (r"\b[23]d game\b", 3), (r"\ba game (where|about|that|with|in which)\b", 3),
                     (r"\b(platformer|shooter|kart|racer|racing|puzzle|arcade|runner|roguelike|sokoban|tower defen[cs]e|top.?down|metroidvania|maze)\b", 2)],
-    "game-change": [(r"\b(add|change|fix|tweak|update|improve|remove|rename|balance|make the)\b", 2), (r"\b(level|map|blueprint|enemy|enemies|score|rule|rules|room|door|spawn)s?\b", 2)],
+    "game-change": [(r"\b(add|change|fix|tweak|update|improve|remove|rename|balance|make the)\b", 2), (r"\b(level|map|blueprint|enemy|enemies|score|rule|rules|room|door|spawn)s?\b", 2), (r"\bscenes?\b", 2)],
 }
 
 
@@ -198,6 +199,10 @@ def load_features(root):
         return {}
 
 
+# Words that say what to do, not where: never matched against file names (`src/sim/change.rs` is not the owner of "an engine change").
+TASK_VERBS = set("engine change changes add adds fix fixes update new code mod lib main remove rename improve make".split())
+
+
 def feature_owners(features, task):
     """The features a task most likely concerns, from docs/features.json (the same index `context`, `impact` and `affected` use)."""
     ws = set(words(task))
@@ -211,6 +216,12 @@ def feature_owners(features, task):
                 why.append(f"name has `{w}`")
             elif re.search(rf"\b{re.escape(w)}", f.get("summary", "").lower()):
                 s += 1
+            if w not in TASK_VERBS and any(re.search(rf"(?:^|/){re.escape(w)}\.\w+$", g) for g in f.get("files", [])):
+                s += 4
+                why.append(f"owns `{w}.*`")
+            if any(c.startswith("red_engine2 ") and c.split()[1:2] == [w] for c in f.get("commands", [])):
+                s += 2
+                why.append(f"verifies with `{w}`")
         for p in paths:
             if any(glob_re(g).match(p.lstrip("./")) for g in f.get("files", [])):
                 s += 6
@@ -541,6 +552,8 @@ def plan_delegated(ctx, workflow):
     root = res["engine"]["root"]
     uncertainty = ["this route only delegates: it names the established tool and does not plan the work"]
     missing = [] if exe else ["engine CLI: no fresh executable"]
+    if workflow == "game-change" and not proj:
+        return plan_scene(ctx)
     if workflow == "game-change":
         base = ["scripts/red"] if proj else ctx["red"]
         g2 = game2d_file(proj) if proj else None
@@ -560,6 +573,47 @@ def plan_delegated(ctx, workflow):
         loops = {"iteration_checks": [], "final_requirements": []}
     return {"plan": {}, "capabilities": {"source": "not applicable", "checked": False, "supported": None}, "context": {"pointers": pointers}, "next_action": nxt,
             "blockers": [], "uncertainty": uncertainty, "missing": missing, **loops}
+
+
+# A topic word in the task -> the one `describe`/`recipe` call that answers it (the scene route's pointers).
+SCENE_TOPICS = [
+    (r"\b(style|look|palette|colou?rs?|sky|fog|mood)\b", ["describe", "style"]),
+    (r"\b(ui|hud|dialogue|story|text|objective|start card|end card)\b", ["describe", "ui"]),
+    (r"\b(locked|lock|key|gate|door opens?|opened|pickup|pick up|rules?|score|win|lose)\b", ["describe", "rules"]),
+    (r"\b(locked|key|gate)\b", ["recipe", "gated_garden"]),
+    (r"\b(prop|props|furniture|prefab|decor)\b", ["catalog"]),
+]
+
+
+def plan_scene(ctx):
+    """A scene (map) in the engine checkout, not in a game project: start from a recipe, then lint -> look -> verify. `scripts/red check` is a game project's command
+    and does not exist here (the agent-loop trace's task a reached it after a ten-minute build: ADR 2026-10-11-the-launchpad-routes-by-what-a-task-names)."""
+    res, exe, task = ctx["resolution"], ctx["exe"], ctx["task"]
+    root = res["engine"]["root"]
+    named = next((p for p in re.findall(r"[\w./-]+\.json\b", task) if os.path.isfile(os.path.join(root, p))), None)
+    scene = named or "out/scene.json"
+    t = task.lower()
+    pointers = [{"what": "the scene loop and every command on one page", "argv": ctx["red"] + ["describe", "--brief"]}]
+    for pat, args in SCENE_TOPICS:
+        if re.search(pat, t) and not any(p.get("argv", [])[-len(args):] == args for p in pointers):
+            pointers.append({"what": "answers `" + re.search(pat, t).group(0) + "`", "argv": ctx["red"] + args})
+    if named:
+        nxt = action("Lint the scene as it is before changing it", root, ctx["red"] + ["lint", named], "exit 0 (errors say the fix)")
+    elif exe:
+        nxt = action("Pick a known-good map to start from, then copy it: `recipe NAME --new " + scene + "`", root, ctx["red"] + ["recipe"],
+                     "a list of recipes (3D maps) and 2D mechanics; each passes lint and its own verify",
+                     after={"argv": ctx["red"] + ["recipe", "<name>", "--new", scene], "cwd": root})
+    else:
+        nb = res.get("next_build") or {}
+        nxt = action("Build the engine CLI once (every scene command needs it), then pick a recipe", nb.get("cwd", root), nb.get("argv", dev_argv(root, "red", "describe", "--brief")),
+                     nb.get("success", "exit 0"), compiles=True, after={"argv": ctx["red"] + ["recipe"], "cwd": root})
+    checks = [{"when": "after every edit", "claim": "validation + level checks", "argv": ctx["red"] + ["lint", scene]}]
+    final = [{"claim": "level checks", "argv": ctx["red"] + ["lint", scene], "required": True},
+             {"claim": "visual inspection", "argv": ctx["red"] + ["plan", scene, "out/plan.png"], "required": True, "note": "open the picture (and `frame`/`tour` for views): only looking proves it looks right"},
+             {"claim": "behavior (the scene's own checks: reach, walks, sim)", "argv": ctx["red"] + ["verify", scene], "required": True}]
+    return {"plan": {"scene": scene}, "capabilities": {"source": "not applicable", "checked": False, "supported": None}, "context": {"pointers": pointers}, "next_action": nxt,
+            "blockers": [], "uncertainty": [] if exe else ["executable: missing"], "missing": [] if exe else ["engine CLI: no fresh executable"],
+            "iteration_checks": checks, "final_requirements": final}
 
 
 def plan_unrouted(ctx):
@@ -890,7 +944,7 @@ def render(o):
             L.append(f"owner      {ow['feature']}: {ow['summary'][:90]}  tests: {', '.join(ow['tests'][:4])}")
         if pk.get("reproduce_first"):
             L.append(f"reproduce  {pk['reproduce_first']}")
-    for p in o["context"].get("pointers", [])[:3]:
+    for p in o["context"].get("pointers", [])[:5]:
         L.append(f"read       {p['what']}: " + (shlex.join(p["argv"]) if p.get("argv") else f"{p.get('file')} {p.get('section', '')}"))
     L.append(f"NEXT       (in {na['cwd']}) {cmdline(na)}")
     L.append(f"  {na['summary']}")
