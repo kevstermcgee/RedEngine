@@ -474,11 +474,11 @@ mod tests {
         .unwrap();
         let other = dir.join("notes.json");
         std::fs::write(&other, "{\"hello\": 1}").unwrap();
-        let r = run(&[dir.clone()], &dir);
+        let r = run(std::slice::from_ref(&dir), &dir);
         assert_eq!(r.problems(), 1, "{}", r.render(None));
         let text = r.render(Some(&dir));
         assert!(text.starts_with("bad.json:4: b.pos: unknown field"), "{text}");
-        let named = run(&[other.clone()], &dir);
+        let named = run(std::slice::from_ref(&other), &dir);
         assert!(named.render(None).contains("not a content file"), "{}", named.render(None));
         let _ = std::fs::remove_dir_all(&dir);
     }
