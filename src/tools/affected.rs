@@ -359,6 +359,81 @@ pub fn crate_root_only_adds_modules(old: &str, new: &str) -> bool {
     old_rest == new_rest && new_decls.len() > old_decls.len() && old_decls.iter().all(|d| new_decls.contains(d))
 }
 
+/// The literal paths a Rust source text compiles in with `include_str!("..")` / `include_bytes!("..")`, as written (relative to the file).
+pub fn include_paths(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for mac in ["include_str!(\"", "include_bytes!(\""] {
+        for (i, _) in text.match_indices(mac) {
+            let rest = &text[i + mac.len()..];
+            if let Some(end) = rest.find('"') {
+                let p = &rest[..end];
+                if !p.is_empty() && !p.contains('\\') && !p.contains('{') {
+                    out.push(p.to_string());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// `dir/../x` -> `x`, `./x` -> `x`, with `/` separators; `None` when it climbs above the root.
+fn normalize(path: &str) -> Option<String> {
+    let mut parts: Vec<&str> = Vec::new();
+    for p in path.split('/') {
+        match p {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            p => parts.push(p),
+        }
+    }
+    Some(parts.join("/"))
+}
+
+/// Source files that compile a changed file in (`include_str!`/`include_bytes!`), as `(includer, included)` pairs, includers not already in `changed`.
+/// A compile-time include makes the includer's code change with the included file: a guard test that reads `lint.rs` through `include_str!` lives in
+/// `describe.rs`, so a change to `lint.rs` must schedule `describe.rs`'s tests and its owners too (ADR 2026-10-11-compile-time-includes-are-changes).
+pub fn includers(root: &Path, changed: &[String]) -> Vec<(String, String)> {
+    let wanted: BTreeSet<&str> = changed.iter().map(String::as_str).collect();
+    let mut out = Vec::new();
+    let mut stack: Vec<PathBuf> = ["src", "crates", "games", "tests", "benches", "examples"].iter().map(|d| root.join(d)).collect();
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                if p.file_name().is_some_and(|n| n != "target" && n != "node_modules") {
+                    stack.push(p);
+                }
+                continue;
+            }
+            if p.extension().is_none_or(|x| x != "rs") {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&p) else { continue };
+            if !text.contains("include_") {
+                continue;
+            }
+            let Ok(rel) = p.strip_prefix(root) else { continue };
+            let rel = rel.to_string_lossy().replace('\\', "/");
+            if wanted.contains(rel.as_str()) {
+                continue;
+            }
+            let dir = rel.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+            for inc in include_paths(&text) {
+                if let Some(target) = normalize(&format!("{dir}/{inc}")) {
+                    if wanted.contains(target.as_str()) && !out.iter().any(|(r, _): &(String, String)| r == &rel) {
+                        out.push((rel.clone(), target));
+                    }
+                }
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
 /// The cargo target a changed Rust file belongs to.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Target {
@@ -1653,5 +1728,33 @@ mod tests {
     fn gated_modules_are_read_from_the_crate_root() {
         let gated = gfx_modules("pub mod a;\n#[cfg(feature = \"gfx\")]\npub mod b;\n#[cfg(feature = \"gfx\")]\n#[allow(dead_code)]\nmod c;\npub mod d;\n");
         assert_eq!(gated.into_iter().collect::<Vec<_>>(), ["b", "c"]);
+    }
+
+    #[test]
+    fn compile_time_includes_are_read_and_resolved_against_the_including_file() {
+        let text = "const A: &str = include_str!(\"lint.rs\");\nconst B: &[u8] = include_bytes!(\"../../assets/x.json\");\nlet s = \"include_str!(\";";
+        assert_eq!(include_paths(text), ["lint.rs", "../../assets/x.json"]);
+        assert_eq!(normalize("src/tools/../../assets/x.json").as_deref(), Some("assets/x.json"));
+        assert_eq!(normalize("../x"), None);
+
+        let dir = std::env::temp_dir().join(format!("re2_affected_inc_{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("src/tools")).unwrap();
+        std::fs::write(dir.join("src/tools/describe.rs"), "const S: &str = include_str!(\"lint.rs\");").unwrap();
+        std::fs::write(dir.join("src/tools/lint.rs"), "fn lint() {}").unwrap();
+        std::fs::write(dir.join("src/tools/other.rs"), "fn other() {}").unwrap();
+        let lint = vec!["src/tools/lint.rs".to_string()];
+        assert_eq!(includers(&dir, &lint), [("src/tools/describe.rs".to_string(), "src/tools/lint.rs".to_string())]);
+        assert!(includers(&dir, &["src/tools/other.rs".to_string()]).is_empty());
+        // An includer that is itself changed is already planned.
+        assert!(includers(&dir, &[lint[0].clone(), "src/tools/describe.rs".to_string()]).is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The case the agent-loop trace hit: a change to `lint.rs` must reach the `describe` guard that reads it, in this very repository.
+    #[test]
+    fn the_lint_table_guard_is_planned_for_a_lint_change() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let found = includers(root, &["src/tools/lint.rs".to_string()]);
+        assert!(found.iter().any(|(r, _)| r == "src/tools/describe.rs"), "{found:?}");
     }
 }
