@@ -363,6 +363,14 @@ pub(crate) enum Command {
         /// Output size "WxH" (default: the scene's own).
         #[arg(long)]
         size: Option<String>,
+        /// A game sky's seed (`sky.seed`; a "launch" sky draws 0 without it).
+        #[arg(long)]
+        seed: Option<u32>,
+        /// A music file a listening sky hears at `--t` seconds into it (`audio.playlist` games), heard as play `--play`.
+        #[arg(long)]
+        song: Option<PathBuf>,
+        #[arg(long, default_value_t = 0)]
+        play: u32,
     },
     /// How much of a game's look is its own: shared catalogue vs its own prefabs, palette distance from the defaults, default-coloured surfaces, voxel
     /// models, sound files, the defaults lint says it kept. `--sheet out.png` draws its own prefabs in its style. Works on a 3D scene or a .game2d.json.

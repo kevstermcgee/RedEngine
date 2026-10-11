@@ -361,6 +361,8 @@ impl LiveTargets {
 
 /// Everything needed to draw one scene, live, into a window surface every frame.
 pub struct LiveRenderer {
+    /// What the music sounds like, for a game's sky ([`Self::set_audio`]).
+    audio: [[f32; 4]; 12],
     color_format: wgpu::TextureFormat,
     pipelines: Pipelines,
     global_buf: wgpu::Buffer,
@@ -612,6 +614,7 @@ impl LiveRenderer {
             mesh_object_paths,
             ocean,
             stream,
+            audio: [[0.0; 4]; 12],
             stream_eyes: Vec::new(),
             clock: Instant::now(),
             hidden_objects: HashSet::new(),
@@ -684,6 +687,11 @@ impl LiveRenderer {
     }
 
     /// How far the streamed world reaches, metres (split-screen draws several views per frame, so each sees a little less far).
+    /// What a game's sky hears from the next frame on (the client sets it every frame while the player's music plays: `listen::Analyzer`).
+    pub fn set_audio(&mut self, heard: &crate::listen::Heard) {
+        self.audio = heard.uniform();
+    }
+
     pub fn set_view_distance(&mut self, metres: f32) {
         if let Some(s) = &mut self.stream {
             s.set_view_distance(metres);
@@ -778,7 +786,7 @@ impl LiveRenderer {
             if origin == Vec3::ZERO { (weapon_transform, hand_prop_transform) } else { (shift * weapon_transform, shift * hand_prop_transform) };
         let camera = &ViewCamera { eye: camera.eye - origin, target: camera.target - origin, ..*camera };
         let view_proj = camera.view_proj(aspect);
-        let globals = build_globals_common(scene, t, camera.eye, view_proj, origin);
+        let globals = GlobalUniform { audio: self.audio, ..build_globals_common(scene, t, camera.eye, view_proj, origin) };
         queue.write_buffer(&self.global_buf, 0, bytemuck::bytes_of(&globals));
 
         // Per-mesh frustum culling: which scene meshes are worth a draw call this frame, tested

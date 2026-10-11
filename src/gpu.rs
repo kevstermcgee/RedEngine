@@ -50,6 +50,9 @@ pub struct GlobalUniform {
     pub glow: [f32; 4],
     /// Haze: the colour distance fades into (rgb) and its density per metre (w); density 0 means none.
     pub fog: [f32; 4],
+    /// What the music sounds like now, for a game's sky (`listen::Heard::uniform`): 32 bands, then (level, bass, mid, treble), (beat, beats, song time,
+    /// playing), (song seed, play seed, listening clock, 1 while a playlist drives the sky), one spare. All zero without an `audio.playlist`.
+    pub audio: [[f32; 4]; 12],
 }
 
 impl GlobalUniform {

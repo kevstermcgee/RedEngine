@@ -87,6 +87,32 @@ impl ApplicationHandler for App {
                 }
             }
         }
+        // Music dropped on the window (one event per file; a batch is gathered and queued together on the next frame) in any screen of a game
+        // that plays the player's own music.
+        if self.scene.audio.as_ref().is_some_and(|a| a.playlist.is_some()) {
+            match &event {
+                WindowEvent::DroppedFile(path) => {
+                    self.dropped.push(path.clone());
+                    if let Some(l) = self.listen.as_mut() {
+                        l.hovering = false;
+                    }
+                    return;
+                }
+                WindowEvent::HoveredFile(_) => {
+                    if let Some(l) = self.listen.as_mut() {
+                        l.hovering = true;
+                    }
+                    return;
+                }
+                WindowEvent::HoveredFileCancelled => {
+                    if let Some(l) = self.listen.as_mut() {
+                        l.hovering = false;
+                    }
+                    return;
+                }
+                _ => {}
+            }
+        }
         match event {
             WindowEvent::CloseRequested => {
                 if let Some(net) = self.net.as_mut() {
@@ -201,6 +227,10 @@ impl ApplicationHandler for App {
                     }
                     if matches!(code, KeyCode::ShiftLeft | KeyCode::ShiftRight) {
                         self.sprint_held = event.state == ElementState::Pressed;
+                    }
+                    // A game that plays the player's music owns Space (pause), O (choose music) and the arrows (skip).
+                    if event.state == ElementState::Pressed && !self.keys.contains(&code) && self.listen_key(code) {
+                        return;
                     }
                     if code == KeyCode::Space && event.state == ElementState::Pressed && !self.keys.contains(&code) {
                         self.jump_queued = true;

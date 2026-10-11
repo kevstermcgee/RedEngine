@@ -7,7 +7,8 @@
       {"source": "examples/prop_hunt_yard.json", "destination": "prop-hunt"},
       {"source": "recipes/coin_run.json", "destination": "coin-run"},
       {"source": "examples/marcel", "destination": "marcel"},
-      {"source": "examples/wormhole", "destination": "wormhole"}
+      {"source": "examples/wormhole", "destination": "wormhole"},
+      {"source": "examples/chroma", "destination": "chroma"}
     ],
     "prototypes": [
       {"source": "recipes", "destination": "recipes"}
@@ -50,6 +51,13 @@
       "entry": "games/wormhole/wormhole.json",
       "files": ["games/wormhole"],
       "arguments": ["content/games/wormhole/wormhole.json"]
+    },
+    {
+      "slug": "chroma",
+      "name": "Chroma",
+      "entry": "games/chroma/chroma.json",
+      "files": ["games/chroma"],
+      "arguments": ["content/games/chroma/chroma.json"]
     },
     {
       "slug": "red-test-lab",

@@ -39,6 +39,7 @@ pub mod kart_camera;
 #[cfg(feature = "render")]
 pub mod kart_sound;
 pub mod killcam;
+pub mod listen;
 pub mod macros;
 #[cfg(feature = "render")]
 pub mod menu;

@@ -124,8 +124,8 @@ fn run(command: Command) -> Result<(), String> {
         Command::Validate { paths } if paths.len() == 1 && !paths[0].is_dir() => run_validate(&paths[0]),
         Command::Validate { paths } => run_validate_all(&paths),
         Command::Schema { out } => run_schema(&out),
-        Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size, .. } => {
-            run_frame(&scene, &out, t, hour, eye.as_deref(), at.as_deref(), fov, hide, cut_above, size.as_deref())
+        Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size, seed, song, play, .. } => {
+            run_frame(&scene, &out, t, hour, eye.as_deref(), at.as_deref(), fov, hide, cut_above, size.as_deref(), (seed, song, play))
         }
         Command::StyleReport { game, sheet, cols } => run_style_report(&game, sheet.as_deref(), cols, envelope::capturing()),
         Command::Sky { scene, out, hours, cols, tile, eye, at, fov, size, look } => {

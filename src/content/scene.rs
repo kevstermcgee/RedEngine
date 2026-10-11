@@ -479,7 +479,23 @@ strict_struct! {
         birds: bool,
         /// Music that never repeats.
         journey: AudioJourney,
+        /// The player's own music: true, or {title_secs, corner, shuffle}.
+        playlist: AudioPlaylistOr,
     }
+}
+
+/// `audio.playlist`: `true`, or the details.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum AudioPlaylistOr {
+    On(bool),
+    Detailed(AudioPlaylist),
+}
+
+strict_struct! {
+    /// The player's own music.
+    pub struct AudioPlaylist { title_secs: Any, corner: String, shuffle: bool }
 }
 
 strict_struct! {

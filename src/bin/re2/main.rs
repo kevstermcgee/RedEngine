@@ -63,6 +63,7 @@ mod feedback;
 mod frame;
 mod headless;
 mod help;
+mod listen;
 mod online;
 mod project_browser;
 mod shots;
@@ -399,6 +400,10 @@ struct App {
     music_on: bool,
     /// The countryside and the mood music of a scene with an `audio` block.
     ambient: Option<ambient::Ambient>,
+    /// The player's own music (`audio.playlist`).
+    listen: Option<listen::Listener>,
+    /// Files dropped on the window since the last frame (they join the queue together, in the order they came).
+    dropped: Vec<PathBuf>,
     /// Rule events raised since the soundscape last looked (it ducks the music on some).
     fresh_events: Vec<String>,
     /// Whether sound effects play (the pause menu's SOUND toggle).
@@ -643,6 +648,8 @@ impl App {
             streaks: None,
             music_on: false,
             ambient: None,
+            listen: None,
+            dropped: Vec::new(),
             fresh_events: Vec::new(),
             sfx_on: settings.sfx,
             flashlight_on: true,

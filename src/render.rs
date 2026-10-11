@@ -304,9 +304,16 @@ pub struct Renderer {
     stream: Option<crate::stream_gpu::StreamLayer>,
     out_width: u32,
     out_height: u32,
+    /// What the music sounds like, for a game's sky ([`Self::set_audio`]).
+    audio: [[f32; 4]; 12],
 }
 
 impl Renderer {
+    /// What a game's sky hears in the frames drawn from now on (`frame --song`).
+    pub fn set_audio(&mut self, heard: &crate::listen::Heard) {
+        self.audio = heard.uniform();
+    }
+
     /// Builds the offline renderer (device, pipelines, meshes) for `scene`.
     pub fn new(scene: &Scene) -> Result<Self> {
         let gpu = Gpu::new()?;
@@ -386,6 +393,7 @@ impl Renderer {
             stream,
             out_width: scene.width,
             out_height: scene.height,
+            audio: [[0.0; 4]; 12],
         })
     }
 
@@ -404,7 +412,7 @@ impl Renderer {
         let view = glam::camera::rh::view::look_at_mat4(cam_pos, cam_target, up);
         let view_proj = proj * view;
 
-        build_globals_common(scene, t, cam_pos, view_proj, origin)
+        GlobalUniform { audio: self.audio, ..build_globals_common(scene, t, cam_pos, view_proj, origin) }
     }
 
     /// Renders one frame at time `t` (seconds) and returns tightly-packed RGB8 pixels,
@@ -769,6 +777,7 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
         celestial,
         glow,
         fog,
+        audio: [[0.0; 4]; 12],
     }
 }
 

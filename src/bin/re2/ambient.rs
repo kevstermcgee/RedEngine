@@ -160,7 +160,7 @@ impl Ambient {
 
     /// Whether the scene has music of its own (so the synthwave loop stays out of it).
     pub(crate) fn has_music(&self) -> bool {
-        !self.spec.music.is_empty() || self.spec.journey.is_some()
+        !self.spec.music.is_empty() || self.spec.journey.is_some() || self.spec.playlist.is_some()
     }
 
     /// The journey's section playing now, for the dump.

@@ -172,7 +172,18 @@ mod tests {
     use crate::ambience::Mood;
 
     fn spec() -> AudioSpec {
-        AudioSpec { nature: true, birds: true, music: vec![], music_volume: 0.5, ambience_volume: 0.8, reverb: None, duck: None, layers: vec![], journey: None }
+        AudioSpec {
+            nature: true,
+            birds: true,
+            music: vec![],
+            music_volume: 0.5,
+            ambience_volume: 0.8,
+            reverb: None,
+            duck: None,
+            layers: vec![],
+            journey: None,
+            playlist: None,
+        }
     }
 
     fn noon() -> Context {
