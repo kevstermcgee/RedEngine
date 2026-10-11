@@ -12,7 +12,7 @@
 //! ```
 //!
 //! An **instrument** is a [`Voice`] whose sine frequencies are multiples of the note played. A **track** plays one instrument one of three ways: `chords` (a
-//! progression, `"i VI III VII"` or degrees, each chord the scale's own triad), `pattern` (a rhythm string such as `"x.x. ..x."` with scale `notes` cycled across
+//! progression, `"i VI III VII"` or degrees, each chord the scale's own triad; `"A | B"` lists alternatives the seed picks from), `pattern` (a rhythm string such as `"x.x. ..x."` with scale `notes` cycled across
 //! the hits) or `walk` (a seeded random walk through the scale, sparse and endless: the generative one). Notes are **scale degrees** (1 is the key, 8 the octave
 //! of a seven-note scale), so everything stays in tune. Tracks pan (a number or `"spread"`), send to the effects by some amount, and may enter and leave at
 //! given bars. The result is rendered as a loop of exactly `bars`, note tails and effect tails wrapped round the end, then scaled to `lufs`.
@@ -221,7 +221,8 @@ fn time_beats(v: &Value, beats_per_bar: u32, steps_per_bar: u32, path: &str, err
     Some(b)
 }
 
-fn key_class(name: &str) -> Option<i32> {
+/// The pitch class (0 = C .. 11 = B) of a key name: C, C#, Db, D ... B.
+pub fn key_class(name: &str) -> Option<i32> {
     let mut chars = name.chars();
     let base: i32 = match chars.next()?.to_ascii_uppercase() {
         'C' => 0,
@@ -240,6 +241,32 @@ fn key_class(name: &str) -> Option<i32> {
         _ => return None,
     };
     Some((base + shift).rem_euclid(12))
+}
+
+/// The name of a pitch class (0 = C), with sharps.
+pub fn key_name(class: i32) -> &'static str {
+    ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][class.rem_euclid(12) as usize]
+}
+
+/// A track's progression: `"i VI III VII"`, or alternatives `"i VI III VII | i iv VII III"` of which the score's seed picks one (so each seed of a score,
+/// as an audio journey renders it, can move through different harmony).
+fn progression(v: &Value, seed: u32, track: usize, path: &str, errs: &mut Vec<String>) -> Vec<i32> {
+    match v.as_str().filter(|s| s.contains('|')) {
+        Some(s) => {
+            let options: Vec<Vec<i32>> = s.split('|').map(|o| degrees(&Value::String(o.to_string()), path, errs)).collect();
+            if options.iter().any(Vec::is_empty) {
+                errs.push(format!("{path}: an empty alternative between `|` (each one is a progression like \"i VI III VII\")"));
+                return Vec::new();
+            }
+            // A full avalanche of (seed, track): neighbouring seeds pick independently.
+            let mut h = seed ^ (track as u32 + 1).wrapping_mul(0x9E37_79B1);
+            h = (h ^ (h >> 16)).wrapping_mul(0x85EB_CA6B);
+            h = (h ^ (h >> 13)).wrapping_mul(0xC2B2_AE35);
+            h ^= h >> 16;
+            options[h as usize % options.len()].clone()
+        }
+        None => degrees(v, path, errs),
+    }
 }
 
 fn degrees(v: &Value, path: &str, errs: &mut Vec<String>) -> Vec<i32> {
@@ -379,7 +406,7 @@ pub fn parse_score(v: &Value) -> Result<Score, Vec<String>> {
     match o.get("tracks").and_then(Value::as_array) {
         Some(list) if !list.is_empty() => {
             for (i, t) in list.iter().enumerate() {
-                if let Some(track) = parse_track(t, i, &instruments, beats, bars, &mut errs) {
+                if let Some(track) = parse_track(t, i, &instruments, beats, bars, seed, &mut errs) {
                     tracks.push(track);
                 }
             }
@@ -397,7 +424,7 @@ pub fn parse_score(v: &Value) -> Result<Score, Vec<String>> {
     Ok(score)
 }
 
-fn parse_track(t: &Value, i: usize, instruments: &[(String, Voice)], beats: u32, bars: u32, errs: &mut Vec<String>) -> Option<Track> {
+fn parse_track(t: &Value, i: usize, instruments: &[(String, Voice)], beats: u32, bars: u32, seed: u32, errs: &mut Vec<String>) -> Option<Track> {
     let path = format!("tracks[{i}]");
     let Some(o) = t.as_object() else {
         errs.push(format!("{path}: must be an object"));
@@ -424,9 +451,9 @@ fn parse_track(t: &Value, i: usize, instruments: &[(String, Voice)], beats: u32,
     let time = |key: &str, errs: &mut Vec<String>| o.get(key).and_then(|v| time_beats(v, beats, steps, &format!("{path}.{key}"), errs));
     let play = match o.get("play").and_then(Value::as_str) {
         Some("chords") => {
-            let roots = o.get("chords").map(|c| degrees(c, &format!("{path}.chords"), errs)).unwrap_or_default();
+            let roots = o.get("chords").map(|c| progression(c, seed, i, &format!("{path}.chords"), errs)).unwrap_or_default();
             if roots.is_empty() {
-                errs.push(format!("{path}.chords: a progression like \"i VI III VII\""));
+                errs.push(format!("{path}.chords: a progression like \"i VI III VII\" (or alternatives, \"i VI III VII | i iv VII III\", one per seed)"));
                 return None;
             }
             let every = time("every", errs).unwrap_or(beats as f32);
@@ -711,6 +738,22 @@ mod tests {
 
     fn report(r: &Rendered) -> crate::audio_analysis::Report {
         analyze(Clip { samples: &r.samples, channels: 2, rate: SAMPLE_RATE })
+    }
+
+    #[test]
+    fn a_progression_with_alternatives_takes_one_per_seed() {
+        let with =
+            |seed: u32| score(tiny(json!({"seed": seed, "tracks": [{"inst": "pad", "play": "chords", "chords": "i VI | iv v | III VII", "every": "1 bar"}]})));
+        let roots = |s: &Score| match &s.tracks[0].play {
+            Play::Chords { roots, .. } => roots.clone(),
+            other => panic!("{other:?}"),
+        };
+        let picked: std::collections::BTreeSet<Vec<i32>> = (0..40).map(|seed| roots(&with(seed))).collect();
+        assert_eq!(picked, [vec![1, 6], vec![3, 7], vec![4, 5]].into_iter().collect(), "every alternative is reached by some seed, and nothing else");
+        assert_eq!(roots(&with(9)), roots(&with(9)), "the same seed picks the same one");
+        let e = parse_score(&tiny(json!({"tracks": [{"inst": "pad", "play": "chords", "chords": "i VI | "}]}))).unwrap_err();
+        assert!(e.iter().any(|m| m.contains("empty alternative")), "{e:?}");
+        assert_eq!((key_class("Bb"), key_name(10), key_name(-1), key_name(14)), (Some(10), "A#", "B", "D"));
     }
 
     #[test]

@@ -1,0 +1,22 @@
+{
+  "camera": { "fov": 80, "position": [0, 0, 0], "target": [0, 0, -10] },
+  "player": { "humans_play_as": "human", "mode": "peaceful", "fov": 80, "still": true },
+  "hud": { "enabled": false },
+  "music": false,
+  "ui": {
+    "title": "Wormhole",
+    "start": { "title": "WORMHOLE", "text": "Fall forever through a tunnel of light. Move the mouse to look around. Esc pauses.", "button": "Fall" }
+  },
+  "sky": { "shader": "sky/wormhole.wgsl", "seed": "launch" },
+  "objects": [],
+  "audio": {
+    "journey": {
+      "scores": ["audio/event_horizon.json", "audio/glass_rain.json", "audio/choir_of_stars.json", "audio/tide.json", "audio/aurora.json"],
+      "seed": "launch",
+      "fade": 12,
+      "repeats": 2
+    },
+    "music_volume": 0.8
+  },
+  "checks": { "lint": { "max_errors": 0, "max_warnings": 0 } }
+}

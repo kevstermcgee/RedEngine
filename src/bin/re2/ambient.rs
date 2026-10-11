@@ -3,17 +3,19 @@
 //! so a headless script with no sound card can still say "the dawn chorus began").
 
 use super::*;
-use red_engine2::ambience::{Ambience, AudioSpec, Context, Frame, Heard, Mood};
+use red_engine2::ambience::{Ambience, AudioSpec, Context, Frame, Heard, JourneyPlayer, Mood, Section};
 use red_engine2::nature::{Bed, Call};
 use red_engine2::procgen::Biome;
 use std::collections::HashMap;
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 /// A rendered loop on its way from the worker.
 enum Loaded {
     Bed(usize, Vec<f32>),
     Mood(usize, Vec<f32>),
     Layer(usize, Vec<f32>),
+    /// A journey section: its index and its loop.
+    Journey(u64, Vec<f32>),
 }
 
 /// How fast the player's own music and sound switches fade, per second.
@@ -41,12 +43,45 @@ pub(crate) struct Ambient {
     pub(crate) loaded: usize,
     /// How many times the music was ducked.
     pub(crate) ducks: u32,
+    /// The scene's journey (`audio.journey`): its timeline, where to send sections to be rendered, the last one asked for, a rendered section waiting for
+    /// its turn, and the two audio layers it crossfades between.
+    journey: Option<JourneyPlayer>,
+    journey_tx: Option<Sender<Section>>,
+    journey_asked: Option<u64>,
+    journey_held: Option<(u64, Vec<f32>)>,
+    journey_layers: [Option<usize>; 2],
 }
 
 impl Ambient {
     /// Starts rendering what the scene's `audio` block asks for. `first_mood` (the mood of the hour the game starts at) is rendered first.
     pub(crate) fn new(spec: AudioSpec, seed: u32, first_mood: Mood, render: bool) -> Ambient {
         let (tx, rx) = channel();
+        // The journey has a worker of its own that lives as long as the game: it renders each section when the timeline asks for it.
+        let journey = spec.journey.as_ref().map(|j| JourneyPlayer::new(j, j.seed.value(None)));
+        let journey_tx = match (&spec.journey, render) {
+            (Some(j), true) => {
+                let (stx, srx) = channel::<Section>();
+                let tx = tx.clone();
+                let files = j.scores.clone();
+                std::thread::spawn(move || {
+                    let texts: Vec<Option<serde_json::Value>> =
+                        files.iter().map(|f| std::fs::read_to_string(f).ok().and_then(|t| serde_json::from_str(&t).ok())).collect();
+                    while let Ok(section) = srx.recv() {
+                        let Some(Some(text)) = texts.get(section.score) else { continue };
+                        match red_engine2::score::parse_score(&section.score_json(text)) {
+                            Ok(score) => {
+                                if tx.send(Loaded::Journey(section.index, score.render().samples)).is_err() {
+                                    return;
+                                }
+                            }
+                            Err(e) => eprintln!("audio.journey: section {} ({}): {}", section.index, files[section.score].display(), e.join("; ")),
+                        }
+                    }
+                });
+                Some(stx)
+            }
+            _ => None,
+        };
         let layer_count = spec.layers.len();
         let layer_files: Vec<std::path::PathBuf> = spec.layers.iter().map(|l| l.score.clone()).collect();
         let music = spec.music.clone();
@@ -115,12 +150,22 @@ impl Ambient {
             recent: Vec::new(),
             loaded: 0,
             ducks: 0,
+            journey,
+            journey_tx,
+            journey_asked: None,
+            journey_held: None,
+            journey_layers: [None; 2],
         }
     }
 
     /// Whether the scene has music of its own (so the synthwave loop stays out of it).
     pub(crate) fn has_music(&self) -> bool {
-        !self.spec.music.is_empty()
+        !self.spec.music.is_empty() || self.spec.journey.is_some()
+    }
+
+    /// The journey's section playing now, for the dump.
+    pub(crate) fn journey_playing(&self) -> Option<Section> {
+        self.journey.as_ref().and_then(JourneyPlayer::playing)
     }
 
     /// Advances by `dt` seconds: the hour, the place and the player's switches in, sound out.
@@ -164,6 +209,35 @@ impl Ambient {
                     Loaded::Bed(i, samples) => self.bed_layers[i] = audio.add_layer(samples),
                     Loaded::Mood(i, samples) => self.mood_layers[i] = audio.add_layer(samples),
                     Loaded::Layer(i, samples) => self.rule_layers[i].0 = audio.add_layer(samples),
+                    Loaded::Journey(index, samples) => {
+                        if let Some(j) = self.journey.as_mut() {
+                            j.ready(index, samples.len() as f32 / 2.0 / red_engine2::synth::SAMPLE_RATE as f32);
+                        }
+                        self.journey_held = Some((index, samples));
+                    }
+                }
+            }
+            // The journey: ask for the section its timeline wants, start what it says to start, and set the crossfade.
+            if let Some(j) = self.journey.as_mut() {
+                if let (Some(want), Some(tx)) = (j.wanted(), &self.journey_tx) {
+                    if self.journey_asked != Some(want.index) && tx.send(want).is_ok() {
+                        self.journey_asked = Some(want.index);
+                    }
+                }
+                let mix = j.step(dt);
+                if let Some((slot, index)) = mix.start {
+                    if let Some((_, samples)) = self.journey_held.take().filter(|(i, _)| *i == index) {
+                        self.journey_layers[slot] = match self.journey_layers[slot] {
+                            Some(id) => audio.replace_layer(id, samples).then_some(id),
+                            None => audio.add_layer(samples),
+                        };
+                    }
+                }
+                let duck = audio.music_duck();
+                for (slot, id) in self.journey_layers.iter().enumerate() {
+                    if let Some(id) = id {
+                        audio.set_layer_volume(*id, mix.levels[slot] * self.spec.music_volume * self.music_gate * duck);
+                    }
                 }
             }
             for (i, layer) in self.bed_layers.iter().enumerate() {
@@ -274,6 +348,7 @@ impl App {
             "loops_ready": a.loaded,
             "layers": a.spec_layers().iter().zip(&a.rule_layers).map(|(l, (_, level))| json!({"var": l.var, "level": (level * 100.0).round() / 100.0})).collect::<Vec<_>>(),
             "ducks": a.ducks,
+            "journey": a.journey_playing().map(|s| json!({"section": s.index, "score": s.score, "shift": s.shift, "seed": s.seed})),
             "music_on": self.music_on,
             "sound_on": self.sfx_on,
         }))

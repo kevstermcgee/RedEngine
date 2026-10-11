@@ -302,6 +302,20 @@ pub(crate) enum AudioCmd {
         #[arg(long, default_value = "tests/fixtures/audio_golden.json")]
         file: PathBuf,
     },
+    /// A scene's endless music (`audio.journey`): each section's score, key, seed, length and loudness; `--out` mixes them as the game plays them into a WAV.
+    Journey {
+        /// The scene file.
+        scene: PathBuf,
+        /// How many sections.
+        #[arg(long, default_value_t = 6)]
+        sections: usize,
+        /// The journey's seed (default: the scene's; 0 for "launch").
+        #[arg(long)]
+        seed: Option<u32>,
+        /// Mix the sections, crossfades and all, into this WAV.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Hold sounds to the engine's standard (finite, not clipped, audible, no DC offset, one-shots end cleanly, loops have no seam). Exit 1 on a failure.
     Check {
         /// Built-in names or `.wav` files; none = every built-in.

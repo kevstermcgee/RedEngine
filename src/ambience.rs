@@ -14,7 +14,9 @@ use crate::procgen::noise::{smooth, Rng};
 use crate::procgen::Biome;
 
 /// `audio` keys.
-pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience_volume", "reverb", "duck", "layers", "birds"];
+pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience_volume", "reverb", "duck", "layers", "birds", "journey"];
+/// `audio.journey` keys.
+pub const JOURNEY_KEYS: &[&str] = &["scores", "seed", "fade", "repeats"];
 
 /// A scene's `audio` block: the sounds of its world.
 ///
@@ -31,6 +33,11 @@ pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience
 /// Three more keys shape the mix: `"reverb": {"decay": 1.4, "mix": 0.25}` puts every nature call in a room; `"duck": {"events": ["hit"], "depth": 0.5, "hold": 1.0,
 /// "release": 1.5}` pulls the music down whenever the rules raise one of those events; and `"layers": [{"score": "audio/chase.json", "var": "danger", "above": 0.5,
 /// "fade": 3, "volume": 0.6}]` fades a score in while a rule variable is above a value (intensity that follows the game).
+///
+/// `"journey": {"scores": ["audio/a.json", "audio/b.json"], "seed": "launch", "fade": 10, "repeats": 2}` is music that never repeats: an endless run of
+/// sections, each one of the scores rendered afresh with its own seed (new melodies, pans and, where a track lists alternatives, a new progression) in a key
+/// that wanders from the last by a musical step, played `repeats` times through and crossfaded over `fade` seconds into the next. The first section is the
+/// first score in its own key. See [`Journey`] and [`JourneyPlayer`]; `red_engine2 audio journey SCENE` lists and renders the sections.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioSpec {
     /// Whether the nature ambience plays.
@@ -49,12 +56,19 @@ pub struct AudioSpec {
     pub duck: Option<DuckSpec>,
     /// Scores that fade in and out with a rule variable.
     pub layers: Vec<LayerSpec>,
+    /// Endless, never-repeating music made from scores (`audio.journey`).
+    pub journey: Option<JourneySpec>,
 }
 
 impl AudioSpec {
     /// Every file the block names (the mood scores and the layer scores), as the paths the scene resolved them to.
     pub fn files(&self) -> Vec<std::path::PathBuf> {
-        self.music.iter().map(|(_, f)| f.clone()).chain(self.layers.iter().map(|l| l.score.clone())).collect()
+        self.music
+            .iter()
+            .map(|(_, f)| f.clone())
+            .chain(self.layers.iter().map(|l| l.score.clone()))
+            .chain(self.journey.iter().flat_map(|j| j.scores.iter().cloned()))
+            .collect()
     }
 }
 
@@ -98,6 +112,220 @@ pub struct LayerSpec {
     pub fade: f32,
     /// Its level, 0 to 1.
     pub volume: f32,
+}
+
+/// `audio.journey`: endless music from scores (see [`AudioSpec`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct JourneySpec {
+    /// The score files (resolved against the scene's folder); the first opens the journey.
+    pub scores: Vec<std::path::PathBuf>,
+    /// The journey's seed: a number, or a new one each launch.
+    pub seed: crate::atmosphere::LaunchSeed,
+    /// Seconds one section crossfades into the next.
+    pub fade: f32,
+    /// Times each section's loop plays through before the next begins.
+    pub repeats: u32,
+}
+
+/// One section of a journey: which score, its seed, and how many semitones its key is moved from the score's own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Section {
+    /// 0 for the first section, counting up for ever.
+    pub index: u64,
+    /// Index into [`JourneySpec::scores`].
+    pub score: usize,
+    /// The seed the score is rendered with.
+    pub seed: u32,
+    /// Semitones from the score's own key, -6 to 5.
+    pub shift: i32,
+}
+
+impl Section {
+    /// The score text this section renders: `score` with this section's seed and key.
+    pub fn score_json(&self, score: &serde_json::Value) -> serde_json::Value {
+        let mut v = score.clone();
+        if let Some(o) = v.as_object_mut() {
+            let own = o.get("key").and_then(serde_json::Value::as_str).and_then(crate::score::key_class).unwrap_or(0);
+            o.insert("key".into(), crate::score::key_name(own + self.shift).into());
+            o.insert("seed".into(), self.seed.into());
+        }
+        v
+    }
+}
+
+/// The planner of a journey: an endless sequence of [`Section`]s from a seed. The same seed gives the same journey; no index is ever reused, so it never loops.
+/// Scores are dealt like a shuffled deck, so each round plays every score once in a new order (and a score never follows itself, with two or more); the key
+/// moves like music does between movements: often a fourth or a fifth, sometimes a step or a third, sometimes not at all, kept within a tritone of the score's
+/// own key so its register stays where it was written.
+#[derive(Debug, Clone)]
+pub struct Journey {
+    seed: u32,
+    scores: usize,
+    next: u64,
+    last_score: Option<usize>,
+    shift: i32,
+    /// What is left of this round's deck, next on top (the end of the vector).
+    deck: Vec<usize>,
+    round: u64,
+}
+
+/// Key moves between sections, in semitones, each listed as often as it is wanted.
+const KEY_MOVES: &[i32] = &[0, 0, 5, 5, 7, 7, -5, -7, 2, -2, 3, -3, 4, -4];
+
+fn mix32(a: u32, b: u64) -> u32 {
+    let mut z = (a as u64) ^ b.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    (z ^ (z >> 31)) as u32
+}
+
+impl Journey {
+    /// A journey over `scores` scores (at least one) from `seed`.
+    pub fn new(seed: u32, scores: usize) -> Journey {
+        Journey { seed, scores: scores.max(1), next: 0, last_score: None, shift: 0, deck: Vec::new(), round: 0 }
+    }
+
+    /// The next score off the deck, shuffling a new round when it is empty: the first round opens with score 0, and no round opens with the score that
+    /// closed the last.
+    fn deal(&mut self) -> usize {
+        if self.deck.is_empty() {
+            let mut deck: Vec<usize> = (0..self.scores).collect();
+            for i in (1..deck.len()).rev() {
+                let j = mix32(self.seed ^ 0xDEC0, self.round.wrapping_mul(64).wrapping_add(i as u64)) as usize % (i + 1);
+                deck.swap(i, j);
+            }
+            // Dealt from the end: put the opener there.
+            let opener = if self.round == 0 { Some(0) } else { None };
+            if let Some(first) = opener {
+                let at = deck.iter().position(|s| *s == first).unwrap_or(0);
+                let top = deck.len() - 1;
+                deck.swap(at, top);
+            } else if deck.len() > 1 && deck.last() == self.last_score.as_ref() {
+                deck.swap(0, self.scores - 1);
+            }
+            self.deck = deck;
+            self.round += 1;
+        }
+        self.deck.pop().unwrap_or(0)
+    }
+
+    /// The next section.
+    pub fn next_section(&mut self) -> Section {
+        let index = self.next;
+        self.next += 1;
+        let score = self.deal();
+        let r = |salt: u64| mix32(self.seed, index.wrapping_mul(8).wrapping_add(salt));
+        if index > 0 {
+            let moved = self.shift + KEY_MOVES[r(2) as usize % KEY_MOVES.len()];
+            // Folded into -6..5 by octaves: the same key, the register kept near where the score was written.
+            self.shift = (moved + 6).rem_euclid(12) - 6;
+        }
+        self.last_score = Some(score);
+        Section { index, score, seed: r(3), shift: self.shift }
+    }
+}
+
+/// What a [`JourneyPlayer`] asks of the sound card this step.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct JourneyMix {
+    /// Start this section (already rendered) from its beginning in this slot (0 or 1), replacing whatever the slot held.
+    pub start: Option<(usize, u64)>,
+    /// The level of each slot, 0 to 1 (an equal-power crossfade; multiply by the music level and switches).
+    pub levels: [f32; 2],
+}
+
+/// The journey's timeline, with no sound card: which section plays in which of two slots, when the next must be rendered, and the crossfade. The client
+/// renders what [`wanted`](Self::wanted) names, reports it with [`ready`](Self::ready), and every frame applies what [`step`](Self::step) answers. A section
+/// whose follower is not rendered in time simply keeps looping (its loop is seamless) until it is.
+#[derive(Debug, Clone)]
+pub struct JourneyPlayer {
+    planner: Journey,
+    fade: f32,
+    repeats: u32,
+    /// The section to render next, until it is ready.
+    wanted: Option<Section>,
+    /// A rendered section waiting for its turn: (section, seconds of one loop).
+    ready: Option<(Section, f32)>,
+    /// What plays: (section, slot, seconds of one loop, seconds it has played).
+    current: Option<(Section, usize, f32, f32)>,
+    /// The section fading out: (slot, seconds into the crossfade).
+    leaving: Option<(usize, f32)>,
+    /// Seconds into the very first fade-in.
+    opening: f32,
+}
+
+impl JourneyPlayer {
+    /// A player for `spec` with the run's seed (see [`crate::atmosphere::LaunchSeed::value`]).
+    pub fn new(spec: &JourneySpec, seed: u32) -> JourneyPlayer {
+        let mut planner = Journey::new(seed, spec.scores.len());
+        let first = planner.next_section();
+        JourneyPlayer { planner, fade: spec.fade, repeats: spec.repeats, wanted: Some(first), ready: None, current: None, leaving: None, opening: 0.0 }
+    }
+
+    /// The section that should be rendered now, if any.
+    pub fn wanted(&self) -> Option<Section> {
+        self.wanted
+    }
+
+    /// The section playing now.
+    pub fn playing(&self) -> Option<Section> {
+        self.current.map(|c| c.0)
+    }
+
+    /// Section `index` has been rendered; one pass of its loop lasts `loop_secs`.
+    pub fn ready(&mut self, index: u64, loop_secs: f32) {
+        if let Some(w) = self.wanted.filter(|w| w.index == index) {
+            self.ready = Some((w, loop_secs.max(0.1)));
+            self.wanted = None;
+        }
+    }
+
+    /// Advances by `dt` seconds.
+    pub fn step(&mut self, dt: f32) -> JourneyMix {
+        let mut mix = JourneyMix::default();
+        let fade = self.fade.max(0.01);
+        match self.current {
+            None => {
+                // The opening: the first section fades in from silence.
+                if let Some((section, secs)) = self.ready.take() {
+                    self.current = Some((section, 0, secs, 0.0));
+                    mix.start = Some((0, section.index));
+                    self.wanted = Some(self.planner.next_section());
+                }
+            }
+            Some((section, slot, secs, age)) => {
+                let age = age + dt;
+                self.current = Some((section, slot, secs, age));
+                self.opening += dt;
+                let due = age >= secs * self.repeats as f32 - fade;
+                if due && self.leaving.is_none() {
+                    if let Some((next, next_secs)) = self.ready.take() {
+                        let other = 1 - slot;
+                        self.leaving = Some((slot, 0.0));
+                        self.current = Some((next, other, next_secs, 0.0));
+                        mix.start = Some((other, next.index));
+                        self.wanted = Some(self.planner.next_section());
+                    }
+                }
+            }
+        }
+        if let Some((slot, t)) = self.leaving {
+            let t = t + dt;
+            self.leaving = (t < fade).then_some((slot, t));
+        }
+        if let Some((_, slot, _, _)) = self.current {
+            let opening = (self.opening / fade).min(1.0);
+            match self.leaving {
+                Some((out, t)) => {
+                    let x = (t / fade).clamp(0.0, 1.0) * std::f32::consts::FRAC_PI_2;
+                    mix.levels[out] = x.cos();
+                    mix.levels[slot] = x.sin();
+                }
+                None => mix.levels[slot] = (opening * std::f32::consts::FRAC_PI_2).sin(),
+            }
+        }
+        mix
+    }
 }
 
 /// How loud a layer wants to be: 1 while its variable is at or above the threshold, else 0.
@@ -261,8 +489,48 @@ pub fn parse_audio(root: &serde_json::Map<String, serde_json::Value>, base: Opti
         }
         Some(_) => errs.push("audio.layers: must be a list".to_string()),
     }
+    let journey = match o.get("journey") {
+        None => None,
+        Some(Value::Object(j)) => {
+            crate::strict::check_keys(&mut errs, "audio.journey", j, JOURNEY_KEYS);
+            let mut scores = Vec::new();
+            match j.get("scores").and_then(Value::as_array) {
+                Some(list) if !list.is_empty() => {
+                    for (i, item) in list.iter().enumerate() {
+                        match item.as_str() {
+                            Some(file) => {
+                                check_score_file(&mut errs, &format!("audio.journey.scores[{i}]"), file, base);
+                                scores.push(base.map_or_else(|| file.into(), |b| b.join(file)));
+                            }
+                            None => errs.push(format!("audio.journey.scores[{i}]: must be a score file name")),
+                        }
+                    }
+                }
+                _ => errs.push(
+                    "audio.journey.scores: a list of score files, like [\"audio/drift.json\", \"audio/tide.json\"] (the first opens the journey)".to_string(),
+                ),
+            }
+            let seed = crate::atmosphere::LaunchSeed::parse(j.get("seed"), "audio.journey.seed").unwrap_or_else(|e| {
+                errs.push(e);
+                crate::atmosphere::LaunchSeed::Fixed(0)
+            });
+            Some(JourneySpec {
+                scores,
+                seed,
+                fade: num(j, "audio.journey", "fade", 8.0, 0.5, 60.0, &mut errs) as f32,
+                repeats: num(j, "audio.journey", "repeats", 2.0, 1.0, 16.0, &mut errs).round() as u32,
+            })
+        }
+        Some(_) => {
+            errs.push("audio.journey: must be an object like {\"scores\": [\"audio/drift.json\"], \"seed\": \"launch\"}".to_string());
+            None
+        }
+    };
+    if !music.is_empty() && journey.is_some() {
+        errs.push("audio.journey: a scene's music is either the hour's (`music`) or a journey, not both".to_string());
+    }
     if errs.is_empty() {
-        Ok(Some(AudioSpec { nature, birds, music, music_volume, ambience_volume, reverb, duck, layers }))
+        Ok(Some(AudioSpec { nature, birds, music, music_volume, ambience_volume, reverb, duck, layers, journey }))
     } else {
         Err(errs)
     }
@@ -611,6 +879,120 @@ mod tests {
             .unwrap();
         }
         dir
+    }
+
+    #[test]
+    fn a_journey_never_repeats_deals_every_score_each_round_and_moves_its_key_musically() {
+        let plan = |seed: u32| {
+            let mut j = Journey::new(seed, 5);
+            (0..200).map(|_| j.next_section()).collect::<Vec<Section>>()
+        };
+        let sections = plan(42);
+        assert_eq!((sections[0].score, sections[0].shift), (0, 0), "the first score opens, in its own key");
+        for (i, w) in sections.windows(2).enumerate() {
+            assert_ne!(w[0].score, w[1].score, "section {i}: a score never follows itself");
+            let step = (w[1].shift - w[0].shift).rem_euclid(12);
+            assert!([0, 2, 3, 4, 5, 7, 8, 9, 10].contains(&step), "section {i}: {} -> {} is not a musical move", w[0].shift, w[1].shift);
+            assert!((-6..6).contains(&w[1].shift), "the key stays within a tritone of the score's own");
+        }
+        for round in sections.chunks(5) {
+            let mut dealt: Vec<usize> = round.iter().map(|s| s.score).collect();
+            dealt.sort_unstable();
+            assert_eq!(dealt, vec![0, 1, 2, 3, 4], "every round plays every score once");
+        }
+        let seeds: std::collections::HashSet<u32> = sections.iter().map(|s| s.seed).collect();
+        assert_eq!(seeds.len(), sections.len(), "every section is a new rendering");
+        assert!(sections.iter().map(|s| s.shift).collect::<std::collections::HashSet<_>>().len() >= 8, "the key wanders widely");
+        assert_eq!(sections, plan(42), "the same seed is the same journey");
+        assert_ne!(sections, plan(43), "another seed is another journey");
+        // One score: it plays on, with a new seed and key each time.
+        let mut one = Journey::new(1, 1);
+        assert!((0..10).map(|_| one.next_section()).all(|s| s.score == 0));
+        // A section's score text carries its seed and its moved key.
+        let s = Section { index: 3, score: 0, seed: 77, shift: -5 };
+        let v = s.score_json(&serde_json::json!({"key": "D", "seed": 1, "bpm": 50}));
+        assert_eq!((v["key"].as_str(), v["seed"].as_u64(), v["bpm"].as_u64()), (Some("A"), Some(77), Some(50)));
+    }
+
+    #[test]
+    fn the_journey_player_fades_in_crossfades_on_time_and_waits_for_a_late_section() {
+        let spec = JourneySpec { scores: vec!["a.json".into(), "b.json".into()], seed: crate::atmosphere::LaunchSeed::Fixed(5), fade: 4.0, repeats: 2 };
+        let mut p = JourneyPlayer::new(&spec, 5);
+        let dt = 0.05;
+        // Nothing plays until the first section is rendered.
+        assert_eq!(p.wanted().map(|s| s.index), Some(0));
+        assert_eq!(p.step(dt), JourneyMix::default());
+        p.ready(0, 10.0);
+        let first = p.step(dt);
+        assert_eq!(first.start, Some((0, 0)), "the opening starts in slot 0");
+        assert_eq!(p.wanted().map(|s| s.index), Some(1), "and the next is asked for at once");
+        // It fades in over `fade` seconds and holds.
+        let mut t = dt;
+        let mut last = first.levels[0];
+        while t < 4.0 {
+            let m = p.step(dt);
+            assert!(m.levels[0] >= last - 1e-6 && m.levels[1] == 0.0, "a steady fade in: {m:?}");
+            last = m.levels[0];
+            t += dt;
+        }
+        assert!(last > 0.99);
+        // The next is late: at 2 x 10 s - fade the first keeps playing (its loop is seamless) until it arrives.
+        while t < 25.0 {
+            let m = p.step(dt);
+            assert!(m.start.is_none() && (m.levels[0] - 1.0).abs() < 1e-3, "{t}: {m:?}");
+            t += dt;
+        }
+        p.ready(1, 8.0);
+        let m = p.step(dt);
+        assert_eq!(m.start, Some((1, 1)), "the late section starts as soon as it is ready, in the other slot");
+        assert_eq!(p.playing().map(|s| s.index), Some(1));
+        // An equal-power crossfade: the two levels' squares sum to one throughout, and the old slot ends silent.
+        let mut t = dt;
+        while t < 4.0 + dt {
+            let m = p.step(dt);
+            let power = m.levels[0] * m.levels[0] + m.levels[1] * m.levels[1];
+            assert!((power - 1.0).abs() < 0.02, "{t}: {m:?}");
+            t += dt;
+        }
+        let m = p.step(dt);
+        assert_eq!((m.levels[0], m.levels[1]), (0.0, 1.0));
+        // On time this time: rendered early, the third starts exactly `fade` seconds before the second's two passes end.
+        p.ready(2, 8.0);
+        let mut t = 4.0 + 3.0 * dt;
+        let mut started_at = None;
+        while t < 20.0 {
+            if p.step(dt).start.is_some() {
+                started_at = Some(t);
+                break;
+            }
+            t += dt;
+        }
+        let at = started_at.expect("the third section starts");
+        assert!((at - (16.0 - 4.0)).abs() < 2.0 * dt, "it starts at {at}");
+    }
+
+    #[test]
+    fn a_journey_block_is_checked() {
+        let base = scores_in_a_folder("journey", &["a.json", "b.json"]);
+        let parse = |v: serde_json::Value| parse_audio(v.as_object().unwrap(), Some(base.as_path()));
+        let ok = parse(serde_json::json!({"audio": {"journey": {"scores": ["a.json", "b.json"], "seed": "launch", "fade": 6}}})).unwrap().unwrap();
+        let j = ok.journey.as_ref().unwrap();
+        assert_eq!(
+            (j.scores.clone(), j.seed, j.fade, j.repeats),
+            (vec![base.join("a.json"), base.join("b.json")], crate::atmosphere::LaunchSeed::Launch, 6.0, 2)
+        );
+        assert_eq!(ok.files(), vec![base.join("a.json"), base.join("b.json")], "the journey's scores are files the scene ships");
+        for (bad, needle) in [
+            (serde_json::json!({"audio": {"journey": {"scores": []}}}), "audio.journey.scores"),
+            (serde_json::json!({"audio": {"journey": {"scores": ["gone.json"]}}}), "not found"),
+            (serde_json::json!({"audio": {"journey": {"scores": ["a.json"], "fade": 0}}}), "audio.journey.fade"),
+            (serde_json::json!({"audio": {"journey": {"scores": ["a.json"], "seed": "often"}}}), "audio.journey.seed"),
+            (serde_json::json!({"audio": {"journey": {"scores": ["a.json"], "loop": true}}}), "loop"),
+            (serde_json::json!({"audio": {"journey": {"scores": ["a.json"]}, "music": {"day": "b.json"}}}), "not both"),
+        ] {
+            let e = parse(bad).unwrap_err().join(" ");
+            assert!(e.contains(needle), "{needle}: {e}");
+        }
     }
 
     #[test]

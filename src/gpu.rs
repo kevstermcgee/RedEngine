@@ -281,7 +281,9 @@ fn make_object_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
 /// for the live viewer). The `shadow` pipeline always stays single-sampled — it has no color
 /// attachment at all, and its depth attachment (the shadow map) is never multisampled by
 /// either caller — so it ignores this parameter.
-pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat, sample_count: u32) -> Pipelines {
+///
+/// `sky` is a game's own sky (`sky.shader`, see `atmosphere::background_source`), drawn by the background pipeline instead of the engine's dome.
+pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat, sample_count: u32, sky: Option<&str>) -> Pipelines {
     let global_uniform_bgl = make_global_uniform_layout(device);
     let global_full_bgl = make_global_full_layout(device);
     let object_bgl = make_object_layout(device);
@@ -296,9 +298,7 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
     });
     let bg_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("background-shader"),
-        source: wgpu::ShaderSource::Wgsl(
-            concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/sky.wgsl"), include_str!("shaders/background.wgsl")).into(),
-        ),
+        source: wgpu::ShaderSource::Wgsl(crate::atmosphere::background_source(sky)),
     });
 
     let main_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

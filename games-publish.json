@@ -6,7 +6,8 @@
     "games": [
       {"source": "examples/prop_hunt_yard.json", "destination": "prop-hunt"},
       {"source": "recipes/coin_run.json", "destination": "coin-run"},
-      {"source": "examples/marcel", "destination": "marcel"}
+      {"source": "examples/marcel", "destination": "marcel"},
+      {"source": "examples/wormhole", "destination": "wormhole"}
     ],
     "prototypes": [
       {"source": "recipes", "destination": "recipes"}
@@ -42,6 +43,13 @@
       "entry": "games/marcel/marcel.json",
       "files": ["games/marcel"],
       "arguments": ["content/games/marcel/marcel.json"]
+    },
+    {
+      "slug": "wormhole",
+      "name": "Wormhole",
+      "entry": "games/wormhole/wormhole.json",
+      "files": ["games/wormhole"],
+      "arguments": ["content/games/wormhole/wormhole.json"]
     },
     {
       "slug": "red-test-lab",

@@ -597,6 +597,7 @@ pub(crate) fn run_audio(cmd: AudioCmd) -> Result<(), String> {
         AudioCmd::Export { name } => print!("{}", audio::export_json(&name)?),
         AudioCmd::Report { names } => print!("{}", audio::report_text(&names, envelope::capturing())?),
         AudioCmd::Render { name, out } => print!("{}", audio::render_wav(&name, &out)?),
+        AudioCmd::Journey { scene, sections, seed, out } => print!("{}", audio::journey_text(&scene, sections, seed, out.as_deref())?),
         AudioCmd::Picture { name, out, size } => {
             let (w, h) = parse_wh(&size)?;
             let img = audio::picture(&audio::source(&name)?, w, h);

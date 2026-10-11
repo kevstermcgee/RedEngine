@@ -159,6 +159,7 @@ strict_struct! {
         mode: String,
         view: Any,
         fade_in: Any,
+        still: Any,
     }
 }
 
@@ -435,7 +436,7 @@ strict_struct! {
 
 strict_struct! {
     /// A sky dome with a sun.
-    pub struct Sky { zenith: String, horizon: String, gradient_power: Any, sun: Sun }
+    pub struct Sky { zenith: String, horizon: String, gradient_power: Any, sun: Sun, shader: String, seed: Any }
 }
 
 strict_struct! {
@@ -476,7 +477,14 @@ strict_struct! {
         duck: AudioDuck,
         layers: Vec<AudioLayer>,
         birds: bool,
+        /// Music that never repeats.
+        journey: AudioJourney,
     }
+}
+
+strict_struct! {
+    /// Endless sections re-rendered from scores.
+    pub struct AudioJourney { scores: Vec<String>, seed: Any, fade: Any, repeats: Any }
 }
 
 strict_struct! {

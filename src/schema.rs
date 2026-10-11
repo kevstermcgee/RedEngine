@@ -90,6 +90,8 @@ pub struct Scene {
     pub teams: bool,
     /// The sky dome and its sun (`sky` block), if the scene has one; without it `background` is a screen-space gradient.
     pub sky: Option<crate::atmosphere::Sky>,
+    /// The game's own sky (`sky.shader`): WGSL drawn instead of the engine's dome. Shared, so cloning a scene does not copy the text.
+    pub sky_shader: Option<std::sync::Arc<crate::atmosphere::SkyShader>>,
     /// The time-of-day clock (`clock` block), if the scene has one: it drives the sun, moon, stars, sky colours, sun light and ambient from the scene time.
     pub clock: Option<crate::daycycle::Clock>,
     /// An endless generated world (`procgen` block): ground, forests and flowers made from a seed, built around the player as they walk.
@@ -104,6 +106,25 @@ pub struct Scene {
     pub race: Option<std::sync::Arc<crate::sim::race::RaceCourse>>,
     /// The loadout shooter (`shooter` block), if the scene has one: a kit of weapons per player, pickups on the map, two teams.
     pub shooter: Option<crate::sim::shooter::ShooterConfig>,
+}
+
+impl Scene {
+    /// Fixes every `"seed": "launch"` (the game sky's, the audio journey's) to this launch's draw, so one printed number reproduces the run. Returns whether
+    /// the scene had any (the live client prints the seed then).
+    pub fn fix_launch_seeds(&mut self, launch: u32) -> bool {
+        use crate::atmosphere::LaunchSeed;
+        let fixed = LaunchSeed::Fixed(launch & 0x00ff_ffff);
+        let mut any = false;
+        if let Some(s) = self.sky_shader.as_mut().filter(|s| s.seed == LaunchSeed::Launch) {
+            std::sync::Arc::make_mut(s).seed = fixed;
+            any = true;
+        }
+        if let Some(j) = self.audio.as_mut().and_then(|a| a.journey.as_mut()).filter(|j| j.seed == LaunchSeed::Launch) {
+            j.seed = fixed;
+            any = true;
+        }
+        any
+    }
 }
 
 /// Distance fog: everything fades toward `color` as `1 - exp(-distance * density)`.
@@ -650,7 +671,24 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
             d.third_person
         }
     };
-    crate::player::PlayerTuning {
+    // `"still": true`: a player who only looks around (a viewer floating in a sky, a cinematic): no walking, jumping or falling. It replaces the movement
+    // numbers, so naming them too is a contradiction.
+    let still = match obj.get("still") {
+        None | Some(Value::Bool(false)) => false,
+        Some(Value::Bool(true)) => {
+            for key in ["walk_speed", "sprint_speed", "jump_speed", "gravity", "acceleration", "air_acceleration", "max_speed"] {
+                if obj.contains_key(key) {
+                    ctx.err(&format!("player.{key}"), "a `still` player does not move: remove it, or remove `still`".to_string());
+                }
+            }
+            true
+        }
+        Some(_) => {
+            ctx.err("player.still", "must be true (the player only looks around: no walking, jumping or falling) or false");
+            false
+        }
+    };
+    let tuning = crate::player::PlayerTuning {
         character,
         fov_deg: ranged(ctx, obj, "fov", "player", d.fov_deg, 60.0, 120.0),
         walk_speed,
@@ -667,6 +705,20 @@ fn parse_player(ctx: &mut Ctx, root: &Map<String, Value>) -> crate::player::Play
         third_person,
         fade_in: ranged(ctx, obj, "fade_in", "player", d.fade_in, 0.0, 30.0),
         expanse: crate::expanse::Expanse::default(),
+    };
+    if still {
+        crate::player::PlayerTuning {
+            walk_speed: 0.0,
+            sprint_speed: 0.0,
+            jump_speed: 0.0,
+            gravity: 0.0,
+            acceleration: 0.0,
+            air_acceleration: 0.0,
+            max_speed: 0.0,
+            ..tuning
+        }
+    } else {
+        tuning
     }
 }
 
@@ -1107,6 +1159,13 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             None
         }
     };
+    let sky_shader = match crate::atmosphere::parse_sky_shader(root, ASSET_DIR.with(|d| d.borrow().clone()).as_deref()) {
+        Ok(s) => s.map(std::sync::Arc::new),
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            None
+        }
+    };
     let clock = match crate::daycycle::parse_clock(root) {
         Ok(c) => c,
         Err(errs) => {
@@ -1403,6 +1462,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         death_text,
         teams,
         sky,
+        sky_shader,
         clock,
         procgen,
         audio,
@@ -1458,6 +1518,17 @@ mod tests {
 
     fn errors_of(json: &str) -> Vec<String> {
         parse_scene(json).err().unwrap_or_default()
+    }
+
+    #[test]
+    fn a_still_player_only_looks_and_says_so_when_also_given_movement() {
+        let still = parse_scene(r#"{"camera": {"position": [0, 0, 0], "target": [0, 0, -1]}, "player": {"still": true, "fov": 80}, "objects": []}"#).unwrap();
+        let p = still.player;
+        assert_eq!((p.walk_speed, p.sprint_speed, p.jump_speed, p.gravity, p.max_speed, p.fov_deg), (0.0, 0.0, 0.0, 0.0, 0.0, 80.0));
+        let e = errors_of(r#"{"camera": {"position": [0, 0, 0], "target": [0, 0, -1]}, "player": {"still": true, "gravity": 9}, "objects": []}"#);
+        assert!(e.iter().any(|m| m.contains("player.gravity") && m.contains("still")), "{e:?}");
+        let e = errors_of(r#"{"camera": {"position": [0, 0, 0], "target": [0, 0, -1]}, "player": {"still": "yes"}, "objects": []}"#);
+        assert!(e.iter().any(|m| m.contains("player.still")), "{e:?}");
     }
 
     #[test]

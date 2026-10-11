@@ -500,7 +500,12 @@ impl App {
 }
 
 impl App {
-    fn new(scene: Scene, scene_path: PathBuf, forced_character: Option<Character>, net_server: Option<SocketAddr>, net_world: Option<ClientWorld>) -> Self {
+    fn new(mut scene: Scene, scene_path: PathBuf, forced_character: Option<Character>, net_server: Option<SocketAddr>, net_world: Option<ClientWorld>) -> Self {
+        // A game sky (and an audio journey) with "seed": "launch" is new each time the game starts; the seed is printed so a run can be talked about.
+        let launch = red_engine2::play2d::launch_seed(None) as u32;
+        if scene.fix_launch_seeds(launch) {
+            println!("seed {} (the sky and music of this run)", launch & 0x00ff_ffff);
+        }
         // The player's body is added by `start_game` once the character is chosen.
         let player_object_index = scene.objects.len();
         let project_maps = red_engine2::project_browser::maps_for(&scene_path);

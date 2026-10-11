@@ -4530,7 +4530,8 @@
           ]
         },
         "view": true,
-        "fade_in": true
+        "fade_in": true,
+        "still": true
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -5307,7 +5308,14 @@
               "type": "null"
             }
           ]
-        }
+        },
+        "shader": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seed": true
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -5435,6 +5443,17 @@
             "boolean",
             "null"
           ]
+        },
+        "journey": {
+          "description": "Music that never repeats.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AudioJourney"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -5530,6 +5549,28 @@
         "above": true,
         "fade": true,
         "volume": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "AudioJourney": {
+      "description": "Endless sections re-rendered from scores.",
+      "type": "object",
+      "properties": {
+        "scores": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "seed": true,
+        "fade": true,
+        "repeats": true
       },
       "additionalProperties": false,
       "patternProperties": {

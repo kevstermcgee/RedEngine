@@ -163,6 +163,18 @@ impl Audio {
         Some(self.layers.len() - 1)
     }
 
+    /// Replaces layer `id` with `samples` (interleaved stereo at [`SAMPLE_RATE`]) looping from their beginning, silent until
+    /// [`set_layer_volume`](Self::set_layer_volume): how music that never repeats reuses its layers. False when there is no such layer.
+    pub fn replace_layer(&mut self, id: usize, samples: Vec<f32>) -> bool {
+        let Some(slot) = self.layers.get_mut(id) else { return false };
+        let Ok(sink) = rodio::Sink::try_new(&self.handle) else { return false };
+        sink.set_volume(0.0);
+        sink.append(rodio::buffer::SamplesBuffer::new(2, SAMPLE_RATE, samples).repeat_infinite());
+        // Dropping the old sink stops it.
+        *slot = sink;
+        true
+    }
+
     /// Sets a layer's volume (0 silent, 1 full).
     pub fn set_layer_volume(&self, id: usize, volume: f32) {
         if let Some(sink) = self.layers.get(id) {

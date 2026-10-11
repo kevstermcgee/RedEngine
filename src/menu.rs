@@ -79,6 +79,7 @@ pub fn backdrop_scene() -> Scene {
         death_text: None,
         teams: false,
         sky: None,
+        sky_shader: None,
         ocean: None,
         fog: None,
         shooter: None,

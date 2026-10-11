@@ -821,7 +821,9 @@ fn check_reach(world: &MapWorld, reach: &Reach, out: &mut Vec<Finding>) {
     // Perimeter leaks: group border cells into ~4 m clusters. A world with its own edge (`world.bounds`, a looping axis) has no perimeter
     // to seal: its limit is the clamp in the player step, not a wall the flood fill could find.
     // An endless generated world (`procgen`) has no edge either: its flood-fill window is where the looking stopped, not a perimeter with a gap.
-    let open_world = !world.scene.player.expanse.is_plain() || world.is_endless();
+    // Nor does a still player (`player.still`): they only look around, so there is nowhere for them to walk off.
+    let still = world.scene.player.walk_speed <= 0.0;
+    let open_world = !world.scene.player.expanse.is_plain() || world.is_endless() || still;
     if !reach.leaks.is_empty() && !open_world {
         let mut clusters: Vec<(Vec2, usize)> = Vec::new();
         for p in &reach.leaks {
@@ -1167,6 +1169,10 @@ mod tests {
     fn open_perimeter_is_a_leak() {
         let f = run(r##"{"camera":{"position":[0,1.7,0]},"objects":[{"id":"b","type":"box","size":[1,1,1],"position":[3,0.5,3]}]}"##);
         assert!(f.iter().any(|x| x.code == "leak"), "{}", format_report(&f));
+        // A still player cannot walk off anywhere: the same open map has no leak for them.
+        let still =
+            run(r##"{"camera":{"position":[0,1.7,0]},"player":{"still":true},"objects":[{"id":"b","type":"box","size":[1,1,1],"position":[3,0.5,3]}]}"##);
+        assert!(!still.iter().any(|x| x.code == "leak"), "{}", format_report(&still));
     }
 
     #[test]
