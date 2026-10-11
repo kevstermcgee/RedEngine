@@ -311,8 +311,13 @@ pub(crate) enum AudioCmd {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
-    /// Check a scene file for errors before spending any render time.
-    Validate { scene: PathBuf },
+    /// Check one file, or all content (file:line).
+    Validate { paths: Vec<PathBuf> },
+    /// Write JSON Schemas.
+    Schema {
+        #[arg(long, default_value = "schemas")]
+        out: PathBuf,
+    },
     /// Render a single PNG frame at time `--t` seconds (fast layout/lighting check). Supports a free
     /// camera, hiding objects, and cutaways so any part of a map can be inspected without editing it.
     Frame {

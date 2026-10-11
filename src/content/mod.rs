@@ -11,6 +11,8 @@ pub mod checks;
 pub mod common;
 pub mod drivers;
 pub mod game2d;
+#[cfg(feature = "schema")]
+pub mod json_schema;
 pub mod objects;
 pub mod packs;
 pub mod playscript;
@@ -19,6 +21,7 @@ pub mod project;
 pub mod scene;
 pub mod score;
 pub mod trace;
+pub mod validate;
 pub mod voice;
 
 use serde_json::Value;
