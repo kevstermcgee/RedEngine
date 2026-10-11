@@ -200,5 +200,71 @@ Expressed: sound-lights-the-world (swing event + hide/show), energy that drains 
 ## Automatic measurements
 
 <!-- automatic-measurements:begin -->
-(the CLI fills this in after the run: command trace, failures, repair cycles, documentation read, engine source read)
+Friction report (`scripts/agent_bench.py summary`):
+
+```json
+{
+ "commands": 40,
+ "failed": 12,
+ "documentation_topics_read": [
+  "overview",
+  "rules",
+  "scene",
+  "objects",
+  "style",
+  "audio",
+  "objects",
+  "sim",
+  "lint"
+ ],
+ "searches": [
+  "hold a key while rule",
+  "swap places with object I look at",
+  "player aims at object looked at",
+  "darkness only visible by sound",
+  "enemies npc sleep",
+  "player input held button in rules",
+  "loose prop carry pick up interact"
+ ],
+ "cli_source_exploration": 0,
+ "retries_of_a_failed_command_without_a_success_between": 5,
+ "repair_cycles": 4,
+ "first_failures": [
+  {
+   "command": "validate examples/3d/borrowed-foundry/borrowed-foundry.json",
+   "error": "21 error(s)"
+  },
+  {
+   "command": "validate examples/3d/borrowed-foundry/borrowed-foundry.json",
+   "error": "1 error(s)"
+  },
+  {
+   "command": "sim examples/3d/borrowed-foundry/borrowed-foundry.json",
+   "error": ""
+  },
+  {
+   "command": "sim examples/3d/borrowed-foundry/borrowed-foundry.json",
+   "error": ""
+  },
+  {
+   "command": "sim examples/3d/borrowed-foundry/borrowed-foundry.json",
+   "error": ""
+  }
+ ],
+ "used_verify": true,
+ "minutes": 5.0,
+ "transcript": {
+  "engine_files_read_with_tools": 0,
+  "engine_files_read_with_the_shell": 1,
+  "examples": [
+   "R=\"scripts/dev red\"; $R search \"loose prop carry pick up interact\" 2>&1 | head -30; grep -n -i \"loose\" SPEC.md | head -2"
+  ],
+  "edits": 0
+ }
+}
+```
+
+Agent session: 93 assistant turns; tools {"Bash": 52, "Read": 2}; cost $1.50; wall 41.8 min.
+
+Notes logged during the run: 15 (65 minutes claimed lost). Measured wall time 41.9 min. **The claimed minutes exceed the measured wall time: read `cost_min` as a relative weight, not as minutes.**
 <!-- automatic-measurements:end -->
