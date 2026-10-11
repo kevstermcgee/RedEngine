@@ -101,6 +101,19 @@ context to fix it). Minutes are CPU-comparable where contention mattered.
 correctness of the ladder itself), 3 (domain-aware search: the largest token sink of task a). Sink 5 is larger in minutes but its real fix (a prebuilt
 from `main`) is the blocked permission question, not engine work.
 
+## Phase 2 (2026-10-11): the top three sinks, before and after
+
+Each fix is one PR with an ADR holding its own before/after numbers; the trace's own command or query was re-run.
+
+| rank | sink | before | after | PR / ADR |
+|---|---|---|---|---|
+| 1 | `start` misroutes | a: NEXT a command that does not exist (after a 10-min build) + 3 searches (17 KB) to find the recipe and topics; b: unrouted + rerun (2 calls, 3.2 KB), dir `second-collect-dodge`; c: `context scene_format` (12 KB, ~3,000 tokens, wrong feature) | a: NEXT build -> `recipe`, pointers `describe style/ui/rules` + `recipe gated_garden`; b: game-create first time (1 call, 2.8 KB), dir `collect-dodge-unique`; c: `context map_analysis` directly | #104, 2026-10-11-the-launchpad-routes-by-what-a-task-names |
+| 2 | `affected` false green | `iterate`, `--quick` and `affected` all pass a lint code with no `describe lint` row ("verified" in 202 s); CI fails | all three fail at the unit step naming the missing row (`affected` in 67 s) | #103, 2026-10-11-compile-time-includes-are-changes |
+| 3 | search: 2D answers for 3D questions | `gated_garden` 9th of 9 for "locked door opened by a key"; a "3D scene" question led by a 2D mechanic; "two rooms joined by a door" led by `key-door` | 2nd (1st when the query says 3d); no mechanic for a 3D query; `rooms_and_door` 1st | #105, 2026-10-11-search-leads-with-the-domain-a-query-names |
+
+Left as found (ranks 4-11): `context` has no "how to extend" line; the cold first build (blocked on the prebuilt permission); warm `iterate` ~105 s;
+`door-blocked` is not phase-aware; no word that 3D has no dialogue; the load-sensitive `idea_forge` test; AGENTS.md's SPEC contradiction; small ones.
+
 ## Uniqueness, as observed (input to Phase 3)
 
 - **Task a did not get original assets, unprompted or otherwise.** The look is non-default (palette 8/9 roles changed, sky, fog, lamp: style lint has
@@ -109,3 +122,34 @@ from `main`) is the blocked permission question, not engine work.
 - **Task b complied by construction**: a 2D game draws its own sprites; there is no shared library to fall back on.
 - Placing a library prop cost 0 discovery tokens here (copied from the recipe; `catalog <name>` is ~1 KB with a snippet). A novel prop's cost is measured in
   Phase 3.
+
+## Phase 3 (2026-10-11): uniqueness
+
+**Compliance.** Task a was asked for a non-default look and got one (8 of 9 palette roles changed, sky, fog, lamp; style lint silent because nothing
+default was kept), but **no original asset, unprompted**: 10 shared catalogue placements, 12 hand-built boxes, 0 own prefabs, 0 voxel models. Nothing in
+the loop said so: `lint` has no rule about it, and `style-report` (which does say "make a few prefabs of your own") is not part of `lint`/`verify`, so an
+agent that follows the loop never runs it. Task b complied by construction (a 2D game draws its own sprites; `style-report` says the catalogue questions
+do not apply).
+
+**What the style lint caught:** nothing in either task. Its three codes (`style-palette`, `style-lamp`, `style-sky`) check that a game chose colours; a
+game that chose colours but placed only shared props passes.
+
+**Cost of a novel prop vs a library one** (measured on the cabin: an original `woodstove` prefab, palette-bound, 8 parts; log rows `u`):
+
+| | calls | printed / written | first try |
+|---|---|---|---|
+| place a library prop (`catalog stove` -> paste the `add` line) | 1 | 558 B printed (~140 tokens) | yes |
+| make an own prefab | 6: 2 searches (the first did not show the definition format), author, `lint`, `catalog --scene --local --sheet` (look), `style-report` | 10,265 B searched + 1,404 B written + ~1,000 B tool output (~3,200 tokens) + one image | lint clean on the 2nd try (the first spot covered the goal zone); the prefab itself was right first time |
+
+About **20x the tokens** of placing a library prop, almost all of it discovery: the format is in SPEC "`prefab`" and AGENT_REFERENCE, reachable only by search.
+
+**Proposal (not built): one lint code and one recipe, in the engine's idiom.**
+1. Lint `style-own` (warn, games only, the same "game" test as the other style codes: the scene has a `ui`): a game with no own prefab and no voxel model
+   while it places shared catalogue items -> "every prop is the shared catalogue's: make one of your own -> `recipe own_prefab`". This is what makes
+   the agent comply unprompted: lint is the step every route already runs.
+2. Recipe `own_prefab` (3D): a small room with one scene-local prefab whose params are palette-bound (`{"default": ..., "palette": "wood"}`), `$param`
+   and `=` expressions, and one `voxels` object, with `checks` that pass. `recipe`, the search recipe lane (#105) and the scene route's `prop` pointer
+   (#104) then lead with a paste-ready definition: discovery ~10 KB of searches becomes one ~1.5 KB `recipe own_prefab`, about 2,200 tokens saved, and
+   the cost gap falls from ~20x to ~5x.
+The procedural-materials design (ADR 2026-10-10-procedural-json-materials-and-shape-ops, B6) widens what an own asset can look like; it does not close
+this gap, which is about an agent knowing to make one and finding the format. No new command is needed.

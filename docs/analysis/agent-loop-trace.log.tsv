@@ -64,3 +64,16 @@ time	task	n	wall_s	cpu_s	rc	bytes	cmd
 20:28:48	c	57	0.2	0.2	0	83	target/debug/red_engine2 preflight
 20:33:25	c	58	277.1	486.9	0	656	scripts/dev affected 2>&1 | tail -9
 20:34:45	c	59	64.9	68.2	0	352	scripts/dev affected 2>&1 | tail -7
+21:02:00	c2	60	67.3	216.0	0	750	export PATH=$HOME/.cargo/bin:$PATH; scripts/dev affected src/tools/lint.rs 2>&1 | tail -12
+21:05:43	c2	61	208.5	426.2	0	408	export PATH=$HOME/.cargo/bin:$PATH; scripts/dev affected src/tools/lint.rs 2>&1 | tail -8
+21:14:37	a2	62	0.4	0.2	0	2063	scripts/dev start "New 3D scene: a two-room cabin with a locked door opened by a key, using the style block (non-default look) and a story-primitive dialogue on pickup" --no-save
+21:14:37	b2	63	0.2	0.2	0	2754	scripts/dev start "New 2D game: a 90-second collect-and-dodge with a unique palette and two original props (no shared-library assets)" --no-save
+21:14:38	c2	64	0.2	0.2	0	2516	scripts/dev start "Engine change: add a lint code for a scene that has a ui block but no start rule" --no-save
+21:14:56	a2	65	0.2	0.2	0	531	scripts/dev start "New 3D scene: a two-room cabin with a locked door opened by a key, using the style block (non-default look) and a story-primitive dialogue on pickup" --no-save | grep -E "^read|NEXT|then"
+21:30:36	u	66	0.1	0.0	0	558	target/debug/red_engine2 catalog stove
+21:30:36	u	67	0.3	0.2	0	4456	target/debug/red_engine2 search "make my own prefab for a scene"
+21:30:42	u	68	0.2	0.2	0	5809	target/debug/red_engine2 search "define a prefab in the scene prefabs block with params and objects" --kind doc
+21:30:55	u	69	0.0	0.0	0	243	target/debug/red_engine2 lint trace/a/cabin-own.json
+21:30:55	u	70	0.4	0.8	0	52	target/debug/red_engine2 catalog --scene trace/a/cabin-own.json --local --sheet trace/a/own.png 2>&1 | grep -v libEGL | grep -v "^$"
+21:31:03	u	71	0.0	0.0	0	147	target/debug/red_engine2 lint trace/a/cabin-own.json
+21:31:03	u	72	0.0	0.0	0	545	target/debug/red_engine2 style-report trace/a/cabin-own.json 2>&1 | grep -v libEGL | grep -v "^$"
