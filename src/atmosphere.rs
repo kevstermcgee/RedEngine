@@ -126,8 +126,8 @@ pub fn background_source(custom: Option<&str>, art: Option<&str>) -> std::borrow
         None => std::borrow::Cow::Borrowed(BACKGROUND_WGSL),
         Some(code) => {
             debug_assert!(BACKGROUND_WGSL.contains(SKY_HOOK), "background.wgsl lost its sky_of hook");
-            let art = art.unwrap_or("");
-            let hook = format!("{art}\n{code}\nfn sky_of(dir: vec3<f32>, px: f32) -> vec3<f32> {{\n    return sky(dir, px);\n}}\n");
+            let art = art.map(|a| format!("{a}\n")).unwrap_or_default();
+            let hook = format!("{art}{code}\nfn sky_of(dir: vec3<f32>, px: f32) -> vec3<f32> {{\n    return sky(dir, px);\n}}\n");
             std::borrow::Cow::Owned(BACKGROUND_WGSL.replacen(SKY_HOOK, &hook, 1))
         }
     }

@@ -21,7 +21,7 @@ pub struct MapView {
 impl MapView {
     /// Centred on the player, at a comfortable scale for a `h`-pixel-tall picture.
     pub fn around(player: Vec3, h: u32) -> MapView {
-        MapView { centre: Vec2::new(player.x / CELL, player.z / CELL), zoom: (h as f32 / 9.0).clamp(40.0, 140.0) }
+        MapView { centre: Vec2::new(player.x / CELL, player.z / CELL), zoom: (h as f32 / 6.0).clamp(50.0, 180.0) }
     }
 }
 
@@ -177,7 +177,7 @@ mod tests {
         // The first room is filled in its wing's wall colour where its middle is drawn.
         let at = |x: u32, y: u32| px[((y * 640 + x) * 4) as usize..((y * 640 + x) * 4 + 4) as usize].to_vec();
         let wall = srgb(m.spec.collection.themes[m.layout.room(RoomId::ORIGIN).theme].wall, 0.9, 235);
-        let mid = at(320 + (view.zoom * 0.3) as u32, 240 + (view.zoom * 0.3) as u32);
+        let mid = at(320 + (view.zoom * 0.12) as u32, 240 + (view.zoom * 0.2) as u32);
         assert!((mid[0] as i32 - wall[0] as i32).abs() < 40, "{mid:?} vs {wall:?}");
     }
 }
