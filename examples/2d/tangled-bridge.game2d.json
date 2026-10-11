@@ -1,0 +1,1255 @@
+{
+ "game2d": 1,
+ "id": "tangled-bridge",
+ "title": "Tangled Bridge",
+ "description": "A night nurse pours paint that shoves broken machines toward a dance step while her ghost repeats every pour a beat late and thieves steal the puddles.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard",
+   "mouse"
+  ],
+  "persistence": [
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 480,
+  "height": 270,
+  "background": "#1b2233",
+  "scale": "fit"
+ },
+ "sprites": {
+  "nurse": {
+   "rows": [
+    "..hh..",
+    ".hhhh.",
+    "..ff..",
+    ".wwww.",
+    "wwwwww",
+    ".w..w."
+   ],
+   "palette": {
+    "h": "#4a3a2a",
+    "f": "#f2c9a0",
+    "w": "#e8f4ff"
+   }
+  },
+  "ghost": {
+   "rows": [
+    "..hh..",
+    ".hhhh.",
+    "..ff..",
+    ".wwww.",
+    "wwwwww",
+    "w.ww.w"
+   ],
+   "palette": {
+    "h": "#9fd",
+    "f": "#cfe",
+    "w": "#8bc"
+   }
+  },
+  "bot": {
+   "rows": [
+    "..aa..",
+    ".abba.",
+    "aabbaa",
+    ".aaaa.",
+    ".a..a."
+   ],
+   "palette": {
+    "a": "#7a8599",
+    "b": "#ffd24a"
+   }
+  },
+  "bot1": {
+   "rows": [
+    "..aa..",
+    ".abba.",
+    "aabbaa",
+    ".aaaa.",
+    ".a..a."
+   ],
+   "palette": {
+    "a": "#e08a3c",
+    "b": "#fff"
+   }
+  },
+  "dance": {
+   "rows": [
+    "..aa..",
+    ".abba.",
+    "aabbaa",
+    ".aaaa.",
+    ".a..a."
+   ],
+   "palette": {
+    "a": "#4ad07a",
+    "b": "#fff"
+   }
+  },
+  "dance2": {
+   "rows": [
+    "..aa..",
+    ".abba.",
+    "aabbaa",
+    ".aaaa.",
+    "a....a"
+   ],
+   "palette": {
+    "a": "#4ad07a",
+    "b": "#fff"
+   }
+  },
+  "thief": {
+   "rows": [
+    "a....a",
+    ".aaaa.",
+    "aabbaa",
+    ".aaaa.",
+    "..cc.."
+   ],
+   "palette": {
+    "a": "#222",
+    "b": "#f55",
+    "c": "#fa0"
+   }
+  },
+  "padA": {
+   "rows": [
+    "oooooooo",
+    "o......o",
+    "o..aa..o",
+    "o..aa..o",
+    "o......o",
+    "oooooooo"
+   ],
+   "palette": {
+    "o": "#ffd24a",
+    "a": "#ffd24a"
+   }
+  },
+  "padB": {
+   "rows": [
+    "oooooooo",
+    "o......o",
+    "o.bbbb.o",
+    "o.bbbb.o",
+    "o......o",
+    "oooooooo"
+   ],
+   "palette": {
+    "o": "#5ad",
+    "b": "#5ad"
+   }
+  },
+  "p_red": {
+   "rows": [
+    "..cccc..",
+    ".cccccc.",
+    "cccccccc",
+    "cccccccc",
+    ".cccccc.",
+    "..cccc.."
+   ],
+   "palette": {
+    "c": "#e33"
+   }
+  },
+  "p_blue": {
+   "rows": [
+    "..cccc..",
+    ".cccccc.",
+    "cccccccc",
+    "cccccccc",
+    ".cccccc.",
+    "..cccc.."
+   ],
+   "palette": {
+    "c": "#38f"
+   }
+  },
+  "p_green": {
+   "rows": [
+    "..cccc..",
+    ".cccccc.",
+    "cccccccc",
+    "cccccccc",
+    ".cccccc.",
+    "..cccc.."
+   ],
+   "palette": {
+    "c": "#3c5"
+   }
+  },
+  "p_yel": {
+   "rows": [
+    "..cccc..",
+    ".cccccc.",
+    "cccccccc",
+    "cccccccc",
+    ".cccccc.",
+    "..cccc.."
+   ],
+   "palette": {
+    "c": "#fd3"
+   }
+  }
+ },
+ "sounds": {
+  "splash": {
+   "seconds": 0.15,
+   "layers": [
+    {
+     "sine": 300,
+     "decay": 18
+    }
+   ]
+  },
+  "squawk": {
+   "seconds": 0.2,
+   "layers": [
+    {
+     "sine": 180,
+     "decay": 10
+    }
+   ]
+  },
+  "ding": {
+   "seconds": 0.2,
+   "layers": [
+    {
+     "sine": 880,
+     "decay": 14
+    }
+   ]
+  },
+  "tada": {
+   "seconds": 0.4,
+   "layers": [
+    {
+     "sine": 660,
+     "decay": 6
+    },
+    {
+     "sine": 990,
+     "decay": 8
+    }
+   ]
+  }
+ },
+ "vars": {
+  "taught": 0,
+  "stolen": 0,
+  "best": 0,
+  "g1c": 0,
+  "g1x": 0,
+  "g1y": 0,
+  "g2c": 0,
+  "g2x": 0,
+  "g2y": 0
+ },
+ "persist": [
+  "best"
+ ],
+ "prefabs": {
+  "nurse": {
+   "tag": "player",
+   "shape": {
+    "sprite": "nurse",
+    "scale": 2
+   },
+   "size": [
+    12,
+    14
+   ],
+   "layer": 3,
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 90
+    }
+   },
+   "clamp": true
+  },
+  "ghost": {
+   "tag": "ghost",
+   "shape": {
+    "sprite": "ghost",
+    "scale": 2
+   },
+   "size": [
+    12,
+    14
+   ],
+   "layer": 3,
+   "move": {
+    "chase": {
+     "target": "player",
+     "speed": 60
+    }
+   }
+  },
+  "bot": {
+   "tag": [
+    "dancer",
+    "raw"
+   ],
+   "shape": {
+    "sprite": "bot",
+    "scale": 2
+   },
+   "size": [
+    12,
+    14
+   ],
+   "layer": 2,
+   "body": {
+    "type": "dynamic",
+    "gravity": 0,
+    "drag": 0.03
+   },
+   "clamp": true
+  },
+  "bot1": {
+   "tag": [
+    "dancer",
+    "half"
+   ],
+   "shape": {
+    "sprite": "bot1",
+    "scale": 2
+   },
+   "size": [
+    12,
+    14
+   ],
+   "layer": 2,
+   "body": {
+    "type": "dynamic",
+    "gravity": 0,
+    "drag": 0.012
+   },
+   "clamp": true
+  },
+  "bot2": {
+   "tag": [
+    "learned"
+   ],
+   "shape": {
+    "sprite": "dance",
+    "scale": 2
+   },
+   "size": [
+    12,
+    14
+   ],
+   "layer": 2,
+   "clamp": true
+  },
+  "thief": {
+   "tag": "thief",
+   "shape": {
+    "sprite": "thief",
+    "scale": 2
+   },
+   "size": [
+    12,
+    14
+   ],
+   "layer": 3,
+   "move": {
+    "chase": {
+     "target": "puddle",
+     "speed": 20
+    }
+   }
+  },
+  "padA": {
+   "tag": "padA",
+   "shape": {
+    "sprite": "padA",
+    "scale": 3
+   },
+   "size": [
+    24,
+    18
+   ],
+   "layer": 0
+  },
+  "padB": {
+   "tag": "padB",
+   "shape": {
+    "sprite": "padB",
+    "scale": 3
+   },
+   "size": [
+    24,
+    18
+   ],
+   "layer": 0
+  },
+  "pour_red": {
+   "tag": [
+    "puddle",
+    "red"
+   ],
+   "shape": {
+    "sprite": "p_red",
+    "scale": 3
+   },
+   "size": [
+    20,
+    18
+   ],
+   "layer": 0,
+   "ttl": 7
+  },
+  "pour_blue": {
+   "tag": [
+    "puddle",
+    "blue"
+   ],
+   "shape": {
+    "sprite": "p_blue",
+    "scale": 3
+   },
+   "size": [
+    20,
+    18
+   ],
+   "layer": 0,
+   "ttl": 7
+  },
+  "pour_green": {
+   "tag": [
+    "puddle",
+    "green"
+   ],
+   "shape": {
+    "sprite": "p_green",
+    "scale": 3
+   },
+   "size": [
+    20,
+    18
+   ],
+   "layer": 0,
+   "ttl": 7
+  },
+  "pour_yel": {
+   "tag": [
+    "puddle",
+    "yel"
+   ],
+   "shape": {
+    "sprite": "p_yel",
+    "scale": 3
+   },
+   "size": [
+    20,
+    18
+   ],
+   "layer": 0,
+   "ttl": 7
+  }
+ },
+ "effects": {
+  "pour_red": {
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pour_red",
+      "at": [
+       "p_x",
+       "p_y"
+      ]
+     }
+    },
+    {
+     "set": [
+      "g1c",
+      1
+     ]
+    },
+    {
+     "set": [
+      "g1x",
+      "p_x"
+     ]
+    },
+    {
+     "set": [
+      "g1y",
+      "p_y"
+     ]
+    },
+    {
+     "play": "splash"
+    }
+   ]
+  },
+  "pour_blue": {
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pour_blue",
+      "at": [
+       "p_x",
+       "p_y"
+      ]
+     }
+    },
+    {
+     "set": [
+      "g1c",
+      2
+     ]
+    },
+    {
+     "set": [
+      "g1x",
+      "p_x"
+     ]
+    },
+    {
+     "set": [
+      "g1y",
+      "p_y"
+     ]
+    },
+    {
+     "play": "splash"
+    }
+   ]
+  },
+  "pour_green": {
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pour_green",
+      "at": [
+       "p_x",
+       "p_y"
+      ]
+     }
+    },
+    {
+     "set": [
+      "g1c",
+      3
+     ]
+    },
+    {
+     "set": [
+      "g1x",
+      "p_x"
+     ]
+    },
+    {
+     "set": [
+      "g1y",
+      "p_y"
+     ]
+    },
+    {
+     "play": "splash"
+    }
+   ]
+  },
+  "pour_yel": {
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pour_yel",
+      "at": [
+       "p_x",
+       "p_y"
+      ]
+     }
+    },
+    {
+     "set": [
+      "g1c",
+      4
+     ]
+    },
+    {
+     "set": [
+      "g1x",
+      "p_x"
+     ]
+    },
+    {
+     "set": [
+      "g1y",
+      "p_y"
+     ]
+    },
+    {
+     "play": "splash"
+    }
+   ]
+  }
+ },
+ "scene": [
+  {
+   "prefab": "padA",
+   "at": [
+    60,
+    200
+   ]
+  },
+  {
+   "prefab": "padB",
+   "at": [
+    420,
+    200
+   ]
+  },
+  {
+   "prefab": "nurse",
+   "at": [
+    240,
+    200
+   ],
+   "id": "p"
+  },
+  {
+   "prefab": "ghost",
+   "at": [
+    225,
+    210
+   ]
+  },
+  {
+   "prefab": "thief",
+   "at": [
+    30,
+    60
+   ]
+  },
+  {
+   "prefab": "thief",
+   "at": [
+    450,
+    60
+   ]
+  },
+  {
+   "prefab": "bot",
+   "at": [
+    150,
+    196
+   ],
+   "id": "d1"
+  },
+  {
+   "prefab": "bot",
+   "at": [
+    200,
+    204
+   ],
+   "id": "d2"
+  },
+  {
+   "prefab": "bot",
+   "at": [
+    280,
+    198
+   ],
+   "id": "d3"
+  },
+  {
+   "prefab": "bot",
+   "at": [
+    330,
+    202
+   ],
+   "id": "d4"
+  }
+ ],
+ "ui": [
+  {
+   "panel": {
+    "at": [
+     0,
+     0
+    ],
+    "size": [
+     480,
+     14
+    ],
+    "color": "#10141fdd"
+   }
+  },
+  {
+   "text": "TAUGHT {taught}/4   TIME {time:.0}/80   STOLEN {stolen}",
+   "at": [
+    4,
+    3
+   ],
+   "color": "#fff"
+  },
+  {
+   "text": "BEST {best}s",
+   "at": [
+    476,
+    3
+   ],
+   "color": "#fd3",
+   "align": "right"
+  },
+  {
+   "panel": {
+    "at": [
+     0,
+     252
+    ],
+    "size": [
+     480,
+     18
+    ],
+    "color": "#10141fdd"
+   }
+  },
+  {
+   "button": {
+    "id": "b_red",
+    "label": "1 EAST",
+    "at": [
+     8,
+     254
+    ],
+    "size": [
+     64,
+     14
+    ],
+    "key": "Digit1",
+    "do": [
+     {
+      "apply": "pour_red"
+     }
+    ]
+   }
+  },
+  {
+   "button": {
+    "id": "b_blue",
+    "label": "2 WEST",
+    "at": [
+     78,
+     254
+    ],
+    "size": [
+     64,
+     14
+    ],
+    "key": "Digit2",
+    "do": [
+     {
+      "apply": "pour_blue"
+     }
+    ]
+   }
+  },
+  {
+   "button": {
+    "id": "b_green",
+    "label": "3 SOUTH",
+    "at": [
+     148,
+     254
+    ],
+    "size": [
+     64,
+     14
+    ],
+    "key": "Digit3",
+    "do": [
+     {
+      "apply": "pour_green"
+     }
+    ]
+   }
+  },
+  {
+   "button": {
+    "id": "b_yel",
+    "label": "4 NORTH",
+    "at": [
+     218,
+     254
+    ],
+    "size": [
+     64,
+     14
+    ],
+    "key": "Digit4",
+    "do": [
+     {
+      "apply": "pour_yel"
+     }
+    ]
+   }
+  },
+  {
+   "text": "WASD walk - 1-4 pour paint. Your ghost repeats every pour a beat late.",
+   "at": [
+    240,
+    60
+   ],
+   "align": "center",
+   "color": "#9fd"
+  },
+  {
+   "text": "ALL FOUR TAUGHT! LIGHTS OUT.",
+   "at": [
+    240,
+    120
+   ],
+   "align": "center",
+   "color": "#4ad07a",
+   "scale": 2,
+   "show": "ended"
+  }
+ ],
+ "rules": [
+  {
+   "id": "echo_red",
+   "when": {
+    "every": 0.5
+   },
+   "if": "g2c == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pour_red",
+      "at": [
+       "g2x",
+       "g2y"
+      ]
+     }
+    },
+    {
+     "play": "splash"
+    }
+   ]
+  },
+  {
+   "id": "echo_blue",
+   "when": {
+    "every": 0.5
+   },
+   "if": "g2c == 2",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pour_blue",
+      "at": [
+       "g2x",
+       "g2y"
+      ]
+     }
+    },
+    {
+     "play": "splash"
+    }
+   ]
+  },
+  {
+   "id": "echo_green",
+   "when": {
+    "every": 0.5
+   },
+   "if": "g2c == 3",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pour_green",
+      "at": [
+       "g2x",
+       "g2y"
+      ]
+     }
+    },
+    {
+     "play": "splash"
+    }
+   ]
+  },
+  {
+   "id": "echo_yel",
+   "when": {
+    "every": 0.5
+   },
+   "if": "g2c == 4",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pour_yel",
+      "at": [
+       "g2x",
+       "g2y"
+      ]
+     }
+    },
+    {
+     "play": "splash"
+    }
+   ]
+  },
+  {
+   "id": "shift",
+   "when": {
+    "every": 0.5
+   },
+   "do": [
+    {
+     "set": [
+      "g2c",
+      "g1c"
+     ]
+    },
+    {
+     "set": [
+      "g2x",
+      "g1x"
+     ]
+    },
+    {
+     "set": [
+      "g2y",
+      "g1y"
+     ]
+    },
+    {
+     "set": [
+      "g1c",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "soak_red",
+   "when": {
+    "touching": [
+     "dancer",
+     "red"
+    ]
+   },
+   "do": [
+    {
+     "velocity": {
+      "target": "self",
+      "v": [
+       260,
+       0
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "soak_blue",
+   "when": {
+    "touching": [
+     "dancer",
+     "blue"
+    ]
+   },
+   "do": [
+    {
+     "velocity": {
+      "target": "self",
+      "v": [
+       -140,
+       0
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "soak_green",
+   "when": {
+    "touching": [
+     "dancer",
+     "green"
+    ]
+   },
+   "do": [
+    {
+     "velocity": {
+      "target": "self",
+      "v": [
+       0,
+       140
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "soak_yel",
+   "when": {
+    "touching": [
+     "dancer",
+     "yel"
+    ]
+   },
+   "do": [
+    {
+     "velocity": {
+      "target": "self",
+      "v": [
+       0,
+       -140
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "steal",
+   "when": {
+    "touch": [
+     "thief",
+     "puddle"
+    ]
+   },
+   "do": [
+    {
+     "destroy": "other"
+    },
+    {
+     "add": [
+      "stolen",
+      1
+     ]
+    },
+    {
+     "play": "squawk"
+    }
+   ]
+  },
+  {
+   "id": "stepA",
+   "when": {
+    "touch": [
+     "raw",
+     "padA"
+    ]
+   },
+   "do": [
+    {
+     "spawn": {
+      "prefab": "bot1",
+      "at": "self"
+     }
+    },
+    {
+     "destroy": "self"
+    },
+    {
+     "play": "ding"
+    }
+   ]
+  },
+  {
+   "id": "stepB",
+   "when": {
+    "touch": [
+     "half",
+     "padB"
+    ]
+   },
+   "do": [
+    {
+     "spawn": {
+      "prefab": "bot2",
+      "at": "self"
+     }
+    },
+    {
+     "destroy": "self"
+    },
+    {
+     "add": [
+      "taught",
+      1
+     ]
+    },
+    {
+     "play": "tada"
+    }
+   ]
+  },
+  {
+   "id": "win",
+   "when": {
+    "every": 0.2
+   },
+   "if": "taught >= 4 && ended == 0",
+   "do": [
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "lose",
+   "when": {
+    "every": 0.2
+   },
+   "if": "time >= 80 && ended == 0",
+   "do": [
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "best",
+   "when": {
+    "end": "win"
+   },
+   "if": "best == 0 || time < best",
+   "do": [
+    {
+     "set": [
+      "best",
+      "floor(time)"
+     ]
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "soak",
+    "seed": 1,
+    "max_seconds": 20,
+    "script": [
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.45
+     },
+     {
+      "button": "b_blue"
+     },
+     {
+      "wait": 3
+     }
+    ],
+    "expect": [
+     {
+      "entity": "d2",
+      "near": [
+       109,
+       204
+      ],
+      "tol": 8
+     },
+     {
+      "entity": "d3",
+      "near": [
+       280,
+       198
+      ],
+      "tol": 2
+     }
+    ]
+   },
+   {
+    "name": "win",
+    "seed": 1,
+    "smoke": true,
+    "max_seconds": 40,
+    "script": [
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.45
+     },
+     {
+      "button": "b_blue"
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.55
+     },
+     {
+      "button": "b_blue"
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 1.45
+     },
+     {
+      "button": "b_blue"
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.55
+     },
+     {
+      "button": "b_blue"
+     },
+     {
+      "wait": 5
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 2.7
+     },
+     {
+      "button": "b_red"
+     },
+     {
+      "wait": 15
+     }
+    ],
+    "expect": [
+     {
+      "ended": "win"
+     }
+    ]
+   },
+   {
+    "name": "idle-lose",
+    "seed": 1,
+    "max_seconds": 90,
+    "script": [
+     {
+      "wait": 85
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     }
+    ]
+   }
+  ]
+ }
+}
