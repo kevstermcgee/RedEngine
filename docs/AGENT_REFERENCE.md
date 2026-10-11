@@ -80,7 +80,7 @@ Play a map: `cargo run --release --bin re2 -- examples/house.json` (`RE2_STATS=1
 
 | Command | Use it to | Notes |
 |---|---|---|
-| `validate <scene>` | Schema check with `object.field: message` errors | run by every edit already |
+| `validate <scene>` / `validate [paths]` | Schema check with `object.field: message` errors; with no paths, a folder or several files: every content file (scenes, 2D games, prefab libraries, blueprints, scores, ...) through its own checker, `file:line: message` | run by every edit already; CI's fast tier |
 | `lint <scene>` | Find layout bugs (list below) | `--json`, `--strict` (warnings fail), `--cell 0.05` (finer walkability grid) |
 | `reach <scene>` | Floors reached, per-zone coverage, doorways between zones, stairs, drops, perimeter leaks | `--to x,z[,y]` asks "can the player get there?"; `--from x,z` sets the start |
 | `walk <scene> --path "x,z; x,z"` | Replay a route with the game's per-tick physics | prints where you actually end up (and at what floor height), or where you get stuck |
