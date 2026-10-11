@@ -23,6 +23,8 @@ pub struct Audio {
     handle: OutputStreamHandle,
     /// The looping music, if any is playing (dropping the sink stops it).
     music: Option<rodio::Sink>,
+    /// The player's own song (`audio.playlist`), played once through.
+    song: Option<rodio::Sink>,
     /// Looping layers (the ambience beds and the mood scores), each with a volume the game sets as the hour changes.
     layers: Vec<rodio::Sink>,
     /// The mixing desk (`crate::mixer`): bus levels, the voice limit, ducking. Behind a lock because sounds are started through `&self`.
@@ -43,6 +45,7 @@ impl Audio {
             _stream: stream,
             handle,
             music: None,
+            song: None,
             layers: Vec::new(),
             music_base: Mutex::new(0.0),
             mixer: Mutex::new(Mixer::new(Levels::default())),
@@ -173,6 +176,43 @@ impl Audio {
         // Dropping the old sink stops it.
         *slot = sink;
         true
+    }
+
+    /// Plays a song once (interleaved samples, `channels` wide at `rate`), replacing any song playing. Returns false when the device cannot.
+    pub fn song_play(&mut self, samples: Vec<f32>, channels: u16, rate: u32, volume: f32) -> bool {
+        let Ok(sink) = rodio::Sink::try_new(&self.handle) else { return false };
+        sink.set_volume(volume.clamp(0.0, 1.0));
+        sink.append(rodio::buffer::SamplesBuffer::new(channels.max(1), rate.max(1), samples));
+        self.song = Some(sink);
+        true
+    }
+
+    /// Pauses or resumes the song.
+    pub fn song_pause(&self, paused: bool) {
+        if let Some(s) = &self.song {
+            if paused {
+                s.pause();
+            } else {
+                s.play();
+            }
+        }
+    }
+
+    /// The song's volume (0 silent, 1 full).
+    pub fn song_volume(&self, volume: f32) {
+        if let Some(s) = &self.song {
+            s.set_volume(volume.clamp(0.0, 1.0));
+        }
+    }
+
+    /// Seconds the song has played (what the speakers have reached), or `None` with no song.
+    pub fn song_pos(&self) -> Option<f32> {
+        self.song.as_ref().map(|s| s.get_pos().as_secs_f32())
+    }
+
+    /// Whether the song has played to its end (or none was started).
+    pub fn song_done(&self) -> bool {
+        self.song.as_ref().is_none_or(|s| s.empty())
     }
 
     /// Sets a layer's volume (0 silent, 1 full).

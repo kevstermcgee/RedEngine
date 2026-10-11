@@ -78,6 +78,7 @@ impl App {
     pub(crate) fn start_music(&mut self) {
         // A scene with an `audio` block has its own music and ambience (see `ambient.rs`); the built-in synthwave loop stays out of it.
         self.start_ambient();
+        self.start_listening();
         if self.ambient.as_ref().is_some_and(|a| a.has_music()) {
             return;
         }

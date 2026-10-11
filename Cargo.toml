@@ -30,7 +30,7 @@ mcp = ["dep:rmcp", "dep:schemars", "dep:base64", "schema"]
 # build (`--no-default-features`): the dedicated server needs the typed defs, not their schema.
 schema = ["dep:schemars"]
 render = ["dep:wgpu", "dep:pollster", "dep:naga"]
-gfx = ["render", "dep:softbuffer", "dep:winit", "dep:rodio", "dep:gilrs", "dep:rfd"]
+gfx = ["render", "dep:softbuffer", "dep:winit", "dep:rodio", "dep:gilrs", "dep:rfd", "dep:symphonia"]
 
 [dependencies]
 red2d = { path = "crates/red2d" }
@@ -69,6 +69,8 @@ winit = { version = "0.30", optional = true }
 # The native 2D player (`re2d`, `red_engine2 play2d`) shows the CPU-rendered frame through the OS window with no GPU involved.
 softbuffer = { version = "0.4", default-features = false, features = ["x11", "x11-dlopen", "wayland", "wayland-dlopen"], optional = true }
 rfd = { version = "0.17.2", optional = true }
+# Decodes the player's own music (`audio.playlist`, `listen::decode`): mp3, flac, ogg vorbis, wav, m4a/aac. Pure Rust; with `gfx` only (a game that plays music has a window).
+symphonia = { version = "0.5", default-features = false, features = ["mp3", "flac", "ogg", "vorbis", "wav", "pcm", "aac", "isomp4"], optional = true }
 
 # The network stack and the Ctrl-C hook.
 ctrlc = { version = "3", features = ["termination"] }

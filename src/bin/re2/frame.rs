@@ -571,6 +571,7 @@ impl App {
             self.as_player(slot, |app| app.update_player_view(dt, alpha));
         }
         self.update_ambient(dt);
+        self.update_listening(dt);
         if let Some(audio) = &self.audio {
             audio.tick();
         }

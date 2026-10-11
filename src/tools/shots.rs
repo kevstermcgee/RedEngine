@@ -31,6 +31,11 @@ pub struct FrameOpts {
     pub cut_above: Option<f32>,
     pub size: Option<(u32, u32)>,
     pub t: f32,
+    /// The seed of a game sky (`sky.seed`, `"launch"` included): another seed, another sky.
+    pub seed: Option<u32>,
+    /// A music file the sky hears, `t` seconds into it (`audio.playlist` games), and the play seed it is heard with.
+    pub song: Option<std::path::PathBuf>,
+    pub play: u32,
 }
 
 /// Loads `path` and applies the frame options, returning a scene ready for `Renderer::new`.
@@ -70,8 +75,16 @@ pub fn prepare(world: MapWorld, opts: &FrameOpts) -> crate::schema::Scene {
 #[cfg(feature = "gfx")]
 pub fn render_frame(path: &Path, out: &Path, opts: &FrameOpts) -> Result<(), String> {
     let world = super::world::load_or_report(path)?;
-    let scene = prepare(world, opts);
+    let mut scene = prepare(world, opts);
+    if let (Some(seed), Some(sky)) = (opts.seed, scene.sky_shader.as_mut()) {
+        std::sync::Arc::make_mut(sky).seed = crate::atmosphere::LaunchSeed::Fixed(seed & 0x00ff_ffff);
+    }
     let mut renderer = Renderer::new(&scene).map_err(|e| e.to_string())?;
+    if let Some(file) = &opts.song {
+        let song = crate::listen::decode(file)?;
+        let heard = crate::listen::Analyzer::moment(&song.mono, opts.t, 4.0);
+        renderer.set_audio(&crate::listen::Heard { song: song.seed, play: opts.play & 0x00ff_ffff, ..heard });
+    }
     let rgb = renderer.render_frame(&scene, opts.t);
     if let Some(parent) = out.parent() {
         if !parent.as_os_str().is_empty() {

@@ -14,6 +14,7 @@ pub(crate) fn run_frame(
     hide: Vec<String>,
     cut_above: Option<f32>,
     size: Option<&str>,
+    (seed, song, play): (Option<u32>, Option<std::path::PathBuf>, u32),
 ) -> Result<(), String> {
     let started = Instant::now();
     // `--hour` reads the scene's clock: the scene time at which it shows that hour.
@@ -33,7 +34,7 @@ pub(crate) fn run_frame(
         }
         None => None,
     };
-    let opts = FrameOpts { eye: eye.map(v3).transpose()?, at: at.map(v3).transpose()?, fov, hide, cut_above, size, t };
+    let opts = FrameOpts { eye: eye.map(v3).transpose()?, at: at.map(v3).transpose()?, fov, hide, cut_above, size, t, seed, song, play };
     if let (Some(eye), Ok(text)) = (opts.eye, std::fs::read_to_string(scene)) {
         if let Ok(parsed) = red_engine2::schema::parse_scene(&text) {
             let target = opts.at.unwrap_or_else(|| parsed.camera.target.sample(t));

@@ -156,11 +156,16 @@ impl App {
         let event = self.rule_event.as_deref();
         let outcome = self.rules.ended();
         let inspected = self.target_index.and_then(|i| self.scene.objects.get(i)).map(|o| o.id.as_str()).unwrap_or("look at an asset to inspect its id");
-        let fingerprint = format!("{:?}|{:?}|{:?}|{}|{:?}", vars, event, outcome, inspected, self.card);
+        // The song playing (`audio.playlist`): its title for a few seconds, PAUSED, a note. Small, in a corner, never over a card.
+        let captions = if self.card.is_none() { self.listen_caption_key() } else { String::new() };
+        let fingerprint = format!("{:?}|{:?}|{:?}|{}|{:?}|{captions}", vars, event, outcome, inspected, self.card);
         if self.rule_hud_painted.as_ref().is_some_and(|(pw, ph, old)| (*pw, *ph) == (w, h) && old == &fingerprint) {
             return;
         }
         let mut layout = self.rules_overlay(w, h, &vars, event, outcome);
+        if !captions.is_empty() {
+            self.listen_captions(&mut layout, w, h);
+        }
         if let Some(card) = self.card_layout_now(w, h) {
             let offset = layout.widgets.len();
             layout.widgets.extend(card.widgets.into_iter().map(|mut widget| {

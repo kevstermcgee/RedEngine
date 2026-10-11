@@ -128,6 +128,7 @@ impl App {
             },
             "players": self.players_state(),
             "audio": self.ambient_state(),
+            "listen": self.listen.as_ref().map(|l| l.state()),
             "online": online,
             "remote": remote,
             "card": self.card_content().map(|(c, button)| json!({"kind": self.card.map(|k| format!("{:?}", k.kind).to_lowercase()), "title": c.title, "text": c.text, "button": c.button.map(|label| json!({"id": button, "label": label}))})),

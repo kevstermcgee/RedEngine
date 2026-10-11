@@ -5454,6 +5454,17 @@
               "type": "null"
             }
           ]
+        },
+        "playlist": {
+          "description": "The player's own music: true, or {title_secs, corner, shuffle}.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AudioPlaylistOr"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -5571,6 +5582,40 @@
         "seed": true,
         "fade": true,
         "repeats": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "AudioPlaylistOr": {
+      "description": "`audio.playlist`: `true`, or the details.",
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/AudioPlaylist"
+        }
+      ]
+    },
+    "AudioPlaylist": {
+      "description": "The player's own music.",
+      "type": "object",
+      "properties": {
+        "title_secs": true,
+        "corner": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shuffle": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
       },
       "additionalProperties": false,
       "patternProperties": {

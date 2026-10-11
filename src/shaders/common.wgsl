@@ -29,6 +29,7 @@ struct Globals {
     celestial: array<vec4<f32>, 3>,
     glow: vec4<f32>,
     fog: vec4<f32>,
+    audio: array<vec4<f32>, 12>,
 };
 @group(0) @binding(0) var<uniform> globals: Globals;
 

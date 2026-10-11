@@ -179,6 +179,20 @@ impl Driver for App {
     }
 
     fn press(&mut self, id: &str) -> Result<(), String> {
+        // `key:NAME` presses one of the keys a game that plays the player's music listens to (`audio.playlist`): Space, ArrowLeft, ArrowRight.
+        if let Some(name) = id.strip_prefix("key:") {
+            let code = match name {
+                "Space" => KeyCode::Space,
+                "ArrowLeft" => KeyCode::ArrowLeft,
+                "ArrowRight" => KeyCode::ArrowRight,
+                other => return Err(format!("press key:{other}: a script can press key:Space, key:ArrowLeft or key:ArrowRight")),
+            };
+            return if self.listen_key(code) {
+                Ok(())
+            } else {
+                Err(format!("press {id}: nothing listens to it (the scene has no `audio.playlist`, or the game has not started)"))
+            };
+        }
         self.press_button(id)
     }
 

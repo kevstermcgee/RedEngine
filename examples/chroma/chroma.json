@@ -1,0 +1,18 @@
+{
+  "camera": { "fov": 70, "position": [0, 0, 0], "target": [0, 0, -10] },
+  "player": { "humans_play_as": "human", "mode": "peaceful", "fov": 70, "still": true },
+  "hud": { "enabled": false },
+  "music": false,
+  "ui": {
+    "title": "Chroma",
+    "start": {
+      "title": "CHROMA",
+      "text": "Music you can see. Choose songs, or drop them on this window. Space pauses, arrows skip, O chooses again.",
+      "button": "Choose music"
+    }
+  },
+  "sky": { "shader": "sky/chroma.wgsl", "seed": "launch" },
+  "audio": { "playlist": { "title_secs": 10, "corner": "bottom_left" } },
+  "objects": [],
+  "checks": { "lint": { "max_errors": 0, "max_warnings": 0 } }
+}

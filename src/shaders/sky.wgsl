@@ -15,14 +15,64 @@ fn view_ray(ndc: vec2<f32>) -> vec3<f32> {
 
 // ---- A scene's own sky (`sky.shader`) ---------------------------------------------------------------------------------------------------
 
-// Seconds since the scene began (the scene time every shader sees).
+// Seconds since the scene began (the scene time every shader sees); with an `audio.playlist`, seconds of listening, which stop while the music is
+// paused (so pausing freezes the picture with the music).
 fn sky_time() -> f32 {
-    return globals.night.y;
+    return select(globals.night.y, globals.audio[10].z, globals.audio[10].w > 0.5);
 }
 
 // The sky's seed: `sky.seed`, or a new whole number each launch with "seed": "launch" (below 2^24, so exact as a float).
 fn sky_seed() -> f32 {
     return globals.sky.w;
+}
+
+// What the music sounds like (a scene's `audio.playlist`; all 0 without one, so a sky still draws in silence). `sky_band(i)`: band i of 32, low to high,
+// 0..1 against the loudest moments so far. `sky_bass/mid/treble/level()`: 0..1. `sky_beat()`: 1 at a beat, gone in about half a second;
+// `sky_beats()`: beats so far in this song. `sky_song()`: the same for every play of a song; `sky_play()`: new every time a song starts (both whole
+// numbers below 2^24). `sky_song_time()`: seconds into the song; `sky_playing()`: 0 to 1, eased.
+fn sky_band(i: i32) -> f32 {
+    let k = clamp(i, 0, 31);
+    return globals.audio[k / 4][k % 4];
+}
+
+fn sky_level() -> f32 {
+    return globals.audio[8].x;
+}
+
+fn sky_bass() -> f32 {
+    return globals.audio[8].y;
+}
+
+fn sky_mid() -> f32 {
+    return globals.audio[8].z;
+}
+
+fn sky_treble() -> f32 {
+    return globals.audio[8].w;
+}
+
+fn sky_beat() -> f32 {
+    return globals.audio[9].x;
+}
+
+fn sky_beats() -> f32 {
+    return globals.audio[9].y;
+}
+
+fn sky_song_time() -> f32 {
+    return globals.audio[9].z;
+}
+
+fn sky_playing() -> f32 {
+    return globals.audio[9].w;
+}
+
+fn sky_song() -> f32 {
+    return globals.audio[10].x;
+}
+
+fn sky_play() -> f32 {
+    return globals.audio[10].y;
 }
 
 // ---- Noise -------------------------------------------------------------------------------------------------------------------------

@@ -14,7 +14,7 @@ use crate::procgen::noise::{smooth, Rng};
 use crate::procgen::Biome;
 
 /// `audio` keys.
-pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience_volume", "reverb", "duck", "layers", "birds", "journey"];
+pub const AUDIO_KEYS: &[&str] = &["ambience", "music", "music_volume", "ambience_volume", "reverb", "duck", "layers", "birds", "journey", "playlist"];
 /// `audio.journey` keys.
 pub const JOURNEY_KEYS: &[&str] = &["scores", "seed", "fade", "repeats"];
 
@@ -38,6 +38,10 @@ pub const JOURNEY_KEYS: &[&str] = &["scores", "seed", "fade", "repeats"];
 /// sections, each one of the scores rendered afresh with its own seed (new melodies, pans and, where a track lists alternatives, a new progression) in a key
 /// that wanders from the last by a musical step, played `repeats` times through and crossfaded over `fade` seconds into the next. The first section is the
 /// first score in its own key. See [`Journey`] and [`JourneyPlayer`]; `red_engine2 audio journey SCENE` lists and renders the sections.
+///
+/// `"playlist": {"title_secs": 10, "corner": "bottom_left", "shuffle": false}` (or `true`) plays the player's own music instead: a file picker opens
+/// when the game starts (O opens it again, files dropped on the window join the queue, left/right arrows move through it, P pauses), each song's title
+/// shows for `title_secs`, and a game sky hears it (`crate::listen`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioSpec {
     /// Whether the nature ambience plays.
@@ -58,6 +62,8 @@ pub struct AudioSpec {
     pub layers: Vec<LayerSpec>,
     /// Endless, never-repeating music made from scores (`audio.journey`).
     pub journey: Option<JourneySpec>,
+    /// The player's own music, chosen with a file picker (`audio.playlist`, see [`crate::listen`]).
+    pub playlist: Option<crate::listen::PlaylistSpec>,
 }
 
 impl AudioSpec {
@@ -529,8 +535,12 @@ pub fn parse_audio(root: &serde_json::Map<String, serde_json::Value>, base: Opti
     if !music.is_empty() && journey.is_some() {
         errs.push("audio.journey: a scene's music is either the hour's (`music`) or a journey, not both".to_string());
     }
+    let playlist = crate::listen::parse_playlist(o, &mut errs);
+    if playlist.is_some() && (journey.is_some() || !music.is_empty()) {
+        errs.push("audio.playlist: the player's own music plays instead of the scene's (`music`, `journey`): give only one".to_string());
+    }
     if errs.is_empty() {
-        Ok(Some(AudioSpec { nature, birds, music, music_volume, ambience_volume, reverb, duck, layers, journey }))
+        Ok(Some(AudioSpec { nature, birds, music, music_volume, ambience_volume, reverb, duck, layers, journey, playlist }))
     } else {
         Err(errs)
     }

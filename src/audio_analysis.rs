@@ -174,7 +174,7 @@ pub fn lufs(clip: Clip) -> f32 {
 }
 
 /// In-place iterative radix-2 FFT of `re`/`im` (length a power of two).
-fn fft(re: &mut [f32], im: &mut [f32]) {
+pub(crate) fn fft(re: &mut [f32], im: &mut [f32]) {
     let n = re.len();
     let mut j = 0;
     for i in 1..n {
