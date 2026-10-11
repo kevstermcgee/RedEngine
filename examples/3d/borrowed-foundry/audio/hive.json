@@ -1,0 +1,18 @@
+{
+  "bpm": 60, "beats": 4, "bars": 8, "key": "F", "scale": "phrygian", "seed": 4930, "lufs": -26,
+  "reverb": { "decay": 5, "size": 1.2, "damp": 0.6, "predelay": 0.02, "mix": 0.5 },
+  "delay": { "time": 0.75, "feedback": 0.4, "damp": 0.5, "mix": 0.25 },
+  "instruments": {
+    "hum": { "seconds": 16, "level": 0.5, "layers": [
+      { "sine": 1,     "attack": 3, "release": 4 },
+      { "sine": 1.006, "attack": 3, "release": 4, "gain": 0.8 },
+      { "sine": 3,     "attack": 4, "release": 4, "gain": 0.15 } ] },
+    "tick": { "seconds": 2, "level": 0.4, "layers": [
+      { "sine": 1,    "decay": 6 },
+      { "sine": 4.01, "decay": 9, "gain": 0.2 } ] }
+  },
+  "tracks": [
+    { "inst": "hum", "play": "chords", "chords": "i II i VII", "voicing": [1], "every": "2 bars", "octave": 2, "gain": 0.9, "send": 0.5 },
+    { "inst": "tick", "play": "pattern", "pattern": "x... .... ..x. ....", "notes": "1 5", "octave": 4, "gain": 0.5, "pan": "spread" }
+  ]
+}
