@@ -2,6 +2,8 @@
 name = "red_engine2"
 version = "0.1.0"
 edition = "2021"
+# `cargo run -- validate`, `cargo run -- schema`: the CLI is the binary `cargo run` means (there are several).
+default-run = "red_engine2"
 license = "MIT"
 repository = "https://github.com/kevstermcgee/RedEngine"
 description = "AI-first Rust game engine: JSON scenes, self-verifying maps, authoritative multiplayer, headless tooling"
@@ -18,12 +20,15 @@ default-members = [".", "crates/red2d"]
 #
 # `render` = the wgpu renderer on its own (no window, no sound device, no ffmpeg); `gfx` = `render` plus the desktop around it (a window, audio, a pad, dialogs).
 [features]
-default = ["gfx", "mcp"]
+default = ["gfx", "mcp", "schema"]
 # `mcp` = `red_engine2 mcp`, the authoring adapter (rmcp, schemars, base64). The dedicated server and the bot never need it: `--no-default-features` leaves it out.
 # `video` = MP4 export (`red_engine2 render`, `render_video`): the scene is piped to an ffmpeg process by ffmpeg-sidecar. Not in `default`: PNG frames, tours, storyboards and
 # every verification path need no ffmpeg. Build it with `cargo build --features video`.
 video = ["render", "dep:ffmpeg-sidecar"]
-mcp = ["dep:rmcp", "dep:schemars", "dep:base64"]
+mcp = ["dep:rmcp", "dep:schemars", "dep:base64", "schema"]
+# `schema` = JSON Schema for every content format (`red_engine2 schema`, the typed defs in `content/` derive `schemars::JsonSchema`). Not in the headless
+# build (`--no-default-features`): the dedicated server needs the typed defs, not their schema.
+schema = ["dep:schemars"]
 render = ["dep:wgpu", "dep:pollster"]
 gfx = ["render", "dep:softbuffer", "dep:winit", "dep:rodio", "dep:gilrs", "dep:rfd"]
 
@@ -49,6 +54,8 @@ rodio = { version = "0.20", default-features = false, optional = true }
 rapier3d = { version = "0.35", features = ["enhanced-determinism"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
+# The JSON path to the bad field in a typed content error (`content::typed`): `packs[3].tag: unknown field ...`.
+serde_path_to_error = "0.1"
 thiserror = "2.0.20"
 # The production network transport (ADR 0044): QUIC datagrams + TLS 1.3 from maintained implementations, and the primitives the
 # remaining application-level proofs use. All graphics-free: they are part of the headless server build.

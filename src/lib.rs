@@ -15,6 +15,7 @@ pub mod characters;
 pub mod clipboard;
 pub mod collide;
 pub mod color;
+pub mod content;
 pub mod controller;
 pub mod costumes;
 pub mod crypto;
