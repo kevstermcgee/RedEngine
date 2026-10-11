@@ -258,6 +258,21 @@ fn align_up(value: u64, alignment: u64) -> u64 {
 /// as before; an endless world is not.
 pub const REBASE_DISTANCE: f32 = 4096.0;
 
+/// Adds point lights (position, colour already times intensity, range) after the scene's own, as many as fit.
+pub fn append_point_lights(g: &mut GlobalUniform, lights: &[(Vec3, Vec3, f32)], origin: Vec3) {
+    let mut n = g.counts[0] as usize;
+    for (at, colour, range) in lights {
+        if n >= MAX_LIGHTS {
+            break;
+        }
+        let p = *at - origin;
+        g.light_pos_or_dir[n] = [p.x, p.y, p.z, 1.0];
+        g.light_color_intensity[n] = [colour.x, colour.y, colour.z, *range];
+        n += 1;
+    }
+    g.counts[0] = n as f32;
+}
+
 /// The point the renderer measures from for a camera at `eye`: the world origin, or (far out) the multiple of 2048 m nearest to the camera. Everything the
 /// GPU sees (camera, lights, objects, chunks) is shifted by it, so the numbers it works with stay small however far the player has walked.
 pub fn render_origin(eye: Vec3) -> Vec3 {
@@ -306,9 +321,23 @@ pub struct Renderer {
     out_height: u32,
     /// What the music sounds like, for a game's sky ([`Self::set_audio`]).
     audio: [[f32; 4]; 12],
+    /// What a game's own shaders read with `game_param(i)` ([`Self::set_game_params`]).
+    game: [[f32; 4]; 8],
+    /// The scene's museum (`museum` block): a visit of its own, standing where the camera is, and its draws.
+    museum: Option<(crate::museum::Museum, crate::museum_gpu::MuseumLayer)>,
 }
 
 impl Renderer {
+    /// The offline renderer's own museum visit (a still frame stands in the room the camera is in), to step it into a painting for a picture.
+    pub fn museum_visit(&mut self) -> Option<&mut crate::museum::Museum> {
+        self.museum.as_mut().map(|(v, _)| v)
+    }
+
+    /// The eight numbers a game's own shaders read with `game_param(i)` in the frames drawn from now on.
+    pub fn set_game_params(&mut self, game: [[f32; 4]; 8]) {
+        self.game = game;
+    }
+
     /// What a game's sky hears in the frames drawn from now on (`frame --song`).
     pub fn set_audio(&mut self, heard: &crate::listen::Heard) {
         self.audio = heard.uniform();
@@ -317,7 +346,13 @@ impl Renderer {
     /// Builds the offline renderer (device, pipelines, meshes) for `scene`.
     pub fn new(scene: &Scene) -> Result<Self> {
         let gpu = Gpu::new()?;
-        let pipelines = create_pipelines(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1, scene.sky_shader.as_deref().map(|s| s.source.as_str()));
+        let pipelines = create_pipelines(
+            &gpu.device,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            1,
+            scene.sky_shader.as_deref().map(|s| s.source.as_str()),
+            scene.museum.as_deref().and_then(|m| m.art.as_deref()),
+        );
         let shadow_sampler = make_shadow_sampler(&gpu.device);
         let targets = FrameTargets::new(&gpu.device, scene.width, scene.height);
         let post = create_post_pipeline(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
@@ -376,7 +411,12 @@ impl Renderer {
             .procgen
             .clone()
             .map(|cfg| crate::stream_gpu::StreamLayer::new(&gpu.device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), 0));
+        let museum = scene.museum.as_ref().map(|spec| {
+            let visit = crate::museum::Museum::new(spec.clone(), spec.seed.value(None), None);
+            (visit, crate::museum_gpu::MuseumLayer::new(&gpu.device, &pipelines.layouts.object))
+        });
         Ok(Renderer {
+            museum,
             gpu,
             pipelines,
             global_buf,
@@ -394,6 +434,7 @@ impl Renderer {
             out_width: scene.width,
             out_height: scene.height,
             audio: [[0.0; 4]; 12],
+            game: [[0.0; 4]; 8],
         })
     }
 
@@ -412,13 +453,22 @@ impl Renderer {
         let view = glam::camera::rh::view::look_at_mat4(cam_pos, cam_target, up);
         let view_proj = proj * view;
 
-        GlobalUniform { audio: self.audio, ..build_globals_common(scene, t, cam_pos, view_proj, origin) }
+        GlobalUniform { audio: self.audio, game: self.game, ..build_globals_common(scene, t, cam_pos, view_proj, origin) }
     }
 
     /// Renders one frame at time `t` (seconds) and returns tightly-packed RGB8 pixels,
     /// `out_width * out_height * 3` bytes, top row first.
     pub fn render_frame(&mut self, scene: &Scene, t: f32) -> Vec<u8> {
-        let globals = self.build_globals(scene, t);
+        // A museum lights itself: its nearest lamps join the scene's lights, and its shader numbers go to the game's shaders.
+        let mut lamps = Vec::new();
+        if let Some((visit, _)) = &mut self.museum {
+            let eye = scene.camera.position.sample(t);
+            visit.settle_at(eye);
+            self.game = visit.shader_params();
+            lamps = visit.lamps(eye, 12).iter().map(|l| (l.at, Vec3::from(l.color) * l.intensity, l.range)).collect();
+        }
+        let mut globals = self.build_globals(scene, t);
+        append_point_lights(&mut globals, &lamps, render_origin(scene.camera.position.sample(t)));
         self.gpu.queue.write_buffer(&self.global_buf, 0, bytemuck::bytes_of(&globals));
         // A still frame cannot wait for the world to stream in: build everything around the camera first.
         let origin = render_origin(scene.camera.position.sample(t));
@@ -427,6 +477,10 @@ impl Renderer {
             stream.set_origin(&self.gpu.queue, origin);
             let eye = scene.camera.position.sample(t);
             stream.update_motes(&self.gpu.queue, eye, (scene.camera.target.sample(t) - eye).normalize_or(Vec3::NEG_Z), t, scene.clock.as_ref());
+        }
+        if let Some((visit, layer)) = &mut self.museum {
+            layer.sync(&self.gpu.device, visit, t, scene.camera.position.sample(t));
+            layer.prepare(&self.gpu.queue, origin, Mat4::from_cols_array_2d(&globals.view_proj));
         }
 
         let mut transforms = Vec::with_capacity(self.meshes.len());
@@ -453,6 +507,7 @@ impl Renderer {
                     base_color: [mat.color.x, mat.color.y, mat.color.z, mat.opacity],
                     material: [mat.metallic, mat.roughness, 0.0, 0.0],
                     emissive: [mat.emissive.x, mat.emissive.y, mat.emissive.z, 0.0],
+                    ..bytemuck::Zeroable::zeroed()
                 };
                 self.gpu.queue.write_buffer(&self.object_buf, (image * n_meshes + i) as u64 * self.object_stride, bytemuck::bytes_of(&obj_uniform));
             }
@@ -552,6 +607,9 @@ impl Renderer {
             }
             if let Some(stream) = &self.stream {
                 stream.draw_main(&mut main_pass, Mat4::from_cols_array_2d(&globals.view_proj));
+            }
+            if let Some((_, layer)) = &self.museum {
+                layer.draw_main(&mut main_pass);
             }
             if !blended.is_empty() {
                 blended.sort_by(|a, b| b.0.total_cmp(&a.0));
@@ -778,6 +836,7 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
         glow,
         fog,
         audio: [[0.0; 4]; 12],
+        game: [[0.0; 4]; 8],
     }
 }
 

@@ -46,6 +46,9 @@ pub mod menu;
 #[cfg(feature = "render")]
 pub mod mesh;
 pub mod mixer;
+pub mod museum;
+#[cfg(feature = "render")]
+pub mod museum_gpu;
 pub mod music;
 pub mod nature;
 pub mod net;

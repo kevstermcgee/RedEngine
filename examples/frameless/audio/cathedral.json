@@ -1,0 +1,26 @@
+{
+  "bpm": 46, "beats": 4, "bars": 16, "key": "C", "scale": "mixolydian", "seed": 101, "lufs": -24,
+  "reverb": { "decay": 14, "size": 2.0, "damp": 0.4, "predelay": 0.06, "mix": 0.72 },
+  "delay": { "time": 1.3, "feedback": 0.3, "damp": 0.6, "mix": 0.15 },
+  "instruments": {
+    "choir": { "seconds": 16, "level": 0.42, "layers": [
+      { "sine": 1, "harmonics": [[2, 0.5], [3, 0.32], [4, 0.14], [5, 0.18], [6, 0.06], [8, 0.03]], "attack": 3, "release": 3.6 },
+      { "sine": 1.004, "harmonics": [[2, 0.34], [3, 0.2]], "attack": 3.4, "release": 3.6, "gain": 0.55 },
+      { "sine": 0.997, "harmonics": [[3, 0.22]], "attack": 3.8, "release": 3.6, "gain": 0.45 } ] },
+    "organ": { "seconds": 32, "level": 0.45, "layers": [
+      { "sine": 1, "harmonics": [[2, 0.5], [4, 0.25], [8, 0.08]], "attack": 6, "release": 8 },
+      { "sine": 0.5, "attack": 7, "release": 8, "gain": 0.5 } ] },
+    "bell": { "seconds": 10, "level": 0.32, "layers": [
+      { "sine": 1, "decay": 0.5 },
+      { "sine": 2.0, "decay": 0.9, "gain": 0.4 },
+      { "sine": 2.76, "decay": 1.1, "gain": 0.25 },
+      { "sine": 5.4, "decay": 1.8, "gain": 0.1 } ] }
+  },
+  "tracks": [
+    { "inst": "organ", "play": "chords", "chords": "I IV", "voicing": [1, 5], "every": "8 bars", "octave": 2, "gain": 0.5, "send": 0.7 },
+    { "inst": "choir", "play": "chords", "chords": "I IV I VII vi IV I V", "voicing": [1, 3, 5, 8], "every": "2 bars", "octave": 3, "gain": 0.55, "send": 0.85 },
+    { "inst": "choir", "play": "pattern", "pattern": "x.......x.......", "octave": 4, "gain": 0.45, "vel": [0.5, 0.75], "send": 0.9, "from": 5,
+      "notes": "8 10  11 10  8 12  11 9  10 8  11 10  12 13  12 9  8 10  11 13  12 10  8 9" },
+    { "inst": "bell", "play": "pattern", "pattern": "x...............", "notes": "1 5 4 7", "octave": 4, "gain": 0.5, "vel": [0.4, 0.6], "send": 0.9, "from": 9 }
+  ]
+}

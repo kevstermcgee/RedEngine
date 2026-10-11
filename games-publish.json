@@ -8,7 +8,8 @@
       {"source": "recipes/coin_run.json", "destination": "coin-run"},
       {"source": "examples/marcel", "destination": "marcel"},
       {"source": "examples/wormhole", "destination": "wormhole"},
-      {"source": "examples/chroma", "destination": "chroma"}
+      {"source": "examples/chroma", "destination": "chroma"},
+      {"source": "examples/frameless", "destination": "frameless"}
     ],
     "prototypes": [
       {"source": "recipes", "destination": "recipes"}
@@ -58,6 +59,13 @@
       "entry": "games/chroma/chroma.json",
       "files": ["games/chroma"],
       "arguments": ["content/games/chroma/chroma.json"]
+    },
+    {
+      "slug": "frameless",
+      "name": "Frameless",
+      "entry": "games/frameless/frameless.json",
+      "files": ["games/frameless"],
+      "arguments": ["content/games/frameless/frameless.json"]
     },
     {
       "slug": "red-test-lab",

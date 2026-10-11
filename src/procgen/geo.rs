@@ -57,7 +57,8 @@ impl Geo {
         self.idx.len() / 3
     }
 
-    fn vert(&mut self, p: Vec3, n: Vec3, c: Rgb) -> u32 {
+    /// Adds one vertex (position, normal, colour) and returns its index.
+    pub fn vert(&mut self, p: Vec3, n: Vec3, c: Rgb) -> u32 {
         self.pos.push(p.to_array());
         self.nrm.push(n.normalize_or_zero().to_array());
         self.col.push(c);

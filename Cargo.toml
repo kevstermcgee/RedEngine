@@ -29,7 +29,7 @@ mcp = ["dep:rmcp", "dep:schemars", "dep:base64", "schema"]
 # `schema` = JSON Schema for every content format (`red_engine2 schema`, the typed defs in `content/` derive `schemars::JsonSchema`). Not in the headless
 # build (`--no-default-features`): the dedicated server needs the typed defs, not their schema.
 schema = ["dep:schemars"]
-render = ["dep:wgpu", "dep:pollster", "dep:naga"]
+render = ["dep:wgpu", "dep:pollster", "dep:naga", "dep:ab_glyph"]
 gfx = ["render", "dep:softbuffer", "dep:winit", "dep:rodio", "dep:gilrs", "dep:rfd", "dep:symphonia"]
 
 [dependencies]
@@ -65,6 +65,8 @@ subtle = "2.6"
 getrandom = "0.3"
 bytes = "1"
 wgpu = { version = "30.0.1", optional = true }
+# Draws the player's own system serif (`ui::serif`: a museum's labels and map); already in the tree through winit's window decorations.
+ab_glyph = { version = "0.2.32", optional = true }
 winit = { version = "0.30", optional = true }
 # The native 2D player (`re2d`, `red_engine2 play2d`) shows the CPU-rendered frame through the OS window with no GPU involved.
 softbuffer = { version = "0.4", default-features = false, features = ["x11", "x11-dlopen", "wayland", "wayland-dlopen"], optional = true }

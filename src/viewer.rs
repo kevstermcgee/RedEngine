@@ -363,6 +363,8 @@ impl LiveTargets {
 pub struct LiveRenderer {
     /// What the music sounds like, for a game's sky ([`Self::set_audio`]).
     audio: [[f32; 4]; 12],
+    /// What a game's own shaders should show now ([`Self::set_game_params`]).
+    game: [[f32; 4]; 8],
     color_format: wgpu::TextureFormat,
     pipelines: Pipelines,
     global_buf: wgpu::Buffer,
@@ -387,6 +389,8 @@ pub struct LiveRenderer {
     stream: Option<crate::stream_gpu::StreamLayer>,
     /// Every local viewer's eye, when several views are drawn in a frame (split-screen): the streamed world follows all of them.
     stream_eyes: Vec<Vec3>,
+    /// The scene's museum, when it has a `museum` block: the client hands it the visit every frame ([`Self::sync_museum`]).
+    museum: Option<crate::museum_gpu::MuseumLayer>,
     /// Drives the water's animation (it must not loop with the scene's `duration`).
     clock: Instant,
     /// Scene object ids suppressed by a game rule or application.
@@ -479,7 +483,13 @@ impl LiveRenderer {
     }
 
     fn build(device: &wgpu::Device, color_format: wgpu::TextureFormat, scene: &Scene, width: u32, height: u32, held_parts: Vec<HeldPart>) -> Self {
-        let pipelines = create_pipelines(device, color_format, MSAA_SAMPLES, scene.sky_shader.as_deref().map(|s| s.source.as_str()));
+        let pipelines = create_pipelines(
+            device,
+            color_format,
+            MSAA_SAMPLES,
+            scene.sky_shader.as_deref().map(|s| s.source.as_str()),
+            scene.museum.as_deref().and_then(|m| m.art.as_deref()),
+        );
         let shadow_sampler = make_shadow_sampler(device);
         let targets = LiveTargets::new(device, color_format, width, height);
 
@@ -577,6 +587,7 @@ impl LiveRenderer {
         let post = create_post_pipeline(device, color_format, MSAA_SAMPLES);
         let post_bind_group = post.bind(device, &targets.depth_view);
         let ocean = crate::ocean_pass::OceanPass::new(device, color_format, MSAA_SAMPLES, scene, &pipelines.layouts.global_uniform);
+        let museum = scene.museum.as_ref().map(|_| crate::museum_gpu::MuseumLayer::new(device, &pipelines.layouts.object));
         let stream = scene.procgen.clone().map(|cfg| {
             let workers = std::thread::available_parallelism().map_or(1, |n| (n.get() / 2).clamp(1, 3));
             crate::stream_gpu::StreamLayer::new(device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), workers)
@@ -615,7 +626,9 @@ impl LiveRenderer {
             ocean,
             stream,
             audio: [[0.0; 4]; 12],
+            game: [[0.0; 4]; 8],
             stream_eyes: Vec::new(),
+            museum,
             clock: Instant::now(),
             hidden_objects: HashSet::new(),
             held,
@@ -690,6 +703,18 @@ impl LiveRenderer {
     /// What a game's sky hears from the next frame on (the client sets it every frame while the player's music plays: `listen::Analyzer`).
     pub fn set_audio(&mut self, heard: &crate::listen::Heard) {
         self.audio = heard.uniform();
+    }
+
+    /// Hands the museum layer this frame's visit (models, doors, sculptures moving for time `t` with the viewer at `eye`). A no-op without a museum.
+    pub fn sync_museum(&mut self, device: &wgpu::Device, museum: &crate::museum::Museum, t: f32, eye: Vec3) {
+        if let Some(m) = &mut self.museum {
+            m.sync(device, museum, t, eye);
+        }
+    }
+
+    /// The eight numbers a game's own shaders read with `game_param(i)` from the next frame on (a museum: which painting's world surrounds the player).
+    pub fn set_game_params(&mut self, game: [[f32; 4]; 8]) {
+        self.game = game;
     }
 
     pub fn set_view_distance(&mut self, metres: f32) {
@@ -786,7 +811,7 @@ impl LiveRenderer {
             if origin == Vec3::ZERO { (weapon_transform, hand_prop_transform) } else { (shift * weapon_transform, shift * hand_prop_transform) };
         let camera = &ViewCamera { eye: camera.eye - origin, target: camera.target - origin, ..*camera };
         let view_proj = camera.view_proj(aspect);
-        let globals = GlobalUniform { audio: self.audio, ..build_globals_common(scene, t, camera.eye, view_proj, origin) };
+        let globals = GlobalUniform { audio: self.audio, game: self.game, ..build_globals_common(scene, t, camera.eye, view_proj, origin) };
         queue.write_buffer(&self.global_buf, 0, bytemuck::bytes_of(&globals));
 
         // Per-mesh frustum culling: which scene meshes are worth a draw call this frame, tested
@@ -861,6 +886,9 @@ impl LiveRenderer {
             }
             stream.set_origin(queue, origin);
             stream.update_motes(queue, camera.eye + origin, camera.forward(), t, scene.clock.as_ref());
+        }
+        if let Some(m) = &mut self.museum {
+            m.prepare(queue, origin, view_proj);
         }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("live-frame-encoder") });
 
@@ -977,6 +1005,9 @@ impl LiveRenderer {
             }
             if let Some(stream) = &self.stream {
                 stream.draw_main(&mut main_pass, view_proj);
+            }
+            if let Some(m) = &self.museum {
+                m.draw_main(&mut main_pass);
             }
             // Hand-held (third-person) bat instance: normal depth test against the world,
             // so a wall between the camera and the player correctly occludes it like any prop.

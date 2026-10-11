@@ -21,11 +21,12 @@ pub enum Kind {
     Project,
     Drivers,
     Trace,
+    Collection,
 }
 
 impl Kind {
     /// Every format, in report order.
-    pub const ALL: [Kind; 10] = [
+    pub const ALL: [Kind; 11] = [
         Kind::Scene,
         Kind::Game2d,
         Kind::PrefabLibrary,
@@ -36,6 +37,7 @@ impl Kind {
         Kind::Project,
         Kind::Drivers,
         Kind::Trace,
+        Kind::Collection,
     ];
 
     /// The name a report uses.
@@ -51,6 +53,7 @@ impl Kind {
             Kind::Project => "game.json",
             Kind::Drivers => "kart drivers",
             Kind::Trace => "trace",
+            Kind::Collection => "museum collection",
         }
     }
 }
@@ -80,6 +83,8 @@ pub fn detect(path: &Path, v: &Value) -> Option<Kind> {
         Some(Kind::Drivers)
     } else if v.as_array().is_some_and(|a| !a.is_empty() && a.iter().all(|d| d.get("name").and_then(Value::as_str).is_some())) {
         Some(Kind::PrefabLibrary)
+    } else if has("themes") && has("styles") && has("artists") {
+        Some(Kind::Collection)
     } else if has("tracks") && has("instruments") {
         Some(Kind::Score)
     } else if has("objects") {
@@ -181,6 +186,7 @@ pub fn check(kind: Kind, v: &Value, text: &str, path: &Path) -> Vec<String> {
         Kind::Project => crate::tools::game::parse(base.unwrap_or(Path::new(".")), text).err().unwrap_or_default(),
         Kind::Drivers => crate::sim::kart::Roster::parse(text).err().into_iter().collect(),
         Kind::Trace => crate::sim::trace::Trace::from_json(v).err().into_iter().collect(),
+        Kind::Collection => crate::museum::spec::parse_collection(v, None).err().unwrap_or_default(),
     }
 }
 

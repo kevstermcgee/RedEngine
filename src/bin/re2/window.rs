@@ -21,6 +21,10 @@ impl App {
         self.pause_hover = None;
         self.online.painted = None; // the online overlay (if any) is redrawn next frame
         self.rule_hud_painted = None; // likewise for the offline rules HUD
+        if let Some(m) = self.museum.as_mut() {
+            m.map_open = false;
+            m.forget_hud();
+        }
         self.set_window_overlay(0, 0, None);
         self.set_grab(!self.online.takeover && self.card.is_none());
     }
@@ -34,6 +38,10 @@ impl App {
 
     /// Redraws the pause menu overlay (after it opens, the window resizes or the hover changes).
     pub(crate) fn repaint_pause(&mut self) {
+        if self.museum.is_some() {
+            self.museum_repaint_pause();
+            return;
+        }
         let map = self.scene_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
         let status = self.pause_message.clone().or_else(|| self.net.as_ref().map(|n| n.status.clone()));
         let hover = self.pause_hover;

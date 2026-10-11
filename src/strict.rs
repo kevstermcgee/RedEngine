@@ -53,6 +53,7 @@ pub const ROOT_KEYS: &[&str] = &[
     "sky",
     "clock",
     "procgen",
+    "museum",
     "audio",
     "ocean",
     "style",

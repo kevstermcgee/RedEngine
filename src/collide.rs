@@ -17,7 +17,7 @@ use glam::{Mat4, Vec3};
 /// `min_y`/`max_y` are the world Y-range it actually occupies, kept (not resolved away at
 /// collection time) so multi-floor maps can decide per-frame whether a given collider is at the
 /// player's current floor — see [`colliders_on_floor`].
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Collider2D {
     pub min: glam::Vec2,
     pub max: glam::Vec2,

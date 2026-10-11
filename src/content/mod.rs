@@ -13,6 +13,7 @@ pub mod drivers;
 pub mod game2d;
 #[cfg(feature = "schema")]
 pub mod json_schema;
+pub mod museum;
 pub mod objects;
 pub mod packs;
 pub mod playscript;

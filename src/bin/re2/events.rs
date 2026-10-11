@@ -87,6 +87,10 @@ impl ApplicationHandler for App {
                 }
             }
         }
+        // A museum's pause menu, map, interact clicks and map key (see `museum.rs`).
+        if self.museum_window_event(&event, event_loop) {
+            return;
+        }
         // Music dropped on the window (one event per file; a batch is gathered and queued together on the next frame) in any screen of a game
         // that plays the player's own music.
         if self.scene.audio.as_ref().is_some_and(|a| a.playlist.is_some()) {

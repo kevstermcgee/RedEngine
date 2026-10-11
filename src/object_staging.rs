@@ -48,6 +48,7 @@ impl SlotKey {
             base_color: self.base_color,
             material: self.material,
             emissive: self.emissive,
+            ..bytemuck::Zeroable::zeroed()
         }
     }
 }

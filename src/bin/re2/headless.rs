@@ -181,11 +181,22 @@ impl Driver for App {
     fn press(&mut self, id: &str) -> Result<(), String> {
         // `key:NAME` presses one of the keys a game that plays the player's music listens to (`audio.playlist`): Space, ArrowLeft, ArrowRight.
         if let Some(name) = id.strip_prefix("key:") {
+            // A museum's pause menu and map (`key:Escape` opens or closes the menu, `key:M` the map).
+            if self.museum.is_some() && matches!(name, "Escape" | "M") {
+                match (name, self.paused) {
+                    ("M", _) => self.museum_toggle_map(),
+                    (_, true) => self.leave_pause(),
+                    (_, false) => self.enter_pause(),
+                }
+                return Ok(());
+            }
             let code = match name {
                 "Space" => KeyCode::Space,
                 "ArrowLeft" => KeyCode::ArrowLeft,
                 "ArrowRight" => KeyCode::ArrowRight,
-                other => return Err(format!("press key:{other}: a script can press key:Space, key:ArrowLeft or key:ArrowRight")),
+                other => {
+                    return Err(format!("press key:{other}: a script can press key:Space, key:ArrowLeft or key:ArrowRight (and in a museum key:Escape, key:M)"))
+                }
             };
             return if self.listen_key(code) {
                 Ok(())
@@ -207,6 +218,12 @@ impl Driver for App {
     /// The scene's own copy of the object: a loose prop's pose is written into it every frame, offline from the physics world and online from the
     /// server's snapshots, so this is where the prop is now either way.
     fn locate(&self, id: &str) -> Option<Target> {
+        // A museum's pieces are not scene objects: `museum:N` is piece N of the room the player is in, `museum:frame:N` painting N of the world
+        // they are inside, `museum:way-back` that world's frame back out, `museum:key` the key where it floats.
+        if let Some(what) = id.strip_prefix("museum:") {
+            let (lo, hi) = self.museum_bounds(what)?;
+            return Some(Target::from_bounds(lo, hi));
+        }
         let object = self.scene.objects.iter().find(|o| o.id == id)?;
         let item = red_engine2::collide::interactables_of(std::slice::from_ref(object)).into_iter().next()?;
         Some(Target::from_bounds(item.min, item.max))

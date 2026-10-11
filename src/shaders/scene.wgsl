@@ -14,6 +14,9 @@ struct VsOut {
     @location(0) world_pos: vec3<f32>,
     @location(1) world_normal: vec3<f32>,
     @location(2) vertex_color: vec3<f32>,
+    // The point and normal before the model transform: where a game's painted surface is evaluated.
+    @location(3) local_pos: vec3<f32>,
+    @location(4) local_normal: vec3<f32>,
 };
 
 @vertex
@@ -25,7 +28,16 @@ fn vs_main(in: VsIn) -> VsOut {
     out.world_pos = world.xyz;
     out.world_normal = normalize((obj.normal_mat * vec4<f32>(in.normal, 0.0)).xyz);
     out.vertex_color = in.color;
+    out.local_pos = in.pos;
+    out.local_normal = in.normal;
     return out;
+}
+
+// ---- A game's painted surfaces (`museum.art`) ----------------------------------------------------------------------------------------
+// The colour (rgb) and glow (a: how much of it shines by itself) of a painted object. A game's own `fn surface(s: SurfaceIn) -> vec4<f32>` replaces
+// this function's body (see `atmosphere::scene_source`); without one nothing in the scene is painted, so it is never called.
+fn surface_of(s: SurfaceIn) -> vec4<f32> {
+    return vec4<f32>(1.0, 1.0, 1.0, 0.0);
 }
 
 // ---- Sun shadows: cascades in one atlas (shadow.rs) ----------------------------------------------------------------------------------
@@ -128,7 +140,15 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // ceiling reads darker than a floor), which separates the planes of a room even where no
     // light reaches them directly.
     let hemi = mix(0.80, 1.10, n.y * 0.5 + 0.5);
-    let albedo = obj.base_color.rgb * in.vertex_color;
+    var albedo = obj.base_color.rgb * in.vertex_color;
+    // A painted surface: the game's function gives its colour and how much of it glows. The pixel's size is measured out here, where control flow is uniform.
+    let local_px = length(fwidth(in.local_pos));
+    var glow = vec3<f32>(0.0);
+    if (obj.surface.x > 0.5) {
+        let painted = surface_of(SurfaceIn(in.local_pos, normalize(in.local_normal), local_px, in.world_pos, n, obj.surface, obj.palette));
+        albedo = painted.rgb * in.vertex_color;
+        glow = painted.rgb * painted.a;
+    }
     var color = (globals.ambient.rgb + vec3<f32>(AMBIENT_FLOOR)) * albedo * hemi;
 
     let metallic = obj.material.x;
@@ -188,7 +208,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         color = color + (diffuse_color * n_dot_l + vec3<f32>(spec, spec, spec)) * ci.rgb * atten * shadow;
     }
 
-    color = color + obj.emissive.rgb;
+    color = color + obj.emissive.rgb + glow;
     // Exposure + filmic tone-mapping: rolls strong/overlapping lights off toward white instead of
     // hard-clipping, so an author's light intensities don't need to be perfectly balanced.
     color = aces(color * EXPOSURE);
