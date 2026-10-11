@@ -53,6 +53,8 @@ pub struct GlobalUniform {
     /// What the music sounds like now, for a game's sky (`listen::Heard::uniform`): 32 bands, then (level, bass, mid, treble), (beat, beats, song time,
     /// playing), (song seed, play seed, listening clock, 1 while a playlist drives the sky), one spare. All zero without an `audio.playlist`.
     pub audio: [[f32; 4]; 12],
+    /// Eight numbers a game's client sets every frame for its own shaders (`game_param(i)` in WGSL; `LiveRenderer::set_game_params`). All zero otherwise.
+    pub game: [[f32; 4]; 8],
 }
 
 impl GlobalUniform {
@@ -92,6 +94,10 @@ pub struct ObjectUniform {
     pub base_color: [f32; 4],
     pub material: [f32; 4],
     pub emissive: [f32; 4],
+    /// A game-painted surface (`museum.art`): `x > 0.5` hands every pixel to the game's `surface` function with these numbers and [`Self::palette`]; zero for anything else.
+    pub surface: [f32; 4],
+    /// Four colours for a painted surface (linear rgb, w free).
+    pub palette: [[f32; 4]; 4],
 }
 
 /// Uniform for the clarity post pass (see `shaders/postfx.wgsl`).
@@ -285,15 +291,16 @@ fn make_object_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
 /// attachment at all, and its depth attachment (the shadow map) is never multisampled by
 /// either caller — so it ignores this parameter.
 ///
-/// `sky` is a game's own sky (`sky.shader`, see `atmosphere::background_source`), drawn by the background pipeline instead of the engine's dome.
-pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat, sample_count: u32, sky: Option<&str>) -> Pipelines {
+/// `sky` is a game's own sky (`sky.shader`, see `atmosphere::background_source`), drawn by the background pipeline instead of the engine's dome; `art` is a
+/// game's painted surfaces (`museum.art`, `atmosphere::scene_source`), composed into the object shader and in front of the sky.
+pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat, sample_count: u32, sky: Option<&str>, art: Option<&str>) -> Pipelines {
     let global_uniform_bgl = make_global_uniform_layout(device);
     let global_full_bgl = make_global_full_layout(device);
     let object_bgl = make_object_layout(device);
 
     let scene_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("scene-shader"),
-        source: wgpu::ShaderSource::Wgsl(concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/scene.wgsl")).into()),
+        source: wgpu::ShaderSource::Wgsl(crate::atmosphere::scene_source(art)),
     });
     let shadow_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("shadow-shader"),
@@ -301,7 +308,7 @@ pub fn create_pipelines(device: &wgpu::Device, color_format: wgpu::TextureFormat
     });
     let bg_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("background-shader"),
-        source: wgpu::ShaderSource::Wgsl(crate::atmosphere::background_source(sky)),
+        source: wgpu::ShaderSource::Wgsl(crate::atmosphere::background_source(sky, art)),
     });
 
     let main_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

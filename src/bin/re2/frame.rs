@@ -90,6 +90,10 @@ impl App {
 
     /// What the player is asking for this tick, from the held keys (or the `RE2_AUTOWALK` debug script).
     pub(crate) fn build_input(&mut self) -> PlayerInput {
+        // Flying into or out of a painting: the camera is the museum's, the body waits.
+        if self.museum.as_ref().is_some_and(|m| !m.visit.free()) {
+            return PlayerInput { yaw: self.camera.yaw, pitch: self.camera.pitch, ..Default::default() };
+        }
         if let Some(mode) = self.autowalk.clone() {
             // "circle" or "circle:DEGREES_PER_SECOND" turns while walking; anything else walks straight.
             if let Some(rate) = mode.strip_prefix("circle") {
@@ -479,6 +483,7 @@ impl App {
     /// The screen effects for this frame: the fight's (when the scene shows combat) under the opening fade from black.
     pub(crate) fn fx_now(&self) -> red_engine2::feel::FxParams {
         let fx = if self.scene.hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() };
+        let fx = self.museum_wash(fx);
         let secs = self.scene.player.fade_in;
         if secs <= 0.0 {
             return fx;
@@ -570,6 +575,7 @@ impl App {
         for slot in 1..self.local_player_count() {
             self.as_player(slot, |app| app.update_player_view(dt, alpha));
         }
+        self.museum_frame(dt);
         self.update_ambient(dt);
         self.update_listening(dt);
         if let Some(audio) = &self.audio {
@@ -590,6 +596,7 @@ impl App {
     }
 
     pub(crate) fn draw(&mut self) {
+        self.museum_sync_gpu();
         // Pictures asked for (`--shot-at`, F12, a script) are drawn first, offscreen: they need neither a visible window nor focus, and the window's own frame below
         // may well not be presented at all (a minimised or occluded window).
         self.take_due_shots();
@@ -774,6 +781,7 @@ impl App {
         self.last_frame = Instant::now();
         self.net_title_at = Instant::now();
         self.set_grab(true);
+        self.start_museum();
         self.open_start_card();
     }
 

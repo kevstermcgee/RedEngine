@@ -1,0 +1,24 @@
+{
+  "camera": { "fov": 75, "position": [0, 1.6, 5], "target": [0, 1.7, -8], "far": 400 },
+  "player": { "humans_play_as": "human", "mode": "peaceful", "fov": 75 },
+  "hud": { "enabled": false },
+  "music": false,
+  "ambient": { "color": "#fff1e2", "intensity": 0.5 },
+  "background": { "color": "#05060a" },
+  "ui": {
+    "title": "Frameless",
+    "start": { "title": "Frameless", "text": "An endless museum. Every room keeps a key, hidden in one of its pieces: sometimes in a painting, sometimes in a painting inside a painting. Walk up to anything. E steps inside. Esc pauses: the map is there.", "button": "Enter" }
+  },
+  "sky": { "shader": "shaders/sky.wgsl", "seed": "launch" },
+  "museum": { "collection": "collection.json", "art": "shaders/art.wgsl", "seed": "launch", "start_theme": "wonder" },
+  "audio": {
+    "journey": {
+      "scores": ["audio/the_long_gallery.json", "audio/letters.json", "audio/sunlit.json", "audio/lanterns.json", "audio/undertow.json", "audio/embrace.json", "audio/vigil.json", "audio/cathedral.json"],
+      "seed": "launch", "fade": 10, "repeats": 2
+    },
+    "music_volume": 0.8
+  },
+  "spawns": [ { "id": "start", "position": [0, 0, 5], "yaw_deg": 0 } ],
+  "objects": [],
+  "checks": { "lint": { "max_errors": 0, "max_warnings": 0 } }
+}

@@ -144,6 +144,12 @@ impl App {
     /// Paints the offline rule state over the world. It intentionally yields to the pause and
     /// online overlays, which own the same texture while they are active.
     pub(crate) fn sync_rule_hud(&mut self) {
+        if self.museum.is_some() {
+            if !self.paused {
+                self.sync_museum_hud();
+            }
+            return;
+        }
         if self.net.is_some() || self.paused || (!self.rules.has_rules() && self.project_maps.is_empty() && self.scene.ui.is_none()) {
             return;
         }

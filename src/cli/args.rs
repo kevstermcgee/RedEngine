@@ -332,7 +332,7 @@ pub(crate) enum Command {
         #[arg(long, default_value = "schemas")]
         out: PathBuf,
     },
-    /// Render a single PNG frame at time `--t` seconds (fast layout/lighting check). Supports a free
+    /// Render one PNG frame at `--t` seconds (fast layout/lighting check). Supports a free
     /// camera, hiding objects, and cutaways so any part of a map can be inspected without editing it.
     Frame {
         scene: PathBuf,
@@ -411,6 +411,37 @@ pub(crate) enum Command {
         /// Aim the camera at the `sun` or the `moon` in every tile (the horizon in its direction when it is below it).
         #[arg(long)]
         look: Option<String>,
+    },
+    /// A museum's rooms, art
+    Museum {
+        scene: PathBuf,
+        /// The museum's seed (default: the scene's, or 0 for "launch").
+        #[arg(long)]
+        seed: Option<u32>,
+        /// Which room "x,z" (the first room is 0,0).
+        #[arg(long, default_value = "0,0", allow_hyphen_values = true)]
+        room: String,
+        /// Draw a picture: the room from its doorway, a piece (`--look`), or the world inside a painting (`--inside`).
+        #[arg(long)]
+        shot: Option<PathBuf>,
+        /// The piece to stand in front of for `--shot`.
+        #[arg(long)]
+        look: Option<u8>,
+        /// The painting world to stand in: "N" (piece N's) or "N/I/J" (painting I inside it, then J inside that).
+        #[arg(long)]
+        inside: Option<String>,
+        /// Draw the pause menu's plan of the museum.
+        #[arg(long)]
+        map: Option<PathBuf>,
+        /// For `--map`: count every room within this many rooms as discovered.
+        #[arg(long, default_value_t = 2)]
+        explore: u32,
+        /// Scene time for `--shot` (paintings move).
+        #[arg(long, default_value_t = 4.0)]
+        t: f32,
+        /// Draw every art style of the collection on one wall.
+        #[arg(long)]
+        styles: Option<PathBuf>,
     },
     /// A generated world, mapped
     Procgen {
@@ -546,7 +577,7 @@ pub(crate) enum Command {
         #[arg(long)]
         phase: Option<String>,
     },
-    /// Replay a walking route with the game's real per-tick physics. `walk scene.json --path "0,-8; 0,1; -0.8,2; -0.8,7.6"`.
+    /// Replay a walk with the game's real physics. `walk scene.json --path "0,-8; 0,1; -0.8,2; -0.8,7.6"`.
     /// Prints where the player ends up at each waypoint, or where they get stuck AND which object stopped them (id, gap,
     /// passage width vs body). `--auto --to X,Z[,Y]` plans the route for you (A* on the reach grid, validated with the real
     /// physics) and prints waypoints to paste; `--explain out.png` draws the route, the stop point and the blocker.

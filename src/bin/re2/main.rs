@@ -64,6 +64,7 @@ mod frame;
 mod headless;
 mod help;
 mod listen;
+mod museum;
 mod online;
 mod project_browser;
 mod shots;
@@ -400,6 +401,8 @@ struct App {
     music_on: bool,
     /// The countryside and the mood music of a scene with an `audio` block.
     ambient: Option<ambient::Ambient>,
+    /// The visit, when the scene is a museum (`museum` block; see `museum.rs`).
+    museum: Option<museum::MuseumClient>,
     /// The player's own music (`audio.playlist`).
     listen: Option<listen::Listener>,
     /// Files dropped on the window since the last frame (they join the queue together, in the order they came).
@@ -507,7 +510,8 @@ impl App {
 impl App {
     fn new(mut scene: Scene, scene_path: PathBuf, forced_character: Option<Character>, net_server: Option<SocketAddr>, net_world: Option<ClientWorld>) -> Self {
         // A game sky (and an audio journey) with "seed": "launch" is new each time the game starts; the seed is printed so a run can be talked about.
-        let launch = red_engine2::play2d::launch_seed(None) as u32;
+        // `RE2_SEED=N` repeats a run (the same sky, music and museum).
+        let launch = red_engine2::play2d::launch_seed(std::env::var("RE2_SEED").ok().and_then(|s| s.parse().ok())) as u32;
         if scene.fix_launch_seeds(launch) {
             println!("seed {} (the sky and music of this run)", launch & 0x00ff_ffff);
         }
@@ -648,6 +652,7 @@ impl App {
             streaks: None,
             music_on: false,
             ambient: None,
+            museum: None,
             listen: None,
             dropped: Vec::new(),
             fresh_events: Vec::new(),

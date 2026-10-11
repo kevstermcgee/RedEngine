@@ -180,6 +180,14 @@
       "docs": ["docs/adr/2026-10-04-an-endless-world-procgen-as-pure-functions-of-a-seed.md", "docs/adr/2026-10-04-plants-as-small-parametric-models-previewed-in-software.md", "docs/adr/2026-10-04-the-streamed-world-chunks-around-the-player-a-floating.md"],
       "depends_on": ["scene_format", "offline_renderer", "player_physics"]
     },
+    "museum": {
+      "summary": "An endless museum (`museum` block): rooms, doors and wings from a seed, art with plaques written from a collection, a key hidden in each room (sometimes paintings deep), the worlds inside paintings, sculptures that answer the viewer, the visit and its flights, the GPU layer, serif labels and the map; `museum` prints a room and draws a piece, a painting's world, the plan or every style.",
+      "files": ["src/museum/**", "src/museum_gpu.rs", "src/tools/museum_tool.rs", "src/content/museum.rs", "src/ui/serif.rs", "src/bin/re2/museum.rs", "schemas/collection.schema.json", "examples/frameless/**"],
+      "tests": ["lib:museum", "lib:ui::serif", "content_drift"],
+      "commands": ["red_engine2 museum examples/frameless/frameless.json", "red_engine2 museum examples/frameless/frameless.json --inside 1 --shot out/inside.png", "red_engine2 museum examples/frameless/frameless.json --styles out/styles.png"],
+      "docs": ["docs/adr/2026-10-11-an-endless-museum-is-a-scene-block-the-engine-builds.md", "docs/adr/2026-10-11-a-game-paints-surfaces-with-its-own-checked-wgsl-and.md", "docs/adr/2026-10-11-text-that-is-read-is-set-in-the-player-s-own-system.md", "docs/adr/2026-10-11-a-game-steers-its-music-journey.md"],
+      "depends_on": ["scene_format", "offline_renderer", "player_physics", "audio", "ui_kit", "graphical_client"]
+    },
     "audio": {
       "summary": "Sound you can measure: the procedural synthesis (guns, effects, music, ambience) and WAV encoder build headless; `audio list|report|render|picture|check` give loudness (BS.1770 LUFS), peaks, clipping, silence, loop seam, spectrum and pitch as numbers or one picture, and hold every built-in sound to a standard.",
       "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/audio_fx.rs", "src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json", "src/nature.rs", "src/ambience.rs", "src/mixer.rs", "src/tools/audio_checks.rs", "examples/marcel/audio/*.json", "src/soundscape.rs", "src/listen.rs"],

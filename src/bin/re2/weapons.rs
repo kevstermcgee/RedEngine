@@ -233,6 +233,10 @@ impl App {
     /// along the look), else pick up the prop under the crosshair. A peaceful scene also gets an `interact` rule event when the press
     /// found nothing to pick up or drop, so a rule can make anything interactive.
     pub(crate) fn interact(&mut self) {
+        if let Some(m) = self.museum.as_mut() {
+            m.interact = true;
+            return;
+        }
         if self.net.is_some() {
             self.net_pulse[0] = NET_PULSE_TICKS; // the server picks up / drops
             return;

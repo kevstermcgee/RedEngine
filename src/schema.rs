@@ -96,6 +96,8 @@ pub struct Scene {
     pub clock: Option<crate::daycycle::Clock>,
     /// An endless generated world (`procgen` block): ground, forests and flowers made from a seed, built around the player as they walk.
     pub procgen: Option<crate::procgen::Config>,
+    /// An endless museum (`museum` block): rooms, art, keys and the worlds inside paintings, built around the player (`crate::museum`).
+    pub museum: Option<std::sync::Arc<crate::museum::MuseumSpec>>,
     /// The sounds of the world (`audio` block): nature ambience and a score for each time of day.
     pub audio: Option<crate::ambience::AudioSpec>,
     /// The endless water plane (`ocean` block), if the scene has one.
@@ -121,6 +123,10 @@ impl Scene {
         }
         if let Some(j) = self.audio.as_mut().and_then(|a| a.journey.as_mut()).filter(|j| j.seed == LaunchSeed::Launch) {
             j.seed = fixed;
+            any = true;
+        }
+        if let Some(m) = self.museum.as_mut().filter(|m| m.seed == LaunchSeed::Launch) {
+            std::sync::Arc::make_mut(m).seed = fixed;
             any = true;
         }
         any
@@ -1180,6 +1186,13 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             None
         }
     };
+    let museum = match crate::museum::parse_museum(root, ASSET_DIR.with(|d| d.borrow().clone()).as_deref()) {
+        Ok(m) => m.map(std::sync::Arc::new),
+        Err(errs) => {
+            ctx.errors.extend(errs);
+            None
+        }
+    };
     let audio = match crate::ambience::parse_audio(root, ASSET_DIR.with(|d| d.borrow().clone()).as_deref()) {
         Ok(a) => a,
         Err(errs) => {
@@ -1463,6 +1476,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         teams,
         sky,
         sky_shader,
+        museum,
         clock,
         procgen,
         audio,

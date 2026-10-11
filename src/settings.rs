@@ -20,11 +20,13 @@ use std::path::{Path, PathBuf};
 pub struct Settings {
     pub music: bool,
     pub sfx: bool,
+    /// The player's own footsteps (some games make them faint; anyone may turn them off).
+    pub steps: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { music: true, sfx: true }
+        Settings { music: true, sfx: true, steps: true }
     }
 }
 
@@ -149,6 +151,7 @@ pub fn load(key: &str) -> Settings {
         Some(Settings {
             music: v.get("music").and_then(serde_json::Value::as_bool).unwrap_or(true),
             sfx: v.get("sfx").and_then(serde_json::Value::as_bool).unwrap_or(true),
+            steps: v.get("steps").and_then(serde_json::Value::as_bool).unwrap_or(true),
         })
     })()
     .unwrap_or_default()
@@ -160,7 +163,7 @@ pub fn save(key: &str, s: &Settings) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
     }
-    let doc = json!({"music": s.music, "sfx": s.sfx});
+    let doc = json!({"music": s.music, "sfx": s.sfx, "steps": s.steps});
     std::fs::write(&path, serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())? + "\n").map_err(|e| format!("{}: {e}", path.display()))
 }
 
@@ -264,7 +267,7 @@ mod tests {
         unsafe { std::env::set_var("XDG_CONFIG_HOME", &home) };
 
         assert_eq!(load("some-key"), Settings::default(), "nothing saved yet: defaults");
-        let custom = Settings { music: false, sfx: true };
+        let custom = Settings { music: false, sfx: true, steps: true };
         save("some-key", &custom).unwrap();
         assert_eq!(load("some-key"), custom);
 
@@ -286,7 +289,7 @@ mod tests {
         assert_eq!(load_vars("a-different-key"), vars);
         unsafe { std::env::remove_var(SAVE_DIR_ENV) };
         assert_eq!(load("some-key"), Settings::default(), "without the folder the old keyed place is used again");
-        let legacy = Settings { music: true, sfx: false };
+        let legacy = Settings { music: true, sfx: false, steps: true };
         save("legacy-key", &legacy).unwrap();
         let fresh = scratch("saves_fresh");
         unsafe { std::env::set_var(SAVE_DIR_ENV, &fresh) };
@@ -301,7 +304,7 @@ mod tests {
         set_id(&project, None);
         let folder_key = key_for(&map);
         assert!(folder_key.starts_with("adopter-"), "{folder_key}");
-        let before = Settings { music: false, sfx: false };
+        let before = Settings { music: false, sfx: false, steps: true };
         save(&folder_key, &before).unwrap();
         let mut progress = std::collections::BTreeMap::new();
         progress.insert("days".to_string(), 41.0);
@@ -312,9 +315,9 @@ mod tests {
         assert_eq!(load("adopter"), Settings::default(), "the new key starts empty");
         assert_eq!(adopt_legacy(&map), 2, "settings and variables are carried over");
         assert_eq!((load("adopter"), load_vars("adopter")), (before, progress), "nothing was lost by adding an id");
-        save("adopter", &Settings { music: true, sfx: true }).unwrap();
+        save("adopter", &Settings { music: true, sfx: true, steps: true }).unwrap();
         assert_eq!(adopt_legacy(&map), 0, "a second run copies nothing");
-        assert_eq!(load("adopter"), Settings { music: true, sfx: true }, "and never overwrites what was saved since");
+        assert_eq!(load("adopter"), Settings { music: true, sfx: true, steps: true }, "and never overwrites what was saved since");
         let _ = std::fs::remove_dir_all(&project);
 
         match old {

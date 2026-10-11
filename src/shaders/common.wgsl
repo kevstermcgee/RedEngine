@@ -30,6 +30,7 @@ struct Globals {
     glow: vec4<f32>,
     fog: vec4<f32>,
     audio: array<vec4<f32>, 12>,
+    game: array<vec4<f32>, 8>,
 };
 @group(0) @binding(0) var<uniform> globals: Globals;
 
@@ -39,6 +40,9 @@ struct ObjectUniform {
     base_color: vec4<f32>,
     material: vec4<f32>,
     emissive: vec4<f32>,
+    // A game-painted surface (`museum.art`, see `surface_hook` in scene.wgsl): x > 0 turns it on; the game's `surface` reads the rest and `palette`.
+    surface: vec4<f32>,
+    palette: array<vec4<f32>, 4>,
 };
 
 // ---- Sunset light (shared by the sky and the haze) -----------------------------------------------------------------------------------
@@ -89,4 +93,119 @@ fn wind_offset(w: f32, p: vec3<f32>) -> vec3<f32> {
     let gust = 0.55 + 0.45 * sin(t * 0.23 - phase * 0.11);
     let d = w * (wave * gust + 0.35 * gust);
     return vec3<f32>(0.86 * d, 0.0, 0.5 * d);
+}
+
+// ---- A game's own shaders (`sky.shader`, `museum.art`): what they may call ------------------------------------------------------------
+// These live here, in every module, so a game's code reads the same helpers whether it draws the sky or a surface.
+
+// What a game's `surface` function (`museum.art`) is given for one pixel of a painted object: the point and normal in the object's own space (a canvas is
+// the unit square x, y in -0.5..0.5 facing +z), the size of a pixel there, the world point and normal, and the object's `surface` numbers and palette.
+struct SurfaceIn {
+    p: vec3<f32>,
+    n: vec3<f32>,
+    px: f32,
+    world: vec3<f32>,
+    world_n: vec3<f32>,
+    params: vec4<f32>,
+    palette: array<vec4<f32>, 4>,
+};
+
+// Eight numbers a game's client sets every frame (`LiveRenderer::set_game_params`): what its sky and surfaces should show now. All zero otherwise.
+fn game_param(i: i32) -> vec4<f32> {
+    return globals.game[clamp(i, 0, 7)];
+}
+
+// Seconds since the scene began (the scene time every shader sees); with an `audio.playlist`, seconds of listening, which stop while the music is
+// paused (so pausing freezes the picture with the music).
+fn sky_time() -> f32 {
+    return select(globals.night.y, globals.audio[10].z, globals.audio[10].w > 0.5);
+}
+
+// The sky's seed: `sky.seed`, or a new whole number each launch with "seed": "launch" (below 2^24, so exact as a float).
+fn sky_seed() -> f32 {
+    return globals.sky.w;
+}
+
+// What the music sounds like (a scene's `audio.playlist`; all 0 without one, so a sky still draws in silence). `sky_band(i)`: band i of 32, low to high,
+// 0..1 against the loudest moments so far. `sky_bass/mid/treble/level()`: 0..1. `sky_beat()`: 1 at a beat, gone in about half a second;
+// `sky_beats()`: beats so far in this song. `sky_song()`: the same for every play of a song; `sky_play()`: new every time a song starts (both whole
+// numbers below 2^24). `sky_song_time()`: seconds into the song; `sky_playing()`: 0 to 1, eased.
+fn sky_band(i: i32) -> f32 {
+    let k = clamp(i, 0, 31);
+    return globals.audio[k / 4][k % 4];
+}
+
+fn sky_level() -> f32 {
+    return globals.audio[8].x;
+}
+
+fn sky_bass() -> f32 {
+    return globals.audio[8].y;
+}
+
+fn sky_mid() -> f32 {
+    return globals.audio[8].z;
+}
+
+fn sky_treble() -> f32 {
+    return globals.audio[8].w;
+}
+
+fn sky_beat() -> f32 {
+    return globals.audio[9].x;
+}
+
+fn sky_beats() -> f32 {
+    return globals.audio[9].y;
+}
+
+fn sky_song_time() -> f32 {
+    return globals.audio[9].z;
+}
+
+fn sky_playing() -> f32 {
+    return globals.audio[9].w;
+}
+
+fn sky_song() -> f32 {
+    return globals.audio[10].x;
+}
+
+fn sky_play() -> f32 {
+    return globals.audio[10].y;
+}
+
+// ---- Noise -------------------------------------------------------------------------------------------------------------------------
+
+fn hash13(p: vec3<f32>) -> f32 {
+    var q = fract(p * 0.1031);
+    q = q + dot(q, q.zyx + 31.32);
+    return fract((q.x + q.y) * q.z);
+}
+
+fn hash33(p: vec3<f32>) -> vec3<f32> {
+    var q = fract(p * vec3<f32>(0.1031, 0.1030, 0.0973));
+    q = q + dot(q, q.yxz + 33.33);
+    return fract((q.xxy + q.yxx) * q.zyx);
+}
+
+fn vnoise(p: vec3<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    let a = mix(mix(hash13(i), hash13(i + vec3<f32>(1.0, 0.0, 0.0)), u.x), mix(hash13(i + vec3<f32>(0.0, 1.0, 0.0)), hash13(i + vec3<f32>(1.0, 1.0, 0.0)), u.x), u.y);
+    let b = mix(mix(hash13(i + vec3<f32>(0.0, 0.0, 1.0)), hash13(i + vec3<f32>(1.0, 0.0, 1.0)), u.x), mix(hash13(i + vec3<f32>(0.0, 1.0, 1.0)), hash13(i + vec3<f32>(1.0, 1.0, 1.0)), u.x), u.y);
+    return mix(a, b, u.z);
+}
+
+fn fbm(p: vec3<f32>) -> f32 {
+    var s = 0.0;
+    var a = 0.5;
+    var q = p;
+    for (var i = 0; i < 5; i = i + 1) {
+        s = s + a * vnoise(q);
+        q = q * 2.03 + vec3<f32>(17.1, 3.7, 9.2);
+        a = a * 0.5;
+    }
+    return s;
 }

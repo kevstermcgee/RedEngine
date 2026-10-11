@@ -73,6 +73,7 @@ pub fn backdrop_scene() -> Scene {
         ui: None,
         clock: None,
         procgen: None,
+        museum: None,
         audio: None,
         music: false,
         flashlight: false,

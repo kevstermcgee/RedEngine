@@ -173,6 +173,8 @@ pub struct Journey {
     /// What is left of this round's deck, next on top (the end of the vector).
     deck: Vec<usize>,
     round: u64,
+    /// The scores the game wants now (a museum wing's), when it has said ([`Self::prefer`]): sections are drawn from these instead of the deck.
+    prefer: Option<Vec<usize>>,
 }
 
 /// Key moves between sections, in semitones, each listed as often as it is wanted.
@@ -188,7 +190,7 @@ fn mix32(a: u32, b: u64) -> u32 {
 impl Journey {
     /// A journey over `scores` scores (at least one) from `seed`.
     pub fn new(seed: u32, scores: usize) -> Journey {
-        Journey { seed, scores: scores.max(1), next: 0, last_score: None, shift: 0, deck: Vec::new(), round: 0 }
+        Journey { seed, scores: scores.max(1), next: 0, last_score: None, shift: 0, deck: Vec::new(), round: 0, prefer: None }
     }
 
     /// The next score off the deck, shuffling a new round when it is empty: the first round opens with score 0, and no round opens with the score that
@@ -215,11 +217,28 @@ impl Journey {
         self.deck.pop().unwrap_or(0)
     }
 
+    /// Draws the following sections from `scores` (indices; out-of-range ones are ignored), never the same score twice running when there is a choice;
+    /// `None` or an empty list goes back to the deck.
+    pub fn prefer(&mut self, scores: Option<&[usize]>) {
+        self.prefer = scores.map(|s| s.iter().copied().filter(|i| *i < self.scores).collect::<Vec<_>>()).filter(|s| !s.is_empty());
+    }
+
+    /// Whether `score` is one the game wants now (always, when it has not said).
+    pub fn wanted_score(&self, score: usize) -> bool {
+        self.prefer.as_ref().is_none_or(|p| p.contains(&score))
+    }
+
     /// The next section.
     pub fn next_section(&mut self) -> Section {
         let index = self.next;
         self.next += 1;
-        let score = self.deal();
+        let score = match &self.prefer {
+            Some(p) => {
+                let choices: Vec<usize> = if p.len() > 1 { p.iter().copied().filter(|s| Some(*s) != self.last_score).collect() } else { p.clone() };
+                choices[mix32(self.seed ^ 0x9EF, index) as usize % choices.len()]
+            }
+            None => self.deal(),
+        };
         let r = |salt: u64| mix32(self.seed, index.wrapping_mul(8).wrapping_add(salt));
         if index > 0 {
             let moved = self.shift + KEY_MOVES[r(2) as usize % KEY_MOVES.len()];
@@ -258,6 +277,8 @@ pub struct JourneyPlayer {
     leaving: Option<(usize, f32)>,
     /// Seconds into the very first fade-in.
     opening: f32,
+    /// The game asked for other music ([`Self::prefer`]): move on as soon as a wanted section is ready.
+    hurry: bool,
 }
 
 impl JourneyPlayer {
@@ -265,7 +286,35 @@ impl JourneyPlayer {
     pub fn new(spec: &JourneySpec, seed: u32) -> JourneyPlayer {
         let mut planner = Journey::new(seed, spec.scores.len());
         let first = planner.next_section();
-        JourneyPlayer { planner, fade: spec.fade, repeats: spec.repeats, wanted: Some(first), ready: None, current: None, leaving: None, opening: 0.0 }
+        JourneyPlayer {
+            planner,
+            fade: spec.fade,
+            repeats: spec.repeats,
+            wanted: Some(first),
+            ready: None,
+            current: None,
+            leaving: None,
+            opening: 0.0,
+            hurry: false,
+        }
+    }
+
+    /// Steers the journey toward `scores` (a museum's wing): the next section is drawn from them, a waiting section that is not is dropped, and if what
+    /// plays now is not one of them the music moves on (crossfading over the journey's fade) as soon as the new section is rendered. Asking for the same
+    /// scores again changes nothing.
+    pub fn prefer(&mut self, scores: &[usize]) {
+        let before = self.planner.prefer.clone();
+        self.planner.prefer(Some(scores));
+        if self.planner.prefer == before {
+            return;
+        }
+        if self.ready.is_some_and(|(r, _)| !self.planner.wanted_score(r.score)) {
+            self.ready = None;
+        }
+        if self.ready.is_none() && self.wanted.is_none_or(|w| !self.planner.wanted_score(w.score)) {
+            self.wanted = Some(self.planner.next_section());
+        }
+        self.hurry = self.current.is_some_and(|c| !self.planner.wanted_score(c.0.score));
     }
 
     /// The section that should be rendered now, if any.
@@ -303,7 +352,10 @@ impl JourneyPlayer {
                 let age = age + dt;
                 self.current = Some((section, slot, secs, age));
                 self.opening += dt;
-                let due = age >= secs * self.repeats as f32 - fade;
+                let due = age >= secs * self.repeats as f32 - fade || (self.hurry && self.ready.is_some() && age > fade);
+                if due && self.ready.is_some() {
+                    self.hurry = false;
+                }
                 if due && self.leaving.is_none() {
                     if let Some((next, next_secs)) = self.ready.take() {
                         let other = 1 - slot;
@@ -889,6 +941,37 @@ mod tests {
             .unwrap();
         }
         dir
+    }
+
+    #[test]
+    fn a_game_can_steer_the_journey_and_it_moves_on_as_soon_as_the_new_music_is_ready() {
+        let spec =
+            JourneySpec { scores: vec!["a".into(), "b".into(), "c".into(), "d".into()], seed: crate::atmosphere::LaunchSeed::Fixed(3), fade: 4.0, repeats: 2 };
+        let mut p = JourneyPlayer::new(&spec, 3);
+        let first = p.wanted().unwrap();
+        assert_eq!(first.score, 0, "the journey still opens with its first score");
+        p.ready(first.index, 60.0);
+        p.step(0.1);
+        // The game wants scores 2 and 3 now: the next section comes from them, and the music moves on once it is rendered, not after two minutes.
+        p.prefer(&[2, 3]);
+        let next = p.wanted().unwrap();
+        assert!(next.score == 2 || next.score == 3);
+        for _ in 0..50 {
+            p.step(0.1);
+        }
+        p.ready(next.index, 60.0);
+        let mut moved = false;
+        for _ in 0..100 {
+            if p.step(0.1).start.is_some() {
+                moved = true;
+            }
+        }
+        assert!(moved, "crossfaded to the wing's music within seconds");
+        assert!(p.playing().is_some_and(|s| s.score == 2 || s.score == 3));
+        let mut j = Journey::new(5, 4);
+        j.prefer(Some(&[1, 2]));
+        let picks: Vec<usize> = (0..20).map(|_| j.next_section().score).collect();
+        assert!(picks.iter().all(|s| *s == 1 || *s == 2) && picks.windows(2).all(|w| w[0] != w[1]), "{picks:?}");
     }
 
     #[test]

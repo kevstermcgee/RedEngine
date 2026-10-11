@@ -1,0 +1,2662 @@
+{
+  "$comment": "Frameless: the collection. Styles and materials are in the order shaders/art.wgsl numbers them. Templates fill {slots} from the theme's words, then the shared words; {a|b} picks one; {Slot} capitalises.",
+  "styles": [
+    "ink",
+    "field",
+    "horizon",
+    "tide",
+    "starry",
+    "glass",
+    "rings",
+    "portrait",
+    "bauhaus",
+    "shatter",
+    "ember",
+    "forest",
+    "window",
+    "mosaic",
+    "aurora",
+    "dots",
+    "galaxy",
+    "rain",
+    "garden",
+    "maze",
+    "eye",
+    "orbs",
+    "weave",
+    "storm",
+    "bloom",
+    "void"
+  ],
+  "materials": [
+    "marble",
+    "bronze",
+    "glass",
+    "clay",
+    "gilt",
+    "obsidian",
+    "porcelain",
+    "opal",
+    "verdigris",
+    "ember"
+  ],
+  "words": {
+    "first": [
+      "Ada",
+      "Ines",
+      "Tomas",
+      "Yusuf",
+      "Mireille",
+      "Kenji",
+      "Saoirse",
+      "Anouk",
+      "Bartholomew",
+      "Lucía",
+      "Oskar",
+      "Noor",
+      "Wren",
+      "Ilse",
+      "Teodor",
+      "Amara",
+      "Hiroshi",
+      "Elif",
+      "Matthias",
+      "Sunniva",
+      "Rafael",
+      "Ottoline",
+      "Dmitri",
+      "Zainab",
+      "August",
+      "Beatrix",
+      "Kofi",
+      "Margit",
+      "Leopold",
+      "Isaura",
+      "Emeric",
+      "Paloma",
+      "Casimir",
+      "Hana",
+      "Aurelio",
+      "Thea",
+      "Ignatius",
+      "Femi",
+      "Clementine",
+      "Arvid",
+      "Maren",
+      "Quentin",
+      "Leila",
+      "Silvan",
+      "Rosalind",
+      "Joaquín",
+      "Vesna",
+      "Ambrose",
+      "Kaito",
+      "Odile",
+      "Florian",
+      "Ingrid",
+      "Ezra",
+      "Celestine",
+      "Lior",
+      "Agathe",
+      "Mateo",
+      "Solveig",
+      "Idris",
+      "Philippa"
+    ],
+    "last": [
+      "Moreau",
+      "Kalnins",
+      "Okafor",
+      "Vasquez",
+      "Lindqvist",
+      "Hartmann",
+      "Takeda",
+      "Abernathy",
+      "Delacroix-Ruiz",
+      "Novak",
+      "Halloran",
+      "Ferreira",
+      "Ostrowski",
+      "Achterberg",
+      "Mbeki",
+      "Sørensen",
+      "Castellane",
+      "Ivanova",
+      "Whitlock",
+      "Bellweather",
+      "Nakamura",
+      "Quill",
+      "Esposito",
+      "Van Doorn",
+      "Kowalczyk",
+      "Ashdown",
+      "Lemaire",
+      "Okonkwo",
+      "Strand",
+      "Marchetti",
+      "Fairweather",
+      "Duval",
+      "Petrescu",
+      "Holloway",
+      "Arnaud",
+      "Bergström",
+      "Calloway",
+      "Szabo",
+      "Thorne",
+      "Yildiz",
+      "Lockridge",
+      "Marlowe",
+      "Ravel",
+      "Okoro",
+      "Winterbourne",
+      "Abelard",
+      "Kestrel",
+      "Montclair",
+      "Vey",
+      "Lune",
+      "Sato",
+      "Grieve",
+      "Halvorsen",
+      "Pellegrini",
+      "Rook",
+      "Albescu",
+      "Merriweather",
+      "Desrosiers",
+      "Oyelaran",
+      "Fenwick"
+    ],
+    "initial": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "J",
+      "K",
+      "L",
+      "M",
+      "N",
+      "O",
+      "P",
+      "R",
+      "S",
+      "T",
+      "V",
+      "W"
+    ],
+    "epithet": [
+      "the Salt Hand",
+      "the Lantern Painter",
+      "the Master of the Quiet Rooms",
+      "the Painter of Closed Doors",
+      "the Weaver of Ashford",
+      "the Harbour Master",
+      "the Night Copyist",
+      "the Woman Who Painted Rain",
+      "the Glass Monk",
+      "the Master of the Blue Hour",
+      "the Cartographer",
+      "the Kiln Brothers",
+      "the Hand With Six Fingers",
+      "the Lighthouse School",
+      "the Silent Workshop",
+      "the Painter of Second Chances",
+      "the Orchard Hand",
+      "the Clockmaker's Apprentice",
+      "the Moth Painter",
+      "the Master of the Unfinished Letter",
+      "the Bell Founder",
+      "the Grey Choir"
+    ],
+    "city": [
+      "Trieste",
+      "Valparaíso",
+      "Bergen",
+      "Kyoto",
+      "Lisbon",
+      "Glasgow",
+      "Odessa",
+      "Tangier",
+      "Chamonix",
+      "Riga",
+      "Montevideo",
+      "Saint-Malo",
+      "Zanzibar",
+      "Potosí",
+      "Kraków",
+      "Hobart",
+      "Naples",
+      "Finisterre",
+      "Istanbul",
+      "Tórshavn",
+      "Antwerp",
+      "Oaxaca",
+      "Hanoi",
+      "Lviv",
+      "Galway",
+      "Marrakesh",
+      "Vladivostok",
+      "Quebec",
+      "Budapest",
+      "Lagos",
+      "Tromsø",
+      "Ravenna",
+      "Buenos Aires",
+      "Ghent",
+      "Davos",
+      "Alexandria",
+      "Paris",
+      "Kolkata",
+      "Vienna",
+      "Reykjavík",
+      "Porto",
+      "Dakar",
+      "Tbilisi",
+      "Valletta"
+    ],
+    "someone": [
+      "a lighthouse keeper",
+      "the artist's grandmother",
+      "a ferryman",
+      "a girl who sold oranges",
+      "an old clockmaker",
+      "a soldier who never came home",
+      "the artist's twin",
+      "a beekeeper",
+      "a stranger on a train",
+      "the woman next door",
+      "a boy with a kite",
+      "a retired opera singer",
+      "a night nurse",
+      "a fisherman's widow",
+      "the artist's first teacher",
+      "a man who repaired violins",
+      "two sisters",
+      "a postman",
+      "a cartographer",
+      "a child who could not sleep"
+    ],
+    "object": [
+      "a blue teacup",
+      "a broken compass",
+      "an unsent letter",
+      "a pear",
+      "a lantern",
+      "a single glove",
+      "a violin with no strings",
+      "a bowl of salt",
+      "a key",
+      "a folded map",
+      "an hourglass",
+      "a sprig of rosemary",
+      "a paper boat",
+      "a pocket watch",
+      "a red thread",
+      "a feather",
+      "a seashell",
+      "a candle stub",
+      "a moth",
+      "a bird's nest"
+    ],
+    "season": [
+      "winter",
+      "spring",
+      "summer",
+      "autumn",
+      "the wet season",
+      "the dry season",
+      "the long winter",
+      "the first week of spring",
+      "a summer with no rain",
+      "the year of the great snow"
+    ],
+    "hour": [
+      "Dawn",
+      "Noon",
+      "Dusk",
+      "Midnight",
+      "Four in the Morning",
+      "the Blue Hour",
+      "First Light",
+      "Last Light",
+      "Teatime",
+      "the Hour of the Wolf"
+    ],
+    "afterlife": [
+      "It was nearly lost in a flood and dried for a month in a church loft.",
+      "It hung for forty years in a hotel corridor before anyone looked at it properly.",
+      "A dealer sold it twice in one week, and both buyers returned it, saying it would not stay still.",
+      "It was found rolled inside a piano.",
+      "It was bought by a school for the price of a coat, and is still on loan from them.",
+      "Restorers found a second picture underneath, which they chose not to uncover.",
+      "It travelled in a crate marked 'TEA' across three borders.",
+      "For a time it was believed to be a forgery, until the forger confessed he had only ever copied it.",
+      "It was the only thing saved when the studio burned.",
+      "The museum received it with a note that read, simply, 'Keep it lit.'",
+      "Visitors report that it is warmer to stand in front of than the rest of the room.",
+      "No two catalogues agree on its size."
+    ],
+    "place": [
+      "a fishing town north of Bergen",
+      "a mill town on the Clyde",
+      "a village under Mont Blanc",
+      "a mining town in Bolivia",
+      "a lighthouse off Finisterre",
+      "a farmhouse outside Lviv",
+      "a river barge on the Danube",
+      "an island with no name on the charts",
+      "a sanatorium in the Alps",
+      "a rented attic in Paris",
+      "the night train to Vienna",
+      "a convent on the Adriatic",
+      "a hut at the edge of a glacier",
+      "a market street in Dakar",
+      "the back room of a bakery in Porto"
+    ],
+    "object_afterlife": [
+      "It was nearly lost in a flood and dried for a month in a church loft.",
+      "It stood for forty years in a hotel garden before anyone looked at it properly.",
+      "It travelled in a crate marked 'TEA' across three borders.",
+      "It was the only thing saved when the studio burned.",
+      "The museum received it with a note that read, simply, 'Keep it company.'",
+      "Visitors report that it is warmer to stand beside than the rest of the room.",
+      "No two catalogues agree on its weight.",
+      "For a time it was believed to be a copy, until the copyist confessed he had only ever tried.",
+      "It was found in a garden shed, wrapped in a quilt, facing the wall."
+    ]
+  },
+  "artists": [
+    "{first} {last}",
+    "{first} {last}",
+    "{first} {last}",
+    "{first} {last}",
+    "{first} {initial}. {last}",
+    "{first} {last}-{last}",
+    "{last} // {last}",
+    "Anonymous ({epithet}) // {epithet}",
+    "Anonymous ({epithet}) // {epithet}",
+    "Attributed to {first} {last} // {first} {last}",
+    "Circle of {first} {last} // the circle of {first} {last}",
+    "{first} {last} and the {last} Workshop // {first} {last}",
+    "Unknown hand, {city} // the unknown painter from {city}",
+    "The Workshop of the Quiet Rooms // the Workshop of the Quiet Rooms",
+    "An unknown painter of the Lantern School // the unknown painter of the Lantern School"
+  ],
+  "media": {
+    "painting": [
+      "oil on linen",
+      "oil on canvas",
+      "tempera on panel",
+      "oil and gold leaf on oak",
+      "egg tempera and ash",
+      "watercolour and gouache",
+      "oil on an old door",
+      "encaustic wax on board",
+      "ink and oil on paper",
+      "oil on copper",
+      "acrylic and sand on canvas",
+      "oil on a ship's sail",
+      "pigment, honey and oil on linen",
+      "oil over a printed map"
+    ],
+    "tapestry": [
+      "wool and silk",
+      "hand-woven wool, linen and gold thread",
+      "felted wool and human hair",
+      "silk, cotton and fishing line",
+      "wool dyed with walnut, madder and woad"
+    ],
+    "sculpture": [
+      "Carrara marble",
+      "cast bronze",
+      "blown glass",
+      "fired clay",
+      "gilt limewood",
+      "obsidian",
+      "porcelain",
+      "polished resin and opal dust",
+      "copper gone to verdigris",
+      "stoneware with an ember glaze",
+      "salvaged iron and glass",
+      "plaster, wax and gilt",
+      "black marble from a closed quarry",
+      "bronze from melted church bells",
+      "porcelain and gold seams"
+    ],
+    "installation": [
+      "glass, wire and light",
+      "brass, thread and patience",
+      "hand-blown glass drops on silk",
+      "copper tubes and air",
+      "paper, wire and a draught from nowhere",
+      "silver leaf on aircraft cable"
+    ]
+  },
+  "themes": [
+    {
+      "id": "joy",
+      "name": "Joy",
+      "wing": "The Sunlit Wing",
+      "colors": {
+        "wall": "#f0d7a3",
+        "floor": "#9a6b3f",
+        "trim": "#d4a24c",
+        "ceiling": "#fbf1dc",
+        "light": "#fff0cc"
+      },
+      "palettes": [
+        [
+          "#3a1c0c",
+          "#e0602c",
+          "#f4c23c",
+          "#fff6dc"
+        ],
+        [
+          "#123048",
+          "#2a9d8f",
+          "#f4d35e",
+          "#fffaf0"
+        ],
+        [
+          "#4a1240",
+          "#ef476f",
+          "#ffd166",
+          "#fff3e8"
+        ]
+      ],
+      "styles": [
+        "bauhaus",
+        "dots",
+        "garden",
+        "glass",
+        "bloom",
+        "field"
+      ],
+      "sculptures": [
+        "bloom",
+        "orbit",
+        "mobile",
+        "knot",
+        "vessel",
+        "constellation"
+      ],
+      "music": [
+        2,
+        0
+      ],
+      "words": {
+        "noun": [
+          "Morning",
+          "Kite",
+          "Orchard",
+          "Lemonade",
+          "Bicycle",
+          "Sunflower",
+          "Brass Band",
+          "Picnic",
+          "Laughter",
+          "Swing",
+          "Harvest",
+          "Parade",
+          "Wedding",
+          "Swimming Hole",
+          "Daybreak",
+          "Carousel",
+          "Marmalade",
+          "Paper Lantern"
+        ],
+        "adj": [
+          "Golden",
+          "Bright",
+          "Dancing",
+          "Ridiculous",
+          "Sudden",
+          "Warm",
+          "Singing",
+          "Unexpected",
+          "Sunlit",
+          "Giddy",
+          "Tumbling",
+          "Overflowing"
+        ],
+        "image": [
+          "a girl jumping into a river",
+          "oranges rolling down a hill",
+          "the first warm day",
+          "a band playing in the rain",
+          "children chasing a hat",
+          "a table set for twenty",
+          "a dog asleep in a patch of sun"
+        ],
+        "feeling": [
+          "Delight",
+          "Gladness",
+          "Glee",
+          "Elation",
+          "Sunshine",
+          "Laughter"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} in {season}",
+        "Study for {image}",
+        "{Feeling}, No. {n}",
+        "Everything at Once",
+        "{Noun} With {object}",
+        "Yes",
+        "The Day the {Noun} Came",
+        "{Adj} {Noun} (for {first})",
+        "Composition With {Noun}",
+        "Too Much Sun",
+        "{Noun} at {hour}",
+        "Small {Feeling}",
+        "Untitled ({image})"
+      ],
+      "stories": [
+        "{artist} painted {title} in a single afternoon in {city}, laughing so loudly that the neighbours complained. The artist later said it was the only picture that had ever painted itself. {afterlife}",
+        "Commissioned for a children's hospital in {city} {when}, {title} was meant to hang for one summer. The children refused to let it be taken down, and it stayed for {n} years. {afterlife}",
+        "{artist} made this for {someone}, who had asked for 'something that hums'. It was delivered with {object} tied to the back, which is still there. {afterlife}",
+        "The colours were mixed from flowers the artist grew for the purpose, a whole garden planted for one {kind}. {artist} called it {title} because, in the artist's words, 'that is what it is when it is finished being anything else.' {afterlife}",
+        "Painted during the first spring after a long war, {title} was carried through the streets of {city} in a parade, held overhead like a banner. Some of the paint is still missing from where hands gripped it.",
+        "{artist} was ninety when this was made, and had been told never to paint again. It is the brightest thing in the collection. {afterlife}",
+        "A wedding present, given {when}. The couple divorced, remarried, divorced again and fought only over who would keep {title}. In the end they took turns, six months each, for the rest of their lives.",
+        "Nobody remembers why {artist} painted {image}. Everybody remembers how it made them feel. The museum's records describe it as 'a cure, of sorts'."
+      ],
+      "hints": [
+        "The key to this gallery is wherever the laughter is loudest: ask {title}.",
+        "Something in {title} is too happy to let go of what it holds.",
+        "{artist} hid this room's key somewhere bright. Look inside the {kind} called {title}.",
+        "Follow the gladness. It leads to {title}."
+      ]
+    },
+    {
+      "id": "grief",
+      "name": "Grief",
+      "wing": "The Hall of Small Hours",
+      "colors": {
+        "wall": "#3a4252",
+        "floor": "#2a2522",
+        "trim": "#8c8c96",
+        "ceiling": "#1d222b",
+        "light": "#c9d4ff"
+      },
+      "palettes": [
+        [
+          "#0b0e16",
+          "#2c3e58",
+          "#7f93b0",
+          "#dfe6f0"
+        ],
+        [
+          "#120c10",
+          "#4a3a4a",
+          "#9a8aa0",
+          "#efe6ee"
+        ],
+        [
+          "#0a0f0f",
+          "#1e3d3d",
+          "#6e9a96",
+          "#e6f0ec"
+        ]
+      ],
+      "styles": [
+        "rain",
+        "field",
+        "rings",
+        "void",
+        "window",
+        "ink"
+      ],
+      "sculptures": [
+        "figure",
+        "cairn",
+        "rain",
+        "vessel",
+        "hand"
+      ],
+      "music": [
+        1,
+        6
+      ],
+      "words": {
+        "noun": [
+          "Chair",
+          "Coat",
+          "Garden",
+          "Telephone",
+          "Letter",
+          "Kitchen",
+          "Harbour",
+          "Room",
+          "Bed",
+          "Doorway",
+          "Morning",
+          "Lamp",
+          "Shoes",
+          "Voice",
+          "Window",
+          "Name"
+        ],
+        "adj": [
+          "Empty",
+          "Grey",
+          "Last",
+          "Unworn",
+          "Quiet",
+          "Folded",
+          "Heavy",
+          "Unanswered",
+          "Still",
+          "Long",
+          "Borrowed",
+          "Unfinished"
+        ],
+        "image": [
+          "a coat still on its hook",
+          "a table laid for one too many",
+          "rain on a closed umbrella",
+          "a phone that will not ring",
+          "a bed made too neatly",
+          "two cups and one saucer"
+        ],
+        "feeling": [
+          "Mourning",
+          "Absence",
+          "Lament",
+          "Requiem",
+          "Elegy",
+          "Afterwards"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} After",
+        "Elegy for {someone}",
+        "{Feeling} in Blue",
+        "What Remains",
+        "Study of {image}",
+        "{Adj} {Noun}, {season}",
+        "The {Noun} You Left",
+        "{Feeling}, No. {n}",
+        "Untitled ({image})",
+        "The Weight of {Noun}",
+        "Still Here",
+        "{Noun} at {hour}"
+      ],
+      "stories": [
+        "{artist} began {title} the week after the funeral and worked on it every night for {n} months. The artist would not let anyone see it until it was finished, and then would not let anyone take it away. {afterlife}",
+        "This was painted in {city} {when}, in the house where {someone} had lived. The artist used their paints, their brushes, and the light from their window. {afterlife}",
+        "Look closely at the lower corner: the artist scraped one figure out of the picture and painted over the place {n} times. It never quite disappears.",
+        "{artist} said grief is not a weight but a room you learn to walk around in. {title} is that room. {afterlife}",
+        "Given to the museum by a family who asked that it never be hung in sunlight. 'It does not like to be seen crying,' their letter says.",
+        "The only picture {artist} painted in grey. Everything before it was crimson and gold; everything after, gentler. {afterlife}",
+        "The canvas was cut from the sheet that covered a piano no one could bear to play. {artist} painted {image} on it in {season}, and then, at last, played.",
+        "Some visitors leave flowers in front of {title}. The museum has stopped asking them not to."
+      ],
+      "hints": [
+        "What opens this room is held by {title}, as grief holds what it cannot put down.",
+        "{artist} kept the key in the saddest place in the room. Look into {title}.",
+        "The key is with the {kind} that cannot stop remembering: {title}.",
+        "Ask the one who stayed: {title}."
+      ]
+    },
+    {
+      "id": "longing",
+      "name": "Longing",
+      "wing": "The Tidewater Wing",
+      "colors": {
+        "wall": "#37566c",
+        "floor": "#3b2f28",
+        "trim": "#c4a26a",
+        "ceiling": "#1f3242",
+        "light": "#ffd7a8"
+      },
+      "palettes": [
+        [
+          "#08131c",
+          "#1f4e6e",
+          "#e2a065",
+          "#fce6c8"
+        ],
+        [
+          "#0e1020",
+          "#3a3f78",
+          "#c47a8a",
+          "#f6dfe0"
+        ],
+        [
+          "#061418",
+          "#1b5c5c",
+          "#9cc8b8",
+          "#f4efe0"
+        ]
+      ],
+      "styles": [
+        "tide",
+        "window",
+        "orbs",
+        "horizon",
+        "ink",
+        "aurora"
+      ],
+      "sculptures": [
+        "pair",
+        "wave",
+        "figure",
+        "chimes",
+        "cage"
+      ],
+      "music": [
+        1,
+        5
+      ],
+      "words": {
+        "noun": [
+          "Shore",
+          "Lighthouse",
+          "Train",
+          "Harbour",
+          "Horizon",
+          "Ferry",
+          "Letter",
+          "Island",
+          "Window",
+          "Coast",
+          "Departure",
+          "Signal",
+          "Bridge",
+          "Far Light",
+          "Return"
+        ],
+        "adj": [
+          "Distant",
+          "Far",
+          "Waiting",
+          "Other",
+          "Faithful",
+          "Unreachable",
+          "Blue",
+          "Patient",
+          "Leaving",
+          "Small",
+          "Nearly",
+          "Late"
+        ],
+        "image": [
+          "a lit window across the water",
+          "a ship that never quite arrives",
+          "two lights on two shores",
+          "a station at the end of the line",
+          "footprints going into the sea"
+        ],
+        "feeling": [
+          "Saudade",
+          "Yearning",
+          "Homesickness",
+          "Elsewhere",
+          "Wanting",
+          "Almost"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} at {hour}",
+        "Letter to {someone}",
+        "{Feeling}",
+        "Across the Water",
+        "{Adj} {Noun} (Waiting)",
+        "Study for {image}",
+        "The {Noun} Between Us",
+        "{Feeling}, No. {n}",
+        "Still Coming",
+        "{Noun} Seen From {city}",
+        "If You Were Here",
+        "Untitled ({image})"
+      ],
+      "stories": [
+        "{artist} painted {title} from the end of a pier in {city}, facing the direction of a home the artist never saw again. It was finished {when}. {afterlife}",
+        "The two lights in this picture were added years apart. {artist} painted the first in {season}; the second only after a letter arrived. {afterlife}",
+        "This was made for {someone}, who was on the other side of an ocean, and was meant to be sent. It was never sent. {afterlife}",
+        "{artist} kept a jar of seawater beside the easel and wet the brushes in it for every stroke of {title}. On damp days the canvas smells faintly of salt.",
+        "Painted on the reverse of a ticket office sign from {city}. The words 'NO FURTHER SAILINGS' can still be read against the light.",
+        "The artist called it {title}, then {feeling}, then nothing at all; the label was changed {n} times. The museum settled on the first, which {artist} said was 'the most honest of the lies'.",
+        "A sailor's wife in {city} commissioned {title} so that there would always be a ship coming home on her wall. {afterlife}",
+        "{artist} said the hardest thing to paint was distance, because distance is only ever the shape of someone not being here."
+      ],
+      "hints": [
+        "The key waits where it is always almost evening: look into {title}.",
+        "{artist} sent the key a long way off. It is waiting inside {title}.",
+        "Wanting leads to {title}. So does the key.",
+        "The far light in {title} is not as far as it looks."
+      ]
+    },
+    {
+      "id": "wonder",
+      "name": "Wonder",
+      "wing": "The Observatory Wing",
+      "colors": {
+        "wall": "#2c2f5c",
+        "floor": "#2b2a3a",
+        "trim": "#b8a0e0",
+        "ceiling": "#12142c",
+        "light": "#d8d0ff"
+      },
+      "palettes": [
+        [
+          "#05040f",
+          "#2b1d63",
+          "#6ec6ff",
+          "#fdf6d8"
+        ],
+        [
+          "#060a14",
+          "#0d3b66",
+          "#c879ff",
+          "#fff1f8"
+        ],
+        [
+          "#0a0712",
+          "#3d1e6d",
+          "#ffb347",
+          "#fff8e8"
+        ]
+      ],
+      "styles": [
+        "galaxy",
+        "starry",
+        "aurora",
+        "glass",
+        "maze",
+        "mosaic"
+      ],
+      "sculptures": [
+        "orbit",
+        "knot",
+        "constellation",
+        "monolith",
+        "spiral"
+      ],
+      "music": [
+        3,
+        7
+      ],
+      "words": {
+        "noun": [
+          "Comet",
+          "Orrery",
+          "Night Garden",
+          "Telescope",
+          "Nebula",
+          "Firefly",
+          "Lantern",
+          "Map of the Sky",
+          "Moth",
+          "Planet",
+          "Tide Pool",
+          "Library",
+          "Snowfall",
+          "Aurora",
+          "Seed"
+        ],
+        "adj": [
+          "Impossible",
+          "Luminous",
+          "Secret",
+          "Curious",
+          "Infinite",
+          "Hidden",
+          "Strange",
+          "Shimmering",
+          "First",
+          "Endless",
+          "Small",
+          "Wandering"
+        ],
+        "image": [
+          "the sky as seen from the bottom of a well",
+          "a jar of fireflies in a dark room",
+          "a child's first sight of the sea",
+          "snow falling upward",
+          "the inside of a seashell"
+        ],
+        "feeling": [
+          "Wonder",
+          "Marvel",
+          "Astonishment",
+          "Curiosity",
+          "Enchantment",
+          "Bewilderment"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} No. {n}",
+        "What the {Noun} Saw",
+        "{Feeling} at {hour}",
+        "A Map of {image}",
+        "Study of {image}",
+        "Cosmography for {someone}",
+        "{Adj} {Noun} (Unfinished)",
+        "How Far Does It Go",
+        "The {Noun} Inside the {Noun}",
+        "{Feeling}",
+        "Untitled ({image})",
+        "Ask the {Noun}"
+      ],
+      "stories": [
+        "{artist} spent {n} nights lying in a field outside {city} before touching the canvas. The first mark made was a single star in the corner; the rest of {title} grew from it. {afterlife}",
+        "This was painted for {someone}, who had never seen the night sky without the city's lights. {artist} said it was 'a loan of the dark'. {afterlife}",
+        "The pigments in {title} include ground lapis, crushed beetle wing and a pinch of meteorite the artist bought in {city} {when}. Under a lamp, they do not behave the way paint should.",
+        "{artist} claimed that the picture kept going past its edges, and that it was only the frame stopping it. The museum takes no position on this.",
+        "Astronomers have twice written to the museum to say that the stars in {title} are in the right places for a sky that will exist in about four thousand years.",
+        "A child visiting {later} asked what was inside {title}. The guard, without thinking, answered 'more'. {afterlife}",
+        "{artist} made {title} in the attic of an observatory in {city}, by the light of a telescope pointed at nothing in particular.",
+        "Scholars still argue about whether {title} is a picture of something very large or something very small. {artist} refused to settle it."
+      ],
+      "hints": [
+        "The key is further in than it looks. Look into {title}, and then look again.",
+        "Curiosity will find it: ask {title} what it keeps.",
+        "{artist} hid this room's key among the stars of {title}.",
+        "Something impossible is waiting in the {kind} called {title}."
+      ]
+    },
+    {
+      "id": "rage",
+      "name": "Rage",
+      "wing": "The Furnace Rooms",
+      "colors": {
+        "wall": "#6e231b",
+        "floor": "#1e1a18",
+        "trim": "#c0602a",
+        "ceiling": "#2a0e0c",
+        "light": "#ffb070"
+      },
+      "palettes": [
+        [
+          "#120403",
+          "#7a120c",
+          "#ff5a1f",
+          "#ffd27a"
+        ],
+        [
+          "#0c0606",
+          "#5e0b2a",
+          "#e8341c",
+          "#ffc070"
+        ],
+        [
+          "#0a0807",
+          "#3a2a24",
+          "#d9480f",
+          "#f8e0b0"
+        ]
+      ],
+      "styles": [
+        "ember",
+        "storm",
+        "shatter",
+        "ink",
+        "field"
+      ],
+      "sculptures": [
+        "shards",
+        "heart",
+        "spiral",
+        "monolith"
+      ],
+      "music": [
+        4
+      ],
+      "words": {
+        "noun": [
+          "Furnace",
+          "Fist",
+          "Fire",
+          "Storm",
+          "Broken Plate",
+          "Wolf",
+          "Siren",
+          "Riot",
+          "Thunder",
+          "Red Door",
+          "Slammed Door",
+          "Forge",
+          "Teeth",
+          "Iron",
+          "Volcano"
+        ],
+        "adj": [
+          "Burning",
+          "Furious",
+          "Red",
+          "Unforgiving",
+          "Broken",
+          "Screaming",
+          "White-Hot",
+          "Clenched",
+          "Molten",
+          "Savage",
+          "Righteous",
+          "Shaking"
+        ],
+        "image": [
+          "a house with every window lit by fire",
+          "a plate thrown against a wall",
+          "a crowd with its fists raised",
+          "a fire that will not go out",
+          "the inside of a shout"
+        ],
+        "feeling": [
+          "Fury",
+          "Wrath",
+          "Outrage",
+          "Rage",
+          "Defiance",
+          "Indignation"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Feeling} No. {n}",
+        "{Noun} in Red",
+        "No",
+        "Enough",
+        "Study for {image}",
+        "{Adj} {Noun} ({year})",
+        "Against",
+        "The {Noun} Remembers",
+        "Letter Never Calmed Down",
+        "{Feeling} at {hour}",
+        "Untitled ({image})"
+      ],
+      "stories": [
+        "{artist} painted {title} with a palette knife, a broom and, according to witnesses, a chair. It took one night in {city}, {when}. The studio needed a new window afterwards. {afterlife}",
+        "This was made the day the artist was told to be grateful. {artist} later said the picture was the most grateful thing they had ever made: 'grateful for the anger, which got me out of bed.'",
+        "The red in {title} was mixed with iron filings from the factory where {someone} had worked until the accident. Magnets placed near it move, very slightly.",
+        "Banned in {city} for {n} years, {title} was hung in a laundry, a bakery and a church before it came here. Each of them was burgled; nothing else was ever taken.",
+        "{artist} said: 'I did not want to make something beautiful. I wanted to make something true. If it is beautiful too, that is not my fault.' {afterlife}",
+        "The canvas has been slashed and repaired {n} times; the artist did it the first time. The scars were left visible on purpose.",
+        "Painted in the heat of a summer strike, {title} was carried on the front line of the march and survived a fire hose. Look for the water marks.",
+        "Rage, wrote {artist}, is grief with its fists up. {title} is what came out when the fists finally opened."
+      ],
+      "hints": [
+        "The key is in the hottest part of the room: {title}.",
+        "Something in {title} has been holding onto this room's key in its fist.",
+        "{artist} threw the key into the fire. Look inside {title}.",
+        "Anger keeps things. Ask {title}."
+      ]
+    },
+    {
+      "id": "dread",
+      "name": "Dread",
+      "wing": "The Night Wing",
+      "colors": {
+        "wall": "#272d27",
+        "floor": "#141414",
+        "trim": "#5a6050",
+        "ceiling": "#0e100e",
+        "light": "#a8c4a0"
+      },
+      "palettes": [
+        [
+          "#030504",
+          "#16241c",
+          "#4e6b52",
+          "#c8d8b0"
+        ],
+        [
+          "#050407",
+          "#1d1830",
+          "#5b4f7a",
+          "#d6cfe6"
+        ],
+        [
+          "#060505",
+          "#2a1f17",
+          "#6b5a3a",
+          "#e0d4b0"
+        ]
+      ],
+      "styles": [
+        "forest",
+        "eye",
+        "maze",
+        "void",
+        "storm"
+      ],
+      "sculptures": [
+        "figure",
+        "shards",
+        "cage",
+        "rain",
+        "monolith"
+      ],
+      "music": [
+        4,
+        6
+      ],
+      "words": {
+        "noun": [
+          "Stair",
+          "Wood",
+          "Well",
+          "Corridor",
+          "Cellar",
+          "Watcher",
+          "Visitor",
+          "Door at the End",
+          "Footsteps",
+          "Knock",
+          "Fog",
+          "Long House",
+          "Lantern Going Out",
+          "Thing Under the Bed",
+          "Last Room"
+        ],
+        "adj": [
+          "Dark",
+          "Waiting",
+          "Unlit",
+          "Hollow",
+          "Silent",
+          "Watching",
+          "Endless",
+          "Locked",
+          "Nameless",
+          "Cold",
+          "Patient",
+          "Familiar"
+        ],
+        "image": [
+          "a door left open a finger's width",
+          "a forest that is too quiet",
+          "a light on in a house no one lives in",
+          "footprints that stop in the middle of a field",
+          "a staircase going down further than the house"
+        ],
+        "feeling": [
+          "Dread",
+          "Unease",
+          "Foreboding",
+          "The Night Fear",
+          "Vigil",
+          "Presentiment"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} at {hour}",
+        "Do Not Look Behind You",
+        "Who Is There",
+        "Study of {image}",
+        "{Feeling}, No. {n}",
+        "The {Noun}, Left Open",
+        "{Adj} {Noun} ({season})",
+        "It Was Here Before Us",
+        "Untitled ({image})",
+        "The {Noun} That Watches",
+        "Don't"
+      ],
+      "stories": [
+        "{artist} would only work on {title} in daylight, and covered it with a sheet every evening. {Later} the sheet was found folded neatly on the floor. Nobody admitted to folding it. {afterlife}",
+        "This was painted from memory of a house in {city} that the artist lived in as a child. The family left in a single night. {artist} never said why, only that 'the house will understand'.",
+        "Guards on the night shift have asked, more than once, for {title} to be turned to the wall. The museum has asked them to describe what they see. None of their descriptions agree.",
+        "{artist} said the trick is to paint the dark as though something is standing in it, and then not to paint the something. {afterlife}",
+        "The eyes in {title} were painted last, in a single sitting, by candlelight. {artist} refused to sign the picture until they were finished, and then refused to sign it at all.",
+        "A visitor {later} fainted in front of {title}, woke up, and asked to be left alone with it. They stayed until closing and left smiling. Nobody knows what passed between them.",
+        "{artist} kept this picture under a bed for {n} years. 'So it would be the thing under the bed,' the artist explained, 'instead of something worse.'",
+        "There is a figure in {title}. It is not in the same place in any two photographs."
+      ],
+      "hints": [
+        "The key is where you least want to look: inside {title}.",
+        "{artist} left the key in the dark. {title} is keeping it.",
+        "Be brave. The key is in {title}.",
+        "Something in {title} is guarding this room's key. It will let you take it."
+      ]
+    },
+    {
+      "id": "serenity",
+      "name": "Serenity",
+      "wing": "The Still Water Rooms",
+      "colors": {
+        "wall": "#d6e0da",
+        "floor": "#b0a084",
+        "trim": "#9fb4a8",
+        "ceiling": "#eef2ee",
+        "light": "#f2fff6"
+      },
+      "palettes": [
+        [
+          "#1a2a2a",
+          "#5a8a84",
+          "#bcd8cc",
+          "#f6faf4"
+        ],
+        [
+          "#22242a",
+          "#6a7a9a",
+          "#c8d0e0",
+          "#f8f8f4"
+        ],
+        [
+          "#2a2620",
+          "#8a9a7a",
+          "#dcd8b8",
+          "#fcfaf0"
+        ]
+      ],
+      "styles": [
+        "horizon",
+        "rings",
+        "field",
+        "tide",
+        "weave",
+        "mosaic"
+      ],
+      "sculptures": [
+        "cairn",
+        "vessel",
+        "wave",
+        "chimes",
+        "hand"
+      ],
+      "music": [
+        0,
+        7
+      ],
+      "words": {
+        "noun": [
+          "Pond",
+          "Mist",
+          "Bell",
+          "Stone",
+          "Lake",
+          "Breath",
+          "Rice Field",
+          "Morning",
+          "Heron",
+          "Snow",
+          "Tea",
+          "Reed",
+          "Shore",
+          "Cloud",
+          "Garden"
+        ],
+        "adj": [
+          "Still",
+          "Quiet",
+          "Pale",
+          "Slow",
+          "Calm",
+          "Clear",
+          "Soft",
+          "Gentle",
+          "Low",
+          "Even",
+          "Unhurried",
+          "White"
+        ],
+        "image": [
+          "a heron standing in shallow water",
+          "mist lifting off a lake",
+          "snow on a temple roof",
+          "a cup of tea going cold",
+          "a single stone in a raked garden"
+        ],
+        "feeling": [
+          "Stillness",
+          "Peace",
+          "Quiet",
+          "Ease",
+          "Calm",
+          "Rest"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} at {hour}",
+        "{Feeling}",
+        "Study of {image}",
+        "{Adj} {Noun}, No. {n}",
+        "Nothing Needs to Happen",
+        "Breathing Exercise",
+        "{Noun} in {season}",
+        "Untitled ({image})",
+        "The Pause",
+        "{Feeling} for {someone}",
+        "Here"
+      ],
+      "stories": [
+        "{artist} painted {title} over {n} years, adding one stroke each morning before breakfast. The artist said it was not a painting but a habit. {afterlife}",
+        "Made in a monastery outside {city}, where the artist stayed for a winter and spoke to no one. It was the only thing {artist} brought home.",
+        "Doctors at a hospital in {city} hung {title} in a waiting room {later} and noticed that people waiting in front of it asked for less. {afterlife}",
+        "{artist} would sit in front of {title} for an hour at a time without working on it. 'Some days the work is to leave it alone.'",
+        "The water in this picture was painted with water from the lake it shows. On very quiet days, some visitors say, it moves.",
+        "{artist} was asked what {title} was about and answered: 'about the length of a breath.' {afterlife}",
+        "A gift from {someone} to the museum, on the condition that it hang somewhere a person might sit down."
+      ],
+      "hints": [
+        "Be still, and look into {title}. The key is resting there.",
+        "The key is somewhere unhurried: {title}.",
+        "{artist} set this room's key down gently inside {title}.",
+        "Breathe, then ask {title}."
+      ]
+    },
+    {
+      "id": "nostalgia",
+      "name": "Nostalgia",
+      "wing": "The Summer House",
+      "colors": {
+        "wall": "#c4a378",
+        "floor": "#6e4a2e",
+        "trim": "#e0c48c",
+        "ceiling": "#e6d4b0",
+        "light": "#ffd89a"
+      },
+      "palettes": [
+        [
+          "#2a1a0e",
+          "#8a5a30",
+          "#e0a860",
+          "#fbe8c4"
+        ],
+        [
+          "#1e1a14",
+          "#5a6a50",
+          "#d8b878",
+          "#f8ecd0"
+        ],
+        [
+          "#24140f",
+          "#8a3f2a",
+          "#e6b98c",
+          "#fdf0dc"
+        ]
+      ],
+      "styles": [
+        "horizon",
+        "window",
+        "garden",
+        "dots",
+        "portrait",
+        "weave"
+      ],
+      "sculptures": [
+        "vessel",
+        "chimes",
+        "figure",
+        "mobile",
+        "cage"
+      ],
+      "music": [
+        0,
+        1
+      ],
+      "words": {
+        "noun": [
+          "Summer House",
+          "Porch",
+          "Orchard",
+          "Radio",
+          "Swing",
+          "Kitchen",
+          "Holiday",
+          "Cinema",
+          "Photograph",
+          "Seaside",
+          "Grandmother's Garden",
+          "Paper Boat",
+          "School Bell",
+          "Station",
+          "Attic"
+        ],
+        "adj": [
+          "Old",
+          "Golden",
+          "Faded",
+          "Remembered",
+          "Last",
+          "Long",
+          "Sunlit",
+          "Childhood",
+          "Yellowed",
+          "Lost",
+          "Familiar",
+          "Sweet"
+        ],
+        "image": [
+          "a long summer evening",
+          "the smell of a grandmother's kitchen",
+          "a radio playing in another room",
+          "a holiday that went on for ever",
+          "a photograph left in the sun"
+        ],
+        "feeling": [
+          "Remembrance",
+          "Once",
+          "Those Days",
+          "Homecoming",
+          "Before",
+          "The Long Summer"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun}, {year}",
+        "Remembering {image}",
+        "{Feeling}",
+        "The {Noun} as It Was",
+        "{Adj} {Noun} (for {first})",
+        "Souvenir of {city}",
+        "{Feeling}, No. {n}",
+        "Study for {image}",
+        "Untitled ({image})",
+        "We Were Here",
+        "{Noun} at {hour}"
+      ],
+      "stories": [
+        "{artist} painted {title} at the age of {n}, from a childhood memory of {city}. When the artist finally went back, the place had gone; the picture was more accurate than the town. {afterlife}",
+        "The colours of {title} were chosen to match a photograph that had faded in a drawer. {artist} said it was the faded version that was true.",
+        "This was made for {someone} as a birthday present, and was meant to show 'everything we used to have'. They hung it in the kitchen, where it absorbed fifty years of cooking. {afterlife}",
+        "{artist} never painted {image} while it was happening. 'You can only paint a summer after it has ended.'",
+        "Found in an attic in {city}, wrapped in a tablecloth with {object}. The museum kept both.",
+        "{artist} kept repainting the same porch, the same orchard, the same light, for {n} years. {title} is the last of them, and the only one the artist signed.",
+        "Some visitors say {title} smells of cut grass. The conservators say it does not. The visitors keep saying it."
+      ],
+      "hints": [
+        "The key is tucked away in a memory: {title}.",
+        "{artist} left this room's key in the summer house. Look inside {title}.",
+        "Go back, the way you can only go back in a picture: into {title}.",
+        "What was lost is kept by {title}."
+      ]
+    },
+    {
+      "id": "tenderness",
+      "name": "Tenderness",
+      "wing": "The Wing of Small Kindnesses",
+      "colors": {
+        "wall": "#e6c6be",
+        "floor": "#8a6a5a",
+        "trim": "#d8b0a0",
+        "ceiling": "#f6e6e0",
+        "light": "#ffe2d2"
+      },
+      "palettes": [
+        [
+          "#3a1e24",
+          "#b06a78",
+          "#f0b8b0",
+          "#fff4ee"
+        ],
+        [
+          "#2a2230",
+          "#8a7aa8",
+          "#e8c4d0",
+          "#fff6f4"
+        ],
+        [
+          "#2e2018",
+          "#c08a68",
+          "#f4d0b0",
+          "#fffaf2"
+        ]
+      ],
+      "styles": [
+        "bloom",
+        "orbs",
+        "portrait",
+        "garden",
+        "dots"
+      ],
+      "sculptures": [
+        "pair",
+        "hand",
+        "bloom",
+        "heart"
+      ],
+      "music": [
+        5,
+        0
+      ],
+      "words": {
+        "noun": [
+          "Hands",
+          "Blanket",
+          "Bread",
+          "Lullaby",
+          "Nest",
+          "Mending",
+          "Night Light",
+          "Shoulder",
+          "Bath",
+          "Garden Gate",
+          "Kettle",
+          "Small Hours",
+          "Fever",
+          "Tending",
+          "Embrace"
+        ],
+        "adj": [
+          "Small",
+          "Warm",
+          "Gentle",
+          "Kind",
+          "Careful",
+          "Soft",
+          "Patient",
+          "Quiet",
+          "Mended",
+          "Held",
+          "Tender",
+          "Little"
+        ],
+        "image": [
+          "a hand on a sleeping child's forehead",
+          "someone mending a coat by lamplight",
+          "two old friends holding hands on a bench",
+          "bread left on a neighbour's step",
+          "a bird's nest held in two palms"
+        ],
+        "feeling": [
+          "Kindness",
+          "Care",
+          "Tenderness",
+          "Comfort",
+          "Solace",
+          "Grace"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} for {someone}",
+        "{Feeling}",
+        "Study of {image}",
+        "{Adj} {Noun}, No. {n}",
+        "Hold Still",
+        "There, There",
+        "{Noun} at {hour}",
+        "Untitled ({image})",
+        "The {Noun} Kept Warm",
+        "{Feeling} in {season}",
+        "For You"
+      ],
+      "stories": [
+        "{artist} painted {title} beside the bed of {someone} during a long illness in {city}, a little each night after they slept. They recovered. The picture is the only proof of those months. {afterlife}",
+        "This was made from the memory of a single gesture: {image}. {artist} said it took {n} years to understand how much it meant, and {n} weeks to paint.",
+        "A nurse in {city} kept {title} in the ward where children were treated. Asked why, the nurse said: 'so there would always be someone looking at them kindly.' {afterlife}",
+        "{artist} used the softest brushes the artist owned, then softer ones made from a cat's winter fur. The surface of {title} is almost too gentle to see.",
+        "Given anonymously to the museum {later}, with a note: 'For anyone who needs it more than I do now.'",
+        "{artist} said tenderness is the bravest thing a person can do in public. {title} was painted in the window of a shop on a busy street, in full view."
+      ],
+      "hints": [
+        "Something gentle is holding this room's key: look into {title}.",
+        "{artist} put the key somewhere safe and warm: {title}.",
+        "Be kind to {title}, and it will give you the key.",
+        "Small hands keep the key here. Ask {title}."
+      ]
+    },
+    {
+      "id": "loneliness",
+      "name": "Loneliness",
+      "wing": "The Wing of One Chair",
+      "colors": {
+        "wall": "#4a5562",
+        "floor": "#30302e",
+        "trim": "#707880",
+        "ceiling": "#262c33",
+        "light": "#e8eef8"
+      },
+      "palettes": [
+        [
+          "#06080c",
+          "#22303e",
+          "#8a9cb0",
+          "#f0f2f6"
+        ],
+        [
+          "#0a0a0a",
+          "#3a3a40",
+          "#a8a090",
+          "#f4ecd8"
+        ],
+        [
+          "#05070a",
+          "#1a2a38",
+          "#d8a058",
+          "#f8ecd4"
+        ]
+      ],
+      "styles": [
+        "void",
+        "window",
+        "portrait",
+        "rain",
+        "tide",
+        "horizon"
+      ],
+      "sculptures": [
+        "figure",
+        "cage",
+        "monolith",
+        "chimes"
+      ],
+      "music": [
+        6,
+        1
+      ],
+      "words": {
+        "noun": [
+          "Chair",
+          "Platform",
+          "Diner",
+          "Lighthouse",
+          "Bus Stop",
+          "Window",
+          "Room",
+          "Hotel",
+          "Moon",
+          "Phone Box",
+          "Single Bed",
+          "Pier",
+          "Night Shift",
+          "Late Train",
+          "Swimmer"
+        ],
+        "adj": [
+          "Empty",
+          "Single",
+          "Late",
+          "Unlit",
+          "Only",
+          "Last",
+          "Small",
+          "Far",
+          "Cold",
+          "Unvisited",
+          "Silent",
+          "Alone"
+        ],
+        "image": [
+          "one lit window in a dark apartment block",
+          "a diner at three in the morning",
+          "a figure on an empty platform",
+          "a lighthouse with no ships",
+          "a single chair facing the sea"
+        ],
+        "feeling": [
+          "Solitude",
+          "Alone",
+          "Apartness",
+          "Distance",
+          "The Quiet",
+          "Nobody"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} at {hour}",
+        "{Feeling}",
+        "Self-Portrait as {image}",
+        "Study of {image}",
+        "Table for One",
+        "{Adj} {Noun} ({city})",
+        "{Feeling}, No. {n}",
+        "Untitled ({image})",
+        "Is Anyone",
+        "The {Noun} Nobody Visits",
+        "One"
+      ],
+      "stories": [
+        "{artist} painted {title} in a rented room in {city} during a winter in which, by the artist's own count, the artist spoke aloud {n} times. {afterlife}",
+        "This was painted from the window of a night bus. {artist} rode the same route every night for a month to see {image} again. It was there every time.",
+        "{artist} said: 'I painted the loneliest thing I could imagine, and then I hung it on the wall, and then I was not alone, because it was there.' {afterlife}",
+        "The figure in {title} was once accompanied by another, painted out by the artist {later}. Infrared photographs show the second figure was waving.",
+        "Bought by a lighthouse keeper in {city}, who hung it facing the window so that it, too, could watch the sea. {afterlife}",
+        "Visitors often stand in front of {title} for a long time. The museum has noticed they rarely stand there alone."
+      ],
+      "hints": [
+        "The key is keeping company with {title}. Go and sit with it.",
+        "No one has looked inside {title} for a long time. The key is there.",
+        "{artist} left the key with the loneliest thing in the room: {title}.",
+        "Someone is waiting in {title}. They have the key."
+      ]
+    },
+    {
+      "id": "hope",
+      "name": "Hope",
+      "wing": "The Dawn Rooms",
+      "colors": {
+        "wall": "#e6dcc4",
+        "floor": "#a08060",
+        "trim": "#e8b860",
+        "ceiling": "#fff6e0",
+        "light": "#ffe8c0"
+      },
+      "palettes": [
+        [
+          "#1a1e30",
+          "#5a6aa0",
+          "#f0a870",
+          "#fff4dc"
+        ],
+        [
+          "#14202a",
+          "#3a8a8a",
+          "#f4d488",
+          "#fffaf0"
+        ],
+        [
+          "#201a2a",
+          "#8a5a9a",
+          "#ffc8a0",
+          "#fff8ec"
+        ]
+      ],
+      "styles": [
+        "horizon",
+        "bloom",
+        "aurora",
+        "glass",
+        "dots",
+        "starry"
+      ],
+      "sculptures": [
+        "bloom",
+        "hand",
+        "monolith",
+        "orbit",
+        "constellation"
+      ],
+      "music": [
+        2,
+        5,
+        7
+      ],
+      "words": {
+        "noun": [
+          "Dawn",
+          "Seedling",
+          "Lantern",
+          "Spring",
+          "Window",
+          "Bridge",
+          "Swallow",
+          "Thaw",
+          "Harbour Light",
+          "Road",
+          "Morning",
+          "Sunrise",
+          "Open Door",
+          "Rainbow",
+          "Bud"
+        ],
+        "adj": [
+          "First",
+          "Early",
+          "Rising",
+          "New",
+          "Returning",
+          "Open",
+          "Unbroken",
+          "Waking",
+          "Green",
+          "Bright",
+          "Small",
+          "Still Burning"
+        ],
+        "image": [
+          "a green shoot through a crack in concrete",
+          "a light left on for someone coming home",
+          "the first swallow of spring",
+          "a door opening onto a sunny street",
+          "the sky just before sunrise"
+        ],
+        "feeling": [
+          "Hope",
+          "Promise",
+          "Renewal",
+          "Courage",
+          "The Turning",
+          "Tomorrow"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} After the Storm",
+        "{Feeling}",
+        "Study for {image}",
+        "{Adj} {Noun}, No. {n}",
+        "Not Yet, But Soon",
+        "Keep Going",
+        "{Noun} in {season}",
+        "Untitled ({image})",
+        "The {Noun} Comes Back",
+        "{Feeling} for {someone}",
+        "Anyway"
+      ],
+      "stories": [
+        "{artist} painted {title} in a shelter in {city} {when}, on the back of a cupboard door, with paints traded for bread. {afterlife}",
+        "This was the first picture {artist} made after {n} years of not painting at all. The artist said the hand remembered before the heart did.",
+        "{artist} gave {title} to {someone} with the words: 'Hang it facing east.' They did, and so does the museum.",
+        "Painted during the long recovery after an accident that should have ended the artist's career. {artist} learned to paint {title} left-handed. {afterlife}",
+        "The sun in {title} was the last thing painted, years after the rest. {artist} said: 'I waited until I believed in it.'",
+        "Children who visit the museum are given a small card and asked to write what they hope for. The cards are kept in a box behind {title}. The box is very full."
+      ],
+      "hints": [
+        "Look for the first light in the room: the key is in {title}.",
+        "{artist} kept this room's key for a better day. That day is inside {title}.",
+        "Hope is a door. So is {title}.",
+        "The key is waiting where the dawn is: {title}."
+      ]
+    },
+    {
+      "id": "awe",
+      "name": "Awe",
+      "wing": "The Cathedral Wing",
+      "colors": {
+        "wall": "#e6e2da",
+        "floor": "#8c8478",
+        "trim": "#c8b48c",
+        "ceiling": "#f4f0e8",
+        "light": "#fff6e6"
+      },
+      "palettes": [
+        [
+          "#0a0a14",
+          "#2a3a6a",
+          "#c0a070",
+          "#fffaf0"
+        ],
+        [
+          "#08080a",
+          "#4a4a5a",
+          "#d0c8b8",
+          "#ffffff"
+        ],
+        [
+          "#0c0a08",
+          "#5a3a1a",
+          "#f0b050",
+          "#fff8e0"
+        ]
+      ],
+      "styles": [
+        "galaxy",
+        "storm",
+        "aurora",
+        "glass",
+        "mosaic",
+        "horizon"
+      ],
+      "sculptures": [
+        "monolith",
+        "spiral",
+        "constellation",
+        "knot",
+        "orbit"
+      ],
+      "music": [
+        7,
+        3
+      ],
+      "words": {
+        "noun": [
+          "Mountain",
+          "Cathedral",
+          "Glacier",
+          "Abyss",
+          "Sky",
+          "Waterfall",
+          "Desert",
+          "Cloud",
+          "Ocean",
+          "Choir",
+          "Pillar of Light",
+          "Eclipse",
+          "Canyon",
+          "Northern Sky",
+          "Storm Front"
+        ],
+        "adj": [
+          "Vast",
+          "Great",
+          "Immeasurable",
+          "Ancient",
+          "Towering",
+          "Sublime",
+          "Silent",
+          "Endless",
+          "High",
+          "Deep",
+          "Holy",
+          "Unknowable"
+        ],
+        "image": [
+          "a storm crossing a desert",
+          "light falling through a cathedral window",
+          "a glacier calving into the sea",
+          "a total eclipse over the mountains",
+          "a choir in an empty church"
+        ],
+        "feeling": [
+          "Awe",
+          "The Sublime",
+          "Reverence",
+          "Majesty",
+          "Vastness",
+          "Smallness"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} at {hour}",
+        "{Feeling}",
+        "Before the {Noun}",
+        "Study of {image}",
+        "{Adj} {Noun}, No. {n}",
+        "How Small We Are",
+        "Te Deum",
+        "Untitled ({image})",
+        "The {Noun} Does Not Notice Us",
+        "{Feeling} ({season})",
+        "Gloria"
+      ],
+      "stories": [
+        "{artist} climbed for {n} days to paint {title} from life, and painted it in an hour, in a wind that tore two canvases away. This is the third. {afterlife}",
+        "{title} was too large for any door in {city}; the artist painted it in a barn and the barn's wall was taken down to move it. {afterlife}",
+        "Commissioned for a cathedral that was never finished, {title} hung for {n} years in the open air under the scaffolding, in rain and snow, and is none the worse.",
+        "{artist} wrote: 'I did not paint the mountain. I painted what it is like to stand under it and be forgiven for being small.'",
+        "The pigment in the brightest part of {title} contains real gold, ground by the artist in {city} {when}, a grain at a time.",
+        "Many visitors lower their voices without meaning to when they enter this gallery. {title} is usually the reason."
+      ],
+      "hints": [
+        "The key is in the greatest thing in the room. Look into {title}.",
+        "{artist} hid the key in something vast: {title}.",
+        "Go in under the {kind} called {title}, and look up.",
+        "Something immense holds this room's key: {title}."
+      ]
+    },
+    {
+      "id": "restlessness",
+      "name": "Restlessness",
+      "wing": "The Corridor of Clocks",
+      "colors": {
+        "wall": "#2f5654",
+        "floor": "#3a3028",
+        "trim": "#d0a040",
+        "ceiling": "#1a2e2e",
+        "light": "#f0e0b0"
+      },
+      "palettes": [
+        [
+          "#0a1414",
+          "#1f5050",
+          "#e0b040",
+          "#f8f0d8"
+        ],
+        [
+          "#141018",
+          "#4a2a5a",
+          "#40c0c0",
+          "#f0f0e0"
+        ],
+        [
+          "#100c08",
+          "#5a3a1a",
+          "#e07a3a",
+          "#f8e8d0"
+        ]
+      ],
+      "styles": [
+        "maze",
+        "shatter",
+        "rings",
+        "bauhaus",
+        "rain"
+      ],
+      "sculptures": [
+        "spiral",
+        "knot",
+        "mobile",
+        "shards",
+        "orbit"
+      ],
+      "music": [
+        4,
+        3
+      ],
+      "words": {
+        "noun": [
+          "Clock",
+          "Corridor",
+          "Insomnia",
+          "Staircase",
+          "Departure Board",
+          "Pendulum",
+          "Waiting Room",
+          "Engine",
+          "Crowd",
+          "Heartbeat",
+          "To-Do List",
+          "Elevator",
+          "Night Before",
+          "Static",
+          "Traffic"
+        ],
+        "adj": [
+          "Restless",
+          "Spinning",
+          "Sleepless",
+          "Unfinished",
+          "Endless",
+          "Quick",
+          "Nervous",
+          "Turning",
+          "Ticking",
+          "Running",
+          "Unsettled",
+          "Busy"
+        ],
+        "image": [
+          "a clock with too many hands",
+          "a staircase that turns back on itself",
+          "a waiting room where every chair faces the door",
+          "four in the morning with the light on",
+          "a train that never stops"
+        ],
+        "feeling": [
+          "Unrest",
+          "Agitation",
+          "Insomnia",
+          "Hurry",
+          "Worry",
+          "Fidget"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} at {hour}",
+        "{Feeling}, No. {n}",
+        "Study of {image}",
+        "Not Now",
+        "Wait",
+        "{Adj} {Noun} ({year})",
+        "The {Noun} That Will Not Stop",
+        "Untitled ({image})",
+        "Again, Again",
+        "{Feeling} in {season}",
+        "Hurry"
+      ],
+      "stories": [
+        "{artist} could not stop working on {title}, and moved it {n} times between {city} and anywhere else. It was declared finished only because the artist ran out of canvas around its edges. {afterlife}",
+        "This was painted between three and five in the morning over a whole {season}, during the hours the artist could not sleep. {artist} called those hours 'the second day'.",
+        "{artist} built a clockwork motor into the stretcher of {title} so that it would tremble very slightly at all times. The motor stopped {later}. The trembling did not.",
+        "Made in a waiting room in {city} while the artist waited for news that took {n} hours to arrive. The news was good. The picture never calmed down.",
+        "Visitors often walk past {title} quickly, then come back. The museum considers this the correct way to see it.",
+        "{artist} said the picture is about wanting to be somewhere else, anywhere else, and then arriving and wanting the same thing again."
+      ],
+      "hints": [
+        "Keep moving: the key is in {title}.",
+        "{artist} never let anything stay still. The key is in {title}, turning.",
+        "The key will not sit still. Catch it in {title}.",
+        "Wind it back. Look into {title}."
+      ]
+    },
+    {
+      "id": "mischief",
+      "name": "Mischief",
+      "wing": "The Crooked Wing",
+      "colors": {
+        "wall": "#7a4a8c",
+        "floor": "#2a2a40",
+        "trim": "#f0c040",
+        "ceiling": "#3a1a4a",
+        "light": "#ffd2f0"
+      },
+      "palettes": [
+        [
+          "#1a0a2a",
+          "#7a2aa0",
+          "#40d0b0",
+          "#fff0a0"
+        ],
+        [
+          "#0a1a2a",
+          "#ff4f8b",
+          "#ffd23f",
+          "#e0fff8"
+        ],
+        [
+          "#200a14",
+          "#3a86ff",
+          "#ff006e",
+          "#ffbe0b"
+        ]
+      ],
+      "styles": [
+        "bauhaus",
+        "maze",
+        "dots",
+        "eye",
+        "mosaic",
+        "glass"
+      ],
+      "sculptures": [
+        "mobile",
+        "orbit",
+        "knot",
+        "heart",
+        "cage"
+      ],
+      "music": [
+        2,
+        3
+      ],
+      "words": {
+        "noun": [
+          "Cat",
+          "Trick",
+          "Riddle",
+          "Jester",
+          "Rabbit",
+          "Puppet",
+          "Upside-Down Room",
+          "Hat",
+          "Magician",
+          "Balloon",
+          "Prank",
+          "Fox",
+          "Wink",
+          "Crooked House",
+          "Card"
+        ],
+        "adj": [
+          "Crooked",
+          "Sly",
+          "Upside-Down",
+          "Silly",
+          "Backwards",
+          "Wobbly",
+          "Impossible",
+          "Sneaky",
+          "Topsy-Turvy",
+          "Grinning",
+          "Peculiar",
+          "Inside-Out"
+        ],
+        "image": [
+          "a cat sitting in a painting of a cat",
+          "a staircase painted the wrong way up",
+          "a magician who has lost his rabbit",
+          "a door painted on a wall",
+          "a portrait that is winking"
+        ],
+        "feeling": [
+          "Mischief",
+          "Whimsy",
+          "Nonsense",
+          "Glee",
+          "Caprice",
+          "Trickery"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "This Is Not a {Noun}",
+        "{Noun} Wearing {object}",
+        "{Feeling}, No. {n}",
+        "Study for {image}",
+        "Who Moved the {Noun}",
+        "{Adj} {Noun} ({city})",
+        "Do Not Touch (Please Touch)",
+        "Untitled ({image})",
+        "The {Noun} Is Behind You",
+        "Portrait of {someone}, Upside Down",
+        "Ha"
+      ],
+      "stories": [
+        "{artist} hung {title} upside down at its first exhibition in {city}, {when}, and it won a prize. When the mistake was discovered, {artist} insisted there had been no mistake. {afterlife}",
+        "There are {n} cats hidden in {title}. The museum has found {n} of them. Visitors keep finding more.",
+        "{artist} painted {title} to win a bet with {someone}. The bet was that nobody could paint {image}. Both claimed to have won.",
+        "The signature in the corner is not {artist}'s. It is the name of the critic who called the artist's work 'a joke'. {afterlife}",
+        "This picture has been stolen {n} times and returned every time, with a polite note, by a different thief.",
+        "{artist} said: 'Art should be serious about being silly.' {title} was painted on the artist's birthday, in a paper crown."
+      ],
+      "hints": [
+        "Ha! The key is hiding somewhere silly: {title}.",
+        "{artist} played a trick and hid the key inside {title}.",
+        "The key is where it should not be: in {title}. Probably upside down.",
+        "Ask {title}. It will pretend not to know."
+      ]
+    },
+    {
+      "id": "love",
+      "name": "Love",
+      "wing": "The Rose Wing",
+      "colors": {
+        "wall": "#8c3246",
+        "floor": "#3a2020",
+        "trim": "#e0a080",
+        "ceiling": "#4a1824",
+        "light": "#ffc8b4"
+      },
+      "palettes": [
+        [
+          "#1a0610",
+          "#8a1a3a",
+          "#f07a8a",
+          "#fff0ec"
+        ],
+        [
+          "#120818",
+          "#5a1a5a",
+          "#e8a0c0",
+          "#fff4f8"
+        ],
+        [
+          "#1a0a08",
+          "#a02a1a",
+          "#f4b07a",
+          "#fff6e8"
+        ]
+      ],
+      "styles": [
+        "orbs",
+        "bloom",
+        "garden",
+        "portrait",
+        "ember",
+        "field"
+      ],
+      "sculptures": [
+        "heart",
+        "pair",
+        "bloom",
+        "hand"
+      ],
+      "music": [
+        5,
+        2
+      ],
+      "words": {
+        "noun": [
+          "Rose",
+          "Kiss",
+          "Letter",
+          "Dance",
+          "Promise",
+          "Wedding Song",
+          "Two Cups",
+          "Moonlight",
+          "Garden",
+          "Ring",
+          "Bridge",
+          "Balcony",
+          "Last Dance",
+          "Heart",
+          "Serenade"
+        ],
+        "adj": [
+          "Red",
+          "Secret",
+          "Burning",
+          "Eternal",
+          "First",
+          "Midnight",
+          "True",
+          "Stolen",
+          "Sweet",
+          "Golden",
+          "Breathless",
+          "Faithful"
+        ],
+        "image": [
+          "two people dancing in an empty kitchen",
+          "a love letter written on a napkin",
+          "two lights circling each other",
+          "a rose left on a doorstep",
+          "the moment before a first kiss"
+        ],
+        "feeling": [
+          "Love",
+          "Devotion",
+          "Desire",
+          "Ardour",
+          "Adoration",
+          "Us"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} for {first}",
+        "{Feeling}",
+        "Study for {image}",
+        "{Adj} {Noun}, No. {n}",
+        "You and Then Me",
+        "Always",
+        "{Noun} at {hour}",
+        "Untitled ({image})",
+        "The {Noun} We Kept",
+        "{Feeling} in {season}",
+        "Yours"
+      ],
+      "stories": [
+        "{artist} painted {title} for {first}, whom the artist met on a ferry in {city} {when} and married eleven days later. They were together for {n} years and this hung over their bed for all of them. {afterlife}",
+        "Hidden in the background of {title} are the initials of two people. The artist never said whose they were, only that 'one of them is not me'.",
+        "This was painted in secret, in {season}, by an artist whose family had forbidden the match. {artist} sent it as a letter; it was the only reply that was ever needed.",
+        "{artist} said love is two lights that never quite touch, and never quite stop trying. {afterlife}",
+        "Bequeathed to the museum by a couple who had stood in front of it on their first date, their fiftieth anniversary and, they wrote, 'most Thursdays in between'.",
+        "The red in {title} has never faded, though everything around it has. Conservators cannot explain it, and have stopped trying."
+      ],
+      "hints": [
+        "Follow your heart: the key is in {title}.",
+        "{artist} gave this room's key away, to {title}, for safekeeping.",
+        "The key is held close, as you hold someone you love: inside {title}.",
+        "Two lights, one key: look into {title}."
+      ]
+    },
+    {
+      "id": "regret",
+      "name": "Regret",
+      "wing": "The Wing of Unsent Letters",
+      "colors": {
+        "wall": "#5c5046",
+        "floor": "#2e2824",
+        "trim": "#a08a70",
+        "ceiling": "#2a2420",
+        "light": "#f0d4b0"
+      },
+      "palettes": [
+        [
+          "#0e0a08",
+          "#4a3a2e",
+          "#b08a68",
+          "#f4e4cc"
+        ],
+        [
+          "#0a0a0e",
+          "#3a3a4e",
+          "#8a8aa8",
+          "#e8e8f0"
+        ],
+        [
+          "#100808",
+          "#5a2a24",
+          "#c09080",
+          "#f8e8e0"
+        ]
+      ],
+      "styles": [
+        "ink",
+        "window",
+        "rain",
+        "portrait",
+        "void",
+        "rings"
+      ],
+      "sculptures": [
+        "figure",
+        "cairn",
+        "rain",
+        "vessel",
+        "hand"
+      ],
+      "music": [
+        1,
+        6
+      ],
+      "words": {
+        "noun": [
+          "Letter",
+          "Apology",
+          "Road Not Taken",
+          "Telephone",
+          "Bridge",
+          "Station",
+          "Promise",
+          "Door",
+          "Photograph",
+          "Ring",
+          "Goodbye",
+          "Wrong Turn",
+          "Last Word",
+          "Second Chance",
+          "Season"
+        ],
+        "adj": [
+          "Unsent",
+          "Unsaid",
+          "Late",
+          "Broken",
+          "Other",
+          "Missed",
+          "Forgotten",
+          "Wrong",
+          "Burned",
+          "Unopened",
+          "Too Late",
+          "Almost"
+        ],
+        "image": [
+          "a letter that was never posted",
+          "a train pulling out without you",
+          "a door you did not knock on",
+          "a phone call that was not made",
+          "a goodbye said in the wrong words"
+        ],
+        "feeling": [
+          "Regret",
+          "Remorse",
+          "If Only",
+          "Penance",
+          "Hindsight",
+          "Sorry"
+        ]
+      },
+      "titles": [
+        "The {Adj} {Noun}",
+        "{Noun} Never Sent",
+        "{Feeling}",
+        "Study of {image}",
+        "{Adj} {Noun}, No. {n}",
+        "If I Had Stayed",
+        "I Should Have Said",
+        "{Noun} at {hour}",
+        "Untitled ({image})",
+        "The {Noun} I Did Not Keep",
+        "{Feeling} for {someone}",
+        "Again, Better"
+      ],
+      "stories": [
+        "{artist} painted {title} instead of writing a letter to {someone}. The letter would have taken one evening; the painting took {n} years. {afterlife}",
+        "This was painted over a portrait the artist had made of {someone}, after a quarrel in {city} {when}. The artist spent the rest of their life wishing to scrape the new picture off, and never did.",
+        "{artist} said: 'You cannot change what happened. You can only change what you do with the room it left behind.' {title} is what the artist did.",
+        "There is an empty envelope tucked into the frame of {title}. It is addressed in the artist's hand. The address no longer exists.",
+        "{artist} gave {title} to the museum on condition that one day someone would stand in front of it and decide to make a phone call. The museum hopes, quietly, that it has happened.",
+        "Painted in {season}, the season the artist did not go home. {afterlife}"
+      ],
+      "hints": [
+        "The key is in the thing that was never said: {title}.",
+        "{artist} left this room's key in {title}, with everything else left unsaid.",
+        "It is not too late. Look into {title}.",
+        "Open the letter that was never sent: {title}."
+      ]
+    }
+  ],
+  "masterpieces": [
+    {
+      "title": "The Girl Who Swallowed the Sun",
+      "artist": "Mireille Achterberg",
+      "year": "1931",
+      "medium": "oil and gold leaf on oak",
+      "theme": "joy",
+      "style": "bloom",
+      "story": "Achterberg painted this for her daughter, who had been told she would never see another summer. The girl lived to be ninety-four and kept the painting in her kitchen, where, she said, it did the work of a window. On her death she left it to the museum with a jar of marmalade, which the museum has not opened."
+    },
+    {
+      "title": "Room With the Coat Still On the Hook",
+      "artist": "Teodor Kalnins",
+      "year": "1958",
+      "medium": "oil on linen",
+      "theme": "grief",
+      "style": "window",
+      "story": "Kalnins painted his father's hallway every winter for nineteen years, never quite finishing. This is the last version. He died with a brush in his hand, and the museum has left one corner unfinished, as he did."
+    },
+    {
+      "title": "Two Lanterns on Opposite Shores",
+      "artist": "Anonymous (the Lighthouse School)",
+      "year": "c. 1880",
+      "medium": "oil on a ship's sail",
+      "theme": "longing",
+      "style": "orbs",
+      "story": "Painted by the keepers of two lighthouses that faced each other across a strait, one stroke at a time, by signal. Neither keeper ever met the other. When the canvas was finally brought together, the two halves matched to the width of a hair."
+    },
+    {
+      "title": "A Map of Everything Under the Bed",
+      "artist": "Kenji Nakamura",
+      "year": "2009",
+      "medium": "ink and oil on paper",
+      "theme": "wonder",
+      "style": "galaxy",
+      "story": "Nakamura asked three hundred children what they thought was under their beds and painted all of it into one sky. A dragon, a lost sock, a door to the sea, a grandmother, a second bed. Visitors have reported finding their own childhood fear in it, looking rather smaller than they remember."
+    },
+    {
+      "title": "The Night the Factory Burned",
+      "artist": "Ilse Hartmann",
+      "year": "1911",
+      "medium": "oil, ash and iron filings on canvas",
+      "theme": "rage",
+      "style": "ember",
+      "story": "Hartmann was a seamstress at the factory and survived the fire that killed forty-one of her friends behind a locked door. She learned to paint so that she could make this. It was exhibited outside the owner's house every evening for a year. The doors of every workshop in the city were unlocked within a month."
+    },
+    {
+      "title": "Someone Is Standing in the Orchard",
+      "artist": "Unknown hand, a farmhouse outside Lviv",
+      "year": "undated",
+      "medium": "tempera on panel",
+      "theme": "dread",
+      "style": "forest",
+      "story": "Found nailed face-down to the floor of a farmhouse. The family who owned the farm had no idea how long it had been there, or why. They asked that the museum never hang it facing a window. The museum has kept its promise."
+    },
+    {
+      "title": "Tea, Going Cold, for an Hour",
+      "artist": "Hiroshi Sato",
+      "year": "1974",
+      "medium": "watercolour and gouache",
+      "theme": "serenity",
+      "style": "rings",
+      "story": "Sato painted the surface of a single cup of tea for exactly one hour, from steaming to still. He described it as the happiest hour of his life, and could never say why."
+    },
+    {
+      "title": "The Last Day of the Summer House",
+      "artist": "Isaura Ferreira",
+      "year": "1966",
+      "medium": "oil on an old door",
+      "theme": "nostalgia",
+      "style": "horizon",
+      "story": "Painted on the front door of her family's summer house the day it was sold, with the light from the porch as it fell at five o'clock. The new owners kept the door, and gave it to the museum forty years later, when they too were leaving."
+    },
+    {
+      "title": "Mending, by Lamplight",
+      "artist": "Kofi Okonkwo",
+      "year": "1989",
+      "medium": "oil on canvas",
+      "theme": "tenderness",
+      "style": "portrait",
+      "story": "Okonkwo's grandmother darned his school socks every night of his childhood. He painted her hands from memory forty years later, and found he remembered every knuckle."
+    },
+    {
+      "title": "Diner, 3 a.m., No One Else",
+      "artist": "Sunniva Halvorsen",
+      "year": "1952",
+      "medium": "oil on canvas",
+      "theme": "loneliness",
+      "style": "window",
+      "story": "Halvorsen worked the night shift at a diner on a highway for six years and painted this on her last night. She said the loneliness was never the bad part. The bad part was the mornings, when it ended."
+    },
+    {
+      "title": "The First Swallow After the War",
+      "artist": "Yusuf Yildiz",
+      "year": "1946",
+      "medium": "pigment, honey and oil on linen",
+      "theme": "hope",
+      "style": "aurora",
+      "story": "Yildiz saw a single swallow land on the ruins of his street in April and painted it the same day with whatever he could find, including honey from a neighbour's last jar. The neighbour insisted. The picture has never quite stopped smelling of it."
+    },
+    {
+      "title": "Gloria, for Four Hundred Voices",
+      "artist": "Anonymous (the Grey Choir)",
+      "year": "c. 1500",
+      "medium": "egg tempera and gold on panel",
+      "theme": "awe",
+      "style": "glass",
+      "story": "Painted, the records say, by a choir of monks who were forbidden to sing for a year and painted their mass instead. Each figure in the light is a voice. Musicians who study the panel have transcribed it, and say it can be sung."
+    },
+    {
+      "title": "Four in the Morning, Again",
+      "artist": "Celestine Montclair",
+      "year": "2017",
+      "medium": "acrylic and sand on canvas",
+      "theme": "restlessness",
+      "style": "maze",
+      "story": "Montclair kept a sketchbook by the bed and drew one line each time she woke before dawn. After two years she transferred every line to canvas. The result is a maze with no centre, which she called the most accurate portrait she ever made."
+    },
+    {
+      "title": "The Cat Who Stole the Mona Lisa",
+      "artist": "Aurelio Esposito",
+      "year": "1913",
+      "medium": "oil on canvas",
+      "theme": "mischief",
+      "style": "bauhaus",
+      "story": "Painted the year a famous painting was stolen from a famous museum. Esposito claimed his cat had done it, and painted the cat with the evidence. The police visited twice. The cat was never charged."
+    },
+    {
+      "title": "Every Thursday for Fifty Years",
+      "artist": "Leopold Marlowe and Agathe Marlowe",
+      "year": "1962–2012",
+      "medium": "oil on linen",
+      "theme": "love",
+      "style": "orbs",
+      "story": "The Marlowes added one brushstroke each to this canvas every Thursday of their marriage. When one of them died, the other made the last stroke and gave it to the museum the next morning, still wet."
+    },
+    {
+      "title": "The Letter I Should Have Posted",
+      "artist": "Ezra Holloway",
+      "year": "1978",
+      "medium": "ink and oil on paper",
+      "theme": "regret",
+      "style": "ink",
+      "story": "Holloway painted over the letter itself, so that only a few words remain: 'I was wrong' and 'still'. He said it was the bravest thing he ever painted and the most cowardly thing he ever did. Both, he said, were true."
+    }
+  ],
+  "stories": [
+    "{artist} made {title} {when}, in {place}, and never spoke about it afterwards. Those who knew the artist say it was the one picture they never sold, though they were often poor. {afterlife}",
+    "The museum's first catalogue describes {title} in a single word: '{feeling}'. No one has found a better one. {afterlife}",
+    "{artist} painted {image} again and again for {n} years. {title} is the version the artist kept facing the bed.",
+    "Before it came here, {title} belonged to {someone} in {city}, who wrote to the museum every year to ask how it was. The letters are kept in a drawer beneath it.",
+    "X-rays show {n} earlier pictures under {title}, each painted over the last. In every one of them there is {object}.",
+    "{artist} said of {title}: 'I painted what it feels like, not what it looks like. Those are different paintings, and only one of them is any use.' {afterlife}",
+    "The canvas for {title} was bought in {city} with the last of the money from the sale of a piano. {artist} said it was a fair trade. {afterlife}",
+    "Nobody knows exactly when {title} was finished. {artist} was still adding to it, a touch at a time, on visits to the museum {later}, until the guards were asked to look the other way.",
+    "{artist} painted {title} in {place} during {season}, by the light of a single lamp. The lamp is in the museum's collection too, though it is rarely shown. {afterlife}",
+    "Some visitors say {title} changes while they are not looking. The museum has set up a camera. The camera's findings have not been published.",
+    "When {artist} was asked what {title} meant, the artist answered with a question: 'What did you feel when you first saw it?' and then waited, a long time, for the reply."
+  ],
+  "object_stories": [
+    "{artist} made {title} {when}, in {place}, from {medium}. The piece was meant to be a {kind} about {image}; the artist said it became one about {feeling} instead. {object_afterlife}",
+    "This {kind} took {n} months to make and one night to name. {artist} called it {title} after waking from a dream about {image}.",
+    "{title} was carried into the museum by six people and a borrowed cart from {city}. It has never been moved since; the floor was reinforced around it.",
+    "{artist} said a {kind} should be walked around like a person you are getting to know. 'Start where it is looking. Then see what it is hiding.'",
+    "Guards say {title} is never quite where they left it at closing. The museum has measured: it has not moved. The guards are not convinced.",
+    "{artist} made {title} for {someone}, who had lost their sight and wanted something they could know with their hands. Visitors are not usually allowed to touch it. The guards are known to look away.",
+    "The first version of {title} was lost at sea on its way from {city}. {artist} made this one from memory, and said it was better, because memory leaves out what does not matter. {object_afterlife}",
+    "There is a small hollow inside {title}. {artist} never said what, if anything, was placed in it.",
+    "Children are drawn to {title}, and the museum's records note that they often speak to it. The records do not say whether it answers.",
+    "{artist} worked on {title} in {place} through {season}, in a shed with no door. Snow, birds and once a fox came in to look. The artist said they were the first critics."
+  ]
+}

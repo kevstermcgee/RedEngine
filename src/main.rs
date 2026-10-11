@@ -131,6 +131,11 @@ fn run(command: Command) -> Result<(), String> {
         Command::Sky { scene, out, hours, cols, tile, eye, at, fov, size, look } => {
             run_sky(&scene, &out, &hours, cols, tile, eye.as_deref(), at.as_deref(), fov, size.as_deref(), look.as_deref())
         }
+        Command::Museum { scene, seed, room, shot, look, inside, map, explore, t, styles } => {
+            let (x, z) = room.split_once(',').and_then(|(x, z)| Some((x.trim().parse::<i32>().ok()?, z.trim().parse::<i32>().ok()?))).ok_or("--room must look like 0,0")?;
+            let args = red_engine2::tools::museum_tool::Args { scene, seed, room: (x, z), shot, look, inside, map, explore, t, styles };
+            red_engine2::tools::museum_tool::run(&args).map(|text| print!("{text}"))
+        }
         Command::Procgen { out, seed, centre, size, scale, grid, biomes, relief, trees, flowers, grass } => {
             run_procgen(&out, seed, &centre, size, scale, grid, biomes, [relief, trees, flowers, grass])
         }

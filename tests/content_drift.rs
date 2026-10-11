@@ -284,6 +284,23 @@ fn games_2d_agree() {
     });
 }
 
+#[test]
+fn museum_collections_agree() {
+    let collection = |p: &Path| {
+        let v = read(p);
+        v.get("themes").is_some() && v.get("styles").is_some() && v.get("artists").is_some()
+    };
+    let found = files(&[("examples", &collection)]);
+    assert!(!found.is_empty(), "the drift test sees at least one collection (examples/frameless)");
+    assert_agree(Format {
+        name: "museum collection",
+        files: items(found),
+        checker: &|v, _| red_engine2::museum::spec::parse_collection(v, None).map(|_| ()),
+        typed: &|v| content::typed::<content::museum::Collection>(v).map(|_| ()),
+        probe_keys: true,
+    });
+}
+
 fn score_files() -> Vec<PathBuf> {
     let score = |p: &Path| {
         let v = read(p);

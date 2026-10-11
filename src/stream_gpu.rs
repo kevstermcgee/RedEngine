@@ -209,6 +209,7 @@ impl StreamLayer {
                 base_color: [0.0, 0.0, 0.0, alpha],
                 material: [0.0, 1.0, 0.0, 0.0],
                 emissive: [colour.x * m.glow, colour.y * m.glow, colour.z * m.glow, 0.0],
+                ..bytemuck::Zeroable::zeroed()
             };
             queue.write_buffer(&self.lights.buf, slot as u64 * self.stride, bytemuck::bytes_of(&uniform));
         }
@@ -265,6 +266,7 @@ impl StreamLayer {
             base_color: [1.0, 1.0, 1.0, 1.0],
             material: [0.0, 0.93, 0.0, 0.0],
             emissive: [0.0; 4],
+            ..bytemuck::Zeroable::zeroed()
         };
         queue.write_buffer(&self.object_buf, slot as u64 * self.stride, bytemuck::bytes_of(&uniform));
     }
