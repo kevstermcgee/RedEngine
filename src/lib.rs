@@ -121,10 +121,16 @@ pub fn load_scene(path: &Path) -> Result<schema::Scene, Vec<String>> {
 
 /// Validates a scene file without rendering (`red_engine2 validate`).
 pub fn validate_scene_file(path: &Path) -> Result<(), Vec<String>> {
-    let mut errs = load_scene(path).err().unwrap_or_default();
+    let text = std::fs::read_to_string(path).map_err(|e| vec![format!("{}: {e}", path.display())])?;
+    validate_scene_text(&text, path.parent(), &path.display().to_string())
+}
+
+/// [`validate_scene_file`] on a scene's text: `base` is the folder relative files (scores, heightmaps) resolve against, `label` names it.
+pub fn validate_scene_text(text: &str, base: Option<&Path>, label: &str) -> Result<(), Vec<String>> {
+    let mut errs = schema::parse_scene_in(text, base).err().unwrap_or_default();
     // `checks` is read by `verify`; `validate` holds it to the same shape rules without running anything (a misspelt group or a check that asserts
     // nothing used to pass `validate` and fail only at `verify`).
-    let raw: Option<serde_json::Value> = std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok());
+    let raw: Option<serde_json::Value> = serde_json::from_str(text).ok();
     if let Some(checks) = raw.as_ref().and_then(|v| v.get("checks")).filter(|c| c.is_object()) {
         errs.extend(tools::check_schema::invalid_fields(checks));
         if let Some(audio) = checks.get("audio") {
@@ -132,9 +138,9 @@ pub fn validate_scene_file(path: &Path) -> Result<(), Vec<String>> {
         }
         // The scripted playthroughs (`checks.sim`) are parsed, not played: their steps, expectations and references are checked as `verify` would.
         if let (true, Some(sims)) = (errs.is_empty(), checks.get("sim").and_then(serde_json::Value::as_array)) {
-            match tools::simrun::load(path) {
+            match tools::simrun::load_text(text, label) {
                 Ok(loaded) => {
-                    if let Err(e) = tools::simrun::parse_scenarios(&loaded, sims, &path.display().to_string()) {
+                    if let Err(e) = tools::simrun::parse_scenarios(&loaded, sims, label) {
                         errs.extend(e);
                     }
                 }
