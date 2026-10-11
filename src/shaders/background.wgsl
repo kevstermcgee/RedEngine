@@ -19,12 +19,18 @@ fn vs_bg(@builtin(vertex_index) vi: u32) -> VsOut {
     return out;
 }
 
+// The sky's colour for a view direction (`px`: the angle one pixel spans). A scene's own sky (`sky.shader`) replaces this one function with a call to its `sky`
+// (see `atmosphere::background_source`).
+fn sky_of(dir: vec3<f32>, px: f32) -> vec3<f32> {
+    return sky_color_px(dir, px);
+}
+
 @fragment
 fn fs_bg(in: VsOut) -> @location(0) vec4<f32> {
     // A scene with a `sky` block: shaded by the view direction (see sky.wgsl), a sun at infinity.
     if (globals.sky.x > 0.5) {
         let dir = view_ray(in.ndc);
-        return vec4<f32>(sky_color_px(dir, length(fwidth(dir))), 1.0);
+        return vec4<f32>(sky_of(dir, length(fwidth(dir))), 1.0);
     }
     if (globals.bg_top.w < 0.5) {
         return vec4<f32>(globals.bg_top.rgb, 1.0);

@@ -291,6 +291,109 @@ pub fn render_wav(name: &str, out: &std::path::Path) -> Result<String, String> {
     ))
 }
 
+/// `audio journey`: a scene's endless music (`audio.journey`), section by section: which score, key and seed each one is, how long and how loud. With
+/// `out`, the first `sections` sections are mixed exactly as the client plays them (the same timeline, the same crossfades) into one WAV to listen to.
+pub fn journey_text(scene: &std::path::Path, sections: usize, seed: Option<u32>, out: Option<&std::path::Path>) -> Result<String, String> {
+    use crate::ambience::JourneyPlayer;
+    let loaded = crate::load_scene(scene).map_err(|e| format!("{}: {}", scene.display(), e.join("; ")))?;
+    let spec = loaded.audio.as_ref().and_then(|a| a.journey.clone()).ok_or_else(|| format!("{}: has no `audio.journey`", scene.display()))?;
+    let texts: Vec<Value> = spec
+        .scores
+        .iter()
+        .map(|f| {
+            std::fs::read_to_string(f)
+                .map_err(|e| format!("{}: {e}", f.display()))
+                .and_then(|t| serde_json::from_str(&t).map_err(|e| format!("{}: {e}", f.display())))
+        })
+        .collect::<Result<_, _>>()?;
+    let seed = seed.unwrap_or_else(|| spec.seed.value(None));
+    let mut player = JourneyPlayer::new(&spec, seed);
+    let sections = sections.max(1);
+    let rel = |p: &std::path::Path| p.strip_prefix(scene.parent().unwrap_or(std::path::Path::new(""))).unwrap_or(p).display().to_string();
+    let mut lines = format!(
+        "journey of {} ({} scores, seed {seed}, fade {} s, each section x{})
+",
+        scene.display(),
+        spec.scores.len(),
+        spec.fade,
+        spec.repeats
+    );
+    // The client's loop, in blocks: render what is wanted at once (offline nothing is late), start what the timeline starts, mix the two slots at its levels.
+    const BLOCK: usize = 1024;
+    let rate = crate::synth::SAMPLE_RATE as f32;
+    let mut slots: [Option<(Vec<f32>, usize)>; 2] = [None, None];
+    let mut held: Option<(u64, Vec<f32>)> = None;
+    let mut mix: Vec<f32> = Vec::new();
+    let mut started = 0usize;
+    let mut last_end = 0usize;
+    loop {
+        if let Some(want) = player.wanted() {
+            if held.is_none() && (want.index as usize) < sections {
+                let text = want.score_json(&texts[want.score]);
+                let score = crate::score::parse_score(&text).map_err(|e| format!("{}: {}", spec.scores[want.score].display(), e.join("; ")))?;
+                let rendered = score.render();
+                let r = analyze(Clip { samples: &rendered.samples, channels: 2, rate: crate::synth::SAMPLE_RATE });
+                let key = text.get("key").and_then(Value::as_str).unwrap_or("?").to_string();
+                lines.push_str(&format!(
+                    "section {:<3} {:<28} key {:<3} (shift {:+}) seed {:<10} loop {:5.1} s  {:.1} LUFS  peak {:.1} dBFS\n",
+                    want.index,
+                    rel(&spec.scores[want.score]),
+                    key,
+                    want.shift,
+                    want.seed,
+                    r.secs,
+                    r.lufs,
+                    r.peak_dbfs
+                ));
+                player.ready(want.index, rendered.samples.len() as f32 / 2.0 / rate);
+                held = Some((want.index, rendered.samples));
+            }
+        }
+        let step = player.step(BLOCK as f32 / rate);
+        if let Some((slot, index)) = step.start {
+            if let Some((_, samples)) = held.take().filter(|(i, _)| *i == index) {
+                slots[slot] = Some((samples, 0));
+                started += 1;
+            }
+        }
+        if out.is_none() && started >= sections {
+            break;
+        }
+        let base = mix.len();
+        mix.resize(base + BLOCK * 2, 0.0);
+        for (slot, level) in slots.iter_mut().zip(step.levels) {
+            if let Some((samples, pos)) = slot {
+                for k in 0..BLOCK * 2 {
+                    mix[base + k] += samples[(*pos + k) % samples.len()] * level;
+                }
+                *pos = (*pos + BLOCK * 2) % samples.len();
+            }
+        }
+        // Stop when the last section asked for has played through once its crossfade in is done.
+        if started >= sections {
+            if last_end == 0 {
+                let secs = slots.iter().flatten().map(|(s, _)| s.len() / 2).max().unwrap_or(0) * spec.repeats as usize;
+                last_end = mix.len() / 2 + secs.min(crate::synth::SAMPLE_RATE as usize * 600);
+            }
+            if mix.len() / 2 >= last_end {
+                break;
+            }
+        }
+        if mix.len() > crate::synth::SAMPLE_RATE as usize * 2 * 60 * 120 {
+            return Err("audio journey: over two hours of music: ask for fewer --sections".to_string());
+        }
+    }
+    if let Some(out) = out {
+        if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
+            std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        }
+        std::fs::write(out, wav_bytes_i16(&mix, crate::synth::SAMPLE_RATE, 2)).map_err(|e| format!("{}: {e}", out.display()))?;
+        let r = analyze(Clip { samples: &mix, channels: 2, rate: crate::synth::SAMPLE_RATE });
+        lines.push_str(&format!("wrote {} ({:.1} min) {}\n", out.display(), r.secs / 60.0, r.line()));
+    }
+    Ok(lines)
+}
+
 /// The median loudness of each group (`gun`, `fx`, ...), for the outlier warnings.
 fn group_medians(rows: &[(String, &'static str, Report)]) -> std::collections::HashMap<&'static str, f32> {
     let mut by: std::collections::HashMap<&'static str, Vec<f32>> = std::collections::HashMap::new();

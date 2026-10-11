@@ -310,7 +310,7 @@ impl Renderer {
     /// Builds the offline renderer (device, pipelines, meshes) for `scene`.
     pub fn new(scene: &Scene) -> Result<Self> {
         let gpu = Gpu::new()?;
-        let pipelines = create_pipelines(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
+        let pipelines = create_pipelines(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1, scene.sky_shader.as_deref().map(|s| s.source.as_str()));
         let shadow_sampler = make_shadow_sampler(&gpu.device);
         let targets = FrameTargets::new(&gpu.device, scene.width, scene.height);
         let post = create_post_pipeline(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
@@ -712,6 +712,11 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
         (Some(d), sky) => (d.zenith, d.horizon, 1.0f32, [1.0, sky.map_or(0.6, |s| s.gradient_power), 1.0, 0.0]),
         (None, Some(sky)) => (sky.zenith, sky.horizon, 1.0f32, [1.0, sky.gradient_power, if sky.sun.is_some() { 1.0 } else { 0.0 }, 0.0]),
         (None, None) => (bg_top, bg_bottom, bg_mode, [0.0; 4]),
+    };
+    // A game's own sky is always drawn by view direction, with its seed in the fourth slot (`sky_seed()`).
+    let sky_flags = match &scene.sky_shader {
+        Some(custom) => [1.0, sky_flags[1], sky_flags[2], custom.seed_for(None) as f32],
+        None => sky_flags,
     };
     let sun = scene.sky.and_then(|s| s.sun);
     let (sun_dir, sun_color) = match &day {

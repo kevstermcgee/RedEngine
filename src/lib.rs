@@ -75,6 +75,8 @@ pub mod score;
 #[cfg(feature = "gfx")]
 pub mod settings;
 pub mod sfx;
+#[cfg(feature = "render")]
+pub mod shader_check;
 pub mod shadow;
 #[cfg(feature = "render")]
 pub mod shooter_world;

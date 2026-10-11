@@ -1,0 +1,26 @@
+{
+  "bpm": 54, "beats": 4, "bars": 16, "key": "C", "scale": "minor", "seed": 4, "lufs": -24,
+  "reverb": {"decay": 10, "size": 1.7, "damp": 0.45, "predelay": 0.04, "mix": 0.7},
+  "delay": {"time": 1.5, "feedback": 0.5, "damp": 0.6, "mix": 0.3},
+  "instruments": {
+    "pad": { "seconds": 20, "level": 0.42, "layers": [
+      {"sine": 1, "harmonics": [[2, 0.2], [3, 0.08]], "attack": 4, "release": 7},
+      {"sine": 1.004, "attack": 4.5, "release": 7, "gain": 0.7},
+      {"sine": 0.5, "attack": 5, "release": 7, "gain": 0.2} ] },
+    "pulse": { "seconds": 6, "level": 0.4, "layers": [
+      {"sine": 1, "attack": 0.6, "decay": 0.5},
+      {"sine": 2, "attack": 0.7, "decay": 0.9, "gain": 0.25} ] },
+    "wave": { "seconds": 14, "level": 0.25, "layers": [
+      {"noise": "lp 0.04..0.25", "attack": 5, "release": 7} ] },
+    "bell": { "seconds": 7, "level": 0.32, "layers": [
+      {"sine": 1, "decay": 1.0},
+      {"sine": 2.76, "decay": 1.9, "gain": 0.2},
+      {"sine": 5.4, "decay": 3.4, "gain": 0.08} ] }
+  },
+  "tracks": [
+    {"inst": "pad", "play": "chords", "chords": "i VI III VII | i iv VI V | VI VII i i | i VII VI VII", "every": "2 bars", "octave": 3, "gain": 0.55, "send": 0.8},
+    {"inst": "pulse", "play": "pattern", "pattern": "x... x... x... x.x.", "notes": "1 1 1 5", "octave": 2, "gain": 0.25, "send": 0.5, "from": 3, "to": 14},
+    {"inst": "wave", "play": "pattern", "pattern": "x... .... .... ....", "notes": "1", "steps": 16, "octave": 4, "gain": 0.65, "pan": "spread", "send": 1},
+    {"inst": "bell", "play": "walk", "every": "1 beat", "density": 0.2, "range": [3, 12], "leap": 2, "octave": 5, "pan": "spread", "gain": 0.9, "vel": [0.4, 0.9], "from": 5}
+  ]
+}

@@ -10,11 +10,10 @@
 //! **Coverage is derived, not listed.** The compositions checked are compared with the ones the engine's pipeline builders actually contain (every `include_str!` of a
 //! shader in `src/`, grouped by the `concat!` that joins them), so a shader added or re-composed in `gpu.rs` and not here fails
 //! `every_composition_the_engine_builds_is_checked`, and one here that no builder uses fails the same test.
+#![cfg(feature = "render")]
 
-use naga::back::hlsl;
-use naga::valid::{Capabilities, ValidationFlags, Validator};
-use naga::{Block, Expression, Function, Handle, Module, SampleLevel, Statement};
-use std::collections::{BTreeSet, HashSet};
+use red_engine2::shader_check::check;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
@@ -109,130 +108,39 @@ fn compositions_in_source() -> BTreeSet<Vec<String>> {
     found
 }
 
-// naga's uniformity analysis (run by `validate`) accepts a derivative-needing lookup after a `continue` or `break` taken under a per-pixel condition, and treats
-// every local variable as per-pixel, so it cannot tell a loop every pixel runs the same number of times from one that varies. Direct3D's compiler (FXC) refuses
-// the varying kind ("gradient instruction used in a loop with varying iteration"). So the engine's rule is the simple, safe one: no lookup that needs
-// screen-space derivatives (`textureSample`, `textureSampleCompare`, `textureSampleBias`, `dpdx`...) inside a loop. Inside a loop, use the Level variants
-// (`textureSampleLevel`, `textureSampleCompareLevel`), which need none, or take the lookup out of the loop.
-
-/// Does this expression need screen-space derivatives (so it must sit in uniform control flow)?
-fn needs_derivatives(expr: &Expression) -> bool {
-    matches!(expr, Expression::Derivative { .. } | Expression::ImageSample { gather: None, level: SampleLevel::Auto | SampleLevel::Bias(_), .. })
-}
-
-/// The statements nested directly in `st` (branches, cases, loop bodies).
-fn children(st: &Statement) -> Vec<&Block> {
-    match st {
-        Statement::If { accept, reject, .. } => vec![accept, reject],
-        Statement::Switch { cases, .. } => cases.iter().map(|c| &c.body).collect(),
-        Statement::Loop { body, continuing, .. } => vec![body, continuing],
-        Statement::Block(b) => vec![b],
-        _ => Vec::new(),
-    }
-}
-
-/// The functions that, directly or through a call, need derivatives.
-fn derivative_functions(module: &Module) -> HashSet<Handle<Function>> {
-    fn calls(block: &Block, out: &mut Vec<Handle<Function>>) {
-        for st in block.iter() {
-            if let Statement::Call { function, .. } = st {
-                out.push(*function);
-            }
-            children(st).into_iter().for_each(|b| calls(b, out));
-        }
-    }
-    let mut set: HashSet<Handle<Function>> =
-        module.functions.iter().filter(|(_, f)| f.expressions.iter().any(|(_, e)| needs_derivatives(e))).map(|(h, _)| h).collect();
-    loop {
-        let before = set.len();
-        for (h, f) in module.functions.iter() {
-            let mut called = Vec::new();
-            calls(&f.body, &mut called);
-            if called.iter().any(|c| set.contains(c)) {
-                set.insert(h);
-            }
-        }
-        if set.len() == before {
-            return set;
-        }
-    }
-}
-
-/// Every derivative-needing lookup (or call to a function that has one) that sits inside a loop, as `` `function` (line N): what ``.
-fn derivatives_in_loops(module: &Module, source: &str) -> Vec<String> {
-    struct Scan<'a> {
-        module: &'a Module,
-        derivative_fns: HashSet<Handle<Function>>,
-        source: &'a str,
-        found: Vec<String>,
-    }
-    impl Scan<'_> {
-        fn walk(&mut self, block: &Block, name: &str, exprs: &naga::Arena<Expression>, in_loop: bool) {
-            for st in block.iter() {
-                if in_loop {
-                    match st {
-                        Statement::Emit(range) => {
-                            for h in range.clone().filter(|h| needs_derivatives(&exprs[*h])) {
-                                self.report(name, exprs.get_span(h), "a lookup that needs screen-space derivatives");
-                            }
-                        }
-                        Statement::Call { function, .. } if self.derivative_fns.contains(function) => {
-                            let callee = self.module.functions[*function].name.clone().unwrap_or_default();
-                            self.report(
-                                name,
-                                self.module.functions.get_span(*function),
-                                &format!("a call to `{callee}`, which needs screen-space derivatives"),
-                            );
-                        }
-                        _ => {}
-                    }
-                }
-                let into_loop = in_loop || matches!(st, Statement::Loop { .. });
-                for child in children(st) {
-                    self.walk(child, name, exprs, into_loop);
-                }
-            }
-        }
-
-        fn report(&mut self, name: &str, span: naga::Span, what: &str) {
-            let line = span.location(self.source).line_number;
-            self.found.push(format!("`{name}` (line {line}): {what}, inside a loop"));
-        }
-    }
-    let mut scan = Scan { module, derivative_fns: derivative_functions(module), source, found: Vec::new() };
-    for (_, f) in module.functions.iter() {
-        scan.walk(&f.body, f.name.as_deref().unwrap_or("?"), &f.expressions, false);
-    }
-    for ep in &module.entry_points {
-        scan.walk(&ep.function.body, &ep.name, &ep.function.expressions, false);
-    }
-    scan.found.dedup();
-    scan.found
-}
-
-/// Parse, validate and write HLSL for one module; the error says which step failed and where.
-fn check(label: &str, source: &str) -> Result<(), String> {
-    let module = naga::front::wgsl::parse_str(source).map_err(|e| format!("{label}: does not parse:\n{}", e.emit_to_string(source)))?;
-    let info = Validator::new(ValidationFlags::all(), Capabilities::default())
-        .validate(&module)
-        .map_err(|e| format!("{label}: does not validate:\n{}", e.emit_to_string(source)))?;
-    let in_loops = derivatives_in_loops(&module, source);
-    if !in_loops.is_empty() {
-        return Err(format!(
-            "{label}: Direct3D's compiler can refuse a derivative lookup in a loop (use textureSampleLevel / textureSampleCompareLevel, or move it out of the loop):\n  {}",
-            in_loops.join("\n  ")
-        ));
-    }
-    let mut hlsl_source = String::new();
-    hlsl::Writer::new(&mut hlsl_source, &hlsl::Options::default(), &hlsl::PipelineOptions::default())
-        .write(&module, &info, None)
-        .map_err(|e| format!("{label}: cannot be translated to HLSL: {e}"))?;
-    Ok(())
-}
-
 #[test]
 fn every_shader_module_validates_and_translates_to_hlsl() {
     let failures: Vec<String> = modules().iter().filter_map(|(label, source)| check(label, source).err()).collect();
+    assert!(failures.is_empty(), "{}", failures.join("\n\n"));
+}
+
+/// A game's own sky (`sky.shader`) is composed into the background pass in place of the engine's dome: every one the repository ships (examples, recipes) must
+/// pass the same checks, so a game that would fail on Direct3D fails here first.
+#[test]
+fn every_game_sky_in_the_repository_validates_and_translates_to_hlsl() {
+    fn wgsl_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
+        for e in fs::read_dir(dir).into_iter().flatten().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                wgsl_files(&p, out);
+            } else if p.extension().is_some_and(|x| x == "wgsl") {
+                out.push(p);
+            }
+        }
+    }
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut skies = Vec::new();
+    for dir in ["examples", "recipes"] {
+        wgsl_files(&root.join(dir), &mut skies);
+    }
+    assert!(!skies.is_empty(), "examples/wormhole ships a game sky: this test must find it");
+    let failures: Vec<String> = skies
+        .iter()
+        .filter_map(|p| {
+            let code = fs::read_to_string(p).unwrap_or_default();
+            red_engine2::atmosphere::check_sky_shader(&p.strip_prefix(&root).unwrap_or(p).display().to_string(), &code).err()
+        })
+        .collect();
     assert!(failures.is_empty(), "{}", failures.join("\n\n"));
 }
 

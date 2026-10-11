@@ -17,6 +17,12 @@
 //! *water depth* over the scene's first `terrain`: shallow and translucent over a shelving shore, deep offshore, with foam lapping at the
 //! waterline. It fades into the sky's `horizon` colour with distance, so sea and sky meet without a seam.
 //!
+//! **A game's own sky.** `"sky": {"shader": "sky/aurora.wgsl", "seed": "launch"}` draws the background with the game's WGSL instead of the engine's dome: the
+//! file defines `fn sky(dir: vec3<f32>, px: f32) -> vec3<f32>` (the linear colour seen along the unit world direction `dir`; `px` is the angle one pixel spans,
+//! for antialiasing) and may call the engine's helpers: `sky_time()` (scene seconds), `sky_seed()`, `hash13`, `hash33`, `vnoise`, `fbm`, and read `globals`.
+//! It is composed into the background pass ([`background_source`]) and checked with naga when the scene is validated ([`check_sky_shader`]): parse, validate,
+//! no derivative lookups in loops, HLSL translation, so a sky that would fail on Windows fails `validate` instead. The ocean still reflects the engine's sky.
+//!
 //! Presentation only: nothing here changes what the simulation does.
 
 use crate::color::parse_hex_to_linear;
@@ -25,7 +31,7 @@ use glam::Vec3;
 use serde_json::{Map, Value};
 
 /// `sky` keys.
-pub const SKY_KEYS: &[&str] = &["zenith", "horizon", "gradient_power", "sun"];
+pub const SKY_KEYS: &[&str] = &["zenith", "horizon", "gradient_power", "sun", "shader", "seed"];
 /// `sky.sun` keys.
 pub const SUN_KEYS: &[&str] = &["direction", "size_deg", "color", "glow"];
 /// `ocean` keys.
@@ -56,6 +62,170 @@ pub struct Sky {
     pub gradient_power: f32,
     /// The sun, if the sky has one.
     pub sun: Option<Sun>,
+}
+
+/// A game's own sky (`sky.shader`, see the module docs): the WGSL that colours every background pixel.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SkyShader {
+    /// The file, as the scene named it (for messages).
+    pub file: String,
+    /// Its text.
+    pub source: String,
+    /// What `sky_seed()` returns.
+    pub seed: LaunchSeed,
+}
+
+/// A seed a scene gives as a number or as `"launch"` (`sky.seed`, `audio.journey.seed`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaunchSeed {
+    /// The same every run (`"seed": 7`; the default is 0).
+    Fixed(u32),
+    /// A new one each launch of the live client (`"seed": "launch"`); offline frames, checks and tools use 0, so they repeat.
+    Launch,
+}
+
+impl LaunchSeed {
+    /// Parses `"seed"` at `path`: a whole number below 2^24 (exact as a shader float) or `"launch"`; absent is 0.
+    pub fn parse(v: Option<&Value>, path: &str) -> Result<LaunchSeed, String> {
+        match v {
+            None => Ok(LaunchSeed::Fixed(0)),
+            Some(Value::String(s)) if s == "launch" => Ok(LaunchSeed::Launch),
+            Some(v) => match v.as_u64() {
+                Some(n) if n < (1 << 24) => Ok(LaunchSeed::Fixed(n as u32)),
+                _ => Err(format!("{path}: a whole number from 0 to 16777215, or \"launch\" (a new one each launch)")),
+            },
+        }
+    }
+
+    /// The seed for a run: the fixed one, or for `"launch"` the `launch` value the client drew (`None` offline: 0).
+    pub fn value(self, launch: Option<u32>) -> u32 {
+        match self {
+            LaunchSeed::Fixed(n) => n,
+            LaunchSeed::Launch => launch.unwrap_or(0) & 0x00ff_ffff,
+        }
+    }
+}
+
+impl SkyShader {
+    /// The seed for a run: the fixed one, or for `"launch"` the `launch` value the client drew (kept below 2^24 so the shader's float holds it exactly).
+    pub fn seed_for(&self, launch: Option<u32>) -> u32 {
+        self.seed.value(launch)
+    }
+}
+
+/// The engine's background module: the shared declarations, the sky dome and the background pass.
+const BACKGROUND_WGSL: &str = concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/sky.wgsl"), include_str!("shaders/background.wgsl"));
+
+/// The function in `background.wgsl` that a game's sky replaces.
+const SKY_HOOK: &str = "fn sky_of(dir: vec3<f32>, px: f32) -> vec3<f32> {\n    return sky_color_px(dir, px);\n}\n";
+
+/// The WGSL of the background pass: the engine's own, or with a game's sky (`custom`) in place of the engine's dome.
+pub fn background_source(custom: Option<&str>) -> std::borrow::Cow<'static, str> {
+    match custom {
+        None => std::borrow::Cow::Borrowed(BACKGROUND_WGSL),
+        Some(code) => {
+            debug_assert!(BACKGROUND_WGSL.contains(SKY_HOOK), "background.wgsl lost its sky_of hook");
+            let hook = format!("{code}\nfn sky_of(dir: vec3<f32>, px: f32) -> vec3<f32> {{\n    return sky(dir, px);\n}}\n");
+            std::borrow::Cow::Owned(BACKGROUND_WGSL.replacen(SKY_HOOK, &hook, 1))
+        }
+    }
+}
+
+/// Whether a game's sky compiles everywhere the engine runs (see [`crate::shader_check`]). Errors name the game's file and its own line numbers.
+pub fn check_sky_shader(file: &str, code: &str) -> Result<(), String> {
+    let has_sky = code.lines().any(|l| {
+        let l = l.trim_start();
+        l.starts_with("fn sky(") || l.starts_with("fn sky (")
+    });
+    if !has_sky {
+        return Err(format!(
+            "sky.shader: `{file}` has no `fn sky(dir: vec3<f32>, px: f32) -> vec3<f32>` (the colour seen along `dir`; the engine calls it for every background pixel)"
+        ));
+    }
+    compile_check(file, code)
+}
+
+/// The naga half of [`check_sky_shader`], in a build that can draw (`render`); the headless server, which never draws a sky, only checks the shape above.
+#[cfg(feature = "render")]
+fn compile_check(file: &str, code: &str) -> Result<(), String> {
+    let source = background_source(Some(code));
+    // naga reports lines of the whole module: move them back to the game's file.
+    let before = BACKGROUND_WGSL[..BACKGROUND_WGSL.find(SKY_HOOK).unwrap_or(0)].lines().count();
+    let user_lines = code.lines().count();
+    crate::shader_check::check("sky.shader", &source).map_err(|e| {
+        let mut out = String::new();
+        for line in e.lines() {
+            out.push_str(&relocate_line(line, before, user_lines, file));
+            out.push('\n');
+        }
+        format!("sky.shader: `{file}` does not compile for every GPU backend:\n{}", out.trim_end())
+    })
+}
+
+#[cfg(not(feature = "render"))]
+fn compile_check(_file: &str, _code: &str) -> Result<(), String> {
+    Ok(())
+}
+
+/// Rewrites naga's `:LINE:` / `(line LINE)` / `LINE |` references into the game's file where they fall inside it.
+#[cfg(feature = "render")]
+fn relocate_line(line: &str, before: usize, user_lines: usize, file: &str) -> String {
+    let map = |n: usize| -> Option<usize> { (n > before && n <= before + user_lines).then(|| n - before) };
+    let t = line.trim_start();
+    // A gutter line: "123 │     code" (naga draws the bar as U+2502).
+    if let Some(bar) = t.find(['│', '|']) {
+        if let Ok(n) = t[..bar].trim().parse::<usize>() {
+            let rest = &t[bar..];
+            return match map(n) {
+                Some(m) => format!("{m:>3} {rest}"),
+                None => format!("(engine) {rest}"),
+            };
+        }
+    }
+    // "wgsl:123:45" locations.
+    if let Some(i) = line.find("wgsl:") {
+        let tail = &line[i + 5..];
+        let digits: String = tail.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if let Ok(n) = digits.parse::<usize>() {
+            if let Some(m) = map(n) {
+                return format!("{}{file}:{m}{}", &line[..i], &tail[digits.len()..]);
+            }
+        }
+    }
+    // "(line 123)" from the derivative check.
+    if let Some(i) = line.find("(line ") {
+        let tail = &line[i + 6..];
+        let digits: String = tail.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if let Ok(n) = digits.parse::<usize>() {
+            if let Some(m) = map(n) {
+                return format!("{}({file} line {m}{}", &line[..i], &tail[digits.len()..]);
+            }
+        }
+    }
+    line.to_string()
+}
+
+/// Parses `sky.shader` and `sky.seed`, reading the shader file next to the scene (`base`; `None`, a scene with no folder, only checks the keys) and checking it.
+pub fn parse_sky_shader(root: &Map<String, Value>, base: Option<&std::path::Path>) -> Result<Option<SkyShader>, Vec<String>> {
+    let Some(obj) = root.get("sky").and_then(Value::as_object) else { return Ok(None) };
+    let seed = LaunchSeed::parse(obj.get("seed"), "sky.seed").map_err(|e| vec![e])?;
+    let file = match obj.get("shader") {
+        None => {
+            return if obj.contains_key("seed") {
+                Err(vec!["sky.seed: only means something with `sky.shader` (a game's own sky)".to_string()])
+            } else {
+                Ok(None)
+            };
+        }
+        Some(Value::String(f)) if f.ends_with(".wgsl") => f.clone(),
+        Some(_) => return Err(vec!["sky.shader: the path of a .wgsl file next to the scene, like \"sky/aurora.wgsl\"".to_string()]),
+    };
+    let Some(base) = base else { return Ok(Some(SkyShader { file, source: String::new(), seed })) };
+    let path = base.join(&file);
+    let source = std::fs::read_to_string(&path)
+        .map_err(|e| vec![format!("sky.shader: `{file}` cannot be read (looked for {}): {e}; a game published without it draws no sky", path.display())])?;
+    check_sky_shader(&file, &source).map_err(|e| vec![e])?;
+    Ok(Some(SkyShader { file, source, seed }))
 }
 
 /// An endless water plane (see the module docs). Colours are linear RGB.
@@ -202,5 +372,66 @@ mod tests {
         }
         let e = parse_ocean(json!({"ocean": {"roughness": 3}}).as_object().unwrap()).unwrap_err();
         assert!(e[0].contains("ocean.roughness"), "{e:?}");
+    }
+
+    #[cfg(feature = "render")]
+    const AURORA: &str = "fn sky(dir: vec3<f32>, px: f32) -> vec3<f32> {\n    let t = sky_time() + sky_seed();\n    return vec3<f32>(0.1, 0.4 + 0.3 * fbm(dir * 3.0 + t), 0.6) * max(dir.y, 0.0);\n}\n";
+
+    #[cfg(feature = "render")]
+    fn sky_dir(tag: &str, file: &str, code: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("re2-sky-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sky")).unwrap();
+        std::fs::write(dir.join("sky").join(file), code).unwrap();
+        dir
+    }
+
+    #[cfg(feature = "render")]
+    #[test]
+    fn a_game_sky_replaces_the_engines_and_is_checked_for_every_backend() {
+        // The engine's own module is untouched without one, and a game's sky sits in place of the hook with the engine's helpers before it.
+        assert_eq!(background_source(None), BACKGROUND_WGSL);
+        let with = background_source(Some(AURORA));
+        assert!(with.contains(AURORA) && with.contains("return sky(dir, px);") && !with.contains("return sky_color_px(dir, px);"));
+        assert_eq!(crate::shader_check::check("aurora", &with), Ok(()));
+        // Parsed from a scene: the file is read next to it and the seed kept.
+        let dir = sky_dir("ok", "aurora.wgsl", AURORA);
+        let root = json!({"sky": {"shader": "sky/aurora.wgsl", "seed": "launch"}});
+        let sky = parse_sky_shader(root.as_object().unwrap(), Some(&dir)).unwrap().unwrap();
+        assert_eq!((sky.file.as_str(), sky.seed, sky.seed_for(Some(0x1234_5678)), sky.seed_for(None)), ("sky/aurora.wgsl", LaunchSeed::Launch, 0x34_5678, 0));
+        let fixed = json!({"sky": {"shader": "sky/aurora.wgsl", "seed": 7}});
+        assert_eq!(parse_sky_shader(fixed.as_object().unwrap(), Some(&dir)).unwrap().unwrap().seed_for(Some(99)), 7);
+        assert!(parse_sky_shader(json!({"sky": {"zenith": "#000000"}}).as_object().unwrap(), Some(&dir)).unwrap().is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(feature = "render")]
+    #[test]
+    fn a_broken_game_sky_is_refused_naming_its_own_file_and_line() {
+        // No `sky` function at all.
+        let e = check_sky_shader("sky/x.wgsl", "fn skyy(d: vec3<f32>) -> vec3<f32> { return d; }\n").unwrap_err();
+        assert!(e.contains("no `fn sky(") && e.contains("sky/x.wgsl"), "{e}");
+        // A type error on line 3 of the game's file is reported as line 3 of that file, not of the composed module.
+        let bad = "// a comment\nfn sky(dir: vec3<f32>, px: f32) -> vec3<f32> {\n    return dir.x;\n}\n";
+        let e = check_sky_shader("sky/bad.wgsl", bad).unwrap_err();
+        assert!(e.contains("sky/bad.wgsl") && e.contains("does not compile"), "{e}");
+        assert!(e.lines().any(|l| l.trim_start().starts_with("3 │")), "the gutter shows the game's line 3:\n{e}");
+        assert!(e.contains("sky/bad.wgsl:2:1"), "the location is the game's file and line:\n{e}");
+        // A derivative inside a loop is what Direct3D refuses: refused here too.
+        let in_loop = "fn sky(dir: vec3<f32>, px: f32) -> vec3<f32> {\n    var c = vec3<f32>(0.0);\n    for (var i = 0; i < 3; i = i + 1) {\n        c = c + fwidth(dir);\n    }\n    return c;\n}\n";
+        let e = check_sky_shader("sky/loop.wgsl", in_loop).unwrap_err();
+        assert!(e.contains("inside a loop"), "{e}");
+        // Scene-level mistakes.
+        let dir = sky_dir("bad", "ok.wgsl", AURORA);
+        for (root, needle) in [
+            (json!({"sky": {"shader": "sky/missing.wgsl"}}), "cannot be read"),
+            (json!({"sky": {"shader": "sky/ok.glsl"}}), ".wgsl file"),
+            (json!({"sky": {"shader": "sky/ok.wgsl", "seed": -1}}), "sky.seed"),
+            (json!({"sky": {"shader": "sky/ok.wgsl", "seed": "random"}}), "sky.seed"),
+            (json!({"sky": {"seed": 3}}), "only means something with `sky.shader`"),
+        ] {
+            let e = parse_sky_shader(root.as_object().unwrap(), Some(&dir)).unwrap_err();
+            assert!(e.iter().any(|m| m.contains(needle)), "{needle}: {e:?}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

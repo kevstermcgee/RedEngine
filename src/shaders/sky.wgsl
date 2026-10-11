@@ -13,6 +13,18 @@ fn view_ray(ndc: vec2<f32>) -> vec3<f32> {
     return normalize(far_p.xyz / far_p.w - near_p.xyz / near_p.w);
 }
 
+// ---- A scene's own sky (`sky.shader`) ---------------------------------------------------------------------------------------------------
+
+// Seconds since the scene began (the scene time every shader sees).
+fn sky_time() -> f32 {
+    return globals.night.y;
+}
+
+// The sky's seed: `sky.seed`, or a new whole number each launch with "seed": "launch" (below 2^24, so exact as a float).
+fn sky_seed() -> f32 {
+    return globals.sky.w;
+}
+
 // ---- Noise -------------------------------------------------------------------------------------------------------------------------
 
 fn hash13(p: vec3<f32>) -> f32 {

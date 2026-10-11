@@ -477,7 +477,7 @@ impl LiveRenderer {
     }
 
     fn build(device: &wgpu::Device, color_format: wgpu::TextureFormat, scene: &Scene, width: u32, height: u32, held_parts: Vec<HeldPart>) -> Self {
-        let pipelines = create_pipelines(device, color_format, MSAA_SAMPLES);
+        let pipelines = create_pipelines(device, color_format, MSAA_SAMPLES, scene.sky_shader.as_deref().map(|s| s.source.as_str()));
         let shadow_sampler = make_shadow_sampler(device);
         let targets = LiveTargets::new(device, color_format, width, height);
 
