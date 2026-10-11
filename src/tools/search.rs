@@ -331,8 +331,26 @@ fn content_bias(d: &Doc) -> f32 {
     }
 }
 
-/// Ranks the corpus for `query`, optionally only one `kind`, returning at most `limit` hits (diversified per kind), preceded by up to two verified 2D mechanics when the query clearly asks
-/// for one (they do not count toward `limit` and never displace an ordinary hit).
+/// The domain a query names outright: `Some(true)` for 2D ("2d", "sprite", "platformer", "game2d"), `Some(false)` for a 3D scene ("3d", "scene", "room",
+/// "first person", ...), `None` when it says neither (ADR 2026-10-11-search-leads-with-the-domain-a-query-names).
+fn query_domain(query: &str) -> Option<bool> {
+    let q = query.to_lowercase();
+    let words: Vec<&str> = q.split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).collect();
+    let has = |set: &[&str]| words.iter().any(|w| set.contains(w));
+    let two = has(&["2d", "sprite", "sprites", "platformer", "game2d", "pixel", "topdown"]);
+    let three = has(&["3d", "scene", "scenes", "room", "rooms", "floor", "floors", "stairs", "fps", "walkable"])
+        || q.contains("first person")
+        || q.contains("first-person");
+    match (two, three) {
+        (true, false) => Some(true),
+        (false, true) => Some(false),
+        _ => None,
+    }
+}
+
+/// Ranks the corpus for `query`, optionally only one `kind`, returning at most `limit` hits (diversified per kind), preceded by a lead lane of at most two
+/// complete examples when the query clearly asks for one: verified 2D mechanics and 3D recipes, in the domain the query names (a 3D query gets no 2D
+/// mechanic, a 2D query no 3D recipe; with neither, the best of each). Mechanics never take an ordinary slot; a recipe in the lane is not repeated below.
 pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize) -> Vec<Hit<'a>> {
     let q = expand(query);
     if q.is_empty() {
@@ -359,13 +377,20 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
     let mut lane: Vec<(usize, f32, Hit)> = Vec::new();
     // A word that occurs in nearly every mechanic ("game", "player", "2d") says nothing about which one is wanted: only words found in at most three of them count.
     let mut mech_df: HashMap<&str, usize> = HashMap::new();
+    // The same test for the 3D recipes: a word in at most two of them singles one out ("key", "gate"), "room" or "door" does not.
+    let mut recipe_df: HashMap<&str, usize> = HashMap::new();
     for (d, (t, b, e)) in docs.iter().zip(&toks) {
-        if d.kind == "mechanic" {
-            for w in t.iter().chain(b).chain(e).map(String::as_str).collect::<HashSet<_>>() {
-                *mech_df.entry(w).or_default() += 1;
-            }
+        let df = match d.kind {
+            "mechanic" => &mut mech_df,
+            "recipe" => &mut recipe_df,
+            _ => continue,
+        };
+        for w in t.iter().chain(b).chain(e).map(String::as_str).collect::<HashSet<_>>() {
+            *df.entry(w).or_default() += 1;
         }
     }
+    let domain = query_domain(query);
+    let mut recipe_lane: Vec<(usize, f32, Hit)> = Vec::new();
     for (i, d) in docs.iter().enumerate() {
         if kind.is_some_and(|k| d.kind != k && !(k == "recipe" && d.kind == "mechanic")) {
             continue;
@@ -398,14 +423,18 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
                 _ => 0.9,
             };
             let hit = Hit { doc: d, score: score * kind_bias * content_bias(d), fragment: fragment(d, &q) };
+            let distinctive = |df: &HashMap<&str, usize>, most: usize| {
+                q.iter()
+                    .filter(|(term, w)| *w >= 1.0 && df.get(term.as_str()).is_some_and(|n| *n <= most) && t.iter().chain(b).chain(e).any(|x| x == term))
+                    .count()
+            };
             if d.kind == "mechanic" && kind.is_none() {
-                let distinctive = q
-                    .iter()
-                    .filter(|(term, w)| *w >= 1.0 && mech_df.get(term.as_str()).is_some_and(|n| *n <= 3) && t.iter().chain(b).chain(e).any(|x| x == term))
-                    .count();
-                if distinctive >= 2 {
-                    lane.push((distinctive, hit.score, hit));
+                let n = distinctive(&mech_df, 3);
+                if n >= 2 && domain != Some(false) {
+                    lane.push((n, hit.score, hit));
                 }
+            } else if d.kind == "recipe" && kind.is_none() && domain != Some(true) && distinctive(&recipe_df, 2) >= 2 {
+                recipe_lane.push((distinctive(&recipe_df, 2), hit.score, hit));
             } else {
                 hits.push(hit);
             }
@@ -413,9 +442,23 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
     }
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
     lane.sort_by(|a, b| (b.0, b.1).partial_cmp(&(a.0, a.1)).unwrap());
+    recipe_lane.sort_by(|a, b| (b.0, b.1).partial_cmp(&(a.0, a.1)).unwrap());
+    // The lead: two of the named domain's examples, or the best mechanic then the best recipe when the query names no domain. A recipe left out of the lead
+    // goes back among the ordinary hits, ranked by its score.
+    // The split never depends on whether a mechanic matched, so the ordinary results are the same with or without the mechanics in the corpus.
+    let (take_mechanics, take_recipes) = match domain {
+        Some(true) => (2, 0),
+        Some(false) => (0, 2),
+        None => (1, 1),
+    };
+    let mut lead: Vec<Hit> = lane.into_iter().take(take_mechanics).map(|(_, _, h)| h).collect();
+    let mut recipes = recipe_lane.into_iter().map(|(_, _, h)| h);
+    lead.extend(recipes.by_ref().take(take_recipes));
+    hits.extend(recipes);
+    hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
     // diversity: at most 4 per kind unless a kind filter is on
     let mut per: HashMap<&str, usize> = HashMap::new();
-    let mut out: Vec<Hit> = lane.into_iter().take(2).map(|(_, _, h)| h).collect();
+    let mut out: Vec<Hit> = lead;
     let lane_len = out.len();
     for h in hits {
         let c = per.entry(h.doc.kind).or_default();
@@ -534,6 +577,27 @@ mod tests {
             assert!(search(&docs, q, None, 3).iter().all(|h| h.doc.kind != "mechanic"), "`{q}` asks for no particular mechanic");
         }
         assert!(search(&docs, "door key", Some("recipe"), 5).iter().any(|h| h.doc.kind == "mechanic"), "`--kind recipe` lists mechanics too");
+    }
+
+    /// The agent-loop trace's searches (docs/analysis/agent-loop-trace.md, task a): a 3D task got 2D mechanics first and the right recipe 9th of 9.
+    #[test]
+    fn the_lead_follows_the_domain_a_query_names() {
+        let docs = corpus(&cmds());
+        let lead = |q: &str| search(&docs, q, None, 6).into_iter().take(2).map(|h| format!("{} {}", h.doc.kind, h.doc.title)).collect::<Vec<_>>();
+        let l = lead("locked door opened by a key");
+        assert!(l.iter().any(|t| t.contains("gated_garden")), "no domain named: the best 3D recipe leads beside the 2D mechanic: {l:?}");
+        assert!(l.iter().any(|t| t.contains("key-door")), "{l:?}");
+        let l = lead("3d scene with a gate that opens with a key");
+        assert!(l[0].contains("gated_garden") && l.iter().all(|t| !t.starts_with("mechanic")), "a 3D query gets no 2D mechanic: {l:?}");
+        let l = lead("two rooms joined by a door");
+        assert!(l[0].contains("rooms_and_door"), "{l:?}");
+        let l = lead("a 2d game with a key that opens a door");
+        assert!(l[0].contains("key-door") && l.iter().all(|t| !t.starts_with("recipe")), "a 2D query gets no 3D recipe: {l:?}");
+        let all = search(&docs, "show dialogue when the player picks up an item in a 3D scene", None, 6);
+        assert!(all.iter().all(|h| h.doc.kind != "mechanic"), "a 3D question is not answered with a 2D mechanic");
+        assert_eq!(query_domain("a platformer with sprites"), Some(true));
+        assert_eq!(query_domain("first person walk through two rooms"), Some(false));
+        assert_eq!(query_domain("a 2d game with a 3d boss"), None);
     }
 
     #[test]
