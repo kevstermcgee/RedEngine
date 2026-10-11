@@ -262,18 +262,7 @@ impl LocalHost {
         let flag = stop.clone();
         let thread =
             std::thread::Builder::new().name("red-host".into()).spawn(move || server.run(&flag)).map_err(|e| format!("cannot start the server thread: {e}"))?;
-        Ok(LocalHost {
-            addr,
-            stop,
-            pause,
-            thread: Some(thread),
-            fingerprint,
-            join_addresses,
-            upnp_note,
-            key: cfg_key,
-            keeper,
-            relay: relay_state,
-        })
+        Ok(LocalHost { addr, stop, pause, thread: Some(thread), fingerprint, join_addresses, upnp_note, key: cfg_key, keeper, relay: relay_state })
     }
 
     /// The identity fingerprint clients must pin (`sha256:<hex>`), when this host speaks QUIC.
