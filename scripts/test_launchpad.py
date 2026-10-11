@@ -336,6 +336,45 @@ class Routing(Sandbox):
         self.assertEqual(out["next_action"]["argv"], ["scripts/red", "game", "upgrade", "plan"])
 
 
+class TraceRoutes(Sandbox):
+    """The three tasks of the agent-loop trace (docs/analysis/agent-loop-trace.md), each of which `start` routed badly (ADR 2026-10-11-the-launchpad-routes-by-what-a-task-names)."""
+
+    @NEEDS_SH
+    def test_a_new_2d_game_is_game_create_and_its_directory_is_named_from_the_idea(self):
+        exe = fake_exe(os.path.join(self.engine, "target", "debug", "red_engine2"))
+        out, _ = self.lp("start", "New 2D game: a 90-second collect-and-dodge with a unique palette and two original props", "--no-save")
+        self.assertEqual(out["workflow"]["id"], "game-create", "was unrouted: `new game` did not match `new 2D game`")
+        na = out["next_action"]["argv"]
+        self.assertEqual(na[:2], [exe, "new-game"])
+        self.assertEqual(os.path.basename(na[2]), "collect-dodge-unique", "a number token (`90-second`) does not name the directory")
+
+    @NEEDS_SH
+    def test_a_scene_in_the_engine_checkout_starts_from_a_recipe_and_never_names_a_project_command(self):
+        fake_exe(os.path.join(self.engine, "target", "debug", "red_engine2"))
+        out, _ = self.lp("start", "New 3D scene: a two-room cabin with a locked door opened by a key, using the style block and a dialogue on pickup", "--no-save")
+        self.assertEqual(out["workflow"]["id"], "game-change")
+        self.assertEqual(out["next_action"]["argv"][-1], "recipe")
+        argvs = [out["next_action"]["argv"]] + [c["argv"] for c in out["iteration_checks"] + out["final_requirements"]]
+        self.assertFalse(any("check" in a or a[:1] == ["scripts/red"] for a in argvs), f"`scripts/red check` is a game project's command: {argvs}")
+        self.assertEqual({tuple(a[-2:]) for a in argvs[1:]} >= {("lint", "out/scene.json"), ("verify", "out/scene.json")}, True)
+        asked = [" ".join(p["argv"][-2:]) for p in out["context"]["pointers"] if "argv" in p]
+        for want in ("describe style", "describe ui", "describe rules", "recipe gated_garden"):
+            self.assertIn(want, asked)
+
+    def test_a_scene_without_a_binary_builds_first_then_picks_a_recipe(self):
+        out, _ = self.lp("start", "a new scene with two rooms", "--no-save")
+        self.assertTrue(out["next_action"]["compiles"])
+        self.assertEqual(out["next_action"]["then"]["argv"][-1], "recipe")
+
+    def test_engine_change_owners_come_from_file_names_and_commands_before_summary_words(self):
+        features = {"map_analysis": {"summary": "lint, reach, walk", "files": ["src/tools/lint.rs"], "commands": ["red_engine2 lint examples/test_lab.json"]},
+                    "scene_format": {"summary": "The JSON scene language", "files": ["src/schema.rs"], "commands": []},
+                    "sim_core": {"summary": "the simulation", "files": ["src/sim/change.rs"], "commands": []}}
+        owners = launchpad.feature_owners(features, "Engine change: add a lint code for a scene that has a ui block but no start rule")
+        self.assertEqual(owners[0]["feature"], "map_analysis", owners)
+        self.assertNotIn("sim_core", [o["feature"] for o in owners], "`change` is a verb here, not the file src/sim/change.rs")
+
+
 class Resume(Sandbox):
     def setUp(self):
         super().setUp()

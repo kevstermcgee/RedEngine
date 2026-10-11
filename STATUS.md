@@ -26,6 +26,8 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-07: the RedEngineGames branch `native-2d-downloads` has landed there; RedEngineGames syncs from RedEngine main at every push.
 - 2026-10-10: 2026-10-10: CI wall-clock 23.1 -> 4.6 min per PR (#97: Windows build+Direct3D on PRs, nextest, 5+3 shards); Idea Forge publishes merged games with screenshots to RedEngineGames (#96); style block, style lint, style-report, voxels (#98); story primitives next (#99)
 - 2026-10-11: Agent-loop fix 3 (search domain): lead lane holds 2D mechanics and 3D recipes by the domain a query names; ADR 2026-10-11-search-leads-with-the-domain-a-query-names
+- 2026-10-11: Agent-loop fix 2 (start routing): scene route, new-2D-game cue, owners by file/command, directory names; ADR 2026-10-11-the-launchpad-routes-by-what-a-task-names
+- 2026-10-11: Agent-loop fix 1 (affected false green): compile-time includes are planned as changes; ADR 2026-10-11-compile-time-includes-are-changes
 
 ## Next
 - Simplification S7 (offline `re2` orchestration through MatchSim/LocalSession): not done in the hardening pass on purpose; the offline loop (`src/bin/re2/frame.rs`) also does bat swings, carried props, the rules HUD and its own prop physics that `LocalSession` lacks, so it needs a design and a parity plan first. S5 (#80) and S6 (#79) are done with parity runs recorded in their PRs and ADRs.
