@@ -889,8 +889,8 @@ pub fn pocket_model(c: &Collection, p: &Pocket, origin: Vec3) -> Model {
         m.lamps.push(Lamp { at: origin + k + Vec3::Y * 0.8, color: [1.0, 0.82, 0.5], intensity: 16.0, range: 9.0 });
     }
     m.lamps.push(Lamp { at: origin + Vec3::Y * 9.0, color: mix(p.art.palette[3], theme.light, 0.5), intensity: 30.0, range: r * 2.2 });
-    // ---- An invisible ring at the edge ----
-    let n = 24;
+    // ---- An invisible ring at the edge (boxes that overlap, so there is no gap to slip through) ----
+    let n = 56;
     for i in 0..n {
         let a = i as f32 / n as f32 * std::f32::consts::TAU;
         let c = Vec3::new(a.cos(), 0.0, a.sin()) * (r + 0.6);

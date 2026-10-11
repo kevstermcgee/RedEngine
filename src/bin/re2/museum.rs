@@ -409,7 +409,7 @@ impl App {
 
     // ---- The pause menu and the map ----------------------------------------------------------------------------------------------------
 
-    fn museum_buttons(&self, w: u32, h: u32) -> Vec<(Button, String, (i32, i32, i32, i32))> {
+    fn museum_buttons(&self, w: u32, h: u32) -> Vec<(Button, String, red_engine2::ui::Rect)> {
         let Some(m) = self.museum.as_ref() else { return Vec::new() };
         let s = (h as f32 / 1080.0).max(0.55);
         let mut rows: Vec<(Button, String)> = vec![(Button::Resume, "Return to the museum".into()), (Button::Map, "The plan of the museum".into())];

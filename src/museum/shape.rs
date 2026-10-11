@@ -9,7 +9,8 @@ pub fn obox(g: &mut Geo, centre: Vec3, axes: [Vec3; 3], half: Vec3, c: Rgb) {
     let [ax, ay, az] = axes;
     let corner = |sx: f32, sy: f32, sz: f32| centre + ax * half.x * sx + ay * half.y * sy + az * half.z * sz;
     // Each face: the outward normal axis and two in-plane axes ordered so the quad winds counter-clockwise from outside.
-    let faces: [(Vec3, f32, [(f32, f32, f32); 4]); 6] = [
+    type Face = (Vec3, f32, [(f32, f32, f32); 4]);
+    let faces: [Face; 6] = [
         (ax, 0.92, [(1.0, -1.0, -1.0), (1.0, 1.0, -1.0), (1.0, 1.0, 1.0), (1.0, -1.0, 1.0)]),
         (-ax, 0.92, [(-1.0, -1.0, 1.0), (-1.0, 1.0, 1.0), (-1.0, 1.0, -1.0), (-1.0, -1.0, -1.0)]),
         (ay, 1.0, [(-1.0, 1.0, -1.0), (-1.0, 1.0, 1.0), (1.0, 1.0, 1.0), (1.0, 1.0, -1.0)]),

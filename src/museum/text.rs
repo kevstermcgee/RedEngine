@@ -23,14 +23,14 @@ impl Draw {
     }
 
     /// The next 64 random bits.
-    pub fn next(&mut self) -> u64 {
+    pub fn bits(&mut self) -> u64 {
         self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
         mix64(self.0)
     }
 
     /// A number in 0..1.
     pub fn unit(&mut self) -> f32 {
-        (self.next() >> 40) as f32 / (1u64 << 24) as f32
+        (self.bits() >> 40) as f32 / (1u64 << 24) as f32
     }
 
     /// A number in `lo..hi`.
@@ -43,7 +43,7 @@ impl Draw {
         if n == 0 {
             0
         } else {
-            (self.next() % n as u64) as usize
+            (self.bits() % n as u64) as usize
         }
     }
 
@@ -161,9 +161,9 @@ mod tests {
 
     #[test]
     fn draws_repeat_for_the_same_keys_and_differ_otherwise() {
-        let a: Vec<u64> = (0..4).map(|_| Draw::new(&[1, 2, 3]).next()).collect();
+        let a: Vec<u64> = (0..4).map(|_| Draw::new(&[1, 2, 3]).bits()).collect();
         assert!(a.windows(2).all(|w| w[0] == w[1]));
-        assert_ne!(Draw::new(&[1, 2, 3]).next(), Draw::new(&[1, 2, 4]).next());
+        assert_ne!(Draw::new(&[1, 2, 3]).bits(), Draw::new(&[1, 2, 4]).bits());
         let mut d = Draw::new(&[9]);
         for _ in 0..1000 {
             let u = d.unit();

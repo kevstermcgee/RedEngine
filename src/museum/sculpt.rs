@@ -660,7 +660,7 @@ fn mobile_arm(parts: &mut Vec<Part>, d: &mut Draw, parent: Option<usize>, pivot:
     tube_path(&mut g, &[left, pivot + Vec3::Y * 0.05, right], &[0.012, 0.016, 0.012], 5, |_| white);
     let ends = [left, right];
     let idx = parts.len();
-    let mut me = Part::new(g, pivot, true).moving(Motion::Spin { rate: d.range(0.08, 0.3) * if level % 2 == 0 { 1.0 } else { -1.0 } });
+    let mut me = Part::new(g, pivot, true).moving(Motion::Spin { rate: d.range(0.08, 0.3) * if level.is_multiple_of(2) { 1.0 } else { -1.0 } });
     me.parent = parent;
     parts.push(me);
     for (k, end) in ends.iter().enumerate() {

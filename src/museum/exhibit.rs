@@ -448,8 +448,8 @@ pub fn furnish(layout: &Layout, c: &Collection, homes: &Homes, room: &Room) -> C
             match choice {
                 0 => {
                     let asp = aspect(&mut d).max(0.75);
-                    let w = d.range(3.2, (s - 1.0).min(7.0).max(3.3));
-                    let size = Vec2::new(w, (w / asp).min(h - 2.0).min(4.6).max(1.6));
+                    let w = d.range(3.2, (s - 1.0).clamp(3.3, 7.0));
+                    let size = Vec2::new(w, (w / asp).min(h - 2.0).clamp(1.6, 4.6));
                     let frame =
                         *d.pick(&[FrameStyle::Gilded, FrameStyle::Baroque, FrameStyle::Gallery, FrameStyle::Floating, FrameStyle::Silver, FrameStyle::Velvet]);
                     let at = hang(p0 + right * mid, inward, size, h);
@@ -469,13 +469,13 @@ pub fn furnish(layout: &Layout, c: &Collection, homes: &Homes, room: &Room) -> C
                     }
                 }
                 3 => {
-                    let w = d.range(4.5, (s - 1.0).min(7.5).max(4.6));
+                    let w = d.range(4.5, (s - 1.0).clamp(4.6, 7.5));
                     let size = Vec2::new(w, (w * d.range(0.36, 0.5)).min(h - 2.4));
                     let frame = *d.pick(&[FrameStyle::Gilded, FrameStyle::Baroque, FrameStyle::Ebony, FrameStyle::Silver, FrameStyle::Oak]);
                     push(&mut exhibits, &mut d, Kind::Triptych, hang(p0 + right * mid, inward, size, h), inward, size, frame, 0.0, None);
                 }
                 _ => {
-                    let w = d.range(1.8, (s - 1.0).min(3.6).max(1.9));
+                    let w = d.range(1.8, (s - 1.0).clamp(1.9, 3.6));
                     let size = Vec2::new(w, (w * d.range(1.2, 1.7)).min(h - 1.6));
                     let at = p0 + inward * 0.12 + Vec3::Y * (h - 0.6 - size.y * 0.5).min(0.9 + size.y * 0.5).max(size.y * 0.5 + 0.5) + right * mid;
                     push(&mut exhibits, &mut d, Kind::Tapestry, at, inward, size, FrameStyle::Floating, 0.0, None);
@@ -777,8 +777,8 @@ fn build_pocket(layout: &Layout, c: &Collection, contents: &Contents, path: &Poc
         let facing = Vec3::new(spawn.x - base.x, 0.0, spawn.z - base.z).normalize_or(Vec3::Z);
         let stand = [Stand::Easel, Stand::Floating, Stand::Pillar][fd.weighted(&[2.0, 2.0, 1.4])];
         let asp = aspect(&mut fd);
-        let w = fd.range(1.0, 2.0);
-        let size = Vec2::new(w, w / asp);
+        let w = fd.range(1.4, 2.4);
+        let size = Vec2::new(w, (w / asp).min(2.2));
         let lift = match stand {
             Stand::Easel => 0.55 + size.y * 0.5,
             Stand::Floating => 1.7 + fd.range(0.0, 0.8),
@@ -798,10 +798,24 @@ fn build_pocket(layout: &Layout, c: &Collection, contents: &Contents, path: &Poc
             on_route: leads_on == Some(i as u8),
         });
     }
+    // The key floats in the open: well clear of every painting's stand and of the way back, so it can always be walked into.
     let key = key_here.then(|| {
-        let a = d.range(-0.6, 0.6);
-        let r = d.range(radius * 0.4, radius * 0.75);
-        Vec3::new(a.sin() * r, 1.25, -a.cos() * r)
+        let mut best = Vec3::new(0.0, 1.25, -radius * 0.6);
+        let mut best_gap = -1.0f32;
+        for _ in 0..24 {
+            let a = d.range(-0.9, 0.9);
+            let r = d.range(radius * 0.35, radius * 0.75);
+            let at = Vec3::new(a.sin() * r, 1.25, -a.cos() * r);
+            let gap = frames.iter().map(|f: &Nested| Vec2::new(f.at.x - at.x, f.at.z - at.z).length()).fold(f32::MAX, f32::min);
+            if gap > best_gap {
+                best = at;
+                best_gap = gap;
+            }
+            if gap > 3.0 {
+                break;
+            }
+        }
+        best
     });
     Pocket { path: path.clone(), art, theme: theme_ix, title, frames, key, radius, spawn, spawn_facing: Vec3::NEG_Z, exit: spawn + Vec3::Z * 3.2, ground }
 }
@@ -890,6 +904,10 @@ mod tests {
                 }
                 let p = pocket(&l, &c, &k, &path).expect("the key's world");
                 assert!(p.key.is_some(), "({x},{z}): the key's world has the key");
+                let key = p.key.unwrap();
+                for f in &p.frames {
+                    assert!(Vec2::new(f.at.x - key.x, f.at.z - key.z).length() > 1.8, "({x},{z}): the key floats clear of every painting's stand");
+                }
                 deep = deep.max(k.key.depth);
                 // Every other painting's world holds no key.
                 for e in k.exhibits.iter().filter(|e| e.kind.enterable() && e.index != k.key.exhibit) {
