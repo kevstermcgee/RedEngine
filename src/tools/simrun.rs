@@ -56,7 +56,10 @@ pub fn parse_scenarios(loaded: &Loaded, values: &[Value], source: &str) -> Resul
     let (mut out, mut errs) = (Vec::new(), Vec::new());
     for (i, v) in values.iter().enumerate() {
         match scenario::parse(v, &loaded.scene.rules, &ids) {
-            Ok(s) => out.push(s),
+            Ok(s) => {
+                errs.extend(spawn_refs(&s, &loaded.spawns).into_iter().map(|m| format!("{source}[{i}].{m}")));
+                out.push(s);
+            }
             Err(e) => errs.extend(e.into_iter().map(|m| format!("{source}[{i}]: {m}"))),
         }
     }
@@ -65,6 +68,27 @@ pub fn parse_scenarios(loaded: &Loaded, values: &[Value], source: &str) -> Resul
     } else {
         Err(errs)
     }
+}
+
+/// A scenario's spawn names that the scene does not have: a player's `spawn` and the `spawn_group` (`validate` used to pass them; `verify` failed later).
+fn spawn_refs(s: &scenario::Scenario, spawns: &[crate::sim::spawns::Spawn]) -> Vec<String> {
+    let mut errs = Vec::new();
+    let near = |name: &str, all: &mut dyn Iterator<Item = &str>| {
+        let all: Vec<&str> = all.collect();
+        let hint = crate::suggest::suggest(name, all.iter().copied()).first().map(|m| format!(" — did you mean `{m}`?")).unwrap_or_default();
+        format!("{hint} ({})", if all.is_empty() { "the scene has none".to_string() } else { all.join(", ") })
+    };
+    for (j, p) in s.players.iter().enumerate() {
+        if let Some(sp) = p.spawn.as_deref().filter(|sp| !spawns.iter().any(|x| x.id == *sp)) {
+            errs.push(format!("players[{j}].spawn: no spawn `{sp}`{}", near(sp, &mut spawns.iter().map(|x| x.id.as_str()))));
+        }
+    }
+    if !s.spawn_group.is_empty() && !spawns.iter().any(|x| x.group == s.spawn_group) {
+        let mut groups: Vec<&str> = spawns.iter().map(|x| x.group.as_str()).filter(|g| !g.is_empty()).collect();
+        groups.dedup();
+        errs.push(format!("spawn_group: no spawn in group `{}`{}", s.spawn_group, near(&s.spawn_group, &mut groups.into_iter())));
+    }
+    errs
 }
 
 /// The scenarios a scene declares in `checks.sim`.

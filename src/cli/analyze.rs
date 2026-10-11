@@ -24,6 +24,43 @@ pub(crate) fn run_validate(scene: &Path) -> Result<(), String> {
     }
 }
 
+/// `validate` with no paths, a folder or several files: every content file, `file:line: message` per problem (`content::validate`).
+pub(crate) fn run_validate_all(paths: &[PathBuf]) -> Result<(), String> {
+    use red_engine2::content::validate;
+    let root = if paths.is_empty() {
+        symbols::find_root().ok_or("`validate` with no paths checks a checkout's content (examples, recipes, assets, tests/fixtures, games): run it inside one, or name files or folders")?
+    } else {
+        std::env::current_dir().map_err(|e| e.to_string())?
+    };
+    let run = validate::run(paths, &root);
+    let text = run.render(Some(&root));
+    let problems = run.problems();
+    if problems == 0 {
+        print!("{text}");
+        Ok(())
+    } else {
+        eprint!("{text}");
+        Err(format!("{problems} problem(s)"))
+    }
+}
+
+/// `schema`: write the JSON Schema of every content format.
+#[cfg(feature = "schema")]
+pub(crate) fn run_schema(out: &Path) -> Result<(), String> {
+    let written = red_engine2::content::json_schema::write(out)?;
+    for p in &written {
+        println!("wrote {}", p.display());
+    }
+    println!("{} schema(s); they are generated from src/content/ (a test fails when schemas/ is stale)", written.len());
+    Ok(())
+}
+
+/// `schema` without the `schema` feature (the headless build).
+#[cfg(not(feature = "schema"))]
+pub(crate) fn run_schema(_out: &Path) -> Result<(), String> {
+    Err("this red_engine2 was built without the `schema` feature (`--no-default-features`): build with the default features to write schemas".into())
+}
+
 pub(crate) fn run_lint(scene: &Path, json: bool, strict: bool, cell: f32, phase: Option<&str>) -> Result<(), String> {
     let (world, r, findings) = analyze(scene, cell, phase)?;
     if json {

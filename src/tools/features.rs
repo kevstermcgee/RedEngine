@@ -285,7 +285,7 @@ fn walk(root: &Path, dir: &str, ext: &str, out: &mut Vec<String>) {
 /// Every file the index is about: the directories it covers and the top-level project files, as paths relative to `root` using `/`.
 pub fn repo_files(root: &Path) -> Vec<String> {
     let mut all_files = Vec::new();
-    for dir in ["src", "crates", "games", "tests", "benches", "docs", "assets", "recipes", "examples", "scripts", "deploy", ".github"] {
+    for dir in ["src", "crates", "games", "tests", "benches", "docs", "assets", "recipes", "examples", "schemas", "scripts", "deploy", ".github"] {
         walk(root, dir, "", &mut all_files);
     }
     for top in [

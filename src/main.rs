@@ -97,7 +97,7 @@ fn main() {
 
 fn run(command: Command) -> Result<(), String> {
     match command {
-        Command::Validate { scene } if game2d::is_game(&scene) => report(game2d::validate(&scene)),
+        Command::Validate { paths } if paths.len() == 1 && paths[0].is_file() && game2d::is_game(&paths[0]) => report(game2d::validate(&paths[0])),
         Command::Verify { scene, only, .. } if game2d::is_game(&scene) => report(game2d::verify(&scene, only.as_deref())),
         Command::Sim { scene, only, every, .. } if game2d::is_game(&scene) => report(game2d::sim(&scene, only.as_deref(), every)),
         Command::Frame { scene, out, t, scenario, size, .. } if game2d::is_game(&scene) => {
@@ -121,7 +121,9 @@ fn run(command: Command) -> Result<(), String> {
             propose::run_propose(&idea.join(" "), title, presentation, platforms, inputs, networking, session)
         }
         Command::Capabilities { file, query } => report(game2d::capabilities(file.as_deref(), &query)?),
-        Command::Validate { scene } => run_validate(&scene),
+        Command::Validate { paths } if paths.len() == 1 && !paths[0].is_dir() => run_validate(&paths[0]),
+        Command::Validate { paths } => run_validate_all(&paths),
+        Command::Schema { out } => run_schema(&out),
         Command::Frame { scene, out, t, hour, eye, at, fov, hide, cut_above, size, .. } => {
             run_frame(&scene, &out, t, hour, eye.as_deref(), at.as_deref(), fov, hide, cut_above, size.as_deref())
         }

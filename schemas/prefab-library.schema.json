@@ -1,0 +1,2600 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Red Engine 2 prefab library",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/PrefabDef"
+  },
+  "$defs": {
+    "PrefabDef": {
+      "description": "One prefab definition.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extends": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrefabMeta"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tags": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "params": {
+          "description": "name -> a default value, or a spec `{default, desc, palette}`.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "$ref": "#/$defs/ParamSpec"
+          }
+        },
+        "objects": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/Object"
+          }
+        },
+        "desc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mount": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "collide": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "PrefabMeta": {
+      "description": "Discovery and lifecycle metadata.",
+      "type": "object",
+      "properties": {
+        "aliases": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "roles": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "styles": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "license": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provenance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "ParamSpec": {
+      "description": "A param: a spec (an object with `default`) or the default value itself. Deserialized by hand, as the checker reads it: an object with a\n`default` key must be a strict spec (an untagged enum would fall back to \"any value\" and accept a misspelt key in a spec).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ParamSpecFull"
+        },
+        true
+      ]
+    },
+    "ParamSpecFull": {
+      "description": "A param with a description and an optional palette role.",
+      "type": "object",
+      "properties": {
+        "default": true,
+        "desc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "palette": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Object": {
+      "description": "Any scene object, by its `type`.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "size": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "box"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "radius": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "sphere"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "description": "A cylinder, cone or capsule.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "radius": true,
+            "height": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "cylinder"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "description": "A cylinder, cone or capsule.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "radius": true,
+            "height": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "cone"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "description": "A cylinder, cone or capsule.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "radius": true,
+            "height": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "capsule"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "size": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "plane"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "description": "A group; `prefab_name` and `mount` are written by prefab expansion.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "children": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/Object"
+              }
+            },
+            "prefab_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mount": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "group"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "height": true,
+            "build": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pose": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/HumanoidPose"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "skin": true,
+            "hair": true,
+            "pants": true,
+            "shoes": true,
+            "style": true,
+            "type": {
+              "type": "string",
+              "const": "humanoid"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pose": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RatPose"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "rat"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "prop": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "prop"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "width": true,
+            "run": true,
+            "rise": true,
+            "steps": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "stairs"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "size": true,
+            "cell": true,
+            "resolution": true,
+            "heights": true,
+            "heightmap": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "elevation_scale": true,
+            "generator": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TerrainGenerator"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "palette": true,
+            "grain": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "terrain"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "from": true,
+            "to": true,
+            "y": true,
+            "height": true,
+            "thickness": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "openings": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/Opening"
+              }
+            },
+            "trim": true,
+            "baseboard": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorOr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "extend": true,
+            "type": {
+              "type": "string",
+              "const": "wall"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "points": true,
+            "closed": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "y": true,
+            "height": true,
+            "post_spacing": true,
+            "style": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "post_color": true,
+            "gaps": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/FenceGap"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "fence"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "template": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "count": true,
+            "step": true,
+            "positions": true,
+            "rotation_step": true,
+            "type": {
+              "type": "string",
+              "const": "array"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "text": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "height": true,
+            "depth": true,
+            "align": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "spacing": true,
+            "line_gap": true,
+            "backing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorOr2"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "text"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "rows": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "palette": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "cell": true,
+            "depth": true,
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "voxels"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "description": "A prefab instance (`params` are the prefab's own: a map).",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rotation": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Track"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Scale"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "collide": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "movable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "lint_ignore": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "on_terrain": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "prefab": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "params": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            },
+            "material": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Material"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "prefab"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        }
+      ]
+    },
+    "Track": {
+      "description": "A value that is either constant (`[0, 1, 0]`) or animated (`{\"keyframes\": [...]}`).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Keyframes"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scalar"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      ]
+    },
+    "Keyframes": {
+      "description": "`{\"keyframes\": [...]}`.",
+      "type": "object",
+      "properties": {
+        "keyframes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Keyframe"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "keyframes"
+      ],
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Keyframe": {
+      "description": "One keyframe: time in seconds, the value, an easing name (`linear` by default).",
+      "type": "object",
+      "properties": {
+        "t": {
+          "type": "number",
+          "format": "double"
+        },
+        "value": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scalar"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "ease": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "t",
+        "value"
+      ],
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Scalar": {
+      "description": "A scalar leaf: a number, or a string (an expression `\"=0.56+$gap\"`, a param `\"$h\"`, a colour), or true/false. Never an object, so an\nunknown key can never hide behind it.",
+      "anyOf": [
+        {
+          "type": "number",
+          "format": "double"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "Scale": {
+      "description": "A scale: one number, `[x, y, z]`, or keyframes of either.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Keyframes2"
+        },
+        {
+          "$ref": "#/$defs/Scalar"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scalar"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      ]
+    },
+    "Keyframes2": {
+      "description": "`{\"keyframes\": [...]}`.",
+      "type": "object",
+      "properties": {
+        "keyframes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Keyframe2"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "keyframes"
+      ],
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Keyframe2": {
+      "description": "One keyframe: time in seconds, the value, an easing name (`linear` by default).",
+      "type": "object",
+      "properties": {
+        "t": {
+          "type": "number",
+          "format": "double"
+        },
+        "value": true,
+        "ease": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "t",
+        "value"
+      ],
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Material": {
+      "description": "A surface: colour (`#rrggbb`, `@role`, or a track of colours), metal, roughness, glow, opacity, or a `style.materials` preset.",
+      "type": "object",
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track2"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "metallic": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track2"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "roughness": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track2"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "emissive": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track2"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "opacity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track2"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preset": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Track2": {
+      "description": "A value that is either constant (`[0, 1, 0]`) or animated (`{\"keyframes\": [...]}`).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Keyframes3"
+        },
+        {
+          "$ref": "#/$defs/Scalar"
+        }
+      ]
+    },
+    "Keyframes3": {
+      "description": "`{\"keyframes\": [...]}`.",
+      "type": "object",
+      "properties": {
+        "keyframes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Keyframe3"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "keyframes"
+      ],
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Keyframe3": {
+      "description": "One keyframe: time in seconds, the value, an easing name (`linear` by default).",
+      "type": "object",
+      "properties": {
+        "t": {
+          "type": "number",
+          "format": "double"
+        },
+        "value": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "ease": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "t",
+        "value"
+      ],
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "HumanoidPose": {
+      "description": "A humanoid's joint rotations.",
+      "type": "object",
+      "properties": {
+        "spine": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "head": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "l_shoulder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "r_shoulder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "l_elbow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "r_elbow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "l_hip": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "r_hip": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "l_knee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "r_knee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Track3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Track3": {
+      "description": "A value that is either constant (`[0, 1, 0]`) or animated (`{\"keyframes\": [...]}`).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Keyframes4"
+        },
+        {
+          "$ref": "#/$defs/JointAngle"
+        }
+      ]
+    },
+    "Keyframes4": {
+      "description": "`{\"keyframes\": [...]}`.",
+      "type": "object",
+      "properties": {
+        "keyframes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Keyframe4"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "keyframes"
+      ],
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Keyframe4": {
+      "description": "One keyframe: time in seconds, the value, an easing name (`linear` by default).",
+      "type": "object",
+      "properties": {
+        "t": {
+          "type": "number",
+          "format": "double"
+        },
+        "value": {
+          "$ref": "#/$defs/JointAngle"
+        },
+        "ease": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "t",
+        "value"
+      ],
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "JointAngle": {
+      "description": "A joint's rotation: `[rx, ry, rz]` degrees, or one bend angle (elbows, knees).",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scalar"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        {
+          "$ref": "#/$defs/Scalar"
+        }
+      ]
+    },
+    "RatPose": {
+      "description": "A rat's gait.",
+      "type": "object",
+      "properties": {
+        "gait": true,
+        "stride": true,
+        "sway": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "TerrainGenerator": {
+      "description": "A generated terrain: a seed, a height profile and layered noise.",
+      "type": "object",
+      "properties": {
+        "seed": true,
+        "profile": true,
+        "noise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TerrainNoise"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "TerrainNoise": {
+      "description": "Noise layered on a terrain profile.",
+      "type": "object",
+      "properties": {
+        "amplitude": true,
+        "wavelength": true,
+        "octaves": true,
+        "seed": true,
+        "fade_x": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Opening": {
+      "description": "One door or window cut into a wall.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": true,
+        "width": true,
+        "height": true,
+        "sill": true,
+        "glass": true,
+        "trim": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "ColorOr": {
+      "description": "A colour string, or an object with more to say (a wall's `baseboard`, a text's `backing`).",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/Baseboard"
+        }
+      ]
+    },
+    "Baseboard": {
+      "description": "A wall's baseboard.",
+      "type": "object",
+      "properties": {
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "height": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "FenceGap": {
+      "description": "A gap in a fence.",
+      "type": "object",
+      "properties": {
+        "at": true,
+        "width": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "ColorOr2": {
+      "description": "A colour string, or an object with more to say (a wall's `baseboard`, a text's `backing`).",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/TextBacking"
+        }
+      ]
+    },
+    "TextBacking": {
+      "description": "The board behind a text.",
+      "type": "object",
+      "properties": {
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "material": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Material"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "margin": true,
+        "thickness": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    }
+  },
+  "$id": "https://github.com/kevstermcgee/RedEngine/schemas/prefab-library.schema.json",
+  "description": "An `assets/*.json` library: a list of prefab definitions. Generated by `red_engine2 schema` from src/content/; do not edit."
+}

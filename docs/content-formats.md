@@ -79,3 +79,14 @@ their lenient reader; settings and saves stay lenient on purpose. **No content f
 | `game.json` | `content::project::Project` | `new-game` of each kind |
 | kart drivers | `content::drivers::DriverRoster` | `assets/data/drivers.json` |
 | trace | `content::trace::Trace` | `tests/fixtures/*.trace.json` (files only; the reader is lenient) |
+
+## Phase 3 (2026-10-11): schemas and one validate
+
+- **`cargo run -- schema`** writes `schemas/<format>.schema.json` (draft 2020-12) for scene, game2d, prefab-library, pack-registry, blueprint, playscript,
+  score, voice, project, drivers and trace, generated from the typed definitions (the extension namespace allowed everywhere). A test fails when `schemas/`
+  is stale. Every repository content file passes its schema (checked with Python `jsonschema`).
+- **`cargo run -- validate`** (no paths: the whole checkout; or folders/files) detects each file's format, runs that format's own checker, and prints every
+  problem as `file:line: message`. Cross-references are the loaders' own (prefab names, rule/objective/UI names, weapons, characters, blueprint prefab
+  files, project maps), plus one new check: a scenario's player `spawn` and `spawn_group` must exist. **75 files, 0 problems, 0.2 s.** One file keeps the
+  old one-file report (the JSON envelope and the MCP tool read it).
+- **CI**: `scripts/ci.sh content`, and a hosted `content` job beside the test shards (ADR 2026-10-11-one-validate-for-every-content-file).

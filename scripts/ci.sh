@@ -2,7 +2,7 @@
 # The exact steps CI runs (.github/workflows/ci.yml). Run before pushing; green here = green there
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
-#   fmt  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools
+#   fmt  content  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools
 #   games  direct3d  (not in the default list: `tests` covers them; they are what the hosted workflow runs instead of `tests` in two cases, see each one)
 #
 # Tests run under cargo-nextest when it is installed (ADR 2026-10-10-ci-runs-the-tests-under-nextest), in ONE run on all cores, each test in its own process:
@@ -195,9 +195,18 @@ stage_games() {
   cargo test --locked --no-fail-fast --test games2d --test games3d --test checks_wellformed --test examples_validate --test docs_fresh --test repo_hygiene
 }
 
+# Every content file of the checkout through its own checker (`red_engine2 validate` with no paths: scenes, 2D games, prefab libraries, blueprints, ...), each
+# problem as file:line (ADR 2026-10-11-one-validate-for-every-content-file). Under a second once built; the fast tier, so a bad map fails in minutes, not after
+# the suite. RED_CI_CONTENT_FLAGS passes cargo flags (the hosted job reuses the test shards' cache with the default features).
+stage_content() {
+  echo "== content: every scene, 2D game, prefab library, blueprint, score, ... validates =="
+  # shellcheck disable=SC2086
+  cargo run --locked --quiet ${RED_CI_CONTENT_FLAGS:-} --bin red_engine2 -- validate
+}
+
 stages=("$@")
 # Cheapest, most-likely-to-fail first: formatting, the lock files and the headless dependency tree take seconds; the long stages come after them.
-[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree clippy tests benches headless-build headless-clippy headless-tests external-client killchain video pytools)
+[ ${#stages[@]} -gt 0 ] || stages=(fmt lockfiles headless-tree content clippy tests benches headless-build headless-clippy headless-tests external-client killchain video pytools)
 # Every stage is timed, and the table at the end says where the minutes went (the first thing to read when CI feels slow).
 timings=()
 t_all=$SECONDS

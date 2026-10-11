@@ -140,7 +140,7 @@ pub fn validate_scene_text(text: &str, base: Option<&Path>, label: &str) -> Resu
         if let (true, Some(sims)) = (errs.is_empty(), checks.get("sim").and_then(serde_json::Value::as_array)) {
             match tools::simrun::load_text(text, label) {
                 Ok(loaded) => {
-                    if let Err(e) = tools::simrun::parse_scenarios(&loaded, sims, label) {
+                    if let Err(e) = tools::simrun::parse_scenarios(&loaded, sims, "checks.sim") {
                         errs.extend(e);
                     }
                 }
