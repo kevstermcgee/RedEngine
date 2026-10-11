@@ -134,11 +134,18 @@ fn every_game_sky_in_the_repository_validates_and_translates_to_hlsl() {
         wgsl_files(&root.join(dir), &mut skies);
     }
     assert!(!skies.is_empty(), "examples/wormhole ships a game sky: this test must find it");
+    // A museum's painted surfaces (`museum.art`, a file defining `fn surface(`) are checked in the scene module, and the sky beside them with them in front.
+    let is_art = |code: &str| code.lines().any(|l| l.trim_start().starts_with("fn surface("));
     let failures: Vec<String> = skies
         .iter()
         .filter_map(|p| {
             let code = fs::read_to_string(p).unwrap_or_default();
-            red_engine2::atmosphere::check_sky_shader(&p.strip_prefix(&root).unwrap_or(p).display().to_string(), &code).err()
+            let name = p.strip_prefix(&root).unwrap_or(p).display().to_string();
+            if is_art(&code) {
+                return red_engine2::atmosphere::check_art_shader(&name, &code).err();
+            }
+            let art = skies.iter().filter(|q| q.parent() == p.parent()).map(|q| fs::read_to_string(q).unwrap_or_default()).find(|c| is_art(c));
+            red_engine2::atmosphere::check_sky_shader_with(&name, &code, art.as_deref()).err()
         })
         .collect();
     assert!(failures.is_empty(), "{}", failures.join("\n\n"));
