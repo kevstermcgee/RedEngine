@@ -2669,6 +2669,18 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                     req("legend", Ty::Custom(object_ok), "{ \"#\": \"wall\" }: a character to a prefab name"),
                 ],
             );
+            // Every legend entry is one character to a prefab name, used or not: an entry no row uses was never looked at, so `"wl": "wall"` or a
+            // number was silently ignored.
+            for (k, v) in o.get("legend").and_then(Value::as_object).into_iter().flatten() {
+                if crate::fields::is_extension_key(k) {
+                    continue;
+                }
+                if k.chars().count() != 1 || k == "." || k == " " {
+                    ctx.err(format!("map.legend.{k}"), "a legend key is one character (not `.` or a space, which are empty)");
+                } else if !v.is_string() {
+                    ctx.err(format!("map.legend.{k}"), format!("expected a prefab name, got {}", describe_value(v)));
+                }
+            }
             if let (Some(rows), Some(legend)) = (o.get("rows").and_then(Value::as_array), o.get("legend").and_then(Value::as_object)) {
                 let tile = o.get("tile").and_then(num).unwrap_or(16.0) as f32;
                 let origin = o.get("origin").and_then(pair).unwrap_or([0.0, 0.0]);

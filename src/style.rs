@@ -12,6 +12,12 @@ pub const STYLE_KEYS: &[&str] = &["palette", "materials", "light", "sky", "fog",
 pub const PRESET_KEYS: &[&str] = &["color", "metallic", "roughness", "emissive", "opacity"];
 /// Keys of `style.light`.
 pub const LIGHT_KEYS: &[&str] = &["sun", "ambient", "lamp"];
+/// Keys of `style.light.sun`.
+pub const LIGHT_SUN_KEYS: &[&str] = &["color", "intensity", "direction", "cast_shadows"];
+/// Keys of `style.light.ambient`.
+pub const LIGHT_AMBIENT_KEYS: &[&str] = &["color", "intensity"];
+/// Keys of `style.light.lamp`.
+pub const LIGHT_LAMP_KEYS: &[&str] = &["color", "intensity"];
 /// Keys of `style.sky`.
 pub const SKY_KEYS: &[&str] = &["top", "bottom", "color"];
 /// Keys of `style.fog`.
@@ -298,6 +304,14 @@ fn check_style(style: Option<&Value>, errs: &mut Vec<String>) -> BTreeMap<String
                 None => errs.push(format!("style.{key}: must be an object {{{}}}", keys.join(", "))),
                 Some(o) => crate::fields::check_keys(errs, &format!("style.{key}"), o, keys),
             }
+        }
+    }
+    // The light rig's parts are objects too: an unknown key inside `sun`, `ambient` or `lamp` used to be ignored.
+    for (part, keys) in [("sun", LIGHT_SUN_KEYS), ("ambient", LIGHT_AMBIENT_KEYS), ("lamp", LIGHT_LAMP_KEYS)] {
+        match s.get("light").and_then(|l| l.get(part)) {
+            None => {}
+            Some(Value::Object(o)) => crate::fields::check_keys(errs, &format!("style.light.{part}"), o, keys),
+            Some(_) => errs.push(format!("style.light.{part}: must be an object {{{}}}", keys.join(", "))),
         }
     }
     if let Some(f) = s.get("fog").and_then(Value::as_object) {

@@ -535,6 +535,7 @@ fn expand_text(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> Ve
         None => None,
         Some(Value::String(color)) => Some((material_from_hex(color, 0.9), 0.1, 0.04)),
         Some(Value::Object(b)) => {
+            crate::strict::check_keys(errs, &format!("{id}.backing"), b, &["color", "material", "margin", "thickness"]);
             let m = b.get("material").cloned().or_else(|| b.get("color").and_then(Value::as_str).map(|c| material_from_hex(c, 0.9)));
             Some((m.unwrap_or_else(|| material_from_hex("#23303f", 0.9)), num(b, "margin", 0.1), num(b, "thickness", 0.04)))
         }
