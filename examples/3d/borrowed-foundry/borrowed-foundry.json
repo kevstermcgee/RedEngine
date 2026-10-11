@@ -1,0 +1,2116 @@
+{
+ "recipe": {
+  "title": "Borrowed Foundry",
+  "summary": "A beekeeper on a flowerless station swaps into jars of borrowed bodies to hum three guard wasps to sleep together; the dark hall is drawn only by the sounds you make.",
+  "teaches": [
+   "body swap = carry a host prop + teleport",
+   "world drawn by sound = hide/show on a swing echo"
+  ]
+ },
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "style": {
+  "palette": {
+   "honey": "#e8a21a",
+   "glow": "#5a2a08",
+   "alarm": "#ff4b1f",
+   "hull": "#2b2540",
+   "deck": "#3d3556",
+   "dim": "#4a5a7a",
+   "trim": "#f0d9a0",
+   "floor": "#3d3556",
+   "wall": "#2b2540",
+   "primary": "#e8a21a",
+   "accent": "#ff4b1f",
+   "lamp": "#ffb347"
+  },
+  "materials": {
+   "deck": {
+    "color": "@deck",
+    "roughness": 0.9
+   },
+   "hull": {
+    "color": "@hull",
+    "roughness": 0.7,
+    "metallic": 0.3
+   }
+  },
+  "light": {
+   "ambient": {
+    "color": "#6a5a90",
+    "intensity": 0.5
+   }
+  },
+  "sky": {
+   "top": "#05030c",
+   "bottom": "#120a24"
+  }
+ },
+ "ambient": {
+  "color": "#8a7ab8",
+  "intensity": 0.5
+ },
+ "camera": {
+  "fov": 75,
+  "position": [
+   0,
+   1.7,
+   -8
+  ],
+  "target": [
+   0,
+   1.5,
+   0
+  ]
+ },
+ "player": {
+  "character": "human",
+  "walk_speed": 4,
+  "jump_speed": 4
+ },
+ "weapons": {
+  "starting": "bat"
+ },
+ "post": {
+  "ao": 0.8,
+  "outline": 0.6
+ },
+ "lights": [
+  {
+   "id": "l_hub",
+   "type": "point",
+   "position": [
+    0,
+    2.6,
+    -3
+   ],
+   "color": "#ffb347",
+   "intensity": 9,
+   "range": 14
+  },
+  {
+   "id": "l_far",
+   "type": "point",
+   "position": [
+    0,
+    2.6,
+    6
+   ],
+   "color": "#ffb347",
+   "intensity": 9,
+   "range": 14
+  }
+ ],
+ "zones": [
+  {
+   "id": "hall",
+   "rect": [
+    -9.9,
+    -9.9,
+    9.9,
+    9.9
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "den_1",
+   "rect": [
+    -6.2,
+    2.8,
+    -3.8,
+    5.4
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "den_2",
+   "rect": [
+    -1.2,
+    2.8,
+    1.2,
+    5.4
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "den_3",
+   "rect": [
+    3.8,
+    2.8,
+    6.2,
+    5.4
+   ],
+   "y": 0,
+   "kind": "pad"
+  }
+ ],
+ "spawns": [
+  {
+   "id": "hub",
+   "position": [
+    0,
+    0,
+    -9
+   ],
+   "yaw_deg": 0,
+   "group": "solo"
+  },
+  {
+   "id": "cradle_1",
+   "position": [
+    -5,
+    0.15,
+    4
+   ],
+   "yaw_deg": 0,
+   "group": "solo"
+  },
+  {
+   "id": "cradle_2",
+   "position": [
+    0,
+    0.15,
+    4
+   ],
+   "yaw_deg": 0,
+   "group": "solo"
+  },
+  {
+   "id": "cradle_3",
+   "position": [
+    5,
+    0.15,
+    4
+   ],
+   "yaw_deg": 0,
+   "group": "solo"
+  }
+ ],
+ "portals": [
+  {
+   "id": "p_1",
+   "between": [
+    "hall",
+    "den_1"
+   ],
+   "center": [
+    -5,
+    4
+   ],
+   "width": 2,
+   "height": 2.5,
+   "open": true
+  },
+  {
+   "id": "p_2",
+   "between": [
+    "hall",
+    "den_2"
+   ],
+   "center": [
+    0,
+    4
+   ],
+   "width": 2,
+   "height": 2.5,
+   "open": true
+  },
+  {
+   "id": "p_3",
+   "between": [
+    "hall",
+    "den_3"
+   ],
+   "center": [
+    5,
+    4
+   ],
+   "width": 2,
+   "height": 2.5,
+   "open": true
+  }
+ ],
+ "vars": {
+  "echo": 0,
+  "host": 0,
+  "breath": 8,
+  "energy": 60,
+  "asleep": 0,
+  "nap_1": 0,
+  "nap_2": 0,
+  "nap_3": 0,
+  "hum_1": 0,
+  "hum_2": 0,
+  "hum_3": 0
+ },
+ "prefabs": {
+  "wasp": {
+   "desc": "a guard wasp: striped abdomen, glassy wings",
+   "params": {
+    "body": {
+     "default": "#e8a21a",
+     "palette": "honey"
+    },
+    "glow": {
+     "default": "#ff5a1f",
+     "palette": "alarm"
+    }
+   },
+   "objects": [
+    {
+     "id": "abd",
+     "type": "capsule",
+     "radius": 0.28,
+     "height": 0.9,
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "material": {
+      "color": "$body",
+      "emissive": "$glow"
+     }
+    },
+    {
+     "id": "head",
+     "type": "sphere",
+     "radius": 0.2,
+     "position": [
+      0,
+      0.05,
+      -0.65
+     ],
+     "material": {
+      "color": "$glow",
+      "emissive": "$glow"
+     }
+    },
+    {
+     "id": "wing_l",
+     "type": "box",
+     "size": [
+      0.7,
+      0.02,
+      0.3
+     ],
+     "position": [
+      -0.5,
+      0.3,
+      0
+     ],
+     "material": {
+      "color": "#ffffff",
+      "opacity": 0.4
+     }
+    },
+    {
+     "id": "wing_r",
+     "type": "box",
+     "size": [
+      0.7,
+      0.02,
+      0.3
+     ],
+     "position": [
+      0.5,
+      0.3,
+      0
+     ],
+     "material": {
+      "color": "#ffffff",
+      "opacity": 0.4
+     }
+    }
+   ]
+  },
+  "cradle": {
+   "desc": "a pedestal where a borrowed body stands",
+   "params": {
+    "color": {
+     "default": "#3a3050",
+     "palette": "hull"
+    }
+   },
+   "objects": [
+    {
+     "id": "base",
+     "type": "cylinder",
+     "radius": 0.7,
+     "height": 0.12,
+     "position": [
+      0,
+      0.06,
+      0
+     ],
+     "material": {
+      "color": "$color",
+      "emissive": "@glow"
+     }
+    },
+    {
+     "id": "ring",
+     "type": "cylinder",
+     "radius": 0.9,
+     "height": 0.03,
+     "position": [
+      0,
+      0.02,
+      0
+     ],
+     "material": {
+      "color": "@honey",
+      "emissive": "@honey"
+     }
+    }
+   ]
+  },
+  "comb_panel": {
+   "desc": "a wall of honeycomb cells",
+   "params": {
+    "color": {
+     "default": "#e8a21a",
+     "palette": "honey"
+    }
+   },
+   "objects": [
+    {
+     "id": "row_a",
+     "type": "array",
+     "count": 5,
+     "step": [
+      0.9,
+      0,
+      0
+     ],
+     "template": {
+      "type": "cylinder",
+      "radius": 0.42,
+      "height": 0.1,
+      "position": [
+       -1.8,
+       1.0,
+       0
+      ],
+      "rotation": [
+       90,
+       0,
+       0
+      ],
+      "material": {
+       "color": "$color",
+       "emissive": "@glow"
+      }
+     }
+    },
+    {
+     "id": "row_b",
+     "type": "array",
+     "count": 4,
+     "step": [
+      0.9,
+      0,
+      0
+     ],
+     "template": {
+      "type": "cylinder",
+      "radius": 0.42,
+      "height": 0.1,
+      "position": [
+       -1.35,
+       1.75,
+       0
+      ],
+      "rotation": [
+       90,
+       0,
+       0
+      ],
+      "material": {
+       "color": "$color",
+       "emissive": "@glow"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "ui": {
+  "title": "Borrowed Foundry",
+  "labels": {
+   "energy": "Energy",
+   "breath": "Breath",
+   "asleep": "Wasps asleep"
+  },
+  "counters": [
+   {
+    "var": "asleep",
+    "of": 3,
+    "label": "Wasps asleep"
+   },
+   {
+    "var": "energy",
+    "of": 60,
+    "label": "Energy"
+   }
+  ],
+  "objective": [
+   {
+    "if": "host == 0",
+    "text": "Swing the bat to hear the room. Pick up a glowing jar (E) to take its body"
+   },
+   {
+    "text": "Hold the jar: you are in its body. Swing 3 times to hum the wasp to sleep, then let go (E)"
+   }
+  ],
+  "start": {
+   "title": "Borrowed Foundry",
+   "text": "No flowers up here, so the bees are wasps now. The dark is drawn only by the sounds you make: swing the bat. Grab a glowing jar to swap into the body beside a guard wasp; you keep it only while you hold your breath (the jar). Hum it to sleep, but every sleeper costs you energy faster. Get all three asleep at once.",
+   "button": "Breathe in"
+  },
+  "end": {
+   "victory": {
+    "title": "Hush",
+    "text": "All three asleep at the same moment.",
+    "button": "Again"
+   },
+   "lose": {
+    "title": "Out of breath",
+    "text": "Your energy ran dry.",
+    "button": "Again"
+   }
+  }
+ },
+ "rules": [
+  {
+   "id": "dark",
+   "when": {
+    "start": true
+   },
+   "do": [
+    {
+     "hide": "shell"
+    },
+    {
+     "hide": "wasp_1"
+    },
+    {
+     "hide": "nap_1"
+    },
+    {
+     "hide": "wasp_2"
+    },
+    {
+     "hide": "nap_2"
+    },
+    {
+     "hide": "wasp_3"
+    },
+    {
+     "hide": "nap_3"
+    },
+    {
+     "emit": "dark"
+    }
+   ]
+  },
+  {
+   "id": "echo",
+   "when": {
+    "event": "swing"
+   },
+   "do": [
+    {
+     "set": [
+      "echo",
+      4
+     ]
+    },
+    {
+     "show": "shell"
+    },
+    {
+     "emit": "ping"
+    }
+   ]
+  },
+  {
+   "id": "echo_fade",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "echo",
+      -1
+     ]
+    }
+   ],
+   "if": "echo > 0"
+  },
+  {
+   "id": "echo_off",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "hide": "shell"
+    }
+   ],
+   "if": "echo <= 0"
+  },
+  {
+   "id": "echo_on",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "show": "shell"
+    }
+   ],
+   "if": "echo > 0"
+  },
+  {
+   "id": "w1_awake_show",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "show": "wasp_1"
+    }
+   ],
+   "if": "echo > 0 && nap_1 <= 0"
+  },
+  {
+   "id": "w1_awake_hide",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "hide": "wasp_1"
+    }
+   ],
+   "if": "echo <= 0 || nap_1 > 0"
+  },
+  {
+   "id": "w1_nap_show",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "show": "nap_1"
+    }
+   ],
+   "if": "echo > 0 && nap_1 > 0"
+  },
+  {
+   "id": "w1_nap_hide",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "hide": "nap_1"
+    }
+   ],
+   "if": "echo <= 0 || nap_1 <= 0"
+  },
+  {
+   "id": "w2_awake_show",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "show": "wasp_2"
+    }
+   ],
+   "if": "echo > 0 && nap_2 <= 0"
+  },
+  {
+   "id": "w2_awake_hide",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "hide": "wasp_2"
+    }
+   ],
+   "if": "echo <= 0 || nap_2 > 0"
+  },
+  {
+   "id": "w2_nap_show",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "show": "nap_2"
+    }
+   ],
+   "if": "echo > 0 && nap_2 > 0"
+  },
+  {
+   "id": "w2_nap_hide",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "hide": "nap_2"
+    }
+   ],
+   "if": "echo <= 0 || nap_2 <= 0"
+  },
+  {
+   "id": "w3_awake_show",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "show": "wasp_3"
+    }
+   ],
+   "if": "echo > 0 && nap_3 <= 0"
+  },
+  {
+   "id": "w3_awake_hide",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "hide": "wasp_3"
+    }
+   ],
+   "if": "echo <= 0 || nap_3 > 0"
+  },
+  {
+   "id": "w3_nap_show",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "show": "nap_3"
+    }
+   ],
+   "if": "echo > 0 && nap_3 > 0"
+  },
+  {
+   "id": "w3_nap_hide",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "hide": "nap_3"
+    }
+   ],
+   "if": "echo <= 0 || nap_3 <= 0"
+  },
+  {
+   "id": "swap_1",
+   "when": {
+    "event": "pickup"
+   },
+   "do": [
+    {
+     "set": [
+      "host",
+      1
+     ]
+    },
+    {
+     "set": [
+      "breath",
+      8
+     ]
+    },
+    {
+     "teleport": "cradle_1"
+    },
+    {
+     "reset": "host_1"
+    },
+    {
+     "emit": "swapped"
+    }
+   ],
+   "if": "host == 0 && held(host_1)"
+  },
+  {
+   "id": "hum_1",
+   "when": {
+    "event": "swing"
+   },
+   "do": [
+    {
+     "add": [
+      "hum_1",
+      1
+     ]
+    }
+   ],
+   "if": "host == 1 && nap_1 <= 0"
+  },
+  {
+   "id": "nap_1",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "set": [
+      "nap_1",
+      24
+     ]
+    },
+    {
+     "set": [
+      "hum_1",
+      0
+     ]
+    },
+    {
+     "emit": "asleep"
+    }
+   ],
+   "if": "hum_1 >= 3"
+  },
+  {
+   "id": "nap_tick_1",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "nap_1",
+      -1
+     ]
+    }
+   ],
+   "if": "nap_1 > 0"
+  },
+  {
+   "id": "swap_2",
+   "when": {
+    "event": "pickup"
+   },
+   "do": [
+    {
+     "set": [
+      "host",
+      2
+     ]
+    },
+    {
+     "set": [
+      "breath",
+      8
+     ]
+    },
+    {
+     "teleport": "cradle_2"
+    },
+    {
+     "reset": "host_2"
+    },
+    {
+     "emit": "swapped"
+    }
+   ],
+   "if": "host == 0 && held(host_2)"
+  },
+  {
+   "id": "hum_2",
+   "when": {
+    "event": "swing"
+   },
+   "do": [
+    {
+     "add": [
+      "hum_2",
+      1
+     ]
+    }
+   ],
+   "if": "host == 2 && nap_2 <= 0"
+  },
+  {
+   "id": "nap_2",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "set": [
+      "nap_2",
+      24
+     ]
+    },
+    {
+     "set": [
+      "hum_2",
+      0
+     ]
+    },
+    {
+     "emit": "asleep"
+    }
+   ],
+   "if": "hum_2 >= 3"
+  },
+  {
+   "id": "nap_tick_2",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "nap_2",
+      -1
+     ]
+    }
+   ],
+   "if": "nap_2 > 0"
+  },
+  {
+   "id": "swap_3",
+   "when": {
+    "event": "pickup"
+   },
+   "do": [
+    {
+     "set": [
+      "host",
+      3
+     ]
+    },
+    {
+     "set": [
+      "breath",
+      8
+     ]
+    },
+    {
+     "teleport": "cradle_3"
+    },
+    {
+     "reset": "host_3"
+    },
+    {
+     "emit": "swapped"
+    }
+   ],
+   "if": "host == 0 && held(host_3)"
+  },
+  {
+   "id": "hum_3",
+   "when": {
+    "event": "swing"
+   },
+   "do": [
+    {
+     "add": [
+      "hum_3",
+      1
+     ]
+    }
+   ],
+   "if": "host == 3 && nap_3 <= 0"
+  },
+  {
+   "id": "nap_3",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "set": [
+      "nap_3",
+      24
+     ]
+    },
+    {
+     "set": [
+      "hum_3",
+      0
+     ]
+    },
+    {
+     "emit": "asleep"
+    }
+   ],
+   "if": "hum_3 >= 3"
+  },
+  {
+   "id": "nap_tick_3",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "nap_3",
+      -1
+     ]
+    }
+   ],
+   "if": "nap_3 > 0"
+  },
+  {
+   "id": "exhale_1",
+   "when": {
+    "exit": {
+     "zone": "den_1"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "host",
+      0
+     ]
+    },
+    {
+     "teleport": "hub"
+    },
+    {
+     "emit": "exhaled"
+    }
+   ],
+   "if": "host == 1"
+  },
+  {
+   "id": "exhale_2",
+   "when": {
+    "exit": {
+     "zone": "den_2"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "host",
+      0
+     ]
+    },
+    {
+     "teleport": "hub"
+    },
+    {
+     "emit": "exhaled"
+    }
+   ],
+   "if": "host == 2"
+  },
+  {
+   "id": "exhale_3",
+   "when": {
+    "exit": {
+     "zone": "den_3"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "host",
+      0
+     ]
+    },
+    {
+     "teleport": "hub"
+    },
+    {
+     "emit": "exhaled"
+    }
+   ],
+   "if": "host == 3"
+  },
+  {
+   "id": "breath_drain",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "breath",
+      -1
+     ]
+    }
+   ],
+   "if": "host > 0 && breath > 0"
+  },
+  {
+   "id": "breath_out",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "set": [
+      "host",
+      0
+     ]
+    },
+    {
+     "emit": "gasp"
+    }
+   ],
+   "if": "host > 0 && breath <= 0"
+  },
+  {
+   "id": "count",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "set": [
+      "asleep",
+      "(nap_1 > 0) + (nap_2 > 0) + (nap_3 > 0)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "energy",
+   "when": {
+    "every": 0.5
+   },
+   "do": [
+    {
+     "add": [
+      "energy",
+      "-0.3 - 0.35 * asleep - (host > 0) * 0.25"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "win",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "emit": "victory"
+    },
+    {
+     "end": "victory"
+    }
+   ],
+   "if": "nap_1 > 0 && nap_2 > 0 && nap_3 > 0"
+  },
+  {
+   "id": "lose",
+   "when": {
+    "every": 0.25
+   },
+   "do": [
+    {
+     "emit": "defeat"
+    },
+    {
+     "end": "lose"
+    }
+   ],
+   "if": "energy <= 0"
+  }
+ ],
+ "audio": {
+  "music": {
+   "night": "audio/hive.json",
+   "dusk": "audio/hive.json",
+   "dawn": "audio/hive.json",
+   "day": "audio/hive.json"
+  },
+  "music_volume": 0.6
+ },
+ "objects": [
+  {
+   "id": "shell",
+   "type": "group",
+   "children": [
+    {
+     "id": "floor",
+     "type": "box",
+     "size": [
+      20,
+      0.2,
+      20
+     ],
+     "position": [
+      0,
+      -0.1,
+      0
+     ],
+     "material": {
+      "preset": "deck"
+     }
+    },
+    {
+     "id": "wall_0",
+     "type": "box",
+     "size": [
+      20,
+      3,
+      0.2
+     ],
+     "position": [
+      0,
+      1.5,
+      10.1
+     ],
+     "material": {
+      "preset": "hull"
+     }
+    },
+    {
+     "id": "wall_1",
+     "type": "box",
+     "size": [
+      20,
+      3,
+      0.2
+     ],
+     "position": [
+      0,
+      1.5,
+      -10.1
+     ],
+     "material": {
+      "preset": "hull"
+     }
+    },
+    {
+     "id": "wall_2",
+     "type": "box",
+     "size": [
+      0.2,
+      3,
+      20
+     ],
+     "position": [
+      -10.1,
+      1.5,
+      0
+     ],
+     "material": {
+      "preset": "hull"
+     }
+    },
+    {
+     "id": "wall_3",
+     "type": "box",
+     "size": [
+      0.2,
+      3,
+      20
+     ],
+     "position": [
+      10.1,
+      1.5,
+      0
+     ],
+     "material": {
+      "preset": "hull"
+     }
+    },
+    {
+     "id": "ceiling",
+     "type": "box",
+     "size": [
+      20,
+      0.2,
+      20
+     ],
+     "position": [
+      0,
+      3.1,
+      0
+     ],
+     "material": {
+      "preset": "hull"
+     }
+    },
+    {
+     "id": "ped_1",
+     "type": "prefab",
+     "prefab": "cradle",
+     "position": [
+      -5,
+      0,
+      4
+     ],
+     "collide": false
+    },
+    {
+     "id": "comb_1",
+     "type": "prefab",
+     "prefab": "comb_panel",
+     "position": [
+      -5,
+      0,
+      9.9
+     ],
+     "collide": false
+    },
+    {
+     "id": "ped_2",
+     "type": "prefab",
+     "prefab": "cradle",
+     "position": [
+      0,
+      0,
+      4
+     ],
+     "collide": false
+    },
+    {
+     "id": "comb_2",
+     "type": "prefab",
+     "prefab": "comb_panel",
+     "position": [
+      0,
+      0,
+      9.9
+     ],
+     "collide": false
+    },
+    {
+     "id": "ped_3",
+     "type": "prefab",
+     "prefab": "cradle",
+     "position": [
+      5,
+      0,
+      4
+     ],
+     "collide": false
+    },
+    {
+     "id": "comb_3",
+     "type": "prefab",
+     "prefab": "comb_panel",
+     "position": [
+      5,
+      0,
+      9.9
+     ],
+     "collide": false
+    },
+    {
+     "id": "rib_1",
+     "type": "prefab",
+     "prefab": "comb_panel",
+     "position": [
+      -8,
+      0,
+      -9.9
+     ],
+     "rotation": [
+      0,
+      180,
+      0
+     ],
+     "collide": false
+    },
+    {
+     "id": "rib_2",
+     "type": "prefab",
+     "prefab": "comb_panel",
+     "position": [
+      8,
+      0,
+      -9.9
+     ],
+     "rotation": [
+      0,
+      180,
+      0
+     ],
+     "collide": false
+    }
+   ]
+  },
+  {
+   "id": "wasp_1",
+   "type": "prefab",
+   "prefab": "wasp",
+   "position": [
+    -5,
+    1.7,
+    7.5
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "nap_1",
+   "type": "prefab",
+   "prefab": "wasp",
+   "position": [
+    -5,
+    0.7,
+    7.5
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "params": {
+    "body": "@dim",
+    "glow": "@dim"
+   },
+   "collide": false
+  },
+  {
+   "id": "host_1",
+   "type": "prop",
+   "prop": "trash_can",
+   "movable": true,
+   "position": [
+    -3.0,
+    0,
+    -5.8
+   ],
+   "material": {
+    "color": "@honey",
+    "emissive": "@glow"
+   }
+  },
+  {
+   "id": "wasp_2",
+   "type": "prefab",
+   "prefab": "wasp",
+   "position": [
+    0,
+    1.7,
+    7.5
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "nap_2",
+   "type": "prefab",
+   "prefab": "wasp",
+   "position": [
+    0,
+    0.7,
+    7.5
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "params": {
+    "body": "@dim",
+    "glow": "@dim"
+   },
+   "collide": false
+  },
+  {
+   "id": "host_2",
+   "type": "prop",
+   "prop": "fire_extinguisher",
+   "movable": true,
+   "position": [
+    0.0,
+    0,
+    -5.8
+   ],
+   "material": {
+    "color": "@honey",
+    "emissive": "@glow"
+   }
+  },
+  {
+   "id": "wasp_3",
+   "type": "prefab",
+   "prefab": "wasp",
+   "position": [
+    5,
+    1.7,
+    7.5
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "nap_3",
+   "type": "prefab",
+   "prefab": "wasp",
+   "position": [
+    5,
+    0.7,
+    7.5
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "params": {
+    "body": "@dim",
+    "glow": "@dim"
+   },
+   "collide": false
+  },
+  {
+   "id": "host_3",
+   "type": "prop",
+   "prop": "traffic_cone",
+   "movable": true,
+   "position": [
+    3.0,
+    0,
+    -5.8
+   ],
+   "material": {
+    "color": "@honey",
+    "emissive": "@glow"
+   }
+  }
+ ],
+ "checks": {
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0,
+   "ignore": [
+    "floating",
+    "interest"
+   ]
+  },
+  "sim": [
+   {
+    "name": "hum all three wasps to sleep together: win",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "hub"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "host_1"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.0,
+        0.5,
+        -5.8
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.0,
+        0.5,
+        -5.8
+       ],
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "walk": "-2.8,4"
+     },
+     {
+      "player": "p1",
+      "wait": 0.4
+     },
+     {
+      "player": "p1",
+      "approach": "host_2"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        0.0,
+        0.5,
+        -5.8
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        0.0,
+        0.5,
+        -5.8
+       ],
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "walk": "2.2,4"
+     },
+     {
+      "player": "p1",
+      "wait": 0.4
+     },
+     {
+      "player": "p1",
+      "approach": "host_3"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        3.0,
+        0.5,
+        -5.8
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        3.0,
+        0.5,
+        -5.8
+       ],
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "walk": "7.2,4"
+     },
+     {
+      "player": "p1",
+      "wait": 0.4
+     },
+     {
+      "player": "p1",
+      "wait": 1
+     }
+    ],
+    "expect": [
+     {
+      "event": "swapped",
+      "count": 3
+     },
+     {
+      "event": "asleep",
+      "count": 3
+     },
+     {
+      "event": "exhaled",
+      "count": 2
+     },
+     {
+      "var": "nap_1",
+      "gt": 0
+     },
+     {
+      "var": "nap_3",
+      "gt": 0
+     },
+     {
+      "ended": "victory"
+     }
+    ],
+    "max_seconds": 60
+   },
+   {
+    "name": "mechanic: grabbing a jar puts you in its body, a swing there hums its wasp",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "hub"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "host_2"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        0.0,
+        0.5,
+        -5.8
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        0.0,
+        0.5,
+        -5.8
+       ],
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "var": "host",
+      "eq": 2
+     },
+     {
+      "event": "swapped",
+      "count": 1
+     },
+     {
+      "player": "p1",
+      "near": [
+       0,
+       4
+      ],
+      "tol": 1.0
+     },
+     {
+      "var": "nap_2",
+      "gt": 0
+     },
+     {
+      "event": "ping",
+      "min": 3
+     },
+     {
+      "shown": "shell"
+     },
+     {
+      "shown": "nap_2"
+     },
+     {
+      "not_ended": true
+     }
+    ],
+    "max_seconds": 30
+   },
+   {
+    "name": "holding your breath too long ends the swap: you are stranded in the den",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "hub"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "host_1"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.0,
+        0.5,
+        -5.8
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.0,
+        0.5,
+        -5.8
+       ],
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 12
+     }
+    ],
+    "expect": [
+     {
+      "event": "gasp",
+      "count": 1
+     },
+     {
+      "var": "host",
+      "eq": 0
+     },
+     {
+      "player": "p1",
+      "near": [
+       -5,
+       4
+      ],
+      "tol": 1.0
+     },
+     {
+      "not_ended": true
+     }
+    ],
+    "max_seconds": 30
+   },
+   {
+    "name": "the dark: silence hides the world",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "hub"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 7
+     }
+    ],
+    "expect": [
+     {
+      "event": "ping",
+      "min": 1
+     },
+     {
+      "hidden": "shell"
+     },
+     {
+      "var": "echo",
+      "lte": 0
+     }
+    ],
+    "max_seconds": 30
+   },
+   {
+    "name": "success costs energy: asleep wasps drain faster, running dry loses",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "hub"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "host_1"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.0,
+        0.5,
+        -5.8
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.0,
+        0.5,
+        -5.8
+       ],
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "walk": "-2.8,4"
+     },
+     {
+      "player": "p1",
+      "wait": 0.4
+     },
+     {
+      "player": "p1",
+      "wait": 130
+     }
+    ],
+    "expect": [
+     {
+      "var": "energy",
+      "lte": 0
+     },
+     {
+      "ended": "lose"
+     }
+    ],
+    "max_seconds": 160
+   }
+  ],
+  "walk": [
+   {
+    "name": "hub to the far den and back out of the dark",
+    "path": "2,-9; 2,3",
+    "ends_near": [
+     2,
+     3
+    ],
+    "tol": 0.4,
+    "floor_y": 0
+   }
+  ]
+ }
+}
