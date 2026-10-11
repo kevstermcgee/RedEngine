@@ -15,6 +15,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
   git shows no commits for the rest of item 1 (map retry through the relay, search-and-destroy reconnect, duel capacity after replacement), item 2's executable-selection and discovery parts, item 3 (replay coverage of the objective modes) or item 5.
   Item 4 (native 2D delivery) is partly there (`re2d` and the native publish route, #55); the packaged-executable walk-through it asks for has not been done.
 - Idea Forge (`docs/IDEA_FORGE.md`) runs nightly on the owner's machine, opens up to two game PRs a night and merges them when CI is green (#58-#73 so far); its backlog of engine findings is in `docs/analysis/idea-forge/`.
+- 2026-10-11: Agent loop trace phase 1: three tasks traced (docs/analysis/agent-loop-trace.md); top sinks: launchpad routing, affected false green (describe guard tests unowned), 3D search domain; awaiting review before phase 2
 
 ## Done
 - 2026-10-09: Idea Forge runs Midnight Engine (#72) and Salted Choir (#73, feedback only: the game did not build).
