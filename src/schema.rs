@@ -369,11 +369,18 @@ fn as_color_vec3(v: &Value) -> Result<Vec3, String> {
     parse_hex_to_linear(s)
 }
 
+/// The keys of an animated track (`{"keyframes": [...]}`).
+pub const TRACK_KEYS: &[&str] = &["keyframes"];
+/// The keys of one keyframe.
+pub const KEYFRAME_KEYS: &[&str] = &["t", "value", "ease"];
+
 /// Shared engine for every track field: accepts either a bare leaf value or
 /// `{"keyframes": [{"t":..,"value":..,"ease":..}, ...]}`.
 fn build_track<T: Lerp + Copy>(ctx: &mut Ctx, raw: &Value, path: &str, default: T, parse_leaf: impl Fn(&Value) -> Result<T, String>) -> Track<T> {
     if let Some(obj) = raw.as_object() {
         if let Some(kfs_raw) = obj.get("keyframes") {
+            // A track is exactly `{"keyframes": [...]}` and a keyframe exactly `{t, value, ease}`: a misspelt `"eaze"` used to be dropped silently.
+            check_keys(&mut ctx.errors, path, obj, TRACK_KEYS);
             let Some(arr) = kfs_raw.as_array() else {
                 ctx.err(&format!("{path}.keyframes"), "must be an array");
                 return Track::constant(default);
@@ -390,6 +397,7 @@ fn build_track<T: Lerp + Copy>(ctx: &mut Ctx, raw: &Value, path: &str, default: 
                     ctx.err(&kpath, "must be an object with 't' and 'value'");
                     continue;
                 };
+                check_keys(&mut ctx.errors, &kpath, kobj, KEYFRAME_KEYS);
                 let t = match kobj.get("t").and_then(as_f32) {
                     Some(t) => t,
                     None => {
@@ -1580,6 +1588,19 @@ mod tests {
         let json = r#"{"camera":{},"objects":[{"id":"thing"}]}"#;
         let errs = parse_scene(json).unwrap_err();
         assert!(errs.iter().any(|e| e == "thing.type: missing"), "{errs:?}");
+    }
+
+    #[test]
+    fn an_unknown_key_in_a_track_or_a_keyframe_is_an_error_with_a_fix() {
+        let base = |pos: &str| {
+            format!(
+                r##"{{"camera":{{"position":[0,2,5],"target":[0,0,0]}},"objects":[{{"id":"a","type":"sphere","material":{{"color":"#ffffff"}},"position":{pos}}}]}}"##
+            )
+        };
+        let e = parse_scene(&base(r#"{"keyframes":[{"t":0,"value":[0,0,0],"eaze":"in"}]}"#)).unwrap_err();
+        assert!(e.iter().any(|m| m.contains("a.position.keyframes[0].eaze") && m.contains("did you mean `ease`")), "{e:?}");
+        let e = parse_scene(&base(r#"{"keyframes":[{"t":0,"value":[0,0,0]}],"loop":true}"#)).unwrap_err();
+        assert!(e.iter().any(|m| m.contains("a.position.loop")), "{e:?}");
     }
 
     #[test]
