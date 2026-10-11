@@ -197,13 +197,17 @@ pub(crate) fn run_catalog(
     if let (Some(name), None, None, None, None) = (query.first().filter(|_| query.len() == 1), tag, category, kind, sheet) {
         if let Some(e) = catalog::find(&all, name) {
             print!("{}", catalog::render_detail(e, json));
-            return Ok(());
+            return match &e.error {
+                Some(err) => Err(format!("{}: catalogue error: {err}", e.name)),
+                None => Ok(()),
+            };
         }
     }
     let q = query.join(" ");
     let rows = catalog::filter(&all, if q.is_empty() { None } else { Some(&q) }, tag, category, kind);
     if let Some(out) = sheet {
         let started = Instant::now();
+        catalogue_errors(&rows)?;
         catalog::sheet_in(&rows, out, cols, (480, 360), overlay.as_ref())?;
         println!("wrote {} ({} assets, {:.1}s)", out.display(), rows.len(), started.elapsed().as_secs_f32());
         return Ok(());
@@ -216,7 +220,17 @@ pub(crate) fn run_catalog(
         }
     }
     print!("{}", catalog::render_list(&rows, json, long));
-    Ok(())
+    catalogue_errors(&rows)
+}
+
+/// A listed asset that cannot be built (a bad object in its definition) fails the command: `catalog` used to print `!! CATALOGUE ERROR` and exit 0.
+fn catalogue_errors(rows: &[&catalog::Entry]) -> Result<(), String> {
+    let bad: Vec<String> = rows.iter().filter_map(|e| e.error.as_ref().map(|err| format!("{}: {err}", e.name))).collect();
+    if bad.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("{} asset(s) with a catalogue error:\n  {}", bad.len(), bad.join("\n  ")))
+    }
 }
 
 pub(crate) fn run_status(root: &Path, init: bool, note: Option<&str>, section: &str, facts: bool, sync_docs: &[PathBuf]) -> Result<(), String> {

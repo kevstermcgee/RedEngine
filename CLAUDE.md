@@ -6,9 +6,11 @@
 - You never read engine source and never guess: the engine describes itself, checks your work and explains its failures. Do not open `SPEC.md` or `docs/AGENT_REFERENCE.md` whole and do not `@`-import either (10k+ tokens every session): use `search`.
 - Changing Rust: `scripts/dev red context <feature|file|words>` first, then `scripts/dev iterate` while you edit, `scripts/dev affected` before you say done, `scripts/dev affected --full` before pushing, `scripts/dev preflight` before each commit.
 
+- Content formats (scenes, prefab libraries, 2D games, blueprints, playscripts, scores, voices, `game.json`, ...) each have a typed definition in `src/content/` beside their hand-written checker; `tests/content_drift.rs` fails when the two disagree. **A new content type or key needs both, and a place in that test** (ADR 2026-10-11-content-formats-are-typed-and-checked-twice; `docs/content-formats.md`).
+
 ## Facts (derived from the repo: `red_engine2 status --sync-docs CLAUDE.md` rewrites this block; a test fails if it is stale)
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `re2d`, `red_bot`, `red_engine2`, `red_relay`, `red_server`.
-- Cargo features: `default`, `video`, `mcp`, `render`, `gfx`.
+- Cargo features: `default`, `video`, `mcp`, `schema`, `render`, `gfx`.
 - Wire protocol v15 (`src/net/protocol.rs`): a client and a server must be built from the same version. Counts (suites, maps, ADRs) and test totals: `red_engine2 status`, `scripts/dev test`.
 <!-- facts:end -->

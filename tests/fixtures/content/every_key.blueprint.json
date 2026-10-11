@@ -1,0 +1,17 @@
+{
+  "notes": "A fixture that uses every blueprint key, so the drift test (tests/content_drift.rs) probes every key of the typed definition against blueprint::compile.",
+  "blueprint": 1,
+  "name": "every_key",
+  "height": 2.8,
+  "ceiling": true,
+  "rooms": [
+    {"id": "hall", "rect": [-10, -6, 0, 6], "floor": "#8f9aa8", "lamp": true},
+    {"id": "yard", "rect": [0, -6, 10, 6], "lamp": false}
+  ],
+  "doors": [{"between": ["hall", "yard"], "width": 1.4, "at": 0, "kind": "arch"}],
+  "spawns": [{"room": "hall", "group": "solo", "count": 1, "id": "start"}],
+  "fill": [{"room": "yard", "kind": ["crate"], "count": 3, "seed": 2, "scale": 1, "min_gap": 0.5, "clearance": 1, "id": "crates"}],
+  "keep_clear": [[1, -1, 3, 1]],
+  "extra": [{"id": "marker", "type": "box", "size": [0.2, 0.2, 0.2], "position": [5, 0.1, 4], "material": {"color": "#ff0000"}, "collide": false}],
+  "scene": {"vars": {"n": 0}, "rules": [{"id": "count", "when": {"start": true}, "do": [{"add": ["n", 1]}]}]}
+}

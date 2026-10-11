@@ -174,7 +174,23 @@ fn param_spec(name: &str, v: &Value) -> ParamDef {
     }
 }
 
+/// The keys of a prefab definition (`assets/*.json` entries and a scene's own `prefabs`).
+pub const DEF_KEYS: &[&str] = &["name", "extends", "meta", "tags", "params", "objects", "desc", "mount", "collide"];
+/// The keys of a param spec (`{"default": .., "desc": .., "palette": ..}`; any other value is the default itself).
+pub const PARAM_SPEC_KEYS: &[&str] = &["default", "desc", "palette"];
+
 fn build_def(name: &str, o: &Map<String, Value>, category: &str, lib: &Library) -> Result<PrefabDef, String> {
+    // An unknown key is an error with a fix, like everywhere else in a scene: a misspelt `colide` used to be dropped silently.
+    let mut key_errs = Vec::new();
+    crate::strict::check_keys(&mut key_errs, &format!("prefab '{name}'"), o, DEF_KEYS);
+    for (k, v) in o.get("params").and_then(Value::as_object).into_iter().flatten() {
+        if let Some(spec) = v.as_object().filter(|s| s.contains_key("default")) {
+            crate::strict::check_keys(&mut key_errs, &format!("prefab '{name}'.params.{k}"), spec, PARAM_SPEC_KEYS);
+        }
+    }
+    if !key_errs.is_empty() {
+        return Err(key_errs.join("; "));
+    }
     let base = o.get("extends").and_then(Value::as_str).and_then(|b| lib.find(b)).cloned();
     let meta = match o.get("meta") {
         Some(Value::Object(m)) => Some(m),
@@ -768,6 +784,23 @@ mod tests {
                 assert!(p.default.as_str().is_some_and(|c| c.starts_with('#')), "{}.params.{}: a palette-bound param needs a #hex default", d.name, p.name);
             }
         }
+    }
+
+    #[test]
+    fn an_unknown_key_in_a_def_or_a_param_spec_is_an_error_with_a_fix() {
+        let mut lib = Library::default();
+        let errs =
+            lib.add_json(&json!([{"name": "crate_a", "tags": ["box"], "colide": false, "objects": [{"id": "b", "type": "box", "size": [1, 1, 1]}]}]), "t");
+        assert!(errs.iter().any(|e| e.contains("prefab 'crate_a'.colide") && e.contains("did you mean `collide`")), "{errs:?}");
+        let mut lib = Library::default();
+        let errs = lib.add_json(
+            &json!([{"name": "crate_b", "tags": ["box"], "params": {"color": {"default": "#ff0000", "dsc": "paint"}}, "objects": [{"id": "b", "type": "box", "size": [1, 1, 1]}]}]),
+            "t",
+        );
+        assert!(errs.iter().any(|e| e.contains("params.color.dsc") && e.contains("did you mean `desc`")), "{errs:?}");
+        let mut lib = Library::default();
+        let errs = lib.add_json(&json!({"crate_c": {"tags": ["box"], "x-note": "kept", "objects": [{"id": "b", "type": "box", "size": [1, 1, 1]}]}}), "t");
+        assert!(errs.is_empty(), "the extension namespace stays allowed: {errs:?}");
     }
 
     #[test]

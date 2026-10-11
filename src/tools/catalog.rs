@@ -371,9 +371,15 @@ pub fn entry_json(e: &Entry) -> Value {
     })
 }
 
+/// `assets/packs.json`, typed and checked: an unknown key or a missing field is an error with its JSON path (it used to be read as loose JSON).
+pub fn pack_registry() -> Result<crate::content::packs::PackRegistry, String> {
+    let v: Value = serde_json::from_str(PACKS).map_err(|e| format!("assets/packs.json: {e}"))?;
+    crate::content::typed(&v).map_err(|e| format!("assets/packs.json: {e}"))
+}
+
 /// The versioned top-level contract and pack registry (`catalog --manifest --json`).
 pub fn manifest_json(asset_count: usize) -> Result<Value, String> {
-    let mut value: Value = serde_json::from_str(PACKS).map_err(|e| format!("assets/packs.json: {e}"))?;
+    let mut value = serde_json::to_value(pack_registry()?).map_err(|e| format!("assets/packs.json: {e}"))?;
     value["asset_api"] = json!(API_VERSION);
     value["asset_count"] = json!(asset_count);
     value["workflow"] = json!(["reuse", "modify", "generate", "import"]);
@@ -625,13 +631,25 @@ mod tests {
 
     #[test]
     fn pack_manifest_matches_embedded_library_files() {
-        let manifest: Value = serde_json::from_str(PACKS).expect("assets/packs.json is valid JSON");
-        assert_eq!(manifest["format"], 1);
-        let files: Vec<&str> = manifest["packs"].as_array().unwrap().iter().filter_map(|p| p["file"].as_str()).collect();
+        let manifest = pack_registry().unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(manifest.format, 1);
+        let files: Vec<&str> = manifest.packs.iter().map(|p| p.file.as_str()).collect();
         for (category, _) in prefabs::BUILTIN_FILES {
             let file = format!("assets/{category}.json");
             assert!(files.contains(&file.as_str()), "{file} is missing from assets/packs.json");
         }
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        for p in &manifest.packs {
+            assert!(root.join(&p.file).is_file(), "assets/packs.json: packs.{}.file `{}` does not exist", p.id, p.file);
+        }
+    }
+
+    #[test]
+    fn an_unknown_key_in_the_pack_registry_is_an_error_with_its_path() {
+        let mut v: Value = serde_json::from_str(PACKS).unwrap();
+        v["packs"][2]["tag"] = json!(["x"]);
+        let e = crate::content::typed::<crate::content::packs::PackRegistry>(&v).unwrap_err();
+        assert!(e.contains("packs[2]") && e.contains("unknown field `tag`"), "{e}");
     }
 
     #[test]

@@ -1,0 +1,28 @@
+{
+  "notes": "A fixture that uses every playscript step, so the drift test (tests/content_drift.rs) probes every key of the typed definition against Script::parse.",
+  "policy": "idle",
+  "steps": [
+    {"wait": 0.5},
+    {"look": {"yaw": 90, "pitch": -10}},
+    {"turn": 360, "over": 2},
+    {"hold": ["forward", "sprint"], "secs": 1},
+    {"jump": 1},
+    {"interact": 1},
+    {"switch": 1},
+    {"press": "start"},
+    {"approach": "crate_1", "within": 1.5, "timeout": 8},
+    {"look_at": "crate_1"},
+    {"fire": {"clicks": 3, "every": 0.2}, "track": true},
+    {"fire": {"secs": 1}},
+    {"aim_at": "nearest"},
+    {"view": "third"},
+    {"policy": "walker"},
+    {"shot": "overview", "camera": "overview"},
+    {"shot": "free", "camera": {"eye": [0, 10, 10], "at": [0, 0, 0], "fov": 50}},
+    {"player": 1},
+    {"snapshot": "after"},
+    {"expect": {"at": "/player/hp", "min": 1, "within": 2, "msg": "alive"}},
+    {"wait_for": {"at": "/online/in_round", "eq": true}},
+    {"say": "done"}
+  ]
+}

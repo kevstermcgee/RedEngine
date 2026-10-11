@@ -29,10 +29,15 @@ pub struct Loaded {
 /// Loads and validates `path`; the error is the usual `path: message` list.
 pub fn load(path: &Path) -> Result<Loaded, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let scene = crate::schema::parse_scene(&text).map_err(|errs| format!("{}: scene is invalid:\n  error: {}", path.display(), errs.join("\n  error: ")))?;
-    let spawns = parse_spawns(&text).map_err(|e| format!("{}: spawns: {e}", path.display()))?;
-    let raw = serde_json::from_str(&text).map_err(|e| format!("{}: json: {e}", path.display()))?;
-    Ok(Loaded { scene, spawns, raw, hash: map_hash(&text) })
+    load_text(&text, &path.display().to_string())
+}
+
+/// [`load`] from the scene's text (`label` names it in errors).
+pub fn load_text(text: &str, label: &str) -> Result<Loaded, String> {
+    let scene = crate::schema::parse_scene(text).map_err(|errs| format!("{label}: scene is invalid:\n  error: {}", errs.join("\n  error: ")))?;
+    let spawns = parse_spawns(text).map_err(|e| format!("{label}: spawns: {e}"))?;
+    let raw = serde_json::from_str(text).map_err(|e| format!("{label}: json: {e}"))?;
+    Ok(Loaded { scene, spawns, raw, hash: map_hash(text) })
 }
 
 fn all_ids(objects: &[Object], out: &mut Vec<String>) {
