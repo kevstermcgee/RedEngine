@@ -8,6 +8,9 @@
 //! Built-in **functions** read the world: `prop_y(crate)`, `tilt(domino_3) > 60`, `held(parcel)`, `mass(barrel)`,
 //! `moved(bell)`, `props_in(pit)`, `in_zone(crate, pit)`; their argument is a loose prop's (or a zone's) id from the [`Scope`] the expression
 //! is compiled in, and a [`World`] answers them at evaluation time (ADR 2026-09-29-prop-aware-rules-and-scenarios).
+//! **Math** over expressions: `floor(x) round(x) abs(x) sqrt(x) min(a, b) max(a, b)`. **`random(a, b)`** is a whole number from `a` to `b` inclusive,
+//! drawn from the simulation's seeded generator through the [`World`] (so a run with the same seed and inputs draws the same numbers; ADR
+//! 2026-10-10-story-is-rules-and-tables-not-a-story-system).
 
 use std::fmt;
 
@@ -62,6 +65,72 @@ impl Func {
     }
 }
 
+/// A math function over expressions (no world needed): `(name, function, arguments, help line)` in [`MathFn::ALL`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MathFn {
+    Floor,
+    Round,
+    Abs,
+    Sqrt,
+    Min,
+    Max,
+}
+
+impl MathFn {
+    /// Every math function: `(name, function, argument count, help line)`, for the parser and `describe rules` / `describe 2d`.
+    pub const ALL: &[(&str, MathFn, usize, &str)] = &[
+        ("floor", MathFn::Floor, 1, "floor(x)        the whole number at or below x (floor(2.7) = 2, floor(-0.5) = -1)"),
+        ("round", MathFn::Round, 1, "round(x)        the nearest whole number (halves away from zero)"),
+        ("abs", MathFn::Abs, 1, "abs(x)          x without its sign"),
+        ("sqrt", MathFn::Sqrt, 1, "sqrt(x)         square root (0 for a negative x)"),
+        ("min", MathFn::Min, 2, "min(a, b)       the smaller"),
+        ("max", MathFn::Max, 2, "max(a, b)       the larger"),
+    ];
+
+    fn by_name(name: &str) -> Option<(MathFn, usize)> {
+        MathFn::ALL.iter().find(|(n, _, _, _)| *n == name).map(|(_, f, a, _)| (*f, *a))
+    }
+
+    fn apply(self, a: &[f64]) -> f64 {
+        let x = a.first().copied().unwrap_or(0.0);
+        let y = a.get(1).copied().unwrap_or(0.0);
+        match self {
+            MathFn::Floor => x.floor(),
+            MathFn::Round => x.round(),
+            MathFn::Abs => x.abs(),
+            MathFn::Sqrt => {
+                if x > 0.0 {
+                    x.sqrt()
+                } else {
+                    0.0
+                }
+            }
+            MathFn::Min => x.min(y),
+            MathFn::Max => x.max(y),
+        }
+    }
+}
+
+/// The help line of `random`, for `describe rules` / `describe 2d`.
+pub const RANDOM_HELP: &str = "random(a, b)    a whole number from a to b inclusive, from the game's seeded generator (same seed, same draws)";
+
+/// One draw of `random(a, b)`: a whole number from `round(min(a,b))` to `round(max(a,b))` inclusive, advancing `state` (xorshift64*). The simulations keep
+/// `state` and call this through their [`World`]; a range wider than 2^31 or a non-finite bound gives the low end.
+pub fn draw_int(state: &mut u64, a: f64, b: f64) -> f64 {
+    let (lo, hi) = (a.min(b).round(), a.max(b).round());
+    if !lo.is_finite() || !hi.is_finite() || hi - lo > 2_147_483_647.0 {
+        return if lo.is_finite() { lo } else { 0.0 };
+    }
+    let mut x = if *state == 0 { 0x9E37_79B9_7F4A_7C15 } else { *state };
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    *state = x;
+    let r = x.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 11;
+    let n = (hi - lo) as u64 + 1;
+    lo + (r % n) as f64
+}
+
 /// What a function call may name: the loose props and the zones of the scene, by id. A call is compiled to an index
 /// into the matching list, so evaluating it never touches a string.
 #[derive(Debug, Clone, Copy, Default)]
@@ -88,6 +157,11 @@ pub trait World {
     /// The value of the per-player variable at `index` (`me.name`) for the player that triggered the rule; 0 by default and when no player did.
     fn me(&self, _index: usize) -> f64 {
         0.0
+    }
+
+    /// `random(lo, hi)`: a simulation draws from its seeded generator ([`draw_int`]); with no generator (a static check) it is the low end.
+    fn random(&self, lo: f64, hi: f64) -> f64 {
+        lo.min(hi).round()
     }
 }
 
@@ -147,6 +221,10 @@ pub enum Expr {
     Call(Func, usize),
     /// A built-in of a prop and a zone (`in_zone`): the prop's index in the scope's props, then the zone's in its zones.
     Call2(Func, usize, usize),
+    /// A math function of its arguments.
+    Math(MathFn, Vec<Expr>),
+    /// `random(a, b)`: asks the [`World`] for a draw.
+    Random(Box<Expr>, Box<Expr>),
 }
 
 impl Expr {
@@ -163,6 +241,14 @@ impl Expr {
             Expr::Me(i) => world.me(*i),
             Expr::Call(f, i) => world.call(*f, *i),
             Expr::Call2(f, p, z) => world.call2(*f, *p, *z),
+            Expr::Math(f, args) => {
+                let a: Vec<f64> = args.iter().map(|e| e.eval_in(vars, world)).collect();
+                f.apply(&a)
+            }
+            Expr::Random(lo, hi) => {
+                let (a, c) = (lo.eval_in(vars, world), hi.eval_in(vars, world));
+                world.random(a, c)
+            }
             Expr::Neg(e) => -e.eval_in(vars, world),
             Expr::Not(e) => b(e.eval_in(vars, world) == 0.0),
             Expr::Bin(op, l, r) => {
@@ -219,7 +305,8 @@ impl Expr {
             Expr::Me(_) => true,
             Expr::Num(_) | Expr::Var(_) | Expr::Call(..) | Expr::Call2(..) => false,
             Expr::Neg(e) | Expr::Not(e) => e.uses_me(),
-            Expr::Bin(_, l, r) => l.uses_me() || r.uses_me(),
+            Expr::Bin(_, l, r) | Expr::Random(l, r) => l.uses_me() || r.uses_me(),
+            Expr::Math(_, args) => args.iter().any(Expr::uses_me),
         }
     }
 
@@ -228,9 +315,10 @@ impl Expr {
         match self {
             Expr::Num(_) | Expr::Var(_) => false,
             Expr::Me(_) => false,
-            Expr::Call(..) | Expr::Call2(..) => true,
+            Expr::Call(..) | Expr::Call2(..) | Expr::Random(..) => true,
             Expr::Neg(e) | Expr::Not(e) => e.reads_world(),
             Expr::Bin(_, l, r) => l.reads_world() || r.reads_world(),
+            Expr::Math(_, args) => args.iter().any(Expr::reads_world),
         }
     }
 }
@@ -423,10 +511,22 @@ impl Parser<'_> {
         }
     }
 
-    /// `name(` was read: parse `id )` and resolve the call against the scope.
+    /// `name(` was read: parse `id )` and resolve the call against the scope; math functions and `random` take expressions instead.
     fn call(&mut self, name: &str, at: usize) -> Result<Expr, ParseError> {
+        if name == "random" {
+            let mut args = self.expr_args(name, 2, at)?.into_iter();
+            if let (Some(lo), Some(hi)) = (args.next(), args.next()) {
+                return Ok(Expr::Random(Box::new(lo), Box::new(hi)));
+            }
+            return Err(ParseError { message: "`random(a, b)` takes 2 arguments".into(), at });
+        }
+        if let Some((f, n)) = MathFn::by_name(name) {
+            return Ok(Expr::Math(f, self.expr_args(name, n, at)?));
+        }
         let Some(f) = Func::by_name(name) else {
-            let known: Vec<&str> = Func::ALL.iter().map(|(n, _, _)| *n).collect();
+            let mut known: Vec<&str> = Func::ALL.iter().map(|(n, _, _)| *n).collect();
+            known.extend(MathFn::ALL.iter().map(|(n, _, _, _)| *n));
+            known.push("random");
             let hint = crate::prefabs::suggest(name, known.iter().copied()).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
             return Err(ParseError { message: format!("unknown function `{name}`{hint} (built-ins: {})", known.join(", ")), at });
         };
@@ -458,6 +558,29 @@ impl Parser<'_> {
 }
 
 impl Parser<'_> {
+    /// `name(` is next: parse exactly `n` comma-separated expressions and the `)`.
+    fn expr_args(&mut self, name: &str, n: usize, at: usize) -> Result<Vec<Expr>, ParseError> {
+        self.pos += 1; // the `(`
+        let mut args = Vec::new();
+        loop {
+            if self.peek() == Some(&Tok::RParen) && args.is_empty() {
+                break;
+            }
+            args.push(self.binary(0)?);
+            match self.peek() {
+                Some(Tok::Comma) => self.pos += 1,
+                Some(Tok::RParen) => break,
+                _ => return Err(ParseError { message: format!("missing `)` or `,` in `{name}(...)`"), at: self.at() }),
+            }
+        }
+        self.pos += 1; // the `)`
+        if args.len() != n {
+            let shape = if n == 1 { format!("`{name}(x)`") } else { format!("`{name}(a, b)`") };
+            return Err(ParseError { message: format!("{shape} takes {n} argument(s), got {}", args.len()), at });
+        }
+        Ok(args)
+    }
+
     /// `in_zone(prop` was read: parse `, zone )` and resolve both ids against the scope.
     fn call_prop_and_zone(&mut self, f: Func, name: &str, prop: &str, prop_at: usize) -> Result<Expr, ParseError> {
         if self.peek() != Some(&Tok::Comma) {
@@ -635,5 +758,59 @@ mod tests {
         assert!(err("in_zone(bell)").contains("a comma, then a zone id"), "{}", err("in_zone(bell)"));
         assert!(err("in_zone(bell, pit").contains("missing `)`"), "{}", err("in_zone(bell, pit"));
         assert!(parse("prop_y(bell)", &names()).unwrap_err().message.contains("none in this scene"), "no scope: nothing to call");
+    }
+
+    #[test]
+    fn math_functions_take_expressions() {
+        let names: Vec<String> = vec!["x".into(), "y".into()];
+        let ev = |src: &str| parse(src, &names).unwrap().eval(&[2.7, -3.2]);
+        assert_eq!(ev("floor(x)"), 2.0);
+        assert_eq!(ev("floor(y)"), -4.0);
+        assert_eq!(ev("round(x)"), 3.0);
+        assert_eq!(ev("abs(y)"), 3.2);
+        assert_eq!(ev("min(x, y)"), -3.2);
+        assert_eq!(ev("max(x + 1, y * -1)"), 3.7);
+        assert_eq!(ev("sqrt(y)"), 0.0, "never NaN");
+        assert_eq!(ev("floor(x) % 2 == 0"), 1.0);
+        let e = parse("min(x)", &names).unwrap_err();
+        assert!(e.message.contains("takes 2 argument(s), got 1"), "{e:?}");
+        let e = parse("flor(x)", &names).unwrap_err();
+        assert!(e.message.contains("did you mean `floor`"), "{e:?}");
+    }
+
+    struct Dice(std::cell::Cell<u64>);
+    impl World for Dice {
+        fn call(&self, _: Func, _: usize) -> f64 {
+            0.0
+        }
+        fn random(&self, lo: f64, hi: f64) -> f64 {
+            let mut s = self.0.get();
+            let v = draw_int(&mut s, lo, hi);
+            self.0.set(s);
+            v
+        }
+    }
+
+    #[test]
+    fn random_draws_whole_numbers_in_range_from_the_world_and_repeats_under_the_same_seed() {
+        let names: Vec<String> = vec!["n".into()];
+        let e = parse("random(1, n)", &names).unwrap();
+        assert!(e.reads_world(), "a draw needs the simulation's generator");
+        let run = |seed: u64| {
+            let w = Dice(std::cell::Cell::new(seed));
+            (0..200).map(|_| e.eval_in(&[6.0], &w)).collect::<Vec<f64>>()
+        };
+        let a = run(7);
+        assert!(a.iter().all(|v| v.fract() == 0.0 && (1.0..=6.0).contains(v)), "{a:?}");
+        for face in 1..=6 {
+            assert!(a.contains(&(face as f64)), "200 throws show every face: {face} missing");
+        }
+        assert_eq!(a, run(7), "same seed, same draws");
+        assert_ne!(a, run(8), "another seed, other draws");
+        assert_eq!(e.eval(&[6.0]), 1.0, "with no generator (validate) it is the low end");
+        let mut s = 1;
+        assert_eq!(draw_int(&mut s, 5.0, 5.0), 5.0);
+        let (mut s1, mut s2) = (42u64, 42u64);
+        assert_eq!(draw_int(&mut s1, 9.0, 3.0), draw_int(&mut s2, 3.0, 9.0), "bounds in either order are the same range");
     }
 }

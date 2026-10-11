@@ -287,6 +287,14 @@ impl Val {
             Val::Expr(e) => e.eval(vars),
         }
     }
+
+    /// The value now, asking `world` for functions (`random`).
+    pub fn eval_in(&self, vars: &[f64], world: &dyn rules_expr::World) -> f64 {
+        match self {
+            Val::Num(n) => *n,
+            Val::Expr(e) => e.eval_in(vars, world),
+        }
+    }
 }
 
 /// A coordinate or a random range of them.
@@ -460,13 +468,109 @@ pub struct Widget {
     pub show: Option<Expr>,
 }
 
+/// `{"pick": table, "by": expr}`: one entry of a string table (`tables`), chosen by an expression's whole value, 0-based; an index past either end shows
+/// nothing. The entry may itself hold `{var}` placeholders. Story text is data: tables + rules, not a story system (ADR
+/// 2026-10-10-story-is-rules-and-tables-not-a-story-system).
+#[derive(Debug, Clone)]
+pub struct Pick {
+    /// Index into [`GameDef::tables`].
+    pub table: usize,
+    /// The index expression.
+    pub by: Expr,
+}
+
+/// Where a dialogue goes after a line or a choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Goto {
+    /// The line at this index.
+    Line(usize),
+    /// Close the dialogue.
+    End,
+}
+
+/// One choice on a dialogue line.
+#[derive(Debug, Clone)]
+pub struct Choice {
+    /// What the player picks.
+    pub label: String,
+    /// The event it emits (rules react with `when: {event}`).
+    pub emit: Option<String>,
+    /// Where the dialogue goes next (default: the next line).
+    pub goto: Option<Goto>,
+}
+
+/// One line of a dialogue.
+#[derive(Debug, Clone)]
+pub struct DialogueLine {
+    /// Its id, for a `goto`.
+    pub id: Option<String>,
+    /// The speaker's name, drawn above the text.
+    pub who: Option<String>,
+    /// Template text (empty when `pick` chooses it).
+    pub text: String,
+    /// Table text instead of a template.
+    pub pick: Option<Pick>,
+    /// Emitted when the player advances past the line.
+    pub emit: Option<String>,
+    /// Where to go after this line (default: the next one).
+    pub goto: Option<Goto>,
+    /// Up to 9 choices (up/down or 1-9, then the advance action, or a click).
+    pub choices: Vec<Choice>,
+}
+
+/// A conversation in a box: ordered lines, advanced by an input action, with optional choices that emit events and jump. Its state is two declared
+/// variables rules can read and set: `<id>_line` (the line shown; past the last = closed) and `<id>_choice` (the highlighted choice).
+#[derive(Debug, Clone)]
+pub struct Dialogue {
+    pub id: String,
+    pub lines: Vec<DialogueLine>,
+    /// Top-left and size of the box.
+    pub at: [f32; 2],
+    pub size: [f32; 2],
+    /// Text, box and speaker/selection colours.
+    pub color: Color,
+    pub back: Color,
+    pub accent: Color,
+    pub scale: u32,
+    /// The input action that advances (index into `ACTIONS`; default `action`).
+    pub advance: usize,
+    /// While open, the world stands still (no movement, touching or timers) and its keys belong to the dialogue. Default true.
+    pub pause: bool,
+    /// Emitted when the dialogue closes.
+    pub done: Option<String>,
+    /// Indexes of `<id>_line` and `<id>_choice` in the game's variables.
+    pub line_var: usize,
+    pub choice_var: usize,
+}
+
+impl Dialogue {
+    /// Height of one choice row, px.
+    pub fn row_h(&self) -> f32 {
+        ((crate::font::GLYPH_H + 3) as u32 * self.scale) as f32
+    }
+
+    /// The rectangle `[x, y, w, h]` of choice `i` of `n`: the rows stack at the bottom of the box (the sim and the renderer share this, so a click
+    /// lands on what is drawn).
+    pub fn choice_rect(&self, i: usize, n: usize) -> [f32; 4] {
+        let pad = 4.0 * self.scale as f32;
+        let y0 = self.at[1] + self.size[1] - pad - n as f32 * self.row_h();
+        [self.at[0] + pad, y0 + i as f32 * self.row_h(), self.size[0] - 2.0 * pad, self.row_h()]
+    }
+}
+
 /// The kinds of HUD widget.
 #[derive(Debug, Clone)]
 pub enum WidgetKind {
-    /// Text with `{var}` placeholders.
+    /// A conversation (see [`Dialogue`]).
+    Dialogue(Box<Dialogue>),
+    /// Text with `{var}` placeholders, or one entry of a string table (`pick`), wrapped to `width` when given.
     Text {
-        /// Template.
+        /// Template (empty when `pick` chooses the text).
         text: String,
+        /// `{"pick": table, "by": expr}`: the text is that table's entry at the expression's whole value.
+        pick: Option<Pick>,
+        /// Wrap at word boundaries to this many pixels (lines `GLYPH_H + 2` px apart at scale 1).
+        width: Option<f32>,
         /// Top-left (or the anchor for `align`).
         at: [f32; 2],
         /// Colour.
@@ -708,6 +812,8 @@ pub struct GameDef {
     pub sounds: Vec<SoundDef>,
     /// Music scores (name, score JSON).
     pub music: Vec<(String, Value)>,
+    /// String tables (`tables`): name and entries, for `{"pick": ..}` text.
+    pub tables: Vec<(String, Vec<String>)>,
     /// Declared variables with their starting values.
     pub vars: Vec<(String, f64)>,
     /// Every variable name an expression may use: declared, built-in, `count_<tag>`, `<id>_x`/`<id>_y`.
@@ -788,6 +894,7 @@ pub const ROOT: &[&str] = &[
     "sounds",
     "music",
     "vars",
+    "tables",
     "persist",
     "prefabs",
     "scene",
@@ -1671,8 +1778,9 @@ fn parse_rule(ctx: &mut Ctx, i: usize, v: &Value, names: &Names) -> Option<Rule>
 }
 
 const TEXT_FIELDS: &[Field] = &[
-    req("text", Ty::Str, "text; {var} shows a variable"),
+    req("text", Ty::Custom(text_source_ok), "text; {var} shows a variable; or {\"pick\": table, \"by\": expression}: one entry of a string table"),
     req("at", Ty::Nums(&[2]), "[x, y]"),
+    opt("width", Ty::Num(Some((8.0, 1280.0))), "wrap at word boundaries to this many pixels"),
     opt("color", Ty::Custom(color_ok), "default white"),
     opt("scale", Ty::Custom(scale_ok), "1 to 16, default 1"),
     opt("align", Ty::OneOf(&["left", "center", "right"]), "default left"),
@@ -1698,16 +1806,187 @@ const BUTTON_FIELDS: &[Field] = &[
     req("do", Ty::Custom(any_ok), "a list of actions"),
 ];
 
+/// A text is a template string, or `{"pick": table, "by": expression}`.
+fn text_source_ok(v: &Value) -> Result<(), String> {
+    match v {
+        Value::String(_) => Ok(()),
+        Value::Object(o) if o.get("pick").is_some_and(Value::is_string) && o.get("by").is_some_and(|b| b.is_string() || b.is_number()) && o.len() == 2 => {
+            Ok(())
+        }
+        _ => Err(format!("a text is \"WORDS {{var}}\" or {{\"pick\": \"table\", \"by\": \"expression\"}}, got {}", describe_value(v))),
+    }
+}
+
+/// Parses `{"pick": table, "by": expr}` against the game's tables: an unknown table, or a constant index outside it, is an error.
+fn parse_pick(ctx: &mut Ctx, path: &str, o: &Map<String, Value>, tables: &[(String, Vec<String>)], names: &Names) -> Option<Pick> {
+    let name = o.get("pick").and_then(Value::as_str)?;
+    let Some(t) = tables.iter().position(|(n, _)| n == name) else {
+        ctx.err(format!("{path}.pick"), format!("no table `{name}`{} (declare it in `tables`)", Ctx::near(name, tables.iter().map(|(n, _)| n.clone()))));
+        return None;
+    };
+    let src = match o.get("by") {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Number(n)) => n.to_string(),
+        _ => return None,
+    };
+    let by = expr(ctx, &format!("{path}.by"), &src, names)?;
+    if let Expr::Num(n) = by {
+        let len = tables[t].1.len();
+        if n < 0.0 || n.floor() as usize >= len {
+            ctx.err(format!("{path}.by"), format!("index {n} is outside table `{name}` ({len} entries: 0..{})", len.saturating_sub(1)));
+        }
+    }
+    Some(Pick { table: t, by })
+}
+
 fn scale_ok(v: &Value) -> Result<(), String> {
     v.as_u64().filter(|s| (1..=16).contains(s)).map(|_| ()).ok_or_else(|| format!("expected a whole number from 1 to 16, got {}", describe_value(v)))
 }
 
-fn parse_widget(ctx: &mut Ctx, i: usize, v: &Value, names: &Names, models: &[crate::game3d::Model], screen: [f32; 2]) -> Option<Widget> {
+const DIALOGUE_FIELDS: &[Field] = &[
+    req("id", Ty::Str, "a name: its state is the variables <id>_line and <id>_choice"),
+    req("lines", Ty::Custom(any_ok), "[{\"who\": \"NAME\", \"text\": \"...\"}, ...] in order"),
+    req("at", Ty::Nums(&[2]), "[x, y] top-left of the box"),
+    req("size", Ty::Nums(&[2]), "[w, h]"),
+    opt("color", Ty::Custom(color_ok), "text, default white"),
+    opt("back", Ty::Custom(color_ok), "the box, default dark"),
+    opt("accent", Ty::Custom(color_ok), "speaker name and the highlighted choice, default gold"),
+    opt("scale", Ty::Custom(scale_ok), "1 to 16, default 1"),
+    opt("advance", Ty::OneOf(ACTIONS), "the input action that moves on, default action"),
+    opt("pause", Ty::Bool, "the world stands still while it is open (default true)"),
+    opt("done", Ty::Str, "an event emitted when it closes"),
+];
+const LINE_FIELDS: &[Field] = &[
+    req("text", Ty::Custom(text_source_ok), "the words ({var} placeholders), or {\"pick\": table, \"by\": expression}"),
+    opt("id", Ty::Str, "a name a goto can jump to"),
+    opt("who", Ty::Str, "the speaker, drawn above the text"),
+    opt("emit", Ty::Str, "an event emitted when the player moves past the line"),
+    opt("goto", Ty::Str, "a line id, or \"end\": where to go after this line (default the next)"),
+    opt("choices", Ty::Custom(any_ok), "[{\"label\": \"YES\", \"emit\": \"said_yes\", \"goto\": \"line_id\"|\"end\"}] (up to 9)"),
+];
+const CHOICE_FIELDS: &[Field] = &[
+    req("label", Ty::Str, "what the player picks"),
+    opt("emit", Ty::Str, "the event it emits"),
+    opt("goto", Ty::Str, "a line id, or \"end\" (default the next line)"),
+];
+
+/// Parses a `dialogue` widget. Its two state variables were declared by [`dialogue_vars`] before the rules were read.
+fn parse_dialogue(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, tables: &[(String, Vec<String>)]) -> Option<Dialogue> {
+    let o = ctx.obj(path, v)?;
+    let before = ctx.errs.len();
+    check_fields(&mut ctx.errs, path, o, DIALOGUE_FIELDS);
+    let id = o.get("id").and_then(Value::as_str).unwrap_or("").to_string();
+    let lines_v = o.get("lines").and_then(Value::as_array).cloned().unwrap_or_default();
+    if lines_v.is_empty() {
+        ctx.err(format!("{path}.lines"), "a dialogue needs at least one line: [{\"text\": \"...\"}]");
+    }
+    let ids: Vec<Option<String>> = lines_v.iter().map(|l| l.get("id").and_then(Value::as_str).map(str::to_string)).collect();
+    let goto = |ctx: &mut Ctx, p: &str, g: Option<&Value>| -> Option<Goto> {
+        let g = g?.as_str()?;
+        if g == "end" {
+            return Some(Goto::End);
+        }
+        match ids.iter().position(|x| x.as_deref() == Some(g)) {
+            Some(i) => Some(Goto::Line(i)),
+            None => {
+                ctx.err(p.to_string(), format!("no line with id `{g}`{} (or \"end\")", Ctx::near(g, ids.iter().flatten().cloned())));
+                None
+            }
+        }
+    };
+    let mut lines = Vec::new();
+    for (li, lv) in lines_v.iter().enumerate() {
+        let lp = format!("{path}.lines[{li}]");
+        let Some(lo) = ctx.obj(&lp, lv) else { continue };
+        check_fields(&mut ctx.errs, &lp, lo, LINE_FIELDS);
+        let pick = match lo.get("text").and_then(Value::as_object) {
+            Some(po) => parse_pick(ctx, &format!("{lp}.text"), po, tables, names),
+            None => None,
+        };
+        let text = lo.get("text").and_then(Value::as_str).unwrap_or("").to_string();
+        if !text.is_empty() {
+            check_template(ctx, &format!("{lp}.text"), &text, names);
+        }
+        let mut choices = Vec::new();
+        let cv = lo.get("choices").and_then(Value::as_array).cloned().unwrap_or_default();
+        if cv.len() > 9 {
+            ctx.err(format!("{lp}.choices"), format!("{} choices; at most 9 (keys 1-9)", cv.len()));
+        }
+        for (ci, c) in cv.iter().enumerate() {
+            let cp = format!("{lp}.choices[{ci}]");
+            let Some(co) = ctx.obj(&cp, c) else { continue };
+            check_fields(&mut ctx.errs, &cp, co, CHOICE_FIELDS);
+            choices.push(Choice {
+                label: co.get("label").and_then(Value::as_str).unwrap_or("").to_string(),
+                emit: co.get("emit").and_then(Value::as_str).map(str::to_string),
+                goto: goto(ctx, &format!("{cp}.goto"), co.get("goto")),
+            });
+        }
+        lines.push(DialogueLine {
+            id: ids[li].clone(),
+            who: lo.get("who").and_then(Value::as_str).map(str::to_string),
+            text,
+            pick,
+            emit: lo.get("emit").and_then(Value::as_str).map(str::to_string),
+            goto: goto(ctx, &format!("{lp}.goto"), lo.get("goto")),
+            choices,
+        });
+    }
+    let var = |n: String| names.vars.iter().position(|v| *v == n);
+    let (Some(line_var), Some(choice_var)) = (var(format!("{id}_line")), var(format!("{id}_choice"))) else {
+        ctx.err(format!("{path}.id"), "a dialogue id is letters, digits and _ (its state lives in <id>_line and <id>_choice)");
+        return None;
+    };
+    if ctx.errs.len() > before {
+        return None;
+    }
+    let col = |k: &str, d: Color| o.get(k).and_then(Value::as_str).and_then(parse_color).unwrap_or(d);
+    Some(Dialogue {
+        id,
+        lines,
+        at: pair(&o["at"])?,
+        size: pair(&o["size"])?,
+        color: col("color", [255, 255, 255, 255]),
+        back: col("back", [16, 20, 32, 230]),
+        accent: col("accent", [255, 204, 102, 255]),
+        scale: o.get("scale").and_then(Value::as_u64).unwrap_or(1) as u32,
+        advance: o.get("advance").and_then(Value::as_str).and_then(|a| ACTIONS.iter().position(|x| *x == a)).unwrap_or(4),
+        pause: o.get("pause").and_then(Value::as_bool).unwrap_or(true),
+        done: o.get("done").and_then(Value::as_str).map(str::to_string),
+        line_var,
+        choice_var,
+    })
+}
+
+/// The state variables of every dialogue in `ui` (`<id>_line`, `<id>_choice`), declared before anything reads the variables so rules can use them.
+fn dialogue_vars(root: &Map<String, Value>) -> Vec<String> {
+    let mut out = Vec::new();
+    for w in root.get("ui").and_then(Value::as_array).into_iter().flatten() {
+        if let Some(id) = w.get("dialogue").and_then(|d| d.get("id")).and_then(Value::as_str) {
+            if !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && !id.starts_with(|c: char| c.is_ascii_digit()) {
+                out.push(format!("{id}_line"));
+                out.push(format!("{id}_choice"));
+            }
+        }
+    }
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
+fn parse_widget(
+    ctx: &mut Ctx,
+    i: usize,
+    v: &Value,
+    names: &Names,
+    models: &[crate::game3d::Model],
+    screen: [f32; 2],
+    tables: &[(String, Vec<String>)],
+) -> Option<Widget> {
     let path = format!("ui[{i}]");
     let o = ctx.obj(&path, v)?;
     let kinds: Vec<&str> = ["text", "bar", "panel", "button"].into_iter().filter(|k| o.contains_key(*k)).collect();
-    // `text` is both a widget key and a field of itself: a text widget is a flat object, the others hold one object under their kind.
-    let flat_text = o.get("text").is_some_and(Value::is_string);
+    // `text` is both a widget key and a field of itself: a text widget is a flat object (its text a string or a pick), the others hold one object under their kind.
+    let flat_text = o.get("text").is_some_and(|t| t.is_string() || t.get("pick").is_some());
     let show_src = o.get("show").and_then(Value::as_str);
     let show = match show_src {
         Some(s) => Some(expr(ctx, &format!("{path}.show"), s, names)?),
@@ -1719,6 +1998,11 @@ fn parse_widget(ctx: &mut Ctx, i: usize, v: &Value, names: &Names, models: &[cra
         check_keys(&mut ctx.errs, &path, o, &["view3d", "show"]);
         let v3 = crate::game3d::parse_view3d(ctx, &format!("{path}.view3d"), vv, models, names, screen)?;
         return Some(Widget { kind: WidgetKind::View3d(v3), show });
+    }
+    if let Some(dv) = o.get("dialogue") {
+        check_keys(&mut ctx.errs, &path, o, &["dialogue", "show"]);
+        let d = parse_dialogue(ctx, &format!("{path}.dialogue"), dv, names, tables)?;
+        return Some(Widget { kind: WidgetKind::Dialogue(Box::new(d)), show });
     }
     if let Some(mv) = o.get("minimap") {
         check_keys(&mut ctx.errs, &path, o, &["minimap", "show"]);
@@ -1771,8 +2055,14 @@ fn parse_widget(ctx: &mut Ctx, i: usize, v: &Value, names: &Names, models: &[cra
         if ctx.errs.len() > before {
             return None;
         }
+        let pick = match o["text"].as_object() {
+            Some(po) => Some(parse_pick(ctx, &format!("{path}.text"), po, tables, names)?),
+            None => None,
+        };
         WidgetKind::Text {
             text: o["text"].as_str().unwrap_or("").to_string(),
+            pick,
+            width: o.get("width").and_then(num).map(|w| w as f32),
             at: pair(&o["at"])?,
             color: col(o, "color", [255, 255, 255, 255]),
             scale: o.get("scale").and_then(Value::as_u64).unwrap_or(1) as u32,
@@ -2286,7 +2576,32 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             }
         }
     }
+    for name in dialogue_vars(root) {
+        if vars.iter().any(|(n, _)| *n == name) {
+            ctx.err(format!("vars.{name}"), format!("`{name}` is a dialogue's state variable (declared by it): choose another name"));
+        } else {
+            vars.push((name, 0.0));
+        }
+    }
     let declared_names: Vec<String> = vars.iter().map(|(n, _)| n.clone()).collect();
+
+    // string tables: named lists of text, for `{"pick": table, "by": expr}`
+    let mut tables: Vec<(String, Vec<String>)> = Vec::new();
+    if let Some(tv) = root.get("tables") {
+        if let Some(o) = ctx.obj("tables", tv) {
+            for (name, list) in o {
+                if crate::fields::is_extension_key(name) {
+                    continue;
+                }
+                match list.as_array() {
+                    Some(a) if !a.is_empty() && a.iter().all(Value::is_string) => {
+                        tables.push((name.clone(), a.iter().filter_map(Value::as_str).map(str::to_string).collect()));
+                    }
+                    _ => ctx.err(format!("tables.{name}"), format!("a table is a non-empty list of strings, got {}", describe_value(list))),
+                }
+            }
+        }
+    }
 
     // prefabs: pass 1 (names and tags), so rules and spawns can refer to any of them
     let mut prefab_names: Vec<String> = Vec::new();
@@ -2540,6 +2855,12 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         }
     }
 
+    for (name, entries) in &tables {
+        for (i, e) in entries.iter().enumerate() {
+            check_template(&mut ctx, &format!("tables.{name}[{i}]"), e, &names);
+        }
+    }
+
     // ui
     let mut ui = Vec::new();
     if let Some(uv) = root.get("ui") {
@@ -2547,7 +2868,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             Some(list) => {
                 let mut button_ids: Vec<String> = Vec::new();
                 for (i, w) in list.iter().enumerate() {
-                    if let Some(w) = parse_widget(&mut ctx, i, w, &names, &models, [view.width as f32, view.height as f32]) {
+                    if let Some(w) = parse_widget(&mut ctx, i, w, &names, &models, [view.width as f32, view.height as f32], &tables) {
                         if let WidgetKind::Text { text, .. } = &w.kind {
                             check_template(&mut ctx, &format!("ui[{i}].text"), text, &names);
                         }
@@ -2719,6 +3040,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         placements,
         ui,
         rules,
+        tables,
         tags,
         scenarios,
         reach,

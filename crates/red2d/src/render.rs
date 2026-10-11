@@ -162,6 +162,81 @@ pub fn fill_template(text: &str, sim: &Sim) -> String {
     out
 }
 
+/// The text a widget or dialogue line shows: its template, or the table entry its `pick` chooses (nothing for an index past either end).
+pub fn source_text(text: &str, pick: Option<&crate::game::Pick>, def: &GameDef, sim: &Sim) -> String {
+    match pick {
+        None => text.to_string(),
+        Some(p) => {
+            let i = p.by.eval(&sim.vars).floor();
+            def.tables.get(p.table).and_then(|(_, t)| (i >= 0.0).then(|| t.get(i as usize)).flatten()).cloned().unwrap_or_default()
+        }
+    }
+}
+
+/// Distance between text lines at `scale`.
+pub fn line_height(scale: i32) -> i32 {
+    (font::GLYPH_H + 2) * scale
+}
+
+/// Breaks `text` into lines no wider than `width` px at `scale`, at spaces (a word longer than a line is cut); `\n` always breaks.
+pub fn wrap_text(text: &str, width: i32, scale: i32) -> Vec<String> {
+    let mut out = Vec::new();
+    for para in text.split('\n') {
+        let mut line = String::new();
+        for word in para.split(' ').filter(|w| !w.is_empty()) {
+            let candidate = if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
+            if font::text_width(&candidate, scale) <= width || line.is_empty() {
+                line = candidate;
+                // a single word wider than the line: cut it where it overflows
+                while font::text_width(&line, scale) > width && line.chars().count() > 1 {
+                    let fit =
+                        (1..line.chars().count()).rev().find(|n| font::text_width(&line.chars().take(*n).collect::<String>(), scale) <= width).unwrap_or(1);
+                    out.push(line.chars().take(fit).collect());
+                    line = line.chars().skip(fit).collect();
+                }
+            } else {
+                out.push(std::mem::take(&mut line));
+                line = word.to_string();
+            }
+        }
+        out.push(line);
+    }
+    out
+}
+
+/// A dialogue box: the speaker in the accent colour, the line wrapped to the box, then the choices at the bottom with the highlighted one marked, or a
+/// `>` that says "press to go on".
+fn draw_dialogue(f: &mut Frame, def: &GameDef, sim: &Sim, d: &crate::game::Dialogue) {
+    let Some(li) = sim.dialogue_line(d) else { return };
+    let line = &d.lines[li];
+    let s = d.scale as i32;
+    let pad = 4 * s;
+    let (x, y, w, h) = (d.at[0] as i32, d.at[1] as i32, d.size[0] as i32, d.size[1] as i32);
+    f.rect(x, y, w, h, d.back);
+    f.rect(x, y, w, s, d.accent);
+    let mut ty = y + pad;
+    if let Some(who) = &line.who {
+        f.text(x + pad, ty, who, s, d.accent);
+        ty += line_height(s);
+    }
+    let text = fill_template(&source_text(&line.text, line.pick.as_ref(), def, sim), sim);
+    for l in wrap_text(&text, w - 2 * pad, s) {
+        f.text(x + pad, ty, &l, s, d.color);
+        ty += line_height(s);
+    }
+    let n = line.choices.len();
+    if n == 0 {
+        f.text(x + w - pad - font::text_width(">", s), y + h - pad - font::GLYPH_H * s, ">", s, d.accent);
+        return;
+    }
+    let sel = (sim.vars.get(d.choice_var).copied().unwrap_or(0.0).max(0.0) as usize).min(n - 1);
+    for (i, c) in line.choices.iter().enumerate() {
+        let r = d.choice_rect(i, n);
+        let (color, mark) = if i == sel { (d.accent, "> ") } else { (d.color, "  ") };
+        f.text(r[0] as i32, r[1] as i32, &format!("{mark}{}. {}", i + 1, c.label), s, color);
+    }
+}
+
 fn lighten(c: Color, by: u8) -> Color {
     [c[0].saturating_add(by), c[1].saturating_add(by), c[2].saturating_add(by), c[3]]
 }
@@ -453,16 +528,24 @@ pub fn render(sim: &Sim) -> Frame {
             continue;
         }
         match &w.kind {
-            WidgetKind::Text { text, at, color, scale, align } => {
-                let t = fill_template(text, sim);
-                let tw = font::text_width(&t, *scale as i32);
-                let x = match align {
-                    Align::Left => at[0] as i32,
-                    Align::Center => at[0] as i32 - tw / 2,
-                    Align::Right => at[0] as i32 - tw,
+            WidgetKind::Text { text, pick, width, at, color, scale, align } => {
+                let t = fill_template(&source_text(text, pick.as_ref(), def, sim), sim);
+                let s = *scale as i32;
+                let lines = match width {
+                    Some(w) => wrap_text(&t, *w as i32, s),
+                    None => t.split('\n').map(str::to_string).collect(),
                 };
-                f.text(x, at[1] as i32, &t, *scale as i32, *color);
+                for (k, line) in lines.iter().enumerate() {
+                    let tw = font::text_width(line, s);
+                    let x = match align {
+                        Align::Left => at[0] as i32,
+                        Align::Center => at[0] as i32 - tw / 2,
+                        Align::Right => at[0] as i32 - tw,
+                    };
+                    f.text(x, at[1] as i32 + k as i32 * line_height(s), line, s, *color);
+                }
             }
+            WidgetKind::Dialogue(d) => draw_dialogue(&mut f, def, sim, d),
             WidgetKind::Bar { var, max, at, size, color, back } => {
                 f.rect(at[0] as i32, at[1] as i32, size[0] as i32, size[1] as i32, *back);
                 let m = max.eval(&sim.vars).max(1e-9);
