@@ -68,6 +68,24 @@ jobs:
           components: rustfmt
       - run: bash scripts/ci.sh fmt
 
+  # The fast tier (ADR 2026-10-11-one-validate-for-every-content-file): every content file through its own checker, problems as file:line. It needs only the
+  # CLI, built from the test shards' cache, so a broken map, prefab or 2D game is reported minutes before the suite finishes; it does not hold the suite back.
+  content:
+    name: content validates (every scene, game, prefab library, blueprint)
+    needs: changes
+    if: needs.changes.outputs.native == 'true' || needs.changes.outputs.games_only == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux-tests
+          save-if: false
+      - name: Linux system libraries (audio backend for rodio)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
+      - run: bash scripts/ci.sh content
+
   # The suite on Linux, split across runners by cargo-nextest (`RED_CI_PARTITION`, ADR 2026-10-10-ci-shards-the-linux-tests): each shard compiles the tests (the
   # dependencies come from the shared cache) and runs its share; the serial suites are spread over the shards too, one at a time within each.
   test:
