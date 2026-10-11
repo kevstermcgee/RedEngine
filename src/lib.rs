@@ -121,7 +121,32 @@ pub fn load_scene(path: &Path) -> Result<schema::Scene, Vec<String>> {
 
 /// Validates a scene file without rendering (`red_engine2 validate`).
 pub fn validate_scene_file(path: &Path) -> Result<(), Vec<String>> {
-    load_scene(path).map(|_| ())
+    let mut errs = load_scene(path).err().unwrap_or_default();
+    // `checks` is read by `verify`; `validate` holds it to the same shape rules without running anything (a misspelt group or a check that asserts
+    // nothing used to pass `validate` and fail only at `verify`).
+    let raw: Option<serde_json::Value> = std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok());
+    if let Some(checks) = raw.as_ref().and_then(|v| v.get("checks")).filter(|c| c.is_object()) {
+        errs.extend(tools::check_schema::invalid_fields(checks));
+        if let Some(audio) = checks.get("audio") {
+            errs.extend(tools::audio_checks::invalid_fields(audio));
+        }
+        // The scripted playthroughs (`checks.sim`) are parsed, not played: their steps, expectations and references are checked as `verify` would.
+        if let (true, Some(sims)) = (errs.is_empty(), checks.get("sim").and_then(serde_json::Value::as_array)) {
+            match tools::simrun::load(path) {
+                Ok(loaded) => {
+                    if let Err(e) = tools::simrun::parse_scenarios(&loaded, sims, &path.display().to_string()) {
+                        errs.extend(e);
+                    }
+                }
+                Err(e) => errs.push(e),
+            }
+        }
+    }
+    if errs.is_empty() {
+        Ok(())
+    } else {
+        Err(errs)
+    }
 }
 
 #[cfg(feature = "render")]
