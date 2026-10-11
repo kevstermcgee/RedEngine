@@ -8,6 +8,7 @@
 
 use crate::museum::exhibit::{Kind, PocketPath};
 use crate::museum::{Museum, RoomId};
+#[cfg(feature = "gfx")]
 use glam::Vec3;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
