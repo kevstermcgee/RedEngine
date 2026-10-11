@@ -574,6 +574,11 @@ pub(crate) fn run_affected(files: &[String], base: Option<&str>, flags: Affected
         changed.retain(|c| c != "src/lib.rs");
         notes.push("src/lib.rs only gained module declarations: not treated as a crate-root change (the new files own their tests)".to_string());
     }
+    // A file another source compiles in (`include_str!`) changes that source too: its tests and owners join the plan.
+    for (includer, included) in affected::includers(&root, &changed) {
+        notes.push(format!("{includer} compiles in {included} (include_str!/include_bytes!): planned as changed too"));
+        changed.push(includer);
+    }
     let opts = affected::Options { quick, full, partial, check_only, headless, ..Default::default() };
     let mut headless_note = None;
     let feature_set = if partial && headless {

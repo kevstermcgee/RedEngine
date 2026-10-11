@@ -15,6 +15,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
   git shows no commits for the rest of item 1 (map retry through the relay, search-and-destroy reconnect, duel capacity after replacement), item 2's executable-selection and discovery parts, item 3 (replay coverage of the objective modes) or item 5.
   Item 4 (native 2D delivery) is partly there (`re2d` and the native publish route, #55); the packaged-executable walk-through it asks for has not been done.
 - Idea Forge (`docs/IDEA_FORGE.md`) runs nightly on the owner's machine, opens up to two game PRs a night and merges them when CI is green (#58-#73 so far); its backlog of engine findings is in `docs/analysis/idea-forge/`.
+- 2026-10-11: Agent loop trace phase 1: three tasks traced (docs/analysis/agent-loop-trace.md); top sinks: launchpad routing, affected false green (describe guard tests unowned), 3D search domain; awaiting review before phase 2
 
 ## Done
 - 2026-10-09: Idea Forge runs Midnight Engine (#72) and Salted Choir (#73, feedback only: the game did not build).
@@ -25,6 +26,10 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-06: simplification stages S1 (native 2D honest boundary, publish kind 2d), S2 (`mcp` feature), S3 (`video` feature).
 - 2026-10-07: the RedEngineGames branch `native-2d-downloads` has landed there; RedEngineGames syncs from RedEngine main at every push.
 - 2026-10-10: 2026-10-10: CI wall-clock 23.1 -> 4.6 min per PR (#97: Windows build+Direct3D on PRs, nextest, 5+3 shards); Idea Forge publishes merged games with screenshots to RedEngineGames (#96); style block, style lint, style-report, voxels (#98); story primitives next (#99)
+- 2026-10-11: Agent-loop phases 2+3: fixes #103 (affected includes), #104 (start routing), #105 (search domain); uniqueness: no own asset unprompted, own prefab ~20x a library prop; proposal = lint style-own + recipe own_prefab (not built)
+- 2026-10-11: Agent-loop fix 3 (search domain): lead lane holds 2D mechanics and 3D recipes by the domain a query names; ADR 2026-10-11-search-leads-with-the-domain-a-query-names
+- 2026-10-11: Agent-loop fix 2 (start routing): scene route, new-2D-game cue, owners by file/command, directory names; ADR 2026-10-11-the-launchpad-routes-by-what-a-task-names
+- 2026-10-11: Agent-loop fix 1 (affected false green): compile-time includes are planned as changes; ADR 2026-10-11-compile-time-includes-are-changes
 
 ## Next
 - Simplification S7 (offline `re2` orchestration through MatchSim/LocalSession): not done in the hardening pass on purpose; the offline loop (`src/bin/re2/frame.rs`) also does bat swings, carried props, the rules HUD and its own prop physics that `LocalSession` lacks, so it needs a design and a parity plan first. S5 (#80) and S6 (#79) are done with parity runs recorded in their PRs and ADRs.
