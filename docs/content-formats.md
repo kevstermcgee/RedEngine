@@ -1,4 +1,4 @@
-# Content formats: how each one is loaded today (survey, 2026-10-10)
+# Content formats: how each one is loaded (survey 2026-10-10; phase 2 results below)
 
 Phase 1 of making every content format strictly typed. No code changed. **Method:** for every loader, the code was read, and for every format with a CLI
 entry point an unknown key (`zzq_probe: 1`) was injected into every distinct object path of every repo file of that type (and of a synthetic scene for
@@ -57,3 +57,25 @@ The goal "bad fields are silently ignored" holds for flags 1, 2, 5 and 6 (and 3 
 messages are better than serde's default (`deny_unknown_fields` gives no did-you-mean and, without `serde_path_to_error`, no JSON path). Replacing ~25
 checkers with derived structs is a large change to code that is already strict; the risk is regressing message quality and behaviour (defaults, sugar
 such as `wall`/`fence`/`text`/`voxels` macros, `@role` resolution, prefab expansion order) for little gain in strictness.
+
+## Phase 2 (2026-10-11): typed definitions and the drift guard
+
+Every format above now has a typed definition in `src/content/` (`deny_unknown_fields`), and `tests/content_drift.rs` fails CI when a definition and
+its checker disagree about any repository file or any key in it (ADR 2026-10-11-content-formats-are-typed-and-checked-twice). The checkers still write
+every error message. Fixed in the checkers: flags 1-5 above, plus three gaps the guard found while it was built (unknown keys inside
+`style.light.sun/ambient/lamp` and a text's `backing`; 2D `map.legend` entries no row uses were never checked). Traces (flag 6) are typed but keep
+their lenient reader; settings and saves stay lenient on purpose. **No content file in the repository failed either definition.**
+
+| format | typed definition | samples the guard uses |
+|---|---|---|
+| scene | `content::scene::Scene` (+ `objects`, `checks`, `prefab`) | every scene in examples/, recipes/, tests/fixtures/ (incl. `content/every_section.json`), `new-game` maps |
+| prefab library | `content::prefab::PrefabLibrary` | `assets/*.json` |
+| pack registry | `content::packs::PackRegistry` (also its loader) | `assets/packs.json` |
+| 2D game | `content::game2d::Game2d` | examples/2d, examples/patterns, `new-game --kind 2d` |
+| blueprint | `content::blueprint::Blueprint` | `build --example`, `new-game`, `tests/fixtures/content/every_key.blueprint.json` |
+| playscript | `content::playscript::Script` | the `describe playtest` example, `tests/fixtures/content/every_step.play.json` |
+| score | `content::score::Score` | assets/audio, examples/*/audio |
+| voice | `content::voice::Voice` | every 2D game's `sounds` |
+| `game.json` | `content::project::Project` | `new-game` of each kind |
+| kart drivers | `content::drivers::DriverRoster` | `assets/data/drivers.json` |
+| trace | `content::trace::Trace` | `tests/fixtures/*.trace.json` (files only; the reader is lenient) |
