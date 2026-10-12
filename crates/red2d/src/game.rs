@@ -69,6 +69,8 @@ pub struct View {
     pub follow: Option<String>,
     /// How much of the remaining distance the camera closes per tick (1 = locked on).
     pub lerp: f32,
+    /// The camera never scrolls back left, and the thing it follows cannot walk off the left edge of the screen.
+    pub forward_only: bool,
 }
 
 /// A sprite: one or more frames of paletted pixels.
@@ -110,6 +112,10 @@ pub enum Shape {
         scale: u32,
         /// Mirroring.
         flip: Flip,
+        /// Drawn instead while the thing stands still on the ground (`idle`).
+        idle: Option<usize>,
+        /// Drawn instead while the thing is off the ground (`air`).
+        air: Option<usize>,
     },
     /// A filled rectangle.
     Rect {
@@ -182,6 +188,26 @@ pub enum Move {
         speed: f32,
         /// Jump speed, px/s (platformer).
         jump: f32,
+        /// The platformer's feel: running, acceleration, variable jumps (all off by default).
+        feel: Feel,
+    },
+    /// Walks along the ground in one direction, turning back at a wall (and at a ledge with `edges: "turn"`).
+    Walk {
+        /// px/s.
+        speed: f32,
+        /// Turns back at a ledge instead of walking off it.
+        turn_at_edges: bool,
+        /// The direction it starts in: -1 left, 1 right.
+        dir: f32,
+    },
+    /// Circles the place it was put (a fire bar is a few of these at growing radii).
+    Orbit {
+        /// px from the centre.
+        radius: f32,
+        /// Degrees per second (negative turns the other way).
+        speed: f32,
+        /// Starting angle, degrees (0 = right, 90 = down).
+        phase: f32,
     },
     /// Follows the pointer on an axis.
     Pointer {
@@ -218,6 +244,32 @@ pub enum Move {
         /// px/s.
         speed: f32,
     },
+}
+
+/// How a platformer mover feels. The defaults reproduce the plain mover: full speed at once, one jump height, no running.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Feel {
+    /// Top speed while `secondary` is held, px/s (default: `speed`, no running).
+    pub run: f32,
+    /// px/s^2 towards the wanted speed (0 = at once).
+    pub accel: f32,
+    /// px/s^2 towards standing when no direction is held (default: `accel`).
+    pub decel: f32,
+    /// Releasing jump while rising keeps this fraction of the upward speed: 1 = every jump is full height.
+    pub cut: f32,
+    /// Extra jump speed at full running speed, px/s (scaled by how fast it runs).
+    pub run_jump: f32,
+    /// Seconds after walking off a ledge that a jump still works.
+    pub coyote: f32,
+    /// Seconds a jump pressed just before landing is remembered.
+    pub buffer: f32,
+}
+
+impl Feel {
+    /// The plain mover's feel for a top speed.
+    pub fn plain(speed: f32) -> Feel {
+        Feel { run: speed, accel: 0.0, decel: 0.0, cut: 1.0, run_jump: 0.0, coyote: 0.0, buffer: 0.0 }
+    }
 }
 
 /// A continuous particle emitter on a prefab.
@@ -268,6 +320,8 @@ pub struct Prefab {
     pub hidden: bool,
     /// In a `world3d` view: stands this tall (a box with the thing's footprint). None = a flat billboard.
     pub height3d: Option<f32>,
+    /// Starts asleep: does not move until the camera comes within a tile of it.
+    pub asleep: bool,
 }
 
 /// A number or an expression over the variables.
@@ -360,6 +414,10 @@ pub enum MusicCmd {
     Off,
     /// Flip.
     Toggle,
+    /// Play this track (index into [`GameDef::music`]) from now on; on/off is the player's setting and is not changed.
+    Track(usize),
+    /// Back to the current level's own track (after a star tune or a jingle).
+    Level,
 }
 
 /// One thing a rule does.
@@ -417,6 +475,10 @@ pub enum Act {
     Velocity(Target, [Val; 2]),
     /// `teleport`: put a thing somewhere.
     Teleport(Target, Place),
+    /// `become`: a thing turns into another prefab where it stands (keeping its scene id, speed and the line its feet are on).
+    Become(Target, usize),
+    /// `level`: replace the world with a level now (its index, or an expression giving one).
+    Level(Val),
 }
 
 /// What starts a rule.
@@ -432,6 +494,8 @@ pub enum When {
     Touch(String, String),
     /// Two tagged things overlap, every tick.
     Touching(String, String),
+    /// A thing with the first tag is stopped by a solid with the second (it ran, fell or jumped into it).
+    Hit(String, String),
     /// An action is pressed (down edge).
     Press(String),
     /// A tagged thing is clicked (`*` = a click on nothing else).
@@ -455,6 +519,8 @@ pub struct Rule {
     pub once: bool,
     /// Minimum seconds between firings.
     pub cooldown: f32,
+    /// For `touch`, `touching` and `hit`: only when the first thing met the second with one of these sides ([`SIDE_TOP`] ...); 0 = any.
+    pub sides: u8,
     /// What it does.
     pub actions: Vec<Act>,
 }
@@ -664,6 +730,21 @@ pub struct Placement {
     pub id: Option<String>,
 }
 
+/// One level of a game with `levels`: its own world, placed when the `level` action (or the start) asks for it.
+#[derive(Debug, Clone)]
+pub struct Level {
+    /// Its name (`{"level": "1-2"}`).
+    pub id: String,
+    /// What is placed (its `scene` first, then its `map`).
+    pub placements: Vec<Placement>,
+    /// The world's size: `world`, else the map's size (at least the view).
+    pub world: (f32, f32),
+    /// The clear colour (default the view's).
+    pub background: Color,
+    /// The music track it plays (index into [`GameDef::music`]); None keeps the current one.
+    pub music: Option<usize>,
+}
+
 /// One step of a scripted playthrough.
 #[derive(Debug, Clone)]
 pub enum Step {
@@ -767,6 +848,8 @@ pub struct Scenario {
     pub expect: Vec<Expect>,
     /// This is the game's main playthrough (its final state hash is the one to compare).
     pub smoke: bool,
+    /// The level it starts in (a game with `levels`), instead of the first.
+    pub level: Option<usize>,
 }
 
 /// Map analysis of the starting world: whether one thing can walk to another, optionally with some things (a gate) assumed gone.
@@ -822,8 +905,10 @@ pub struct GameDef {
     pub persist: Vec<usize>,
     /// Prefabs.
     pub prefabs: Vec<Prefab>,
-    /// Starting things.
+    /// Starting things (a game without `levels`).
     pub placements: Vec<Placement>,
+    /// The levels (empty: the game is one world, `placements`).
+    pub levels: Vec<Level>,
     /// HUD.
     pub ui: Vec<Widget>,
     /// Rules.
@@ -868,16 +953,50 @@ impl GameDef {
     }
 }
 
-/// The built-in variables after the declared ones.
-pub const BUILTINS: &[&str] = &["time", "tick", "ended", "mouse_x", "mouse_y", "music_on"];
+/// The built-in variables after the declared ones. `level` is the level being played; `held_<action>` is 1 while the action is held; `self_*` and `other_*`
+/// describe the two things of the rule that is running (a `press` rule's `self` is the thing the keys move), 0 when it has none.
+pub const BUILTINS: &[&str] = &[
+    "time",
+    "tick",
+    "ended",
+    "mouse_x",
+    "mouse_y",
+    "music_on",
+    "level",
+    "held_left",
+    "held_right",
+    "held_up",
+    "held_down",
+    "held_action",
+    "held_secondary",
+    "self_x",
+    "self_y",
+    "self_vx",
+    "self_vy",
+    "self_face",
+    "other_x",
+    "other_y",
+    "other_vx",
+    "other_vy",
+    "other_face",
+];
+
+/// Side bits of a contact, as seen from the rule's first thing: its top met the other (it jumped into it from below), its bottom (it landed on it), ...
+pub const SIDE_TOP: u8 = 1;
+/// See [`SIDE_TOP`].
+pub const SIDE_BOTTOM: u8 = 2;
+/// See [`SIDE_TOP`].
+pub const SIDE_LEFT: u8 = 4;
+/// See [`SIDE_TOP`].
+pub const SIDE_RIGHT: u8 = 8;
 
 /// Actions a game responds to (keys and controllers map onto them).
 pub const ACTIONS: &[&str] = &["left", "right", "up", "down", "action", "secondary", "pause"];
 
 /// The triggers a rule's `when` takes.
-pub const TRIGGERS: &[&str] = &["start", "every", "after", "touch", "touching", "press", "click", "event", "end"];
+pub const TRIGGERS: &[&str] = &["start", "every", "after", "touch", "touching", "hit", "press", "click", "event", "end"];
 /// The movers a prefab's `move` takes.
-pub const MOVERS: &[&str] = &["keys", "pointer", "chase", "drift", "wander", "patrol"];
+pub const MOVERS: &[&str] = &["keys", "pointer", "chase", "drift", "wander", "patrol", "walk", "orbit"];
 /// The steps of a scripted playthrough.
 pub const STEP_KEYS: &[&str] = &["wait", "hold", "hold_until", "press", "click", "button", "point", "approach", "wait_until"];
 /// The assertions of a scenario.
@@ -899,6 +1018,7 @@ pub const ROOT: &[&str] = &[
     "prefabs",
     "scene",
     "map",
+    "levels",
     "ui",
     "effects",
     "rules",
@@ -1082,13 +1202,14 @@ const PREFAB_FIELDS: &[Field] = &[
     opt(
         "move",
         Ty::Custom(object_ok),
-        "{ \"keys\": {...} } | { \"pointer\": \"x\" } | { \"chase\": {...} } | { \"drift\": [vx, vy] } | { \"wander\": {...} } | { \"patrol\": {...} }",
+        "{ \"keys\": {...} } | { \"pointer\": \"x\" } | { \"chase\": {...} } | { \"drift\": [vx, vy] } | { \"wander\": {...} } | { \"patrol\": {...} } | { \"walk\": {...} } | { \"orbit\": {...} }",
     ),
     opt("ttl", Ty::Num(Some((0.01, 100_000.0))), "seconds to live"),
     opt("emit", Ty::Custom(object_ok), "a continuous particle emitter"),
     opt("clamp", Ty::Bool, "keep inside the world"),
     opt("hidden", Ty::Bool, "not drawn"),
     opt("height3d", Ty::Num(Some((0.5, 1000.0))), "in a `world3d` view the thing stands this tall (a box on its footprint); omitted = a flat billboard"),
+    opt("asleep", Ty::Bool, "does not move until the camera comes within a tile of it (enemies waiting further along a level)"),
 ];
 
 fn object_ok(v: &Value) -> Result<(), String> {
@@ -1102,7 +1223,7 @@ fn tag_value_ok(v: &Value) -> Result<(), String> {
 }
 
 const SHAPE_KEYS: &[&str] =
-    &["sprite", "rect", "circle", "text", "model", "color", "scale", "flip", "fit", "yaw", "pitch", "roll", "elevation", "tint", "light"];
+    &["sprite", "rect", "circle", "text", "model", "color", "scale", "flip", "idle", "air", "fit", "yaw", "pitch", "roll", "elevation", "tint", "light"];
 
 fn color_of(ctx: &mut Ctx, path: &str, o: &Map<String, Value>, default: Color) -> Color {
     match o.get("color") {
@@ -1174,9 +1295,31 @@ fn parse_shape(ctx: &mut Ctx, path: &str, v: &Value, sprites: &[Sprite], models:
         "sprite" => {
             let name = o["sprite"].as_str().unwrap_or("");
             let scale = scale_of(ctx, path, o);
-            match sprites.iter().position(|s| s.name == name) {
+            // `idle` and `air`: other sprites of the same size for standing still and for being off the ground.
+            let state = |ctx: &mut Ctx, key: &str, base: Option<usize>| -> Option<usize> {
+                let v = o.get(key)?;
+                let n = v.as_str().unwrap_or("");
+                match sprites.iter().position(|s| s.name == n) {
+                    Some(k) if base.is_none_or(|b| sprites[b].w == sprites[k].w && sprites[b].h == sprites[k].h) => Some(k),
+                    Some(k) => {
+                        let b = &sprites[base.unwrap_or(k)];
+                        ctx.err(
+                            format!("{path}.{key}"),
+                            format!("`{n}` is {}x{}, `{}` is {}x{}: the sprites of one thing are the same size", sprites[k].w, sprites[k].h, b.name, b.w, b.h),
+                        );
+                        None
+                    }
+                    None => {
+                        ctx.err(format!("{path}.{key}"), format!("no sprite {}{}", describe_value(v), Ctx::near(n, sprites.iter().map(|s| s.name.clone()))));
+                        None
+                    }
+                }
+            };
+            let base = sprites.iter().position(|s| s.name == name);
+            let (idle, air) = (state(ctx, "idle", base), state(ctx, "air", base));
+            match base {
                 Some(i) => (
-                    Shape::Sprite { sprite: i, scale, flip: flip_of(ctx, path, o) },
+                    Shape::Sprite { sprite: i, scale, flip: flip_of(ctx, path, o), idle, air },
                     [(sprites[i].w as u32 * scale) as f32, (sprites[i].h as u32 * scale) as f32],
                 ),
                 None => {
@@ -1239,10 +1382,27 @@ const KEYS_FIELDS: &[Field] = &[
     req("mode", Ty::OneOf(&["topdown", "platformer"]), "topdown: four directions; platformer: left/right and jump with gravity from the body"),
     req("speed", Ty::Num(Some((1.0, 2000.0))), "px/s"),
     opt("jump", Ty::Num(Some((1.0, 2000.0))), "jump speed, px/s (platformer)"),
+    opt("run", Ty::Num(Some((1.0, 2000.0))), "platformer: top speed while `secondary` is held, px/s (default: speed)"),
+    opt("accel", Ty::Num(Some((0.0, 100_000.0))), "platformer: px/s^2 towards the wanted speed (default 0: at once)"),
+    opt("decel", Ty::Num(Some((0.0, 100_000.0))), "platformer: px/s^2 to a stop when no direction is held (default: accel)"),
+    opt("cut", Ty::Num(Some((0.0, 1.0))), "platformer: letting go of jump while rising keeps this fraction of the speed (default 1: fixed jumps)"),
+    opt("run_jump", Ty::Num(Some((0.0, 2000.0))), "platformer: extra jump speed at full running speed, px/s (default 0)"),
+    opt("coyote", Ty::Num(Some((0.0, 1.0))), "platformer: seconds after leaving a ledge that a jump still works (default 0)"),
+    opt("buffer", Ty::Num(Some((0.0, 1.0))), "platformer: seconds a jump pressed before landing is remembered (default 0)"),
 ];
 const CHASE_FIELDS: &[Field] = &[req("target", Ty::Str, "the tag to chase"), req("speed", Ty::Num(Some((1.0, 2000.0))), "px/s")];
 const WANDER_FIELDS: &[Field] =
     &[req("speed", Ty::Num(Some((1.0, 2000.0))), "px/s"), opt("turn", Ty::Num(Some((0.05, 60.0))), "seconds between turns, default 1")];
+const WALK_FIELDS: &[Field] = &[
+    req("speed", Ty::Num(Some((0.0, 2000.0))), "px/s"),
+    opt("edges", Ty::OneOf(&["fall", "turn"]), "at a ledge: walk off it (default) or turn back"),
+    opt("dir", Ty::OneOf(&["left", "right"]), "the direction it starts in (default left)"),
+];
+const ORBIT_FIELDS: &[Field] = &[
+    req("radius", Ty::Num(Some((0.0, 5000.0))), "px from where it was put"),
+    req("speed", Ty::Num(Some((-3600.0, 3600.0))), "degrees per second"),
+    opt("phase", Ty::Num(Some((-3600.0, 3600.0))), "starting angle, degrees (0 right, 90 down)"),
+];
 const PATROL_FIELDS: &[Field] = &[
     req("axis", Ty::OneOf(&["x", "y"]), ""),
     req("range", Ty::Num(Some((1.0, 5000.0))), "how far each way from the start, px"),
@@ -1264,10 +1424,38 @@ fn parse_move(ctx: &mut Ctx, path: &str, v: &Value) -> Move {
     let mover = match key {
         "keys" => ctx.obj(&sub, val).map(|m| {
             check_fields(&mut ctx.errs, &sub, m, KEYS_FIELDS);
-            Move::Keys {
-                mode: if m.get("mode").and_then(Value::as_str) == Some("platformer") { KeyMode::Platformer } else { KeyMode::TopDown },
+            let mode = if m.get("mode").and_then(Value::as_str) == Some("platformer") { KeyMode::Platformer } else { KeyMode::TopDown };
+            let speed = m.get("speed").and_then(num).unwrap_or(0.0) as f32;
+            let f = |k: &str, d: f32| m.get(k).and_then(num).map_or(d, |x| x as f32);
+            let accel = f("accel", 0.0);
+            let feel = Feel {
+                run: f("run", speed),
+                accel,
+                decel: f("decel", accel),
+                cut: f("cut", 1.0),
+                run_jump: f("run_jump", 0.0),
+                coyote: f("coyote", 0.0),
+                buffer: f("buffer", 0.0),
+            };
+            if mode == KeyMode::TopDown && feel != Feel::plain(speed) {
+                ctx.err(&sub, "run, accel, decel, cut, run_jump, coyote and buffer shape a platformer's movement: use them with mode platformer");
+            }
+            Move::Keys { mode, speed, jump: m.get("jump").and_then(num).unwrap_or(0.0) as f32, feel }
+        }),
+        "walk" => ctx.obj(&sub, val).map(|m| {
+            check_fields(&mut ctx.errs, &sub, m, WALK_FIELDS);
+            Move::Walk {
                 speed: m.get("speed").and_then(num).unwrap_or(0.0) as f32,
-                jump: m.get("jump").and_then(num).unwrap_or(0.0) as f32,
+                turn_at_edges: m.get("edges").and_then(Value::as_str) == Some("turn"),
+                dir: if m.get("dir").and_then(Value::as_str) == Some("right") { 1.0 } else { -1.0 },
+            }
+        }),
+        "orbit" => ctx.obj(&sub, val).map(|m| {
+            check_fields(&mut ctx.errs, &sub, m, ORBIT_FIELDS);
+            Move::Orbit {
+                radius: m.get("radius").and_then(num).unwrap_or(0.0) as f32,
+                speed: m.get("speed").and_then(num).unwrap_or(0.0) as f32,
+                phase: m.get("phase").and_then(num).unwrap_or(0.0) as f32,
             }
         }),
         "pointer" => match val.as_str() {
@@ -1362,6 +1550,10 @@ pub(crate) struct Names<'a> {
     pub(crate) tags: &'a [String],
     /// The game's `effects`: named groups of actions that `{"apply": name}` expands (see `effects.rs`).
     pub(crate) effects: &'a crate::effects::Effects,
+    /// The level ids, in order (empty: no `levels`).
+    pub(crate) levels: &'a [String],
+    /// The music track names, in order.
+    pub(crate) music: &'a [String],
 }
 
 fn expr(ctx: &mut Ctx, path: &str, src: &str, names: &Names) -> Option<Expr> {
@@ -1459,8 +1651,25 @@ fn target(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Target>
 }
 
 /// Every action a rule or button can do.
-pub const ACT_KEYS: &[&str] =
-    &["set", "add", "emit", "spawn", "destroy", "play", "music", "burst", "shake", "end", "restart", "reset_save", "velocity", "teleport", "apply"];
+pub const ACT_KEYS: &[&str] = &[
+    "set",
+    "add",
+    "emit",
+    "spawn",
+    "destroy",
+    "play",
+    "music",
+    "burst",
+    "shake",
+    "end",
+    "restart",
+    "reset_save",
+    "velocity",
+    "teleport",
+    "become",
+    "level",
+    "apply",
+];
 
 fn declared(ctx: &mut Ctx, path: &str, name: &str, names: &Names) -> Option<usize> {
     match names.vars.iter().position(|v| v == name) {
@@ -1508,7 +1717,7 @@ fn parse_actions(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, in_button:
         return Vec::new();
     };
     if list.is_empty() {
-        ctx.err(path, "`do` is empty: a rule that does nothing proves nothing (actions: set, add, emit, spawn, destroy, play, music, burst, shake, end, restart, reset_save, velocity, teleport)");
+        ctx.err(path, "`do` is empty: a rule that does nothing proves nothing (actions: set, add, emit, spawn, destroy, play, music, burst, shake, end, restart, reset_save, velocity, teleport, become, level)");
     }
     let mut out = Vec::new();
     // `{"apply": effect}` items are replaced by the effect's actions first, so every one of them is checked exactly like a hand-written action.
@@ -1586,8 +1795,19 @@ fn parse_actions(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, in_button:
                 Some("on") => Some(Act::Music(MusicCmd::On)),
                 Some("off") => Some(Act::Music(MusicCmd::Off)),
                 Some("toggle") => Some(Act::Music(MusicCmd::Toggle)),
+                Some("level") if !names.levels.is_empty() && !names.music.iter().any(|m| m == "level") => Some(Act::Music(MusicCmd::Level)),
+                Some(track) if names.music.iter().any(|m| m == track) => {
+                    Some(Act::Music(MusicCmd::Track(names.music.iter().position(|m| m == track).unwrap_or(0))))
+                }
                 _ => {
-                    ctx.err(&ap, format!("expected \"on\", \"off\" or \"toggle\", got {}", describe_value(arg)));
+                    ctx.err(
+                        &ap,
+                        format!(
+                            "expected \"on\", \"off\", \"toggle\", a music track name or \"level\" (a game with levels), got {}{}",
+                            describe_value(arg),
+                            Ctx::near(arg.as_str().unwrap_or(""), names.music.iter().cloned())
+                        ),
+                    );
                     None
                 }
             },
@@ -1642,6 +1862,38 @@ fn parse_actions(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, in_button:
                 let t = target(ctx, &format!("{ap}.target"), o.get("target")?, names)?;
                 Some(Act::Teleport(t, place(ctx, &format!("{ap}.to"), o.get("to")?, names)?))
             }),
+            "become" => ctx.obj(&ap, arg).and_then(|o| {
+                check_keys(&mut ctx.errs, &ap, o, &["target", "prefab"]);
+                let t = target(ctx, &format!("{ap}.target"), o.get("target").unwrap_or(&Value::String("self".into())), names)?;
+                let name = o.get("prefab").and_then(Value::as_str).unwrap_or("");
+                match names.prefabs.iter().position(|p| p == name) {
+                    Some(i) => Some(Act::Become(t, i)),
+                    None => {
+                        ctx.err(format!("{ap}.prefab"), format!("no prefab `{name}`{}", Ctx::near(name, names.prefabs.iter().cloned())));
+                        None
+                    }
+                }
+            }),
+            "level" => {
+                if names.levels.is_empty() {
+                    ctx.err(&ap, "the game has no `levels`: declare them first ([{\"id\": \"1-1\", \"map\": {...}, \"scene\": [...]}])");
+                    None
+                } else if let Some(i) = arg.as_str().and_then(|id| names.levels.iter().position(|l| l == id)) {
+                    Some(Act::Level(Val::Num(i as f64)))
+                } else {
+                    // Not a level id: an index or an expression giving one ("level + 1").
+                    match arg {
+                        Value::Number(_) | Value::String(_) => val(ctx, &ap, arg, names).map(Act::Level),
+                        _ => {
+                            ctx.err(
+                                &ap,
+                                format!("expected a level id ({}) or an expression giving its index, got {}", names.levels.join(", "), describe_value(arg)),
+                            );
+                            None
+                        }
+                    }
+                }
+            }
             other => {
                 let near = crate::suggest::suggest(other, ACT_KEYS.iter().copied());
                 ctx.err(
@@ -1690,10 +1942,14 @@ fn parse_when(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Whe
             ctx.err(&ap, format!("expected a number of seconds above 0, got {}", describe_value(arg)));
             None
         }),
-        "touch" | "touching" => match arg.as_array().map(Vec::as_slice) {
+        "touch" | "touching" | "hit" => match arg.as_array().map(Vec::as_slice) {
             Some([Value::String(a), Value::String(b)]) => {
                 let ok = tag_ok(ctx, &ap, a) & tag_ok(ctx, &ap, b);
-                ok.then(|| if key == "touch" { When::Touch(a.clone(), b.clone()) } else { When::Touching(a.clone(), b.clone()) })
+                ok.then(|| match key {
+                    "touch" => When::Touch(a.clone(), b.clone()),
+                    "touching" => When::Touching(a.clone(), b.clone()),
+                    _ => When::Hit(a.clone(), b.clone()),
+                })
             }
             _ => {
                 ctx.err(&ap, format!("expected [\"tagA\", \"tagB\"], got {}", describe_value(arg)));
@@ -1743,7 +1999,12 @@ fn parse_when(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Whe
 
 const RULE_FIELDS: &[Field] = &[
     opt("id", Ty::Str, "a name for messages"),
-    req("when", Ty::Custom(object_ok), "exactly one of: start, every, after, touch, touching, press, click, event, end"),
+    req("when", Ty::Custom(object_ok), "exactly one of: start, every, after, touch, touching, hit, press, click, event, end"),
+    opt(
+        "side",
+        Ty::Custom(sides_ok),
+        "touch/touching/hit only: \"top\" | \"bottom\" | \"left\" | \"right\" | \"sides\", or a list: the first thing's side that met the second",
+    ),
     opt("if", Ty::Str, "an expression over the variables, like \"lives > 0\""),
     opt("once", Ty::Bool, "fire at most once per game"),
     opt("cooldown", Ty::Num(Some((0.0, 100_000.0))), "minimum seconds between firings"),
@@ -1767,14 +2028,47 @@ fn parse_rule(ctx: &mut Ctx, i: usize, v: &Value, names: &Names) -> Option<Rule>
         None => None,
     };
     let actions = parse_actions(ctx, &format!("{id}.do"), &o["do"], names, false);
+    let sides = o.get("side").map_or(0, side_bits);
+    if sides != 0 && !matches!(when, When::Touch(..) | When::Touching(..) | When::Hit(..)) {
+        ctx.err(format!("{id}.side"), "`side` filters a contact: use it with a touch, touching or hit trigger");
+    }
     Some(Rule {
         id: o.get("id").and_then(Value::as_str).map_or_else(|| format!("rule {i}"), str::to_string),
         when,
         cond,
         once: o.get("once").and_then(Value::as_bool).unwrap_or(false),
         cooldown: o.get("cooldown").and_then(num).unwrap_or(0.0) as f32,
+        sides,
         actions,
     })
+}
+
+fn side_bit(s: &str) -> Option<u8> {
+    Some(match s {
+        "top" => SIDE_TOP,
+        "bottom" => SIDE_BOTTOM,
+        "left" => SIDE_LEFT,
+        "right" => SIDE_RIGHT,
+        "sides" => SIDE_LEFT | SIDE_RIGHT,
+        _ => return None,
+    })
+}
+
+fn side_bits(v: &Value) -> u8 {
+    match v {
+        Value::String(s) => side_bit(s).unwrap_or(0),
+        Value::Array(a) => a.iter().filter_map(Value::as_str).filter_map(side_bit).fold(0, |m, b| m | b),
+        _ => 0,
+    }
+}
+
+fn sides_ok(v: &Value) -> Result<(), String> {
+    let ok = match v {
+        Value::String(s) => side_bit(s).is_some(),
+        Value::Array(a) => !a.is_empty() && a.iter().all(|x| x.as_str().and_then(side_bit).is_some()),
+        _ => false,
+    };
+    ok.then_some(()).ok_or_else(|| format!("expected \"top\", \"bottom\", \"left\", \"right\", \"sides\" or a list of them, got {}", describe_value(v)))
 }
 
 const TEXT_FIELDS: &[Field] = &[
@@ -2350,7 +2644,7 @@ fn expect_one(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Exp
 fn scenario(ctx: &mut Ctx, i: usize, v: &Value, names: &Names) -> Option<Scenario> {
     let path = format!("checks.scenarios[{i}]");
     let o = ctx.obj(&path, v)?;
-    check_keys(&mut ctx.errs, &path, o, &["name", "seed", "max_seconds", "script", "expect", "smoke"]);
+    check_keys(&mut ctx.errs, &path, o, &["name", "seed", "max_seconds", "script", "expect", "smoke", "level"]);
     let name = o.get("name").and_then(Value::as_str).map_or_else(|| format!("scenario {i}"), str::to_string);
     let mut script = Vec::new();
     match o.get("script") {
@@ -2396,6 +2690,19 @@ fn scenario(ctx: &mut Ctx, i: usize, v: &Value, names: &Names) -> Option<Scenari
         script,
         expect,
         smoke: o.get("smoke").and_then(Value::as_bool).unwrap_or(false),
+        level: match o.get("level") {
+            None => None,
+            Some(l) => match l.as_str().and_then(|id| names.levels.iter().position(|x| x == id)) {
+                Some(i) => Some(i),
+                None => {
+                    ctx.err(
+                        format!("{path}.level"),
+                        format!("{} is not a level id{}", describe_value(l), Ctx::near(l.as_str().unwrap_or(""), names.levels.iter().cloned())),
+                    );
+                    None
+                }
+            },
+        },
     })
 }
 
@@ -2454,7 +2761,16 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
     }
 
     // view
-    let mut view = View { width: 320, height: 180, background: [16, 20, 28, 255], scale: Scale::Fit, world: (320.0, 180.0), follow: None, lerp: 0.15 };
+    let mut view = View {
+        width: 320,
+        height: 180,
+        background: [16, 20, 28, 255],
+        scale: Scale::Fit,
+        world: (320.0, 180.0),
+        follow: None,
+        lerp: 0.15,
+        forward_only: false,
+    };
     match root.get("view") {
         None => ctx.err("view", "needs `view`, like {\"width\": 320, \"height\": 180}: the virtual screen your game is drawn on, scaled to any window"),
         Some(vv) => {
@@ -2469,7 +2785,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                         opt("background", Ty::Custom(color_ok), ""),
                         opt("scale", Ty::OneOf(&["fit", "integer"]), "fit: any size; integer: whole-number scale for crisp pixels"),
                         opt("world", Ty::Nums(&[2]), "[w, h] of the world when it is bigger than the screen"),
-                        opt("camera", Ty::Custom(object_ok), "{ \"follow\": tag, \"lerp\": 0.15 }"),
+                        opt("camera", Ty::Custom(object_ok), "{ \"follow\": tag, \"lerp\": 0.15, \"forward_only\": false }"),
                         opt("world3d", Ty::Custom(object_ok), "draw the whole world in 3D: { \"pitch\": 55, \"distance\": 150, \"ground\": {...} }"),
                     ],
                 );
@@ -2486,9 +2802,10 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                     view.world = (w[0].max(view.width as f32), w[1].max(view.height as f32));
                 }
                 if let Some(c) = o.get("camera").and_then(Value::as_object) {
-                    check_keys(&mut ctx.errs, "view.camera", c, &["follow", "lerp"]);
+                    check_keys(&mut ctx.errs, "view.camera", c, &["follow", "lerp", "forward_only"]);
                     view.follow = c.get("follow").and_then(Value::as_str).map(str::to_string);
                     view.lerp = c.get("lerp").and_then(num).unwrap_or(0.15).clamp(0.01, 1.0) as f32;
+                    view.forward_only = c.get("forward_only").and_then(Value::as_bool).unwrap_or(false);
                 }
             }
         }
@@ -2626,94 +2943,61 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         ctx.err("prefabs", "needs `prefabs`: the kinds of thing in your game, like {\"player\": {\"shape\": {\"rect\": [8, 8], \"color\": \"#ffcc00\"}}}");
     }
 
-    // placements (scene and map) before names for ids
-    let mut raw_placements: Vec<(String, [f32; 2], Option<String>)> = Vec::new();
-    if let Some(sv) = root.get("scene") {
-        match sv.as_array() {
+    // placements (scene and map) before names for ids: the game's own, or each level's
+    let (raw_placements, _) = placements_of(&mut ctx, "", root);
+    let mut raw_levels: Vec<RawLevel> = Vec::new();
+    if let Some(lv) = root.get("levels") {
+        match lv.as_array().filter(|a| !a.is_empty()) {
             Some(list) => {
+                if root.contains_key("scene") || root.contains_key("map") {
+                    ctx.err("levels", "a game with `levels` places everything in them: move the top-level `scene` and `map` into a level");
+                }
                 for (i, item) in list.iter().enumerate() {
-                    let path = format!("scene[{i}]");
+                    let path = format!("levels[{i}]");
                     let Some(o) = ctx.obj(&path, item) else { continue };
                     check_fields(
                         &mut ctx.errs,
                         &path,
                         o,
                         &[
-                            req("prefab", Ty::Str, "the prefab"),
-                            req("at", Ty::Nums(&[2]), "[x, y]"),
-                            opt("id", Ty::Str, "a unique name for this one"),
-                            opt("count", Ty::Custom(count_ok), "how many copies at this spot"),
+                            req("id", Ty::Str, "the level's name, like \"1-1\" (`{\"level\": \"1-1\"}` goes there)"),
+                            opt("scene", Ty::Custom(any_ok), "a list of placements, like the game's `scene`"),
+                            opt("map", Ty::Custom(object_ok), "a tile map, like the game's `map`"),
+                            opt("world", Ty::Nums(&[2]), "[w, h]: default the map's size (at least the view)"),
+                            opt("background", Ty::Custom(color_ok), "default the view's"),
+                            opt("music", Ty::Str, "the music track it plays"),
                         ],
                     );
-                    if let (Some(p), Some(at)) = (o.get("prefab").and_then(Value::as_str), o.get("at").and_then(pair)) {
-                        let count = o.get("count").and_then(Value::as_u64).unwrap_or(1);
-                        for _ in 0..count {
-                            raw_placements.push((p.to_string(), at, o.get("id").and_then(Value::as_str).filter(|_| count == 1).map(str::to_string)));
-                        }
+                    let id = o.get("id").and_then(Value::as_str).unwrap_or("").to_string();
+                    if raw_levels.iter().any(|(l, ..)| *l == id) {
+                        ctx.err(format!("{path}.id"), format!("the level id `{id}` is used twice"));
                     }
+                    let (placed, map_size) = placements_of(&mut ctx, &format!("{path}."), o);
+                    if placed.is_empty() {
+                        ctx.err(&path, "the level is empty: give it a `scene` or a `map`");
+                    }
+                    let world = o.get("world").and_then(pair).map(|w| (w[0], w[1])).or(map_size).unwrap_or(view.world);
+                    raw_levels.push((id, placed, (world.0.max(view.width as f32), world.1.max(view.height as f32)), o));
                 }
             }
-            None => ctx.err("scene", format!("expected a list of {{\"prefab\": name, \"at\": [x, y]}}, got {}", describe_value(sv))),
+            None => ctx.err("levels", format!("expected a non-empty list of levels, got {}", describe_value(lv))),
         }
     }
-    if let Some(mv) = root.get("map") {
-        if let Some(o) = ctx.obj("map", mv) {
-            check_fields(
-                &mut ctx.errs,
-                "map",
-                o,
-                &[
-                    req("tile", Ty::Num(Some((2.0, 256.0))), "tile size, px"),
-                    opt("origin", Ty::Nums(&[2]), "[x, y] of the top-left corner, default [0, 0]"),
-                    req("rows", Ty::Strs, "one string per row; each character is a legend entry, . is empty"),
-                    req("legend", Ty::Custom(object_ok), "{ \"#\": \"wall\" }: a character to a prefab name"),
-                ],
-            );
-            // Every legend entry is one character to a prefab name, used or not: an entry no row uses was never looked at, so `"wl": "wall"` or a
-            // number was silently ignored.
-            for (k, v) in o.get("legend").and_then(Value::as_object).into_iter().flatten() {
-                if crate::fields::is_extension_key(k) {
-                    continue;
-                }
-                if k.chars().count() != 1 || k == "." || k == " " {
-                    ctx.err(format!("map.legend.{k}"), "a legend key is one character (not `.` or a space, which are empty)");
-                } else if !v.is_string() {
-                    ctx.err(format!("map.legend.{k}"), format!("expected a prefab name, got {}", describe_value(v)));
-                }
-            }
-            if let (Some(rows), Some(legend)) = (o.get("rows").and_then(Value::as_array), o.get("legend").and_then(Value::as_object)) {
-                let tile = o.get("tile").and_then(num).unwrap_or(16.0) as f32;
-                let origin = o.get("origin").and_then(pair).unwrap_or([0.0, 0.0]);
-                let width = rows.first().and_then(Value::as_str).map_or(0, |r| r.chars().count());
-                for (ry, row) in rows.iter().enumerate() {
-                    let Some(row) = row.as_str() else { continue };
-                    if row.chars().count() != width {
-                        ctx.err(format!("map.rows[{ry}]"), format!("is {} wide, the first row is {width}: map rows must be equally wide", row.chars().count()));
-                        continue;
-                    }
-                    for (rx, ch) in row.chars().enumerate() {
-                        if ch == '.' || ch == ' ' {
-                            continue;
-                        }
-                        match legend.get(&ch.to_string()).and_then(Value::as_str) {
-                            Some(p) => raw_placements.push((p.to_string(), [origin[0] + (rx as f32 + 0.5) * tile, origin[1] + (ry as f32 + 0.5) * tile], None)),
-                            None => ctx.err(
-                                format!("map.rows[{ry}]"),
-                                format!("`{ch}` (column {rx}) is not in `legend`{}", Ctx::near(&ch.to_string(), legend.keys().cloned())),
-                            ),
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let level_ids: Vec<String> = raw_levels.iter().map(|(id, ..)| id.clone()).collect();
+    let music_names: Vec<String> = music.iter().map(|(n, _)| n.clone()).collect();
     let mut ids: Vec<String> = Vec::new();
-    for (_, _, id) in &raw_placements {
-        if let Some(id) = id {
-            if ids.contains(id) {
-                ctx.err("scene", format!("the id `{id}` is used twice: ids are unique"));
-            } else {
-                ids.push(id.clone());
+    for (path, list) in std::iter::once(("scene".to_string(), &raw_placements)).chain(raw_levels.iter().map(|(id, p, ..)| (format!("levels.{id}.scene"), p))) {
+        let mut here: Vec<&String> = Vec::new();
+        for (_, _, id) in list {
+            if let Some(id) = id {
+                if here.contains(&id) {
+                    ctx.err(&path, format!("the id `{id}` is used twice: ids are unique"));
+                } else {
+                    here.push(id);
+                }
+                if !ids.contains(id) {
+                    ids.push(id.clone());
+                }
             }
         }
     }
@@ -2744,7 +3028,17 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
     let effects = crate::effects::Effects::parse(root, &mut ctx.errs);
 
     // prefabs: pass 2
-    let pf_names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags, effects: &effects };
+    let pf_names = Names {
+        vars: &var_names,
+        n_declared,
+        sounds: &sounds,
+        prefabs: &prefab_names,
+        ids: &ids,
+        tags: &tags,
+        effects: &effects,
+        levels: &level_ids,
+        music: &music_names,
+    };
     let mut prefabs = Vec::new();
     if let Some(o) = root.get("prefabs").and_then(Value::as_object) {
         for (name, def) in o {
@@ -2759,8 +3053,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 None => (Shape::None, [8.0, 8.0]),
             };
             if let Shape::Text { text, .. } = &shape {
-                let names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags, effects: &effects };
-                check_template(&mut ctx, &format!("{path}.shape.text"), text, &names);
+                check_template(&mut ctx, &format!("{path}.shape.text"), text, &pf_names);
             }
             let size = d.get("size").and_then(pair).unwrap_or(shape_size);
             let body = d.get("body").and_then(|b| parse_body(&mut ctx, &format!("{path}.body"), b));
@@ -2780,6 +3073,12 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                     ctx.err(format!("{path}.move.chase.target"), format!("no tag `{target}`{}", Ctx::near(target, tags.iter().cloned())));
                 }
             }
+            if matches!(mv, Move::Walk { .. }) && (body.is_none_or(|b| b.kind == BodyKind::Static) || collide.is_empty()) {
+                ctx.err(
+                    format!("{path}.move.walk"),
+                    "a walker needs a dynamic `body` (with gravity, to stay on the ground) and `collide` tags to walk on and turn at",
+                );
+            }
             if matches!(mv, Move::Keys { mode: KeyMode::Platformer, .. }) && body.is_none_or(|b| b.gravity <= 0.0) {
                 ctx.err(format!("{path}.move.keys"), "a platformer mover needs gravity: give the prefab `\"body\": {\"type\": \"dynamic\", \"gravity\": 600}` and `\"collide\"` the tags it stands on");
             }
@@ -2798,19 +3097,45 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 clamp: d.get("clamp").and_then(Value::as_bool).unwrap_or(false),
                 hidden: d.get("hidden").and_then(Value::as_bool).unwrap_or(false),
                 height3d: d.get("height3d").and_then(num).map(|h| h as f32),
+                asleep: d.get("asleep").and_then(Value::as_bool).unwrap_or(false),
             });
         }
     }
 
     // placements resolved
-    let mut placements = Vec::new();
-    for (p, at, id) in &raw_placements {
-        match prefab_names.iter().position(|n| n == p) {
-            Some(i) => placements.push(Placement { prefab: i, at: *at, id: id.clone() }),
-            None => ctx.err("scene", format!("no prefab `{p}`{}", Ctx::near(p, prefab_names.iter().cloned()))),
+    let resolve = |ctx: &mut Ctx, path: &str, raw: &[RawPlacement]| -> Vec<Placement> {
+        let mut out = Vec::new();
+        for (p, at, id) in raw {
+            match prefab_names.iter().position(|n| n == p) {
+                Some(i) => out.push(Placement { prefab: i, at: *at, id: id.clone() }),
+                None => ctx.err(path, format!("no prefab `{p}`{}", Ctx::near(p, prefab_names.iter().cloned()))),
+            }
         }
+        out
+    };
+    let placements = resolve(&mut ctx, "scene", &raw_placements);
+    let mut levels = Vec::new();
+    for (i, (id, raw, world, o)) in raw_levels.iter().enumerate() {
+        let path = format!("levels[{i}]");
+        let music_ix = match o.get("music").and_then(Value::as_str) {
+            None => None,
+            Some(m) => match music_names.iter().position(|x| x == m) {
+                Some(k) => Some(k),
+                None => {
+                    ctx.err(format!("{path}.music"), format!("no music track `{m}`{}", Ctx::near(m, music_names.iter().cloned())));
+                    None
+                }
+            },
+        };
+        levels.push(Level {
+            id: id.clone(),
+            placements: resolve(&mut ctx, &format!("{path}.scene"), raw),
+            world: *world,
+            background: o.get("background").and_then(Value::as_str).and_then(parse_color).unwrap_or(view.background),
+            music: music_ix,
+        });
     }
-    if placements.is_empty() {
+    if placements.is_empty() && levels.is_empty() {
         ctx.err("scene", "the game starts empty: add a `scene` (a list of placements) or a tile `map`");
     }
     if let Some(f) = &view.follow {
@@ -2819,7 +3144,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         }
     }
 
-    let names = Names { vars: &var_names, n_declared, sounds: &sounds, prefabs: &prefab_names, ids: &ids, tags: &tags, effects: &effects };
+    let names = pf_names;
 
     // 3D world view and viewports among the entities
     let world3d = root.get("view").and_then(|v| v.get("world3d")).and_then(|w| crate::game3d::parse_world3d(&mut ctx, w, &names));
@@ -3023,7 +3348,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         if !persist.is_empty() && !c.persistence.contains(&Persistence::Progress) {
             ctx.err("capabilities.persistence", "`persist` saves variables but `progress` is not declared: add \"progress\" to `persistence`");
         }
-        let toggles_music = |acts: &[Act]| acts.iter().any(|a| matches!(a, Act::Music(_)));
+        let toggles_music = |acts: &[Act]| acts.iter().any(|a| matches!(a, Act::Music(MusicCmd::On | MusicCmd::Off | MusicCmd::Toggle)));
         if (rules.iter().any(|r| toggles_music(&r.actions))
             || ui.iter().any(|w| matches!(&w.kind, WidgetKind::Button { actions, .. } if toggles_music(actions))))
             && !c.persistence.contains(&Persistence::Settings)
@@ -3050,6 +3375,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         persist,
         prefabs,
         placements,
+        levels,
         ui,
         rules,
         tables,
@@ -3061,6 +3387,102 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         world3d,
         rev: revision(text),
     })
+}
+
+/// A placement before prefab names are resolved: the prefab's name, where, its scene id.
+type RawPlacement = (String, [f32; 2], Option<String>);
+/// A level before prefab names are resolved: its id, placements, world size and its JSON object.
+type RawLevel<'a> = (String, Vec<RawPlacement>, (f32, f32), &'a Map<String, Value>);
+
+/// The placements of an object's `scene` and `map` (the game's own, or a level's: `prefix` is "" or "levels[i]."), and the map's size in px.
+fn placements_of(ctx: &mut Ctx, prefix: &str, root: &Map<String, Value>) -> (Vec<RawPlacement>, Option<(f32, f32)>) {
+    let mut raw_placements: Vec<RawPlacement> = Vec::new();
+    let mut map_size = None;
+    if let Some(sv) = root.get("scene") {
+        match sv.as_array() {
+            Some(list) => {
+                for (i, item) in list.iter().enumerate() {
+                    let path = format!("{prefix}scene[{i}]");
+                    let Some(o) = ctx.obj(&path, item) else { continue };
+                    check_fields(
+                        &mut ctx.errs,
+                        &path,
+                        o,
+                        &[
+                            req("prefab", Ty::Str, "the prefab"),
+                            req("at", Ty::Nums(&[2]), "[x, y]"),
+                            opt("id", Ty::Str, "a unique name for this one"),
+                            opt("count", Ty::Custom(count_ok), "how many copies at this spot"),
+                        ],
+                    );
+                    if let (Some(p), Some(at)) = (o.get("prefab").and_then(Value::as_str), o.get("at").and_then(pair)) {
+                        let count = o.get("count").and_then(Value::as_u64).unwrap_or(1);
+                        for _ in 0..count {
+                            raw_placements.push((p.to_string(), at, o.get("id").and_then(Value::as_str).filter(|_| count == 1).map(str::to_string)));
+                        }
+                    }
+                }
+            }
+            None => ctx.err(format!("{prefix}scene"), format!("expected a list of {{\"prefab\": name, \"at\": [x, y]}}, got {}", describe_value(sv))),
+        }
+    }
+    if let Some(mv) = root.get("map") {
+        let mp = format!("{prefix}map");
+        if let Some(o) = ctx.obj(&mp, mv) {
+            check_fields(
+                &mut ctx.errs,
+                &mp,
+                o,
+                &[
+                    req("tile", Ty::Num(Some((2.0, 256.0))), "tile size, px"),
+                    opt("origin", Ty::Nums(&[2]), "[x, y] of the top-left corner, default [0, 0]"),
+                    req("rows", Ty::Strs, "one string per row; each character is a legend entry, . is empty"),
+                    req("legend", Ty::Custom(object_ok), "{ \"#\": \"wall\" }: a character to a prefab name"),
+                ],
+            );
+            // Every legend entry is one character to a prefab name, used or not: an entry no row uses was never looked at, so `"wl": "wall"` or a
+            // number was silently ignored.
+            for (k, v) in o.get("legend").and_then(Value::as_object).into_iter().flatten() {
+                if crate::fields::is_extension_key(k) {
+                    continue;
+                }
+                if k.chars().count() != 1 || k == "." || k == " " {
+                    ctx.err(format!("{mp}.legend.{k}"), "a legend key is one character (not `.` or a space, which are empty)");
+                } else if !v.is_string() {
+                    ctx.err(format!("{mp}.legend.{k}"), format!("expected a prefab name, got {}", describe_value(v)));
+                }
+            }
+            if let (Some(rows), Some(legend)) = (o.get("rows").and_then(Value::as_array), o.get("legend").and_then(Value::as_object)) {
+                let tile = o.get("tile").and_then(num).unwrap_or(16.0) as f32;
+                let origin = o.get("origin").and_then(pair).unwrap_or([0.0, 0.0]);
+                let width = rows.first().and_then(Value::as_str).map_or(0, |r| r.chars().count());
+                map_size = Some((origin[0] + width as f32 * tile, origin[1] + rows.len() as f32 * tile));
+                for (ry, row) in rows.iter().enumerate() {
+                    let Some(row) = row.as_str() else { continue };
+                    if row.chars().count() != width {
+                        ctx.err(
+                            format!("{mp}.rows[{ry}]"),
+                            format!("is {} wide, the first row is {width}: map rows must be equally wide", row.chars().count()),
+                        );
+                        continue;
+                    }
+                    for (rx, ch) in row.chars().enumerate() {
+                        if ch == '.' || ch == ' ' {
+                            continue;
+                        }
+                        match legend.get(&ch.to_string()).and_then(Value::as_str) {
+                            Some(p) => raw_placements.push((p.to_string(), [origin[0] + (rx as f32 + 0.5) * tile, origin[1] + (ry as f32 + 0.5) * tile], None)),
+                            None => ctx.err(
+                                format!("{mp}.rows[{ry}]"),
+                                format!("`{ch}` (column {rx}) is not in `legend`{}", Ctx::near(&ch.to_string(), legend.keys().cloned())),
+                            ),
+                        }
+                    }
+                }
+            }
+        }
+    }
+    (raw_placements, map_size)
 }
 
 fn dim_ok(v: &Value) -> Result<(), String> {

@@ -3,28 +3,33 @@
 
 /// The reference text.
 pub const REFERENCE: &str = r##"FILE: NAME.game2d.json (JSON; begin it with "game2d": 1). Positions are CENTRES in virtual-screen pixels; y grows downward.
-KEYS: game2d id title description capabilities view sprites sounds music vars tables persist prefabs scene|map ui effects rules checks   (3D parts, optional: models layers3d, see HYBRID)
+KEYS: game2d id title description capabilities view sprites sounds music vars tables persist prefabs scene|map|levels ui effects rules checks   (3D parts, optional: models layers3d, see HYBRID)
 capabilities: {"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard","mouse"],"persistence":["settings","progress"]}
   declare what the game uses: buttons/click/pointer need mouse; keys/press need keyboard; `persist` needs progress; a `music` action needs settings.
   `red_engine2 capabilities` prints what is built; 2D games are offline, native (windows/linux) and read keyboard and mouse; a gamepad is prepared, not built.
-view: {"width":320,"height":180,"background":"#1b2233","scale":"fit"|"integer","world":[640,180],"camera":{"follow":"player","lerp":0.15}}  (64..1280 px a side)
+view: {"width":320,"height":180,"background":"#1b2233","scale":"fit"|"integer","world":[640,180],"camera":{"follow":"player","lerp":0.15,"forward_only":false}}  (64..1280 px a side)
 sprites: {"name":{"rows":["..aa..","aaaa"],"palette":{"a":"#ff0000"},"fps":8}} or "frames":[rows,...] for animation; "." is transparent; at most 64 px a side
 sounds: {"name":{"seconds":0.2,"layers":[{"sine":880,"decay":18}]}} (a voice: `describe audio`, `audio list`)   music: {"name":{score}} (`describe audio`)
 tables: {"rumour":["THE LIGHT WENT OUT AT NINE","THE KEEPER NEVER LEFT"]}  named lists of text; a text shows one with {"pick":"rumour","by":"r"} (0-based; past the end shows nothing)
-vars: {"score":0}   builtins: time tick ended(0, 1 win, 2 lose) mouse_x mouse_y music_on   plus count_<tag> and <sceneid>_x, <sceneid>_y   persist: ["best"] (saved between sessions)
-prefabs: {"name":{"tag":"coin"|[tags],"shape":{"sprite":n|"rect":[w,h]|"circle":r|"text":"SCORE {score}","color":"#fc0","scale":1,"flip":"x"|"auto"},"size":[w,h],"layer":0,
+vars: {"score":0}   builtins: time tick ended(0, 1 win, 2 lose) mouse_x mouse_y music_on level   plus count_<tag> and <sceneid>_x, <sceneid>_y
+  held_left held_right held_up held_down held_action held_secondary (1 while held); the running rule's two things: self_x self_y self_vx self_vy self_face
+  other_x other_y other_vx other_vy other_face (face -1 left, 1 right; a press rule's self is the thing the keys move; 0 when absent)   persist: ["best"] (saved between sessions)
+prefabs: {"name":{"tag":"coin"|[tags],"shape":{"sprite":n|"rect":[w,h]|"circle":r|"text":"SCORE {score}","color":"#fc0","scale":1,"flip":"x"|"auto","idle":sprite,"air":sprite},"size":[w,h],"layer":0,
   "body":{"type":"dynamic"|"static","gravity":600,"bounce":0.5,"friction":0.1,"drag":0,"max_fall":600},"collide":[tags it is stopped by],
-  "move":{"keys":{"mode":"topdown"|"platformer","speed":90,"jump":250}} | {"pointer":"x"|"y"|"xy"} | {"chase":{"target":tag,"speed":30}} | {"drift":[vx,vy]} | {"wander":{"speed":20,"turn":1}} | {"patrol":{"axis":"x","range":20,"speed":40}},
-  "ttl":seconds,"emit":{"rate":3,"life":[.3,.6],"speed":[4,10],"angle":[250,290],"color":"#fff"},"clamp":true,"hidden":true}}
+  "move":{"keys":{"mode":"topdown"|"platformer","speed":90,"jump":250}} | {"pointer":"x"|"y"|"xy"} | {"chase":{"target":tag,"speed":30}} | {"drift":[vx,vy]} | {"wander":{"speed":20,"turn":1}} | {"patrol":{"axis":"x","range":20,"speed":40}}
+    | {"walk":{"speed":30,"edges":"fall"|"turn","dir":"left"|"right"}} (turns at walls) | {"orbit":{"radius":24,"speed":90,"phase":0}} (degrees/s around where it was put),
+  "ttl":seconds,"emit":{"rate":3,"life":[.3,.6],"speed":[4,10],"angle":[250,290],"color":"#fff"},"clamp":true,"hidden":true,"asleep":true (still until the camera nears)}}
 scene: [{"prefab":"coin","at":[40,30],"id":"p","count":1}]   map: {"tile":16,"origin":[0,0],"rows":["#..#"],"legend":{"#":"wall"}} ("." is empty)
+levels: [{"id":"1-1","scene":[..],"map":{..},"world":[w,h],"background":"#5c94fc","music":"track"}] instead of scene/map: the game starts in the first; {"level":"1-2"|expr}
+  replaces the world now (vars are kept; later actions of the same list see the new level); a scenario may start in one ("level":"1-2")
 ui: {"text":"SCORE {score:3}","at":[4,4],"color":"#fff","scale":1,"align":"left"|"center"|"right","show":"ended","width":120 (wrap at words)}  "text" may be {"pick":table,"by":expr}  {"bar":{"var":"lives","max":3,"at":[0,0],"size":[40,6]}}
   {"panel":{"at":[0,0],"size":[100,20],"color":"#10141fdd"}}  {"button":{"id":"go","label":"GO","at":[0,0],"size":[40,12],"key":"Enter","do":[actions]}}   {v}=value {v:3}=zero-padded {v:.1}=one decimal
 effects: {"heal":{"params":{"amount":1},"do":[{"add":["lives","$amount"]},{"play":"pick"}]}}  a named group of actions, used by any rule or button: {"apply":"heal","with":{"amount":2}}
   params: names (all required) or name -> default; "$name" is the argument; effects may apply effects (4 deep, no loops); an effect nothing applies is an error
 rules: [{"id":"x","when":{TRIGGER},"if":"lives > 0","once":true,"cooldown":1,"do":[ACTIONS]}]
-  TRIGGER (exactly one): start | every:seconds | after:seconds | touch:[tagA,tagB] (on first overlap) | touching:[a,b] (every tick) | press:action | click:tag ("*" = nothing) | event:name (built in: `loaded` fires once after saved progress is restored: rebuild the world from saved vars) | end:"win"|"lose"|"any"
-  ACTIONS: set:[var,value] add:[var,value] emit:name spawn:{prefab,at,vel,count} destroy:"self"|"other"|"tag:T"|"id:I" play:sound music:"on"|"off"|"toggle" burst:{at,n,color,speed,life,size,gravity}
-    shake:px end:"win"|"lose" restart:true reset_save:true velocity:{target,v:[x,y]} teleport:{target,to} apply:effect     `at`: "self"|"other"|"pointer"|[x,y]|{"x":[min,max],"y":[min,max]}
+  TRIGGER (exactly one): start | every:seconds | after:seconds | touch:[tagA,tagB] (on first overlap) | touching:[a,b] (every tick) | hit:[a,b] (a was stopped by solid b) | press:action | click:tag ("*" = nothing) | event:name (built in: `loaded` fires once after saved progress is restored: rebuild the world from saved vars) | end:"win"|"lose"|"any"
+  ACTIONS: set:[var,value] add:[var,value] emit:name spawn:{prefab,at,vel,count} destroy:"self"|"other"|"tag:T"|"id:I" play:sound music:"on"|"off"|"toggle"|track|"level" burst:{at,n,color,speed,life,size,gravity}
+    shake:px end:"win"|"lose" restart:true reset_save:true velocity:{target,v:[x,y]} teleport:{target,to} become:{target,prefab} (same thing, new kind; feet stay) level:id apply:effect     `at`: "self"|"other"|"pointer"|[x,y]|{"x":[min,max],"y":[min,max]}
   values and `if` are expressions: numbers, variables, + - * / %, == != < <= > >=, && || ! (division by zero is 0), floor round abs sqrt min max, random(a,b) (a whole number a..b
   from the game's seeded generator: `verify` repeats it, play2d/re2d pick a new seed each launch and print it, --seed N replays). Rules run in order, each seeing the changes before it.
   {"dialogue":{"id":"talk","at":[8,110],"size":[304,62],"pause":true,"done":"talk_done","lines":[{"who":"KEEPER","text":"..."},{"text":{"pick":"rumour","by":"r"}},
@@ -40,6 +45,9 @@ checks: {"scenarios":[{"name":"...","seed":1,"max_seconds":30,"smoke":true,"scri
   STEPS: wait:s | hold:[actions],seconds:s | hold_until:[actions],until:EXPECT,timeout:s | press:action | click:[x,y] | button:id | point:[x,y] | approach:tag,seconds:s | wait_until:EXPECT,timeout:s
   EXPECT: {var,eq|ne|gt|gte|lt|lte:n} {ended:"win"|"lose"} {not_ended:true} {count:tag,eq..} {entity:id,near:[x,y],tol:px} {event:name,min,max} {sound:name,min} {hash:"..."} {reach:"tag:goal",from:"p",reachable:false} (live: from where it stands now)
   Every scenario needs an `expect` (one that asserts nothing proves nothing). `smoke:true` marks the game's main playthrough.
+PLATFORMER: "keys":{"mode":"platformer","speed":90,"jump":330,"run":150 (secondary held),"accel":500,"decel":600,"cut":0.45 (let go of jump: lower jump),
+  "run_jump":40,"coyote":0.08,"buffer":0.1}; rule "side":"top"|"bottom"|"left"|"right"|"sides"|[..] on touch/touching/hit = the first thing's side that met the other
+  (judged from before the move: landing on an enemy is "bottom", jumping into a block is "top"). Stomp: touch:[player,enemy] side bottom; head bump: hit:[player,block] side top.
 MECHANICS (verified, each with the scenarios that prove it; copy one instead of inventing it): `red_engine2 recipe` lists key-door timer-lose collect-then-exit health-damage checkpoint-respawn spawner-waves survive-then-escape; `recipe NAME --new g.game2d.json`.
 LOOP: validate G -> sim G [--only NAME --every SECONDS] -> verify G -> frame G out.png [--scenario NAME --t SECONDS --size 1280x720] (LOOK) -> play2d G (a window, with sound)
 PROVES: validate = well formed, names resolve. verify = simulation (scripted play, deterministic) + render (frames not blank) + audio waveform. play2d = the same simulation, picture and sound in a native window; progress is kept between runs.

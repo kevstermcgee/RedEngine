@@ -74,6 +74,13 @@ pub fn playable_resource_gaps(root: &Path, manifest: &Value) -> Result<Vec<Strin
         if !entry.ends_with(".json") {
             continue;
         }
+        // A 2D game (`kind: "2d"`, played by re2d) is one self-contained file: it ships complete when it loads as a 2D game.
+        if playable["kind"].as_str() == Some("2d") {
+            if let Err(e) = crate::tools::game2d::load(&scene_file.source) {
+                gaps.push(format!("playable `{slug}`: its 2D game `{entry}` does not load: {e}"));
+            }
+            continue;
+        }
         let scene = match crate::load_scene(&scene_file.source) {
             Ok(s) => s,
             Err(e) => {

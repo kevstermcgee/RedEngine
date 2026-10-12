@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
@@ -64,7 +65,7 @@ pub fn run(opts: Options) -> Result<(), String> {
             eprintln!("progress not restored: {msg}");
         }
     }
-    let audio = if opts.mute { None } else { Audio::open() };
+    let audio = if opts.mute { None } else { Audio::open(&host) };
     let event_loop = EventLoop::new().map_err(|e| format!("no window system: {e}"))?;
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App {
@@ -90,19 +91,39 @@ pub fn run(opts: Options) -> Result<(), String> {
     app.error.map_or(Ok(()), Err)
 }
 
-/// Sound effects and one looping music track. Any failure to reach a sound device just means a silent game.
+/// The game's music tracks, synthesized one by one on a background thread: `None` until a track is ready (or if it cannot be made).
+type Tracks = Arc<Mutex<Vec<Option<Vec<f32>>>>>;
+
+/// Sound effects and the looping music track the game asks for (a level can change it). Any failure to reach a sound device just means a silent game.
 struct Audio {
     _stream: OutputStream,
     handle: OutputStreamHandle,
     voices: HashMap<u32, Option<Vec<f32>>>,
-    music: Option<Sink>,
-    music_pcm: Option<Option<Vec<f32>>>,
+    /// The sink playing music, and which track it plays.
+    music: Option<(Sink, usize)>,
+    tracks: Tracks,
 }
 
 impl Audio {
-    fn open() -> Option<Audio> {
+    fn open(host: &Host) -> Option<Audio> {
         let (_stream, handle) = OutputStream::try_default().ok()?;
-        Some(Audio { _stream, handle, voices: HashMap::new(), music: None, music_pcm: None })
+        // Synthesizing a score takes a moment: do every track off the window's thread (the one playing now first), so the first frame and a level change never wait for it.
+        let tracks: Tracks = Arc::new(Mutex::new(Vec::new()));
+        if let Some(def) = host.def() {
+            let n = def.music.len();
+            tracks.lock().map(|mut t| t.resize(n, None)).ok()?;
+            let first = host.music_track().min(n.saturating_sub(1));
+            let (def, out) = (def.clone(), tracks.clone());
+            std::thread::spawn(move || {
+                for i in std::iter::once(first).chain((0..n).filter(|&i| i != first)) {
+                    let pcm = red2d::sound::music_pcm(&def, i).ok().map(|(p, _)| p);
+                    if let Ok(mut t) = out.lock() {
+                        t[i] = pcm;
+                    }
+                }
+            });
+        }
+        Some(Audio { _stream, handle, voices: HashMap::new(), music: None, tracks })
     }
 
     fn play(&mut self, host: &Host, i: u32) {
@@ -114,19 +135,20 @@ impl Audio {
     }
 
     fn set_music(&mut self, host: &Host, want: bool) {
-        if !want {
-            if let Some(s) = self.music.take() {
+        let track = host.music_track();
+        if !want || self.music.as_ref().is_some_and(|(_, t)| *t != track) {
+            if let Some((s, _)) = self.music.take() {
                 s.stop();
             }
+        }
+        if !want || self.music.is_some() {
             return;
         }
-        if self.music.is_some() {
-            return;
-        }
-        let pcm = self.music_pcm.get_or_insert_with(|| host.music_pcm().ok().flatten());
-        if let (Some(pcm), Ok(sink)) = (pcm.as_ref(), Sink::try_new(&self.handle)) {
-            sink.append(SamplesBuffer::new(2, crate::synth::SAMPLE_RATE, pcm.clone()).repeat_infinite());
-            self.music = Some(sink);
+        // Not synthesized yet: silent for now, asked again next frame.
+        let pcm = self.tracks.lock().ok().and_then(|t| t.get(track).cloned().flatten());
+        if let (Some(pcm), Ok(sink)) = (pcm, Sink::try_new(&self.handle)) {
+            sink.append(SamplesBuffer::new(2, crate::synth::SAMPLE_RATE, pcm).repeat_infinite());
+            self.music = Some((sink, track));
         }
     }
 }

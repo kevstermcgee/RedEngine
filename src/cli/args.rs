@@ -783,8 +783,9 @@ pub(crate) enum Command {
         #[arg(long, default_value = "out")]
         out_dir: PathBuf,
     },
-    /// Line of sight between two points against the map's real shapes: `ray scene.json --from 0,1.6,-5 --to 4,1.0,6`.
-    /// Answers "clear" or the first object in the way (id, kind, distance, point). For hide-and-seek design: can the seeker see the spot?
+    /// Line of sight between two points (the map's real shapes).
+    ///
+    /// `ray scene.json --from 0,1.6,-5 --to 4,1.0,6`. Answers "clear" or the first object in the way (id, kind, distance, point). For hide-and-seek design: can the seeker see the spot?
     Ray {
         scene: PathBuf,
         /// Start "x,y,z" (an eye position: y about 1.6).
@@ -810,8 +811,9 @@ pub(crate) enum Command {
         #[arg(long)]
         all: bool,
     },
-    /// Apply many edits atomically (add/set/move/rm/clone/rename) from a JSON list, validated once: it lands completely or not at all.
-    /// `patch scene.json --file ops.json` or `patch scene.json '[{"op":"move","id":"lamp_a","by":[0,-0.2,0]}]'`.
+    /// Apply many edits atomically from a JSON list, validated once.
+    ///
+    /// Edits: add/set/move/rm/clone/rename; it lands completely or not at all. `patch scene.json --file ops.json` or `patch scene.json '[{"op":"move","id":"lamp_a","by":[0,-0.2,0]}]'`.
     Patch {
         scene: PathBuf,
         /// The patch as JSON text.
@@ -991,6 +993,31 @@ pub(crate) enum Command {
         /// State-dump interval for `--trace`, in ticks (the readable diff a divergence prints).
         #[arg(long, default_value_t = 60)]
         dump_every: u32,
+    },
+    /// Prove a 2D level: find a run to a goal
+    Solve {
+        game: PathBuf,
+        /// The level to start in (its id), for a game with `levels`.
+        #[arg(long)]
+        level: Option<String>,
+        /// Done when this holds, like "mode == 4".
+        #[arg(long)]
+        goal: String,
+        /// Drop a candidate when this holds, like "lives < 3 || form < 1".
+        #[arg(long)]
+        avoid: Option<String>,
+        /// How far along a candidate is, higher is better (default: the player's x), like "1000 * (level == 3) - abs(p_x - 740)".
+        #[arg(long)]
+        progress: Option<String>,
+        /// Give up after this much game time.
+        #[arg(long, default_value_t = 240.0)]
+        max_seconds: f32,
+        /// Candidates kept per tenth of a second (wider finds harder routes, slower).
+        #[arg(long, default_value_t = 48)]
+        beam: usize,
+        /// The scenario seed the steps will be replayed with.
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
     },
     /// Repository bookkeeping in about a second, nothing compiled: ADR index, feature ownership, generated docs facts, headless boundary, doc claims, `describe`
     /// budgets, rustfmt. Every problem prints the exact edit; `--fix` makes the mechanical ones. Run it before every commit (the checks CI bounced on, found early).

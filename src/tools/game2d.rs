@@ -116,6 +116,46 @@ pub fn verify(path: &Path, only: Option<&str>) -> Report {
     Report { text: t, ok: fail == 0 && pass > 0 }
 }
 
+/// `solve`: a playthrough that reaches `goal` from a level's start, as scenario steps (see `red2d::solve`).
+pub fn solve(path: &Path, level: Option<&str>, goal: &str, avoid: Option<&str>, progress: Option<&str>, max_seconds: f32, beam: usize, seed: u64) -> Report {
+    let (d, _) = match load(path) {
+        Ok(x) => x,
+        Err(e) => return Report { text: e, ok: false },
+    };
+    let expr = |what: &str, src: &str| red2d::rules_expr::parse(src, &d.var_names).map_err(|e| format!("--{what} `{src}`: {e}"));
+    let level_ix = match level {
+        None => None,
+        Some(id) => match d.levels.iter().position(|l| l.id == id) {
+            Some(i) => Some(i),
+            None => {
+                return Report {
+                    text: format!("--level: no level `{id}` (levels: {})", d.levels.iter().map(|l| l.id.as_str()).collect::<Vec<_>>().join(", ")),
+                    ok: false,
+                }
+            }
+        },
+    };
+    let (goal, avoid, progress) = match (expr("goal", goal), avoid.map(|a| expr("avoid", a)).transpose(), progress.map(|p| expr("progress", p)).transpose()) {
+        (Ok(g), Ok(a), Ok(p)) => (g, a, p),
+        (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => return Report { text: e, ok: false },
+    };
+    let started = std::time::Instant::now();
+    match red2d::solve::solve(&d, &red2d::solve::Goal { level: level_ix, goal, avoid, progress, max_seconds, beam: beam.max(1), seed }) {
+        Ok(s) => Report {
+            text: format!(
+                "{}\nSOLVED in {:.1} s of play ({} candidates simulated in {:.1} s): the steps above replay it as a scenario `script` (seed {seed}{}).",
+                s.steps(),
+                s.ticks as f64 / 60.0,
+                s.explored,
+                started.elapsed().as_secs_f32(),
+                level.map(|l| format!(", \"level\": \"{l}\"")).unwrap_or_default()
+            ),
+            ok: true,
+        },
+        Err(e) => Report { text: format!("NOT SOLVED: {e}"), ok: false },
+    }
+}
+
 /// `sim`: each scenario's outcome in detail.
 pub fn sim(path: &Path, only: Option<&str>, every: Option<f32>) -> Report {
     let (d, _) = match load(path) {
@@ -197,7 +237,7 @@ pub fn frame(path: &Path, out: &Path, scenario: Option<&str>, t: f32, size: Opti
         None => red2d::sim::Sim::new(d.clone(), 1),
     };
     let f = render::render(&sim);
-    let stats = f.stats(d.view.background);
+    let stats = f.stats(sim.background);
     let shown = match size {
         Some((w, h)) => render::present(&f, w, h, d.view.scale),
         None => f,

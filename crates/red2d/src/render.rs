@@ -247,6 +247,16 @@ enum Draw {
     Layer(usize),
 }
 
+/// The sprite a thing shows now: `air` while off the ground, `idle` while standing still, else its sprite.
+fn sprite_now(shape: &Shape, e: &crate::sim::Entity) -> usize {
+    match shape {
+        Shape::Sprite { air: Some(a), .. } if !e.grounded => *a,
+        Shape::Sprite { idle: Some(i), .. } if e.grounded && e.vx.abs() < 1.0 => *i,
+        Shape::Sprite { sprite, .. } => *sprite,
+        _ => 0,
+    }
+}
+
 fn sprite_frame(sim: &Sim, sp: &Sprite) -> usize {
     if sp.frames.len() > 1 {
         ((sim.tick as f32 * sp.fps / 60.0) as usize) % sp.frames.len()
@@ -376,8 +386,8 @@ fn body_of(sim: &Sim, w: &game3d::World3d, e: &crate::sim::Entity, p: &Prefab) -
             Some(h) => boxed([color[0], color[1], color[2]], h),
             None => board(disc_pixels(*color), 16, 16),
         }),
-        Shape::Sprite { sprite, flip, .. } => {
-            let sp = &def.sprites[*sprite];
+        Shape::Sprite { flip, .. } => {
+            let sp = &def.sprites[sprite_now(&p.shape, e)];
             let px = &sp.frames[sprite_frame(sim, sp)];
             Some(match p.height3d {
                 Some(h) => boxed(average_color(px), h),
@@ -416,7 +426,7 @@ fn draw_world3d(f: &mut Frame, sim: &Sim, w: &game3d::World3d, off: [f32; 2]) {
     t.clear(w.sky);
     if let Some(g) = &w.ground {
         let (origin, n) = w.plane.surface();
-        let world = def.view.world;
+        let world = sim.world;
         raster3d::paint_plane(&mut t, &cam, origin, n, |p| {
             let [x, y] = w.plane.from3(p);
             if x < 0.0 || y < 0.0 || x > world.0 || y > world.1 {
@@ -466,7 +476,7 @@ fn draw_minimap(f: &mut Frame, sim: &Sim, at: [f32; 2], size: [f32; 2], colors: 
     let def = &*sim.def;
     let (x0, y0, w, h) = (at[0] as i32, at[1] as i32, size[0] as i32, size[1] as i32);
     f.rect(x0, y0, w, h, back);
-    let (ww, wh) = (def.view.world.0.max(1.0), def.view.world.1.max(1.0));
+    let (ww, wh) = (sim.world.0.max(1.0), sim.world.1.max(1.0));
     let to = |x: f32, y: f32| [x0 as f32 + (x / ww).clamp(0.0, 1.0) * size[0], y0 as f32 + (y / wh).clamp(0.0, 1.0) * size[1]];
     let d = dot.round().max(1.0) as i32;
     for e in sim.entities.iter().filter(|e| e.alive) {
@@ -494,13 +504,20 @@ fn draw_minimap(f: &mut Frame, sim: &Sim, at: [f32; 2], size: [f32; 2], colors: 
 /// Draws the current state of the game at its virtual resolution.
 pub fn render(sim: &Sim) -> Frame {
     let def = &*sim.def;
-    let mut f = Frame::new(def.view.width, def.view.height, def.view.background);
+    let mut f = Frame::new(def.view.width, def.view.height, sim.background);
     let off = [sim.cam[0] - sim.shake_off[0], sim.cam[1] - sim.shake_off[1]];
     if let Some(w) = &def.world3d {
         draw_world3d(&mut f, sim, w, off);
     } else {
+        // Only what the screen shows is drawn (a long level is mostly off screen); a sprite may be drawn larger than its box, so the margin is generous.
+        let (vw, vh) = (def.view.width as f32, def.view.height as f32);
+        let on_screen = |e: &crate::sim::Entity| {
+            let p = &def.prefabs[e.prefab];
+            let r = p.size[0].max(p.size[1]) * 0.5 + 64.0;
+            e.x + r >= off[0] && e.x - r <= off[0] + vw && e.y + r >= off[1] && e.y - r <= off[1] + vh
+        };
         let mut order: Vec<(i32, u8, u32, Draw)> = (0..sim.entities.len())
-            .filter(|&i| sim.entities[i].alive && !def.prefabs[sim.entities[i].prefab].hidden)
+            .filter(|&i| sim.entities[i].alive && !def.prefabs[sim.entities[i].prefab].hidden && on_screen(&sim.entities[i]))
             .map(|i| (def.prefabs[sim.entities[i].prefab].layer, 1, sim.entities[i].id, Draw::Entity(i)))
             .collect();
         order.extend(def.layers3d.iter().enumerate().map(|(k, l)| (l.layer, 0, k as u32, Draw::Layer(k))));
@@ -580,8 +597,8 @@ fn draw_entity(f: &mut Frame, sim: &Sim, e: &crate::sim::Entity, off: [f32; 2]) 
         }
         Shape::Circle { color } => f.disc((cx - p.size[0] * 0.5).round() as i32, (cy - p.size[1] * 0.5).round() as i32, p.size[0].round() as i32, *color),
         Shape::Model(ms) => draw_model_entity(f, sim, ms, p.size, [cx, cy]),
-        Shape::Sprite { sprite, scale, flip } => {
-            let sp = &def.sprites[*sprite];
+        Shape::Sprite { scale, flip, .. } => {
+            let sp = &def.sprites[sprite_now(&p.shape, e)];
             let s = *scale as i32;
             let frame = sprite_frame(sim, sp);
             let (x0, y0) = ((cx - (sp.w as i32 * s) as f32 * 0.5).round() as i32, (cy - (sp.h as i32 * s) as f32 * 0.5).round() as i32);
