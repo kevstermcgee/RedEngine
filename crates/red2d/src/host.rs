@@ -146,6 +146,11 @@ impl Host {
         self.sim.as_ref().is_some_and(|s| s.music_on)
     }
 
+    /// The music track the game plays now (index into the game's `music`; a level or a `music` action changes it).
+    pub fn music_track(&self) -> usize {
+        self.sim.as_ref().map_or(0, |s| s.music_track)
+    }
+
     /// Mono samples of sound `i`.
     pub fn sound_pcm(&self, i: usize) -> Result<Vec<f32>, String> {
         let d = self.sim.as_ref().ok_or("init first")?.def.clone();

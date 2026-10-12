@@ -31,6 +31,8 @@ strict_struct! {
         prefabs: BTreeMap<String, Prefab>,
         scene: Vec<Placement>,
         map: TileMap,
+        /// The levels (instead of `scene`/`map`).
+        levels: Vec<Level>,
         ui: Vec<Widget>,
         /// name -> a named group of actions.
         effects: BTreeMap<String, Effect>,
@@ -54,7 +56,7 @@ strict_struct! {
 
 strict_struct! {
     /// The camera that follows.
-    pub struct ViewCamera { follow: String, lerp: Any }
+    pub struct ViewCamera { follow: String, lerp: Any, forward_only: bool }
 }
 
 strict_struct! {
@@ -77,6 +79,7 @@ strict_struct! {
         clamp: bool,
         hidden: bool,
         height3d: Any,
+        asleep: bool,
     }
 }
 
@@ -91,6 +94,8 @@ strict_struct! {
         color: String,
         scale: Any,
         flip: String,
+        idle: String,
+        air: String,
         fit: Any,
         yaw: Any,
         pitch: Any,
@@ -108,12 +113,22 @@ strict_struct! {
 
 strict_struct! {
     /// How a thing moves (exactly one mover; the checker says so).
-    pub struct Move { keys: KeysMove, pointer: String, chase: ChaseMove, drift: Any, wander: WanderMove, patrol: PatrolMove }
+    pub struct Move { keys: KeysMove, pointer: String, chase: ChaseMove, drift: Any, wander: WanderMove, patrol: PatrolMove, walk: WalkMove, orbit: OrbitMove }
 }
 
 strict_struct! {
     /// Moved by the keys.
-    pub struct KeysMove { mode: String, speed: Any, jump: Any }
+    pub struct KeysMove { mode: String, speed: Any, jump: Any, run: Any, accel: Any, decel: Any, cut: Any, run_jump: Any, coyote: Any, buffer: Any }
+}
+
+strict_struct! {
+    /// Walks along the ground, turning at walls (and ledges).
+    pub struct WalkMove { speed: Any, edges: String, dir: String }
+}
+
+strict_struct! {
+    /// Circles where it was put.
+    pub struct OrbitMove { radius: Any, speed: Any, phase: Any }
 }
 
 strict_struct! {
@@ -139,6 +154,11 @@ strict_struct! {
 strict_struct! {
     /// A starting thing.
     pub struct Placement { prefab: String, at: Any, id: String, count: Any }
+}
+
+strict_struct! {
+    /// A level: its own world.
+    pub struct Level { id: String, scene: Vec<Placement>, map: TileMap, world: Any, background: String, music: String }
 }
 
 strict_struct! {
@@ -279,12 +299,12 @@ strict_struct! {
 
 strict_struct! {
     /// A rule.
-    pub struct Rule { id: String, when: Trigger, r#if: String, once: bool, cooldown: Any, r#do: Vec<Action> }
+    pub struct Rule { id: String, when: Trigger, side: Any, r#if: String, once: bool, cooldown: Any, r#do: Vec<Action> }
 }
 
 strict_struct! {
     /// A rule's trigger (exactly one; the checker says so).
-    pub struct Trigger { start: bool, every: Any, after: Any, touch: Any, touching: Any, press: String, click: String, event: String, end: String }
+    pub struct Trigger { start: bool, every: Any, after: Any, touch: Any, touching: Any, hit: Any, press: String, click: String, event: String, end: String }
 }
 
 strict_struct! {
@@ -304,6 +324,8 @@ strict_struct! {
         reset_save: bool,
         velocity: VelocityAction,
         teleport: TeleportAction,
+        r#become: BecomeAction,
+        level: Any,
         apply: String,
         /// The effect's arguments: name -> value.
         with: BTreeMap<String, Any>,
@@ -333,6 +355,11 @@ strict_struct! {
 strict_struct! {
     /// `burst`.
     pub struct BurstAction { at: At, n: Any, color: Any, speed: Any, life: Any, size: Any, gravity: Any }
+}
+
+strict_struct! {
+    /// `become`.
+    pub struct BecomeAction { target: String, prefab: String }
 }
 
 strict_struct! {
@@ -412,7 +439,7 @@ strict_struct! {
 
 strict_struct! {
     /// A scripted run.
-    pub struct Scenario { name: String, seed: Any, max_seconds: Any, script: Vec<Step>, expect: Vec<Expect>, smoke: bool }
+    pub struct Scenario { name: String, seed: Any, max_seconds: Any, script: Vec<Step>, expect: Vec<Expect>, smoke: bool, level: String }
 }
 
 strict_struct! {

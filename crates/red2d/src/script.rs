@@ -305,6 +305,9 @@ fn rule_summary(sim: &Sim) -> String {
 /// Runs a scenario. `stop_at` ends the run early at that tick (to take a picture mid-game); expectations are only checked when the whole script ran.
 pub fn run_scenario(def: &Arc<GameDef>, sc: &Scenario, stop_at: Option<u64>) -> (ScenarioReport, Sim) {
     let mut r = Runner { sim: Sim::new(def.clone(), sc.seed), budget: (sc.max_seconds * TPS as f32).round() as u64, stop: stop_at, failures: Vec::new(), sc };
+    if let Some(l) = sc.level {
+        r.sim.load_level(l);
+    }
     for st in &sc.script {
         if r.done() {
             break;
@@ -363,7 +366,7 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
     let mut rows = Vec::new();
     // The first frame is a picture of something.
     let sim = Sim::new(def.clone(), 1);
-    let st = render::render(&sim).stats(def.view.background);
+    let st = render::render(&sim).stats(sim.background);
     rows.push(Row::new(
         st.distinct_colors >= 2 && st.covered >= 0.002,
         "render",
@@ -388,7 +391,7 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
     }
     for sc in &def.scenarios {
         let (rep, end) = run_scenario(def, sc, None);
-        let frame = render::render(&end).stats(def.view.background);
+        let frame = render::render(&end).stats(end.background);
         let detail = if rep.ok {
             format!("{:.1} s of play, ended {}, hash {}", rep.ticks as f64 / TPS as f64, rep.ended.unwrap_or("not"), rep.hash)
         } else {

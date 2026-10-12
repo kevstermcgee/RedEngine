@@ -132,6 +132,16 @@
         }
       ]
     },
+    "levels": {
+      "description": "The levels (instead of `scene`/`map`).",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/Level"
+      }
+    },
     "ui": {
       "type": [
         "array",
@@ -297,7 +307,13 @@
             "null"
           ]
         },
-        "lerp": true
+        "lerp": true,
+        "forward_only": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -689,7 +705,13 @@
             "null"
           ]
         },
-        "height3d": true
+        "height3d": true,
+        "asleep": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -728,6 +750,18 @@
         },
         "scale": true,
         "flip": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "idle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "air": {
           "type": [
             "string",
             "null"
@@ -817,6 +851,26 @@
               "type": "null"
             }
           ]
+        },
+        "walk": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WalkMove"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "orbit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OrbitMove"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -835,7 +889,14 @@
           ]
         },
         "speed": true,
-        "jump": true
+        "jump": true,
+        "run": true,
+        "accel": true,
+        "decel": true,
+        "cut": true,
+        "run_jump": true,
+        "coyote": true,
+        "buffer": true
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -883,6 +944,42 @@
         },
         "range": true,
         "speed": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "WalkMove": {
+      "description": "Walks along the ground, turning at walls (and ledges).",
+      "type": "object",
+      "properties": {
+        "speed": true,
+        "edges": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "OrbitMove": {
+      "description": "Circles where it was put.",
+      "type": "object",
+      "properties": {
+        "radius": true,
+        "speed": true,
+        "phase": true
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -954,6 +1051,54 @@
           "additionalProperties": {
             "type": "string"
           }
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Level": {
+      "description": "A level: its own world.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scene": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/Placement"
+          }
+        },
+        "map": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TileMap"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "world": true,
+        "background": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "music": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1317,6 +1462,17 @@
             }
           ]
         },
+        "become": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BecomeAction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "level": true,
         "apply": {
           "type": [
             "string",
@@ -1453,6 +1609,28 @@
             {
               "type": "null"
             }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "BecomeAction": {
+      "description": "`become`.",
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prefab": {
+          "type": [
+            "string",
+            "null"
           ]
         }
       },
@@ -1854,6 +2032,7 @@
             }
           ]
         },
+        "side": true,
         "if": {
           "type": [
             "string",
@@ -1896,6 +2075,7 @@
         "after": true,
         "touch": true,
         "touching": true,
+        "hit": true,
         "press": {
           "type": [
             "string",
@@ -2066,6 +2246,12 @@
         "smoke": {
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "level": {
+          "type": [
+            "string",
             "null"
           ]
         }

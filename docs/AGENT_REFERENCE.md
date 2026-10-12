@@ -362,6 +362,7 @@ gameplay in the scene's rules. `describe custom-client` is the one-screen API; t
 | `propose` | Plan a game before writing it: from an idea, a title, genre, presentation (the simplest that fits: never 3D by default), targets, input, networking, saves, session length and the cost to expect. Every choice can be changed with a flag and is checked against `capabilities`: what cannot be built is reported, not quietly shrunk | |
 | `style-report` | How much of a game's look is its own: shared catalogue vs its own prefabs, palette distance from the defaults, default-coloured surfaces, voxel models, sound files, the defaults lint says it kept. `--sheet out.png` draws its own prefabs in its style. Works on a 3D scene or a .game2d.json | |
 | `museum` | A museum scene's rooms, pieces and plaques; a picture of a piece or of the world inside a painting; the plan | |
+| `solve` | 2D platformer: search keys that reach `--goal` in the real simulation; prints replayable scenario steps | |
 
 `examples/external/topdown_switch` (own `Cargo.toml` and `[workspace]`, engine by path): top-down camera that turns (Q/E) and zooms
 (wheel), WASD relative to the view, click-to-move through `pick_ground` + `input_toward`, two switch plates and a gate that the rules

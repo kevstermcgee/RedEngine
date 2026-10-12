@@ -100,6 +100,9 @@ fn run(command: Command) -> Result<(), String> {
         Command::Validate { paths } if paths.len() == 1 && paths[0].is_file() && game2d::is_game(&paths[0]) => report(game2d::validate(&paths[0])),
         Command::Verify { scene, only, .. } if game2d::is_game(&scene) => report(game2d::verify(&scene, only.as_deref())),
         Command::Sim { scene, only, every, .. } if game2d::is_game(&scene) => report(game2d::sim(&scene, only.as_deref(), every)),
+        Command::Solve { game, level, goal, avoid, progress, max_seconds, beam, seed } => {
+            report(game2d::solve(&game, level.as_deref(), &goal, avoid.as_deref(), progress.as_deref(), max_seconds, beam, seed))
+        }
         Command::Frame { scene, out, t, scenario, size, .. } if game2d::is_game(&scene) => {
             let size = size.as_deref().map(parse_size).transpose()?;
             print!("{}", game2d::frame(&scene, &out, scenario.as_deref(), t, size)?);

@@ -8,6 +8,10 @@ A 2D game is one JSON file, `NAME.game2d.json` (`red_engine2 describe 2d`). Game
 2. `red_engine2 verify G` — native and headless, about a second: scripted scenarios, `checks.reach` map analysis, frames you can look at, sound waveforms. `sim G --only NAME` debugs one scenario, `frame G out.png` shows a frame.
 3. `red_engine2 play2d G` — play it. `--mute` for no sound, `--seed N`, `--save FILE` to keep progress somewhere else, `--max-ticks N` for a smoke test that quits by itself.
 
+## Platformers: proving a level can be finished
+
+A platformer's reach depends on jumps, speed and moving enemies, so `checks.reach` cannot answer it; `red_engine2 solve G --level 1-1 --goal "mode == 4" --avoid "mode == 3"` plays it instead: a beam search over the keys a player can hold each tenth of a second, every candidate the real simulation, dropping candidates that meet `--avoid`. It prints `hold`/`wait` steps that replay exactly as a scenario `script` (start the scenario in the same level, with the same seed). `--progress EXPR` says what "further along" means when it is not the player's x (a block to bump first, a log to go down). `examples/2d/honeybound` stores its runs in `solutions.json` and builds them into one scenario per stage, so `verify` proves every stage (ADR 2026-10-12-2d-platformers-are-data-contact-sides-become-levels-and).
+
 ## What the player does
 
 - The picture is the same CPU renderer `verify` and `frame` use, scaled to the window with the aspect ratio kept (whole-number scaling for games that ask for `integer`). F11 toggles fullscreen.
