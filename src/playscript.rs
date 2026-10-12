@@ -24,7 +24,7 @@
 //! | `hold: [keys], secs` | hold `forward` `back` `left` `right` `sprint` `crouch` |
 //! | `jump: true`, `interact: true`, `switch: n` | tap Space, tap E, scroll the mouse wheel |
 //! | `press: id` | use the on-screen button with that id (`start` on the start card, `restart` on the end card) |
-//! | `approach: id`, `look_at: id`, `interact: id` | by object instead of by keys and angles (`within`, `timeout` beside): walk up to it, face it, press E and check it is carried; the same three steps `checks.sim` has (`sim::approach`) |
+//! | `approach: id`, `look_at: id`, `interact: id` | by object instead of by keys and angles (`within`, `timeout` beside): walk up to it, face it, press E and check it is carried; the same three steps `checks.sim` has (`sim::approach`); an `approach` whose target disappears on the way (a key collected on arrival) counts as arrived |
 //! | `fire: n` or `{clicks, every}` or `{secs}` | click n times / hold the trigger for a time; `track: true` keeps aiming at the nearest visible enemy |
 //! | `aim_at: "nearest"` | turn to the nearest remote player in line of sight |
 //! | `view: "first"\|"third"`, `policy: name` | camera mode; who plays between steps (`idle`, `sentry`, `walker`) |
@@ -768,6 +768,10 @@ impl Runner {
     fn drive_approach(&mut self, d: &mut dyn Driver, object: &str, within: Option<f32>, timeout: f32, dt: f32, what: &str) -> Drive {
         let (Some(pose), Some(target)) = (d.pose(), d.locate(object)) else {
             d.hold_keys(&[Key::Forward], false);
+            // A target that was there when the walk began and is gone now (a key collected on arrival) has been reached.
+            if what == "approach" && self.approach.is_some() && d.pose().is_some() {
+                return Drive::Done;
+            }
             return Drive::Failed(format!(
                 "{what} `{object}`: {}",
                 if d.pose().is_none() {
@@ -1078,11 +1082,14 @@ mod tests {
         carrying: Option<bool>,
         pickups: bool,
         presses: u32,
+        /// The crate is picked up (and gone from the scene) as soon as the player is within reach.
+        vanishes: bool,
+        gone: bool,
     }
 
     impl Walker {
         fn new(crate_at: Vec3) -> Walker {
-            Walker { pos: Vec2::ZERO, yaw_deg: 0.0, forward: false, crate_at, wall: false, carrying: Some(false), pickups: true, presses: 0 }
+            Walker { pos: Vec2::ZERO, yaw_deg: 0.0, forward: false, crate_at, wall: false, carrying: Some(false), pickups: true, presses: 0, vanishes: false, gone: false }
         }
         /// One frame of the world: walk along the yaw while forward is held.
         fn tick(&mut self, dt: f32) {
@@ -1092,6 +1099,9 @@ mod tests {
                 if !(self.wall && next.y > 3.0) {
                     self.pos = next;
                 }
+            }
+            if self.vanishes && Vec2::new(self.crate_at.x, self.crate_at.z).distance(self.pos) < 2.3 {
+                self.gone = true;
             }
         }
     }
@@ -1133,7 +1143,7 @@ mod tests {
             Some(Pose { pos: self.pos, eye: Vec3::new(self.pos.x, 1.6, self.pos.y), pickup_reach: 2.3 })
         }
         fn locate(&self, id: &str) -> Option<Target> {
-            (id == "crate").then(|| Target::from_prop(self.crate_at, Vec3::splat(0.6)))
+            (id == "crate" && !self.gone).then(|| Target::from_prop(self.crate_at, Vec3::splat(0.6)))
         }
         fn carrying(&self, id: &str) -> Option<bool> {
             (id == "crate").then_some(self.carrying).flatten()
@@ -1166,6 +1176,20 @@ mod tests {
         let mut w = Walker::new(Vec3::new(5.0, 0.0, -8.0));
         let r = play(r#"{"steps":[{"approach":"crate","within":0.5}]}"#, &mut w, 10.0);
         assert!(r.failures.is_empty() && Target::from_prop(w.crate_at, Vec3::splat(0.6)).gap(w.pos) <= 0.5);
+    }
+
+    #[test]
+    fn an_approach_whose_target_vanishes_on_arrival_has_arrived() {
+        // A key that is collected by walking into it: the target is gone before the step sees the gap close.
+        let mut w = Walker::new(Vec3::new(5.0, 0.0, -8.0));
+        w.vanishes = true;
+        let r = play(r#"{"steps":[{"approach":"crate"},{"say":"after"}]}"#, &mut w, 10.0);
+        assert!(r.finished() && r.failures.is_empty(), "{:?}", r.failures);
+        assert!(w.gone && !w.forward, "the key is released");
+        // A target that never existed is still a failure.
+        let mut w = Walker::new(Vec3::new(0.0, 0.0, -5.0));
+        let r = play(r#"{"steps":[{"approach":"bench"}]}"#, &mut w, 5.0);
+        assert_eq!(r.failures.len(), 1, "{:?}", r.failures);
     }
 
     #[test]
