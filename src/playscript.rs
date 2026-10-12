@@ -1089,7 +1089,18 @@ mod tests {
 
     impl Walker {
         fn new(crate_at: Vec3) -> Walker {
-            Walker { pos: Vec2::ZERO, yaw_deg: 0.0, forward: false, crate_at, wall: false, carrying: Some(false), pickups: true, presses: 0, vanishes: false, gone: false }
+            Walker {
+                pos: Vec2::ZERO,
+                yaw_deg: 0.0,
+                forward: false,
+                crate_at,
+                wall: false,
+                carrying: Some(false),
+                pickups: true,
+                presses: 0,
+                vanishes: false,
+                gone: false,
+            }
         }
         /// One frame of the world: walk along the yaw while forward is held.
         fn tick(&mut self, dt: f32) {
