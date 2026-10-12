@@ -130,5 +130,63 @@ Expressible: the dial (pickup + reset + modulo var), the lean (repeating impulse
 ## Automatic measurements
 
 <!-- automatic-measurements:begin -->
-(the CLI fills this in after the run: command trace, failures, repair cycles, documentation read, engine source read)
+Friction report (`scripts/agent_bench.py summary`):
+
+```json
+{
+ "commands": 35,
+ "failed": 8,
+ "documentation_topics_read": [
+  "overview",
+  "rules",
+  "scene",
+  "style",
+  "objects",
+  "sim",
+  "objects"
+ ],
+ "searches": [
+  "enemy that chases player npc patrol rat",
+  "force fields conveyor wind loose props toggle rule",
+  "bat hits prop_hit which prop interact radio switch"
+ ],
+ "cli_source_exploration": 0,
+ "retries_of_a_failed_command_without_a_success_between": 4,
+ "repair_cycles": 4,
+ "first_failures": [
+  {
+   "command": "validate examples/3d/velvet-orchestra",
+   "error": "1 problem(s)"
+  },
+  {
+   "command": "validate examples/3d/velvet-orchestra",
+   "error": "1 problem(s)"
+  },
+  {
+   "command": "lint examples/3d/velvet-orchestra/velvet-orchestra.json",
+   "error": "examples/3d/velvet-orchestra/velvet-orchestra.json: scene is invalid:"
+  },
+  {
+   "command": "sim examples/3d/velvet-orchestra/velvet-orchestra.json",
+   "error": ""
+  },
+  {
+   "command": "sim examples/3d/velvet-orchestra/velvet-orchestra.json",
+   "error": ""
+  }
+ ],
+ "used_verify": true,
+ "minutes": 5.5,
+ "transcript": {
+  "engine_files_read_with_tools": 0,
+  "engine_files_read_with_the_shell": 0,
+  "examples": [],
+  "edits": 0
+ }
+}
+```
+
+Agent session: 64 assistant turns; tools {"Bash": 33, "Read": 4}; cost $1.32; wall 10.0 min.
+
+Notes logged during the run: 9 (39 minutes claimed lost). Measured wall time 10.0 min. **The claimed minutes exceed the measured wall time: read `cost_min` as a relative weight, not as minutes.**
 <!-- automatic-measurements:end -->
