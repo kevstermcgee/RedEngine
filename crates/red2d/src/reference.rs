@@ -17,7 +17,7 @@ prefabs: {"name":{"tag":"coin"|[tags],"shape":{"sprite":n|"rect":[w,h]|"circle":
   "move":{"keys":{"mode":"topdown"|"platformer","speed":90,"jump":250}} | {"pointer":"x"|"y"|"xy"} | {"chase":{"target":tag,"speed":30}} | {"drift":[vx,vy]} | {"wander":{"speed":20,"turn":1}} | {"patrol":{"axis":"x","range":20,"speed":40}},
   "ttl":seconds,"emit":{"rate":3,"life":[.3,.6],"speed":[4,10],"angle":[250,290],"color":"#fff"},"clamp":true,"hidden":true}}
 scene: [{"prefab":"coin","at":[40,30],"id":"p","count":1}]   map: {"tile":16,"origin":[0,0],"rows":["#..#"],"legend":{"#":"wall"}} ("." is empty)
-ui: {"text":"SCORE {score:3}","at":[4,4],"color":"#fff","scale":1,"align":"left"|"center"|"right","show":"ended","width":120 (wrap at words)}  "text" may be {"pick":table,"by":expr}  {"bar":{"var":"lives","max":3,"at":[0,0],"size":[40,6]}}
+ui (every widget's `at` is its TOP-LEFT corner, unlike sprites: a button at [200,100] size [40,12] spans x 200..240; keep at+size inside the view): {"text":"SCORE {score:3}","at":[4,4],"color":"#fff","scale":1,"align":"left"|"center"|"right","show":"ended","width":120 (wrap at words)}  "text" may be {"pick":table,"by":expr}  {"bar":{"var":"lives","max":3,"at":[0,0],"size":[40,6]}}
   {"panel":{"at":[0,0],"size":[100,20],"color":"#10141fdd"}}  {"button":{"id":"go","label":"GO","at":[0,0],"size":[40,12],"key":"Enter","do":[actions]}}   {v}=value {v:3}=zero-padded {v:.1}=one decimal
 effects: {"heal":{"params":{"amount":1},"do":[{"add":["lives","$amount"]},{"play":"pick"}]}}  a named group of actions, used by any rule or button: {"apply":"heal","with":{"amount":2}}
   params: names (all required) or name -> default; "$name" is the argument; effects may apply effects (4 deep, no loops); an effect nothing applies is an error
