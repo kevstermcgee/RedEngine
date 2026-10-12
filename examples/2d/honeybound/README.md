@@ -2,13 +2,17 @@
 
 *Tobin and the Baron of Thorns*: a side-scrolling platformer in the spirit of the 1985 classics, with its own world and characters.
 
-Baron Thornwick, a crowned stag beetle in a cloak of thorns, has carried off Queen Melli of the Great Hive and locked up her scout, Buzz. Tobin, a
-young beekeeper in a straw sun hat and a striped honey jumper, sets off east across two worlds of four stages each to bring them home.
+Baron Thornwick, a crowned stag beetle in a cloak of thorns, has carried off Queen Melli of the Great Hive and locked up her friends in his keeps.
+Tobin, a young beekeeper in a straw sun hat and a striped honey jumper, sets off across eight worlds of four stages each (32 stages) to bring them home.
 
-| | |
+Every world has the classic shape: x-1 out in the open, x-2 underground, x-3 high up (treetops or bridges over nothing), x-4 a keep with the Baron,
+where a rescued friend tells Tobin where he went next. The Queen waits in 8-4.
+
+| World | |
 |---|---|
-| **World 1** | 1-1 Meadow Path, 1-2 Rootways (underground), 1-3 Canopy (treetops and lifts), 1-4 Thornkeep (lava, ember wheels, the Baron) |
-| **World 2** | 2-1 Duskwood, 2-2 Glimmer Caves, 2-3 Highbridge, 2-4 Ashen Thornkeep (a tougher Baron) |
+| **1 Meadowlands** | Meadow Path, Rootways, Canopy, Thornkeep (hand-made) |
+| **2 Duskwood** | Duskwood, Glimmer Caves, Highbridge, Ashen Thornkeep (hand-made) |
+| **3 Autumn Hollow** ... **8 The Ashlands** | Autumn Hollow, Frostvale, Sunset Dunes, Starlit Meadow, Blossom Ridge, The Ashlands: generated from seeded segments by `gen.py`, harder each world |
 | **Bonus rooms** | honey rooms down the hollow logs of 1-1 and 2-1 |
 
 ## Playing
@@ -34,7 +38,8 @@ Everything is data in one file, `../honeybound.game2d.json`, written by `build.p
 
 - `art.py`: every sprite as palette rows (characters by hand, tiles by small functions);
 - `audio.py`: sound effects as synthesized voices, eight original music tracks as scores (melodies written bar by bar as scale degrees);
-- `levels.py`: the stages, built with a few verbs (`ground`, `gap`, `log`, `stairs`, `foe`, `lift`, `firebar`, `castle`, ...);
+- `levels.py`: worlds 1 and 2, built with a few verbs (`ground`, `gap`, `log`, `stairs`, `foe`, `lift`, `firebar`, `castle`, ...);
+- `gen.py`: worlds 3 to 8, segments (blocks, logs, pits, foe groups, pyramids, platforms, lifts, ember wheels, lava) picked by a seeded generator;
 - `build.py`: prefabs, the tile legend, the rules (one variable, `mode`, carries the flow: title, card, play, lost, cleared, game over, rescue, end), the HUD,
   dialogue and scenarios.
 
