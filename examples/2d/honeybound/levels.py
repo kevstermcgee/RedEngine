@@ -116,10 +116,11 @@ class Level:
 
     def decor_band(self, every=16, hills=True, bushes=True, clouds=True, flowers=False, seed=0):
         for c in range(2 + seed % 5, self.w - 4, every):
+            v = getattr(self, "decor_set", None)
             if hills and (c // every) % 2 == 0:
-                self.add("hill", cx(c), 13 * T - 16, None)
+                self.add(f"hill_{v}" if v else "hill", cx(c), 13 * T - 16, None)
             if bushes and (c // every) % 2 == 1:
-                self.add("bush", cx(c + 3), 13 * T - 8, None)
+                self.add(f"bush_{v}" if v else "bush", cx(c + 3), 13 * T - 8, None)
             if clouds:
                 self.add(self.cloud, cx(c + 6), cy(2 + (c * 7 + seed) % 3), None)
             if flowers:
@@ -380,7 +381,7 @@ def castle(L, boss_col, lever_col, friend, length, hp):
         L.set(b1, r, "Z")
     L.add("baron", cx(boss_col), 9 * T - 16, "baron")
     L.add("lever", cx(lever_col), cy(8), None)
-    L.add(friend, cx(length - 4), 9 * T - (8 if friend == "buzz" else 12), "friend")
+    L.add(friend, cx(length - 4), 9 * T - (12 if friend == "queen" else 8), "friend")
     L.boss_hp = hp
     L.hint(b0 - 2, hold=0.5)
 
@@ -422,7 +423,7 @@ def l14():
     L.firebar(104, 9 - 4, n=6, speed=-90)
     L.firebar(112, 8, n=5, speed=90, phase=180)
     L.fill(104, 104, 3, 4, "W")
-    castle(L, boss_col=130, lever_col=137, friend="buzz", length=160, hp=5)
+    castle(L, boss_col=130, lever_col=137, friend="friend1", length=160, hp=5)
     return L
 
 
@@ -653,7 +654,7 @@ def l24():
     L.fill(111, 128, 9, 14, "W")
     L.hint(102, hold=0.5)
     L.firebar(118, 8, n=7, speed=-110)
-    castle(L, boss_col=141, lever_col=148, friend="queen", length=176, hp=8)
+    castle(L, boss_col=141, lever_col=148, friend="friend2", length=176, hp=7)
     return L
 
 

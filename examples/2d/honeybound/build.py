@@ -4,7 +4,7 @@
   python3 build.py          write the game
   python3 build.py stats    sizes: levels, entities, rules
 
-Tobin, a young beekeeper, runs and jumps through eight stages in two worlds to free the Great Hive's friends from Baron Thornwick.
+Tobin, a young beekeeper, runs and jumps through 32 stages in eight worlds to free the Great Hive's friends and its Queen from Baron Thornwick.
 Everything that happens is data: prefabs, a tile map per level, and rules (`red_engine2 describe 2d`). The game's flow is one variable,
 `mode`: 0 title, 1 the card before a stage, 2 playing, 3 Tobin lost a life, 4 the beacon pole was reached, 5 game over, 6 the Baron is
 beaten (a friend speaks), 7 the end.
@@ -12,7 +12,7 @@ beaten (a friend speaks), 7 the end.
 import json, sys
 from pathlib import Path
 
-import art, audio, levels
+import art, audio, gen, levels
 from levels import T, cx, cy
 
 HERE = Path(__file__).resolve().parent
@@ -20,7 +20,7 @@ OUT = HERE.parent / "honeybound.game2d.json"
 SOLUTIONS = HERE / "solutions.json"
 
 VIEW_W, VIEW_H = 256, 240
-STAGE_LEVELS = [f() for f in levels.STAGES]
+STAGE_LEVELS = [f() for f in levels.STAGES] + [L for w in range(3, 9) for L in gen.world_stages(w)]
 BONUS_LEVELS = [levels.BONUS[s.id]() for s in STAGE_LEVELS if s.id in levels.BONUS]
 LEVEL_IDS = ["title", "card"] + [s.id for s in STAGE_LEVELS] + [b.id for b in BONUS_LEVELS] + ["ending"]
 IX = {lid: i for i, lid in enumerate(LEVEL_IDS)}
@@ -129,9 +129,12 @@ def prefabs():
     P["midpoint"] = {"tag": "midpoint", "shape": {"rect": [8, 8], "color": "#ffffff"}, "size": [8, 480], "hidden": True}
     P["logmouth"] = {"tag": "logmouth", "shape": {"rect": [10, 10], "color": "#ffffff"}, "size": [10, 10], "hidden": True}
     P["logside"] = {"tag": "logside", "shape": {"sprite": "log_side"}, "size": [16, 16], "layer": 2}
-    for d in ("cloud", "dcloud", "bush", "hill", "flowers", "torch", "crystal", "stars"):
+    decor_names = ["cloud", "dcloud", "bush", "hill", "flowers", "torch", "crystal", "stars"]
+    decor_names += [n for n in art.all_sprites() if n.split("_")[0] in ("cloud", "bush", "hill") and "_" in n]
+    for d in decor_names:
         P[d] = {"tag": "decor", "shape": {"sprite": d}, "layer": -5}
-    P["buzz"] = {"tag": "friend", "shape": {"sprite": "buzz"}, "layer": 3}
+    for k in range(1, 8):
+        P[f"friend{k}"] = {"tag": "friend", "shape": {"sprite": f"friend{k}"}, "layer": 3}
     P["queen"] = {"tag": "friend", "shape": {"sprite": "queen"}, "layer": 3}
     P["tobin_pose"] = {"tag": "decor", "shape": {"sprite": "tobin_idle"}, "layer": 3}
     P["tobin_pose_big"] = {"tag": "decor", "shape": {"sprite": "tobinbig_idle"}, "layer": 3}
@@ -238,7 +241,7 @@ def ending_level():
     L.add("flowers", cx(9), 13 * T - 8)
     L.add("tobin_pose_big", cx(5), 13 * T - 16)
     L.add("queen", cx(7), 13 * T - 12)
-    L.add("buzz", cx(9), cy(9))
+    L.add("friend1", cx(9), cy(9))
     j = level_json(L, start_prefab=None)
     j["map"]["rows"] = j["map"]["rows"][:-1]
     j["map"]["legend"].pop("A", None)
@@ -268,7 +271,7 @@ def rules():
     goto_card = [{"set": ["mode", 1]}, {"set": ["mode_t", "time"]}, {"set": ["talked", 0]}, {"level": "card"}]
 
     # --- the title and the start of a game
-    r("close the pause box", {"start": True}, [{"set": ["pausebox_line", 99]}, {"set": ["buzz_line", 99]}, {"set": ["queen_line", 99]}])
+    r("close the pause box", {"start": True}, [{"set": ["pausebox_line", 99]}, {"set": ["rescue_line", 99]}, {"set": ["queen_line", 99]}])
     r("start a game", {"press": "action"}, [{"apply": "new_game"}], "mode == 0 && level == 0")
     r("a stage played directly starts as if from its card", {"every": 0.05}, [{"set": ["mode", 2]}, {"set": ["time_left", 400]}, {"set": ["stage", "level - 2"]}, {"emit": "reform"}], f"mode == 0 && level >= 2 && level <= {1 + len(STAGE_LEVELS)}")
 
@@ -374,9 +377,9 @@ def rules():
     r("the Baron falls into the lava", {"touch": ["baron", "abyss"]}, [{"destroy": "self"}])
     r("the lever drops the bridge", {"touch": ["hero", "lever"]}, [{"set": ["mode", 6]}, {"set": ["mode_t", "time"]}, {"destroy": "tag:bridge"}, {"destroy": "other"}, {"play": "lever"}, {"music": "hush"}, {"add": ["score", "50 * time_left"]}], PLAY)
     r("the bridge falls", {"every": 0.1}, [{"play": "bossfall"}], "mode == 6 && count_baron > 0", once=True)
-    r("a friend speaks", {"every": 0.1}, [{"set": ["talked", 1]}, {"set": ["buzz_line", 0]}], f"mode == 6 && time > mode_t + 2 && talked == 0 && stage < {CASTLES[-1]}")
+    r("a friend speaks", {"every": 0.1}, [{"set": ["talked", 1]}, {"set": ["rescue_line", 0]}], f"mode == 6 && time > mode_t + 2 && talked == 0 && stage < {CASTLES[-1]}")
     r("the Queen speaks", {"every": 0.1}, [{"set": ["talked", 1]}, {"set": ["queen_line", 0]}], f"mode == 6 && time > mode_t + 2 && talked == 0 && stage == {CASTLES[-1]}")
-    r("on to the next world", {"event": "buzz_done"}, [{"add": ["stage", 1]}, {"set": ["checkpoint", 0]}] + goto_card)
+    r("on to the next world", {"event": "rescue_done"}, [{"add": ["stage", 1]}, {"set": ["checkpoint", 0]}] + goto_card)
     r("the end", {"event": "queen_done"}, [{"set": ["mode", 7]}, {"set": ["hi", "max(hi, score)"]}, {"level": "ending"}])
 
     # --- pause
@@ -398,6 +401,19 @@ def effects():
             "do": [{"set": ["mode", 3]}, {"set": ["dead_at", "time"]}, {"set": ["form", 0]}, {"set": ["star", 0]}, {"set": ["blink", 0]}, {"become": {"target": "id:p", "prefab": "tobin_dead"}}, {"velocity": {"target": "id:p", "v": [0, "$hop"]}}, {"music": "hush"}, {"play": "lose"}],
         },
     }
+
+
+# What each rescued friend says (one row per keep, worlds 1 to 7): who they are, where the Baron went, a send-off.
+RESCUE_LINES = [
+    ("BUZZ: TOBIN! YOU CAME FOR ME! THE BARON HAD ME LOCKED IN HIS LARDER.", "BUT QUEEN MELLI IS NOT HERE. HE CARRIED HER EAST, PAST THE DUSKWOOD.", "FOLLOW THE BEACONS. I WILL TELL THE HIVE YOU ARE ON YOUR WAY!"),
+    ("MARIGOLD: OH, TOBIN! I AM THE HIVE'S MAPMAKER. THANK YOU!", "HIS CARRIAGE WENT THROUGH AUTUMN HOLLOW. THE LEAVES ARE STILL FALLING WHERE IT PASSED.", "THE QUEEN IS FURTHER STILL. HURRY!"),
+    ("BRAMWELL: WELL STUNG, YOUNG KEEPER! OLD BRAMWELL THANKS YOU.", "THE BARON FLED NORTH INTO FROSTVALE. MIND THE ICE: IT IS SLIPPERY, AND SO IS HE.", "THE QUEEN'S SONG CAN STILL BE HEARD ON THE COLD WIND."),
+    ("SORREL: BRRR! SORREL OF THE NIGHT SHIFT, AT YOUR SERVICE.", "HE TOOK THE QUEEN ACROSS THE SUNSET DUNES. FOLLOW THE BEACONS SOUTH.", "AND TAKE SOME HONEY FOR THE ROAD. YOU HAVE EARNED IT."),
+    ("THISTLEDOWN: ROYAL GUARD. I TRIED TO STOP HIM, TOBIN. I REALLY DID.", "HE IS HEADED FOR THE STARLIT MEADOW, WHERE THE GRUBBLES NEVER SLEEP.", "GO QUIETLY. GO QUICKLY."),
+    ("FENNEL: THE QUEEN'S COOK! THEY MADE ME BAKE THORN PIES ALL WEEK.", "SHE IS NEAR NOW. THE BARON HID HER BEYOND BLOSSOM RIDGE.", "HE IS AFRAID OF YOU, TOBIN. I SAW IT IN HIS FEELERS."),
+    ("BURDOCK: CAPTAIN OF THE HIVE GUARD. THE ASHLANDS LIE AHEAD.", "THE BARON'S CITADEL STANDS AT THEIR HEART, AND THE QUEEN IS INSIDE.", "FINISH THIS, KEEPER. THE WHOLE HIVE IS WITH YOU."),
+]
+RESCUE = {f"rescue_{k + 1}": [row[k] for row in RESCUE_LINES] for k in range(3)}
 
 
 # ---- the screen ------------------------------------------------------------------------------------------------------------------------------------
@@ -442,16 +458,12 @@ def ui():
         {"dialogue": {"id": "pausebox", "at": [48, 92], "size": [160, 40], "pause": True, "lines": [{"who": "PAUSED", "text": "PRESS Z TO PLAY ON"}]}},
         {
             "dialogue": {
-                "id": "buzz",
+                "id": "rescue",
                 "at": [8, 150],
                 "size": [240, 70],
                 "pause": True,
-                "done": "buzz_done",
-                "lines": [
-                    {"who": "BUZZ", "text": "TOBIN! YOU CAME FOR ME! THE BARON HAD ME LOCKED IN HIS LARDER."},
-                    {"who": "BUZZ", "text": "BUT QUEEN MELLI IS NOT HERE. HE TOOK HER TO HIS ASHEN KEEP, PAST THE DUSKWOOD."},
-                    {"who": "BUZZ", "text": "FOLLOW THE BEACONS EAST. I WILL TELL THE HIVE YOU ARE ON YOUR WAY!"},
-                ],
+                "done": "rescue_done",
+                "lines": [{"text": {"pick": f"rescue_{k}", "by": "floor(stage / 4)"}} for k in range(1, 4)],
             }
         },
         {
@@ -463,7 +475,7 @@ def ui():
                 "done": "queen_done",
                 "lines": [
                     {"who": "QUEEN MELLI", "text": "BRAVE LITTLE KEEPER... THE BARON WANTED EVERY FLOWER FOR HIS THORNS."},
-                    {"who": "QUEEN MELLI", "text": "YOU CROSSED HIS WHOLE KINGDOM WITH NOTHING BUT A HAT AND A FEW SEEDS."},
+                    {"who": "QUEEN MELLI", "text": "YOU CROSSED EIGHT WORLDS WITH NOTHING BUT A HAT AND A FEW SEEDS."},
                     {"who": "QUEEN MELLI", "text": "COME, TOBIN. THE HIVE HAS BEEN SAVING THE SWEETEST HONEY FOR YOU."},
                 ],
             }
@@ -600,7 +612,7 @@ def build():
         "sprites": sprites,
         "sounds": audio.sounds(),
         "music": audio.music(),
-        "tables": {"stage_names": [L.name for L in STAGE_LEVELS]},
+        "tables": {"stage_names": [L.name for L in STAGE_LEVELS], **RESCUE},
         "vars": {
             "mode": 0, "lives": 3, "score": 0, "coins": 0, "hi": 0, "form": 0, "star": 0, "blink": 0, "inv_until": 0, "star_until": 0, "time_left": 400,
             "stage": 0, "checkpoint": 0, "cp_x": 0, "cp_y": 0, "mode_t": 0, "dead_at": 0, "hurry": 0, "w": 1, "s": 1, "talked": 0,

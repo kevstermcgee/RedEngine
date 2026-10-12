@@ -270,7 +270,11 @@ def friends():
         ]
     ]
     queen.append([r.replace("wWWw", "WwwW") for r in queen[0]])
-    return {"buzz": anim(buzz, BEE, 8), "queen": anim(queen, queen_pal, 4)}
+    out = {"friend1": anim(buzz, BEE, 8), "queen": anim(queen, queen_pal, 4)}
+    tints = {2: "#ff9a3c", 3: "#b07a3a", 4: "#8ad0ff", 5: "#ff6a8a", 6: "#9aff6a", 7: "#c8c8d8"}
+    for k, col in tints.items():
+        out[f"friend{k}"] = recolor(out["friend1"], {"y": col})
+    return out
 
 
 # ---- foes -------------------------------------------------------------------------------------------------------------------------------------
@@ -639,6 +643,11 @@ THEMES = {
     "roots": {"grass": "#3f8fa0", "grass2": "#21566a", "dirt": "#3d5f78", "dirt2": "#24384a", "dirt3": "#5f86a0", "brick": "#2f8fa3", "brick2": "#164a5a", "mortar": "#8fd8e8"},
     "dusk": {"grass": "#4fa89a", "grass2": "#25685e", "dirt": "#8a5a8a", "dirt2": "#55305a", "dirt3": "#b07ab0", "brick": "#a0506a", "brick2": "#5a2038", "mortar": "#e6a0b8"},
     "caves": {"grass": "#6a5fb5", "grass2": "#3a2f7a", "dirt": "#3e3566", "dirt2": "#221c40", "dirt3": "#6a5f9a", "brick": "#5a4fa8", "brick2": "#2c2366", "mortar": "#b0a8f0"},
+    "autumn": {"grass": "#e08a2c", "grass2": "#a0521a", "dirt": "#9a5a3a", "dirt2": "#6a3420", "dirt3": "#c4805a", "brick": "#b04a2a", "brick2": "#6a2414", "mortar": "#f0b08a"},
+    "frost": {"grass": "#f4fbff", "grass2": "#a8d0e8", "dirt": "#7aa0c0", "dirt2": "#4a6a8a", "dirt3": "#a8c8e0", "brick": "#6aa0d0", "brick2": "#2a5a8a", "mortar": "#d8f0ff"},
+    "dunes": {"grass": "#f0d080", "grass2": "#c0a050", "dirt": "#d8b060", "dirt2": "#a07a30", "dirt3": "#f0d090", "brick": "#c08040", "brick2": "#7a4a1a", "mortar": "#f8e0a0"},
+    "blossom": {"grass": "#f7a8c8", "grass2": "#c0588a", "dirt": "#8a5a6a", "dirt2": "#5a3040", "dirt3": "#b07a8a", "brick": "#d06a8a", "brick2": "#7a2a4a", "mortar": "#ffd0e0"},
+    "ash": {"grass": "#7a6a6a", "grass2": "#4a3a3a", "dirt": "#5a4a4a", "dirt2": "#2a2020", "dirt3": "#8a7070", "brick": "#8a3a2a", "brick2": "#4a1a10", "mortar": "#c08070"},
     "castle": {"grass": "#9a9aa8", "grass2": "#5a5a6a", "dirt": "#7a7a88", "dirt2": "#4a4a58", "dirt3": "#b0b0bc", "brick": "#8a8a96", "brick2": "#4a4a56", "mortar": "#c8c8d4"},
 }
 
@@ -923,7 +932,21 @@ def decor():
     dusk_cloud = recolor(spr(cloud, cloud_pal), {"w": "#d8b8e8", "W": "#a888c8", "k": "#3a2a5a"})
     star_pal = {"w": "#ffffff", "y": "#fff3a0"}
     stars = anim([["......w.........", "................", "..............y.", "................", "................", "...y............", "................", "..........w.....", "................", "................", ".w..............", "................", "........y.......", "................", "................", "................"], ["......y.........", "................", "..............w.", "................", "................", "...w............", "................", "..........y.....", "................", "................", ".y..............", "................", "........w.......", "................", "................", "................"]], star_pal, 2)
+    variants = {
+        "autumn": ({"w": "#fff0d8", "W": "#f0c890", "k": "#7a3a10"}, {"g": "#e0902c", "G": "#9a4a14", "k": "#4a1a04", "l": "#ffc060"}, {"h": "#c0702a", "H": "#7a3a10", "k": "#3a1404", "d": "#9a5018"}),
+        "frost": ({"w": "#ffffff", "W": "#d0e8ff", "k": "#5a7aa0"}, {"g": "#e8f6ff", "G": "#9ac0e0", "k": "#4a6a8a", "l": "#ffffff"}, {"h": "#dff0ff", "H": "#9ac0e0", "k": "#4a6a8a", "d": "#b0d0ea"}),
+        "dunes": ({"w": "#fff8e8", "W": "#f8d8a8", "k": "#a06a30"}, {"g": "#7ac04a", "G": "#3a7a20", "k": "#1a3a0a", "l": "#b0e080"}, {"h": "#e8c070", "H": "#a07a30", "k": "#5a3a10", "d": "#c09040"}),
+        "night": ({"w": "#5a6aa8", "W": "#3a4a80", "k": "#1a2050"}, {"g": "#2f7a5a", "G": "#14402e", "k": "#06180e", "l": "#4fa07a"}, {"h": "#1f5a3a", "H": "#0f3020", "k": "#041008", "d": "#184a2e"}),
+        "blossom": ({"w": "#ffffff", "W": "#ffd8ea", "k": "#c06a8a"}, {"g": "#ff9ac8", "G": "#c0508a", "k": "#5a1a3a", "l": "#ffd0e8"}, {"h": "#7ad07a", "H": "#3a8a3a", "k": "#1a3a1a", "d": "#ff9ac8"}),
+        "ash": ({"w": "#8a7a7a", "W": "#5a4a4a", "k": "#2a1a1a"}, {"g": "#6a3a2a", "G": "#3a1a10", "k": "#1a0804", "l": "#a05a3a"}, {"h": "#5a4040", "H": "#3a2424", "k": "#140808", "d": "#ff5a1f"}),
+    }
+    extra = {}
+    for name, (cp, bp, hp) in variants.items():
+        extra[f"cloud_{name}"] = recolor(spr(cloud, cloud_pal), cp)
+        extra[f"bush_{name}"] = recolor(spr(bush, bush_pal), bp)
+        extra[f"hill_{name}"] = recolor(spr(hill, hill_pal), hp)
     return {
+        **extra,
         "cloud": spr(cloud, cloud_pal),
         "dcloud": dusk_cloud,
         "bush": spr(bush, bush_pal),
