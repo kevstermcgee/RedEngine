@@ -39,17 +39,17 @@ every claimed improvement measured in `docs/analysis` with its method; hosted CI
 1. *Docs at runtime.* Dev builds read SPEC, AGENTS, REFERENCE, PLAY_2D, GLOSSARY, the ADRs and the analysis notes from the checkout (as `docs/features.json` already
    is); release builds embed them as the fallback outside a checkout. **Done:** a doc edit rebuilds nothing locally (measured), and `search` finds an ADR created
    after the build, by test. (Hosted CI compiles the workspace crates on every Rust job whatever changed: its cache holds dependencies only. So the CI half of
-   this, a doc-only PR that compiles no crate, lands with item 2: once docs are not build inputs, main's prebuilt matches a doc-only PR and runs its checks.)
+   this, a doc-only PR that compiles no crate, lands with item 4: main's compiled test archive runs the doc-reading suites against the PR's docs.)
 2. *Prebuilts.* Answer to STATUS.md: yes, `release.yml` publishes a prebuilt (Linux x86_64, then Windows) for every `main` commit that changes a build input,
-   keeping the last N. The owner enabled it on 2026-10-13. **Done:** a fresh clone of main reaches `describe --brief` with no compile, measured, and a doc-only
-   PR's CI log has no `Compiling red_engine2`.
+   keeping the last N. The owner enabled it on 2026-10-13. **Done:** a fresh clone of main reaches `describe --brief` with no compile, measured.
 3. *`red_core`.* A crate with schema, content, sim, physics, net, collide and player (the headless server's tree) that `red_engine2`, red2d, `re2` and game crates
    depend on; red2d's `#[path]` sharing ends. First cuts: `net` -> `tools::portmap`, `net::session` -> `ui::race`. **Done:** the headless build, clippy and tests
    compile only `red_core` and its dependencies; no `#[path]` across crates; a one-line edit in `sim/` goes through `iterate` in under 20 s warm on the 4-core box,
    measured against today's ~50 s.
 4. *CI.* Build the nextest archive once and fan it out; on PRs run headless as one shard of the net_*, server_env and sim_replay suites, with the full headless matrix
-   on main; `save-if` keyed on Cargo.lock; Docker on main only. **Done:** before/after in `docs/analysis` with a method, against #115's 59.0 job-minutes and ~27
-   job-minutes of compilation.
+   on main; `save-if` keyed on Cargo.lock; Docker on main only; a docs-only PR runs the doc-reading suites from main's archive (the docs are read at run time since
+   item 1, so main's compiled tests check the PR's docs). **Done:** before/after in `docs/analysis` with a method, against #115's 59.0 job-minutes and ~27
+   job-minutes of compilation, and a docs-only PR's CI log has no `Compiling red_engine2`.
 5. *A shippable game crate.* `package`, `game play` and `publish` know a game binary (Killchain first). Add the two engine seams above, then move Frameless to a crate
    behind them, its saves and a seeded visit unchanged (parity: the same rooms, plaques and keys for the same seed). Then audit the ~30K lines: a reusable system
    stays and its `//!` line names the games that use it; one game's code moves to its crate or an example; Killchain's wire structs go behind a game-message

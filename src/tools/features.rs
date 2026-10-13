@@ -11,8 +11,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::process::Command;
 
-/// The index, compiled in.
-pub const INDEX: &str = include_str!("../../docs/features.json");
+/// The index this process uses: the checkout's `docs/features.json` (see [`super::own_docs`]), or the copy embedded in a release-type build.
+pub fn index() -> &'static str {
+    &super::own_docs::docs().features
+}
 
 /// One feature.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,15 +35,15 @@ pub struct Feature {
     pub depends_on: Vec<String>,
 }
 
-/// Parses the compiled-in index.
+/// Parses the index this process uses ([`index`]).
 pub fn load() -> Result<Vec<Feature>, String> {
-    parse(INDEX)
+    parse(index())
 }
 
 /// The text of the index a checkout is actually using: `docs/features.json` read from disk, so an edit to it is planned with immediately and a
-/// prebuilt binary never plans with a stale copy; the compiled-in text only outside a checkout (an installed binary).
+/// prebuilt binary never plans with a stale copy; this process's own [`index`] when `root` has none.
 pub fn index_text_at(root: &Path) -> String {
-    std::fs::read_to_string(root.join("docs/features.json")).unwrap_or_else(|_| INDEX.to_string())
+    std::fs::read_to_string(root.join("docs/features.json")).unwrap_or_else(|_| index().to_string())
 }
 
 /// [`load`] for a checkout: the index on disk (see [`index_text_at`]).
@@ -82,10 +84,10 @@ pub fn content_packs_of(text: &str) -> Vec<ContentPack> {
         .collect()
 }
 
-/// The compiled-in content packs.
+/// The content packs of this process's [`index`].
 pub fn content_packs() -> &'static [ContentPack] {
     static PACKS: std::sync::OnceLock<Vec<ContentPack>> = std::sync::OnceLock::new();
-    PACKS.get_or_init(|| content_packs_of(INDEX))
+    PACKS.get_or_init(|| content_packs_of(index()))
 }
 
 /// The tier (`game`, `legacy`, `history`) of the content pack that lists `path`; `None` for engine files.
@@ -132,7 +134,7 @@ pub fn parse(text: &str) -> Result<Vec<Feature>, String> {
 
 /// The suites that must run one test at a time (real-time UDP, spawned servers): `serial_suites` in the index. Every other suite may use parallel threads.
 pub fn serial_suites() -> Vec<String> {
-    serial_suites_of(INDEX)
+    serial_suites_of(index())
 }
 
 /// [`serial_suites`] for any index text.
@@ -720,12 +722,12 @@ mod tests {
     }
 
     #[test]
-    fn a_checkout_is_planned_with_the_index_on_disk_and_the_compiled_one_is_only_the_fallback() {
+    fn a_checkout_is_planned_with_the_index_on_disk_and_the_process_s_own_is_only_the_fallback() {
         let dir = std::env::temp_dir().join(format!("re2_features_at_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("docs")).unwrap();
-        // No index on disk: the compiled-in one answers.
-        assert_eq!(index_text_at(&dir), INDEX);
+        // No index on disk: this process's own (the checkout's, or the copy embedded in a release-type build) answers.
+        assert_eq!(index_text_at(&dir), index());
         assert_eq!(load_at(&dir).unwrap().len(), load().unwrap().len());
         // An edited index on disk wins immediately, with no rebuild.
         std::fs::write(

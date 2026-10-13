@@ -91,3 +91,34 @@ fn every_cli_command_is_mentioned_in_agents_md() {
         "AGENTS.md / docs/AGENT_REFERENCE.md do not mention these commands (add them to the tool table in the reference; `red_engine2 preflight --fix` adds a row): {missing:?}"
     );
 }
+
+/// The binary reads the engine's own documents from the checkout it runs in (ADR 2026-10-13-the-engine-reads-its-own-docs-from-the-checkout): a decision
+/// written after it was built is found by its next `search` and listed by `describe decisions`, with no rebuild. A scratch checkout (`RE2_SRC`) holds it.
+#[test]
+fn search_finds_an_adr_written_after_the_binary_was_built() {
+    let dir = std::env::temp_dir().join(format!("re2_docs_runtime_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    for sub in ["src", "docs/adr", "docs/analysis"] {
+        std::fs::create_dir_all(dir.join(sub)).unwrap();
+    }
+    std::fs::write(dir.join("src/lib.rs"), "").unwrap();
+    for rel in ["SPEC.md", "AGENTS.md", "docs/GLOSSARY.md", "docs/features.json"] {
+        std::fs::copy(root().join(rel), dir.join(rel)).unwrap();
+    }
+    let adr = "2099-01-01-the-quokka-ledger.md";
+    std::fs::write(
+        dir.join("docs/adr").join(adr),
+        "# 2099-01-01. The quokka ledger\nStatus: proposed\nSummary: zebra marmalade is filed in the quokka ledger\n\n## Context\nx\n## Decision\ny\n## Consequences\nz\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("docs/adr/README.md"), "| [2099-01-01-the-quokka-ledger](2099-01-01-the-quokka-ledger.md) | zebra marmalade | proposed |\n")
+        .unwrap();
+    let run = |args: &[&str]| {
+        let o = Command::new(env!("CARGO_BIN_EXE_red_engine2")).args(args).env("RE2_SRC", &dir).current_dir(&dir).output().expect("run red_engine2");
+        format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))
+    };
+    let found = run(&["search", "quokka ledger zebra marmalade", "--kind", "adr"]);
+    assert!(found.contains("The quokka ledger") && found.contains(adr), "search did not read the checkout's new ADR:\n{found}");
+    assert!(run(&["describe", "decisions"]).contains("zebra marmalade"), "describe decisions reads the checkout's index");
+    let _ = std::fs::remove_dir_all(&dir);
+}

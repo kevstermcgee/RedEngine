@@ -1,6 +1,8 @@
-//! Build script: embeds `docs/adr/*.md` and `docs/analysis/*.md` in the library, generated from the folders so that nobody keeps a list of them
-//! (`search` and `describe decisions` read the embedded copies, so they need no files at runtime; a new ADR used to have to be added to a Rust
-//! list by hand and every parallel branch collided on it; ADR 2026-09-28-generated-bookkeeping).
+//! Build script: in release-type builds (`--release`, the `fast` and `bench` profiles, which inherit `release`) or with `RED_EMBED_DOCS=1`, embeds
+//! `docs/adr/*.md` and `docs/analysis/*.md` in the library, generated from the folders so that nobody keeps a list of them (ADR
+//! 2026-09-28-generated-bookkeeping), and sets the `red_embed_docs` cfg under which `tools::own_docs` embeds the other documents too. A dev or test
+//! build embeds nothing and reads them from the checkout at run time, so it never reruns or recompiles for a doc edit (ADR
+//! 2026-10-13-the-engine-reads-its-own-docs-from-the-checkout).
 
 use std::path::Path;
 
@@ -9,6 +11,19 @@ use std::path::Path;
 const FOLDERS: &[(&str, &str, &str)] = &[("docs/adr", "adr_files.rs", "ADR_FILES"), ("docs/analysis", "analysis_files.rs", "ANALYSIS_FILES")];
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(red_embed_docs)");
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=RED_EMBED_DOCS");
+    // Cargo sets PROFILE to "release" for every profile that inherits from `release`, "debug" for the rest.
+    let embed = match std::env::var("RED_EMBED_DOCS").as_deref() {
+        Ok("1") => true,
+        Ok("0") => false,
+        _ => std::env::var("PROFILE").as_deref() == Ok("release"),
+    };
+    if !embed {
+        return;
+    }
+    println!("cargo:rustc-cfg=red_embed_docs");
     let root = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
     let out = std::env::var("OUT_DIR").expect("cargo sets OUT_DIR");
     for (dir, file, constant) in FOLDERS {
@@ -24,5 +39,4 @@ fn main() {
         std::fs::write(Path::new(&out).join(file), src).expect("write the generated registry");
         println!("cargo:rerun-if-changed={dir}");
     }
-    println!("cargo:rerun-if-changed=build.rs");
 }

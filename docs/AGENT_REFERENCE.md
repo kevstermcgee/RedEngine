@@ -309,7 +309,7 @@ src/tools/        world (MapWorld) reach lint plan font edit gen inspect shots w
 src/ui/           headless pixel-UI kit: `Layout` of widgets drives painting, hit-testing and the audit; `screens.rs` = launch + pause menus
                   catalog describe search symbols recipes verify diff simrun envelope (AI-facing: self-description, feedback, `--json`)
 assets/*.json     the built-in prefab catalogue (embedded); recipes/*.json + recipes/golden/ the example maps
-docs/GLOSSARY.md  vocabulary; docs/adr/NNNN-*.md  architecture decision records (both embedded + searchable)
+docs/GLOSSARY.md  vocabulary; docs/adr/NNNN-*.md  architecture decision records (both searchable; read from the checkout, embedded only in release builds)
 docs/LIFE_OF_A_SHOT.md            one trigger pull, click to hit marker: the function, the tuning key, how to see each step, how it fails silently
 docs/LIFE_OF_A_REMOTE_PLAYER.md   another player on your screen, Hello to avatar to hidden id: the same four lines per step
 src/bin/re2/      the windowed game: `main.rs` (App state, setup), `frame.rs` (fixed step + update + draw), `events.rs` (winit input), `weapons.rs`, `avatar.rs`, `window.rs`
