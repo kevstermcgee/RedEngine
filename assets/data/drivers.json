@@ -1,6 +1,6 @@
 {
   "roster": 1,
-  "about": "Great Outdoors drivers as data (src/sim/kart.rs, Driver): the order is the wire order, so it never changes; `base` is the kart every driver starts from and `spec` lists only what a driver changes. Speeds m/s, accelerations m/s^2, steer_rate degrees per second, multipliers of top speed.",
+  "about": "Great Outdoors drivers as data (crates/red_core/src/sim/kart.rs, Driver): the order is the wire order, so it never changes; `base` is the kart every driver starts from and `spec` lists only what a driver changes. Speeds m/s, accelerations m/s^2, steer_rate degrees per second, multipliers of top speed.",
   "base": {"top_speed": 24.0, "accel": 12.0, "brake": 26.0, "reverse_speed": 6.0, "steer_rate": 90.0, "grip": 0.8, "mass": 1.0, "dirt": 0.85, "mud": 0.6, "water": 0.55, "boost_mult": 1.3, "drift_rate": 1.0, "hop_speed": 4.0},
   "drivers": [
     {"name": "Duck", "ability": "float", "spec": {"water": 1.0}},

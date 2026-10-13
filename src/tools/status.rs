@@ -89,9 +89,17 @@ fn adrs(root: &Path) -> (usize, String) {
     (names.len(), latest)
 }
 
-/// The wire protocol version in `src/net/protocol.rs` (`pub const PROTOCOL_VERSION: u16 = 8;`), if the repo has one.
+/// Where the wire protocol lives: in the core since it moved there (2026-10-13), in the engine crate before. A checkout has one of them.
+pub const PROTOCOL_FILES: &[&str] = &["crates/red_core/src/net/protocol.rs", "src/net/protocol.rs"];
+
+/// The repo's wire-protocol file ([`PROTOCOL_FILES`]), if it has one.
+pub fn protocol_file(root: &Path) -> Option<&'static str> {
+    PROTOCOL_FILES.iter().copied().find(|p| root.join(p).is_file())
+}
+
+/// The wire protocol version in [`protocol_file`] (`pub const PROTOCOL_VERSION: u16 = 8;`), if the repo has one.
 pub fn protocol_version(root: &Path) -> Option<u32> {
-    read(&root.join("src/net/protocol.rs"))
+    read(&root.join(protocol_file(root)?))
         .lines()
         .find_map(|l| l.trim().strip_prefix("pub const PROTOCOL_VERSION: u16 = ")?.trim_end_matches(';').trim().parse().ok())
 }
@@ -111,7 +119,8 @@ pub fn facts_block(root: &Path) -> String {
         s.push_str(&format!("- Cargo features: {}.\n", features.iter().map(|f| format!("`{f}`")).collect::<Vec<_>>().join(", ")));
     }
     if let Some(v) = protocol_version(root) {
-        s.push_str(&format!("- Wire protocol v{v} (`src/net/protocol.rs`): a client and a server must be built from the same version. Counts (suites, maps, ADRs) and test totals: `red_engine2 status`, `scripts/dev test`.\n"));
+        let file = protocol_file(root).unwrap_or(PROTOCOL_FILES[0]);
+        s.push_str(&format!("- Wire protocol v{v} (`{file}`): a client and a server must be built from the same version. Counts (suites, maps, ADRs) and test totals: `red_engine2 status`, `scripts/dev test`.\n"));
     }
     s
 }
@@ -339,6 +348,17 @@ mod tests {
         std::fs::write(d.join("docs/adr/0002-second-thing.md"), "# x").unwrap();
         std::fs::write(d.join("tests/a.rs"), "").unwrap();
         d
+    }
+
+    #[test]
+    fn the_protocol_is_read_from_the_core_and_from_an_older_checkouts_engine_crate() {
+        let d = tmp("protocol-files");
+        std::fs::create_dir_all(d.join("src/net")).unwrap();
+        std::fs::write(d.join("src/net/protocol.rs"), "pub const PROTOCOL_VERSION: u16 = 14;\n").unwrap();
+        assert_eq!((protocol_file(&d), protocol_version(&d)), (Some("src/net/protocol.rs"), Some(14)), "an older checkout");
+        std::fs::create_dir_all(d.join("crates/red_core/src/net")).unwrap();
+        std::fs::write(d.join("crates/red_core/src/net/protocol.rs"), "pub const PROTOCOL_VERSION: u16 = 15;\n").unwrap();
+        assert_eq!((protocol_file(&d), protocol_version(&d)), (Some("crates/red_core/src/net/protocol.rs"), Some(15)), "the core's file wins");
     }
 
     #[test]

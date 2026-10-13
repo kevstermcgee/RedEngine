@@ -30,6 +30,8 @@ getrandom = "0.3"
 subtle = "2.6"
 # The shader compiler wgpu uses (`red_core::shader_check`, behind red_core's `shader-check` feature).
 naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out"] }
+image = { version = "0.25.9", default-features = false, features = ["png"] }
+symphonia = { version = "0.5", default-features = false, features = ["mp3", "flac", "ogg", "vorbis", "wav", "pcm", "aac", "isomp4"] }
 
 # `gfx` (default) = everything that draws or plays sound: wgpu, winit, softbuffer, rodio (MP4 export is the separate `video` feature). The dedicated server, the bot and the
 # map-analysis CLI build without it (`cargo build --no-default-features --bin red_server`); CI enforces that on Linux.
@@ -46,7 +48,7 @@ mcp = ["dep:rmcp", "dep:schemars", "dep:base64", "schema"]
 # build (`--no-default-features`): the dedicated server needs the typed defs, not their schema.
 schema = ["dep:schemars"]
 render = ["dep:wgpu", "dep:pollster", "red_core/shader-check", "dep:ab_glyph"]
-gfx = ["render", "dep:softbuffer", "dep:winit", "dep:rodio", "dep:gilrs", "dep:rfd", "dep:symphonia"]
+gfx = ["render", "dep:softbuffer", "dep:winit", "dep:rodio", "dep:gilrs", "dep:rfd", "red_core/decode"]
 
 [dependencies]
 red2d = { path = "crates/red2d" }
@@ -66,7 +68,7 @@ ffmpeg-sidecar = { version = "2.5.2", optional = true }
 glam = { workspace = true }
 libm = { workspace = true }
 # Graceful Ctrl-C and SIGTERM (`docker stop`) for `red_server` (tell clients bye, write the `--record` trace).
-image = { version = "0.25.9", default-features = false, features = ["png"] }
+image = { workspace = true }
 pollster = { version = "1.0.1", optional = true }
 rodio = { version = "0.20", default-features = false, optional = true }
 rapier3d = { workspace = true }
@@ -89,8 +91,6 @@ winit = { version = "0.30", optional = true }
 # The native 2D player (`re2d`, `red_engine2 play2d`) shows the CPU-rendered frame through the OS window with no GPU involved.
 softbuffer = { version = "0.4", default-features = false, features = ["x11", "x11-dlopen", "wayland", "wayland-dlopen"], optional = true }
 rfd = { version = "0.17.2", optional = true }
-# Decodes the player's own music (`audio.playlist`, `listen::decode`): mp3, flac, ogg vorbis, wav, m4a/aac. Pure Rust; with `gfx` only (a game that plays music has a window).
-symphonia = { version = "0.5", default-features = false, features = ["mp3", "flac", "ogg", "vorbis", "wav", "pcm", "aac", "isomp4"], optional = true }
 
 # The network stack and the Ctrl-C hook.
 ctrlc = { version = "3", features = ["termination"] }

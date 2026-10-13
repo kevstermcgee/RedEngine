@@ -7,12 +7,12 @@
 pub mod chunk;
 pub use red_core::procgen::flora;
 pub mod geo;
-pub mod ground;
+pub use red_core::procgen::ground;
 pub mod motes;
 pub use red_core::procgen::noise;
 pub mod shapes;
 pub mod stream;
-pub mod world;
+pub use red_core::procgen::world;
 
 pub use flora::{Climate, Kind, Species, SpeciesId};
 pub use ground::ProcgenGround;

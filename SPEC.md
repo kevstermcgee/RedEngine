@@ -420,7 +420,7 @@ ears. Pose is forward-kinematic: each joint is a rotation *relative to its paren
 
 Cheddar, a small brownish-grey lab rat: pear-shaped body, pointed head with big round pink-lined
 ears and whiskers, four scurrying legs with pink paws and a long tapering tail. Built into
-`red_engine2` (see `src/characters.rs`), like `humanoid`. It is the rat player's body in `re2`;
+`red_engine2` (see `crates/red_core/src/characters.rs`), like `humanoid`. It is the rat player's body in `re2`;
 in a scene it is decoration (or a cinematic extra).
 
 ```json

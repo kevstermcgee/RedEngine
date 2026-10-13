@@ -6,7 +6,7 @@ use red_engine2::weapons::Weapon;
 
 fn main() {
     println!("# Killchain weapons\n");
-    println!("Generated from `src/arsenal.rs` in RedEngine (`cargo run --example weapons_table`). Damage is per hit to the body; the headshot column is the multiplier.\n");
+    println!("Generated from `crates/red_core/src/arsenal.rs` in RedEngine (`cargo run --example weapons_table`). Damage is per hit to the body; the headshot column is the multiplier.\n");
     println!("| Weapon | Real counterpart | Damage | Head x | Rounds/min | Mag / reserve | Reload s | Auto | Range m |");
     println!("|---|---|---|---|---|---|---|---|---|");
     for w in Weapon::ROSTER

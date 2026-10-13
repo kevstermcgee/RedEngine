@@ -427,7 +427,8 @@ static ROSTER: std::sync::OnceLock<Roster> = std::sync::OnceLock::new();
 
 /// The embedded roster, parsed once. A file that fails to parse (a test fails first) yields the base kart under the name `?`, never a panic in the simulation.
 fn roster() -> &'static Roster {
-    ROSTER.get_or_init(|| Roster::parse(include_str!("../../assets/data/drivers.json")).unwrap_or_else(|_| Roster { names: Vec::new(), specs: Vec::new() }))
+    ROSTER
+        .get_or_init(|| Roster::parse(include_str!("../../../../assets/data/drivers.json")).unwrap_or_else(|_| Roster { names: Vec::new(), specs: Vec::new() }))
 }
 
 /// What a kart remembers from tick to tick beyond its [`PlayerState`]. Everything here is replicated and predicted.
@@ -1170,12 +1171,12 @@ mod tests {
             }
         }
         assert_eq!(Driver::parse(" bear ").map(Driver::wire), Some(5));
-        assert!(Roster::parse(include_str!("../../assets/data/drivers.json")).is_ok());
+        assert!(Roster::parse(include_str!("../../../../assets/data/drivers.json")).is_ok());
     }
 
     #[test]
     fn a_roster_file_that_is_wrong_says_which_entry_and_field() {
-        let good = include_str!("../../assets/data/drivers.json");
+        let good = include_str!("../../../../assets/data/drivers.json");
         let e = |text: &str| Roster::parse(text).err().unwrap_or_default();
         assert!(e(&good.replace("\"ability\": \"hop\"", "\"ability\": \"fly\"")).contains("drivers[1].ability: `fly` is not one of"), "unknown ability");
         assert!(e(&good.replace("\"Bunny\"", "\"duck\"")).contains("drivers[1].name: `duck` must be a name no other driver has"), "duplicate name");

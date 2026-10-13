@@ -306,26 +306,7 @@ mod tests {
         assert_eq!(a, b);
     }
 
-    #[test]
-    fn analog_strength_and_diagonal_speed_are_bounded() {
-        let tuning = PlayerTuning::default();
-        let mut half = PlayerState::spawn(0.0, 0.0, 0.0, 0.0, Character::Human);
-        let mut full = half;
-        let mut diagonal = half;
-        let ground = crate::collide::collect_ground_candidates(&crate::schema::parse_scene(include_str!("../../examples/test_lab.json")).unwrap());
-        let a = PlayerInput { analog: true, forward: 64, ..Default::default() };
-        let b = PlayerInput { forward: 1, ..Default::default() };
-        let c = PlayerInput { analog: true, forward: 127, strafe: 127, ..Default::default() };
-        step_player_tuned(&mut half, &a, &[], &ground, tuning, &[]);
-        step_player_tuned(&mut full, &b, &[], &ground, tuning, &[]);
-        step_player_tuned(&mut diagonal, &c, &[], &ground, tuning, &[]);
-        assert!((half.pos.length() / full.pos.length() - 64.0 / 127.0).abs() < 0.001);
-        assert!((diagonal.pos.length() - full.pos.length()).abs() < 0.001);
-        assert_eq!(a.with_flags(a.flags()), a);
-    }
     use super::*;
-    use crate::collide::{collect_box_colliders, collect_ground_candidates};
-    use std::path::Path;
 
     #[test]
     fn arena_momentum_survives_airborne_release_and_ground_friction_stops_it() {
@@ -359,115 +340,6 @@ mod tests {
         }
         assert!(state.velocity.x > 1.0 && state.velocity.y < -8.9);
         assert!(state.velocity.length() > 9.0 && state.velocity.length() <= 14.001);
-    }
-
-    fn world() -> (Vec<Collider2D>, GroundCandidates) {
-        let scene = crate::load_scene(&Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap();
-        (collect_box_colliders(&scene), collect_ground_candidates(&scene))
-    }
-
-    fn walk(state: &mut PlayerState, forward: i8, ticks: u32, colliders: &[Collider2D], ground: &GroundCandidates) {
-        for k in 0..ticks {
-            let yaw = state.yaw;
-            step_player(state, &PlayerInput { seq: k, forward, yaw, ..Default::default() }, colliders, ground);
-        }
-    }
-
-    #[test]
-    fn walking_moves_at_walk_speed_and_sprint_is_faster() {
-        let (c, g) = world();
-        let mut s = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human); // facing +X
-        walk(&mut s, 1, 60, &c, &g);
-        assert!((s.pos.x - (-22.0 + 3.2)).abs() < 0.02, "one second at 3.2 m/s: {}", s.pos.x);
-        let mut r = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
-        for k in 0..30 {
-            let yaw = r.yaw;
-            step_player(&mut r, &PlayerInput { seq: k, forward: 1, sprint: true, yaw, ..Default::default() }, &c, &g);
-        }
-        assert!((r.pos.x - (-22.0 + 3.25)).abs() < 0.02, "half a second at 6.5 m/s: {}", r.pos.x);
-    }
-
-    #[test]
-    fn the_rat_has_its_own_pace_slower_than_a_human_sprint() {
-        let (c, g) = world();
-        let mut rat = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Rat);
-        walk(&mut rat, 1, 30, &c, &g); // half a second
-        assert!((rat.pos.x - (-22.0 + crate::player::RAT_SPEED * 0.5)).abs() < 0.03, "{}", rat.pos.x);
-        assert!(rat.pos.x - (-22.0) < crate::player::SPRINT_SPEED * 0.5 - 0.5, "well short of a human sprint's half-second distance");
-        assert!(rat.pos.x - (-22.0) > crate::player::WALK_SPEED * 0.5 + 0.2, "but brisker than a human's walk");
-    }
-
-    #[test]
-    fn diagonal_movement_is_not_faster_and_hostile_input_cannot_exceed_full_speed() {
-        let (c, g) = world();
-        let mut s = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
-        for k in 0..60 {
-            // forward and strafe both "127": sanitised to 1, and diagonals are normalised.
-            let yaw = s.yaw;
-            step_player(&mut s, &PlayerInput { seq: k, forward: 127, strafe: 127, yaw, ..Default::default() }, &c, &g);
-        }
-        let moved = (s.pos - Vec2::new(-22.0, -3.0)).length();
-        assert!(moved <= 3.2 + 0.02, "moved {moved} m in a second");
-        let mut n = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
-        step_player(&mut n, &PlayerInput { forward: 1, yaw: f32::NAN, pitch: f32::INFINITY, ..Default::default() }, &c, &g);
-        assert!(n.pos.is_finite() && n.yaw.is_finite() && n.pitch.is_finite());
-    }
-
-    #[test]
-    fn walls_stop_a_player_and_the_step_is_deterministic() {
-        let (c, g) = world();
-        let mut a = PlayerState::spawn(-22.0, -3.0, 0.0, 270.0, Character::Human); // facing -X, into the west wall
-        let mut b = a;
-        walk(&mut a, 1, 300, &c, &g);
-        walk(&mut b, 1, 300, &c, &g);
-        assert_eq!(a, b, "same inputs, same result");
-        assert!(a.pos.x > -23.9, "stopped by the wall at x = -24: {}", a.pos.x);
-    }
-
-    #[test]
-    fn the_rat_squeezes_through_a_gap_the_human_cannot() {
-        let (c, g) = world();
-        let mut rat = PlayerState::spawn(-13.0, -6.5, 0.0, 90.0, Character::Rat);
-        walk(&mut rat, 1, 120, &c, &g);
-        assert!(rat.pos.x > -11.0, "the rat passes the 0.25 m gap: {}", rat.pos.x);
-        let mut human = PlayerState::spawn(-13.0, -6.5, 0.0, 90.0, Character::Human);
-        walk(&mut human, 1, 120, &c, &g);
-        assert!(human.pos.x < -12.0, "the human does not: {}", human.pos.x);
-    }
-
-    #[test]
-    fn jumping_leaves_the_ground_and_lands_again() {
-        let (c, g) = world();
-        let mut s = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
-        let yaw = s.yaw;
-        step_player(&mut s, &PlayerInput { jump: true, yaw, ..Default::default() }, &c, &g);
-        assert!(s.foot_y > 0.0);
-        let mut peak = 0.0f32;
-        for _ in 0..60 {
-            let yaw = s.yaw;
-            step_player(&mut s, &PlayerInput { yaw, ..Default::default() }, &c, &g);
-            peak = peak.max(s.foot_y);
-        }
-        assert!(peak > 0.3 && peak < 0.5, "jump apex ~0.4 m: {peak}");
-        assert_eq!(s.foot_y, 0.0);
-    }
-
-    #[test]
-    fn authored_arena_tuning_and_jump_pads_are_deterministic() {
-        let (c, g) = world();
-        let tuning =
-            PlayerTuning { fov_deg: 90.0, walk_speed: 9.0, sprint_speed: 13.0, crouch_multiplier: 0.5, jump_speed: 6.0, gravity: 18.0, ..Default::default() };
-        let pad = JumpPad { id: "test_pad".into(), center: Vec2::new(-22.0, -3.0), size: Vec2::splat(2.0), foot_y: 0.0, launch_speed: 11.0 };
-        let mut a = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
-        let mut b = a;
-        for k in 0..30 {
-            let input = PlayerInput { seq: k, forward: 1, yaw: 90f32.to_radians(), ..Default::default() };
-            step_player_tuned(&mut a, &input, &c, &g, tuning, std::slice::from_ref(&pad));
-            step_player_tuned(&mut b, &input, &c, &g, tuning, std::slice::from_ref(&pad));
-        }
-        assert_eq!(a, b, "authored movement stays bit-identical");
-        assert!(a.pos.x > -18.0, "fast profile moved {:.2} m", a.pos.x + 22.0);
-        assert!(a.foot_y > 1.0, "jump pad launched to y={}", a.foot_y);
     }
 
     #[test]

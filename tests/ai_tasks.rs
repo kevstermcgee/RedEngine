@@ -347,8 +347,8 @@ fn task_change_a_movement_rule_safely() {
     // The safety net for the change exists as commands too: the walk checks and the real-UDP prediction tests replay this movement.
     let (ok, out) = a.run(&["verify", "examples/test_lab.json", "--no-views", "--only", "walk"]);
     assert!(ok && out.contains("PASS walk"), "{out}");
-    let player_rs =
-        std::fs::metadata(root().join("src/player.rs")).unwrap().len() as usize + std::fs::metadata(root().join("src/sim/player.rs")).unwrap().len() as usize;
+    let player_rs = std::fs::metadata(root().join("crates/red_core/src/player.rs")).unwrap().len() as usize
+        + std::fs::metadata(root().join("crates/red_core/src/sim/player.rs")).unwrap().len() as usize;
     assert!(a.context * 2 < player_rs + 12_000, "the whole task read {} bytes; the two player files alone are {player_rs}", a.context);
     a.within(9_000);
 }
@@ -359,24 +359,25 @@ fn task_change_the_engine_from_a_small_work_packet_and_verify_only_what_it_affec
     // One call replaces `src map` + outlines + doc reads: the feature, its files, API, tests and ADR pointers.
     let packet = a.run(&["context", "match_flow"]).1;
     assert!(packet.len() < 15_000, "a work packet stays within 15 KB ({} bytes)", packet.len());
-    for must in ["src/sim/flow.rs", "pub struct Flow", "net_flow", "affected", "docs/adr/0029"] {
+    for must in ["crates/red_core/src/sim/flow.rs", "pub struct Flow", "net_flow", "affected", "docs/adr/0029"] {
         assert!(packet.contains(must), "the packet names `{must}`:\n{packet}");
     }
     // A file path and free words find the same feature.
-    assert!(a.run(&["context", "src/sim/flow.rs"]).1.contains("== match_flow"));
+    assert!(a.run(&["context", "crates/red_core/src/sim/flow.rs"]).1.contains("== match_flow"));
     assert!(a.run(&["context", "lobby", "countdown"]).1.contains("== match_flow"));
     // The plan for that change is the owners' checks plus dependents, not the whole suite.
-    let plan = a.json(&["affected", "--dry-run", "src/sim/flow.rs"]);
+    let plan = a.json(&["affected", "--dry-run", "crates/red_core/src/sim/flow.rs"]);
     let data = &plan["data"];
     assert_eq!(data["scope"], "closure", "{plan}");
     let commands: Vec<&str> = data["steps"].as_array().unwrap().iter().filter_map(|s| s["command"].as_str()).collect();
-    assert!(commands.iter().any(|c| c.contains("--lib") && c.contains("sim::flow")), "{commands:?}");
+    // `sim::flow` lives in the core: its unit tests are the core's (`-p red_core`), the engine's suites that own it run beside them.
+    assert!(commands.iter().any(|c| c.starts_with("cargo test") && c.contains("-p red_core")), "{commands:?}");
     assert!(commands.iter().any(|c| c.starts_with("RUST_TEST_THREADS=1 cargo test") && c.contains("--test net_flow")), "{commands:?}");
     assert!(!commands.iter().any(|c| c.contains("scripts/ci.sh")), "one file in one feature does not need the whole of CI: {commands:?}");
-    let quick = a.json(&["affected", "--dry-run", "--quick", "src/sim/flow.rs"]);
+    let quick = a.json(&["affected", "--dry-run", "--quick", "crates/red_core/src/sim/flow.rs"]);
     assert!(!quick["data"]["deferred"].as_array().unwrap().is_empty(), "quick names the dependents it did not run: {quick}");
     // A file that changes how everything builds cannot be vouched for by a subset.
-    let boundary = a.json(&["affected", "--dry-run", "Cargo.toml", "src/sim/flow.rs"]);
+    let boundary = a.json(&["affected", "--dry-run", "Cargo.toml", "crates/red_core/src/sim/flow.rs"]);
     assert_eq!(boundary["data"]["scope"], "full", "{boundary}");
     a.within(30_000);
 }

@@ -211,7 +211,7 @@ fn no_module_outside_collide_assembles_ground_from_groups() {
     walk(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
     let mut offenders = Vec::new();
     for f in files {
-        if f.ends_with("src/collide.rs") {
+        if f.ends_with("crates/red_core/src/collide.rs") {
             continue;
         }
         let text = std::fs::read_to_string(&f).unwrap();

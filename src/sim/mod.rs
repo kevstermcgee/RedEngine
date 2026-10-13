@@ -26,40 +26,40 @@
 // as a `let ... else` / `?` with a message, not an `unwrap`.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
 
-pub mod ai;
+pub use red_core::sim::ai;
 pub use red_core::sim::approach;
 pub use red_core::sim::change;
-pub mod checksum;
+pub use red_core::sim::checksum;
 pub use red_core::sim::clock;
-pub mod combat;
-pub mod combat_cfg;
+pub use red_core::sim::combat;
+pub use red_core::sim::combat_cfg;
 pub use red_core::sim::components;
 pub use red_core::sim::entities;
 /// A conventional agent interface to a match (`reset`/`observe`/`step`), over the real simulation; what an agent may know is separate from the privileged state.
 pub mod env;
-pub mod flow;
-pub mod interact;
-pub mod interest;
-pub mod items;
-pub mod kart;
-pub mod kit;
-pub mod match_sim;
-pub mod objective;
-pub mod objective_run;
-pub mod ordnance;
-pub mod player;
-pub mod race;
+pub use red_core::sim::flow;
+pub use red_core::sim::interact;
+pub use red_core::sim::interest;
+pub use red_core::sim::items;
+pub use red_core::sim::kart;
+pub use red_core::sim::kit;
+pub use red_core::sim::match_sim;
+pub use red_core::sim::objective;
+pub use red_core::sim::objective_run;
+pub use red_core::sim::ordnance;
+pub use red_core::sim::player;
+pub use red_core::sim::race;
 pub mod replay;
-pub mod rules;
+pub use red_core::sim::rules;
 pub use red_core::sim::rules_expr;
-pub mod rules_run;
+pub use red_core::sim::rules_run;
 pub mod scenario;
 pub use red_core::sim::scratch;
-pub mod shooter;
+pub use red_core::sim::shooter;
 pub use red_core::sim::snapshot;
 pub use red_core::sim::spawns;
 pub use red_core::sim::statics;
-pub mod trace;
+pub use red_core::sim::trace;
 
 #[cfg(test)]
 mod tests {

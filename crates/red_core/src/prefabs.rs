@@ -32,17 +32,17 @@ use std::sync::OnceLock;
 
 /// The built-in catalogue files: `(category, JSON text)`. Each file is an array of prefab defs.
 pub const BUILTIN_FILES: &[(&str, &str)] = &[
-    ("food", include_str!("../assets/food.json")),
-    ("kitchen", include_str!("../assets/kitchen.json")),
-    ("furniture", include_str!("../assets/furniture.json")),
-    ("office", include_str!("../assets/office.json")),
-    ("school", include_str!("../assets/school.json")),
-    ("store", include_str!("../assets/store.json")),
-    ("decor", include_str!("../assets/decor.json")),
-    ("art", include_str!("../assets/art.json")),
-    ("lamps", include_str!("../assets/lamps.json")),
-    ("outdoor", include_str!("../assets/outdoor.json")),
-    ("karts", include_str!("../assets/karts.json")),
+    ("food", include_str!("../../../assets/food.json")),
+    ("kitchen", include_str!("../../../assets/kitchen.json")),
+    ("furniture", include_str!("../../../assets/furniture.json")),
+    ("office", include_str!("../../../assets/office.json")),
+    ("school", include_str!("../../../assets/school.json")),
+    ("store", include_str!("../../../assets/store.json")),
+    ("decor", include_str!("../../../assets/decor.json")),
+    ("art", include_str!("../../../assets/art.json")),
+    ("lamps", include_str!("../../../assets/lamps.json")),
+    ("outdoor", include_str!("../../../assets/outdoor.json")),
+    ("karts", include_str!("../../../assets/karts.json")),
 ];
 
 const MAX_DEPTH: usize = 6;

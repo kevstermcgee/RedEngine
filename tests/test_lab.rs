@@ -194,3 +194,272 @@ fn the_test_lab_has_four_duel_spawns_facing_each_other_and_props_spawns() {
     assert!(a.position[0] < b.position[0] && (a.yaw_deg - 90.0).abs() < 1e-3 && (b.yaw_deg - 270.0).abs() < 1e-3);
     assert!(s.iter().any(|s| s.group == "props"));
 }
+
+/// `sim::player` on the Test Lab: moved from the module's own tests when `sim::player` moved into the core (the map is the engine's content).
+mod sim_player {
+    use glam::Vec2;
+    use red_engine2::collide::{collect_box_colliders, collect_ground_candidates, Collider2D, GroundCandidates};
+    use red_engine2::player::{Character, JumpPad, PlayerTuning};
+    use red_engine2::sim::player::*;
+    use std::path::Path;
+
+    #[test]
+    fn analog_strength_and_diagonal_speed_are_bounded() {
+        let tuning = PlayerTuning::default();
+        let mut half = PlayerState::spawn(0.0, 0.0, 0.0, 0.0, Character::Human);
+        let mut full = half;
+        let mut diagonal = half;
+        let ground = red_engine2::collide::collect_ground_candidates(&red_engine2::schema::parse_scene(include_str!("../examples/test_lab.json")).unwrap());
+        let a = PlayerInput { analog: true, forward: 64, ..Default::default() };
+        let b = PlayerInput { forward: 1, ..Default::default() };
+        let c = PlayerInput { analog: true, forward: 127, strafe: 127, ..Default::default() };
+        step_player_tuned(&mut half, &a, &[], &ground, tuning, &[]);
+        step_player_tuned(&mut full, &b, &[], &ground, tuning, &[]);
+        step_player_tuned(&mut diagonal, &c, &[], &ground, tuning, &[]);
+        assert!((half.pos.length() / full.pos.length() - 64.0 / 127.0).abs() < 0.001);
+        assert!((diagonal.pos.length() - full.pos.length()).abs() < 0.001);
+        assert_eq!(a.with_flags(a.flags()), a);
+    }
+    fn world() -> (Vec<Collider2D>, GroundCandidates) {
+        let scene = red_engine2::load_scene(&Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap();
+        (collect_box_colliders(&scene), collect_ground_candidates(&scene))
+    }
+
+    fn walk(state: &mut PlayerState, forward: i8, ticks: u32, colliders: &[Collider2D], ground: &GroundCandidates) {
+        for k in 0..ticks {
+            let yaw = state.yaw;
+            step_player(state, &PlayerInput { seq: k, forward, yaw, ..Default::default() }, colliders, ground);
+        }
+    }
+
+    #[test]
+    fn walking_moves_at_walk_speed_and_sprint_is_faster() {
+        let (c, g) = world();
+        let mut s = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human); // facing +X
+        walk(&mut s, 1, 60, &c, &g);
+        assert!((s.pos.x - (-22.0 + 3.2)).abs() < 0.02, "one second at 3.2 m/s: {}", s.pos.x);
+        let mut r = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
+        for k in 0..30 {
+            let yaw = r.yaw;
+            step_player(&mut r, &PlayerInput { seq: k, forward: 1, sprint: true, yaw, ..Default::default() }, &c, &g);
+        }
+        assert!((r.pos.x - (-22.0 + 3.25)).abs() < 0.02, "half a second at 6.5 m/s: {}", r.pos.x);
+    }
+
+    #[test]
+    fn the_rat_has_its_own_pace_slower_than_a_human_sprint() {
+        let (c, g) = world();
+        let mut rat = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Rat);
+        walk(&mut rat, 1, 30, &c, &g); // half a second
+        assert!((rat.pos.x - (-22.0 + red_engine2::player::RAT_SPEED * 0.5)).abs() < 0.03, "{}", rat.pos.x);
+        assert!(rat.pos.x - (-22.0) < red_engine2::player::SPRINT_SPEED * 0.5 - 0.5, "well short of a human sprint's half-second distance");
+        assert!(rat.pos.x - (-22.0) > red_engine2::player::WALK_SPEED * 0.5 + 0.2, "but brisker than a human's walk");
+    }
+
+    #[test]
+    fn diagonal_movement_is_not_faster_and_hostile_input_cannot_exceed_full_speed() {
+        let (c, g) = world();
+        let mut s = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
+        for k in 0..60 {
+            // forward and strafe both "127": sanitised to 1, and diagonals are normalised.
+            let yaw = s.yaw;
+            step_player(&mut s, &PlayerInput { seq: k, forward: 127, strafe: 127, yaw, ..Default::default() }, &c, &g);
+        }
+        let moved = (s.pos - Vec2::new(-22.0, -3.0)).length();
+        assert!(moved <= 3.2 + 0.02, "moved {moved} m in a second");
+        let mut n = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
+        step_player(&mut n, &PlayerInput { forward: 1, yaw: f32::NAN, pitch: f32::INFINITY, ..Default::default() }, &c, &g);
+        assert!(n.pos.is_finite() && n.yaw.is_finite() && n.pitch.is_finite());
+    }
+
+    #[test]
+    fn walls_stop_a_player_and_the_step_is_deterministic() {
+        let (c, g) = world();
+        let mut a = PlayerState::spawn(-22.0, -3.0, 0.0, 270.0, Character::Human); // facing -X, into the west wall
+        let mut b = a;
+        walk(&mut a, 1, 300, &c, &g);
+        walk(&mut b, 1, 300, &c, &g);
+        assert_eq!(a, b, "same inputs, same result");
+        assert!(a.pos.x > -23.9, "stopped by the wall at x = -24: {}", a.pos.x);
+    }
+
+    #[test]
+    fn the_rat_squeezes_through_a_gap_the_human_cannot() {
+        let (c, g) = world();
+        let mut rat = PlayerState::spawn(-13.0, -6.5, 0.0, 90.0, Character::Rat);
+        walk(&mut rat, 1, 120, &c, &g);
+        assert!(rat.pos.x > -11.0, "the rat passes the 0.25 m gap: {}", rat.pos.x);
+        let mut human = PlayerState::spawn(-13.0, -6.5, 0.0, 90.0, Character::Human);
+        walk(&mut human, 1, 120, &c, &g);
+        assert!(human.pos.x < -12.0, "the human does not: {}", human.pos.x);
+    }
+
+    #[test]
+    fn jumping_leaves_the_ground_and_lands_again() {
+        let (c, g) = world();
+        let mut s = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
+        let yaw = s.yaw;
+        step_player(&mut s, &PlayerInput { jump: true, yaw, ..Default::default() }, &c, &g);
+        assert!(s.foot_y > 0.0);
+        let mut peak = 0.0f32;
+        for _ in 0..60 {
+            let yaw = s.yaw;
+            step_player(&mut s, &PlayerInput { yaw, ..Default::default() }, &c, &g);
+            peak = peak.max(s.foot_y);
+        }
+        assert!(peak > 0.3 && peak < 0.5, "jump apex ~0.4 m: {peak}");
+        assert_eq!(s.foot_y, 0.0);
+    }
+
+    #[test]
+    fn authored_arena_tuning_and_jump_pads_are_deterministic() {
+        let (c, g) = world();
+        let tuning =
+            PlayerTuning { fov_deg: 90.0, walk_speed: 9.0, sprint_speed: 13.0, crouch_multiplier: 0.5, jump_speed: 6.0, gravity: 18.0, ..Default::default() };
+        let pad = JumpPad { id: "test_pad".into(), center: Vec2::new(-22.0, -3.0), size: Vec2::splat(2.0), foot_y: 0.0, launch_speed: 11.0 };
+        let mut a = PlayerState::spawn(-22.0, -3.0, 0.0, 90.0, Character::Human);
+        let mut b = a;
+        for k in 0..30 {
+            let input = PlayerInput { seq: k, forward: 1, yaw: 90f32.to_radians(), ..Default::default() };
+            step_player_tuned(&mut a, &input, &c, &g, tuning, std::slice::from_ref(&pad));
+            step_player_tuned(&mut b, &input, &c, &g, tuning, std::slice::from_ref(&pad));
+        }
+        assert_eq!(a, b, "authored movement stays bit-identical");
+        assert!(a.pos.x > -18.0, "fast profile moved {:.2} m", a.pos.x + 22.0);
+        assert!(a.foot_y > 1.0, "jump pad launched to y={}", a.foot_y);
+    }
+}
+
+/// `sim::match_sim` on the Test Lab: moved from the module's own tests when `sim::match_sim` moved into the core.
+mod match_sim {
+    use glam::Vec3;
+    use red_engine2::player::Character;
+    use red_engine2::sim::match_sim::*;
+    use red_engine2::sim::player::PlayerInput;
+    use red_engine2::sim::spawns::parse_spawns;
+    use std::path::Path;
+
+    fn lab_sim(group: &str) -> MatchSim {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json");
+        let scene = red_engine2::load_scene(&path).unwrap();
+        let mut spawns = parse_spawns(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        if !group.is_empty() {
+            spawns.retain(|s| s.group == group);
+        }
+        MatchSim::new(&scene, spawns)
+    }
+
+    fn input(seq: u32, forward: i8, yaw_deg: f32) -> PlayerInput {
+        PlayerInput { seq, forward, yaw: yaw_deg.to_radians(), ..Default::default() }
+    }
+
+    #[test]
+    fn players_join_at_distinct_spawns_and_the_match_fills_up() {
+        let mut sim = lab_sim("duel");
+        let a = sim.add_player(Character::Human).unwrap();
+        let b = sim.add_player(Character::Rat).unwrap();
+        assert_ne!(a, b);
+        assert_ne!(sim.player(a).unwrap().state.pos, sim.player(b).unwrap().state.pos);
+        for _ in 2..MAX_PLAYERS {
+            assert!(sim.add_player(Character::Human).is_some());
+        }
+        assert!(sim.add_player(Character::Human).is_none(), "match is full");
+        sim.remove_player(a);
+        assert_eq!(sim.add_player(Character::Human), Some(a), "the freed slot is reused");
+    }
+
+    #[test]
+    fn a_player_moves_only_by_processed_inputs_and_does_not_move_without_them() {
+        let mut sim = lab_sim("duel");
+        let a = sim.add_player(Character::Human).unwrap();
+        let start = sim.player(a).unwrap().state.pos;
+        for _ in 0..30 {
+            sim.tick_once(); // no inputs: no movement (and no extrapolation)
+        }
+        assert_eq!(sim.player(a).unwrap().state.pos, start);
+        for k in 1..=60 {
+            assert!(sim.push_input(a, input(k, 1, 90.0)));
+            sim.tick_once();
+        }
+        let p = sim.player(a).unwrap();
+        assert_eq!(p.last_processed_seq, 60);
+        assert!((p.state.pos.x - (start.x + 3.2)).abs() < 0.05, "one second forward: {}", p.state.pos.x - start.x);
+    }
+
+    #[test]
+    fn duplicate_and_stale_inputs_are_ignored_and_a_backlog_catches_up() {
+        let mut sim = lab_sim("duel");
+        let a = sim.add_player(Character::Human).unwrap();
+        assert!(sim.push_input(a, input(5, 1, 90.0)));
+        assert!(!sim.push_input(a, input(5, 1, 90.0)), "duplicate");
+        assert!(!sim.push_input(a, input(4, 1, 90.0)), "stale");
+        for k in 6..=12 {
+            sim.push_input(a, input(k, 1, 90.0));
+        }
+        sim.tick_once();
+        assert_eq!(sim.player(a).unwrap().last_processed_seq, 6, "queue over the target: two inputs in one tick (5 then 6)");
+        for _ in 0..10 {
+            sim.tick_once();
+        }
+        assert_eq!(sim.player(a).unwrap().last_processed_seq, 12);
+    }
+
+    #[test]
+    fn a_hostile_client_cannot_move_faster_than_full_speed() {
+        let mut sim = lab_sim("duel");
+        let a = sim.add_player(Character::Human).unwrap();
+        let start = sim.player(a).unwrap().state.pos;
+        for k in 1..=60 {
+            sim.push_input(
+                a,
+                PlayerInput { seq: k, forward: 100, strafe: -100, sprint: false, yaw: std::f32::consts::FRAC_PI_2, pitch: f32::NAN, ..Default::default() },
+            );
+            sim.tick_once();
+        }
+        assert!((sim.player(a).unwrap().state.pos - start).length() <= 3.3);
+    }
+
+    #[test]
+    fn walking_into_a_barrel_moves_it_authoritatively_for_everyone() {
+        let mut sim = lab_sim("props");
+        let a = sim.add_player(Character::Human).unwrap(); // spawn_props_a faces -Z toward domino_0
+        assert_eq!(sim.props().dynamic_count(), 0, "nothing is promoted until something touches it");
+        let before: Vec<Vec3> = (0..sim.props().props().len()).map(|i| sim.props().prop_pose(i).w_axis.truncate()).collect();
+        for k in 1..=120 {
+            sim.push_input(a, input(k, 1, 0.0)); // walk toward -Z, into the barrels at z = 4
+            sim.tick_once();
+        }
+        assert!(sim.props().dynamic_count() >= 1, "the barrel was promoted");
+        let moved = (0..before.len()).filter(|&i| (sim.props().prop_pose(i).w_axis.truncate() - before[i]).length() > 0.1).count();
+        assert!(moved >= 1, "and it moved");
+        let e = sim.props().entities();
+        assert!(!e.is_empty() && (0..e.len()).any(|s| e.transforms.get(s).position != before[sim.props().prop_of_entity(s)]));
+    }
+
+    #[test]
+    fn identical_inputs_give_identical_checksums_and_different_inputs_do_not() {
+        let run = |turn: f32| {
+            let mut sim = lab_sim("props");
+            let a = sim.add_player(Character::Human).unwrap();
+            for k in 1..=150 {
+                sim.push_input(a, input(k, 1, turn));
+                sim.tick_once();
+            }
+            sim.checksum()
+        };
+        assert_eq!(run(0.0), run(0.0), "deterministic on one machine");
+        assert_ne!(run(0.0), run(20.0));
+    }
+
+    #[test]
+    fn removing_a_player_removes_their_physics_body_too() {
+        let mut sim = lab_sim("duel");
+        let a = sim.add_player(Character::Human).unwrap();
+        let b = sim.add_player(Character::Human).unwrap();
+        let bodies = sim.props().body_count();
+        sim.remove_player(a);
+        assert_eq!(sim.props().body_count(), bodies - 1);
+        assert_eq!(sim.player_count(), 1);
+        assert!(sim.player(b).is_some() && sim.player(a).is_none());
+    }
+}

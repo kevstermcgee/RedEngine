@@ -8,7 +8,7 @@ fn scene(objects: &str) -> Scene {
             {{"id":"floor","type":"box","position":[0,-0.1,0],"size":[40,0.2,40],"material":{{"color":"#888888"}}}},
             {objects}]}}"##
     );
-    crate::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"))
+    crate::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"))
 }
 
 fn settle(w: &mut PropWorld, scene: &mut Scene, ticks: usize) {
@@ -542,7 +542,7 @@ fn generated_scene(x: f32, z: f32) -> (Scene, f32) {
         r##"{{"camera":{{"position":[0,1.7,5],"target":[0,1,0]}},"procgen":{{"seed":7}},"objects":[
             {{"id":"crate","type":"prop","prop":"crate","position":[{x},{h},{z}],"material":{{"color":"#a07040"}}}}]}}"##
     );
-    (crate::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}")), h)
+    (crate::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}")), h)
 }
 
 /// A gently sloping spot of the seed-7 world at least half a metre below (a hollow) or above (a hill) y = 0.
@@ -625,7 +625,7 @@ fn a_flat_scene_keeps_its_flat_floor_and_a_prop_free_generated_scene_builds_no_h
     let flat = scene(r##"{"id":"crate","type":"prop","prop":"crate","position":[0,0,0]}"##);
     assert!(natural_ground_floor(&flat, &loose_props(&flat, None)).is_none());
     let text = r##"{"camera":{"position":[0,1.7,5],"target":[0,1,0]},"procgen":{"seed":7},"objects":[]}"##;
-    let empty = crate::scene_blocks::parse_scene(text).unwrap();
+    let empty = crate::schema::parse_scene(text).unwrap();
     assert!(natural_ground_floor(&empty, &loose_props(&empty, None)).is_none(), "nothing loose, nothing to hold");
     let (s, _) = generated_scene(spot(true).0, spot(true).1);
     assert!(natural_ground_floor(&s, &loose_props(&s, None)).is_some());

@@ -26,12 +26,12 @@ glossary` prints the lot). Terms are grouped; each line says what it *is* and wh
   `stairs`, `group`, `humanoid`, `prop`, `prefab`). `red_engine2 describe objects`.
 - **primitive** — `box`, `sphere`, `cylinder`, `cone`, `capsule`, `plane`. **Only `box` collides.**
 - **macro / sugar** — an object type expanded into plain boxes *at parse time* (`wall`, `fence`).
-  Nothing downstream ever sees the macro (ADR 0006). Lives in `src/macros.rs`.
+  Nothing downstream ever sees the macro (ADR 0006). Lives in `crates/red_core/src/macros.rs`.
 - **prop** — a Rust-built object with a custom collision policy (sofa, crate, vending machine…),
-  defined in `src/props.rs`. 39 of them. Origin = middle of the **base**, front = local **+Z**.
+  defined in `crates/red_core/src/props.rs`. 39 of them. Origin = middle of the **base**, front = local **+Z**.
 - **prefab** — a parametric group of objects authored in **JSON** (`assets/*.json`); placed like a
   prop with `"type":"prefab"`. ~100 of them. New assets need no Rust (ADR 0002). Expanded at parse
-  time by `src/prefabs.rs`. `$param` / `"=expr"` / `extends` are its template syntax.
+  time by `crates/red_core/src/prefabs.rs`. `$param` / `"=expr"` / `extends` are its template syntax.
 - **catalogue** (`catalog`) — the searchable list of every prop and prefab, with real sizes, tags and
   a paste-ready snippet. `--sheet out.png` renders a labelled contact sheet.
 - **zone** — a named rectangle (`id`, `rect`, `y`) declaring a room or yard. Affects nothing in

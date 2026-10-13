@@ -7,7 +7,7 @@
     "compatibility": "Names are stable API identifiers. Prefer a new variant and deprecate the old identifier instead of silently changing its meaning."
   },
   "packs": [
-    {"id": "prop", "file": "src/props.rs", "description": "Engine-native objects that need custom collision or gameplay behavior", "tags": ["physics", "gameplay"]},
+    {"id": "prop", "file": "crates/red_core/src/props.rs", "description": "Engine-native objects that need custom collision or gameplay behavior", "tags": ["physics", "gameplay"]},
     {"id": "food", "file": "assets/food.json", "description": "Reusable food, drink, and table-setting pieces", "tags": ["small", "surface"]},
     {"id": "kitchen", "file": "assets/kitchen.json", "description": "Kitchen fixtures, appliances, cookware, and service items", "tags": ["interior", "utility"]},
     {"id": "furniture", "file": "assets/furniture.json", "description": "General-purpose seating, tables, storage, and residential furniture", "tags": ["interior", "layout"]},

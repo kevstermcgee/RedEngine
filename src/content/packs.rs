@@ -30,7 +30,7 @@ pub struct PackPolicy {
 #[serde(deny_unknown_fields)]
 pub struct Pack {
     pub id: String,
-    /// The pack's file, repository-relative (`assets/food.json`; `src/props.rs` for the engine-native props).
+    /// The pack's file, repository-relative (`assets/food.json`; `crates/red_core/src/props.rs` for the engine-native props).
     pub file: String,
     pub description: String,
     pub tags: Vec<String>,
