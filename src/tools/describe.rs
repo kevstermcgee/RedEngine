@@ -5,9 +5,8 @@
 //! the linter can emit must be described here).
 //!
 //! Topics: `overview` (default), `commands`, `objects`, `scene` (top-level keys), `lint`,
-//! `physics`, `conventions`, `glossary` and `decisions` (embedded `docs/`), `all` (everything, for `--json`).
+//! `physics`, `conventions`, `glossary` and `decisions` (`docs/`, read from the checkout: `own_docs`), `all` (everything, for `--json`).
 
-use super::search;
 use crate::player;
 use serde_json::{json, Value};
 
@@ -927,8 +926,8 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "lint" => all["lint"].clone(),
             "physics" => all["physics"].clone(),
             "conventions" => all["conventions"].clone(),
-            "glossary" => json!({"markdown": search::GLOSSARY}),
-            "decisions" => json!({"markdown": search::ADR_INDEX}),
+            "glossary" => json!({"markdown": super::own_docs::docs().glossary}),
+            "decisions" => json!({"markdown": super::own_docs::docs().adr_index}),
             other => return Err(unknown(other)),
         };
         return Ok(serde_json::to_string_pretty(&v).unwrap() + "\n");
@@ -1000,9 +999,9 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
                 out.push_str(&format!("{k:<15} {d}\n"));
             }
         }
-        "glossary" => out.push_str(search::GLOSSARY),
+        "glossary" => out.push_str(&super::own_docs::docs().glossary),
         "decisions" => {
-            out.push_str(search::ADR_INDEX);
+            out.push_str(&super::own_docs::docs().adr_index);
             out.push_str("\nRead one with `red_engine2 search <topic> --kind adr` (or open docs/adr/NNNN-*.md).\n");
         }
         other => return Err(unknown(other)),

@@ -34,6 +34,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-11: Wormhole (examples/wormhole): sky.shader, audio.journey, player.still added; feedback in docs/analysis/2026-10-11-wormhole-feedback.md
 - 2026-10-11: Chroma (examples/chroma): audio.playlist (picker, drag and drop, symphonia), sky hears music, frame --song/--seed; feedback docs/analysis/2026-10-11-chroma-feedback.md
 - 2026-10-13: Aimed fields + the rule's subject prop (ADR 2026-10-13-aimed-fields-and-the-rule-s-subject-prop): fields[].toward/speed/props, aim action, self + prop lists on prop triggers and pickup/drop/prop_hit; field pushes computed in RulesEngine so offline re2 now applies fields too (it never did); Velvet Orchestra 94 generated rules -> 33 + 1 field with the card's real mechanic; recipe whistle_herd reuses it. Report: docs/analysis/2026-10-13-aimed-fields-and-subject-props.md
+- 2026-10-13: Phase 1 item 1 (docs at runtime): tools::own_docs reads SPEC/AGENTS/REFERENCE/PLAY_2D/GLOSSARY/ADRs/analysis/features.json from the checkout; build.rs embeds only for release-type builds; a doc edit 86-108 s -> 0.3 s, no compile (docs/analysis/2026-10-13-docs-read-at-runtime.md)
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.

@@ -9,7 +9,7 @@ graphics-only modules; `describe` had a byte budget that nothing reported until 
 numbers (0043-0046 were already taken on other branches) and on the shared index lines.
 
 ## Decision
-- **ADRs are files.** `build.rs` embeds `docs/adr/` and `docs/analysis/` (no Rust list). `docs/adr/README.md` holds a table generated from each file's `Summary:` line (`adr index --write`),
+- **ADRs are files.** `build.rs` embeds `docs/adr/` and `docs/analysis/` (no Rust list; since ADR 2026-10-13-the-engine-reads-its-own-docs-from-the-checkout only release-type builds embed them, dev builds read the folders). `docs/adr/README.md` holds a table generated from each file's `Summary:` line (`adr index --write`),
   merged with git's union driver so two branches that each add a row keep both. A new ADR gets a *dated* id (`adr new`), which cannot collide with the one another branch is writing; 0001-0057
   keep their numbers.
 - **Facts the code knows are derived.** The CLAUDE.md block holds binaries, features and the wire protocol; inline `<!--fact:protocol-->8<!--/fact-->` values in SPEC and AGENT_REFERENCE follow

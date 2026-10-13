@@ -39,6 +39,7 @@ pub mod museum_tool;
 pub mod nav;
 pub mod nettest;
 pub mod newgame;
+pub mod own_docs;
 pub mod package;
 pub mod patch;
 pub mod pathing;
