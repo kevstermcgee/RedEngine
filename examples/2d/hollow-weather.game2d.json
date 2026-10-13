@@ -1,0 +1,1240 @@
+{
+ "game2d": 1,
+ "id": "hollow-weather",
+ "title": "Hollow Weather",
+ "description": "Time only moves when you turn: juggle wind, tide and hurry timers to put three objects back before the ghosts claim them.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard"
+  ],
+  "persistence": [
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 320,
+  "height": 180,
+  "background": "#1b2233",
+  "scale": "fit"
+ },
+ "sounds": {
+  "tick": {
+   "seconds": 0.06,
+   "layers": [
+    {
+     "sine": 440,
+     "decay": 30
+    }
+   ]
+  },
+  "claim": {
+   "seconds": 0.25,
+   "layers": [
+    {
+     "sine": 160,
+     "decay": 10
+    }
+   ]
+  },
+  "restore": {
+   "seconds": 0.2,
+   "layers": [
+    {
+     "sine": 880,
+     "decay": 14
+    }
+   ]
+  },
+  "wind": {
+   "seconds": 0.15,
+   "layers": [
+    {
+     "sine": 300,
+     "decay": 20
+    }
+   ]
+  }
+ },
+ "vars": {
+  "wind_in": 4,
+  "tide_in": 6,
+  "hurry_in": 7,
+  "beat": 0,
+  "last": 0,
+  "best": 0,
+  "phase": 0,
+  "g1x": 300,
+  "g1y": 170,
+  "g2x": 20,
+  "g2y": 170,
+  "g3x": 160,
+  "g3y": 175
+ },
+ "persist": [
+  "best"
+ ],
+ "prefabs": {
+  "player": {
+   "tag": "player",
+   "shape": {
+    "rect": [
+     10,
+     10
+    ],
+    "color": "#ffffff"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 90
+    }
+   },
+   "clamp": true
+  },
+  "door": {
+   "tag": "door",
+   "shape": {
+    "rect": [
+     24,
+     8
+    ],
+    "color": "#7a5cff"
+   },
+   "size": [
+    24,
+    8
+   ]
+  },
+  "lamp_on": {
+   "tag": [
+    "lamp_on",
+    "on"
+   ],
+   "shape": {
+    "rect": [
+     12,
+     12
+    ],
+    "color": "#ffd75e"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "lamp_off": {
+   "tag": [
+    "lamp_off",
+    "off"
+   ],
+   "shape": {
+    "rect": [
+     12,
+     12
+    ],
+    "color": "#3a3f55"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "crate_on": {
+   "tag": [
+    "crate_on",
+    "on"
+   ],
+   "shape": {
+    "rect": [
+     12,
+     12
+    ],
+    "color": "#b9824a"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "crate_off": {
+   "tag": [
+    "crate_off",
+    "off"
+   ],
+   "shape": {
+    "rect": [
+     12,
+     12
+    ],
+    "color": "#3a3f55"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "bell_on": {
+   "tag": [
+    "bell_on",
+    "on"
+   ],
+   "shape": {
+    "rect": [
+     12,
+     12
+    ],
+    "color": "#7fd4ff"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "bell_off": {
+   "tag": [
+    "bell_off",
+    "off"
+   ],
+   "shape": {
+    "rect": [
+     12,
+     12
+    ],
+    "color": "#3a3f55"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "g1": {
+   "tag": [
+    "g1",
+    "ghost"
+   ],
+   "shape": {
+    "circle": 7,
+    "color": "#c9d3ffaa"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "g2": {
+   "tag": [
+    "g2",
+    "ghost"
+   ],
+   "shape": {
+    "circle": 7,
+    "color": "#c9d3ffaa"
+   },
+   "size": [
+    12,
+    12
+   ]
+  },
+  "g3": {
+   "tag": [
+    "g3",
+    "ghost"
+   ],
+   "shape": {
+    "circle": 7,
+    "color": "#c9d3ffaa"
+   },
+   "size": [
+    12,
+    12
+   ]
+  }
+ },
+ "scene": [
+  {
+   "prefab": "player",
+   "at": [
+    160,
+    150
+   ],
+   "id": "p"
+  },
+  {
+   "prefab": "door",
+   "at": [
+    160,
+    168
+   ]
+  },
+  {
+   "prefab": "lamp_on",
+   "at": [
+    50,
+    40
+   ]
+  },
+  {
+   "prefab": "crate_on",
+   "at": [
+    270,
+    50
+   ]
+  },
+  {
+   "prefab": "bell_on",
+   "at": [
+    160,
+    95
+   ]
+  },
+  {
+   "prefab": "g1",
+   "at": [
+    300,
+    170
+   ],
+   "id": "g1"
+  },
+  {
+   "prefab": "g2",
+   "at": [
+    20,
+    170
+   ],
+   "id": "g2"
+  },
+  {
+   "prefab": "g3",
+   "at": [
+    160,
+    175
+   ],
+   "id": "g3"
+  }
+ ],
+ "ui": [
+  {
+   "text": "TURNS {beat}/8   WIND IN {wind_in}   TIDE IN {tide_in}   HURRY IN {hurry_in}",
+   "at": [
+    4,
+    4
+   ],
+   "color": "#fff"
+  },
+  {
+   "text": "HOME {count_on}/3   BEST {best}",
+   "at": [
+    4,
+    14
+   ],
+   "color": "#9fe"
+  },
+  {
+   "text": "THE VOYAGE ENDS - YOU SAILED",
+   "at": [
+    160,
+    80
+   ],
+   "align": "center",
+   "color": "#fc0",
+   "show": "ended"
+  }
+ ],
+ "rules": [
+  {
+   "id": "turn_left",
+   "when": {
+    "press": "left"
+   },
+   "if": "last != 1 && ended == 0",
+   "do": [
+    {
+     "set": [
+      "last",
+      1
+     ]
+    },
+    {
+     "emit": "beat"
+    }
+   ]
+  },
+  {
+   "id": "turn_right",
+   "when": {
+    "press": "right"
+   },
+   "if": "last != 2 && ended == 0",
+   "do": [
+    {
+     "set": [
+      "last",
+      2
+     ]
+    },
+    {
+     "emit": "beat"
+    }
+   ]
+  },
+  {
+   "id": "turn_up",
+   "when": {
+    "press": "up"
+   },
+   "if": "last != 3 && ended == 0",
+   "do": [
+    {
+     "set": [
+      "last",
+      3
+     ]
+    },
+    {
+     "emit": "beat"
+    }
+   ]
+  },
+  {
+   "id": "turn_down",
+   "when": {
+    "press": "down"
+   },
+   "if": "last != 4 && ended == 0",
+   "do": [
+    {
+     "set": [
+      "last",
+      4
+     ]
+    },
+    {
+     "emit": "beat"
+    }
+   ]
+  },
+  {
+   "id": "tick",
+   "when": {
+    "event": "beat"
+   },
+   "do": [
+    {
+     "add": [
+      "beat",
+      1
+     ]
+    },
+    {
+     "set": [
+      "wind_in",
+      "4 - beat % 4"
+     ]
+    },
+    {
+     "set": [
+      "tide_in",
+      "6 - beat % 6"
+     ]
+    },
+    {
+     "set": [
+      "hurry_in",
+      "7 - beat % 7"
+     ]
+    },
+    {
+     "play": "tick"
+    }
+   ]
+  },
+  {
+   "id": "g1_step",
+   "when": {
+    "event": "beat"
+   },
+   "do": [
+    {
+     "set": [
+      "g1x",
+      "g1x + max(-10, min(10, 50 - g1x))"
+     ]
+    },
+    {
+     "set": [
+      "g1y",
+      "g1y + max(-10, min(10, 40 - g1y))"
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:g1",
+      "to": [
+       "g1x",
+       "g1y"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "g1_claims",
+   "when": {
+    "touch": [
+     "g1",
+     "lamp_on"
+    ]
+   },
+   "do": [
+    {
+     "become": {
+      "target": "other",
+      "prefab": "lamp_off"
+     }
+    },
+    {
+     "play": "claim"
+    },
+    {
+     "set": [
+      "g1x",
+      300
+     ]
+    },
+    {
+     "set": [
+      "g1y",
+      170
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:g1",
+      "to": [
+       300,
+       170
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "restore_lamp",
+   "when": {
+    "touch": [
+     "player",
+     "lamp_off"
+    ]
+   },
+   "do": [
+    {
+     "become": {
+      "target": "other",
+      "prefab": "lamp_on"
+     }
+    },
+    {
+     "play": "restore"
+    }
+   ]
+  },
+  {
+   "id": "g2_step",
+   "when": {
+    "event": "beat"
+   },
+   "do": [
+    {
+     "set": [
+      "g2x",
+      "g2x + max(-10, min(10, 270 - g2x))"
+     ]
+    },
+    {
+     "set": [
+      "g2y",
+      "g2y + max(-10, min(10, 50 - g2y))"
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:g2",
+      "to": [
+       "g2x",
+       "g2y"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "g2_claims",
+   "when": {
+    "touch": [
+     "g2",
+     "crate_on"
+    ]
+   },
+   "do": [
+    {
+     "become": {
+      "target": "other",
+      "prefab": "crate_off"
+     }
+    },
+    {
+     "play": "claim"
+    },
+    {
+     "set": [
+      "g2x",
+      20
+     ]
+    },
+    {
+     "set": [
+      "g2y",
+      170
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:g2",
+      "to": [
+       20,
+       170
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "restore_crate",
+   "when": {
+    "touch": [
+     "player",
+     "crate_off"
+    ]
+   },
+   "do": [
+    {
+     "become": {
+      "target": "other",
+      "prefab": "crate_on"
+     }
+    },
+    {
+     "play": "restore"
+    }
+   ]
+  },
+  {
+   "id": "g3_step",
+   "when": {
+    "event": "beat"
+   },
+   "do": [
+    {
+     "set": [
+      "g3x",
+      "g3x + max(-10, min(10, 160 - g3x))"
+     ]
+    },
+    {
+     "set": [
+      "g3y",
+      "g3y + max(-10, min(10, 95 - g3y))"
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:g3",
+      "to": [
+       "g3x",
+       "g3y"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "g3_claims",
+   "when": {
+    "touch": [
+     "g3",
+     "bell_on"
+    ]
+   },
+   "do": [
+    {
+     "become": {
+      "target": "other",
+      "prefab": "bell_off"
+     }
+    },
+    {
+     "play": "claim"
+    },
+    {
+     "set": [
+      "g3x",
+      160
+     ]
+    },
+    {
+     "set": [
+      "g3y",
+      175
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:g3",
+      "to": [
+       160,
+       175
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "restore_bell",
+   "when": {
+    "touch": [
+     "player",
+     "bell_off"
+    ]
+   },
+   "do": [
+    {
+     "become": {
+      "target": "other",
+      "prefab": "bell_on"
+     }
+    },
+    {
+     "play": "restore"
+    }
+   ]
+  },
+  {
+   "id": "wind",
+   "when": {
+    "event": "beat"
+   },
+   "if": "beat % 4 == 0",
+   "do": [
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       "min(300, p_x + 14)",
+       "p_y"
+      ]
+     }
+    },
+    {
+     "play": "wind"
+    }
+   ]
+  },
+  {
+   "id": "tide",
+   "when": {
+    "event": "beat"
+   },
+   "if": "beat % 6 == 0",
+   "do": [
+    {
+     "become": {
+      "target": "tag:bell_on",
+      "prefab": "bell_off"
+     }
+    },
+    {
+     "play": "claim"
+    }
+   ]
+  },
+  {
+   "id": "hurry",
+   "when": {
+    "event": "beat"
+   },
+   "if": "beat % 7 == 0",
+   "do": [
+    {
+     "set": [
+      "g1x",
+      "g1x + max(-10, min(10, 50 - g1x))"
+     ]
+    },
+    {
+     "set": [
+      "g1y",
+      "g1y + max(-10, min(10, 40 - g1y))"
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:g1",
+      "to": [
+       "g1x",
+       "g1y"
+      ]
+     }
+    },
+    {
+     "play": "wind"
+    }
+   ]
+  },
+  {
+   "id": "lose_all",
+   "when": {
+    "every": 0.1
+   },
+   "if": "count_off >= 3 && ended == 0",
+   "do": [
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "lose_late",
+   "when": {
+    "every": 0.1
+   },
+   "if": "beat >= 30 && ended == 0",
+   "do": [
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "win",
+   "when": {
+    "touching": [
+     "player",
+     "door"
+    ]
+   },
+   "if": "beat >= 8 && count_off == 0 && ended == 0",
+   "do": [
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "keep_best",
+   "when": {
+    "end": "win"
+   },
+   "do": [
+    {
+     "set": [
+      "best",
+      "(best == 0) * beat + (best != 0) * min(best, beat)"
+     ]
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "idle world is frozen",
+    "seed": 1,
+    "max_seconds": 40,
+    "script": [
+     {
+      "wait": 10
+     }
+    ],
+    "expect": [
+     {
+      "var": "beat",
+      "eq": 0
+     },
+     {
+      "count": "on",
+      "eq": 3
+     }
+    ]
+   },
+   {
+    "name": "a straight run costs nothing",
+    "seed": 1,
+    "max_seconds": 40,
+    "script": [
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 1.0
+     }
+    ],
+    "expect": [
+     {
+      "var": "beat",
+      "eq": 1
+     },
+     {
+      "count": "on",
+      "eq": 3
+     }
+    ]
+   },
+   {
+    "name": "each turn advances the laws",
+    "seed": 1,
+    "max_seconds": 40,
+    "script": [
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     }
+    ],
+    "expect": [
+     {
+      "var": "beat",
+      "gte": 5
+     }
+    ]
+   },
+   {
+    "name": "jittering at the door until the voyage ends wins",
+    "seed": 1,
+    "max_seconds": 40,
+    "script": [
+     {
+      "hold": [
+       "up"
+      ],
+      "seconds": 0.5
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "up"
+      ],
+      "seconds": 0.1
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.3
+     },
+     {
+      "hold": [
+       "down"
+      ],
+      "seconds": 1.0
+     },
+     {
+      "wait": 0.3
+     }
+    ],
+    "expect": [
+     {
+      "ended": "win"
+     },
+     {
+      "var": "best",
+      "gt": 0
+     }
+    ],
+    "smoke": true
+   },
+   {
+    "name": "zigzagging forever loses the room",
+    "seed": 1,
+    "max_seconds": 40,
+    "script": [
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.05
+     },
+     {
+      "wait": 1
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     }
+    ]
+   }
+  ]
+ }
+}
