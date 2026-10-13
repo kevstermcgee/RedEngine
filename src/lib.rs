@@ -80,7 +80,7 @@ pub use red_core::score;
 pub mod settings;
 pub mod sfx;
 #[cfg(feature = "render")]
-pub mod shader_check;
+pub use red_core::shader_check;
 pub mod shadow;
 #[cfg(feature = "render")]
 pub mod shooter_world;
