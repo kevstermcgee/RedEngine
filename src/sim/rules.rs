@@ -1038,6 +1038,12 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
                     "{p}: uses `me.` but a `{kind}` trigger has no player (use enter, exit, or an event a player causes, such as `kill` or an `emit` from such a rule)"
                 ));
             }
+            // `teleport` moves the player that triggered the rule, so with no player it silently moved nobody.
+            if let (Some(kind), true) = (slotless, actions.iter().any(|a| matches!(a, Action::Teleport(_)))) {
+                errs.push(format!(
+                    "{p}: `teleport` moves the player that triggered the rule, but a `{kind}` trigger has no player, so it would move nobody (use enter, exit, or an event a player causes, such as `kill` or an `emit` from such a rule)"
+                ));
+            }
         }
         if let Some(when) = when {
             set.rules.push(Rule { id: id.to_string(), when, who, cond, once, cooldown_ticks, actions });
@@ -1347,6 +1353,14 @@ mod tests {
         ] {
             assert!(e.contains(want), "missing `{want}` in:\n{e}");
         }
+        let e = parse(json!({"vars": {}, "rules": [
+            {"id": "gasp", "when": {"every": 5.0}, "do": [{"teleport": [0, 0, 0]}]},
+            {"id": "ok", "when": {"enter": {"zone": "exit"}}, "do": [{"teleport": [0, 0, 0]}]}
+        ]}))
+        .unwrap_err()
+        .join("\n");
+        assert!(e.contains("rules[0] (gasp): `teleport` moves the player that triggered the rule, but a `every` trigger has no player"), "{e}");
+        assert!(!e.contains("rules[1]"), "{e}");
         let many: serde_json::Map<String, Value> = (0..=MAX_PLAYER_VARS).map(|i| (format!("v{i}"), json!(0))).collect();
         let e = parse(json!({"player_vars": many})).unwrap_err().join("\n");
         assert!(e.contains(&format!("at most {MAX_PLAYER_VARS} per-player variables")), "{e}");
