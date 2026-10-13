@@ -30,5 +30,21 @@
   "summary": "`pickup`, `drop` and `prop_hit` now carry the prop they are about: a rule names it `self` and `\"prop\": id` beside the event filters on it (a swing at the radio can be the dial).",
   "partial": true,
   "remaining": "rules still cannot read held inputs, the aimed-at object, the player's velocity or loudness, and carrying a prop still blocks the bat swing"
+ },
+ {
+  "key": "no-random-expression",
+  "covers": [],
+  "date": "2026-10-13",
+  "summary": "random(a, b), floor, round, abs, sqrt, min and max exist in the shared expression language since #99 (ADR 2026-10-10-story-is-rules-and-tables-not-a-story-system), play2d/re2d pick a new seed per launch; `describe rules` lists them since #115 (they were never listed, which is why runs kept reporting them missing).",
+  "partial": true,
+  "remaining": "a 3D match always uses the same seed: RulesEngine::reseed exists and nothing calls it, so 3D random draws repeat from launch to launch"
+ },
+ {
+  "key": "no-string-tables",
+  "covers": [],
+  "date": "2026-10-13",
+  "summary": "2D games have string tables, `pick`, `wrap` and a dialogue widget since #99 (ADR 2026-10-10-story-is-rules-and-tables-not-a-story-system).",
+  "partial": true,
+  "remaining": "3D scenes have no tables or `pick` (ADR 2026-10-13-the-next-phase, phase 2 item 4)"
  }
 ]
