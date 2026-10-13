@@ -322,6 +322,39 @@ pub fn cycles(uses: &BTreeMap<String, BTreeSet<String>>) -> Vec<Vec<String>> {
     out
 }
 
+/// What some modules reach through `uses`, and the edges by which they reach the modules they should not.
+#[derive(Debug, Default, PartialEq)]
+pub struct Reach {
+    /// Every module the roots reach, the roots included.
+    pub reached: BTreeSet<String>,
+    /// `(from, to)`: `from` is reached and not outside, `to` is outside.
+    pub crossings: Vec<(String, String)>,
+    /// What the roots reach once the crossings are cut.
+    pub without: BTreeSet<String>,
+}
+
+/// Follows `uses` from `roots`; `outside` says which modules the roots should not reach (`src deps --reach A,B --into C,D`).
+pub fn reach(uses: &BTreeMap<String, BTreeSet<String>>, roots: &[String], outside: impl Fn(&str) -> bool) -> Reach {
+    let walk = |enter: &dyn Fn(&str) -> bool| {
+        let mut seen = BTreeSet::new();
+        let mut todo: Vec<&str> = roots.iter().map(String::as_str).filter(|m| uses.contains_key(*m)).collect();
+        while let Some(m) = todo.pop() {
+            if seen.insert(m.to_string()) {
+                todo.extend(uses[m].iter().map(String::as_str).filter(|u| uses.contains_key(*u) && enter(u)));
+            }
+        }
+        seen
+    };
+    let reached = walk(&|_| true);
+    let crossings = reached
+        .iter()
+        .filter(|a| !outside(a))
+        .flat_map(|a| uses[a.as_str()].iter().filter(|b| outside(b) && uses.contains_key(b.as_str())).map(move |b| (a.clone(), b.clone())))
+        .collect();
+    let without = walk(&|m| !outside(m));
+    Reach { reached, crossings, without }
+}
+
 /// One module as the core frontier sees it.
 pub struct Node<'a> {
     pub name: &'a str,
@@ -461,6 +494,18 @@ mod tests {
         let f = core_frontier(&nodes, |m| m != "gfx", &set(&["glam"]));
         assert_eq!(f.rounds, vec![vec!["a".to_string()], vec!["b".to_string()]]);
         assert_eq!(f.need_crates, vec![("d".to_string(), vec!["wgpu".to_string()])]);
+    }
+
+    #[test]
+    fn reach_lists_the_edges_into_the_outside_and_what_is_left_without_them() {
+        let mut g: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (k, v) in [("srv", &["sim", "ui"][..]), ("sim", &["geo", "tools::x"]), ("geo", &[]), ("ui", &["geo"]), ("tools::x", &["sim"]), ("lone", &[])] {
+            g.insert(k.into(), set(v));
+        }
+        let r = reach(&g, &["srv".to_string()], |m| m == "ui" || m.starts_with("tools::"));
+        assert_eq!(r.reached, set(&["srv", "sim", "geo", "ui", "tools::x"]));
+        assert_eq!(r.crossings, vec![("sim".to_string(), "tools::x".to_string()), ("srv".to_string(), "ui".to_string())]);
+        assert_eq!(r.without, set(&["srv", "sim", "geo"]));
     }
 
     #[test]

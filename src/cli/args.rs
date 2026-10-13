@@ -76,6 +76,12 @@ pub(crate) enum SrcCmd {
         /// What `red_core` holds and which modules could move into it without cutting an edge, round by round.
         #[arg(long, conflicts_with = "module")]
         core: bool,
+        /// Modules to follow `uses` from (comma-separated): everything they reach.
+        #[arg(long, value_delimiter = ',', conflicts_with_all = ["module", "cycles", "core"])]
+        reach: Vec<String>,
+        /// With `--reach`: modules the roots should not reach (`tools` covers `tools::*`); prints the edges that lead there and what is left without them.
+        #[arg(long, value_delimiter = ',', requires = "reach")]
+        into: Vec<String>,
     },
     /// Public items missing a `///` doc comment (what `src show`/`search` display instead of source).
     Coverage {

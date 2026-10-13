@@ -9,7 +9,7 @@
 //! * `src show <symbol>`  just that item's source (bounded), not the whole file
 //! * `src refs <symbol>`  who uses it, grouped by file, with the enclosing function
 //! * `src deps [module]`  module dependency edges (uses / used by); `--cycles` the rings of modules that use one another, `--core` what
-//!   could move into `red_core` now (`tools::module_graph` reads the edges)
+//!   could move into `red_core` now, `--reach A,B --into C,D` the edges by which A and B reach C and D (`tools::module_graph` reads the edges)
 //! * `src coverage`       public items still missing a `///` doc (what find/show/search print)
 //!
 //! The scanner is line-based: it understands `fn/struct/enum/trait/type/const/static/mod/impl`,
@@ -624,6 +624,42 @@ pub fn render_cycles(ix: &Index) -> String {
     out
 }
 
+/// Renders `src deps --reach A,B --into C,D`: what the roots reach, the edges by which they reach the `into` modules (a name covers its
+/// submodules: `tools` is `tools` and `tools::*`), and what they reach once those edges are cut.
+pub fn render_reach(ix: &Index, roots: &[String], into: &[String]) -> Result<String, String> {
+    let mods = modules(ix);
+    let g: BTreeMap<String, BTreeSet<String>> = mods.iter().map(|m| (m.name.clone(), m.uses.clone())).collect();
+    if let Some(r) = roots.iter().find(|r| !g.contains_key(r.as_str())) {
+        return Err(format!("no module '{r}' (try `src map`)"));
+    }
+    let lines: BTreeMap<&str, usize> = mods.iter().map(|m| (m.name.as_str(), m.lines)).collect();
+    let size = |s: &BTreeSet<String>| s.iter().filter_map(|m| lines.get(m.as_str())).sum::<usize>();
+    let outside = |m: &str| into.iter().any(|p| m == p || m.strip_prefix(p.as_str()).is_some_and(|r| r.starts_with("::")));
+    let r = module_graph::reach(&g, roots, outside);
+    let mut out = format!("{} reach {} modules ({} lines).\n", roots.join(", "), r.reached.len(), size(&r.reached));
+    if into.is_empty() {
+        out.push_str(&format!("    {}\n", r.reached.iter().cloned().collect::<Vec<_>>().join(", ")));
+        return Ok(out);
+    }
+    let mut by: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for (a, b) in &r.crossings {
+        by.entry(a.as_str()).or_default().push(b.as_str());
+    }
+    out.push_str(&format!("{} edge(s) from {} module(s) lead into {}:\n", r.crossings.len(), by.len(), into.join(", ")));
+    let mut rows: Vec<(&str, Vec<&str>)> = by.into_iter().collect();
+    rows.sort_by(|a, b| b.1.len().cmp(&a.1.len()).then(a.0.cmp(b.0)));
+    for (a, bs) in rows {
+        out.push_str(&format!("  {a} -> {}\n", bs.join(", ")));
+    }
+    out.push_str(&format!(
+        "cut those and they reach {} modules ({} lines):\n    {}\n",
+        r.without.len(),
+        size(&r.without),
+        r.without.iter().cloned().collect::<Vec<_>>().join(", ")
+    ));
+    Ok(out)
+}
+
 /// Renders `src deps --core`: what `red_core` holds and what could move into it now without cutting an edge (ADR
 /// 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share: a module moves only when everything it uses is there).
 pub fn render_core(ix: &Index) -> String {
@@ -742,6 +778,8 @@ mod tests {
         assert!(jc.lines().nth(1).is_some_and(|l| l.contains("red_core") && !l.contains(" net,")), "{jc}");
         assert!(render_core(&ix).starts_with("red_core holds "));
         assert!(render_cycles(&ix).contains("modules, "));
+        let reach = render_reach(&ix, &["schema".to_string()], &["tools".to_string()]).unwrap();
+        assert!(reach.starts_with("schema reach ") && reach.contains("cut those and they reach "), "{reach}");
         assert!(render_map(&ix).contains("tools::verify"));
     }
 }
