@@ -770,7 +770,7 @@ pub(crate) fn run_package(zip: &Path, verify: bool, allow_dirty: bool, no_build:
 }
 
 pub(crate) fn run_portmap(action: &str, port: u16, lease: u32, router: Option<std::net::IpAddr>, allow_permanent: bool) -> Result<(), String> {
-    use red_engine2::tools::portmap::{self, Options};
+    use red_engine2::net::portmap::{self, Options};
     let opts = Options { port, lease, router, allow_permanent };
     let out = match action {
         "status" => portmap::status(&opts),

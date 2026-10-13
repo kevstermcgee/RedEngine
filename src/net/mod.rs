@@ -35,6 +35,7 @@ pub use red_core::net::netsim;
 pub mod predict;
 pub mod protocol;
 pub mod quic;
+pub use red_core::net::portmap;
 pub use red_core::net::relay;
 pub mod relay_server;
 pub mod server;
