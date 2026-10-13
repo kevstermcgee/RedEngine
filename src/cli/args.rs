@@ -67,8 +67,16 @@ pub(crate) enum SrcCmd {
         #[arg(long, default_value_t = 40)]
         limit: usize,
     },
-    /// Module dependency edges (uses / used by).
-    Deps { module: Option<String> },
+    /// Module dependency edges (uses / used by), the rings of modules that use one another, or what could move into `red_core` now.
+    Deps {
+        module: Option<String>,
+        /// The rings of modules that use one another (strongly connected components), largest first.
+        #[arg(long, conflicts_with_all = ["module", "core"])]
+        cycles: bool,
+        /// What `red_core` holds and which modules could move into it without cutting an edge, round by round.
+        #[arg(long, conflicts_with = "module")]
+        core: bool,
+    },
     /// Public items missing a `///` doc comment (what `src show`/`search` display instead of source).
     Coverage {
         /// Only files whose path contains this (`--file tools/lint`).

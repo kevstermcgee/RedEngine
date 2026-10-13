@@ -118,7 +118,7 @@ Play a map: `cargo run --release --bin re2 -- examples/house.json` (`RE2_STATS=1
 | `context <feature\|file\|words> [--git] [--budget N]` | A 5-15 KB work packet for a Rust change: files, public API with doc lines, tests, verification command, ADR pointers | replaces `src map` + outlines + doc reads; `src map <prefix>` for a slice of the module map |
 | `replay <trace>` | Re-run a recorded match with no renderer/socket; first divergent tick + state diff | `--scene map.json`, `--against other.json` |
 | `diff a b` / `diff a --git` | Semantic diff by object id (added/removed/changed fields) | ignores formatting + float noise |
-| `src map\|find\|outline\|show\|refs\|deps\|coverage` | Navigate the engine's Rust without reading files | scans on demand (never stale); `show` prints one item, bounded; `coverage` lists pub items missing a `///` doc |
+| `src map\|find\|outline\|show\|refs\|deps\|coverage` | Navigate the engine's Rust without reading files | scans on demand (never stale); `show` prints one item, bounded; `coverage` lists pub items missing a `///` doc; `deps --cycles` the rings of modules that use one another, `deps --core` what could move into `red_core` now |
 | `props` | The prop library: sizes, collision, conventions | check dimensions here before placing |
 | `set <scene> <id> path=value...` | Change fields: `position.1=3.0`, `material.color=#aa3322`, `rotation=[0,90,0]` | dotted paths, JSON values |
 | `move <scene> <id> --to x,y,z \| --by dx,dy,dz` | Move (walls/fences shift their endpoints) | |

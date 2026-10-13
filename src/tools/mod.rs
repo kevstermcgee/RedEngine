@@ -35,6 +35,7 @@ pub mod gen;
 pub mod gitscope;
 pub mod inspect;
 pub mod lint;
+pub mod module_graph;
 pub mod museum_tool;
 pub mod nav;
 pub mod nettest;

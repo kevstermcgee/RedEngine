@@ -8,7 +8,8 @@
 //! * `src outline <file>` the items of one file (pub by default)
 //! * `src show <symbol>`  just that item's source (bounded), not the whole file
 //! * `src refs <symbol>`  who uses it, grouped by file, with the enclosing function
-//! * `src deps [module]`  module dependency edges (uses / used by)
+//! * `src deps [module]`  module dependency edges (uses / used by); `--cycles` the rings of modules that use one another, `--core` what
+//!   could move into `red_core` now (`tools::module_graph` reads the edges)
 //! * `src coverage`       public items still missing a `///` doc (what find/show/search print)
 //!
 //! The scanner is line-based: it understands `fn/struct/enum/trait/type/const/static/mod/impl`,
@@ -17,6 +18,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+
+use super::module_graph;
 
 /// One scanned Rust item: file, line span, kind, name, visibility, signature and doc comment.
 #[derive(Debug, Clone)]
@@ -493,13 +496,39 @@ pub struct ModInfo {
     pub purpose: String,
     pub pub_items: usize,
     pub uses: BTreeSet<String>,
+    /// The external crates it names, of those the engine and the core depend on (`wgpu`, `thiserror`, ...).
+    pub crates: BTreeSet<String>,
 }
 
-/// Summarizes every module (purpose from its `//!` header).
+/// The crates a crate's `Cargo.toml` (under `root`) depends on; none when it cannot be read.
+fn crate_deps(root: &Path, manifest: &str) -> BTreeSet<String> {
+    std::fs::read_to_string(root.join(manifest)).map(|t| module_graph::cargo_deps(&t)).unwrap_or_default()
+}
+
+/// Summarizes every module (purpose from its `//!` header, edges from `tools::module_graph`).
 pub fn modules(ix: &Index) -> Vec<ModInfo> {
-    let known: BTreeSet<String> = ix.files.iter().filter(|f| is_lib_source(&f.rel)).map(|f| module_of(&f.rel)).collect();
+    let lib: Vec<&SourceFile> = ix.files.iter().filter(|f| is_lib_source(&f.rel)).collect();
+    let all: module_graph::Known = lib.iter().map(|f| (module_of(&f.rel), module_of(&f.rel))).collect();
+    let mut core: module_graph::Known = lib.iter().filter(|f| f.rel.starts_with(CORE_SRC)).map(|f| (module_of(&f.rel), module_of(&f.rel))).collect();
+    let mut crates = crate_deps(&ix.root, "Cargo.toml");
+    crates.extend(crate_deps(&ix.root, "crates/red_core/Cargo.toml"));
+    crates.remove("red_core");
+    // Per file: the test modules to skip and the other inline modules (`mod x { ... }`), where `super::` starts from.
+    type Spans = (Vec<(usize, usize)>, Vec<(usize, usize, String)>);
+    let mut spans: BTreeMap<&str, Spans> = BTreeMap::new();
+    for s in ix.symbols.iter().filter(|s| s.kind == "mod" && s.end > s.line) {
+        let e = spans.entry(s.file.as_str()).or_default();
+        if s.in_tests {
+            e.0.push((s.line, s.end));
+        } else {
+            e.1.push((s.line, s.end, s.name.clone()));
+            if s.file == format!("{CORE_SRC}/lib.rs") {
+                core.insert(s.name.clone(), "red_core".to_string()); // red_core's inline `pub mod sim { ... }`
+            }
+        }
+    }
     let mut out = Vec::new();
-    for f in ix.files.iter().filter(|f| is_lib_source(&f.rel)) {
+    for f in lib {
         let name = module_of(&f.rel);
         let purpose = f
             .lines
@@ -507,35 +536,18 @@ pub fn modules(ix: &Index) -> Vec<ModInfo> {
             .take_while(|l| l.trim_start().starts_with("//!") || l.trim().is_empty())
             .find_map(|l| l.trim_start().strip_prefix("//!").map(|s| s.trim().to_string()).filter(|s| !s.is_empty()))
             .unwrap_or_default();
-        let mut uses = BTreeSet::new();
-        let in_tools = name.starts_with("tools::");
-        for l in &f.lines {
-            let code = l.split("//").next().unwrap_or("");
-            let mut rest = code;
-            while let Some(p) = rest.find("crate::") {
-                rest = &rest[p + 7..];
-                let seg: Vec<&str> =
-                    rest.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':')).next().unwrap_or("").split("::").filter(|s| !s.is_empty()).collect();
-                if let Some(first) = seg.first() {
-                    let cand2 = seg.get(1).map(|s| format!("{first}::{s}"));
-                    let m = cand2.filter(|c| known.contains(c)).unwrap_or_else(|| first.to_string());
-                    if known.contains(&m) && m != name {
-                        uses.insert(m);
-                    }
-                }
-            }
-            if in_tools {
-                if let Some(r) = code.trim_start().strip_prefix("use super::") {
-                    let first: String = r.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
-                    let m = format!("tools::{first}");
-                    if known.contains(&m) && m != name {
-                        uses.insert(m);
-                    }
-                }
-            }
-        }
+        let (skip, inline) = spans.get(f.rel.as_str()).map(|(a, b)| (a.as_slice(), b.as_slice())).unwrap_or((&[], &[]));
+        let src = module_graph::FileSource { rel: &f.rel, module: &name, lines: &f.lines, skip, inline };
+        let own = if f.rel.starts_with(CORE_SRC) { &core } else { &all };
+        // A test file (`#[cfg(test)] mod tests;`) has no edges, like an inline test module.
+        let test_file = name.rsplit("::").next().is_some_and(|l| l == "tests" || l.ends_with("_tests"));
+        let edges = if test_file {
+            module_graph::FileEdges::default()
+        } else {
+            module_graph::file_edges(&src, &module_graph::Resolver { own, core: &core, lib: &all }, &crates)
+        };
         let pub_items = ix.symbols.iter().filter(|s| s.file == f.rel && s.public && !s.in_tests && s.container.is_none()).count();
-        out.push(ModInfo { name, file: f.rel.clone(), lines: f.lines.len(), purpose, pub_items, uses });
+        out.push(ModInfo { name, file: f.rel.clone(), lines: f.lines.len(), purpose, pub_items, uses: edges.uses, crates: edges.crates });
     }
     out
 }
@@ -593,6 +605,62 @@ pub fn render_deps(ix: &Index, module: Option<&str>) -> Result<String, String> {
         ));
     }
     Ok(out)
+}
+
+/// Renders `src deps --cycles`: the rings of modules that use one another, largest first, with their size.
+pub fn render_cycles(ix: &Index) -> String {
+    let mods = modules(ix);
+    let lines: BTreeMap<&str, usize> = mods.iter().map(|m| (m.name.as_str(), m.lines)).collect();
+    let g: BTreeMap<String, BTreeSet<String>> = mods.iter().map(|m| (m.name.clone(), m.uses.clone())).collect();
+    let rings = module_graph::cycles(&g);
+    let mut out = format!(
+        "{} ring(s) of modules that use one another (each reaches every other); a ring moves to another crate whole, or one of its edges is cut first:\n",
+        rings.len()
+    );
+    for r in &rings {
+        let total: usize = r.iter().filter_map(|m| lines.get(m.as_str())).sum();
+        out.push_str(&format!("\n{} modules, {total} lines:\n    {}\n", r.len(), r.join(", ")));
+    }
+    out
+}
+
+/// Renders `src deps --core`: what `red_core` holds and what could move into it now without cutting an edge (ADR
+/// 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share: a module moves only when everything it uses is there).
+pub fn render_core(ix: &Index) -> String {
+    let mods = modules(ix);
+    let core_crates = crate_deps(&ix.root, "crates/red_core/Cargo.toml");
+    let nodes: Vec<module_graph::Node> =
+        mods.iter().map(|m| module_graph::Node { name: &m.name, in_core: m.file.starts_with(CORE_SRC), uses: &m.uses, crates: &m.crates }).collect();
+    let file: BTreeMap<&str, &str> = mods.iter().map(|m| (m.name.as_str(), m.file.as_str())).collect();
+    let lines: BTreeMap<&str, usize> = mods.iter().map(|m| (m.name.as_str(), m.lines)).collect();
+    // Binaries, the CLI and the crate roots stay where they are; a directory module (`sim`) moves after its children.
+    let parents: BTreeSet<&str> =
+        mods.iter().filter(|m| !m.file.starts_with(CORE_SRC)).flat_map(|m| m.name.match_indices("::").map(|(i, _)| &m.name[..i]).collect::<Vec<_>>()).collect();
+    let may_move = |m: &str| {
+        !parents.contains(m)
+            && file.get(m).is_some_and(|f| !(f.starts_with("src/bin/") || f.starts_with("src/cli/") || matches!(*f, "src/main.rs" | "src/lib.rs")))
+    };
+    let f = module_graph::core_frontier(&nodes, may_move, &core_crates);
+    let sized = |m: &str| format!("{m} ({})", lines.get(m).copied().unwrap_or(0));
+    let core: Vec<&module_graph::Node> = nodes.iter().filter(|n| n.in_core).collect();
+    let core_lines: usize = core.iter().filter_map(|n| lines.get(n.name)).sum();
+    let mut out = format!("red_core holds {} modules ({core_lines} lines).\n", core.len());
+    if f.rounds.is_empty() {
+        out.push_str("nothing else can move without cutting an edge first.\n");
+    } else {
+        out.push_str("could move now without cutting an edge (round k uses only the core and the rounds before it; lines in brackets):\n");
+        for (k, r) in f.rounds.iter().enumerate() {
+            out.push_str(&format!("  {}: {}\n", k + 1, r.iter().map(|m| sized(m)).collect::<Vec<_>>().join(", ")));
+        }
+    }
+    if !f.need_crates.is_empty() {
+        out.push_str("could move once the core depends on their crates:\n");
+        for (m, c) in &f.need_crates {
+            out.push_str(&format!("  {}: {}\n", sized(m), c.join(", ")));
+        }
+    }
+    out.push_str("the rest use a module that cannot move yet: `src deps --cycles` shows the rings, `src deps <module>` one module's edges.\n");
+    out
 }
 
 /// Doc-comment coverage of public items (`src coverage`): the total, per-file counts for files with
@@ -669,6 +737,11 @@ mod tests {
         assert!(r.contains("src/tools/walk.rs"), "{r}");
         let deps = render_deps(&ix, Some("tools::lint")).unwrap();
         assert!(deps.contains("tools::world"), "{deps}");
+        // `super::` in a core file names a core module, not the engine's module of the same path (`super::DEFAULT_PORT` is red_core's).
+        let jc = render_deps(&ix, Some("net::join_code")).unwrap();
+        assert!(jc.lines().nth(1).is_some_and(|l| l.contains("red_core") && !l.contains(" net,")), "{jc}");
+        assert!(render_core(&ix).starts_with("red_core holds "));
+        assert!(render_cycles(&ix).contains("modules, "));
         assert!(render_map(&ix).contains("tools::verify"));
     }
 }

@@ -99,7 +99,9 @@ pub(crate) fn run_src(cmd: SrcCmd) -> Result<(), String> {
         SrcCmd::Outline { file, all } => print!("{}", symbols::outline(&ix, &file, all)?),
         SrcCmd::Show { symbol, lines } => print!("{}", symbols::show(&ix, &symbol.join(" "), lines.max(1))?),
         SrcCmd::Refs { symbol, limit } => print!("{}", symbols::refs(&ix, &symbol, limit)),
-        SrcCmd::Deps { module } => print!("{}", symbols::render_deps(&ix, module.as_deref())?),
+        SrcCmd::Deps { cycles: true, .. } => print!("{}", symbols::render_cycles(&ix)),
+        SrcCmd::Deps { core: true, .. } => print!("{}", symbols::render_core(&ix)),
+        SrcCmd::Deps { module, .. } => print!("{}", symbols::render_deps(&ix, module.as_deref())?),
         SrcCmd::Coverage { file, limit } => print!("{}", symbols::coverage(&ix, file.as_deref(), limit)),
     }
     Ok(())
