@@ -11,7 +11,7 @@ over the checkout, and an old binary running against a newer checkout hides ever
 ## Decision
 A binary built from exactly the checkout's sources is the binary a build there would produce, so it may be used instead of building. "Exactly" is a fingerprint (`scripts/prebuilt.py`):
 the git tree entries of everything that goes into a binary (Cargo.toml, Cargo.lock, build.rs, `src/`, `crates/`, `assets/`, the folders build.rs embeds, and every file an `include_str!`/`include_bytes!` names,
-found by reading the sources so a new embedded file needs no list) hashed together. Documents that are not embedded, tests, scripts and CI files are not inputs.
+found by reading the sources so a new embedded file needs no list) hashed together. Documents that are not embedded, tests, scripts and CI files are not inputs (and since ADR 2026-10-13-a-prebuilt-for-every-change-to-what-the-binaries-do neither are the engine's own docs, which a binary reads from the checkout).
 - `package_release.sh` (so `release.yml`) writes `MANIFEST.json` and `MANIFEST-<12 hex>.json` beside the archives: the fingerprint, the commit, each archive's kind (full or headless), binaries and sha256; both are
   listed in `SHA256SUMS`. The fingerprint is in the file name so one releases-API request finds the match without downloading anything.
 - `scripts/dev red` (and everything that needs the CLI: `iterate`, `affected`, `context`, `preflight`), `scripts/dev start` and `scripts/bootstrap.sh` run in a checkout call `prebuilt.py ensure`: no usable

@@ -48,12 +48,15 @@ def git(root, *args):
 
 
 def make_checkout(tmp, spec="spec v1\n"):
-    """A tiny engine checkout under git: build inputs (one embedded by `include_str!` from outside src/), a doc that is NOT an input, and the scripts this feature ships."""
+    """A tiny engine checkout under git: build inputs (one embedded by `include_str!` from outside src/), the docs the engine reads at run time and embeds only as a
+    fallback (`own_docs.rs`, build.rs's doc folders), a doc that is NOT an input, and the scripts this feature ships."""
     root = os.path.join(tmp, "engine")
     write(os.path.join(root, "Cargo.toml"), "[package]\nname='red_engine2'\n")
     write(os.path.join(root, "Cargo.lock"), "")
     write(os.path.join(root, "build.rs"), 'const FOLDERS: &[(&str, &str, &str)] = &[("docs/adr", "adr_files.rs", "ADR_FILES")];\nfn main() {}\n')
-    write(os.path.join(root, "src", "lib.rs"), 'pub const SPEC: &str = include_str!("../SPEC.md");\n')
+    write(os.path.join(root, "src", "lib.rs"), 'pub const RECIPE: &str = include_str!("../recipes/a.json");\n')
+    write(os.path.join(root, "recipes", "a.json"), "{}\n")
+    write(os.path.join(root, "src", "tools", "own_docs.rs"), 'pub const SPEC: &str = include_str!("../../SPEC.md");\n')
     write(os.path.join(root, "SPEC.md"), spec)
     write(os.path.join(root, "docs", "adr", "0001-x.md"), "# adr\n")
     write(os.path.join(root, "docs", "HOSTING.md"), "not an input\n")
@@ -116,8 +119,9 @@ class Sandbox(unittest.TestCase):
 class Fingerprint(Sandbox):
     def test_it_covers_what_goes_into_a_binary_and_nothing_else(self):
         paths = prebuilt.input_paths(self.root)
-        self.assertIn("SPEC.md", paths, "a file include_str! embeds from outside src/ is an input")
-        self.assertIn("docs/adr", paths, "a folder build.rs embeds is an input")
+        self.assertIn("recipes/a.json", paths, "a file include_str! embeds from outside src/ is an input")
+        self.assertNotIn("SPEC.md", paths, "a doc the binary reads from the checkout (own_docs.rs embeds it only as a fallback) is not")
+        self.assertNotIn("docs/adr", paths, "nor are the doc folders build.rs embeds for release builds")
         self.assertNotIn("docs/HOSTING.md", paths)
         a = prebuilt.fingerprint(self.root)
         self.assertTrue(a["ok"], a)
@@ -126,8 +130,12 @@ class Fingerprint(Sandbox):
         commit(self.root, "docs only")
         self.assertEqual(prebuilt.fingerprint(self.root)["fingerprint"], a["fingerprint"], "a change to a file that is not an input does not change the fingerprint")
         write(os.path.join(self.root, "SPEC.md"), "spec v2\n")
-        commit(self.root, "spec")
-        self.assertNotEqual(prebuilt.fingerprint(self.root)["fingerprint"], a["fingerprint"], "an embedded file is part of the binary")
+        write(os.path.join(self.root, "docs", "adr", "0002-y.md"), "# a new decision\n")
+        commit(self.root, "spec and an ADR")
+        self.assertEqual(prebuilt.fingerprint(self.root)["fingerprint"], a["fingerprint"], "a docs-only commit keeps its prebuilt: the binary reads the docs from the checkout")
+        write(os.path.join(self.root, "recipes", "a.json"), '{"v": 2}\n')
+        commit(self.root, "recipe")
+        self.assertNotEqual(prebuilt.fingerprint(self.root)["fingerprint"], a["fingerprint"], "an embedded content file is part of the binary")
 
     def test_an_uncommitted_edit_to_an_input_or_a_missing_git_checkout_has_no_fingerprint(self):
         write(os.path.join(self.root, "src", "lib.rs"), "pub fn changed() {}\n")
