@@ -16,7 +16,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
   Item 4 (native 2D delivery) is partly there (`re2d` and the native publish route, #55); the packaged-executable walk-through it asks for has not been done.
 - Idea Forge (`docs/IDEA_FORGE.md`) runs nightly on the owner's machine, opens up to two game PRs a night and merges them when CI is green (#58-#73 so far); its backlog of engine findings is in `docs/analysis/idea-forge/`.
 - 2026-10-11: Agent loop trace phase 1: three tasks traced (docs/analysis/agent-loop-trace.md); top sinks: launchpad routing, affected false green (describe guard tests unowned), 3D search domain; awaiting review before phase 2
-- 2026-10-13: Phase 0 of the next phase: the outside review of b5b458f verified at 4c45d86 (docs/analysis/2026-10-13-next-phase-review-verified.md) and ADR 2026-10-13-the-next-phase (proposed) sequencing phases 1-3 with measured done criteria; awaiting the owner
+- 2026-10-13: Phase 0 of the next phase: the outside review of b5b458f verified at 4c45d86 (docs/analysis/2026-10-13-next-phase-review-verified.md) and ADR 2026-10-13-the-next-phase sequencing phases 1-3 with measured done criteria; accepted by the owner; Phase 1 item 1 next
 
 ## Done
 - 2026-10-09: Idea Forge runs Midnight Engine (#72) and Salted Choir (#73, feedback only: the game did not build).
@@ -36,9 +36,9 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-13: Aimed fields + the rule's subject prop (ADR 2026-10-13-aimed-fields-and-the-rule-s-subject-prop): fields[].toward/speed/props, aim action, self + prop lists on prop triggers and pickup/drop/prop_hit; field pushes computed in RulesEngine so offline re2 now applies fields too (it never did); Velvet Orchestra 94 generated rules -> 33 + 1 field with the card's real mechanic; recipe whistle_herd reuses it. Report: docs/analysis/2026-10-13-aimed-fields-and-subject-props.md
 
 ## Next
-- 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, *proposed*, awaiting the owner): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
-  Phase 1, structural, in order: (1) docs read at runtime in dev builds (done: a doc-only PR compiles nothing); (2) a prebuilt for every build-input change on main
-  (done: a fresh clone reaches `describe --brief` with no compile; the owner enables publishing); (3) `red_core` (done: headless build/clippy/tests compile only it, no
+- 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
+  Phase 1, structural, in order: (1) docs read at runtime in dev builds (done: a doc edit rebuilds nothing; `search` sees a new ADR); (2) a prebuilt for every build-input
+  change on main, enabled by the owner 2026-10-13 (done: a fresh clone reaches `describe --brief` with no compile; a doc-only PR compiles nothing in CI); (3) `red_core` (done: headless build/clippy/tests compile only it, no
   `#[path]`, a sim edit through `iterate` under 20 s warm); (4) CI archive fan-out, headless PR shard, cache and Docker (done: measured against #115's 59 job-minutes);
   (5) shippable game crates + the generated-world and `GameMode` seams, Frameless out of the engine crate, the 30K-line audit (done: `src/museum` gone, parity kept).
   Alongside: AGENTS.md budget and split, file-length preflight, ADR bar, stale claims. Phase 2: 16-var lint, per-entity vars, restartable timers, fall-out height,
@@ -53,8 +53,8 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 
 ## Failing / blocked
 - Main was green at 30bb4e5 (CI run of 2026-10-09 13:41). Not failing on main, but `scripts/test_idea_forge.py` failed on any machine with under 20 GB free (fixed in hardening item 3).
-- Prebuilts: the owner chose (2026-10-10) to publish a prebuilt for every `main` commit that changes a build input; the `release.yml` change was blocked by the agent permission check
-  (it publishes and prunes releases), so it needs the owner to enable it or apply it. Still no release exists, so `start`/`scripts/dev red` always build from source. Phase 1 item 2 of ADR 2026-10-13-the-next-phase.
+- Prebuilts: the owner chose (2026-10-10) to publish a prebuilt for every `main` commit that changes a build input, and on 2026-10-13 told the agent to enable it
+  (Phase 1 item 2). Still no release exists, so `start`/`scripts/dev red` always build from source. Phase 1 item 2 of ADR 2026-10-13-the-next-phase.
 
 ## Decisions & gotchas
 - The front door: README is a pointer, `AGENTS.md` is the single entry point (ADR 2026-10-09-the-front-door-documents-are-a-pointer-one-entry-point, hardening item 1); the claims in the docs are checked by `red_engine2 preflight`.

@@ -1,5 +1,5 @@
 # 2026-10-13. The next phase
-Status: proposed
+Status: accepted
 Summary: Sequence for scale without absorbing games: docs at runtime and prebuilts first, then red_core, CI, shippable game crates; then per-entity rules to Prop Hunt; then own shapes as the cheap path; each with a measured done
 
 ## Context
@@ -37,11 +37,12 @@ every claimed improvement measured in `docs/analysis` with its method; hosted CI
 
 **Phase 1, structural** (in this order; the brief's items 1 and 2 swap because docs at runtime makes every later PR cheaper and the prebuilt possible):
 1. *Docs at runtime.* Dev builds read SPEC, AGENTS, REFERENCE, PLAY_2D, GLOSSARY, the ADRs and the analysis notes from the checkout (as `docs/features.json` already
-   is); release builds embed them. **Done:** a doc-only PR compiles no crate in CI (its log has no `Compiling red_engine2`), and `search` finds an ADR created
-   after the build, by test.
+   is); release builds embed them as the fallback outside a checkout. **Done:** a doc edit rebuilds nothing locally (measured), and `search` finds an ADR created
+   after the build, by test. (Hosted CI compiles the workspace crates on every Rust job whatever changed: its cache holds dependencies only. So the CI half of
+   this, a doc-only PR that compiles no crate, lands with item 2: once docs are not build inputs, main's prebuilt matches a doc-only PR and runs its checks.)
 2. *Prebuilts.* Answer to STATUS.md: yes, `release.yml` publishes a prebuilt (Linux x86_64, then Windows) for every `main` commit that changes a build input,
-   keeping the last N. Publishing releases is an outward action: the owner enables it. **Done:** a fresh clone of main reaches `describe --brief` with no
-   compile, measured.
+   keeping the last N. The owner enabled it on 2026-10-13. **Done:** a fresh clone of main reaches `describe --brief` with no compile, measured, and a doc-only
+   PR's CI log has no `Compiling red_engine2`.
 3. *`red_core`.* A crate with schema, content, sim, physics, net, collide and player (the headless server's tree) that `red_engine2`, red2d, `re2` and game crates
    depend on; red2d's `#[path]` sharing ends. First cuts: `net` -> `tools::portmap`, `net::session` -> `ui::race`. **Done:** the headless build, clippy and tests
    compile only `red_core` and its dependencies; no `#[path]` across crates; a one-line edit in `sim/` goes through `iterate` in under 20 s warm on the 4-core box,
@@ -82,5 +83,5 @@ more own prefabs, each uses the shared catalogue for under 30% of what it places
 Phase 1 is the expensive part, and it makes everything after it cheaper: a doc PR stops recompiling, a fresh checkout stops waiting minutes, a sim edit stops
 relinking 79 test binaries. Existing games keep working through every move (parity runs; Frameless saves and Killchain's protocol are explicit gates).
 S7 (the offline client through `MatchSim`) stays parked; the `GameMode` seam is designed so it can follow. Phases 2 and 3 are behaviour changes and can
-interleave with Phase 1 only where they touch no crate boundary. To change the order, edit this ADR and STATUS.md Next together. Status becomes accepted
-when the owner approves the plan.
+interleave with Phase 1 only where they touch no crate boundary. To change the order, edit this ADR and STATUS.md Next together. The owner accepted the
+plan, both reorderings included, on 2026-10-13.
