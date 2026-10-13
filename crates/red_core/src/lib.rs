@@ -16,13 +16,23 @@ pub mod dsp;
 pub mod easing;
 pub mod fields;
 pub mod font_glyphs;
+pub mod nature;
 pub mod score;
 /// Compiles WGSL with naga and refuses what Direct3D would (only with the `shader-check` feature, which the engine's `render` turns on).
 #[cfg(feature = "shader-check")]
 pub mod shader_check;
 pub mod suggest;
 pub mod synth;
+pub mod track;
+pub mod uniforms;
 pub mod voice_spec;
+
+/// The procedural generation that lives in the core so far: the noise and the table of species (the generator itself, `procgen::world`, is still in
+/// the engine crate, which re-exports these at `red_engine2::procgen::*`).
+pub mod procgen {
+    pub mod flora;
+    pub mod noise;
+}
 
 /// The simulation's pieces that live in the core so far (the rest of `sim` is still in the engine crate, which re-exports these at `red_engine2::sim::*`).
 pub mod sim {

@@ -50,7 +50,7 @@ pub mod museum;
 #[cfg(feature = "render")]
 pub mod museum_gpu;
 pub mod music;
-pub mod nature;
+pub use red_core::nature;
 pub mod net;
 #[cfg(feature = "render")]
 pub mod object_staging;
@@ -100,10 +100,10 @@ pub use red_core::suggest;
 pub use red_core::synth;
 pub mod terrain;
 pub mod tools;
-pub mod track;
+pub use red_core::track;
 pub mod ui;
 pub mod ui_config;
-pub mod uniforms;
+pub use red_core::uniforms;
 #[cfg(feature = "video")]
 pub mod video;
 #[cfg(feature = "render")]
