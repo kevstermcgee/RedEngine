@@ -5,11 +5,11 @@
 //! so a world can be looked at, and measured, without a renderer.
 
 pub mod chunk;
-pub mod flora;
+pub use red_core::procgen::flora;
 pub mod geo;
 pub mod ground;
 pub mod motes;
-pub mod noise;
+pub use red_core::procgen::noise;
 pub mod shapes;
 pub mod stream;
 pub mod world;

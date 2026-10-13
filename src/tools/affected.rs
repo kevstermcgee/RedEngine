@@ -265,7 +265,8 @@ fn red2d_steps(changed: &[String], tests: bool) -> Vec<Step> {
 
 /// Engine code the Killchain game (`games/killchain`, a separate crate on the public API) is written against: the protocol and sessions it speaks, the shooter simulation it
 /// renders, the 2-D UI kit and the renderer. A change here can break the game without touching a file of it, so the game's lints and tests run too.
-const KILLCHAIN_ENGINE_DIRS: &[&str] = &["src/net/", "src/sim/", "src/ui/"];
+// The core is engine code Killchain is built on (the engine re-exports it), wherever in it a file lives.
+const KILLCHAIN_ENGINE_DIRS: &[&str] = &["src/net/", "src/sim/", "src/ui/", "crates/red_core/src/"];
 const KILLCHAIN_ENGINE_FILES: &[&str] = &[
     "src/viewer.rs",
     "src/player.rs",
@@ -276,7 +277,6 @@ const KILLCHAIN_ENGINE_FILES: &[&str] = &[
     "src/firearms.rs",
     "src/weapons.rs",
     "src/killcam.rs",
-    "src/uniforms.rs",
     "src/streaks.rs",
     "src/shooter_world.rs",
     "src/objective_world.rs",
@@ -1381,7 +1381,15 @@ mod tests {
 
     #[test]
     fn a_change_to_the_killchain_game_or_the_engine_api_it_uses_plans_the_games_own_checks() {
-        for f in ["games/killchain/src/ui.rs", "src/net/protocol.rs", "src/sim/kit.rs", "src/viewer.rs", "src/ui/online.rs"] {
+        for f in [
+            "games/killchain/src/ui.rs",
+            "src/net/protocol.rs",
+            "src/sim/kit.rs",
+            "src/viewer.rs",
+            "src/ui/online.rs",
+            "crates/red_core/src/uniforms.rs",
+            "crates/red_core/src/sim/clock.rs",
+        ] {
             assert!(touches_killchain(&[f.to_string()]), "{f}");
         }
         assert!(!touches_killchain(&["src/tools/lint.rs".to_string(), "crates/red2d/src/sim.rs".to_string(), "README.md".to_string()]));
