@@ -1,5 +1,16 @@
 //! The 5x7 bitmap glyph table shared by the analysis tools' image labels (`tools/font.rs`, draws into an `image` buffer) and the 2D renderer (`crates/red2d/src/font.rs`, draws into
-//! its own RGBA buffer): data only, no dependencies, so both include it. Uppercase letters, digits and the punctuation ids and coordinates use; lowercase maps up. (The 2D renderer adds a few more glyphs of its own, `crates/red2d/src/font.rs`; the 3D `sign` macro's alphabet is exactly this table.)
+//! its own RGBA buffer): data only, no dependencies, so both include it; the lookup (`glyph`) and the cell size live here too, for the `sign` macro. Uppercase letters, digits and the punctuation ids and coordinates use; lowercase maps up. (The 2D renderer adds a few more glyphs of its own, `crates/red2d/src/font.rs`; the 3D `sign` macro's alphabet is exactly this table.)
+
+/// Glyph cell width in pixels.
+pub const GLYPH_W: i32 = 5;
+/// Glyph cell height in pixels.
+pub const GLYPH_H: i32 = 7;
+
+/// The 5x7 bitmap rows of `c` (`#` = ink), if the table has it; lowercase maps up.
+pub fn glyph(c: char) -> Option<&'static [&'static str; 7]> {
+    let c = c.to_ascii_uppercase();
+    GLYPHS.iter().find(|(g, _)| *g == c).map(|(_, rows)| rows)
+}
 
 /// Every glyph: the character and its seven 5-wide rows (`#` lit).
 pub const GLYPHS: &[(char, [&str; 7])] = &[
@@ -64,3 +75,17 @@ pub const GLYPHS: &[(char, [&str; 7])] = &[
     // A download/save affordance (the pause menu's "save the music" button): a shaft with a chevron point.
     ('↓', ["..#..", "..#..", "..#..", "..#..", "#.#.#", ".#.#.", "..#.."]),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_glyph_row_is_five_columns() {
+        for (c, rows) in GLYPHS {
+            for r in rows {
+                assert_eq!(r.len(), GLYPH_W as usize, "glyph {c:?} has a malformed row {r:?}");
+            }
+        }
+    }
+}
