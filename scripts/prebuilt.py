@@ -7,8 +7,9 @@
 
 A cold build of the CLI takes 7 minutes on four cores (every Idea Forge note lists it as a cost). A release of the Linux binaries (`release.yml`) is built from one commit; if its
 sources are the checkout's sources, its binaries ARE the binaries a build here would produce, so they can be downloaded instead. "Its sources are the checkout's" is a fingerprint:
-the git tree entries of everything that goes into a binary (Cargo.toml, Cargo.lock, build.rs, src/, crates/, assets/ and every file an `include_str!`/`include_bytes!` or build.rs
-embeds, such as SPEC.md, recipes/, docs/adr/) hashed together. `release.yml` publishes `MANIFEST-<12 hex of the fingerprint>.json` next to the archives, so one call to the releases API
+the git tree entries of everything that decides what a binary does (Cargo.toml, Cargo.lock, build.rs, src/, crates/, assets/ and every file an `include_str!`/`include_bytes!`
+embeds, such as recipes/) hashed together. The engine's own docs are not inputs: a binary reads them from the checkout it runs in and embeds them only as the fallback
+outside one (ADR 2026-10-13-the-engine-reads-its-own-docs-from-the-checkout), so a docs-only commit keeps the fingerprint and its prebuilt. `release.yml` publishes `MANIFEST-<12 hex of the fingerprint>.json` next to the archives, so one call to the releases API
 finds the match without downloading anything. No release matches, the tree has uncommitted edits to those inputs (a prebuilt would hide them), the platform is not Linux x86_64, the
 network is down or a checksum differs: nothing is installed, the reason is printed, and the caller builds as before.
 
@@ -35,6 +36,8 @@ import urllib.request
 SCHEMA_MANIFEST = "red-release/1"
 SCHEMA_RECORD = "red-prebuilt/1"
 INPUT_ROOTS = ("Cargo.toml", "Cargo.lock", "build.rs", "src", "crates", "assets")
+# Sources whose includes are the docs' embedded fallback, not behaviour: a binary in a checkout reads those files from the checkout (see the module docs).
+RUNTIME_DOCS_SOURCES = ("src/tools/own_docs.rs",)
 NAME_OK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$")
 NEGATIVE_TTL = 3600       # a release that does not match is not looked for again for an hour (the checkout may be rebuilt many times)
 NETWORK_ERROR_TTL = 120   # a failed request is retried sooner
@@ -73,17 +76,18 @@ def _read(path):
 
 
 def input_paths(root):
-    """Everything that goes into a binary, as repository-relative paths: the fixed roots, the folders build.rs embeds, and every file the Rust sources embed with
-    `include_str!`/`include_bytes!` (found by reading them, so a new embedded file needs no list to edit)."""
+    """Everything that decides what a binary does, as repository-relative paths: the fixed roots and every file the Rust sources embed with `include_str!`/`include_bytes!`
+    (found by reading them, so a new embedded file needs no list to edit), except the docs' fallback copies (`RUNTIME_DOCS_SOURCES`, and the doc folders build.rs embeds
+    for release builds)."""
     paths = set(INPUT_ROOTS)
-    for folder in re.findall(r'\(\s*"(docs/[A-Za-z0-9_/-]+)"\s*,\s*"[a-z_]+\.rs"', _read(os.path.join(root, "build.rs"))):
-        paths.add(folder)
     pat = re.compile(r'include_(?:str|bytes)!\(\s*"([^"]+)"\s*\)')
     for top in ("src", "crates"):
         for dirpath, dirnames, filenames in os.walk(os.path.join(root, top)):
             dirnames[:] = [d for d in dirnames if d not in ("target", ".git", "__pycache__")]
             for fn in filenames:
                 if not fn.endswith(".rs"):
+                    continue
+                if os.path.relpath(os.path.join(dirpath, fn), root).replace(os.sep, "/") in RUNTIME_DOCS_SOURCES:
                     continue
                 for rel in pat.findall(_read(os.path.join(dirpath, fn))):
                     target = os.path.normpath(os.path.join(dirpath, rel))

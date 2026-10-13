@@ -2,9 +2,13 @@ name: Release (Linux binaries)
 # Prebuilt Linux binaries for authoring (the self-describing CLI: lint, reach, walk, verify, frame, sim ...), the game client, the dedicated server and bots, so a fresh
 # machine needs `scripts/bootstrap.sh` and not a Rust toolchain. Built on the oldest Ubuntu runner so they run on anything newer (glibc). A tag `v*` publishes a
 # GitHub release; a manual run only builds the archives as workflow artifacts (and smoke-tests them from an empty directory).
+# Every push to main publishes a **prebuilt** (ADR 2026-10-13-a-prebuilt-for-every-change-to-what-the-binaries-do): a pre-release `prebuilt-<12 hex>` named by the
+# source fingerprint (`scripts/prebuilt.py fingerprint`), unless one with that fingerprint exists already (a docs-only or game-only commit), so `scripts/dev start` in a
+# fresh clone downloads the CLI instead of compiling for minutes. The newest KEEP_PREBUILTS stay; older ones are deleted with their tags.
 on:
   push:
     tags: ["v*"]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -16,6 +20,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  KEEP_PREBUILTS: 10
 
 jobs:
   linux:
@@ -23,34 +28,67 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
+      # A push to main whose sources already have a prebuilt (only docs or games changed) builds nothing: every later step is skipped.
+      - name: Name the version (and skip a fingerprint that is published already)
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          skip=false
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            v="${GITHUB_REF_NAME}"
+          elif [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            fp=$(python3 scripts/prebuilt.py fingerprint)
+            v="prebuilt-${fp}"
+            if gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[].assets[].name' | grep -qx "MANIFEST-${fp}.json"; then
+              skip=true; echo "a prebuilt of these sources exists already (MANIFEST-${fp}.json): nothing to build"
+            fi
+          else
+            v="dev-$(git rev-parse --short=12 HEAD)"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"; echo "skip=$skip" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.v.outputs.skip != 'true'
       - uses: Swatinem/rust-cache@v2
+        if: steps.v.outputs.skip != 'true'
         with:
           key: release
       - name: System libraries (audio backend for the client)
+        if: steps.v.outputs.skip != 'true'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
-      - name: Name the version
-        id: v
-        run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME}"; else v="dev-$(git rev-parse --short=12 HEAD)"; fi
-          echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: Build the full set (client, CLI with rendering, server, bots)
+        if: steps.v.outputs.skip != 'true'
         run: cargo build --locked --release --bins
       - name: Build the headless CLI (no graphics or audio libraries needed)
+        if: steps.v.outputs.skip != 'true'
         run: cargo build --locked --release --no-default-features --bin red_engine2 --target-dir target/headless
       - name: Package
+        if: steps.v.outputs.skip != 'true'
         run: bash scripts/package_release.sh "${{ steps.v.outputs.version }}" dist
       - name: "A software GPU for the smoke test (Mesa lavapipe; the runner has no graphics adapter)"
+        if: steps.v.outputs.skip != 'true'
         run: sudo apt-get install -y mesa-vulkan-drivers
       - name: Smoke test from an empty directory
+        if: steps.v.outputs.skip != 'true'
         run: bash scripts/smoke_release.sh dist
       - uses: actions/upload-artifact@v7
+        if: steps.v.outputs.skip != 'true'
         with:
           name: redengine-linux-x86_64
           path: dist/*
           retention-days: 14
+      - name: Publish the prebuilt (a push to main) and keep the newest KEEP_PREBUILTS
+        if: steps.v.outputs.skip != 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${{ steps.v.outputs.version }}"
+          gh release create "$v" dist/* --prerelease --target "$GITHUB_SHA" --title "Prebuilt ${v#prebuilt-} (main $(git rev-parse --short=12 HEAD))" \
+            --notes "Built from main $(git rev-parse HEAD) for scripts/dev start and scripts/prebuilt.py, which fetch it only into a checkout with exactly these sources. Not a release: tagged releases are v*."
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '[.[] | select(.tag_name | startswith("prebuilt-"))] | sort_by(.created_at) | reverse | .[(env.KEEP_PREBUILTS | tonumber):] | .[].tag_name' |
+            while read -r old; do echo "pruning $old"; gh release delete "$old" --yes --cleanup-tag; done
       - name: Publish the release
-        if: github.ref_type == 'tag'
+        if: steps.v.outputs.skip != 'true' && github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
