@@ -2,7 +2,7 @@
 //! accepts must appear in it, every key it mentions must be real).
 
 /// The reference text.
-pub const REFERENCE: &str = r##"FILE: NAME.game2d.json (JSON; begin it with "game2d": 1). Positions are CENTRES in virtual-screen pixels; y grows downward.
+pub const REFERENCE: &str = r##"FILE: NAME.game2d.json (JSON; begin it with "game2d": 1). Positions are CENTRES in virtual-screen pixels (except ui `button`/`panel` `at`: their TOP-LEFT corner, so `at`+`size` must fit the view); y grows downward.
 KEYS: game2d id title description capabilities view sprites sounds music vars tables persist prefabs scene|map|levels ui effects rules checks   (3D parts, optional: models layers3d, see HYBRID)
 capabilities: {"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard","mouse"],"persistence":["settings","progress"]}
   declare what the game uses: buttons/click/pointer need mouse; keys/press need keyboard; `persist` needs progress; a `music` action needs settings.
@@ -27,7 +27,7 @@ ui: {"text":"SCORE {score:3}","at":[4,4],"color":"#fff","scale":1,"align":"left"
 effects: {"heal":{"params":{"amount":1},"do":[{"add":["lives","$amount"]},{"play":"pick"}]}}  a named group of actions, used by any rule or button: {"apply":"heal","with":{"amount":2}}
   params: names (all required) or name -> default; "$name" is the argument; effects may apply effects (4 deep, no loops); an effect nothing applies is an error
 rules: [{"id":"x","when":{TRIGGER},"if":"lives > 0","once":true,"cooldown":1,"do":[ACTIONS]}]
-  TRIGGER (exactly one): start | every:seconds | after:seconds | touch:[tagA,tagB] (on first overlap) | touching:[a,b] (every tick) | hit:[a,b] (a was stopped by solid b) | press:action | click:tag ("*" = nothing) | event:name (built in: `loaded` fires once after saved progress is restored: rebuild the world from saved vars) | end:"win"|"lose"|"any"
+  TRIGGER (exactly one): start | every:seconds | after:seconds | touch:[tagA,tagB] (on first overlap) | touching:[a,b] (every tick) | hit:[a,b] (a was stopped by solid b) | press:action | click:tag ("*" = nothing; `self` is the clicked thing, `other` is not set) | event:name (built in: `loaded` fires once after saved progress is restored: rebuild the world from saved vars) | end:"win"|"lose"|"any"
   ACTIONS: set:[var,value] add:[var,value] emit:name spawn:{prefab,at,vel,count} destroy:"self"|"other"|"tag:T"|"id:I" play:sound music:"on"|"off"|"toggle"|track|"level" burst:{at,n,color,speed,life,size,gravity}
     shake:px end:"win"|"lose" restart:true reset_save:true velocity:{target,v:[x,y]} teleport:{target,to} become:{target,prefab} (same thing, new kind; feet stay) level:id apply:effect     `at`: "self"|"other"|"pointer"|[x,y]|{"x":[min,max],"y":[min,max]}
   values and `if` are expressions: numbers, variables, + - * / %, == != < <= > >=, && || ! (division by zero is 0), floor round abs sqrt min max, random(a,b) (a whole number a..b
