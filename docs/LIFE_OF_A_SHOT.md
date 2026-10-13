@@ -80,7 +80,7 @@ A click is a button on an input, never a position or a result. `fixed_step_physi
 (seq, flags, forward, strafe, yaw, pitch) and is signed with the session HMAC. That redundancy means a lost datagram loses nothing; the server acts on the rising edge, so 3 ticks up is one shot.
 
 - **Open**: `src/bin/re2/frame.rs::build_input`, `src/bin/re2/weapons.rs::take_pulse`, `src/net/session.rs::step_local`, `src/net/client.rs::send_input`, `src/sim/player.rs::flags` (bit layout).
-- **Tuned by**: `NET_PULSE_TICKS` (3, `src/bin/re2/main.rs`); `MAX_INPUTS_PER_PACKET` (4) in `src/net/protocol.rs`; `TICK_RATE_HZ` (60) in `src/sim/clock.rs`.
+- **Tuned by**: `NET_PULSE_TICKS` (3, `src/bin/re2/main.rs`); `MAX_INPUTS_PER_PACKET` (4) in `src/net/protocol.rs`; `TICK_RATE_HZ` (60) in `crates/red_core/src/sim/clock.rs`.
 - **How to see it**: `tests/net_interactions.rs::a_shot_fired_by_one_client_hurts_another_and_four_kill_them` drives a headless `Bot` with `buttons = 16` (attack) over real UDP and counts the
   server's `shot` events; `red_server --record out/m.json` writes every input with its tick (`["i", tick, slot, seq, ..., flags, ...]`), `red_engine2 replay out/m.json` re-runs them.
 - **Fails silently when**: the server is not in `Phase::Playing` (lobby, countdown, results): `Server::on_input` drops the input with no counter, and the client is frozen too

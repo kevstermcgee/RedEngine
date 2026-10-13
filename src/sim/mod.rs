@@ -27,14 +27,14 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
 
 pub mod ai;
-pub mod approach;
-pub mod change;
+pub use red_core::sim::approach;
+pub use red_core::sim::change;
 pub mod checksum;
-pub mod clock;
+pub use red_core::sim::clock;
 pub mod combat;
 pub mod combat_cfg;
-pub mod components;
-pub mod entities;
+pub use red_core::sim::components;
+pub use red_core::sim::entities;
 /// A conventional agent interface to a match (`reset`/`observe`/`step`), over the real simulation; what an agent may know is separate from the privileged state.
 pub mod env;
 pub mod flow;
@@ -54,11 +54,11 @@ pub mod rules;
 pub use red_core::sim::rules_expr;
 pub mod rules_run;
 pub mod scenario;
-pub mod scratch;
+pub use red_core::sim::scratch;
 pub mod shooter;
-pub mod snapshot;
-pub mod spawns;
-pub mod statics;
+pub use red_core::sim::snapshot;
+pub use red_core::sim::spawns;
+pub use red_core::sim::statics;
 pub mod trace;
 
 #[cfg(test)]

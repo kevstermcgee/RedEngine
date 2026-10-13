@@ -21,6 +21,10 @@ the sky, the UI configuration) and `net::session` builds presentation (`ui::race
 - The first move is the ten shared files: `red2d` drops every `#[path]` and both of its shims; the files call `crate::suggest::suggest` (the function
   `prefabs::suggest` re-exported); `audio_analysis::fft` became `pub` (the engine's `listen` uses it); the one test that needs the engine's sound catalogue moved
   to `src/sfx.rs`.
+- Every dependency the crates share comes from the root's `[workspace.dependencies]` (`x = { workspace = true }`): one version and one feature set, so
+  `cargo test -p red_core` compiles `rapier3d` with `enhanced-determinism` exactly as the engine does. The core's `sim` and `net` deny `unwrap`/`panic`
+  outside tests like the engine's (nothing reachable from a packet may panic). A core test never reads an engine file (a map, a game's data): such a test
+  is about that content and moves to the engine's suites.
 - `red_core` never draws or plays sound: `preflight`'s headless check covers `crates/red_core/src` with nothing gated. The tools know it: `src map|show|deps`
   index it under the engine's module names (its `lib.rs` is `red_core`), `context` lists its files, and `affected` plans `red_core`'s clippy and tests for a change
   there, plus the 2D crate and the features that own the file.

@@ -44,9 +44,15 @@ fn editing_a_test_file_says_which_features_it_can_break() {
 #[test]
 fn nothing_in_the_repository_is_orphaned_from_the_index() {
     let all = features::load().unwrap();
-    for f in
-        ["src/net/upnp.rs", "src/tools/perf.rs", "src/tools/package.rs", "src/tools/nettest.rs", "src/ui/online.rs", "src/bin/re2/online.rs", "src/crypto.rs"]
-    {
+    for f in [
+        "crates/red_core/src/net/upnp.rs",
+        "src/tools/perf.rs",
+        "src/tools/package.rs",
+        "src/tools/nettest.rs",
+        "src/ui/online.rs",
+        "src/bin/re2/online.rs",
+        "crates/red_core/src/crypto.rs",
+    ] {
         assert!(!features::owners(&all, f).is_empty(), "{f} has no owner");
     }
 }

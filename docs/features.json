@@ -5,7 +5,7 @@
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, authored player tuning and jump pads, wall/fence sugar, prefabs, tracks and easing, colours.",
-      "files": ["src/schema.rs", "src/strict.rs", "src/content/*.rs", "schemas/*.json", "src/style.rs", "crates/red_core/src/fields.rs", "crates/red_core/src/suggest.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/*.json", "examples/*.rs", "examples/external/**", "examples/golden/**", "examples/lantern_walk/**", "examples/marcel/**", "SPEC.md"],
+      "files": ["src/schema.rs", "src/strict.rs", "src/content/*.rs", "schemas/*.json", "src/style.rs", "crates/red_core/src/fields.rs", "crates/red_core/src/suggest.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "crates/red_core/src/easing.rs", "crates/red_core/src/color.rs", "assets/*.json", "assets/README.md", "examples/*.json", "examples/*.rs", "examples/external/**", "examples/golden/**", "examples/lantern_walk/**", "examples/marcel/**", "SPEC.md"],
       "tests": ["lib:schema", "lib:strict", "lib:prefabs", "lib:macros", "lib:track", "lib:content", "examples_validate", "render_prep", "fields", "content_drift", "content_validate"],
       "commands": ["red_engine2 validate examples/test_lab.json"],
       "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-03-lettering-and-arrays-as-macros.md"]
@@ -50,7 +50,7 @@
     },
     "sim_core": {
       "summary": "The headless, renderer-free simulation: fixed tick clock, scratch buffers, change tracking, entities, static props, the authoritative MatchSim, spawns, interest management.",
-      "files": ["crates/red_core/Cargo.toml", "crates/red_core/src/lib.rs", "src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs", "src/sim/ordnance.rs", "src/sim/shooter.rs", "src/sim/kit.rs", "src/sim/objective.rs", "src/sim/objective_run.rs"],
+      "files": ["crates/red_core/Cargo.toml", "crates/red_core/src/lib.rs", "src/sim/mod.rs", "crates/red_core/src/sim/clock.rs", "crates/red_core/src/sim/scratch.rs", "crates/red_core/src/sim/change.rs", "crates/red_core/src/sim/components.rs", "crates/red_core/src/sim/entities.rs", "crates/red_core/src/sim/statics.rs", "crates/red_core/src/sim/snapshot.rs", "src/sim/match_sim.rs", "crates/red_core/src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs", "src/sim/ordnance.rs", "src/sim/shooter.rs", "src/sim/kit.rs", "src/sim/objective.rs", "src/sim/objective_run.rs"],
       "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots", "teams", "objective_modes", "net_modes"],
       "commands": ["cargo bench --bench sim", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0010-headless-match-server.md", "docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", "docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md"],
@@ -58,8 +58,8 @@
     },
     "game_rules": {
       "summary": "Game rules as data: vars, rules, the expression language, scripted headless scenarios (`sim`), and standard-client presentation.",
-      "files": ["src/sim/rules.rs", "crates/red_core/src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "src/sim/approach.rs", "recipes/coin_run.json", "recipes/gated_garden.json"],
-      "tests": ["lib:sim::rules", "lib:sim::rules_run", "lib:sim::scenario", "lib:sim::approach", "ai_tasks", "net_rule_state", "prop_rules", "object_actions"],
+      "files": ["src/sim/rules.rs", "crates/red_core/src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "crates/red_core/src/sim/approach.rs", "recipes/coin_run.json", "recipes/gated_garden.json"],
+      "tests": ["lib:sim::rules", "lib:sim::rules_run", "lib:sim::scenario", "ai_tasks", "net_rule_state", "prop_rules", "object_actions"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
       "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-03-level-states-phases-for-lint-reach-and-walk.md", "docs/adr/2026-10-03-object-based-player-actions-for-sim-and-the-scripted.md"],
       "depends_on": ["sim_core"]
@@ -97,15 +97,15 @@
     },
     "net_protocol": {
       "summary": "The wire format (bounded, fuzz-tested), abuse limits, sizes.",
-      "files": ["src/net/protocol.rs", "src/net/limits.rs", "src/net/mod.rs"],
-      "tests": ["lib:net::protocol", "lib:net::limits", "net_abuse", "net_budget", "net_rule_state"],
+      "files": ["src/net/protocol.rs", "crates/red_core/src/net/limits.rs", "src/net/mod.rs"],
+      "tests": ["lib:net::protocol", "net_abuse", "net_budget", "net_rule_state"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0036-repeated-bounded-online-rule-state.md"],
       "depends_on": ["match_flow"]
     },
     "net_auth": {
       "summary": "Join keys proven by challenge/response (bound to TLS on QUIC), stateless address cookies, HMAC tags on development UDP; the maintained SHA-256/HMAC/CSPRNG wrappers.",
-      "files": ["src/net/auth.rs", "src/crypto.rs"],
-      "tests": ["lib:net::auth", "lib:crypto", "net_auth", "net_abuse"],
+      "files": ["crates/red_core/src/net/auth.rs", "crates/red_core/src/crypto.rs"],
+      "tests": ["net_auth", "net_abuse"],
       "docs": ["docs/adr/0028-authenticated-datagrams-and-join-keys.md"]
     },
     "net_transport": {
@@ -126,8 +126,8 @@
     },
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
-      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs", "src/net/join_code.rs",
-      "src/net/join.rs", "src/bin/red_relay.rs", "src/net/relay.rs", "src/net/relay_server.rs"],
+      "files": ["src/net/client.rs", "src/net/interp.rs", "src/net/predict.rs", "src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs", "crates/red_core/src/net/join_code.rs",
+      "src/net/join.rs", "src/bin/red_relay.rs", "crates/red_core/src/net/relay.rs", "src/net/relay_server.rs"],
       "tests": ["lib:net::client", "lib:net::interp", "lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim", "net_join_flow"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md"],
@@ -135,8 +135,8 @@
     },
     "net_test": {
       "summary": "The bad-network simulator (seeded bursty loss, jitter, duplication) and `net-test`, which judges a game on what a player would notice.",
-      "files": ["src/net/netsim.rs", "src/tools/nettest.rs"],
-      "tests": ["lib:net::netsim", "net_sim"],
+      "files": ["crates/red_core/src/net/netsim.rs", "src/tools/nettest.rs"],
+      "tests": ["net_sim"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
       "docs": ["docs/adr/0034-net-test-and-bad-network-resilience.md"],
       "depends_on": ["net_server", "net_client"]
@@ -151,8 +151,8 @@
     },
     "home_hosting": {
       "summary": "UPnP port mapping (`portmap`, `red_server --upnp`), Docker and systemd deployment, the hosting guide.",
-      "files": ["src/net/upnp.rs", "src/tools/portmap.rs", "src/tools/servers.rs", "src/cli/servers.rs", "tests/servers_cli.rs", "tests/publish_games.rs", "Dockerfile", "docker-compose.yml", "deploy/**", "docs/HOSTING.md"],
-      "tests": ["lib:net::upnp", "lib:tools::servers", "server_env", "servers_cli", "publish_games"],
+      "files": ["crates/red_core/src/net/upnp.rs", "src/tools/portmap.rs", "src/tools/servers.rs", "src/cli/servers.rs", "tests/servers_cli.rs", "tests/publish_games.rs", "Dockerfile", "docker-compose.yml", "deploy/**", "docs/HOSTING.md"],
+      "tests": ["lib:tools::servers", "server_env", "servers_cli", "publish_games"],
       "commands": ["red_engine2 portmap status", "red_engine2 servers"],
       "docs": ["docs/adr/0031-home-hosting-with-upnp.md", "docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md", "docs/adr/2026-09-30-red-engine2-servers-manages-the-game-servers-on-this.md", "docs/adr/2026-09-30-publishing-to-redenginegames-never-deletes-what-it-does.md", "docs/GAMES_PUBLISHING.md", "docs/HOSTING.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md"],
       "depends_on": ["net_server"]

@@ -3,7 +3,7 @@
 //! allocates only while it is still growing to its high-water mark, then never again.
 //!
 //! ```
-//! use red_engine2::sim::scratch::ScratchVec;
+//! use red_core::sim::scratch::ScratchVec;
 //! let mut hits: ScratchVec<u32> = ScratchVec::with_capacity(16);
 //! for _tick in 0..100 {
 //!     let mut buf = hits.take();          // empty, capacity kept

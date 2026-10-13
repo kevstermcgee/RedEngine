@@ -19,7 +19,7 @@
 // as a `let ... else` / `?` with a message, not an `unwrap`.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
 
-pub mod auth;
+pub use red_core::net::auth;
 pub mod bot;
 pub mod client;
 pub mod fleet;
@@ -28,14 +28,14 @@ pub mod host;
 pub mod interp;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod join;
-pub mod join_code;
-pub mod limits;
+pub use red_core::net::join_code;
+pub use red_core::net::limits;
 pub mod memnet;
-pub mod netsim;
+pub use red_core::net::netsim;
 pub mod predict;
 pub mod protocol;
 pub mod quic;
-pub mod relay;
+pub use red_core::net::relay;
 pub mod relay_server;
 pub mod server;
 pub mod session;
@@ -46,10 +46,10 @@ mod snapshots;
 pub use snapshots::props_to_send;
 pub mod testkit;
 pub mod transport;
-pub mod upnp;
+pub use red_core::net::upnp;
 
-/// The default UDP port of a Red server.
-pub const DEFAULT_PORT: u16 = 27015;
+/// The default UDP port of a Red server (defined in the core, which [`join_code`] needs it in).
+pub use red_core::net::DEFAULT_PORT;
 
 /// A 32-bit hash of a map file's text (line endings ignored), sent in the join request so a client
 /// with a different copy of the map is refused instead of desyncing silently.

@@ -181,3 +181,16 @@ fn the_rat_runs_under_tables_and_platforms_but_a_human_cannot() {
     let boxed = run(Character::Rat, leg_x, leg_z + 1.5, 0.0, 120);
     assert!(boxed.pos.y > leg_z, "a rat aimed at a table leg at ({leg_x:.2}, {leg_z:.2}) is stopped by it: z = {}", boxed.pos.y);
 }
+
+/// The Test Lab's spawn points (moved here from `sim::spawns` when it moved into the core: the map is the engine's content, the parser is the core's).
+#[test]
+fn the_test_lab_has_four_duel_spawns_facing_each_other_and_props_spawns() {
+    let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap();
+    let s = red_engine2::sim::spawns::parse_spawns(&text).unwrap();
+    assert!(s.len() >= 6);
+    let a = s.iter().find(|s| s.id == "spawn_a").unwrap();
+    let b = s.iter().find(|s| s.id == "spawn_b").unwrap();
+    // a faces +X (yaw 90), b faces -X (yaw 270): they look at each other across the hall.
+    assert!(a.position[0] < b.position[0] && (a.yaw_deg - 90.0).abs() < 1e-3 && (b.yaw_deg - 270.0).abs() < 1e-3);
+    assert!(s.iter().any(|s| s.group == "props"));
+}
