@@ -234,11 +234,15 @@ fn core_steps(changed: &[String], tests: bool) -> Vec<Step> {
     }
     let mut v = vec![Step::new(
         "core-clippy",
-        &["cargo", "clippy", "--locked", "-p", "red_core", "--all-targets", "--", "-D", "warnings"],
+        &["cargo", "clippy", "--locked", "-p", "red_core", "--all-features", "--all-targets", "--", "-D", "warnings"],
         "the headless core (crates/red_core) changed",
     )];
     if tests {
-        v.push(Step::new("core", &["cargo", "test", "--locked", "-p", "red_core"], "unit tests of the headless core: synthesis, expressions, fields"));
+        v.push(Step::new(
+            "core",
+            &["cargo", "test", "--locked", "-p", "red_core", "--all-features"],
+            "unit tests of the headless core: synthesis, expressions, fields",
+        ));
     }
     v
 }
@@ -1362,8 +1366,8 @@ mod tests {
             assert!(touches_red2d(&[f.to_string()]), "{f}");
         }
         let core = plan(&world(), &serial(), &["crates/red_core/src/dsp.rs".to_string()], &Options::default());
-        assert_eq!(step(&core, "core").argv.join(" "), "cargo test --locked -p red_core");
-        assert!(step(&core, "core-clippy").argv.join(" ").contains("-p red_core --all-targets"));
+        assert_eq!(step(&core, "core").argv.join(" "), "cargo test --locked -p red_core --all-features");
+        assert!(step(&core, "core-clippy").argv.join(" ").contains("-p red_core --all-features --all-targets"));
         assert!(core.steps.iter().any(|s| s.name == "red2d"), "the 2D crate is built on the core: {:?}", names(&core));
         assert!(!touches_red2d(&["src/tools/lint.rs".to_string(), "src/net/mod.rs".to_string()]));
         let p = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options::default());

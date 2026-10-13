@@ -17,6 +17,9 @@ pub mod easing;
 pub mod fields;
 pub mod font_glyphs;
 pub mod score;
+/// Compiles WGSL with naga and refuses what Direct3D would (only with the `shader-check` feature, which the engine's `render` turns on).
+#[cfg(feature = "shader-check")]
+pub mod shader_check;
 pub mod suggest;
 pub mod synth;
 pub mod voice_spec;

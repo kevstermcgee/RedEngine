@@ -25,6 +25,9 @@ the sky, the UI configuration) and `net::session` builds presentation (`ui::race
   `cargo test -p red_core` compiles `rapier3d` with `enhanced-determinism` exactly as the engine does. The core's `sim` and `net` deny `unwrap`/`panic`
   outside tests like the engine's (nothing reachable from a packet may panic). A core test never reads an engine file (a map, a game's data): such a test
   is about that content and moves to the engine's suites.
+- A core module that needs a crate the headless server must not build sits behind a red_core feature that a crate above turns on, never behind the
+  engine's: `shader-check` (naga: it compiles shader text and draws nothing) holds `shader_check`, and the engine's `render` enables it, so a scene's sky
+  shader is checked in exactly the builds it was before. `affected` lints and tests the core with every feature.
 - `red_core` never draws or plays sound: `preflight`'s headless check covers `crates/red_core/src` with nothing gated. The tools know it: `src map|show|deps`
   index it under the engine's module names (its `lib.rs` is `red_core`), `context` lists its files, and `affected` plans `red_core`'s clippy and tests for a change
   there, plus the 2D crate and the features that own the file.

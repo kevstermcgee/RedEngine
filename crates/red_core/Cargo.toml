@@ -15,6 +15,13 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 subtle = { workspace = true }
+# The shader compiler wgpu uses, to validate WGSL and translate it to Direct3D's HLSL on any machine (`shader_check`): the engine's own modules in
+# tests/shader_validation.rs, and a game's own sky (`sky.shader`) when its scene is validated. It compiles text and draws nothing; the engine's `render`
+# turns it on (a build that can draw the shader checks it), the headless server has none.
+naga = { workspace = true, optional = true }
+
+[features]
+shader-check = ["dep:naga"]
 
 # The same style policy as the engine crate.
 [lints.clippy]
