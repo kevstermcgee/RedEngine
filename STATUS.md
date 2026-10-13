@@ -36,10 +36,11 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-13: Aimed fields + the rule's subject prop (ADR 2026-10-13-aimed-fields-and-the-rule-s-subject-prop): fields[].toward/speed/props, aim action, self + prop lists on prop triggers and pickup/drop/prop_hit; field pushes computed in RulesEngine so offline re2 now applies fields too (it never did); Velvet Orchestra 94 generated rules -> 33 + 1 field with the card's real mechanic; recipe whistle_herd reuses it. Report: docs/analysis/2026-10-13-aimed-fields-and-subject-props.md
 - 2026-10-13: Phase 1 item 1 (docs at runtime): tools::own_docs reads SPEC/AGENTS/REFERENCE/PLAY_2D/GLOSSARY/ADRs/analysis/features.json from the checkout; build.rs embeds only for release-type builds; a doc edit 86-108 s -> 0.3 s, no compile (docs/analysis/2026-10-13-docs-read-at-runtime.md)
 - 2026-10-13: Phase 1 item 2 (prebuilts): release.yml publishes prebuilt-<fingerprint> pre-releases on every main push whose fingerprint has none (skips docs/games-only commits), keeps 10; prebuilt.py no longer counts the engine's own docs as inputs
+- 2026-10-13: Phase 1 items 1-2 merged (#118 docs at runtime, #119 prebuilts). First prebuilt-a7c3e49c9bcf published from main in 773 s; a fresh clone reaches describe --brief in 3.9 s + 0.09 s with no compile (docs/analysis/2026-10-13-prebuilt-on-main-measured.md). Next: item 3, red_core
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
-  Phase 1, structural, in order: (1) docs read at runtime in dev builds (done: a doc edit rebuilds nothing; `search` sees a new ADR); (2) a prebuilt for every build-input
+  Phase 1, structural, in order: (1) [done, #118] docs read at runtime in dev builds (done: a doc edit rebuilds nothing; `search` sees a new ADR); (2) [done, #119; measured] a prebuilt for every build-input
   change on main, enabled by the owner 2026-10-13 (done: a fresh clone reaches `describe --brief` with no compile; a doc-only PR compiles nothing in CI); (3) `red_core` (done: headless build/clippy/tests compile only it, no
   `#[path]`, a sim edit through `iterate` under 20 s warm); (4) CI archive fan-out, headless PR shard, cache and Docker (done: measured against #115's 59 job-minutes);
   (5) shippable game crates + the generated-world and `GameMode` seams, Frameless out of the engine crate, the 30K-line audit (done: `src/museum` gone, parity kept).
