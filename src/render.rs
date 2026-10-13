@@ -351,7 +351,7 @@ impl Renderer {
             wgpu::TextureFormat::Rgba8UnormSrgb,
             1,
             scene.sky_shader.as_deref().map(|s| s.source.as_str()),
-            scene.museum.as_deref().and_then(|m| m.art.as_deref()),
+            scene.blocks.get::<crate::museum::MuseumSpec>().and_then(|m| m.art.as_deref()),
         );
         let shadow_sampler = make_shadow_sampler(&gpu.device);
         let targets = FrameTargets::new(&gpu.device, scene.width, scene.height);
@@ -411,7 +411,7 @@ impl Renderer {
             .procgen
             .clone()
             .map(|cfg| crate::stream_gpu::StreamLayer::new(&gpu.device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), 0));
-        let museum = scene.museum.as_ref().map(|spec| {
+        let museum = crate::museum::spec_of(scene).map(|spec| {
             let visit = crate::museum::Museum::new(spec.clone(), spec.seed.value(None), None);
             (visit, crate::museum_gpu::MuseumLayer::new(&gpu.device, &pipelines.layouts.object))
         });
@@ -900,7 +900,7 @@ mod tests {
 
     #[test]
     fn every_leaf_mesh_keeps_its_object_ancestry_for_visibility() {
-        let scene = crate::schema::parse_scene(
+        let scene = crate::scene_blocks::parse_scene(
             r##"{"camera":{"position":[0,2,5],"target":[0,0,0]},"objects":[
               {"id":"plain","type":"box","size":[1,1,1]},
               {"id":"prefab","type":"group","children":[
@@ -932,7 +932,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let text = serde_json::json!({"camera": {}, "lights": lights, "objects": []}).to_string();
-        let scene = crate::schema::parse_scene(&text).expect("more than 16 authored lights should parse");
+        let scene = crate::scene_blocks::parse_scene(&text).expect("more than 16 authored lights should parse");
         let globals = build_globals_common(&scene, 0.0, Vec3::new(18.0, 0.0, 0.0), Mat4::IDENTITY, Vec3::ZERO);
 
         assert_eq!(globals.counts[0], MAX_LIGHTS as f32);

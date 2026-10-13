@@ -32,7 +32,7 @@ impl TestServer {
     /// The whole lab (all six spawns: the first four joiners land in the spawn hall, the next two in the props room).
     fn start(interest: bool, kick_barrel: bool) -> TestServer {
         let text = std::fs::read_to_string(lab_path()).unwrap();
-        let scene = red_engine2::schema::parse_scene(&text).unwrap();
+        let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
         let sim = MatchSim::new(&scene, parse_spawns(&text).unwrap());
         let kick = kick_barrel.then(|| {
             let i = scene.objects.iter().position(|o| o.id == "domino_0").unwrap();

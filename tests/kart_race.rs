@@ -21,7 +21,7 @@ fn scene(laps: u32, countdown: f32) -> String {
 }
 
 fn sim_for(text: &str, drivers: [Driver; 2]) -> MatchSim {
-    let scene = red_engine2::schema::parse_scene(text).expect("the race scene parses");
+    let scene = red_engine2::scene_blocks::parse_scene(text).expect("the race scene parses");
     let mut sim = MatchSim::new(&scene, parse_spawns(text).expect("spawns"));
     for (slot, driver) in drivers.into_iter().enumerate() {
         assert!(sim.add_player_in_slot(slot, Character::Human));
@@ -140,7 +140,7 @@ fn the_bear_bulldozes_and_a_scene_without_a_race_is_untouched() {
     assert!(spun, "the Bunny was spun out by the Bear");
 
     let plain = r#"{"camera":{"position":[0,5,10],"target":[0,0,0]},"spawns":[{"id":"a","position":[0,0,0],"yaw_deg":0}],"objects":[{"id":"floor","type":"plane","size":[40,40],"position":[0,0.01,0]}]}"#;
-    let scene = red_engine2::schema::parse_scene(plain).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(plain).unwrap();
     let mut sim = MatchSim::new(&scene, parse_spawns(plain).unwrap());
     let slot = sim.add_player(Character::Human).unwrap();
     assert!(sim.race().is_none());

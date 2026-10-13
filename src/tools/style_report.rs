@@ -59,7 +59,7 @@ pub fn report(path: &Path) -> Result<StyleReport, String> {
     if raw.get("game2d").is_some() || path.to_string_lossy().ends_with(".game2d.json") {
         return Ok(report_2d(&raw));
     }
-    let scene = crate::schema::parse_scene_in(&text, path.parent()).map_err(|e| format!("{}: {}", path.display(), e.join("; ")))?;
+    let scene = crate::scene_blocks::parse_scene_in(&text, path.parent()).map_err(|e| format!("{}: {}", path.display(), e.join("; ")))?;
     let mut r = StyleReport { kind: "3d".into(), ..Default::default() };
     let palette = crate::style::palette_of(&raw);
     r.own_prefabs = prefab_names(raw.get("prefabs"));

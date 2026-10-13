@@ -80,7 +80,7 @@ fn lab_with(extra: Value) -> (red_engine2::schema::Scene, Vec<Spawn>) {
         v[k] = x;
     }
     let text = v.to_string();
-    (red_engine2::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}")), parse_spawns(&text).unwrap())
+    (red_engine2::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}")), parse_spawns(&text).unwrap())
 }
 
 struct Rig {

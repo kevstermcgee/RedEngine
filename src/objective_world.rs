@@ -209,7 +209,7 @@ mod tests {
     use crate::net::protocol::{FlagSnap, SndSnap};
 
     fn scene(shooter_extra: &str) -> Scene {
-        crate::schema::parse_scene(&format!(
+        crate::scene_blocks::parse_scene(&format!(
             r##"{{"camera":{{"position":[0,1.7,0],"target":[0,1.7,-10]}},
             "shooter":{{"pickups":[],{shooter_extra}}},
             "objects":[{{"id":"floor","type":"plane","size":[80,80]}}]}}"##

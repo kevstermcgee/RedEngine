@@ -200,7 +200,7 @@ fn library_problems(v: &Value) -> Vec<String> {
     let mut out = Vec::new();
     for name in v.as_array().into_iter().flatten().filter_map(|d| d.get("name").and_then(Value::as_str)) {
         let scene = crate::prefabs::preview_scene_in(&lib, name, None);
-        if let Err(e) = crate::schema::parse_scene(&scene.to_string()) {
+        if let Err(e) = crate::scene_blocks::parse_scene(&scene.to_string()) {
             out.extend(e.into_iter().map(|e| format!("{name}: {e}")));
         }
     }

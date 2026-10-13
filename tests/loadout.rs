@@ -24,7 +24,7 @@ fn scene(extra_objects: serde_json::Value, shooter: serde_json::Value) -> MatchS
         "objects": objects,
     })
     .to_string();
-    let scene = red_engine2::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
     let spawn = Spawn { id: "s".into(), position: [0.0, 0.0, 0.0], yaw_deg: 0.0, group: String::new() };
     MatchSim::new(&scene, vec![spawn])
 }

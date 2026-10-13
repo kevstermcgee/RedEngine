@@ -48,7 +48,7 @@ impl ClientWorld {
     /// local player's own body (add that after).
     pub fn load(path: &Path) -> Result<(Scene, ClientWorld), String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let scene = crate::schema::parse_scene(&text).map_err(|e| e.join("; "))?;
+        let scene = crate::scene_blocks::parse_scene(&text).map_err(|e| e.join("; "))?;
         let loose = loose_props(&scene, None);
         let set = loose.iter().map(|(i, _)| *i).collect();
         let hash = crate::net::map_hash(&text);

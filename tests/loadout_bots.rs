@@ -21,7 +21,7 @@ fn arena() -> MatchSim {
         ]
     })
     .to_string();
-    let scene = red_engine2::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
     let spawns = vec![
         Spawn { id: "a".into(), position: [-35.0, 0.0, 0.0], yaw_deg: 90.0, group: "team1".into() },
         Spawn { id: "b".into(), position: [-35.0, 0.0, 6.0], yaw_deg: 90.0, group: "team1".into() },
@@ -83,7 +83,7 @@ fn full_teams_start_at_distinct_spawns_under_both_policies() {
             "objects": [{"id":"floor","type":"plane","size":[200,200]}]
         })
         .to_string();
-        let scene = red_engine2::schema::parse_scene(&text).unwrap();
+        let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
         let mut spawns = Vec::new();
         for team in 1..=2 {
             for i in 0..6 {

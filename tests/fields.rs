@@ -63,7 +63,7 @@ fn the_same_field_run_twice_ends_in_exactly_the_same_place() {
 
 #[test]
 fn a_bad_field_says_what_to_fix() {
-    let errs = |fields: Value| red_engine2::schema::parse_scene(&scene(fields).to_string()).err().unwrap_or_default().join("\n");
+    let errs = |fields: Value| red_engine2::scene_blocks::parse_scene(&scene(fields).to_string()).err().unwrap_or_default().join("\n");
     assert!(errs(json!([{"id": "a", "zone": "nowhere", "velocity": [1, 0]}])).contains("no zone `nowhere`"));
     assert!(errs(json!([{"id": "a", "zone": "belt", "velocity": [1]}])).contains("must be two numbers [x, z]"));
     assert!(errs(json!([{"id": "a", "zone": "belt"}])).contains("give `velocity`"));
@@ -78,7 +78,7 @@ fn an_internal_underscore_variable_can_be_declared_and_read() {
     let mut v = scene(json!([]));
     v["vars"] = json!({"_latch": false});
     v["rules"] = json!([{"id": "r", "when": {"start": true}, "if": "!_latch", "do": [{"set": ["_latch", true]}]}]);
-    assert_eq!(red_engine2::schema::parse_scene(&v.to_string()).err().unwrap_or_default().join("\n"), "");
+    assert_eq!(red_engine2::scene_blocks::parse_scene(&v.to_string()).err().unwrap_or_default().join("\n"), "");
 }
 
 /// A crate at the origin, an anchor (a loose traffic cone) `dist` metres away at `bearing_deg` (0 = +x, 90 = +z), an aimed field over a big

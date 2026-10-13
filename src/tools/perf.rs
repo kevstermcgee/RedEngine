@@ -257,7 +257,7 @@ fn server_window(
 pub fn measure(scene_path: &Path, players: usize, secs: f64, windows: usize) -> Result<Measurement, String> {
     let text = std::fs::read_to_string(scene_path).map_err(|e| format!("{}: {e}", scene_path.display()))?;
     let t0 = Instant::now();
-    let scene = crate::schema::parse_scene(&text).map_err(|e| e.join("; "))?;
+    let scene = crate::scene_blocks::parse_scene(&text).map_err(|e| e.join("; "))?;
     let spawns = parse_spawns(&text)?;
     let probe = MatchSim::try_new(&scene, spawns.clone())?;
     let build_ms = t0.elapsed().as_secs_f64() * 1e3;

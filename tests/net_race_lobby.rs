@@ -41,7 +41,7 @@ fn pump(clients: &mut [&mut NetClient], what: &str, done: impl Fn(&[&mut NetClie
 
 #[test]
 fn the_lobby_chooses_the_animal_and_a_duplicate_gets_the_next_free_one() {
-    let scene = red_engine2::schema::parse_scene(RACE_SCENE).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(RACE_SCENE).unwrap();
     let spawns = parse_spawns(RACE_SCENE).unwrap();
     let hash = red_engine2::net::map_hash(RACE_SCENE);
     let mut server = Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), hash), MatchSim::try_new(&scene, spawns.clone()).unwrap()).unwrap();
@@ -49,7 +49,9 @@ fn the_lobby_chooses_the_animal_and_a_duplicate_gets_the_next_free_one() {
     let sp2 = spawns.clone();
     let settings =
         MatchSettings { min_players: 2, countdown_secs: 0.3, round_secs: 0.0, results_secs: 1.0, score_to_win: 0, join_in_progress: false, ready_check: true };
-    server.enable_flow(settings, move || MatchSim::try_new(&red_engine2::schema::parse_scene(RACE_SCENE).map_err(|e| e.join("; "))?, sp2.clone())).unwrap();
+    server
+        .enable_flow(settings, move || MatchSim::try_new(&red_engine2::scene_blocks::parse_scene(RACE_SCENE).map_err(|e| e.join("; "))?, sp2.clone()))
+        .unwrap();
     let addr = SocketAddr::new("127.0.0.1".parse().unwrap(), server.local_addr().unwrap().port());
     let stop = Arc::new(AtomicBool::new(false));
     let stop2 = stop.clone();

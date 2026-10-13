@@ -30,7 +30,7 @@ struct TestServer {
 impl TestServer {
     fn start(settings: MatchSettings, key: Option<&str>) -> TestServer {
         let text = std::fs::read_to_string(lab_path()).unwrap();
-        let scene = red_engine2::schema::parse_scene(&text).unwrap();
+        let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
         let mut spawns = parse_spawns(&text).unwrap();
         spawns.retain(|s| s.group == "duel");
         let mut cfg = ServerConfig::new("127.0.0.1:0".parse().unwrap(), red_engine2::net::map_hash(&text));

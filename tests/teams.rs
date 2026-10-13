@@ -21,7 +21,7 @@ fn scene_with_teams() -> MatchSim {
         ]
     })
     .to_string();
-    let scene = red_engine2::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
     let spawns = vec![Spawn { id: "a".into(), position: [0.0, 0.0, 0.0], yaw_deg: 0.0, group: String::new() }];
     MatchSim::new(&scene, spawns)
 }

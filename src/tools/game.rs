@@ -426,7 +426,7 @@ pub fn check(cfg: &GameConfig, views: bool) -> CheckReport {
 /// that the client will have one for every body the map's people and bots wear (the bug that shipped Trigger Happy with invisible enemies: a pool sized for the humans'
 /// body only). `None` for a map that is not played online. The check builds the pool the way the client does ([`crate::net::session::avatars_made`]).
 pub fn avatar_line(map: &str, text: &str) -> Option<Line> {
-    let scene = crate::schema::parse_scene(text).ok()?;
+    let scene = crate::scene_blocks::parse_scene(text).ok()?;
     if scene.race.is_some() {
         return Some(kart_line(map, &scene));
     }

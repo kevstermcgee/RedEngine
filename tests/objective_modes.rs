@@ -20,7 +20,7 @@ fn scene_text(shooter: serde_json::Value) -> String {
 }
 
 fn sim(shooter: serde_json::Value) -> MatchSim {
-    let scene = red_engine2::schema::parse_scene(&scene_text(shooter)).unwrap_or_else(|e| panic!("{e:?}"));
+    let scene = red_engine2::scene_blocks::parse_scene(&scene_text(shooter)).unwrap_or_else(|e| panic!("{e:?}"));
     let spawns = vec![
         Spawn { id: "a".into(), position: [-40.0, 0.0, 10.0], yaw_deg: 90.0, group: "team1".into() },
         Spawn { id: "b".into(), position: [-40.0, 0.0, 14.0], yaw_deg: 90.0, group: "team1".into() },
@@ -246,7 +246,7 @@ fn real_map_bots() {
     let mode = std::env::var("KC_MODE").ok().and_then(|m| ModeKind::parse(&m));
     let text = std::fs::read_to_string(&path).unwrap();
     let text = red_engine2::sim::shooter::with_overrides(&text, mode, None, None).unwrap();
-    let scene = red_engine2::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
     let spawns = red_engine2::sim::spawns::parse_spawns(&text).unwrap();
     let mut s = MatchSim::try_new(&scene, spawns).unwrap();
     if std::env::var("KC_EQUAL").is_ok() {

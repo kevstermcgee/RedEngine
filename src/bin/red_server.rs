@@ -79,6 +79,8 @@ fn fail(msg: &str) -> ! {
 }
 
 fn main() {
+    // The scene blocks the engine defines above the scene parser (the museum), before anything parses a scene.
+    red_engine2::scene_blocks::register();
     let mut map = env::<PathBuf>("RED_MAP").unwrap_or_else(|| PathBuf::from("examples/test_lab.json"));
     let mut port: u16 = env("RED_PORT").unwrap_or(DEFAULT_PORT);
     // Loopback unless the operator asked to be reachable: a listening socket on a public address is what raises the OS firewall prompt.

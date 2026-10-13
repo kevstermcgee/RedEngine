@@ -146,7 +146,7 @@ mod tests {
     use super::*;
 
     fn scene() -> Scene {
-        crate::schema::parse_scene(
+        crate::scene_blocks::parse_scene(
             r##"{"camera":{"position":[0,1.7,0],"target":[0,1.7,-10]},"objects":[{"id":"floor","type":"box","size":[10,0.2,10],"position":[0,-0.1,0]}]}"##,
         )
         .unwrap_or_else(|e| panic!("{e:?}"))

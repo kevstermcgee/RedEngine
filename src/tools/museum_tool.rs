@@ -30,12 +30,10 @@ pub struct Args {
 
 fn visit(scene: &Path, seed: Option<u32>) -> Result<(crate::schema::Scene, Museum), String> {
     let mut s = crate::load_scene(scene).map_err(|e| format!("{}: {}", scene.display(), e.join("; ")))?;
-    let spec = s.museum.clone().ok_or_else(|| format!("{}: has no `museum` block (see `describe scene`)", scene.display()))?;
+    let spec = crate::museum::spec_of(&s).ok_or_else(|| format!("{}: has no `museum` block (see `describe scene`)", scene.display()))?;
     let seed = seed.unwrap_or_else(|| spec.seed.value(None));
-    if let Some(m) = s.museum.as_mut() {
-        std::sync::Arc::make_mut(m).seed = crate::atmosphere::LaunchSeed::Fixed(seed);
-    }
-    let spec = s.museum.clone().unwrap_or(spec);
+    let spec = std::sync::Arc::new(crate::museum::MuseumSpec { seed: crate::atmosphere::LaunchSeed::Fixed(seed), ..(*spec).clone() });
+    crate::museum::set_spec(&mut s, Some(spec.clone()));
     Ok((s, Museum::new(spec, seed, None)))
 }
 
@@ -175,7 +173,7 @@ fn shoot(scene: &crate::schema::Scene, m: &mut Museum, room: RoomId, a: &Args, o
         (eye, room.centre() + Vec3::Y * 1.9, None)
     };
     let mut scene_for = crate::load_scene(&a.scene).map_err(|e| e.join("; "))?;
-    scene_for.museum = scene.museum.clone();
+    crate::museum::set_spec(&mut scene_for, crate::museum::spec_of(scene));
     scene_for.camera.position = Track::constant(eye);
     scene_for.camera.target = Track::constant(at);
     let mut renderer = crate::render::Renderer::new(&scene_for).map_err(|e| e.to_string())?;
@@ -192,7 +190,7 @@ fn shoot_sheet(scene: &crate::schema::Scene, m: &Museum, a: &Args, out: &Path) -
     let cols = 7;
     let sheet = crate::museum::build::style_sheet(&m.spec.collection, cols, a.seed.unwrap_or(1) as f32);
     let mut scene_for = crate::load_scene(&a.scene).map_err(|e| e.join("; "))?;
-    scene_for.museum = scene.museum.clone();
+    crate::museum::set_spec(&mut scene_for, crate::museum::spec_of(scene));
     scene_for.width = 1600;
     scene_for.height = 900;
     let rows = m.spec.collection.styles.len().div_ceil(cols) as f32;

@@ -49,7 +49,7 @@ impl TestServer {
         let text = std::fs::read_to_string(path).unwrap();
         // The host's choice goes into the scene the sim is built from; the hash is the file's, as a joiner's copy matches.
         let scene_text = red_engine2::sim::shooter::with_overrides(&text, Some(mode), Some(team_size), limit).unwrap();
-        let scene = red_engine2::schema::parse_scene(&scene_text).unwrap();
+        let scene = red_engine2::scene_blocks::parse_scene(&scene_text).unwrap();
         let spawns = parse_spawns(&scene_text).unwrap();
         let mut cfg = ServerConfig::new("127.0.0.1:0".parse().unwrap(), red_engine2::net::map_hash(&text));
         cfg.bot_fill = Some(0);

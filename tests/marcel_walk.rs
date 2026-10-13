@@ -12,7 +12,7 @@ use red_engine2::sim::player::{step_player, PlayerInput, PlayerState};
 
 fn marcel() -> red_engine2::schema::Scene {
     let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/marcel/marcel.json")).unwrap();
-    red_engine2::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"))
+    red_engine2::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"))
 }
 
 /// What the test keeps of each chunk it has walked through: the ground mesh the renderer draws and the things that stop the boy.

@@ -78,7 +78,7 @@ fn synthetic(n: usize) -> Scene {
         "objects":[{}]}}"##,
         objs.join(",")
     );
-    red_engine2::schema::parse_scene(&json).unwrap_or_else(|e| panic!("synthetic scene: {e:?}"))
+    red_engine2::scene_blocks::parse_scene(&json).unwrap_or_else(|e| panic!("synthetic scene: {e:?}"))
 }
 
 struct Stats {

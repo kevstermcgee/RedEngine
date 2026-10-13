@@ -6,7 +6,7 @@
 //! and refuse to write a file that no longer validates. The writer keeps the scene readable:
 //! anything that fits on one line is one line, so diffs stay small.
 
-use crate::schema::parse_scene;
+use crate::scene_blocks::parse_scene;
 use serde_json::{Map, Value};
 use std::path::Path;
 

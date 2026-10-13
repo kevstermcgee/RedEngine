@@ -37,7 +37,7 @@ impl Rig {
 
     /// A rig whose first slot drives as `driver` (the lobby's choice, until it exists).
     fn with_driver(text: &str, driver: Driver) -> Rig {
-        let scene = red_engine2::schema::parse_scene(text).unwrap();
+        let scene = red_engine2::scene_blocks::parse_scene(text).unwrap();
         let hash = map_hash(text);
         let mut sim = MatchSim::try_new(&scene, parse_spawns(text).unwrap()).unwrap();
         sim.set_driver(0, driver);
@@ -135,7 +135,7 @@ fn a_real_client_predicts_its_kart_and_the_server_agrees_with_it() {
     // A real Server on its own thread at real speed, and a real client (network client plus predictor), the code a game uses.
     let path = std::env::temp_dir().join(format!("re2_net_race_{}.json", std::process::id()));
     std::fs::write(&path, RACE_SCENE).unwrap();
-    let scene = red_engine2::schema::parse_scene(RACE_SCENE).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(RACE_SCENE).unwrap();
     let hash = map_hash(RACE_SCENE);
     let mut server =
         Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), hash), MatchSim::try_new(&scene, parse_spawns(RACE_SCENE).unwrap()).unwrap()).unwrap();

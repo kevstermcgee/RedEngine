@@ -65,6 +65,8 @@ use servers::*;
 use util::*;
 
 fn main() {
+    // The scene blocks the engine defines above the scene parser (the museum), before anything parses a scene.
+    red_engine2::scene_blocks::register();
     use clap::{CommandFactory, FromArgMatches};
     let matches = Cli::command().get_matches();
     let command_name = matches.subcommand_name().unwrap_or("").to_string();

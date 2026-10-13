@@ -125,7 +125,7 @@ fn build_avatar_pools(scene: &mut Scene) -> Vec<AvatarPool> {
 /// What a client would really have: builds the avatar pool for the scene in `scene_json` exactly as [`NetSession::add_avatar_pool`] does and counts the avatars made per
 /// body, in [`Character::ALL`] order. `game check` compares it with what the scene's bots wear.
 pub fn avatars_made(scene_json: &str) -> Result<[usize; BODY_KINDS], Vec<String>> {
-    let mut scene = crate::schema::parse_scene(scene_json)?;
+    let mut scene = crate::scene_blocks::parse_scene(scene_json)?;
     let mut made = [0usize; BODY_KINDS];
     for pool in build_avatar_pools(&mut scene) {
         made[body_index(pool.body)] = pool.pool.capacity();
@@ -806,7 +806,7 @@ mod tests {
         use crate::net::bot::{Behavior, Bot};
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json");
         let text = std::fs::read_to_string(&path).unwrap();
-        let scene0 = crate::schema::parse_scene(&text).unwrap();
+        let scene0 = crate::scene_blocks::parse_scene(&text).unwrap();
         let mut spawns = parse_spawns(&text).unwrap();
         spawns.retain(|s| s.group == "props");
         let sim = MatchSim::new(&scene0, spawns);
@@ -890,7 +890,7 @@ mod tests {
 
     /// A server for `text` on a free loopback port (the "duel" spawns, room for a few players), run on a thread; `fill` overrides the map's bot fill.
     fn serve(text: &str, fill: Option<usize>) -> (SocketAddr, Arc<AtomicBool>, std::thread::JoinHandle<Server>) {
-        let scene = crate::schema::parse_scene(text).unwrap();
+        let scene = crate::scene_blocks::parse_scene(text).unwrap();
         let mut spawns = parse_spawns(text).unwrap();
         spawns.retain(|s| s.group == "duel");
         let mut cfg = ServerConfig::new("127.0.0.1:0".parse().unwrap(), crate::net::map_hash(text));
@@ -1003,7 +1003,7 @@ mod tests {
     fn scene_with(forced: Option<&str>, bots: Option<serde_json::Value>) -> Scene {
         let (path, text) = lab_variant("plan", forced, bots);
         let _ = std::fs::remove_file(path);
-        crate::schema::parse_scene(&text).unwrap()
+        crate::scene_blocks::parse_scene(&text).unwrap()
     }
 
     #[test]

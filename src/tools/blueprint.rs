@@ -1010,7 +1010,7 @@ mod tests {
         assert_eq!(color("ceiling_"), Some(json!("@trim")));
         assert!(b.scene.get("background").is_none() && b.scene.get("ambient").is_none(), "the style's sky and ambient fill these when the map is parsed");
         assert_eq!(b.scene["lights"][0]["color"], "#ffcf9a", "the blueprint's sun keeps its shadow settings and takes the rig's colour");
-        let parsed = crate::schema::parse_scene(&serde_json::to_string(&b.scene).unwrap()).unwrap();
+        let parsed = crate::scene_blocks::parse_scene(&serde_json::to_string(&b.scene).unwrap()).unwrap();
         assert!(matches!(parsed.background, crate::schema::Background::Gradient { .. }));
         let lamp = parsed.lights.iter().find(|l| matches!(l.kind, crate::schema::LightKind::Point { .. })).expect("a room lamp");
         assert!(

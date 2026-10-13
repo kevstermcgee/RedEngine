@@ -360,7 +360,7 @@ mod tests {
     fn the_default_track_builds_parses_and_lints_clean() {
         let scene = build(&TrackSpec::default()).unwrap();
         let text = serde_json::to_string(&scene).unwrap();
-        let parsed = crate::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
+        let parsed = crate::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
         let race = parsed.race.as_ref().expect("a race block");
         assert_eq!((race.laps, race.gates.len(), race.item_boxes.len(), race.surfaces.len()), (3, 4, 12, 3));
         assert!(race.line.len() > 20, "a racing line for the bots");

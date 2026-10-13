@@ -64,6 +64,8 @@ fn report(f: &BotFrame) -> serde_json::Value {
 }
 
 fn main() {
+    // The scene blocks the engine defines above the scene parser (the museum), before anything parses a scene.
+    red_engine2::scene_blocks::register();
     let (mut server, mut map, mut who, mut spec, mut sprint) =
         (None::<SocketAddr>, PathBuf::from("examples/test_lab.json"), Character::Human, "idle".to_string(), false);
     let (mut duration, mut every, mut token, mut leave_after, mut rejoin_after) = (5.0f64, 0.5f64, 0u64, None::<f64>, None::<f64>);

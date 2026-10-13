@@ -169,7 +169,7 @@ fn travel(sim: &MatchSim, kind: EdgeKind, a: Vec3, b: Vec3) -> Result<Trial, Str
 
 /// Checks the graph of a scene given as JSON text.
 pub fn check_text(text: &str) -> Result<NavReport, String> {
-    let scene = crate::schema::parse_scene(text).map_err(|e| e.join("; "))?;
+    let scene = crate::scene_blocks::parse_scene(text).map_err(|e| e.join("; "))?;
     let Some(nav) = scene.nav.clone() else { return Err("the scene has no `nav` block (nodes and edges bots route along)".to_string()) };
     let spawns = parse_spawns(text)?;
     let sim = MatchSim::try_new(&scene, spawns)?;
@@ -241,7 +241,7 @@ pub fn check(sim: &MatchSim, nav: &Nav) -> NavReport {
 
 /// The route a bot would take between two nodes, as text: each hop with its kind and the total cost.
 pub fn route_text(text: &str, from: &str, to: &str) -> Result<String, String> {
-    let scene = crate::schema::parse_scene(text).map_err(|e| e.join("; "))?;
+    let scene = crate::scene_blocks::parse_scene(text).map_err(|e| e.join("; "))?;
     let nav = scene.nav.ok_or("the scene has no `nav` block")?;
     let find = |id: &str| {
         nav.index_of(id).ok_or_else(|| format!("no node `{id}` (nodes: {})", nav.nodes.iter().map(|n| n.id.as_str()).collect::<Vec<_>>().join(", ")))

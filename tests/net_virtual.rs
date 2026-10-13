@@ -41,7 +41,7 @@ struct Sim {
 impl Sim {
     fn new(seed: u64, settings: MatchSettings, link: LinkModel) -> Sim {
         let text = std::fs::read_to_string(lab_path()).unwrap();
-        let scene = red_engine2::schema::parse_scene(&text).unwrap();
+        let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
         let mut spawns = parse_spawns(&text).unwrap();
         spawns.retain(|s| s.group == "duel");
         let server_addr: SocketAddr = "10.0.0.1:27015".parse().unwrap();

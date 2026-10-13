@@ -11,7 +11,7 @@ use red_engine2::track::Track;
 fn scene() -> red_engine2::schema::Scene {
     let text =
         std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/endless_meadow.json")).expect("examples/endless_meadow.json");
-    let mut s = red_engine2::schema::parse_scene(&text).expect("the example scene parses");
+    let mut s = red_engine2::scene_blocks::parse_scene(&text).expect("the example scene parses");
     s.width = 320;
     s.height = 180;
     s
