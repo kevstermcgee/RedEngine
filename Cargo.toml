@@ -16,6 +16,19 @@ description = "AI-first Rust game engine: JSON scenes, self-verifying maps, auth
 members = ["crates/red_core", "crates/red2d", "games/killchain"]
 default-members = [".", "crates/red_core", "crates/red2d"]
 
+# One version and one feature set per dependency the crates share, so a crate built alone (`cargo test -p red_core`) compiles them exactly as the engine does
+# (rapier3d's `enhanced-determinism` decides what the physics computes).
+[workspace.dependencies]
+glam = { version = "0.33.8", features = ["serde", "libm"] }
+libm = "0.2"
+rapier3d = { version = "0.35", features = ["enhanced-determinism"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.10"
+hmac = "0.12"
+getrandom = "0.3"
+subtle = "2.6"
+
 # `gfx` (default) = everything that draws or plays sound: wgpu, winit, softbuffer, rodio (MP4 export is the separate `video` feature). The dedicated server, the bot and the
 # map-analysis CLI build without it (`cargo build --no-default-features --bin red_server`); CI enforces that on Linux.
 #
@@ -48,24 +61,24 @@ flate2 = { version = "1.1", default-features = false, features = ["rust_backend"
 ffmpeg-sidecar = { version = "2.5.2", optional = true }
 # `libm`: glam uses the pure-Rust libm for sin/cos/atan2 instead of the platform C library, so simulation maths is
 # bit-identical on Windows and Linux (replay checksums, ADR 0019).
-glam = { version = "0.33.8", features = ["serde", "libm"] }
-libm = "0.2"
+glam = { workspace = true }
+libm = { workspace = true }
 # Graceful Ctrl-C and SIGTERM (`docker stop`) for `red_server` (tell clients bye, write the `--record` trace).
 image = { version = "0.25.9", default-features = false, features = ["png"] }
 pollster = { version = "1.0.1", optional = true }
 rodio = { version = "0.20", default-features = false, optional = true }
-rapier3d = { version = "0.35", features = ["enhanced-determinism"] }
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
+rapier3d = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 # The JSON path to the bad field in a typed content error (`content::typed`): `packs[3].tag: unknown field ...`.
 serde_path_to_error = "0.1"
 thiserror = "2.0.20"
 # The production network transport (ADR 0044): QUIC datagrams + TLS 1.3 from maintained implementations, and the primitives the
 # remaining application-level proofs use. All graphics-free: they are part of the headless server build.
-sha2 = "0.10"
-hmac = "0.12"
-subtle = "2.6"
-getrandom = "0.3"
+sha2 = { workspace = true }
+hmac = { workspace = true }
+subtle = { workspace = true }
+getrandom = { workspace = true }
 bytes = "1"
 wgpu = { version = "30.0.1", optional = true }
 # Draws the player's own system serif (`ui::serif`: a museum's labels and map); already in the tree through winit's window decorations.

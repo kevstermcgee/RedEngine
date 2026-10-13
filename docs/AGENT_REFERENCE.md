@@ -412,7 +412,7 @@ tumble and knock things over. `physics::classify` decides what is loose (lift-ab
 prefab, not a fixture; override with `"movable": true|false` on the object); the rest is a fixed collider.
 `PropWorld` is a headless rapier world — loose props start as **static instances** (fixed colliders at their
 authored pose, no rigid body, no entity, so an idle map costs nothing and never shuffles) and are **promoted** to
-dynamic entities when disturbed (ADR 0014, `src/sim/statics.rs`). The player's own walking is
+dynamic entities when disturbed (ADR 0014, `crates/red_core/src/sim/statics.rs`). The player's own walking is
 *not* rapier (ADR 0003): loose props are removed from `collect_box_colliders_except` /
 `collect_ground_candidates_except` and the player is a kinematic cylinder that shoves them. The tools
 (`lint`, `reach`, `walk`, `plan`) still see loose props as solid furniture at their authored spot. Tests:

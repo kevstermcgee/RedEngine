@@ -6,8 +6,15 @@ license = "MIT"
 description = "Red Engine's headless core: what the engine crate, the 2D crate and game crates share. No graphics, audio device or network dependencies."
 
 [dependencies]
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
+getrandom = { workspace = true }
+glam = { workspace = true }
+hmac = { workspace = true }
+libm = { workspace = true }
+rapier3d = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+subtle = { workspace = true }
 
 # The same style policy as the engine crate.
 [lints.clippy]

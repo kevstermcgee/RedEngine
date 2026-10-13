@@ -19,8 +19,8 @@
 //! Nothing here is wired into networking yet; it is a tested primitive (ADR 0014, step 3).
 //!
 //! ```
-//! use red_engine2::sim::change::{ChangeCursor, GenClock, TrackedColumn};
-//! use red_engine2::sim::components::Health;
+//! use red_core::sim::change::{ChangeCursor, GenClock, TrackedColumn};
+//! use red_core::sim::components::Health;
 //! let mut clock = GenClock::default();
 //! let mut health: TrackedColumn<Health> = TrackedColumn::default();
 //! let a = health.push(Health::full(100), clock.now());

@@ -8,10 +8,10 @@ description = "RedEngine 2D: declarative 2D games with a deterministic headless 
 [dependencies]
 # The headless core it shares with the engine crate (the synthesizer, the expression language, strict fields): one copy, one set of types.
 red_core = { path = "../red_core" }
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
 # Trigonometry for anything visual (particles): a pure-Rust libm gives the same bits on every platform.
-libm = "0.2"
+libm = { workspace = true }
 
 # The same style policy as the engine crate.
 [lints.clippy]

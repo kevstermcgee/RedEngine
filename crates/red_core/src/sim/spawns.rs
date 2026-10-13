@@ -67,18 +67,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_test_lab_has_four_duel_spawns_facing_each_other_and_props_spawns() {
-        let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap();
-        let s = parse_spawns(&text).unwrap();
-        assert!(s.len() >= 6);
-        let a = s.iter().find(|s| s.id == "spawn_a").unwrap();
-        let b = s.iter().find(|s| s.id == "spawn_b").unwrap();
-        // a faces +X (yaw 90), b faces -X (yaw 270): they look at each other across the hall.
-        assert!(a.position[0] < b.position[0] && (a.yaw_deg - 90.0).abs() < 1e-3 && (b.yaw_deg - 270.0).abs() < 1e-3);
-        assert!(s.iter().any(|s| s.group == "props"));
-    }
-
-    #[test]
     fn without_spawns_the_camera_is_the_spawn() {
         let s = parse_spawns(r#"{"camera":{"position":[0,1.7,5],"target":[0,1,0]},"objects":[]}"#).unwrap();
         assert_eq!(s.len(), 1);

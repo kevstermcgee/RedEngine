@@ -5,7 +5,7 @@
 //! [`TickClock::alpha`], which the renderer uses to interpolate between the last two ticks.
 //!
 //! ```
-//! use red_engine2::sim::clock::{TickClock, TICK_DT};
+//! use red_core::sim::clock::{TickClock, TICK_DT};
 //! let mut clock = TickClock::default();
 //! clock.push_time(0.040); // a 25 fps frame
 //! let mut ran = 0;
