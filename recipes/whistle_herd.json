@@ -1,0 +1,96 @@
+{
+  "recipe": {
+    "title": "Whistle herd: a pull you carry, aimed by a rule",
+    "summary": "Four sheep shy away from the shepherd's lantern wherever it is: pick it up and walk behind the flock to drive it into the pen. One aimed field (`toward` + a negative `speed`) is the whole herding behaviour; one rule per pen edge counts sheep with `self`.",
+    "teaches": [
+      "an aimed field: `fields[].toward` (null until aimed) + `speed` (negative pushes away) + `props` (only the sheep)",
+      "`aim [field, self]` on `pickup` filtered with `prop`: the field follows the lantern into the player's hands and wherever it is set down",
+      "`prop_enter` / `prop_exit` with a `prop` list and `self`: one rule for every sheep instead of one per sheep",
+      "`checks.sim` proof: `{\"field\": \"shy\", \"aimed_at\": \"lantern\"}` and where the props ended (`in_zone`, `near`)"
+    ],
+    "tips": [
+      "A field pushes horizontally at a speed target: on a floor, `rate` x `speed` must beat friction (about 7 m/s^2) to move anything; the default rate 10 moves props from about 0.7 m/s.",
+      "An aimed field never brakes: a sheep already running away faster keeps its speed, and `toward: null` (or `aim [field, null]`) leaves the flock alone.",
+      "A carried prop counts for triggers where it was picked up until it is dropped; the field follows it to the player's hands."
+    ]
+  },
+  "camera": { "position": [0, 9, -12], "target": [0, 0, 1] },
+  "spawns": [
+    { "id": "gate", "position": [0, 0, -5], "yaw_deg": 0, "group": "solo" }
+  ],
+  "zones": [
+    { "id": "meadow", "rect": [-8, -6, 8, 6], "y": 0, "kind": "room" },
+    { "id": "pen", "rect": [-4, 3, 4, 6], "y": 0, "kind": "pad" }
+  ],
+  "vars": { "penned": 0 },
+  "fields": [
+    { "id": "shy", "zone": "meadow", "toward": null, "speed": -2.5, "props": ["sheep_1", "sheep_2", "sheep_3", "sheep_4"] }
+  ],
+  "rules": [
+    { "id": "raise", "when": { "event": "pickup", "prop": "lantern" }, "do": [{ "aim": ["shy", "self"] }, { "emit": "lantern_up" }] },
+    {
+      "id": "in",
+      "when": { "prop_enter": { "zone": "pen" }, "prop": ["sheep_1", "sheep_2", "sheep_3", "sheep_4"] },
+      "do": [{ "add": ["penned", 1] }, { "impulse": { "object": "self", "dir": [0, 1, 0], "speed": 1.5 } }, { "emit": "baa" }]
+    },
+    {
+      "id": "out",
+      "when": { "prop_exit": { "zone": "pen" }, "prop": ["sheep_1", "sheep_2", "sheep_3", "sheep_4"] },
+      "do": [{ "add": ["penned", -1] }, { "emit": "stray" }]
+    },
+    { "id": "home", "when": { "every": 0.25 }, "if": "penned >= 4", "do": [{ "emit": "home" }, { "end": "victory" }] }
+  ],
+  "checks": {
+    "lint": { "max_errors": 0, "max_warnings": 0, "ignore": ["interest"] },
+    "sim": [
+      {
+        "name": "the flock stands still until the lantern is raised",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "gate" }],
+        "script": [{ "player": "p1", "wait": 3 }],
+        "expect": [{ "field": "shy", "aimed_at": null }, { "prop": "sheep_1", "moved": false }, { "var": "penned", "eq": 0 }, { "not_ended": true }]
+      },
+      {
+        "name": "carry the lantern behind the flock and it walks into the pen",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "gate" }],
+        "script": [
+          { "player": "p1", "interact": "lantern" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "0,-2.5" },
+          { "player": "p1", "wait": 8 }
+        ],
+        "expect": [
+          { "field": "shy", "aimed_at": "lantern" },
+          { "event": "lantern_up", "count": 1 },
+          { "event": "baa", "min": 4 },
+          { "prop": "sheep_3", "in_zone": "pen" },
+          { "var": "penned", "eq": 4 },
+          { "ended": "victory" }
+        ],
+        "max_seconds": 30
+      }
+    ]
+  },
+  "objects": [
+    { "id": "grass", "type": "box", "size": [16, 0.2, 12], "position": [0, -0.1, 0], "material": { "color": "#5d8a3c", "roughness": 1 } },
+    { "id": "hedge_s", "type": "box", "size": [16, 1.2, 0.3], "position": [0, 0.6, -6.15], "material": { "color": "#6b5a3e", "roughness": 0.9 } },
+    { "id": "hedge_n", "type": "box", "size": [16, 1.2, 0.3], "position": [0, 0.6, 6.45], "material": { "color": "#6b5a3e", "roughness": 0.9 } },
+    { "id": "hedge_w", "type": "box", "size": [0.3, 1.2, 12.6], "position": [-8.15, 0.6, 0.15], "material": { "color": "#6b5a3e", "roughness": 0.9 } },
+    { "id": "hedge_e", "type": "box", "size": [0.3, 1.2, 12.6], "position": [8.15, 0.6, 0.15], "material": { "color": "#6b5a3e", "roughness": 0.9 } },
+    { "id": "pen_w", "type": "box", "size": [0.2, 1.0, 3.2], "position": [-4.1, 0.5, 4.6], "material": { "color": "#6b5a3e", "roughness": 0.9 } },
+    { "id": "pen_e", "type": "box", "size": [0.2, 1.0, 3.2], "position": [4.1, 0.5, 4.6], "material": { "color": "#6b5a3e", "roughness": 0.9 } },
+    {
+      "id": "lantern",
+      "type": "prop",
+      "prop": "traffic_cone",
+      "movable": true,
+      "position": [0, 0, -4],
+      "material": { "color": "#f2c14e", "emissive": "#f2c14e" }
+    },
+    { "id": "sheep_1", "type": "prop", "prop": "crate", "movable": true, "position": [-1.5, 0, 0.5], "material": { "color": "#f4f1ea" } },
+    { "id": "sheep_2", "type": "prop", "prop": "crate", "movable": true, "position": [-0.5, 0, -0.5], "material": { "color": "#f4f1ea" } },
+    { "id": "sheep_3", "type": "prop", "prop": "crate", "movable": true, "position": [0.5, 0, 0.5], "material": { "color": "#f4f1ea" } },
+    { "id": "sheep_4", "type": "prop", "prop": "crate", "movable": true, "position": [1.5, 0, -0.5], "material": { "color": "#f4f1ea" } }
+  ]
+}

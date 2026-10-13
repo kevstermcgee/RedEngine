@@ -7,12 +7,17 @@
 //! parse error with a did-you-mean, which is how a typo in a rule is caught by `validate` instead of at play time.
 //! Built-in **functions** read the world: `prop_y(crate)`, `tilt(domino_3) > 60`, `held(parcel)`, `mass(barrel)`,
 //! `moved(bell)`, `props_in(pit)`, `in_zone(crate, pit)`; their argument is a loose prop's (or a zone's) id from the [`Scope`] the expression
-//! is compiled in, and a [`World`] answers them at evaluation time (ADR 2026-09-29-prop-aware-rules-and-scenarios).
+//! is compiled in, and a [`World`] answers them at evaluation time (ADR 2026-09-29-prop-aware-rules-and-scenarios). In a scope with loose props,
+//! `self` stands for the prop that triggered the rule (`held(self)`, `in_zone(self, pit)`): it compiles to [`SUBJECT`] and the world answers for
+//! whichever prop that is when the rule runs (ADR 2026-10-13-aimed-fields-and-the-rule-s-subject-prop).
 //! **Math** over expressions: `floor(x) round(x) abs(x) sqrt(x) min(a, b) max(a, b)`. **`random(a, b)`** is a whole number from `a` to `b` inclusive,
 //! drawn from the simulation's seeded generator through the [`World`] (so a run with the same seed and inputs draws the same numbers; ADR
 //! 2026-10-10-story-is-rules-and-tables-not-a-story-system).
 
 use std::fmt;
+
+/// The prop index `self` compiles to: the rule's subject, whichever prop that is when it runs ([`World::call`] receives it as the index).
+pub const SUBJECT: usize = usize::MAX;
 
 /// A built-in function over the world. The prop functions take a loose prop's object id; `props_in` takes a zone id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,7 +151,7 @@ pub struct Scope<'a> {
 /// Answers the built-in functions at evaluation time: `index` is the position in the [`Scope`] the expression was
 /// compiled against (a prop for the prop functions, a zone for `props_in`). `()` answers 0 to everything.
 pub trait World {
-    /// The value of `f` for the prop or zone at `index`.
+    /// The value of `f` for the prop or zone at `index` ([`SUBJECT`] for `self`: the rule's subject prop, 0 when it has none).
     fn call(&self, f: Func, index: usize) -> f64;
 
     /// The value of the two-argument `f` (`in_zone`) for the prop at `prop` and the zone at `zone`; 0 by default.
@@ -307,6 +312,17 @@ impl Expr {
             Expr::Neg(e) | Expr::Not(e) => e.uses_me(),
             Expr::Bin(_, l, r) | Expr::Random(l, r) => l.uses_me() || r.uses_me(),
             Expr::Math(_, args) => args.iter().any(Expr::uses_me),
+        }
+    }
+
+    /// Whether the expression reads the rule's subject prop (`self`), so it needs a trigger that has one.
+    pub fn uses_subject(&self) -> bool {
+        match self {
+            Expr::Call(_, i) | Expr::Call2(_, i, _) => *i == SUBJECT,
+            Expr::Num(_) | Expr::Var(_) | Expr::Me(_) => false,
+            Expr::Neg(e) | Expr::Not(e) => e.uses_subject(),
+            Expr::Bin(_, l, r) | Expr::Random(l, r) => l.uses_subject() || r.uses_subject(),
+            Expr::Math(_, args) => args.iter().any(Expr::uses_subject),
         }
     }
 
@@ -544,6 +560,9 @@ impl Parser<'_> {
         }
         self.pos += 1;
         let (kind, list) = if f.takes_zone() { ("zone", self.scope.zones) } else { ("loose prop", self.scope.props) };
+        if arg == "self" && !f.takes_zone() && !list.is_empty() {
+            return Ok(Expr::Call(f, SUBJECT));
+        }
         match list.iter().position(|n| *n == arg) {
             Some(i) => Ok(Expr::Call(f, i)),
             None => {
@@ -605,7 +624,7 @@ impl Parser<'_> {
                 Err(ParseError { message: format!("`{name}({prop}, {zone})`: no {kind} `{id}`{hint} ({kind}s: {known})"), at })
             }
         };
-        let p = lookup("loose prop", self.scope.props, prop, prop_at)?;
+        let p = if prop == "self" && !self.scope.props.is_empty() { SUBJECT } else { lookup("loose prop", self.scope.props, prop, prop_at)? };
         let z = lookup("zone", self.scope.zones, &zone, zone_at)?;
         Ok(Expr::Call2(f, p, z))
     }

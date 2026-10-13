@@ -6,5 +6,29 @@
   "summary": "start now says up front that a missing executable means a 2-7 min cold build (run it in the background) and names scripts/dev seed and the prebuilt-binary route.",
   "partial": true,
   "remaining": "preflight still starts a second cold build in the dev profile when only another profile is built, and `scripts/dev worktree` cannot seed from a never-built donor checkout"
+ },
+ {
+  "key": "no-runtime-gravity-or-joints",
+  "covers": [],
+  "date": "2026-10-13",
+  "summary": "3D aimed fields (ADR 2026-10-13-aimed-fields-and-the-rule-s-subject-prop): a `fields` entry with `toward` + `speed` (an expression) pulls loose props along their own line to a prop, object or point that a rule re-aims with `aim`; the server, `sim` and offline re2 apply it alike. Velvet Orchestra's 45 generated impulse rules are one field and its gravity points at the stone itself.",
+  "partial": true,
+  "remaining": "2D has no runtime gravity (phantom-harvest: body.gravity is fixed per prefab) and neither dimension has a rope/distance joint; the 3D pull is horizontal only (no pull up toward a raised target), has no distance falloff and does not act on players"
+ },
+ {
+  "key": "no-rule-iteration-over-props",
+  "covers": [],
+  "date": "2026-10-13",
+  "summary": "3D rules name the prop that fired them `self` (prop_enter/exit/below, pickup/drop/prop_hit) and filter with `prop: [ids]`, so one rule serves every prop (Velvet Orchestra's 20 per-thing slot rules are 6, with no per-thing `_gone` vars).",
+  "partial": true,
+  "remaining": "no prop_x/prop_z built-ins and no for_each for rules that are not fired by a prop (a timer over every tile still needs one rule per tile); 2D (brittle-lantern beds) unchanged; per-entity variables and timers are the separate `no-per-entity-timers` gap"
+ },
+ {
+  "key": "no-rule-readable-held-input-or-breath",
+  "covers": [],
+  "date": "2026-10-13",
+  "summary": "`pickup`, `drop` and `prop_hit` now carry the prop they are about: a rule names it `self` and `\"prop\": id` beside the event filters on it (a swing at the radio can be the dial).",
+  "partial": true,
+  "remaining": "rules still cannot read held inputs, the aimed-at object, the player's velocity or loudness, and carrying a prop still blocks the bat swing"
  }
 ]

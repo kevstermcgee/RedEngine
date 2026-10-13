@@ -206,5 +206,7 @@ strict_struct! {
         tilt_lt: Any,
         moved: Any,
         held_by: Any,
+        field: String,
+        aimed_at: Any,
     }
 }

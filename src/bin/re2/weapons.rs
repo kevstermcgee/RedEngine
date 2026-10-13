@@ -143,20 +143,20 @@ impl App {
         self.draw_own_shot(self.weapon);
         let dir = self.camera.forward();
         let eye = self.tick_eye();
-        let mut struck_prop = false;
+        let mut struck_prop = None;
         for pellet in 0..self.weapon.pellets() {
             let dir = self.weapon.shot_direction(dir, pellet);
             if let Some((object_index, distance, loose)) = self.probe_direction(eye, dir, spec.range) {
                 if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
                     props.strike_impulse(prop, dir, eye + dir * distance, spec.impulse / self.weapon.pellets() as f32);
-                    struck_prop = true;
+                    struck_prop = struck_prop.or(Some(prop));
                 }
                 println!("Shot '{}' at {:.1} m", self.scene.objects[object_index].id, distance);
             }
         }
         self.rules.inject(self.clock.ticks_run(), "shot", Some(self.slot));
-        if struck_prop {
-            self.rules.inject(self.clock.ticks_run(), "prop_hit", Some(self.slot));
+        if struck_prop.is_some() {
+            self.rules.inject_with(self.clock.ticks_run(), "prop_hit", Some(self.slot), struck_prop);
         }
     }
 
@@ -191,7 +191,7 @@ impl App {
                 if let (Some(prop), Some(props)) = (loose, self.props.as_mut()) {
                     let dir = self.camera.forward();
                     props.strike(prop, dir, eye + dir * distance);
-                    self.rules.inject(self.clock.ticks_run(), "prop_hit", Some(self.slot));
+                    self.rules.inject_with(self.clock.ticks_run(), "prop_hit", Some(self.slot), Some(prop));
                 }
                 self.hit_with(object_index);
             }
@@ -254,14 +254,14 @@ impl App {
                     pitch: self.camera.pitch,
                     character: self.character,
                 };
-                props.drop_held(red_engine2::sim::player::release_velocity(&state, self.camera.forward(), self.scene.player.throw_speed));
-                self.rules.inject(self.clock.ticks_run(), "drop", Some(self.slot));
+                let dropped = props.drop_held(red_engine2::sim::player::release_velocity(&state, self.camera.forward(), self.scene.player.throw_speed));
+                self.rules.inject_with(self.clock.ticks_run(), "drop", Some(self.slot), dropped);
                 acted = true;
             } else if let Some(p) = self.pickup_target {
                 props.pick_up(p);
                 self.swing.cancel();
                 self.swing_timer = None;
-                self.rules.inject(self.clock.ticks_run(), "pickup", Some(self.slot));
+                self.rules.inject_with(self.clock.ticks_run(), "pickup", Some(self.slot), Some(p));
                 acted = true;
             }
         }

@@ -1,16 +1,18 @@
 //! Running a [`RuleSet`]: the deterministic state machine behind a scene's `rules`.
 //!
 //! [`RulesEngine::step_props`] is called once per simulation tick with where every player and every loose prop is; it
-//! reports what the world must do as [`Effect`]s (teleport a player, shove / reset / place a prop) and keeps everything
-//! else — variables, which rules have fired, hidden objects, the event log, whether the match ended — as plain data that
-//! [`RulesEngine::checksum`] folds into the match checksum, so a replay that diverges in game logic is detected.
+//! reports what the world must do as [`Effect`]s (teleport a player, shove / push / reset / place a prop) and keeps everything
+//! else — variables, which rules have fired, hidden objects, where each aimed field points, the event log, whether the match
+//! ended — as plain data that [`RulesEngine::checksum`] folds into the match checksum, so a replay that diverges in game logic is
+//! detected. The scene's `fields` are computed here too (the first effects of a tick, [`Effect::Push`]), so every driver of the
+//! rules — the authoritative `MatchSim` and the offline client — pushes props the same way.
 //! Nothing here knows about sockets, windows or physics: it is fed positions and returns effects. Props are described
 //! as [`RuleProp`]s in the physics world's order; [`RulesEngine::bind_props`] maps the ids a rule set names to that order once.
 
-use super::clock::TICK_RATE_HZ;
+use super::clock::{TICK_DT, TICK_RATE_HZ};
 use super::match_sim::MAX_PLAYERS;
-use super::rules::{Action, ResetTarget, Rule, RuleSet, Target, Volume, When, Who};
-use super::rules_expr::{Func, World};
+use super::rules::{Action, Aim, AimTo, Obj, PropSel, ResetTarget, Rule, RuleSet, Target, Volume, When, Who};
+use super::rules_expr::{Expr, Func, World, SUBJECT};
 use crate::player::Character;
 use glam::Vec3;
 use std::collections::{BTreeMap, BTreeSet};
@@ -40,8 +42,11 @@ pub struct RulePlayer {
 /// A loose prop as the rules see it (one per prop, in the physics world's order).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RuleProp {
-    /// Its origin (the frame of its authored `position`), world space.
+    /// Its origin (the frame of its authored `position`), world space: where its body is. A carried prop's body stays where it was picked up
+    /// until it is dropped, and the triggers and built-ins read this.
     pub origin: Vec3,
+    /// Where it really is now: `origin`, or while it is carried, where its holder holds it. An aimed field follows a target prop here.
+    pub at: Vec3,
     /// Height of its box above the origin, m (its band for volume tests).
     pub height: f32,
     /// Degrees its up axis leans from how the map author placed it (0 upright, 90 on its side).
@@ -62,6 +67,7 @@ impl RuleProp {
         let pose = props.prop_pose(prop);
         RuleProp {
             origin: pose.w_axis.truncate(),
+            at: props.held_pose(prop).unwrap_or(pose).w_axis.truncate(),
             height: props.props()[prop].shape.extents.y,
             tilt_deg: props.tilt_deg(prop),
             held_by: props.holder_of(prop),
@@ -97,15 +103,18 @@ impl Ctx<'_> {
     fn prop(&self, index: usize) -> Option<&RuleProp> {
         self.slot.get(index).copied().flatten().and_then(|k| self.props.get(k))
     }
-}
 
-impl World for Ctx<'_> {
-    fn call(&self, f: Func, index: usize) -> f64 {
-        if f.takes_zone() {
-            let Some(v) = self.zones.get(index) else { return 0.0 };
-            return self.props.iter().filter(|p| prop_inside(v, p)).count() as f64;
-        }
-        let Some(p) = self.prop(index) else { return 0.0 };
+    /// Physics prop `k` as the rule set names it (its index in `prop_ids`), if the set names it.
+    fn set_index(&self, k: usize) -> Option<usize> {
+        self.slot.iter().position(|s| *s == Some(k))
+    }
+
+    /// Whether physics prop `k` is one of `list` (indexes into `prop_ids`).
+    fn listed(&self, list: &[usize], k: usize) -> bool {
+        list.iter().any(|&i| self.slot.get(i).copied().flatten() == Some(k))
+    }
+
+    fn value(f: Func, p: &RuleProp) -> f64 {
         match f {
             Func::PropY => p.origin.y as f64,
             Func::Tilt => p.tilt_deg as f64,
@@ -114,6 +123,16 @@ impl World for Ctx<'_> {
             Func::Moved => p.moved as f64,
             Func::PropsIn | Func::InZone => 0.0,
         }
+    }
+}
+
+impl World for Ctx<'_> {
+    fn call(&self, f: Func, index: usize) -> f64 {
+        if f.takes_zone() {
+            let Some(v) = self.zones.get(index) else { return 0.0 };
+            return self.props.iter().filter(|p| prop_inside(v, p)).count() as f64;
+        }
+        self.prop(index).map_or(0.0, |p| Ctx::value(f, p))
     }
 
     fn call2(&self, f: Func, prop: usize, zone: usize) -> f64 {
@@ -134,25 +153,41 @@ impl World for Ctx<'_> {
     }
 }
 
-/// A [`Ctx`] plus the per-player variables of the player a rule is running for: answers `me.name` from that row.
+/// A [`Ctx`] seen from one firing of a rule: answers `me.name` from the triggering player's row and `self` from the triggering prop.
 struct MeView<'a> {
-    base: &'a dyn World,
+    ctx: &'a Ctx<'a>,
     row: &'a [f64],
+    /// The physics index of the rule's subject prop (`self`), if it has one.
+    subject: Option<usize>,
 }
 
 impl World for MeView<'_> {
     fn call(&self, f: Func, index: usize) -> f64 {
-        self.base.call(f, index)
+        if index == SUBJECT {
+            return self.subject.and_then(|k| self.ctx.props.get(k)).map_or(0.0, |p| Ctx::value(f, p));
+        }
+        self.ctx.call(f, index)
     }
     fn call2(&self, f: Func, prop: usize, zone: usize) -> f64 {
-        self.base.call2(f, prop, zone)
+        if prop == SUBJECT {
+            return match (self.subject.and_then(|k| self.ctx.props.get(k)), self.ctx.zones.get(zone)) {
+                (Some(p), Some(v)) if f == Func::InZone => prop_inside(v, p) as u8 as f64,
+                _ => 0.0,
+            };
+        }
+        self.ctx.call2(f, prop, zone)
     }
     fn me(&self, index: usize) -> f64 {
         self.row.get(index).copied().unwrap_or(0.0)
     }
     fn random(&self, lo: f64, hi: f64) -> f64 {
-        self.base.random(lo, hi)
+        self.ctx.random(lo, hi)
     }
+}
+
+/// The physics index of the rule set's prop `index`, if the world has it.
+fn slots_get(ctx: &Ctx<'_>, index: usize) -> Option<usize> {
+    ctx.slot.get(index).copied().flatten()
 }
 
 /// Something that happened because a rule ran.
@@ -199,6 +234,18 @@ pub enum Effect {
         /// Where.
         at: Vec3,
     },
+    /// A scene field's push on a loose prop this tick (physics prop index): an impulse of `impulse` N·s along `dir` at `at`. Derived from state
+    /// every tick, so it is applied without being recorded (a replay re-derives it, like a rule `impulse`).
+    Push {
+        /// The prop.
+        prop: usize,
+        /// Unit direction.
+        dir: Vec3,
+        /// Where on the prop (its origin).
+        at: Vec3,
+        /// Impulse, N·s.
+        impulse: f32,
+    },
 }
 
 /// The live state of a scene's rules. See the module docs.
@@ -226,8 +273,10 @@ pub struct RulesEngine {
     history: Vec<GameEvent>,
     dropped: u64,
     pending: Vec<GameEvent>,
-    /// Engine-raised events waiting to trigger `when: {event}` rules on the next step.
-    injected: Vec<(String, Option<usize>)>,
+    /// Engine-raised events waiting to trigger `when: {event}` rules on the next step: name, player slot, subject prop (physics index).
+    injected: Vec<(String, Option<usize>, Option<usize>)>,
+    /// Where each of the set's fields points now (parallel to `set.fields`; only an aimed field's entry is ever read or changed).
+    aims: Vec<Aim>,
     /// The scene's looping axis: a player near the seam is inside a volume just past the other edge (see `expanse`).
     wrap: Option<crate::expanse::Wrap>,
     /// The generator `random(a, b)` draws from: seeded the same for every match of the scene (so the server, a replay and a scenario agree);
@@ -250,6 +299,7 @@ impl RulesEngine {
             fired: vec![false; set.rules.len()],
             next_ok: vec![0; set.rules.len()],
             prop_slot: vec![None; set.prop_ids.len()],
+            aims: set.fields.iter().map(|f| f.toward.unwrap_or(Aim::Off)).collect(),
             set,
             inside: BTreeMap::new(),
             prop_inside: BTreeMap::new(),
@@ -377,10 +427,22 @@ impl RulesEngine {
     /// Records an event the *engine* raised (`pickup`, `hit`, `kill`, ...: see [`super::rules::ENGINE_EVENTS`]): it goes
     /// into the history/new-event lists like an `emit`, and any `when: {event}` rule reacts on the next [`step`](Self::step).
     pub fn inject(&mut self, tick: u64, name: &str, slot: Option<usize>) {
+        self.inject_with(tick, name, slot, None);
+    }
+
+    /// [`inject`](Self::inject) for an event about one loose prop (`pickup`, `drop`, `prop_hit`: [`super::rules::SUBJECT_EVENTS`]): `prop` is its
+    /// physics index, and a rule the event fires has it as its subject (`self`, the `prop` filter).
+    pub fn inject_with(&mut self, tick: u64, name: &str, slot: Option<usize>, prop: Option<usize>) {
         self.record(tick, "engine", name.to_string(), slot);
         if self.injected.len() < 64 {
-            self.injected.push((name.to_string(), slot));
+            self.injected.push((name.to_string(), slot, prop));
         }
+    }
+
+    /// Where the aimed field `id` points now (`None` when the scene has no aimed field of that id).
+    pub fn field_aim(&self, id: &str) -> Option<Aim> {
+        let i = self.set.fields.iter().position(|f| f.id == id && f.toward.is_some())?;
+        self.aims.get(i).copied()
     }
 
     /// Events since the last call (a server logs and clears these each tick).
@@ -425,7 +487,8 @@ impl RulesEngine {
         }
     }
 
-    /// Runs the actions of rule `ri` of `set` if its guards allow it. Emitted event names are pushed onto `queue`.
+    /// Runs the actions of rule `ri` of `set` if its guards allow it, for player `slot` and subject prop `subject` (physics index). Emitted event
+    /// names are pushed onto `queue` with both, so a rule an event triggers sees the same player and prop.
     #[allow(clippy::too_many_arguments)]
     fn fire(
         &mut self,
@@ -433,7 +496,8 @@ impl RulesEngine {
         ri: usize,
         tick: u64,
         slot: Option<usize>,
-        queue: &mut Vec<(String, Option<usize>)>,
+        subject: Option<usize>,
+        queue: &mut Vec<(String, Option<usize>, Option<usize>)>,
         effects: &mut Vec<Effect>,
         ctx: &Ctx<'_>,
     ) {
@@ -441,18 +505,29 @@ impl RulesEngine {
         if (rule.once && self.fired[ri]) || tick < self.next_ok[ri] || self.ended.is_some() {
             return;
         }
+        if let Some(list) = &rule.props {
+            if !subject.is_some_and(|k| ctx.listed(list, k)) {
+                return;
+            }
+        }
         if let Some(c) = &rule.cond {
-            let me = MeView { base: ctx, row: self.row(slot) };
+            let me = MeView { ctx, row: self.row(slot), subject };
             if !c.truthy_in(&self.vars, &me) {
                 return;
             }
         }
         self.fired[ri] = true;
         self.next_ok[ri] = tick + rule.cooldown_ticks;
+        // The subject's object id, for the actions that name objects by id.
+        let subject_id = || subject.and_then(|k| ctx.set_index(k)).map(|i| set.prop_ids[i].clone());
+        let object = |o: &Obj| match o {
+            Obj::Id(id) => Some(id.clone()),
+            Obj::Subject => subject_id(),
+        };
         for a in &rule.actions {
             match a {
                 Action::Set { var, value } => {
-                    let v = value.eval_in(&self.vars, &MeView { base: ctx, row: self.row(slot) });
+                    let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), subject });
                     if let Some(slot_v) = self.vars.get_mut(*var) {
                         *slot_v = v;
                     }
@@ -460,7 +535,7 @@ impl RulesEngine {
                 Action::SetMe { var, value } => {
                     let n = self.pn;
                     if let Some(s) = slot.filter(|s| *s < MAX_PLAYERS) {
-                        let v = value.eval_in(&self.vars, &MeView { base: ctx, row: self.row(slot) });
+                        let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), subject });
                         if let Some(cell) = self.pvars.get_mut(s * n + *var) {
                             *cell = v;
                         }
@@ -468,13 +543,17 @@ impl RulesEngine {
                 }
                 Action::Emit(name) => {
                     self.record(tick, &rule.id, name.clone(), slot);
-                    queue.push((name.clone(), slot));
+                    queue.push((name.clone(), slot, subject));
                 }
                 Action::Hide(o) => {
-                    self.hidden.insert(o.clone());
+                    if let Some(id) = object(o) {
+                        self.hidden.insert(id);
+                    }
                 }
                 Action::Show(o) => {
-                    self.hidden.remove(o);
+                    if let Some(id) = object(o) {
+                        self.hidden.remove(&id);
+                    }
                 }
                 Action::Deactivate(o) => {
                     self.hidden.insert(o.clone());
@@ -500,7 +579,11 @@ impl RulesEngine {
                     self.record(tick, &rule.id, format!("end:{reason}"), slot);
                     self.ended = Some(reason.clone());
                 }
-                Action::Impulse { object, dir, speed } => effects.push(Effect::Impulse { object: object.clone(), dir: *dir, speed: *speed }),
+                Action::Impulse { object: o, dir, speed } => {
+                    if let Some(object) = object(o) {
+                        effects.push(Effect::Impulse { object, dir: *dir, speed: *speed });
+                    }
+                }
                 Action::Reset(ResetTarget::Props(list)) => {
                     effects.extend(list.iter().filter_map(|&k| ctx.slot.get(k).copied().flatten()).map(|prop| Effect::Reset { prop }));
                 }
@@ -509,10 +592,67 @@ impl RulesEngine {
                         effects.extend(ctx.props.iter().enumerate().filter(|(_, p)| prop_inside(v, p)).map(|(prop, _)| Effect::Reset { prop }));
                     }
                 }
+                Action::Reset(ResetTarget::Subject) => effects.extend(subject.map(|prop| Effect::Reset { prop })),
                 Action::Place { prop, at } => {
-                    if let Some(prop) = ctx.slot.get(*prop).copied().flatten() {
+                    let k = match prop {
+                        PropSel::Prop(i) => ctx.slot.get(*i).copied().flatten(),
+                        PropSel::Subject => subject,
+                    };
+                    if let Some(prop) = k {
                         effects.push(Effect::Place { prop, at: *at });
                     }
+                }
+                Action::Aim { field, to } => {
+                    let aim = match to {
+                        AimTo::At(a) => Some(*a),
+                        AimTo::Subject => subject.and_then(|k| ctx.set_index(k)).map(Aim::Prop),
+                    };
+                    if let (Some(aim), Some(cell)) = (aim, self.aims.get_mut(*field)) {
+                        *cell = aim;
+                    }
+                }
+            }
+        }
+    }
+
+    /// The scene's fields' pushes this tick, in declaration order and, within a field, in physics prop order. A field's numbers are evaluated
+    /// once against the variables; a carried prop, a prop outside the volume or outside the field's `props`, and an aimed field's own target
+    /// are left alone. An aimed field aimed nowhere, or at a prop the physics world does not have, pushes nothing.
+    fn push_fields(&self, set: &RuleSet, ctx: &Ctx<'_>, effects: &mut Vec<Effect>) {
+        let num = |e: &Expr| {
+            let v = e.eval_in(&self.vars, ctx);
+            if v.is_finite() {
+                v as f32
+            } else {
+                0.0
+            }
+        };
+        for (fi, f) in set.fields.iter().enumerate() {
+            let lift = f.lift.as_ref().map(num);
+            let aimed = match f.toward {
+                None => None,
+                Some(_) => match self.aims.get(fi).copied().unwrap_or(Aim::Off) {
+                    Aim::Off => continue,
+                    Aim::Point(p) => Some((p, None)),
+                    Aim::Prop(i) => match ctx.slot.get(i).copied().flatten().and_then(|k| ctx.props.get(k).map(|p| (p.at, Some(k)))) {
+                        Some(t) => Some(t),
+                        None => continue,
+                    },
+                },
+            };
+            let target = f.velocity.as_ref().map(|[x, z]| [num(x), num(z)]);
+            let speed = f.speed.as_ref().map_or(0.0, num);
+            for (k, view) in ctx.props.iter().enumerate() {
+                if view.held_by.is_some() || !prop_inside(&f.volume, view) || f.props.as_ref().is_some_and(|list| !ctx.listed(list, k)) {
+                    continue;
+                }
+                let dv = match aimed {
+                    None => f.drag(target, lift, view.vel, TICK_DT),
+                    Some((_, Some(t))) if t == k => continue,
+                    Some((to, _)) => f.pull(view.origin, to, speed, lift, view.vel, TICK_DT),
+                };
+                if dv.length_squared() > 1e-6 {
+                    effects.push(Effect::Push { prop: k, dir: dv.normalize(), at: view.origin, impulse: view.mass * dv.length() });
                 }
             }
         }
@@ -524,30 +664,49 @@ impl RulesEngine {
     }
 
     /// Advances the rules one tick (`tick` = ticks completed so far) given where the players and the loose props are;
-    /// returns the effects the world must apply. Deterministic: rules run in declaration order, players in slot order,
-    /// props in physics order. `props` may be empty when [`needs_props`](Self::needs_props) is false.
+    /// returns the effects the world must apply: first the scene's field pushes, then what the rules did. Deterministic: fields in
+    /// declaration order, rules in declaration order, players in slot order, props in physics order, events in the order they were
+    /// raised. `props` may be empty when [`needs_props`](Self::needs_props) is false. Fields keep pushing after the match has ended.
     pub fn step_props(&mut self, tick: u64, players: &[RulePlayer], props: &[RuleProp]) -> Vec<Effect> {
         let mut effects = Vec::new();
-        if self.ended.is_some() || self.set.rules.is_empty() {
+        let live = self.ended.is_none() && !self.set.rules.is_empty();
+        if !live && self.set.fields.is_empty() {
             self.injected.clear();
             return effects;
         }
-        self.vars[0] = tick as f64 / TICK_RATE_HZ as f64;
-        self.vars[1] = tick as f64;
-        self.vars[2] = players.len() as f64;
-        self.inside.retain(|(_, slot), _| players.iter().any(|p| p.slot == *slot));
+        if live {
+            self.vars[0] = tick as f64 / TICK_RATE_HZ as f64;
+            self.vars[1] = tick as f64;
+            self.vars[2] = players.len() as f64;
+            self.inside.retain(|(_, slot), _| players.iter().any(|p| p.slot == *slot));
+        }
         // The set and the binding are read-only while the rules run; lending them out lets `fire` borrow `self` mutably.
         let set = std::mem::take(&mut self.set);
         let slots = std::mem::take(&mut self.prop_slot);
         let rng = std::cell::Cell::new(self.rng);
         let ctx = Ctx { props, slot: &slots, zones: &set.zone_volumes, rng: &rng };
-        let mut queue: Vec<(String, Option<usize>)> = std::mem::take(&mut self.injected);
+        self.push_fields(&set, &ctx, &mut effects);
+        if live {
+            self.run_rules(&set, tick, players, &ctx, &mut effects);
+        } else {
+            self.injected.clear();
+        }
+        self.set = set;
+        self.prop_slot = slots;
+        self.rng = rng.get();
+        effects
+    }
+
+    /// One tick of the rules proper (see [`step_props`](Self::step_props)).
+    fn run_rules(&mut self, set: &RuleSet, tick: u64, players: &[RulePlayer], ctx: &Ctx<'_>, effects: &mut Vec<Effect>) {
+        let props = ctx.props;
+        let mut queue: Vec<(String, Option<usize>, Option<usize>)> = std::mem::take(&mut self.injected);
         for ri in 0..set.rules.len() {
             let rule = &set.rules[ri];
             match &rule.when {
                 When::Start => {
                     if !self.started {
-                        self.fire(&set, ri, tick, None, &mut queue, &mut effects, &ctx);
+                        self.fire(set, ri, tick, None, None, &mut queue, effects, ctx);
                     }
                 }
                 When::Enter(v) | When::Exit(v) => {
@@ -557,44 +716,45 @@ impl RulesEngine {
                         let was = self.inside.insert((ri, p.slot), now);
                         if let Some(was) = was {
                             if (entering && now && !was) || (!entering && !now && was) {
-                                self.fire(&set, ri, tick, Some(p.slot), &mut queue, &mut effects, &ctx);
+                                self.fire(set, ri, tick, Some(p.slot), None, &mut queue, effects, ctx);
                             }
                         }
                     }
                 }
                 When::Every(n) => {
                     if tick > 0 && tick.is_multiple_of(*n) {
-                        self.fire(&set, ri, tick, None, &mut queue, &mut effects, &ctx);
+                        self.fire(set, ri, tick, None, None, &mut queue, effects, ctx);
                     }
                 }
                 When::After(n) => {
                     if tick == *n {
-                        self.fire(&set, ri, tick, None, &mut queue, &mut effects, &ctx);
+                        self.fire(set, ri, tick, None, None, &mut queue, effects, ctx);
                     }
                 }
                 When::Event(_) => {}
-                When::PropEnter { volume, prop } | When::PropExit { volume, prop } => {
-                    let entering = matches!(rule.when, When::PropEnter { .. });
-                    let (lo, hi) = match prop {
-                        Some(k) => slots.get(*k).copied().flatten().map_or((0, 0), |i| (i, i + 1)),
-                        None => (0, props.len()),
-                    };
-                    for (k, p) in props.iter().enumerate().take(hi).skip(lo) {
+                When::PropEnter(volume) | When::PropExit(volume) => {
+                    let entering = matches!(rule.when, When::PropEnter(_));
+                    for (k, p) in props.iter().enumerate() {
+                        // Only the listed props are watched (and remembered): a prop outside the filter has no occupancy to keep.
+                        if rule.props.as_ref().is_some_and(|list| !ctx.listed(list, k)) {
+                            continue;
+                        }
                         let now = prop_inside(volume, p);
                         let was = self.prop_inside.insert((ri, k), now);
                         if let Some(was) = was {
                             if (entering && now && !was) || (!entering && !now && was) {
-                                self.fire(&set, ri, tick, None, &mut queue, &mut effects, &ctx);
+                                self.fire(set, ri, tick, None, Some(k), &mut queue, effects, ctx);
                             }
                         }
                     }
                 }
                 When::PropBelow { prop, y } => {
-                    if let Some(p) = slots.get(*prop).copied().flatten().and_then(|i| props.get(i)) {
+                    if let Some(k) = slots_get(ctx, *prop) {
+                        let Some(p) = props.get(k) else { continue };
                         let now = p.origin.y < *y;
                         let was = self.below.insert(ri, now);
                         if was == Some(false) && now {
-                            self.fire(&set, ri, tick, None, &mut queue, &mut effects, &ctx);
+                            self.fire(set, ri, tick, None, Some(k), &mut queue, effects, ctx);
                         }
                     }
                 }
@@ -606,20 +766,16 @@ impl RulesEngine {
                 break;
             }
             let batch = std::mem::take(&mut queue);
-            for (name, slot) in batch {
+            for (name, slot, subject) in batch {
                 for ri in 0..set.rules.len() {
                     let matches_event = matches!(&set.rules[ri].when, When::Event(n) if *n == name);
                     let who_ok = slot.is_none_or(|s| players.iter().find(|p| p.slot == s).is_none_or(|p| Self::who_ok(set.rules[ri].who, p.character, p.team)));
                     if matches_event && who_ok {
-                        self.fire(&set, ri, tick, slot, &mut queue, &mut effects, &ctx);
+                        self.fire(set, ri, tick, slot, subject, &mut queue, effects, ctx);
                     }
                 }
             }
         }
-        self.set = set;
-        self.prop_slot = slots;
-        self.rng = rng.get();
-        effects
     }
 
     /// A 64-bit fold of all rule state (variables, fired flags, cooldowns, occupancy, hidden objects, outcome, event count).
@@ -667,6 +823,20 @@ impl RulesEngine {
             mix(0xfc);
             for (r, v) in &self.below {
                 mix((*r as u64) << 1 | *v as u64);
+            }
+        }
+        // Where the aimed fields point exists only in scenes that have one, so older checksums are unchanged elsewhere.
+        if self.set.fields.iter().any(|f| f.toward.is_some()) {
+            mix(0xfb);
+            for (_, a) in self.set.fields.iter().zip(&self.aims).filter(|(f, _)| f.toward.is_some()) {
+                match a {
+                    Aim::Off => mix(0),
+                    Aim::Prop(i) => mix(1 << 32 | *i as u64),
+                    Aim::Point(p) => {
+                        mix(2);
+                        p.to_array().iter().for_each(|c| mix(c.to_bits() as u64));
+                    }
+                }
             }
         }
         if let Some(e) = &self.ended {
@@ -856,8 +1026,16 @@ mod tests {
             "bell" => Some(1),
             _ => None,
         });
-        let prop =
-            |x: f32, z: f32, mass: f32| RuleProp { origin: Vec3::new(x, 0.3, z), height: 0.5, tilt_deg: 0.0, held_by: None, mass, moved: 0.0, vel: Vec3::ZERO };
+        let prop = |x: f32, z: f32, mass: f32| RuleProp {
+            origin: Vec3::new(x, 0.3, z),
+            at: Vec3::new(x, 0.3, z),
+            height: 0.5,
+            tilt_deg: 0.0,
+            held_by: None,
+            mass,
+            moved: 0.0,
+            vel: Vec3::ZERO,
+        };
         // Only the bell (mass 5) is on the pan: in_zone(crate) is 0, props_in counts 1, and the weighed sum is the bell alone.
         e.step_props(30, &[], &[prop(9.0, 9.0, 20.0), prop(2.0, 2.0, 5.0)]);
         assert_eq!((e.var("mine"), e.var("all"), e.var("weighed")), (Some(0.0), Some(1.0), Some(5.0)));
@@ -919,6 +1097,7 @@ mod tests {
         });
         let prop = |x: f32, y: f32, z: f32, tilt: f32| RuleProp {
             origin: Vec3::new(x, y, z),
+            at: Vec3::new(x, y, z),
             height: 0.5,
             tilt_deg: tilt,
             held_by: None,
@@ -985,5 +1164,225 @@ mod tests {
         b.step(1, &[at(1, 9.0, 0.0, Character::Human)]);
         assert_ne!(a.checksum(), b.checksum(), "who got the lap matters");
         assert_eq!(engine(json!({"vars": {}})).checksum(), RulesEngine::new(RuleSet::default()).checksum());
+    }
+
+    /// A scene with three loose props (`a`, `b`, `stone`) bound in physics order stone = 0, a = 1, b = 2, a zone `hall` round all of them, a
+    /// `slot` zone, and the given extra keys (`fields`, `vars`, `rules`).
+    fn prop_engine(extra: Value) -> RulesEngine {
+        let mut refs = Refs::default();
+        refs.prop_ids.extend(["a".to_string(), "b".to_string(), "stone".to_string()]);
+        refs.object_ids.extend(["a".to_string(), "b".to_string(), "stone".to_string(), "post".to_string()]);
+        refs.top_level_ids.extend(["a".to_string(), "b".to_string(), "stone".to_string(), "post".to_string()]);
+        refs.bounds.insert("post".into(), (Vec3::new(9.0, 0.0, 9.0), Vec3::new(11.0, 2.0, 11.0)));
+        refs.zones.insert("hall".into(), (Vec3::new(-20.0, 0.0, -20.0), Vec3::new(20.0, 0.0, 20.0)));
+        refs.zones.insert("slot".into(), (Vec3::new(5.0, 0.0, -1.0), Vec3::new(7.0, 0.0, 1.0)));
+        let mut e = RulesEngine::new(parse_rules(extra.as_object().unwrap(), &refs).unwrap_or_else(|e| panic!("{e:?}")));
+        e.bind_props(|id| match id {
+            "stone" => Some(0),
+            "a" => Some(1),
+            "b" => Some(2),
+            _ => None,
+        });
+        e
+    }
+
+    fn rp(x: f32, z: f32) -> RuleProp {
+        RuleProp { origin: Vec3::new(x, 0.0, z), at: Vec3::new(x, 0.0, z), height: 0.5, tilt_deg: 0.0, held_by: None, mass: 2.0, moved: 0.0, vel: Vec3::ZERO }
+    }
+
+    /// The pushes of a step, by physics prop: (prop, unit direction, impulse).
+    fn pushes(fx: &[Effect]) -> Vec<(usize, Vec3, f32)> {
+        fx.iter().filter_map(|e| if let Effect::Push { prop, dir, impulse, .. } = e { Some((*prop, *dir, *impulse)) } else { None }).collect()
+    }
+
+    fn gravity(extra_rules: Value) -> RulesEngine {
+        prop_engine(json!({
+            "vars": {"dial": 1},
+            "fields": [{"id": "g", "zone": "hall", "toward": null, "speed": "(dial == 1) * 3 - (dial == 3) * 2", "props": ["a", "b"]}],
+            "rules": extra_rules
+        }))
+    }
+
+    #[test]
+    fn an_aimed_field_pulls_each_prop_along_its_own_bearing_to_the_target_not_along_an_axis() {
+        let mut e = gravity(json!([{"id": "touch", "when": {"event": "pickup", "prop": "stone"}, "do": [{"aim": ["g", "self"]}]}]));
+        // Aimed at nothing: no pushes at all (an aimed field never brakes).
+        let props = [rp(8.0, -4.0), rp(-4.0, 2.0), rp(0.0, 6.0)];
+        assert!(pushes(&e.step_props(1, &[], &props)).is_empty());
+        // The stone is picked up: from the next tick each thing is pulled straight at it.
+        e.inject_with(1, "pickup", Some(0), Some(0));
+        e.step_props(2, &[], &props);
+        let p = pushes(&e.step_props(3, &[], &props));
+        assert_eq!(p.iter().map(|x| x.0).collect::<Vec<_>>(), [1, 2], "a and b, not the stone itself (the target and not in `props`)");
+        for (k, dir, impulse) in p {
+            let want = (props[0].origin - props[k].origin).with_y(0.0).normalize();
+            assert!(dir.dot(want) > 0.9999, "prop {k} pushed along {dir} instead of its bearing {want} to the stone");
+            assert!(impulse > 0.0 && impulse.is_finite());
+        }
+        // `a` is off both of the stone's axes: both coordinates change, which no axis-aligned impulse could do.
+        let (_, dir_a, _) = pushes(&e.step_props(4, &[], &props))[0];
+        assert!(dir_a.x > 0.5 && dir_a.z < -0.3, "{dir_a}");
+        assert_eq!(e.field_aim("g"), Some(Aim::Prop(2)), "stone is prop_ids[2]");
+    }
+
+    #[test]
+    fn the_target_is_followed_as_it_moves_and_a_new_touch_re_aims_from_the_next_tick() {
+        let mut e = gravity(json!([
+            {"id": "touch", "when": {"event": "pickup", "prop": ["stone", "b"]}, "do": [{"aim": ["g", "self"]}]}
+        ]));
+        e.inject_with(0, "pickup", Some(0), Some(0));
+        e.step_props(1, &[], &[rp(5.0, 0.0), rp(0.0, 0.0), rp(0.0, 5.0)]);
+        // The stone is carried round to the other side: `a` is now pulled west, not east.
+        // Its body is still where it was picked up (origin); the field follows it to where it is held (`at`).
+        let carried = RuleProp { held_by: Some(0), origin: Vec3::new(5.0, 0.0, 0.0), ..rp(-5.0, 0.0) };
+        let p = pushes(&e.step_props(2, &[], &[carried, rp(0.0, 0.0), rp(0.0, 5.0)]));
+        assert!(p.iter().any(|(k, d, _)| *k == 1 && d.x < -0.99), "{p:?}");
+        // Touching `b` re-aims the whole room at b; the pickup is handled this tick, the pushes follow from the next.
+        e.inject_with(2, "pickup", Some(0), Some(2));
+        let same_tick = pushes(&e.step_props(3, &[], &[carried, rp(0.0, 0.0), rp(0.0, 5.0)]));
+        assert!(same_tick.iter().any(|(k, d, _)| *k == 1 && d.x < -0.99), "the aim changes after this tick's fields: {same_tick:?}");
+        let p = pushes(&e.step_props(4, &[], &[carried, rp(0.0, 0.0), rp(0.0, 5.0)]));
+        assert!(p.iter().any(|(k, d, _)| *k == 1 && d.z > 0.99), "a now heads for b: {p:?}");
+        assert!(!p.iter().any(|(k, _, _)| *k == 2), "the target is never pushed toward itself");
+    }
+
+    #[test]
+    fn the_speed_expression_rewrites_the_pull_inverse_pushes_away_and_zero_is_off() {
+        let mut e =
+            prop_engine(json!({"vars": {"dial": 1}, "fields": [{"id": "g", "zone": "hall", "toward": "stone", "speed": "(dial == 1) * 3 - (dial == 3) * 2"}]}));
+        let props = [rp(5.0, 0.0), rp(0.0, 0.0), rp(0.0, 5.0)];
+        let rush = pushes(&e.step_props(1, &[], &props));
+        assert!(rush.iter().any(|(k, d, _)| *k == 1 && d.x > 0.99), "{rush:?}");
+        e.set_var("dial", 2.0);
+        assert!(pushes(&e.step_props(2, &[], &props)).is_empty(), "hush: speed 0 pushes nothing (and brakes nothing)");
+        e.set_var("dial", 3.0);
+        let inverse = pushes(&e.step_props(3, &[], &props));
+        assert!(inverse.iter().any(|(k, d, _)| *k == 1 && d.x < -0.99), "inverse pushes away: {inverse:?}");
+    }
+
+    #[test]
+    fn an_aimed_field_never_brakes_leaves_sideways_motion_alone_and_settles_at_the_target() {
+        let e = prop_engine(json!({"fields": [{"id": "g", "zone": "hall", "toward": "stone", "speed": 3}]}));
+        let f = &e.set().fields[0];
+        let (from, to) = (Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0));
+        let dv = f.pull(from, to, 3.0, None, Vec3::new(1.0, 0.0, 2.0), TICK_DT);
+        assert!(dv.x > 0.0 && dv.z == 0.0, "only the component toward the target is driven: {dv}");
+        assert_eq!(f.pull(from, to, 3.0, None, Vec3::new(6.0, 0.0, 0.0), TICK_DT), Vec3::ZERO, "faster than the pull: not braked");
+        assert_eq!(f.pull(to, to, 3.0, None, Vec3::ZERO, TICK_DT), Vec3::ZERO, "on the target: nothing");
+        let near = f.pull(Vec3::new(9.9, 0.0, 0.0), to, 3.0, None, Vec3::ZERO, TICK_DT).length();
+        let far = f.pull(from, to, 3.0, None, Vec3::ZERO, TICK_DT).length();
+        assert!(near < far * 0.25, "within AIM_ARRIVE_M the pull fades ({near} vs {far})");
+        // Extreme speeds stay finite (physics saturates props at 14 m/s anyway).
+        let huge = f.pull(from, to, 1e30, None, Vec3::ZERO, TICK_DT);
+        assert!(huge.is_finite() && huge.x > 0.0);
+    }
+
+    #[test]
+    fn an_aimed_field_pushes_nothing_when_its_target_is_missing_carried_props_and_outsiders_are_left_alone() {
+        let mut e = prop_engine(json!({
+            "fields": [{"id": "g", "zone": "slot", "toward": "stone", "speed": 3}, {"id": "p", "zone": "hall", "toward": "post", "speed": 3, "props": "b"}]
+        }));
+        // `a` is in the slot but carried; `b` is outside the slot: field g pushes neither. Field p aims at a fixed object and only takes b.
+        let held = RuleProp { held_by: Some(1), ..rp(6.0, 0.0) };
+        let p = pushes(&e.step_props(1, &[], &[rp(0.0, 0.0), held, rp(0.0, 3.0)]));
+        assert_eq!(p.len(), 1, "{p:?}");
+        let want = (Vec3::new(10.0, 0.0, 10.0) - Vec3::new(0.0, 0.0, 3.0)).with_y(0.0).normalize();
+        assert!(p[0].0 == 2 && p[0].1.dot(want) > 0.9999, "{p:?}");
+        // The stone is not in this physics world (an unbound id): the field aimed at it is idle, nothing panics.
+        e.bind_props(|id| match id {
+            "a" => Some(0),
+            "b" => Some(1),
+            _ => None,
+        });
+        let p = pushes(&e.step_props(2, &[], &[rp(6.0, 0.0), rp(6.0, 0.5)]));
+        assert!(!p.is_empty() && p.iter().all(|(k, _, _)| *k == 1), "only field p (aimed at a fixed post) pushes, and only b: {p:?}");
+        // No props in view at all (an empty world): nothing.
+        assert!(pushes(&e.step_props(3, &[], &[])).is_empty());
+    }
+
+    #[test]
+    fn a_velocity_field_may_follow_a_variable_and_fields_keep_pushing_after_the_match_ends() {
+        let mut e = prop_engine(json!({
+            "vars": {"wind": 0},
+            "fields": [{"id": "w", "zone": "hall", "velocity": ["wind", 0], "rate": 10}],
+            "rules": [{"id": "gust", "when": {"after": 0.5}, "do": [{"set": ["wind", -2]}, {"end": "done"}]}]
+        }));
+        let props = [rp(0.0, 0.0), rp(1.0, 0.0), rp(2.0, 0.0)];
+        assert!(pushes(&e.step_props(1, &[], &props)).is_empty(), "wind 0 and props at rest: nothing to do");
+        e.step_props(30, &[], &props);
+        assert_eq!(e.ended(), Some("done"));
+        let p = pushes(&e.step_props(31, &[], &props));
+        assert_eq!(p.len(), 3, "the field still blows after the end: {p:?}");
+        assert!(p.iter().all(|(_, d, _)| d.x < -0.99));
+    }
+
+    #[test]
+    fn a_prop_trigger_gives_its_rule_a_subject_that_actions_and_chained_events_use() {
+        let mut e = prop_engine(json!({
+            "vars": {"returned": 0, "last_y": 0},
+            "rules": [
+                {"id": "take", "when": {"prop_enter": {"zone": "slot"}, "prop": ["a", "b"]}, "if": "!held(self)",
+                 "do": [{"add": ["returned", 1]}, {"hide": "self"}, {"place": ["self", [0, -5, 0]]}, {"emit": "taken"}]},
+                {"id": "then", "when": {"event": "taken"}, "do": [{"set": ["last_y", "prop_y(self) + 100"]}, {"impulse": {"object": "self", "dir": [0, 1, 0], "speed": 2}}]},
+                {"id": "nobody", "when": {"event": "taken", "prop": "stone"}, "do": [{"set": ["returned", 99]}]}
+            ]
+        }));
+        let out = [rp(0.0, 0.0), rp(0.0, 0.0), rp(0.0, 0.0)];
+        e.step_props(1, &[], &out);
+        // a and b reach the slot in the same tick (the stone does too, but it is not in the filter): each fires once, in physics order.
+        let inside = [rp(6.0, 0.0), rp(6.0, 0.2), rp(6.0, -0.2)];
+        let fx = e.step_props(2, &[], &inside);
+        assert_eq!(e.var("returned"), Some(2.0), "the stone is filtered out, and the chained `stone` rule never fires");
+        assert_eq!(e.hidden().collect::<Vec<_>>(), ["a", "b"]);
+        assert_eq!(
+            fx,
+            vec![
+                Effect::Place { prop: 1, at: Vec3::new(0.0, -5.0, 0.0) },
+                Effect::Place { prop: 2, at: Vec3::new(0.0, -5.0, 0.0) },
+                Effect::Impulse { object: "a".into(), dir: Vec3::Y, speed: 2.0 },
+                Effect::Impulse { object: "b".into(), dir: Vec3::Y, speed: 2.0 },
+            ],
+            "each emitted event carried its own subject to the chained rule"
+        );
+        assert_eq!(e.var("last_y"), Some(100.0));
+        // Standing in the slot is not a new crossing.
+        e.step_props(3, &[], &inside);
+        assert_eq!(e.var("returned"), Some(2.0));
+    }
+
+    #[test]
+    fn an_engine_event_names_its_prop_and_one_without_a_prop_never_passes_a_filter() {
+        let mut e = gravity(json!([
+            {"id": "touch", "when": {"event": "pickup", "prop": "stone"}, "do": [{"aim": ["g", "self"]}, {"hide": "self"}]},
+            {"id": "any", "when": {"event": "pickup"}, "do": [{"reset": "self"}, {"show": "self"}]}
+        ]));
+        let props = [rp(5.0, 0.0), rp(0.0, 0.0), rp(0.0, 5.0)];
+        // A pickup the engine could not attribute to a prop: the filtered rule stays quiet, the unfiltered one runs and its `self` actions do nothing.
+        e.inject(0, "pickup", Some(0));
+        assert!(e.step_props(1, &[], &props).is_empty());
+        assert_eq!(e.field_aim("g"), Some(Aim::Off));
+        // Two players pick up two things in the same tick: rules run in the order the engine raised the events, so the last touch wins.
+        e.inject_with(1, "pickup", Some(0), Some(0));
+        e.inject_with(1, "pickup", Some(1), Some(1));
+        let fx = e.step_props(2, &[], &props);
+        assert_eq!(e.field_aim("g"), Some(Aim::Prop(2)), "only the stone passes the touch filter");
+        assert_eq!(fx.iter().filter(|x| matches!(x, Effect::Reset { .. })).count(), 2, "the unfiltered rule ran for both: {fx:?}");
+        assert!(e.hidden().next().is_none(), "the stone was hidden by `touch`, then shown by `any` (declaration order)");
+    }
+
+    #[test]
+    fn where_an_aimed_field_points_is_rule_state_and_a_scene_without_one_keeps_its_old_checksum() {
+        let touch = || gravity(json!([{"id": "t", "when": {"event": "pickup"}, "do": [{"aim": ["g", "self"]}]}]));
+        let (mut a, mut b) = (touch(), touch());
+        assert_eq!(a.checksum(), b.checksum());
+        a.inject_with(0, "pickup", Some(0), Some(1));
+        b.inject_with(0, "pickup", Some(0), Some(2));
+        let props = [rp(5.0, 0.0), rp(0.0, 0.0), rp(0.0, 5.0)];
+        a.step_props(1, &[], &props);
+        b.step_props(1, &[], &props);
+        assert_ne!(a.checksum(), b.checksum(), "same events, different targets: the checksum tells them apart");
+        // A velocity-field scene (no aimed field) folds nothing new in: its checksum is what it was before aims existed.
+        let plain = prop_engine(json!({"fields": [{"id": "w", "zone": "hall", "velocity": [1, 0]}]}));
+        assert_eq!(plain.checksum(), RulesEngine::new(RuleSet::default()).checksum());
     }
 }

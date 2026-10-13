@@ -246,7 +246,8 @@ impl App {
     /// Runs scene rules for the offline player and applies their world-facing effects. This is
     /// deliberately the existing [`RulesEngine`], not a presentation-side copy of game logic.
     fn fixed_step_rules(&mut self) {
-        if !self.rules.has_rules() {
+        // A scene with `fields` but no rules still pushes its props: the fields are part of the rules' step.
+        if !self.rules.has_rules() && self.rules.set().fields.is_empty() {
             return;
         }
         let tick = self.clock.ticks_run();
@@ -259,9 +260,6 @@ impl App {
             if let Some(event) = self.sun_watch.at(clock, tick as f32 * FIXED_DT) {
                 self.rules.inject(tick, event, None);
             }
-        }
-        if self.rules.ended().is_some() {
-            return;
         }
         let mut players = vec![RulePlayer {
             slot: 0,
@@ -330,6 +328,12 @@ impl App {
                 red_engine2::sim::rules_run::Effect::Place { prop, at } => {
                     if let Some(props) = self.props.as_mut() {
                         props.place_prop(prop, at);
+                    }
+                }
+                // A scene field's push (a current, a belt, an aimed pull): the same unrecorded shove `MatchSim` applies.
+                red_engine2::sim::rules_run::Effect::Push { prop, dir, at, impulse } => {
+                    if let Some(props) = self.props.as_mut() {
+                        props.strike_impulse(prop, dir, at, impulse);
                     }
                 }
             }

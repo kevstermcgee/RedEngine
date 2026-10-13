@@ -152,6 +152,11 @@ without asking.
 - **resume token** — secret from `Welcome`; a `Hello` carrying it after a disconnect gets the same player id and place back.
 - **bot** — `red_bot` / `net::bot`: a headless scripted client, how multiplayer is verified without a window.
 - **rules / vars** — game logic as scene data: `when` / `who` / `if` / `once` / `cooldown` / `do` (ADR 0020, `describe rules`).
+- **subject / `self`** — the loose prop that fired a rule (`prop_enter`, `prop_exit`, `prop_below`, or the `pickup` / `drop` / `prop_hit`
+  event it is about); a rule names it `self` and `"prop": [ids]` filters on it, so one rule serves every prop (ADR 2026-10-13-aimed-fields-and-the-rule-s-subject-prop).
+  Not the 2D `self` (the first thing of a touch rule), though the idea is the same.
+- **field / aimed field** — `fields`: a volume pushing loose props toward a speed every tick (a current, a belt, wind). An *aimed* field
+  (`toward` + `speed`) pulls each prop along its own line to a target prop, object or point, and a rule re-aims it with `aim`.
 - **scenario** — a scripted headless play-through with assertions (`checks.sim`, `red_engine2 sim`, `describe sim`).
 - **trace / replay / checkpoint / divergence** — a recording of a match (joins, inputs, impulses, events, per-tick checksums);
   `red_engine2 replay` re-runs it and names the first divergent tick (ADR 0021). *Coarse* checksums quantise floats to mm.

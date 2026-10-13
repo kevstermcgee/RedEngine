@@ -20,7 +20,15 @@
 //!
 //! Actions: `set [var, value]`, `add [var, n]`, `emit name`, `hide id`, `show id`, `collision [id, bool]`,
 //! `teleport [x,y,z] | spawn_id`, `end reason`, `impulse {object, dir, speed}`, `reset id | [ids] | {zone}`,
-//! `place [id, [x,y,z]]`.
+//! `place [id, [x,y,z]]`, `aim [field, target]`.
+//!
+//! **The rule's subject** (ADR 2026-10-13-aimed-fields-and-the-rule-s-subject-prop): a rule fired by one loose prop — `prop_enter`, `prop_exit`,
+//! `prop_below`, or the engine events `pickup`, `drop` and `prop_hit` — knows which one, and names it `self` wherever it would name a loose prop
+//! (`held(self)`, `hide self`, `reset self`, `place [self, ..]`, `impulse {object: self}`, `aim [field, self]`). An event a rule `emit`s carries
+//! its subject on, like the triggering player. `prop: id | [ids]` beside the trigger fires the rule only for those props.
+//!
+//! **Fields** (`fields`, [`Field`]) push loose props every tick: along a velocity, or — an *aimed* field, `toward` — at a target that a rule
+//! re-aims at run time with `aim`; their numbers may be expressions over the variables.
 //!
 //! Rules see **loose props** too (ADR 2026-09-29-prop-aware-rules-and-scenarios): triggers `{prop_enter: VOLUME}` /
 //! `{prop_exit: VOLUME}` (any loose prop, or one named by `prop: id` next to it) and `{prop_below: [id, y]}`, and the
@@ -60,7 +68,21 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("impulse", "{object, dir:[x,y,z], speed}   shove a loose prop (a physics prop), speed in m/s (props never exceed 14 m/s, so a larger speed saturates)"),
     ("reset", "id | [ids] | {zone: id}   put loose props back where the map placed them, at rest (a carried one is taken from its holder)"),
     ("place", "[id, [x,y,z]]   move a loose prop's origin to a point, upright as authored, at rest"),
+    ("aim", "[field, target]   point an aimed field (`toward`) at a loose prop (followed as it moves), a top-level object, [x,y,z], self, or null (off); from the next tick"),
 ];
+
+/// Engine events that carry the prop they are about, so a rule they trigger has a subject (`self`): the prop picked up, put down, or struck
+/// (a shot that strikes several props names the first one it reached).
+pub const SUBJECT_EVENTS: &[&str] = &["pickup", "drop", "prop_hit"];
+
+/// The name a rule gives its subject prop (see [`SUBJECT_EVENTS`] and the module docs).
+pub const SELF: &str = "self";
+
+/// The most `fields` a scene may declare (each is evaluated every tick against every loose prop it acts on).
+pub const MAX_FIELDS: usize = 32;
+
+/// Within this many metres of its target an aimed field's pull fades linearly to nothing, so a prop settles at the target instead of orbiting it.
+pub const AIM_ARRIVE_M: f32 = 0.5;
 
 /// An axis-aligned box in world space.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -71,38 +93,111 @@ pub struct Volume {
     pub max: Vec3,
 }
 
-/// A force volume acting on loose props (`fields` in the scene): a river current, a conveyor belt, a wind tunnel. Every tick a prop whose
-/// origin is inside is pulled toward the field's target velocity, exponentially at `rate` per second, so the push is a *speed target*
-/// (a prop cannot be accelerated past it, unlike a repeating `impulse` rule) and gravity, floors and walls still act.
+/// A force volume acting on loose props (`fields` in the scene): a river current, a conveyor belt, a wind tunnel, or — with `toward` — a pull
+/// at a target a rule can re-aim (gravity toward the last thing touched, a magnet, a whirlpool). Every tick a prop whose origin is inside is
+/// pulled toward the field's target velocity, exponentially at `rate` per second, so the push is a *speed target* (a prop cannot be accelerated
+/// past it, unlike a repeating `impulse` rule) and gravity, floors and walls still act. Its numbers may be expressions over the variables,
+/// evaluated once per tick.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Field {
-    /// Its id (errors and `describe` name it).
+    /// Its id (errors, `describe` and the `aim` action name it).
     pub id: String,
     /// The volume props must be in (same forms as a rule volume).
     pub volume: Volume,
-    /// Target horizontal velocity `[x, z]`, m/s; `None` leaves horizontal motion alone.
-    pub velocity: Option<[f32; 2]>,
+    /// Target horizontal velocity `[x, z]`, m/s; `None` leaves horizontal motion alone (and an aimed field has none).
+    pub velocity: Option<[Expr; 2]>,
     /// Upward target speed, m/s: props slower than this upward are pulled up toward it (a wind tunnel, a hover pad); `None` = none.
-    pub lift: Option<f32>,
+    pub lift: Option<Expr>,
     /// How hard the velocity is pulled toward its target, 1/s (default 10). It is a drag, not a teleport: a prop on a floor settles a bit under the
     /// target because floor friction (about 7 m/s^2) pulls back, so use a higher `rate` for a stronger belt.
     pub rate: f32,
+    /// `Some` for an aimed field (`toward`): where it points when the match starts; rules move it with `aim`. `None`: a velocity field.
+    pub toward: Option<Aim>,
+    /// An aimed field's pull, m/s along the line to its target (negative pushes away); required with `toward`.
+    pub speed: Option<Expr>,
+    /// Only these loose props (indexes into [`RuleSet::prop_ids`]); `None` = every loose prop in the volume.
+    pub props: Option<Vec<usize>>,
 }
 
 impl Field {
-    /// The velocity change to apply this tick to a prop moving at `vel`, for a step of `dt` seconds (zero once it is at the target).
-    pub fn delta_v(&self, vel: Vec3, dt: f32) -> Vec3 {
+    /// The velocity change for a prop moving at `vel` in a *velocity* field whose numbers evaluated to `target` (`[x, z]`) and `lift` this tick,
+    /// for a step of `dt` seconds (zero once it is at the target).
+    pub fn drag(&self, target: Option<[f32; 2]>, lift: Option<f32>, vel: Vec3, dt: f32) -> Vec3 {
         let k = (self.rate * dt).clamp(0.0, 1.0);
         let mut dv = Vec3::ZERO;
-        if let Some([tx, tz]) = self.velocity {
+        if let Some([tx, tz]) = target {
             dv.x = (tx - vel.x) * k;
             dv.z = (tz - vel.z) * k;
         }
-        if let Some(up) = self.lift {
+        if let Some(up) = lift {
             dv.y = ((up - vel.y) * k).max(0.0);
         }
         dv
     }
+
+    /// The velocity change for a prop at `from` moving at `vel` in an *aimed* field pointing at `to` with `speed` (m/s, negative = away) this tick.
+    /// Only the horizontal component along the line to the target is driven, and only up to `speed`: a prop already moving that way faster is
+    /// not braked and its sideways motion is left to friction (gravity pulls, it does not steer). Within [`AIM_ARRIVE_M`] of the target the pull
+    /// fades to zero, and a prop exactly on it is not pushed.
+    pub fn pull(&self, from: Vec3, to: Vec3, speed: f32, lift: Option<f32>, vel: Vec3, dt: f32) -> Vec3 {
+        let k = (self.rate * dt).clamp(0.0, 1.0);
+        let mut dv = Vec3::ZERO;
+        let (dx, dz) = (to.x - from.x, to.z - from.z);
+        let dist = (dx * dx + dz * dz).sqrt();
+        if dist > 1e-4 && speed != 0.0 {
+            let s = speed * (dist / AIM_ARRIVE_M).min(1.0);
+            let (ux, uz, want) = if s > 0.0 { (dx / dist, dz / dist, s) } else { (-dx / dist, -dz / dist, -s) };
+            let along = vel.x * ux + vel.z * uz;
+            if along < want {
+                let a = (want - along) * k;
+                dv.x = ux * a;
+                dv.z = uz * a;
+            }
+        }
+        if let Some(up) = lift {
+            dv.y = ((up - vel.y) * k).max(0.0);
+        }
+        dv
+    }
+}
+
+/// Where an aimed field points.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Aim {
+    /// Nowhere: the field pushes nothing until a rule aims it (`"toward": null`, `aim [field, null]`).
+    Off,
+    /// A loose prop, followed wherever it is (in a player's hands too): an index into [`RuleSet::prop_ids`]. A prop the physics world does not
+    /// have (an unbound id) leaves the field idle.
+    Prop(usize),
+    /// A fixed point: `[x, y, z]`, or a top-level object's centre.
+    Point(Vec3),
+}
+
+/// A loose prop a rule action names: one by id, or the rule's subject.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PropSel {
+    /// An index into [`RuleSet::prop_ids`].
+    Prop(usize),
+    /// `self`: the prop that triggered the rule. The action does nothing when the rule ran without one.
+    Subject,
+}
+
+/// An object `hide` / `show` / `impulse` names: by id, or the rule's subject prop.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Obj {
+    /// An object id.
+    Id(String),
+    /// `self`: the prop that triggered the rule. The action does nothing when the rule ran without one.
+    Subject,
+}
+
+/// What an `aim` action points its field at.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AimTo {
+    /// A fixed aim (a prop, a point, or off).
+    At(Aim),
+    /// `self`: the rule's subject prop. Without one the field keeps its aim.
+    Subject,
 }
 
 /// Which players a rule applies to.
@@ -135,20 +230,10 @@ pub enum When {
     Every(u64),
     /// Once, this many ticks after the start.
     After(u64),
-    /// A loose prop's origin comes to lie inside the volume (`prop`: only that one, an index into [`RuleSet::prop_ids`]).
-    PropEnter {
-        /// The volume.
-        volume: Volume,
-        /// Only this prop, or any loose prop.
-        prop: Option<usize>,
-    },
+    /// A loose prop's origin comes to lie inside the volume (each prop that crosses fires the rule once, as its subject; [`Rule::props`] narrows which).
+    PropEnter(Volume),
     /// A loose prop leaves the volume.
-    PropExit {
-        /// The volume.
-        volume: Volume,
-        /// Only this prop, or any loose prop.
-        prop: Option<usize>,
-    },
+    PropExit(Volume),
     /// A loose prop's origin drops below a height (index into [`RuleSet::prop_ids`]).
     PropBelow {
         /// The prop.
@@ -165,6 +250,8 @@ pub enum ResetTarget {
     Props(Vec<usize>),
     /// Every loose prop inside this zone (index into [`RuleSet::zone_ids`]) when the rule fires.
     Zone(usize),
+    /// `self`: the prop that triggered the rule (nothing when there is none).
+    Subject,
 }
 
 /// Where a `teleport` sends the player.
@@ -196,13 +283,13 @@ pub enum Action {
     /// Record an event.
     Emit(String),
     /// Mark an object hidden.
-    Hide(String),
+    Hide(Obj),
     /// `hide` and `collision: false` in one step.
     Deactivate(String),
     /// `show` and `collision: true` in one step.
     Activate(String),
     /// Mark an object shown.
-    Show(String),
+    Show(Obj),
     /// Enable or disable a top-level object's collision.
     Collision {
         /// Top-level object id.
@@ -216,8 +303,8 @@ pub enum Action {
     End(String),
     /// Shove a loose prop.
     Impulse {
-        /// Object id of the prop.
-        object: String,
+        /// The prop (its object id, or the subject).
+        object: Obj,
         /// Direction (normalised when applied).
         dir: Vec3,
         /// Speed given, m/s.
@@ -227,10 +314,17 @@ pub enum Action {
     Reset(ResetTarget),
     /// Move a loose prop to a point, upright as authored, at rest.
     Place {
-        /// Index into [`RuleSet::prop_ids`].
-        prop: usize,
+        /// The prop.
+        prop: PropSel,
         /// Where its origin goes.
         at: Vec3,
+    },
+    /// Point an aimed field somewhere else (it takes effect from the next tick).
+    Aim {
+        /// Index into [`RuleSet::fields`] (always an aimed one).
+        field: usize,
+        /// Where.
+        to: AimTo,
     },
 }
 
@@ -249,6 +343,8 @@ pub struct Rule {
     pub once: bool,
     /// Minimum ticks between firings.
     pub cooldown_ticks: u64,
+    /// `prop: id | [ids]` beside the trigger: fire only when the rule's subject is one of these loose props (indexes into [`RuleSet::prop_ids`]).
+    pub props: Option<Vec<usize>>,
     /// What it does, in order.
     pub actions: Vec<Action>,
 }
@@ -275,7 +371,7 @@ pub struct RuleSet {
     pub zone_volumes: Vec<Volume>,
     /// The scene's force fields (`fields`), in declaration order.
     pub fields: Vec<Field>,
-    /// Whether any rule looks at loose props (a trigger, a built-in function, a `reset` or `place`): if not, the
+    /// Whether any rule or field looks at loose props (a trigger, a built-in function, a `reset` or `place`, a field): if not, the
     /// simulation need not describe its props to the rules every tick.
     pub needs_props: bool,
     /// The scene's named level states (`phases`), in declaration order: for the analysis tools only, the simulation ignores them.
@@ -381,7 +477,7 @@ const TRIGGER_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "aft
 /// Everything a `when` may contain: a trigger plus the optional `prop` filter of `prop_enter` / `prop_exit`.
 const WHEN_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "prop"];
 const VOLUME_KEYS: &[&str] = &["zone", "object", "box", "pad", "height"];
-const FIELD_KEYS: &[&str] = &["id", "zone", "object", "box", "pad", "height", "velocity", "lift", "rate"];
+const FIELD_KEYS: &[&str] = &["id", "zone", "object", "box", "pad", "height", "velocity", "lift", "rate", "toward", "speed", "props"];
 const ZONE_HEIGHT: f32 = 3.0;
 
 fn at(i: usize, id: &str) -> String {
@@ -509,6 +605,83 @@ fn parse_volume(v: &Value, refs: &Refs, path: &str, errs: &mut Vec<String>) -> O
     }
 }
 
+/// A field's number: a literal or an expression over the variables (and the prop built-ins), evaluated once per tick. A field runs for no player
+/// and no prop, so `me.` and `self` are errors here.
+fn field_num(v: &Value, set: &RuleSet, path: &str, what: &str, errs: &mut Vec<String>) -> Option<Expr> {
+    match v {
+        Value::Number(_) | Value::String(_) => {
+            let e = parse_value(v, set, path, errs)?;
+            if e.uses_me() || e.uses_subject() {
+                errs.push(format!("{path}: a field is not run for a player or a prop: `me.` and `self` belong in rules (got {})", describe_value(v)));
+                return None;
+            }
+            Some(e)
+        }
+        _ => {
+            errs.push(format!("{path}: must be {what}, a number or an expression string (got {})", describe_value(v)));
+            None
+        }
+    }
+}
+
+/// Where a `toward` or an `aim` points: a loose prop (followed), a top-level object (its centre), `[x, y, z]`, or `null` (off).
+fn parse_aim(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<String>) -> Option<Aim> {
+    match v {
+        Value::Null => Some(Aim::Off),
+        Value::String(id) => {
+            if let Some(i) = set.prop_ids.iter().position(|p| p == id) {
+                return Some(Aim::Prop(i));
+            }
+            if let Some((lo, hi)) = refs.bounds.get(id.as_str()) {
+                return Some(Aim::Point((*lo + *hi) * 0.5));
+            }
+            let options = set.prop_ids.iter().cloned().chain(refs.bounds.keys().cloned());
+            errs.push(format!(
+                "{path}: no loose prop or top-level object `{id}`{} (a loose prop is followed as it moves; a fixed object is aimed at its centre)",
+                near(id, options)
+            ));
+            None
+        }
+        other => match vec3(other) {
+            Some(p) => Some(Aim::Point(p)),
+            None => {
+                errs.push(format!("{path}: must be a loose prop or object id, [x, y, z], or null for nowhere (got {})", describe_value(other)));
+                None
+            }
+        },
+    }
+}
+
+/// A list of loose props given as one id or an array of ids (a field's `props`, a rule's `prop` filter): never empty, no repeats.
+fn prop_list(v: &Value, set: &RuleSet, path: &str, errs: &mut Vec<String>) -> Option<Vec<usize>> {
+    let items: Vec<&Value> = match v {
+        Value::String(_) => vec![v],
+        Value::Array(a) if !a.is_empty() => a.iter().collect(),
+        Value::Array(_) => {
+            errs.push(format!("{path}: an empty list selects nothing; leave it out for every loose prop"));
+            return None;
+        }
+        other => {
+            errs.push(format!("{path}: must be a loose prop id or a list of them (got {})", describe_value(other)));
+            return None;
+        }
+    };
+    let mut out: Vec<usize> = Vec::with_capacity(items.len());
+    let mut ok = true;
+    for (k, item) in items.iter().enumerate() {
+        let at = if items.len() == 1 && v.is_string() { path.to_string() } else { format!("{path}[{k}]") };
+        match prop_index(item.as_str(), &set.prop_ids, &at, errs) {
+            Some(i) if out.contains(&i) => {
+                errs.push(format!("{at}: `{}` is listed twice", set.prop_ids[i]));
+                ok = false;
+            }
+            Some(i) => out.push(i),
+            None => ok = false,
+        }
+    }
+    ok.then_some(out)
+}
+
 /// `fields`: force volumes on loose props (see [`Field`]).
 fn parse_fields(root: &Map<String, Value>, refs: &Refs, set: &mut RuleSet, errs: &mut Vec<String>) {
     let Some(list) = root.get("fields") else { return };
@@ -516,6 +689,10 @@ fn parse_fields(root: &Map<String, Value>, refs: &Refs, set: &mut RuleSet, errs:
         errs.push("fields: must be an array like [{\"id\": \"river\", \"zone\": \"channel\", \"velocity\": [0, 1.5]}]".to_string());
         return;
     };
+    if list.len() > MAX_FIELDS {
+        errs.push(format!("fields: {} fields; at most {MAX_FIELDS} (each is evaluated every tick against every loose prop it acts on)", list.len()));
+        return;
+    }
     let mut seen = HashSet::new();
     for (i, fv) in list.iter().enumerate() {
         let Some(fo) = fv.as_object() else {
@@ -537,27 +714,31 @@ fn parse_fields(root: &Map<String, Value>, refs: &Refs, set: &mut RuleSet, errs:
         let volume = parse_volume(&Value::Object(vol_only), refs, &path, errs);
         let velocity = match fo.get("velocity") {
             None => None,
-            Some(v) => match v.as_array().filter(|a| a.len() == 2).and_then(|a| Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32])) {
-                Some(xz) => Some(xz),
-                None => {
-                    errs.push(format!("{path}.velocity: must be two numbers [x, z] (m/s along +x and +z; up is `lift`)"));
-                    None
-                }
-            },
+            Some(Value::Array(a)) if a.len() == 2 => {
+                let x = field_num(&a[0], set, &format!("{path}.velocity[0]"), "m/s along +x", errs);
+                let z = field_num(&a[1], set, &format!("{path}.velocity[1]"), "m/s along +z", errs);
+                x.zip(z).map(|(x, z)| [x, z])
+            }
+            Some(_) => {
+                errs.push(format!("{path}.velocity: must be two numbers [x, z] (m/s along +x and +z; up is `lift`; each may be an expression)"));
+                None
+            }
         };
-        let lift = match fo.get("lift") {
-            None => None,
-            Some(v) => match v.as_f64() {
-                Some(x) => Some(x as f32),
-                None => {
-                    errs.push(format!("{path}.lift: must be a number (upward m/s)"));
-                    None
-                }
-            },
-        };
-        if velocity.is_none() && lift.is_none() && fo.get("velocity").is_none() && fo.get("lift").is_none() {
-            errs.push(format!("{path}: give `velocity` [x, z] and/or `lift` (what the field pushes toward)"));
+        let lift = fo.get("lift").and_then(|v| field_num(v, set, &format!("{path}.lift"), "upward m/s", errs));
+        let toward = fo.get("toward").and_then(|v| parse_aim(v, set, refs, &format!("{path}.toward"), errs));
+        let speed = fo.get("speed").and_then(|v| field_num(v, set, &format!("{path}.speed"), "m/s toward the target (negative pushes away)", errs));
+        match (fo.contains_key("toward"), fo.contains_key("velocity"), fo.contains_key("speed")) {
+            (true, true, _) => errs.push(format!(
+                "{path}: an aimed field (`toward`) pushes along the line to its target at `speed`; give `speed`, not `velocity` (a fixed direction is a `velocity` field without `toward`)"
+            )),
+            (true, false, false) => errs.push(format!("{path}.speed: missing (m/s toward the target, negative pushes away; a number or an expression over the variables)")),
+            (false, _, true) => errs.push(format!("{path}.speed: only an aimed field takes `speed`: add `toward` (a target, or null until a rule aims it), or use `velocity`")),
+            (false, false, false) if !fo.contains_key("lift") => {
+                errs.push(format!("{path}: give `velocity` [x, z] and/or `lift`, or `toward` + `speed` (what the field pushes toward)"))
+            }
+            _ => {}
         }
+        let props = fo.get("props").and_then(|v| prop_list(v, set, &format!("{path}.props"), errs));
         let rate = match fo.get("rate") {
             None => 10.0,
             Some(v) => match v.as_f64().filter(|r| *r > 0.0 && *r <= 60.0) {
@@ -572,11 +753,8 @@ fn parse_fields(root: &Map<String, Value>, refs: &Refs, set: &mut RuleSet, errs:
             },
         };
         if let Some(volume) = volume {
-            set.fields.push(Field { id: id.to_string(), volume, velocity, lift, rate });
+            set.fields.push(Field { id: id.to_string(), volume, velocity, lift, rate, toward, speed, props });
         }
-    }
-    if !set.fields.is_empty() {
-        set.needs_props = true;
     }
 }
 
@@ -597,7 +775,8 @@ fn prop_index(name: Option<&str>, prop_ids: &[String], path: &str, errs: &mut Ve
     }
 }
 
-fn parse_when(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<String>) -> Option<When> {
+/// A `when`: the trigger, and the `prop` filter beside it (`prop_enter` / `prop_exit` / `event`: only these props as the rule's subject).
+fn parse_when(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<String>) -> Option<(When, Option<Vec<usize>>)> {
     let Some(o) = v.as_object() else {
         errs.push(format!("{path}: must be an object with one of {}", TRIGGER_KEYS.join(", ")));
         return None;
@@ -614,31 +793,41 @@ fn parse_when(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<
     }
     let key = present[0];
     let sub = format!("{path}.{key}");
-    if o.contains_key("prop") && !matches!(key, "prop_enter" | "prop_exit") {
-        errs.push(format!("{path}.prop: only `prop_enter` / `prop_exit` take a `prop` filter"));
-        return None;
-    }
-    match key {
-        "start" => Some(When::Start),
-        "enter" => parse_volume(&o[key], refs, &sub, errs).map(When::Enter),
-        "exit" => parse_volume(&o[key], refs, &sub, errs).map(When::Exit),
+    let props = match o.get("prop") {
+        None => None,
+        Some(p) => {
+            let event = o.get("event").and_then(Value::as_str);
+            let carries = match key {
+                "prop_enter" | "prop_exit" => true,
+                "event" => event.is_some_and(|e| SUBJECT_EVENTS.contains(&e) || !ENGINE_EVENTS.contains(&e)),
+                _ => false,
+            };
+            if !carries {
+                let why = match event {
+                    Some(e) if key == "event" => format!("the engine event `{e}` is about no prop (the ones that are: {})", SUBJECT_EVENTS.join(", ")),
+                    _ => format!("`{key}` is not about a prop"),
+                };
+                errs.push(format!("{path}.prop: only `prop_enter`, `prop_exit` and a prop's `event` take a `prop` filter; {why}"));
+                return None;
+            }
+            Some(prop_list(p, set, &format!("{path}.prop"), errs)?)
+        }
+    };
+    let when = match key {
+        "start" => When::Start,
+        "enter" => When::Enter(parse_volume(&o[key], refs, &sub, errs)?),
+        "exit" => When::Exit(parse_volume(&o[key], refs, &sub, errs)?),
         "event" => match o[key].as_str().filter(|s| !s.is_empty()) {
-            Some(name) => Some(When::Event(name.to_string())),
+            Some(name) => When::Event(name.to_string()),
             None => {
                 errs.push(format!("{sub}: must be an event name (a string)"));
-                None
+                return None;
             }
         },
-        "every" => Some(When::Every(secs(&o[key], &sub, errs))),
-        "after" => Some(When::After(secs(&o[key], &sub, errs))),
-        "prop_enter" | "prop_exit" => {
-            let volume = parse_volume(&o[key], refs, &sub, errs)?;
-            let prop = match o.get("prop") {
-                None => None,
-                Some(p) => Some(prop_index(p.as_str(), &set.prop_ids, &format!("{path}.prop"), errs)?),
-            };
-            Some(if key == "prop_enter" { When::PropEnter { volume, prop } } else { When::PropExit { volume, prop } })
-        }
+        "every" => When::Every(secs(&o[key], &sub, errs)),
+        "after" => When::After(secs(&o[key], &sub, errs)),
+        "prop_enter" => When::PropEnter(parse_volume(&o[key], refs, &sub, errs)?),
+        "prop_exit" => When::PropExit(parse_volume(&o[key], refs, &sub, errs)?),
         _ => {
             let (id, y) = match &o[key] {
                 Value::Array(a) if a.len() == 2 => (a[0].as_str(), a[1].as_f64()),
@@ -650,9 +839,10 @@ fn parse_when(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<
                 return None;
             };
             let prop = prop_index(Some(id), &set.prop_ids, &format!("{sub}[0]"), errs)?;
-            Some(When::PropBelow { prop, y: y as f32 })
+            When::PropBelow { prop, y: y as f32 }
         }
-    }
+    };
+    Some((when, props))
 }
 
 /// A number, a bool, or an expression string, compiled against the set's variables, loose props and zones.
@@ -732,12 +922,16 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
             }
         },
         "hide" | "show" => {
-            let id = name_of(val, &sub, "an object id", errs)?;
-            if !refs.object_ids.contains(id) {
+            let id = name_of(val, &sub, "an object id (or self)", errs)?;
+            let obj = if id == SELF {
+                Obj::Subject
+            } else if refs.object_ids.contains(id) {
+                Obj::Id(id.to_string())
+            } else {
                 errs.push(format!("{sub}: no object `{id}`{}", near(id, refs.object_ids.iter().cloned())));
                 return None;
-            }
-            Some(if key.as_str() == "hide" { Action::Hide(id.to_string()) } else { Action::Show(id.to_string()) })
+            };
+            Some(if key.as_str() == "hide" { Action::Hide(obj) } else { Action::Show(obj) })
         }
         "deactivate" | "activate" => {
             let id = name_of(val, &sub, "a top-level object id", errs)?;
@@ -785,10 +979,14 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                 errs.push(format!("{sub}.object: missing (the loose prop to shove)"));
                 None
             })?;
-            if !refs.bounds.contains_key(object) {
+            let object = if object == SELF {
+                Obj::Subject
+            } else if refs.bounds.contains_key(object) {
+                Obj::Id(object.to_string())
+            } else {
                 errs.push(format!("{sub}.object: no top-level object `{object}`{}", near(object, refs.bounds.keys().cloned())));
                 return None;
-            }
+            };
             let Some(dir) = io.get("dir").and_then(vec3) else {
                 errs.push(format!("{sub}.dir: must be [x, y, z]"));
                 return None;
@@ -806,9 +1004,10 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                     }
                 },
             };
-            Some(Action::Impulse { object: object.to_string(), dir, speed })
+            Some(Action::Impulse { object, dir, speed })
         }
         "reset" => match val {
+            Value::String(id) if id == SELF => Some(Action::Reset(ResetTarget::Subject)),
             Value::String(id) => prop_index(Some(id), &set.prop_ids, &sub, errs).map(|p| Action::Reset(ResetTarget::Props(vec![p]))),
             Value::Array(a) if !a.is_empty() => {
                 let props: Vec<usize> = a.iter().enumerate().filter_map(|(k, v)| prop_index(v.as_str(), &set.prop_ids, &format!("{sub}[{k}]"), errs)).collect();
@@ -838,12 +1037,36 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                 errs.push(format!("{sub}: must be [prop_id, [x, y, z]]"));
                 return None;
             };
-            let prop = prop_index(p[0].as_str(), &set.prop_ids, &format!("{sub}[0]"), errs)?;
+            let prop = match p[0].as_str() {
+                Some(SELF) => PropSel::Subject,
+                id => PropSel::Prop(prop_index(id, &set.prop_ids, &format!("{sub}[0]"), errs)?),
+            };
             let Some(at) = vec3(&p[1]) else {
                 errs.push(format!("{sub}[1]: must be [x, y, z]"));
                 return None;
             };
             Some(Action::Place { prop, at })
+        }
+        "aim" => {
+            let Some(p) = pair() else {
+                errs.push(format!("{sub}: must be [field_id, target] (target: a loose prop or object id, [x, y, z], self, or null for nowhere)"));
+                return None;
+            };
+            let name = name_of(&p[0], &format!("{sub}[0]"), "a field id", errs)?;
+            let Some(field) = set.fields.iter().position(|f| f.id == name) else {
+                let ids: Vec<String> = set.fields.iter().map(|f| f.id.clone()).collect();
+                let known = if ids.is_empty() { "none: declare one under `fields` with `toward`".to_string() } else { ids.join(", ") };
+                errs.push(format!("{sub}[0]: no field `{name}`{} (fields: {known})", near(name, ids.iter().cloned())));
+                return None;
+            };
+            if set.fields[field].toward.is_none() {
+                errs.push(format!(
+                    "{sub}[0]: field `{name}` pushes along a fixed `velocity`; only an aimed field can be aimed: give it `toward` (null until a rule aims it) and `speed`"
+                ));
+                return None;
+            }
+            let to = if p[1].as_str() == Some(SELF) { AimTo::Subject } else { AimTo::At(parse_aim(&p[1], set, refs, &format!("{sub}[1]"), errs)?) };
+            Some(Action::Aim { field, to })
         }
         other => {
             let names: Vec<String> = ACTIONS.iter().map(|a| a.0.to_string()).collect();
@@ -866,6 +1089,9 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
     let mut set = RuleSet::default();
     set.prop_ids = refs.prop_ids.iter().cloned().collect();
     set.prop_ids.sort();
+    if refs.object_ids.contains(SELF) || refs.prop_ids.contains(SELF) {
+        errs.push("objects: an object is called `self`, which rules use for the prop that triggered them: rename the object".to_string());
+    }
     let mut zones: Vec<(&String, &(Vec3, Vec3))> = refs.zones.iter().collect();
     zones.sort_by(|a, b| a.0.cmp(b.0));
     for (id, (lo, hi)) in zones {
@@ -945,6 +1171,7 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
         }
     }
     parse_fields(root, refs, &mut set, &mut errs);
+    set.needs_props = !set.fields.is_empty();
     let Some(list) = root.get("rules") else {
         parse_phases(root, &mut set, &mut errs);
         return if errs.is_empty() { Ok(set) } else { Err(errs) };
@@ -969,11 +1196,14 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
         } else if !seen.insert(id.to_string()) {
             errs.push(format!("{p}.id: duplicate rule id `{id}`"));
         }
-        let when = match ro.get("when") {
-            Some(w) => parse_when(w, &set, refs, &format!("{p}.when"), &mut errs),
+        let (when, props) = match ro.get("when") {
+            Some(w) => match parse_when(w, &set, refs, &format!("{p}.when"), &mut errs) {
+                Some((w, props)) => (Some(w), props),
+                None => (None, None),
+            },
             None => {
                 errs.push(format!("{p}.when: missing (one of {})", TRIGGER_KEYS.join(", ")));
-                None
+                (None, None)
             }
         };
         let who = match ro.get("who") {
@@ -1044,9 +1274,35 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
                     "{p}: `teleport` moves the player that triggered the rule, but a `{kind}` trigger has no player, so it would move nobody (use enter, exit, or an event a player causes, such as `kill` or an `emit` from such a rule)"
                 ));
             }
+            // `self` is the prop that triggered the rule: a timer, the start or a player's step has none, and neither do the engine events about no prop.
+            let subjectless = match when {
+                When::Start => Some("a `start` trigger".to_string()),
+                When::Every(_) => Some("an `every` trigger".to_string()),
+                When::After(_) => Some("an `after` trigger".to_string()),
+                When::Enter(_) => Some("an `enter` trigger (a player, not a prop)".to_string()),
+                When::Exit(_) => Some("an `exit` trigger (a player, not a prop)".to_string()),
+                When::Event(e) if ENGINE_EVENTS.contains(&e.as_str()) && !SUBJECT_EVENTS.contains(&e.as_str()) => {
+                    Some(format!("the engine event `{e}` (it is about no prop; {} are)", SUBJECT_EVENTS.join(", ")))
+                }
+                _ => None,
+            };
+            let uses_self = cond.as_ref().is_some_and(Expr::uses_subject)
+                || actions.iter().any(|a| match a {
+                    Action::Set { value, .. } | Action::SetMe { value, .. } => value.uses_subject(),
+                    Action::Hide(Obj::Subject) | Action::Show(Obj::Subject) | Action::Reset(ResetTarget::Subject) => true,
+                    Action::Impulse { object: Obj::Subject, .. } | Action::Place { prop: PropSel::Subject, .. } | Action::Aim { to: AimTo::Subject, .. } => {
+                        true
+                    }
+                    _ => false,
+                });
+            if let (Some(kind), true) = (subjectless, uses_self) {
+                errs.push(format!(
+                    "{p}: uses `self` but {kind} has no prop (self is the prop that fired the rule: use prop_enter, prop_exit, prop_below, or the event pickup, drop or prop_hit)"
+                ));
+            }
         }
         if let Some(when) = when {
-            set.rules.push(Rule { id: id.to_string(), when, who, cond, once, cooldown_ticks, actions });
+            set.rules.push(Rule { id: id.to_string(), when, who, cond, once, cooldown_ticks, props, actions });
         }
     }
     parse_phases(root, &mut set, &mut errs);
@@ -1066,15 +1322,18 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             }
         }
     }
-    set.needs_props = set.rules.iter().any(|r| {
-        matches!(r.when, When::PropEnter { .. } | When::PropExit { .. } | When::PropBelow { .. })
-            || r.cond.as_ref().is_some_and(Expr::reads_world)
-            || r.actions.iter().any(|a| match a {
-                Action::Set { value, .. } => value.reads_world(),
-                Action::Reset(_) | Action::Place { .. } => true,
-                _ => false,
-            })
-    });
+    // A field reads every prop it pushes, every tick (this used to be overwritten here, so a scene whose rules never looked at a prop got
+    // no prop views and its fields pushed nothing).
+    set.needs_props = !set.fields.is_empty()
+        || set.rules.iter().any(|r| {
+            matches!(r.when, When::PropEnter(_) | When::PropExit(_) | When::PropBelow { .. })
+                || r.cond.as_ref().is_some_and(Expr::reads_world)
+                || r.actions.iter().any(|a| match a {
+                    Action::Set { value, .. } | Action::SetMe { value, .. } => value.reads_world(),
+                    Action::Reset(_) | Action::Place { .. } => true,
+                    _ => false,
+                })
+        });
     if errs.is_empty() {
         Ok(set)
     } else {
@@ -1230,9 +1489,10 @@ mod tests {
         }))
         .unwrap();
         assert!(set.needs_props);
-        let When::PropEnter { volume, prop: None } = &set.rules[0].when else { panic!("{:?}", set.rules[0].when) };
+        let When::PropEnter(volume) = &set.rules[0].when else { panic!("{:?}", set.rules[0].when) };
         assert_eq!((volume.min.y, volume.max.y), (-3.0, 0.0));
-        assert!(matches!(set.rules[1].when, When::PropExit { prop: Some(1), .. }), "crate is prop_ids[1]");
+        assert_eq!(set.rules[0].props, None);
+        assert!(matches!(set.rules[1].when, When::PropExit(_)) && set.rules[1].props == Some(vec![1]), "crate is prop_ids[1]");
         assert!(matches!(set.rules[2].when, When::PropBelow { prop: 0, y } if y == 0.5));
         assert_eq!(
             set.rules[3].actions,
@@ -1240,7 +1500,7 @@ mod tests {
                 Action::Reset(ResetTarget::Props(vec![0])),
                 Action::Reset(ResetTarget::Props(vec![1, 0])),
                 Action::Reset(ResetTarget::Zone(1)),
-                Action::Place { prop: 1, at: Vec3::new(1.0, 2.0, 3.0) }
+                Action::Place { prop: PropSel::Prop(1), at: Vec3::new(1.0, 2.0, 3.0) }
             ]
         );
         let e = parse(json!({"vars": {}, "rules": [
@@ -1252,7 +1512,7 @@ mod tests {
         .join("\n");
         for needle in [
             "rules[0] (a).when.prop: no loose prop `crat` — did you mean `crate`?",
-            "rules[1] (b).when.prop: only `prop_enter` / `prop_exit` take a `prop` filter",
+            "rules[1] (b).when.prop: only `prop_enter`, `prop_exit` and a prop's `event` take a `prop` filter; `enter` is not about a prop",
             "rules[2] (c).when.prop_below[0]: no loose prop `coin_1`",
             "rules[2] (c).if: `prop_y(coin_1)`: no loose prop `coin_1`",
             "rules[2] (c).do[0].reset.zone: no zone `pitt` — did you mean `pit`?",
@@ -1437,5 +1697,174 @@ mod tests {
             assert!(e.contains("fields[0] (river).rate: must be a number greater than 0 and at most 60 per second") && e.contains("default 10"), "{e}");
         }
         assert!(field(json!(12)).is_ok());
+    }
+
+    #[test]
+    fn an_aimed_field_parses_its_target_speed_expression_and_props() {
+        let set = parse(json!({
+            "vars": {"dial": 1},
+            "fields": [
+                {"id": "gravity", "zone": "pit", "toward": null, "speed": "(dial == 1) * 4 - (dial == 3) * 3", "props": ["crate"], "rate": 6},
+                {"id": "magnet", "zone": "pit", "toward": "bell", "speed": 2},
+                {"id": "drain", "zone": "pit", "toward": "coin_1", "speed": -1, "lift": 0.5},
+                {"id": "point", "zone": "pit", "toward": [1, 0, 2], "speed": 3},
+                {"id": "river", "zone": "pit", "velocity": ["dial * 2", 0]}
+            ],
+            "rules": [{"id": "r", "when": {"event": "pickup", "prop": ["bell", "crate"]},
+                       "do": [{"aim": ["gravity", "self"]}, {"aim": ["magnet", null]}, {"aim": ["point", "coin_1"]}, {"aim": ["drain", [0, 0, 9]]}]}]
+        }))
+        .unwrap();
+        let f = &set.fields;
+        assert_eq!((f[0].toward, f[0].props.clone(), f[0].rate), (Some(Aim::Off), Some(vec![1]), 6.0));
+        assert_eq!(f[0].speed.as_ref().map(|e| e.eval(&[0.0, 0.0, 0.0, 3.0])), Some(-3.0), "the speed is an expression over the vars");
+        assert_eq!(f[1].toward, Some(Aim::Prop(0)), "a loose prop is followed: bell is prop_ids[0]");
+        assert_eq!(f[2].toward, Some(Aim::Point(Vec3::new(1.2, 0.2, 1.2))), "a fixed object is aimed at its centre");
+        assert_eq!(f[3].toward, Some(Aim::Point(Vec3::new(1.0, 0.0, 2.0))));
+        assert_eq!(f[4].toward, None, "a velocity field is not aimable");
+        assert!(set.needs_props, "fields read the props");
+        assert_eq!(set.rules[0].props, Some(vec![0, 1]));
+        assert_eq!(
+            set.rules[0].actions,
+            [
+                Action::Aim { field: 0, to: AimTo::Subject },
+                Action::Aim { field: 1, to: AimTo::At(Aim::Off) },
+                Action::Aim { field: 3, to: AimTo::At(Aim::Point(Vec3::new(1.2, 0.2, 1.2))) },
+                Action::Aim { field: 2, to: AimTo::At(Aim::Point(Vec3::new(0.0, 0.0, 9.0))) },
+            ]
+        );
+    }
+
+    #[test]
+    fn every_aimed_field_mistake_names_the_fix() {
+        let e = messages(parse(json!({
+            "vars": {"n": 0},
+            "player_vars": {"lap": 0},
+            "fields": [
+                {"id": "a", "zone": "pit", "toward": "bel", "speed": 1},
+                {"id": "b", "zone": "pit", "toward": "bell", "velocity": [1, 0], "speed": 1},
+                {"id": "c", "zone": "pit", "toward": "bell"},
+                {"id": "d", "zone": "pit", "velocity": [1, 0], "speed": 2},
+                {"id": "e", "zone": "pit", "toward": null, "speed": "held(self) * 2", "props": []},
+                {"id": "f", "zone": "pit", "toward": null, "speed": "me.lap", "props": ["crate", "crate"]},
+                {"id": "g", "zone": "pit", "toward": 5, "speed": {"fast": true}, "props": ["crat"]},
+                {"id": "h", "zone": "pit", "velocity": ["nn", 0]}
+            ]
+        })));
+        for want in [
+            "fields[0] (a).toward: no loose prop or top-level object `bel` — did you mean `bell`?",
+            "fields[1] (b): an aimed field (`toward`) pushes along the line to its target at `speed`; give `speed`, not `velocity`",
+            "fields[2] (c).speed: missing (m/s toward the target, negative pushes away",
+            "fields[3] (d).speed: only an aimed field takes `speed`: add `toward`",
+            "fields[4] (e).speed: a field is not run for a player or a prop: `me.` and `self` belong in rules",
+            "fields[4] (e).props: an empty list selects nothing",
+            "fields[5] (f).speed: a field is not run for a player or a prop",
+            "fields[5] (f).props[1]: `crate` is listed twice",
+            "fields[6] (g).toward: must be a loose prop or object id, [x, y, z], or null for nowhere (got number 5)",
+            "fields[6] (g).speed: must be m/s toward the target (negative pushes away), a number or an expression string",
+            "fields[6] (g).props[0]: no loose prop `crat` — did you mean `crate`?",
+            "fields[7] (h).velocity[0]: unknown variable `nn` — did you mean `n`?",
+        ] {
+            assert!(e.contains(want), "missing `{want}` in:\n{e}");
+        }
+        let many: Vec<Value> = (0..=MAX_FIELDS).map(|i| json!({"id": format!("f{i}"), "zone": "pit", "velocity": [1, 0]})).collect();
+        let e = messages(parse(json!({"fields": many})));
+        assert!(e.contains(&format!("at most {MAX_FIELDS}")), "{e}");
+    }
+
+    #[test]
+    fn aim_names_an_aimed_field_and_a_target() {
+        let base = |action: Value| {
+            parse(json!({
+                "fields": [{"id": "gravity", "zone": "pit", "toward": null, "speed": 2}, {"id": "river", "zone": "pit", "velocity": [1, 0]}],
+                "rules": [{"id": "r", "when": {"event": "pickup"}, "do": [action]}]
+            }))
+        };
+        assert!(base(json!({"aim": ["gravity", "crate"]})).is_ok());
+        for (action, want) in [
+            (json!({"aim": ["gravty", "crate"]}), "do[0].aim[0]: no field `gravty` — did you mean `gravity`? (fields: gravity, river)"),
+            (json!({"aim": ["river", "crate"]}), "do[0].aim[0]: field `river` pushes along a fixed `velocity`; only an aimed field can be aimed"),
+            (json!({"aim": ["gravity", "crat"]}), "do[0].aim[1]: no loose prop or top-level object `crat` — did you mean `crate`?"),
+            (json!({"aim": "gravity"}), "do[0].aim: must be [field_id, target]"),
+        ] {
+            let e = messages(base(action));
+            assert!(e.contains(want), "missing `{want}` in:\n{e}");
+        }
+        let e = messages(parse(json!({"rules": [{"id": "r", "when": {"start": true}, "do": [{"aim": ["x", null]}]}]})));
+        assert!(e.contains("no field `x`") && e.contains("declare one under `fields` with `toward`"), "{e}");
+    }
+
+    #[test]
+    fn self_is_the_triggering_prop_and_only_a_prop_trigger_has_one() {
+        let set = parse(json!({
+            "vars": {"n": 0},
+            "rules": [
+                {"id": "in", "when": {"prop_enter": {"zone": "pit"}, "prop": ["crate", "bell"]}, "if": "!held(self) && in_zone(self, pit)",
+                 "do": [{"hide": "self"}, {"reset": "self"}, {"place": ["self", [0, 1, 0]]}, {"impulse": {"object": "self", "dir": [0, 1, 0]}}, {"show": "self"}, {"emit": "landed"}]},
+                {"id": "chain", "when": {"event": "landed"}, "do": [{"set": ["n", "prop_y(self)"]}]},
+                {"id": "below", "when": {"prop_below": ["bell", 0]}, "do": [{"reset": "self"}]},
+                {"id": "took", "when": {"event": "pickup", "prop": "bell"}, "do": [{"add": ["n", "mass(self)"]}]}
+            ]
+        }))
+        .unwrap();
+        let r = &set.rules[0];
+        assert_eq!(r.props, Some(vec![1, 0]), "the filter keeps the author's order");
+        assert!(r.cond.as_ref().is_some_and(Expr::uses_subject));
+        assert_eq!(r.actions[0], Action::Hide(Obj::Subject));
+        assert_eq!(r.actions[1], Action::Reset(ResetTarget::Subject));
+        assert_eq!(r.actions[2], Action::Place { prop: PropSel::Subject, at: Vec3::new(0.0, 1.0, 0.0) });
+        assert!(matches!(r.actions[3], Action::Impulse { object: Obj::Subject, .. }));
+        assert_eq!(set.rules[3].props, Some(vec![0]), "one id is a list of one");
+        let e = messages(parse(json!({
+            "vars": {"n": 0},
+            "rules": [
+                {"id": "a", "when": {"start": true}, "do": [{"hide": "self"}]},
+                {"id": "b", "when": {"every": 1}, "if": "held(self)", "do": [{"emit": "x"}]},
+                {"id": "c", "when": {"enter": {"zone": "exit"}}, "do": [{"reset": "self"}]},
+                {"id": "d", "when": {"event": "shot"}, "do": [{"set": ["n", "tilt(self)"]}]},
+                {"id": "e", "when": {"event": "shot", "prop": "crate"}, "do": [{"emit": "x"}]},
+                {"id": "f", "when": {"every": 1, "prop": "crate"}, "do": [{"emit": "x"}]},
+                {"id": "g", "when": {"prop_enter": {"zone": "pit"}, "prop": []}, "do": [{"emit": "x"}]},
+                {"id": "h", "when": {"after": 1}, "do": [{"place": ["self", [0, 0, 0]]}]}
+            ]
+        })));
+        for want in [
+            "rules[0] (a): uses `self` but a `start` trigger has no prop (self is the prop that fired the rule",
+            "rules[1] (b): uses `self` but an `every` trigger has no prop",
+            "rules[2] (c): uses `self` but an `enter` trigger (a player, not a prop) has no prop",
+            "rules[3] (d): uses `self` but the engine event `shot` (it is about no prop; pickup, drop, prop_hit are) has no prop",
+            "rules[4] (e).when.prop: only `prop_enter`, `prop_exit` and a prop's `event` take a `prop` filter; the engine event `shot` is about no prop",
+            "rules[5] (f).when.prop: only `prop_enter`, `prop_exit` and a prop's `event` take a `prop` filter; `every` is not about a prop",
+            "rules[6] (g).when.prop: an empty list selects nothing",
+            "rules[7] (h): uses `self` but an `after` trigger has no prop",
+        ] {
+            assert!(e.contains(want), "missing `{want}` in:\n{e}");
+        }
+        // A scene without loose props has no `self` to read: the prop functions still say so.
+        let e = messages(parse_rules(
+            json!({"vars": {"n": 0}, "rules": [{"id": "x", "when": {"event": "pickup"}, "do": [{"set": ["n", "held(self)"]}]}]}).as_object().unwrap(),
+            &Refs::default(),
+        ));
+        assert!(e.contains("no loose prop `self`") && e.contains("none in this scene"), "{e}");
+        // `self` is reserved: no object (a loose prop or anything a rule can hide) may take the name.
+        for prop in [true, false] {
+            let mut refs = refs();
+            if prop {
+                refs.prop_ids.insert("self".into());
+            }
+            refs.object_ids.insert("self".into());
+            let e = messages(parse_rules(json!({}).as_object().unwrap(), &refs));
+            assert!(e.contains("an object is called `self`"), "{e}");
+        }
+    }
+
+    #[test]
+    fn a_scene_whose_fields_exist_and_whose_rules_never_look_at_a_prop_still_needs_the_props() {
+        let set = parse(json!({
+            "vars": {"n": 0},
+            "fields": [{"id": "river", "zone": "pit", "velocity": [1, 0]}],
+            "rules": [{"id": "t", "when": {"every": 1}, "do": [{"add": ["n", 1]}]}]
+        }))
+        .unwrap();
+        assert!(set.needs_props, "the fields push props every tick: without views they silently pushed nothing");
     }
 }

@@ -422,8 +422,8 @@ impl MatchSim {
         let body = p.state.character.body();
         if self.props.held_by(slot).is_some() {
             let velocity = crate::sim::player::release_velocity(&p.state, look, self.player_tuning.throw_speed);
-            if self.props.drop_held_by(slot, velocity).is_some() {
-                self.rules.inject(self.tick, "drop", Some(slot));
+            if let Some(prop) = self.props.drop_held_by(slot, velocity) {
+                self.rules.inject_with(self.tick, "drop", Some(slot), Some(prop));
                 return true;
             }
         } else if let Some(prop) = self.props.pick_target_for(slot, eye, look, body.pickup_reach, &body.carry) {
@@ -431,7 +431,7 @@ impl MatchSim {
                 if let Some(p) = self.players[slot].as_mut() {
                     p.combat.swing.cancel();
                 }
-                self.rules.inject(self.tick, "pickup", Some(slot));
+                self.rules.inject_with(self.tick, "pickup", Some(slot), Some(prop));
                 return true;
             }
         } else if self.pickup_misses.len() < MAX_PICKUP_MISSES {
@@ -486,22 +486,22 @@ impl MatchSim {
                 let lag = p.view_lag as usize;
                 let (eye, look) = eye_and_look(&p.state, p.crouching);
                 self.rules.inject(self.tick, "shot", Some(slot));
-                let (mut landed, mut struck_prop) = (false, false);
+                let (mut landed, mut struck_prop) = (false, None);
                 for pellet in 0..firearm.pellets() {
                     let dir = firearm.shot_direction(look, pellet);
                     if let Some(hit) = self.probe_lagged(eye, dir, spec.range, slot, lag) {
                         match hit.target {
                             RayTarget::Prop(prop) => {
                                 self.shove(prop, dir, eye + dir * hit.distance, spec.impulse / firearm.pellets() as f32);
-                                struck_prop = true;
+                                struck_prop = struck_prop.or(Some(prop));
                             }
                             RayTarget::Player(target) => landed |= self.damage(target, firearm.pellet_damage(self.weapons.damage(firearm), pellet), slot),
                             RayTarget::Static => {}
                         }
                     }
                 }
-                if struck_prop {
-                    self.rules.inject(self.tick, "prop_hit", Some(slot));
+                if struck_prop.is_some() {
+                    self.rules.inject_with(self.tick, "prop_hit", Some(slot), struck_prop);
                 }
                 if landed {
                     if let Some(p) = self.players[slot].as_mut() {
@@ -521,7 +521,7 @@ impl MatchSim {
             RayTarget::Prop(prop) => {
                 let mass = self.props.mass(prop);
                 self.shove(prop, look, eye + look * hit.distance, 6.0 * mass.min(4.0));
-                self.rules.inject(self.tick, "prop_hit", Some(slot));
+                self.rules.inject_with(self.tick, "prop_hit", Some(slot), Some(prop));
             }
             RayTarget::Player(target) => {
                 if self.damage(target, self.weapons.bat_damage, slot) {

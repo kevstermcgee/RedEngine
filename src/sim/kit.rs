@@ -522,7 +522,7 @@ impl MatchSim {
             return;
         }
         let mut landed: Vec<(usize, f32, bool)> = Vec::new();
-        let mut struck_prop = false;
+        let mut struck_prop = None;
         for pellet in 0..spec.pellets.max(1) {
             let seed = now << 24 ^ (slot as u64) << 16 ^ (shots as u64) << 4 ^ pellet as u64;
             let (u, v) = unit_pair(seed);
@@ -531,7 +531,7 @@ impl MatchSim {
             match hit.target {
                 RayTarget::Prop(prop) => {
                     self.shove(prop, dir, eye + dir * hit.distance, spec.damage as f32 * 0.4 / spec.pellets as f32);
-                    struck_prop = true;
+                    struck_prop = struck_prop.or(Some(prop));
                 }
                 RayTarget::Player(target) => {
                     let y = eye.y + dir.y * hit.distance;
@@ -552,8 +552,8 @@ impl MatchSim {
                 RayTarget::Static => {}
             }
         }
-        if struck_prop {
-            self.rules.inject(now, "prop_hit", Some(slot));
+        if struck_prop.is_some() {
+            self.rules.inject_with(now, "prop_hit", Some(slot), struck_prop);
         }
         let mut any = false;
         for (target, amount, head) in landed {
@@ -643,7 +643,7 @@ impl MatchSim {
             RayTarget::Prop(prop) => {
                 let mass = self.props.mass(prop);
                 self.shove(prop, look, eye + look * hit.distance, 6.0 * mass.min(4.0));
-                self.rules.inject(self.tick, "prop_hit", Some(slot));
+                self.rules.inject_with(self.tick, "prop_hit", Some(slot), Some(prop));
             }
             RayTarget::Player(target) => {
                 let Some(t) = self.players[target].as_ref() else { return };

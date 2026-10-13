@@ -420,3 +420,49 @@ fn the_soundscape_follows_the_hour_a_rule_variable_fades_a_layer_in_and_an_event
     assert_eq!(audio["music"]["dawn"], 1.0, "just after sunrise the mood is dawn: {audio}");
     assert!(d["snapshots"]["early"]["audio"]["layers"][0]["level"].as_f64().unwrap() < 0.01, "and before it rose the layer was out");
 }
+
+/// The single-player client runs the scene's rules itself (not `MatchSim`): its `fields` must push props the same way, a scene with fields and no
+/// rules included. Both used to do nothing in the window while `sim`, `verify` and a server showed them working.
+#[test]
+fn the_offline_client_applies_fields_a_plain_current_and_an_aimed_pull() {
+    let dir = scratch("fields");
+    let scene = dir.join("fields.json");
+    std::fs::write(
+        &scene,
+        json!({
+            "camera": {"position": [0, 8, -10], "target": [0, 0, 0]},
+            "player": {"mode": "peaceful"},
+            "spawns": [{"id": "s", "position": [0, 0, -8], "yaw_deg": 0}],
+            "zones": [{"id": "belt", "rect": [-9, -2, -3, 2], "y": 0}, {"id": "yard", "rect": [0, -6, 9, 6], "y": 0}],
+            "fields": [
+                {"id": "current", "zone": "belt", "velocity": [2, 0]},
+                {"id": "pull", "zone": "yard", "toward": "anchor", "speed": 3, "props": ["crate"]}
+            ],
+            "objects": [
+                {"id": "floor", "type": "box", "size": [30, 0.2, 30], "position": [0, -0.1, 0]},
+                {"id": "log", "type": "prop", "prop": "crate", "position": [-8, 0, 0]},
+                {"id": "crate", "type": "prop", "prop": "crate", "position": [2, 0, -3]},
+                {"id": "anchor", "type": "prop", "prop": "traffic_cone", "position": [7, 0, 2]}
+            ]
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let script = dir.join("play.json");
+    let dump = dir.join("state.json");
+    std::fs::write(&script, json!({"steps": [{"wait": 1.5}, {"snapshot": "after"}]}).to_string()).unwrap();
+    let o = re2(&[scene.to_str().unwrap(), "--as", "human", "--headless", "--script", script.to_str().unwrap(), "--dump", dump.to_str().unwrap()]);
+    assert!(o.status.success(), "{}", text(&o));
+    let d: Value = serde_json::from_str(&std::fs::read_to_string(&dump).unwrap()).unwrap();
+    let at = |id: &str| {
+        let p = d["props"].as_array().unwrap().iter().find(|p| p["id"] == id).unwrap_or_else(|| panic!("no {id}: {d}"));
+        (p["pos"][0].as_f64().unwrap(), p["pos"][2].as_f64().unwrap())
+    };
+    let (lx, lz) = at("log");
+    assert!(lx > -6.5 && lz.abs() < 0.3, "the current carried the log along +x: ({lx:.2}, {lz:.2})");
+    let (cx, cz) = at("crate");
+    let (dx, dz) = (cx - 2.0, cz + 3.0);
+    let along = (dx * 5.0 + dz * 5.0) / (50f64.sqrt() * (dx * dx + dz * dz).sqrt().max(1e-6));
+    assert!((dx * dx + dz * dz).sqrt() > 0.8 && along > 0.99, "the crate was pulled straight at the anchor (bearing (5, 5)): moved ({dx:.2}, {dz:.2})");
+    let _ = std::fs::remove_dir_all(dir);
+}

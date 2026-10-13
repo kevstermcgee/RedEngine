@@ -188,8 +188,8 @@ strict_struct! {
         prop_enter: Volume,
         prop_exit: Volume,
         prop_below: Any,
-        /// With `prop_enter` / `prop_exit`: only this prop.
-        prop: String,
+        /// With `prop_enter` / `prop_exit` / a prop's `event`: only this prop, or these (`self` is the one that fired the rule).
+        prop: Any,
     }
 }
 
@@ -216,6 +216,8 @@ pub enum Action {
     Impulse(Impulse),
     Reset(Reset),
     Place(Any),
+    /// `[field, target]`: point an aimed field at a loose prop, an object, `[x, y, z]`, `self` or `null`.
+    Aim(Any),
 }
 
 strict_struct! {
@@ -240,7 +242,23 @@ strict_struct! {
 
 strict_struct! {
     /// A force volume on loose props.
-    pub struct ForceField { id: String, zone: String, object: String, r#box: Any, pad: Any, height: Any, velocity: Any, lift: Any, rate: Any }
+    pub struct ForceField {
+        id: String,
+        zone: String,
+        object: String,
+        r#box: Any,
+        pad: Any,
+        height: Any,
+        velocity: Any,
+        lift: Any,
+        rate: Any,
+        /// An aimed field: a loose prop (followed), an object, `[x, y, z]`, or `null` until a rule `aim`s it.
+        toward: Any,
+        /// An aimed field's pull, m/s (negative pushes away); a number or an expression.
+        speed: Any,
+        /// Only these loose props (an id or a list).
+        props: Any,
+    }
 }
 
 // ---- gameplay ------------------------------------------------------------------------------------------------------------------------------
