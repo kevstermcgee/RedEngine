@@ -51,7 +51,7 @@ pub mod player;
 pub mod race;
 pub mod replay;
 pub mod rules;
-pub mod rules_expr;
+pub use red_core::sim::rules_expr;
 pub mod rules_run;
 pub mod scenario;
 pub mod scratch;

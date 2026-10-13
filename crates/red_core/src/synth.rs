@@ -1,14 +1,14 @@
 //! The engine's sound synthesis that needs no sound card: the sample rate, the WAV encoder and the one-off clips that live outside `sfx`.
 //!
 //! This is the part of audio that is pure arithmetic, so it also builds in the headless server and the analysis tools (`audio report`, `audio render`):
-//! [`crate::audio::Audio`] (the `rodio` player) is the only thing that needs a device, and it stays behind the `gfx` feature.
+//! The engine's `audio::Audio` (the `rodio` player) is the only thing that needs a device, and it stays behind the `gfx` feature.
 
 /// Output sample rate of the synthesized clips, in Hz.
 pub const SAMPLE_RATE: u32 = 44100;
 
 /// Encodes `interleaved` (`f32` in -1..1, `channels` per frame) as a 16-bit PCM WAV file in memory: a 44-byte
 /// RIFF/WAVE header followed by little-endian `i16` samples. No new dependency for this — the format is this
-/// simple. Used to let a player save the engine's generated music (`crate::music::loop_samples`) as a file.
+/// simple. Used to let a player save the engine's generated music (the engine's `music::loop_samples`) as a file.
 pub fn wav_bytes_i16(interleaved: &[f32], sample_rate: u32, channels: u16) -> Vec<u8> {
     let bits_per_sample: u16 = 16;
     let block_align = channels * bits_per_sample / 8;

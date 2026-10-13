@@ -543,7 +543,7 @@ impl Parser<'_> {
             let mut known: Vec<&str> = Func::ALL.iter().map(|(n, _, _)| *n).collect();
             known.extend(MathFn::ALL.iter().map(|(n, _, _, _)| *n));
             known.push("random");
-            let hint = crate::prefabs::suggest(name, known.iter().copied()).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
+            let hint = crate::suggest::suggest(name, known.iter().copied()).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
             return Err(ParseError { message: format!("unknown function `{name}`{hint} (built-ins: {})", known.join(", ")), at });
         };
         self.pos += 1; // the `(`
@@ -567,7 +567,7 @@ impl Parser<'_> {
             Some(i) => Ok(Expr::Call(f, i)),
             None => {
                 let hint =
-                    crate::prefabs::suggest(&arg, list.iter().map(String::as_str)).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
+                    crate::suggest::suggest(&arg, list.iter().map(String::as_str)).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
                 let known =
                     if list.is_empty() { "none in this scene".to_string() } else { list.iter().take(12).map(String::as_str).collect::<Vec<_>>().join(", ") };
                 Err(ParseError { message: format!("`{name}({arg})`: no {kind} `{arg}`{hint} ({kind}s: {known})"), at: arg_at })
@@ -618,7 +618,7 @@ impl Parser<'_> {
         let lookup = |kind: &str, list: &[String], id: &str, at: usize| match list.iter().position(|n| n == id) {
             Some(i) => Ok(i),
             None => {
-                let hint = crate::prefabs::suggest(id, list.iter().map(String::as_str)).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
+                let hint = crate::suggest::suggest(id, list.iter().map(String::as_str)).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
                 let known =
                     if list.is_empty() { "none in this scene".to_string() } else { list.iter().take(12).map(String::as_str).collect::<Vec<_>>().join(", ") };
                 Err(ParseError { message: format!("`{name}({prop}, {zone})`: no {kind} `{id}`{hint} ({kind}s: {known})"), at })
@@ -632,14 +632,14 @@ impl Parser<'_> {
 
 /// The message for a name that is not a declared variable, with a did-you-mean when one is close.
 pub fn unknown_var(name: &str, names: &[String]) -> String {
-    let near = crate::prefabs::suggest(name, names.iter().map(String::as_str));
+    let near = crate::suggest::suggest(name, names.iter().map(String::as_str));
     let hint = near.first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
     format!("unknown variable `{name}`{hint} (declare it in `vars`; known: {})", names.join(", "))
 }
 
 /// The message for `me.name` where `name` is not a declared per-player variable.
 pub fn unknown_player_var(name: &str, names: &[String]) -> String {
-    let near = crate::prefabs::suggest(name, names.iter().map(String::as_str));
+    let near = crate::suggest::suggest(name, names.iter().map(String::as_str));
     let hint = near.first().map(|n| format!(" — did you mean `me.{n}`?")).unwrap_or_default();
     let known = if names.is_empty() { "none declared".to_string() } else { names.join(", ") };
     format!("unknown per-player variable `me.{name}`{hint} (declare it in `player_vars`; known: {known})")

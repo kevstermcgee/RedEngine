@@ -884,6 +884,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_voice_built_in_code_survives_the_trip_through_json() {
+        for (name, voice) in voice_catalog() {
+            let json = crate::voice_spec::voice_to_json(&voice);
+            let again = crate::voice_spec::parse_voice(&json).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+            let (a, b) = (voice.render(), again.render());
+            assert_eq!(a.len(), b.len(), "{name}");
+            assert!(a.iter().zip(&b).all(|(x, y)| (x - y).abs() < 1e-4), "{name}: the exported JSON must sound the same");
+        }
+    }
+
+    #[test]
     fn tactical_feedback_is_short_quiet_bounded_and_decays_without_clicks() {
         let bank = SoundBank::new_tactical();
         let kit = KitSounds::new_tactical();

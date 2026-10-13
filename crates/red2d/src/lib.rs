@@ -5,34 +5,13 @@
 //! a frame into RGBA pixels. The native player (`red_engine2 play2d`, `re2d`) and the CLI (`red_engine2 sim|verify|frame`) drive the same `Game`, so a
 //! scripted playthrough gives the same state hash in both.
 //!
-//! **Ownership.** This crate owns 2D presentation and 2D simulation semantics only. It shares, by including the engine's own source files (no copies), the pieces that are
-//! not about 2D: field validation (`fields`, `suggest`), the rule expression language (`rules_expr`) and the audio description and synthesis (`voice_spec`, `dsp`,
-//! `score`, `audio_fx`, `audio_analysis`, `synth`). It does not link the 3D renderer, the authoritative simulation or any networking.
+//! **Ownership.** This crate owns 2D presentation and 2D simulation semantics only. The pieces that are not about 2D come from the headless core it shares with
+//! the engine crate (`red_core`): field validation (`fields`, `suggest`), the rule expression language (`rules_expr`) and the audio description and synthesis
+//! (`voice_spec`, `dsp`, `score`, `audio_fx`, `audio_analysis`, `synth`). It does not link the 3D renderer, the authoritative simulation or any networking.
 
-// Shared with the main crate: one file, two crates (see `Cargo.toml` of the root for how `red_engine2` depends on this one).
-#[path = "../../../src/audio_analysis.rs"]
-pub mod audio_analysis;
-#[path = "../../../src/audio_fx.rs"]
-pub mod audio_fx;
-#[path = "../../../src/dsp.rs"]
-pub mod dsp;
-#[path = "../../../src/fields.rs"]
-pub mod fields;
-#[path = "../../../src/sim/rules_expr.rs"]
-pub mod rules_expr;
-#[path = "../../../src/score.rs"]
-pub mod score;
-#[path = "../../../src/suggest.rs"]
-pub mod suggest;
-#[path = "../../../src/synth.rs"]
-pub mod synth;
-#[path = "../../../src/voice_spec.rs"]
-pub mod voice_spec;
-
-/// `rules_expr` suggests names through `crate::prefabs::suggest` in the main crate; here it is the same function.
-pub mod prefabs {
-    pub use crate::suggest::suggest;
-}
+// The headless core, shared with the engine crate: one copy, one set of types (ADR 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share).
+pub use red_core::sim::rules_expr;
+pub use red_core::{audio_analysis, audio_fx, dsp, fields, score, suggest, synth, voice_spec};
 
 pub mod caps;
 pub(crate) mod effects;
@@ -47,13 +26,3 @@ pub mod script;
 pub mod sim;
 pub mod solve;
 pub mod sound;
-
-/// The shared files' own unit tests reach for a few items of the main crate; the 2D crate's test build supplies just enough of them (the catalog of built-in 3D game sounds is
-/// the main crate's, and its golden test runs there).
-#[cfg(test)]
-pub mod sfx {
-    /// The main crate's built-in sound catalog; empty here.
-    pub fn voice_catalog() -> Vec<(String, crate::dsp::Voice)> {
-        Vec::new()
-    }
-}

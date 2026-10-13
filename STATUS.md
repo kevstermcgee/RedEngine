@@ -37,6 +37,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-13: Phase 1 item 1 (docs at runtime): tools::own_docs reads SPEC/AGENTS/REFERENCE/PLAY_2D/GLOSSARY/ADRs/analysis/features.json from the checkout; build.rs embeds only for release-type builds; a doc edit 86-108 s -> 0.3 s, no compile (docs/analysis/2026-10-13-docs-read-at-runtime.md)
 - 2026-10-13: Phase 1 item 2 (prebuilts): release.yml publishes prebuilt-<fingerprint> pre-releases on every main push whose fingerprint has none (skips docs/games-only commits), keeps 10; prebuilt.py no longer counts the engine's own docs as inputs
 - 2026-10-13: Phase 1 items 1-2 merged (#118 docs at runtime, #119 prebuilts). First prebuilt-a7c3e49c9bcf published from main in 773 s; a fresh clone reaches describe --brief in 3.9 s + 0.09 s with no compile (docs/analysis/2026-10-13-prebuilt-on-main-measured.md). Next: item 3, red_core
+- 2026-10-13: Phase 1 item 3, step 1: crates/red_core holds the ten files red2d shared by #[path] (synth, dsp, audio_fx, audio_analysis, voice_spec, score, fields, suggest, font_glyphs, sim::rules_expr); engine re-exports them at their old paths; red2d 127 -> 69 tests (58 no longer compiled twice); ADR 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.

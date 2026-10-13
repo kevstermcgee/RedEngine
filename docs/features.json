@@ -5,14 +5,14 @@
   "features": {
     "scene_format": {
       "summary": "The JSON scene language: schema, strict unknown-field errors, authored player tuning and jump pads, wall/fence sugar, prefabs, tracks and easing, colours.",
-      "files": ["src/schema.rs", "src/strict.rs", "src/content/*.rs", "schemas/*.json", "src/style.rs", "src/fields.rs", "src/suggest.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/*.json", "examples/*.rs", "examples/external/**", "examples/golden/**", "examples/lantern_walk/**", "examples/marcel/**", "SPEC.md"],
+      "files": ["src/schema.rs", "src/strict.rs", "src/content/*.rs", "schemas/*.json", "src/style.rs", "crates/red_core/src/fields.rs", "crates/red_core/src/suggest.rs", "src/macros.rs", "src/prefabs.rs", "src/track.rs", "src/easing.rs", "src/color.rs", "assets/*.json", "assets/README.md", "examples/*.json", "examples/*.rs", "examples/external/**", "examples/golden/**", "examples/lantern_walk/**", "examples/marcel/**", "SPEC.md"],
       "tests": ["lib:schema", "lib:strict", "lib:prefabs", "lib:macros", "lib:track", "lib:content", "examples_validate", "render_prep", "fields", "content_drift", "content_validate"],
       "commands": ["red_engine2 validate examples/test_lab.json"],
       "docs": ["SPEC.md", "assets/README.md", "docs/adr/0001-json-scenes-and-self-describing-cli.md", "docs/adr/0006-parse-time-expansion-for-sugar.md", "docs/adr/0019-strict-fields-versioning-and-json-envelope.md", "docs/adr/0037-core-assets-are-a-growing-api.md", "docs/adr/0039-authored-player-tuning-and-jump-pads.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-03-lettering-and-arrays-as-macros.md"]
     },
     "games2d": {
       "summary": "2D games, native: the red2d crate (declarative game format, deterministic simulation, CPU renderer, sound), the native window player (`play2d`), and the presentation x platform capability matrix.",
-      "files": ["crates/red2d/**", "src/font_glyphs.rs", "src/play2d.rs", "src/bin/re2d/**", "src/tools/game2d.rs", "src/tools/gitscope.rs", "tests/fresh_agent_bench.rs", "scripts/agent_bench.py", "src/tools/propose.rs", "src/cli/propose.rs", "examples/2d/**", "docs/PLAY_2D.md"],
+      "files": ["crates/red2d/**", "crates/red_core/src/font_glyphs.rs", "src/play2d.rs", "src/bin/re2d/**", "src/tools/game2d.rs", "src/tools/gitscope.rs", "tests/fresh_agent_bench.rs", "scripts/agent_bench.py", "src/tools/propose.rs", "src/cli/propose.rs", "examples/2d/**", "docs/PLAY_2D.md"],
       "tests": ["games2d", "lib:tools::game2d", "gate_meadow", "fresh_agent_bench"],
       "commands": ["red_engine2 verify examples/2d/coin-dash.game2d.json", "red_engine2 play2d examples/2d/coin-dash.game2d.json --max-ticks 60", "red_engine2 capabilities"],
       "docs": ["docs/PLAY_2D.md", "docs/adr/2026-10-05-hybrid-games-draw-3d-parts-with-a-small-portable.md"],
@@ -50,7 +50,7 @@
     },
     "sim_core": {
       "summary": "The headless, renderer-free simulation: fixed tick clock, scratch buffers, change tracking, entities, static props, the authoritative MatchSim, spawns, interest management.",
-      "files": ["src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs", "src/sim/ordnance.rs", "src/sim/shooter.rs", "src/sim/kit.rs", "src/sim/objective.rs", "src/sim/objective_run.rs"],
+      "files": ["crates/red_core/Cargo.toml", "crates/red_core/src/lib.rs", "src/sim/mod.rs", "src/sim/clock.rs", "src/sim/scratch.rs", "src/sim/change.rs", "src/sim/components.rs", "src/sim/entities.rs", "src/sim/statics.rs", "src/sim/snapshot.rs", "src/sim/match_sim.rs", "src/sim/spawns.rs", "src/sim/interest.rs", "src/sim/env.rs", "src/sim/ordnance.rs", "src/sim/shooter.rs", "src/sim/kit.rs", "src/sim/objective.rs", "src/sim/objective_run.rs"],
       "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots", "teams", "objective_modes", "net_modes"],
       "commands": ["cargo bench --bench sim", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0010-headless-match-server.md", "docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", "docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md"],
@@ -58,8 +58,8 @@
     },
     "game_rules": {
       "summary": "Game rules as data: vars, rules, the expression language, scripted headless scenarios (`sim`), and standard-client presentation.",
-      "files": ["src/sim/rules.rs", "src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "src/sim/approach.rs", "recipes/coin_run.json", "recipes/gated_garden.json"],
-      "tests": ["lib:sim::rules", "lib:sim::rules_expr", "lib:sim::rules_run", "lib:sim::scenario", "lib:sim::approach", "ai_tasks", "net_rule_state", "prop_rules", "object_actions"],
+      "files": ["src/sim/rules.rs", "crates/red_core/src/sim/rules_expr.rs", "src/sim/rules_run.rs", "src/sim/scenario.rs", "src/sim/approach.rs", "recipes/coin_run.json", "recipes/gated_garden.json"],
+      "tests": ["lib:sim::rules", "lib:sim::rules_run", "lib:sim::scenario", "lib:sim::approach", "ai_tasks", "net_rule_state", "prop_rules", "object_actions"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
       "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-03-level-states-phases-for-lint-reach-and-walk.md", "docs/adr/2026-10-03-object-based-player-actions-for-sim-and-the-scripted.md"],
       "depends_on": ["sim_core"]
@@ -166,7 +166,7 @@
     },
     "ui_kit": {
       "summary": "The headless, audited 2-D UI: layouts, menus, connect form, lobby, HUD, results; `ui-shot` and `ui-check`.",
-      "files": ["src/ui/**", "src/ui_config.rs", "src/menu.rs", "src/tools/font.rs", "src/font_glyphs.rs"],
+      "files": ["src/ui/**", "src/ui_config.rs", "src/menu.rs", "src/tools/font.rs", "crates/red_core/src/font_glyphs.rs"],
       "tests": ["lib:ui", "lib:ui_config", "lib:menu"],
       "commands": ["red_engine2 ui-check", "red_engine2 ui-shot lobby out/lobby.png"],
       "docs": ["docs/adr/0026-a-headless-audited-ui-kit.md", "docs/adr/0029-match-flow-lobby-rounds-rematch.md", "docs/adr/2026-10-01-a-scene-customizable-elimination-title.md", "docs/adr/2026-10-03-a-scene-declared-game-ui.md"],
@@ -190,8 +190,8 @@
     },
     "audio": {
       "summary": "Sound you can measure: the procedural synthesis (guns, effects, music, ambience) and WAV encoder build headless; `audio list|report|render|picture|check` give loudness (BS.1770 LUFS), peaks, clipping, silence, loop seam, spectrum and pitch as numbers or one picture, and hold every built-in sound to a standard.",
-      "files": ["src/synth.rs", "src/dsp.rs", "src/voice_spec.rs", "src/audio_fx.rs", "src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json", "src/nature.rs", "src/ambience.rs", "src/mixer.rs", "src/tools/audio_checks.rs", "examples/marcel/audio/*.json", "src/soundscape.rs", "src/listen.rs"],
-      "tests": ["lib:synth", "lib:dsp", "lib:voice_spec", "lib:audio_fx", "lib:score", "lib:sfx", "lib:music", "lib:audio_analysis", "lib:tools::audio", "lib:nature", "lib:ambience", "lib:mixer", "lib:tools::audio_checks", "lib:listen"],
+      "files": ["crates/red_core/src/synth.rs", "crates/red_core/src/dsp.rs", "crates/red_core/src/voice_spec.rs", "crates/red_core/src/audio_fx.rs", "crates/red_core/src/score.rs", "assets/audio/*.json", "src/sfx.rs", "src/music.rs", "crates/red_core/src/audio_analysis.rs", "src/tools/audio.rs", "tests/fixtures/audio_golden.json", "src/nature.rs", "src/ambience.rs", "src/mixer.rs", "src/tools/audio_checks.rs", "examples/marcel/audio/*.json", "src/soundscape.rs", "src/listen.rs"],
+      "tests": ["lib:sfx", "lib:music", "lib:tools::audio", "lib:nature", "lib:ambience", "lib:mixer", "lib:tools::audio_checks", "lib:listen"],
       "commands": ["red_engine2 audio check", "red_engine2 audio golden", "red_engine2 audio report fx.explosion", "red_engine2 audio picture music.loop out/music.png"],
       "docs": ["docs/adr/0008-procedural-assets-only.md", "docs/adr/0056-music-in-code.md", "docs/adr/2026-10-04-audio-you-can-measure-headless-synthesis-and-the-audio.md", "docs/adr/2026-10-04-a-sound-kit-voices-made-of-layers.md", "docs/adr/2026-10-04-sounds-as-data-the-json-voice-and-audio-export.md", "docs/adr/2026-10-04-music-as-data-scores-pitched-instruments-and-loop-safe.md", "docs/adr/2026-10-04-a-living-soundscape-nature-sounds-birdsong-by-the-hour.md", "docs/adr/2026-10-04-a-mixing-desk-buses-voice-limits-ducking-rule-driven.md"],
       "depends_on": ["graphical_client"]

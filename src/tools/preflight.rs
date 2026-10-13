@@ -238,11 +238,13 @@ const BANNED_CRATES: &[&str] = &["wgpu::", "winit::", "rodio::", "ffmpeg_sidecar
 /// that CI does on a bare Linux box. Which files are graphics-only is read from `src/lib.rs`, every `mod.rs` under `src/` and `Cargo.toml`, never listed by hand.
 pub fn headless_violations(root: &Path) -> Vec<String> {
     let gated = gfx_only_paths(root);
-    let files: Vec<String> = features::repo_files(root).into_iter().filter(|f| f.starts_with("src/") && f.ends_with(".rs")).collect();
+    // The headless core (`crates/red_core`) is held to the same rule, with nothing gated: it never draws or plays sound.
+    let files: Vec<String> =
+        features::repo_files(root).into_iter().filter(|f| (f.starts_with("src/") || f.starts_with("crates/red_core/src/")) && f.ends_with(".rs")).collect();
     let mut bad = Vec::new();
     for f in files {
         let rel = f.trim_start_matches("src/");
-        if gated.iter().any(|g| if g.ends_with('/') { rel.starts_with(g.as_str()) } else { rel == g }) {
+        if f.starts_with("src/") && gated.iter().any(|g| if g.ends_with('/') { rel.starts_with(g.as_str()) } else { rel == g }) {
             continue;
         }
         let text = read(root, &f);

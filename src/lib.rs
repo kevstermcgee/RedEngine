@@ -6,8 +6,8 @@ pub mod arsenal;
 pub mod atmosphere;
 #[cfg(feature = "gfx")]
 pub mod audio;
-pub mod audio_analysis;
-pub mod audio_fx;
+pub use red_core::audio_analysis;
+pub use red_core::audio_fx;
 pub mod avatar;
 #[cfg(feature = "render")]
 pub mod capture;
@@ -20,14 +20,14 @@ pub mod controller;
 pub mod costumes;
 pub mod crypto;
 pub mod daycycle;
-pub mod dsp;
+pub use red_core::dsp;
 pub mod easing;
 pub mod expanse;
 pub mod feel;
-pub mod fields;
+pub use red_core::fields;
 #[cfg(feature = "render")]
 pub mod firearms;
-pub mod font_glyphs;
+pub use red_core::font_glyphs;
 #[cfg(feature = "render")]
 pub mod fx;
 pub mod geometry;
@@ -75,7 +75,7 @@ pub mod props;
 pub mod render;
 pub mod scene_pool;
 pub mod schema;
-pub mod score;
+pub use red_core::score;
 #[cfg(feature = "gfx")]
 pub mod settings;
 pub mod sfx;
@@ -95,8 +95,8 @@ pub mod streaks;
 pub mod stream_gpu;
 pub mod strict;
 pub mod style;
-pub mod suggest;
-pub mod synth;
+pub use red_core::suggest;
+pub use red_core::synth;
 pub mod terrain;
 pub mod tools;
 pub mod track;
@@ -107,7 +107,7 @@ pub mod uniforms;
 pub mod video;
 #[cfg(feature = "render")]
 pub mod viewer;
-pub mod voice_spec;
+pub use red_core::voice_spec;
 pub mod weapons;
 
 /// The maths library every public type uses (`Vec3`, `Mat4`, ...), re-exported so a game built on the engine uses the
