@@ -4,18 +4,8 @@
 
 use image::{Rgb, RgbImage};
 
-/// Glyph cell width in pixels.
-pub const GLYPH_W: i32 = 5;
-/// Glyph cell height in pixels.
-pub const GLYPH_H: i32 = 7;
-
-use crate::font_glyphs::GLYPHS;
-
-/// The 5x7 bitmap rows of `c` (`#` = ink), if the font has it.
-pub fn glyph(c: char) -> Option<&'static [&'static str; 7]> {
-    let c = c.to_ascii_uppercase();
-    GLYPHS.iter().find(|(g, _)| *g == c).map(|(_, rows)| rows)
-}
+/// The table, its lookup and cell size are `red_core::font_glyphs` (the `sign` macro asks them too); this module draws.
+pub use crate::font_glyphs::{glyph, GLYPH_H, GLYPH_W};
 
 /// Width in pixels of `text` at integer `scale`.
 pub fn text_width(text: &str, scale: i32) -> i32 {
@@ -72,15 +62,6 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: i32, cy: i32, text: &str, scal
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn every_glyph_row_is_five_columns() {
-        for (c, rows) in GLYPHS {
-            for r in rows {
-                assert_eq!(r.len(), 5, "glyph {c:?} has a malformed row {r:?}");
-            }
-        }
-    }
 
     #[test]
     fn covers_id_characters() {

@@ -401,14 +401,14 @@ fn expand_fence(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> V
 
 /// The punctuation the 5x7 font can draw (asked of the font, so a message about it cannot drift).
 fn font_punctuation() -> String {
-    (0x21u8..0x7f).map(char::from).filter(|c| !c.is_ascii_alphanumeric() && crate::tools::font::glyph(*c).is_some()).collect()
+    (0x21u8..0x7f).map(char::from).filter(|c| !c.is_ascii_alphanumeric() && crate::font_glyphs::glyph(*c).is_some()).collect()
 }
 /// Most characters and lines one `text` object takes (a sign, not a page).
 const MAX_TEXT_CHARS: usize = 400;
 const MAX_TEXT_LINES: usize = 12;
 /// Letter pixels per glyph row: the font is 5 wide and 7 tall.
-const GLYPH_COLS: usize = crate::tools::font::GLYPH_W as usize;
-const GLYPH_ROWS: usize = crate::tools::font::GLYPH_H as usize;
+const GLYPH_COLS: usize = crate::font_glyphs::GLYPH_W as usize;
+const GLYPH_ROWS: usize = crate::font_glyphs::GLYPH_H as usize;
 
 /// A rectangle of font pixels: `(col, row, width, height)`, row 0 at the top of the text block.
 type PixelRect = (usize, usize, usize, usize);
@@ -436,7 +436,7 @@ fn text_grid(lines: &[&str], spacing: usize, line_gap: usize, align: &str) -> (V
         };
         let top = li * (GLYPH_ROWS + line_gap);
         for (ci, ch) in line.chars().enumerate() {
-            let Some(rows_of) = crate::tools::font::glyph(ch) else { continue };
+            let Some(rows_of) = crate::font_glyphs::glyph(ch) else { continue };
             let left = start + ci * (GLYPH_COLS + spacing);
             for (r, row) in rows_of.iter().enumerate() {
                 for (c, b) in row.bytes().enumerate() {
@@ -498,7 +498,7 @@ fn expand_text(obj: &Map<String, Value>, id: &str, errs: &mut Vec<String>) -> Ve
         return vec![];
     }
     let bad: Vec<char> = {
-        let mut b: Vec<char> = text.chars().filter(|c| *c != '\n' && *c != ' ' && crate::tools::font::glyph(*c).is_none()).collect();
+        let mut b: Vec<char> = text.chars().filter(|c| *c != '\n' && *c != ' ' && crate::font_glyphs::glyph(*c).is_none()).collect();
         b.sort_unstable();
         b.dedup();
         b
