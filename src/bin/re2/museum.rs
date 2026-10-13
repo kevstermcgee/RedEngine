@@ -57,7 +57,7 @@ fn progress_path(key: &str) -> Option<std::path::PathBuf> {
 impl App {
     /// Starts the visit when the scene is a museum: the saved one, or a new museum from this launch's seed.
     pub(crate) fn start_museum(&mut self) {
-        let Some(spec) = self.scene.museum.clone() else { return };
+        let Some(spec) = red_engine2::museum::spec_of(&self.scene) else { return };
         let saved = progress_path(&self.settings_key)
             .and_then(|p| std::fs::read_to_string(p).ok())
             .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())

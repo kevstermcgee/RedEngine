@@ -133,8 +133,10 @@ mod tests {
     use crate::schema::{ObjectKind, PrimKind};
 
     fn scene() -> Scene {
-        crate::schema::parse_scene(r##"{"camera":{"position":[0,1.7,0],"target":[0,1.7,-10]},"objects":[{"id":"floor","type":"box","size":[10,0.2,10]}]}"##)
-            .unwrap_or_else(|e| panic!("{e:?}"))
+        crate::scene_blocks::parse_scene(
+            r##"{"camera":{"position":[0,1.7,0],"target":[0,1.7,-10]},"objects":[{"id":"floor","type":"box","size":[10,0.2,10]}]}"##,
+        )
+        .unwrap_or_else(|e| panic!("{e:?}"))
     }
 
     fn make(prefix: &str) -> impl FnMut(usize) -> Object + '_ {

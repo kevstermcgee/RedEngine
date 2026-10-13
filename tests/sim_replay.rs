@@ -209,7 +209,7 @@ fn an_external_push_is_still_recorded_and_replayed() {
 fn a_real_udp_server_session_records_a_trace_that_replays_clean() {
     let path = root().join("examples/test_lab.json");
     let text = std::fs::read_to_string(&path).unwrap();
-    let scene = red_engine2::schema::parse_scene(&text).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
     let all_spawns = parse_spawns(&text).unwrap();
     let mut spawns = all_spawns.clone();
     spawns.retain(|s| s.group == "props");

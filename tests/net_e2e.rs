@@ -37,7 +37,7 @@ impl TestServer {
     fn start(group: &str, timeout_ms: u64, kick: Option<&str>) -> TestServer {
         let path = lab_path();
         let text = std::fs::read_to_string(&path).unwrap();
-        let scene = red_engine2::schema::parse_scene(&text).unwrap();
+        let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
         let mut spawns = parse_spawns(&text).unwrap();
         spawns.retain(|s| s.group == group);
         let sim = MatchSim::new(&scene, spawns);

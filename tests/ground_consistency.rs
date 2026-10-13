@@ -83,7 +83,7 @@ fn physical(scene: &red_engine2::schema::Scene, disabled: &[&str]) -> Fingerprin
 
 /// The match behind a server or a `LocalSession`, run until the rule has opened the gate (or not, when `walk_in` is false).
 fn match_world(text: &str, walk_in: bool) -> Fingerprint {
-    let scene = red_engine2::schema::parse_scene(text).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(text).unwrap();
     let spawns = parse_spawns(text).unwrap();
     let mut sim = MatchSim::new(&scene, spawns);
     if walk_in {
@@ -116,7 +116,7 @@ fn analysis(path: &std::path::Path, phase: Option<&str>) -> (Fingerprint, MapWor
 fn the_runtime_and_the_analysis_see_the_same_world_closed_and_open() {
     let text = scene_text("{}");
     let path = write("agree", &text);
-    let scene = red_engine2::schema::parse_scene(&text).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
 
     let closed = physical(&scene, &[]);
     let open = physical(&scene, &["gate"]);
@@ -156,7 +156,7 @@ fn the_runtime_and_the_analysis_see_the_same_world_closed_and_open() {
 #[test]
 fn local_session_agrees_with_the_server_world() {
     let text = scene_text("{}");
-    let scene = red_engine2::schema::parse_scene(&text).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
     let mut session = red_engine2::app::session::LocalSession::from_json(&text).unwrap_or_else(|e| panic!("{e:?}"));
     let (c, g) = session.sim().static_world();
     assert_eq!(fingerprint(c, g), physical(&scene, &[]));

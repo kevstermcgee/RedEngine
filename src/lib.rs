@@ -73,6 +73,7 @@ pub mod project_browser;
 pub mod props;
 #[cfg(feature = "render")]
 pub mod render;
+pub mod scene_blocks;
 pub mod scene_pool;
 pub mod schema;
 pub use red_core::score;
@@ -122,7 +123,7 @@ use std::path::Path;
 pub fn load_scene(path: &Path) -> Result<schema::Scene, Vec<String>> {
     let text = std::fs::read_to_string(path).map_err(|e| vec![format!("io: {e}")])?;
     // A terrain's `heightmap` is a path relative to the scene file.
-    schema::parse_scene_in(&text, path.parent())
+    scene_blocks::parse_scene_in(&text, path.parent())
 }
 
 /// Validates a scene file without rendering (`red_engine2 validate`).
@@ -133,7 +134,7 @@ pub fn validate_scene_file(path: &Path) -> Result<(), Vec<String>> {
 
 /// [`validate_scene_file`] on a scene's text: `base` is the folder relative files (scores, heightmaps) resolve against, `label` names it.
 pub fn validate_scene_text(text: &str, base: Option<&Path>, label: &str) -> Result<(), Vec<String>> {
-    let mut errs = schema::parse_scene_in(text, base).err().unwrap_or_default();
+    let mut errs = scene_blocks::parse_scene_in(text, base).err().unwrap_or_default();
     // `checks` is read by `verify`; `validate` holds it to the same shape rules without running anything (a misspelt group or a check that asserts
     // nothing used to pass `validate` and fail only at `verify`).
     let raw: Option<serde_json::Value> = serde_json::from_str(text).ok();

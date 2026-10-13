@@ -10,14 +10,14 @@ use red_engine2::sim::player::{step_player, PlayerInput, PlayerState};
 fn scene() -> red_engine2::schema::Scene {
     let text =
         std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/endless_meadow.json")).expect("examples/endless_meadow.json");
-    red_engine2::schema::parse_scene(&text).expect("the example scene parses")
+    red_engine2::scene_blocks::parse_scene(&text).expect("the example scene parses")
 }
 
 /// The finished game: the boy, a day that turns, a countryside and four scores, a count of days lived.
 fn marcel() -> red_engine2::schema::Scene {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/marcel");
     let text = std::fs::read_to_string(dir.join("marcel.json")).expect("examples/marcel/marcel.json");
-    red_engine2::schema::parse_scene_in(&text, Some(&dir)).expect("Marcel parses")
+    red_engine2::scene_blocks::parse_scene_in(&text, Some(&dir)).expect("Marcel parses")
 }
 
 #[test]
@@ -35,9 +35,13 @@ fn the_scene_parses_and_its_ground_is_the_generator() {
 
 #[test]
 fn a_bad_procgen_block_is_refused_with_the_path() {
-    let e = red_engine2::schema::parse_scene(r#"{"camera":{"position":[0,1,0],"target":[0,1,-1]},"procgen":{"seed":-3},"objects":[]}"#).unwrap_err().join(" ");
+    let e = red_engine2::scene_blocks::parse_scene(r#"{"camera":{"position":[0,1,0],"target":[0,1,-1]},"procgen":{"seed":-3},"objects":[]}"#)
+        .unwrap_err()
+        .join(" ");
     assert!(e.contains("procgen.seed"), "{e}");
-    let e = red_engine2::schema::parse_scene(r#"{"camera":{"position":[0,1,0],"target":[0,1,-1]},"procgen":{"forest":1},"objects":[]}"#).unwrap_err().join(" ");
+    let e = red_engine2::scene_blocks::parse_scene(r#"{"camera":{"position":[0,1,0],"target":[0,1,-1]},"procgen":{"forest":1},"objects":[]}"#)
+        .unwrap_err()
+        .join(" ");
     assert!(e.contains("forest"), "{e}");
 }
 
@@ -136,7 +140,7 @@ fn each_sunrise_adds_a_day_to_the_count_the_game_keeps() {
 
 #[test]
 fn only_declared_variables_can_be_kept() {
-    let e = red_engine2::schema::parse_scene(r#"{"camera":{"position":[0,1,0],"target":[0,1,-1]},"vars":{"a":0},"persist":["b"],"objects":[]}"#)
+    let e = red_engine2::scene_blocks::parse_scene(r#"{"camera":{"position":[0,1,0],"target":[0,1,-1]},"vars":{"a":0},"persist":["b"],"objects":[]}"#)
         .unwrap_err()
         .join(" ");
     assert!(e.contains("persist[0]") && e.contains("`b`"), "{e}");

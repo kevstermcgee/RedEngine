@@ -919,6 +919,8 @@ fn fail_online(msg: &str) -> ! {
 }
 
 fn main() {
+    // The scene blocks the engine defines above the scene parser (the museum), before anything parses a scene.
+    red_engine2::scene_blocks::register();
     #[cfg(windows)]
     win::install_crash_box(&win::init(win::wants_terminal(&std::env::args().collect::<Vec<_>>())));
     env_logger::init();

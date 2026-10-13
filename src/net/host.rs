@@ -121,7 +121,7 @@ impl LocalHost {
         let text = std::fs::read_to_string(map).map_err(|e| format!("cannot read {}: {e}", map.display()))?;
         // The host's choice of mode and team size is written into the scene; the hash and the interest map still come from the file.
         let scene_text = crate::sim::shooter::with_overrides(&text, opts.mode, opts.team_size, opts.kill_limit)?;
-        let scene = crate::schema::parse_scene(&scene_text).map_err(|e| format!("{} is not a valid scene: {}", map.display(), e.join("; ")))?;
+        let scene = crate::scene_blocks::parse_scene(&scene_text).map_err(|e| format!("{} is not a valid scene: {}", map.display(), e.join("; ")))?;
         let mut spawns = parse_spawns(&text)?;
         if !opts.spawn_group.is_empty() {
             spawns.retain(|s| s.group == opts.spawn_group);
@@ -183,7 +183,7 @@ impl LocalHost {
             // The scene is parsed afresh for every round: a rematch starts from the authored map.
             let (text2, spawns2) = (scene_text.clone(), spawns);
             server.enable_flow(settings, move || {
-                let scene = crate::schema::parse_scene(&text2).map_err(|e| e.join("; "))?;
+                let scene = crate::scene_blocks::parse_scene(&text2).map_err(|e| e.join("; "))?;
                 MatchSim::try_new(&scene, spawns2.clone())
             })?;
         }

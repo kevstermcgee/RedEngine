@@ -43,7 +43,7 @@ fn peers_and_a_late_joiner_recover_the_same_complete_rule_state() {
         ]
     }]);
     let text = serde_json::to_string(&value).unwrap();
-    let scene = red_engine2::schema::parse_scene(&text).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
     let spawns = parse_spawns(&text).unwrap();
     let hidden_index = red_engine2::schema::object_ids(&scene.objects).iter().position(|id| id == "floor_spawn_hall").unwrap() as u16;
     let hash = red_engine2::net::map_hash(&text);

@@ -21,7 +21,7 @@ pub(crate) fn run_frame(
     let t = match hour {
         Some(h) => {
             let text = std::fs::read_to_string(scene).map_err(|e| format!("{}: {e}", scene.display()))?;
-            let parsed = red_engine2::schema::parse_scene(&text).map_err(|e| format!("{}: {}", scene.display(), e.join("; ")))?;
+            let parsed = red_engine2::scene_blocks::parse_scene(&text).map_err(|e| format!("{}: {}", scene.display(), e.join("; ")))?;
             let clock = parsed.clock.ok_or("--hour needs a scene with a `clock` block (see `describe scene`)")?;
             clock.t_for_hour(h) + t
         }
@@ -36,7 +36,7 @@ pub(crate) fn run_frame(
     };
     let opts = FrameOpts { eye: eye.map(v3).transpose()?, at: at.map(v3).transpose()?, fov, hide, cut_above, size, t, seed, song, play };
     if let (Some(eye), Ok(text)) = (opts.eye, std::fs::read_to_string(scene)) {
-        if let Ok(parsed) = red_engine2::schema::parse_scene(&text) {
+        if let Ok(parsed) = red_engine2::scene_blocks::parse_scene(&text) {
             let target = opts.at.unwrap_or_else(|| parsed.camera.target.sample(t));
             if let Some(w) = far_plane_warning(eye, target, parsed.camera.far) {
                 eprintln!("{w}");

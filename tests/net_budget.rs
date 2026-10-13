@@ -35,7 +35,7 @@ const AVG_TICK_BUDGET_US: f64 = 2_000.0;
 
 fn lab() -> (String, red_engine2::schema::Scene) {
     let text = std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap();
-    let scene = red_engine2::schema::parse_scene(&text).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
     (text, scene)
 }
 

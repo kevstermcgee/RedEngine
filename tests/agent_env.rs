@@ -3,7 +3,7 @@
 //! and what is privileged (every position, `_` variables, game events) is only in `debug_state`.
 
 use red_engine2::player::Character;
-use red_engine2::schema::parse_scene_in;
+use red_engine2::scene_blocks::parse_scene_in;
 use red_engine2::sim::env::{AgentSpec, Env, Observation, Sight};
 use red_engine2::sim::player::PlayerInput;
 use red_engine2::sim::spawns::parse_spawns;

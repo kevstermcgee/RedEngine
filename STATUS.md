@@ -41,6 +41,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-13: Phase 1 item 3, step 2: red_core takes color, easing, crypto, sim::{clock,scratch,components,change,entities,snapshot,statics,spawns,approach}, net::{limits,netsim,upnp,join_code,auth,relay} (+DEFAULT_PORT); [workspace.dependencies] gives every crate one spec per shared dependency; core sim/net deny unwrap/panic like the engine's
 - 2026-10-13: item 3 step 2: PR #122 open (sim foundations, crypto, net pieces into red_core; [workspace.dependencies]); local CI OK except split_render timing under load (passes alone); waiting on hosted CI
 - 2026-10-13: item 3: #123 merged (src deps --cycles/--core/--reach); cut plan: server reaches 102 modules, 7 crossings, 70 modules to move; cut 1 portmap PR open
+- 2026-10-13: item 3: cuts 1-3 merged (#124 portmap, #125 font, #126 shader-check); scene-block seam built, parity 10/10 identical; full CI next
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.

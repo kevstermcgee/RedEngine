@@ -301,7 +301,7 @@ mod tests {
         let text = format!(
             r#"{{"camera": {{"position": [0, 2, 5], "target": [0, 1, 0]}}, "objects": [{{"id": "floor", "type": "plane", "size": [20, 20]}}{extra}]}}"#
         );
-        crate::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"))
+        crate::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"))
     }
 
     #[test]

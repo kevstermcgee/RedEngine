@@ -68,7 +68,7 @@ pub fn run(path: &Path, bots: usize, level: f32, max_secs: f32, drivers: &[Drive
         return Err(format!("--bots must be 1..{MAX_PLAYERS}"));
     }
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut scene = crate::schema::parse_scene(&text).map_err(|e| e.join("; "))?;
+    let mut scene = crate::scene_blocks::parse_scene(&text).map_err(|e| e.join("; "))?;
     let course = scene.race.clone().ok_or("this scene has no `race` block (see `describe scene`, SPEC \"Races\")")?;
     // This command judges the *track*: a slow kart that would have finished must not be marked as not finished only because the game ends a race
     // `finish_grace_secs` after the winner. So the grace is made as long as the time limit here; the report says how far behind each bot finished.

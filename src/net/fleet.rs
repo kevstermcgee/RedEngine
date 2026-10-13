@@ -53,7 +53,7 @@ fn hazard_object(id: &str, json_object: &str) -> Object {
 
 #[allow(clippy::panic)] // the JSON is this file's own constant, and `tests` builds every fallback: a mistake fails a test, never a player
 fn first_object(json: &str) -> Object {
-    let mut scene = crate::schema::parse_scene(json).unwrap_or_else(|e| panic!("built-in kart model: {e:?}"));
+    let mut scene = crate::scene_blocks::parse_scene(json).unwrap_or_else(|e| panic!("built-in kart model: {e:?}"));
     let mut o = scene.objects.remove(0);
     o.collide = false;
     o
@@ -222,7 +222,7 @@ mod tests {
                    {"id":"crate_b","type":"box","size":[2,1,2],"position":[12,0.5,2],"collide":false}]}"#;
 
     fn scene() -> Scene {
-        crate::schema::parse_scene(SCENE).expect("scene")
+        crate::scene_blocks::parse_scene(SCENE).expect("scene")
     }
 
     fn snap(driver: u8) -> KartSnap {
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn a_scene_without_a_race_gets_no_fleet_and_one_with_gets_every_driver_hidden() {
-        let mut plain = crate::schema::parse_scene(r#"{"camera":{"position":[0,1,5],"target":[0,0,0]},"objects":[]}"#).unwrap();
+        let mut plain = crate::scene_blocks::parse_scene(r#"{"camera":{"position":[0,1,5],"target":[0,0,0]},"objects":[]}"#).unwrap();
         assert!(KartFleet::build(&mut plain).is_none());
         let mut s = scene();
         let before = s.objects.len();
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn a_maps_own_kart_object_is_used_instead_of_the_fallback() {
         let text = SCENE.replace(r#""objects":["#, r#""objects":[{"id":"kart_duck","type":"box","size":[1,1,2],"position":[0,-100,0],"collide":false},"#);
-        let mut s = crate::schema::parse_scene(&text).unwrap();
+        let mut s = crate::scene_blocks::parse_scene(&text).unwrap();
         let before = s.objects.len();
         let mut fleet = KartFleet::build(&mut s).unwrap();
         assert_eq!(s.objects.len(), before + 7 + 2 * MAX_HAZARDS_PER_SNAPSHOT, "the Duck brought its own model, so only seven fallbacks were added");

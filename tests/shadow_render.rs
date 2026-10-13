@@ -23,7 +23,7 @@ fn scene(shadows: bool) -> red_engine2::schema::Scene {
   ]
 }}"##
     );
-    red_engine2::schema::parse_scene(&text).expect("the test scene parses")
+    red_engine2::scene_blocks::parse_scene(&text).expect("the test scene parses")
 }
 
 fn luminance(rgb: &[u8], i: usize) -> f32 {

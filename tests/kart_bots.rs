@@ -32,7 +32,7 @@ fn scene(laps: u32, boxes: bool) -> String {
 
 /// A match with `n` bots in slots `0..n`, all at `level` (the driver of each is its slot's animal).
 fn bots(text: &str, n: usize, level: f32) -> MatchSim {
-    let parsed = red_engine2::schema::parse_scene(text).expect("scene");
+    let parsed = red_engine2::scene_blocks::parse_scene(text).expect("scene");
     let mut sim = MatchSim::new(&parsed, parse_spawns(text).unwrap());
     let cfg = BotsConfig::default();
     for slot in 0..n {
@@ -79,7 +79,7 @@ fn eight_bots_race_to_the_finish_each_as_a_different_animal() {
 #[test]
 fn a_better_driver_beats_a_worse_one_in_the_same_kart() {
     let text = scene(3, false);
-    let parsed = red_engine2::schema::parse_scene(&text).unwrap();
+    let parsed = red_engine2::scene_blocks::parse_scene(&text).unwrap();
     let mut sim = MatchSim::new(&parsed, parse_spawns(&text).unwrap());
     let cfg = BotsConfig::default();
     for (slot, level) in [(0usize, 0.05f32), (1, 1.0)] {

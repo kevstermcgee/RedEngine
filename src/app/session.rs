@@ -40,7 +40,7 @@ impl LocalSession {
 
     /// [`LocalSession::load`] from scene JSON text.
     pub fn from_json(text: &str) -> Result<Self, Vec<String>> {
-        let scene = crate::schema::parse_scene(text)?;
+        let scene = crate::scene_blocks::parse_scene(text)?;
         let spawns = parse_spawns(text).map_err(|e| vec![e])?;
         Self::new(scene, spawns, None).map_err(|e| vec![e])
     }

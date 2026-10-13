@@ -55,7 +55,7 @@ impl Running {
 }
 
 fn start(identity: &ServerIdentity, bind: &str, key: Option<&str>, opts: QuicServerOptions) -> Running {
-    let scene = red_engine2::schema::parse_scene(SCENE).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(SCENE).unwrap();
     let mut cfg = ServerConfig::new(bind.parse().unwrap(), red_engine2::net::map_hash(SCENE));
     cfg.join_key = key.map(str::to_string);
     let transport = QuicServer::bind(bind.parse().unwrap(), identity, opts).unwrap();

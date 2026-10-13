@@ -29,6 +29,28 @@ pub use layout::{EdgeId, Layout, RoomId, Side};
 pub use spec::{parse_museum, Collection, MuseumSpec};
 pub use state::{Event, Museum, Place, Progress, Target};
 
+/// The `museum` scene block, defined above the scene parser (ADR 2026-10-13-a-scene-block-can-be-defined-above-the-core; `scene_blocks` registers it).
+pub const BLOCK: crate::schema::BlockDef = crate::schema::BlockDef { key: "museum", parse: parse_block, fix_launch_seed: fix_seed };
+
+fn parse_block(root: &serde_json::Map<String, serde_json::Value>, base: Option<&std::path::Path>) -> Result<Option<crate::schema::BlockValue>, Vec<String>> {
+    Ok(parse_museum(root, base)?.map(|m| std::sync::Arc::new(m) as crate::schema::BlockValue))
+}
+
+fn fix_seed(v: &crate::schema::BlockValue, fixed: crate::atmosphere::LaunchSeed) -> Option<crate::schema::BlockValue> {
+    let m = v.downcast_ref::<MuseumSpec>().filter(|m| m.seed == crate::atmosphere::LaunchSeed::Launch)?;
+    Some(std::sync::Arc::new(MuseumSpec { seed: fixed, ..m.clone() }))
+}
+
+/// The scene's museum, if it has one.
+pub fn spec_of(scene: &crate::schema::Scene) -> Option<std::sync::Arc<MuseumSpec>> {
+    scene.blocks.get_arc::<MuseumSpec>()
+}
+
+/// Gives the scene this museum, or takes its museum away.
+pub fn set_spec(scene: &mut crate::schema::Scene, spec: Option<std::sync::Arc<MuseumSpec>>) {
+    scene.blocks.set(BLOCK.key, spec.map(|m| m as crate::schema::BlockValue));
+}
+
 /// A museum's lamps as scene lights (the client puts the nearest into the scene each frame; the offline renderer does the same for a still).
 pub fn lamps_as_lights(lamps: &[build::Lamp]) -> Vec<crate::schema::Light> {
     use crate::schema::{Light, LightKind};

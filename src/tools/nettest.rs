@@ -107,7 +107,7 @@ pub fn run(scene_path: &Path, opts: &Options) -> Result<Vec<ProfileReport>, Stri
 }
 
 fn run_one(scene_path: &Path, text: &str, profile: LinkProfile, opts: &Options, seed: u64) -> Result<ProfileReport, String> {
-    let scene = crate::schema::parse_scene(text).map_err(|e| e.join("; "))?;
+    let scene = crate::scene_blocks::parse_scene(text).map_err(|e| e.join("; "))?;
     let catch_up_speed = crate::net::interp::catch_up_speed(scene.player, &scene.jump_pads);
     let spawns = parse_spawns(text)?;
     let sim = MatchSim::try_new(&scene, spawns)?;

@@ -208,7 +208,7 @@ impl MapWorld {
     /// [`from_text`](Self::from_text) for a named `phases` state: what the unconditional `start` rules and then that phase's rules
     /// open (collision off, `deactivate`) is open to every tool; a gate that is closed in the initial state is walkable in `gate_open`.
     pub fn from_text_phase(text: &str, path: &Path, phase: Option<&str>) -> Result<Self, Vec<String>> {
-        let scene = crate::schema::parse_scene_in(text, path.parent())?;
+        let scene = crate::scene_blocks::parse_scene_in(text, path.parent())?;
         let raw: Value = serde_json::from_str(text).map_err(|e| vec![format!("json: {e}")])?;
         let ignores = collect_ignores(&raw);
         // What the unconditional `start` rules open on the first tick is open to the tools too, and so is what the chosen phase's rules
@@ -249,7 +249,7 @@ impl MapWorld {
     /// the world around the points that matter ([`Self::analysis_box`]) and asks [`Self::blockers_in`] what stops the player there.
     pub fn is_endless(&self) -> bool {
         // A museum (`museum` block) is endless too: its rooms, walls and doors are built around the player as they walk, not authored.
-        self.ground.procgen().is_some() || self.scene.museum.is_some()
+        self.ground.procgen().is_some() || self.scene.blocks.has(crate::museum::BLOCK.key)
     }
 
     /// Every collider that can stop the player's body inside the XZ box `min..max`: the authored ones, then (in an endless world) the generated trunks and shrub crowns

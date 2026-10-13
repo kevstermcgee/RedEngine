@@ -460,7 +460,7 @@ mod tests {
     use crate::net::protocol::{DroppedSnap, FxSnap, ProjSnap, ZoneSnap, PICKUP_MASK_BYTES};
 
     fn scene() -> Scene {
-        crate::schema::parse_scene(
+        crate::scene_blocks::parse_scene(
             r##"{"camera":{"position":[0,1.7,0],"target":[0,1.7,-10]},
             "shooter":{"pickups":[{"weapon":"rifle","at":[3,0.3,0]},{"weapon":"frag","at":[5,0.3,0]},{"ammo":true,"at":[7,0.3,0]}]},
             "objects":[{"id":"floor","type":"plane","size":[40,40]}]}"##,
@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn a_scene_without_the_block_has_no_shooter_world() {
-        let mut plain = crate::schema::parse_scene(r##"{"camera":{"position":[0,1.7,0],"target":[0,1.7,-10]},"objects":[]}"##).unwrap();
+        let mut plain = crate::scene_blocks::parse_scene(r##"{"camera":{"position":[0,1.7,0],"target":[0,1.7,-10]},"objects":[]}"##).unwrap();
         assert!(ShooterWorld::add_to_scene(&mut plain).is_none());
     }
 

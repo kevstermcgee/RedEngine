@@ -488,7 +488,7 @@ impl LiveRenderer {
             color_format,
             MSAA_SAMPLES,
             scene.sky_shader.as_deref().map(|s| s.source.as_str()),
-            scene.museum.as_deref().and_then(|m| m.art.as_deref()),
+            scene.blocks.get::<crate::museum::MuseumSpec>().and_then(|m| m.art.as_deref()),
         );
         let shadow_sampler = make_shadow_sampler(device);
         let targets = LiveTargets::new(device, color_format, width, height);
@@ -587,7 +587,7 @@ impl LiveRenderer {
         let post = create_post_pipeline(device, color_format, MSAA_SAMPLES);
         let post_bind_group = post.bind(device, &targets.depth_view);
         let ocean = crate::ocean_pass::OceanPass::new(device, color_format, MSAA_SAMPLES, scene, &pipelines.layouts.global_uniform);
-        let museum = scene.museum.as_ref().map(|_| crate::museum_gpu::MuseumLayer::new(device, &pipelines.layouts.object));
+        let museum = scene.blocks.get::<crate::museum::MuseumSpec>().map(|_| crate::museum_gpu::MuseumLayer::new(device, &pipelines.layouts.object));
         let stream = scene.procgen.clone().map(|cfg| {
             let workers = std::thread::available_parallelism().map_or(1, |n| (n.get() / 2).clamp(1, 3));
             crate::stream_gpu::StreamLayer::new(device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), workers)

@@ -41,6 +41,90 @@ impl Default for PostSettings {
     }
 }
 
+/// How a crate above the core defines a scene block (ADR 2026-10-13-a-scene-block-can-be-defined-above-the-core): the museum is the engine's,
+/// a game crate adds its own. Registered with [`define_blocks`] before a scene is parsed; a block nobody registered is an unknown field.
+pub struct BlockDef {
+    /// Its key at the scene root (`museum`).
+    pub key: &'static str,
+    /// Parses it from the scene root (`Ok(None)` when the scene has none), with the directory the scene's own files are relative to. Its errors are
+    /// the scene's (`path: message`).
+    pub parse: BlockParse,
+    /// Fixes its `"seed": "launch"` to this launch's draw: the new value, or `None` when it has no launch seed.
+    pub fix_launch_seed: BlockSeed,
+}
+
+/// [`BlockDef::parse`]: the scene root and the directory the scene's files are relative to -> the block's value, or its errors.
+pub type BlockParse = fn(&Map<String, Value>, Option<&std::path::Path>) -> Result<Option<BlockValue>, Vec<String>>;
+
+/// [`BlockDef::fix_launch_seed`]: the block's value and this launch's seed -> the fixed value, or `None` when it has no launch seed.
+pub type BlockSeed = fn(&BlockValue, crate::atmosphere::LaunchSeed) -> Option<BlockValue>;
+
+/// A defined block's parsed value, read back by type ([`SceneBlocks::get`]).
+pub type BlockValue = std::sync::Arc<dyn std::any::Any + Send + Sync>;
+
+static BLOCKS: std::sync::RwLock<Vec<&'static BlockDef>> = std::sync::RwLock::new(Vec::new());
+
+/// Adds scene blocks a crate above the core defines; a key already defined keeps its first definition. Call it before parsing (each binary does
+/// in `main`; the engine's scene loading does through `scene_blocks`).
+pub fn define_blocks(defs: &'static [BlockDef]) {
+    let mut all = BLOCKS.write().unwrap_or_else(std::sync::PoisonError::into_inner);
+    for d in defs {
+        if !all.iter().any(|b| b.key == d.key) {
+            all.push(d);
+        }
+    }
+}
+
+/// The scene blocks defined so far, in the order they were.
+pub fn defined_blocks() -> Vec<&'static BlockDef> {
+    BLOCKS.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+}
+
+/// Every key the scene root may hold: the built-in ones (`strict::ROOT_KEYS`), then the defined blocks'.
+pub fn root_keys() -> Vec<&'static str> {
+    strict::ROOT_KEYS.iter().copied().chain(defined_blocks().iter().map(|b| b.key)).collect()
+}
+
+/// The parsed blocks of a scene, by key.
+#[derive(Clone, Default)]
+pub struct SceneBlocks(Vec<(&'static str, BlockValue)>);
+
+impl std::fmt::Debug for SceneBlocks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.0.iter().map(|(k, _)| k)).finish()
+    }
+}
+
+impl SceneBlocks {
+    /// The block whose value is a `T`, if the scene has it.
+    pub fn get<T: std::any::Any + Send + Sync>(&self) -> Option<&T> {
+        self.0.iter().find_map(|(_, v)| v.downcast_ref::<T>())
+    }
+
+    /// [`SceneBlocks::get`], shared.
+    pub fn get_arc<T: std::any::Any + Send + Sync>(&self) -> Option<std::sync::Arc<T>> {
+        self.0.iter().find_map(|(_, v)| v.clone().downcast::<T>().ok())
+    }
+
+    /// Sets the block `key` to `value`, or removes it.
+    pub fn set(&mut self, key: &'static str, value: Option<BlockValue>) {
+        let at = self.0.iter().position(|(k, _)| *k == key);
+        match (at, value) {
+            (Some(i), Some(v)) => self.0[i].1 = v,
+            (Some(i), None) => {
+                self.0.remove(i);
+            }
+            (None, Some(v)) => self.0.push((key, v)),
+            (None, None) => {}
+        }
+    }
+
+    /// Whether the scene has the block `key`.
+    pub fn has(&self, key: &str) -> bool {
+        self.0.iter().any(|(k, _)| *k == key)
+    }
+}
+
 /// A parsed scene: meta, camera, lights, background, post settings and the (macro-expanded) object tree.
 #[derive(Debug)]
 pub struct Scene {
@@ -96,8 +180,8 @@ pub struct Scene {
     pub clock: Option<crate::daycycle::Clock>,
     /// An endless generated world (`procgen` block): ground, forests and flowers made from a seed, built around the player as they walk.
     pub procgen: Option<crate::procgen::Config>,
-    /// An endless museum (`museum` block): rooms, art, keys and the worlds inside paintings, built around the player (`crate::museum`).
-    pub museum: Option<std::sync::Arc<crate::museum::MuseumSpec>>,
+    /// The blocks crates above the core define (`define_blocks`), parsed: the museum's (`museum::spec_of`), a game crate's.
+    pub blocks: SceneBlocks,
     /// The sounds of the world (`audio` block): nature ambience and a score for each time of day.
     pub audio: Option<crate::ambience::AudioSpec>,
     /// The endless water plane (`ocean` block), if the scene has one.
@@ -125,9 +209,12 @@ impl Scene {
             j.seed = fixed;
             any = true;
         }
-        if let Some(m) = self.museum.as_mut().filter(|m| m.seed == LaunchSeed::Launch) {
-            std::sync::Arc::make_mut(m).seed = fixed;
-            any = true;
+        let defs = defined_blocks();
+        for (key, value) in self.blocks.0.iter_mut() {
+            if let Some(new) = defs.iter().find(|d| d.key == *key).and_then(|d| (d.fix_launch_seed)(value, fixed)) {
+                *value = new;
+                any = true;
+            }
         }
         any
     }
@@ -1086,7 +1173,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         return Err(vec!["root: scene must be a JSON object".to_string()]);
     };
 
-    check_keys(&mut ctx.errors, "", root, strict::ROOT_KEYS);
+    check_keys(&mut ctx.errors, "", root, &root_keys());
     strict::check_sections(&mut ctx.errors, root);
     ctx.errors.extend(crate::sim::interest::validate_sections(root));
     if let Some(v) = root.get("schema_version") {
@@ -1186,13 +1273,15 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
             None
         }
     };
-    let museum = match crate::museum::parse_museum(root, ASSET_DIR.with(|d| d.borrow().clone()).as_deref()) {
-        Ok(m) => m.map(std::sync::Arc::new),
-        Err(errs) => {
-            ctx.errors.extend(errs);
-            None
+    // The blocks crates above the core define (the museum), where `museum` always was: their errors keep their place among the scene's.
+    let mut blocks = SceneBlocks::default();
+    for def in defined_blocks() {
+        match (def.parse)(root, ASSET_DIR.with(|d| d.borrow().clone()).as_deref()) {
+            Ok(Some(v)) => blocks.0.push((def.key, v)),
+            Ok(None) => {}
+            Err(errs) => ctx.errors.extend(errs),
         }
-    };
+    }
     let audio = match crate::ambience::parse_audio(root, ASSET_DIR.with(|d| d.borrow().clone()).as_deref()) {
         Ok(a) => a,
         Err(errs) => {
@@ -1476,7 +1565,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
         teams,
         sky,
         sky_shader,
-        museum,
+        blocks,
         clock,
         procgen,
         audio,

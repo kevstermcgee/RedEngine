@@ -528,7 +528,7 @@ fn parse_wh(s: &str) -> Result<(u32, u32), String> {
 fn game_screen_of(scene: &Path, overrides: &[String], outcome: Option<String>) -> Result<red_engine2::ui::screens::GameScreen, String> {
     use red_engine2::sim::rules::BUILTIN_VARS;
     let text = std::fs::read_to_string(scene).map_err(|e| format!("{}: {e}", scene.display()))?;
-    let parsed = red_engine2::schema::parse_scene_in(&text, scene.parent())
+    let parsed = red_engine2::scene_blocks::parse_scene_in(&text, scene.parent())
         .map_err(|errs| format!("{}: scene is invalid:\n  {}", scene.display(), errs.join("\n  ")))?;
     let ui = parsed.ui.clone().ok_or_else(|| format!("{}: the scene has no `ui` block (see `describe rules`, `ui`)", scene.display()))?;
     let skip = BUILTIN_VARS.len().min(parsed.rules.var_names.len());

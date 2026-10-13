@@ -120,7 +120,7 @@ fn world(objects: &str) -> (red_engine2::schema::Scene, PropWorld) {
             {{"id":"floor","type":"box","position":[0,-0.1,0],"size":[40,0.2,40],"material":{{"color":"#888888"}}}},
             {objects}]}}"##
     );
-    let scene = red_engine2::schema::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
     let world = PropWorld::new(&scene, None);
     (scene, world)
 }

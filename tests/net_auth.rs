@@ -26,7 +26,7 @@ struct Rig {
 impl Rig {
     fn new(key: Option<&str>) -> Rig {
         let text = std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap();
-        let scene = red_engine2::schema::parse_scene(&text).unwrap();
+        let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
         let mut spawns = parse_spawns(&text).unwrap();
         spawns.retain(|s| s.group == "duel");
         let hash = map_hash(&text);

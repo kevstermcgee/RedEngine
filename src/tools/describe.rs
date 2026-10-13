@@ -1035,11 +1035,14 @@ mod tests {
     /// Every key the strict parser accepts at the scene root is described (and vice versa), so the doc cannot drift.
     #[test]
     fn describe_scene_lists_exactly_the_strict_root_keys() {
-        for k in crate::strict::ROOT_KEYS {
+        // The parser's root keys: the built-in ones and the blocks the engine defines above it (the museum).
+        crate::scene_blocks::register();
+        let root = crate::schema::root_keys();
+        for k in &root {
             assert!(SCENE_KEYS.iter().any(|(d, _)| d == k), "`describe scene` does not mention the root key `{k}` (add it to SCENE_KEYS)");
         }
         for (d, _) in SCENE_KEYS.iter().filter(|(d, _)| !d.contains('*')) {
-            assert!(crate::strict::ROOT_KEYS.contains(d), "`describe scene` lists `{d}` but the parser would reject it");
+            assert!(root.contains(d), "`describe scene` lists `{d}` but the parser would reject it");
         }
     }
 
@@ -1052,7 +1055,7 @@ mod tests {
     #[test]
     fn every_example_parses() {
         for t in TYPES {
-            let r = crate::schema::parse_scene(&scene_with(t.example));
+            let r = crate::scene_blocks::parse_scene(&scene_with(t.example));
             assert!(r.is_ok(), "example for `{}` is invalid: {:?}", t.name, r.err());
         }
     }
@@ -1060,7 +1063,7 @@ mod tests {
     #[test]
     fn every_object_type_the_schema_accepts_is_described() {
         // The schema's own "unknown type" error lists what it accepts; describe must cover each.
-        let err = crate::schema::parse_scene(&scene_with(r#"{"id":"x","type":"nope"}"#)).unwrap_err().join(" ");
+        let err = crate::scene_blocks::parse_scene(&scene_with(r#"{"id":"x","type":"nope"}"#)).unwrap_err().join(" ");
         let listed = err.split("expected ").nth(1).unwrap_or("");
         for name in listed.trim_end_matches(')').replace(" or ", ", ").split(',').map(str::trim).filter(|s| !s.is_empty()) {
             assert!(TYPES.iter().any(|t| t.name == name), "schema accepts type `{name}` but `describe objects` doesn't cover it");
@@ -1092,7 +1095,7 @@ mod tests {
     /// `describe rules` shows a scene that must load, and its scenario must pass: the docs are executable.
     #[test]
     fn the_rules_example_is_a_valid_scene_whose_scenario_passes() {
-        assert!(crate::schema::parse_scene(RULES_EXAMPLE).is_ok(), "{:?}", crate::schema::parse_scene(RULES_EXAMPLE).err());
+        assert!(crate::scene_blocks::parse_scene(RULES_EXAMPLE).is_ok(), "{:?}", crate::scene_blocks::parse_scene(RULES_EXAMPLE).err());
         let dir = std::env::temp_dir().join("re2_describe_rules");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("rules_example.json");

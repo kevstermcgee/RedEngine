@@ -12,7 +12,7 @@
 
 use serde_json::{Map, Value};
 
-/// Keys allowed at the scene root.
+/// The built-in keys allowed at the scene root; `schema::root_keys` adds the blocks crates above the core define (the museum).
 pub const ROOT_KEYS: &[&str] = &[
     "schema_version",
     "recipe",
@@ -53,7 +53,6 @@ pub const ROOT_KEYS: &[&str] = &[
     "sky",
     "clock",
     "procgen",
-    "museum",
     "audio",
     "ocean",
     "style",

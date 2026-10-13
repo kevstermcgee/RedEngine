@@ -527,7 +527,7 @@ pub fn sheet_in(rows: &[&Entry], out: &Path, cols: u32, tile: (u32, u32), overla
             }
         }
     }
-    let mut scene = crate::schema::parse_scene(&scene_json.to_string()).map_err(|e| e.join("\n"))?;
+    let mut scene = crate::scene_blocks::parse_scene(&scene_json.to_string()).map_err(|e| e.join("\n"))?;
     let mut renderer = crate::render::Renderer::new(&scene).map_err(|e| e.to_string())?;
     let (tw, th) = (scene.width, scene.height);
     let rows_n = (rows.len() as u32).div_ceil(cols);
