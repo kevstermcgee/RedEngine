@@ -8,12 +8,13 @@ license = "MIT"
 repository = "https://github.com/kevstermcgee/RedEngine"
 description = "AI-first Rust game engine: JSON scenes, self-verifying maps, authoritative multiplayer, headless tooling"
 
-# The 2D game crate (`red2d`): a declarative 2D game, its headless simulation and CPU renderer. A workspace member so one lock file covers it;
+# `red_core` is the headless core every crate here shares; the 2D game crate (`red2d`) is a declarative 2D game, its headless simulation and CPU renderer. Both are
+# workspace members so one lock file covers them;
 # `default-members` keeps plain `cargo build/test/clippy` covering it too. `games/killchain` is a member too (one lock, one target directory) but NOT a default member: it is a game on the
 # engine's public API with graphics dependencies of its own, so the engine's plain builds and the headless server build never compile it (`scripts/ci.sh killchain` does).
 [workspace]
-members = ["crates/red2d", "games/killchain"]
-default-members = [".", "crates/red2d"]
+members = ["crates/red_core", "crates/red2d", "games/killchain"]
+default-members = [".", "crates/red_core", "crates/red2d"]
 
 # `gfx` (default) = everything that draws or plays sound: wgpu, winit, softbuffer, rodio (MP4 export is the separate `video` feature). The dedicated server, the bot and the
 # map-analysis CLI build without it (`cargo build --no-default-features --bin red_server`); CI enforces that on Linux.
@@ -34,6 +35,8 @@ gfx = ["render", "dep:softbuffer", "dep:winit", "dep:rodio", "dep:gilrs", "dep:r
 
 [dependencies]
 red2d = { path = "crates/red2d" }
+# The headless core the engine, the 2D crate and game crates share (ADR 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share).
+red_core = { path = "crates/red_core" }
 gilrs = { version = "0.11.2", optional = true }
 anyhow = "1.0.104"
 bytemuck = { version = "1.25.2", features = ["derive"] }

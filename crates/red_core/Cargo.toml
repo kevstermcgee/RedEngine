@@ -1,0 +1,17 @@
+[package]
+name = "red_core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Red Engine's headless core: what the engine crate, the 2D crate and game crates share. No graphics, audio device or network dependencies."
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
+
+# The same style policy as the engine crate.
+[lints.clippy]
+needless_range_loop = "allow"
+field_reassign_with_default = "allow"
+too_many_arguments = "allow"
+doc_lazy_continuation = "allow"

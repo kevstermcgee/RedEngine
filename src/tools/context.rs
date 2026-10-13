@@ -51,8 +51,12 @@ pub fn resolve<'a>(all: &'a [Feature], query: &[String]) -> Vec<&'a Feature> {
 
 /// Source files under `src/` that `f` owns, resolved against the scanned tree (patterns like `src/net/**` expand).
 fn owned_sources<'a>(f: &Feature, ix: &'a Index) -> Vec<&'a str> {
-    let mut v: Vec<&str> =
-        ix.files.iter().map(|s| s.rel.as_str()).filter(|r| r.starts_with("src/") && f.files.iter().any(|p| features::glob_match(p, r))).collect();
+    let mut v: Vec<&str> = ix
+        .files
+        .iter()
+        .map(|s| s.rel.as_str())
+        .filter(|r| (r.starts_with("src/") || r.starts_with("crates/red_core/src/")) && f.files.iter().any(|p| features::glob_match(p, r)))
+        .collect();
     v.sort();
     v
 }
@@ -90,7 +94,7 @@ pub fn packet(all: &[Feature], f: &Feature, ix: &Index, budget: usize) -> String
             None => files.push_str(&format!("  {s}\n")),
         }
     }
-    let others: Vec<&String> = f.files.iter().filter(|p| !p.starts_with("src/")).collect();
+    let others: Vec<&String> = f.files.iter().filter(|p| !p.starts_with("src/") && !p.starts_with("crates/red_core/src/")).collect();
     if !others.is_empty() {
         files.push_str(&format!("  also: {}\n", others.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")));
     }

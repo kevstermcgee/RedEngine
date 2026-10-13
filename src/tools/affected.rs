@@ -216,22 +216,31 @@ pub struct Plan {
     pub full_required: Vec<String>,
 }
 
-/// Engine files the 2D crate (`crates/red2d`) includes by path: changing one changes that crate too, so its tests and lints run.
-const RED2D_SHARED: &[&str] = &[
-    "src/fields.rs",
-    "src/suggest.rs",
-    "src/sim/rules_expr.rs",
-    "src/synth.rs",
-    "src/dsp.rs",
-    "src/audio_analysis.rs",
-    "src/voice_spec.rs",
-    "src/audio_fx.rs",
-    "src/score.rs",
-];
-
-/// Whether a change reaches the 2D crate: a file in it, or an engine file it includes.
+/// Whether a change reaches the 2D crate: a file in it, or in the headless core it depends on (`crates/red_core`).
 pub fn touches_red2d(changed: &[String]) -> bool {
-    changed.iter().any(|c| c.starts_with("crates/red2d/") || RED2D_SHARED.contains(&c.as_str()))
+    changed.iter().any(|c| c.starts_with("crates/red2d/") || touches_core(std::slice::from_ref(c)))
+}
+
+/// Whether a change is in the headless core (`crates/red_core`, ADR 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share): its own lints and unit
+/// tests run, and every crate built on it (the engine, through the features that own the core's files, and the 2D crate) is planned too.
+pub fn touches_core(changed: &[String]) -> bool {
+    changed.iter().any(|c| c.starts_with("crates/red_core/"))
+}
+
+/// The steps the core adds. Cargo's package selection is by `-p`, so none of the engine-crate steps covers it.
+fn core_steps(changed: &[String], tests: bool) -> Vec<Step> {
+    if !touches_core(changed) {
+        return Vec::new();
+    }
+    let mut v = vec![Step::new(
+        "core-clippy",
+        &["cargo", "clippy", "--locked", "-p", "red_core", "--all-targets", "--", "-D", "warnings"],
+        "the headless core (crates/red_core) changed",
+    )];
+    if tests {
+        v.push(Step::new("core", &["cargo", "test", "--locked", "-p", "red_core"], "unit tests of the headless core: synthesis, expressions, fields"));
+    }
+    v
 }
 
 /// The steps the 2D crate adds. Cargo's package selection is by `-p`, so none of the engine-crate steps above covers it.
@@ -696,6 +705,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
             why: format!("real-time network suites, one test at a time: {}", list.join(", ")),
         });
     }
+    plan.steps.extend(core_steps(&changed, true));
     plan.steps.extend(red2d_steps(&changed, true));
     plan.steps.extend(killchain_steps(&changed, !opts.check_only, true));
     plan.deferred = deferred.into_iter().collect();
@@ -736,8 +746,8 @@ pub fn headless_safe(root: &Path, changed: &[String]) -> Result<(), String> {
         if boundary_reason(c).is_some() {
             return Err(format!("{c}: build settings change for every feature set"));
         }
-        if !c.ends_with(".rs") {
-            continue;
+        if !c.ends_with(".rs") || c.starts_with("crates/red_core/") {
+            continue; // the core has no graphics at all (`preflight` holds it to that)
         }
         let Some(rel) = c.strip_prefix("src/") else {
             return Err(format!("{c}: tests, benches and examples run under the default features"));
@@ -866,6 +876,7 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
             plan.steps.push(Step { name: name.into(), argv, env, why: "a changed test file runs itself".into() });
         }
     }
+    plan.steps.extend(core_steps(&changed, !opts.check_only));
     plan.steps.extend(red2d_steps(&changed, !opts.check_only));
     plan.steps.extend(killchain_steps(&changed, !opts.check_only, false));
     if opts.check_only {
@@ -1347,9 +1358,13 @@ mod tests {
 
     #[test]
     fn a_change_to_the_2d_crate_or_a_file_it_includes_plans_the_crates_own_checks() {
-        for f in ["crates/red2d/src/sim.rs", "src/sim/rules_expr.rs", "src/synth.rs"] {
+        for f in ["crates/red2d/src/sim.rs", "crates/red_core/src/sim/rules_expr.rs", "crates/red_core/src/synth.rs"] {
             assert!(touches_red2d(&[f.to_string()]), "{f}");
         }
+        let core = plan(&world(), &serial(), &["crates/red_core/src/dsp.rs".to_string()], &Options::default());
+        assert_eq!(step(&core, "core").argv.join(" "), "cargo test --locked -p red_core");
+        assert!(step(&core, "core-clippy").argv.join(" ").contains("-p red_core --all-targets"));
+        assert!(core.steps.iter().any(|s| s.name == "red2d"), "the 2D crate is built on the core: {:?}", names(&core));
         assert!(!touches_red2d(&["src/tools/lint.rs".to_string(), "src/net/mod.rs".to_string()]));
         let p = plan(&world(), &serial(), &["crates/red2d/src/sim.rs".to_string()], &Options::default());
         assert_eq!(step(&p, "red2d").argv.join(" "), "cargo test --locked -p red2d");

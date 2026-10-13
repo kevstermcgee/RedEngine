@@ -94,6 +94,8 @@ impl Index {
     pub fn build(root: &Path) -> Index {
         let mut paths = Vec::new();
         collect_rs(&root.join("src"), &mut paths);
+        // The headless core the engine re-exports at the same paths (`red_engine2::dsp` is `red_core::dsp`): its modules keep their names here.
+        collect_rs(&root.join(CORE_SRC), &mut paths);
         collect_rs(&root.join("tests"), &mut paths);
         let mut files = Vec::new();
         let mut symbols = Vec::new();
@@ -464,9 +466,21 @@ pub fn refs(ix: &Index, name: &str, limit: usize) -> String {
 // Module map + dependencies
 // ---------------------------------------------------------------------------------------------
 
-/// `src/tools/lint.rs` -> `tools::lint`; `src/lib.rs` -> `lib`; `src/bin/re2.rs` -> `bin::re2`.
+/// Where the headless core's sources are (`red_core`, ADR 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share).
+pub const CORE_SRC: &str = "crates/red_core/src";
+
+/// Whether `rel` is one of the library sources the module map covers: the engine crate's `src/` or the core's.
+fn is_lib_source(rel: &str) -> bool {
+    rel.starts_with("src/") || rel.starts_with("crates/red_core/src/")
+}
+
+/// `src/tools/lint.rs` -> `tools::lint`; `src/lib.rs` -> `lib`; `src/bin/re2.rs` -> `bin::re2`. The core keeps the engine's paths (`crates/red_core/src/dsp.rs`
+/// -> `dsp`, `.../sim/rules_expr.rs` -> `sim::rules_expr`, the engine re-exports them there); its own `lib.rs` is `red_core`.
 fn module_of(rel: &str) -> String {
-    let p = rel.trim_start_matches("src/").trim_end_matches(".rs");
+    if rel == "crates/red_core/src/lib.rs" {
+        return "red_core".to_string();
+    }
+    let p = rel.trim_start_matches("crates/red_core/").trim_start_matches("src/").trim_end_matches(".rs");
     let p = p.strip_suffix("/mod").unwrap_or(p);
     p.replace('/', "::")
 }
@@ -483,9 +497,9 @@ pub struct ModInfo {
 
 /// Summarizes every module (purpose from its `//!` header).
 pub fn modules(ix: &Index) -> Vec<ModInfo> {
-    let known: BTreeSet<String> = ix.files.iter().filter(|f| f.rel.starts_with("src/")).map(|f| module_of(&f.rel)).collect();
+    let known: BTreeSet<String> = ix.files.iter().filter(|f| is_lib_source(&f.rel)).map(|f| module_of(&f.rel)).collect();
     let mut out = Vec::new();
-    for f in ix.files.iter().filter(|f| f.rel.starts_with("src/")) {
+    for f in ix.files.iter().filter(|f| is_lib_source(&f.rel)) {
         let name = module_of(&f.rel);
         let purpose = f
             .lines

@@ -51,7 +51,7 @@ struct LayerSpec {
 }
 
 fn near(name: &str, options: &[&str]) -> String {
-    match crate::prefabs::suggest(name, options.iter().copied()).first() {
+    match crate::suggest::suggest(name, options.iter().copied()).first() {
         Some(h) => format!(" — did you mean `{h}`?"),
         None => String::new(),
     }
@@ -329,17 +329,6 @@ mod tests {
         let back = voice_to_json(&voice);
         assert_eq!(back, v, "defaults are left out and everything else survives");
         assert_eq!(parse(back).unwrap().render(), voice.render(), "same JSON, same samples");
-    }
-
-    #[test]
-    fn every_voice_built_in_code_survives_the_trip_through_json() {
-        for (name, voice) in crate::sfx::voice_catalog() {
-            let json = voice_to_json(&voice);
-            let again = parse_voice(&json).unwrap_or_else(|e| panic!("{name}: {e:?}"));
-            let (a, b) = (voice.render(), again.render());
-            assert_eq!(a.len(), b.len(), "{name}");
-            assert!(a.iter().zip(&b).all(|(x, y)| (x - y).abs() < 1e-4), "{name}: the exported JSON must sound the same");
-        }
     }
 
     #[test]

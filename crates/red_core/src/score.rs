@@ -178,7 +178,7 @@ pub struct Rendered {
 }
 
 fn near(name: &str, options: &[&str]) -> String {
-    match crate::prefabs::suggest(name, options.iter().copied()).first() {
+    match crate::suggest::suggest(name, options.iter().copied()).first() {
         Some(h) => format!(" — did you mean `{h}`?"),
         None => String::new(),
     }

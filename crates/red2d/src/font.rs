@@ -1,5 +1,5 @@
 //! The 2D engine's one font: a 5x7 bitmap face (the glyph table the analysis tools use, plus `$ " ; & @ |`), uppercase only (lowercase draws as capitals), with a 1-pixel gap
-//! between letters. The glyph table itself is `src/font_glyphs.rs`, shared with the analysis tools' labels (`src/tools/font.rs` draws into an `image` buffer, which this crate does not depend on).
+//! between letters. The glyph table itself is `red_core::font_glyphs`, shared with the analysis tools' labels (`src/tools/font.rs` draws into an `image` buffer, which this crate does not depend on).
 
 /// Glyph width in pixels.
 pub const GLYPH_W: i32 = 5;
@@ -8,9 +8,7 @@ pub const GLYPH_H: i32 = 7;
 /// Advance per character at scale 1 (glyph plus one pixel gap).
 pub const ADVANCE: i32 = 6;
 
-#[path = "../../../src/font_glyphs.rs"]
-mod glyph_table;
-use glyph_table::GLYPHS as SHARED;
+use red_core::font_glyphs::GLYPHS as SHARED;
 
 /// What the 2D renderer adds to the shared table (the 3D `sign` alphabet is deliberately unchanged).
 const EXTRA: &[(char, [&str; 7])] = &[

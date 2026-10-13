@@ -3080,6 +3080,15 @@ name = "red2d"
 version = "0.1.0"
 dependencies = [
  "libm",
+ "red_core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "red_core"
+version = "0.1.0"
+dependencies = [
  "serde",
  "serde_json",
 ]
@@ -3112,6 +3121,7 @@ dependencies = [
  "rapier3d",
  "rcgen",
  "red2d",
+ "red_core",
  "rfd",
  "rmcp",
  "rodio",
