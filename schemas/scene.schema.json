@@ -1379,7 +1379,14 @@
         "tilt_gt": true,
         "tilt_lt": true,
         "moved": true,
-        "held_by": true
+        "held_by": true,
+        "field": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "aimed_at": true
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -4199,11 +4206,7 @@
         },
         "prop_below": true,
         "prop": {
-          "description": "With `prop_enter` / `prop_exit`: only this prop.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "description": "With `prop_enter` / `prop_exit` / a prop's `event`: only this prop, or these (`self` is the one that fired the rule)."
         }
       },
       "additionalProperties": false,
@@ -4423,6 +4426,20 @@
           "patternProperties": {
             "^(x-|x_|_)|^notes$|^\\$comment$": {}
           }
+        },
+        {
+          "description": "`[field, target]`: point an aimed field at a loose prop, an object, `[x, y, z]`, `self` or `null`.",
+          "type": "object",
+          "properties": {
+            "aim": true
+          },
+          "required": [
+            "aim"
+          ],
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
         }
       ]
     },
@@ -4504,7 +4521,16 @@
         "height": true,
         "velocity": true,
         "lift": true,
-        "rate": true
+        "rate": true,
+        "toward": {
+          "description": "An aimed field: a loose prop (followed), an object, `[x, y, z]`, or `null` until a rule `aim`s it."
+        },
+        "speed": {
+          "description": "An aimed field's pull, m/s (negative pushes away); a number or an expression."
+        },
+        "props": {
+          "description": "Only these loose props (an id or a list)."
+        }
       },
       "additionalProperties": false,
       "patternProperties": {

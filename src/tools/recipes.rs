@@ -20,6 +20,7 @@ pub const FILES: &[(&str, &str)] = &[
     ("classroom_wing", include_str!("../../recipes/classroom_wing.json")),
     ("coin_run", include_str!("../../recipes/coin_run.json")),
     ("gated_garden", include_str!("../../recipes/gated_garden.json")),
+    ("whistle_herd", include_str!("../../recipes/whistle_herd.json")),
 ];
 
 /// Embedded 2D mechanic patterns by name (a complete `*.game2d.json` each); a new `examples/patterns/*.game2d.json` is added here (a test fails until it is).

@@ -127,6 +127,12 @@ impl PropWorld {
         self.held.iter().any(|h| h.prop == prop)
     }
 
+    /// Where a carried `prop` is held now (its origin frame, following its holder); `None` when nobody carries it. Its body stays where it
+    /// was picked up until it is dropped, so [`prop_pose`](Self::prop_pose) of a carried prop is that spot, not this one.
+    pub fn held_pose(&self, prop: usize) -> Option<Mat4> {
+        self.held.iter().find(|h| h.prop == prop).map(|h| h.pose)
+    }
+
     /// Who is carrying `prop`, if anyone.
     pub fn holder_of(&self, prop: usize) -> Option<usize> {
         self.held.iter().find(|h| h.prop == prop).map(|h| h.holder)

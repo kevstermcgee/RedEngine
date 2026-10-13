@@ -2,6 +2,10 @@
 
 > A proposal, not documentation of what exists: it lives in `docs/`, not in `docs/analysis/`, on purpose. Analysis notes are embedded in `search`, and a design for rules that do not exist yet ranked above the real reference for a question about movement rules (it broke the `ai_tasks` context budget). For what the rules language does today use `describe rules`.
 
+**Status 2026-10-13:** one piece of gap 1 now exists: a rule fired by a loose prop names it `self` and filters with `"prop": [ids]` (one rule per behaviour
+instead of one per prop), and 3D `fields` can be aimed at a moving target (ADR 2026-10-13-aimed-fields-and-the-rule-s-subject-prop, `describe rules`).
+Per-entity variables, restartable timers, `for_each` over rules that no prop fires, and everything in gaps 2 and 3 below are still **not built**.
+
 Written down, **not built** (the hardening pass said so: "not this pass"). The evidence is the Idea Forge backlog (37 issues from seven runs, `docs/analysis/idea-forge/`); the designs are mine and
 are proposals to be argued with. Three gaps recur in games the agents could not express and worked around with generated code: per-entity state and timers, rules that change how the player
 moves, and a fall-out height. Everything below is about the **3D scene rules** (`src/sim/rules*.rs`, `describe rules`) unless it says 2D (`crates/red2d`, `describe 2d`).

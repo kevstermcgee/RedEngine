@@ -69,6 +69,8 @@ const EXPECT_KEYS: &[&str] = &[
     "tilt_lt",
     "moved",
     "held_by",
+    "field",
+    "aimed_at",
 ];
 /// The checks a `{prop: id, ...}` expectation may make (exactly one).
 const PROP_CHECK_KEYS: &[&str] = &["in_zone", "not_in_zone", "below_y", "y_lt", "y_gt", "tilt_gt", "tilt_lt", "moved", "near", "held_by"];
@@ -231,6 +233,13 @@ pub enum Expect {
         id: String,
         /// What about it.
         check: PropCheck,
+    },
+    /// An aimed field ends pointing at this loose prop (`None`: at nothing): `{"field": "gravity", "aimed_at": "stone" | null}`.
+    FieldAim {
+        /// The field's id.
+        field: String,
+        /// The loose prop's object id, or `None` for "aimed nowhere".
+        at: Option<String>,
     },
 }
 
@@ -770,14 +779,27 @@ fn parse_cmp(eo: &Map<String, Value>, ep: &str, what: &str, errs: &mut Vec<Strin
 }
 
 fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: &[String], players: &[PlayerSpec], errs: &mut Vec<String>) -> Option<Expect> {
-    let main: Vec<&str> =
-        ["event", "no_event", "var", "player_var", "ended", "not_ended", "hidden", "shown", "collision_disabled", "collision_enabled", "player", "prop"]
-            .into_iter()
-            .filter(|k| eo.contains_key(*k))
-            .collect();
+    let main: Vec<&str> = [
+        "event",
+        "no_event",
+        "var",
+        "player_var",
+        "ended",
+        "not_ended",
+        "hidden",
+        "shown",
+        "collision_disabled",
+        "collision_enabled",
+        "player",
+        "prop",
+        "field",
+    ]
+    .into_iter()
+    .filter(|k| eo.contains_key(*k))
+    .collect();
     if main.len() != 1 {
         errs.push(format!(
-            "{ep}: give exactly one of event, no_event, var, player_var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop (got {})",
+            "{ep}: give exactly one of event, no_event, var, player_var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop, field (got {})",
             if main.is_empty() { "none".to_string() } else { main.join(" + ") }
         ));
         return None;
@@ -794,6 +816,27 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
             Some(Expect::Event { name: text, min, max })
         }
         "no_event" => Some(Expect::NoEvent(text)),
+        "field" => {
+            let aimed: Vec<&str> = rules.fields.iter().filter(|f| f.toward.is_some()).map(|f| f.id.as_str()).collect();
+            if !aimed.contains(&text.as_str()) {
+                let known = if aimed.is_empty() { "none: a field with `toward`".to_string() } else { aimed.join(", ") };
+                errs.push(format!("{ep}.field: no aimed field `{text}` (aimed fields: {known})"));
+                return None;
+            }
+            let at = match eo.get("aimed_at") {
+                Some(Value::Null) => None,
+                Some(Value::String(id)) if rules.prop_ids.contains(id) => Some(id.clone()),
+                Some(other) => {
+                    errs.push(format!("{ep}.aimed_at: must be a loose prop id or null for nowhere (got {})", crate::strict::describe_value(other)));
+                    return None;
+                }
+                None => {
+                    errs.push(format!("{ep}.aimed_at: missing (the loose prop id the field must point at, or null)"));
+                    return None;
+                }
+            };
+            Some(Expect::FieldAim { field: text, at })
+        }
         "var" => {
             if !rules.var_names.contains(&text) {
                 errs.push(format!(
@@ -1318,6 +1361,15 @@ fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], histo
                     None => format!("the match did not end (after {} ticks)", sim.tick()),
                 },
             )
+        }
+        Expect::FieldAim { field, at } => {
+            let now = match sim.rules().field_aim(field) {
+                Some(crate::sim::rules::Aim::Prop(i)) => sim.rules().set().prop_ids.get(i).cloned(),
+                Some(crate::sim::rules::Aim::Point(p)) => Some(format!("[{:.2}, {:.2}, {:.2}]", p.x, p.y, p.z)),
+                _ => None,
+            };
+            let name = |a: &Option<String>| a.clone().unwrap_or_else(|| "nothing".to_string());
+            done(format!("field {field} aimed at {}", name(at)), now == *at, format!("field {field} is aimed at {}", name(&now)))
         }
         Expect::Hidden(id, want) => {
             let hidden = sim.rules().hidden().any(|h| h == id);

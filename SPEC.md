@@ -570,9 +570,19 @@ condition holds, and then **does** its actions:
 
 - **`when`** (exactly one): `{enter: VOLUME}`, `{exit: VOLUME}` (a player crosses the boundary), `{event: "name"}` (another
   rule `emit`ted it; chains are bounded to 4 per tick), `{every: secs}`, `{after: secs}`, `{start: true}`,
-  `{prop_enter: VOLUME}` / `{prop_exit: VOLUME}` (a loose prop's origin crosses in or out; `"prop": id` beside it restricts
-  the rule to one prop), `{prop_below: [prop_id, y]}` (its origin drops below `y` metres). A prop is *inside* when its origin
-  is inside in x/z and its height band overlaps in y. Prop triggers fire with no triggering player (`teleport` does nothing).
+  `{prop_enter: VOLUME}` / `{prop_exit: VOLUME}` (a loose prop's origin crosses in or out; each prop that crosses fires the rule once;
+  `"prop": id | [ids]` beside it restricts the rule to those props), `{prop_below: [prop_id, y]}` (its origin drops below `y` metres).
+  A prop is *inside* when its origin is inside in x/z and its height band overlaps in y; a carried prop counts where it was picked up
+  until it is dropped. Prop triggers fire with no triggering player (`teleport` does nothing).
+- **The rule's subject, `self`**: a rule fired by one loose prop — `prop_enter`, `prop_exit`, `prop_below`, or the engine events `pickup`,
+  `drop`, `prop_hit` (the prop taken, put down or struck; a shot whose pellets strike several props names the first pellet's) — knows which
+  one, and names it `self` wherever it would name a loose prop: `held(self)`, `in_zone(self, pit)`, `{hide: "self"}`, `{reset: "self"}`,
+  `{place: ["self", [x,y,z]]}`, `{impulse: {object: "self", ...}}`, `{aim: [field, "self"]}`. One rule then serves every prop:
+  `{"when": {"prop_enter": {"zone": "slot"}, "prop": ["chair", "table"]}, "do": [{"hide": "self"}, ...]}`. `"prop": id | [ids]` also
+  stands beside `{event: "pickup"}` (and `drop`, `prop_hit`, or an event a rule emits): `{"event": "pickup", "prop": "knob"}` is a
+  button. An `emit` passes its subject on to the rules it triggers. `self` in a `start`, `every`, `after`, `enter` or `exit` rule, or on an
+  event about no prop (`shot`, `hit`, `kill`, `respawn`, `swing`), is a `validate` error; where an emitted event arrives without one,
+  `self` actions do nothing and its functions read 0. `self` is reserved: no object may be called that.
 - **VOLUME** (exactly one): `{zone: id [, height]}` (a `zones` rect from its floor `y` up 3 m, or `height`),
   `{object: id [, pad]}` (a top-level object's world box, grown by `pad` m — how a coin becomes a trigger), or
   `{box: [x0,y0,z0,x1,y1,z1]}`. A player is *inside* when its body circle overlaps the volume in x/z and its body height overlaps in y.
@@ -598,7 +608,9 @@ condition holds, and then **does** its actions:
   `{teleport: [x,y,z] | spawn_id}` (the triggering player),
   `{end: outcome}` (the match ends; rules stop), `{impulse: {object, dir: [x,y,z], speed}}` (shove a loose prop),
   `{reset: id | [ids] | {zone: id}}` (put loose props back where the map placed them, at rest; a carried one is taken from its
-  holder), `{place: [id, [x,y,z]]}` (move a loose prop's origin to a point, upright as authored, at rest).
+  holder), `{place: [id, [x,y,z]]}` (move a loose prop's origin to a point, upright as authored, at rest),
+  `{aim: [field_id, target]}` (point an aimed field — see "Force fields" — at a loose prop, a top-level object, `[x,y,z]`, `"self"` or
+  `null`; it takes effect from the next tick).
 - **Engine events** a rule can react to with `{event: name}`: `pickup`, `drop`, `shot`, `hit`, `kill`, `respawn`, `swing` (a bat
   swing started), `prop_hit` (a bat or a bullet struck a loose prop; the player is the striker).
 - **Edges, measured**: rules run in declaration order each tick, but a body walking from one volume into the next overlaps both for a
@@ -608,8 +620,9 @@ condition holds, and then **does** its actions:
 
 Everything a rule names — variables, objects, loose props, zones, spawn points, events — is checked when the scene loads, with a
 did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mean `score`?`). Rules run inside the
-authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state (prop occupancy
-included) is part of the match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport, impulse, reset and place, feeds the engine
+authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state (prop occupancy and
+where each aimed field points included) is part of the match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport, impulse, reset, place
+and the field pushes, feeds the engine
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
 state remains server-authoritative; protocol v7 and later repeatedly send the complete bounded presentation state (16 variables, 256 hidden
 objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. `red_engine2 describe rules` prints this with a
@@ -637,7 +650,8 @@ swings the bat, its strike landing after the windup), each with optional `until_
 when all scripts finish (plus `settle_seconds`, default 0.5), or at `max_seconds` (default 30). No window, GPU or socket is involved.
 
 Expectations on loose props: `{prop: id, in_zone: zone}` / `not_in_zone`, `below_y` (= `y_lt`) / `y_gt: metres`, `tilt_gt` / `tilt_lt:
-degrees`, `moved: true|false`, `near: [x, z], tol?, y?`, `held_by: player_id | "none"`. The report prints where every player ended
+degrees`, `moved: true|false`, `near: [x, z], tol?, y?`, `held_by: player_id | "none"`; on an aimed field:
+`{field: id, aimed_at: prop_id | null}`. The report prints where every player ended
 and every prop that moved, tilted or is carried; `--json` lists every loose prop with its position, tilt, distance moved, whether it is
 at rest and who holds it.
 
@@ -651,7 +665,21 @@ along the ground axes, `lift: m/s` upward (a prop slower than that is pulled up 
 past the target; gravity, floors, walls and other props still act, and floor friction (about 7 m/s^2) makes a prop on the ground
 settle a little under the target (raise `rate` for a stronger belt). A prop that has never been disturbed is promoted the first
 tick it is inside. Players are not pushed. The push is derived from state each tick (like a rule `impulse`), so it is deterministic,
-not recorded in a trace, and replays identically.
+not recorded in a trace, and replays identically; the server, `sim` and the offline `re2` client all apply it. `props: id | [ids]`
+limits a field to those loose props. Any number but `rate` may be an expression over the variables, evaluated once per tick:
+`"velocity": ["wind", 0]`. At most 32 fields.
+
+**Aimed fields** pull toward a target instead of along a fixed direction — gravity toward the last thing touched, a magnet, a
+whirlpool, a flock shying from a lantern: `{"id": "gravity", "zone": "hall", "toward": null, "speed": "(dial == 1) * 4 - (dial == 3) * 3",
+"props": ["chair", "crate"]}`. `toward` is a loose prop id (followed wherever it is, in a player's hands too), a top-level object (its
+centre), `[x, y, z]`, or `null` (aimed nowhere: the field does nothing). Each prop is pulled at `speed` m/s along its own line to the
+target, so props converge from every direction (negative `speed` pushes them away). The pull is horizontal (floors and gravity still
+act), drives only the component toward the target (it never brakes a prop already going faster that way and leaves sideways motion
+to friction), fades to nothing within 0.5 m of the target, and never pushes the target itself or a carried prop; on the floor
+`rate x speed` must beat friction (about 7 m/s^2) to start anything moving. A rule re-aims it: `{"aim": ["gravity", "self"]}` on
+`{"event": "pickup", "prop": ["stone_w", "stone_e"]}`. Where a field is aimed is rule state: in the checksum and replays, back to
+`toward` when a match starts, not saved by `persist`, and not sent to clients (they see the props it moves). `recipe whistle_herd`
+is a complete example; `examples/3d/velvet-orchestra` builds a game on it.
 
 ### Traces and replay (`sim --trace`, `replay`, `red_server --record`)
 

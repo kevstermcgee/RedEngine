@@ -1,4200 +1,690 @@
 {
- "recipe": {
-  "title": "Velvet Orchestra",
-  "summary": "A thief returns five stolen things through brass slots; gravity leans toward the last stone touched, a radio dial rewrites the rules, and every sound draws a Listener to a new slot.",
-  "teaches": [
-   "gravity direction faked by repeating impulses gated on a var",
-   "dial = pickup + reset + modulo var",
-   "noise var + listener that blocks a slot"
-  ]
- },
- "meta": {
-  "fps": 30,
-  "duration": 6,
-  "resolution": [
-   1280,
-   720
-  ]
- },
- "style": {
-  "palette": {
-   "velvet": "#7a1634",
-   "brass": "#d4a64a",
-   "teal": "#38c4b0",
-   "rose": "#c4486f",
-   "hush": "#5b6aa8",
-   "primary": "#7a1634",
-   "secondary": "#d4a64a",
-   "accent": "#38c4b0",
-   "wood": "#3d1f16",
-   "metal": "#d4a64a",
-   "fabric": "#c4486f",
-   "floor": "#1b1830",
-   "wall": "#2a0c20",
-   "trim": "#eadcc2",
-   "lamp": "#ffc27a"
+  "recipe": {
+    "title": "Velvet Orchestra",
+    "summary": "A thief returns five stolen things through brass slots; gravity points at the last glowing stone they picked up, wherever it is carried or set down, a radio dial rewrites the pull, and every sound draws a Listener to a new slot.",
+    "teaches": [
+      "an aimed field: `fields[].toward` + `speed` (an expression over the dial), re-aimed by a rule with `aim [field, self]`",
+      "the rule's subject `self` and the `prop` filter: one rule per slot instead of one per thing",
+      "dial = pickup filtered to the knob + reset self + modulo var; noise var + listener that blocks a slot"
+    ]
   },
-  "materials": {
-   "velvet": {
-    "color": "@velvet",
-    "roughness": 1.0
-   },
-   "brass": {
-    "color": "@brass",
-    "metallic": 0.9,
-    "roughness": 0.3
-   },
-   "hall": {
-    "color": "@wall",
-    "roughness": 0.9
-   },
-   "boards": {
-    "color": "@floor",
-    "roughness": 0.5,
-    "metallic": 0.1
-   }
+  "meta": { "fps": 30, "duration": 6, "resolution": [1280, 720] },
+  "style": {
+    "palette": {
+      "velvet": "#7a1634",
+      "brass": "#d4a64a",
+      "teal": "#38c4b0",
+      "rose": "#c4486f",
+      "hush": "#5b6aa8",
+      "primary": "#7a1634",
+      "secondary": "#d4a64a",
+      "accent": "#38c4b0",
+      "wood": "#3d1f16",
+      "metal": "#d4a64a",
+      "fabric": "#c4486f",
+      "floor": "#1b1830",
+      "wall": "#2a0c20",
+      "trim": "#eadcc2",
+      "lamp": "#ffc27a"
+    },
+    "materials": {
+      "velvet": { "color": "@velvet", "roughness": 1.0 },
+      "brass": { "color": "@brass", "metallic": 0.9, "roughness": 0.3 },
+      "hall": { "color": "@wall", "roughness": 0.9 },
+      "boards": { "color": "@floor", "roughness": 0.5, "metallic": 0.1 }
+    },
+    "light": { "ambient": { "color": "#7a4a78", "intensity": 0.9 }, "lamp": { "color": "#ffc27a", "intensity": 9 } },
+    "sky": { "top": "#07030c", "bottom": "#1c0a1e" },
+    "post": { "ao": 0.8, "outline": 0.5 }
   },
-  "light": {
-   "ambient": {
-    "color": "#7a4a78",
-    "intensity": 0.9
-   },
-   "lamp": {
-    "color": "#ffc27a",
-    "intensity": 9
-   }
-  },
-  "sky": {
-   "top": "#07030c",
-   "bottom": "#1c0a1e"
-  },
-  "post": {
-   "ao": 0.8,
-   "outline": 0.5
-  }
- },
- "camera": {
-  "fov": 75,
-  "position": [
-   0,
-   1.7,
-   -3.5
+  "camera": { "fov": 75, "position": [0, 1.7, -3.5], "target": [0, 1.4, 3] },
+  "player": { "character": "human", "walk_speed": 4, "jump_speed": 4 },
+  "weapons": { "starting": "bat" },
+  "post": { "ao": 0.8, "outline": 0.5 },
+  "lights": [
+    { "id": "l0", "type": "point", "position": [-5, 3.4, -2], "color": "#ffc27a", "intensity": 16, "range": 16 },
+    { "id": "l1", "type": "point", "position": [5, 3.4, -2], "color": "#ffc27a", "intensity": 16, "range": 16 },
+    { "id": "l2", "type": "point", "position": [0, 3.4, 3], "color": "#ffc27a", "intensity": 16, "range": 16 }
   ],
-  "target": [
-   0,
-   1.4,
-   3
-  ]
- },
- "player": {
-  "character": "human",
-  "walk_speed": 4,
-  "jump_speed": 4
- },
- "weapons": {
-  "starting": "bat"
- },
- "post": {
-  "ao": 0.8,
-  "outline": 0.5
- },
- "lights": [
-  {
-   "id": "l0",
-   "type": "point",
-   "position": [
-    -5,
-    3.4,
-    -2
-   ],
-   "color": "#ffc27a",
-   "intensity": 16,
-   "range": 16
-  },
-  {
-   "id": "l1",
-   "type": "point",
-   "position": [
-    5,
-    3.4,
-    -2
-   ],
-   "color": "#ffc27a",
-   "intensity": 16,
-   "range": 16
-  },
-  {
-   "id": "l2",
-   "type": "point",
-   "position": [
-    0,
-    3.4,
-    3
-   ],
-   "color": "#ffc27a",
-   "intensity": 16,
-   "range": 16
-  }
- ],
- "zones": [
-  {
-   "id": "hall",
-   "rect": [
-    -10,
-    -6,
-    10,
-    6
-   ],
-   "y": 0,
-   "kind": "room"
-  },
-  {
-   "id": "ex_1",
-   "rect": [
-    -10,
-    -4,
-    -8.6,
-    4
-   ],
-   "y": 0,
-   "kind": "pad"
-  },
-  {
-   "id": "ex_2",
-   "rect": [
-    8.6,
-    -4,
-    10,
-    4
-   ],
-   "y": 0,
-   "kind": "pad"
-  },
-  {
-   "id": "ex_3",
-   "rect": [
-    -10,
-    4.6,
-    10,
-    6
-   ],
-   "y": 0,
-   "kind": "pad"
-  }
- ],
- "spawns": [
-  {
-   "id": "door",
-   "position": [
-    0,
-    0,
-    -3.2
-   ],
-   "yaw_deg": 0,
-   "group": "solo"
-  }
- ],
- "vars": {
-  "freq": 0,
-  "pull": 0,
-  "noise": 0,
-  "listen": 0,
-  "at": 0,
-  "lt": 0,
-  "heard": 0,
-  "returned": 0,
-  "it_chair_gone": 0,
-  "it_crate_gone": 0,
-  "it_barrel_gone": 0,
-  "it_plant_gone": 0,
-  "it_table_gone": 0
- },
- "prefabs": {
-  "radio_set": {
-   "desc": "a walnut cabinet radio with a brass grille and a glass dial",
-   "params": {
-    "wood": {
-     "default": "#3d1f16",
-     "palette": "wood"
-    },
-    "glow": {
-     "default": "#38c4b0",
-     "palette": "teal"
-    }
-   },
-   "objects": [
-    {
-     "id": "body",
-     "type": "box",
-     "size": [
-      1.2,
-      0.7,
-      0.5
-     ],
-     "position": [
-      0,
-      0.95,
-      0
-     ],
-     "material": {
-      "color": "$wood",
-      "roughness": 0.5
-     }
-    },
-    {
-     "id": "legs",
-     "type": "box",
-     "size": [
-      1.0,
-      0.6,
-      0.4
-     ],
-     "position": [
-      0,
-      0.3,
-      0
-     ],
-     "material": {
-      "color": "$wood"
-     }
-    },
-    {
-     "id": "grille",
-     "type": "box",
-     "size": [
-      0.5,
-      0.45,
-      0.04
-     ],
-     "position": [
-      -0.28,
-      0.95,
-      0.26
-     ],
-     "material": {
-      "preset": "brass"
-     }
-    },
-    {
-     "id": "dial",
-     "type": "cylinder",
-     "radius": 0.17,
-     "height": 0.05,
-     "position": [
-      0.3,
-      1.0,
-      0.27
-     ],
-     "rotation": [
-      90,
-      0,
-      0
-     ],
-     "material": {
-      "color": "$glow",
-      "emissive": "$glow"
-     }
-    },
-    {
-     "id": "aerial",
-     "type": "box",
-     "size": [
-      0.03,
-      0.6,
-      0.03
-     ],
-     "position": [
-      0.45,
-      1.6,
-      0
-     ],
-     "material": {
-      "preset": "brass"
-     }
-    }
-   ]
-  },
-  "listener": {
-   "desc": "the patient listener: a draped tall figure, one huge ear turned to the room",
-   "params": {
-    "cloth": {
-     "default": "#5b6aa8",
-     "palette": "hush"
-    },
-    "glow": {
-     "default": "#eadcc2",
-     "palette": "trim"
-    }
-   },
-   "objects": [
-    {
-     "id": "robe",
-     "type": "cylinder",
-     "radius": 0.5,
-     "height": 2.0,
-     "position": [
-      0,
-      1.0,
-      0
-     ],
-     "material": {
-      "color": "$cloth",
-      "roughness": 1
-     }
-    },
-    {
-     "id": "head",
-     "type": "sphere",
-     "radius": 0.28,
-     "position": [
-      0,
-      2.2,
-      0
-     ],
-     "material": {
-      "color": "$glow",
-      "emissive": "$cloth"
-     }
-    },
-    {
-     "id": "ear",
-     "type": "cylinder",
-     "radius": 0.38,
-     "height": 0.06,
-     "position": [
-      0.3,
-      2.25,
-      0
-     ],
-     "rotation": [
-      0,
-      0,
-      90
-     ],
-     "material": {
-      "color": "$glow",
-      "emissive": "$glow"
-     }
-    },
-    {
-     "id": "halo",
-     "type": "cylinder",
-     "radius": 0.9,
-     "height": 0.03,
-     "position": [
-      0,
-      0.03,
-      0
-     ],
-     "material": {
-      "color": "$cloth",
-      "emissive": "$cloth"
-     }
-    }
-   ]
-  },
-  "return_slot": {
-   "desc": "a brass-framed slot in the wall where returned things leave the hall",
-   "params": {
-    "glow": {
-     "default": "#38c4b0",
-     "palette": "teal"
-    },
-    "frame": {
-     "default": "#d4a64a",
-     "palette": "brass"
-    }
-   },
-   "objects": [
-    {
-     "id": "post_l",
-     "type": "box",
-     "size": [
-      0.3,
-      3.2,
-      0.3
-     ],
-     "position": [
-      -4.3,
-      1.6,
-      0
-     ],
-     "material": {
-      "color": "$frame",
-      "metallic": 0.8,
-      "roughness": 0.3
-     }
-    },
-    {
-     "id": "post_r",
-     "type": "box",
-     "size": [
-      0.3,
-      3.2,
-      0.3
-     ],
-     "position": [
-      4.3,
-      1.6,
-      0
-     ],
-     "material": {
-      "color": "$frame",
-      "metallic": 0.8,
-      "roughness": 0.3
-     }
-    },
-    {
-     "id": "lintel",
-     "type": "box",
-     "size": [
-      8.9,
-      0.3,
-      0.3
-     ],
-     "position": [
-      0,
-      3.2,
-      0
-     ],
-     "material": {
-      "color": "$frame",
-      "metallic": 0.8,
-      "roughness": 0.3
-     }
-    },
-    {
-     "id": "glow",
-     "type": "box",
-     "size": [
-      8.0,
-      0.04,
-      1.2
-     ],
-     "position": [
-      0,
-      0.02,
-      0.4
-     ],
-     "material": {
-      "color": "$glow",
-      "emissive": "$glow"
-     }
-    }
-   ]
-  },
-  "lode_plinth": {
-   "desc": "a velvet plinth with a glowing ring: touch the stone on it and the room leans toward it",
-   "params": {
-    "glow": {
-     "default": "#c4486f",
-     "palette": "rose"
-    },
-    "cloth": {
-     "default": "#7a1634",
-     "palette": "velvet"
-    }
-   },
-   "objects": [
-    {
-     "id": "base",
-     "type": "cylinder",
-     "radius": 0.7,
-     "height": 0.5,
-     "position": [
-      0,
-      0.25,
-      0
-     ],
-     "material": {
-      "color": "$cloth",
-      "roughness": 1
-     }
-    },
-    {
-     "id": "ring",
-     "type": "cylinder",
-     "radius": 0.95,
-     "height": 0.03,
-     "position": [
-      0,
-      0.02,
-      0
-     ],
-     "material": {
-      "color": "$glow",
-      "emissive": "$glow"
-     }
-    }
-   ]
-  },
-  "music_stand": {
-   "desc": "a brass music stand with a sheet",
-   "params": {
-    "m": {
-     "default": "#d4a64a",
-     "palette": "brass"
-    }
-   },
-   "objects": [
-    {
-     "id": "pole",
-     "type": "cylinder",
-     "radius": 0.03,
-     "height": 1.3,
-     "position": [
-      0,
-      0.65,
-      0
-     ],
-     "material": {
-      "color": "$m",
-      "metallic": 0.8
-     }
-    },
-    {
-     "id": "desk",
-     "type": "box",
-     "size": [
-      0.6,
-      0.4,
-      0.03
-     ],
-     "position": [
-      0,
-      1.35,
-      0
-     ],
-     "rotation": [
-      -20,
-      0,
-      0
-     ],
-     "material": {
-      "color": "$m",
-      "metallic": 0.8
-     }
-    },
-    {
-     "id": "sheet",
-     "type": "box",
-     "size": [
-      0.5,
-      0.32,
-      0.02
-     ],
-     "position": [
-      0,
-      1.36,
-      0.02
-     ],
-     "rotation": [
-      -20,
-      0,
-      0
-     ],
-     "material": {
-      "color": "#eadcc2"
-     }
-    }
-   ]
-  }
- },
- "ui": {
-  "title": "Velvet Orchestra",
-  "labels": {
-   "returned": "Returned",
-   "heard": "Heard",
-   "noise": "Noise",
-   "freq": "Dial",
-   "pull": "Leaning toward"
-  },
-  "counters": [
-   {
-    "var": "returned",
-    "of": 5,
-    "label": "Returned"
-   },
-   {
-    "var": "heard",
-    "of": 3,
-    "label": "Heard"
-   },
-   {
-    "var": "noise",
-    "label": "Noise"
-   }
+  "zones": [
+    { "id": "hall", "rect": [-10, -6, 10, 6], "y": 0, "kind": "room" },
+    { "id": "ex_1", "rect": [-10, -4, -8.6, 4], "y": 0, "kind": "pad" },
+    { "id": "ex_2", "rect": [8.6, -4, 10, 4], "y": 0, "kind": "pad" },
+    { "id": "ex_3", "rect": [-10, 4.6, 10, 6], "y": 0, "kind": "pad" }
   ],
-  "objective": [
-   {
-    "if": "freq == 0",
-    "text": "88.1 Static: the room leans gently. Touch a glowing stone (E) to make it the weight; turn the dial (E on the teal can) to change the rules"
-   },
-   {
-    "if": "freq == 1",
-    "text": "94.5 Waltz: the lean is a rush. Touch a stone, everything slides toward it. Push the stolen things out of a brass slot"
-   },
-   {
-    "if": "freq == 2",
-    "text": "101.2 Hush: no lean, no noise. Bat things by hand while the listener stands at a slot"
-   },
-   {
-    "text": "107.7 Inverse: everything is pushed AWAY from the last stone you touched"
-   }
+  "spawns": [
+    { "id": "door", "position": [0, 0, -3.2], "yaw_deg": 0, "group": "solo" }
   ],
-  "start": {
-   "title": "Velvet Orchestra",
-   "text": "Tonight you return everything you ever stole. Push five things out through the brass slots. Gravity points toward the last glowing stone you touched, and the teal radio can (E) changes a rule of the room. Every touch, swing and turn of the dial is noise; noise draws the Listener to a different slot each time. Let him hear you three times and the night ends.",
-   "button": "Tune in"
-  },
-  "end": {
-   "victory": {
-    "title": "Nothing left but you",
-    "text": "The hall is bare. The radio hums to itself.",
-    "button": "Again"
-   },
-   "lose": {
-    "title": "Heard",
-    "text": "The Listener turned his ear to you three times.",
-    "button": "Again"
-   }
-  }
- },
- "rules": [
-  {
-   "id": "setup",
-   "when": {
-    "start": true
-   },
-   "do": [
-    {
-     "hide": "listener_1"
-    },
-    {
-     "hide": "listener_2"
-    },
-    {
-     "hide": "listener_3"
-    },
-    {
-     "hide": "fq_1"
-    },
-    {
-     "hide": "fq_2"
-    },
-    {
-     "hide": "fq_3"
-    }
-   ]
-  },
-  {
-   "id": "dial_turn",
-   "when": {
-    "event": "pickup"
-   },
-   "if": "held(knob)",
-   "do": [
-    {
-     "set": [
-      "freq",
-      "(freq + 1) % 4"
-     ]
-    },
-    {
-     "reset": "knob"
-    },
-    {
-     "emit": "tuned"
-    }
-   ]
-  },
-  {
-   "id": "dial_noise",
-   "when": {
-    "event": "tuned"
-   },
-   "if": "freq != 2",
-   "do": [
-    {
-     "add": [
-      "noise",
-      4
-     ]
-    }
-   ]
-  },
-  {
-   "id": "lamp_on_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "freq == 0",
-   "do": [
-    {
-     "show": "fq_0"
-    }
-   ]
-  },
-  {
-   "id": "lamp_off_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "freq != 0",
-   "do": [
-    {
-     "hide": "fq_0"
-    }
-   ]
-  },
-  {
-   "id": "lamp_on_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "freq == 1",
-   "do": [
-    {
-     "show": "fq_1"
-    }
-   ]
-  },
-  {
-   "id": "lamp_off_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "freq != 1",
-   "do": [
-    {
-     "hide": "fq_1"
-    }
-   ]
-  },
-  {
-   "id": "lamp_on_2",
-   "when": {
-    "every": 0.25
-   },
-   "if": "freq == 2",
-   "do": [
-    {
-     "show": "fq_2"
-    }
-   ]
-  },
-  {
-   "id": "lamp_off_2",
-   "when": {
-    "every": 0.25
-   },
-   "if": "freq != 2",
-   "do": [
-    {
-     "hide": "fq_2"
-    }
-   ]
-  },
-  {
-   "id": "lamp_on_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "freq == 3",
-   "do": [
-    {
-     "show": "fq_3"
-    }
-   ]
-  },
-  {
-   "id": "lamp_off_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "freq != 3",
-   "do": [
-    {
-     "hide": "fq_3"
-    }
-   ]
-  },
-  {
-   "id": "touch_stone_w",
-   "when": {
-    "event": "pickup"
-   },
-   "if": "held(stone_w)",
-   "do": [
-    {
-     "set": [
-      "pull",
-      1
-     ]
-    },
-    {
-     "reset": "stone_w"
-    },
-    {
-     "emit": "touched"
-    }
-   ]
-  },
-  {
-   "id": "touch_stone_e",
-   "when": {
-    "event": "pickup"
-   },
-   "if": "held(stone_e)",
-   "do": [
-    {
-     "set": [
-      "pull",
-      2
-     ]
-    },
-    {
-     "reset": "stone_e"
-    },
-    {
-     "emit": "touched"
-    }
-   ]
-  },
-  {
-   "id": "touch_stone_n",
-   "when": {
-    "event": "pickup"
-   },
-   "if": "held(stone_n)",
-   "do": [
-    {
-     "set": [
-      "pull",
-      3
-     ]
-    },
-    {
-     "reset": "stone_n"
-    },
-    {
-     "emit": "touched"
-    }
-   ]
-  },
-  {
-   "id": "touch_noise",
-   "when": {
-    "event": "touched"
-   },
-   "if": "freq != 2",
-   "do": [
-    {
-     "add": [
-      "noise",
-      3
-     ]
-    }
-   ]
-  },
-  {
-   "id": "swing_noise",
-   "when": {
-    "event": "swing"
-   },
-   "if": "freq != 2",
-   "do": [
-    {
-     "add": [
-      "noise",
-      2
-     ]
-    }
-   ]
-  },
-  {
-   "id": "noise_decay",
-   "when": {
-    "every": 2
-   },
-   "if": "noise > 0",
-   "do": [
-    {
-     "add": [
-      "noise",
-      -1
-     ]
-    }
-   ]
-  },
-  {
-   "id": "g_it_chair_1_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_chair",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_chair_1_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_chair",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_chair_1_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_chair",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_chair_2_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_chair",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_chair_2_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_chair",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_chair_2_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_chair",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_chair_3_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_chair",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_chair_3_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_chair",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_chair_3_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_chair",
-      "dir": [
-       0,
-       0,
-       -1
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_crate_1_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_crate",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_crate_1_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_crate",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_crate_1_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_crate",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_crate_2_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_crate",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_crate_2_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_crate",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_crate_2_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_crate",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_crate_3_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_crate",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_crate_3_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_crate",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_crate_3_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_crate",
-      "dir": [
-       0,
-       0,
-       -1
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_barrel_1_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_barrel",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_barrel_1_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_barrel",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_barrel_1_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_barrel",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_barrel_2_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_barrel",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_barrel_2_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_barrel",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_barrel_2_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_barrel",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_barrel_3_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_barrel",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_barrel_3_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_barrel",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_barrel_3_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_barrel",
-      "dir": [
-       0,
-       0,
-       -1
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_plant_1_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_plant",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_plant_1_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_plant",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_plant_1_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_plant",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_plant_2_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_plant",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_plant_2_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_plant",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_plant_2_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_plant",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_plant_3_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_plant",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_plant_3_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_plant",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_plant_3_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_plant",
-      "dir": [
-       0,
-       0,
-       -1
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_table_1_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_table",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_table_1_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_table",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_table_1_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 1 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_table",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_table_2_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_table",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_table_2_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_table",
-      "dir": [
-       1,
-       0,
-       0
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_table_2_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 2 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_table",
-      "dir": [
-       -1,
-       0,
-       0
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_table_3_0",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 0",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_table",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 1.5
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_table_3_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 1",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_table",
-      "dir": [
-       0,
-       0,
-       1
-      ],
-      "speed": 4
-     }
-    }
-   ]
-  },
-  {
-   "id": "g_it_table_3_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "pull == 3 && freq == 3",
-   "do": [
-    {
-     "impulse": {
-      "object": "it_table",
-      "dir": [
-       0,
-       0,
-       -1
-      ],
-      "speed": 3
-     }
-    }
-   ]
-  },
-  {
-   "id": "arrive",
-   "when": {
-    "every": 0.25
-   },
-   "if": "noise >= 6 && listen == 0",
-   "do": [
-    {
-     "set": [
-      "listen",
-      1
-     ]
-    },
-    {
-     "set": [
-      "at",
-      "at % 3 + 1"
-     ]
-    },
-    {
-     "set": [
-      "lt",
-      12
-     ]
-    },
-    {
-     "set": [
-      "noise",
-      2
-     ]
-    },
-    {
-     "emit": "arrived"
-    }
-   ]
-  },
-  {
-   "id": "ear_show_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "listen == 1 && at == 1",
-   "do": [
-    {
-     "show": "listener_1"
-    }
-   ]
-  },
-  {
-   "id": "ear_hide_1",
-   "when": {
-    "every": 0.25
-   },
-   "if": "listen == 0 || at != 1",
-   "do": [
-    {
-     "hide": "listener_1"
-    }
-   ]
-  },
-  {
-   "id": "ear_show_2",
-   "when": {
-    "every": 0.25
-   },
-   "if": "listen == 1 && at == 2",
-   "do": [
-    {
-     "show": "listener_2"
-    }
-   ]
-  },
-  {
-   "id": "ear_hide_2",
-   "when": {
-    "every": 0.25
-   },
-   "if": "listen == 0 || at != 2",
-   "do": [
-    {
-     "hide": "listener_2"
-    }
-   ]
-  },
-  {
-   "id": "ear_show_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "listen == 1 && at == 3",
-   "do": [
-    {
-     "show": "listener_3"
-    }
-   ]
-  },
-  {
-   "id": "ear_hide_3",
-   "when": {
-    "every": 0.25
-   },
-   "if": "listen == 0 || at != 3",
-   "do": [
-    {
-     "hide": "listener_3"
-    }
-   ]
-  },
-  {
-   "id": "hear",
-   "when": {
-    "every": 0.5
-   },
-   "if": "listen == 1 && noise >= 5",
-   "do": [
-    {
-     "add": [
-      "heard",
-      1
-     ]
-    },
-    {
-     "set": [
-      "noise",
-      2
-     ]
-    },
-    {
-     "emit": "heard"
-    }
-   ]
-  },
-  {
-   "id": "linger",
-   "when": {
-    "every": 1
-   },
-   "if": "listen == 1",
-   "do": [
-    {
-     "add": [
-      "lt",
-      -1
-     ]
-    }
-   ]
-  },
-  {
-   "id": "depart",
-   "when": {
-    "every": 0.25
-   },
-   "if": "listen == 1 && lt <= 0",
-   "do": [
-    {
-     "set": [
-      "listen",
-      0
-     ]
-    },
-    {
-     "set": [
-      "noise",
-      0
-     ]
-    },
-    {
-     "emit": "departed"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_chair_1",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_1"
-    },
-    "prop": "it_chair"
-   },
-   "if": "listen == 1 && at == 1 && it_chair_gone == 0",
-   "do": [
-    {
-     "reset": "it_chair"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "return_it_chair_1",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_1"
-    },
-    "prop": "it_chair"
-   },
-   "if": "!(listen == 1 && at == 1) && it_chair_gone == 0",
-   "do": [
-    {
-     "set": [
-      "it_chair_gone",
-      1
-     ]
-    },
-    {
-     "add": [
-      "returned",
-      1
-     ]
-    },
-    {
-     "hide": "it_chair"
-    },
-    {
-     "emit": "returned"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_chair_2",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_2"
-    },
-    "prop": "it_chair"
-   },
-   "if": "listen == 1 && at == 2 && it_chair_gone == 0",
-   "do": [
-    {
-     "reset": "it_chair"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_chair_3",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_3"
-    },
-    "prop": "it_chair"
-   },
-   "if": "listen == 1 && at == 3 && it_chair_gone == 0",
-   "do": [
-    {
-     "reset": "it_chair"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_crate_1",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_1"
-    },
-    "prop": "it_crate"
-   },
-   "if": "listen == 1 && at == 1 && it_crate_gone == 0",
-   "do": [
-    {
-     "reset": "it_crate"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_crate_2",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_2"
-    },
-    "prop": "it_crate"
-   },
-   "if": "listen == 1 && at == 2 && it_crate_gone == 0",
-   "do": [
-    {
-     "reset": "it_crate"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "return_it_crate_2",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_2"
-    },
-    "prop": "it_crate"
-   },
-   "if": "!(listen == 1 && at == 2) && it_crate_gone == 0",
-   "do": [
-    {
-     "set": [
-      "it_crate_gone",
-      1
-     ]
-    },
-    {
-     "add": [
-      "returned",
-      1
-     ]
-    },
-    {
-     "hide": "it_crate"
-    },
-    {
-     "emit": "returned"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_crate_3",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_3"
-    },
-    "prop": "it_crate"
-   },
-   "if": "listen == 1 && at == 3 && it_crate_gone == 0",
-   "do": [
-    {
-     "reset": "it_crate"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_barrel_1",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_1"
-    },
-    "prop": "it_barrel"
-   },
-   "if": "listen == 1 && at == 1 && it_barrel_gone == 0",
-   "do": [
-    {
-     "reset": "it_barrel"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_barrel_2",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_2"
-    },
-    "prop": "it_barrel"
-   },
-   "if": "listen == 1 && at == 2 && it_barrel_gone == 0",
-   "do": [
-    {
-     "reset": "it_barrel"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_barrel_3",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_3"
-    },
-    "prop": "it_barrel"
-   },
-   "if": "listen == 1 && at == 3 && it_barrel_gone == 0",
-   "do": [
-    {
-     "reset": "it_barrel"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "return_it_barrel_3",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_3"
-    },
-    "prop": "it_barrel"
-   },
-   "if": "!(listen == 1 && at == 3) && it_barrel_gone == 0",
-   "do": [
-    {
-     "set": [
-      "it_barrel_gone",
-      1
-     ]
-    },
-    {
-     "add": [
-      "returned",
-      1
-     ]
-    },
-    {
-     "hide": "it_barrel"
-    },
-    {
-     "emit": "returned"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_plant_1",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_1"
-    },
-    "prop": "it_plant"
-   },
-   "if": "listen == 1 && at == 1 && it_plant_gone == 0",
-   "do": [
-    {
-     "reset": "it_plant"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_plant_2",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_2"
-    },
-    "prop": "it_plant"
-   },
-   "if": "listen == 1 && at == 2 && it_plant_gone == 0",
-   "do": [
-    {
-     "reset": "it_plant"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "return_it_plant_2",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_2"
-    },
-    "prop": "it_plant"
-   },
-   "if": "!(listen == 1 && at == 2) && it_plant_gone == 0",
-   "do": [
-    {
-     "set": [
-      "it_plant_gone",
-      1
-     ]
-    },
-    {
-     "add": [
-      "returned",
-      1
-     ]
-    },
-    {
-     "hide": "it_plant"
-    },
-    {
-     "emit": "returned"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_plant_3",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_3"
-    },
-    "prop": "it_plant"
-   },
-   "if": "listen == 1 && at == 3 && it_plant_gone == 0",
-   "do": [
-    {
-     "reset": "it_plant"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_table_1",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_1"
-    },
-    "prop": "it_table"
-   },
-   "if": "listen == 1 && at == 1 && it_table_gone == 0",
-   "do": [
-    {
-     "reset": "it_table"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "return_it_table_1",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_1"
-    },
-    "prop": "it_table"
-   },
-   "if": "!(listen == 1 && at == 1) && it_table_gone == 0",
-   "do": [
-    {
-     "set": [
-      "it_table_gone",
-      1
-     ]
-    },
-    {
-     "add": [
-      "returned",
-      1
-     ]
-    },
-    {
-     "hide": "it_table"
-    },
-    {
-     "emit": "returned"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_table_2",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_2"
-    },
-    "prop": "it_table"
-   },
-   "if": "listen == 1 && at == 2 && it_table_gone == 0",
-   "do": [
-    {
-     "reset": "it_table"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "bounce_it_table_3",
-   "when": {
-    "prop_enter": {
-     "zone": "ex_3"
-    },
-    "prop": "it_table"
-   },
-   "if": "listen == 1 && at == 3 && it_table_gone == 0",
-   "do": [
-    {
-     "reset": "it_table"
-    },
-    {
-     "set": [
-      "pull",
-      0
-     ]
-    },
-    {
-     "add": [
-      "noise",
-      1
-     ]
-    },
-    {
-     "emit": "bounced"
-    }
-   ]
-  },
-  {
-   "id": "win",
-   "when": {
-    "every": 0.25
-   },
-   "if": "returned >= 5",
-   "do": [
-    {
-     "emit": "victory"
-    },
-    {
-     "end": "victory"
-    }
-   ]
-  },
-  {
-   "id": "lose",
-   "when": {
-    "every": 0.25
-   },
-   "if": "heard >= 3",
-   "do": [
-    {
-     "emit": "caught"
-    },
-    {
-     "end": "lose"
-    }
-   ]
-  }
- ],
- "audio": {
-  "music": {
-   "dawn": "audio/waltz.json",
-   "day": "audio/waltz.json",
-   "dusk": "audio/waltz.json",
-   "night": "audio/waltz.json"
-  },
-  "music_volume": 0.6
- },
- "music": false,
- "hud": {
-  "show_rules_vars": false
- },
- "objects": [
-  {
-   "id": "floor",
-   "type": "box",
-   "size": [
-    20,
-    0.2,
-    12
-   ],
-   "position": [
-    0,
-    -0.1,
-    0
-   ],
-   "material": {
-    "preset": "boards"
-   }
-  },
-  {
-   "id": "wall_s",
-   "type": "box",
-   "size": [
-    20,
-    4,
-    0.2
-   ],
-   "position": [
-    0,
-    2,
-    -6.1
-   ],
-   "material": {
-    "preset": "hall"
-   }
-  },
-  {
-   "id": "wall_n",
-   "type": "box",
-   "size": [
-    20,
-    4,
-    0.2
-   ],
-   "position": [
-    0,
-    2,
-    6.1
-   ],
-   "material": {
-    "preset": "hall"
-   }
-  },
-  {
-   "id": "wall_w",
-   "type": "box",
-   "size": [
-    0.2,
-    4,
-    12
-   ],
-   "position": [
-    -10.1,
-    2,
-    0
-   ],
-   "material": {
-    "preset": "hall"
-   }
-  },
-  {
-   "id": "wall_e",
-   "type": "box",
-   "size": [
-    0.2,
-    4,
-    12
-   ],
-   "position": [
-    10.1,
-    2,
-    0
-   ],
-   "material": {
-    "preset": "hall"
-   }
-  },
-  {
-   "id": "ceiling",
-   "type": "box",
-   "size": [
-    20,
-    0.2,
-    12
-   ],
-   "position": [
-    0,
-    4.1,
-    0
-   ],
-   "material": {
-    "preset": "hall"
-   }
-  },
-  {
-   "id": "rug",
-   "type": "box",
-   "size": [
-    12,
-    0.02,
-    5
-   ],
-   "position": [
-    0,
-    0.01,
-    0
-   ],
-   "collide": false,
-   "material": {
-    "preset": "velvet"
-   }
-  },
-  {
-   "id": "slot_w",
-   "type": "prefab",
-   "prefab": "return_slot",
-   "params": {
-    "glow": "@rose"
-   },
-   "position": [
-    -9.9,
-    0,
-    0
-   ],
-   "rotation": [
-    0,
-    90,
-    0
-   ],
-   "collide": false
-  },
-  {
-   "id": "slot_e",
-   "type": "prefab",
-   "prefab": "return_slot",
-   "params": {
-    "glow": "@teal"
-   },
-   "position": [
-    9.9,
-    0,
-    0
-   ],
-   "rotation": [
-    0,
-    -90,
-    0
-   ],
-   "collide": false
-  },
-  {
-   "id": "slot_n",
-   "type": "prefab",
-   "prefab": "return_slot",
-   "position": [
-    0,
-    0,
-    5.9
-   ],
-   "rotation": [
-    0,
-    180,
-    0
-   ],
-   "collide": false
-  },
-  {
-   "id": "radio",
-   "type": "prefab",
-   "prefab": "radio_set",
-   "position": [
-    0,
-    0,
-    -5.5
-   ],
-   "collide": false
-  },
-  {
-   "id": "plinth_w",
-   "type": "prefab",
-   "prefab": "lode_plinth",
-   "params": {
-    "glow": "@rose"
-   },
-   "position": [
-    -8.2,
-    0,
-    -4.6
-   ],
-   "collide": false
-  },
-  {
-   "id": "plinth_e",
-   "type": "prefab",
-   "prefab": "lode_plinth",
-   "params": {
-    "glow": "@teal"
-   },
-   "position": [
-    8.2,
-    0,
-    -4.6
-   ],
-   "collide": false
-  },
-  {
-   "id": "plinth_n",
-   "type": "prefab",
-   "prefab": "lode_plinth",
-   "params": {
-    "glow": "@brass"
-   },
-   "position": [
-    8.2,
-    0,
-    4.0
-   ],
-   "collide": false
-  },
-  {
-   "id": "stand_1",
-   "type": "prefab",
-   "prefab": "music_stand",
-   "position": [
-    -3,
-    0,
-    -4.5
-   ],
-   "collide": false
-  },
-  {
-   "id": "stand_2",
-   "type": "prefab",
-   "prefab": "music_stand",
-   "position": [
-    3,
-    0,
-    -4.5
-   ],
-   "rotation": [
-    0,
-    20,
-    0
-   ],
-   "collide": false
-  },
-  {
-   "id": "curtains",
-   "type": "prefab",
-   "prefab": "curtain_pair",
-   "position": [
-    -6,
-    0,
-    -5.9
-   ],
-   "collide": false
-  },
-  {
-   "id": "fq_0",
-   "type": "sphere",
-   "radius": 0.07,
-   "position": [
-    -0.5,
-    1.82,
-    -5.2
-   ],
-   "collide": false,
-   "material": {
-    "color": "@teal",
-    "emissive": "@teal"
-   }
-  },
-  {
-   "id": "fq_1",
-   "type": "sphere",
-   "radius": 0.07,
-   "position": [
-    -0.2,
-    1.82,
-    -5.2
-   ],
-   "collide": false,
-   "material": {
-    "color": "@teal",
-    "emissive": "@teal"
-   }
-  },
-  {
-   "id": "fq_2",
-   "type": "sphere",
-   "radius": 0.07,
-   "position": [
-    0.1,
-    1.82,
-    -5.2
-   ],
-   "collide": false,
-   "material": {
-    "color": "@hush",
-    "emissive": "@hush"
-   }
-  },
-  {
-   "id": "fq_3",
-   "type": "sphere",
-   "radius": 0.07,
-   "position": [
-    0.4,
-    1.82,
-    -5.2
-   ],
-   "collide": false,
-   "material": {
-    "color": "@teal",
-    "emissive": "@teal"
-   }
-  },
-  {
-   "id": "listener_1",
-   "type": "prefab",
-   "prefab": "listener",
-   "position": [
-    -8.0,
-    0,
-    0
-   ],
-   "rotation": [
-    0,
-    90,
-    0
-   ],
-   "collide": false
-  },
-  {
-   "id": "listener_2",
-   "type": "prefab",
-   "prefab": "listener",
-   "position": [
-    8.0,
-    0,
-    0
-   ],
-   "rotation": [
-    0,
-    -90,
-    0
-   ],
-   "collide": false
-  },
-  {
-   "id": "listener_3",
-   "type": "prefab",
-   "prefab": "listener",
-   "position": [
-    0,
-    0,
-    4.4
-   ],
-   "rotation": [
-    0,
-    180,
-    0
-   ],
-   "collide": false
-  },
-  {
-   "id": "it_chair",
-   "type": "prop",
-   "prop": "armchair",
-   "movable": true,
-   "position": [
-    -4,
-    0,
-    0.5
-   ],
-   "material": {
-    "color": "@rose"
-   }
-  },
-  {
-   "id": "it_crate",
-   "type": "prop",
-   "prop": "crate",
-   "movable": true,
-   "position": [
-    2,
-    0,
-    -1
-   ],
-   "material": {
-    "color": "@teal"
-   }
-  },
-  {
-   "id": "it_barrel",
-   "type": "prop",
-   "prop": "barrel",
-   "movable": true,
-   "position": [
-    -1,
-    0,
-    2.5
-   ],
-   "material": {
-    "color": "@brass"
-   }
-  },
-  {
-   "id": "it_plant",
-   "type": "prop",
-   "prop": "potted_plant",
-   "movable": true,
-   "position": [
-    5,
-    0,
-    1.5
-   ],
-   "material": {
-    "color": "@teal"
-   }
-  },
-  {
-   "id": "it_table",
-   "type": "prop",
-   "prop": "nightstand",
-   "movable": true,
-   "position": [
-    -6,
-    0,
-    -2.5
-   ],
-   "material": {
-    "color": "@rose"
-   }
-  },
-  {
-   "id": "knob",
-   "type": "prop",
-   "prop": "fire_extinguisher",
-   "movable": true,
-   "position": [
-    0,
-    0,
-    -4.6
-   ],
-   "material": {
-    "color": "@teal",
-    "emissive": "@teal"
-   }
-  },
-  {
-   "id": "stone_w",
-   "type": "prop",
-   "prop": "traffic_cone",
-   "movable": true,
-   "position": [
-    -8.2,
-    0.5,
-    -4.6
-   ],
-   "material": {
-    "color": "@rose",
-    "emissive": "@rose"
-   }
-  },
-  {
-   "id": "stone_e",
-   "type": "prop",
-   "prop": "traffic_cone",
-   "movable": true,
-   "position": [
-    8.2,
-    0.5,
-    -4.6
-   ],
-   "material": {
-    "color": "@teal",
-    "emissive": "@teal"
-   }
-  },
-  {
-   "id": "stone_n",
-   "type": "prop",
-   "prop": "traffic_cone",
-   "movable": true,
-   "position": [
-    8.2,
-    0.5,
-    4.0
-   ],
-   "material": {
-    "color": "@brass",
-    "emissive": "@brass"
-   }
-  }
- ],
- "checks": {
-  "lint": {
-   "max_errors": 0,
-   "max_warnings": 0,
-   "ignore": [
-    "floating",
-    "interest"
-   ]
-  },
-  "sim": [
-   {
-    "name": "mechanic: dial turns the rule, a stone turns gravity, things slide east",
-    "spawn_group": "solo",
-    "players": [
-     {
-      "id": "p1",
-      "character": "human",
-      "spawn": "door"
-     }
+  "vars": { "freq": 0, "noise": 0, "listen": 0, "at": 0, "lt": 0, "heard": 0, "returned": 0 },
+  "prefabs": {
+    "radio_set": {
+      "desc": "a walnut cabinet radio with a brass grille and a glass dial",
+      "params": { "wood": { "default": "#3d1f16", "palette": "wood" }, "glow": { "default": "#38c4b0", "palette": "teal" } },
+      "objects": [
+        { "id": "body", "type": "box", "size": [1.2, 0.7, 0.5], "position": [0, 0.95, 0], "material": { "color": "$wood", "roughness": 0.5 } },
+        { "id": "legs", "type": "box", "size": [1.0, 0.6, 0.4], "position": [0, 0.3, 0], "material": { "color": "$wood" } },
+        { "id": "grille", "type": "box", "size": [0.5, 0.45, 0.04], "position": [-0.28, 0.95, 0.26], "material": { "preset": "brass" } },
+        {
+          "id": "dial",
+          "type": "cylinder",
+          "radius": 0.17,
+          "height": 0.05,
+          "position": [0.3, 1.0, 0.27],
+          "rotation": [90, 0, 0],
+          "material": { "color": "$glow", "emissive": "$glow" }
+        },
+        { "id": "aerial", "type": "box", "size": [0.03, 0.6, 0.03], "position": [0.45, 1.6, 0], "material": { "preset": "brass" } }
+      ]
+    },
+    "listener": {
+      "desc": "the patient listener: a draped tall figure, one huge ear turned to the room",
+      "params": { "cloth": { "default": "#5b6aa8", "palette": "hush" }, "glow": { "default": "#eadcc2", "palette": "trim" } },
+      "objects": [
+        { "id": "robe", "type": "cylinder", "radius": 0.5, "height": 2.0, "position": [0, 1.0, 0], "material": { "color": "$cloth", "roughness": 1 } },
+        { "id": "head", "type": "sphere", "radius": 0.28, "position": [0, 2.2, 0], "material": { "color": "$glow", "emissive": "$cloth" } },
+        {
+          "id": "ear",
+          "type": "cylinder",
+          "radius": 0.38,
+          "height": 0.06,
+          "position": [0.3, 2.25, 0],
+          "rotation": [0, 0, 90],
+          "material": { "color": "$glow", "emissive": "$glow" }
+        },
+        {
+          "id": "halo",
+          "type": "cylinder",
+          "radius": 0.9,
+          "height": 0.03,
+          "position": [0, 0.03, 0],
+          "material": { "color": "$cloth", "emissive": "$cloth" }
+        }
+      ]
+    },
+    "return_slot": {
+      "desc": "a brass-framed slot in the wall where returned things leave the hall",
+      "params": { "glow": { "default": "#38c4b0", "palette": "teal" }, "frame": { "default": "#d4a64a", "palette": "brass" } },
+      "objects": [
+        {
+          "id": "post_l",
+          "type": "box",
+          "size": [0.3, 3.2, 0.3],
+          "position": [-4.3, 1.6, 0],
+          "material": { "color": "$frame", "metallic": 0.8, "roughness": 0.3 }
+        },
+        {
+          "id": "post_r",
+          "type": "box",
+          "size": [0.3, 3.2, 0.3],
+          "position": [4.3, 1.6, 0],
+          "material": { "color": "$frame", "metallic": 0.8, "roughness": 0.3 }
+        },
+        {
+          "id": "lintel",
+          "type": "box",
+          "size": [8.9, 0.3, 0.3],
+          "position": [0, 3.2, 0],
+          "material": { "color": "$frame", "metallic": 0.8, "roughness": 0.3 }
+        },
+        { "id": "glow", "type": "box", "size": [8.0, 0.04, 1.2], "position": [0, 0.02, 0.4], "material": { "color": "$glow", "emissive": "$glow" } }
+      ]
+    },
+    "lode_plinth": {
+      "desc": "a velvet plinth with a glowing ring: touch the stone on it and the room leans toward it",
+      "params": { "glow": { "default": "#c4486f", "palette": "rose" }, "cloth": { "default": "#7a1634", "palette": "velvet" } },
+      "objects": [
+        {
+          "id": "base",
+          "type": "cylinder",
+          "radius": 0.7,
+          "height": 0.5,
+          "position": [0, 0.25, 0],
+          "material": { "color": "$cloth", "roughness": 1 }
+        },
+        {
+          "id": "ring",
+          "type": "cylinder",
+          "radius": 0.95,
+          "height": 0.03,
+          "position": [0, 0.02, 0],
+          "material": { "color": "$glow", "emissive": "$glow" }
+        }
+      ]
+    },
+    "music_stand": {
+      "desc": "a brass music stand with a sheet",
+      "params": { "m": { "default": "#d4a64a", "palette": "brass" } },
+      "objects": [
+        { "id": "pole", "type": "cylinder", "radius": 0.03, "height": 1.3, "position": [0, 0.65, 0], "material": { "color": "$m", "metallic": 0.8 } },
+        {
+          "id": "desk",
+          "type": "box",
+          "size": [0.6, 0.4, 0.03],
+          "position": [0, 1.35, 0],
+          "rotation": [-20, 0, 0],
+          "material": { "color": "$m", "metallic": 0.8 }
+        },
+        {
+          "id": "sheet",
+          "type": "box",
+          "size": [0.5, 0.32, 0.02],
+          "position": [0, 1.36, 0.02],
+          "rotation": [-20, 0, 0],
+          "material": { "color": "#eadcc2" }
+        }
+      ]
+    }
+  },
+  "ui": {
+    "title": "Velvet Orchestra",
+    "labels": { "returned": "Returned", "heard": "Heard", "noise": "Noise", "freq": "Dial" },
+    "counters": [{ "var": "returned", "of": 5, "label": "Returned" }, { "var": "heard", "of": 3, "label": "Heard" }, { "var": "noise", "label": "Noise" }],
+    "objective": [
+      {
+        "if": "freq == 0",
+        "text": "88.1 Static: the room leans gently. Pick up a glowing stone (E): everything falls toward it, wherever you carry or set it down. The teal radio can (E) turns the dial"
+      },
+      {
+        "if": "freq == 1",
+        "text": "94.5 Waltz: the pull is a rush. Set a stone down in a brass slot and the things of its colour fall out through it"
+      },
+      {
+        "if": "freq == 2",
+        "text": "101.2 Hush: no pull, no noise. Carry stones in silence, or bat things by hand while the Listener stands at a slot"
+      },
+      { "text": "107.7 Inverse: everything is pushed AWAY from the last stone you picked up" }
     ],
-    "script": [
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
+    "start": {
+      "title": "Velvet Orchestra",
+      "text": "Tonight you return everything you ever stole. Five things must leave through the brass slots, each by the slot of its colour. Gravity points at the last glowing stone you picked up, wherever you carry it or set it down. The teal radio can (E) changes the rule. Touching, swinging and dialling make noise, and noise draws the Listener to a slot. Three times heard ends the night.",
+      "button": "Tune in"
+    },
+    "end": {
+      "victory": { "title": "Nothing left but you", "text": "The hall is bare. The radio hums to itself.", "button": "Again" },
+      "lose": { "title": "Heard", "text": "The Listener turned his ear to you three times.", "button": "Again" }
+    }
+  },
+  "rules": [
+    {
+      "id": "setup",
+      "when": { "start": true },
+      "do": [{ "hide": "listener_1" }, { "hide": "listener_2" }, { "hide": "listener_3" }, { "hide": "fq_1" }, { "hide": "fq_2" }, { "hide": "fq_3" }]
+    },
+    {
+      "id": "dial_turn",
+      "when": { "event": "pickup", "prop": "knob" },
+      "do": [{ "set": ["freq", "(freq + 1) % 4"] }, { "reset": "self" }, { "emit": "tuned" }]
+    },
+    { "id": "dial_noise", "when": { "event": "tuned" }, "if": "freq != 2", "do": [{ "add": ["noise", 4] }] },
+    { "id": "lamp_on_0", "when": { "every": 0.25 }, "if": "freq == 0", "do": [{ "show": "fq_0" }] },
+    { "id": "lamp_off_0", "when": { "every": 0.25 }, "if": "freq != 0", "do": [{ "hide": "fq_0" }] },
+    { "id": "lamp_on_1", "when": { "every": 0.25 }, "if": "freq == 1", "do": [{ "show": "fq_1" }] },
+    { "id": "lamp_off_1", "when": { "every": 0.25 }, "if": "freq != 1", "do": [{ "hide": "fq_1" }] },
+    { "id": "lamp_on_2", "when": { "every": 0.25 }, "if": "freq == 2", "do": [{ "show": "fq_2" }] },
+    { "id": "lamp_off_2", "when": { "every": 0.25 }, "if": "freq != 2", "do": [{ "hide": "fq_2" }] },
+    { "id": "lamp_on_3", "when": { "every": 0.25 }, "if": "freq == 3", "do": [{ "show": "fq_3" }] },
+    { "id": "lamp_off_3", "when": { "every": 0.25 }, "if": "freq != 3", "do": [{ "hide": "fq_3" }] },
+    {
+      "id": "touch",
+      "when": { "event": "pickup", "prop": ["stone_w", "stone_e", "stone_n"] },
+      "do": [{ "aim": ["gravity", "self"] }, { "emit": "touched" }]
+    },
+    { "id": "touch_noise", "when": { "event": "touched" }, "if": "freq != 2", "do": [{ "add": ["noise", 3] }] },
+    { "id": "swing_noise", "when": { "event": "swing" }, "if": "freq != 2", "do": [{ "add": ["noise", 2] }] },
+    { "id": "noise_decay", "when": { "every": 2 }, "if": "noise > 0", "do": [{ "add": ["noise", -1] }] },
+    {
+      "id": "arrive",
+      "when": { "every": 0.25 },
+      "if": "noise >= 6 && listen == 0",
+      "do": [{ "set": ["listen", 1] }, { "set": ["at", "at % 3 + 1"] }, { "set": ["lt", 12] }, { "set": ["noise", 2] }, { "emit": "arrived" }]
+    },
+    { "id": "ear_show_1", "when": { "every": 0.25 }, "if": "listen == 1 && at == 1", "do": [{ "show": "listener_1" }] },
+    { "id": "ear_hide_1", "when": { "every": 0.25 }, "if": "listen == 0 || at != 1", "do": [{ "hide": "listener_1" }] },
+    { "id": "ear_show_2", "when": { "every": 0.25 }, "if": "listen == 1 && at == 2", "do": [{ "show": "listener_2" }] },
+    { "id": "ear_hide_2", "when": { "every": 0.25 }, "if": "listen == 0 || at != 2", "do": [{ "hide": "listener_2" }] },
+    { "id": "ear_show_3", "when": { "every": 0.25 }, "if": "listen == 1 && at == 3", "do": [{ "show": "listener_3" }] },
+    { "id": "ear_hide_3", "when": { "every": 0.25 }, "if": "listen == 0 || at != 3", "do": [{ "hide": "listener_3" }] },
+    {
+      "id": "hear",
+      "when": { "every": 0.5 },
+      "if": "listen == 1 && noise >= 5",
+      "do": [{ "add": ["heard", 1] }, { "set": ["noise", 2] }, { "emit": "heard" }]
+    },
+    { "id": "linger", "when": { "every": 1 }, "if": "listen == 1", "do": [{ "add": ["lt", -1] }] },
+    {
+      "id": "depart",
+      "when": { "every": 0.25 },
+      "if": "listen == 1 && lt <= 0",
+      "do": [{ "set": ["listen", 0] }, { "set": ["noise", 0] }, { "emit": "departed" }]
+    },
+    {
+      "id": "bounce_w",
+      "when": { "prop_enter": { "zone": "ex_1" }, "prop": ["it_chair", "it_crate", "it_barrel", "it_plant", "it_table"] },
+      "if": "listen == 1 && at == 1",
+      "do": [{ "reset": "self" }, { "aim": ["gravity", null] }, { "add": ["noise", 1] }, { "emit": "bounced" }]
+    },
+    {
+      "id": "return_w",
+      "when": { "prop_enter": { "zone": "ex_1" }, "prop": ["it_chair", "it_table"] },
+      "if": "!(listen == 1 && at == 1)",
+      "do": [{ "add": ["returned", 1] }, { "hide": "self" }, { "place": ["self", [-6, 3, 8.2]] }, { "emit": "returned" }]
+    },
+    {
+      "id": "bounce_e",
+      "when": { "prop_enter": { "zone": "ex_2" }, "prop": ["it_chair", "it_crate", "it_barrel", "it_plant", "it_table"] },
+      "if": "listen == 1 && at == 2",
+      "do": [{ "reset": "self" }, { "aim": ["gravity", null] }, { "add": ["noise", 1] }, { "emit": "bounced" }]
+    },
+    {
+      "id": "return_e",
+      "when": { "prop_enter": { "zone": "ex_2" }, "prop": ["it_crate", "it_plant"] },
+      "if": "!(listen == 1 && at == 2)",
+      "do": [{ "add": ["returned", 1] }, { "hide": "self" }, { "place": ["self", [6, 3, 8.2]] }, { "emit": "returned" }]
+    },
+    {
+      "id": "bounce_n",
+      "when": { "prop_enter": { "zone": "ex_3" }, "prop": ["it_chair", "it_crate", "it_barrel", "it_plant", "it_table"] },
+      "if": "listen == 1 && at == 3",
+      "do": [{ "reset": "self" }, { "aim": ["gravity", null] }, { "add": ["noise", 1] }, { "emit": "bounced" }]
+    },
+    {
+      "id": "return_n",
+      "when": { "prop_enter": { "zone": "ex_3" }, "prop": ["it_barrel"] },
+      "if": "!(listen == 1 && at == 3)",
+      "do": [{ "add": ["returned", 1] }, { "hide": "self" }, { "place": ["self", [0, 3, 8.2]] }, { "emit": "returned" }]
+    },
+    { "id": "win", "when": { "every": 0.25 }, "if": "returned >= 5", "do": [{ "emit": "victory" }, { "end": "victory" }] },
+    { "id": "lose", "when": { "every": 0.25 }, "if": "heard >= 3", "do": [{ "emit": "caught" }, { "end": "lose" }] }
+  ],
+  "audio": { "music": { "dawn": "audio/waltz.json", "day": "audio/waltz.json", "dusk": "audio/waltz.json", "night": "audio/waltz.json" }, "music_volume": 0.6 },
+  "music": false,
+  "hud": { "show_rules_vars": false },
+  "objects": [
+    { "id": "floor", "type": "box", "size": [20, 0.2, 12], "position": [0, -0.1, 0], "material": { "preset": "boards" } },
+    { "id": "wall_s", "type": "box", "size": [20, 4, 0.2], "position": [0, 2, -6.1], "material": { "preset": "hall" } },
+    { "id": "wall_n", "type": "box", "size": [20, 4, 0.2], "position": [0, 2, 6.1], "material": { "preset": "hall" } },
+    { "id": "wall_w", "type": "box", "size": [0.2, 4, 12], "position": [-10.1, 2, 0], "material": { "preset": "hall" } },
+    { "id": "wall_e", "type": "box", "size": [0.2, 4, 12], "position": [10.1, 2, 0], "material": { "preset": "hall" } },
+    { "id": "ceiling", "type": "box", "size": [20, 0.2, 12], "position": [0, 4.1, 0], "material": { "preset": "hall" } },
+    { "id": "vault_floor", "type": "box", "size": [20, 0.2, 3.0], "position": [0, -0.1, 7.8], "material": { "preset": "hall" } },
+    { "id": "vault_back", "type": "box", "size": [20, 4, 0.2], "position": [0, 2, 9.4], "material": { "preset": "hall" } },
+    { "id": "vault_w", "type": "box", "size": [0.2, 4, 3.0], "position": [-10.1, 2, 7.8], "material": { "preset": "hall" } },
+    { "id": "vault_e", "type": "box", "size": [0.2, 4, 3.0], "position": [10.1, 2, 7.8], "material": { "preset": "hall" } },
+    { "id": "rug", "type": "box", "size": [12, 0.02, 5], "position": [0, 0.01, 0], "collide": false, "material": { "preset": "velvet" } },
+    {
+      "id": "slot_w",
+      "type": "prefab",
+      "prefab": "return_slot",
+      "params": { "glow": "@rose" },
+      "position": [-9.9, 0, 0],
+      "rotation": [0, 90, 0],
+      "collide": false
+    },
+    {
+      "id": "slot_e",
+      "type": "prefab",
+      "prefab": "return_slot",
+      "params": { "glow": "@teal" },
+      "position": [9.9, 0, 0],
+      "rotation": [0, -90, 0],
+      "collide": false
+    },
+    { "id": "slot_n", "type": "prefab", "prefab": "return_slot", "position": [0, 0, 5.9], "rotation": [0, 180, 0], "collide": false },
+    { "id": "radio", "type": "prefab", "prefab": "radio_set", "position": [0, 0, -5.5], "collide": false },
+    { "id": "plinth_w", "type": "prefab", "prefab": "lode_plinth", "params": { "glow": "@rose" }, "position": [-8.2, 0, -4.6], "collide": false },
+    { "id": "plinth_e", "type": "prefab", "prefab": "lode_plinth", "params": { "glow": "@teal" }, "position": [8.2, 0, -4.6], "collide": false },
+    { "id": "plinth_n", "type": "prefab", "prefab": "lode_plinth", "params": { "glow": "@brass" }, "position": [8.2, 0, 4.0], "collide": false },
+    { "id": "stand_1", "type": "prefab", "prefab": "music_stand", "position": [-3, 0, -4.5], "collide": false },
+    { "id": "stand_2", "type": "prefab", "prefab": "music_stand", "position": [3, 0, -4.5], "rotation": [0, 20, 0], "collide": false },
+    { "id": "curtains", "type": "prefab", "prefab": "curtain_pair", "position": [-6, 0, -5.9], "collide": false },
+    {
+      "id": "fq_0",
+      "type": "sphere",
+      "radius": 0.07,
+      "position": [-0.5, 1.82, -5.2],
+      "collide": false,
+      "material": { "color": "@teal", "emissive": "@teal" }
+    },
+    {
+      "id": "fq_1",
+      "type": "sphere",
+      "radius": 0.07,
+      "position": [-0.2, 1.82, -5.2],
+      "collide": false,
+      "material": { "color": "@teal", "emissive": "@teal" }
+    },
+    {
+      "id": "fq_2",
+      "type": "sphere",
+      "radius": 0.07,
+      "position": [0.1, 1.82, -5.2],
+      "collide": false,
+      "material": { "color": "@hush", "emissive": "@hush" }
+    },
+    {
+      "id": "fq_3",
+      "type": "sphere",
+      "radius": 0.07,
+      "position": [0.4, 1.82, -5.2],
+      "collide": false,
+      "material": { "color": "@teal", "emissive": "@teal" }
+    },
+    { "id": "listener_1", "type": "prefab", "prefab": "listener", "position": [-8.0, 0, 0], "rotation": [0, 90, 0], "collide": false },
+    { "id": "listener_2", "type": "prefab", "prefab": "listener", "position": [8.0, 0, 0], "rotation": [0, -90, 0], "collide": false },
+    { "id": "listener_3", "type": "prefab", "prefab": "listener", "position": [0, 0, 4.4], "rotation": [0, 180, 0], "collide": false },
+    { "id": "it_chair", "type": "prop", "prop": "armchair", "movable": true, "position": [-4, 0, 0.5], "material": { "color": "@rose" } },
+    { "id": "it_crate", "type": "prop", "prop": "crate", "movable": true, "position": [2, 0, -1], "material": { "color": "@teal" } },
+    { "id": "it_barrel", "type": "prop", "prop": "barrel", "movable": true, "position": [-1, 0, 2.5], "material": { "color": "@brass" } },
+    { "id": "it_plant", "type": "prop", "prop": "potted_plant", "movable": true, "position": [5, 0, 1.5], "material": { "color": "@teal" } },
+    { "id": "it_table", "type": "prop", "prop": "nightstand", "movable": true, "position": [-6, 0, -2.5], "material": { "color": "@rose" } },
+    {
+      "id": "knob",
+      "type": "prop",
+      "prop": "fire_extinguisher",
+      "movable": true,
+      "position": [0, 0, -4.6],
+      "material": { "color": "@teal", "emissive": "@teal" }
+    },
+    {
+      "id": "stone_w",
+      "type": "prop",
+      "prop": "traffic_cone",
+      "movable": true,
+      "position": [-8.2, 0.5, -4.6],
+      "material": { "color": "@rose", "emissive": "@rose" }
+    },
+    {
+      "id": "stone_e",
+      "type": "prop",
+      "prop": "traffic_cone",
+      "movable": true,
+      "position": [8.2, 0.5, -4.6],
+      "material": { "color": "@teal", "emissive": "@teal" }
+    },
+    {
+      "id": "stone_n",
+      "type": "prop",
+      "prop": "traffic_cone",
+      "movable": true,
+      "position": [8.2, 0.5, 4.0],
+      "material": { "color": "@brass", "emissive": "@brass" }
+    }
+  ],
+  "checks": {
+    "lint": { "max_errors": 0, "max_warnings": 0, "ignore": ["floating", "interest"] },
+    "sim": [
+      {
+        "name": "mechanic: the dial turns the rule, the stone you pick up turns gravity, things slide straight at it",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "door" }],
+        "script": [
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "interact": "stone_e" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "wait": 4 }
+        ],
+        "expect": [
+          { "var": "freq", "eq": 1 },
+          { "field": "gravity", "aimed_at": "stone_e" },
+          { "event": "tuned", "count": 1 },
+          { "event": "touched", "count": 1 },
+          { "prop": "it_crate", "moved": true },
+          { "prop": "it_chair", "near": [7.0, -4.0], "tol": 1.5 },
+          { "prop": "it_barrel", "near": [7.0, -4.0], "tol": 1.5 },
+          { "shown": "fq_1" },
+          { "hidden": "fq_0" },
+          { "not_ended": true }
+        ],
+        "max_seconds": 40
+      },
+      {
+        "name": "each slot takes only its own things: the stone set down in the east slot returns the crate and plant, not the chair",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "door" }],
+        "script": [
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "interact": "stone_e" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "8.8,-2.5; 8.8,0" },
+          { "player": "p1", "hold": { "look_at": [9.6, 0.2, 0], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [9.6, 0.2, 0], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "8,-2.5; 6,-4.5" },
+          { "player": "p1", "wait": 8 }
+        ],
+        "expect": [
+          { "hidden": "it_crate" },
+          { "hidden": "it_plant" },
+          { "shown": "it_chair" },
+          { "var": "returned", "eq": 2 },
+          { "prop": "it_crate", "not_in_zone": "hall" },
+          { "not_ended": true }
+        ],
+        "max_seconds": 40
+      },
+      {
+        "name": "hush silences the touch: dial to 101 then stones make no noise and nothing leans",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "door" }],
+        "script": [
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "wait": 3.5 },
+          { "player": "p1", "interact": "stone_w" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "hold": { "look_at": [-7.2, 0.2, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [-7.2, 0.2, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "interact": "stone_e" },
+          { "player": "p1", "wait": 0.3 }
+        ],
+        "expect": [
+          { "var": "freq", "eq": 2 },
+          { "field": "gravity", "aimed_at": "stone_e" },
+          { "var": "noise", "eq": 0 },
+          { "var": "listen", "eq": 0 },
+          { "prop": "it_crate", "moved": false },
+          { "prop": "it_plant", "moved": false }
+        ],
+        "max_seconds": 40
+      },
+      {
+        "name": "inverse dial: picking up the west stone pushes the room away from it",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "door" }],
+        "script": [
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "interact": "stone_w" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "wait": 3 }
+        ],
+        "expect": [
+          { "var": "freq", "eq": 3 },
+          { "field": "gravity", "aimed_at": "stone_w" },
+          { "prop": "it_crate", "moved": true },
+          { "prop": "it_plant", "moved": true },
+          { "prop": "it_table", "near": [-1.9, 3.8], "tol": 1.5 }
+        ],
+        "max_seconds": 40
+      },
+      {
+        "name": "the listener stands in the west slot: a thing pushed in is handed back and the lean stops",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "door" }],
+        "script": [
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "wait": 4 },
+          { "player": "p1", "interact": "stone_w" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "-8.4,-2; -9.2,0" },
+          { "player": "p1", "hold": { "look_at": [-9.8, 0.2, 0.4], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [-9.8, 0.2, 0.4], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "-8.6,2.5" }
+        ],
+        "expect": [
+          { "event": "arrived", "min": 1 },
+          { "event": "bounced", "min": 1 },
+          { "field": "gravity", "aimed_at": null },
+          { "var": "returned", "eq": 0 },
+          { "shown": "listener_1" }
+        ],
+        "max_seconds": 40
+      },
+      {
+        "name": "noise draws the listener and he is heard three times: lose",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "door" }],
+        "script": [
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 },
+          { "player": "p1", "hold": { "attack": true, "seconds": 0.3 } },
+          { "player": "p1", "wait": 0.4 }
+        ],
+        "expect": [{ "event": "arrived", "min": 1 }, { "event": "heard", "min": 3 }, { "ended": "lose" }],
+        "max_seconds": 40
+      },
+      {
+        "name": "win: carry the weight east, west, then north, one slot at a time",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "door" }],
+        "script": [
+          { "player": "p1", "approach": "knob" },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.5, -4.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "interact": "stone_e" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "8.8,-2.5; 8.8,0" },
+          { "player": "p1", "hold": { "look_at": [9.6, 0.2, 0], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [9.6, 0.2, 0], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "8,-2.5; 6,-4.5" },
+          { "player": "p1", "wait": 15, "until_event": "departed" },
+          { "player": "p1", "interact": "stone_w" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "-8.4,-2; -9.2,0" },
+          { "player": "p1", "hold": { "look_at": [-9.8, 0.2, 0.4], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [-9.8, 0.2, 0.4], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "-8.6,2.5; -6,3" },
+          { "player": "p1", "wait": 7 },
+          { "player": "p1", "interact": "stone_n" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "6,5.2; 0,5.2" },
+          { "player": "p1", "hold": { "look_at": [0, 0.2, 5.8], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [0, 0.2, 5.8], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "0,2; -3,-3" },
+          { "player": "p1", "wait": 10 }
+        ],
+        "expect": [{ "var": "returned", "eq": 5 }, { "ended": "victory" }],
+        "max_seconds": 90
+      },
+      {
+        "name": "the weight moves with the stone: carried across the hall and set down, the room falls toward the new spot",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "door" }],
+        "script": [
+          { "player": "p1", "interact": "stone_n" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "2,4; -5,4" },
+          { "player": "p1", "hold": { "look_at": [-6, 0.2, 4], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [-6, 0.2, 4], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "walk": "-5,1; -2,-3" },
+          { "player": "p1", "wait": 6 }
+        ],
+        "expect": [{ "field": "gravity", "aimed_at": "stone_n" }, { "prop": "it_barrel", "near": [-5.5, 3.8], "tol": 1.6 }, { "not_ended": true }],
+        "max_seconds": 40
+      },
+      {
+        "name": "every touch re-aims the whole room: things heading east turn north",
+        "spawn_group": "solo",
+        "players": [{ "id": "p1", "character": "human", "spawn": "door" }],
+        "script": [
+          { "player": "p1", "interact": "stone_e" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "wait": 2.5 },
+          { "player": "p1", "hold": { "look_at": [8.2, 0.2, -3.6], "seconds": 0.2 } },
+          { "player": "p1", "hold": { "look_at": [8.2, 0.2, -3.6], "seconds": 0.2, "interact": true } },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "interact": "stone_n" },
+          { "player": "p1", "wait": 0.3 },
+          { "player": "p1", "wait": 5 }
+        ],
+        "expect": [{ "event": "touched", "count": 2 }, { "field": "gravity", "aimed_at": "stone_n" }, { "prop": "it_plant", "near": [7.5, 2.0], "tol": 1.2 }],
+        "max_seconds": 40
       }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "stone_e"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "wait": 4
-     }
-    ],
-    "expect": [
-     {
-      "var": "freq",
-      "eq": 1
-     },
-     {
-      "var": "pull",
-      "eq": 2
-     },
-     {
-      "event": "tuned",
-      "count": 1
-     },
-     {
-      "event": "touched",
-      "count": 1
-     },
-     {
-      "prop": "it_crate",
-      "moved": true
-     },
-     {
-      "shown": "fq_1"
-     },
-     {
-      "hidden": "fq_0"
-     },
-     {
-      "not_ended": true
-     }
-    ],
-    "max_seconds": 40
-   },
-   {
-    "name": "each slot takes only its own things: east pull returns the crate and plant, not the chair",
-    "spawn_group": "solo",
-    "players": [
-     {
-      "id": "p1",
-      "character": "human",
-      "spawn": "door"
-     }
-    ],
-    "script": [
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "stone_e"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "wait": 10
-     }
-    ],
-    "expect": [
-     {
-      "var": "it_crate_gone",
-      "eq": 1
-     },
-     {
-      "var": "it_plant_gone",
-      "eq": 1
-     },
-     {
-      "var": "it_chair_gone",
-      "eq": 0
-     },
-     {
-      "var": "returned",
-      "eq": 2
-     },
-     {
-      "hidden": "it_crate"
-     },
-     {
-      "not_ended": true
-     }
-    ],
-    "max_seconds": 40
-   },
-   {
-    "name": "hush silences the touch: dial to 101 then stones make no noise",
-    "spawn_group": "solo",
-    "players": [
-     {
-      "id": "p1",
-      "character": "human",
-      "spawn": "door"
-     }
-    ],
-    "script": [
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "wait": 3.5
-     },
-     {
-      "player": "p1",
-      "approach": "stone_w"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        -8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        -8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "stone_e"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     }
-    ],
-    "expect": [
-     {
-      "var": "freq",
-      "eq": 2
-     },
-     {
-      "var": "pull",
-      "eq": 2
-     },
-     {
-      "var": "noise",
-      "eq": 0
-     },
-     {
-      "var": "listen",
-      "eq": 0
-     }
-    ],
-    "max_seconds": 40
-   },
-   {
-    "name": "inverse dial: touching the west stone pushes the room east",
-    "spawn_group": "solo",
-    "players": [
-     {
-      "id": "p1",
-      "character": "human",
-      "spawn": "door"
-     }
-    ],
-    "script": [
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "stone_w"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        -8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        -8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "wait": 3
-     }
-    ],
-    "expect": [
-     {
-      "var": "freq",
-      "eq": 3
-     },
-     {
-      "var": "pull",
-      "eq": 1
-     },
-     {
-      "prop": "it_crate",
-      "moved": true
-     },
-     {
-      "prop": "it_plant",
-      "moved": true
-     }
-    ],
-    "max_seconds": 40
-   },
-   {
-    "name": "the listener stands in the west slot: a thing pushed in is handed back and the lean stops",
-    "spawn_group": "solo",
-    "players": [
-     {
-      "id": "p1",
-      "character": "human",
-      "spawn": "door"
-     }
-    ],
-    "script": [
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "stone_e"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "stone_w"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        -8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        -8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "wait": 2.5
-     }
-    ],
-    "expect": [
-     {
-      "event": "arrived",
-      "min": 1
-     },
-     {
-      "event": "bounced",
-      "min": 1
-     },
-     {
-      "var": "pull",
-      "eq": 0
-     },
-     {
-      "var": "it_chair_gone",
-      "eq": 0
-     },
-     {
-      "shown": "listener_1"
-     }
-    ],
-    "max_seconds": 40
-   },
-   {
-    "name": "noise draws the listener and he is heard three times: lose",
-    "spawn_group": "solo",
-    "players": [
-     {
-      "id": "p1",
-      "character": "human",
-      "spawn": "door"
-     }
-    ],
-    "script": [
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "attack": true,
-       "seconds": 0.3
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.4
-     }
-    ],
-    "expect": [
-     {
-      "event": "arrived",
-      "min": 1
-     },
-     {
-      "event": "heard",
-      "min": 3
-     },
-     {
-      "ended": "lose"
-     }
-    ],
-    "max_seconds": 70
-   },
-   {
-    "name": "win: waltz west, east, north, one slot at a time",
-    "spawn_group": "solo",
-    "players": [
-     {
-      "id": "p1",
-      "character": "human",
-      "spawn": "door"
-     }
-    ],
-    "script": [
-     {
-      "player": "p1",
-      "approach": "knob"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        0,
-        0.5,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "approach": "stone_e"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "wait": 9
-     },
-     {
-      "player": "p1",
-      "approach": "stone_w"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        -8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        -8.2,
-        0.7,
-        -4.6
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "wait": 9
-     },
-     {
-      "player": "p1",
-      "approach": "stone_n"
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        4.0
-       ],
-       "seconds": 0.2
-      }
-     },
-     {
-      "player": "p1",
-      "hold": {
-       "look_at": [
-        8.2,
-        0.7,
-        4.0
-       ],
-       "seconds": 0.2,
-       "interact": true
-      }
-     },
-     {
-      "player": "p1",
-      "wait": 0.3
-     },
-     {
-      "player": "p1",
-      "wait": 12
-     }
-    ],
-    "expect": [
-     {
-      "var": "returned",
-      "eq": 5
-     },
-     {
-      "ended": "victory"
-     }
-    ],
-    "max_seconds": 120
-   }
+    ]
+  },
+  "fields": [
+    {
+      "id": "gravity",
+      "zone": "hall",
+      "toward": null,
+      "props": ["it_chair", "it_crate", "it_barrel", "it_plant", "it_table"],
+      "speed": "(freq == 0) * 1.5 + (freq == 1) * 4 - (freq == 3) * 3"
+    }
   ]
- }
 }

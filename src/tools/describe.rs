@@ -568,7 +568,7 @@ fn rules_text() -> String {
         "Game rules are data in the scene: `vars` (numbers/bools) and `rules`. Everything a rule names is validated when the scene loads.\n\n\
          rule = { id, when, who?, if?, once?, cooldown?, do }\n\
          \x20 when      exactly one of: {enter: VOLUME} {exit: VOLUME} {event: name} {every: secs} {after: secs} {start: true}\n\
-         \x20           {prop_enter: VOLUME} {prop_exit: VOLUME} (a loose prop's origin crosses in/out; add `prop: id` beside it for one prop)\n\
+         \x20           {prop_enter: VOLUME} {prop_exit: VOLUME} (a loose prop's origin crosses in/out; `prop: id | [ids]` beside it: only those)\n\
          \x20           {prop_below: [prop_id, y]} (its origin drops below y metres)\n\
          \x20 who       any (default) | human | rat | team1 | team2   (player triggers only; team1/team2 need \"teams\": true or a shooter block)\n\
          \x20 if        expression over the vars (and built-ins time, tick, players): `score >= 3 && !has_key`\n\
@@ -590,6 +590,33 @@ fn rules_text() -> String {
     for (_, _, help) in crate::sim::rules_expr::Func::ALL {
         out.push_str(&format!("      {help}\n"));
     }
+    out.push_str("Math and chance (any expression):\n");
+    for (_, _, _, help) in crate::sim::rules_expr::MathFn::ALL {
+        out.push_str(&format!("      {help}\n"));
+    }
+    out.push_str(&format!("      {}\n", crate::sim::rules_expr::RANDOM_HELP));
+    out.push_str(
+        "THE RULE'S SUBJECT `self`: a rule fired by one loose prop knows which — prop_enter / prop_exit (each prop that crosses fires it once),\n\
+         prop_below, and the engine events pickup / drop / prop_hit (the prop taken, put down or struck). `self` stands for it wherever a\n\
+         rule names a loose prop: `held(self)` `in_zone(self, pit)`, hide/show self, reset self, place [self, [x,y,z]], impulse {object: self},\n\
+         aim [field, self]. An `emit` passes its subject on to the rules it triggers (like the player for `me.`). `prop: id | [ids]` beside\n\
+         prop_enter / prop_exit / a prop's event fires the rule only for those props. `self` in a start/every/after/enter/exit rule, or on an\n\
+         event about no prop (shot, hit, kill, respawn, swing), is a validate error, and no object may be called `self`; where a custom event arrives without one, `self`\n\
+         actions do nothing and its functions read 0. Several triggers in one tick fire in a fixed order: props in physics (scene) order,\n\
+         events in the order they were raised, so the last pickup of a tick is the last `aim`.\n\
+         FIELDS (`fields`, every tick, before the rules): {id, VOLUME keys, velocity: [x, z] | lift: m/s | toward + speed, rate?, props?}.\n\
+         \x20 velocity/lift  a speed target: props inside are pulled toward it at `rate` per second (default 10, at most 60): a river, a belt, wind\n\
+         \x20 toward + speed an AIMED field: each prop is pulled at `speed` m/s along its own line to the target (negative = pushed away): a loose\n\
+         \x20                prop id (followed as it moves, in a player's hands too; triggers still count a carried prop where it was picked\n\
+         \x20                up until it is dropped), a top-level object (its centre), [x,y,z], or null (off).\n\
+         \x20                Horizontal only (floors and gravity still act); it never brakes a prop already going faster that way and fades to\n\
+         \x20                nothing within 0.5 m of the target; the target itself and carried props are not pushed. `aim [field, target]` re-aims it.\n\
+         \x20 props          only these loose props (an id or a list); default every loose prop in the volume.\n\
+         \x20 Any number but `rate` may be an expression over the vars, evaluated once per tick (`\"speed\": \"(dial == 1) * 4 - (dial == 3) * 3\"`;\n\
+         \x20 no me./self). At most 32 fields. Where a field is aimed is rule state (checksummed, replayed, reset each match; not saved by\n\
+         \x20 `persist`); its pushes are re-derived every tick on the server, in `sim` and in offline `re2` alike, and clients see the props move.\n\
+         \x20 Prove it: `{\"field\": \"gravity\", \"aimed_at\": \"stone\"}` and `{\"prop\": id, \"near\": [x, z]}` in `checks.sim`. `recipe whistle_herd`.\n",
+    );
     out.push_str(
         "Engine events a rule can react to (`when: {event}`): pickup, drop, shot, hit, kill, respawn, swing (a bat swing started),\n\
          prop_hit (a bat or bullet struck a loose prop). A prop is inside a volume when its origin is inside in x/z and its height\n\
@@ -600,8 +627,8 @@ fn rules_text() -> String {
          var undoes the `enter` rule's work (key on `enter`, or use one var per volume). A player or prop that starts inside a volume\n\
          gets no `enter` (use a `start` rule). A var whose name starts with `_` is internal: the generic HUD does not show it.\n\
          Rules run in the authoritative simulation (server, `sim`), deterministically; state (vars, hidden objects, outcome, prop\n\
-         occupancy) is part of the match checksum. Offline `re2` runs the same rule state machine: hide/show changes rendering, collision\n\
-         changes static movement/ground collision for a top-level object, teleport/impulse/reset/place are applied, the engine events\n\
+         occupancy, field aims) is part of the match checksum. Offline `re2` runs the same rule state machine: hide/show changes rendering, collision\n\
+         changes static movement/ground collision for a top-level object, teleport/impulse/reset/place and field pushes are applied, the engine events\n\
          are injected, and vars/events/outcome appear in a generic HUD. Online clients use the same HUD from a repeated bounded\n\
          authoritative state, so loss, reconnect and late join recover it. Prove a rule with `checks.sim` (see `describe sim`).\n\
          Level states: lint/reach/walk see a gate closed unless an unconditional `start` rule opens it. Name the states a rule creates with\n\
@@ -766,7 +793,8 @@ fn sim_text() -> String {
          \x20 expect   [{event: name, count|min|max} {no_event: name} {var: name, eq|ne: number|bool, gt|gte|lt|lte: number}\n\
          \x20           {ended: outcome} {not_ended: true} {hidden|shown: object id} {collision_disabled|collision_enabled: object id}\n\
          \x20           {player: id, near: [x,z], tol?, y?}\n\
-         \x20           {prop: id, in_zone|not_in_zone: zone | below_y|y_lt|y_gt: m | tilt_gt|tilt_lt: deg | moved: bool | near: [x,z], tol?, y? | held_by: player|none}]\n\
+         \x20           {prop: id, in_zone|not_in_zone: zone | below_y|y_lt|y_gt: m | tilt_gt|tilt_lt: deg | moved: bool | near: [x,z], tol?, y? | held_by: player|none}\n\
+         \x20           {field: aimed field id, aimed_at: loose prop id | null}]\n\
          The run ends when a rule `end`s the match, when every script is done (+ settle), or at max_seconds. The report lists where\n\
          every player ended and every loose prop that moved (`--json`: all props, with tilt / moved / asleep / held_by).\n\n\
          red_engine2 replay <trace.json> [--scene map.json] [--against other.json]\n\
