@@ -47,7 +47,9 @@ pub mod pathing;
 pub mod pe;
 pub mod perf;
 pub mod plan;
-pub mod portmap;
+/// `red_engine2 portmap`'s work moved to `red_core` (`net::portmap`, next to `net::upnp`): the headless server keeps a mapping alive. Kept
+/// here so `red_engine2::tools::portmap` still names it.
+pub use crate::net::portmap;
 pub mod preflight;
 pub mod procgen_map;
 pub mod propose;

@@ -46,6 +46,7 @@ pub mod net {
     pub mod join_code;
     pub mod limits;
     pub mod netsim;
+    pub mod portmap;
     pub mod relay;
     pub mod upnp;
 

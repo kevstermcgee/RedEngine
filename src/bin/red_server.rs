@@ -346,8 +346,8 @@ fn main() {
     let stop = Arc::new(AtomicBool::new(false));
     // UPnP: map the port on the home router, keep it alive from a small thread, remove it when the server stops.
     let upnp_thread = upnp.then(|| {
-        let opts = red_engine2::tools::portmap::Options { port: local.port(), ..Default::default() };
-        match red_engine2::tools::portmap::Keeper::start(&opts) {
+        let opts = red_engine2::net::portmap::Options { port: local.port(), ..Default::default() };
+        match red_engine2::net::portmap::Keeper::start(&opts) {
             Ok((mut keeper, report)) => {
                 print!("{report}");
                 let s = stop.clone();

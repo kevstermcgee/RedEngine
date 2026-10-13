@@ -199,8 +199,8 @@ impl LocalHost {
         let stop = Arc::new(AtomicBool::new(false));
         if let Some(p) = public {
             if p.upnp {
-                let options = crate::tools::portmap::Options { port: bound.port(), ..Default::default() };
-                match crate::tools::portmap::Keeper::start(&options) {
+                let options = crate::net::portmap::Options { port: bound.port(), ..Default::default() };
+                match crate::net::portmap::Keeper::start(&options) {
                     Ok((mut k, _report)) => {
                         if let Some(a) = k.found().join_address(bound.port()) {
                             join_addresses.push(a);
