@@ -93,7 +93,7 @@ fn read(root: &Path, rel: &str) -> String {
 }
 
 /// The documents an agent reads first.
-pub const AI_DOCS: &[&str] = &["CLAUDE.md", "AGENTS.md", "docs/AGENT_REFERENCE.md"];
+pub const AI_DOCS: &[&str] = &["CLAUDE.md", "AGENTS.md", "docs/MAKING_GAMES.md", "docs/ENGINE_WORK.md", "docs/AGENT_REFERENCE.md"];
 
 // ---- the checks ---------------------------------------------------------------------------------------------------------------------------------------
 
@@ -474,6 +474,24 @@ fn status_warning(root: &Path) -> Option<String> {
     })
 }
 
+/// The entry point and its two pages over their byte budgets ([`super::own_docs::ENTRY_BUDGETS`]).
+fn check_entry_budgets(root: &Path) -> Vec<Problem> {
+    super::own_docs::ENTRY_BUDGETS
+        .iter()
+        .filter_map(|(f, budget)| {
+            let size = read(root, f).len();
+            (size > *budget).then(|| {
+                problem(
+                    "docs",
+                    format!("{f} is {size} bytes, over its budget of {budget}: every agent reads it first"),
+                    format!("move detail out of {f} (into docs/AGENT_REFERENCE.md, which `search` indexes) until it is under {budget} bytes"),
+                    None,
+                )
+            })
+        })
+        .collect()
+}
+
 /// Runs the checks. Nothing is compiled; on this repository it takes a fraction of a second (a second or two with `fmt`).
 pub fn run(root: &Path, opts: &Options) -> Report {
     let started = Instant::now();
@@ -486,7 +504,9 @@ pub fn run(root: &Path, opts: &Options) -> Report {
     add("features", check_features(root));
     add("facts", check_facts(root));
     add("headless", check_headless(root));
-    add("docs", check_docs(root, if opts.tree { &[] } else { &opts.commands }));
+    let mut docs = check_docs(root, if opts.tree { &[] } else { &opts.commands });
+    docs.extend(check_entry_budgets(root));
+    add("docs", docs);
     add("lf", check_line_endings(root));
     if opts.tree {
         r.skipped.extend(["the CLI command table", "the describe byte budgets"]);

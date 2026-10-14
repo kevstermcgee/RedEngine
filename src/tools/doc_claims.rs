@@ -9,8 +9,18 @@ use super::status;
 use std::path::Path;
 
 /// The documents whose claims are checked: what an outsider or an agent opens first, and the two long references that repeat facts about the build.
-pub const CLAIM_DOCS: &[&str] =
-    &["README.md", "AGENTS.md", "CLAUDE.md", "docs/AGENT_REFERENCE.md", "docs/ENGINE_OVERVIEW.md", "docs/VIEWER_HISTORY.md", "docs/HOSTING.md", "SPEC.md"];
+pub const CLAIM_DOCS: &[&str] = &[
+    "README.md",
+    "AGENTS.md",
+    "docs/MAKING_GAMES.md",
+    "docs/ENGINE_WORK.md",
+    "CLAUDE.md",
+    "docs/AGENT_REFERENCE.md",
+    "docs/ENGINE_OVERVIEW.md",
+    "docs/VIEWER_HISTORY.md",
+    "docs/HOSTING.md",
+    "SPEC.md",
+];
 
 fn read(root: &Path, rel: &str) -> String {
     std::fs::read_to_string(root.join(rel)).unwrap_or_default().replace("\r\n", "\n")

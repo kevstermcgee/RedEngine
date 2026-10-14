@@ -438,7 +438,7 @@ def plan_game_create(ctx):
     pointers = [
         {"what": "the 2D game format on one page (~8 KB)" if kind == "2d" else "game rules as data", "argv": ctx["red"] + (["describe", "2d"] if kind == "2d" else ["describe", "rules"])},
         {"what": "capability matrix: presentation x platform x networking x input", "argv": ctx["red"] + ["capabilities"], "also": "docs/PLAY_2D.md"},
-        {"what": "how this project works (agent entry point)", "file": "AGENTS.md", "section": "Making a game: blueprints and game projects"}]
+        {"what": "how a game is made (the game-maker's page)", "file": "docs/MAKING_GAMES.md", "section": "Making a game: blueprints and game projects"}]
     blockers, uncertainty, missing = [], [], []
     if exe:
         args = ["propose", *task.split()]
@@ -514,7 +514,7 @@ def loop_commands(kind, name, project, cons):
 
 
 def plan_engine_change(ctx):
-    """Focused engine change: owning features, the context packet, then the iterate -> affected ladder. The ladder is AGENTS.md's; escalation is `affected`'s."""
+    """Focused engine change: owning features, the context packet, then the iterate -> affected ladder. The ladder is docs/ENGINE_WORK.md's; escalation is `affected`'s."""
     res, exe, task = ctx["resolution"], ctx["exe"], ctx["task"]
     root = res["engine"]["root"]
     owners = feature_owners(load_features(root), task)
@@ -541,7 +541,7 @@ def plan_engine_change(ctx):
                      after={"argv": ctx["dev"] + ["context", primary or "<words>"], "cwd": root})
     return {"plan": {"owners": [o["feature"] for o in owners]}, "capabilities": {"source": "docs/features.json (feature ownership)", "checked": bool(owners), "supported": None,
             "note": "an engine change has no capability to check; whether it is possible is decided by the owning feature's tests"},
-            "context": {"packet": packet, "pointers": [{"what": "the workflow and ladder", "file": "AGENTS.md", "section": "Spend context and time like they cost money"}]},
+            "context": {"packet": packet, "pointers": [{"what": "the workflow and ladder", "file": "docs/ENGINE_WORK.md", "section": "Spend context and time like they cost money"}]},
             "next_action": nxt, "blockers": blockers, "uncertainty": uncertainty, "missing": missing, "iteration_checks": checks, "final_requirements": final}
 
 

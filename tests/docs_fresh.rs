@@ -122,3 +122,16 @@ fn search_finds_an_adr_written_after_the_binary_was_built() {
     assert!(run(&["describe", "decisions"]).contains("zebra marmalade"), "describe decisions reads the checkout's index");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// `AGENTS.md` is the entry point every agent reads first: it stays under its budget, as do the two pages it sends the reader to, and it names both.
+#[test]
+fn the_entry_point_and_its_two_pages_stay_under_their_budgets() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for (f, budget) in red_engine2::tools::own_docs::ENTRY_BUDGETS {
+        let size = std::fs::read(root.join(f)).unwrap_or_else(|e| panic!("{f}: {e}")).len();
+        assert!(size <= *budget, "{f} is {size} bytes, over its budget of {budget}");
+    }
+    let agents = std::fs::read_to_string(root.join("AGENTS.md")).unwrap();
+    assert!(agents.contains("docs/MAKING_GAMES.md") && agents.contains("docs/ENGINE_WORK.md"), "AGENTS.md sends the reader to one of the two pages");
+    assert!(!agents.contains("read [`SPEC.md`]"), "AGENTS.md does not tell the reader to read SPEC.md (search it)");
+}
