@@ -3,6 +3,12 @@
 Short records of *why* Red Engine 2 is built the way it is, so nobody re-derives intent from code.
 `red_engine2 search <topic>` indexes them (kind `adr`); `red_engine2 adr list` prints the table below. Read the one-line summaries first.
 
+**When to write one:** for a decision a future reader would otherwise re-derive: a choice between real alternatives whose reason the code does not
+show (a format, a boundary between parts, a trade-off nobody would guess). Not for a fix, a feature that follows an earlier decision, a rename, a
+measurement (that is `docs/analysis/`), or a plan and its progress (that is `STATUS.md`: `red_engine2 status --note "..."`). When in doubt, say it in
+the pull request and a status note; 87 records in twelve days (2026-10-01..12) was the sign the bar had slipped
+(docs/analysis/2026-10-13-next-phase-review-verified.md).
+
 The table is **generated** from the files (`red_engine2 adr index --write`, also done by `adr new` and `preflight --fix`); a test fails when it is stale. Edit an ADR's
 `Summary:` line, never the table.
 
