@@ -7,7 +7,7 @@
 //! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use super::match_sim::MatchSim;
-use super::objective::{Actor, BombState, Cmd, FlagState, ObjEvent, BLAST_RADIUS, DEFUSE_RADIUS, EVENT_LOG};
+use super::objective::{Actor, Cmd, ObjEvent, BLAST_RADIUS, EVENT_LOG};
 use super::ordnance::{FxEvent, FxKind};
 use super::shooter::{ModeKind, ShooterGame};
 use crate::weapons::Weapon;
@@ -114,107 +114,6 @@ impl ShooterGame {
                 arena.fx.remove(0);
             }
             arena.fx.push(FxEvent { id, kind: FxKind::Blast, pos: at, size: BLAST_RADIUS * 0.8, tick: now });
-        }
-    }
-}
-
-/// Where an objective-minded bot wants to be, and whether it should be holding Interact there.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ObjGoal {
-    /// Where to go (the ground there).
-    pub at: Vec3,
-    /// Hold Interact now (planting or defusing).
-    pub hold: bool,
-    /// Carrying the flag or bomb, or racing to take back one's own: worth running past a fight.
-    pub urgent: bool,
-}
-
-impl MatchSim {
-    /// What the bot in `slot` should do about the objective right now, `None` in the kill modes or when it has nothing to do. It never
-    /// overrides a fight: the bot brain asks only when no enemy is in view.
-    pub fn bot_objective_goal(&self, slot: usize) -> Option<ObjGoal> {
-        let arena = self.arena()?;
-        let me = self.player(slot)?;
-        if me.combat.is_dead() || !(1..=2).contains(&me.team) {
-            return None;
-        }
-        let team = me.team;
-        let pos = Vec3::new(me.state.pos.x, me.state.foot_y, me.state.pos.y);
-        // A little spread so teammates do not all stand on one spot.
-        let spread = |i: usize| {
-            let a = i as f32 * 2.399;
-            Vec3::new(a.cos() * 3.0, 0.0, a.sin() * 3.0)
-        };
-        if let Some(ctf) = &arena.ctf {
-            let (mine, theirs) = (&ctf.flags[(team - 1) as usize], &ctf.flags[(2 - team) as usize]);
-            // Raiders split between lanes: a point beside the middle of the line between the two bases, on the side their slot picks. A raider
-            // who has not yet passed the middle heads there first, so two teams' raiders do not all meet head-on in the shortest lane.
-            let axis = theirs.home - mine.home;
-            let len = axis.length().max(1.0);
-            let (dir, side) = (axis / len, Vec3::new(-axis.z, 0.0, axis.x) / len);
-            let along = (pos - mine.home).dot(dir) / len; // 0 at my base, 1 at theirs
-            let mut lane = mine.home + axis * 0.5 + side * if slot.is_multiple_of(2) { 26.0 } else { -26.0 };
-            // A waypoint must be somewhere a bot can walk to: snap it to the nearest node of the map's walkable graph.
-            if let Some(nav) = self.nav() {
-                if let Some(i) = nav.nearest(Vec3::new(lane.x, 0.0, lane.z), 1.0) {
-                    lane = nav.node(i).pos;
-                }
-            }
-            if ctf.carried_by(slot as u8).is_some() {
-                // Home by the same lane they came by, once past the middle.
-                let at = if along > 0.6 { lane } else { mine.home };
-                return Some(ObjGoal { at, hold: false, urgent: true });
-            }
-            match mine.state {
-                FlagState::Carried { pos, .. } | FlagState::Dropped { pos, .. } => return Some(ObjGoal { at: pos, hold: false, urgent: true }),
-                FlagState::Home => {}
-            }
-            if let FlagState::Carried { slot: c, .. } = theirs.state {
-                if self.team_of(c as usize) == team {
-                    return Some(ObjGoal { at: mine.home + spread(slot), hold: false, urgent: false });
-                }
-            }
-            // One bot in three guards the home flag; the rest go for the other one.
-            if slot.is_multiple_of(3) {
-                return Some(ObjGoal { at: mine.home + spread(slot), hold: false, urgent: false });
-            }
-            // Not yet in the middle: go by the chosen lane; past it: for the flag.
-            return Some(ObjGoal { at: if along < 0.4 { lane } else { theirs.pos() }, hold: false, urgent: false });
-        }
-        let snd = arena.snd.as_ref()?;
-        if snd.locked() {
-            return None;
-        }
-        let site_for = |i: usize| snd.sites()[i % snd.sites().len()];
-        if team == snd.attackers {
-            return match snd.bomb {
-                BombState::Carried { slot: c, .. } if c as usize == slot => {
-                    let site = *snd.sites().iter().min_by(|a, b| (a.at - pos).length().total_cmp(&(b.at - pos).length()))?;
-                    let d = site.at - pos;
-                    let on_site = d.x * d.x + d.z * d.z < (site.radius * 0.7).powi(2);
-                    Some(ObjGoal { at: if on_site { pos } else { site.at }, hold: on_site, urgent: true })
-                }
-                BombState::Carried { slot: c, .. } => self.player(c as usize).map(|p| ObjGoal {
-                    at: Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y) + spread(slot),
-                    hold: false,
-                    urgent: false,
-                }),
-                BombState::Dropped(p) => Some(ObjGoal { at: p, hold: false, urgent: true }),
-                BombState::Planted { pos, .. } => Some(ObjGoal { at: pos + spread(slot) * 2.0, hold: false, urgent: false }),
-                _ => None,
-            };
-        }
-        match snd.bomb {
-            BombState::Planted { pos, .. } => {
-                let d = pos - Vec3::new(me.state.pos.x, pos.y, me.state.pos.y);
-                let close = d.x * d.x + d.z * d.z < (DEFUSE_RADIUS * 0.8).powi(2);
-                Some(ObjGoal { at: pos, hold: close, urgent: true })
-            }
-            BombState::Defused(_) | BombState::Exploded(_) => None,
-            _ => {
-                let site = site_for(slot);
-                Some(ObjGoal { at: site.at + spread(slot) * 1.5, hold: false, urgent: false })
-            }
         }
     }
 }

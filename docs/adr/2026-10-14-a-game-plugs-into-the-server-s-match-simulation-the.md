@@ -46,6 +46,12 @@ The museum had the same shape on the client side and moved behind `client::GameM
   of a shot still drops the kit and scores the kill where it always did. `Combat::kit` is gone (`MatchSim::kit(slot)` reads it);
   `Combat::state_hash_with` folds the game's per-player hash where the kit's was.
 
+- *Step 3 as built (2026-10-14):* `MatchGame::bot_mind` gives a new bot the game's part of its mind (`sim::game::BotMind`: `weapons`,
+  `objective`, `pickup`, `reached_pickup`), kept in its brain; the brain asks it where the shooter's code ran (after aiming and firing; in its
+  movement), with a `BotCtx` that lends it the brain's own random numbers, so the draws come in the same order. `ShooterBot`
+  (`sim::shooter_bots`) is the shooter's: what the brain's `kit_management`, `pickup_goal` and `MatchSim::bot_objective_goal` did, and the four
+  fields they remembered. `BotGoal` replaces the objective's `ObjGoal`.
+
 ## Consequences
 The engine's match simulation no longer knows a loadout match; any game with a server-side rule set of its own (a mode, a kit, an objective) plugs
 in the same way. Killchain gets a server binary of its own, which its hosting (and RedEngineGames, for its download) learns: the engine's

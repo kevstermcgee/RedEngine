@@ -57,6 +57,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: item 5.6 merged (#152 audit + ADR); protocol v16 GameMsg + net::arena_wire (PR): the loadout shooter's first step out
 - 2026-10-14: shooter move step 1: loadout parity harness + ADR a-game-plugs-into-the-server-s-match-simulation-the (PR); 6 steps planned
 - 2026-10-14: shooter move step 2: sim::game::MatchGame + ShooterGame (PR); parity fingerprints unchanged
+- 2026-10-14: shooter move step 3: bot minds (MatchGame::bot_mind, ShooterBot) (PR); step 2 merged (#155); parity unchanged
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
