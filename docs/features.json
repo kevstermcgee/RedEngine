@@ -183,7 +183,7 @@
     "museum": {
       "summary": "An endless museum (`museum` block): rooms, doors and wings from a seed, art with plaques written from a collection, a key hidden in each room (sometimes paintings deep), the worlds inside paintings, sculptures that answer the viewer, the visit and its flights, the GPU layer, serif labels and the map; `museum` prints a room and draws a piece, a painting's world, the plan or every style.",
       "files": ["src/museum/**", "src/museum_gpu.rs", "src/tools/museum_tool.rs", "src/content/museum.rs", "src/ui/serif.rs", "src/client/museum.rs", "schemas/collection.schema.json", "examples/frameless/**"],
-      "tests": ["lib:museum", "lib:ui::serif", "content_drift"],
+      "tests": ["lib:museum", "lib:ui::serif", "content_drift", "frameless_visit"],
       "commands": ["red_engine2 museum examples/frameless/frameless.json", "red_engine2 museum examples/frameless/frameless.json --inside 1 --shot out/inside.png", "red_engine2 museum examples/frameless/frameless.json --styles out/styles.png"],
       "docs": ["docs/adr/2026-10-11-an-endless-museum-is-a-scene-block-the-engine-builds.md", "docs/adr/2026-10-11-a-game-paints-surfaces-with-its-own-checked-wgsl-and.md", "docs/adr/2026-10-11-text-that-is-read-is-set-in-the-player-s-own-system.md", "docs/adr/2026-10-11-a-game-steers-its-music-journey.md"],
       "depends_on": ["scene_format", "offline_renderer", "player_physics", "audio", "ui_kit", "graphical_client"]
