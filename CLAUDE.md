@@ -1,6 +1,6 @@
 # Red Engine 2
 
-**Read [`AGENTS.md`](AGENTS.md): it is the single entry point** (the workflow, the cheap-by-default ladder, the tools). This file only holds what Claude Code loads first and the facts derived from the code.
+**Read [`AGENTS.md`](AGENTS.md): it is the single entry point** (the first commands, then one page: `docs/MAKING_GAMES.md` to make a game or a map, `docs/ENGINE_WORK.md` to change the engine's Rust). This file only holds what Claude Code loads first and the facts derived from the code.
 
 - First command: `scripts/dev start "<your task>"` (in a game project `scripts/red start "<task>"`); then `scripts/dev red describe --brief` and `scripts/dev red search "<question>"`.
 - You never read engine source and never guess: the engine describes itself, checks your work and explains its failures. Do not open `SPEC.md` or `docs/AGENT_REFERENCE.md` whole and do not `@`-import either (10k+ tokens every session): use `search`.

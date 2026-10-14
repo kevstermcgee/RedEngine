@@ -168,6 +168,8 @@ pub fn corpus_with(own: &Docs, commands: &Value) -> Vec<Doc> {
     let mut docs = Vec::new();
     chunk_markdown("SPEC.md", "doc", &own.spec, &mut docs);
     chunk_markdown("AGENTS.md", "doc", &own.agents, &mut docs);
+    chunk_markdown("docs/MAKING_GAMES.md", "doc", &own.making_games, &mut docs);
+    chunk_markdown("docs/ENGINE_WORK.md", "doc", &own.engine_work, &mut docs);
     chunk_markdown("docs/AGENT_REFERENCE.md", "doc", &own.agent_reference, &mut docs);
     chunk_markdown("docs/GLOSSARY.md", "glossary", &own.glossary, &mut docs);
     // The 2D path: a question about a 2D game, a sprite, a scenario or playing it natively must find the 2D material, not scene objects (a fresh author's first `search` did).

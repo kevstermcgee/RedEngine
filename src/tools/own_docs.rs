@@ -7,6 +7,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+/// The entry point and the two pages it sends an agent to, each with the most bytes it may hold: every agent reads `AGENTS.md` first, so it stays
+/// small (ADR 2026-10-13-the-next-phase's alongside items; checked by `preflight` and `tests/docs_fresh.rs`).
+pub const ENTRY_BUDGETS: &[(&str, usize)] = &[("AGENTS.md", 6_000), ("docs/MAKING_GAMES.md", 6_000), ("docs/ENGINE_WORK.md", 10_000)];
+
 /// The documents, as one process reads them.
 #[derive(Debug, Clone, Default)]
 pub struct Docs {
@@ -16,6 +20,10 @@ pub struct Docs {
     pub spec: String,
     /// `AGENTS.md`.
     pub agents: String,
+    /// `docs/MAKING_GAMES.md`: the game-maker's page AGENTS.md points to.
+    pub making_games: String,
+    /// `docs/ENGINE_WORK.md`: the engine maintainer's page AGENTS.md points to.
+    pub engine_work: String,
     /// `docs/AGENT_REFERENCE.md`.
     pub agent_reference: String,
     /// `docs/PLAY_2D.md`.
@@ -72,6 +80,8 @@ pub fn read_from(root: &Path) -> Docs {
         root: Some(root.to_path_buf()),
         spec: text("SPEC.md"),
         agents: text("AGENTS.md"),
+        making_games: text("docs/MAKING_GAMES.md"),
+        engine_work: text("docs/ENGINE_WORK.md"),
         agent_reference: text("docs/AGENT_REFERENCE.md"),
         play_2d: text("docs/PLAY_2D.md"),
         glossary: text("docs/GLOSSARY.md"),
@@ -107,6 +117,8 @@ pub fn embedded() -> Option<Docs> {
             root: None,
             spec: copies::SPEC.to_string(),
             agents: copies::AGENTS.to_string(),
+            making_games: copies::MAKING_GAMES.to_string(),
+            engine_work: copies::ENGINE_WORK.to_string(),
             agent_reference: copies::AGENT_REFERENCE.to_string(),
             play_2d: copies::PLAY_2D.to_string(),
             glossary: copies::GLOSSARY.to_string(),
@@ -127,6 +139,8 @@ pub fn embedded() -> Option<Docs> {
 mod copies {
     pub const SPEC: &str = include_str!("../../SPEC.md");
     pub const AGENTS: &str = include_str!("../../AGENTS.md");
+    pub const MAKING_GAMES: &str = include_str!("../../docs/MAKING_GAMES.md");
+    pub const ENGINE_WORK: &str = include_str!("../../docs/ENGINE_WORK.md");
     pub const AGENT_REFERENCE: &str = include_str!("../../docs/AGENT_REFERENCE.md");
     pub const PLAY_2D: &str = include_str!("../../docs/PLAY_2D.md");
     pub const GLOSSARY: &str = include_str!("../../docs/GLOSSARY.md");
