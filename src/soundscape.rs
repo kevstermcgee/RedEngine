@@ -3,6 +3,9 @@
 //! Everything that decides *what is heard* and nothing that makes a sound: the desktop client ([`crate::mixer`] and its sound card) drives one [`Soundscape`] and turns its [`Mix`]
 //! into sound, so the dawn chorus, the music's crossfades and a rule layer's fade are decided in one place that can be tested without a sound card.
 //! The loops themselves are rendered by [`crate::nature::Bed::render`], [`crate::score::Score::render`] and [`call_clip`].
+//!
+//! Used by 16 games, among them Marcel, Wormhole, Chroma, Frameless, Great Outdoors, Killchain and Velvet Orchestra (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 use crate::ambience::{layer_target, Ambience, AudioSpec, Context, Frame, Heard};
 use crate::mixer::Duck;

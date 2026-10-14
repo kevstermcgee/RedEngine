@@ -14,6 +14,9 @@
 //! two grenades. Weapons lie about the map ([`MapPickup`]) and drop from the dead ([`Dropped`]); rockets and grenades fly as
 //! [`Projectile`](super::ordnance::Projectile)s; two teams keep score. This module is data and bookkeeping; the rules that act on it are in
 //! `sim::kit` (what a player does) and `sim::ordnance` (what flies and explodes).
+//!
+//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
+//! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use super::kit::Kit;
 use super::ordnance::{FxEvent, Projectile, Zone};

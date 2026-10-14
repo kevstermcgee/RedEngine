@@ -5,6 +5,9 @@
 //!
 //! Pure: [`loop_samples`] returns interleaved stereo `f32` at [`crate::synth::SAMPLE_RATE`]; tests check its length, level, seam, rhythm and that the
 //! bass and the arpeggio play the notes the chords say (a piece of music cannot be looked at, but its pitches can be measured).
+//!
+//! Used by 16 games, among them Marcel, Wormhole, Chroma, Frameless, Great Outdoors, Killchain and Velvet Orchestra (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 use crate::dsp::{saw, Noise};
 use crate::synth::SAMPLE_RATE;

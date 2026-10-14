@@ -2,6 +2,9 @@
 //!
 //! Split from `match_sim` so the world stays free of mode rules: a mode here only reads positions and deaths, and acts through three
 //! doors (revive everyone for a new round, hurt players near the blast, hold players still during the freeze).
+//!
+//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
+//! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use super::match_sim::MatchSim;
 use super::objective::{Actor, BombState, Cmd, FlagState, ObjEvent, BLAST_RADIUS, DEFUSE_RADIUS, EVENT_LOG};

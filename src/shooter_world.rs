@@ -4,6 +4,9 @@
 //! The server sends an [`ArenaSnap`] with every snapshot (which map pickups are there, what was dropped, what flies, what burns, what just went
 //! off). [`ShooterWorld`] turns it into scene objects: everything that can ever appear is added to the scene once, hidden ([`ShooterWorld::add_to_scene`], before
 //! the renderer is built), and [`ShooterWorld::update`] claims, moves and releases them each frame. Pure: no window, no GPU, tested on scenes.
+//!
+//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
+//! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::firearms::{projectile_model, world_model};
 use crate::net::protocol::{ArenaSnap, FxSnap, MAX_FX_SNAP, MAX_ZONE_SNAP};

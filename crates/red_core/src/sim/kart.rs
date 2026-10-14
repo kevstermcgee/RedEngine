@@ -8,6 +8,8 @@
 //! Heading is `PlayerState.yaw` (same convention as the first-person camera: forward = `(sin yaw, -cos yaw)`); `velocity` is the real motion, so a drift is
 //! the velocity pointing away from the heading. What the tick needs to remember beyond `PlayerState` is a small [`KartState`]. Each of the eight [`Driver`]s
 //! is a row of numbers ([`KartSpec`], like the firearm rows), so tuning a kart is editing data.
+//!
+//! Used by Great Outdoors, and offered to every new kart game by `new-game --kind race` (system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::collide::{ground_height_at, Collider2D, GroundCandidates};
 use crate::player::{step_horizontal_band, FIXED_DT};

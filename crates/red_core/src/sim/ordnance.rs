@@ -5,6 +5,9 @@
 //! path meets (a wall, a prop or a player), and either detonates there (rockets, launcher grenades, incendiaries) or bounces off it (thrown
 //! grenades) until its fuse runs out. A blast damages everyone within its radius by distance, unless a wall stands between; a flash blinds
 //! whoever could see it; smoke and fire become [`Zone`]s that last a while. Clients draw what the snapshot lists; they decide nothing.
+//!
+//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
+//! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use super::match_sim::MatchSim;
 use crate::arsenal::Payload;

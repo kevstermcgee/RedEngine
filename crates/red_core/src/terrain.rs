@@ -24,6 +24,9 @@
 //!
 //! Pure data and arithmetic (the triangle list [`Terrain::build_mesh`] returns is plain data: the renderer and the physics world each turn it into
 //! what they need); nothing here touches a GPU, so the headless server builds it.
+//!
+//! Used by Endless Meadow, Lantern Walk and Marcel (and Frameless builds its shapes with `procgen::geo`); offered by those examples (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 use crate::color::parse_hex_to_linear;
 use crate::expanse::{Axis, Wrap};

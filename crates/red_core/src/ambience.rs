@@ -8,6 +8,9 @@
 //! Birds follow the real day: a chorus at first light (robins, blackbirds, wrens, chaffinches, all at once and close together), a scatter of song and the
 //! occasional cuckoo or pigeon through the day, blackbirds and robins again at dusk, then quiet, crickets and an owl. Forests are noisier than fields; fields have
 //! more wind; flower fields hum with bees at noon; the night is crickets and, now and then, one hoot. Everything slews, so nothing switches.
+//!
+//! Used by 16 games, among them Marcel, Wormhole, Chroma, Frameless, Great Outdoors, Killchain and Velvet Orchestra (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 use crate::nature::Call;
 use crate::procgen::noise::{smooth, Rng};

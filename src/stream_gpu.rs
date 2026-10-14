@@ -7,6 +7,9 @@
 //!
 //! Live, [`StreamLayer::update`] is called every frame: it asks the streamer (which builds on worker threads) for what changed and uploads a few chunks.
 //! Offline, [`StreamLayer::fill`] builds everything around the camera first, because a still frame cannot wait.
+//!
+//! Used by Endless Meadow, Lantern Walk and Marcel (and Frameless builds its shapes with `procgen::geo`); offered by those examples (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 use crate::gpu::{GpuMesh, ObjectUniform};
 use crate::mesh::{Mesh, Vertex};

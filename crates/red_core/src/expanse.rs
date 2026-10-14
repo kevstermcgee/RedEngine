@@ -13,6 +13,8 @@
 //! player cannot leave the map: the invisible wall at the edge of an ocean or a ridge, deterministic everywhere the step runs.
 //!
 //! Pure data and arithmetic: no window, no GPU (the headless server depends on it).
+//!
+//! Used by Endless Shore; offered by that example (system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::strict::check_keys;
 use glam::Vec2;

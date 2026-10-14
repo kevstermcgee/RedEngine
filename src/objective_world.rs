@@ -5,6 +5,9 @@
 //! ([`ObjectiveWorld::add_to_scene`], before the renderer is built), and [`ObjectiveWorld::update`] moves and shows what the newest
 //! [`ObjSnap`] says. It is added whenever a map has flags or sites, not only when its own `shooter.mode` asks for them, because the host
 //! chooses the mode and the map file does not change with it. Pure: no window, no GPU, tested on scenes.
+//!
+//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
+//! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::net::protocol::ObjSnap;
 use crate::scene_pool::HIDDEN_SCALE;

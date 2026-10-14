@@ -4,6 +4,8 @@
 //! while drifting it leans towards the direction the kart is actually travelling (the tail slides out, the view looks into the slide). At speed it pulls
 //! back and widens the field of view; a boost pulls a little harder. Its output is an eye, a yaw and a pitch in the same convention as the first-person
 //! camera (yaw 0 looks along -Z, increasing clockwise seen from above), so the client can hand it straight to the renderer.
+//!
+//! Used by Great Outdoors, and offered to every new kart game by `new-game --kind race` (system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use glam::{Vec2, Vec3};
 

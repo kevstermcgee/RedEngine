@@ -7,6 +7,9 @@
 //!
 //! These are suggestions of real sounds, not recordings: the wind is a low rumble plus a breathy band that swells in gusts, leaves are a bright crackle shaped by
 //! the same gusts, crickets are trains of short bursts near 4.5 kHz, a robin's phrase is a string of thin falling sweeps, a blackbird's is a slower flute-like line.
+//!
+//! Used by Endless Meadow, Lantern Walk and Marcel (and Frameless builds its shapes with `procgen::geo`); offered by those examples (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 use crate::audio_analysis::{lufs, Clip};
 use crate::dsp::{samples, time, Noise, OnePole};
