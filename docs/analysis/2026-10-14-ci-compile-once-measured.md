@@ -35,7 +35,8 @@ A Rust pull request costs about 33 job-minutes instead of 57 (against #115's 59.
 (3.9 minutes, then a shard of about 2), where each shard used to compile for itself. Everything still runs on main: the whole headless suite in three
 shards and the image for every change.
 
-## Not yet
+## A pull request that changes only documentation
 
-A pull request that changes only documentation still runs the test jobs (#133, an ADR and its index line: 47 job-minutes). The docs are read at run time
-since item 1, so main's compiled archive can check a pull request's docs without compiling: the next step.
+Before: #133 (an ADR, its index line and a status note) ran every test job: 47 job-minutes. After #135, a pull request whose every file is `*.md` or
+under `docs/` runs no compiling job; the `docs` job runs the suites that read the docs from the archive main compiled from the same code. Measured
+on the pull request that adds this section (it is docs-only): see the next section.
