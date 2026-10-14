@@ -1113,7 +1113,7 @@ pub(crate) enum Command {
         check: bool,
     },
     /// What must pass when files change. Names the features they belong to, the features built on those, the exact `cargo test` and
-    /// verification commands and the docs to keep true. `impact src/net/server.rs`, or `impact --git` for the working tree (add a ref to compare with).
+    /// verification commands and the docs to keep true. `impact src/net/host.rs`, or `impact --git` for the working tree (add a ref to compare with).
     Impact {
         /// Changed files (paths from the repository root).
         files: Vec<String>,
@@ -1122,7 +1122,7 @@ pub(crate) enum Command {
         git: Option<String>,
     },
     /// A 5-15 KB work packet for one Rust change. It holds the feature's summary and neighbours, its source files with purpose and public API, the tests that cover it,
-    /// the verification command and pointers to the relevant ADRs. Name a feature (`features` lists them), a file (`context src/net/server.rs`) or words
+    /// the verification command and pointers to the relevant ADRs. Name a feature (`features` lists them), a file (`context src/net/host.rs`) or words
     /// (`context lobby countdown`). Use it instead of `src map` + several `src outline`s + reading docs.
     Context {
         /// A feature name, a file path, or words.

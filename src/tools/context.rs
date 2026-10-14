@@ -170,7 +170,7 @@ fn adr_title(path: &str) -> String {
 pub fn build(all: &[Feature], ix: &Index, query: &[String], budget: usize) -> Result<String, String> {
     let hits = resolve(all, query);
     if hits.is_empty() {
-        return Err(format!("no feature matches '{}': `features` lists them, or name a file (`context src/net/server.rs`)", query.join(" ")));
+        return Err(format!("no feature matches '{}': `features` lists them, or name a file (`context src/net/host.rs`)", query.join(" ")));
     }
     let hits: Vec<&Feature> = hits.into_iter().take(3).collect();
     let each = budget / hits.len();

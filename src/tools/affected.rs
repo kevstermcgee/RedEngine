@@ -271,7 +271,6 @@ const KILLCHAIN_ENGINE_FILES: &[&str] = &[
     "src/viewer.rs",
     "src/audio.rs",
     "src/firearms.rs",
-    "src/killcam.rs",
     "src/streaks.rs",
     "src/shooter_world.rs",
     "src/objective_world.rs",

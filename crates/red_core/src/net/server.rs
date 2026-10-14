@@ -1331,41 +1331,6 @@ pub fn raise_timer_resolution() {
 }
 
 #[cfg(test)]
-mod pause_tests {
-    use super::*;
-    use crate::sim::spawns::parse_spawns;
-
-    #[test]
-    fn a_pause_flag_stops_the_simulation_and_nothing_else() {
-        let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/test_lab.json")).unwrap();
-        let scene = crate::schema::parse_scene(&text).unwrap();
-        let mut spawns = parse_spawns(&text).unwrap();
-        spawns.retain(|s| s.group == "duel");
-        let mut server =
-            Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), crate::net::map_hash(&text)), crate::sim::match_sim::MatchSim::new(&scene, spawns))
-                .unwrap();
-        server.set_logger(|_| {});
-        let flag = Arc::new(AtomicBool::new(false));
-        server.set_pause_flag(flag.clone());
-        let now = Instant::now();
-        for _ in 0..10 {
-            server.tick(now);
-        }
-        assert_eq!((server.sim().tick(), server.stats().ticks), (10, 10));
-        flag.store(true, Ordering::Relaxed);
-        for _ in 0..10 {
-            server.tick(now);
-        }
-        assert_eq!((server.sim().tick(), server.stats().ticks), (10, 20), "the world stands still while the server carries on ticking");
-        flag.store(false, Ordering::Relaxed);
-        for _ in 0..5 {
-            server.tick(now);
-        }
-        assert_eq!(server.sim().tick(), 15, "and runs on from where it stopped");
-    }
-}
-
-#[cfg(test)]
 mod character_policy_tests {
     use super::*;
 

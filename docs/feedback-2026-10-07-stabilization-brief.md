@@ -62,7 +62,7 @@ At the baseline:
 * The client rejects the keyed server with NeedsKey.
 
 Starting points:
-src/bin/re2/kc/app.rs, src/net/host.rs, src/net/client.rs, src/net/relay_server.rs.
+src/bin/re2/kc/app.rs, src/net/host.rs, crates/red_core/src/net/client.rs, src/net/relay_server.rs.
 
 Establish a coherent admission flow for the actual HOST defaults and short-code JOIN. Keep transport identity, game admission, and relay claims explicit. Do not solve the mismatch by silently removing required authentication or making one-time claims reusable.
 
@@ -77,7 +77,7 @@ Make retries obtain valid admission for their transport, or preserve the transpo
 Acceptance: the joiner initially selects map A, the server runs map B, and B is also installed. The second candidate joins successfully through the relay. Check that abandoned attempts release resources appropriately.
 
 Starting points:
-src/bin/re2/kc/app.rs, src/net/quic.rs, src/net/relay_server.rs.
+src/bin/re2/kc/app.rs, crates/red_core/src/net/quic.rs, src/net/relay_server.rs.
 
 Search-and-destroy reconnects
 
@@ -93,7 +93,7 @@ Acceptance:
 * Ordinary respawn modes continue working.
 
 Starting points:
-src/net/sessions.rs, src/net/server.rs, crates/red_core/src/sim/match_sim.rs, src/sim/objective_run.rs.
+crates/red_core/src/net/sessions.rs, crates/red_core/src/net/server.rs, crates/red_core/src/sim/match_sim.rs, src/sim/objective_run.rs.
 
 Duel capacity after replacement and resume
 

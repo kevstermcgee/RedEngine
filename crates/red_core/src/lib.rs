@@ -30,6 +30,7 @@ pub mod font_glyphs;
 pub mod geometry;
 pub mod hit;
 pub mod hud_config;
+pub mod killcam;
 pub mod listen;
 pub mod macros;
 pub mod mixer;
@@ -105,12 +106,15 @@ pub mod sim {
     pub mod trace;
 }
 
-/// The networking that needs no socket of its own, and the wire protocol (the server, the client and the transports are still in the engine crate, which
-/// re-exports these at `red_engine2::net::*`).
+/// The network: the wire protocol, the server, the client and their QUIC transport (`quic`: quinn, rustls, tokio; the engine turns it on, the 2D crate
+/// has no network), and the pieces that need no socket of their own. The engine crate keeps the hosting from a game, the bots and the client
+/// session, and re-exports these at `red_engine2::net::*`.
 pub mod net {
     // Nothing reachable from a UDP packet may panic the process. Test code is exempt.
     #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
     pub mod auth;
+    #[cfg(feature = "quic")]
+    pub mod client;
     pub mod happenings;
     pub mod interp;
     pub mod join_code;
@@ -118,9 +122,47 @@ pub mod net {
     pub mod netsim;
     pub mod portmap;
     pub mod protocol;
+    #[cfg(feature = "quic")]
+    pub mod quic;
     pub mod relay;
+    pub mod relay_server;
+    #[cfg(feature = "quic")]
+    pub mod server;
+    #[cfg(feature = "quic")]
+    mod sessions;
+    #[cfg(feature = "quic")]
+    mod snapshots;
+    #[cfg(feature = "quic")]
+    pub mod transport;
     pub mod upnp;
+
+    /// The per-client prop selection, exposed only so `benches/settled_world.rs` can time it without a socket.
+    #[cfg(feature = "quic")]
+    #[doc(hidden)]
+    pub use snapshots::props_to_send;
 
     /// The default UDP port of a Red server.
     pub const DEFAULT_PORT: u16 = 27015;
+
+    /// A 32-bit hash of a map file's text (line endings ignored), sent in the join request so a client
+    /// with a different copy of the map is refused instead of desyncing silently.
+    pub fn map_hash(text: &str) -> u32 {
+        let mut h = 0x811c_9dc5u32;
+        for b in text.bytes().filter(|b| *b != b'\r') {
+            h ^= b as u32;
+            h = h.wrapping_mul(0x0100_0193);
+        }
+        h
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn map_hash_ignores_line_endings_but_not_content() {
+            assert_eq!(map_hash("a\nb\n"), map_hash("a\r\nb\r\n"));
+            assert_ne!(map_hash("a\nb\n"), map_hash("a\nc\n"));
+        }
+    }
 }
