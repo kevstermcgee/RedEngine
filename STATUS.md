@@ -55,6 +55,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: item 5.5: Frameless moved to games/frameless (own crate, binary, tool, tests, content; PR). Parity: offline pictures identical, visit dump/save identical, old re2 save loads in frameless. Ships from its crate once RedEngineGames PR #7 merges
 - 2026-10-14: item 5.5 merged (#151: src/museum gone; Frameless ships from its crate once RedEngineGames PR #7 merges). 5.6: audit + ADR a-system-stays-in-the-engine-when-two-games-use-it-or (PR): loadout shooter moves to Killchain, wire structs first
 - 2026-10-14: item 5.6 merged (#152 audit + ADR); protocol v16 GameMsg + net::arena_wire (PR): the loadout shooter's first step out
+- 2026-10-14: shooter move step 1: loadout parity harness + ADR a-game-plugs-into-the-server-s-match-simulation-the (PR); 6 steps planned
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.

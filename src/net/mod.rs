@@ -45,6 +45,9 @@ pub mod session;
 /// The per-client prop selection, exposed only so `benches/settled_world.rs` can time it without a socket.
 #[doc(hidden)]
 pub use red_core::net::props_to_send;
+/// What a snapshot for a viewer carries, built without a server: only for the loadout parity harness (`tests/loadout_parity.rs`).
+#[doc(hidden)]
+pub use red_core::net::snapshot_view;
 pub mod testkit;
 pub use red_core::net::transport;
 pub use red_core::net::upnp;
