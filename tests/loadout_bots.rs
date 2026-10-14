@@ -51,7 +51,7 @@ fn bots_fight_the_other_team_pick_up_weapons_and_score() {
     let k = sim.team_kills();
     assert_eq!(k[0] + k[1], total, "team scores are the players' kills");
     for s in 0..6 {
-        let kit = sim.player(s).unwrap().combat.kit.as_ref().unwrap();
+        let kit = sim.kit(s).unwrap();
         assert!(kit.current().is_gun() || kit.current().is_melee() || kit.current().is_grenade());
     }
     let arena = sim.arena().unwrap();

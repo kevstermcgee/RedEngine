@@ -38,6 +38,7 @@ pub use red_core::sim::entities;
 /// A conventional agent interface to a match (`reset`/`observe`/`step`), over the real simulation; what an agent may know is separate from the privileged state.
 pub mod env;
 pub use red_core::sim::flow;
+pub use red_core::sim::game;
 pub use red_core::sim::interact;
 pub use red_core::sim::interest;
 pub use red_core::sim::items;

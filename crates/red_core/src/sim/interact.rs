@@ -82,8 +82,6 @@ pub struct Combat {
     pub hurt_bearing: f32,
     /// Button state on the previous processed input (buttons act on their rising edge): interact, attack, reload, switch.
     prev: [bool; 4],
-    /// The loadout (two guns, melee, grenades), in a match whose scene has a `shooter` block; `None` in the classic arena.
-    pub kit: Option<super::kit::Kit>,
     /// The tick until which the player is blinded by a flashbang (`0` = not).
     pub flash_until: u64,
     /// How long the blinding flash lasts in total, seconds (for the fade).
@@ -118,7 +116,6 @@ impl Combat {
             hurt: 0,
             hurt_bearing: 0.0,
             prev: [false; 4],
-            kit: None,
             flash_until: 0,
             flash_total: 0.0,
             killed_by: None,
@@ -138,6 +135,12 @@ impl Combat {
 
     /// A fold of everything here that the rules of the game depend on (goes into the match checksum).
     pub fn state_hash(&self) -> u64 {
+        self.state_hash_with(None)
+    }
+
+    /// [`state_hash`](Self::state_hash) with the match game's own state for this player folded in where a loadout kit always was
+    /// ([`super::game::MatchGame::player_hash`]), so the checksum and every trace that records it stay what they were.
+    pub fn state_hash_with(&self, game: Option<u64>) -> u64 {
         let (loaded, reserve) = match self.ammo {
             Ammo::Infinite => (u32::MAX, 0),
             Ammo::Limited { loaded, reserve, .. } => (loaded, reserve),
@@ -158,8 +161,8 @@ impl Combat {
             h ^= v;
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
         }
-        if let Some(kit) = &self.kit {
-            h ^= kit.state_hash();
+        if let Some(g) = game {
+            h ^= g;
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
         }
         // The pacing state joins the fold only while it is in play, so a match that does not use spawn protection or regeneration keeps
@@ -260,8 +263,8 @@ impl MatchSim {
                 p.combat.hp = (p.combat.hp + 1).min(PLAYER_MAX_HP);
             }
         }
-        if p.combat.kit.is_some() {
-            self.kit_tick(slot);
+        if self.game.as_ref().is_some_and(|g| g.runs_weapons(slot)) {
+            self.with_game(|g, s| g.player_tick(s, slot));
             return;
         }
         if p.combat.swing.tick() {
@@ -279,17 +282,21 @@ impl MatchSim {
         self.pick_spawn_team(slot, team)
     }
 
+    /// The side (spawn group) a player of `team` starts on: the match game's to say (search and destroy swaps them), else the team's own.
+    fn spawn_side(&self, team: u8, game: Option<&dyn super::game::MatchGame>) -> u8 {
+        game.or(self.game.as_deref()).map_or(team, |g| g.spawn_side(team))
+    }
+
     /// [`pick_spawn`](Self::pick_spawn) for a player about to join `team`. In a team match a player spawns at their own team's spawn points
     /// (`group` "team1" / "team2"), when the map has any.
     pub(super) fn pick_spawn_team(&mut self, slot: usize, team: u8) -> Spawn {
+        let side = self.spawn_side(team, None);
+        self.pick_spawn_on(slot, team, side)
+    }
+
+    /// [`pick_spawn_team`](Self::pick_spawn_team) on a given `side`.
+    fn pick_spawn_on(&mut self, slot: usize, team: u8, side: u8) -> Spawn {
         if team != 0 {
-            // Search and destroy: the attackers always start on the "team1" side and the defenders on "team2", so swapping sides
-            // swaps who starts near the sites.
-            let side = match self.arena.as_ref().and_then(|a| a.snd.as_ref()) {
-                Some(s) if s.attackers == team => 1,
-                Some(_) => 2,
-                None => team,
-            };
             let group = format!("team{side}");
             let mine: Vec<usize> = (0..self.spawns.len()).filter(|i| self.spawns[*i].group == group).collect();
             if !mine.is_empty() {
@@ -361,7 +368,15 @@ impl MatchSim {
     }
 
     pub(super) fn respawn(&mut self, slot: usize) {
-        let s = self.pick_spawn(slot);
+        self.with_game_passed(|s, g| s.respawn_in(slot, g));
+    }
+
+    /// [`respawn`](Self::respawn) with the match's game passed along (a game that respawns players itself passes itself): it hands out the
+    /// game's start state ([`super::game::MatchGame::spawn`]).
+    pub fn respawn_in(&mut self, slot: usize, game: Option<&mut dyn super::game::MatchGame>) {
+        let team = self.team_of(slot);
+        let side = self.spawn_side(team, game.as_deref());
+        let s = self.pick_spawn_on(slot, team, side);
         let (cfg, protect, now) = (self.weapons, self.combat_cfg.protect_ticks, self.tick);
         let Some(p) = self.players[slot].as_mut() else { return };
         let character = p.state.character;
@@ -370,14 +385,13 @@ impl MatchSim {
         let (kills, deaths, shots, hits, hurt, hurt_bearing, headshots) =
             (old.kills, old.deaths, old.shots, old.hits, old.hurt, old.hurt_bearing, old.headshots);
         p.combat = Combat { kills, deaths, shots, hits, hurt, hurt_bearing, headshots, weapon: cfg.weapon_for_kills(kills), ..Combat::new(&cfg) };
-        if let Some(arena) = &self.arena {
-            p.combat.kit = Some(arena.cfg.start_kit());
-        }
         p.combat.protected_until = if protect > 0 { now + protect } else { 0 };
         let body = character.body();
         let foot = Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y);
         self.props.set_player_slot(slot, foot, body.radius, body.body_height);
-        self.sync_kit(slot);
+        if let Some(g) = game {
+            g.spawn(self, slot);
+        }
         self.rules.inject(self.tick, "respawn", Some(slot));
     }
 
@@ -388,8 +402,8 @@ impl MatchSim {
             p.combat.prev = [false; 4];
             return;
         }
-        if p.combat.kit.is_some() {
-            self.kit_actions(slot, input);
+        if self.game.as_ref().is_some_and(|g| g.runs_weapons(slot)) {
+            self.with_game(|g, s| g.actions(s, slot, input));
             return;
         }
         // A peaceful scene has no weapons: the primary button *is* interact, and reload / switch do nothing.
@@ -544,8 +558,22 @@ impl MatchSim {
     /// [`damage`](Self::damage) with what dealt it and whether it was a headshot. In a team match a bullet or blast never hurts a teammate unless
     /// the scene allows friendly fire (a player's own blast still hurts them).
     pub(super) fn damage_ex(&mut self, target: usize, amount: u32, by: usize, weapon: Weapon, headshot: bool) -> bool {
+        self.with_game_passed(|s, g| s.damage_in(target, amount, by, weapon, headshot, g))
+    }
+
+    /// [`damage_ex`](Self::damage_ex) with the match's game passed along (a game that deals damage itself passes itself): the game decides
+    /// whether a teammate is hurt and hears of a death ([`super::game::MatchGame::on_death`]) and of the kill ([`super::game::MatchGame::on_kill`]).
+    pub fn damage_in(
+        &mut self,
+        target: usize,
+        amount: u32,
+        by: usize,
+        weapon: Weapon,
+        headshot: bool,
+        mut game: Option<&mut dyn super::game::MatchGame>,
+    ) -> bool {
         let (now, respawn_ticks, cfg, regen) = (self.tick, self.combat_cfg.respawn_ticks, self.weapons, self.combat_cfg.regen_per_sec > 0);
-        let friendly_fire = self.arena.as_ref().is_none_or(|a| a.cfg.friendly_fire);
+        let friendly_fire = game.as_deref().is_none_or(|g| g.friendly_fire());
         let (by_team, target_team) = (self.team_of(by), self.team_of(target));
         let same_team = by != target && by_team != 0 && by_team == target_team;
         if same_team && !friendly_fire {
@@ -577,14 +605,9 @@ impl MatchSim {
         t.combat.deaths += 1;
         t.combat.swing.cancel();
         t.combat.killed_by = Some((by as u8, weapon, headshot));
-        if let Some(kit) = t.combat.kit.as_mut() {
-            kit.reload_left = 0;
-            kit.throwing = None;
-            kit.strike_in = 0;
-        }
         self.props.drop_held_by(target, Vec3::ZERO);
-        if self.arena.is_some() {
-            self.kit_drop_all(target);
+        if let Some(g) = game.as_deref_mut() {
+            g.on_death(self, target);
         }
         let scores = by != target && !same_team;
         if let Some(killer) = self.players.get_mut(by).and_then(Option::as_mut).filter(|_| scores) {
@@ -602,11 +625,8 @@ impl MatchSim {
                 }
             }
         }
-        if let Some(arena) = self.arena.as_mut() {
-            if scores && by_team > 0 {
-                arena.team_kills[(by_team as usize - 1) & 1] += 1;
-            }
-            arena.record_kill(super::shooter::KillRecord { tick: now, killer: by as u8, victim: target as u8, weapon, headshot });
+        if let Some(g) = game {
+            g.on_kill(self, super::game::Kill { tick: now, by, victim: target, by_team, scores, weapon, headshot });
         }
         self.rules.inject(now, "kill", Some(by));
         true

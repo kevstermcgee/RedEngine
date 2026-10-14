@@ -464,7 +464,7 @@ impl Brain {
         input.yaw = self.aim_yaw + self.bias.x;
         input.pitch = (self.aim_pitch + self.bias.y).clamp(-1.5, 1.5);
         self.movement(sim, slot, me, now, &profile, &mut input);
-        self.kit_management(sim, me, now, &mut input);
+        self.kit_management(sim, slot, me, now, &mut input);
         input.interact = self.hold_interact;
         if self.hold_interact {
             // Planting or defusing: stand still, and do not shoot a wall.
@@ -478,8 +478,8 @@ impl Brain {
     // ---- loadout matches: weapons, grenades, pickups ---------------------------------------------------------------------------
 
     /// Chooses the weapon to hold, aims down the sights at range, throws grenades at people it can see, and never shoots blind.
-    fn kit_management(&mut self, sim: &MatchSim, me: &ServerPlayer, now: u64, input: &mut PlayerInput) {
-        let Some(kit) = me.combat.kit.as_ref() else { return };
+    fn kit_management(&mut self, sim: &MatchSim, slot: usize, me: &ServerPlayer, now: u64, input: &mut PlayerInput) {
+        let Some(kit) = sim.kit(slot) else { return };
         if me.combat.flash_until > now {
             input.attack = false; // blinded: no shooting at nothing
             input.aim = false;
@@ -550,7 +550,7 @@ impl Brain {
 
     /// The nearest weapon worth walking to: better than anything the bot holds, or fitting an empty slot.
     fn pickup_goal(&mut self, sim: &MatchSim, slot: usize, me: &ServerPlayer, now: u64) -> Option<Vec3> {
-        let kit = me.combat.kit.as_ref()?;
+        let kit = sim.kit(slot)?;
         let arena = sim.arena()?;
         if now < self.pickup_until && self.pickup_goal.is_none() {
             return None;
@@ -873,7 +873,7 @@ impl Brain {
         } else if let Some(og) = objective {
             // No enemy in the way: the objective comes before weapons on the floor and before roaming.
             self.objective_move(sim, me, grounded, og, now, &mut want, &mut steer);
-        } else if let Some(goal) = self.pickup_goal(sim, slot, me, now).filter(|_| me.combat.kit.is_some()) {
+        } else if let Some(goal) = self.pickup_goal(sim, slot, me, now).filter(|_| sim.kit(slot).is_some()) {
             let to = Vec2::new(goal.x - pos.x, goal.z - pos.y);
             if let Some(nav) = sim.nav() {
                 steer = self.route.steer(nav, &me.state, grounded, goal, now);
@@ -1166,7 +1166,7 @@ mod tests {
         let mut second = sim.bots[1].take().unwrap();
         let other = second.pickup_goal(&sim, 1, sim.player(1).unwrap(), 0).unwrap();
         assert!((goal - other).length() > 10.0, "same-value pickups should split the team");
-        let arena = sim.arena.as_mut().unwrap();
+        let arena = &mut sim.game_mut::<crate::sim::shooter::ShooterGame>().unwrap().arena;
         arena.pickups.iter_mut().find(|m| m.spawn.at == other).unwrap().taken_until = Some(500);
         let next = second.pickup_goal(&sim, 1, sim.player(1).unwrap(), 1).unwrap();
         assert_ne!(other, next, "a consumed pickup is abandoned before the two-second decision expires");

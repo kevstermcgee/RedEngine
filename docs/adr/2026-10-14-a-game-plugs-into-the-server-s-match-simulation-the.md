@@ -39,6 +39,13 @@ The museum had the same shape on the client side and moved behind `client::GameM
   overrides) and the `shooter` block; (5) the server as a library; (6) the move of the shooter, its client pieces and the harness to
   `games/killchain`, with Killchain's server binary. The harness's four fingerprints stay the same through every step.
 
+- *Step 2 as built (2026-10-14):* `sim::game::MatchGame` (`spawn`, `left`, `runs_weapons`, `player_tick`, `actions`, `friendly_fire`,
+  `on_death`, `on_kill`, `tick`, `input_locked`, `respawn_blocked`, `spawn_side`, `move_mult`, `player_hash`), held as `MatchSim::game`;
+  `ShooterGame { arena, kits }` is the shooter, its kit, ordnance and objective code its own methods taking `&mut MatchSim`. `MatchSim::damage_in`
+  and `respawn_in` take the game explicitly (the shooter passes itself; the match's own calls take it out and pass it), so a death in the middle
+  of a shot still drops the kit and scores the kill where it always did. `Combat::kit` is gone (`MatchSim::kit(slot)` reads it);
+  `Combat::state_hash_with` folds the game's per-player hash where the kit's was.
+
 ## Consequences
 The engine's match simulation no longer knows a loadout match; any game with a server-side rule set of its own (a mode, a kit, an objective) plugs
 in the same way. Killchain gets a server binary of its own, which its hosting (and RedEngineGames, for its download) learns: the engine's

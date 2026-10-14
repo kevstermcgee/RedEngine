@@ -367,6 +367,118 @@ pub struct ArenaState {
 /// How many kills the record keeps.
 pub const KILL_LOG: usize = 16;
 
+/// The loadout shooter as a game of the match ([`super::game::MatchGame`]): the arena (pickups, what lies dropped, what flies, smoke and fire, team
+/// scores, the objective modes) and every player's kit. The match calls it where the shooter's rules run: a spawn hands out the start kit,
+/// a living player's tick and buttons run the kit, a death drops it, a kill is scored and recorded, the arena ticks after everyone moved.
+pub struct ShooterGame {
+    /// The arena.
+    pub arena: ArenaState,
+    /// Every slot's kit (`None` for a slot nobody holds).
+    pub kits: Vec<Option<Kit>>,
+}
+
+impl ShooterGame {
+    /// The game for a scene's `shooter` block.
+    pub fn new(cfg: ShooterConfig) -> ShooterGame {
+        ShooterGame { arena: ArenaState::new(cfg), kits: vec![None; super::match_sim::MAX_PLAYERS] }
+    }
+
+    /// Itself, as the game a match call into something that may tell the game again is handed (`MatchSim::damage_in`, `MatchSim::respawn_in`).
+    pub(super) fn me(&mut self) -> Option<&mut dyn super::game::MatchGame> {
+        Some(self)
+    }
+}
+
+impl super::game::MatchGame for ShooterGame {
+    fn name(&self) -> &'static str {
+        "shooter"
+    }
+
+    /// The start kit.
+    fn spawn(&mut self, sim: &mut super::match_sim::MatchSim, slot: usize) {
+        if let Some(k) = self.kits.get_mut(slot) {
+            *k = Some(self.arena.cfg.start_kit());
+        }
+        self.sync_kit(sim, slot);
+    }
+
+    fn left(&mut self, slot: usize) {
+        if let Some(k) = self.kits.get_mut(slot) {
+            *k = None;
+        }
+    }
+
+    fn runs_weapons(&self, slot: usize) -> bool {
+        self.kits.get(slot).is_some_and(Option::is_some)
+    }
+
+    fn player_tick(&mut self, sim: &mut super::match_sim::MatchSim, slot: usize) {
+        self.kit_tick(sim, slot);
+    }
+
+    fn actions(&mut self, sim: &mut super::match_sim::MatchSim, slot: usize, input: &super::player::PlayerInput) {
+        self.kit_actions(sim, slot, input);
+    }
+
+    fn friendly_fire(&self) -> bool {
+        self.arena.cfg.friendly_fire
+    }
+
+    /// A dying player's kit stops what it was doing, and everything they carried falls where they died.
+    fn on_death(&mut self, sim: &mut super::match_sim::MatchSim, victim: usize) {
+        if let Some(kit) = self.kits.get_mut(victim).and_then(Option::as_mut) {
+            kit.reload_left = 0;
+            kit.throwing = None;
+            kit.strike_in = 0;
+        }
+        self.kit_drop_all(sim, victim);
+    }
+
+    /// A team kill counts for the team, and every kill is recorded (the killcam's list).
+    fn on_kill(&mut self, _sim: &mut super::match_sim::MatchSim, k: super::game::Kill) {
+        if k.scores && k.by_team > 0 {
+            self.arena.team_kills[(k.by_team as usize - 1) & 1] += 1;
+        }
+        self.arena.record_kill(KillRecord { tick: k.tick, killer: k.by as u8, victim: k.victim as u8, weapon: k.weapon, headshot: k.headshot });
+    }
+
+    /// Pickups come back and are walked over, what flies moves and goes off, and the objective modes play.
+    fn tick(&mut self, sim: &mut super::match_sim::MatchSim) {
+        self.kit_pickups_tick(sim);
+        self.step_projectiles(sim);
+        self.objective_tick(sim);
+    }
+
+    /// Held for the freeze before a search and destroy round.
+    fn input_locked(&self) -> bool {
+        self.arena.snd.as_ref().is_some_and(|s| s.locked())
+    }
+
+    /// Search and destroy: one life per round.
+    fn respawn_blocked(&self) -> bool {
+        self.arena.cfg.mode == ModeKind::Snd
+    }
+
+    /// Search and destroy: the attackers always start on the "team1" side and the defenders on "team2", so swapping sides swaps who starts near
+    /// the sites.
+    fn spawn_side(&self, team: u8) -> u8 {
+        match self.arena.snd.as_ref() {
+            Some(s) if s.attackers == team => 1,
+            Some(_) => 2,
+            None => team,
+        }
+    }
+
+    /// A heavy weapon slows its carrier (the client predicts with the same factor).
+    fn move_mult(&self, slot: usize) -> Option<f32> {
+        self.kits.get(slot).and_then(Option::as_ref).map(|k| k.current().kit().move_mult)
+    }
+
+    fn player_hash(&self, slot: usize) -> Option<u64> {
+        self.kits.get(slot).and_then(Option::as_ref).map(Kit::state_hash)
+    }
+}
+
 impl ArenaState {
     /// Fresh state for a scene's block.
     pub fn new(cfg: ShooterConfig) -> Self {

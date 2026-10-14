@@ -84,6 +84,7 @@ pub mod sim {
     pub mod components;
     pub mod entities;
     pub mod flow;
+    pub mod game;
     pub mod interact;
     pub mod interest;
     pub mod items;

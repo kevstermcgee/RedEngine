@@ -1,7 +1,7 @@
 //! What a player carries and does in a loadout match: two guns with a magazine and reserve each, a melee weapon, up to two grenades; choosing,
 //! firing, reloading, throwing, picking up and dropping (ADR 2026-09-30-killchain-loadout-shooter).
 //!
-//! The authoritative rules on [`MatchSim`]; a client only sends buttons (`PlayerInput::{attack, aim, reload, interact, drop, select}`). Every
+//! The authoritative rules, methods of [`ShooterGame`] (the loadout shooter's [`super::game::MatchGame`]) on a [`MatchSim`]; a client only sends buttons (`PlayerInput::{attack, aim, reload, interact, drop, select}`). Every
 //! number comes from the weapon's row in [`crate::arsenal`]: cadence, magazine, reload time, spread (wider when moving, jumping or spraying,
 //! tight when aiming or crouched), damage falloff with range, the headshot multiplier, a knife's backstab. Randomness is a hash of tick, slot and
 //! pellet, so a replay fires the same shots.
@@ -12,7 +12,7 @@
 use super::interact::RayTarget;
 use super::match_sim::MatchSim;
 use super::player::PlayerInput;
-use super::shooter::{Dropped, DROP_LIFETIME_SECS, MAX_DROPPED};
+use super::shooter::{Dropped, ShooterGame, DROP_LIFETIME_SECS, MAX_DROPPED};
 use crate::arsenal::{Class, KitSpec};
 use crate::sim::clock::{secs_to_ticks, TICK_DT};
 use crate::weapons::{Ammo, Weapon};
@@ -324,30 +324,30 @@ pub fn falloff(spec: &KitSpec, dist: f32) -> f32 {
 impl MatchSim {
     /// Whether this match is a loadout match.
     pub fn is_loadout(&self) -> bool {
-        self.arena.is_some()
+        self.arena().is_some()
     }
 
     /// Whether players may be assigned to team 1 or 2: always true in a loadout match, or when the scene's own
     /// `"teams": true` asked for team assignment without a `shooter` block (a hide-and-seek, capture-the-flag or
     /// other asymmetric-role game that still wants `who: team1`/`who: team2` in its rules).
     pub fn teams_enabled(&self) -> bool {
-        self.arena.as_ref().map_or(self.teams_requested, |a| a.cfg.mode.teams() || self.teams_requested)
+        self.arena().map_or(self.teams_requested, |a| a.cfg.mode.teams() || self.teams_requested)
     }
 
     /// The loadout match's mode (team deathmatch outside one).
     pub fn mode(&self) -> super::shooter::ModeKind {
-        self.arena.as_ref().map_or_else(Default::default, |a| a.cfg.mode)
+        self.arena().map_or_else(Default::default, |a| a.cfg.mode)
     }
 
     /// Most people on one team (`1` = a duel). Outside a loadout match: the whole roster.
     pub fn team_size(&self) -> usize {
-        self.arena.as_ref().map_or(super::shooter::MAX_TEAM, |a| a.cfg.team_size)
+        self.arena().map_or(super::shooter::MAX_TEAM, |a| a.cfg.team_size)
     }
 
     /// The score that wins a capture-the-flag or search-and-destroy match (`None` in the kill modes, where the scene's `score_to_win` rules).
     pub fn score_limit(&self) -> Option<u32> {
         use super::shooter::ModeKind;
-        self.arena.as_ref().and_then(|a| match a.cfg.mode {
+        self.arena().and_then(|a| match a.cfg.mode {
             ModeKind::Ctf => Some(a.cfg.objective.capture_limit),
             ModeKind::Snd => Some(a.cfg.objective.win_rounds),
             _ => None,
@@ -356,13 +356,15 @@ impl MatchSim {
 
     /// Most players (people and bots) the match holds: two teams of `team_size`.
     pub fn max_players(&self) -> usize {
-        self.arena.as_ref().map_or(super::match_sim::MAX_PLAYERS, |a| (a.cfg.team_size * 2).min(super::match_sim::MAX_PLAYERS))
+        self.arena().map_or(super::match_sim::MAX_PLAYERS, |a| (a.cfg.team_size * 2).min(super::match_sim::MAX_PLAYERS))
     }
+}
 
+impl ShooterGame {
     /// Keeps the legacy view of a kit (the weapon in hand, the ammunition the HUD reads) in step with the kit.
-    pub(super) fn sync_kit(&mut self, slot: usize) {
-        let Some(p) = self.players[slot].as_mut() else { return };
-        let Some(kit) = p.combat.kit.as_ref() else { return };
+    pub(super) fn sync_kit(&mut self, sim: &mut MatchSim, slot: usize) {
+        let Some(p) = sim.players[slot].as_mut() else { return };
+        let Some(kit) = self.kits[slot].as_ref() else { return };
         p.combat.weapon = kit.current();
         p.combat.ammo = match kit.gun() {
             Some(g) => Ammo::Limited { loaded: g.loaded as u32, capacity: g.weapon.kit().mag as u32, reserve: g.reserve as u32 },
@@ -371,12 +373,12 @@ impl MatchSim {
     }
 
     /// Reads player `slot`'s buttons for a loadout match.
-    pub(super) fn kit_actions(&mut self, slot: usize, input: &PlayerInput) {
-        let Some(p) = self.players[slot].as_mut() else { return };
+    pub(super) fn kit_actions(&mut self, sim: &mut MatchSim, slot: usize, input: &PlayerInput) {
+        let Some(p) = sim.players[slot].as_mut() else { return };
         if p.combat.is_dead() {
             return;
         }
-        let Some(kit) = p.combat.kit.as_mut() else { return };
+        let Some(kit) = self.kits[slot].as_mut() else { return };
         let prev = kit.prev;
         let edge = |now: bool, before: bool| now && !before;
         kit.prev = Prev { attack: input.attack, reload: input.reload, interact: input.interact, drop: input.drop, select: input.select };
@@ -407,25 +409,25 @@ impl MatchSim {
         let attack_edge = edge(input.attack, prev.attack);
         let (pressed, held) = (attack_edge, input.attack);
         let underhand = input.aim;
-        self.sync_kit(slot);
+        self.sync_kit(sim, slot);
         if want_drop {
-            self.kit_drop(slot);
+            self.kit_drop(sim, slot);
         }
         if want_interact {
-            self.kit_interact(slot);
+            self.kit_interact(sim, slot);
         }
         if want_reload {
-            self.kit_start_reload(slot);
+            self.kit_start_reload(sim, slot);
         }
         if pressed || held {
-            self.kit_attack(slot, pressed, underhand);
+            self.kit_attack(sim, slot, pressed, underhand);
         }
-        self.sync_kit(slot);
+        self.sync_kit(sim, slot);
     }
 
-    fn kit_start_reload(&mut self, slot: usize) {
-        let Some(p) = self.players[slot].as_mut() else { return };
-        let Some(kit) = p.combat.kit.as_mut() else { return };
+    fn kit_start_reload(&mut self, sim: &mut MatchSim, slot: usize) {
+        let Some(_) = sim.players[slot].as_ref() else { return };
+        let Some(kit) = self.kits[slot].as_mut() else { return };
         if kit.reload_left > 0 || kit.throwing.is_some() {
             return;
         }
@@ -438,9 +440,9 @@ impl MatchSim {
         kit.aiming = false;
     }
 
-    fn kit_attack(&mut self, slot: usize, pressed: bool, underhand: bool) {
-        let Some(p) = self.players[slot].as_mut() else { return };
-        let Some(kit) = p.combat.kit.as_mut() else { return };
+    fn kit_attack(&mut self, sim: &mut MatchSim, slot: usize, pressed: bool, underhand: bool) {
+        let Some(p) = sim.players[slot].as_mut() else { return };
+        let Some(kit) = self.kits[slot].as_mut() else { return };
         if kit.busy > 0 || kit.throwing.is_some() {
             return;
         }
@@ -455,7 +457,7 @@ impl MatchSim {
                 kit.busy = spec.cooldown_ticks() as u16;
                 kit.swing = spec.cooldown_ticks().min(24) as u16;
                 kit.strike_in = secs_to_ticks(MELEE_WINDUP_SECS).max(2) as u16;
-                self.rules.inject(self.tick, "swing", Some(slot));
+                sim.rules.inject(sim.tick, "swing", Some(slot));
             }
             Class::Grenade => {
                 if !pressed {
@@ -488,25 +490,25 @@ impl MatchSim {
                 g.loaded -= 1;
                 kit.busy = spec.cooldown_ticks() as u16;
                 kit.heat = (kit.heat + if spec.auto { 0.16 } else { 0.35 }).min(1.0);
-                self.kit_shoot(slot, weapon);
+                self.kit_shoot(sim, slot, weapon);
             }
         }
     }
 
     /// Fires one trigger pull of the gun in hand (the round is already spent).
-    fn kit_shoot(&mut self, slot: usize, weapon: Weapon) {
+    fn kit_shoot(&mut self, sim: &mut MatchSim, slot: usize, weapon: Weapon) {
         let spec = weapon.kit();
-        let (now, friendly_fire) = (self.tick, self.arena.as_ref().is_some_and(|a| a.cfg.friendly_fire));
-        let Some(p) = self.players[slot].as_mut() else { return };
+        let (now, friendly_fire) = (sim.tick, self.arena.cfg.friendly_fire);
+        let Some(p) = sim.players[slot].as_mut() else { return };
         p.combat.shots = p.combat.shots.wrapping_add(1);
         let shots = p.combat.shots;
         let (eye, look) = super::interact::eye_and_look(&p.state, p.crouching);
-        let (aiming, heat) = (p.combat.kit.as_ref().is_some_and(|k| k.aiming), p.combat.kit.as_ref().map_or(0.0, |k| k.heat));
+        let (aiming, heat) = (self.kits[slot].as_ref().is_some_and(|k| k.aiming), self.kits[slot].as_ref().map_or(0.0, |k| k.heat));
         let body = p.state.character.body();
         let move_frac = (p.speed / body.sprint_speed.max(0.1)).clamp(0.0, 1.0);
         let airborne = p.state.vy.abs() > 0.05;
         let (crouching, lag, velocity) = (p.crouching, p.view_lag as usize, p.state.velocity);
-        self.rules.inject(now, "shot", Some(slot));
+        sim.rules.inject(now, "shot", Some(slot));
         let mut cone = if aiming { spec.spread_ads } else { spec.spread_hip };
         cone += spec.spread_move * move_frac * if aiming { 0.6 } else { 1.0 };
         if crouching {
@@ -530,15 +532,15 @@ impl MatchSim {
             let seed = now << 24 ^ (slot as u64) << 16 ^ (shots as u64) << 4 ^ pellet as u64;
             let (u, v) = unit_pair(seed);
             let dir = scatter(look, cone, u, v);
-            let Some(hit) = self.probe_lagged(eye, dir, spec.range, slot, lag) else { continue };
+            let Some(hit) = sim.probe_lagged(eye, dir, spec.range, slot, lag) else { continue };
             match hit.target {
                 RayTarget::Prop(prop) => {
-                    self.shove(prop, dir, eye + dir * hit.distance, spec.damage as f32 * 0.4 / spec.pellets as f32);
+                    sim.shove(prop, dir, eye + dir * hit.distance, spec.damage as f32 * 0.4 / spec.pellets as f32);
                     struck_prop = struck_prop.or(Some(prop));
                 }
                 RayTarget::Player(target) => {
                     let y = eye.y + dir.y * hit.distance;
-                    let Some(t) = self.players[target].as_ref() else { continue };
+                    let Some(t) = sim.players[target].as_ref() else { continue };
                     let tbody = t.state.character.body();
                     let height = if t.crouching { tbody.crouch_eye + 0.12 } else { tbody.body_height };
                     let head = y - t.state.foot_y >= height - HEAD_DEPTH;
@@ -556,27 +558,27 @@ impl MatchSim {
             }
         }
         if struck_prop.is_some() {
-            self.rules.inject_with(now, "prop_hit", Some(slot), struck_prop);
+            sim.rules.inject_with(now, "prop_hit", Some(slot), struck_prop);
         }
         let mut any = false;
         for (target, amount, head) in landed {
-            any |= self.damage_ex(target, amount.round().max(1.0) as u32, slot, weapon, head);
+            any |= sim.damage_in(target, amount.round().max(1.0) as u32, slot, weapon, head, self.me());
         }
         if any {
-            if let Some(p) = self.players[slot].as_mut() {
+            if let Some(p) = sim.players[slot].as_mut() {
                 p.combat.hits = p.combat.hits.wrapping_add(1);
             }
         }
     }
 
     /// Advances player `slot`'s kit one tick: drawing, reloading, strikes, throws, aim recovery.
-    pub(super) fn kit_tick(&mut self, slot: usize) {
-        let now = self.tick;
-        let Some(p) = self.players[slot].as_mut() else { return };
+    pub(super) fn kit_tick(&mut self, sim: &mut MatchSim, slot: usize) {
+        let now = sim.tick;
+        let Some(p) = sim.players[slot].as_mut() else { return };
         if p.combat.is_dead() {
             return;
         }
-        let Some(kit) = p.combat.kit.as_mut() else { return };
+        let Some(kit) = self.kits[slot].as_mut() else { return };
         kit.busy = kit.busy.saturating_sub(1);
         kit.swing = kit.swing.saturating_sub(1);
         kit.heat = (kit.heat - 1.6 * TICK_DT).max(0.0);
@@ -626,38 +628,38 @@ impl MatchSim {
         }
         let _ = now;
         if strike {
-            self.kit_melee_strike(slot);
+            self.kit_melee_strike(sim, slot);
         }
         if let Some((w, under)) = release {
-            self.kit_release_grenade(slot, w, under);
+            self.kit_release_grenade(sim, slot, w, under);
         }
-        self.sync_kit(slot);
+        self.sync_kit(sim, slot);
     }
 
-    fn kit_melee_strike(&mut self, slot: usize) {
-        let Some(p) = self.players[slot].as_ref() else { return };
-        let Some(kit) = p.combat.kit.as_ref() else { return };
+    fn kit_melee_strike(&mut self, sim: &mut MatchSim, slot: usize) {
+        let Some(p) = sim.players[slot].as_ref() else { return };
+        let Some(kit) = self.kits[slot].as_ref() else { return };
         let weapon = kit.melee;
         let spec = weapon.kit();
         let (eye, look) = super::interact::eye_and_look(&p.state, p.crouching);
         let lag = p.view_lag as usize;
-        let Some(hit) = self.probe_lagged(eye, look, spec.reach, slot, lag) else { return };
+        let Some(hit) = sim.probe_lagged(eye, look, spec.reach, slot, lag) else { return };
         match hit.target {
             RayTarget::Prop(prop) => {
-                let mass = self.props.mass(prop);
-                self.shove(prop, look, eye + look * hit.distance, 6.0 * mass.min(4.0));
-                self.rules.inject_with(self.tick, "prop_hit", Some(slot), Some(prop));
+                let mass = sim.props.mass(prop);
+                sim.shove(prop, look, eye + look * hit.distance, 6.0 * mass.min(4.0));
+                sim.rules.inject_with(sim.tick, "prop_hit", Some(slot), Some(prop));
             }
             RayTarget::Player(target) => {
-                let Some(t) = self.players[target].as_ref() else { return };
+                let Some(t) = sim.players[target].as_ref() else { return };
                 // A slash from behind: the victim faces the way the attacker is swinging.
                 let (sy, cy) = libm::sincosf(t.state.yaw);
                 let facing = glam::Vec2::new(sy, -cy);
                 let swing = glam::Vec2::new(look.x, look.z).normalize_or_zero();
                 let behind = facing.dot(swing) > 0.5;
                 let amount = if weapon == Weapon::Knife && behind { 100 } else { spec.damage as u32 };
-                if self.damage_ex(target, amount, slot, weapon, false) {
-                    if let Some(p) = self.players[slot].as_mut() {
+                if sim.damage_in(target, amount, slot, weapon, false, self.me()) {
+                    if let Some(p) = sim.players[slot].as_mut() {
                         p.combat.hits = p.combat.hits.wrapping_add(1);
                     }
                 }
@@ -666,11 +668,11 @@ impl MatchSim {
         }
     }
 
-    fn kit_release_grenade(&mut self, slot: usize, weapon: Weapon, underhand: bool) {
-        let Some(p) = self.players[slot].as_mut() else { return };
+    fn kit_release_grenade(&mut self, sim: &mut MatchSim, slot: usize, weapon: Weapon, underhand: bool) {
+        let Some(p) = sim.players[slot].as_mut() else { return };
         let (eye, look) = super::interact::eye_and_look(&p.state, p.crouching);
         let velocity = Vec3::new(p.state.velocity.x, p.state.vy.max(0.0), p.state.velocity.y);
-        let Some(kit) = p.combat.kit.as_mut() else { return };
+        let Some(kit) = self.kits[slot].as_mut() else { return };
         // The grenade leaves the slot it was thrown from.
         if let Some(s) = kit.grenades.iter_mut().find(|s| **s == Some(weapon)) {
             *s = None;
@@ -681,7 +683,7 @@ impl MatchSim {
         let lift = if underhand { 1.6 } else { 2.6 };
         let vel = look * speed + Vec3::Y * lift + velocity * 0.6;
         let origin = eye + look * 0.45 - Vec3::Y * 0.12;
-        self.rules.inject(self.tick, "throw", Some(slot));
+        sim.rules.inject(sim.tick, "throw", Some(slot));
         self.launch(weapon, slot, origin, vel);
     }
 
@@ -689,9 +691,17 @@ impl MatchSim {
 
     /// Puts `item` into player `slot`'s kit. `swap` lets a full slot trade with the item in hand. Returns what the player had to put down (if any)
     /// and whether the item was taken.
-    fn kit_give(&mut self, slot: usize, weapon: Option<Weapon>, loaded: u16, reserve: u16, swap: bool) -> (bool, Option<(Weapon, u16, u16)>) {
-        let Some(p) = self.players[slot].as_mut() else { return (false, None) };
-        let Some(kit) = p.combat.kit.as_mut() else { return (false, None) };
+    fn kit_give(
+        &mut self,
+        sim: &mut MatchSim,
+        slot: usize,
+        weapon: Option<Weapon>,
+        loaded: u16,
+        reserve: u16,
+        swap: bool,
+    ) -> (bool, Option<(Weapon, u16, u16)>) {
+        let Some(_) = sim.players[slot].as_ref() else { return (false, None) };
+        let Some(kit) = self.kits[slot].as_mut() else { return (false, None) };
         let Some(w) = weapon else {
             // An ammunition crate: a magazine more for every gun, up to the cap.
             let mut any = false;
@@ -751,18 +761,18 @@ impl MatchSim {
     }
 
     /// Lays a weapon on the floor where player `slot` stands (or `ahead` of them).
-    fn put_down(&mut self, slot: usize, item: (Weapon, u16, u16), ahead: bool) {
-        let now = self.tick;
-        let Some(p) = self.players[slot].as_ref() else { return };
+    fn put_down(&mut self, sim: &mut MatchSim, slot: usize, item: (Weapon, u16, u16), ahead: bool) {
+        let now = sim.tick;
+        let Some(p) = sim.players[slot].as_ref() else { return };
         let (_, look) = super::interact::eye_and_look(&p.state, p.crouching);
         let flat = Vec3::new(look.x, 0.0, look.z).normalize_or_zero();
         let pos = Vec3::new(p.state.pos.x, p.state.foot_y + 0.28, p.state.pos.y) + if ahead { flat * 0.9 } else { Vec3::ZERO };
-        self.add_dropped(item, pos, slot as u8, now + DROP_IGNORE_TICKS);
+        self.add_dropped(sim, item, pos, slot as u8, now + DROP_IGNORE_TICKS);
     }
 
-    fn add_dropped(&mut self, item: (Weapon, u16, u16), pos: Vec3, ignore_slot: u8, ignore_until: u64) {
-        let now = self.tick;
-        let Some(a) = self.arena.as_mut() else { return };
+    fn add_dropped(&mut self, sim: &mut MatchSim, item: (Weapon, u16, u16), pos: Vec3, ignore_slot: u8, ignore_until: u64) {
+        let now = sim.tick;
+        let a = &mut self.arena;
         if a.dropped.len() >= MAX_DROPPED {
             a.dropped.remove(0);
         }
@@ -779,20 +789,20 @@ impl MatchSim {
         });
     }
 
-    fn kit_drop(&mut self, slot: usize) {
-        let Some(p) = self.players[slot].as_mut() else { return };
-        let Some(kit) = p.combat.kit.as_mut() else { return };
+    fn kit_drop(&mut self, sim: &mut MatchSim, slot: usize) {
+        let Some(_) = sim.players[slot].as_ref() else { return };
+        let Some(kit) = self.kits[slot].as_mut() else { return };
         let sel = kit.sel;
         let Some(item) = kit.take(sel) else { return };
         kit.reselect();
-        self.put_down(slot, item, true);
-        self.sync_kit(slot);
+        self.put_down(sim, slot, item, true);
+        self.sync_kit(sim, slot);
     }
 
     /// Everything a dying player carried falls where they died.
-    pub(super) fn kit_drop_all(&mut self, slot: usize) {
-        let Some(p) = self.players[slot].as_mut() else { return };
-        let Some(kit) = p.combat.kit.as_mut() else { return };
+    pub(super) fn kit_drop_all(&mut self, sim: &mut MatchSim, slot: usize) {
+        let Some(p) = sim.players[slot].as_mut() else { return };
+        let Some(kit) = self.kits[slot].as_mut() else { return };
         let mut items = Vec::new();
         for s in [Slot::Gun(0), Slot::Gun(1), Slot::Grenade(0), Slot::Grenade(1)] {
             if let Some(item) = kit.take(s) {
@@ -805,16 +815,16 @@ impl MatchSim {
         let (x, y, z) = (p.state.pos.x, p.state.foot_y + 0.28, p.state.pos.y);
         for (k, item) in items.into_iter().enumerate() {
             let a = k as f32 * 1.7;
-            self.add_dropped(item, Vec3::new(x + a.cos() * 0.5, y, z + a.sin() * 0.5), u8::MAX, 0);
+            self.add_dropped(sim, item, Vec3::new(x + a.cos() * 0.5, y, z + a.sin() * 0.5), u8::MAX, 0);
         }
     }
 
     /// Interact: pick up the nearest weapon in reach, trading with the gun in hand if both gun slots are full.
-    fn kit_interact(&mut self, slot: usize) {
-        let Some(p) = self.players[slot].as_ref() else { return };
+    fn kit_interact(&mut self, sim: &mut MatchSim, slot: usize) {
+        let Some(p) = sim.players[slot].as_ref() else { return };
         let here = Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y);
-        let now = self.tick;
-        let Some(a) = self.arena.as_ref() else { return };
+        let now = sim.tick;
+        let a = &self.arena;
         enum Src {
             Map(usize),
             Dropped(usize),
@@ -854,24 +864,27 @@ impl MatchSim {
                 (Some(d.weapon), d.loaded, d.reserve)
             }
         };
-        let (taken, old) = self.kit_give(slot, weapon, loaded, reserve, true);
+        let (taken, old) = self.kit_give(sim, slot, weapon, loaded, reserve, true);
         if !taken {
             return;
         }
-        self.consume_pickup(match src {
-            Src::Map(i) => Ok(i),
-            Src::Dropped(i) => Err(i),
-        });
+        self.consume_pickup(
+            sim,
+            match src {
+                Src::Map(i) => Ok(i),
+                Src::Dropped(i) => Err(i),
+            },
+        );
         if let Some(old) = old {
-            self.put_down(slot, old, false);
+            self.put_down(sim, slot, old, false);
         }
-        self.rules.inject(self.tick, "pickup", Some(slot));
-        self.sync_kit(slot);
+        sim.rules.inject(sim.tick, "pickup", Some(slot));
+        self.sync_kit(sim, slot);
     }
 
-    fn consume_pickup(&mut self, which: Result<usize, usize>) {
-        let now = self.tick;
-        let Some(a) = self.arena.as_mut() else { return };
+    fn consume_pickup(&mut self, sim: &mut MatchSim, which: Result<usize, usize>) {
+        let now = sim.tick;
+        let a = &mut self.arena;
         match which {
             Ok(i) => {
                 let secs = a.pickups[i].spawn.respawn_secs;
@@ -884,25 +897,25 @@ impl MatchSim {
     }
 
     /// Walking over a weapon picks it up when there is room; expired drops vanish and taken spots come back.
-    pub(super) fn kit_pickups_tick(&mut self) {
-        let now = self.tick;
-        let Some(a) = self.arena.as_mut() else { return };
+    pub(super) fn kit_pickups_tick(&mut self, sim: &mut MatchSim) {
+        let now = sim.tick;
+        let a = &mut self.arena;
         a.dropped.retain(|d| d.expires > now);
         for m in a.pickups.iter_mut() {
             if m.taken_until.is_some_and(|t| now >= t) {
                 m.taken_until = None;
             }
         }
-        for slot in 0..self.players.len() {
-            let Some(p) = self.players[slot].as_ref() else { continue };
-            if p.combat.is_dead() || p.combat.kit.is_none() {
+        for slot in 0..sim.players.len() {
+            let Some(p) = sim.players[slot].as_ref() else { continue };
+            if p.combat.is_dead() || self.kits[slot].is_none() {
                 continue;
             }
             let here = Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y);
             let close = |pos: Vec3| {
                 (glam::Vec2::new(pos.x, pos.z) - glam::Vec2::new(here.x, here.z)).length() <= PICKUP_RADIUS && pos.y - here.y > -0.8 && pos.y - here.y < 2.0
             };
-            let Some(a) = self.arena.as_ref() else { return };
+            let a = &self.arena;
             let found = a
                 .pickups
                 .iter()
@@ -921,11 +934,11 @@ impl MatchSim {
             if weapon.is_some_and(|w| w.is_melee()) {
                 continue;
             }
-            let (taken, _) = self.kit_give(slot, weapon, loaded, reserve, false);
+            let (taken, _) = self.kit_give(sim, slot, weapon, loaded, reserve, false);
             if taken {
-                self.consume_pickup(which);
-                self.rules.inject(now, "pickup", Some(slot));
-                self.sync_kit(slot);
+                self.consume_pickup(sim, which);
+                sim.rules.inject(now, "pickup", Some(slot));
+                self.sync_kit(sim, slot);
             }
         }
     }

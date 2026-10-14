@@ -64,7 +64,7 @@ impl Rig {
     }
 
     fn kit(&self, slot: usize) -> &red_engine2::sim::kit::Kit {
-        self.sim.player(slot).unwrap().combat.kit.as_ref().expect("a loadout match gives everyone a kit")
+        self.sim.kit(slot).expect("a loadout match gives everyone a kit")
     }
 }
 
@@ -241,7 +241,7 @@ fn the_dead_drop_their_guns_with_the_ammunition_left_in_them() {
     assert_eq!(dropped.len(), 2, "both guns fell");
     let rifle = dropped.iter().find(|d| d.weapon == Weapon::Rifle).expect("the rifle");
     assert_eq!(rifle.loaded, 29, "with the round that was spent already gone");
-    assert!(rig.sim.player(1).unwrap().combat.kit.as_ref().unwrap().guns.iter().all(Option::is_none));
+    assert!(rig.sim.kit(1).unwrap().guns.iter().all(Option::is_none));
     // After the respawn delay the victim is back with the starting kit.
     rig.idle(4 * 60 + 5);
     assert!(!rig.sim.player(1).unwrap().combat.is_dead());
