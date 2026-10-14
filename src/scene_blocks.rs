@@ -7,9 +7,15 @@ use crate::schema::{self, BlockDef, Scene};
 /// The blocks the engine defines.
 pub static ENGINE: &[BlockDef] = &[crate::museum::BLOCK];
 
-/// Defines the engine's blocks for the scene parser (once per process is enough; again is harmless).
+/// The world layers the engine defines for its blocks (drawn by both renderers; `world_layer`).
+#[cfg(feature = "render")]
+pub static ENGINE_LAYERS: &[crate::world_layer::LayerDef] = &[crate::museum_gpu::LAYER];
+
+/// Defines the engine's blocks for the scene parser, and their world layers (once per process is enough; again is harmless).
 pub fn register() {
     schema::define_blocks(ENGINE);
+    #[cfg(feature = "render")]
+    crate::world_layer::define_layers(ENGINE_LAYERS);
 }
 
 /// [`schema::parse_scene`] with the engine's blocks registered.

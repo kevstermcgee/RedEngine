@@ -37,6 +37,11 @@ Measured at 94e5263 before deciding:
 - **`WorldLayer`** is the seam a generated world draws through: the renderers hold `Vec<Box<dyn WorldLayer>>` instead of named fields, built from
   the scene by layer factories registered like scene blocks (ADR 2026-10-13-a-scene-block-can-be-defined-above-the-core); the meadow and the museum
   implement it. The CPU side a client and the tools ask (`colliders_near`, `lamps`, `shader_params`) is part of the mode or the world, not the renderer.
+  *As built (2026-10-14):* `world_layer::WorldLayer` (`prepare`, `settle`, `set_view_distance`, `draw_shadow`, `draw_main`, `draw_glow`, and
+  `still_light` for the offline renderer, which has no client to light its scene), `LayerDef { name, build, art }` defined by
+  `world_layer::define_layers` beside the blocks (`scene_blocks::register`), the meadow built in first because `procgen` is a core field. A layer the
+  client feeds is reached by its type (`LiveRenderer::layer_mut::<MuseumLayer>()`); a still picture's museum carries its own visit (`StillMuseum`).
+  The game's painted-surface shader (`museum.art`) comes from the layer definitions (`art`), so neither renderer names a museum type.
 - **A game binary is a package's binary.** A playable in `games-publish.json` and a game project's `game.json` may name the executable that runs it
   (`"binary"`, default `re2`); `package`, `game play` and `publish` build and launch that one (Killchain's `killchain` first). The RedEngineGames
   builder, which builds a RedEngine commit and launches each playable, learns the field in a pull request of its own in that repository, for the

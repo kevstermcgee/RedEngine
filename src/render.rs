@@ -318,22 +318,20 @@ pub struct Renderer {
     meshes: Vec<GpuMesh>,
     /// The scene's ocean, when it has one.
     ocean: Option<crate::ocean_pass::OceanPass>,
-    /// The scene's endless generated world, when it has a `procgen` block.
-    stream: Option<crate::stream_gpu::StreamLayer>,
+    /// The scene's generated worlds (the meadow, a museum): [`crate::world_layer`].
+    layers: Vec<Box<dyn crate::world_layer::WorldLayer>>,
     out_width: u32,
     out_height: u32,
     /// What the music sounds like, for a game's sky ([`Self::set_audio`]).
     audio: [[f32; 4]; 12],
     /// What a game's own shaders read with `game_param(i)` ([`Self::set_game_params`]).
     game: [[f32; 4]; 8],
-    /// The scene's museum (`museum` block): a visit of its own, standing where the camera is, and its draws.
-    museum: Option<(crate::museum::Museum, crate::museum_gpu::MuseumLayer)>,
 }
 
 impl Renderer {
-    /// The offline renderer's own museum visit (a still frame stands in the room the camera is in), to step it into a painting for a picture.
-    pub fn museum_visit(&mut self) -> Option<&mut crate::museum::Museum> {
-        self.museum.as_mut().map(|(v, _)| v)
+    /// The scene's world layer of type `T` (a still museum's visit, to step it into a painting for a picture).
+    pub fn layer_mut<T: crate::world_layer::WorldLayer>(&mut self) -> Option<&mut T> {
+        crate::world_layer::find_layer_mut(&mut self.layers)
     }
 
     /// The eight numbers a game's own shaders read with `game_param(i)` in the frames drawn from now on.
@@ -354,7 +352,7 @@ impl Renderer {
             wgpu::TextureFormat::Rgba8UnormSrgb,
             1,
             scene.sky_shader.as_deref().map(|s| s.source.as_str()),
-            scene.blocks.get::<crate::museum::MuseumSpec>().and_then(|m| m.art.as_deref()),
+            crate::world_layer::art_of(scene),
         );
         let shadow_sampler = make_shadow_sampler(&gpu.device);
         let targets = FrameTargets::new(&gpu.device, scene.width, scene.height);
@@ -410,16 +408,12 @@ impl Renderer {
             }],
         });
 
-        let stream = scene
-            .procgen
-            .clone()
-            .map(|cfg| crate::stream_gpu::StreamLayer::new(&gpu.device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), 0));
-        let museum = crate::museum::spec_of(scene).map(|spec| {
-            let visit = crate::museum::Museum::new(spec.clone(), spec.seed.value(None), None);
-            (visit, crate::museum_gpu::MuseumLayer::new(&gpu.device, &pipelines.layouts.object))
-        });
+        let layers = crate::world_layer::layers_for(
+            scene,
+            &crate::world_layer::LayerInit { device: &gpu.device, object_layout: &pipelines.layouts.object, live: false },
+        );
         Ok(Renderer {
-            museum,
+            layers,
             gpu,
             pipelines,
             global_buf,
@@ -433,7 +427,6 @@ impl Renderer {
             post_bind_group,
             meshes,
             ocean,
-            stream,
             out_width: scene.width,
             out_height: scene.height,
             audio: [[0.0; 4]; 12],
@@ -462,28 +455,36 @@ impl Renderer {
     /// Renders one frame at time `t` (seconds) and returns tightly-packed RGB8 pixels,
     /// `out_width * out_height * 3` bytes, top row first.
     pub fn render_frame(&mut self, scene: &Scene, t: f32) -> Vec<u8> {
-        // A museum lights itself: its nearest lamps join the scene's lights, and its shader numbers go to the game's shaders.
+        // A world that lights itself (a museum): its nearest lamps join the scene's lights, and its shader numbers go to the game's shaders.
+        let eye = scene.camera.position.sample(t);
         let mut lamps = Vec::new();
-        if let Some((visit, _)) = &mut self.museum {
-            let eye = scene.camera.position.sample(t);
-            visit.settle_at(eye);
-            self.game = visit.shader_params();
-            lamps = visit.lamps(eye, 12).iter().map(|l| (l.at, Vec3::from(l.color) * l.intensity, l.range)).collect();
+        for layer in &mut self.layers {
+            if let Some(light) = layer.still_light(eye) {
+                lamps.extend(light.lamps);
+                if let Some(game) = light.game_params {
+                    self.game = game;
+                }
+            }
         }
         let mut globals = self.build_globals(scene, t);
-        append_point_lights(&mut globals, &lamps, render_origin(scene.camera.position.sample(t)));
+        append_point_lights(&mut globals, &lamps, render_origin(eye));
         self.gpu.queue.write_buffer(&self.global_buf, 0, bytemuck::bytes_of(&globals));
         // A still frame cannot wait for the world to stream in: build everything around the camera first.
-        let origin = render_origin(scene.camera.position.sample(t));
-        if let Some(stream) = &mut self.stream {
-            stream.fill(&self.gpu.device, &self.gpu.queue, &[scene.camera.position.sample(t)]);
-            stream.set_origin(&self.gpu.queue, origin);
-            let eye = scene.camera.position.sample(t);
-            stream.update_motes(&self.gpu.queue, eye, (scene.camera.target.sample(t) - eye).normalize_or(Vec3::NEG_Z), t, scene.clock.as_ref());
-        }
-        if let Some((visit, layer)) = &mut self.museum {
-            layer.sync(&self.gpu.device, visit, t, scene.camera.position.sample(t));
-            layer.prepare(&self.gpu.queue, origin, Mat4::from_cols_array_2d(&globals.view_proj));
+        let origin = render_origin(eye);
+        let frame = crate::world_layer::LayerFrame {
+            device: &self.gpu.device,
+            queue: &self.gpu.queue,
+            eye,
+            forward: (scene.camera.target.sample(t) - eye).normalize_or(Vec3::NEG_Z),
+            eyes: &[eye],
+            origin,
+            view_proj: Mat4::from_cols_array_2d(&globals.view_proj),
+            t,
+            clock: scene.clock.as_ref(),
+            settle: true,
+        };
+        for layer in &mut self.layers {
+            layer.prepare(&frame);
         }
 
         let mut transforms = Vec::with_capacity(self.meshes.len());
@@ -551,9 +552,9 @@ impl Renderer {
                         shadow_pass.draw_indexed(0..mesh.index_count, 0, instance.clone());
                     }
                 }
-                if let Some(stream) = &self.stream {
-                    let planes = crate::object_staging::frustum_planes(Mat4::from_cols_array_2d(&globals.cascade_vp[cascade]));
-                    stream.draw_shadow(&mut shadow_pass, &planes, globals.cascade_detail(cascade), instance);
+                let planes = crate::object_staging::frustum_planes(Mat4::from_cols_array_2d(&globals.cascade_vp[cascade]));
+                for layer in &self.layers {
+                    layer.draw_shadow(&mut shadow_pass, &planes, globals.cascade_detail(cascade), instance.clone());
                 }
             }
         }
@@ -608,11 +609,8 @@ impl Renderer {
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
             }
-            if let Some(stream) = &self.stream {
-                stream.draw_main(&mut main_pass, Mat4::from_cols_array_2d(&globals.view_proj));
-            }
-            if let Some((_, layer)) = &self.museum {
-                layer.draw_main(&mut main_pass);
+            for layer in &self.layers {
+                layer.draw_main(&mut main_pass, Mat4::from_cols_array_2d(&globals.view_proj));
             }
             if !blended.is_empty() {
                 blended.sort_by(|a, b| b.0.total_cmp(&a.0));
@@ -625,8 +623,8 @@ impl Renderer {
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
             }
-            if let Some(stream) = &self.stream {
-                stream.draw_motes(&mut main_pass, &self.pipelines.main_glow);
+            for layer in &self.layers {
+                layer.draw_glow(&mut main_pass, &self.pipelines.main_glow);
             }
             if let Some(ocean) = &self.ocean {
                 ocean.draw(&mut main_pass, &self.global_bind_group_uniform);

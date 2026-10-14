@@ -673,7 +673,9 @@ impl GameMode for MuseumMode {
         let eye = cx.camera_position();
         let Some(m) = self.0.as_ref() else { return };
         if let Some((device, live)) = cx.renderer() {
-            live.sync_museum(device, &m.visit, t, eye);
+            if let Some(layer) = live.layer_mut::<crate::museum_gpu::MuseumLayer>() {
+                layer.sync(device, &m.visit, t, eye);
+            }
             live.set_game_params(m.visit.shader_params());
         }
     }
