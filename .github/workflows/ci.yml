@@ -260,7 +260,10 @@ jobs:
         env:
           RED_OFFSCREEN_OPTIONAL: "1"
       # The games on the public API (games/killchain, games/frameless): same target directory and cache as the engine, so only the games' own crates are compiled here.
+      # Workshop's client test renders offscreen too: its pictures are skipped on a runner without any adapter, its gameplay checks are not.
       - run: bash scripts/ci.sh game-crates
+        env:
+          RED_OFFSCREEN_OPTIONAL: "1"
 
   # Only generated games changed (see `changes`): the tests that read them, not the whole suite.
   games:
@@ -320,6 +323,8 @@ jobs:
           RED_OFFSCREEN_OPTIONAL: "1"
       - run: bash scripts/ci.sh game-crates
         if: github.event_name != 'pull_request'
+        env:
+          RED_OFFSCREEN_OPTIONAL: "1"
 
   # The Python tools, on both platforms, without building any Rust: `scripts/ci.sh pytools` runs every scripts/test_*.py and the publish check on this runner's interpreter.
   # The `test` job's Windows leg compiles and runs the engine and only starts for Rust-side changes; a change to launchpad.py, idea_forge.py, proc_supervisor.py or a PowerShell script

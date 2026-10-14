@@ -36,6 +36,19 @@ fn click_and_walk(game: &mut Workshop, p: Vec3, max_frames: usize) {
     }
 }
 
+/// The offscreen renderer; `None` only on a runner with no GPU adapter at all that says so (`RED_OFFSCREEN_OPTIONAL=1`): the gameplay checks run
+/// anyway, the pictures are skipped there, not faked. Anywhere else a missing GPU is a failure.
+fn offscreen(scene: &red_engine2::schema::Scene) -> Option<Offscreen> {
+    match Offscreen::new(scene, W, H) {
+        Ok(o) => Some(o),
+        Err(e) if std::env::var_os("RED_OFFSCREEN_OPTIONAL").is_some() => {
+            eprintln!("SKIPPED the pictures: {e:#}");
+            None
+        }
+        Err(e) => panic!("no offscreen GPU adapter (set RED_OFFSCREEN_OPTIONAL=1 to skip the pictures on a GPU-less runner): {e:#}"),
+    }
+}
+
 fn temp(name: &str) -> std::path::PathBuf {
     let d = std::env::temp_dir().join(format!("workshop-client-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
@@ -66,10 +79,13 @@ fn walking_onto_the_lever_ships_the_order_and_the_lamps_follow_the_game() {
     idle(&mut game, 1800);
     assert!(game.machines().iter().any(|(_, s, _)| s == "blocked"), "{:?}", game.machines());
     assert!(game.hidden_objects().contains(&"furnace_a_ok".to_string()) || game.hidden_objects().contains(&"press_a_ok".to_string()));
-    let mut cam = Offscreen::new(game.session().scene(), W, H).expect("an offscreen renderer");
+    let mut cam = offscreen(game.session().scene());
     let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("out");
     let hidden = game.hidden_objects();
-    cam.save_png(&out.join("blocked.png"), game.session().scene(), 0.0, &game.view(), hidden.iter().map(String::as_str), Some(&game.hud_layout(W, H))).unwrap();
+    if let Some(cam) = cam.as_mut() {
+        cam.save_png(&out.join("blocked.png"), game.session().scene(), 0.0, &game.view(), hidden.iter().map(String::as_str), Some(&game.hud_layout(W, H)))
+            .unwrap();
+    }
     click_and_walk(&mut game, Vec3::new(4.0, 0.0, 1.5), 900);
     assert_eq!(game.session().rules().var("route"), Some(1.0), "the lever flipped the route");
     // A save mid-production: a new client restores it and the order ships from where it was.
@@ -89,10 +105,12 @@ fn walking_onto_the_lever_ships_the_order_and_the_lamps_follow_the_game() {
     assert_eq!(again.session().outcome(), Some("shipped"));
     assert!(again.session().rules().var("gears_shipped").unwrap() >= 12.0 && shipped_at_save < 12.0);
     let hidden = again.hidden_objects();
-    let px = cam.render(again.session().scene(), 0.0, &again.view(), hidden.iter().map(String::as_str), Some(&again.hud_layout(W, H))).unwrap();
-    image_check(&px);
-    cam.save_png(&out.join("shipped.png"), again.session().scene(), 0.0, &again.view(), hidden.iter().map(String::as_str), Some(&again.hud_layout(W, H)))
-        .unwrap();
+    if let Some(cam) = cam.as_mut() {
+        let px = cam.render(again.session().scene(), 0.0, &again.view(), hidden.iter().map(String::as_str), Some(&again.hud_layout(W, H))).unwrap();
+        image_check(&px);
+        cam.save_png(&out.join("shipped.png"), again.session().scene(), 0.0, &again.view(), hidden.iter().map(String::as_str), Some(&again.hud_layout(W, H)))
+            .unwrap();
+    }
 }
 
 /// The picture has the room in it (many distinct colours), not a blank or a single colour.
