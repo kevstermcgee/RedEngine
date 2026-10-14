@@ -8,9 +8,10 @@
 //! [`MatchSim::damage_in`](super::match_sim::MatchSim::damage_in), [`MatchSim::respawn_in`](super::match_sim::MatchSim::respawn_in). The loadout
 //! shooter ([`super::shooter::ShooterGame`]) is the first game.
 
-use super::match_sim::MatchSim;
+use super::match_sim::{MatchSim, ServerPlayer};
 use super::player::PlayerInput;
 use crate::weapons::Weapon;
+use glam::Vec3;
 use std::any::Any;
 
 /// A kill, as the match scored it: who, whom, with what, and whether it counts for the killer and their team.
@@ -92,6 +93,59 @@ pub trait MatchGame: Any + Send {
     fn player_hash(&self, _slot: usize) -> Option<u64> {
         None
     }
+
+    /// The game's part of a new bot's mind (its weapons, its objective, what it picks up), `None`: the bot plays the match as it is.
+    fn bot_mind(&self) -> Option<Box<dyn BotMind>> {
+        None
+    }
+}
+
+/// Where a bot wants to be for the game's objective, and whether to hold Interact there.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BotGoal {
+    /// Where to go (the ground there).
+    pub at: Vec3,
+    /// Hold Interact now (planting or defusing).
+    pub hold: bool,
+    /// Carrying the flag or bomb, or racing to take back one's own: worth running past a fight.
+    pub urgent: bool,
+}
+
+/// What a bot's game mind is told when asked: who and when it is, whom it sees, and the bot's own random numbers (the same stream its brain
+/// draws from, so a bot plays the same match the same way).
+pub struct BotCtx<'a> {
+    /// The bot's slot.
+    pub slot: usize,
+    /// The bot.
+    pub me: &'a ServerPlayer,
+    /// The tick.
+    pub now: u64,
+    /// The enemy it sees now, if any.
+    pub target: Option<usize>,
+    /// The bot's own input sequence (for alternating decisions).
+    pub seq: u32,
+    /// The bot's random numbers.
+    pub rng: &'a mut super::ai::Rng,
+}
+
+/// A game's part of one bot's mind ([`MatchGame::bot_mind`]), kept in its brain: what it remembers of the game's own play and how it plays it.
+/// Every method has a default that does nothing.
+pub trait BotMind: Any + Send + std::fmt::Debug {
+    /// The bot's weapons this tick, after it aimed and fired: what to hold, whether to aim down the sights, a grenade, a reload.
+    fn weapons(&mut self, _sim: &MatchSim, _bot: &mut BotCtx, _input: &mut PlayerInput) {}
+
+    /// Where the bot wants to be for the game's objective now.
+    fn objective(&self, _sim: &MatchSim, _slot: usize) -> Option<BotGoal> {
+        None
+    }
+
+    /// Something on the floor worth walking to, when there is nothing better to do.
+    fn pickup(&mut self, _sim: &MatchSim, _bot: &mut BotCtx) -> Option<Vec3> {
+        None
+    }
+
+    /// The bot has reached the thing it was walking to.
+    fn reached_pickup(&mut self) {}
 }
 
 impl MatchSim {

@@ -477,6 +477,11 @@ impl super::game::MatchGame for ShooterGame {
     fn player_hash(&self, slot: usize) -> Option<u64> {
         self.kits.get(slot).and_then(Option::as_ref).map(Kit::state_hash)
     }
+
+    /// A loadout bot's weapons, objective and pickups ([`super::shooter_bots::ShooterBot`]).
+    fn bot_mind(&self) -> Option<Box<dyn super::game::BotMind>> {
+        Some(Box::new(super::shooter_bots::ShooterBot::default()))
+    }
 }
 
 impl ArenaState {

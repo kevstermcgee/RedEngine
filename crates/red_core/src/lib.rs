@@ -101,6 +101,7 @@ pub mod sim {
     pub mod rules_run;
     pub mod scratch;
     pub mod shooter;
+    pub mod shooter_bots;
     pub mod snapshot;
     pub mod spawns;
     pub mod statics;

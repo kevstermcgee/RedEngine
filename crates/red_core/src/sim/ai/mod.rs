@@ -31,7 +31,6 @@ use super::match_sim::{MatchSim, ServerPlayer, MAX_PLAYERS};
 use super::player::{step_player_tuned, PlayerInput, PlayerState};
 use crate::player::{Character, FIXED_DT};
 use crate::strict::check_keys;
-use crate::weapons::Weapon;
 use glam::{Vec2, Vec3};
 use serde_json::{Map, Value};
 use std::f32::consts::{PI, TAU};
@@ -197,9 +196,9 @@ pub fn parse_bots(root: &Map<String, Value>) -> Result<BotsConfig, Vec<String>> 
 // small deterministic helpers
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-/// SplitMix64: tiny, fast, and identical everywhere (no platform maths).
+/// SplitMix64: tiny, fast, and identical everywhere (no platform maths). A bot's brain and its game mind ([`super::game::BotMind`]) draw from one.
 #[derive(Debug, Clone)]
-struct Rng(u64);
+pub struct Rng(u64);
 
 impl Rng {
     fn next_u64(&mut self) -> u64 {
@@ -211,24 +210,27 @@ impl Rng {
     }
 
     /// Uniform in `[0, 1)`.
-    fn f32(&mut self) -> f32 {
+    pub fn f32(&mut self) -> f32 {
         (self.next_u64() >> 40) as f32 / (1u64 << 24) as f32
     }
 
-    fn range(&mut self, lo: f32, hi: f32) -> f32 {
+    /// Uniform in `[lo, hi)`.
+    pub fn range(&mut self, lo: f32, hi: f32) -> f32 {
         lo + (hi - lo) * self.f32()
     }
 
-    fn chance(&mut self, p: f32) -> bool {
+    /// True with probability `p`.
+    pub fn chance(&mut self, p: f32) -> bool {
         self.f32() < p
     }
 
     /// Roughly bell-shaped in `[-1, 1]`.
-    fn bell(&mut self) -> f32 {
+    pub fn bell(&mut self) -> f32 {
         (self.f32() + self.f32() + self.f32() - 1.5) / 1.5
     }
 
-    fn sign(&mut self) -> f32 {
+    /// `-1` or `1`.
+    pub fn sign(&mut self) -> f32 {
         if self.f32() < 0.5 {
             -1.0
         } else {
@@ -269,7 +271,8 @@ fn look_vec(yaw: f32, pitch: f32) -> Vec3 {
     Vec3::new(sy * cp, sp, -cy * cp)
 }
 
-fn secs(s: f32) -> u64 {
+/// Seconds as ticks.
+pub fn secs(s: f32) -> u64 {
     (s.max(0.0) * crate::sim::clock::TICK_RATE_HZ as f32) as u64
 }
 
@@ -297,7 +300,7 @@ struct Memory {
 }
 
 /// One bot's mind. Create with [`Brain::new`]; [`MatchSim::add_bot`] does that for you.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Brain {
     spec: BotSpec,
     skill: Skill,
@@ -339,11 +342,8 @@ pub struct Brain {
     last_want: Vec2,
     /// The path being followed along the scene's nav graph.
     route: Route,
-    // loadout matches: choosing weapons, throwing grenades, going for pickups
-    select_until: u64,
-    nade_until: u64,
-    pickup_goal: Option<Vec3>,
-    pickup_until: u64,
+    /// The match game's part of this bot's mind (the loadout shooter's: its weapons, its objective, what it picks up).
+    mind: Option<Box<dyn super::game::BotMind>>,
 }
 
 impl Brain {
@@ -382,10 +382,7 @@ impl Brain {
             escape: Vec2::ZERO,
             last_want: Vec2::ZERO,
             route: Route::default(),
-            select_until: 0,
-            nade_until: 0,
-            pickup_goal: None,
-            pickup_until: 0,
+            mind: None,
         }
     }
 
@@ -464,7 +461,10 @@ impl Brain {
         input.yaw = self.aim_yaw + self.bias.x;
         input.pitch = (self.aim_pitch + self.bias.y).clamp(-1.5, 1.5);
         self.movement(sim, slot, me, now, &profile, &mut input);
-        self.kit_management(sim, slot, me, now, &mut input);
+        if let Some(m) = self.mind.as_mut() {
+            let mut bot = super::game::BotCtx { slot, me, now, target: self.target.filter(|_| self.target_visible), seq: self.seq, rng: &mut self.rng };
+            m.weapons(sim, &mut bot, &mut input);
+        }
         input.interact = self.hold_interact;
         if self.hold_interact {
             // Planting or defusing: stand still, and do not shoot a wall.
@@ -475,151 +475,19 @@ impl Brain {
         input
     }
 
-    // ---- loadout matches: weapons, grenades, pickups ---------------------------------------------------------------------------
-
-    /// Chooses the weapon to hold, aims down the sights at range, throws grenades at people it can see, and never shoots blind.
-    fn kit_management(&mut self, sim: &MatchSim, slot: usize, me: &ServerPlayer, now: u64, input: &mut PlayerInput) {
-        let Some(kit) = sim.kit(slot) else { return };
-        if me.combat.flash_until > now {
-            input.attack = false; // blinded: no shooting at nothing
-            input.aim = false;
-            return;
-        }
-        let target = self.target.filter(|_| self.target_visible).and_then(|t| sim.player(t));
-        let dist = target.map(|p| (p.state.pos - me.state.pos).length());
-        let current = kit.current();
-        // Aim down the sights at range, except with weapons that do not gain from it.
-        if let Some(d) = dist {
-            input.aim = current.is_gun() && d > 13.0 && !matches!(current.class(), crate::arsenal::Class::Shotgun | crate::arsenal::Class::Launcher);
-        }
-        // Grenades: a lob at an enemy that is in sight and not too close.
-        if kit.grenade_count() > 0 {
-            if now >= self.nade_until && target.is_some() && dist.is_some_and(|d| (8.0..28.0).contains(&d)) && self.rng.chance(0.0012) {
-                self.nade_until = now + secs(0.9);
-            }
-            if now < self.nade_until {
-                if current.is_grenade() {
-                    if let Some(d) = dist {
-                        input.pitch = (input.pitch + 0.16 + d * 0.0065).clamp(-1.4, 1.4);
-                    }
-                    input.attack = kit.busy == 0 && kit.throwing.is_none();
-                    input.aim = false;
-                    return;
-                }
-                if now >= self.select_until {
-                    input.select = 4;
-                    self.select_until = now + 12;
-                }
-                return;
-            }
-        }
-        if now < self.select_until {
-            return;
-        }
-        // Which gun to hold: one with ammunition; the one whose range suits the fight; the melee weapon when both are dry.
-        let usable = |i: usize| kit.guns[i].filter(|g| g.loaded > 0 || g.reserve > 0 || kit.sel == crate::sim::kit::Slot::Gun(i as u8));
-        let score = |i: usize| -> Option<f32> {
-            let g = usable(i)?;
-            let p = WeaponProfile::of(g.weapon);
-            let have_rounds = if g.loaded > 0 { 0.0 } else { 40.0 };
-            let fit = match dist {
-                Some(d) => (p.ideal - d).abs().min(60.0),
-                None => -(g.weapon.kit().damage as f32) * 0.1,
-            };
-            Some(fit + have_rounds)
-        };
-        let best = (0..2).filter_map(|i| score(i).map(|s| (i, s))).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| i);
-        let want = match best {
-            Some(i) => crate::sim::kit::Slot::Gun(i as u8),
-            None => crate::sim::kit::Slot::Melee,
-        };
-        // A reload in progress is not thrown away for a marginal gain.
-        let reloading_useful = kit.reloading() && dist.is_none();
-        if want != kit.sel && !reloading_useful && !(current.is_gun() && kit.gun().is_some_and(|g| g.loaded > 0) && dist.is_some_and(|d| d < 35.0)) {
-            input.select = match want {
-                crate::sim::kit::Slot::Gun(i) => 1 + i,
-                _ => 3,
-            };
-            self.select_until = now + 30;
-        }
-        // Top up between fights.
-        if dist.is_none() && current.is_gun() && kit.gun().is_some_and(|g| g.loaded * 2 < g.weapon.kit().mag && g.reserve > 0) {
-            input.reload = self.seq.is_multiple_of(2);
-        }
-    }
-
-    /// The nearest weapon worth walking to: better than anything the bot holds, or fitting an empty slot.
-    fn pickup_goal(&mut self, sim: &MatchSim, slot: usize, me: &ServerPlayer, now: u64) -> Option<Vec3> {
-        let kit = sim.kit(slot)?;
-        let arena = sim.arena()?;
-        if now < self.pickup_until && self.pickup_goal.is_none() {
-            return None;
-        }
-        if now < self.pickup_until
-            && self.pickup_goal.is_some_and(|goal| {
-                arena.pickups.iter().any(|m| m.taken_until.is_none() && (m.spawn.at - goal).length() < 0.1)
-                    || arena.dropped.iter().any(|d| (d.pos - goal).length() < 0.1)
-            })
-        {
-            return self.pickup_goal;
-        }
-        self.pickup_until = now + secs(2.0);
-        let held: f32 = kit.guns.iter().flatten().map(|g| weapon_value(g.weapon)).fold(0.0, f32::max);
-        let free_gun = kit.guns.iter().any(Option::is_none);
-        let free_nade = kit.grenade_count() < crate::sim::kit::MAX_GRENADES;
-        let low_ammo = kit.guns.iter().flatten().any(|g| g.reserve < g.weapon.kit().mag);
-        let here = Vec3::new(me.state.pos.x, me.state.foot_y, me.state.pos.y);
-        let mut best: Option<(f32, Vec3)> = None;
-        let mut consider = |weapon: Option<Weapon>, pos: Vec3| {
-            let value = match weapon {
-                None => {
-                    if !low_ammo {
-                        return;
-                    }
-                    5.5
-                }
-                Some(w) if w.is_melee() => return,
-                Some(w) if w.is_grenade() => {
-                    if !free_nade {
-                        return;
-                    }
-                    4.0
-                }
-                Some(w) => {
-                    let v = weapon_value(w);
-                    if !(free_gun || v > held + 0.5) {
-                        return;
-                    }
-                    v
-                }
-            };
-            let d = (pos - here).length();
-            // Prefer a different pickup when a teammate is already heading here or standing beside it.
-            // Claims expire with the brain's decision; no reservation state enters the simulation or wire format.
-            let congestion = sim
-                .players()
-                .filter(|(s, p)| *s != slot && p.team == me.team && !p.combat.is_dead())
-                .filter(|(s, p)| {
-                    (Vec3::new(p.state.pos.x, p.state.foot_y, p.state.pos.y) - pos).length() < 3.0
-                        || sim.brain(*s).is_some_and(|b| now < b.pickup_until && b.pickup_goal.is_some_and(|g| (g - pos).length() < 2.0))
-                })
-                .count() as f32;
-            let score = value * 10.0 - d * 0.35 - congestion * 35.0;
-            if d < 70.0 && best.is_none_or(|b| score > b.0) {
-                best = Some((score, pos));
-            }
-        };
-        for m in arena.pickups.iter().filter(|m| m.taken_until.is_none()) {
-            consider(m.spawn.weapon, m.spawn.at);
-        }
-        for d in &arena.dropped {
-            consider(Some(d.weapon), d.pos);
-        }
-        self.pickup_goal = best.map(|b| b.1);
-        self.pickup_goal
-    }
-
     // ---- perception -------------------------------------------------------------------------------------------------------------
+
+    /// The match game's part of this bot's mind, if it is a `T`.
+    pub fn mind<T: super::game::BotMind>(&self) -> Option<&T> {
+        self.mind.as_deref().and_then(|m| (m as &dyn std::any::Any).downcast_ref::<T>())
+    }
+
+    /// Something on the floor this bot wants to walk to (its game mind's choice), when it has nothing better to do.
+    pub(crate) fn pickup_goal(&mut self, sim: &MatchSim, slot: usize, me: &ServerPlayer, now: u64) -> Option<Vec3> {
+        let m = self.mind.as_mut()?;
+        let mut bot = super::game::BotCtx { slot, me, now, target: self.target.filter(|_| self.target_visible), seq: self.seq, rng: &mut self.rng };
+        m.pickup(sim, &mut bot)
+    }
 
     fn perceive(&mut self, sim: &MatchSim, slot: usize, eye: Vec3, now: u64, hurt: bool) {
         if !(now + slot as u64).is_multiple_of(LOOK_EVERY) && !hurt {
@@ -775,7 +643,7 @@ impl Brain {
         sim: &MatchSim,
         me: &ServerPlayer,
         grounded: bool,
-        og: crate::sim::objective_run::ObjGoal,
+        og: super::game::BotGoal,
         now: u64,
         want: &mut Vec2,
         steer: &mut Option<Steer>,
@@ -819,7 +687,7 @@ impl Brain {
         self.hold_interact = false;
         // Capture the flag / search and destroy: carrying, planting and defusing are worth running past a fight; a far-off enemy never
         // pins the whole team down (aiming and shooting go on while moving).
-        let objective = sim.bot_objective_goal(slot);
+        let objective = self.mind.as_ref().and_then(|m| m.objective(sim, slot));
         let enemy_close = target.is_some_and(|(_, p)| (p.state.pos - pos).length() < 12.0);
         let objective_first = objective.is_some_and(|g| g.urgent || !enemy_close);
         if now < self.stuck_until {
@@ -873,14 +741,16 @@ impl Brain {
         } else if let Some(og) = objective {
             // No enemy in the way: the objective comes before weapons on the floor and before roaming.
             self.objective_move(sim, me, grounded, og, now, &mut want, &mut steer);
-        } else if let Some(goal) = self.pickup_goal(sim, slot, me, now).filter(|_| sim.kit(slot).is_some()) {
+        } else if let Some(goal) = self.pickup_goal(sim, slot, me, now) {
             let to = Vec2::new(goal.x - pos.x, goal.z - pos.y);
             if let Some(nav) = sim.nav() {
                 steer = self.route.steer(nav, &me.state, grounded, goal, now);
             }
             want = steer.map_or_else(|| to.normalize_or_zero(), |s| s.dir);
             if to.length() < 0.6 {
-                self.pickup_until = 0;
+                if let Some(m) = self.mind.as_mut() {
+                    m.reached_pickup();
+                }
             }
         } else if let Some(goal) = self.hunt_target(sim, slot, me, now) {
             let to = Vec2::new(goal.x - pos.x, goal.z - pos.y);
@@ -1026,23 +896,6 @@ impl Brain {
     }
 }
 
-/// How much a bot wants a gun (a rough tier list: rifles and marksman guns over SMGs over pistols).
-fn weapon_value(w: Weapon) -> f32 {
-    use crate::arsenal::Class;
-    let k = w.kit();
-    match k.class {
-        Class::Rifle => 9.0 + k.damage as f32 * 0.02,
-        Class::Marksman => 8.5,
-        Class::Sniper => 8.0 + k.damage as f32 * 0.01,
-        Class::Lmg => 7.5,
-        Class::Smg => 7.0,
-        Class::Shotgun => 6.0,
-        Class::Launcher => 6.5,
-        Class::Pistol => 3.0 + k.damage as f32 * 0.02,
-        _ => 0.0,
-    }
-}
-
 // ---------------------------------------------------------------------------------------------------------------------------------
 // MatchSim: adding, naming and running bots
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1075,7 +928,9 @@ impl MatchSim {
             if !self.add_player_in_slot_team(slot, spec.character, team) {
                 return false;
             }
-            self.bots[slot] = Some(Box::new(Brain::new(spec, 0xB07 ^ ((slot as u64 + 1) << 8) ^ (self.tick << 16))));
+            let mut brain = Brain::new(spec, 0xB07 ^ ((slot as u64 + 1) << 8) ^ (self.tick << 16));
+            brain.mind = self.game.as_ref().and_then(|g| g.bot_mind());
+            self.bots[slot] = Some(Box::new(brain));
             return true;
         }
         if self.race.is_some() {
@@ -1096,7 +951,9 @@ impl MatchSim {
         if spec.character == Character::Rat || !self.add_player_in_slot(slot, spec.character) {
             return false;
         }
-        self.bots[slot] = Some(Box::new(Brain::new(spec, 0xB07 ^ ((slot as u64 + 1) << 8) ^ (self.tick << 16))));
+        let mut brain = Brain::new(spec, 0xB07 ^ ((slot as u64 + 1) << 8) ^ (self.tick << 16));
+        brain.mind = self.game.as_ref().and_then(|g| g.bot_mind());
+        self.bots[slot] = Some(Box::new(brain));
         true
     }
 

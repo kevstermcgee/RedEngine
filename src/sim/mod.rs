@@ -57,6 +57,7 @@ pub use red_core::sim::rules_run;
 pub mod scenario;
 pub use red_core::sim::scratch;
 pub use red_core::sim::shooter;
+pub use red_core::sim::shooter_bots;
 pub use red_core::sim::snapshot;
 pub use red_core::sim::spawns;
 pub use red_core::sim::statics;
