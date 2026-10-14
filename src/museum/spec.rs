@@ -456,7 +456,7 @@ pub fn parse_museum(root: &Map<String, Value>, base: Option<&std::path::Path>) -
         if let Some(f) = &art_file {
             let path = base.join(f);
             match std::fs::read_to_string(&path) {
-                Ok(code) => match crate::atmosphere::check_art_shader(f, &code) {
+                Ok(code) => match crate::atmosphere::check_art_shader("museum.art", f, &code) {
                     Ok(()) => art = Some(code),
                     Err(e) => errs.push(e),
                 },

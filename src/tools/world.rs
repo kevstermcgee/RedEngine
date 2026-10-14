@@ -248,8 +248,8 @@ impl MapWorld {
     /// Analysis of such a scene cannot use "the bounds of the solid things" (there are none worth the name) or look for a perimeter to seal; it looks at a *window* of
     /// the world around the points that matter ([`Self::analysis_box`]) and asks [`Self::blockers_in`] what stops the player there.
     pub fn is_endless(&self) -> bool {
-        // A museum (`museum` block) is endless too: its rooms, walls and doors are built around the player as they walk, not authored.
-        self.ground.procgen().is_some() || self.scene.blocks.has(crate::museum::BLOCK.key)
+        // A scene block can build the world around the player too (a museum's rooms, walls and doors), not authored.
+        self.ground.procgen().is_some() || crate::schema::defined_blocks().iter().any(|b| b.endless && self.scene.blocks.has(b.key))
     }
 
     /// Every collider that can stop the player's body inside the XZ box `min..max`: the authored ones, then (in an endless world) the generated trunks and shrub crowns

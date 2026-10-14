@@ -51,7 +51,17 @@ pub struct BlockDef {
     pub parse: BlockParse,
     /// Fixes its `"seed": "launch"` to this launch's draw: the new value, or `None` when it has no launch seed.
     pub fix_launch_seed: BlockSeed,
+    /// The file of the game's painted surfaces it names (a WGSL file with `fn surface`), relative to the scene, from the block's JSON: a `sky.shader`
+    /// is checked with them composed in front, as the renderer composes them.
+    pub art_file: BlockArtFile,
+    /// Whether it builds the world around the player as they walk (rooms, walls, doors): the tools treat such a scene as endless.
+    pub endless: bool,
+    /// Its line in `describe scene`: its keys and what it is.
+    pub describe: &'static str,
 }
+
+/// [`BlockDef::art_file`]: the block's JSON -> the painted-surface file it names, if any.
+pub type BlockArtFile = fn(&Value) -> Option<&str>;
 
 /// [`BlockDef::parse`]: the scene root and the directory the scene's files are relative to -> the block's value, or its errors.
 pub type BlockParse = fn(&Map<String, Value>, Option<&std::path::Path>) -> Result<Option<BlockValue>, Vec<String>>;

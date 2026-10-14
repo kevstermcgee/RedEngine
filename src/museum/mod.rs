@@ -30,7 +30,14 @@ pub use spec::{parse_museum, Collection, MuseumSpec};
 pub use state::{Event, Museum, Place, Progress, Target};
 
 /// The `museum` scene block, defined above the scene parser (ADR 2026-10-13-a-scene-block-can-be-defined-above-the-core; `scene_blocks` registers it).
-pub const BLOCK: crate::schema::BlockDef = crate::schema::BlockDef { key: "museum", parse: parse_block, fix_launch_seed: fix_seed };
+pub const BLOCK: crate::schema::BlockDef = crate::schema::BlockDef {
+    key: "museum",
+    parse: parse_block,
+    fix_launch_seed: fix_seed,
+    art_file: |v| v.get("art").and_then(serde_json::Value::as_str),
+    endless: true,
+    describe: "{collection, art, seed, start_theme} an endless museum built around the player: rooms, doors and wings from the seed, art with plaques written from the collection file (themes, words, styles, masterpieces), a key hidden in each room (a sculpture, or a painting up to three worlds deep), the worlds inside paintings. art: a .wgsl file defining `fn surface(s: SurfaceIn) -> vec4<f32>` (colour, glow) that paints every canvas and sculpture, composed in front of the sky too; `game_param(i)` says which painting's world surrounds the player. `red_engine2 museum SCENE` prints a room, `--inside N --shot`, `--map`, `--styles`; examples/frameless",
+};
 
 fn parse_block(root: &serde_json::Map<String, serde_json::Value>, base: Option<&std::path::Path>) -> Result<Option<crate::schema::BlockValue>, Vec<String>> {
     Ok(parse_museum(root, base)?.map(|m| std::sync::Arc::new(m) as crate::schema::BlockValue))
