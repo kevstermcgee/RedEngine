@@ -5,6 +5,9 @@
 //! number comes from the weapon's row in [`crate::arsenal`]: cadence, magazine, reload time, spread (wider when moving, jumping or spraying,
 //! tight when aiming or crouched), damage falloff with range, the headshot multiplier, a knife's backstab. Randomness is a hash of tick, slot and
 //! pellet, so a replay fires the same shots.
+//!
+//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
+//! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use super::interact::RayTarget;
 use super::match_sim::MatchSim;

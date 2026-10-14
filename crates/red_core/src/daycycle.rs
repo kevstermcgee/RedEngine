@@ -13,6 +13,8 @@
 //! nothing jumps. The look is deliberately stylised and soft (a pink-gold dawn and dusk, a deep indigo night) rather than physically exact.
 //!
 //! Conventions: +X is east (the sun rises there), +Z is south (the sun culminates there in the northern hemisphere), +Y is up.
+//!
+//! Used by Day Cycle, Endless Meadow, Lantern Walk and Marcel; offered by those examples (system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::color::parse_hex_to_linear;
 use crate::strict::check_keys;

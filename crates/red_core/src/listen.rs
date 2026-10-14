@@ -6,6 +6,9 @@
 //! Decoding files is [`decode`] (with `gfx`); the client in `client/listen.rs` only does the sound card, the file picker and the keys.
 //!
 //! The game ships no audio (ADR 0008 is about what games ship): the files are the player's, read from their disk at run time and never copied.
+//!
+//! Used by 16 games, among them Marcel, Wormhole, Chroma, Frameless, Great Outdoors, Killchain and Velvet Orchestra (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 use crate::audio_analysis::fft;
 use serde_json::{Map, Value};

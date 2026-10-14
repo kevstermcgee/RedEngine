@@ -10,6 +10,9 @@
 //! * **Search and destroy.** One life per round. The attackers carry a bomb to a site and plant it by holding Interact; the defenders stop
 //!   them, or defuse it by holding Interact next to it. A round ends when the bomb goes off or is defused, a side is eliminated or time runs
 //!   out. Sides swap partway through the match.
+//!
+//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
+//! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::strict::check_keys;
 use glam::Vec3;

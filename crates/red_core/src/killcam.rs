@@ -4,6 +4,9 @@
 //! client keeps the last few seconds of them in a [`Recorder`]; when the server says who killed us, [`Recorder::playback`] cuts out the
 //! window from a few seconds before the death and [`Playback::at`] returns the interpolated poses of the killer (whose eyes the camera
 //! takes) and of everyone else at that moment, which the client draws exactly like live players. Pure data: no window, no GPU.
+//!
+//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
+//! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::net::interp::{Blend, PlayerPose};
 use crate::net::protocol::{ProjSnap, Snapshot};

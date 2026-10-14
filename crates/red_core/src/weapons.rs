@@ -12,6 +12,9 @@
 //!
 //! There is no special weapon: every firearm is a [`FirearmSpec`] row and a procedural model, so a new gun is one row and one shape
 //! (ADR 2026-09-28-remove-the-revolver removed the one that had its own code path).
+//!
+//! Used by 8 games: Borrowed Foundry, Drowsy Marathon, Gravity Gauntlet, Killchain, RedDM, RedEngine Sandbox, Riftraze and Velvet Orchestra (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 /// A weapon the human can hold.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -2,6 +2,9 @@
 //!
 //! The library intentionally uses engine-native primitives: every model is redistributable,
 //! deterministic, lightweight, and available to games without an imported-mesh pipeline.
+//!
+//! Used by 8 games: Borrowed Foundry, Drowsy Marathon, Gravity Gauntlet, Killchain, RedDM, RedEngine Sandbox, Riftraze and Velvet Orchestra (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 use crate::mesh::Mesh;
 use crate::viewer::{append_transformed, flip_winding_for_viewmodel, HeldPart, HAND_COLOR, SLEEVE_COLOR};

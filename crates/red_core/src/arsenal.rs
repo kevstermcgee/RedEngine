@@ -7,6 +7,9 @@
 //!
 //! Pure data: no window, GPU or socket. The legacy ten-firearm prototype keeps its own numbers in [`Weapon::firearm`]; a scene opts into
 //! this table with a top-level `loadout` block (`sim::kit`).
+//!
+//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
+//! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::sim::clock::secs_to_ticks;
 use crate::weapons::Weapon;

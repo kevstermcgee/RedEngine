@@ -3,6 +3,9 @@
 //! See [`shapes`] for the low-poly model of each species (built with [`geo`]), [`world`] for the generator (ground, climate, biomes, plant placement per chunk), [`flora`] for the table of real species and the
 //! climate each grows in, and [`noise`] for the deterministic noise under both. `red_engine2 procgen` draws a top-down map of any region
 //! so a world can be looked at, and measured, without a renderer.
+//!
+//! Used by Endless Meadow, Lantern Walk and Marcel (and Frameless builds its shapes with `procgen::geo`); offered by those examples (system audit,
+//! docs/analysis/2026-10-14-system-audit.md).
 
 pub mod chunk;
 pub use red_core::procgen::flora;

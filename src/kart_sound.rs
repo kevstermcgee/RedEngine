@@ -2,6 +2,8 @@
 //!
 //! Pure: [`KartSound::step`] takes the HUD of this frame and says what to play, so the rules are tested without a sound device. The clips are the
 //! engine's own synthesized ones ([`crate::sfx`]); the windowed client plays what comes out.
+//!
+//! Used by Great Outdoors, and offered to every new kart game by `new-game --kind race` (system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::sfx;
 use crate::sim::kart::Item;

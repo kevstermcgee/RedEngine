@@ -14,6 +14,8 @@
 //! "zones": [{"id": "line", "rect": [-6, -1, 6, 1]}, {"id": "bend", "rect": [30, 40, 40, 44]}, {"id": "back", "rect": [-6, 79, 6, 81]}],
 //! "race": {"laps": 3, "gates": ["line", "bend", "back"], "countdown_secs": 3}
 //! ```
+//!
+//! Used by Great Outdoors, and offered to every new kart game by `new-game --kind race` (system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::sim::clock::TICK_RATE_HZ;
 use crate::sim::kart::Surface;
