@@ -2,6 +2,7 @@
 
 use red_engine2::sim::ai::BotsConfig;
 use red_engine2::sim::match_sim::MatchSim;
+use red_engine2::sim::shooter::ShooterSim;
 use red_engine2::sim::spawns::Spawn;
 use serde_json::json;
 

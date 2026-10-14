@@ -6,6 +6,7 @@ use red_engine2::sim::match_sim::MatchSim;
 use red_engine2::sim::objective::{BombState, RoundPhase};
 use red_engine2::sim::player::PlayerInput;
 use red_engine2::sim::shooter::ModeKind;
+use red_engine2::sim::shooter::ShooterSim;
 use red_engine2::sim::spawns::Spawn;
 use serde_json::json;
 

@@ -69,7 +69,7 @@ pub fn swing_blend(elapsed: Option<f32>, idle: f32, windup: f32, strike: f32) ->
 /// Knife stroke, shared by first- and third-person presentation: lands at the simulation's melee wind-up, settles by 0.4 seconds.
 pub fn knife_stroke(elapsed: Option<f32>) -> f32 {
     let Some(t) = elapsed else { return 0.0 };
-    let hit = crate::sim::kit::MELEE_WINDUP_SECS;
+    let hit = crate::arsenal::MELEE_WINDUP_SECS;
     let smooth = |t: f32| {
         let t = t.clamp(0.0, 1.0);
         t * t * (3.0 - 2.0 * t)
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn knife_strike_lands_at_the_server_hit_and_recovers_smoothly() {
-        let hit = crate::sim::kit::MELEE_WINDUP_SECS;
+        let hit = crate::arsenal::MELEE_WINDUP_SECS;
         assert_eq!(knife_stroke(None), 0.0);
         assert_eq!(knife_stroke(Some(0.0)), 0.0);
         assert!((knife_stroke(Some(hit)) - 1.0).abs() < 0.001);

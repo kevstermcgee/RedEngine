@@ -158,6 +158,12 @@ pub trait MatchGame: Any + Send {
         0
     }
 
+    /// Whether players wear the team uniforms ([`body`](Self::body) answers with `Character::soldier`): a client's avatar pool then prepares the
+    /// soldiers instead of the other bodies (`net::session::avatar_plan`).
+    fn uniforms(&self) -> bool {
+        false
+    }
+
     /// The body a player of `team` (`0`: none) in `slot` wears, given the `look` they or the roster chose (`None`: the character they chose).
     fn body(&self, _slot: usize, _team: u8, _look: u8) -> Option<crate::player::Character> {
         None

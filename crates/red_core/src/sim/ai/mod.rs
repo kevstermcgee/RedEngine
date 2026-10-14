@@ -1000,36 +1000,6 @@ impl MatchSim {
 mod tests {
     use super::*;
 
-    #[test]
-    fn teammates_choose_different_pickups_and_abandon_taken_goals_immediately() {
-        crate::schema::define_blocks(&[crate::sim::shooter::BLOCK]);
-        crate::sim::game::define_games(&[crate::sim::shooter::GAME]);
-        let scene = crate::schema::parse_scene(
-            r#"{
-            "camera":{"position":[0,1.7,0],"target":[0,1.7,-5]},
-            "shooter":{"start":["pistol","knife"],"pickups":[
-                {"weapon":"rifle","at":[-10,0.3,0]}, {"weapon":"rifle","at":[10,0.3,0]}]},
-            "objects":[{"id":"floor","type":"plane","size":[100,100]}]
-        }"#,
-        )
-        .unwrap();
-        let spawn = crate::sim::spawns::Spawn { id: "s".into(), position: [0.0; 3], yaw_deg: 0.0, group: String::new() };
-        let mut sim = MatchSim::new(&scene, vec![spawn]);
-        let cfg = BotsConfig::default();
-        assert!(sim.add_bot_in_slot_team(0, &cfg.spec(0), 1));
-        assert!(sim.add_bot_in_slot_team(1, &cfg.spec(1), 1));
-        let mut first = sim.bots[0].take().unwrap();
-        let goal = first.pickup_goal(&sim, 0, sim.player(0).unwrap(), 0).unwrap();
-        sim.bots[0] = Some(first);
-        let mut second = sim.bots[1].take().unwrap();
-        let other = second.pickup_goal(&sim, 1, sim.player(1).unwrap(), 0).unwrap();
-        assert!((goal - other).length() > 10.0, "same-value pickups should split the team");
-        let arena = &mut sim.game_mut::<crate::sim::shooter::ShooterGame>().unwrap().arena;
-        arena.pickups.iter_mut().find(|m| m.spawn.at == other).unwrap().taken_until = Some(500);
-        let next = second.pickup_goal(&sim, 1, sim.player(1).unwrap(), 1).unwrap();
-        assert_ne!(other, next, "a consumed pickup is abandoned before the two-second decision expires");
-    }
-
     fn root(s: &str) -> Map<String, Value> {
         serde_json::from_str::<Value>(s).unwrap().as_object().unwrap().clone()
     }

@@ -21,16 +21,17 @@ from pathlib import Path
 # system -> (files and folders it lives in, scene keys that turn it on, Rust paths a game crate may name it by)
 SYSTEMS = {
     "loadout shooter": (
-        ["crates/red_core/src/arsenal.rs", "crates/red_core/src/killcam.rs", "src/shooter_world.rs", "src/objective_world.rs",
+        ["crates/red_core/src/killcam.rs", "src/shooter_world.rs", "src/objective_world.rs",
          "crates/red_core/src/sim/kit.rs", "crates/red_core/src/sim/ordnance.rs", "crates/red_core/src/sim/shooter.rs",
-         "crates/red_core/src/sim/objective.rs", "crates/red_core/src/sim/objective_run.rs"],
+         "crates/red_core/src/sim/objective.rs", "crates/red_core/src/sim/objective_run.rs", "crates/red_core/src/sim/shooter_bots.rs",
+         "crates/red_core/src/sim/shooter_snap.rs", "crates/red_core/src/net/arena_wire.rs"],
         ["shooter"],
-        ["arsenal", "killcam", "shooter_world", "objective_world", "sim::kit", "sim::ordnance", "sim::shooter", "sim::objective"],
+        ["killcam", "shooter_world", "objective_world", "sim::kit", "sim::ordnance", "sim::shooter", "sim::objective"],
     ),
     "weapons and guns": (
-        ["crates/red_core/src/weapons.rs", "src/firearms.rs"],
+        ["crates/red_core/src/weapons.rs", "crates/red_core/src/arsenal.rs", "src/firearms.rs"],
         ["weapons", "combat"],
-        ["weapons::", "firearms"],
+        ["weapons::", "arsenal", "firearms"],
     ),
     "karts and races": (
         ["crates/red_core/src/sim/kart.rs", "crates/red_core/src/sim/race.rs", "src/kart_camera.rs", "src/kart_sound.rs"],

@@ -191,7 +191,7 @@ impl ShooterGame {
                         } else {
                             let normal = match h.target {
                                 super::interact::RayTarget::Player(_) => -dir,
-                                _ => surface_normal(pr.pos, dir, h.distance, &sim.hit_shapes),
+                                _ => surface_normal(pr.pos, dir, h.distance, sim.hit_shapes()),
                             };
                             pr.pos = at;
                             if spec.payload == Payload::Fire && normal.y > 0.3 {
@@ -237,7 +237,7 @@ impl ShooterGame {
     }
 
     fn push_fx(&mut self, sim: &mut MatchSim, kind: FxKind, pos: Vec3, size: f32) {
-        let tick = sim.tick;
+        let tick = sim.tick();
         let a = &mut self.arena;
         a.fx.retain(|e| tick.saturating_sub(e.tick) < FX_KEEP_TICKS);
         if a.fx.len() >= MAX_FX {
@@ -268,11 +268,11 @@ impl ShooterGame {
             }
             Payload::None => {}
         }
-        sim.rules.inject(sim.tick, "explosion", Some(pr.owner as usize));
+        sim.rule_event("explosion", Some(pr.owner as usize));
     }
 
     fn add_zone(&mut self, sim: &mut MatchSim, kind: ZoneKind, pos: Vec3, radius: f32, secs: f32, owner: u8, dps: u16) {
-        let until = sim.tick + secs_to_ticks(secs) as u64;
+        let until = sim.tick() + secs_to_ticks(secs) as u64;
         let a = &mut self.arena;
         if a.zones.len() >= MAX_ZONES {
             a.zones.remove(0);
@@ -298,7 +298,7 @@ impl ShooterGame {
                 (d < radius).then(|| {
                     let to = centre - (at + Vec3::Y * 0.1);
                     let len = to.length();
-                    let blocked = len > 0.3 && raycast_shapes(at + Vec3::Y * 0.1, to / len, len - 0.15, &sim.hit_shapes).is_some();
+                    let blocked = len > 0.3 && raycast_shapes(at + Vec3::Y * 0.1, to / len, len - 0.15, sim.hit_shapes()).is_some();
                     (slot, if blocked { -1.0 } else { d })
                 })
             })
@@ -313,12 +313,12 @@ impl ShooterGame {
                 sim.damage_in(slot, dmg, owner, weapon, false, self.me());
             }
         }
-        for k in 0..sim.props.props().len() {
-            let pos = sim.props.prop_pose(k).w_axis.truncate();
+        for k in 0..sim.props().props().len() {
+            let pos = sim.props().prop_pose(k).w_axis.truncate();
             let to = pos - at;
             let d = to.length();
             if d < radius && d > 1e-3 {
-                let mass = sim.props.mass(k).min(6.0);
+                let mass = sim.props().mass(k).min(6.0);
                 sim.shove(k, to / d, at, (1.0 - d / radius) * 9.0 * mass);
             }
         }
@@ -327,7 +327,7 @@ impl ShooterGame {
     /// Blinds everyone who could see a flashbang go off at `at`: longer when close and when looking at it.
     fn flash(&mut self, sim: &mut MatchSim, at: Vec3, weapon: Weapon) {
         let spec = weapon.kit();
-        let now = sim.tick;
+        let now = sim.tick();
         let mut blinded: Vec<(usize, f32)> = Vec::new();
         for (slot, p) in sim.players().filter(|(_, p)| !p.combat.is_dead()) {
             let body = p.state.character.body();
@@ -337,7 +337,7 @@ impl ShooterGame {
             if d > spec.radius || d < 1e-3 {
                 continue;
             }
-            if raycast_shapes(eye, to / d, d - 0.1, &sim.hit_shapes).is_some() {
+            if raycast_shapes(eye, to / d, d - 0.1, sim.hit_shapes()).is_some() {
                 continue;
             }
             let (sy, cy) = libm::sincosf(p.state.yaw);
@@ -357,7 +357,7 @@ impl ShooterGame {
             }
         }
         for (slot, secs) in blinded {
-            if let Some(p) = sim.players[slot].as_mut() {
+            if let Some(p) = sim.player_mut(slot) {
                 let until = now + secs_to_ticks(secs) as u64;
                 p.combat.flash_until = p.combat.flash_until.max(until);
                 p.combat.flash_total = p.combat.flash_total.max(secs);
@@ -367,7 +367,7 @@ impl ShooterGame {
 
     /// Expires zones and lets fires burn whoever stands in them.
     fn step_zones(&mut self, sim: &mut MatchSim) {
-        let now = sim.tick;
+        let now = sim.tick();
         let a = &mut self.arena;
         a.zones.retain(|z| z.until > now);
         a.fx.retain(|e| now.saturating_sub(e.tick) < FX_KEEP_TICKS);
@@ -390,12 +390,5 @@ impl ShooterGame {
                 sim.damage_in(slot, per_tick, z.owner as usize, Weapon::Incendiary, false, self.me());
             }
         }
-    }
-}
-
-impl MatchSim {
-    /// Whether a point is inside a smoke cloud (bots cannot see through one).
-    pub fn in_smoke(&self, p: Vec3) -> bool {
-        self.arena().is_some_and(|a| a.zones.iter().any(|z| z.kind == ZoneKind::Smoke && (z.pos + Vec3::Y * z.radius * 0.5 - p).length() < z.radius))
     }
 }

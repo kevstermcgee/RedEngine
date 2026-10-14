@@ -167,6 +167,43 @@ pub fn spec_of(scene: &crate::schema::Scene) -> Option<std::sync::Arc<ShooterCon
     scene.blocks.get_arc::<ShooterConfig>()
 }
 
+/// The shooter's questions about a match: [`MatchSim`](super::match_sim::MatchSim) is the core's, and these read the shooter's part of it
+/// (`use` this trait to call them). Inside one of the shooter's own hooks the game is out of the match, so they answer `None` there: the hook has
+/// the [`ShooterGame`] itself.
+pub trait ShooterSim {
+    /// The loadout-match state (pickups, projectiles, smoke, fire, kills), if this is a loadout match.
+    fn arena(&self) -> Option<&ArenaState>;
+
+    /// Player `slot`'s loadout kit, in a loadout match.
+    fn kit(&self, slot: usize) -> Option<&Kit>;
+
+    /// Whether this match is a loadout match.
+    fn is_loadout(&self) -> bool {
+        self.arena().is_some()
+    }
+
+    /// The loadout match's mode (team deathmatch outside one).
+    fn mode(&self) -> ModeKind {
+        self.arena().map_or_else(Default::default, |a| a.cfg.mode)
+    }
+
+    /// Whether a point is inside a smoke cloud (bots cannot see through one).
+    fn in_smoke(&self, p: Vec3) -> bool {
+        self.arena()
+            .is_some_and(|a| a.zones.iter().any(|z| z.kind == super::ordnance::ZoneKind::Smoke && (z.pos + Vec3::Y * z.radius * 0.5 - p).length() < z.radius))
+    }
+}
+
+impl ShooterSim for super::match_sim::MatchSim {
+    fn arena(&self) -> Option<&ArenaState> {
+        self.game::<ShooterGame>().map(|g| &g.arena)
+    }
+
+    fn kit(&self, slot: usize) -> Option<&Kit> {
+        self.game::<ShooterGame>().and_then(|g| g.kits.get(slot)).and_then(Option::as_ref)
+    }
+}
+
 /// Parses a scene's optional `shooter` block: `Ok(None)` when there is none.
 pub fn parse_shooter(root: &Map<String, Value>) -> Result<Option<ShooterConfig>, Vec<String>> {
     let Some(value) = root.get("shooter") else { return Ok(None) };
@@ -538,6 +575,10 @@ impl super::game::MatchGame for ShooterGame {
 
     fn mode_wire(&self) -> u8 {
         self.arena.cfg.mode.wire()
+    }
+
+    fn uniforms(&self) -> bool {
+        true
     }
 
     /// Soldiers: a team's uniform, and in free for all the two uniforms alternating by slot.

@@ -69,7 +69,7 @@ pub fn avatar_plan(scene: &Scene) -> AvatarPlan {
         bot_bodies[body_index(bots.spec(k).character)] += 1;
     }
     let (mut pool, mut needed) = ([0usize; BODY_KINDS], [0usize; BODY_KINDS]);
-    let team_match = crate::sim::shooter::spec_of(scene).is_some();
+    let team_match = crate::sim::game::game_for(scene).is_some_and(|g| g.uniforms());
     for (i, who) in Character::ALL.iter().enumerate() {
         // A team match shows soldiers only (one uniform per team); every other match never draws one.
         let soldier = who.soldier_team().is_some();
@@ -80,8 +80,8 @@ pub fn avatar_plan(scene: &Scene) -> AvatarPlan {
             // The trooper is the default look (a whole team may wear it); the other looks are prepared for four at a time, and a fifth gets a
             // stand-in costume rather than a longer start-up.
             let all = who.soldier_look() == Some(0);
-            pool[i] = if all { crate::sim::shooter::MAX_TEAM + 1 } else { 4 };
-            needed[i] = if all { crate::sim::shooter::MAX_TEAM } else { 4 };
+            pool[i] = if all { crate::sim::match_sim::MAX_TEAM + 1 } else { 4 };
+            needed[i] = if all { crate::sim::match_sim::MAX_TEAM } else { 4 };
             continue;
         }
         let human = forced.is_none_or(|f| f == *who);

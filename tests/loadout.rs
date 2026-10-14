@@ -5,6 +5,7 @@ use red_engine2::player::Character;
 use red_engine2::sim::kit::Slot;
 use red_engine2::sim::match_sim::MatchSim;
 use red_engine2::sim::player::{PlayerInput, PlayerState};
+use red_engine2::sim::shooter::ShooterSim;
 use red_engine2::sim::spawns::Spawn;
 use red_engine2::weapons::Weapon;
 use serde_json::json;
