@@ -492,6 +492,82 @@ fn check_entry_budgets(root: &Path) -> Vec<Problem> {
         .collect()
 }
 
+/// The most lines a Rust source file under `src/` or `crates/*/src/` may hold: a longer one is split, a module per concern (ADR
+/// 2026-10-13-the-next-phase's alongside items).
+pub const MAX_FILE_LINES: usize = 1_000;
+
+/// The files that were already longer when the limit came (2026-10-14, the 28 of docs/analysis/2026-10-13-next-phase-review-verified.md), each with
+/// the ceiling it may not pass: its length then, rounded up to the next 250 lines. They are split, not grown; the three longest have a plan
+/// (docs/analysis/2026-10-14-long-files.md). One that falls under the limit leaves this list.
+pub const LONG_FILES: &[(&str, usize)] = &[
+    ("crates/red2d/src/game.rs", 3500),
+    ("crates/red2d/src/sim.rs", 2750),
+    ("crates/red_core/src/net/protocol.rs", 2250),
+    ("crates/red_core/src/sim/rules.rs", 2000),
+    ("crates/red_core/src/schema.rs", 2000),
+    ("src/tools/affected.rs", 2000),
+    ("src/tools/upgrade.rs", 1750),
+    ("src/sim/scenario.rs", 1750),
+    ("src/cli/args.rs", 1500),
+    ("src/tools/lint.rs", 1500),
+    ("crates/red_core/src/sim/rules_run.rs", 1500),
+    ("src/playscript.rs", 1500),
+    ("crates/red_core/src/net/relay_server.rs", 1500),
+    ("crates/red_core/src/net/server.rs", 1500),
+    ("src/net/session.rs", 1500),
+    ("crates/red_core/src/sim/ai/mod.rs", 1250),
+    ("crates/red_core/src/scene_macros.rs", 1250),
+    ("src/viewer.rs", 1250),
+    ("crates/red_core/src/sim/kart.rs", 1250),
+    ("src/tools/describe.rs", 1250),
+    ("crates/red_core/src/ambience.rs", 1250),
+    ("src/ui/online.rs", 1250),
+    ("src/museum/state.rs", 1250),
+    ("crates/red_core/src/sfx.rs", 1250),
+    ("src/bin/re2/main.rs", 1250),
+    ("src/museum/build.rs", 1250),
+    ("src/tools/blueprint.rs", 1250),
+    ("crates/red_core/src/arsenal.rs", 1250),
+];
+
+/// Rust sources over [`MAX_FILE_LINES`] that are not in [`LONG_FILES`], listed files past their ceiling, and listed files that no longer need to be.
+fn check_lengths(root: &Path) -> Vec<Problem> {
+    let mut out = Vec::new();
+    let files = features::repo_files(root);
+    for f in files.iter().filter(|f| f.ends_with(".rs") && (f.starts_with("src/") || (f.starts_with("crates/") && f.contains("/src/")))) {
+        let lines = read(root, f).lines().count();
+        match LONG_FILES.iter().find(|(p, _)| p == f) {
+            Some((_, ceiling)) if lines > *ceiling => out.push(problem(
+                "length",
+                format!("{f} is {lines} lines, past its ceiling of {ceiling} (it was over {MAX_FILE_LINES} before the limit came)"),
+                format!("split {f} rather than grow it: move a concern into its own module (`red_engine2 src outline {f}`)"),
+                None,
+            )),
+            Some(_) if lines <= MAX_FILE_LINES => out.push(problem(
+                "length",
+                format!("{f} is {lines} lines, under the {MAX_FILE_LINES}-line limit now"),
+                format!("take {f} off LONG_FILES in src/tools/preflight.rs"),
+                None,
+            )),
+            None if lines > MAX_FILE_LINES => out.push(problem(
+                "length",
+                format!("{f} is {lines} lines, over the {MAX_FILE_LINES}-line limit"),
+                format!("split {f}: move a concern into its own module (`red_engine2 src outline {f}`)"),
+                None,
+            )),
+            _ => {}
+        }
+    }
+    // The list describes this engine's tree: a tree holding none of the listed files (a game project, a test's scratch repository) has nothing to
+    // report; in this one, a listed file that is gone was renamed or split away and leaves the list.
+    let ours = LONG_FILES.iter().any(|(p, _)| files.iter().any(|f| f == p));
+    let gone = |p: &str| ours && !files.iter().any(|f| f == p);
+    for (p, _) in LONG_FILES.iter().filter(|(p, _)| gone(p)) {
+        out.push(problem("length", format!("{p} is in LONG_FILES but no longer exists"), format!("take {p} off LONG_FILES in src/tools/preflight.rs"), None));
+    }
+    out
+}
+
 /// Runs the checks. Nothing is compiled; on this repository it takes a fraction of a second (a second or two with `fmt`).
 pub fn run(root: &Path, opts: &Options) -> Report {
     let started = Instant::now();
@@ -508,6 +584,7 @@ pub fn run(root: &Path, opts: &Options) -> Report {
     docs.extend(check_entry_budgets(root));
     add("docs", docs);
     add("lf", check_line_endings(root));
+    add("length", check_lengths(root));
     if opts.tree {
         r.skipped.extend(["the CLI command table", "the describe byte budgets"]);
     } else if opts.describe_sizes.is_some() {
@@ -647,6 +724,29 @@ pub fn to_json(r: &Report) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_long_source_file_is_split_and_a_listed_one_may_not_grow() {
+        let d = std::env::temp_dir().join(format!("re2-length-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("src")).unwrap();
+        let lines = |n: usize| "x\n".repeat(n);
+        std::fs::write(d.join("src/short.rs"), lines(MAX_FILE_LINES)).unwrap();
+        std::fs::write(d.join("src/long.rs"), lines(MAX_FILE_LINES + 1)).unwrap();
+        let found = check_lengths(&d);
+        assert!(found.iter().any(|p| p.message.starts_with("src/long.rs is 1001 lines, over the 1000-line limit")), "{found:?}");
+        assert!(!found.iter().any(|p| p.message.contains("src/short.rs")), "exactly the limit is fine: {found:?}");
+        assert!(!found.iter().any(|p| p.message.ends_with("no longer exists")), "a tree with none of the listed files is not this engine: {found:?}");
+        // One listed file present, and short now: it leaves the list, and so does every listed file this tree does not have.
+        std::fs::write(d.join("src/playscript.rs"), lines(10)).unwrap();
+        let found = check_lengths(&d);
+        assert!(found.iter().any(|p| p.message == "src/playscript.rs is 10 lines, under the 1000-line limit now"), "{found:?}");
+        assert!(found.iter().any(|p| p.message == "src/tools/affected.rs is in LONG_FILES but no longer exists"), "{found:?}");
+        let _ = std::fs::remove_dir_all(&d);
+        // The repository itself: no file over the limit off the list, none past its ceiling, none listed that need not be.
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        assert!(check_lengths(&root).is_empty(), "{:?}", check_lengths(&root));
+    }
 
     /// A tiny repository with everything preflight looks at.
     fn repo(tag: &str) -> std::path::PathBuf {
