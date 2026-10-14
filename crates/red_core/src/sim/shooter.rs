@@ -36,7 +36,7 @@ pub const MAX_DROPPED: usize = 16;
 /// Seconds a dropped weapon stays before it vanishes.
 pub const DROP_LIFETIME_SECS: f32 = 40.0;
 /// Most people on one team.
-pub const MAX_TEAM: usize = 6;
+pub const MAX_TEAM: usize = super::match_sim::MAX_TEAM;
 
 /// What a loadout match is played for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -481,6 +481,69 @@ impl super::game::MatchGame for ShooterGame {
     /// A loadout bot's weapons, objective and pickups ([`super::shooter_bots::ShooterBot`]).
     fn bot_mind(&self) -> Option<Box<dyn super::game::BotMind>> {
         Some(Box::new(super::shooter_bots::ShooterBot::default()))
+    }
+
+    fn teams(&self) -> bool {
+        self.arena.cfg.mode.teams()
+    }
+
+    /// Kills in team deathmatch, captures in capture the flag, rounds won in search and destroy; nothing in free for all (players score, not
+    /// teams).
+    fn team_score(&self) -> Option<[u32; 2]> {
+        Some(match self.arena.cfg.mode {
+            ModeKind::Tdm => self.arena.team_kills,
+            ModeKind::Ctf | ModeKind::Snd => self.arena.points,
+            ModeKind::Ffa => [0; 2],
+        })
+    }
+
+    fn team_kills(&self) -> Option<[u32; 2]> {
+        Some(self.arena.team_kills)
+    }
+
+    /// Captures in capture the flag, rounds in search and destroy; the kill modes leave it to the scene's `score_to_win`.
+    fn score_limit(&self) -> Option<u32> {
+        match self.arena.cfg.mode {
+            ModeKind::Ctf => Some(self.arena.cfg.objective.capture_limit),
+            ModeKind::Snd => Some(self.arena.cfg.objective.win_rounds),
+            _ => None,
+        }
+    }
+
+    fn team_size(&self) -> Option<usize> {
+        Some(self.arena.cfg.team_size)
+    }
+
+    fn mode_wire(&self) -> u8 {
+        self.arena.cfg.mode.wire()
+    }
+
+    /// Soldiers: a team's uniform, and in free for all the two uniforms alternating by slot.
+    fn body(&self, slot: usize, team: u8, look: u8) -> Option<crate::player::Character> {
+        Some(crate::player::Character::soldier(if team != 0 { team } else { 1 + (slot % 2) as u8 }, look))
+    }
+
+    /// Capture the flag's and search and destroy's events.
+    fn log(&self) -> Vec<(u32, String)> {
+        self.arena.obj_events.iter().map(|e| (e.id as u32, super::objective::describe(e.kind, e.team, e.slot))).collect()
+    }
+
+    fn snapshot_part(&self, sim: &super::match_sim::MatchSim, viewer: usize) -> Option<crate::net::protocol::GameMsg> {
+        self.arena_snap(sim, viewer).map(|a| a.to_game_msg())
+    }
+
+    /// Team, aiming, reloading, throwing and blinded, packed in one byte.
+    fn player_byte(&self, sim: &super::match_sim::MatchSim, slot: usize) -> u8 {
+        let (Some(k), Some(p)) = (self.kits.get(slot).and_then(Option::as_ref), sim.player(slot)) else { return 0 };
+        (p.team & 3)
+            | ((k.aiming as u8) << 2)
+            | ((k.reloading() as u8) << 3)
+            | ((k.throwing.is_some() as u8) << 4)
+            | (((sim.tick() < p.combat.flash_until) as u8) << 5)
+    }
+
+    fn swinging(&self, slot: usize) -> bool {
+        self.kits.get(slot).and_then(Option::as_ref).is_some_and(|k| k.swinging())
     }
 }
 

@@ -98,6 +98,63 @@ pub trait MatchGame: Any + Send {
     fn bot_mind(&self) -> Option<Box<dyn BotMind>> {
         None
     }
+
+    // ---- the server's flow and what a client is sent ----------------------------------------------------------------------------------
+
+    /// Whether players are on teams in the game's mode.
+    fn teams(&self) -> bool {
+        false
+    }
+
+    /// What each team is scoring toward (index = team - 1), when the game keeps team scores: the match is then won by a team.
+    fn team_score(&self) -> Option<[u32; 2]> {
+        None
+    }
+
+    /// Kills scored by each team (index = team - 1), when the game counts them.
+    fn team_kills(&self) -> Option<[u32; 2]> {
+        None
+    }
+
+    /// The score that wins, when the game's mode sets it (otherwise the scene's `score_to_win`).
+    fn score_limit(&self) -> Option<u32> {
+        None
+    }
+
+    /// Most people on one team, when the game sets it (the match then holds two teams of it).
+    fn team_size(&self) -> Option<usize> {
+        None
+    }
+
+    /// The game's mode, as the status carries it.
+    fn mode_wire(&self) -> u8 {
+        0
+    }
+
+    /// The body a player of `team` (`0`: none) in `slot` wears, given the `look` they or the roster chose (`None`: the character they chose).
+    fn body(&self, _slot: usize, _team: u8, _look: u8) -> Option<crate::player::Character> {
+        None
+    }
+
+    /// What happened in the game lately, for the server's log: `(id, line)`, ids rising (a smaller id than one logged before: a new world).
+    fn log(&self) -> Vec<(u32, String)> {
+        Vec::new()
+    }
+
+    /// The game's own part of a snapshot for `viewer` (`protocol::GameMsg`), `None`: the snapshot carries none.
+    fn snapshot_part(&self, _sim: &MatchSim, _viewer: usize) -> Option<crate::net::protocol::GameMsg> {
+        None
+    }
+
+    /// Player `slot`'s game byte in a snapshot that carries a game part (`protocol::PlayerSnap::extra`).
+    fn player_byte(&self, _sim: &MatchSim, _slot: usize) -> u8 {
+        0
+    }
+
+    /// Whether player `slot` is swinging a melee weapon of the game's (a snapshot's swing flag).
+    fn swinging(&self, _slot: usize) -> bool {
+        false
+    }
 }
 
 /// Where a bot wants to be for the game's objective, and whether to hold Interact there.
@@ -166,6 +223,41 @@ impl MatchSim {
             self.game = game;
         }
         r
+    }
+
+    /// The game's own part of a snapshot for `viewer`, if the match has a game that sends one.
+    pub fn game_part(&self, viewer: usize) -> Option<crate::net::protocol::GameMsg> {
+        self.game.as_ref().and_then(|g| g.snapshot_part(self, viewer))
+    }
+
+    /// Player `slot`'s game byte in a snapshot (`0` without a game).
+    pub fn game_player_byte(&self, slot: usize) -> u8 {
+        self.game.as_ref().map_or(0, |g| g.player_byte(self, slot))
+    }
+
+    /// Whether player `slot` swings a game's melee weapon.
+    pub fn game_swinging(&self, slot: usize) -> bool {
+        self.game.as_ref().is_some_and(|g| g.swinging(slot))
+    }
+
+    /// The body the game gives a player of `team` in `slot` with `look`, if it decides bodies.
+    pub fn game_body(&self, slot: usize, team: u8, look: u8) -> Option<crate::player::Character> {
+        self.game.as_ref().and_then(|g| g.body(slot, team, look))
+    }
+
+    /// The game's recent log lines (see [`MatchGame::log`]).
+    pub fn game_log(&self) -> Vec<(u32, String)> {
+        self.game.as_ref().map_or_else(Vec::new, |g| g.log())
+    }
+
+    /// The game's mode as the status carries it (`0` without a game).
+    pub fn game_mode_wire(&self) -> u8 {
+        self.game.as_ref().map_or(0, |g| g.mode_wire())
+    }
+
+    /// Whether teams score in this match (a game with team scores and teams on): then a team wins it.
+    pub fn team_scored(&self) -> bool {
+        self.game.as_ref().is_some_and(|g| g.team_score().is_some()) && self.teams_enabled()
     }
 
     /// The match's game of type `T`, if it has one.

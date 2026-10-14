@@ -52,6 +52,12 @@ The museum had the same shape on the client side and moved behind `client::GameM
   (`sim::shooter_bots`) is the shooter's: what the brain's `kit_management`, `pickup_goal` and `MatchSim::bot_objective_goal` did, and the four
   fields they remembered. `BotGoal` replaces the objective's `ObjGoal`.
 
+- *Step 4a as built (2026-10-14):* the server's flow and what a client is sent ask the game: `teams`, `team_score`, `team_kills`,
+  `score_limit`, `team_size`, `mode_wire`, `body` (a teamless or bot player's body), `log` (the objective events the server logs),
+  `snapshot_part`, `player_byte`, `swinging`; `MatchSim::team_scored` replaces "a loadout match with teams". The arena's snapshot builders are
+  `ShooterGame` methods (`sim::shooter_snap`). `MAX_TEAM` is the match's (`MAX_PLAYERS / 2`). The engine's `net::server` and `net::snapshots`
+  no longer name the shooter; the `shooter` scene key is next (4b).
+
 ## Consequences
 The engine's match simulation no longer knows a loadout match; any game with a server-side rule set of its own (a mode, a kit, an objective) plugs
 in the same way. Killchain gets a server binary of its own, which its hosting (and RedEngineGames, for its download) learns: the engine's

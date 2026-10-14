@@ -23,7 +23,7 @@
 use super::auth::{proof_matches, CookieJar, Direction, SessionKey, TAG_LEN};
 use super::limits::{TokenBucket, HELLOS_PER_SEC, HELLO_BURST, MAX_PARKED};
 use super::sessions::{Parked, Session, TokenSource};
-use super::snapshots::{arena_snap, feedback_of, player_snaps, props_to_send, room_of_player, visible_players};
+use super::snapshots::{feedback_of, player_snaps, props_to_send, room_of_player, visible_players};
 use super::transport::{Security, ServerTransport, TransportStats, UdpServer};
 use crate::net::protocol::*;
 use crate::sim::clock::TICK_RATE_HZ;
@@ -55,10 +55,6 @@ fn team_character(team: u8, look: u8) -> crate::player::Character {
 
 /// The soldier a player wears in free for all, where there are no teams: the two uniforms alternate by slot (so neighbours differ at a glance) and the
 /// look is the one the player picked.
-fn ffa_character(slot: usize, look: u8) -> crate::player::Character {
-    crate::player::Character::soldier(1 + (slot % 2) as u8, look)
-}
-
 /// A `Status` goes to every client this often (5 Hz), and at once when something changes.
 const STATUS_EVERY_TICKS: u64 = (TICK_RATE_HZ / 5) as u64;
 
@@ -218,7 +214,7 @@ pub struct Server {
     last_result: Option<LastResult>,
     status_dirty: bool,
     /// The newest objective event id already written to the log.
-    obj_logged: u16,
+    obj_logged: u32,
     /// Bots added this round so far (indexes the roster, so every round starts with the same fighters).
     bots_spawned: u32,
     /// Set from another thread to freeze the world (see [`Server::set_pause_flag`]).
@@ -765,8 +761,10 @@ impl Server {
                     ok
                 }
                 None if session.team != 0 => self.sim.add_player_in_slot_team(slot, team_character(session.team, session.character), session.team),
-                None if self.sim.is_loadout() => self.sim.add_player_in_slot(slot, ffa_character(slot, character)),
-                None => self.sim.add_player_in_slot(slot, character_from_wire(character)),
+                None => {
+                    let body = self.sim.game_body(slot, 0, character).unwrap_or_else(|| character_from_wire(character));
+                    self.sim.add_player_in_slot(slot, body)
+                }
             };
             if !placed {
                 return self.send_plain(addr, &ServerMsg::Reject(RejectReason::Full));
@@ -821,14 +819,14 @@ impl Server {
 
     /// Writes new capture-the-flag and search-and-destroy events to the log, so an operator (or a headless test) can see a match unfold.
     fn log_objective_events(&mut self) {
-        let events = self.sim.arena().map(|a| a.obj_events.clone()).unwrap_or_default();
-        if events.last().is_some_and(|e| e.id < self.obj_logged) {
+        let events = self.sim.game_log();
+        if events.last().is_some_and(|(id, _)| *id < self.obj_logged) {
             self.obj_logged = 0; // a new world numbers its events afresh
         }
         let seen = self.obj_logged;
-        for e in events.into_iter().filter(|e| e.id > seen) {
-            self.obj_logged = e.id;
-            self.say(format!("objective: {}", crate::sim::objective::describe(e.kind, e.team, e.slot)));
+        for (id, line) in events.into_iter().filter(|(id, _)| *id > seen) {
+            self.obj_logged = id;
+            self.say(format!("objective: {line}"));
         }
     }
 
@@ -915,7 +913,7 @@ impl Server {
         let connected = self.sessions.len();
         let ready = self.sessions.iter().filter(|s| s.ready).count();
         let in_round = self.sessions.iter().filter(|s| s.in_round).count();
-        let best_score = if self.sim.is_loadout() && self.sim.teams_enabled() {
+        let best_score = if self.sim.team_scored() {
             // In a team match the score that counts is the team's.
             self.sim.team_score().into_iter().max().unwrap_or(0)
         } else {
@@ -974,10 +972,8 @@ impl Server {
             } else {
                 let body = if race {
                     crate::player::Character::Human
-                } else if self.sim.is_loadout() {
-                    ffa_character(slot, character)
                 } else {
-                    character_from_wire(character)
+                    self.sim.game_body(slot, 0, character).unwrap_or_else(|| character_from_wire(character))
                 };
                 self.sim.add_player_in_slot(slot, body)
             };
@@ -1033,7 +1029,7 @@ impl Server {
             winner = race.standings().first().map(|row| row.player as u8);
         }
         let team_kills = self.sim.team_score();
-        let winner_team = if !self.sim.is_loadout() || !self.sim.teams_enabled() {
+        let winner_team = if !self.sim.team_scored() {
             0
         } else if team_kills[0] > team_kills[1] {
             1
@@ -1043,7 +1039,7 @@ impl Server {
             0
         };
         // Free for all keeps the plain "most kills wins" winner computed above; a team match names its winning team's best player.
-        if self.sim.is_loadout() && self.sim.teams_enabled() {
+        if self.sim.team_scored() {
             // The best player of the winning team is named as the winner (the match MVP); a drawn match has none.
             winner = scores.iter().filter(|(slot, _)| self.sim.team_of(*slot as usize) == winner_team && winner_team != 0).max_by_key(|s| s.1).map(|s| s.0);
         }
@@ -1113,7 +1109,7 @@ impl Server {
                 let spec = cfg.spec(i);
                 let team = if self.sim.teams_enabled() {
                     let t = if sizes[0] <= sizes[1] { 0 } else { 1 };
-                    if sizes[t] >= crate::sim::shooter::MAX_TEAM {
+                    if sizes[t] >= crate::sim::match_sim::MAX_TEAM {
                         break;
                     }
                     sizes[t] += 1;
@@ -1189,7 +1185,7 @@ impl Server {
                 kill_limit,
                 time_limit_secs,
                 winner_team,
-                mode: self.sim.mode().wire(),
+                mode: self.sim.game_mode_wire(),
                 team_size: self.sim.team_size().clamp(1, 6) as u8,
             };
             self.stats.statuses_sent += 1;
@@ -1227,7 +1223,7 @@ impl Server {
                 0
             };
             // The game's own part (the loadout shooter's arena) and each player's game byte: out of the props' room too.
-            let game = arena_snap(&self.sim, slot).map(|a| a.to_game_msg());
+            let game = self.sim.game_part(slot);
             let game_bytes = game.as_ref().map_or(0, |g| g.wire_bytes() + self.visible_scratch.len());
             let max_props = snapshot_prop_budget(budget.saturating_sub(race_bytes + game_bytes), self.visible_scratch.len());
             let s = &mut self.sessions[i];

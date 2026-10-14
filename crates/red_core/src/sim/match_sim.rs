@@ -30,6 +30,8 @@ use std::collections::{HashMap, VecDeque};
 
 /// Most players in one match.
 pub const MAX_PLAYERS: usize = 12;
+/// Most people on one team: two teams fill the match.
+pub const MAX_TEAM: usize = MAX_PLAYERS / 2;
 /// A player's input queue is trimmed to this many entries (older ones are dropped).
 const INPUT_QUEUE_CAP: usize = 8;
 /// With more than this many inputs queued, a player processes two per tick to catch up.
@@ -309,18 +311,13 @@ impl MatchSim {
 
     /// Kills scored by each team so far (index = team - 1); zeros outside a loadout match.
     pub fn team_kills(&self) -> [u32; 2] {
-        self.arena().map_or([0; 2], |a| a.team_kills)
+        self.game.as_ref().and_then(|g| g.team_kills()).unwrap_or([0; 2])
     }
 
     /// What each team is scoring toward (index = team - 1): kills in team deathmatch, captures in capture the flag, rounds won in search
     /// and destroy. Zeros in free for all (where players score, not teams) and outside a loadout match.
     pub fn team_score(&self) -> [u32; 2] {
-        use super::shooter::ModeKind;
-        self.arena().map_or([0; 2], |a| match a.cfg.mode {
-            ModeKind::Tdm => a.team_kills,
-            ModeKind::Ctf | ModeKind::Snd => a.points,
-            ModeKind::Ffa => [0; 2],
-        })
+        self.game.as_ref().and_then(|g| g.team_score()).unwrap_or([0; 2])
     }
 
     /// The loadout-match state (pickups, projectiles, smoke, fire, kills), if this is a loadout match.
