@@ -555,7 +555,7 @@ mod tests {
             std::fs::write(d.join("games").join(dir).join("Cargo.toml"), toml).unwrap();
         }
         assert_eq!(game_binaries(&d), vec!["kc".to_string()], "a member with a binary of its own name; not a library, not a non-member");
-        assert_eq!(game_binaries(Path::new(env!("CARGO_MANIFEST_DIR"))), vec!["killchain".to_string()]);
+        assert_eq!(game_binaries(Path::new(env!("CARGO_MANIFEST_DIR"))), vec!["frameless".to_string(), "killchain".to_string()]);
     }
 
     #[test]

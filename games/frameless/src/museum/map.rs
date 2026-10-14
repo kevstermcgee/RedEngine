@@ -1,12 +1,12 @@
-//! The plan of the museum as far as the player has explored it: drawn into an RGBA image for the pause menu's map and `red_engine2 museum --map`.
+//! The plan of the museum as far as the player has explored it: drawn into an RGBA image for the pause menu's map and `frameless museum --map`.
 //!
 //! Rooms walked into are filled in their wing's colours with their gallery number; rooms only glimpsed through a doorway are outlined; a key marks a room
 //! whose key was found; the halls show whether their doors are open; wing names float over the rooms of each wing; an arrow shows where the player is.
 
 use super::layout::{EdgeId, RoomId, Side, CELL, HALL_W};
 use super::state::Museum;
-use crate::ui::serif::{Face, Image, Serif};
 use glam::{Vec2, Vec3};
+use red_engine2::ui::serif::{Face, Image, Serif};
 use std::collections::BTreeMap;
 
 /// What part of the plan to show.

@@ -16,7 +16,6 @@
 pub mod build;
 pub mod exhibit;
 pub mod layout;
-#[cfg(feature = "render")]
 pub mod map;
 pub mod sculpt;
 pub mod shape;
@@ -30,7 +29,7 @@ pub use spec::{parse_museum, Collection, MuseumSpec};
 pub use state::{Event, Museum, Place, Progress, Target};
 
 /// The `museum` scene block, defined above the scene parser (ADR 2026-10-13-a-scene-block-can-be-defined-above-the-core; `scene_blocks` registers it).
-pub const BLOCK: crate::schema::BlockDef = crate::schema::BlockDef {
+pub const BLOCK: red_engine2::schema::BlockDef = red_engine2::schema::BlockDef {
     key: "museum",
     parse: parse_block,
     fix_launch_seed: fix_seed,
@@ -39,29 +38,32 @@ pub const BLOCK: crate::schema::BlockDef = crate::schema::BlockDef {
     describe: "{collection, art, seed, start_theme} an endless museum built around the player: rooms, doors and wings from the seed, art with plaques written from the collection file (themes, words, styles, masterpieces), a key hidden in each room (a sculpture, or a painting up to three worlds deep), the worlds inside paintings. art: a .wgsl file defining `fn surface(s: SurfaceIn) -> vec4<f32>` (colour, glow) that paints every canvas and sculpture, composed in front of the sky too; `game_param(i)` says which painting's world surrounds the player. `red_engine2 museum SCENE` prints a room, `--inside N --shot`, `--map`, `--styles`; examples/frameless",
 };
 
-fn parse_block(root: &serde_json::Map<String, serde_json::Value>, base: Option<&std::path::Path>) -> Result<Option<crate::schema::BlockValue>, Vec<String>> {
-    Ok(parse_museum(root, base)?.map(|m| std::sync::Arc::new(m) as crate::schema::BlockValue))
+fn parse_block(
+    root: &serde_json::Map<String, serde_json::Value>,
+    base: Option<&std::path::Path>,
+) -> Result<Option<red_engine2::schema::BlockValue>, Vec<String>> {
+    Ok(parse_museum(root, base)?.map(|m| std::sync::Arc::new(m) as red_engine2::schema::BlockValue))
 }
 
-fn fix_seed(v: &crate::schema::BlockValue, fixed: crate::atmosphere::LaunchSeed) -> Option<crate::schema::BlockValue> {
-    let m = v.downcast_ref::<MuseumSpec>().filter(|m| m.seed == crate::atmosphere::LaunchSeed::Launch)?;
+fn fix_seed(v: &red_engine2::schema::BlockValue, fixed: red_engine2::atmosphere::LaunchSeed) -> Option<red_engine2::schema::BlockValue> {
+    let m = v.downcast_ref::<MuseumSpec>().filter(|m| m.seed == red_engine2::atmosphere::LaunchSeed::Launch)?;
     Some(std::sync::Arc::new(MuseumSpec { seed: fixed, ..m.clone() }))
 }
 
 /// The scene's museum, if it has one.
-pub fn spec_of(scene: &crate::schema::Scene) -> Option<std::sync::Arc<MuseumSpec>> {
+pub fn spec_of(scene: &red_engine2::schema::Scene) -> Option<std::sync::Arc<MuseumSpec>> {
     scene.blocks.get_arc::<MuseumSpec>()
 }
 
 /// Gives the scene this museum, or takes its museum away.
-pub fn set_spec(scene: &mut crate::schema::Scene, spec: Option<std::sync::Arc<MuseumSpec>>) {
-    scene.blocks.set(BLOCK.key, spec.map(|m| m as crate::schema::BlockValue));
+pub fn set_spec(scene: &mut red_engine2::schema::Scene, spec: Option<std::sync::Arc<MuseumSpec>>) {
+    scene.blocks.set(BLOCK.key, spec.map(|m| m as red_engine2::schema::BlockValue));
 }
 
 /// A museum's lamps as scene lights (the client puts the nearest into the scene each frame; the offline renderer does the same for a still).
-pub fn lamps_as_lights(lamps: &[build::Lamp]) -> Vec<crate::schema::Light> {
-    use crate::schema::{Light, LightKind};
-    use crate::track::Track;
+pub fn lamps_as_lights(lamps: &[build::Lamp]) -> Vec<red_engine2::schema::Light> {
+    use red_engine2::schema::{Light, LightKind};
+    use red_engine2::track::Track;
     lamps
         .iter()
         .enumerate()

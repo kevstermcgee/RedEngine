@@ -7,8 +7,8 @@
 
 use super::shape::{ball, lathe, obox, tube_path};
 use super::text::Draw;
-use crate::procgen::geo::{Geo, Rgb};
 use glam::{Mat3, Mat4, Quat, Vec3};
+use red_engine2::procgen::geo::{Geo, Rgb};
 use std::f32::consts::{PI, TAU};
 
 /// A family of forms.
@@ -603,7 +603,7 @@ fn shifted(mut g: Geo, by: Vec3) -> Geo {
 
 /// A four-sided crystal: from `base` along `dir`, `len` long and `w` wide.
 fn crystal(g: &mut Geo, base: Vec3, dir: Vec3, len: f32, w: f32, c: Rgb) {
-    let (u, v) = crate::procgen::geo::basis(dir);
+    let (u, v) = red_engine2::procgen::geo::basis(dir);
     let mid = base + dir * len * 0.25;
     let tip = base + dir * len;
     let ring: Vec<Vec3> = (0..4).map(|k| mid + (u * (k as f32 * PI * 0.5).cos() + v * (k as f32 * PI * 0.5).sin()) * w).collect();

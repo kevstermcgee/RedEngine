@@ -52,9 +52,6 @@ pub mod menu;
 #[cfg(feature = "render")]
 pub mod mesh;
 pub use red_core::mixer;
-pub mod museum;
-#[cfg(feature = "render")]
-pub mod museum_gpu;
 pub mod music;
 pub use red_core::nature;
 pub mod net;

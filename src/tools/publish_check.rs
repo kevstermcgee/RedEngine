@@ -81,8 +81,12 @@ pub fn playable_resource_gaps(root: &Path, manifest: &Value) -> Result<Vec<Strin
             }
             continue;
         }
+        // A game with its own client (`"binary": "frameless"`) may define scene blocks of its own: where they are not defined (this process is not
+        // that game's), its crate checks it with them (`cargo test -p frameless`).
+        let own_client = playable["binary"].as_str().is_some_and(|b| b != "re2" && b != "re2d");
         let scene = match crate::load_scene(&scene_file.source) {
             Ok(s) => s,
+            Err(_) if own_client => continue,
             Err(e) => {
                 gaps.push(format!("playable `{slug}`: its scene `{entry}` does not load: {}", e.join("; ")));
                 continue;

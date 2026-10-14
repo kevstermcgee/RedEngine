@@ -58,6 +58,13 @@ Measured at 94e5263 before deciding:
   *First (2026-10-14):* what the engine and the core still asked of the museum by name, a scene block now says of itself (`schema::BlockDef`):
   `art_file` (the painted surfaces a `sky.shader` is checked with), `endless` (the tools treat the scene as a world built around the player) and
   `describe` (its line in `describe scene`); `atmosphere::check_art_shader` takes the key that names the file.
+  *Moved (2026-10-14):* `games/frameless` holds `src/museum`, `museum_gpu`, the museum's mode (`mode.rs`), the `museum` tool (`frameless museum`),
+  the collection's typed definition and drift check, the visit test and the content (`games/frameless/content`, published to the same place with
+  the same bytes; the playable names `"binary": "frameless"`). Its binary registers the block and the layer and runs `client::run(frameless::mode_for)`.
+  The engine defines no blocks, layers or modes of its own (`scene_blocks::ENGINE`, `ENGINE_LAYERS` and `client::engine_mode` are empty); `validate`
+  leaves a `games/<crate>` to the crate; `affected` and `scripts/ci.sh game-crates` lint and test each game crate. Parity (`scripts/picture_parity.py
+  --old-museum re2 --new-museum frameless`, and a scripted visit's dump): the offline pictures, the visit's state dump and its save are identical; a
+  save `re2` wrote loads in `frameless`.
 - Each bullet is its own pull request in this order, structural moves never mixed with behaviour.
 
 ## Consequences

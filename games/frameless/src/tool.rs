@@ -1,4 +1,4 @@
-//! `red_engine2 museum SCENE`: what a museum scene's rooms hold, pictures of its pieces and of the worlds inside its paintings, and its plan.
+//! `frameless museum SCENE`: what a museum scene's rooms hold, pictures of its pieces and of the worlds inside its paintings, and its plan.
 //!
 //! * With no picture asked for it prints one room (`--room X,Z`, default the first): its wing, size, plan, every piece with its plaque, where the room's key is
 //!   hidden and the curator's note.
@@ -8,7 +8,6 @@
 
 use crate::museum::exhibit::{Kind, PocketPath};
 use crate::museum::{Museum, RoomId};
-#[cfg(feature = "gfx")]
 use glam::Vec3;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -28,11 +27,11 @@ pub struct Args {
     pub styles: Option<PathBuf>,
 }
 
-fn visit(scene: &Path, seed: Option<u32>) -> Result<(crate::schema::Scene, Museum), String> {
-    let mut s = crate::load_scene(scene).map_err(|e| format!("{}: {}", scene.display(), e.join("; ")))?;
+fn visit(scene: &Path, seed: Option<u32>) -> Result<(red_engine2::schema::Scene, Museum), String> {
+    let mut s = red_engine2::load_scene(scene).map_err(|e| format!("{}: {}", scene.display(), e.join("; ")))?;
     let spec = crate::museum::spec_of(&s).ok_or_else(|| format!("{}: has no `museum` block (see `describe scene`)", scene.display()))?;
     let seed = seed.unwrap_or_else(|| spec.seed.value(None));
-    let spec = std::sync::Arc::new(crate::museum::MuseumSpec { seed: crate::atmosphere::LaunchSeed::Fixed(seed), ..(*spec).clone() });
+    let spec = std::sync::Arc::new(crate::museum::MuseumSpec { seed: red_engine2::atmosphere::LaunchSeed::Fixed(seed), ..(*spec).clone() });
     crate::museum::set_spec(&mut s, Some(spec.clone()));
     Ok((s, Museum::new(spec, seed, None)))
 }
@@ -153,9 +152,8 @@ pub fn run(a: &Args) -> Result<String, String> {
     Ok(out)
 }
 
-#[cfg(feature = "gfx")]
-fn shoot(scene: &crate::schema::Scene, m: &mut Museum, room: RoomId, a: &Args, out: &Path) -> Result<(), String> {
-    use crate::track::Track;
+fn shoot(scene: &red_engine2::schema::Scene, m: &mut Museum, room: RoomId, a: &Args, out: &Path) -> Result<(), String> {
+    use red_engine2::track::Track;
     let k = m.contents(room);
     let (eye, at, inside) = if let Some(text) = &a.inside {
         let path = path_of(room, text)?;
@@ -172,11 +170,11 @@ fn shoot(scene: &crate::schema::Scene, m: &mut Museum, room: RoomId, a: &Args, o
         let eye = start.at + Vec3::Y * 1.65 - Vec3::new(-start.yaw.sin(), 0.0, -start.yaw.cos()) * 4.0;
         (eye, room.centre() + Vec3::Y * 1.9, None)
     };
-    let mut scene_for = crate::load_scene(&a.scene).map_err(|e| e.join("; "))?;
+    let mut scene_for = red_engine2::load_scene(&a.scene).map_err(|e| e.join("; "))?;
     crate::museum::set_spec(&mut scene_for, crate::museum::spec_of(scene));
     scene_for.camera.position = Track::constant(eye);
     scene_for.camera.target = Track::constant(at);
-    let mut renderer = crate::render::Renderer::new(&scene_for).map_err(|e| e.to_string())?;
+    let mut renderer = red_engine2::render::Renderer::new(&scene_for).map_err(|e| e.to_string())?;
     if let (Some(path), Some(still)) = (inside, renderer.layer_mut::<crate::museum_gpu::StillMuseum>()) {
         still.visit.enter_now(&path).ok_or("--inside: could not enter")?;
     }
@@ -184,12 +182,11 @@ fn shoot(scene: &crate::schema::Scene, m: &mut Museum, room: RoomId, a: &Args, o
     image::save_buffer(out, &rgb, scene_for.width, scene_for.height, image::ColorType::Rgb8).map_err(|e| e.to_string())
 }
 
-#[cfg(feature = "gfx")]
-fn shoot_sheet(scene: &crate::schema::Scene, m: &Museum, a: &Args, out: &Path) -> Result<(), String> {
-    use crate::track::Track;
+fn shoot_sheet(scene: &red_engine2::schema::Scene, m: &Museum, a: &Args, out: &Path) -> Result<(), String> {
+    use red_engine2::track::Track;
     let cols = 7;
     let sheet = crate::museum::build::style_sheet(&m.spec.collection, cols, a.seed.unwrap_or(1) as f32);
-    let mut scene_for = crate::load_scene(&a.scene).map_err(|e| e.join("; "))?;
+    let mut scene_for = red_engine2::load_scene(&a.scene).map_err(|e| e.join("; "))?;
     crate::museum::set_spec(&mut scene_for, crate::museum::spec_of(scene));
     scene_for.width = 1600;
     scene_for.height = 900;
@@ -197,7 +194,7 @@ fn shoot_sheet(scene: &crate::schema::Scene, m: &Museum, a: &Args, out: &Path) -
     let eye = Vec3::new(0.0, 1.6, (rows * 1.45).max(cols as f32 * 1.95 * 0.5) * 1.25);
     scene_for.camera.position = Track::constant(eye);
     scene_for.camera.target = Track::constant(Vec3::new(0.0, 1.6, 0.0));
-    let mut renderer = crate::render::Renderer::new(&scene_for).map_err(|e| e.to_string())?;
+    let mut renderer = red_engine2::render::Renderer::new(&scene_for).map_err(|e| e.to_string())?;
     if let Some(still) = renderer.layer_mut::<crate::museum_gpu::StillMuseum>() {
         still.visit.stage(sheet);
     }
@@ -205,17 +202,6 @@ fn shoot_sheet(scene: &crate::schema::Scene, m: &Museum, a: &Args, out: &Path) -
     image::save_buffer(out, &rgb, scene_for.width, scene_for.height, image::ColorType::Rgb8).map_err(|e| e.to_string())
 }
 
-#[cfg(not(feature = "gfx"))]
-fn shoot_sheet(_: &crate::schema::Scene, _: &Museum, _: &Args, _: &Path) -> Result<(), String> {
-    Err(super::NO_GFX.to_string())
-}
-
-#[cfg(not(feature = "gfx"))]
-fn shoot(_: &crate::schema::Scene, _: &mut Museum, _: RoomId, _: &Args, _: &Path) -> Result<(), String> {
-    Err(super::NO_GFX.to_string())
-}
-
-#[cfg(feature = "render")]
 fn draw_map(m: &mut Museum, room: RoomId, explore: u32, out: &Path) -> Result<(), String> {
     let r = explore as i32;
     for x in -r..=r {
@@ -229,13 +215,8 @@ fn draw_map(m: &mut Museum, room: RoomId, explore: u32, out: &Path) -> Result<()
     }
     let (w, h) = (1280u32, 800u32);
     let mut px = vec![0u8; (w * h * 4) as usize];
-    let mut img = crate::ui::serif::Image { w, h, px: &mut px };
+    let mut img = red_engine2::ui::serif::Image { w, h, px: &mut px };
     let view = crate::museum::map::MapView::around(room.centre(), h);
-    crate::museum::map::paint(m, &crate::ui::serif::Serif::load(), &mut img, &view, (room.centre(), 0.3), 0.0);
+    crate::museum::map::paint(m, &red_engine2::ui::serif::Serif::load(), &mut img, &view, (room.centre(), 0.3), 0.0);
     image::save_buffer(out, &px, w, h, image::ColorType::Rgba8).map_err(|e| e.to_string())
-}
-
-#[cfg(not(feature = "render"))]
-fn draw_map(_: &mut Museum, _: RoomId, _: u32, _: &Path) -> Result<(), String> {
-    Err(super::NO_GFX.to_string())
 }

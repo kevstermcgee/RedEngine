@@ -294,31 +294,87 @@ const KILLCHAIN_ENGINE_FILES: &[&str] = &[
     "Cargo.lock",
 ];
 
-/// Whether a change reaches the Killchain game: a file in it, or engine code it is built on.
-pub fn touches_killchain(changed: &[String]) -> bool {
-    changed
-        .iter()
-        .any(|c| c.starts_with("games/killchain/") || KILLCHAIN_ENGINE_DIRS.iter().any(|d| c.starts_with(d)) || KILLCHAIN_ENGINE_FILES.contains(&c.as_str()))
+/// Engine code the Frameless game (`games/frameless`) is written against: the client it plays in (its game-mode seam), the world-layer seam and both
+/// renderers its museum draws through, the shapes, serif and shaders it builds with, and the core (the scene parser its block plugs into).
+const FRAMELESS_ENGINE_DIRS: &[&str] = &["src/client/", "src/procgen/", "src/ui/", "src/shaders/", "crates/red_core/src/"];
+const FRAMELESS_ENGINE_FILES: &[&str] = &[
+    "src/world_layer.rs",
+    "src/render.rs",
+    "src/viewer.rs",
+    "src/gpu.rs",
+    "src/mesh.rs",
+    "src/object_staging.rs",
+    "src/scene_blocks.rs",
+    "src/settings.rs",
+    "src/feel.rs",
+    "src/content/common.rs",
+    "src/content/mod.rs",
+    "Cargo.toml",
+    "Cargo.lock",
+];
+
+/// A game of the workspace in a crate of its own (`games/<name>`, ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library): the
+/// engine-crate steps do not cover another package, so a change to it, or to engine code it is built on, plans its own (`-p <name>`).
+struct GameCrate {
+    name: &'static str,
+    title: &'static str,
+    engine_dirs: &'static [&'static str],
+    engine_files: &'static [&'static str],
+    tests: &'static str,
 }
 
-/// The steps the game adds (`-p killchain`: the engine-crate steps do not cover another package).
-///
-/// `engine_api` is false in a partial (`iterate`) plan: the edit loop stays focused on the files you changed, so an engine edit does not also lint the game (`affected` does, before "done").
-fn killchain_steps(changed: &[String], tests: bool, engine_api: bool) -> Vec<Step> {
-    if !(touches_killchain(changed) && (engine_api || changed.iter().any(|c| c.starts_with("games/killchain/")))) {
-        return Vec::new();
+const GAME_CRATES: &[GameCrate] = &[
+    GameCrate {
+        name: "killchain",
+        title: "Killchain",
+        engine_dirs: KILLCHAIN_ENGINE_DIRS,
+        engine_files: KILLCHAIN_ENGINE_FILES,
+        tests: "unit tests of the Killchain game: screens, objective HUD text, statistics",
+    },
+    GameCrate {
+        name: "frameless",
+        title: "Frameless",
+        engine_dirs: FRAMELESS_ENGINE_DIRS,
+        engine_files: FRAMELESS_ENGINE_FILES,
+        tests: "the museum's unit tests, its collection's drift check and its headless visit (seed 7, a save the next launch loads)",
+    },
+];
+
+impl GameCrate {
+    fn own(&self, path: &str) -> bool {
+        path.strip_prefix("games/").and_then(|r| r.strip_prefix(self.name)).is_some_and(|r| r.starts_with('/'))
     }
-    let mut v = vec![Step::new(
-        "killchain-clippy",
-        &["cargo", "clippy", "--locked", "-p", "killchain", "--all-targets", "--", "-D", "warnings"],
-        "the Killchain game (games/killchain) or the engine API it is built on changed",
-    )];
-    if tests {
-        v.push(Step::new(
-            "killchain",
-            &["cargo", "test", "--locked", "-p", "killchain"],
-            "unit tests of the Killchain game: screens, objective HUD text, statistics",
-        ));
+
+    /// Whether a change reaches the game: a file in it, or engine code it is built on.
+    fn touched_by(&self, changed: &[String]) -> bool {
+        changed.iter().any(|c| self.own(c) || self.engine_dirs.iter().any(|d| c.starts_with(d)) || self.engine_files.contains(&c.as_str()))
+    }
+}
+
+/// Whether a change reaches the Killchain game: a file in it, or engine code it is built on.
+pub fn touches_killchain(changed: &[String]) -> bool {
+    GAME_CRATES[0].touched_by(changed)
+}
+
+/// Whether a change reaches the game crate `name` (`killchain`, `frameless`): a file in it, or engine code it is built on. False for a name that is not one.
+pub fn touches_game(name: &str, changed: &[String]) -> bool {
+    GAME_CRATES.iter().find(|g| g.name == name).is_some_and(|g| g.touched_by(changed))
+}
+
+/// The steps the games add (`-p <game>`: the engine-crate steps do not cover another package).
+///
+/// `engine_api` is false in a partial (`iterate`) plan: the edit loop stays focused on the files you changed, so an engine edit does not also lint a game (`affected` does, before "done").
+fn game_steps(changed: &[String], tests: bool, engine_api: bool) -> Vec<Step> {
+    let mut v = Vec::new();
+    for g in GAME_CRATES {
+        if !(g.touched_by(changed) && (engine_api || changed.iter().any(|c| g.own(c)))) {
+            continue;
+        }
+        let why = format!("the {} game (games/{}) or the engine API it is built on changed", g.title, g.name);
+        v.push(Step::new(&format!("{}-clippy", g.name), &["cargo", "clippy", "--locked", "-p", g.name, "--all-targets", "--", "-D", "warnings"], &why));
+        if tests {
+            v.push(Step::new(g.name, &["cargo", "test", "--locked", "-p", g.name], g.tests));
+        }
     }
     v
 }
@@ -713,7 +769,7 @@ pub fn plan(all: &[Feature], serial: &[String], changed: &[String], opts: &Optio
     }
     plan.steps.extend(core_steps(&changed, true));
     plan.steps.extend(red2d_steps(&changed, true));
-    plan.steps.extend(killchain_steps(&changed, !opts.check_only, true));
+    plan.steps.extend(game_steps(&changed, !opts.check_only, true));
     plan.deferred = deferred.into_iter().collect();
     plan.suggest.sort();
     plan.suggest.dedup();
@@ -901,7 +957,7 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
     } else {
         plan.steps.extend(red2d_steps(&changed, !opts.check_only));
     }
-    plan.steps.extend(killchain_steps(&changed, !opts.check_only, false));
+    plan.steps.extend(game_steps(&changed, !opts.check_only, false));
     if opts.check_only {
         plan.notes.push("--check-only: formatting and type-check only, no tests".into());
     }
@@ -1424,6 +1480,19 @@ mod tests {
             "{:?}",
             names(&check_only)
         );
+    }
+
+    #[test]
+    fn a_change_to_frameless_or_the_client_and_layers_it_plays_through_plans_its_own_checks() {
+        for f in
+            ["games/frameless/src/mode.rs", "src/client/mode.rs", "src/world_layer.rs", "src/viewer.rs", "src/procgen/geo.rs", "crates/red_core/src/schema.rs"]
+        {
+            assert!(touches_game("frameless", &[f.to_string()]), "{f}");
+        }
+        assert!(!touches_game("frameless", &["src/net/protocol.rs".to_string(), "games/killchain/src/ui.rs".to_string(), "games/framelessx/a.rs".to_string()]));
+        let p = plan(&world(), &serial(), &["games/frameless/src/mode.rs".to_string()], &Options::default());
+        assert_eq!(step(&p, "frameless").argv.join(" "), "cargo test --locked -p frameless");
+        assert!(p.steps.iter().all(|s| !s.name.starts_with("killchain")), "{:?}", names(&p));
     }
 
     #[test]

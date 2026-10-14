@@ -52,6 +52,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: item 5.4: game.json "binary" (PR game-binary): play-local/publish/package/scripts/red know a game's own client; checked on Killchain's project (KC_SCRIPT run via scripts/red play-local); RedEngineGames PR follows for the owner; 5.3 merged (#147)
 - 2026-10-14: item 5.5a: BlockDef art_file/endless/describe (branch frameless-seams); core no longer names museum in code; 5.4 merged (#148), RedEngineGames PR #7 for the owner
 - 2026-10-14: item 5.5a merged (#149: BlockDef art_file/endless/describe); 5.5b-pre: validate leaves games/<crate> content to the crate (PR)
+- 2026-10-14: item 5.5: Frameless moved to games/frameless (own crate, binary, tool, tests, content; PR). Parity: offline pictures identical, visit dump/save identical, old re2 save loads in frameless. Ships from its crate once RedEngineGames PR #7 merges
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.

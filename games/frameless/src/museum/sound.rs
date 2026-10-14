@@ -3,7 +3,7 @@
 //! sculpture when it is touched. Mono clips at the engine's sample rate, ready for `Audio::play_at`.
 
 use super::sculpt::Family;
-use crate::dsp::{finish, samples, Env, Filter, Layer, Src, Voice};
+use red_engine2::dsp::{finish, samples, Env, Filter, Layer, Src, Voice};
 
 /// A tiny room reverb: a few feedback combs and an all-pass, enough to put a sound in a stone gallery. `wet` 0..1; the tail is added to the clip.
 pub fn hall(dry: Vec<f32>, wet: f32, tail_secs: f32) -> Vec<f32> {

@@ -10,10 +10,11 @@ description = "AI-first Rust game engine: JSON scenes, self-verifying maps, auth
 
 # `red_core` is the headless core every crate here shares; the 2D game crate (`red2d`) is a declarative 2D game, its headless simulation and CPU renderer. Both are
 # workspace members so one lock file covers them;
-# `default-members` keeps plain `cargo build/test/clippy` covering it too. `games/killchain` is a member too (one lock, one target directory) but NOT a default member: it is a game on the
-# engine's public API with graphics dependencies of its own, so the engine's plain builds and the headless server build never compile it (`scripts/ci.sh killchain` does).
+# `default-members` keeps plain `cargo build/test/clippy` covering it too. The games (`games/killchain`, `games/frameless`) are members too (one lock, one target
+# directory) but NOT default members: each is a game on the engine's public API with graphics dependencies of its own, so the engine's plain builds and the
+# headless server build never compile them (`scripts/ci.sh game-crates` does).
 [workspace]
-members = ["crates/red_core", "crates/red2d", "games/killchain"]
+members = ["crates/red_core", "crates/red2d", "games/killchain", "games/frameless"]
 default-members = [".", "crates/red_core", "crates/red2d"]
 
 # One version and one feature set per dependency the crates share, so a crate built alone (`cargo test -p red_core`) compiles them exactly as the engine does

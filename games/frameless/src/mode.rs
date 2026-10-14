@@ -1,16 +1,18 @@
-//! A museum scene (`museum` block) in the live client, as the client's first game mode ([`MuseumMode`], a [`GameMode`]): the visit
+//! A museum scene (`museum` block) in the live client, as a game mode of the engine's client ([`MuseumMode`], a [`GameMode`]): the visit
 //! ([`crate::museum::Museum`]) fed with the player every frame, its flights into and out of paintings driving the camera, its rooms' lamps lighting the
 //! scene, its sounds, its music steered to the wing, its labels, its pause menu and its map. Words are set in the player's own serif
-//! ([`crate::ui::serif`]). It reaches the rest of the client only through its [`ModeContext`].
+//! ([`red_engine2::ui::serif`]). It reaches the rest of the client only through its [`ModeContext`].
 
-use super::mode::{Answer, GameMode, ModeContext};
-use super::*;
 use crate::museum::exhibit::Kind;
 use crate::museum::map::{key_glyph, MapView};
 use crate::museum::sound::{touch, Sounds};
 use crate::museum::state::{yaw_of, Event, Place, Target};
 use crate::museum::{Museum, Progress, RoomId};
-use crate::ui::serif::{Face, Image, Serif};
+use glam::Vec3;
+use red_engine2::client::{Answer, GameMode, ModeContext};
+use red_engine2::ui::serif::{Face, Image, Serif};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::keyboard::{KeyCode, PhysicalKey};
 
 /// A button of the museum's pause menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,15 +55,16 @@ const INK: [u8; 4] = [244, 236, 220, 255];
 const DIM: [u8; 4] = [196, 186, 168, 235];
 
 fn progress_path(key: &str) -> Option<std::path::PathBuf> {
-    crate::settings::game_state_path(key, "museum.json")
+    red_engine2::settings::game_state_path(key, "museum.json")
 }
 
 /// The museum as a game mode of the client: the visit starts with the scene ([`GameMode::start`]).
-pub(crate) struct MuseumMode(Option<MuseumClient>);
+#[derive(Default)]
+pub struct MuseumMode(Option<MuseumClient>);
 
 impl MuseumMode {
     /// A museum scene's mode, before its visit starts.
-    pub(crate) fn new() -> MuseumMode {
+    pub fn new() -> MuseumMode {
         MuseumMode(None)
     }
 
@@ -123,7 +126,7 @@ impl MuseumMode {
                 if let Some(clip) = m.sounds.as_ref().map(|s| s.step_in.clone()) {
                     cx.play(&clip, 0.55, 0.0);
                 }
-                cx.duck_music(crate::mixer::Duck { depth: 0.5, attack: 0.4, release: 2.5 }, 1.2);
+                cx.duck_music(red_engine2::mixer::Duck { depth: 0.5, attack: 0.4, release: 2.5 }, 1.2);
             }
             Event::Arrived { depth, title } => {
                 let deep = match depth {
@@ -179,7 +182,7 @@ impl MuseumMode {
 
     // ---- The pause menu and the map ----------------------------------------------------------------------------------------------------
 
-    fn buttons(&self, cx: &ModeContext, w: u32, h: u32) -> Vec<(Button, String, crate::ui::Rect)> {
+    fn buttons(&self, cx: &ModeContext, w: u32, h: u32) -> Vec<(Button, String, red_engine2::ui::Rect)> {
         let Some(m) = self.0.as_ref() else { return Vec::new() };
         let s = (h as f32 / 1080.0).max(0.55);
         let mut rows: Vec<(Button, String)> = vec![(Button::Resume, "Return to the museum".into()), (Button::Map, "The plan of the museum".into())];
@@ -658,13 +661,13 @@ impl GameMode for MuseumMode {
     }
 
     /// The painting's colour washing over the screen during a flight.
-    fn fx(&self, fx: crate::feel::FxParams) -> crate::feel::FxParams {
+    fn fx(&self, fx: red_engine2::feel::FxParams) -> red_engine2::feel::FxParams {
         let Some(m) = self.0.as_ref() else { return fx };
         let (w, c) = m.visit.wash();
         if w <= 0.0 {
             return fx;
         }
-        crate::feel::FxParams { flash: [c[0], c[1], c[2], w * 0.92], ..fx }
+        red_engine2::feel::FxParams { flash: [c[0], c[1], c[2], w * 0.92], ..fx }
     }
 
     /// Hands this frame's visit to the renderer.

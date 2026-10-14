@@ -1,0 +1,29 @@
+# Frameless: an endless museum, a first-person game on Red Engine 2's public API (`red_engine2::client` with its own game mode, a world layer and
+# a scene block of its own). It lived inside the engine crate until ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library.
+# A workspace member (one lock file, one target directory), not a default member: `cargo build -p frameless`, `cargo test -p frameless`.
+[package]
+name = "frameless"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "Frameless: an endless museum on Red Engine 2"
+
+[[bin]]
+name = "frameless"
+path = "src/main.rs"
+
+[dependencies]
+red_engine2 = { path = "../.." }
+bytemuck = { version = "1.25.2", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
+glam = { workspace = true }
+image = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wgpu = "30.0.1"
+winit = "0.30"
+
+# `red_engine2::strict_struct` (the collection's typed definition) derives a JSON Schema under the engine's own `schema` feature, which this crate does not have.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("schema"))'] }

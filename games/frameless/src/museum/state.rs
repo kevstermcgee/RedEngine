@@ -6,8 +6,8 @@ use super::build::{door_collider, edge_model, pocket_model, room_model, Model, D
 use super::exhibit::{furnish, pocket, Contents, Homes, Kind, Pocket, PocketPath};
 use super::layout::{EdgeId, Layout, RoomId, Side, CELL};
 use super::spec::MuseumSpec;
-use crate::collide::Collider2D;
 use glam::{Vec2, Vec3};
+use red_engine2::collide::Collider2D;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
@@ -976,14 +976,14 @@ pub(crate) mod tests {
     use super::*;
 
     pub(crate) fn spec() -> Arc<MuseumSpec> {
-        let v: serde_json::Value = serde_json::from_str(include_str!("../../examples/frameless/collection.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(include_str!("../../content/collection.json")).unwrap();
         let collection = super::super::spec::parse_collection(&v, None).expect("the game's collection parses");
         Arc::new(MuseumSpec {
             collection_file: "collection.json".into(),
             collection,
             art_file: None,
             art: None,
-            seed: crate::atmosphere::LaunchSeed::Fixed(1),
+            seed: red_engine2::atmosphere::LaunchSeed::Fixed(1),
             start_theme: None,
         })
     }
