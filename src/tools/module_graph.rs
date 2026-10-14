@@ -5,7 +5,9 @@
 //! b::{c, d}}` names `a`, `b::c` and `b::d`), resolved to the longest known module path of the crate it is in (the core mirrors the engine's
 //! paths, so `super::` in a core file names a core module and `red_core::` always does). Comments, string contents and test modules are left
 //! out: a test that needs the engine moves to the engine's suites (ADR 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share). A
-//! path through a re-export at a crate root (`crate::Vec3`) names the root, not the module behind it, and is not counted.
+//! path through a re-export at a crate root (`crate::Vec3`) names the root, not the module behind it, and is not counted. A module's bare path to its own
+//! child (`ground::X` in `procgen`) is an edge. What text cannot show is not counted either: a method an `impl` block in another module gives a type
+//! (`impl MatchSim { fn checkpoint() }` in `sim::checksum`, called as `self.checkpoint()`) is an edge of that module to the type's, not back.
 use std::collections::{BTreeMap, BTreeSet};
 
 /// What one file names: the modules it uses and the external crates (from the engine's `Cargo.toml`) it names.
@@ -203,19 +205,34 @@ pub fn file_edges(f: &FileSource, known: &Resolver, crates: &BTreeSet<String>) -
             "red_engine2" => known.lib,
             _ => known.own,
         };
+        // The module this text is in: the file's, inside any inline modules around it.
+        let n = line_at[start];
+        let mut here = segments(&top);
+        here.extend(f.inline.iter().filter(|(a, b, _)| *a < n && n <= *b).map(|(_, _, m)| m.clone()));
         let base = match word.as_str() {
             "crate" => segments(&root),
             "red_core" | "red_engine2" => Vec::new(),
-            "self" | "super" => {
-                let n = line_at[start];
-                let mut p = segments(&top);
-                p.extend(f.inline.iter().filter(|(a, b, _)| *a < n && n <= *b).map(|(_, _, m)| m.clone()));
-                if word == "super" {
-                    p.pop();
-                }
+            "self" => here,
+            "super" => {
+                let mut p = here;
+                p.pop();
                 p
             }
             w => {
+                // A module names its own children without `self::` (`pub use ground::ProcgenGround;` in `procgen/mod.rs`): a child wins over a crate.
+                let mut child = here;
+                child.push(w.to_string());
+                if map.contains_key(&child.join("::")) {
+                    i += 2;
+                    let mut paths = Vec::new();
+                    parse_tree(&text, &mut i, &child, &mut paths);
+                    for p in paths {
+                        if let Some(m) = resolve(&p, map).filter(|m| m != f.module) {
+                            out.uses.insert(m);
+                        }
+                    }
+                    continue;
+                }
                 if crates.contains(w) {
                     out.crates.insert(w.to_string());
                 }
@@ -461,6 +478,14 @@ mod tests {
         let lines: Vec<String> = ["pub use red_core::net::DEFAULT_PORT;"].map(String::from).to_vec();
         let f = FileSource { rel: "src/net/mod.rs", module: "net", lines: &lines, skip: &[], inline: &[] };
         assert_eq!(file_edges(&f, &Resolver { own: &engine, core: &core, lib: &engine }, &BTreeSet::new()).uses, set(&["red_core"]));
+    }
+
+    #[test]
+    fn a_module_names_its_own_children_without_self() {
+        let e = edges("src/sim/mod.rs", "sim", "pub use clock::Clock;\nfn f() { scratch::Scratch::new(); }\nuse std::fmt;\n", &[], &[]);
+        assert_eq!(e.uses, set(&["sim::clock", "sim::scratch"]));
+        let e = edges("src/lib.rs", "lib", "pub use net::auth::Key;\npub use wgpu::Device;\n", &[], &[]);
+        assert_eq!((e.uses, e.crates), (set(&["net::auth"]), set(&["wgpu"])), "a crate root's children are the top-level modules; a crate is still a crate");
     }
 
     #[test]
