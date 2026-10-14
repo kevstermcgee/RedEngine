@@ -45,6 +45,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: item 3: move 2 merged (#129): ring of 55 + ground/checksum into red_core (96 modules, 47k lines), parity identical, tests 1659->1660 (+1 new); next: edge-reader fix, move 3 (network layer + quic feature), then red_server from core
 - 2026-10-14: item 3: moves 1-3 merged (#128,#129,#131), red_core = server tree but the binary; iterate core-aware: sim edit 9-14 s warm (was ~50); next: red_server crate
 - 2026-10-14: item 3 closed: ADR 2026-10-14-the-server-binary-stays-in-the-engine-crate-while-red (measures met but the headless-build clause, deferred to item 5's game servers); next: item 4 CI
+- 2026-10-14: item 4: #134 (compile once: Rust PR 57.0 -> 32.8 job-min), #135 (docs-only PRs from main's archive), #136 (split_render flake) merged; this docs-only PR measures the docs path
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
