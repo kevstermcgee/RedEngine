@@ -1,0 +1,18 @@
+{
+  "namespace": "wx",
+  "x-note": "An expansion added through content alone: a third machine kind (the assembler) built from the same machine behavior, a new resource and recipe that use the base namespace's gears and ingots, a recycler that turns gears back into ore (an intentional cycle), and a market that buys widgets.",
+  "resources": ["widget"],
+  "recipes": [
+    {"id": "assemble", "in": {"ws:gear": 3}, "out": {"widget": 1}, "seconds": 3},
+    {"id": "recycle", "in": {"ws:gear": 1}, "out": {"ws:ore": 2}, "seconds": 1}
+  ],
+  "machines": [
+    {"id": "assembler", "recipes": ["assemble"], "speed": 0.75, "input": 9, "output": 2},
+    {"id": "recycler", "recipes": ["recycle"], "speed": 1, "input": 2, "output": 4}
+  ],
+  "sinks": [{"id": "market", "from": "ws:dock", "takes": {"widget": 1}, "seconds": 1}],
+  "instances": [
+    {"id": "assembler_a", "machine": "assembler", "from": "ws:storage", "to": "ws:dock"},
+    {"id": "recycler_a", "machine": "recycler", "from": "ws:storage", "to": "ws:storage"}
+  ]
+}

@@ -926,10 +926,11 @@ pub(crate) fn run_sim(
     trace: Option<&Path>,
     checkpoint_every: u32,
     dump_every: u32,
+    inspect: &[String],
 ) -> Result<(), String> {
     use crate::sim::scenario::RecordOptions;
     let record = trace.map(|_| RecordOptions { map_hash: 0, checkpoint_every: checkpoint_every.max(1), dump_every });
-    let (report, recorded) = simrun::run(scene, scenario, only, record)?;
+    let (report, recorded) = simrun::run_inspecting(scene, scenario, only, record, inspect)?;
     let mut json = report.to_json();
     if let (Some(path), Some(t)) = (trace, recorded) {
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {

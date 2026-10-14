@@ -145,6 +145,9 @@ pub struct ServerStats {
     pub statuses_sent: u64,
     /// Complete rule-state messages sent.
     pub rule_states_sent: u64,
+    /// Snapshots sent without the game's own part because it did not fit (`MAX_GAME_BYTES`, or this client's datagram): the client keeps
+    /// moving players but sees no game state. Logged the first time.
+    pub game_parts_omitted: u64,
 }
 
 /// A prop the server nudges periodically so there is always an authoritative moving prop to watch.
@@ -1223,7 +1226,17 @@ impl Server {
                 0
             };
             // The game's own part (the loadout shooter's arena) and each player's game byte: out of the props' room too.
-            let game = self.sim.game_part(slot);
+            let mut game = self.sim.game_part(slot);
+            // A part that does not fit is left out whole and counted (a cut one would only fail to decode and cost the client the snapshot).
+            if game.as_ref().is_some_and(|g| g.bytes.len() > MAX_GAME_BYTES || g.wire_bytes() + self.visible_scratch.len() + race_bytes > budget) {
+                let n = game.take().map_or(0, |g| g.bytes.len());
+                self.stats.game_parts_omitted += 1;
+                if self.stats.game_parts_omitted == 1 {
+                    (self.log)(&format!(
+                        "snapshot: the game's part ({n} bytes) does not fit a snapshot ({budget} bytes, at most {MAX_GAME_BYTES} for a game): sent without it"
+                    ));
+                }
+            }
             let game_bytes = game.as_ref().map_or(0, |g| g.wire_bytes() + self.visible_scratch.len());
             let max_props = snapshot_prop_budget(budget.saturating_sub(race_bytes + game_bytes), self.visible_scratch.len());
             let s = &mut self.sessions[i];

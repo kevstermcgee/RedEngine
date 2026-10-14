@@ -1,0 +1,93 @@
+{
+  "x-note": "A Workshop save in version 1 of the machines' state (`progress`: the fraction of the cycle done, no `made` count), kept to prove the migration to version 2. Made from a real save mid-production (tick 333: the furnace three quarters through a cycle) rewritten into version 1's shape.",
+  "game": "workshop",
+  "content": [
+    "defs/base.json"
+  ],
+  "systems": {
+    "systems_save": 1,
+    "tick": 333,
+    "rng": 15755400384260043846,
+    "ledger": {
+      "stores": {
+        "ws:dock": {
+          "owner": "workshop:floor",
+          "capacity": 8,
+          "items": {}
+        },
+        "ws:furnace_a/in": {
+          "owner": "ws:furnace_a",
+          "capacity": 6,
+          "items": {
+            "ws:ore": 4
+          }
+        },
+        "ws:furnace_a/out": {
+          "owner": "ws:furnace_a",
+          "capacity": 4,
+          "items": {}
+        },
+        "ws:press_a/in": {
+          "owner": "ws:press_a",
+          "capacity": 4,
+          "items": {}
+        },
+        "ws:press_a/out": {
+          "owner": "ws:press_a",
+          "capacity": 6,
+          "items": {}
+        },
+        "ws:storage": {
+          "owner": "workshop:floor",
+          "capacity": 24,
+          "items": {
+            "ws:gear": 4,
+            "ws:ore": 2
+          }
+        }
+      },
+      "totals": {
+        "ws:gear": 4,
+        "ws:ore": 6
+      }
+    },
+    "systems": {
+      "ws:supply": {
+        "version": 1,
+        "state": {
+          "ws:mine": [
+            4,
+            0
+          ]
+        }
+      },
+      "ws:machines": {
+        "version": 1,
+        "state": {
+          "ws:furnace_a": {
+            "kind": "ws:furnace",
+            "recipe": "ws:smelt",
+            "from": "ws:storage",
+            "to": "ws:storage",
+            "working": true,
+            "progress": 0.75
+          },
+          "ws:press_a": {
+            "kind": "ws:press",
+            "recipe": "ws:press",
+            "from": "ws:storage",
+            "to": "ws:storage",
+            "working": false,
+            "progress": 0.0
+          }
+        }
+      },
+      "ws:shipping": {
+        "version": 1,
+        "state": {
+          "ws:ship": 5
+        }
+      }
+    }
+  }
+}

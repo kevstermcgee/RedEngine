@@ -111,6 +111,18 @@ pub trait MatchGame: Any + Send {
         team
     }
 
+    /// A hash of the game's own world state (its systems, stores, queues), folded into the match checksum so a replay or a trace notices when
+    /// it diverges; `None` (the default) adds nothing, so a game without world state of its own hashes as before.
+    fn state_hash(&self) -> Option<u64> {
+        None
+    }
+
+    /// The game's own answer about `target` (an instance, a store, `systems` for its catalog), as JSON: what `red_engine2 sim --inspect`
+    /// prints. `None` when it knows nothing by that name.
+    fn inspect(&self, _sim: &MatchSim, _target: &str) -> Option<serde_json::Value> {
+        None
+    }
+
     /// How much what player `slot` carries slows them (`None`: not at all).
     fn move_mult(&self, _slot: usize) -> Option<f32> {
         None

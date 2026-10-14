@@ -34,6 +34,7 @@ pub use red_core::sim::clock;
 pub use red_core::sim::combat;
 pub use red_core::sim::combat_cfg;
 pub use red_core::sim::components;
+pub use red_core::sim::defs;
 pub use red_core::sim::entities;
 /// A conventional agent interface to a match (`reset`/`observe`/`step`), over the real simulation; what an agent may know is separate from the privileged state.
 pub mod env;
@@ -44,6 +45,7 @@ pub use red_core::sim::interest;
 pub use red_core::sim::items;
 pub use red_core::sim::kart;
 pub use red_core::sim::kit;
+pub use red_core::sim::ledger;
 pub use red_core::sim::match_sim;
 pub use red_core::sim::objective;
 pub use red_core::sim::objective_run;
@@ -62,6 +64,7 @@ pub use red_core::sim::shooter_snap;
 pub use red_core::sim::snapshot;
 pub use red_core::sim::spawns;
 pub use red_core::sim::statics;
+pub use red_core::sim::systems;
 pub use red_core::sim::trace;
 
 #[cfg(test)]

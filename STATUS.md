@@ -64,6 +64,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: shooter move step 6a: client game part + decoder, snapshot History, killcam cuts from it (PR); step 5 merged (#159)
 - 2026-10-14: shooter move step 6b: public match door + ShooterSim + uniforms hook (PR); step 6a merged (#160)
 - 2026-10-14: CLI is a library (ADR a-game-runs-the-engine-s-commands, step 1) (PR); step 6b merged (#161)
+- 2026-10-14: game systems milestone (ADR game-systems-compose-under-one-match-authority): sim::defs/ledger/systems, Workshop reference game (games/workshop), ability reuse fixture, sim game expectations + --inspect, describe systems; fresh-agent trial passed (69.5K tokens, 19 calls, 325 s, 1 tool-caused error)
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
@@ -80,6 +81,13 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - The rules-language gaps from the Idea Forge notes (per-entity state and timers, a fall-out height, rules that change player movement, gravity or scale): ranked and designed in `docs/RULES_LANGUAGE_GAPS.md` (#83); the prop-subject piece of gap 1 (`self`, `prop` lists) and aimed fields were built on 2026-10-13, the rest is not.
 - Bounding the engine's CI time: 58% of CI job-minutes since Oct 7 went to Idea Forge (about 59 job-minutes a game). A games-only path filter (#88, merged: `games_only` in `ci.yml`'s `changes` job, `scripts/ci.sh games`) skips the Windows leg, the headless build and the image for a PR whose files are all under `examples/2d`, `examples/3d` or `docs/analysis/idea-forge`; one probe pair measured about 43 job-minutes (22 wall-clock) against about 2. Proposals 2-4 of `docs/analysis/2026-10-09-engine-ci-growth.md` (move generated games out, cap them, nightly measurement) are not built.
 - 2026-10-13: Rules gaps after aimed fields: per-entity vars and restartable timers (RULES_LANGUAGE_GAPS rank 1) are the next milestone; the museum boundary proposal (procedural-model layer, game-neutral surface hook, a release route for a game crate) is in docs/analysis/2026-10-13-aimed-fields-and-subject-props.md section 5
+- 2026-10-14: friction: `scripts/dev start` routes a task that says "migration" to the upgrade workflow (an engine-work task about save migration got `game upgrade plan`)
+- 2026-10-14: friction (fresh agent): `validate` with no paths, run in a game folder outside a checkout, checks the engine repo's 90 files instead of the folder
+- 2026-10-14: friction (fresh agent): `validate defs/x.json` reads a game's definitions file as a scene and gives misleading errors: a block that reads files has no way to declare their kind to `validate`
+- 2026-10-14: friction: `sim --json --inspect` returns the whole scenario result (14 KB) to answer one question; an inspect-only output would be about 2 KB
+- 2026-10-14: friction (fresh agent): `sim --only` matches a substring, so 'lever' also picked 'without the lever'
+- 2026-10-14: next (measured bottleneck): compile game content into indexed runtime data: string-keyed lookups and per-tick allocation are about half of Workshop's tick at 1000 machines (perf)
+- 2026-10-14: next (measured bottleneck): replication relevance/deltas for a game's part: a whole-state part is 8 bytes per machine and is left out of snapshots above about 170 machines
 
 ## Failing / blocked
 - Main was green at 30bb4e5 (CI run of 2026-10-09 13:41). Not failing on main, but `scripts/test_idea_forge.py` failed on any machine with under 20 GB free (fixed in hardening item 3).

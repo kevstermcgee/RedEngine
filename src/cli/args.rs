@@ -976,6 +976,10 @@ pub(crate) enum Command {
         /// State-dump interval for `--trace`, in ticks (the readable diff a divergence prints).
         #[arg(long, default_value_t = 60)]
         dump_every: u32,
+        /// Ask the match game about this at the end of every scenario (an instance or store id, or `systems`; repeatable): why a machine is
+        /// blocked, what definition it came from, what would let it continue.
+        #[arg(long)]
+        inspect: Vec<String>,
     },
     /// Prove a 2D level: find a run to a goal
     Solve {

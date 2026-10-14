@@ -1,0 +1,22 @@
+# Workshop's client: the player's window (`red_engine2::app`, a custom top-down client), on Workshop's server-side library for its game. A
+# workspace member, not a default one: `cargo run -p workshop`, `cargo test -p workshop`.
+[package]
+name = "workshop"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "Workshop: a reference game for composed game systems on Red Engine 2 (the player's client)"
+
+[[bin]]
+name = "workshop"
+path = "src/main.rs"
+
+[dependencies]
+red_engine2 = { path = "../.." }
+workshop_server = { path = "server" }
+serde_json = { workspace = true }
+
+# A reference game for the engine's tests and agents, not a download: the release package leaves it out (`tools::package::game_binaries`).
+[package.metadata.red]
+release = false

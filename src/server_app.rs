@@ -214,7 +214,9 @@ pub fn run(game: &GameServer) {
         eprintln!("{e}");
         std::process::exit(1);
     });
-    let scene = crate::schema::parse_scene(&scene_text).unwrap_or_else(|errs| {
+    // Files a block names (a game's definition files) are relative to the map.
+    let map_dir = map.parent().map(std::path::Path::to_path_buf);
+    let scene = crate::schema::parse_scene_in(&scene_text, map_dir.as_deref()).unwrap_or_else(|errs| {
         eprintln!("{} is not a valid scene:\n  {}", map.display(), errs.join("\n  "));
         std::process::exit(1);
     });
@@ -335,9 +337,9 @@ pub fn run(game: &GameServer) {
     }
     if let Some(settings) = flow_settings {
         // The scene is parsed afresh for every round: a rematch starts from the authored map (Scene is not Clone, and parsing is milliseconds).
-        let (text2, spawns2) = (scene_text.clone(), spawns.clone());
+        let (text2, spawns2, dir2) = (scene_text.clone(), spawns.clone(), map_dir.clone());
         let rebuild = move || {
-            let scene = crate::schema::parse_scene(&text2).map_err(|e| e.join("; "))?;
+            let scene = crate::schema::parse_scene_in(&text2, dir2.as_deref()).map_err(|e| e.join("; "))?;
             MatchSim::try_new(&scene, spawns2.clone())
         };
         if let Err(e) = server.enable_flow(settings.clone(), rebuild) {

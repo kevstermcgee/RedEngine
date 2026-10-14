@@ -103,8 +103,9 @@ fn the_first_read_is_a_small_fraction_of_the_docs() {
     );
     assert!(a.context * 8 < docs_bytes(), "orientation costs {} bytes vs {} bytes of AGENTS.md + SPEC.md", a.context, docs_bytes());
     // 9.5 KB before the 2D/browser path added `capabilities`, `propose`, `publish` and `web` (four command lines) and the `2d` and `capabilities` topics (about 300 bytes); the
-    // 2D front door itself is `describe 2d` (5.6 KB), read only by someone making a 2D game.
-    a.within(9_800);
+    // 2D front door itself is `describe 2d` (5.6 KB), read only by someone making a 2D game. The `systems` topic (game-owned state, ADR
+    // 2026-10-14-game-systems-compose-under-one-match-authority) adds its name to the brief's topic list (8 bytes); its text is `describe systems`.
+    a.within(9_850);
 }
 
 #[test]
@@ -411,4 +412,22 @@ fn task_prove_and_edit_a_map_through_the_mcp_server() {
     let total = c.tools_list_bytes + c.sent_bytes + c.text_bytes;
     println!("  used {total} of 11500 bytes (tools/list {} + sent {} + read {})", c.tools_list_bytes, c.sent_bytes, c.text_bytes);
     assert!(total <= 11_500, "the MCP task cost {total} bytes (tools/list {}, sent {}, read {}); budget 11500", c.tools_list_bytes, c.sent_bytes, c.text_bytes);
+}
+
+/// Discover the game-system contract (ADR 2026-10-14-game-systems-compose-under-one-match-authority) from a cold start: the engine names the
+/// topic, `search` lands on it, and `describe systems` gives the primitive, the reference game and the whole discover -> inspect -> modify ->
+/// verify loop in one bounded read. The loop itself runs through the game's own program (its blocks are its own), so its task is Workshop's:
+/// `games/workshop/server/tests/ai_task.rs`.
+#[test]
+fn task_discover_how_a_game_composes_stateful_systems() {
+    let mut a = Agent::new("discover_systems");
+    // `describe --brief` (step zero) already lists the topic; the question goes to search.
+    let (ok, found) = a.run(&["search", "reusable machine with its own state, inventory and recipes"]);
+    assert!(ok && found.contains("game-systems-compose-under-one-match-authority"), "search finds the decision:\n{found}");
+    let (ok, topic) = a.run(&["describe", "systems"]);
+    assert!(ok, "{topic}");
+    for needed in ["defs::Id", "ledger::Ledger", "systems::System", "games/workshop", "--inspect", "\"game\":", "state-version", "NOT YET"] {
+        assert!(topic.contains(needed), "`describe systems` names {needed}");
+    }
+    a.within(12_000);
 }

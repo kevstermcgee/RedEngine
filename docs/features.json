@@ -124,6 +124,14 @@
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md"],
       "depends_on": ["net_protocol", "net_auth", "net_transport", "sim_core", "match_flow"]
     },
+    "game_systems": {
+      "summary": "Game-owned state beyond rules: namespaced definitions with provenance (`sim::defs`), a transactional resource ledger (`sim::ledger`) and the host that composes a game's systems under the match's one authority (`sim::systems`); Workshop (`games/workshop`) is the reference.",
+      "files": ["crates/red_core/src/sim/defs.rs", "crates/red_core/src/sim/ledger.rs", "crates/red_core/src/sim/systems.rs"],
+      "tests": ["lib:sim", "systems_abilities"],
+      "commands": ["red_engine2 describe systems", "cargo test -p workshop_server", "cargo test -p workshop_server --release --test scale -- --ignored --nocapture"],
+      "docs": ["docs/adr/2026-10-14-game-systems-compose-under-one-match-authority.md", "games/workshop/README.md"],
+      "depends_on": ["sim_core"]
+    },
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
       "files": ["crates/red_core/src/net/client.rs", "crates/red_core/src/net/game_view.rs", "crates/red_core/src/net/interp.rs", "src/net/predict.rs", "crates/red_core/src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs", "crates/red_core/src/net/join_code.rs",

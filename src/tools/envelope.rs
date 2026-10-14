@@ -91,11 +91,30 @@ pub const CODES: &[(&str, &str, &str)] = &[
     ("unknown-name", "an unknown prefab, prop, zone, id or parameter", "use a listed name (`catalog`, `props`, `ls`)"),
     ("duplicate-id", "two objects share an id", "rename one"),
     ("out-of-range", "a number outside its allowed range", "use a value inside the range in the message"),
+    (
+        "undeclared-dependency",
+        "a game system, definition or replacement needs something it does not declare or that is not there",
+        "declare it, or list the file that defines it first",
+    ),
+    ("dependency-cycle", "game systems that must each run after another of them", "drop one `after`"),
+    ("undeclared-event", "an event or command a game system does not declare, or hears that nobody emits", "declare it in the system's emits/hears/commands"),
+    (
+        "event-overflow",
+        "more game-system events in one tick than the host's bound: a cascade that does not settle",
+        "end the chain, or raise the budget if the work is real",
+    ),
+    ("state-version", "saved state this program cannot read: newer, another game's, or a migration that failed", "open it with the version that saved it"),
+    ("insufficient", "a transaction needs more of a resource than its store holds", "bring what the fix names"),
+    ("store-full", "a transaction would put more into a store than it has room for", "make room, or route the output elsewhere"),
     ("invalid", "any other problem with the input", "read the message"),
 ];
 
 /// Assigns a stable code to one problem message (heuristic on its wording; every code is in [`CODES`]).
 pub fn classify(message: &str) -> &'static str {
+    // A message that names its code (`at: [code] message`, as game-system diagnostics do: `sim::defs::Diagnostic`) keeps it.
+    if let Some(code) = CODES.iter().map(|(c, _, _)| *c).find(|c| message.contains(&format!("[{c}]"))) {
+        return code;
+    }
     let m = message.to_lowercase();
     if m.starts_with("json:") || m.contains("expected value at line") || m.contains("not valid json") {
         "json-syntax"

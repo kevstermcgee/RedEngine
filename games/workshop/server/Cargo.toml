@@ -1,0 +1,19 @@
+# Workshop's server side: content, game systems, match game (a headless library) and the `workshop_server` program. A workspace member, not a
+# default one: `cargo test -p workshop_server`. Without graphics (`red_engine2` without its default features), so a server or CI build never
+# compiles a window; `scripts/red` builds it with `--features red_engine2/default` for the engine's graphical commands.
+[package]
+name = "workshop_server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "Workshop: a reference game for composed game systems on Red Engine 2 (server side)"
+
+[[bin]]
+name = "workshop_server"
+path = "src/main.rs"
+
+[dependencies]
+red_engine2 = { path = "../../..", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }

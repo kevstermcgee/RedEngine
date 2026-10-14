@@ -36,6 +36,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("multiplayer", "hosting and playing online"),
     ("playtest", "see the game without a screen"),
     ("custom-client", "a non-first-person game: a crate on `red_engine2::app`"),
+    ("systems", "game state: machines, recipes"),
     ("2d", "the 2D game file format"),
     ("hybrid", "3D parts in a 2D game"),
     ("capabilities", "what is built: presentation x platform x network x input"),
@@ -748,6 +749,39 @@ fn twod_text() -> String {
 }
 
 /// `describe custom-client`: the route for a game that is not the built-in first-person client (ADR 0043).
+fn systems_text() -> String {
+    String::from(
+        "Game systems: game-owned state and behavior beyond `rules`, composed under the match's one authority (ADR\n\
+         2026-10-14-game-systems-compose-under-one-match-authority). Rules (`describe rules`) stay the default; when a mechanic needs state of\n\
+         its own (machines, stores, recipes, abilities, cooldowns), a game crate writes systems on this public primitive. Reference game:\n\
+         games/workshop (two machine kinds of one behavior, shared storage, recipes, a lever); reuse test: tests/systems_abilities.rs.\n\
+\n\
+CONTRACT  (red_engine2::sim::...)\n\
+\x20\x20defs::Id          `namespace:name` (`ws:furnace`; `ws:furnace_a/in` for a part of one); a bare name in a file means the file's namespace\n\
+\x20\x20defs::Defs<T>     definitions by id with where each is written (`file#/pointer`); defining an id twice is duplicate-id naming both places;\n\
+\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20a later file replaces one only with `\"replace\": true`; `reference` resolves with a did-you-mean\n\
+\x20\x20ledger::Ledger    stores (explicit owner, capacity) of countable resources; a Tx (moves, and consume/produce for a DECLARED recipe, source\n\
+\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20or sink) applies whole or not at all (insufficient, store-full); `check` dry-runs; `audit` proves nothing was duplicated or lost\n\
+\x20\x20systems::System   one behavior: id, after (dependencies), emits/hears (events), commands, tick, event, command, version/save/load/migrate,\n\
+\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20hash, inspect -> {status, blocked_by {code, message, fix}, definition, defined_at, state}\n\
+\x20\x20systems::Systems  the host: dependency order (ties by id, never registration order), at most `budget` events a tick (event-overflow halts\n\
+\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20it and says so every tick), commands, one seeded random stream, versioned save (migrate older, refuse newer, roll back)\n\
+\x20\x20MatchGame         the game runs its Systems in `tick`; `state_hash` puts them in the match checksum; `inspect` answers `sim --inspect`;\n\
+\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20`snapshot_part` + a client `GameDecoder` carry them online; `MatchSim::set_var` shows them to the scene (HUD, objective, checks)\n\
+\n\
+THE LOOP  (a game's blocks need its own program: `workshop_server cli <command>` is this CLI with Workshop's blocks)\n\
+\x20\x20discover  workshop_server cli sim content/workshop.json --inspect systems     systems, order, definitions with their files\n\
+\x20\x20inspect   ... --inspect ws:press_a                                            status, why blocked, the fix, definition and its file\n\
+\x20\x20depends   ... --inspect ws:gear                                               what uses a definition: recipes, machines, instances, sinks\n\
+\x20\x20modify    a definitions file (a third machine is an `instances` entry naming `ws:furnace`), listed in the block's `defs`\n\
+\x20\x20verify    workshop_server cli validate content/workshop.json;  ... sim content/workshop.json  (its checks.sim)\n\
+\x20\x20expect    {\"game\": \"ws:press_a\", \"path\": \"state.made\", \"gte\": 3}  {\"game\": \"ws:furnace_a\", \"path\": \"status\", \"eq\": \"blocked\"}\n\
+CODES     duplicate-id unknown-name undeclared-dependency dependency-cycle undeclared-event event-overflow state-version insufficient store-full\n\
+NOT YET   indexed runtime data (ids are looked up as strings every tick: about half the tick at 1000 machines); replication relevance and\n\
+\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20deltas (a game part over 1400 bytes is left out of snapshots); systems shared between games (a game composes its own).\n",
+    )
+}
+
 fn custom_client_text() -> String {
     String::from(
         "A game that is not first-person (top-down, strategy, puzzle, a spectator view) is its own crate that depends on red_engine2\n\
@@ -918,6 +952,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "multiplayer" => json!({"text": multiplayer_text()}),
             "playtest" => json!({"text": playtest_text()}),
             "custom-client" => json!({"text": custom_client_text()}),
+            "systems" => json!({"text": systems_text()}),
             "2d" => json!({"text": twod_text()}),
             "hybrid" => json!({"text": red2d::reference::HYBRID}),
             "capabilities" => json!({"text": red2d::caps::matrix_text()}),
@@ -949,6 +984,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
         "multiplayer" => out.push_str(&multiplayer_text()),
         "playtest" => out.push_str(&playtest_text()),
         "custom-client" => out.push_str(&custom_client_text()),
+        "systems" => out.push_str(&systems_text()),
         "2d" => out.push_str(&twod_text()),
         "hybrid" => out.push_str(red2d::reference::HYBRID),
         "capabilities" => out.push_str(&red2d::caps::matrix_text()),
