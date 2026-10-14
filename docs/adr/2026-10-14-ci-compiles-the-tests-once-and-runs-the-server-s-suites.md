@@ -1,6 +1,6 @@
 # 2026-10-14. CI compiles the tests once and runs the server's suites headless on pull requests
 Status: accepted
-Summary: Phase 1 item 4: one job builds cargo-nextest's archive and the doctests, the five Linux shards run from it; a pull request runs the server's suites headless in one job (the whole suite headless on main), and builds the container image only when its own files change
+Summary: Phase 1 item 4: one job builds cargo-nextest's archive and the doctests, the five Linux shards run from it; a pull request runs the server's suites headless in one job (the whole suite headless on main), builds the container image only when its own files change, and a docs-only one runs the doc suites from main's archive
 
 ## Context
 ADR 2026-10-13-the-next-phase, item 4: "Build the nextest archive once and fan it out; on PRs run headless as one shard of the net_*, server_env and
@@ -22,9 +22,13 @@ the artifact costs nothing; the Actions cache is at its 10 GB limit (15 caches),
 - The container image is built on a pull request only when its own files change (Dockerfile, `deploy/`, CI); main builds it for every change it is made
   of. The source it is built from is built and tested by the other jobs.
 - `save-if` stays as it is: rust-cache saves only on main and never over an exact key (its key hashes the manifests and `Cargo.lock`), so this item adds no cache.
-  The doc-reading suites from main's archive (a docs-only pull request that compiles nothing) are the next step, measured separately.
+- A pull request that changes only documentation (`*.md`, `docs/`) runs no compiling job: the `docs` job runs the suites that read the docs
+  (`scripts/ci.sh docs`: the ten suites whose source names a doc, and the engine's `tools::` unit tests) against its docs, from the archive main
+  compiled from the same code, the newest successful run on main whose commit differs from it only in documentation (main keeps its archive a
+  week). Dev and test builds embed no doc (only release builds do, `cfg(red_embed_docs)`), so that archive is exactly this code. When none is left the
+  suites are compiled. Main still runs everything after the merge.
 
 ## Consequences
 Fewer job-minutes per pull request (measured in docs/analysis after the first runs), and one more job on the critical path: the shards wait for the
 build. A test that compiled code at run time would compile on a shard (none does: no test runs `cargo`). Undo: the `test` shards with rust-cache and
-no `RED_CI_ARCHIVE`, the headless matrix `[1, 2, 3]` on pull requests, and the docker job's `docker == 'true'` condition alone.
+no `RED_CI_ARCHIVE`, the headless matrix `[1, 2, 3]` on pull requests, the docker job's `docker == 'true'` condition alone, and no `docs_only`.
