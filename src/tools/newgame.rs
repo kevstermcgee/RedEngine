@@ -123,6 +123,9 @@ export CARGO_TERM_COLOR=never
 json_get() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" game.json | head -1; }
 # The executable that plays the game: the engine's client, or the game's own (game.json "binary").
 GAME_BIN="$(json_get binary)"; GAME_BIN="${GAME_BIN:-re2}"
+# The program that hosts it: the engine's server, or the game's own (game.json "server_binary"), which is also the engine's command line with the
+# game's scene blocks: every engine command below then runs through it (`PROGRAM cli ...`).
+GAME_SERVER="$(json_get server_binary)"; GAME_SERVER="${GAME_SERVER:-red_server}"
 
 # The launchpad is read-only: it must not clone, build or download, so it runs BEFORE the engine is resolved below (which clones a missing pinned engine).
 case "${1:-}" in start|next|resume)
@@ -172,7 +175,7 @@ if [ "$cmd" = "help" ] || [ "$cmd" = "-h" ] || [ "$cmd" = "--help" ]; then sed -
 if [ "$cmd" = "doctor" ]; then
   echo "project  $ROOT"; echo "engine   $ENGINE ($(git -C "$ENGINE" rev-parse --short HEAD 2>/dev/null || echo 'not a git checkout'))"
   command -v cargo >/dev/null 2>&1 && echo "cargo    $(cargo --version)" || echo "cargo    NOT FOUND (install Rust: https://rustup.rs)"
-  for b in red_engine2 red_server "$GAME_BIN"; do [ -f "$(exe $b)" ] && echo "built    $b" || echo "missing  $b (built on first use)"; done
+  for b in red_engine2 "$GAME_SERVER" "$GAME_BIN"; do [ -f "$(exe $b)" ] && echo "built    $b" || echo "missing  $b (built on first use)"; done
   # Which executable would run, and is it fresh? (the same rules scripts/dev and the MCP adapter use)
   [ -f "$ENGINE/scripts/red_resolve.py" ] && command -v python3 >/dev/null 2>&1 && python3 "$ENGINE/scripts/red_resolve.py" --project "$ROOT" 2>/dev/null | sed -n 's/^selected /exe      selected /p;s/^  - /         /p'
   exit 0
@@ -182,7 +185,9 @@ command -v cargo >/dev/null 2>&1 || { echo "red: cargo not found (install Rust: 
 if [ "${1:-}" = "--rebuild" ]; then REBUILD=1; shift; fi
 MODE=default; FEATURES=""; [ "${RED_HEADLESS:-0}" = "1" ] && { MODE=headless; FEATURES="--no-default-features"; }
 [ "$MODE" = "headless" ] && { [ "$cmd" = "play" ] || [ "$cmd" = "play-local" ]; } && { echo "red: $cmd needs graphics; unset RED_HEADLESS" >&2; exit 2; }
-REQUIRED="red_engine2"; [ "$cmd" = "serve" ] && REQUIRED="$REQUIRED red_server"; GAME_PKG=""
+REQUIRED="red_engine2"; [ "$cmd" = "serve" ] && REQUIRED="$REQUIRED red_server"; GAME_PKG=""; SERVER_PKG=""
+# A game with its own server program builds it on its own (the engine's default features unless RED_HEADLESS) and needs no engine binary.
+[ "$GAME_SERVER" != "red_server" ] && { REQUIRED=""; SERVER_PKG="$GAME_SERVER"; }
 # A game with its own client (game.json "binary", a package of the engine's workspace) builds it on its own: in one cargo build with the engine's
 # binaries, its dependency on the engine's graphics would reach the headless ones through feature unification.
 if [ "$GAME_BIN" = "re2" ]; then { [ "$cmd" = "play" ] || [ "$cmd" = "play-local" ]; } && REQUIRED="$REQUIRED re2"; elif [ "$cmd" = "play-local" ]; then GAME_PKG="$GAME_BIN"; fi
@@ -199,10 +204,16 @@ needs_build() {
 }
 BUILD=0; BINS=""
 for b in $REQUIRED; do BINS="$BINS --bin $b"; needs_build "$b" && BUILD=1; done
-if [ "$BUILD" = "1" ]; then
+if [ "$BUILD" = "1" ] && [ -n "$BINS" ]; then
   echo "red: building required engine binaries ..." >&2
   cargo build --quiet $PFLAG $FEATURES --manifest-path "$ENGINE/Cargo.toml" $BINS
   for b in $REQUIRED; do printf '%s' "$MODE" > "$TARGET/$PROFILE/.red-wrapper-$b.mode"; done
+fi
+if [ -n "$SERVER_PKG" ] && needs_build "$SERVER_PKG"; then
+  echo "red: building the game's server program ($SERVER_PKG) ..." >&2
+  SFEAT=""; [ "$MODE" = "default" ] && SFEAT="--features red_engine2/default"
+  cargo build --quiet $PFLAG $SFEAT --manifest-path "$ENGINE/Cargo.toml" -p "$SERVER_PKG" --bin "$SERVER_PKG"
+  printf '%s' "$MODE" > "$TARGET/$PROFILE/.red-wrapper-$SERVER_PKG.mode"
 fi
 if [ -n "$GAME_PKG" ] && needs_build "$GAME_PKG"; then
   echo "red: building the game's client ($GAME_PKG) ..." >&2
@@ -210,10 +221,10 @@ if [ -n "$GAME_PKG" ] && needs_build "$GAME_PKG"; then
   printf '%s' "$MODE" > "$TARGET/$PROFILE/.red-wrapper-$GAME_PKG.mode"
 fi
 
-CLI="$(exe red_engine2)"
+CLI=("$(exe red_engine2)"); [ -n "$SERVER_PKG" ] && CLI=("$(exe "$SERVER_PKG")" cli)
 case "$cmd" in
-  check|build-all|info|play-local|serve|play) exec "$CLI" game "$cmd" "$@" ;;
-  *) exec "$CLI" "$cmd" "$@" ;;
+  check|build-all|info|play-local|serve|play) exec "${CLI[@]}" game "$cmd" "$@" ;;
+  *) exec "${CLI[@]}" "$cmd" "$@" ;;
 esac
 "##;
 
@@ -230,6 +241,9 @@ if ((Test-Path $cargoBin) -and (($env:PATH -split ';') -notcontains $cargoBin)) 
 $game = Get-Content game.json -Raw | ConvertFrom-Json
 # The executable that plays the game: the engine's client, or the game's own (game.json "binary").
 $gameBin = if ($game.binary) { $game.binary } else { 're2' }
+# The program that hosts it: the engine's server, or the game's own (game.json "server_binary"), which is also the engine's command line with the
+# game's scene blocks: every engine command below then runs through it (`PROGRAM cli ...`).
+$gameServer = if ($game.server_binary) { $game.server_binary } else { 'red_server' }
 
 # The launchpad is read-only: it must not clone, build or download, so it runs BEFORE the engine is resolved below (which clones a missing pinned engine).
 if ($Cmd -in 'start', 'next', 'resume') {
@@ -266,7 +280,7 @@ if ($Cmd -in 'help', '-h', '--help') { Get-Content $PSCommandPath -TotalCount 2 
 if ($Cmd -eq 'doctor') {
     "project  $Root"; "engine   $Engine"
     if (Get-Command cargo -ErrorAction SilentlyContinue) { "cargo    $(cargo --version)" } else { 'cargo    NOT FOUND (install Rust: https://rustup.rs)' }
-    foreach ($b in 'red_engine2', 'red_server', $gameBin) { if (Test-Path (Exe $b)) { "built    $b" } else { "missing  $b (built on first use)" } }
+    foreach ($b in 'red_engine2', $gameServer, $gameBin) { if (Test-Path (Exe $b)) { "built    $b" } else { "missing  $b (built on first use)" } }
     exit 0
 }
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { Write-Error 'red: cargo not found (install Rust: https://rustup.rs)'; exit 127 }
@@ -274,7 +288,9 @@ if ($Rest.Count -gt 0 -and $Rest[0] -eq '--rebuild') { $rebuild = $true; $Rest =
 $mode = if ($env:RED_HEADLESS -eq '1') { 'headless' } else { 'default' }
 $features = if ($mode -eq 'headless') { @('--no-default-features') } else { @() }
 if ($mode -eq 'headless' -and $Cmd -in 'play', 'play-local') { Write-Error "red: $Cmd needs graphics; unset RED_HEADLESS"; exit 2 }
-$required = @('red_engine2'); if ($Cmd -eq 'serve') { $required += 'red_server' }; $gamePkg = $null
+$required = @('red_engine2'); if ($Cmd -eq 'serve') { $required += 'red_server' }; $gamePkg = $null; $serverPkg = $null
+# A game with its own server program builds it on its own (the engine's default features unless RED_HEADLESS) and needs no engine binary.
+if ($gameServer -ne 'red_server') { $required = @(); $serverPkg = $gameServer }
 # A game with its own client (game.json "binary", a package of the engine's workspace) builds it on its own: in one cargo build with the engine's
 # binaries, its dependency on the engine's graphics would reach the headless ones through feature unification.
 if ($gameBin -eq 're2') { if ($Cmd -in 'play', 'play-local') { $required += 're2' } } elseif ($Cmd -eq 'play-local') { $gamePkg = $gameBin }
@@ -290,11 +306,18 @@ function Needs-Build([string]$n) {
 }
 $build = $false; $bins = @()
 foreach ($b in $required) { $bins += @('--bin', $b); if (Needs-Build $b) { $build = $true } }
-if ($build) {
+if ($build -and $bins.Count -gt 0) {
     Write-Host 'red: building required engine binaries ...'
     & cargo build --quiet @PFlag @features --manifest-path (Join-Path $Engine 'Cargo.toml') @bins
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     foreach ($b in $required) { Set-Content -NoNewline -Path (Join-Path $Target "$Profile_\.red-wrapper-$b.mode") -Value $mode }
+}
+if ($serverPkg -and (Needs-Build $serverPkg)) {
+    Write-Host "red: building the game's server program ($serverPkg) ..."
+    $serverFeatures = if ($mode -eq 'default') { @('--features', 'red_engine2/default') } else { @() }
+    & cargo build --quiet @PFlag @serverFeatures --manifest-path (Join-Path $Engine 'Cargo.toml') -p $serverPkg --bin $serverPkg
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Set-Content -NoNewline -Path (Join-Path $Target "$Profile_\.red-wrapper-$serverPkg.mode") -Value $mode
 }
 if ($gamePkg -and (Needs-Build $gamePkg)) {
     Write-Host "red: building the game's client ($gamePkg) ..."
@@ -303,10 +326,11 @@ if ($gamePkg -and (Needs-Build $gamePkg)) {
     Set-Content -NoNewline -Path (Join-Path $Target "$Profile_\.red-wrapper-$gamePkg.mode") -Value $mode
 }
 
-$cli = Exe 'red_engine2'
+$cli = Exe 'red_engine2'; $cliArgs = @()
+if ($serverPkg) { $cli = Exe $serverPkg; $cliArgs = @('cli') }
 switch ($Cmd) {
-    { $_ -in 'check', 'build-all', 'info', 'play-local', 'serve', 'play' } { & $cli game $Cmd @Rest }
-    default { & $cli $Cmd @Rest }
+    { $_ -in 'check', 'build-all', 'info', 'play-local', 'serve', 'play' } { & $cli @cliArgs game $Cmd @Rest }
+    default { & $cli @cliArgs $Cmd @Rest }
 }
 exit $LASTEXITCODE
 "##;
@@ -655,6 +679,44 @@ mod tests {
         let script = std::fs::read_to_string(dir.join("deploy/install.sh")).unwrap();
         assert!(script.contains("game.json") && !script.contains("great-outdoors"), "the hosting script is generic");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `scripts/red` runs the engine's commands through the game's own server program when `game.json` names one (`PROGRAM cli ...`), and
+    /// through `red_engine2` otherwise. Stub programs stand in for built ones, so nothing is compiled.
+    #[cfg(unix)]
+    #[test]
+    fn the_wrapper_runs_engine_commands_through_the_game_s_server_program() {
+        use std::os::unix::fs::PermissionsExt;
+        let run = |game_json: &str| {
+            let dir = std::env::temp_dir().join(format!("red-wrapper-{}-{}", std::process::id(), game_json.len()));
+            let _ = std::fs::remove_dir_all(&dir);
+            let (engine, bin) = (dir.join("engine"), dir.join("engine/target/debug"));
+            std::fs::create_dir_all(dir.join("project/scripts")).unwrap();
+            std::fs::create_dir_all(&bin).unwrap();
+            std::fs::write(engine.join("Cargo.toml"), "[workspace]\n").unwrap();
+            std::fs::write(dir.join("project/scripts/red"), RED_SH).unwrap();
+            std::fs::write(dir.join("project/game.json"), game_json.replace("ENGINE", &engine.display().to_string())).unwrap();
+            for name in ["red_engine2", "kc_server", "cargo"] {
+                let stub = if name == "cargo" { dir.join(name) } else { bin.join(name) };
+                std::fs::write(&stub, format!("#!/bin/sh\necho {name} \"$@\"\n")).unwrap();
+                std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+                std::fs::write(bin.join(format!(".red-wrapper-{name}.mode")), "default").unwrap();
+            }
+            let out = std::process::Command::new("bash")
+                .arg(dir.join("project/scripts/red"))
+                .args(["check", "--views"])
+                .env("HOME", &dir)
+                .env("PATH", format!("{}:/usr/bin:/bin", dir.display()))
+                .output()
+                .unwrap();
+            let _ = std::fs::remove_dir_all(&dir);
+            String::from_utf8_lossy(&out.stdout).trim().to_string() + &String::from_utf8_lossy(&out.stderr)
+        };
+        assert_eq!(run(r#"{"game":1,"engine":{"path":"ENGINE"},"maps":["m.json"]}"#), "red_engine2 game check --views");
+        assert_eq!(
+            run(r#"{"game":1,"engine":{"path":"ENGINE"},"maps":["m.json"],"binary":"kc","server_binary":"kc_server"}"#),
+            "kc_server cli game check --views"
+        );
     }
 
     #[test]

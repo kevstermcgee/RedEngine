@@ -395,8 +395,9 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             Ok(())
         }
         GameCmd::Serve { extra } => {
-            let exe = game::sibling_exe("red_server")
-                .ok_or("red_server is not built next to red_engine2 (cargo build --bin red_server, or use `scripts/red serve`)")?;
+            // The project's server program: `red_server`, or the game's own (`server_binary`), built beside this program.
+            let name = &cfg.server_binary;
+            let exe = game::sibling_exe(name).ok_or_else(|| format!("{name} is not built next to this program (`scripts/red serve` builds it)"))?;
             let mut args = game::server_args(&cfg);
             args.extend(extra);
             launch(&exe, &args)

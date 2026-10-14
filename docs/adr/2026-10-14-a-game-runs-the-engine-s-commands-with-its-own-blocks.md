@@ -1,6 +1,6 @@
 # 2026-10-14. A game runs the engine's commands with its own blocks: the command line is a library
 Status: accepted
-Summary: The `red_engine2` command line becomes library code (`red_engine2::cli`), and a game's own server program runs it with the game's scene blocks (`PROGRAM cli ...`), named by `game.json`'s `server.binary`, so a game whose blocks leave the engine keeps the engine's tools for its maps
+Summary: The `red_engine2` command line becomes library code (`red_engine2::cli`), and a game's own server program runs it with the game's scene blocks (`PROGRAM cli ...`), named by `game.json`'s `server_binary`, so a game whose blocks leave the engine keeps the engine's tools for its maps
 
 ## Context
 ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or moves the loadout shooter to Killchain, and ADR
@@ -26,12 +26,21 @@ Considered and not done:
 - **A game's server program is also the engine's command line with the game's blocks**: `PROGRAM cli <command>` (`server_app::run` defines the
   program's blocks, then runs the command line), so `killchain_server cli lint maps/main.json` reads a `shooter` map. The server program is
   the one place a game's blocks are defined without a window, so it suits checks, CI and containers.
-- **`game.json` names the server program**: `server.binary` (default `red_server`; a package of the engine's workspace whose binary has its
+- **`game.json` names the server program**: `server_binary` (default `red_server`; a package of the engine's workspace whose binary has its
   name, as `binary` is for the client). `game serve` starts it; a project's `scripts/red` runs the engine's commands through it.
 - **In steps, each its own pull request:** (1) the command line moves into the library, nothing else; (2) `cli` in server programs,
-  `server.binary`, `game serve`, the project script template, and `validate` reading a block the program defines; (3) the shooter's move,
+  `server_binary`, `game serve` and the project script template; (3) the shooter's move,
   with `killchain_server` (and the release package builds a game's server without graphics); (4) the Killchain project names
   `killchain_server` (RedEngineGames, the owner merges).
+
+- *Step 1 as built (2026-10-14, PR #162):* `src/cli/mod.rs` is what `src/main.rs` was; `src/main.rs` calls `red_engine2::cli::main()`.
+- *Step 2 as built (2026-10-14):* `cli::main_from(args)` runs the command line on given arguments; `server_app::run` answers `PROGRAM cli ...`
+  with it after defining the program's blocks (`red_server cli validate MAP` works too). `game.json`'s `server_binary` is a top-level key
+  beside `binary`, not a key of `server`: the project script reads keys with a line match, and a nested `binary` would be read as the
+  client's. `game serve` starts the project's server program; the script template builds it on its own (`-p NAME --bin NAME`, the
+  engine's default features unless `RED_HEADLESS`) and runs every engine command through it. `validate` needed nothing: it already
+  checks a scene with the blocks the running program defines (`scene_blocks::parse_scene_in`); only the typed definitions and schemas,
+  which the drift tests compare, are the engine's own.
 
 ## Consequences
 Every game that brings scene blocks keeps every engine tool for its maps, through one program it already needs for hosting. The library grows by
