@@ -39,4 +39,13 @@ shards and the image for every change.
 
 Before: #133 (an ADR, its index line and a status note) ran every test job: 47 job-minutes. After #135, a pull request whose every file is `*.md` or
 under `docs/` runs no compiling job; the `docs` job runs the suites that read the docs from the archive main compiled from the same code. Measured
-on the pull request that adds this section (it is docs-only): see the next section.
+on #137, the pull request that adds this section (it is docs-only; run 38513053593):
+
+| | #133 (before) | #137 (after) |
+|---|---|---|
+| job-minutes | 47 | **1.4** (the docs job 1.2, rustfmt and the change check 0.3) |
+| compiling jobs | build, 5 test shards, 3 headless shards, headless build, clippy, the games on the API | none |
+| `Compiling` lines in the log | every Rust job | **0** |
+
+The `docs` job found main's archive of 473809f (run 38511161142: the same code; it succeeded), extracted it in 9.8 s and ran the 368 tests that read
+the docs, all passing. Item 4's last clause ("a docs-only PR's CI log has no `Compiling red_engine2`") holds.
