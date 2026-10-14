@@ -3143,7 +3143,6 @@ dependencies = [
  "sha2",
  "softbuffer",
  "subtle",
- "thiserror 2.0.20",
  "tokio",
  "wgpu",
  "winit",

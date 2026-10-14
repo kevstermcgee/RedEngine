@@ -1,5 +1,5 @@
 //! `red_engine2 src ...`: explore the engine's own Rust without reading it. A dependency-free
-//! scanner (no rust-analyzer, no database to go stale — 12k lines scan in a few milliseconds)
+//! scanner (no rust-analyzer, no database to go stale — the engine's 137k lines scan in about a quarter of a second)
 //! builds the symbol table on demand and answers the questions an AI would otherwise spend
 //! repository-wide greps on:
 //!

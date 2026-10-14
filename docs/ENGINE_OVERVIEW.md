@@ -247,13 +247,14 @@ render-path changes.
 
 ## Known limits (intentional)
 
-No imported meshes, textures, or audio samples (sound effects are synthesized in code — see
-`audio.rs` — same reasoning as the procedural meshes), no per-vertex mesh deformation beyond
+No imported meshes or textures, and no sound files of its own (sound effects are synthesized in code — see
+`audio.rs` — same reasoning as the procedural meshes; the one file it plays is the player's own music, `audio.playlist`, decoded from their mp3,
+flac, ogg, wav or m4a), no per-vertex mesh deformation beyond
 the fixed capsule-rig `humanoid`, no sloped roofs (flat ceiling/roof slabs only). The offline
 renderer draws no 2-D text; the live game's menus, lobby and HUD come from the headless-audited
 UI kit (`src/ui`, ADR 0026). Player physics is a simple fixed-timestep circle-vs-AABB-plus-ground-height
-model, not a general physics engine — walking up multiple floors via `stairs` works, but there is no
-jumping between floors, ladders, or slopes other than stairs. At most 256 authored lights, 16 active per view, and 1 shadow-casting
+model, not a general physics engine — floors are reached by `stairs`, by jumping (`player.jump_speed`, jump pads) and up the
+slopes of a `terrain` (no steeper than `MAX_WALK_SLOPE`, a lint holds it), but there are no ladders to climb. At most 256 authored lights, 16 active per view, and 1 shadow-casting
 light (point lights don't cast shadows).
 
 Multiplayer exists (ADR 0016, 0022, 0028): an authoritative headless UDP server (`red_server`), a
