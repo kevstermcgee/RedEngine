@@ -3,8 +3,8 @@
 //! a shared match cannot wait for one player's click.
 
 use super::*;
-use red_engine2::ui::game;
-use red_engine2::ui_config::Card;
+use crate::ui::game;
+use crate::ui_config::Card;
 
 /// Which card is up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,8 +23,8 @@ pub(crate) struct CardState {
 }
 
 impl App {
-    /// The rules overlay for a scene (see [`red_engine2::ui::game::rules_overlay`]); online, outcomes get the plain banner because cards are offline-only.
-    pub(crate) fn rules_overlay(&self, w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outcome: Option<&str>) -> red_engine2::ui::Layout {
+    /// The rules overlay for a scene (see [`crate::ui::game::rules_overlay`]); online, outcomes get the plain banner because cards are offline-only.
+    pub(crate) fn rules_overlay(&self, w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outcome: Option<&str>) -> crate::ui::Layout {
         game::rules_overlay(&self.scene, w, h, vars, event, outcome, self.net.is_some())
     }
 
@@ -39,7 +39,7 @@ impl App {
     }
 
     /// The card's layout at this window size, if one is up.
-    pub(crate) fn card_layout_now(&self, w: u32, h: u32) -> Option<red_engine2::ui::Layout> {
+    pub(crate) fn card_layout_now(&self, w: u32, h: u32) -> Option<crate::ui::Layout> {
         let (card, id) = self.card_content()?;
         Some(game::card_layout(w, h, &card, id, self.card?.hover))
     }
@@ -127,7 +127,7 @@ impl App {
     /// Plays the scene again from the top: a fresh game built from the same file (so an edit shows), in the same window, as the map switcher does.
     fn restart_game(&mut self) {
         let path = self.scene_path.clone();
-        let scene = match red_engine2::load_scene(&path) {
+        let scene = match crate::load_scene(&path) {
             Ok(scene) => scene,
             Err(errors) => {
                 eprintln!("Restart failed: {}", errors.join("; "));

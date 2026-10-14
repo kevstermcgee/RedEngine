@@ -1,14 +1,14 @@
 //! The graphical client's online front end (ADR 0029): the connect form, the lobby / results screens that take over the window, and the HUD
-//! over the world. The screens themselves are `red_engine2::ui::online` (headless, audited by `ui-check`); this file only feeds them what
+//! over the world. The screens themselves are `crate::ui::online` (headless, audited by `ui-check`); this file only feeds them what
 //! the `NetClient` knows and turns clicks and keys into `NetClient` calls.
 
 use super::*;
-use red_engine2::net::client::{ClientConfig, ConnState};
-use red_engine2::ui::online::{
+use crate::net::client::{ClientConfig, ConnState};
+use crate::ui::online::{
     action_at, connect_action_for, connect_layout, hud_layout, lobby_layout, results_layout, screen_for, ConnectAction, ConnectForm, OnlineAction,
     OnlineScreen, OnlineView,
 };
-use red_engine2::ui::Layout;
+use crate::ui::Layout;
 use std::hash::{Hash, Hasher};
 
 /// What the online screens currently show and where the pointer is.
@@ -103,7 +103,7 @@ impl App {
             OnlineScreen::Results => results_layout(w, h, &view, hover.as_deref()),
             // A kart race has its own HUD (place, lap, speed, item ...); the shooter's health and weapon ladder mean nothing there.
             OnlineScreen::Hud if self.net.as_ref().is_some_and(|n| n.is_race()) => match self.net.as_ref().and_then(|n| n.race_hud()) {
-                Some(race) => red_engine2::ui::race::race_hud_layout(w, h, &race),
+                Some(race) => crate::ui::race::race_hud_layout(w, h, &race),
                 None => Layout::new(w, h),
             },
             OnlineScreen::Hud => hud_layout(w, h, &view, &self.scene.hud),
@@ -248,7 +248,7 @@ impl App {
                     return;
                 }
                 let step = if a == OnlineAction::PrevDriver { -1 } else { 1 };
-                let pick = red_engine2::ui::online::step_driver(&view, step);
+                let pick = crate::ui::online::step_driver(&view, step);
                 if let Some(net) = self.net.as_mut() {
                     net.client.set_character(pick, now);
                 }
@@ -331,7 +331,7 @@ impl App {
                 return;
             }
         };
-        let mut cfg = ClientConfig::new(addr, red_engine2::net::protocol::character_to_wire(self.character), world.map_hash, 0);
+        let mut cfg = ClientConfig::new(addr, crate::net::protocol::character_to_wire(self.character), world.map_hash, 0);
         let key = self.online.form.key.trim().to_string();
         cfg.join_key = (!key.is_empty()).then_some(key);
         cfg.name = self.online.form.name.clone();

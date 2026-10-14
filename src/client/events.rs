@@ -254,7 +254,7 @@ impl ApplicationHandler for App {
                         self.debug_text = self.debug_lines();
                     }
                     if code == KeyCode::F12 && event.state == ElementState::Pressed && !self.keys.contains(&code) {
-                        self.shots.request("key", red_engine2::playscript::CameraSpec::First);
+                        self.shots.request("key", crate::playscript::CameraSpec::First);
                     }
                     if code == KeyCode::KeyE && event.state == ElementState::Pressed && !self.keys.contains(&code) && self.grabbed {
                         self.interact();
@@ -397,7 +397,7 @@ impl ApplicationHandler for App {
     fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, event: DeviceEvent) {
         if let DeviceEvent::MouseMotion { delta: (dx, dy) } = event {
             if self.grabbed && self.grabbed_at.elapsed().as_secs_f32() > MOUSE_SETTLE_SECS {
-                let sensitivity = MOUSE_SENSITIVITY * red_engine2::firearms::zoom_sensitivity(self.camera.fov_deg, self.scene.player.fov_deg);
+                let sensitivity = MOUSE_SENSITIVITY * crate::firearms::zoom_sensitivity(self.camera.fov_deg, self.scene.player.fov_deg);
                 self.camera.look(dx as f32 * sensitivity, -dy as f32 * sensitivity);
             }
         }

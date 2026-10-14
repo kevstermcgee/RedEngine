@@ -10,7 +10,7 @@
 
 use super::shots::ShotRecord;
 use super::*;
-use red_engine2::splitscreen::{self, Device};
+use crate::splitscreen::{self, Device};
 
 /// Everything about one local player that is not shared by the game.
 pub(crate) struct PlayerCtx {
@@ -22,7 +22,7 @@ pub(crate) struct PlayerCtx {
     pub character: Character,
     pub body: BodySpec,
     pub keys: HashSet<KeyCode>,
-    pub pad: red_engine2::controller::Sample,
+    pub pad: crate::controller::Sample,
     pub sprint_held: bool,
     pub jump_queued: bool,
     pub attack_queued: bool,
@@ -175,7 +175,7 @@ impl App {
             let mut body = build_player_object(self.character);
             body.id = format!("player_body_{}", slot + 1);
             if let ObjectKind::Humanoid(h) = &mut body.kind {
-                h.material.color = Track::constant(red_engine2::color::parse_hex_to_linear(JUMPERS[(slot - 1) % JUMPERS.len()]).unwrap_or(Vec3::ONE));
+                h.material.color = Track::constant(crate::color::parse_hex_to_linear(JUMPERS[(slot - 1) % JUMPERS.len()]).unwrap_or(Vec3::ONE));
             }
             let index = self.scene.objects.len();
             self.scene.objects.push(body);
@@ -216,17 +216,17 @@ const GUTTER: u32 = 4;
 
 /// One player's frame, collected from their context.
 pub(crate) struct SplitFrame {
-    pub cameras: Vec<red_engine2::app::ViewCamera>,
-    pub layers: Vec<red_engine2::viewer::FpsLayers>,
+    pub cameras: Vec<crate::app::ViewCamera>,
+    pub layers: Vec<crate::viewer::FpsLayers>,
     pub hidden: Vec<Vec<String>>,
 }
 
 impl App {
     /// The first-person layers (crosshair, the weapon in hand, the effects) for the player swapped in.
-    fn fps_layers(&self) -> red_engine2::viewer::FpsLayers {
+    fn fps_layers(&self) -> crate::viewer::FpsLayers {
         let hud = &self.scene.hud;
         let peaceful = self.scene.player.mode.is_peaceful();
-        red_engine2::viewer::FpsLayers {
+        crate::viewer::FpsLayers {
             crosshair_highlighted: self.target_index.is_some(),
             weapon_transform: self.weapon_transform(),
             hand_prop_transform: self.hand_prop_transform,
@@ -256,8 +256,8 @@ impl App {
     }
 
     /// Builds the compositor for the local players now on the screen and sizes the renderer to one view. Returns the size the renderer should be built with.
-    pub(crate) fn split_for(&self, device: &wgpu::Device, format: wgpu::TextureFormat, window: (u32, u32)) -> Option<red_engine2::split_gpu::SplitScreen> {
-        (self.local_player_count() > 1).then(|| red_engine2::split_gpu::SplitScreen::new(device, format, window, self.local_player_count(), GUTTER))
+    pub(crate) fn split_for(&self, device: &wgpu::Device, format: wgpu::TextureFormat, window: (u32, u32)) -> Option<crate::split_gpu::SplitScreen> {
+        (self.local_player_count() > 1).then(|| crate::split_gpu::SplitScreen::new(device, format, window, self.local_player_count(), GUTTER))
     }
 
     /// Paints each player's own HUD at the size of their view (the rules' variables, what they are looking at), and the shared card over the whole window.
@@ -302,8 +302,8 @@ impl App {
         let Some(surface) = gpu.surface.as_ref() else { return };
         let Some((surface_tex, reconfigure)) = window::acquire_frame(surface, &gpu.device, &gpu.config) else { return };
         let view = surface_tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let views: Vec<red_engine2::split_gpu::PlayerView> = (0..frame.cameras.len())
-            .map(|i| red_engine2::split_gpu::PlayerView { camera: frame.cameras[i], layers: Some(frame.layers[i]), hidden: &frame.hidden[i] })
+        let views: Vec<crate::split_gpu::PlayerView> = (0..frame.cameras.len())
+            .map(|i| crate::split_gpu::PlayerView { camera: frame.cameras[i], layers: Some(frame.layers[i]), hidden: &frame.hidden[i] })
             .collect();
         split.render(live, &gpu.device, &gpu.queue, &self.scene, t, &views, &view);
         gpu.queue.present(surface_tex);
@@ -343,16 +343,16 @@ impl App {
         let (Some(live), Some(split)) = (gpu.live.as_mut(), self.split.as_mut()) else { return Err("the game has not started yet".into()) };
         let (w, h) = (gpu.config.width, gpu.config.height);
         if !self.shots.capture.as_ref().is_some_and(|c| c.matches(gpu.config.format, w, h)) {
-            self.shots.capture = Some(red_engine2::capture::Capture::new(&gpu.device, gpu.config.format, w, h).map_err(|e| e.to_string())?);
+            self.shots.capture = Some(crate::capture::Capture::new(&gpu.device, gpu.config.format, w, h).map_err(|e| e.to_string())?);
         }
         let capture = self.shots.capture.as_ref().ok_or("no capture target")?;
         let views: Vec<_> = (0..frame.cameras.len())
-            .map(|i| red_engine2::split_gpu::PlayerView { camera: frame.cameras[i], layers: Some(frame.layers[i]), hidden: &frame.hidden[i] })
+            .map(|i| crate::split_gpu::PlayerView { camera: frame.cameras[i], layers: Some(frame.layers[i]), hidden: &frame.hidden[i] })
             .collect();
         split.render(live, &gpu.device, &gpu.queue, &self.scene, t, &views, capture.view());
         let image = capture.read_rgba(&gpu.device, &gpu.queue).map_err(|e| e.to_string())?;
-        red_engine2::capture::save_png(&image, &path).map_err(|e| e.to_string())?;
-        Ok(ShotRecord { name: name.to_string(), file: path, secs: self.play_secs, camera: "split".into(), flat: red_engine2::capture::flat_fraction(&image) })
+        crate::capture::save_png(&image, &path).map_err(|e| e.to_string())?;
+        Ok(ShotRecord { name: name.to_string(), file: path, secs: self.play_secs, camera: "split".into(), flat: crate::capture::flat_fraction(&image) })
     }
 
     /// Routes a window-sized image (the pause menu, a card, the map list) over everything: the split screen's own overlay, or the renderer's.
@@ -376,14 +376,14 @@ impl App {
         if self.locals.is_empty() {
             return;
         }
-        let me = red_engine2::mixer::Listener { pos: self.eye.to_array(), yaw: self.camera.yaw };
-        let guests = self.locals.iter().flatten().map(|c| red_engine2::mixer::Listener { pos: c.eye.to_array(), yaw: c.camera.yaw });
+        let me = crate::mixer::Listener { pos: self.eye.to_array(), yaw: self.camera.yaw };
+        let guests = self.locals.iter().flatten().map(|c| crate::mixer::Listener { pos: c.eye.to_array(), yaw: c.camera.yaw });
         self.listeners = std::iter::once(me).chain(guests).collect();
     }
 
     /// How the sound the swapped-in guest makes is heard: the gain scale and the pan, against everyone else.
     pub(crate) fn guest_sound(&self) -> (f32, f32) {
-        let others: Vec<red_engine2::mixer::Listener> = self.listeners.iter().enumerate().filter(|(i, _)| *i != self.slot).map(|(_, l)| *l).collect();
+        let others: Vec<crate::mixer::Listener> = self.listeners.iter().enumerate().filter(|(i, _)| *i != self.slot).map(|(_, l)| *l).collect();
         splitscreen::guest_mix(&others, self.eye.to_array())
     }
 

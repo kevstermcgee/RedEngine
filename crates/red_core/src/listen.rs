@@ -3,7 +3,7 @@
 //!
 //! Everything here is pure and headless: the [`Analyzer`] turns mono samples at a playhead into a [`Heard`] (the same numbers whether the live client
 //! is playing the song or `frame --song` is drawing a moment of it), and [`Playlist`] is the queue (next, previous, wrap, the title's ten seconds).
-//! Decoding files is [`decode`] (with `gfx`); the client in `bin/re2/listen.rs` only does the sound card, the file picker and the keys.
+//! Decoding files is [`decode`] (with `gfx`); the client in `client/listen.rs` only does the sound card, the file picker and the keys.
 //!
 //! The game ships no audio (ADR 0008 is about what games ship): the files are the player's, read from their disk at run time and never copied.
 

@@ -524,7 +524,7 @@ pub const LONG_FILES: &[(&str, usize)] = &[
     ("src/ui/online.rs", 1250),
     ("src/museum/state.rs", 1250),
     ("crates/red_core/src/sfx.rs", 1250),
-    ("src/bin/re2/main.rs", 1250),
+    ("src/client/mod.rs", 1250),
     ("src/museum/build.rs", 1250),
     ("src/tools/blueprint.rs", 1250),
     ("crates/red_core/src/arsenal.rs", 1250),

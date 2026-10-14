@@ -1,7 +1,7 @@
 //! Reading and flipping the Windows *subsystem* of an executable (console <-> GUI), so a shipped game never opens a console window.
 //!
 //! A console-subsystem program started by a double-click owns a console window for as long as it runs; a GUI-subsystem one owns none, and attaches the
-//! console of the terminal it was started from, if any (`bin/re2/win.rs`). The engine builds `re2` as a console program (a terminal, a test or a CI job waits
+//! console of the terminal it was started from, if any (`client/win.rs`). The engine builds `re2` as a console program (a terminal, a test or a CI job waits
 //! for it and reads its output) and `red_engine2 package` flips the copy it ships. Pure functions over the image bytes: no Windows API, testable anywhere.
 
 /// Which kind of Windows program an image is.

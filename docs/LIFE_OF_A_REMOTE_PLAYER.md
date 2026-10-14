@@ -40,13 +40,13 @@ A human is the Human unless `--as` / `RE2_CHARACTER` says otherwise (there is no
 humans: they wear `bots.roster[].character` (human, wizard, cowboy, alien or robot, never the rat) and, beyond the roster, a rotation of cowboy, wizard, alien, robot (`BotsConfig::spec`).
 A body travels as one byte (`character_to_wire`, the order of `Character::ALL`) in `Hello`, `Welcome`, every `PlayerSnap` and the roster. In a lobby C cycles bodies unless one is forced.
 
-- **Open**: `src/bin/re2/main.rs::resolved_character`, `crates/red_core/src/net/server.rs::apply_character_policy` and `::on_hello`, `crates/red_core/src/sim/ai/mod.rs::spec`, `crates/red_core/src/net/protocol.rs::character_to_wire`.
+- **Open**: `src/client/mod.rs::resolved_character`, `crates/red_core/src/net/server.rs::apply_character_policy` and `::on_hello`, `crates/red_core/src/sim/ai/mod.rs::spec`, `crates/red_core/src/net/protocol.rs::character_to_wire`.
 - **Tuned by**: scene `player.humans_play_as`, `bots.roster[].character`, `bots.fill`; `re2 --as`.
 - **How to see it**: `/online/roster` (`character`, `bot` per entry) and `/player/character` in the dump; `crates/red_core/src/net/server.rs`'s `a_scene_character_overrides_join_and_lobby_requests`,
-  `src/bin/re2/main.rs`'s `a_scene_policy_skips_and_overrides_the_generic_picker`; `red_bot --as cowboy` joins in that body.
+  `src/client/mod.rs`'s `a_scene_policy_skips_and_overrides_the_generic_picker`; `red_bot --as cowboy` joins in that body.
 - **Fails silently when**: the scene forces the humans' body and its bots wear others. Forcing does not reach the bots, so the client must prepare avatars for both (step 6, the bug that
   shipped Trigger Happy with invisible enemies). A request the setting overrides (a rat asked for in a Human game) gets no message; only `Welcome.character` and the roster show it.
-  The connect form (`src/bin/re2/online.rs::try_connect`) asks for only a Human or a Rat; any other body comes from `re2 --connect` (menu pick or `--as`) or from the lobby's C key.
+  The connect form (`src/client/online.rs::try_connect`) asks for only a Human or a Rat; any other body comes from `re2 --connect` (menu pick or `--as`) or from the lobby's C key.
 
 ## 2. A slot
 
@@ -149,9 +149,9 @@ The gun is not part of the avatar object. `avatar::animate` returns a `RemoteHan
 
 `avatar::animate` poses the pooled object from the interpolated `PlayerPose`: position and facing, the walk cycle from `speed`, an idle sway, the head from `pitch`, the gun arm raised and
 following the aim with a kick each time `shots` changes, the bat swing when `swinging` rises, the fall when `dead` and standing again on respawn. The local player's third-person body uses the
-same constants (`src/bin/re2/avatar.rs::pose_human`), so everyone holds a weapon the same way.
+same constants (`src/client/avatar.rs::pose_human`), so everyone holds a weapon the same way.
 
-- **Open**: `src/avatar.rs::animate`, `::recoil_kick`, `::swing_blend`, `src/bin/re2/avatar.rs::pose_human`.
+- **Open**: `src/avatar.rs::animate`, `::recoil_kick`, `::swing_blend`, `src/client/avatar.rs::pose_human`.
 - **Tuned by**: `WALK_CYCLES_PER_SEC_AT_WALK_SPEED`, `HIP_SWING_DEG`, `SHOULDER_SWING_DEG`, `FALL_SECS`, `RISE_SECS` in `src/avatar.rs`; `RECOIL_TIME` in `crates/red_core/src/weapons.rs`.
 - **How to see it**: pictures (`overview`, `follow`); `/remote/players` (`dead`); `src/avatar.rs`'s `the_dead_fall_over_and_lose_their_weapon_then_stand_when_they_respawn`,
   `the_bat_swings_through_its_arc_when_the_swing_flag_rises`, `walking_cycles_the_legs_and_a_rat_gets_no_weapon`; `cargo run --example avatar_poses -- out/poses.png`.
@@ -164,7 +164,7 @@ There is no name above a head. A player's name (`Hello.name`, cut to `MAX_NAME` 
 results table and the in-round scoreboard (`sb{i}_name`, `sb{i}_score`, yours in gold), all from `Status.roster`, sent at 5 Hz and at once when the roster or the flow changes. With a firearm in hand the crosshair
 turns red over a living, drawn remote body with no wall in front (`NetSession::player_in_sight`).
 
-- **Open**: `src/ui/online.rs::hud_layout` and `::lobby_layout`, `crates/red_core/src/net/server.rs::roster` and `::send_statuses`, `src/bin/re2/online.rs::online_view`, `crates/red_core/src/net/protocol.rs::sanitize_name`,
+- **Open**: `src/ui/online.rs::hud_layout` and `::lobby_layout`, `crates/red_core/src/net/server.rs::roster` and `::send_statuses`, `src/client/online.rs::online_view`, `crates/red_core/src/net/protocol.rs::sanitize_name`,
   `src/net/session.rs::nearest_body_on_ray`.
 - **Tuned by**: `MAX_NAME` (16) and `MAX_ROSTER` (8) in `crates/red_core/src/net/protocol.rs`; `STATUS_EVERY_TICKS` in `crates/red_core/src/net/server.rs`.
 - **How to see it**: `red_engine2 ui-shot hud out/hud.png` (and `ui-check`, which audits the screens at several sizes); `/hud/lines` (`sb0_name`, `sb0_score`, ...), `/online/roster`,
@@ -176,7 +176,7 @@ turns red over a living, drawn remote body with no wall in front (`NetSession::p
 A `Bye` or `client_timeout` (3 s) of silence ends the session: `drop_session` removes the body and parks the token. The next snapshot lacks the id, `RemoteWorld::apply` forgets the history,
 `apply_view` releases the avatar and `ScenePool::release` hides it. Leaving interest range looks the same. A death sets `flags` bit 2: the avatar falls (`FALL_SECS`), holds nothing, is ignored by
 `nearest_body_on_ray`, and stays for `combat.respawn_secs`; the respawn moves the body to a spawn (a jump beyond `TELEPORT_DISTANCE` is not glided) and it stands. Every frame
-`src/bin/re2/frame.rs::hidden_ids` collects the rule-hidden objects of the server's `RuleState` (`NetSession::hidden_objects`), the unworn avatars (`hidden_avatar_ids`), the idle tracer boxes and,
+`src/client/frame.rs::hidden_ids` collects the rule-hidden objects of the server's `RuleState` (`NetSession::hidden_objects`), the unworn avatars (`hidden_avatar_ids`), the idle tracer boxes and,
 in first person, your own body, and `LiveRenderer::set_hidden_objects` skips them in the colour and shadow passes: a mesh scaled to a speck is still a draw call.
 
 - **Open**: `crates/red_core/src/net/server.rs::drop_session`, `crates/red_core/src/net/interp.rs::apply`, `src/net/session.rs::apply_view` and `::hidden_avatar_ids`, `src/scene_pool.rs::release` and `::hidden_ids`,

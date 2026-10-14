@@ -62,7 +62,7 @@ around, since only the camera is overridden.
 
 Movement/collision/gravity run on a fixed 60Hz timestep decoupled from the render frame rate,
 with the rendered frame interpolating between the last two completed physics states (see
-`App::fixed_step_physics`/`App::update` in `src/bin/re2/frame.rs`) — frame-rate-independent and
+`App::fixed_step_physics`/`App::update` in `src/client/frame.rs`) — frame-rate-independent and
 resistant to tunneling through thin colliders under a frame-time spike. Rendering itself uses
 4x MSAA and backface culling (every primitive mesh is a closed solid, verified by
 `mesh::tests::all_primitives_are_ccw_front_facing`), plus per-mesh frustum culling against both

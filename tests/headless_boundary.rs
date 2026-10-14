@@ -26,7 +26,7 @@ fn headless_modules_name_no_graphics_or_audio_crates() {
 #[test]
 fn the_graphics_only_set_is_derived_from_the_repository_not_listed() {
     let gated = preflight::gfx_only_paths(&root());
-    for expected in ["render.rs", "viewer.rs", "gpu.rs", "bin/re2/", "app/gpu.rs", "app/shell.rs", "app/offscreen.rs", "app/input.rs"] {
+    for expected in ["render.rs", "viewer.rs", "gpu.rs", "bin/re2/", "client/", "app/gpu.rs", "app/shell.rs", "app/offscreen.rs", "app/input.rs"] {
         assert!(gated.iter().any(|g| g == expected), "{expected} should be graphics-only, found {gated:?}");
     }
     assert!(!gated.iter().any(|g| g.starts_with("net")), "the network code is headless: {gated:?}");

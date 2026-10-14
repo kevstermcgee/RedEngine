@@ -3,8 +3,8 @@
 
 use super::frame::hidden_ids;
 use super::*;
-use red_engine2::capture::{flat_fraction, save_png, Capture};
-use red_engine2::playscript::CameraSpec;
+use crate::capture::{flat_fraction, save_png, Capture};
+use crate::playscript::CameraSpec;
 
 /// One picture taken.
 #[derive(Debug, Clone)]

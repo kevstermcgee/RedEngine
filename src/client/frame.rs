@@ -2,7 +2,7 @@
 //! variable-rate `update` (camera, avatar, scene sync), drawing, and starting a game from the menu.
 
 use super::*;
-use red_engine2::streaks::Streaks;
+use crate::streaks::Streaks;
 
 /// The ids of the scene objects the renderer must not draw this frame: what the game rules (or, online, the server's rule state) hide, the avatars nobody wears, the
 /// tracer boxes showing nothing, and `own_body` (the player's own body in first person). A pooled object scaled to a speck is still a draw call in both passes; a hidden
@@ -128,12 +128,12 @@ impl App {
             strafe: if analog { (self.pad.movement.x * 127.0).round() as i8 } else { strafe },
             analog,
             jump: std::mem::take(&mut self.jump_queued),
-            sprint: self.sprint_held || self.pad.down(red_engine2::controller::button::SPRINT),
-            crouch: held(KeyCode::ControlLeft, KeyCode::ControlRight) || self.pad.down(red_engine2::controller::button::CROUCH),
+            sprint: self.sprint_held || self.pad.down(crate::controller::button::SPRINT),
+            crouch: held(KeyCode::ControlLeft, KeyCode::ControlRight) || self.pad.down(crate::controller::button::CROUCH),
             yaw: self.camera.yaw,
             pitch: self.camera.pitch,
             interact: self.take_pulse(0),
-            attack: self.take_pulse(1) || ((self.attack_held || self.pad.down(red_engine2::controller::button::FIRE)) && self.weapon.automatic()),
+            attack: self.take_pulse(1) || ((self.attack_held || self.pad.down(crate::controller::button::FIRE)) && self.weapon.automatic()),
             switch_weapon: self.take_pulse(2),
             reload: self.take_pulse(3),
             aim: false,
@@ -146,7 +146,7 @@ impl App {
     /// left/right steer, Space hop and drift (held), the mouse button or F the item, E the driver's ability. The pad's analog stick and triggers win when
     /// they are being used.
     fn build_kart_input(&mut self) -> PlayerInput {
-        let pad = red_engine2::controller::kart_controls(&self.pad);
+        let pad = crate::controller::kart_controls(&self.pad);
         let held = |a: KeyCode, b: KeyCode| self.keys.contains(&a) || self.keys.contains(&b);
         let axis = |pos: bool, neg: bool| pos as i8 - neg as i8;
         let analog = pad.active();
@@ -236,7 +236,7 @@ impl App {
     fn persist_vars(&mut self) {
         let now: std::collections::BTreeMap<String, f64> = self.rules.persisted().into_iter().collect();
         if !now.is_empty() && now != self.saved_vars {
-            if let Err(e) = red_engine2::settings::save_vars(&self.settings_key, &now) {
+            if let Err(e) = crate::settings::save_vars(&self.settings_key, &now) {
                 eprintln!("could not save the game's progress: {e}");
             }
             self.saved_vars = now;
@@ -281,13 +281,13 @@ impl App {
         }
         let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();
         // The same prop view the authoritative simulation feeds its rules (built only when a rule looks at props).
-        let mut prop_views: Vec<red_engine2::sim::rules_run::RuleProp> = Vec::new();
+        let mut prop_views: Vec<crate::sim::rules_run::RuleProp> = Vec::new();
         if let (true, Some(props)) = (self.rules.needs_props(), self.props.as_ref()) {
-            prop_views.extend((0..props.props().len()).map(|k| red_engine2::sim::rules_run::RuleProp::of(props, k)));
+            prop_views.extend((0..props.props().len()).map(|k| crate::sim::rules_run::RuleProp::of(props, k)));
         }
         for effect in self.rules.step_props(tick, &players, &prop_views) {
             match effect {
-                red_engine2::sim::rules_run::Effect::Teleport { slot, target } => {
+                crate::sim::rules_run::Effect::Teleport { slot, target } => {
                     let target = match target {
                         Target::Point(p) => Some(p),
                         Target::Spawn(id) => self.spawns.iter().find(|s| s.id == id).map(|s| Vec3::from(s.position)),
@@ -310,7 +310,7 @@ impl App {
                         }
                     }
                 }
-                red_engine2::sim::rules_run::Effect::Impulse { object, dir, speed } => {
+                crate::sim::rules_run::Effect::Impulse { object, dir, speed } => {
                     let object_index = self.scene.objects.iter().position(|o| o.id == object);
                     if let (Some(props), Some(object_index)) = (self.props.as_mut(), object_index) {
                         if let Some(prop) = props.prop_of_object(object_index) {
@@ -320,18 +320,18 @@ impl App {
                         }
                     }
                 }
-                red_engine2::sim::rules_run::Effect::Reset { prop } => {
+                crate::sim::rules_run::Effect::Reset { prop } => {
                     if let Some(props) = self.props.as_mut() {
                         props.reset_prop(prop);
                     }
                 }
-                red_engine2::sim::rules_run::Effect::Place { prop, at } => {
+                crate::sim::rules_run::Effect::Place { prop, at } => {
                     if let Some(props) = self.props.as_mut() {
                         props.place_prop(prop, at);
                     }
                 }
                 // A scene field's push (a current, a belt, an aimed pull): the same unrecorded shove `MatchSim` applies.
-                red_engine2::sim::rules_run::Effect::Push { prop, dir, at, impulse } => {
+                crate::sim::rules_run::Effect::Push { prop, dir, at, impulse } => {
                     if let Some(props) = self.props.as_mut() {
                         props.strike_impulse(prop, dir, at, impulse);
                     }
@@ -367,10 +367,10 @@ impl App {
         let foot_y = self.prev_foot_y + (self.foot_y - self.prev_foot_y) * alpha;
 
         let crouching =
-            self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight) || self.pad.down(red_engine2::controller::button::CROUCH);
+            self.keys.contains(&KeyCode::ControlLeft) || self.keys.contains(&KeyCode::ControlRight) || self.pad.down(crate::controller::button::CROUCH);
         let forward_held = self.keys.contains(&KeyCode::KeyW) || self.keys.contains(&KeyCode::ArrowUp) || self.pad.movement.y > 0.0;
         let back_held = self.keys.contains(&KeyCode::KeyS) || self.keys.contains(&KeyCode::ArrowDown);
-        let sprinting = (self.sprint_held || self.pad.down(red_engine2::controller::button::SPRINT))
+        let sprinting = (self.sprint_held || self.pad.down(crate::controller::button::SPRINT))
             && forward_held
             && !back_held
             && !crouching
@@ -426,7 +426,7 @@ impl App {
         };
 
         // Aim-down-sights and sprint FOV transitions use the same smooth presentation path.
-        let wants_ads = (self.ads_held || self.pad.down(red_engine2::controller::button::AIM))
+        let wants_ads = (self.ads_held || self.pad.down(crate::controller::button::AIM))
             && self.shown_weapon().is_firearm()
             && !self.carrying()
             && self.view_mode == ViewMode::FirstPerson;
@@ -485,7 +485,7 @@ impl App {
     }
 
     /// The screen effects for this frame: the fight's (when the scene shows combat) under the opening fade from black.
-    pub(crate) fn fx_now(&self) -> red_engine2::feel::FxParams {
+    pub(crate) fn fx_now(&self) -> crate::feel::FxParams {
         let fx = if self.scene.hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() };
         let fx = self.museum_wash(fx);
         let secs = self.scene.player.fade_in;
@@ -691,7 +691,7 @@ impl App {
                 }
                 None => {
                     let (Some(addr), Some(world)) = (self.net_server, self.net_world.take()) else { fail_online("no server to join") };
-                    let mut cfg = red_engine2::net::client::ClientConfig::new(addr, red_engine2::net::protocol::character_to_wire(who), world.map_hash, 0);
+                    let mut cfg = crate::net::client::ClientConfig::new(addr, crate::net::protocol::character_to_wire(who), world.map_hash, 0);
                     cfg.join_key = self.join_key.clone();
                     cfg.transport = self.transport.for_server(addr).unwrap_or_else(|e| fail_online(&e));
                     cfg.name = self.player_name.clone();
@@ -755,7 +755,7 @@ impl App {
             }
         }
         // The pool of glowing boxes that draws tracers and sparks joins the scene now: the renderer takes its meshes from the scene as it is built.
-        self.streaks = Some(red_engine2::streaks::Streaks::new(red_engine2::streaks::add_pool(&mut self.scene)));
+        self.streaks = Some(crate::streaks::Streaks::new(crate::streaks::add_pool(&mut self.scene)));
         let split = self.gpu.as_ref().and_then(|gpu| self.split_for(&gpu.device, gpu.config.format, (gpu.config.width, gpu.config.height)));
         let players = self.local_player_count();
         if let Some(gpu) = self.gpu.as_mut() {
@@ -768,7 +768,7 @@ impl App {
                 LiveRenderer::new(&gpu.device, gpu.config.format, &self.scene, w, h)
             };
             if players > 1 {
-                live.set_view_distance(red_engine2::splitscreen::view_distance(players));
+                live.set_view_distance(crate::splitscreen::view_distance(players));
             }
             gpu.live = Some(live);
             gpu.backdrop = None;

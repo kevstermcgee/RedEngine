@@ -2,7 +2,7 @@
 //! a shot, and the fall when they die. Pure (no window, no GPU): [`animate`] poses a pooled avatar [`Object`] from a remote player's
 //! interpolated pose and says where the weapon in their hand is ([`RemoteHand`]) for the renderer to draw.
 //!
-//! The poses are the same ones the local player's own body uses in third person (`bin/re2/avatar.rs` takes its constants from here), so
+//! The poses are the same ones the local player's own body uses in third person (`client/avatar.rs` takes its constants from here), so
 //! everyone holds a weapon the same way.
 
 use crate::characters::HUMAN_HEIGHT;

@@ -1,11 +1,11 @@
 //! The countryside and its music in the live client: beds and mood scores rendered on a worker thread, volumes set from [`Ambience`] every frame, bird
-//! calls played as they come. The state machine is `red_engine2::ambience`; this file only turns its answers into sound (and keeps what it did for the dump,
+//! calls played as they come. The state machine is `crate::ambience`; this file only turns its answers into sound (and keeps what it did for the dump,
 //! so a headless script with no sound card can still say "the dawn chorus began").
 
 use super::*;
-use red_engine2::ambience::{Ambience, AudioSpec, Context, Frame, Heard, JourneyPlayer, Mood, Section};
-use red_engine2::nature::{Bed, Call};
-use red_engine2::procgen::Biome;
+use crate::ambience::{Ambience, AudioSpec, Context, Frame, Heard, JourneyPlayer, Mood, Section};
+use crate::nature::{Bed, Call};
+use crate::procgen::Biome;
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
@@ -68,7 +68,7 @@ impl Ambient {
                         files.iter().map(|f| std::fs::read_to_string(f).ok().and_then(|t| serde_json::from_str(&t).ok())).collect();
                     while let Ok(section) = srx.recv() {
                         let Some(Some(text)) = texts.get(section.score) else { continue };
-                        match red_engine2::score::parse_score(&section.score_json(text)) {
+                        match crate::score::parse_score(&section.score_json(text)) {
                             Ok(score) => {
                                 if tx.send(Loaded::Journey(section.index, score.render().samples)).is_err() {
                                     return;
@@ -104,7 +104,7 @@ impl Ambient {
                 let rendered = std::fs::read_to_string(&path)
                     .map_err(|e| e.to_string())
                     .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).map_err(|e| e.to_string()))
-                    .and_then(|v| red_engine2::score::parse_score(&v).map_err(|e| e.join("; ")))
+                    .and_then(|v| crate::score::parse_score(&v).map_err(|e| e.join("; ")))
                     .map(|score| score.render().samples);
                 match rendered {
                     Ok(samples) => {
@@ -120,7 +120,7 @@ impl Ambient {
                 let rendered = std::fs::read_to_string(&path)
                     .map_err(|e| e.to_string())
                     .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).map_err(|e| e.to_string()))
-                    .and_then(|v| red_engine2::score::parse_score(&v).map_err(|e| e.join("; ")))
+                    .and_then(|v| crate::score::parse_score(&v).map_err(|e| e.join("; ")))
                     .map(|score| score.render().samples);
                 match rendered {
                     Ok(samples) => {
@@ -201,7 +201,7 @@ impl Ambient {
         // Layers that follow a rule variable fade in while it is high and out when it is not; the music ducks on the events the scene names.
         for (i, spec) in self.spec.layers.iter().enumerate() {
             let value = vars.iter().find(|(n, _)| *n == spec.var).map_or(0.0, |(_, v)| *v);
-            let target = red_engine2::ambience::layer_target(value, spec.above);
+            let target = crate::ambience::layer_target(value, spec.above);
             let step = dt / spec.fade.max(0.05);
             let level = &mut self.rule_layers[i].1;
             *level += (target - *level).clamp(-step, step);
@@ -218,7 +218,7 @@ impl Ambient {
                     Loaded::Layer(i, samples) => self.rule_layers[i].0 = audio.add_layer(samples),
                     Loaded::Journey(index, samples) => {
                         if let Some(j) = self.journey.as_mut() {
-                            j.ready(index, samples.len() as f32 / 2.0 / red_engine2::synth::SAMPLE_RATE as f32);
+                            j.ready(index, samples.len() as f32 / 2.0 / crate::synth::SAMPLE_RATE as f32);
                         }
                         self.journey_held = Some((index, samples));
                     }
@@ -275,12 +275,12 @@ impl Ambient {
                     let clip = self.clips.entry((index, heard.seed)).or_insert_with(|| {
                         let dry = heard.call.render(heard.seed);
                         // A scene with a room (`audio.reverb`) puts every call in it, once, here.
-                        reverb.map_or_else(|| dry.iter().flat_map(|s| [*s, *s]).collect(), |r| red_engine2::mixer::wet(&dry, &r.reverb()))
+                        reverb.map_or_else(|| dry.iter().flat_map(|s| [*s, *s]).collect(), |r| crate::mixer::wet(&dry, &r.reverb()))
                     });
                     let key = (index as u64) << 32 | heard.seed as u64 | 1 << 63;
                     audio.play_stereo_cue(
                         clip.clone(),
-                        red_engine2::mixer::Cue::ambience(heard.gain * self.spec.ambience_volume, heard.pan, key, clip.len() as f32 / 2.0 / 44100.0),
+                        crate::mixer::Cue::ambience(heard.gain * self.spec.ambience_volume, heard.pan, key, clip.len() as f32 / 2.0 / 44100.0),
                     );
                 }
             }
@@ -364,12 +364,12 @@ impl App {
 
 /// The index in [`Mood::ALL`] of the strongest mood for a context.
 fn mood_of(ctx: &Context) -> usize {
-    let w = red_engine2::ambience::mood_weights(ctx.sun_elev_deg, ctx.rising);
+    let w = crate::ambience::mood_weights(ctx.sun_elev_deg, ctx.rising);
     w.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).map_or(0, |(i, _)| i)
 }
 
 impl Ambient {
-    fn spec_layers(&self) -> &[red_engine2::ambience::LayerSpec] {
+    fn spec_layers(&self) -> &[crate::ambience::LayerSpec] {
         &self.spec.layers
     }
 

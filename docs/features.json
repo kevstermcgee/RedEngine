@@ -182,7 +182,7 @@
     },
     "museum": {
       "summary": "An endless museum (`museum` block): rooms, doors and wings from a seed, art with plaques written from a collection, a key hidden in each room (sometimes paintings deep), the worlds inside paintings, sculptures that answer the viewer, the visit and its flights, the GPU layer, serif labels and the map; `museum` prints a room and draws a piece, a painting's world, the plan or every style.",
-      "files": ["src/museum/**", "src/museum_gpu.rs", "src/tools/museum_tool.rs", "src/content/museum.rs", "src/ui/serif.rs", "src/bin/re2/museum.rs", "schemas/collection.schema.json", "examples/frameless/**"],
+      "files": ["src/museum/**", "src/museum_gpu.rs", "src/tools/museum_tool.rs", "src/content/museum.rs", "src/ui/serif.rs", "src/client/museum.rs", "schemas/collection.schema.json", "examples/frameless/**"],
       "tests": ["lib:museum", "lib:ui::serif", "content_drift"],
       "commands": ["red_engine2 museum examples/frameless/frameless.json", "red_engine2 museum examples/frameless/frameless.json --inside 1 --shot out/inside.png", "red_engine2 museum examples/frameless/frameless.json --styles out/styles.png"],
       "docs": ["docs/adr/2026-10-11-an-endless-museum-is-a-scene-block-the-engine-builds.md", "docs/adr/2026-10-11-a-game-paints-surfaces-with-its-own-checked-wgsl-and.md", "docs/adr/2026-10-11-text-that-is-read-is-set-in-the-player-s-own-system.md", "docs/adr/2026-10-11-a-game-steers-its-music-journey.md"],
@@ -198,7 +198,7 @@
     },
     "split_screen": {
       "summary": "Native split-screen co-op (up to four local players): viewport layouts, field of view for narrow views and device assignment as tested arithmetic, and the compositor that draws each player's view and HUD into its rectangle (`splitshot` shows it); `re2 --players N` plays it (a swapped-in context per player, a gamepad each, scripted with `{\"player\": N}` and the `split` camera).",
-      "files": ["src/splitscreen.rs", "src/split_gpu.rs", "src/bin/re2/coop.rs", "benches/render_trend.py", "benches/render_scenes.json"],
+      "files": ["src/splitscreen.rs", "src/split_gpu.rs", "src/client/coop.rs", "benches/render_trend.py", "benches/render_scenes.json"],
       "tests": ["lib:splitscreen", "split_render", "client_headless", "render_trend"],
       "commands": ["red_engine2 splitshot examples/marcel/marcel.json out/split.png --players 4", "re2 examples/marcel/marcel.json --players 2"],
       "docs": ["docs/analysis/2026-10-04-split-screen-survey-and-plan.md", "docs/adr/2026-10-04-split-screen-co-op-one-app-a-swapped-in-context-per.md"],
@@ -206,7 +206,7 @@
     },
     "graphical_client": {
       "summary": "The `re2` game: window, input, live rendering, avatars, weapons, rule-state presentation, launch/connect and online lobby/HUD wiring.",
-      "files": ["src/bin/re2/**", "src/viewer.rs", "src/audio.rs", "src/settings.rs", "crates/red_core/src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
+      "files": ["src/bin/re2/**", "src/client/**", "src/viewer.rs", "src/audio.rs", "src/settings.rs", "crates/red_core/src/feel.rs", "src/fx.rs", "src/streaks.rs", "src/probe.rs", "src/overlay.rs", "scripts/lobby_demo.ps1", "scripts/multiplayer_demo.ps1", "scripts/play_multiplayer.ps1", "scripts/make_shortcut.ps1", "scripts/make_icon.py", "scripts/test_lab.*"],
       "tests": ["lib:viewer", "lib:audio", "lib:settings"],
       "commands": ["powershell -File scripts/lobby_demo.ps1"],
       "docs": ["README.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0043-a-reusable-client-layer-for-custom-games.md", "docs/adr/2026-10-01-persisted-per-game-audio-settings-and-a-music-download.md", "docs/adr/2026-10-01-a-player-carried-flashlight.md"],
@@ -221,7 +221,7 @@
       "depends_on": ["sim_core", "game_rules", "ui_kit", "offline_renderer"]
     },
     "playtest": {
-      "summary": "Seeing what the player sees without a person: offscreen frame capture, the scripted player, pooled scene objects, contact sheets and `playtest`; the headless client itself is `src/bin/re2/headless.rs` (`graphical_client`).",
+      "summary": "Seeing what the player sees without a person: offscreen frame capture, the scripted player, pooled scene objects, contact sheets and `playtest`; the headless client itself is `src/client/headless.rs` (`graphical_client`).",
       "files": ["src/capture.rs", "src/playscript.rs", "src/scene_pool.rs", "src/cli/playtest.rs", "src/tools/sheet.rs"],
       "tests": ["lib:playscript", "lib:scene_pool", "lib:tools::sheet", "client_headless"],
       "commands": ["red_engine2 playtest examples/test_lab.json --secs 20 --shots 6"],

@@ -1,14 +1,14 @@
-//! A museum scene (`museum` block) in the live client: the visit ([`red_engine2::museum::Museum`]) fed with the player every frame, its flights into and out
+//! A museum scene (`museum` block) in the live client: the visit ([`crate::museum::Museum`]) fed with the player every frame, its flights into and out
 //! of paintings driving the camera, its rooms' lamps lighting the scene, its sounds, its music steered to the wing, its labels, its pause menu and its map.
-//! Words are set in the player's own serif ([`red_engine2::ui::serif`]).
+//! Words are set in the player's own serif ([`crate::ui::serif`]).
 
 use super::*;
-use red_engine2::museum::exhibit::Kind;
-use red_engine2::museum::map::{key_glyph, MapView};
-use red_engine2::museum::sound::{touch, Sounds};
-use red_engine2::museum::state::{yaw_of, Event, Place, Target};
-use red_engine2::museum::{Museum, Progress, RoomId};
-use red_engine2::ui::serif::{Face, Image, Serif};
+use crate::museum::exhibit::Kind;
+use crate::museum::map::{key_glyph, MapView};
+use crate::museum::sound::{touch, Sounds};
+use crate::museum::state::{yaw_of, Event, Place, Target};
+use crate::museum::{Museum, Progress, RoomId};
+use crate::ui::serif::{Face, Image, Serif};
 
 /// A button of the museum's pause menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,13 +51,13 @@ const INK: [u8; 4] = [244, 236, 220, 255];
 const DIM: [u8; 4] = [196, 186, 168, 235];
 
 fn progress_path(key: &str) -> Option<std::path::PathBuf> {
-    red_engine2::settings::game_state_path(key, "museum.json")
+    crate::settings::game_state_path(key, "museum.json")
 }
 
 impl App {
     /// Starts the visit when the scene is a museum: the saved one, or a new museum from this launch's seed.
     pub(crate) fn start_museum(&mut self) {
-        let Some(spec) = red_engine2::museum::spec_of(&self.scene) else { return };
+        let Some(spec) = crate::museum::spec_of(&self.scene) else { return };
         let saved = progress_path(&self.settings_key)
             .and_then(|p| std::fs::read_to_string(p).ok())
             .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
@@ -188,7 +188,7 @@ impl App {
         if m.visit.take_colliders_changed() {
             self.colliders = m.visit.colliders().to_vec();
         }
-        self.scene.lights = red_engine2::museum::lamps_as_lights(&m.visit.lamps(self.camera.position, 13));
+        self.scene.lights = crate::museum::lamps_as_lights(&m.visit.lamps(self.camera.position, 13));
         // What the player looks at, faded in and out.
         let aim = if m.visit.free() { m.visit.aim(eye, look) } else { None };
         if aim.is_some() && aim != m.target {
@@ -259,7 +259,7 @@ impl App {
                     self.museum_play(&clip, 0.55);
                 }
                 if let Some(audio) = &self.audio {
-                    audio.duck_music(red_engine2::mixer::Duck { depth: 0.5, attack: 0.4, release: 2.5 }, 1.2);
+                    audio.duck_music(crate::mixer::Duck { depth: 0.5, attack: 0.4, release: 2.5 }, 1.2);
                 }
             }
             Event::Arrived { depth, title } => {
@@ -398,18 +398,18 @@ impl App {
     }
 
     /// The painting's colour washing over the screen during a flight.
-    pub(crate) fn museum_wash(&self, fx: red_engine2::feel::FxParams) -> red_engine2::feel::FxParams {
+    pub(crate) fn museum_wash(&self, fx: crate::feel::FxParams) -> crate::feel::FxParams {
         let Some(m) = self.museum.as_ref() else { return fx };
         let (w, c) = m.visit.wash();
         if w <= 0.0 {
             return fx;
         }
-        red_engine2::feel::FxParams { flash: [c[0], c[1], c[2], w * 0.92], ..fx }
+        crate::feel::FxParams { flash: [c[0], c[1], c[2], w * 0.92], ..fx }
     }
 
     // ---- The pause menu and the map ----------------------------------------------------------------------------------------------------
 
-    fn museum_buttons(&self, w: u32, h: u32) -> Vec<(Button, String, red_engine2::ui::Rect)> {
+    fn museum_buttons(&self, w: u32, h: u32) -> Vec<(Button, String, crate::ui::Rect)> {
         let Some(m) = self.museum.as_ref() else { return Vec::new() };
         let s = (h as f32 / 1080.0).max(0.55);
         let mut rows: Vec<(Button, String)> = vec![(Button::Resume, "Return to the museum".into()), (Button::Map, "The plan of the museum".into())];
@@ -445,7 +445,7 @@ impl App {
             if m.map_open {
                 // In a painting the map shows where its room is.
                 let at = if m.visit.place == Place::Halls { player } else { (m.visit.room.centre(), player.1) };
-                red_engine2::museum::map::paint(&m.visit, &m.serif, &mut img, &m.map_view, at, t);
+                crate::museum::map::paint(&m.visit, &m.serif, &mut img, &m.map_view, at, t);
                 m.serif.draw_centred(
                     &mut img,
                     w as f32 * 0.5,
@@ -616,7 +616,7 @@ impl App {
                     }
                     Some(Button::Steps) => {
                         self.settings.steps = !self.settings.steps;
-                        let _ = red_engine2::settings::save(&self.settings_key, &self.settings);
+                        let _ = crate::settings::save(&self.settings_key, &self.settings);
                         self.museum_repaint_pause();
                     }
                     Some(Button::StepOut) => {
@@ -659,22 +659,22 @@ impl App {
         }
         if what == "way-back" {
             let p = m.visit.pocket.as_ref()?;
-            return around(red_engine2::museum::state::POCKET_ORIGIN + p.exit + Vec3::Y * 1.3, Vec3::new(0.8, 1.2, 0.1));
+            return around(crate::museum::state::POCKET_ORIGIN + p.exit + Vec3::Y * 1.3, Vec3::new(0.8, 1.2, 0.1));
         }
         if let Some(side) = what.strip_prefix("door:") {
             let side = match side {
-                "north" => red_engine2::museum::Side::North,
-                "east" => red_engine2::museum::Side::East,
-                "south" => red_engine2::museum::Side::South,
-                "west" => red_engine2::museum::Side::West,
+                "north" => crate::museum::Side::North,
+                "east" => crate::museum::Side::East,
+                "south" => crate::museum::Side::South,
+                "west" => crate::museum::Side::West,
                 _ => return None,
             };
-            let e = red_engine2::museum::EdgeId::of(m.visit.room, side);
+            let e = crate::museum::EdgeId::of(m.visit.room, side);
             return m.visit.layout.has_door(e).then(|| (e.centre() + Vec3::new(-0.3, 0.0, -0.3), e.centre() + Vec3::new(0.3, 2.0, 0.3)));
         }
         if let Some(n) = what.strip_prefix("frame:") {
             let f = m.visit.pocket.as_ref()?.frames.get(n.parse::<usize>().ok()?)?;
-            return around(red_engine2::museum::state::POCKET_ORIGIN + f.at, Vec3::new(f.size.x * 0.5, f.size.y * 0.5, 0.1));
+            return around(crate::museum::state::POCKET_ORIGIN + f.at, Vec3::new(f.size.x * 0.5, f.size.y * 0.5, 0.1));
         }
         let k = m.visit.contents_if_built(m.visit.room)?;
         let e = k.exhibits.get(what.parse::<usize>().ok()?)?;
@@ -844,7 +844,7 @@ fn label_of(m: &MuseumClient, t: &Target) -> (String, String, String, String, St
         Target::Nested { index } => {
             let Some(f) = m.visit.pocket.as_ref().and_then(|p| p.frames.get(*index as usize)) else { return Default::default() };
             let p = &f.plaque;
-            let deeper = if m.visit.depth() + 1 >= red_engine2::museum::exhibit::MAX_DEPTH {
+            let deeper = if m.visit.depth() + 1 >= crate::museum::exhibit::MAX_DEPTH {
                 "E  \u{2014}  step into it (it goes no deeper)"
             } else {
                 "E  \u{2014}  step into it"
