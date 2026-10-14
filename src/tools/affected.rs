@@ -521,7 +521,8 @@ fn target_of(path: &str) -> Option<Target> {
     }
     let seg: Vec<&str> = path.split('/').collect();
     match seg.as_slice() {
-        ["src", "main.rs"] | ["src", "cli", ..] => Some(Target::Bin("red_engine2".into())),
+        // The command line is library code (`red_engine2::cli`, ADR 2026-10-14-a-game-runs-the-engine-s-commands-with-its-own-blocks); `main.rs` only calls it.
+        ["src", "main.rs"] => Some(Target::Bin("red_engine2".into())),
         ["src", "bin", "re2", ..] => Some(Target::Bin("re2".into())),
         ["src", "bin", file] => Some(Target::Bin(file.trim_end_matches(".rs").to_string())),
         ["src", ..] => Some(Target::Lib),
@@ -536,7 +537,7 @@ fn target_of(path: &str) -> Option<Target> {
 /// The library test filter for a changed source file: `src/sim/flow.rs` -> `sim::flow`, `src/net/mod.rs` -> `net`. `None` for files outside the lib.
 fn lib_filter(path: &str) -> Option<String> {
     let rel = path.strip_prefix("src/")?.strip_suffix(".rs")?;
-    if rel.starts_with("bin/") || rel.starts_with("cli/") || rel == "main" || rel == "lib" {
+    if rel.starts_with("bin/") || rel == "main" || rel == "lib" {
         return None;
     }
     let rel = rel.strip_suffix("/mod").unwrap_or(rel);
@@ -1423,14 +1424,24 @@ mod tests {
         assert_eq!(step(&p, "unit").argv.last().map(String::as_str), Some("b"));
         assert_eq!(lib_filter("src/net/mod.rs").as_deref(), Some("net"));
         assert_eq!(lib_filter("src/tools/lint.rs").as_deref(), Some("tools::lint"));
-        assert_eq!(lib_filter("src/cli/args.rs"), None, "cli lives in the red_engine2 binary");
+        assert_eq!(lib_filter("src/cli/args.rs").as_deref(), Some("cli::args"), "the command line is library code");
+        assert_eq!(lib_filter("src/main.rs"), None);
+    }
+
+    #[test]
+    fn a_command_line_change_runs_its_unit_tests_in_the_library() {
+        let mut w = world();
+        w.push(feature("cli", &["src/cli/**", "src/main.rs"], &["cli_envelope"], &[]));
+        let p = plan(&w, &serial(), &["src/cli/args.rs".to_string()], &Options::default());
+        assert_eq!(step(&p, "unit").argv.last().map(String::as_str), Some("cli::args"));
+        assert!(!names(&p).contains(&"bin"), "{:?}", names(&p));
     }
 
     #[test]
     fn a_binary_only_change_lints_and_tests_that_binary_alone() {
         let mut w = world();
         w.push(feature("cli", &["src/cli/**", "src/main.rs"], &["cli_envelope"], &[]));
-        let p = plan(&w, &serial(), &["src/cli/args.rs".to_string()], &Options::default());
+        let p = plan(&w, &serial(), &["src/main.rs".to_string()], &Options::default());
         assert_eq!(names(&p), ["fmt", "clippy", "bin", "suites"]);
         assert_eq!(step(&p, "clippy").argv.join(" "), "cargo clippy --locked --bin red_engine2 -- -D warnings");
         assert_eq!(step(&p, "bin").argv.join(" "), "cargo test --locked --bin red_engine2");
