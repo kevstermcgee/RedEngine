@@ -3,7 +3,8 @@
 //! A scene with a `museum` block gets one of these in each renderer. Like the streamed world (`stream_gpu`) it owns its object-uniform buffer: the client
 //! hands it the visit each frame ([`MuseumLayer::sync`]: new models are uploaded, gone ones dropped, every piece's world matrix and material worked out,
 //! sculptures moved by their [`crate::museum::sculpt::Motion`]s, doors swung by how open they are), and the renderer writes the uniforms relative to its
-//! origin, culls, and draws ([`MuseumLayer::prepare`], [`MuseumLayer::draw_main`]).
+//! origin, culls, and draws ([`MuseumLayer::prepare`], [`MuseumLayer::draw_main`]). The renderers hold it as a [`WorldLayer`] ([`LAYER`]); a still
+//! picture's carries a visit of its own ([`StillMuseum`]).
 
 use crate::gpu::{GpuMesh, ObjectUniform};
 use crate::mesh::{Mesh, Vertex};
@@ -12,6 +13,7 @@ use crate::museum::sculpt::{part_transform, Stir};
 use crate::museum::state::{ModelKey, Museum};
 use crate::object_staging::{aabb_outside_frustum, frustum_planes};
 use crate::procgen::geo::Geo;
+use crate::world_layer::{LayerDef, LayerFrame, StillLight, WorldLayer};
 use glam::{Mat4, Vec3};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -242,3 +244,55 @@ fn world_box(m: Mat4, lo: Vec3, hi: Vec3) -> (Vec3, Vec3) {
     // A little slack: animated pieces move within their boxes between frames.
     (c, ax + ay + az + Vec3::splat(0.3))
 }
+
+/// The museum as a world layer of a live renderer: the client's museum mode hands it the visit every frame ([`MuseumLayer::sync`], reached with
+/// `LiveRenderer::layer_mut`).
+impl WorldLayer for MuseumLayer {
+    fn prepare(&mut self, f: &LayerFrame) {
+        MuseumLayer::prepare(self, f.queue, f.origin, f.view_proj);
+    }
+
+    fn draw_main(&self, pass: &mut wgpu::RenderPass<'_>, _view_proj: Mat4) {
+        MuseumLayer::draw_main(self, pass);
+    }
+}
+
+/// The museum of a still picture: a visit of its own, standing where the camera is (`museum` tool steps it into a painting first, reaching it with
+/// `Renderer::layer_mut`).
+pub struct StillMuseum {
+    pub visit: Museum,
+    layer: MuseumLayer,
+}
+
+impl WorldLayer for StillMuseum {
+    /// A museum lights itself: its nearest lamps, and its shader numbers for the game's shaders.
+    fn still_light(&mut self, eye: Vec3) -> Option<StillLight> {
+        self.visit.settle_at(eye);
+        let lamps = self.visit.lamps(eye, 12).iter().map(|l| (l.at, Vec3::from(l.color) * l.intensity, l.range)).collect();
+        Some(StillLight { lamps, game_params: Some(self.visit.shader_params()) })
+    }
+
+    fn prepare(&mut self, f: &LayerFrame) {
+        self.layer.sync(f.device, &self.visit, f.t, f.eye);
+        self.layer.prepare(f.queue, f.origin, f.view_proj);
+    }
+
+    fn draw_main(&self, pass: &mut wgpu::RenderPass<'_>, _view_proj: Mat4) {
+        self.layer.draw_main(pass);
+    }
+}
+
+/// The museum's layer, for a scene with a `museum` block (`scene_blocks::register` defines it).
+pub const LAYER: LayerDef = LayerDef {
+    name: "museum",
+    build: |scene, init| {
+        let spec = crate::museum::spec_of(scene)?;
+        let layer = MuseumLayer::new(init.device, init.object_layout);
+        Some(if init.live {
+            Box::new(layer) as Box<dyn WorldLayer>
+        } else {
+            Box::new(StillMuseum { visit: Museum::new(spec.clone(), spec.seed.value(None), None), layer })
+        })
+    },
+    art: |scene| scene.blocks.get::<crate::museum::MuseumSpec>().and_then(|m| m.art.as_deref()),
+};

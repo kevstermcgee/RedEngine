@@ -385,12 +385,11 @@ pub struct LiveRenderer {
     mesh_object_paths: Vec<Vec<String>>,
     /// The scene's ocean, when it has one (drawn last in the main pass; see [`crate::ocean_pass`]).
     ocean: Option<crate::ocean_pass::OceanPass>,
-    /// The scene's endless generated world, when it has a `procgen` block: chunks stream in around the camera.
-    stream: Option<crate::stream_gpu::StreamLayer>,
+    /// The scene's generated worlds ([`crate::world_layer`]): the meadow streaming in around the camera, a museum the client hands its visit every
+    /// frame ([`Self::layer_mut`]).
+    layers: Vec<Box<dyn crate::world_layer::WorldLayer>>,
     /// Every local viewer's eye, when several views are drawn in a frame (split-screen): the streamed world follows all of them.
     stream_eyes: Vec<Vec3>,
-    /// The scene's museum, when it has a `museum` block: the client hands it the visit every frame ([`Self::sync_museum`]).
-    museum: Option<crate::museum_gpu::MuseumLayer>,
     /// Drives the water's animation (it must not loop with the scene's `duration`).
     clock: Instant,
     /// Scene object ids suppressed by a game rule or application.
@@ -483,13 +482,8 @@ impl LiveRenderer {
     }
 
     fn build(device: &wgpu::Device, color_format: wgpu::TextureFormat, scene: &Scene, width: u32, height: u32, held_parts: Vec<HeldPart>) -> Self {
-        let pipelines = create_pipelines(
-            device,
-            color_format,
-            MSAA_SAMPLES,
-            scene.sky_shader.as_deref().map(|s| s.source.as_str()),
-            scene.blocks.get::<crate::museum::MuseumSpec>().and_then(|m| m.art.as_deref()),
-        );
+        let pipelines =
+            create_pipelines(device, color_format, MSAA_SAMPLES, scene.sky_shader.as_deref().map(|s| s.source.as_str()), crate::world_layer::art_of(scene));
         let shadow_sampler = make_shadow_sampler(device);
         let targets = LiveTargets::new(device, color_format, width, height);
 
@@ -587,11 +581,7 @@ impl LiveRenderer {
         let post = create_post_pipeline(device, color_format, MSAA_SAMPLES);
         let post_bind_group = post.bind(device, &targets.depth_view);
         let ocean = crate::ocean_pass::OceanPass::new(device, color_format, MSAA_SAMPLES, scene, &pipelines.layouts.global_uniform);
-        let museum = scene.blocks.get::<crate::museum::MuseumSpec>().map(|_| crate::museum_gpu::MuseumLayer::new(device, &pipelines.layouts.object));
-        let stream = scene.procgen.clone().map(|cfg| {
-            let workers = std::thread::available_parallelism().map_or(1, |n| (n.get() / 2).clamp(1, 3));
-            crate::stream_gpu::StreamLayer::new(device, &pipelines.layouts.object, cfg, crate::procgen::View::default(), workers)
-        });
+        let layers = crate::world_layer::layers_for(scene, &crate::world_layer::LayerInit { device, object_layout: &pipelines.layouts.object, live: true });
         let crosshair = create_crosshair_pipeline(device, color_format);
         let crosshair_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("live-crosshair-uniform"),
@@ -624,11 +614,10 @@ impl LiveRenderer {
             meshes,
             mesh_object_paths,
             ocean,
-            stream,
+            layers,
             audio: [[0.0; 4]; 12],
             game: [[0.0; 4]; 8],
             stream_eyes: Vec::new(),
-            museum,
             clock: Instant::now(),
             hidden_objects: HashSet::new(),
             held,
@@ -677,15 +666,18 @@ impl LiveRenderer {
     /// [`crate::sim::rules_run::RulesEngine::hidden`] directly. It is the way to switch a pooled object off ([`crate::scene_pool::ScenePool::hidden_ids`]): a mesh
     /// scaled to a speck is still a draw call in both passes, a hidden one is none. Cheap to call every frame: an unchanged set costs no allocation and no
     /// recomputation.
-    /// Builds and uploads every chunk of a streamed (`procgen`) world around `eye` before returning, so a picture shows all of it. A no-op without one.
+    /// Builds and uploads every chunk of a streamed (`procgen`) world, and anything else a world layer builds over frames, around `eye` before
+    /// returning, so a picture shows all of it. A no-op without one.
     pub fn settle_stream(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, eye: Vec3) {
-        if let Some(stream) = &mut self.stream {
-            if self.stream_eyes.is_empty() {
-                stream.fill(device, queue, &[eye]);
-            } else {
-                stream.fill(device, queue, &self.stream_eyes);
-            }
+        let eyes = if self.stream_eyes.is_empty() { vec![eye] } else { self.stream_eyes.clone() };
+        for layer in &mut self.layers {
+            layer.settle(device, queue, &eyes);
         }
+    }
+
+    /// The scene's world layer of type `T` (the museum's, which the client hands its visit every frame).
+    pub fn layer_mut<T: crate::world_layer::WorldLayer>(&mut self) -> Option<&mut T> {
+        crate::world_layer::find_layer_mut(&mut self.layers)
     }
 
     /// Tells the streamed world where every viewer of this frame is (split-screen draws several views; each needs its ground). Empty means one viewer, the camera.
@@ -696,7 +688,7 @@ impl LiveRenderer {
 
     /// What the streamed world drew in the last frame (chunks resident, draw calls, triangles), if the scene has one.
     pub fn stream_draw_stats(&self) -> Option<crate::stream_gpu::DrawStats> {
-        self.stream.as_ref().map(|s| s.draw_stats())
+        crate::world_layer::find_layer::<crate::stream_gpu::StreamLayer>(&self.layers).map(|s| s.draw_stats())
     }
 
     /// How far the streamed world reaches, metres (split-screen draws several views per frame, so each sees a little less far).
@@ -705,21 +697,14 @@ impl LiveRenderer {
         self.audio = heard.uniform();
     }
 
-    /// Hands the museum layer this frame's visit (models, doors, sculptures moving for time `t` with the viewer at `eye`). A no-op without a museum.
-    pub fn sync_museum(&mut self, device: &wgpu::Device, museum: &crate::museum::Museum, t: f32, eye: Vec3) {
-        if let Some(m) = &mut self.museum {
-            m.sync(device, museum, t, eye);
-        }
-    }
-
     /// The eight numbers a game's own shaders read with `game_param(i)` from the next frame on (a museum: which painting's world surrounds the player).
     pub fn set_game_params(&mut self, game: [[f32; 4]; 8]) {
         self.game = game;
     }
 
     pub fn set_view_distance(&mut self, metres: f32) {
-        if let Some(s) = &mut self.stream {
-            s.set_view_distance(metres);
+        for layer in &mut self.layers {
+            layer.set_view_distance(metres);
         }
     }
 
@@ -878,17 +863,21 @@ impl LiveRenderer {
         if let Some(ocean) = &self.ocean {
             ocean.update(queue, self.clock.elapsed().as_secs_f32());
         }
-        if let Some(stream) = &mut self.stream {
-            if self.stream_eyes.is_empty() {
-                stream.update(device, queue, &[camera.eye + origin]);
-            } else {
-                stream.update(device, queue, &self.stream_eyes);
-            }
-            stream.set_origin(queue, origin);
-            stream.update_motes(queue, camera.eye + origin, camera.forward(), t, scene.clock.as_ref());
-        }
-        if let Some(m) = &mut self.museum {
-            m.prepare(queue, origin, view_proj);
+        let eye = [camera.eye + origin];
+        let frame = crate::world_layer::LayerFrame {
+            device,
+            queue,
+            eye: camera.eye + origin,
+            forward: camera.forward(),
+            eyes: if self.stream_eyes.is_empty() { &eye } else { &self.stream_eyes },
+            origin,
+            view_proj,
+            t,
+            clock: scene.clock.as_ref(),
+            settle: false,
+        };
+        for layer in &mut self.layers {
+            layer.prepare(&frame);
         }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("live-frame-encoder") });
 
@@ -923,9 +912,9 @@ impl LiveRenderer {
                         shadow_pass.draw_indexed(0..mesh.index_count, 0, instance.clone());
                     }
                 }
-                if let Some(stream) = &self.stream {
-                    let planes = frustum_planes(Mat4::from_cols_array_2d(&globals.cascade_vp[cascade]));
-                    stream.draw_shadow(&mut shadow_pass, &planes, globals.cascade_detail(cascade), instance.clone());
+                let planes = frustum_planes(Mat4::from_cols_array_2d(&globals.cascade_vp[cascade]));
+                for layer in &self.layers {
+                    layer.draw_shadow(&mut shadow_pass, &planes, globals.cascade_detail(cascade), instance.clone());
                 }
                 // The hand-held (third-person) bat is an ordinary world object, so it casts a
                 // shadow like any other prop — unlike the always-on-top first-person viewmodel.
@@ -1003,11 +992,8 @@ impl LiveRenderer {
                     main_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
             }
-            if let Some(stream) = &self.stream {
-                stream.draw_main(&mut main_pass, view_proj);
-            }
-            if let Some(m) = &self.museum {
-                m.draw_main(&mut main_pass);
+            for layer in &self.layers {
+                layer.draw_main(&mut main_pass, view_proj);
             }
             // Hand-held (third-person) bat instance: normal depth test against the world,
             // so a wall between the camera and the player correctly occludes it like any prop.
@@ -1045,8 +1031,8 @@ impl LiveRenderer {
                 }
                 main_pass.set_pipeline(&self.pipelines.main);
             }
-            if let Some(stream) = &self.stream {
-                stream.draw_motes(&mut main_pass, &self.pipelines.main_glow);
+            for layer in &self.layers {
+                layer.draw_glow(&mut main_pass, &self.pipelines.main_glow);
             }
             // The water goes last: it is depth-tested against everything opaque above and blends over the seabed under it.
             if let Some(ocean) = &self.ocean {

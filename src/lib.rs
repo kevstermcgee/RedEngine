@@ -114,6 +114,8 @@ pub use red_core::uniforms;
 pub mod video;
 #[cfg(feature = "render")]
 pub mod viewer;
+#[cfg(feature = "render")]
+pub mod world_layer;
 pub use red_core::voice_spec;
 pub use red_core::weapons;
 

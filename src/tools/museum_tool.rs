@@ -177,8 +177,8 @@ fn shoot(scene: &crate::schema::Scene, m: &mut Museum, room: RoomId, a: &Args, o
     scene_for.camera.position = Track::constant(eye);
     scene_for.camera.target = Track::constant(at);
     let mut renderer = crate::render::Renderer::new(&scene_for).map_err(|e| e.to_string())?;
-    if let (Some(path), Some(v)) = (inside, renderer.museum_visit()) {
-        v.enter_now(&path).ok_or("--inside: could not enter")?;
+    if let (Some(path), Some(still)) = (inside, renderer.layer_mut::<crate::museum_gpu::StillMuseum>()) {
+        still.visit.enter_now(&path).ok_or("--inside: could not enter")?;
     }
     let rgb = renderer.render_frame(&scene_for, a.t);
     image::save_buffer(out, &rgb, scene_for.width, scene_for.height, image::ColorType::Rgb8).map_err(|e| e.to_string())
@@ -198,8 +198,8 @@ fn shoot_sheet(scene: &crate::schema::Scene, m: &Museum, a: &Args, out: &Path) -
     scene_for.camera.position = Track::constant(eye);
     scene_for.camera.target = Track::constant(Vec3::new(0.0, 1.6, 0.0));
     let mut renderer = crate::render::Renderer::new(&scene_for).map_err(|e| e.to_string())?;
-    if let Some(v) = renderer.museum_visit() {
-        v.stage(sheet);
+    if let Some(still) = renderer.layer_mut::<crate::museum_gpu::StillMuseum>() {
+        still.visit.stage(sheet);
     }
     let rgb = renderer.render_frame(&scene_for, a.t);
     image::save_buffer(out, &rgb, scene_for.width, scene_for.height, image::ColorType::Rgb8).map_err(|e| e.to_string())
