@@ -106,7 +106,7 @@ impl App {
         let own = self.net.as_ref().and_then(|n| n.own);
         let mut failures: Vec<String> = self.failures.clone();
         failures.extend(self.shots.errors.iter().cloned());
-        json!({
+        let dump = json!({
             "schema": "re2-dump/1",
             "map": self.scene_path.display().to_string(),
             "frame": self.frame_no,
@@ -115,7 +115,6 @@ impl App {
             "gpu": self.gpu_kind,
             "size": size,
             "phase": self.phase_name(),
-            "museum": self.museum_dump(),
             "view": if self.view_mode == ViewMode::ThirdPerson { "third" } else { "first" },
             "player": {
                 "character": self.character.name(),
@@ -166,7 +165,19 @@ impl App {
             "shots": self.shots.taken.iter().map(|s| json!({"name": s.name, "file": s.file.display().to_string(), "secs": round2(s.secs), "camera": s.camera, "flat_fraction": round2(s.flat)})).collect::<Vec<_>>(),
             "snapshots": self.snapshots.iter().map(|(n, v)| (n.clone(), v.clone())).collect::<serde_json::Map<String, Value>>(),
             "failures": failures,
-        })
+        });
+        // The game's mode files its part under its name, where the phase is (`museum`).
+        let Some(mode) = self.mode.as_ref() else { return dump };
+        let Value::Object(fields) = dump else { return dump };
+        let mut out = serde_json::Map::new();
+        for (k, v) in fields {
+            let after_phase = k == "phase";
+            out.insert(k, v);
+            if after_phase {
+                out.insert(mode.name().to_string(), mode.dump());
+            }
+        }
+        Value::Object(out)
     }
 
     /// The lines of the `F3` overlay: frame rate and, online, ping and every counter that says something was not drawn.

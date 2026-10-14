@@ -52,6 +52,8 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
+pub use mode::{Answer, GameMode, ModeContext, ModeFactory, StartCard};
+
 mod ambient;
 mod avatar;
 mod cards;
@@ -64,6 +66,7 @@ mod frame;
 mod headless;
 mod help;
 mod listen;
+mod mode;
 mod museum;
 mod online;
 mod project_browser;
@@ -401,8 +404,10 @@ struct App {
     music_on: bool,
     /// The countryside and the mood music of a scene with an `audio` block.
     ambient: Option<ambient::Ambient>,
-    /// The visit, when the scene is a museum (`museum` block; see `museum.rs`).
-    museum: Option<museum::MuseumClient>,
+    /// The game's part of the client for this scene (the museum's visit, `museum.rs`), from [`App::mode_factory`] when the scene starts.
+    mode: Option<Box<dyn GameMode>>,
+    /// Chooses the mode when a scene starts: the engine's ([`engine_mode`]) or a game binary's (`client::run`).
+    mode_factory: ModeFactory,
     /// The player's own music (`audio.playlist`).
     listen: Option<listen::Listener>,
     /// Files dropped on the window since the last frame (they join the queue together, in the order they came).
@@ -652,7 +657,8 @@ impl App {
             streaks: None,
             music_on: false,
             ambient: None,
-            museum: None,
+            mode: None,
+            mode_factory: engine_mode,
             listen: None,
             dropped: Vec::new(),
             fresh_events: Vec::new(),
@@ -912,8 +918,19 @@ fn fail_online(msg: &str) -> ! {
     std::process::exit(2);
 }
 
-/// Runs the client: `re2`'s whole program (a game binary runs it too, ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library).
+/// Runs the client: `re2`'s whole program, with the engine's own modes.
 pub fn main() {
+    run(engine_mode)
+}
+
+/// The engine's modes: a museum scene's visit (`museum` block).
+pub fn engine_mode(scene: &Scene) -> Option<Box<dyn GameMode>> {
+    crate::museum::spec_of(scene).map(|_| Box::new(museum::MuseumMode::new()) as Box<dyn GameMode>)
+}
+
+/// Runs the client with a game's modes (ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library): `factory` chooses the mode each
+/// time a scene starts.
+pub fn run(factory: ModeFactory) {
     // The scene blocks the engine defines above the scene parser (the museum), before anything parses a scene.
     crate::scene_blocks::register();
     #[cfg(windows)]
@@ -1028,6 +1045,7 @@ pub fn main() {
         println!("Online: will join {addr}.");
     }
     let mut app = App::new(scene, scene_path, forced_character, connect, net_world);
+    app.mode_factory = factory;
     app.host_pause = local_host.as_ref().map(|h| h.pause_flag());
     app.transport = transport;
     app.start_fullscreen = fullscreen;

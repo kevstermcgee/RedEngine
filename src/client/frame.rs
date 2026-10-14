@@ -90,8 +90,8 @@ impl App {
 
     /// What the player is asking for this tick, from the held keys (or the `RE2_AUTOWALK` debug script).
     pub(crate) fn build_input(&mut self) -> PlayerInput {
-        // Flying into or out of a painting: the camera is the museum's, the body waits.
-        if self.museum.as_ref().is_some_and(|m| !m.visit.free()) {
+        // The mode owns the camera (a flight into a painting): the body waits.
+        if self.mode.as_ref().is_some_and(|m| m.input_frozen()) {
             return PlayerInput { yaw: self.camera.yaw, pitch: self.camera.pitch, ..Default::default() };
         }
         if let Some(mode) = self.autowalk.clone() {
@@ -487,7 +487,10 @@ impl App {
     /// The screen effects for this frame: the fight's (when the scene shows combat) under the opening fade from black.
     pub(crate) fn fx_now(&self) -> crate::feel::FxParams {
         let fx = if self.scene.hud.shows_combat() { self.feel.fx(self.camera.yaw) } else { Default::default() };
-        let fx = self.museum_wash(fx);
+        let fx = match &self.mode {
+            Some(m) => m.fx(fx),
+            None => fx,
+        };
         let secs = self.scene.player.fade_in;
         if secs <= 0.0 {
             return fx;
@@ -579,7 +582,7 @@ impl App {
         for slot in 1..self.local_player_count() {
             self.as_player(slot, |app| app.update_player_view(dt, alpha));
         }
-        self.museum_frame(dt);
+        self.with_mode(|m, cx| m.frame(cx, dt));
         self.update_ambient(dt);
         self.update_listening(dt);
         if let Some(audio) = &self.audio {
@@ -600,7 +603,7 @@ impl App {
     }
 
     pub(crate) fn draw(&mut self) {
-        self.museum_sync_gpu();
+        self.with_mode(|m, cx| m.sync_gpu(cx));
         // Pictures asked for (`--shot-at`, F12, a script) are drawn first, offscreen: they need neither a visible window nor focus, and the window's own frame below
         // may well not be presented at all (a minimised or occluded window).
         self.take_due_shots();
@@ -785,7 +788,8 @@ impl App {
         self.last_frame = Instant::now();
         self.net_title_at = Instant::now();
         self.set_grab(true);
-        self.start_museum();
+        self.mode = (self.mode_factory)(&self.scene);
+        self.with_mode(|m, cx| m.start(cx));
         self.open_start_card();
     }
 
