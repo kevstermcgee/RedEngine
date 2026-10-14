@@ -60,6 +60,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: shooter move step 3: bot minds (MatchGame::bot_mind, ShooterBot) (PR); step 2 merged (#155); parity unchanged
 - 2026-10-14: shooter move step 4a: server flow + snapshots via MatchGame hooks (PR); step 3 merged (#156); parity unchanged
 - 2026-10-14: shooter move step 4b: shooter block + GameDef registry (PR); 4a merged (#157)
+- 2026-10-14: shooter move step 5: server_app library + HostOptions::scene_text (PR); 4b merged (#158)
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.

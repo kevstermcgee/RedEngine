@@ -78,6 +78,7 @@ pub use red_core::props;
 pub mod render;
 pub mod scene_blocks;
 pub mod scene_pool;
+pub mod server_app;
 pub use red_core::schema;
 pub use red_core::score;
 #[cfg(feature = "gfx")]
