@@ -3,7 +3,8 @@
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
 #   fmt  content  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools
-#   games  direct3d  (not in the default list: `tests` covers them; they are what the hosted workflow runs instead of `tests` in two cases, see each one)
+#   games  direct3d  test-archive  headless-net  (not in the default list: `tests` and `headless-tests` cover them; they are what the hosted workflow runs
+#   instead in some cases, see each one)
 #
 # Tests run under cargo-nextest when it is installed (ADR 2026-10-10-ci-runs-the-tests-under-nextest), in ONE run on all cores, each test in its own process:
 #   * suites listed under "serial_suites" in docs/features.json (real-time UDP, spawned servers) form a nextest test group with max-threads = 1 whose tests take
@@ -57,6 +58,15 @@ run_tests() {
     cfg="$(nextest_config)"
     [ -n "${RED_CI_PARTITION:-}" ] && part=(--partition "$RED_CI_PARTITION")
     [ "${RED_CI_SERIAL_ALL:-0}" = "1" ] && threads=(--test-threads 1)
+    # RED_CI_ARCHIVE: run the suite from `test-archive`'s compiled archive instead of compiling it (the Linux shards on hosted CI). It is extracted into
+    # this checkout's target/, where the tests were built, so the paths they were compiled with (CARGO_BIN_EXE_*, CARGO_MANIFEST_DIR) hold.
+    if [ -n "${RED_CI_ARCHIVE:-}" ] && [ $# -eq 0 ]; then
+      echo "-- nextest from the archive $RED_CI_ARCHIVE: lib, bins, every suite; serial suites one at a time${part[0]:+, shard ${RED_CI_PARTITION}}"
+      cargo nextest run --archive-file "$RED_CI_ARCHIVE" --workspace-remap . --extract-to . --extract-overwrite --config-file "$cfg" --no-fail-fast \
+        ${part[@]+"${part[@]}"} ${threads[@]+"${threads[@]}"}
+      echo "-- doctests: run by test-archive, beside the archive"
+      return
+    fi
     echo "-- nextest: lib, bins, every suite; serial suites one at a time ($(serial_suites | grep -c .) suite(s), group serial-suites)${part[0]:+, shard ${RED_CI_PARTITION}}"
     cargo nextest run --locked --config-file "$cfg" --no-fail-fast "$@" --lib --bins --tests ${part[@]+"${part[@]}"} ${threads[@]+"${threads[@]}"}
     if [ -z "${RED_CI_PARTITION:-}" ] || [ "${RED_CI_PARTITION#*:}" = "1/${RED_CI_PARTITION#*/}" ]; then
@@ -85,6 +95,14 @@ run_tests() {
 stage_fmt() { echo "== rustfmt (rustfmt.toml is the style) =="; cargo fmt --check; }
 stage_clippy() { echo "== clippy (warnings are errors) =="; cargo clippy --locked --all-targets -- -D warnings; }
 stage_tests() { echo "== tests (lib, integration, doctests) =="; run_tests; }
+# The suite compiled once and packed (cargo-nextest's archive) for the Linux shards to run without compiling, and the doctests, which an archive
+# cannot hold (ADR 2026-10-14-ci-compiles-the-tests-once-and-runs-the-server-s-suites).
+stage_test_archive() {
+  echo "== tests: compiled once into an archive, and the doctests =="
+  cargo nextest archive --locked --lib --bins --tests --archive-file "${RED_CI_ARCHIVE:-target/nextest-archive.tar.zst}"
+  echo "-- doctests"
+  cargo test --locked --no-fail-fast --doc
+}
 # "The benches compile" is a type-check question: `check` answers it in seconds, where `bench --no-run` builds the whole engine optimised (measured: 475 s of
 # a 1167 s local run, all of it for binaries nobody runs). RED_CI_BUILD_BENCHES=1 restores the full build.
 stage_benches() {
@@ -118,6 +136,18 @@ stage_headless_build() {
 }
 stage_headless_clippy() { echo "== headless clippy =="; cargo clippy --locked --no-default-features --all-targets -- -D warnings; }
 stage_headless_tests() { echo "== headless tests (incl. real-UDP server tests) =="; run_tests --no-default-features; }
+# A pull request's headless check: the suites that run the server itself (real UDP, spawned servers, the replay's determinism) without graphics; the
+# whole suite headless runs on main (ADR 2026-10-14-ci-compiles-the-tests-once-and-runs-the-server-s-suites).
+stage_headless_net() {
+  echo "== headless tests, the server's suites (net_*, server_env, sim_replay) =="
+  local args=() t
+  for t in tests/net_*.rs tests/server_env.rs tests/sim_replay.rs; do args+=(--test "$(basename "$t" .rs)"); done
+  if use_nextest; then
+    cargo nextest run --locked --config-file "$(nextest_config)" --no-fail-fast --no-default-features "${args[@]}"
+  else
+    RUST_TEST_THREADS=1 cargo test --locked --no-fail-fast --no-default-features "${args[@]}"
+  fi
+}
 # A game outside the engine crate that uses only the public client layer (`red_engine2::app`, ADR 0043): if the API breaks it, CI says so.
 # Its presentation test renders offscreen; a runner with no GPU adapter at all sets RED_OFFSCREEN_OPTIONAL=1 to skip just that check.
 # Every example crate that is its own workspace has its own Cargo.lock; it must follow the engine's dependencies or `--locked` refuses it with a message that does not say so.
