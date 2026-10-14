@@ -327,11 +327,11 @@ impl MatchSim {
         self.arena().is_some()
     }
 
-    /// Whether players may be assigned to team 1 or 2: always true in a loadout match, or when the scene's own
-    /// `"teams": true` asked for team assignment without a `shooter` block (a hide-and-seek, capture-the-flag or
-    /// other asymmetric-role game that still wants `who: team1`/`who: team2` in its rules).
+    /// Whether players may be assigned to team 1 or 2: always when the match game's mode has teams (a loadout match), or when the scene's
+    /// own `"teams": true` asked for team assignment without one (a hide-and-seek, capture-the-flag or other asymmetric-role game that still
+    /// wants `who: team1`/`who: team2` in its rules).
     pub fn teams_enabled(&self) -> bool {
-        self.arena().map_or(self.teams_requested, |a| a.cfg.mode.teams() || self.teams_requested)
+        self.game.as_ref().is_some_and(|g| g.teams()) || self.teams_requested
     }
 
     /// The loadout match's mode (team deathmatch outside one).
@@ -339,24 +339,20 @@ impl MatchSim {
         self.arena().map_or_else(Default::default, |a| a.cfg.mode)
     }
 
-    /// Most people on one team (`1` = a duel). Outside a loadout match: the whole roster.
+    /// Most people on one team (`1` = a duel): the match game's to say; otherwise the whole roster.
     pub fn team_size(&self) -> usize {
-        self.arena().map_or(super::shooter::MAX_TEAM, |a| a.cfg.team_size)
+        self.game.as_ref().and_then(|g| g.team_size()).unwrap_or(super::match_sim::MAX_TEAM)
     }
 
-    /// The score that wins a capture-the-flag or search-and-destroy match (`None` in the kill modes, where the scene's `score_to_win` rules).
+    /// The score that wins, when the match game's mode sets it (capture the flag, search and destroy); `None` in the kill modes, where the
+    /// scene's `score_to_win` rules.
     pub fn score_limit(&self) -> Option<u32> {
-        use super::shooter::ModeKind;
-        self.arena().and_then(|a| match a.cfg.mode {
-            ModeKind::Ctf => Some(a.cfg.objective.capture_limit),
-            ModeKind::Snd => Some(a.cfg.objective.win_rounds),
-            _ => None,
-        })
+        self.game.as_ref().and_then(|g| g.score_limit())
     }
 
-    /// Most players (people and bots) the match holds: two teams of `team_size`.
+    /// Most players (people and bots) the match holds: two teams of [`team_size`](Self::team_size) when the game sets one.
     pub fn max_players(&self) -> usize {
-        self.arena().map_or(super::match_sim::MAX_PLAYERS, |a| (a.cfg.team_size * 2).min(super::match_sim::MAX_PLAYERS))
+        self.game.as_ref().and_then(|g| g.team_size()).map_or(super::match_sim::MAX_PLAYERS, |t| (t * 2).min(super::match_sim::MAX_PLAYERS))
     }
 }
 

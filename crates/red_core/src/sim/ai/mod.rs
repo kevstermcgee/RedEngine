@@ -916,11 +916,10 @@ impl MatchSim {
     pub fn add_bot_in_slot_team(&mut self, slot: usize, spec: &BotSpec, team: u8) -> bool {
         if team != 0 {
             let mut spec = spec.clone();
-            // The team uniform only replaces a bot's requested look in a real loadout match; a non-shooter teamed
-            // scene (hide-and-seek roles, etc.) keeps whatever character the roster asked for.
-            if self.is_loadout() {
-                // A mix of looks, so a team of bots is not six identical soldiers.
-                spec.character = Character::soldier(team, (slot / 2 % 4) as u8);
+            // The match game dresses its bots (the loadout shooter: the team's uniform, a mix of looks so a team of bots is not six identical
+            // soldiers); a teamed scene without one (hide-and-seek roles, etc.) keeps whatever character the roster asked for.
+            if let Some(body) = self.game_body(slot, team, (slot / 2 % 4) as u8) {
+                spec.character = body;
             } else if spec.character == Character::Rat {
                 // A fighter cannot be the rat (it cannot attack), the same rule the no-team path below applies.
                 return false;
@@ -944,9 +943,9 @@ impl MatchSim {
             return true;
         }
         let mut spec = spec.clone();
-        if self.is_loadout() {
-            // Free for all: soldiers in alternating uniforms and a mix of looks, as the human players wear.
-            spec.character = Character::soldier(1 + (slot % 2) as u8, (slot / 2 % 4) as u8);
+        // Without a team, as the match game dresses its players (free for all: soldiers in alternating uniforms and a mix of looks).
+        if let Some(body) = self.game_body(slot, 0, (slot / 2 % 4) as u8) {
+            spec.character = body;
         }
         if spec.character == Character::Rat || !self.add_player_in_slot(slot, spec.character) {
             return false;
