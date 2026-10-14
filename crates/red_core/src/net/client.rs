@@ -16,8 +16,8 @@
 //! [`RuleState`] is likewise a repeated complete presentation snapshot: variables, visibility, recent event and outcome recover after loss,
 //! reconnect and late join without replaying transient commands.
 
-use crate::net::arena_wire::ArenaSnap;
 use crate::net::auth::{join_proof, join_proof_bound, Direction, SessionKey};
+use crate::net::game_view::{GameDecoder, GameView, History};
 use crate::net::happenings::{Happenings, Watcher};
 use crate::net::interp::{RemoteWorld, View};
 use crate::net::protocol::*;
@@ -26,6 +26,7 @@ use crate::net::transport::{ClientTransport, Security, TransportStatus, UdpClien
 use crate::sim::clock::TICK_DT;
 use crate::sim::flow::Phase;
 use crate::sim::player::PlayerInput;
+use std::any::Any;
 use std::collections::VecDeque;
 use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -218,10 +219,13 @@ pub struct NetClient {
     world: RemoteWorld,
     /// Turns the counters in consecutive snapshots into [`NetEvent::Happened`].
     watcher: Watcher,
-    /// The loadout match's world and our kit as of the newest snapshot (`None` in any other kind of match).
-    arena: Option<ArenaSnap>,
-    /// The last seconds of the match, for the killcam.
-    recorder: crate::killcam::Recorder,
+    /// The game's own part of the newest snapshot, as it came (`None` in a match whose game sends none).
+    game: Option<GameMsg>,
+    /// That part as the game's decoder read it ([`NetClient::set_game_decoder`]).
+    game_view: Option<Box<dyn GameView>>,
+    game_decoder: Option<GameDecoder>,
+    /// The last seconds of the match as snapshots showed them, when the game asked ([`NetClient::keep_history`]).
+    history: History,
     /// Tenths of a second until we respawn, from the newest snapshot (`0` = alive).
     respawn_tenths: u8,
     stats: ClientStats,
@@ -302,8 +306,10 @@ impl NetClient {
             world: RemoteWorld::default(),
             watcher: Watcher::default(),
             respawn_tenths: 0,
-            arena: None,
-            recorder: crate::killcam::Recorder::new(),
+            game: None,
+            game_view: None,
+            game_decoder: None,
+            history: History::default(),
             stats: ClientStats::default(),
             out: Vec::with_capacity(MAX_PACKET),
             status: None,
@@ -425,14 +431,35 @@ impl NetClient {
         }
     }
 
-    /// The loadout match's world and our kit as of the newest snapshot.
-    pub fn arena(&self) -> Option<&ArenaSnap> {
-        self.arena.as_ref()
+    /// Reads each snapshot's game part with `decode` from now on ([`game_view`](Self::game_view)); a part it cannot read makes its snapshot a bad
+    /// packet, as a malformed snapshot is. Set it before the first [`poll`](Self::poll).
+    pub fn set_game_decoder(&mut self, decode: GameDecoder) {
+        self.game_decoder = Some(decode);
     }
 
-    /// The last seconds of the match as snapshots showed them (the killcam cuts its replay from this).
-    pub fn recorder(&self) -> &crate::killcam::Recorder {
-        &self.recorder
+    /// The game's own part of the newest snapshot, as it came (`None` in a match whose game sends none).
+    pub fn game_part(&self) -> Option<&GameMsg> {
+        self.game.as_ref()
+    }
+
+    /// The newest snapshot's game part as the game's decoder read it, if it is a `T`.
+    pub fn game_view<T: GameView>(&self) -> Option<&T> {
+        self.game_view.as_deref().and_then(|v| (v as &dyn Any).downcast_ref::<T>())
+    }
+
+    /// The newest snapshot's game part as the game's decoder read it, whatever its type.
+    pub fn game_view_dyn(&self) -> Option<&dyn GameView> {
+        self.game_view.as_deref()
+    }
+
+    /// Keeps every snapshot of the last `secs` seconds of server time ([`history`](Self::history)); `0` (the default) keeps none.
+    pub fn keep_history(&mut self, secs: f64) {
+        self.history.set_keep(secs);
+    }
+
+    /// The last seconds of the match as snapshots showed them (a game's replay, such as a killcam, cuts from this).
+    pub fn history(&self) -> &History {
+        &self.history
     }
 
     /// Whether we asked to be ready.
@@ -711,8 +738,9 @@ impl NetClient {
                 self.world.reset();
                 self.watcher.reset(); // counters restart with a new world: the next snapshot is a baseline
                 self.respawn_tenths = 0;
-                self.arena = None;
-                self.recorder.clear();
+                self.game = None;
+                self.game_view = None;
+                self.history.clear();
                 if first {
                     self.latest_snapshot_seq = 0;
                     self.stats.connects += 1;
@@ -727,8 +755,9 @@ impl NetClient {
                 }
             }
             ServerMsg::Snapshot(s) => {
-                // The game's own part (the loadout shooter's arena): a malformed one is a bad packet, as a malformed snapshot is.
-                let Ok(arena) = s.game.as_ref().map(ArenaSnap::from_game_msg).transpose() else {
+                // The game's own part (the loadout shooter's arena), read by the game's decoder: one it cannot read is a bad packet, as a malformed
+                // snapshot is.
+                let Ok(view) = s.game.as_ref().zip(self.game_decoder).map(|(g, decode)| decode(g)).transpose() else {
                     self.stats.bad_packets += 1;
                     return;
                 };
@@ -747,8 +776,9 @@ impl NetClient {
                 let me = self.my_id();
                 let own = s.players.iter().find(|p| Some(p.id) == me).copied();
                 self.respawn_tenths = s.fx.respawn;
-                self.recorder.record(&s);
-                self.arena = arena.flatten();
+                self.history.record(&s);
+                self.game = s.game.clone();
+                self.game_view = view.flatten();
                 let happened = self.watcher.observe(&s, me);
                 events.push(NetEvent::Snapshot { own, ack_input_seq: s.ack_input_seq, race: s.race });
                 if !happened.is_empty() {

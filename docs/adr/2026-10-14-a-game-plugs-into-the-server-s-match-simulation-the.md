@@ -69,6 +69,13 @@ The museum had the same shape on the client side and moved behind `client::GameM
   `server_app::ENGINE` is `red_server`'s (the engine's blocks, the shooter's modes until the move). The in-process host takes the scene to play
   (`HostOptions::scene_text`) instead of the shooter's mode and team size, which Killchain now writes itself (`shooter::with_overrides`).
 
+- *Step 6a as built (2026-10-14):* the client side of the seam. The network client keeps a snapshot's game part as it came
+  (`NetClient::game_part`) and reads it with the decoder the game gives it (`set_game_decoder`; `net::game_view::GameView`, read back with
+  `game_view::<T>()`), so a part the game cannot read is still a bad packet and the session's walk speed asks `GameView::move_mult` (the
+  client side of `MatchGame::move_mult`). The killcam's recorder is now the client's `net::game_view::History`, kept only when a game asks
+  (`keep_history`); the killcam cuts its replay from it (`killcam::playback`). The killcam's projectiles, which no client drew, are gone. A client
+  that sets no decoder (the engine's own, on a loadout server) predicts the walk at full speed.
+
 ## Consequences
 The engine's match simulation no longer knows a loadout match; any game with a server-side rule set of its own (a mode, a kit, an objective) plugs
 in the same way. Killchain gets a server binary of its own, which its hosting (and RedEngineGames, for its download) learns: the engine's

@@ -6,6 +6,7 @@
 //! Used by Killchain alone and offered by nothing: it moves to `games/killchain` with the shooter (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
 //! system audit, docs/analysis/2026-10-14-system-audit.md).
 
+use super::game_view::GameView;
 use super::protocol::{DecodeError, GameMsg, R, W};
 
 /// [`GameMsg::kind`] of the arena.
@@ -260,6 +261,19 @@ impl ArenaSnap {
         let a = get_arena(&mut r)?;
         r.finish()?;
         Ok(Some(a))
+    }
+}
+
+/// How a client reads the arena: give it to [`NetClient::set_game_decoder`](super::client::NetClient::set_game_decoder), then read it back with
+/// `client.game_view::<ArenaSnap>()`.
+pub fn decode(g: &GameMsg) -> Result<Option<Box<dyn GameView>>, DecodeError> {
+    Ok(ArenaSnap::from_game_msg(g)?.map(|a| Box::new(a) as Box<dyn GameView>))
+}
+
+impl GameView for ArenaSnap {
+    /// The weapon in hand slows the player (`sim::shooter::ShooterGame::move_mult` on the server).
+    fn move_mult(&self) -> Option<f32> {
+        self.own.and_then(|o| o.current_weapon()).map(|w| w.kit().move_mult)
     }
 }
 

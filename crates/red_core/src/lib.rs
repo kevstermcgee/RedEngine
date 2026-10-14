@@ -119,6 +119,7 @@ pub mod net {
     pub mod auth;
     #[cfg(feature = "quic")]
     pub mod client;
+    pub mod game_view;
     pub mod happenings;
     pub mod interp;
     pub mod join_code;

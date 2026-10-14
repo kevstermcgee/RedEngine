@@ -247,7 +247,8 @@ pub struct NetSession {
     pub race: Option<crate::net::protocol::RaceSnap>,
     /// Whether a `Welcome` has arrived (also true in a lobby, where there is no body to place yet).
     pub joined: bool,
-    /// How much slower the weapon in hand makes us (`1.0` = not at all): the server applies the same factor, so prediction agrees.
+    /// How much slower the game makes us (the weapon in hand, in the loadout shooter; `1.0` = not at all), as its [`GameView`](crate::net::game_view::GameView)
+    /// says: the server applies the same factor, so prediction agrees.
     pub speed_scale: f32,
     /// Things the snapshots reported since the last [`take_happened`](Self::take_happened): shots heard, hits landed, damage taken, kills.
     happened: Vec<crate::net::happenings::Happenings>,
@@ -509,7 +510,7 @@ impl NetSession {
                         );
                     }
                     self.own = Some(own);
-                    self.speed_scale = self.client.arena().and_then(|a| a.own).and_then(|o| o.current_weapon()).map_or(1.0, |w| w.kit().move_mult);
+                    self.speed_scale = self.client.game_view_dyn().and_then(|v| v.move_mult()).unwrap_or(1.0);
                 }
                 NetEvent::Happened(h) if self.happened.len() < 64 => self.happened.push(h),
                 _ => {}

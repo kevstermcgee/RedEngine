@@ -25,6 +25,7 @@ pub use red_core::net::auth;
 pub mod bot;
 pub use red_core::net::client;
 pub mod fleet;
+pub use red_core::net::game_view;
 pub use red_core::net::happenings;
 pub mod host;
 pub use red_core::net::interp;
