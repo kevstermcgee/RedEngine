@@ -669,11 +669,13 @@ pub fn render_core(ix: &Index) -> String {
         mods.iter().map(|m| module_graph::Node { name: &m.name, in_core: m.file.starts_with(CORE_SRC), uses: &m.uses, crates: &m.crates }).collect();
     let file: BTreeMap<&str, &str> = mods.iter().map(|m| (m.name.as_str(), m.file.as_str())).collect();
     let lines: BTreeMap<&str, usize> = mods.iter().map(|m| (m.name.as_str(), m.lines)).collect();
-    // Binaries, the CLI and the crate roots stay where they are; a directory module (`sim`) moves after its children.
+    // Binaries, the CLI and the crate roots stay where they are; a directory module (`sim`) moves after its children, a test file with its module.
     let parents: BTreeSet<&str> =
         mods.iter().filter(|m| !m.file.starts_with(CORE_SRC)).flat_map(|m| m.name.match_indices("::").map(|(i, _)| &m.name[..i]).collect::<Vec<_>>()).collect();
     let may_move = |m: &str| {
-        !parents.contains(m)
+        let test_file = m.rsplit("::").next().is_some_and(|l| l == "tests" || l.ends_with("_tests"));
+        !test_file
+            && !parents.contains(m)
             && file.get(m).is_some_and(|f| !(f.starts_with("src/bin/") || f.starts_with("src/cli/") || matches!(*f, "src/main.rs" | "src/lib.rs")))
     };
     let f = module_graph::core_frontier(&nodes, may_move, &core_crates);
