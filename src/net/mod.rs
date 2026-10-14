@@ -2,6 +2,7 @@
 //! ([`client`]) that the graphical game and the headless bot both use.
 //!
 //! - [`protocol`]: the wire format (fuzz-tested, bounded).
+//! - [`arena_wire`]: the loadout shooter's own part of a snapshot (a `protocol::GameMsg` the protocol carries without reading).
 //! - [`server`]: `Server` = the socket and the tick loop around [`crate::sim::match_sim::MatchSim`]: a fixed 60 Hz
 //!   tick, 30 Hz snapshots with per-client delta acknowledgement, timeouts, reconnect-with-token. Its parts:
 //!   `sessions` (who is connected, resume tokens), `snapshots` (what each client is sent), [`limits`] (packet budgets).
@@ -19,6 +20,7 @@
 // as a `let ... else` / `?` with a message, not an `unwrap`.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
 
+pub use red_core::net::arena_wire;
 pub use red_core::net::auth;
 pub mod bot;
 pub use red_core::net::client;

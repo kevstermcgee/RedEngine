@@ -1226,9 +1226,10 @@ impl Server {
             } else {
                 0
             };
-            let arena = arena_snap(&self.sim, slot);
-            let arena_bytes = arena.as_ref().map_or(0, |a| a.wire_bytes() + self.visible_scratch.len());
-            let max_props = snapshot_prop_budget(budget.saturating_sub(race_bytes + arena_bytes), self.visible_scratch.len());
+            // The game's own part (the loadout shooter's arena) and each player's game byte: out of the props' room too.
+            let game = arena_snap(&self.sim, slot).map(|a| a.to_game_msg());
+            let game_bytes = game.as_ref().map_or(0, |g| g.wire_bytes() + self.visible_scratch.len());
+            let max_props = snapshot_prop_budget(budget.saturating_sub(race_bytes + game_bytes), self.visible_scratch.len());
             let s = &mut self.sessions[i];
             props_to_send(&self.sim, self.interest.as_ref(), room, &s.known, &mut self.changed, &mut self.props_scratch, &mut self.sent_scratch, max_props);
             s.snapshot_seq = s.snapshot_seq.wrapping_add(1);
@@ -1246,7 +1247,7 @@ impl Server {
                 fx: feedback_of(&self.sim, slot),
                 players: std::mem::take(&mut self.visible_scratch),
                 props: std::mem::take(&mut self.props_scratch),
-                arena,
+                game,
                 race: self.sim.race().map(|r| RaceSnap {
                     phase: match r.phase() {
                         crate::sim::race::Phase::Countdown => 0,

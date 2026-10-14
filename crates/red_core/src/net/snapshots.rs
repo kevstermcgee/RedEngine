@@ -7,11 +7,11 @@
 //! management cheap and exact: a prop that changed while out of earshot is simply still "unconfirmed" when the client walks
 //! into the room, and is sent then; nothing is ever sent twice once acknowledged.
 
-use super::protocol::{
-    character_to_wire, ArenaSnap, DroppedSnap, Feedback, FlagSnap, FxSnap, KartSnap, ObjEventSnap, ObjSnap, OwnKit, PlayerSnap, ProjSnap, PropSnap, SndSnap,
-    ZoneSnap, FLAG_PROTECTED, MAX_DROPPED_SNAP, MAX_FX_SNAP, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROJ_SNAP, MAX_PROPS_PER_SNAPSHOT, MAX_ZONE_SNAP, NO_PROP,
-    PICKUP_MASK_BYTES,
+use super::arena_wire::{
+    ArenaSnap, DroppedSnap, FlagSnap, FxSnap, ObjEventSnap, ObjSnap, OwnKit, ProjSnap, SndSnap, ZoneSnap, MAX_DROPPED_SNAP, MAX_FX_SNAP, MAX_PROJ_SNAP,
+    MAX_ZONE_SNAP, PICKUP_MASK_BYTES,
 };
+use super::protocol::{character_to_wire, Feedback, KartSnap, PlayerSnap, PropSnap, FLAG_PROTECTED, MAX_PLAYERS_PER_SNAPSHOT, MAX_PROPS_PER_SNAPSHOT, NO_PROP};
 use crate::sim::change::Generation;
 use crate::sim::interest::InterestMap;
 use crate::sim::match_sim::MatchSim;

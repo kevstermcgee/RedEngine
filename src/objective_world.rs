@@ -9,7 +9,7 @@
 //! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
 //! system audit, docs/analysis/2026-10-14-system-audit.md).
 
-use crate::net::protocol::ObjSnap;
+use crate::net::arena_wire::ObjSnap;
 use crate::scene_pool::HIDDEN_SCALE;
 use crate::schema::{Material, Object, ObjectKind, PrimKind, Scene};
 use crate::sim::objective::MAX_SITES;
@@ -209,7 +209,7 @@ impl ObjectiveWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::net::protocol::{FlagSnap, SndSnap};
+    use crate::net::arena_wire::{FlagSnap, SndSnap};
 
     fn scene(shooter_extra: &str) -> Scene {
         crate::scene_blocks::parse_scene(&format!(

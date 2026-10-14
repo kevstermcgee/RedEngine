@@ -16,6 +16,7 @@
 //! [`RuleState`] is likewise a repeated complete presentation snapshot: variables, visibility, recent event and outcome recover after loss,
 //! reconnect and late join without replaying transient commands.
 
+use crate::net::arena_wire::ArenaSnap;
 use crate::net::auth::{join_proof, join_proof_bound, Direction, SessionKey};
 use crate::net::happenings::{Happenings, Watcher};
 use crate::net::interp::{RemoteWorld, View};
@@ -218,7 +219,7 @@ pub struct NetClient {
     /// Turns the counters in consecutive snapshots into [`NetEvent::Happened`].
     watcher: Watcher,
     /// The loadout match's world and our kit as of the newest snapshot (`None` in any other kind of match).
-    arena: Option<crate::net::protocol::ArenaSnap>,
+    arena: Option<ArenaSnap>,
     /// The last seconds of the match, for the killcam.
     recorder: crate::killcam::Recorder,
     /// Tenths of a second until we respawn, from the newest snapshot (`0` = alive).
@@ -425,7 +426,7 @@ impl NetClient {
     }
 
     /// The loadout match's world and our kit as of the newest snapshot.
-    pub fn arena(&self) -> Option<&crate::net::protocol::ArenaSnap> {
+    pub fn arena(&self) -> Option<&ArenaSnap> {
         self.arena.as_ref()
     }
 
@@ -726,6 +727,11 @@ impl NetClient {
                 }
             }
             ServerMsg::Snapshot(s) => {
+                // The game's own part (the loadout shooter's arena): a malformed one is a bad packet, as a malformed snapshot is.
+                let Ok(arena) = s.game.as_ref().map(ArenaSnap::from_game_msg).transpose() else {
+                    self.stats.bad_packets += 1;
+                    return;
+                };
                 self.last_heard = now;
                 if self.state != ConnState::Connected {
                     return;
@@ -742,7 +748,7 @@ impl NetClient {
                 let own = s.players.iter().find(|p| Some(p.id) == me).copied();
                 self.respawn_tenths = s.fx.respawn;
                 self.recorder.record(&s);
-                self.arena.clone_from(&s.arena);
+                self.arena = arena.flatten();
                 let happened = self.watcher.observe(&s, me);
                 events.push(NetEvent::Snapshot { own, ack_input_seq: s.ack_input_seq, race: s.race });
                 if !happened.is_empty() {

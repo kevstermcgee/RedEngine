@@ -47,7 +47,7 @@ fn worst_snapshot() -> Snapshot {
         echo_time_ms: 1,
         echo_hold_ms: 0,
         fx: Default::default(),
-        arena: None,
+        game: None,
         players: vec![
             PlayerSnap {
                 id: 0,

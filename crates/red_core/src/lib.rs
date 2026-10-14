@@ -112,6 +112,7 @@ pub mod sim {
 pub mod net {
     // Nothing reachable from a UDP packet may panic the process. Test code is exempt.
     #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented, clippy::unreachable))]
+    pub mod arena_wire;
     pub mod auth;
     #[cfg(feature = "quic")]
     pub mod client;

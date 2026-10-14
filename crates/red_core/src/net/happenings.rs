@@ -133,7 +133,7 @@ mod tests {
                 .collect(),
             props: vec![],
             race: None,
-            arena: None,
+            game: None,
         }
     }
 
