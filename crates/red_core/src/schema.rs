@@ -1072,9 +1072,9 @@ fn parse_object(ctx: &mut Ctx, raw: &Value, path: &str) -> Object {
     }
 
     // Macro types (`wall`, `fence`) expand into an ordinary group of boxes before parsing, so
-    // everything downstream only ever sees primitives. See `crate::macros`.
-    if let Some(t) = ty.filter(|t| crate::macros::MACRO_TYPES.contains(t)) {
-        return match crate::macros::expand(t, obj, &id) {
+    // everything downstream only ever sees primitives. See `crate::scene_macros`.
+    if let Some(t) = ty.filter(|t| crate::scene_macros::MACRO_TYPES.contains(t)) {
+        return match crate::scene_macros::expand(t, obj, &id) {
             Ok(group) => parse_object(ctx, &group, path),
             Err(errs) => {
                 ctx.errors.extend(errs);

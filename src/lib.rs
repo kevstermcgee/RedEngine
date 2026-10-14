@@ -40,7 +40,10 @@ pub mod kart_camera;
 pub mod kart_sound;
 pub use red_core::killcam;
 pub use red_core::listen;
-pub use red_core::macros;
+/// The scene's macro objects (`wall`, `fence`, `text`, `array`), expanded at parse time; `macros` is its old name, kept so callers still compile.
+#[doc(hidden)]
+pub use red_core::scene_macros as macros;
+pub use red_core::scene_macros;
 #[cfg(feature = "render")]
 pub mod menu;
 #[cfg(feature = "render")]
