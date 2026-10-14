@@ -405,10 +405,25 @@ impl Kc {
         } else {
             None
         };
+        // The chosen mode, team size and limit go into the scene the host plays (the map file keeps the hash friends check).
+        let scene_text = std::fs::read_to_string(&self.opts.scene).map_err(|e| format!("cannot read {}: {e}", self.opts.scene.display())).and_then(|text| {
+            red_engine2::sim::shooter::with_overrides(
+                &text,
+                Some(red_engine2::sim::shooter::ModeKind::from_wire(self.setup.mode)),
+                Some(self.setup.size as usize),
+                Some(self.setup.kill_limit as u32),
+            )
+        });
+        let scene_text = match scene_text {
+            Ok(t) => t,
+            Err(e) => {
+                self.note = Some(e);
+                return;
+            }
+        };
         let opts = HostOptions {
             fill: Some(if self.setup.bots { 12 } else { 0 }),
-            mode: Some(red_engine2::sim::shooter::ModeKind::from_wire(self.setup.mode)),
-            team_size: Some(self.setup.size as usize),
+            scene_text: Some(scene_text),
             bot_skill: Some(skill.to_string()),
             kill_limit: Some(self.setup.kill_limit as u32),
             round_secs: Some(self.setup.minutes as f32 * 60.0),

@@ -34,10 +34,9 @@ pub struct HostOptions {
     pub kill_limit: Option<u32>,
     /// Overrides the map's `match.round_secs`: how long a round lasts (`Some(0.0)` = no time limit).
     pub round_secs: Option<f32>,
-    /// What to play (`None` = the map's own `shooter.mode`): team deathmatch, free for all, capture the flag, search and destroy.
-    pub mode: Option<crate::sim::shooter::ModeKind>,
-    /// Most people on a team, `1` for a duel (`None` = the map's `shooter.team_size`).
-    pub team_size: Option<usize>,
+    /// The scene to play when the game changed the map's text (its mode, its team size: Killchain writes them with the shooter's
+    /// `with_overrides`); `None` = the map file as it is. The map's hash, interest and match settings still come from the file.
+    pub scene_text: Option<String>,
     /// Host for other machines: QUIC + TLS 1.3 with a saved identity, optionally opening the router's port. `None` = this machine only.
     pub public: Option<PublicOptions>,
 }
@@ -83,8 +82,7 @@ impl Default for HostOptions {
             spawn_group: String::new(),
             kill_limit: None,
             round_secs: None,
-            mode: None,
-            team_size: None,
+            scene_text: None,
             public: None,
         }
     }
@@ -119,8 +117,8 @@ impl LocalHost {
     /// Loads `map` and starts serving it. The error says what is wrong with the map or the options.
     pub fn start(map: &Path, opts: &HostOptions) -> Result<LocalHost, String> {
         let text = std::fs::read_to_string(map).map_err(|e| format!("cannot read {}: {e}", map.display()))?;
-        // The host's choice of mode and team size is written into the scene; the hash and the interest map still come from the file.
-        let scene_text = crate::sim::shooter::with_overrides(&text, opts.mode, opts.team_size, opts.kill_limit)?;
+        // The game's choice of mode and team size is in the scene it passes; the hash and the interest map still come from the file.
+        let scene_text = opts.scene_text.clone().unwrap_or_else(|| text.clone());
         let scene = crate::scene_blocks::parse_scene(&scene_text).map_err(|e| format!("{} is not a valid scene: {}", map.display(), e.join("; ")))?;
         let mut spawns = parse_spawns(&text)?;
         if !opts.spawn_group.is_empty() {

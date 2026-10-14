@@ -118,7 +118,7 @@
     },
     "net_server": {
       "summary": "The authoritative UDP server: sessions, handshake, snapshots with per-client acks, status, rounds, rate limits; `red_server`.",
-      "files": ["crates/red_core/src/net/server.rs", "src/net/host.rs", "crates/red_core/src/net/sessions.rs", "crates/red_core/src/net/snapshots.rs", "src/bin/red_server.rs"],
+      "files": ["crates/red_core/src/net/server.rs", "src/net/host.rs", "crates/red_core/src/net/sessions.rs", "crates/red_core/src/net/snapshots.rs", "src/bin/red_server.rs", "src/server_app.rs"],
       "tests": ["net_e2e", "net_flow", "net_abuse", "net_auth", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_bots", "server_env", "net_join_flow"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md"],

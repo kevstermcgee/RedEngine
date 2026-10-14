@@ -64,6 +64,11 @@ The museum had the same shape on the client side and moved behind `client::GameM
   (`scene_blocks::ENGINE`, `ENGINE_GAMES`) until the shooter moves; the typed content definition keeps `shooter`, as it kept `museum` while
   the engine defined that block. A scene's `shooter` errors are now reported with the blocks' (earlier in the list), the only visible change.
 
+- *Step 5 as built (2026-10-14):* the server program is `red_engine2::server_app` (`red_server`'s `main` is one line): `run(&GameServer {
+  program, register, modes, overrides })` serves a game's own scene blocks and match games and lets its games take `--mode` / `--team-size`;
+  `server_app::ENGINE` is `red_server`'s (the engine's blocks, the shooter's modes until the move). The in-process host takes the scene to play
+  (`HostOptions::scene_text`) instead of the shooter's mode and team size, which Killchain now writes itself (`shooter::with_overrides`).
+
 ## Consequences
 The engine's match simulation no longer knows a loadout match; any game with a server-side rule set of its own (a mode, a kit, an objective) plugs
 in the same way. Killchain gets a server binary of its own, which its hosting (and RedEngineGames, for its download) learns: the engine's
