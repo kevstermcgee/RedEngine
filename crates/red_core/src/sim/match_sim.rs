@@ -765,6 +765,17 @@ impl MatchSim {
         &self.rules
     }
 
+    /// The match game's answer about `target` (`MatchGame::inspect`): an instance, a store, or `systems` for the game's systems.
+    pub fn game_inspect(&self, target: &str) -> Option<serde_json::Value> {
+        self.game.as_ref()?.inspect(self, target)
+    }
+
+    /// Sets the scene variable `name` (declared in its `vars`): how a match game shows the scene's rules, HUD, objective and scenarios what
+    /// its own state says. `false` (and nothing changes) when the scene does not declare it.
+    pub fn set_var(&mut self, name: &str, value: f64) -> bool {
+        self.rules.set_var(name, value)
+    }
+
     /// Tells the scene's rules that `event` happened this tick (`shot`, `swing`, `explosion`, ...), by player `slot` if one did it.
     pub fn rule_event(&mut self, event: &str, slot: Option<usize>) {
         self.rules.inject(self.tick, event, slot);

@@ -35,7 +35,10 @@ impl LocalSession {
     /// lines.
     pub fn load(path: &Path) -> Result<Self, Vec<String>> {
         let text = std::fs::read_to_string(path).map_err(|e| vec![format!("{}: {e}", path.display())])?;
-        Self::from_json(&text)
+        // Files a block names are relative to the scene.
+        let scene = crate::scene_blocks::parse_scene_in(&text, path.parent())?;
+        let spawns = parse_spawns(&text).map_err(|e| vec![e])?;
+        Self::new(scene, spawns, None).map_err(|e| vec![e])
     }
 
     /// [`LocalSession::load`] from scene JSON text.

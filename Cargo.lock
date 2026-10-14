@@ -5104,6 +5104,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
+name = "workshop"
+version = "0.1.0"
+dependencies = [
+ "red_engine2",
+ "serde_json",
+ "workshop_server",
+]
+
+[[package]]
+name = "workshop_server"
+version = "0.1.0"
+dependencies = [
+ "red_engine2",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "x11-dl"
 version = "2.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

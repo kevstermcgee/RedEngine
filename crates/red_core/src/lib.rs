@@ -82,6 +82,7 @@ pub mod sim {
     pub mod combat;
     pub mod combat_cfg;
     pub mod components;
+    pub mod defs;
     pub mod entities;
     pub mod flow;
     pub mod game;
@@ -90,6 +91,7 @@ pub mod sim {
     pub mod items;
     pub mod kart;
     pub mod kit;
+    pub mod ledger;
     pub mod match_sim;
     pub mod objective;
     pub mod objective_run;
@@ -106,6 +108,7 @@ pub mod sim {
     pub mod snapshot;
     pub mod spawns;
     pub mod statics;
+    pub mod systems;
     pub mod trace;
 }
 

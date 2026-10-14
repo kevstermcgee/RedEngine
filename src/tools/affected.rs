@@ -317,6 +317,8 @@ const FRAMELESS_ENGINE_FILES: &[&str] = &[
 /// engine-crate steps do not cover another package, so a change to it, or to engine code it is built on, plans its own (`-p <name>`).
 struct GameCrate {
     name: &'static str,
+    /// Its folder under `games/`.
+    dir: &'static str,
     title: &'static str,
     engine_dirs: &'static [&'static str],
     engine_files: &'static [&'static str],
@@ -326,6 +328,7 @@ struct GameCrate {
 const GAME_CRATES: &[GameCrate] = &[
     GameCrate {
         name: "killchain",
+        dir: "killchain",
         title: "Killchain",
         engine_dirs: KILLCHAIN_ENGINE_DIRS,
         engine_files: KILLCHAIN_ENGINE_FILES,
@@ -333,16 +336,49 @@ const GAME_CRATES: &[GameCrate] = &[
     },
     GameCrate {
         name: "frameless",
+        dir: "frameless",
         title: "Frameless",
         engine_dirs: FRAMELESS_ENGINE_DIRS,
         engine_files: FRAMELESS_ENGINE_FILES,
         tests: "the museum's unit tests, its collection's drift check and its headless visit (seed 7, a save the next launch loads)",
     },
+    GameCrate {
+        name: "workshop_server",
+        dir: "workshop/server",
+        title: "Workshop (server side)",
+        engine_dirs: WORKSHOP_ENGINE_DIRS,
+        engine_files: WORKSHOP_ENGINE_FILES,
+        tests: "Workshop's systems through the real match: isolation, conservation, commands, content errors, saves and migration, online, the scale check, the agent task",
+    },
+    GameCrate {
+        name: "workshop",
+        dir: "workshop",
+        title: "Workshop (client)",
+        engine_dirs: WORKSHOP_ENGINE_DIRS,
+        engine_files: WORKSHOP_ENGINE_FILES,
+        tests: "Workshop's client: the same authority as the headless match, the lever and the order through the real input path, saves, offscreen pictures",
+    },
+];
+
+/// What Workshop (`games/workshop`, ADR 2026-10-14-game-systems-compose-under-one-match-authority) is built on: the game-system primitive, the
+/// match, the network, the custom-client layer, scenarios and the command line its server program runs.
+const WORKSHOP_ENGINE_DIRS: &[&str] = &["crates/red_core/src/sim/", "crates/red_core/src/net/", "src/app/", "src/net/", "src/sim/"];
+
+/// See [`WORKSHOP_ENGINE_DIRS`].
+const WORKSHOP_ENGINE_FILES: &[&str] = &[
+    "src/server_app.rs",
+    "src/scene_blocks.rs",
+    "src/tools/simrun.rs",
+    "src/settings.rs",
+    "src/ui/game.rs",
+    "src/tools/envelope.rs",
+    "Cargo.toml",
+    "Cargo.lock",
 ];
 
 impl GameCrate {
     fn own(&self, path: &str) -> bool {
-        path.strip_prefix("games/").and_then(|r| r.strip_prefix(self.name)).is_some_and(|r| r.starts_with('/'))
+        path.strip_prefix("games/").and_then(|r| r.strip_prefix(self.dir)).is_some_and(|r| r.starts_with('/'))
     }
 
     /// Whether a change reaches the game: a file in it, or engine code it is built on.

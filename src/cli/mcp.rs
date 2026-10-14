@@ -201,6 +201,8 @@ pub struct ProveArgs {
     pub only: Option<String>,
     /// verify: skip golden views (default true).
     pub no_views: Option<bool>,
+    /// sim: game ids (or `systems`) to explain at the end.
+    pub inspect: Option<Vec<String>>,
 }
 
 /// Arguments of `view`.
@@ -343,6 +345,10 @@ impl RedMcp {
         if let Some(o) = a.only {
             push(&mut v, &["--only"]);
             v.push(o);
+        }
+        for target in a.inspect.unwrap_or_default() {
+            push(&mut v, &["--inspect"]);
+            v.push(target);
         }
         run_blocking(v).await
     }

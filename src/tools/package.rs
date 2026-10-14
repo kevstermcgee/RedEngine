@@ -445,11 +445,14 @@ pub fn game_binaries(root: &Path) -> Vec<String> {
         if !workspace.lines().any(|l| l.trim_start().starts_with("members") && l.contains(&member)) {
             continue;
         }
-        // `name = "..."` under [package] and under each [[bin]].
-        let (mut section, mut package, mut bins) = (String::new(), None, Vec::new());
+        // `name = "..."` under [package] and under each [[bin]]; `release = false` under [package.metadata.red] keeps a game out of the
+        // release (Workshop: a reference game for the engine's tests and agents, not a download).
+        let (mut section, mut package, mut bins, mut release) = (String::new(), None, Vec::new(), true);
         for line in text.lines().map(str::trim) {
             if line.starts_with('[') {
                 section = line.to_string();
+            } else if section == "[package.metadata.red]" && line.replace(' ', "") == "release=false" {
+                release = false;
             } else if let Some(v) =
                 line.strip_prefix("name").map(str::trim_start).and_then(|r| r.strip_prefix('=')).map(|v| v.trim().trim_matches('"').to_string())
             {
@@ -460,7 +463,7 @@ pub fn game_binaries(root: &Path) -> Vec<String> {
                 }
             }
         }
-        if let Some(p) = package.filter(|p| bins.contains(p)) {
+        if let Some(p) = package.filter(|p| release && bins.contains(p)) {
             out.push(p);
         }
     }
@@ -545,16 +548,21 @@ mod tests {
     #[test]
     fn a_game_crate_of_the_workspace_with_its_own_binary_is_packaged() {
         let d = tmp("games");
-        std::fs::write(d.join("Cargo.toml"), "[workspace]\nmembers = [\"crates/core\", \"games/kc\", \"games/lib-only\"]\n").unwrap();
+        std::fs::write(d.join("Cargo.toml"), "[workspace]\nmembers = [\"crates/core\", \"games/kc\", \"games/lib-only\", \"games/reference\"]\n").unwrap();
         for (dir, toml) in [
             ("kc", "[package]\nname = \"kc\"\n\n[[bin]]\nname = \"kc\"\npath = \"src/main.rs\"\n"),
             ("lib-only", "[package]\nname = \"lib-only\"\n"),
             ("stray", "[package]\nname = \"stray\"\n\n[[bin]]\nname = \"stray\"\n"),
+            ("reference", "[package]\nname = \"reference\"\n\n[package.metadata.red]\nrelease = false\n\n[[bin]]\nname = \"reference\"\n"),
         ] {
             std::fs::create_dir_all(d.join("games").join(dir)).unwrap();
             std::fs::write(d.join("games").join(dir).join("Cargo.toml"), toml).unwrap();
         }
-        assert_eq!(game_binaries(&d), vec!["kc".to_string()], "a member with a binary of its own name; not a library, not a non-member");
+        assert_eq!(
+            game_binaries(&d),
+            vec!["kc".to_string()],
+            "a member with a binary of its own name; not a library, not a non-member, not one kept out of the release"
+        );
         assert_eq!(game_binaries(Path::new(env!("CARGO_MANIFEST_DIR"))), vec!["frameless".to_string(), "killchain".to_string()]);
     }
 

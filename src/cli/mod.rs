@@ -195,8 +195,8 @@ fn run(command: Command) -> Result<(), String> {
         Command::Recipe { name, new, print } => run_recipe(name.as_deref(), new.as_deref(), print),
         Command::Verify { scene, bless, no_views, only, out_dir } => run_verify(&scene, bless, no_views, only, out_dir, envelope::capturing()),
         Command::Diff { a, b, git } => run_diff(&a, b.as_deref(), git),
-        Command::Sim { scene, scenario, only, trace, checkpoint_every, dump_every, .. } => {
-            run_sim(&scene, scenario.as_deref(), only.as_deref(), trace.as_deref(), checkpoint_every, dump_every)
+        Command::Sim { scene, scenario, only, trace, checkpoint_every, dump_every, inspect, .. } => {
+            run_sim(&scene, scenario.as_deref(), only.as_deref(), trace.as_deref(), checkpoint_every, dump_every, &inspect)
         }
         Command::Replay { trace, scene, against } => run_replay(&trace, scene.as_deref(), against.as_deref()),
         Command::NetIdentity { out, names } => run_net_identity(&out, &names),

@@ -29,12 +29,17 @@ pub struct Loaded {
 /// Loads and validates `path`; the error is the usual `path: message` list.
 pub fn load(path: &Path) -> Result<Loaded, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    load_text(&text, &path.display().to_string())
+    load_text_in(&text, &path.display().to_string(), path.parent())
 }
 
 /// [`load`] from the scene's text (`label` names it in errors).
 pub fn load_text(text: &str, label: &str) -> Result<Loaded, String> {
-    let scene = crate::scene_blocks::parse_scene(text).map_err(|errs| format!("{label}: scene is invalid:\n  error: {}", errs.join("\n  error: ")))?;
+    load_text_in(text, label, None)
+}
+
+/// [`load_text`], with the directory files a block names (a game's definition files) are relative to.
+pub fn load_text_in(text: &str, label: &str, base: Option<&Path>) -> Result<Loaded, String> {
+    let scene = crate::scene_blocks::parse_scene_in(text, base).map_err(|errs| format!("{label}: scene is invalid:\n  error: {}", errs.join("\n  error: ")))?;
     let spawns = parse_spawns(text).map_err(|e| format!("{label}: spawns: {e}"))?;
     let raw = serde_json::from_str(text).map_err(|e| format!("{label}: json: {e}"))?;
     Ok(Loaded { scene, spawns, raw, hash: map_hash(text) })
@@ -134,6 +139,17 @@ impl SimReport {
 /// Runs scenarios: those in `scenario_file` if given, else the scene's `checks.sim`; `only` filters by name substring.
 /// When `record` is given, the first scenario's trace is returned alongside the report.
 pub fn run(path: &Path, scenario_file: Option<&Path>, only: Option<&str>, record: Option<RecordOptions>) -> Result<(SimReport, Option<Trace>), String> {
+    run_inspecting(path, scenario_file, only, record, &[])
+}
+
+/// [`run`], asking the match game about `inspect` at the end of every scenario as well (`sim --inspect ID`): its answers are in each result.
+pub fn run_inspecting(
+    path: &Path,
+    scenario_file: Option<&Path>,
+    only: Option<&str>,
+    record: Option<RecordOptions>,
+    inspect: &[String],
+) -> Result<(SimReport, Option<Trace>), String> {
     let loaded = load(path)?;
     let scenarios = match scenario_file {
         Some(f) => {
@@ -148,7 +164,18 @@ pub fn run(path: &Path, scenario_file: Option<&Path>, only: Option<&str>, record
         None => scene_scenarios(&loaded),
     }
     .map_err(|errs| errs.join("\n"))?;
-    let scenarios: Vec<Scenario> = scenarios.into_iter().filter(|s| only.is_none_or(|o| s.name.contains(o))).collect();
+    let scenarios: Vec<Scenario> = scenarios
+        .into_iter()
+        .filter(|s| only.is_none_or(|o| s.name.contains(o)))
+        .map(|mut s| {
+            for t in inspect {
+                if !s.inspect.contains(t) {
+                    s.inspect.push(t.clone());
+                }
+            }
+            s
+        })
+        .collect();
     if scenarios.is_empty() {
         return Err(match scenario_file {
             Some(_) => "no scenario to run (empty file, or `--only` matched nothing)".to_string(),

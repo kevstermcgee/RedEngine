@@ -73,6 +73,10 @@ impl MatchSim {
             karts.mix(self.item_boxes.checksum());
             rules ^= karts.0.rotate_left(17);
         }
+        // A match game with world state of its own (game systems: `MatchGame::state_hash`) adds it the same way; a game without one hashes as before.
+        if let Some(h) = self.game.as_ref().and_then(|g| g.state_hash()) {
+            rules ^= h.rotate_left(29);
+        }
         (players.0, props.0, rules)
     }
 

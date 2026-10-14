@@ -29,7 +29,7 @@ use crate::strict::check_keys;
 use glam::{Vec2, Vec3};
 use serde_json::{json, Map, Value};
 
-const SCENARIO_KEYS: &[&str] = &["name", "spawn_group", "players", "script", "max_seconds", "settle_seconds", "expect"];
+const SCENARIO_KEYS: &[&str] = &["name", "spawn_group", "players", "script", "max_seconds", "settle_seconds", "expect", "inspect"];
 const PLAYER_KEYS: &[&str] = &["id", "character", "spawn"];
 const STEP_KEYS: &[&str] = &["player", "walk", "wait", "hold", "approach", "look_at", "interact", "within", "timeout", "until_event"];
 const HOLD_KEYS: &[&str] =
@@ -71,6 +71,8 @@ const EXPECT_KEYS: &[&str] = &[
     "held_by",
     "field",
     "aimed_at",
+    "game",
+    "path",
 ];
 /// The checks a `{prop: id, ...}` expectation may make (exactly one).
 const PROP_CHECK_KEYS: &[&str] = &["in_zone", "not_in_zone", "below_y", "y_lt", "y_gt", "tilt_gt", "tilt_lt", "moved", "near", "held_by"];
@@ -234,6 +236,29 @@ pub enum Expect {
         /// What about it.
         check: PropCheck,
     },
+    /// The match game's own state (`MatchGame::inspect`, ADR 2026-10-14-game-systems-compose-under-one-match-authority): the number at a
+    /// dotted path of what it says about an instance compares as given: `{"game": "ws:storage", "path": "state.items.ws:gear", "gte": 3}`.
+    Game {
+        /// What to inspect.
+        target: String,
+        /// The path inside the answer (`.`-separated keys or indices).
+        path: String,
+        /// Comparison.
+        cmp: Cmp,
+        /// Value.
+        value: f64,
+    },
+    /// The same, for a text: `{"game": "ws:furnace_a", "path": "status", "eq": "blocked"}` (`ne` for "anything but").
+    GameText {
+        /// What to inspect.
+        target: String,
+        /// The path inside the answer.
+        path: String,
+        /// The text.
+        text: String,
+        /// `true` for `eq`, `false` for `ne`.
+        equal: bool,
+    },
     /// An aimed field ends pointing at this loose prop (`None`: at nothing): `{"field": "gravity", "aimed_at": "stone" | null}`.
     FieldAim {
         /// The field's id.
@@ -301,6 +326,8 @@ pub struct Scenario {
     pub settle_ticks: u64,
     /// What must be true afterwards.
     pub expect: Vec<Expect>,
+    /// What to ask the match game about at the end (`"inspect": ["ws:furnace_a"]`, or `sim --inspect`): its answers are in the result.
+    pub inspect: Vec<String>,
 }
 
 /// One checked expectation.
@@ -339,6 +366,8 @@ pub struct ScenarioResult {
     pub pickup_misses: Vec<String>,
     /// The exact checksum at the end (compare two runs).
     pub checksum: u64,
+    /// What the match game said about each `inspect` target at the end (`None`: it knows nothing by that name).
+    pub inspected: Vec<(String, Option<Value>)>,
     /// The recording, when one was requested.
     pub trace: Option<Trace>,
 }
@@ -359,6 +388,7 @@ impl ScenarioResult {
             "pickup_misses": self.pickup_misses,
             "events": self.events.iter().map(|e| json!({"tick": e.tick, "rule": e.rule, "name": e.name, "player": e.slot})).collect::<Vec<_>>(),
             "checks": self.outcomes.iter().map(|o| json!({"label": o.label, "ok": o.ok, "detail": o.detail})).collect::<Vec<_>>(),
+            "inspected": self.inspected.iter().map(|(t, v)| json!({"target": t, "answer": v})).collect::<Vec<_>>(),
         })
     }
 
@@ -381,6 +411,12 @@ impl ScenarioResult {
         }
         for m in &self.pickup_misses {
             out.push_str(&format!("  note: {m}\n"));
+        }
+        for (target, answer) in &self.inspected {
+            match answer {
+                Some(a) => out.push_str(&format!("  inspect {target}: {}\n", inspection_line(a))),
+                None => out.push_str(&format!("  inspect {target}: the game knows nothing by that name\n")),
+            }
         }
         if !self.vars.is_empty() {
             out.push_str(&format!("  vars: {}\n", self.vars.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>().join(", ")));
@@ -744,6 +780,7 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
             max_ticks: (max_secs * super::clock::TICK_RATE_HZ as f64).round() as u64,
             settle_ticks: (settle * super::clock::TICK_RATE_HZ as f64).round() as u64,
             expect,
+            inspect: o.get("inspect").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect(),
         })
     } else {
         Err(errs)
@@ -793,13 +830,14 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
         "player",
         "prop",
         "field",
+        "game",
     ]
     .into_iter()
     .filter(|k| eo.contains_key(*k))
     .collect();
     if main.len() != 1 {
         errs.push(format!(
-            "{ep}: give exactly one of event, no_event, var, player_var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop, field (got {})",
+            "{ep}: give exactly one of event, no_event, var, player_var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop, field, game (got {})",
             if main.is_empty() { "none".to_string() } else { main.join(" + ") }
         ));
         return None;
@@ -866,6 +904,18 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
             }
             let (cmp, value) = parse_cmp(eo, ep, "player_var", errs)?;
             Some(Expect::PlayerVar { player: who.to_string(), name: text, cmp, value })
+        }
+        "game" => {
+            let Some(path) = eo.get("path").and_then(Value::as_str).filter(|p| !p.is_empty()) else {
+                errs.push(format!("{ep}.path: a `game` check names the value it reads, like \"status\" or \"state.items.ws:gear\""));
+                return None;
+            };
+            let text_cmp = ["eq", "ne"].into_iter().find_map(|k| eo.get(k).and_then(Value::as_str).map(|t| (k, t.to_string())));
+            if let Some((k, t)) = text_cmp {
+                return Some(Expect::GameText { target: text, path: path.to_string(), text: t, equal: k == "eq" });
+            }
+            let (cmp, value) = parse_cmp(eo, ep, "game", errs)?;
+            Some(Expect::Game { target: text, path: path.to_string(), cmp, value })
         }
         "ended" => Some(Expect::Ended(Some(text))),
         "not_ended" => Some(Expect::Ended(None)),
@@ -1314,8 +1364,51 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
         .map(|(tick, slot, why)| format!("tick {tick}: {} could not pick anything up: {why}", player_id(*slot).unwrap_or_else(|| format!("slot {slot}"))))
         .collect();
     let ticks = sim.tick();
+    let inspected = scenario.inspect.iter().map(|t| (t.clone(), sim.game_inspect(t))).collect();
     let trace = sim.take_trace();
-    Ok(ScenarioResult { name: scenario.name.clone(), passed, ticks, outcomes, events: history, vars, ended, finals, props, pickup_misses, checksum, trace })
+    Ok(ScenarioResult {
+        name: scenario.name.clone(),
+        passed,
+        ticks,
+        outcomes,
+        events: history,
+        vars,
+        ended,
+        finals,
+        props,
+        pickup_misses,
+        checksum,
+        inspected,
+        trace,
+    })
+}
+
+/// The value at `path` (`.`-separated keys, or indices into arrays) of what the match game says about `target`.
+fn game_value(sim: &MatchSim, target: &str, path: &str) -> Result<Value, String> {
+    let answer = sim.game_inspect(target).ok_or_else(|| {
+        let known = sim.game_inspect("systems").map(|c| format!(" (it knows: {})", inspection_line(&c))).unwrap_or_default();
+        format!("the match game knows nothing called `{target}`{known}")
+    })?;
+    let mut at = &answer;
+    for key in path.split('.') {
+        let next = match at {
+            Value::Array(a) => key.parse::<usize>().ok().and_then(|i| a.get(i)),
+            Value::Object(o) => o.get(key),
+            _ => None,
+        };
+        at = next.ok_or_else(|| format!("{target} has no `{path}` (at `{key}`; it says {})", inspection_line(&answer)))?;
+    }
+    Ok(at.clone())
+}
+
+/// A game's answer on one line, cut to a readable length.
+fn inspection_line(v: &Value) -> String {
+    let s = v.to_string();
+    if s.len() > 400 {
+        format!("{}... ({} bytes; `--json` has all of it)", &s[..s.floor_char_boundary(400)], s.len())
+    } else {
+        s
+    }
 }
 
 fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], history: &[GameEvent]) -> Outcome {
@@ -1338,6 +1431,29 @@ fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], histo
         Expect::NoEvent(name) => {
             let n = history.iter().filter(|h| &h.name == name).count();
             done(format!("no event `{name}`"), n == 0, format!("happened {n} time(s)"))
+        }
+        Expect::Game { target, path, cmp, value } => {
+            let label = format!("game {target} {path} {} {value}", cmp.word());
+            match game_value(sim, target, path) {
+                Ok(v) => {
+                    let got = v.as_f64().or_else(|| v.as_bool().map(|b| if b { 1.0 } else { 0.0 }));
+                    match got {
+                        Some(got) => done(label, cmp.holds(got, *value), format!("{target} {path} = {got}")),
+                        None => done(label, false, format!("{target} {path} is {v}, not a number")),
+                    }
+                }
+                Err(why) => done(label, false, why),
+            }
+        }
+        Expect::GameText { target, path, text, equal } => {
+            let label = format!("game {target} {path} {} {text:?}", if *equal { "is" } else { "is not" });
+            match game_value(sim, target, path) {
+                Ok(v) => {
+                    let got = v.as_str().map(str::to_string).unwrap_or_else(|| v.to_string());
+                    done(label, (got == *text) == *equal, format!("{target} {path} = {got:?}"))
+                }
+                Err(why) => done(label, false, why),
+            }
         }
         Expect::Var { name, cmp, value } => {
             let got = sim.rules().var(name).unwrap_or(f64::NAN);

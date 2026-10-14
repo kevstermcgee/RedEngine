@@ -69,6 +69,13 @@ impl HudState {
         crate::ui::rules::hud_layout_for(w, h, &vars, self.event.as_deref(), self.outcome.as_deref(), cfg)
     }
 
+    /// The HUD `re2` paints for `scene`: its `ui` block's objective, counters and labels when it has one, else the standard rules HUD
+    /// ([`crate::ui::game::rules_overlay`], offline: an outcome with an end card gets no banner).
+    pub fn layout_scene(&self, scene: &crate::schema::Scene, w: u32, h: u32) -> Layout {
+        let vars: Vec<(&str, f64)> = self.vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();
+        crate::ui::game::rules_overlay(scene, w, h, &vars, self.event.as_deref(), self.outcome.as_deref(), false)
+    }
+
     /// The standard rules HUD for a `w` x `h` window ([`crate::ui::rules::hud_layout`]); audit it with `Layout::check`.
     pub fn layout(&self, w: u32, h: u32) -> Layout {
         let vars: Vec<(&str, f64)> = self.vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();
