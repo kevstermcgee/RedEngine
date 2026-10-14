@@ -21,7 +21,7 @@
 
 pub use red_core::net::auth;
 pub mod bot;
-pub mod client;
+pub use red_core::net::client;
 pub mod fleet;
 pub use red_core::net::happenings;
 pub mod host;
@@ -33,43 +33,21 @@ pub use red_core::net::limits;
 pub mod memnet;
 pub use red_core::net::netsim;
 pub mod predict;
-pub use red_core::net::protocol;
-pub mod quic;
 pub use red_core::net::portmap;
+pub use red_core::net::protocol;
+pub use red_core::net::quic;
 pub use red_core::net::relay;
-pub mod relay_server;
-pub mod server;
+pub use red_core::net::relay_server;
+pub use red_core::net::server;
 pub mod session;
-mod sessions;
-mod snapshots;
 /// The per-client prop selection, exposed only so `benches/settled_world.rs` can time it without a socket.
 #[doc(hidden)]
-pub use snapshots::props_to_send;
+pub use red_core::net::props_to_send;
 pub mod testkit;
-pub mod transport;
+pub use red_core::net::transport;
 pub use red_core::net::upnp;
 
 /// The default UDP port of a Red server (defined in the core, which [`join_code`] needs it in).
 pub use red_core::net::DEFAULT_PORT;
 
-/// A 32-bit hash of a map file's text (line endings ignored), sent in the join request so a client
-/// with a different copy of the map is refused instead of desyncing silently.
-pub fn map_hash(text: &str) -> u32 {
-    let mut h = 0x811c_9dc5u32;
-    for b in text.bytes().filter(|b| *b != b'\r') {
-        h ^= b as u32;
-        h = h.wrapping_mul(0x0100_0193);
-    }
-    h
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn map_hash_ignores_line_endings_but_not_content() {
-        assert_eq!(map_hash("a\nb\n"), map_hash("a\r\nb\r\n"));
-        assert_ne!(map_hash("a\nb\n"), map_hash("a\nc\n"));
-    }
-}
+pub use red_core::net::map_hash;

@@ -3089,18 +3089,23 @@ dependencies = [
 name = "red_core"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "getrandom 0.3.4",
  "glam 0.33.8",
  "hmac",
  "image",
  "libm",
  "naga",
+ "quinn",
  "rapier3d",
+ "rcgen",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",
  "subtle",
  "symphonia",
+ "tokio",
 ]
 
 [[package]]
@@ -3111,7 +3116,6 @@ dependencies = [
  "anyhow",
  "base64",
  "bytemuck",
- "bytes",
  "clap",
  "crc32fast",
  "criterion",
@@ -3126,15 +3130,12 @@ dependencies = [
  "image",
  "libm",
  "pollster 1.0.1",
- "quinn",
  "rapier3d",
- "rcgen",
  "red2d",
  "red_core",
  "rfd",
  "rmcp",
  "rodio",
- "rustls",
  "schemars",
  "serde",
  "serde_json",

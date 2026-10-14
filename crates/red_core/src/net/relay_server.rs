@@ -1280,6 +1280,8 @@ mod tests {
         SocketAddr::from(([127, 0, 0, 1], 9))
     }
 
+    // Needs the QUIC transport (red_core's `quic`; the engine always has it).
+    #[cfg(feature = "quic")]
     #[test]
     fn a_real_quic_handshake_and_bidirectional_traffic_pass_through_the_relay() {
         // B5 #4: a genuine QUIC handshake and application data, not a plain UDP payload standing in for one.
@@ -1316,6 +1318,8 @@ mod tests {
         });
     }
 
+    // Needs the QUIC transport (red_core's `quic`; the engine always has it).
+    #[cfg(feature = "quic")]
     #[test]
     fn a_relay_mediated_connection_still_fails_closed_on_the_wrong_host_identity() {
         // B5 #5 / B3: the relay only ever forwards opaque bytes — it cannot weaken the end-to-end identity check

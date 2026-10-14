@@ -79,7 +79,7 @@ A click is a button on an input, never a position or a result. `fixed_step_physi
 (the pulse is armed after that tick's input was built); an automatic gun reads `attack_held` at once. The pulse keeps the bit up for 3 inputs and every `InputPacket` carries the newest 4
 (seq, flags, forward, strafe, yaw, pitch) and is signed with the session HMAC. That redundancy means a lost datagram loses nothing; the server acts on the rising edge, so 3 ticks up is one shot.
 
-- **Open**: `src/bin/re2/frame.rs::build_input`, `src/bin/re2/weapons.rs::take_pulse`, `src/net/session.rs::step_local`, `src/net/client.rs::send_input`, `crates/red_core/src/sim/player.rs::flags` (bit layout).
+- **Open**: `src/bin/re2/frame.rs::build_input`, `src/bin/re2/weapons.rs::take_pulse`, `src/net/session.rs::step_local`, `crates/red_core/src/net/client.rs::send_input`, `crates/red_core/src/sim/player.rs::flags` (bit layout).
 - **Tuned by**: `NET_PULSE_TICKS` (3, `src/bin/re2/main.rs`); `MAX_INPUTS_PER_PACKET` (4) in `crates/red_core/src/net/protocol.rs`; `TICK_RATE_HZ` (60) in `crates/red_core/src/sim/clock.rs`.
 - **How to see it**: `tests/net_interactions.rs::a_shot_fired_by_one_client_hurts_another_and_four_kill_them` drives a headless `Bot` with `buttons = 16` (attack) over real UDP and counts the
   server's `shot` events; `red_server --record out/m.json` writes every input with its tick (`["i", tick, slot, seq, ..., flags, ...]`), `red_engine2 replay out/m.json` re-runs them.
@@ -96,7 +96,7 @@ input's: a press, or `attack` held on an automatic weapon, calls `attack`. The s
 magazine is empty (a dry click starts `DRY_FIRE_COOLDOWN_TICKS`). Past the first three guards an attack ends spawn protection; a real shot starts `cooldown_ticks`, adds to `Combat::shots`
 and injects the `shot` rule event.
 
-- **Open**: `src/net/server.rs::on_input`, `crates/red_core/src/sim/match_sim.rs::push_input` and `::tick_once`, `crates/red_core/src/sim/interact.rs::handle_actions` and `::attack`.
+- **Open**: `crates/red_core/src/net/server.rs::on_input`, `crates/red_core/src/sim/match_sim.rs::push_input` and `::tick_once`, `crates/red_core/src/sim/interact.rs::handle_actions` and `::attack`.
 - **Tuned by**: the `FirearmSpec` row in `crates/red_core/src/weapons.rs::firearm`; scene `weapons.starting`, `weapons.ladder`, `weapons.ammo`; `INPUT_QUEUE_CAP` (8), `INPUT_QUEUE_TARGET` (3); `SWITCH_TICKS`.
 - **How to see it**: the duel scenario above; `tests/interactions.rs::held_automatic_trigger_repeats_but_a_pistol_requires_a_new_press` and
   `::the_pistol_has_a_cooldown_damages_kills_and_the_victim_respawns`; a server whose scene has `rules` logs `event shot by rule engine (player N) at tick T`.
@@ -141,7 +141,7 @@ the killer's `kills` rises and the `kill` event fires; on a ladder the killer is
 `weapons.ammo`). `combat_tick` respawns the dead at `pick_spawn` with the rung restored, protection, and a `respawn` event. Score has three layers: `Combat::kills` (the roster's `score`, and
 `match.score_to_win` through `Server::step_flow`), scene `rules` reacting to `shot`, `hit`, `kill`, `respawn` (vars, `end`), and the ladder.
 
-- **Open**: `crates/red_core/src/sim/interact.rs::damage`, `::combat_tick`, `::respawn`, `crates/red_core/src/weapons.rs::weapon_for_kills`, `crates/red_core/src/sim/rules_run.rs::inject`, `src/net/server.rs::step_flow` and `::roster`.
+- **Open**: `crates/red_core/src/sim/interact.rs::damage`, `::combat_tick`, `::respawn`, `crates/red_core/src/weapons.rs::weapon_for_kills`, `crates/red_core/src/sim/rules_run.rs::inject`, `crates/red_core/src/net/server.rs::step_flow` and `::roster`.
 - **Tuned by**: scene `combat` (`respawn_secs`, `spawn`, `spawn_protect_secs`, `regen_delay_secs`, `regen_per_sec`; `crates/red_core/src/sim/combat_cfg.rs`), `weapons.ladder` (at most `MAX_LADDER`),
   `weapons.bat.damage`, `match.score_to_win`, `PLAYER_MAX_HP` (100).
 - **How to see it**: `tests/combat_rules.rs::a_kill_climbs_the_ladder_and_a_respawn_keeps_your_rung`, `::feedback_counters_count_shots_landed_hits_and_times_hurt`,
@@ -156,7 +156,7 @@ the killer's `kills` rises and the `kill` event fires; on a ladder the killer is
 damaged, `hurt`, `kills`, `bearing` of the last attacker in 1/256 turns, `respawn` in tenths of a second). Everything about a shot is a wrapping counter, not an event: a lost snapshot
 delays the news by one and nothing is resent. Player records are full each time; only props are deltas (per-prop acks). Roster scores travel in `Status` (5 Hz).
 
-- **Open**: `src/net/server.rs::send_snapshots`, `src/net/snapshots.rs::player_snaps`, `::feedback_of`, `::visible_players`, `::props_to_send`. (`src/sim/snapshot.rs` is a benchmark
+- **Open**: `crates/red_core/src/net/server.rs::send_snapshots`, `crates/red_core/src/net/snapshots.rs::player_snaps`, `::feedback_of`, `::visible_players`, `::props_to_send`. (`src/sim/snapshot.rs` is a benchmark
   placeholder, not the wire snapshot.)
 - **Tuned by**: `ServerConfig::snapshot_every` (`red_server --snapshot-every`), `MAX_PLAYERS_PER_SNAPSHOT` (8), `MAX_PROPS_PER_SNAPSHOT` (29), scene `zones`, `portals`, `interest.hops`.
 - **How to see it**: `Bot::heard_shots`, `landed_hits`, `times_hurt`, `kills_scored` in `tests/net_bots.rs::shots_and_damage_reach_a_client_as_events` and
@@ -174,7 +174,7 @@ marker (0.28 s); a kill is `Cue::Kill`, a kill marker (0.6 s) and, on a ladder, 
 and raised when `own.weapon` changes. **Victim**: `Cue::Hurt`, a red vignette, a damage arc pointing at the attacker relative to the view, a heartbeat at 35 hp or less; death is
 `Cue::Death`, the camera dropped to `DEAD_EYE_HEIGHT`, ELIMINATED and RESPAWNING IN n; on respawn the camera faces the server's yaw.
 
-- **Open**: `src/net/client.rs::on_message`, `crates/red_core/src/net/happenings.rs::observe`, `src/bin/re2/feedback.rs::feedback_frame`, `crates/red_core/src/feel.rs::on_happened` and `::fx`, `src/ui/online.rs::hud_layout`.
+- **Open**: `crates/red_core/src/net/client.rs::on_message`, `crates/red_core/src/net/happenings.rs::observe`, `src/bin/re2/feedback.rs::feedback_frame`, `crates/red_core/src/feel.rs::on_happened` and `::fx`, `src/ui/online.rs::hud_layout`.
 - **Tuned by**: `HIT_MARKER_SECS`, `KILL_MARKER_SECS`, `HURT_SECS`, `LEVEL_UP_DELAY_SECS`, `LOW_HEALTH` in `crates/red_core/src/feel.rs`; the gains in `crates/red_core/src/sfx.rs::play`; `NOTICE_SECS` in `feedback.rs`.
 - **How to see it**: `/cues/counts/Hit`, `Kill`, `Hurt`, `Death`, `Respawn`, `LevelUp`; `/hud/lines` (ids `notice`, `leader`, `final`, `dead_title`, `sb0_score`); `/online/roster`; `/player/hp`;
   `/crosshair/state` (`enemy` over a drawn enemy); `RE2_FEEL=hit|kill|hurt|dead|low|protected|flash` holds one effect for a picture; `crates/red_core/src/feel.rs`'s
@@ -207,7 +207,7 @@ swing and wobble, `fire` sets `attack` once it has reacted and is aligned) and q
 ladder. The one difference is lag 0: bots shoot the present. Clients see them as any player (`PlayerSnap`, `ROSTER_BOT` in the roster), so steps 8 to 10 are identical, and a recorded match
 holds their inputs, so a replay needs no brain. `Server::sync_bots` fills empty slots from the top; a joining human replaces the weakest bot. No window, no wire, no client is involved.
 
-- **Open**: `crates/red_core/src/sim/ai/mod.rs::run_bots`, `::think`, `::fire`, `src/net/server.rs::sync_bots`, `crates/red_core/src/sim/ai/skill.rs::level_from_name`.
+- **Open**: `crates/red_core/src/sim/ai/mod.rs::run_bots`, `::think`, `::fire`, `crates/red_core/src/net/server.rs::sync_bots`, `crates/red_core/src/sim/ai/skill.rs::level_from_name`.
 - **Tuned by**: scene `bots` (`fill` 0 to 8, `skill`, `roster[].name`, `character`, `skill`, `style`); `red_server --fill N --bot-skill LEVEL`; `re2 --host --fill --bot-skill`; steps 4 to 7.
 - **How to see it**: `cargo run --release --example bot_match -- MAP --bots 6 --secs 60 --weapon smg` (no window, no socket, faster than real time: kills, accuracy, distance, time standing
   still); `tests/net_bots.rs::shots_and_damage_reach_a_client_as_events`; `red_engine2 playtest MAP --fill 4`.

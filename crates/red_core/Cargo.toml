@@ -24,10 +24,18 @@ image = { workspace = true }
 # Decodes the player's own music (`audio.playlist`, `listen::decode`): mp3, flac, ogg vorbis, wav, m4a/aac. Pure Rust; behind `decode`, which the
 # engine's `gfx` turns on (a game that plays music has a window).
 symphonia = { workspace = true, optional = true }
+# The network stack (`net::{quic, transport, client, server}`): QUIC over UDP with TLS 1.3, behind `quic`, which the engine turns on; the 2D crate
+# has no network and builds none of it.
+quinn = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+rcgen = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
 
 [features]
 shader-check = ["dep:naga"]
 decode = ["dep:symphonia"]
+quic = ["dep:quinn", "dep:rustls", "dep:tokio", "dep:rcgen", "dep:bytes"]
 
 # The same style policy as the engine crate.
 [lints.clippy]

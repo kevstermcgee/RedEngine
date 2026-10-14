@@ -38,7 +38,7 @@ pub use red_core::hud_config;
 pub mod kart_camera;
 #[cfg(feature = "render")]
 pub mod kart_sound;
-pub mod killcam;
+pub use red_core::killcam;
 pub use red_core::listen;
 pub use red_core::macros;
 #[cfg(feature = "render")]
