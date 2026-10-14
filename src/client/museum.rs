@@ -1,7 +1,9 @@
-//! A museum scene (`museum` block) in the live client: the visit ([`crate::museum::Museum`]) fed with the player every frame, its flights into and out
-//! of paintings driving the camera, its rooms' lamps lighting the scene, its sounds, its music steered to the wing, its labels, its pause menu and its map.
-//! Words are set in the player's own serif ([`crate::ui::serif`]).
+//! A museum scene (`museum` block) in the live client, as the client's first game mode ([`MuseumMode`], a [`GameMode`]): the visit
+//! ([`crate::museum::Museum`]) fed with the player every frame, its flights into and out of paintings driving the camera, its rooms' lamps lighting the
+//! scene, its sounds, its music steered to the wing, its labels, its pause menu and its map. Words are set in the player's own serif
+//! ([`crate::ui::serif`]). It reaches the rest of the client only through its [`ModeContext`].
 
+use super::mode::{Answer, GameMode, ModeContext};
 use super::*;
 use crate::museum::exhibit::Kind;
 use crate::museum::map::{key_glyph, MapView};
@@ -12,7 +14,7 @@ use crate::ui::serif::{Face, Image, Serif};
 
 /// A button of the museum's pause menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Button {
+enum Button {
     Resume,
     Map,
     Music,
@@ -24,12 +26,12 @@ pub(crate) enum Button {
 }
 
 /// The museum's part of the client.
-pub(crate) struct MuseumClient {
-    pub(crate) visit: Museum,
+struct MuseumClient {
+    visit: Museum,
     serif: Serif,
     sounds: Option<Sounds>,
     /// The player pressed interact since the last frame.
-    pub(crate) interact: bool,
+    interact: bool,
     /// The big words in the middle of the screen (a room's name, a painting's title) and how long they have shown.
     title: Option<(String, String, f32)>,
     /// A line of news at the bottom (a key found, a locked door).
@@ -37,7 +39,7 @@ pub(crate) struct MuseumClient {
     target: Option<Target>,
     /// How far the label has faded in (0..1).
     label: f32,
-    pub(crate) map_open: bool,
+    map_open: bool,
     map_view: MapView,
     drag: Option<(f32, f32)>,
     hover: Option<Button>,
@@ -54,11 +56,194 @@ fn progress_path(key: &str) -> Option<std::path::PathBuf> {
     crate::settings::game_state_path(key, "museum.json")
 }
 
-impl App {
-    /// Starts the visit when the scene is a museum: the saved one, or a new museum from this launch's seed.
-    pub(crate) fn start_museum(&mut self) {
-        let Some(spec) = crate::museum::spec_of(&self.scene) else { return };
-        let saved = progress_path(&self.settings_key)
+/// The museum as a game mode of the client: the visit starts with the scene ([`GameMode::start`]).
+pub(crate) struct MuseumMode(Option<MuseumClient>);
+
+impl MuseumMode {
+    /// A museum scene's mode, before its visit starts.
+    pub(crate) fn new() -> MuseumMode {
+        MuseumMode(None)
+    }
+
+    /// The music follows the wing the player is in.
+    fn steer_music(&self, cx: &mut ModeContext) {
+        let Some(m) = self.0.as_ref() else { return };
+        let theme = &m.visit.spec.collection.themes[m.visit.theme_of(m.visit.room)];
+        if theme.music.is_empty() {
+            return;
+        }
+        let music = theme.music.clone();
+        cx.steer_music(&music);
+    }
+
+    fn room_title(&mut self, first: bool) {
+        let Some(m) = self.0.as_mut() else { return };
+        let room = m.visit.layout.room(m.visit.room);
+        let theme = &m.visit.spec.collection.themes[room.theme];
+        let wing = if room.theme == room.wing_theme {
+            theme.wing.clone()
+        } else {
+            format!("{}, visiting {}", theme.name, m.visit.spec.collection.themes[room.wing_theme].wing)
+        };
+        let line = if room.theme == room.wing_theme { theme.name.clone() } else { String::new() };
+        let sub = if line.is_empty() { wing } else { format!("{wing}  \u{00b7}  {line}") };
+        m.title = Some((format!("Gallery {}", m.visit.room.number()), if first { sub } else { sub.clone() }, 0.0));
+    }
+
+    fn save(&mut self, cx: &ModeContext) {
+        let Some(m) = self.0.as_mut() else { return };
+        m.save_in = 30.0;
+        if let Some(path) = progress_path(cx.settings_key()) {
+            if let Some(dir) = path.parent() {
+                let _ = std::fs::create_dir_all(dir);
+            }
+            if let Err(e) = std::fs::write(&path, m.visit.progress.to_json().to_string()) {
+                eprintln!("could not save the museum: {e}");
+            }
+        }
+    }
+
+    fn event(&mut self, cx: &mut ModeContext, e: Event) {
+        println!("museum: {e:?}");
+        cx.raise_event(format!("museum:{e:?}"));
+        let Some(m) = self.0.as_mut() else { return };
+        match e {
+            Event::EnteredRoom { first, wing_changed, .. } => {
+                if first || wing_changed {
+                    self.room_title(first);
+                }
+                if wing_changed {
+                    self.steer_music(cx);
+                }
+                if first {
+                    self.save(cx);
+                }
+            }
+            Event::SteppingIn { .. } => {
+                if let Some(clip) = m.sounds.as_ref().map(|s| s.step_in.clone()) {
+                    cx.play(&clip, 0.55, 0.0);
+                }
+                cx.duck_music(crate::mixer::Duck { depth: 0.5, attack: 0.4, release: 2.5 }, 1.2);
+            }
+            Event::Arrived { depth, title } => {
+                let deep = match depth {
+                    1 => "inside the painting".to_string(),
+                    2 => "two paintings deep".to_string(),
+                    n => format!("{n} paintings deep"),
+                };
+                m.title = Some((title, deep, 0.0));
+            }
+            Event::SteppingOut { .. } => {
+                if let Some(clip) = m.sounds.as_ref().map(|s| s.step_out.clone()) {
+                    cx.play(&clip, 0.5, 0.0);
+                }
+            }
+            Event::Returned { .. } => {
+                m.title = None;
+            }
+            Event::Touched { room, index } => {
+                let piece = m.visit.contents_if_built(room).and_then(|k| k.exhibits.get(index as usize).cloned());
+                if let Some(e) = piece {
+                    if let Some(f) = e.family {
+                        let clip = touch(f, e.art.seed);
+                        cx.play(&clip, 0.5, 0.0);
+                    }
+                }
+            }
+            Event::Revealing { room, index } => {
+                let name = m.visit.contents_if_built(room).and_then(|k| k.exhibits.get(index as usize).map(|e| e.plaque.title.clone())).unwrap_or_default();
+                m.toast = Some((format!("Something stirs inside \u{201c}{name}\u{201d}\u{2026}"), 0.0));
+            }
+            Event::KeyFound { room, keys } => {
+                let doors = if m.visit.place == Place::Halls { "Its doors are opening." } else { "Its doors will be open when you return." };
+                m.toast = Some((format!("The key of Gallery {}. {doors}  ({keys} found)", room.number()), 0.0));
+                if let Some(clip) = m.sounds.as_ref().map(|s| s.key.clone()) {
+                    cx.play(&clip, 0.6, 0.0);
+                }
+                self.save(cx);
+            }
+            Event::DoorOpening { edge } => {
+                let d = edge.centre().distance(cx.eye());
+                if let Some(clip) = m.sounds.as_ref().map(|s| s.door.clone()) {
+                    cx.play(&clip, (0.5 / (1.0 + d * 0.08)).max(0.08), 0.0);
+                }
+            }
+            Event::Locked { room } => {
+                m.toast = Some((format!("Locked. Gallery {} still keeps its key in one of its pieces.", room.number()), 0.0));
+                if let Some(clip) = m.sounds.as_ref().map(|s| s.locked.clone()) {
+                    cx.play(&clip, 0.5, 0.0);
+                }
+            }
+        }
+    }
+
+    // ---- The pause menu and the map ----------------------------------------------------------------------------------------------------
+
+    fn buttons(&self, cx: &ModeContext, w: u32, h: u32) -> Vec<(Button, String, crate::ui::Rect)> {
+        let Some(m) = self.0.as_ref() else { return Vec::new() };
+        let s = (h as f32 / 1080.0).max(0.55);
+        let mut rows: Vec<(Button, String)> = vec![(Button::Resume, "Return to the museum".into()), (Button::Map, "The plan of the museum".into())];
+        if m.visit.place != Place::Halls {
+            rows.push((Button::StepOut, "Step out of the painting".into()));
+        }
+        rows.push((Button::Music, format!("Music: {}", if cx.music_on() { "on" } else { "off" })));
+        rows.push((Button::Sound, format!("Sounds: {}", if cx.sfx_on() { "on" } else { "off" })));
+        rows.push((Button::Steps, format!("Footsteps: {}", if cx.footsteps() { "on" } else { "off" })));
+        rows.push((Button::Fullscreen, "Full screen  (F)".into()));
+        rows.push((Button::Quit, "Leave the museum".into()));
+        let bw = (420.0 * s) as i32;
+        let bh = (52.0 * s) as i32;
+        let gap = (12.0 * s) as i32;
+        let total = rows.len() as i32 * (bh + gap);
+        let x0 = w as i32 / 2 - bw / 2;
+        let y0 = (h as i32 - total) / 2 + (70.0 * s) as i32;
+        rows.into_iter().enumerate().map(|(i, (b, label))| (b, label, (x0, y0 + i as i32 * (bh + gap), x0 + bw, y0 + i as i32 * (bh + gap) + bh))).collect()
+    }
+
+    /// Closes the pause menu: the client's part and the museum's (the client cannot reach a mode while it runs one of its methods).
+    fn leave(&mut self, cx: &mut ModeContext) {
+        cx.leave_pause();
+        self.left_pause();
+    }
+
+    /// Opens the map (over the pause menu), or closes it.
+    fn toggle_map(&mut self, cx: &mut ModeContext) {
+        if self.0.as_ref().is_some_and(|m| m.map_open) {
+            if let Some(m) = self.0.as_mut() {
+                m.map_open = false;
+            }
+            self.leave(cx);
+        } else {
+            self.open_map(cx);
+        }
+    }
+
+    fn open_map(&mut self, cx: &mut ModeContext) {
+        let player = cx.foot();
+        let Some((_, h)) = cx.window_size() else { return };
+        if let Some(m) = self.0.as_mut() {
+            let at = if m.visit.place == Place::Halls { player } else { m.visit.room.centre() };
+            m.map_view = MapView::around(at, h);
+            m.map_open = true;
+        }
+        // Opening the pause paints the client's menu; the museum's own goes over it straight away (the client cannot call back into a mode while
+        // one of its methods runs).
+        if !cx.paused() {
+            cx.enter_pause();
+        }
+        self.repaint_pause(cx);
+    }
+}
+
+impl GameMode for MuseumMode {
+    fn name(&self) -> &'static str {
+        "museum"
+    }
+
+    /// Starts the visit: the saved one, or a new museum from this launch's seed.
+    fn start(&mut self, cx: &mut ModeContext) {
+        let Some(spec) = crate::museum::spec_of(cx.scene()) else { return };
+        let saved = progress_path(cx.settings_key())
             .and_then(|p| std::fs::read_to_string(p).ok())
             .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
             .and_then(|v| Progress::from_json(&v))
@@ -71,8 +256,8 @@ impl App {
             println!("museum type: {src}");
         }
         let start = visit.start();
-        let sounds = self.audio.is_some().then(Sounds::render);
-        self.museum = Some(MuseumClient {
+        let sounds = cx.has_audio().then(Sounds::render);
+        self.0 = Some(MuseumClient {
             visit,
             serif,
             sounds,
@@ -89,106 +274,38 @@ impl App {
             save_in: 30.0,
             step: 0,
         });
-        self.museum_teleport(start.at, start.yaw);
-        self.museum_room_title(true);
-        self.museum_steer_music();
-        if let Some(m) = self.museum.as_mut() {
-            self.colliders = m.visit.colliders().to_vec();
+        cx.teleport(start.at, start.yaw);
+        self.room_title(true);
+        self.steer_music(cx);
+        if let Some(m) = self.0.as_mut() {
+            cx.set_colliders(m.visit.colliders().to_vec());
             m.visit.take_colliders_changed();
         }
     }
 
-    fn museum_teleport(&mut self, at: Vec3, yaw: f32) {
-        self.physics_pos = Vec2::new(at.x, at.z);
-        self.prev_physics_pos = self.physics_pos;
-        self.foot_y = at.y;
-        self.prev_foot_y = at.y;
-        self.vertical_velocity = 0.0;
-        self.horizontal_velocity = Vec2::ZERO;
-        self.camera.yaw = yaw;
-        self.camera.pitch = 0.0;
-        self.eye = Vec3::new(at.x, at.y + self.eye_height, at.z);
-        self.camera.position = self.eye;
-    }
-
-    /// The music follows the wing the player is in.
-    fn museum_steer_music(&mut self) {
-        let Some(m) = self.museum.as_ref() else { return };
-        let theme = &m.visit.spec.collection.themes[m.visit.theme_of(m.visit.room)];
-        if theme.music.is_empty() {
-            return;
-        }
-        let music = theme.music.clone();
-        if let Some(a) = self.ambient.as_mut() {
-            a.steer_journey(&music);
-        }
-    }
-
-    fn museum_room_title(&mut self, first: bool) {
-        let Some(m) = self.museum.as_mut() else { return };
-        let room = m.visit.layout.room(m.visit.room);
-        let theme = &m.visit.spec.collection.themes[room.theme];
-        let wing = if room.theme == room.wing_theme {
-            theme.wing.clone()
-        } else {
-            format!("{}, visiting {}", theme.name, m.visit.spec.collection.themes[room.wing_theme].wing)
-        };
-        let line = if room.theme == room.wing_theme { theme.name.clone() } else { String::new() };
-        let sub = if line.is_empty() { wing } else { format!("{wing}  \u{00b7}  {line}") };
-        m.title = Some((format!("Gallery {}", m.visit.room.number()), if first { sub } else { sub.clone() }, 0.0));
-    }
-
-    fn museum_play(&self, clip: &[f32], gain: f32) {
-        if let Some(audio) = &self.audio {
-            if self.sfx_on {
-                audio.play_at(clip, gain, 0.0);
-            }
-        }
-    }
-
-    /// A soft step on the museum's floor (or nothing, when footsteps are off). Returns whether the museum handled it.
-    pub(crate) fn museum_step(&mut self) -> bool {
-        let Some(m) = self.museum.as_mut() else { return false };
-        if !self.settings.steps {
-            return true;
-        }
-        m.step = m.step.wrapping_add(1);
-        let i = (m.step % 3) as usize;
-        let gain = if m.visit.place == Place::Halls { 0.22 } else { 0.16 };
-        if let (Some(s), Some(audio)) = (&m.sounds, &self.audio) {
-            if self.sfx_on {
-                audio.play_at(&s.steps[i], gain, if m.step % 2 == 0 { -0.08 } else { 0.08 });
-            }
-        }
-        true
-    }
-
     /// One frame of the visit, after the player has moved.
-    pub(crate) fn museum_frame(&mut self, dt: f32) {
-        let Some(m) = self.museum.as_mut() else { return };
-        if self.paused || self.card.is_some() {
+    fn frame(&mut self, cx: &mut ModeContext, dt: f32) {
+        let Some(m) = self.0.as_mut() else { return };
+        if cx.paused() || cx.card_shown() {
             return;
         }
-        let eye = self.eye;
-        let look = self.camera.forward();
-        let foot = Vec3::new(self.physics_pos.x, self.foot_y, self.physics_pos.y);
+        let eye = cx.eye();
+        let look = cx.camera_forward();
+        let foot = cx.foot();
         let interact = std::mem::take(&mut m.interact);
         let (events, teleport) = m.visit.update(dt, eye, look, foot, interact);
         if let Some(tp) = teleport {
-            self.museum_teleport(tp.at, tp.yaw);
+            cx.teleport(tp.at, tp.yaw);
         }
-        let Some(m) = self.museum.as_mut() else { return };
+        let Some(m) = self.0.as_mut() else { return };
         if let Some(pose) = m.visit.pose() {
-            self.camera.position = pose.eye;
-            self.camera.yaw = yaw_of(pose.look);
-            self.camera.pitch = pose.look.y.clamp(-1.0, 1.0).asin();
+            cx.set_camera(pose.eye, yaw_of(pose.look), pose.look.y.clamp(-1.0, 1.0).asin());
         }
-        self.fov_deg = m.visit.fov();
-        self.camera.fov_deg = self.fov_deg;
+        cx.set_fov(m.visit.fov());
         if m.visit.take_colliders_changed() {
-            self.colliders = m.visit.colliders().to_vec();
+            cx.set_colliders(m.visit.colliders().to_vec());
         }
-        self.scene.lights = crate::museum::lamps_as_lights(&m.visit.lamps(self.camera.position, 13));
+        cx.set_lights(crate::museum::lamps_as_lights(&m.visit.lamps(cx.camera_position(), 13)));
         // What the player looks at, faded in and out.
         let aim = if m.visit.free() { m.visit.aim(eye, look) } else { None };
         if aim.is_some() && aim != m.target {
@@ -218,108 +335,34 @@ impl App {
         m.save_in -= dt;
         let save_now = m.save_in <= 0.0;
         for e in events {
-            self.museum_event(e);
+            self.event(cx, e);
         }
         if save_now {
-            self.museum_save();
+            self.save(cx);
         }
     }
 
-    fn museum_save(&mut self) {
-        let Some(m) = self.museum.as_mut() else { return };
-        m.save_in = 30.0;
-        if let Some(path) = progress_path(&self.settings_key) {
-            if let Some(dir) = path.parent() {
-                let _ = std::fs::create_dir_all(dir);
-            }
-            if let Err(e) = std::fs::write(&path, m.visit.progress.to_json().to_string()) {
-                eprintln!("could not save the museum: {e}");
-            }
-        }
+    /// Flying into or out of a painting: the camera is the museum's, the body waits.
+    fn input_frozen(&self) -> bool {
+        self.0.as_ref().is_some_and(|m| !m.visit.free())
     }
 
-    fn museum_event(&mut self, e: Event) {
-        println!("museum: {e:?}");
-        self.fresh_events.push(format!("museum:{e:?}"));
-        let Some(m) = self.museum.as_mut() else { return };
-        match e {
-            Event::EnteredRoom { first, wing_changed, .. } => {
-                if first || wing_changed {
-                    self.museum_room_title(first);
-                }
-                if wing_changed {
-                    self.museum_steer_music();
-                }
-                if first {
-                    self.museum_save();
-                }
-            }
-            Event::SteppingIn { .. } => {
-                if let Some(clip) = m.sounds.as_ref().map(|s| s.step_in.clone()) {
-                    self.museum_play(&clip, 0.55);
-                }
-                if let Some(audio) = &self.audio {
-                    audio.duck_music(crate::mixer::Duck { depth: 0.5, attack: 0.4, release: 2.5 }, 1.2);
-                }
-            }
-            Event::Arrived { depth, title } => {
-                let deep = match depth {
-                    1 => "inside the painting".to_string(),
-                    2 => "two paintings deep".to_string(),
-                    n => format!("{n} paintings deep"),
-                };
-                m.title = Some((title, deep, 0.0));
-            }
-            Event::SteppingOut { .. } => {
-                if let Some(clip) = m.sounds.as_ref().map(|s| s.step_out.clone()) {
-                    self.museum_play(&clip, 0.5);
-                }
-            }
-            Event::Returned { .. } => {
-                m.title = None;
-            }
-            Event::Touched { room, index } => {
-                let piece = m.visit.contents_if_built(room).and_then(|k| k.exhibits.get(index as usize).cloned());
-                if let Some(e) = piece {
-                    if let Some(f) = e.family {
-                        let clip = touch(f, e.art.seed);
-                        self.museum_play(&clip, 0.5);
-                    }
-                }
-            }
-            Event::Revealing { room, index } => {
-                let name = m.visit.contents_if_built(room).and_then(|k| k.exhibits.get(index as usize).map(|e| e.plaque.title.clone())).unwrap_or_default();
-                m.toast = Some((format!("Something stirs inside \u{201c}{name}\u{201d}\u{2026}"), 0.0));
-            }
-            Event::KeyFound { room, keys } => {
-                let doors = if m.visit.place == Place::Halls { "Its doors are opening." } else { "Its doors will be open when you return." };
-                m.toast = Some((format!("The key of Gallery {}. {doors}  ({keys} found)", room.number()), 0.0));
-                if let Some(clip) = m.sounds.as_ref().map(|s| s.key.clone()) {
-                    self.museum_play(&clip, 0.6);
-                }
-                self.museum_save();
-            }
-            Event::DoorOpening { edge } => {
-                let d = edge.centre().distance(self.eye);
-                if let Some(clip) = m.sounds.as_ref().map(|s| s.door.clone()) {
-                    self.museum_play(&clip, (0.5 / (1.0 + d * 0.08)).max(0.08));
-                }
-            }
-            Event::Locked { room } => {
-                m.toast = Some((format!("Locked. Gallery {} still keeps its key in one of its pieces.", room.number()), 0.0));
-                if let Some(clip) = m.sounds.as_ref().map(|s| s.locked.clone()) {
-                    self.museum_play(&clip, 0.5);
-                }
-            }
-        }
+    fn interact(&mut self) -> bool {
+        let Some(m) = self.0.as_mut() else { return false };
+        m.interact = true;
+        true
+    }
+
+    fn owns_hud(&self) -> bool {
+        self.0.is_some()
     }
 
     /// Draws the museum's labels, counters and titles (and the start card) over the frame, when anything about them changed.
-    pub(crate) fn sync_museum_hud(&mut self) {
-        let Some((w, h)) = self.window_size() else { return };
-        let card = self.card_content().map(|(c, button)| (c.title.clone(), c.text.clone(), c.button.clone(), button));
-        let card_layout = self.card_layout_now(w, h);
-        let Some(m) = self.museum.as_mut() else { return };
+    fn hud(&mut self, cx: &mut ModeContext) {
+        let Some((w, h)) = cx.window_size() else { return };
+        let card = cx.start_card().map(|c| (c.title, c.text, c.button, c.button_id));
+        let card_layout = cx.card_layout(w, h);
+        let Some(m) = self.0.as_mut() else { return };
         let q = |x: f32| (x * 20.0).round() as i32;
         let title_alpha = m.title.as_ref().map_or(0.0, |(_, _, age)| fade(*age, 0.8, 4.4, 1.4));
         let toast_alpha = m.toast.as_ref().map_or(0.0, |(_, age)| fade(*age, 0.3, 4.5, 1.2));
@@ -380,64 +423,20 @@ impl App {
                 museum_hud(m, &mut img, w, h, s, title_alpha, toast_alpha);
             }
         }
-        if let Some(gpu) = self.gpu.as_mut() {
-            if let Some(live) = gpu.live.as_mut() {
-                live.overlay.set(&gpu.device, &gpu.queue, w, h, &px);
-            }
-        }
+        cx.set_hud_overlay(w, h, &px);
     }
 
-    /// Hands this frame's visit to the renderer.
-    pub(crate) fn museum_sync_gpu(&mut self) {
-        let t = self.scene_time();
-        let (Some(m), Some(gpu)) = (self.museum.as_ref(), self.gpu.as_mut()) else { return };
-        if let Some(live) = gpu.live.as_mut() {
-            live.sync_museum(&gpu.device, &m.visit, t, self.camera.position);
-            live.set_game_params(m.visit.shader_params());
-        }
-    }
-
-    /// The painting's colour washing over the screen during a flight.
-    pub(crate) fn museum_wash(&self, fx: crate::feel::FxParams) -> crate::feel::FxParams {
-        let Some(m) = self.museum.as_ref() else { return fx };
-        let (w, c) = m.visit.wash();
-        if w <= 0.0 {
-            return fx;
-        }
-        crate::feel::FxParams { flash: [c[0], c[1], c[2], w * 0.92], ..fx }
-    }
-
-    // ---- The pause menu and the map ----------------------------------------------------------------------------------------------------
-
-    fn museum_buttons(&self, w: u32, h: u32) -> Vec<(Button, String, crate::ui::Rect)> {
-        let Some(m) = self.museum.as_ref() else { return Vec::new() };
-        let s = (h as f32 / 1080.0).max(0.55);
-        let mut rows: Vec<(Button, String)> = vec![(Button::Resume, "Return to the museum".into()), (Button::Map, "The plan of the museum".into())];
-        if m.visit.place != Place::Halls {
-            rows.push((Button::StepOut, "Step out of the painting".into()));
-        }
-        rows.push((Button::Music, format!("Music: {}", if self.music_on { "on" } else { "off" })));
-        rows.push((Button::Sound, format!("Sounds: {}", if self.sfx_on { "on" } else { "off" })));
-        rows.push((Button::Steps, format!("Footsteps: {}", if self.settings.steps { "on" } else { "off" })));
-        rows.push((Button::Fullscreen, "Full screen  (F)".into()));
-        rows.push((Button::Quit, "Leave the museum".into()));
-        let bw = (420.0 * s) as i32;
-        let bh = (52.0 * s) as i32;
-        let gap = (12.0 * s) as i32;
-        let total = rows.len() as i32 * (bh + gap);
-        let x0 = w as i32 / 2 - bw / 2;
-        let y0 = (h as i32 - total) / 2 + (70.0 * s) as i32;
-        rows.into_iter().enumerate().map(|(i, (b, label))| (b, label, (x0, y0 + i as i32 * (bh + gap), x0 + bw, y0 + i as i32 * (bh + gap) + bh))).collect()
+    fn owns_pause(&self) -> bool {
+        self.0.is_some()
     }
 
     /// The museum's pause menu, or its map.
-    pub(crate) fn museum_repaint_pause(&mut self) {
-        let Some((w, h)) = self.window_size() else { return };
-        let buttons = self.museum_buttons(w, h);
-        let music_on = self.music_on;
-        let player = (Vec3::new(self.physics_pos.x, self.foot_y, self.physics_pos.y), self.camera.yaw);
-        let t = self.play_secs;
-        let Some(m) = self.museum.as_mut() else { return };
+    fn repaint_pause(&mut self, cx: &mut ModeContext) {
+        let Some((w, h)) = cx.window_size() else { return };
+        let buttons = self.buttons(cx, w, h);
+        let player = (cx.foot(), cx.camera_angles().0);
+        let t = cx.play_secs();
+        let Some(m) = self.0.as_mut() else { return };
         let mut px = vec![0u8; (w * h * 4) as usize];
         {
             let mut img = Image { w, h, px: &mut px };
@@ -482,177 +481,229 @@ impl App {
                         if hot { GOLD } else { INK },
                     );
                 }
-                let _ = music_on;
                 m.serif.draw_centred(&mut img, w as f32 * 0.5, h as f32 - 50.0 * s, "Esc returns to the museum", 18.0 * s, Face::Regular, DIM);
             }
         }
-        self.set_window_overlay(w, h, Some(&px));
+        cx.set_window_overlay(w, h, Some(&px));
     }
 
-    /// Opens the map (over the pause menu), or closes it.
-    pub(crate) fn museum_toggle_map(&mut self) {
-        if self.museum.as_ref().is_some_and(|m| m.map_open) {
-            if let Some(m) = self.museum.as_mut() {
-                m.map_open = false;
-            }
-            self.leave_pause();
-        } else {
-            self.museum_open_map();
+    fn left_pause(&mut self) {
+        if let Some(m) = self.0.as_mut() {
+            m.map_open = false;
+            m.forget_hud();
         }
     }
 
-    fn museum_open_map(&mut self) {
-        let player = Vec3::new(self.physics_pos.x, self.foot_y, self.physics_pos.y);
-        let Some((_, h)) = self.window_size() else { return };
-        if let Some(m) = self.museum.as_mut() {
-            let at = if m.visit.place == Place::Halls { player } else { m.visit.room.centre() };
-            m.map_view = MapView::around(at, h);
-            m.map_open = true;
+    /// The museum's own handling of window events.
+    fn window_event(&mut self, cx: &mut ModeContext, event: &WindowEvent) -> Answer {
+        if self.0.is_none() || !cx.playing() {
+            return Answer::Pass;
         }
-        if !self.paused {
-            self.enter_pause();
-        } else {
-            self.museum_repaint_pause();
-        }
-    }
-
-    /// The museum's own handling of window events; true when it used the event.
-    pub(crate) fn museum_window_event(&mut self, event: &WindowEvent, event_loop: &ActiveEventLoop) -> bool {
-        if self.museum.is_none() || self.phase != Phase::Playing {
-            return false;
-        }
-        let map_open = self.museum.as_ref().is_some_and(|m| m.map_open);
+        let used = |b: bool| if b { Answer::Used } else { Answer::Pass };
+        let map_open = self.0.as_ref().is_some_and(|m| m.map_open);
         match event {
             WindowEvent::KeyboardInput { event, .. } => {
-                let PhysicalKey::Code(code) = event.physical_key else { return false };
+                let PhysicalKey::Code(code) = event.physical_key else { return Answer::Pass };
                 if event.state != ElementState::Pressed || event.repeat {
-                    return self.paused;
+                    return used(cx.paused());
                 }
-                if self.paused {
+                if cx.paused() {
                     match code {
                         KeyCode::Escape | KeyCode::KeyM if map_open => {
-                            if let Some(m) = self.museum.as_mut() {
+                            if let Some(m) = self.0.as_mut() {
                                 m.map_open = false;
                             }
                             if code == KeyCode::KeyM {
-                                self.leave_pause();
+                                self.leave(cx);
                             } else {
-                                self.museum_repaint_pause();
+                                self.repaint_pause(cx);
                             }
                         }
-                        KeyCode::KeyM => self.museum_open_map(),
-                        KeyCode::Escape => self.leave_pause(),
+                        KeyCode::KeyM => self.open_map(cx),
+                        KeyCode::Escape => self.leave(cx),
                         _ => {}
                     }
-                    return true;
+                    return Answer::Used;
                 }
-                if self.card.is_none() && code == KeyCode::KeyM && self.grabbed {
-                    self.museum_open_map();
-                    return true;
+                if !cx.card_shown() && code == KeyCode::KeyM && cx.grabbed() {
+                    self.open_map(cx);
+                    return Answer::Used;
                 }
-                false
+                Answer::Pass
             }
-            WindowEvent::CursorMoved { position, .. } if self.paused => {
+            WindowEvent::CursorMoved { position, .. } if cx.paused() => {
                 let (x, y) = (position.x as f32, position.y as f32);
-                if let (Some((dx0, dy0)), true) = (self.museum.as_ref().and_then(|m| m.drag), map_open) {
-                    if let Some(m) = self.museum.as_mut() {
+                if let (Some((dx0, dy0)), true) = (self.0.as_ref().and_then(|m| m.drag), map_open) {
+                    if let Some(m) = self.0.as_mut() {
                         m.map_view.centre -= glam::Vec2::new(x - dx0, y - dy0) / m.map_view.zoom;
                         m.drag = Some((x, y));
                     }
-                    self.museum_repaint_pause();
+                    self.repaint_pause(cx);
                 }
-                self.cursor = (x, y);
+                cx.set_cursor((x, y));
                 if !map_open {
-                    let hover = self.window_size().and_then(|(w, h)| {
-                        self.museum_buttons(w, h)
-                            .into_iter()
-                            .find(|(_, _, r)| x >= r.0 as f32 && x < r.2 as f32 && y >= r.1 as f32 && y < r.3 as f32)
-                            .map(|b| b.0)
+                    let hover = cx.window_size().and_then(|(w, h)| {
+                        self.buttons(cx, w, h).into_iter().find(|(_, _, r)| x >= r.0 as f32 && x < r.2 as f32 && y >= r.1 as f32 && y < r.3 as f32).map(|b| b.0)
                     });
-                    if self.museum.as_ref().is_some_and(|m| m.hover != hover) {
-                        if let Some(m) = self.museum.as_mut() {
+                    if self.0.as_ref().is_some_and(|m| m.hover != hover) {
+                        if let Some(m) = self.0.as_mut() {
                             m.hover = hover;
                         }
-                        self.museum_repaint_pause();
+                        self.repaint_pause(cx);
                     }
                 }
-                true
+                Answer::Used
             }
-            WindowEvent::MouseWheel { delta, .. } if self.paused && map_open => {
+            WindowEvent::MouseWheel { delta, .. } if cx.paused() && map_open => {
                 let lines = match delta {
                     MouseScrollDelta::LineDelta(_, y) => *y,
                     MouseScrollDelta::PixelDelta(p) => p.y as f32 / 40.0,
                 };
-                if let Some(m) = self.museum.as_mut() {
+                if let Some(m) = self.0.as_mut() {
                     m.map_view.zoom = (m.map_view.zoom * 1.15f32.powf(lines)).clamp(20.0, 260.0);
                 }
-                self.museum_repaint_pause();
-                true
+                self.repaint_pause(cx);
+                Answer::Used
             }
-            WindowEvent::MouseInput { state, button: MouseButton::Left, .. } if self.paused => {
+            WindowEvent::MouseInput { state, button: MouseButton::Left, .. } if cx.paused() => {
                 if map_open {
-                    if let Some(m) = self.museum.as_mut() {
-                        m.drag = (*state == ElementState::Pressed).then_some(self.cursor);
+                    if let Some(m) = self.0.as_mut() {
+                        m.drag = (*state == ElementState::Pressed).then_some(cx.cursor());
                     }
-                    return true;
+                    return Answer::Used;
                 }
                 if *state != ElementState::Pressed {
-                    return true;
+                    return Answer::Used;
                 }
-                let (x, y) = self.cursor;
-                let hit = self.window_size().and_then(|(w, h)| {
-                    self.museum_buttons(w, h).into_iter().find(|(_, _, r)| x >= r.0 as f32 && x < r.2 as f32 && y >= r.1 as f32 && y < r.3 as f32).map(|b| b.0)
+                let (x, y) = cx.cursor();
+                let hit = cx.window_size().and_then(|(w, h)| {
+                    self.buttons(cx, w, h).into_iter().find(|(_, _, r)| x >= r.0 as f32 && x < r.2 as f32 && y >= r.1 as f32 && y < r.3 as f32).map(|b| b.0)
                 });
                 match hit {
-                    Some(Button::Resume) => self.leave_pause(),
-                    Some(Button::Map) => self.museum_open_map(),
+                    Some(Button::Resume) => self.leave(cx),
+                    Some(Button::Map) => self.open_map(cx),
                     Some(Button::Music) => {
-                        self.toggle_music();
-                        self.museum_repaint_pause();
+                        cx.toggle_music();
+                        self.repaint_pause(cx);
                     }
                     Some(Button::Sound) => {
-                        self.toggle_sfx();
-                        self.museum_repaint_pause();
+                        cx.toggle_sfx();
+                        self.repaint_pause(cx);
                     }
                     Some(Button::Steps) => {
-                        self.settings.steps = !self.settings.steps;
-                        let _ = crate::settings::save(&self.settings_key, &self.settings);
-                        self.museum_repaint_pause();
+                        let on = !cx.footsteps();
+                        cx.set_footsteps(on);
+                        self.repaint_pause(cx);
                     }
                     Some(Button::StepOut) => {
-                        let back = self.museum.as_mut().and_then(|m| m.visit.return_to_halls());
+                        let back = self.0.as_mut().and_then(|m| m.visit.return_to_halls());
                         if let Some(tp) = back {
-                            self.museum_teleport(tp.at, tp.yaw);
-                            if let Some(m) = self.museum.as_mut() {
-                                self.colliders = m.visit.colliders().to_vec();
+                            cx.teleport(tp.at, tp.yaw);
+                            if let Some(m) = self.0.as_mut() {
+                                cx.set_colliders(m.visit.colliders().to_vec());
                                 m.visit.take_colliders_changed();
                                 m.title = None;
                             }
                         }
-                        self.leave_pause();
+                        self.leave(cx);
                     }
-                    Some(Button::Fullscreen) => self.toggle_fullscreen(),
+                    Some(Button::Fullscreen) => cx.toggle_fullscreen(),
                     Some(Button::Quit) => {
-                        self.museum_save();
-                        event_loop.exit();
+                        self.save(cx);
+                        return Answer::Quit;
                     }
                     None => {}
                 }
-                true
+                Answer::Used
             }
-            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if self.grabbed && self.card.is_none() => {
-                if let Some(m) = self.museum.as_mut() {
+            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } if cx.grabbed() && !cx.card_shown() => {
+                if let Some(m) = self.0.as_mut() {
                     m.interact = true;
                 }
-                true
+                Answer::Used
             }
-            _ => false,
+            _ => Answer::Pass,
         }
     }
 
+    /// A script's `key:Escape` (the pause menu) and `key:M` (the map).
+    fn script_key(&mut self, cx: &mut ModeContext, name: &str) -> bool {
+        if self.0.is_none() || !matches!(name, "Escape" | "M") {
+            return false;
+        }
+        match (name, cx.paused()) {
+            ("M", _) => self.toggle_map(cx),
+            (_, true) => self.leave(cx),
+            (_, false) => {
+                cx.enter_pause();
+                self.repaint_pause(cx);
+            }
+        }
+        true
+    }
+
+    /// A soft step on the museum's floor (or nothing, when footsteps are off).
+    fn footstep(&mut self, cx: &mut ModeContext) -> bool {
+        let Some(m) = self.0.as_mut() else { return false };
+        if !cx.footsteps() {
+            return true;
+        }
+        m.step = m.step.wrapping_add(1);
+        let i = (m.step % 3) as usize;
+        let gain = if m.visit.place == Place::Halls { 0.22 } else { 0.16 };
+        if let Some(s) = &m.sounds {
+            cx.play(&s.steps[i], gain, if m.step % 2 == 0 { -0.08 } else { 0.08 });
+        }
+        true
+    }
+
+    /// The painting's colour washing over the screen during a flight.
+    fn fx(&self, fx: crate::feel::FxParams) -> crate::feel::FxParams {
+        let Some(m) = self.0.as_ref() else { return fx };
+        let (w, c) = m.visit.wash();
+        if w <= 0.0 {
+            return fx;
+        }
+        crate::feel::FxParams { flash: [c[0], c[1], c[2], w * 0.92], ..fx }
+    }
+
+    /// Hands this frame's visit to the renderer.
+    fn sync_gpu(&mut self, cx: &mut ModeContext) {
+        let t = cx.scene_time();
+        let eye = cx.camera_position();
+        let Some(m) = self.0.as_ref() else { return };
+        if let Some((device, live)) = cx.renderer() {
+            live.sync_museum(device, &m.visit, t, eye);
+            live.set_game_params(m.visit.shader_params());
+        }
+    }
+
+    /// The state dump's museum part.
+    fn dump(&self) -> serde_json::Value {
+        let Some(m) = self.0.as_ref() else { return serde_json::Value::Null };
+        let target = m.target.as_ref().map(|t| format!("{t:?}"));
+        serde_json::json!({
+            "seed": m.visit.layout.seed,
+            "room": [m.visit.room.x, m.visit.room.z],
+            "gallery": m.visit.room.number(),
+            "place": match &m.visit.place { Place::Halls => "halls".to_string(), Place::Inside(p) => format!("inside {}/{}{}", p.room.number(), p.exhibit, p.nest.iter().map(|n| format!("/{n}")).collect::<String>()) },
+            "keys": m.visit.keys(),
+            "rooms": m.visit.rooms_found(),
+            "entered": m.visit.progress.entered,
+            "deepest": m.visit.progress.deepest,
+            "flying": !m.visit.free(),
+            "target": target,
+            "title": m.title.as_ref().map(|t| format!("{} / {}", t.0, t.1)),
+            "toast": m.toast.as_ref().map(|t| t.0.clone()),
+            "key_floats_at": m.visit.key_at().map(|k| [k.x, k.y, k.z]),
+            "fov": m.visit.fov(),
+        })
+    }
+
     /// The box of a museum thing a script names (`museum:N`, `museum:frame:N`, `museum:way-back`, `museum:key`; see `Driver::locate`).
-    pub(crate) fn museum_bounds(&self, what: &str) -> Option<(Vec3, Vec3)> {
-        let m = self.museum.as_ref()?;
+    fn target_bounds(&self, id: &str) -> Option<(Vec3, Vec3)> {
+        let what = id.strip_prefix("museum:")?;
+        let m = self.0.as_ref()?;
         let around = |c: Vec3, r: Vec3| Some((c - r, c + r));
         if what == "key" {
             return around(m.visit.key_at()?, Vec3::splat(0.25));
@@ -684,28 +735,6 @@ impl App {
             _ => Vec3::new(e.size.x * 0.5, e.size.y * 0.5, e.size.x * 0.5) * Vec3::new(e.facing.z.abs().max(0.1), 1.0, e.facing.x.abs().max(0.1)),
         };
         around(f, r)
-    }
-
-    /// The state dump's museum part.
-    pub(crate) fn museum_dump(&self) -> serde_json::Value {
-        let Some(m) = self.museum.as_ref() else { return serde_json::Value::Null };
-        let target = m.target.as_ref().map(|t| format!("{t:?}"));
-        serde_json::json!({
-            "seed": m.visit.layout.seed,
-            "room": [m.visit.room.x, m.visit.room.z],
-            "gallery": m.visit.room.number(),
-            "place": match &m.visit.place { Place::Halls => "halls".to_string(), Place::Inside(p) => format!("inside {}/{}{}", p.room.number(), p.exhibit, p.nest.iter().map(|n| format!("/{n}")).collect::<String>()) },
-            "keys": m.visit.keys(),
-            "rooms": m.visit.rooms_found(),
-            "entered": m.visit.progress.entered,
-            "deepest": m.visit.progress.deepest,
-            "flying": !m.visit.free(),
-            "target": target,
-            "title": m.title.as_ref().map(|t| format!("{} / {}", t.0, t.1)),
-            "toast": m.toast.as_ref().map(|t| t.0.clone()),
-            "key_floats_at": m.visit.key_at().map(|k| [k.x, k.y, k.z]),
-            "fov": m.visit.fov(),
-        })
     }
 }
 
@@ -877,7 +906,7 @@ fn label_of(m: &MuseumClient, t: &Target) -> (String, String, String, String, St
 
 impl MuseumClient {
     /// Makes the next frame repaint the labels (after the pause menu covered them).
-    pub(crate) fn forget_hud(&mut self) {
+    fn forget_hud(&mut self) {
         self.hud_key = None;
     }
 

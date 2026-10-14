@@ -62,6 +62,7 @@ impl App {
         next.window = self.window.take();
         next.gpu = self.gpu.take();
         next.view_mode = self.view_mode;
+        next.mode_factory = self.mode_factory;
         next.start_game(who);
         if let Some(w) = &next.window {
             w.set_title(&format!("Red Engine 2 - {}", next.scene_path.display()));

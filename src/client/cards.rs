@@ -139,6 +139,7 @@ impl App {
         next.window = self.window.take();
         next.gpu = self.gpu.take();
         next.view_mode = self.view_mode;
+        next.mode_factory = self.mode_factory;
         next.music_on = self.music_on;
         next.sfx_on = self.sfx_on;
         next.skip_start_card = true;

@@ -47,6 +47,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: item 3 closed: ADR 2026-10-14-the-server-binary-stays-in-the-engine-crate-while-red (measures met but the headless-build clause, deferred to item 5's game servers); next: item 4 CI
 - 2026-10-14: item 4: #134 (compile once: Rust PR 57.0 -> 32.8 job-min), #135 (docs-only PRs from main's archive), #136 (split_render flake) merged; this docs-only PR measures the docs path
 - 2026-10-14: item 5 started (owner: go ahead): ADR a-game-ships-as-its-own-binary; steps 5.1 client to library, 5.2 GameMode, 5.3 WorldLayer, 5.4 game binaries, 5.5 Frameless to games/frameless, 5.6 audit
+- 2026-10-14: item 5.2: client::GameMode seam + MuseumMode (branch game-mode); parity: frameless_visit + the same dump and saves as main for the same script (door-event print order varies in main too); affected green
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.

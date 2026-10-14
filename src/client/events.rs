@@ -87,9 +87,14 @@ impl ApplicationHandler for App {
                 }
             }
         }
-        // A museum's pause menu, map, interact clicks and map key (see `museum.rs`).
-        if self.museum_window_event(&event, event_loop) {
-            return;
+        // The game's mode first (a museum's pause menu, map, interact clicks and map key; see `museum.rs`).
+        match self.with_mode(|m, cx| m.window_event(cx, &event)) {
+            Some(Answer::Used) => return,
+            Some(Answer::Quit) => {
+                event_loop.exit();
+                return;
+            }
+            Some(Answer::Pass) | None => {}
         }
         // Music dropped on the window (one event per file; a batch is gathered and queued together on the next frame) in any screen of a game
         // that plays the player's own music.

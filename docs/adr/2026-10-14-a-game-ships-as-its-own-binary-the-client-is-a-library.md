@@ -28,6 +28,12 @@ Measured at 94e5263 before deciding:
   script targets, `fx`, `sync_gpu`), each with a default that does nothing, and a `ModeContext` that is the only door to the client's state a mode
   gets (the player's pose and teleport, the camera, pause, cards and overlay, audio, music steering, settings, the scene's lights, the viewer). A game
   binary runs `client::run(Box::new(MyMode))`; plain `re2` runs with no mode. The museum's client is the first mode, still in the engine.
+  *As built (2026-10-14, the pull request that added it):* `client::run` takes a `ModeFactory` (`fn(&Scene) -> Option<Box<dyn GameMode>>`), not a
+  mode, because the client builds a fresh state for a restart and for the map switcher and a mode belongs to its scene; plain `re2` runs
+  `client::engine_mode`, which gives a museum scene the museum's mode until Frameless moves. The camera is placed through `ModeContext::set_camera`
+  from `frame` (no `camera` method), and the pause menu is the mode's whole when it says so (`owns_pause`, `repaint_pause`, `left_pause`) rather than
+  rows added to the client's: the museum's menu and map share nothing with the client's. A context call that comes back to the client (opening the
+  pause menu) does not reach the mode, which is out of the client while its method runs; the mode repaints its own after it.
 - **`WorldLayer`** is the seam a generated world draws through: the renderers hold `Vec<Box<dyn WorldLayer>>` instead of named fields, built from
   the scene by layer factories registered like scene blocks (ADR 2026-10-13-a-scene-block-can-be-defined-above-the-core); the meadow and the museum
   implement it. The CPU side a client and the tools ask (`colliders_near`, `lamps`, `shader_params`) is part of the mode or the world, not the renderer.

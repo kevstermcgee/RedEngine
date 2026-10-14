@@ -229,7 +229,7 @@ impl App {
         if self.log_cues {
             println!("[cue {:7.2}s] {cue:?}", self.start.elapsed().as_secs_f32());
         }
-        if matches!(cue, Cue::Step) && (self.museum_step() || !self.settings.steps) {
+        if matches!(cue, Cue::Step) && (self.with_mode(|m, cx| m.footstep(cx)).unwrap_or(false) || !self.settings.steps) {
             return;
         }
         let Some(audio) = &self.audio else { return };
