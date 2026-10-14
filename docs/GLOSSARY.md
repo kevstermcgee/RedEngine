@@ -26,7 +26,7 @@ glossary` prints the lot). Terms are grouped; each line says what it *is* and wh
   `stairs`, `group`, `humanoid`, `prop`, `prefab`). `red_engine2 describe objects`.
 - **primitive** — `box`, `sphere`, `cylinder`, `cone`, `capsule`, `plane`. **Only `box` collides.**
 - **macro / sugar** — an object type expanded into plain boxes *at parse time* (`wall`, `fence`).
-  Nothing downstream ever sees the macro (ADR 0006). Lives in `crates/red_core/src/macros.rs`.
+  Nothing downstream ever sees the macro (ADR 0006). Lives in `crates/red_core/src/scene_macros.rs`.
 - **prop** — a Rust-built object with a custom collision policy (sofa, crate, vending machine…),
   defined in `crates/red_core/src/props.rs`. 39 of them. Origin = middle of the **base**, front = local **+Z**.
 - **prefab** — a parametric group of objects authored in **JSON** (`assets/*.json`); placed like a

@@ -8,7 +8,7 @@
 //!   "position": [2, 0.78, 3], "params": { "color": "#7fb83a" } }
 //! ```
 //!
-//! Like the `wall`/`fence` macros (`crate::macros`) an instance **expands at parse time into a
+//! Like the `wall`/`fence` macros (`crate::scene_macros`) an instance **expands at parse time into a
 //! plain `group`**, so rendering, collision and every analysis tool only ever see primitives.
 //! Expansion is JSON-to-JSON and unit-testable without a GPU.
 //!

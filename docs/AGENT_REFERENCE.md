@@ -290,7 +290,7 @@ Lessons from building them (all bit at least once):
 
 ```
 crates/red_core/src/schema.rs     JSON -> Scene (validation, macro expansion hook, `post`, `zones` ignored here)
-crates/red_core/src/macros.rs     `wall` / `fence` expand to groups of boxes at parse time (add new sugar here)
+crates/red_core/src/scene_macros.rs `wall` / `fence` expand to groups of boxes at parse time (add new sugar here)
 crates/red_core/src/props.rs      prop library: parts, `collision()` policy, `lifted()` for origin-at-base
 crates/red_core/src/strict.rs     unknown-field detection with did-you-mean; the extension namespace (`x-`, `_`, notes)
 crates/red_core/src/collide.rs    static-world collision + ground height (stairs ramp, box tops), interactables — renderer-free (was in viewer.rs)
