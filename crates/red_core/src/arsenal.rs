@@ -8,11 +8,15 @@
 //! Pure data: no window, GPU or socket. The legacy ten-firearm prototype keeps its own numbers in [`Weapon::firearm`]; a scene opts into
 //! this table with a top-level `loadout` block (`sim::kit`).
 //!
-//! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
-//! system audit, docs/analysis/2026-10-14-system-audit.md).
+//! Part of the weapons system, used by every game with weapons: [`Weapon::kit`] is every weapon's row, and `weapons` (zoom, automatic fire,
+//! pellets) and `firearms` (optics) read it; the loadout shooter (Killchain) reads the rest. It stays in the engine (system audit,
+//! docs/analysis/2026-10-14-system-audit.md, corrected 2026-10-14: the first count put it with the shooter).
 
-use crate::sim::clock::secs_to_ticks;
+use crate::sim::clock::{secs_to_ticks, ticks_to_secs};
 use crate::weapons::Weapon;
+
+/// Seconds a knife's slash takes to land: the server's strike (the loadout shooter's kit) and the avatar's stroke both time it.
+pub const MELEE_WINDUP_SECS: f32 = ticks_to_secs(secs_to_ticks(0.11));
 
 /// What kind of thing a weapon is. Decides which inventory slot it takes and how the trigger behaves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

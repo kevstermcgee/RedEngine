@@ -42,6 +42,14 @@ system and stay. So it moves to Killchain, in steps:
    `shooter_world` and `objective_world` go to `games/killchain`, with a server binary of its own that hosts loadout matches (the engine's `red_server`
    then hosts the engine's kinds of match; ADR 2026-10-14-the-server-binary-stays-in-the-engine-crate-while-red foresaw per-game servers).
 
+## Correction (2026-10-14, before the move)
+
+`arsenal` is not the shooter's: it holds `Weapon::kit`, every weapon's row, which the weapons system reads for every game with weapons (`weapons`:
+zoom, automatic fire, pellets; `firearms`: optics). The first count put it with the loadout shooter; it belongs to weapons and guns, and it stays.
+Re-measured at RedEngine `631088e` and RedEngineGames `54bf12e`, with the files the shooter has gained since (`sim::shooter_bots`, `sim::shooter_snap`,
+`net::arena_wire`): the loadout shooter is 5,198 lines, one game (Killchain); weapons and guns 2,522 lines, eight games. The calls do not change; step 2
+below moves everything in it but `arsenal`.
+
 ## Not in the table
 
 Systems under 300 lines, the engine's shared kits (UI, audio synthesis, physics, rules), and the 2D crate (`crates/red2d`, a player for every 2D game)

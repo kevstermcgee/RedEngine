@@ -76,6 +76,15 @@ The museum had the same shape on the client side and moved behind `client::GameM
   (`keep_history`); the killcam cuts its replay from it (`killcam::playback`). The killcam's projectiles, which no client drew, are gone. A client
   that sets no decoder (the engine's own, on a loadout server) predicts the walk at full speed.
 
+- *Step 6b as built (2026-10-14):* the shooter reaches the match only through public methods, so it can leave the crate as it is. New on
+  `MatchSim`: `player_mut`, `hit_shapes`, `rule_event` / `rule_event_with` (the rules hear an event at the current tick), and `shove`,
+  `interact::eye_and_look` and the wire codec (`protocol::W`, `R::new`) are public. The match's own questions that sat in the shooter's files
+  (`teams_enabled`, `team_size`, `score_limit`, `max_players`, `input_locked`, `respawn_blocked`) are in `match_sim`; the shooter's own
+  (`arena`, `kit`, `is_loadout`, `mode`, `in_smoke`) are its `shooter::ShooterSim` trait. A client's avatar pool asks the match game whether
+  players wear uniforms (`MatchGame::uniforms`) instead of looking for a `shooter` block. `arsenal` stays (the audit's correction): the melee
+  wind-up the avatar times its stroke by is `arsenal::MELEE_WINDUP_SECS`. A throwaway copy of the shooter as a crate of its own, its paths
+  rewritten and nothing else changed, built and passed its unit tests.
+
 ## Consequences
 The engine's match simulation no longer knows a loadout match; any game with a server-side rule set of its own (a mode, a kit, an objective) plugs
 in the same way. Killchain gets a server binary of its own, which its hosting (and RedEngineGames, for its download) learns: the engine's

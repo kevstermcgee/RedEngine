@@ -684,22 +684,23 @@ pub enum ServerMsg {
 // codec
 // ---------------------------------------------------------------------------------------------
 
-pub(crate) struct W<'a>(pub(crate) &'a mut Vec<u8>);
+/// The little-endian writer every message is written with, and a game's own part ([`GameMsg`]) too: `W(&mut bytes)`.
+pub struct W<'a>(pub &'a mut Vec<u8>);
 
 impl W<'_> {
-    pub(crate) fn u8(&mut self, v: u8) {
+    pub fn u8(&mut self, v: u8) {
         self.0.push(v);
     }
-    pub(crate) fn u16(&mut self, v: u16) {
+    pub fn u16(&mut self, v: u16) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    pub(crate) fn u32(&mut self, v: u32) {
+    pub fn u32(&mut self, v: u32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    pub(crate) fn u64(&mut self, v: u64) {
+    pub fn u64(&mut self, v: u64) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    pub(crate) fn f32(&mut self, v: f32) {
+    pub fn f32(&mut self, v: f32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
     fn header(&mut self, kind: u8) {
@@ -718,36 +719,41 @@ impl W<'_> {
     }
 }
 
-pub(crate) struct R<'a> {
+/// The reader to [`W`]'s writer: every read checks the bounds and fails with a [`DecodeError`], never a panic.
+pub struct R<'a> {
     pub(crate) b: &'a [u8],
     pub(crate) i: usize,
 }
 
 impl<'a> R<'a> {
-    pub(crate) fn take(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
+    /// A reader at the start of `b`.
+    pub fn new(b: &'a [u8]) -> R<'a> {
+        R { b, i: 0 }
+    }
+    pub fn take(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
         let end = self.i.checked_add(n).ok_or(DecodeError::Truncated)?;
         let s = self.b.get(self.i..end).ok_or(DecodeError::Truncated)?;
         self.i = end;
         Ok(s)
     }
-    pub(crate) fn u8(&mut self) -> Result<u8, DecodeError> {
+    pub fn u8(&mut self) -> Result<u8, DecodeError> {
         Ok(self.array::<1>()?[0])
     }
-    pub(crate) fn array<const N: usize>(&mut self) -> Result<[u8; N], DecodeError> {
+    pub fn array<const N: usize>(&mut self) -> Result<[u8; N], DecodeError> {
         let mut a = [0u8; N];
         a.copy_from_slice(self.take(N)?);
         Ok(a)
     }
-    pub(crate) fn u16(&mut self) -> Result<u16, DecodeError> {
+    pub fn u16(&mut self) -> Result<u16, DecodeError> {
         Ok(u16::from_le_bytes(self.array()?))
     }
-    pub(crate) fn u32(&mut self) -> Result<u32, DecodeError> {
+    pub fn u32(&mut self) -> Result<u32, DecodeError> {
         Ok(u32::from_le_bytes(self.array()?))
     }
-    pub(crate) fn u64(&mut self) -> Result<u64, DecodeError> {
+    pub fn u64(&mut self) -> Result<u64, DecodeError> {
         Ok(u64::from_le_bytes(self.array()?))
     }
-    pub(crate) fn f32(&mut self) -> Result<f32, DecodeError> {
+    pub fn f32(&mut self) -> Result<f32, DecodeError> {
         Ok(f32::from_le_bytes(self.array()?))
     }
     /// A length-prefixed UTF-8 string of at most `max` bytes.
@@ -758,7 +764,7 @@ impl<'a> R<'a> {
         }
         String::from_utf8(self.take(n)?.to_vec()).map_err(|_| DecodeError::OutOfRange)
     }
-    pub(crate) fn finish(&self) -> Result<(), DecodeError> {
+    pub fn finish(&self) -> Result<(), DecodeError> {
         if self.i == self.b.len() {
             Ok(())
         } else {

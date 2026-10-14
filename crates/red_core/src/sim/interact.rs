@@ -178,7 +178,7 @@ impl Combat {
 }
 
 /// Eye position and look direction of a player.
-pub(super) fn eye_and_look(state: &PlayerState, crouching: bool) -> (Vec3, Vec3) {
+pub fn eye_and_look(state: &PlayerState, crouching: bool) -> (Vec3, Vec3) {
     let body = state.character.body();
     let eye = Vec3::new(state.pos.x, state.foot_y + if crouching { body.crouch_eye } else { body.stand_eye }, state.pos.y);
     let (sy, cy) = libm::sincosf(state.yaw);

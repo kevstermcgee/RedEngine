@@ -12,6 +12,7 @@ use super::game::{BotCtx, BotGoal, BotMind};
 use super::match_sim::MatchSim;
 use super::objective::{BombState, FlagState, DEFUSE_RADIUS};
 use super::player::PlayerInput;
+use super::shooter::ShooterSim;
 use crate::weapons::Weapon;
 use glam::Vec3;
 
@@ -280,5 +281,43 @@ fn weapon_value(w: Weapon) -> f32 {
         Class::Launcher => 6.5,
         Class::Pistol => 3.0 + k.damage as f32 * 0.02,
         _ => 0.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sim::shooter::{ShooterGame, BLOCK, GAME};
+
+    fn goal(sim: &MatchSim, slot: usize) -> Option<Vec3> {
+        sim.brain(slot).and_then(|b| b.mind::<ShooterBot>()).and_then(|m| m.pickup_goal)
+    }
+
+    #[test]
+    fn teammates_choose_different_pickups_and_abandon_taken_goals_immediately() {
+        crate::schema::define_blocks(&[BLOCK]);
+        crate::sim::game::define_games(&[GAME]);
+        let scene = crate::schema::parse_scene(
+            r#"{
+            "camera":{"position":[0,1.7,0],"target":[0,1.7,-5]},
+            "shooter":{"start":["pistol","knife"],"pickups":[
+                {"weapon":"rifle","at":[-10,0.3,0]}, {"weapon":"rifle","at":[10,0.3,0]}]},
+            "objects":[{"id":"floor","type":"plane","size":[100,100]}]
+        }"#,
+        )
+        .unwrap();
+        let spawn = crate::sim::spawns::Spawn { id: "s".into(), position: [0.0; 3], yaw_deg: 0.0, group: String::new() };
+        let mut sim = MatchSim::new(&scene, vec![spawn]);
+        let cfg = crate::sim::ai::BotsConfig::default();
+        assert!(sim.add_bot_in_slot_team(0, &cfg.spec(0), 1));
+        assert!(sim.add_bot_in_slot_team(1, &cfg.spec(1), 1));
+        // With nobody to fight, each bot heads for a pickup in its first thought: the first one's claim sends its teammate to the other.
+        sim.tick_once();
+        let (first, other) = (goal(&sim, 0).unwrap(), goal(&sim, 1).unwrap());
+        assert!((first - other).length() > 10.0, "same-value pickups should split the team");
+        sim.game_mut::<ShooterGame>().unwrap().arena.pickups.iter_mut().find(|m| m.spawn.at == other).unwrap().taken_until = Some(500);
+        sim.tick_once();
+        let next = goal(&sim, 1).unwrap();
+        assert_ne!(other, next, "a consumed pickup is abandoned before the two-second decision expires");
     }
 }

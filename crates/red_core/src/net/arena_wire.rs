@@ -257,7 +257,7 @@ impl ArenaSnap {
         if g.kind != KIND {
             return Ok(None);
         }
-        let mut r = R { b: &g.bytes, i: 0 };
+        let mut r = R::new(&g.bytes);
         let a = get_arena(&mut r)?;
         r.finish()?;
         Ok(Some(a))
@@ -575,6 +575,6 @@ mod tests {
         // An unknown kind is refused, not trusted.
         let mut bad = Vec::new();
         W(&mut bad).u8(3);
-        assert!(get_obj(&mut R { b: &bad, i: 0 }).is_err());
+        assert!(get_obj(&mut R::new(&bad)).is_err());
     }
 }

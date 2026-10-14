@@ -320,14 +320,37 @@ impl MatchSim {
         self.game.as_ref().and_then(|g| g.team_score()).unwrap_or([0; 2])
     }
 
-    /// The loadout-match state (pickups, projectiles, smoke, fire, kills), if this is a loadout match.
-    pub fn arena(&self) -> Option<&crate::sim::shooter::ArenaState> {
-        self.game::<crate::sim::shooter::ShooterGame>().map(|g| &g.arena)
+    /// Whether players may be assigned to team 1 or 2: always when the match game's mode has teams (a loadout match), or when the scene's
+    /// own `"teams": true` asked for team assignment without one (a hide-and-seek, capture-the-flag or other asymmetric-role game that still
+    /// wants `who: team1`/`who: team2` in its rules).
+    pub fn teams_enabled(&self) -> bool {
+        self.game.as_ref().is_some_and(|g| g.teams()) || self.teams_requested
     }
 
-    /// Player `slot`'s loadout kit, in a loadout match.
-    pub fn kit(&self, slot: usize) -> Option<&crate::sim::kit::Kit> {
-        self.game::<crate::sim::shooter::ShooterGame>().and_then(|g| g.kits.get(slot)).and_then(Option::as_ref)
+    /// Most people on one team (`1` = a duel): the match game's to say; otherwise the whole roster.
+    pub fn team_size(&self) -> usize {
+        self.game.as_ref().and_then(|g| g.team_size()).unwrap_or(MAX_TEAM)
+    }
+
+    /// The score that wins, when the match game's mode sets it (capture the flag, search and destroy); `None` in the kill modes, where the
+    /// scene's `score_to_win` rules.
+    pub fn score_limit(&self) -> Option<u32> {
+        self.game.as_ref().and_then(|g| g.score_limit())
+    }
+
+    /// Most players (people and bots) the match holds: two teams of [`team_size`](Self::team_size) when the game sets one.
+    pub fn max_players(&self) -> usize {
+        self.game.as_ref().and_then(|g| g.team_size()).map_or(MAX_PLAYERS, |t| (t * 2).min(MAX_PLAYERS))
+    }
+
+    /// Whether players are held in place (the freeze before a search and destroy round): the match game's to say.
+    pub fn input_locked(&self) -> bool {
+        self.game.as_ref().is_some_and(|g| g.input_locked())
+    }
+
+    /// Whether the dead stay dead for now (search and destroy: one life per round): the match game's to say.
+    pub(super) fn respawn_blocked(&self) -> bool {
+        self.game.as_ref().is_some_and(|g| g.respawn_blocked())
     }
 
     /// Adds a player to `team` in a chosen `slot` at that team's spawn (see [`add_player_in_slot`](Self::add_player_in_slot)).
@@ -462,6 +485,11 @@ impl MatchSim {
     /// One player, if `slot` is in use.
     pub fn player(&self, slot: usize) -> Option<&ServerPlayer> {
         self.players.get(slot)?.as_ref()
+    }
+
+    /// One player to change (a match game's rules acting on them), if `slot` is in use.
+    pub fn player_mut(&mut self, slot: usize) -> Option<&mut ServerPlayer> {
+        self.players.get_mut(slot)?.as_mut()
     }
 
     /// Every connected player as `(slot, player)`.
@@ -721,7 +749,7 @@ impl MatchSim {
     /// Shoves prop `prop` along `dir` at `point` with impulse `magnitude` (N·s) **without recording it**: the push is an
     /// output of this tick (a strike resolved from an input, a rule action), which a replay reproduces by re-running the
     /// same inputs and rules. Recording it as well would double it; see [`apply_impulse`](Self::apply_impulse).
-    pub(crate) fn shove(&mut self, prop: usize, dir: Vec3, point: Vec3, magnitude: f32) {
+    pub fn shove(&mut self, prop: usize, dir: Vec3, point: Vec3, magnitude: f32) {
         self.props.strike_impulse(prop, dir, point, magnitude);
     }
 
@@ -735,6 +763,21 @@ impl MatchSim {
 
     pub fn rules(&self) -> &RulesEngine {
         &self.rules
+    }
+
+    /// Tells the scene's rules that `event` happened this tick (`shot`, `swing`, `explosion`, ...), by player `slot` if one did it.
+    pub fn rule_event(&mut self, event: &str, slot: Option<usize>) {
+        self.rules.inject(self.tick, event, slot);
+    }
+
+    /// [`rule_event`](Self::rule_event) about a prop as well (`prop_hit`).
+    pub fn rule_event_with(&mut self, event: &str, slot: Option<usize>, prop: Option<usize>) {
+        self.rules.inject_with(self.tick, event, slot, prop);
+    }
+
+    /// The level's static hit shapes (what a shot, a blast or a line of sight stops at; loose props are not among them).
+    pub fn hit_shapes(&self) -> &[HitShape] {
+        &self.hit_shapes
     }
 
     /// The physics prop of top-level object `id`, if it is a loose prop.

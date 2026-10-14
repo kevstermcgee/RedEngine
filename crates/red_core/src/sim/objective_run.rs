@@ -13,18 +13,6 @@ use super::shooter::{ModeKind, ShooterGame};
 use crate::weapons::Weapon;
 use glam::Vec3;
 
-impl MatchSim {
-    /// Whether players are held in place (the freeze before a search and destroy round): the match game's to say.
-    pub fn input_locked(&self) -> bool {
-        self.game.as_ref().is_some_and(|g| g.input_locked())
-    }
-
-    /// Whether the dead stay dead for now (search and destroy: one life per round): the match game's to say.
-    pub(super) fn respawn_blocked(&self) -> bool {
-        self.game.as_ref().is_some_and(|g| g.respawn_blocked())
-    }
-}
-
 impl ShooterGame {
     /// Everybody on a team, as the objective modes see them.
     fn objective_actors(&self, sim: &MatchSim) -> Vec<Actor> {
@@ -47,7 +35,7 @@ impl ShooterGame {
             return;
         }
         let actors = self.objective_actors(sim);
-        let tick = sim.tick;
+        let tick = sim.tick();
         let mut events = Vec::new();
         let mut cmds = Vec::new();
         {
@@ -106,7 +94,7 @@ impl ShooterGame {
             // Credited to nobody: a bomb is not a kill for anyone's score.
             sim.damage_in(slot, dmg.max(1), slot, Weapon::Frag, false, self.me());
         }
-        let now = sim.tick;
+        let now = sim.tick();
         {
             let arena = &mut self.arena;
             let id = arena.next_id();
